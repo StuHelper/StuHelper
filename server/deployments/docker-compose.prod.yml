@@ -1,0 +1,61 @@
+# Docker Compose 生产环境配置
+# 使用方法: docker-compose -f docker-compose.yml -f docker-compose.hydra.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  postgres:
+    # 生产环境：不暴露端口到主机，仅容器内部访问
+    ports: []
+    # 生产环境：使用命名卷，确保数据持久化
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    # 生产环境：添加资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    # 生产环境：自动重启
+    restart: always
+    # 生产环境：健康检查
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stuhelper}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    # 生产环境：不暴露端口到主机
+    ports: []
+    # 生产环境：使用命名卷
+    volumes:
+      - redis_prod_data:/data
+    # 生产环境：启用 AOF 持久化和优化配置
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    # 生产环境：资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # 生产环境：自动重启
+    restart: always
+
+volumes:
+  postgres_prod_data:
+    name: stuhelper_postgres_prod
+  redis_prod_data:
+    name: stuhelper_redis_prod

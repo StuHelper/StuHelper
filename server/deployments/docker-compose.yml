@@ -5,9 +5,9 @@ services:
     image: postgres:15-alpine
     container_name: stuhelper-postgres
     environment:
-      POSTGRES_USER: stuhelper
-      POSTGRES_PASSWORD: stuhelper_dev
-      POSTGRES_DB: stuhelper
+      POSTGRES_USER: ${POSTGRES_USER:-stuhelper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-stuhelper}
     ports:
       - "5432:5432"
     volumes:
