@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  hydra-migrate:
+    image: oryd/hydra:v2.2.0
+    container_name: stuhelper-hydra-migrate
+    environment:
+      DSN: postgres://stuhelper:stuhelper_dev@postgres:5432/hydra?sslmode=disable
+    command: migrate sql -e --yes
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+
+  hydra:
+    image: oryd/hydra:v2.2.0
+    container_name: stuhelper-hydra
+    ports:
+      - "4444:4444"  # Public API
+      - "4445:4445"  # Admin API
+    environment:
+      DSN: postgres://stuhelper:stuhelper_dev@postgres:5432/hydra?sslmode=disable
+      SECRETS_SYSTEM: youReallyNeedToChangeThis
+      URLS_SELF_ISSUER: http://localhost:4444
+      URLS_CONSENT: http://localhost:8080/consent
+      URLS_LOGIN: http://localhost:8080/login
+      URLS_LOGOUT: http://localhost:8080/logout
+      SERVE_PUBLIC_CORS_ENABLED: "true"
+      LOG_LEVEL: debug
+    command: serve all --dev
+    depends_on:
+      - hydra-migrate
+    networks:
+      - default
+    restart: unless-stopped
+
+networks:
+  default:
+    name: stuhelper
+    external: true
