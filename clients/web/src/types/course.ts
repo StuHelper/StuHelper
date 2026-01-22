@@ -1,5 +1,15 @@
-// 评分等级类型
-export type RatingLevel = -2 | -1 | 0 | 1 | 2
+// 评分值 (1-5 五级制)
+export type RatingValue = 1 | 2 | 3 | 4 | 5
+
+// 评分维度配置
+export interface RatingDimension {
+  id: number
+  key: string
+  name: string
+  description?: string
+  sortOrder: number
+  isActive: boolean
+}
 
 // 院系
 export interface Department {
@@ -16,10 +26,46 @@ export interface Course {
   code?: string
   credits: number
   departmentId: number
+  departmentName?: string
   reviewCount: number
-  avgRecommend: number
-  avgContent: number
-  avgWorkload: number
-  avgExam: number
-  department?: Department
+  teacherName?: string
+}
+
+// 维度评分统计
+export interface DimensionStats {
+  key: string
+  name: string
+  avgRating: number
+  ratingCount: number
+  distribution: Record<number, number>
+}
+
+// 学期评分统计
+export interface TermRatingStats {
+  termId?: string
+  termName: string
+  dimensions: DimensionStats[]
+}
+
+// 雷达图数据集
+export interface RadarChartDataset {
+  label: string
+  data: number[]
+  backgroundColor: string
+  borderColor: string
+}
+
+// 雷达图数据
+export interface RadarChartData {
+  labels: string[]
+  datasets: RadarChartDataset[]
+}
+
+// 课程评分统计响应
+export interface CourseRatingStatsResponse {
+  courseId: number
+  overall: TermRatingStats
+  byTerm: TermRatingStats[]
+  allDimensionKeys: string[]
+  radarChart: RadarChartData
 }

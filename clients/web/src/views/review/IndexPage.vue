@@ -29,10 +29,10 @@
       </el-row>
 
       <div class="quick-links">
-        <el-button type="primary" size="large" @click="router.push('/courses')">
+        <el-button type="primary" size="large" @click="router.push('/review/courses')">
           浏览全部课程
         </el-button>
-        <el-button size="large" @click="router.push('/reviews/latest')">
+        <el-button size="large" @click="router.push('/review/latest')">
           查看最新测评
         </el-button>
       </div>
@@ -61,6 +61,7 @@ import { useRouter } from 'vue-router'
 import SearchBar from '@/components/review/SearchBar.vue'
 import ReviewCard from '@/components/review/ReviewCard.vue'
 import { getLatestReviews } from '@/api/review'
+import { getStats } from '@/api/course'
 import type { Course } from '@/types/course'
 import type { Review } from '@/types/review'
 
@@ -75,15 +76,22 @@ const stats = ref({
 const randomReviews = ref<Review[]>([])
 
 const handleCourseSelect = (course: Course) => {
-  router.push(`/courses/${course.id}`)
+  router.push(`/review/courses/${course.id}`)
 }
 
 onMounted(async () => {
+  document.title = '课程测评社区 - StuHelper'
   try {
-    const res = await getLatestReviews(1, 3)
-    randomReviews.value = (res as any).data?.list || []
+    const [reviewsRes, statsRes] = await Promise.all([
+      getLatestReviews(1, 3),
+      getStats()
+    ])
+    randomReviews.value = reviewsRes.data?.list || []
+    if (statsRes.data) {
+      stats.value = statsRes.data
+    }
   } catch (e) {
-    console.error('Failed to load reviews:', e)
+    console.error('Failed to load data:', e)
   }
 })
 </script>

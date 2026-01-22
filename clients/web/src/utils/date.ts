@@ -1,6 +1,9 @@
 // 日期格式化
 export const formatDate = (date: string | Date, format = 'YYYY-MM-DD'): string => {
   const d = new Date(date)
+  if (isNaN(d.getTime())) {
+    return '-'
+  }
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
@@ -17,8 +20,12 @@ export const formatDate = (date: string | Date, format = 'YYYY-MM-DD'): string =
 
 // 相对时间
 export const timeAgo = (date: string | Date): string => {
+  const d = new Date(date)
+  if (isNaN(d.getTime())) {
+    return '-'
+  }
   const now = Date.now()
-  const past = new Date(date).getTime()
+  const past = d.getTime()
   const diff = now - past
 
   const minute = 60 * 1000

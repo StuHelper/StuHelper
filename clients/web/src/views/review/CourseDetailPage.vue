@@ -13,40 +13,7 @@
       </div>
 
       <div class="rating-summary">
-        <div class="overall">
-          <span class="score">{{ (course.avgRating || 0).toFixed(1) }}</span>
-          <span class="label">综合评分</span>
-        </div>
-        <div class="dimensions">
-          <div class="dim-item">
-            <span class="dim-label">推荐</span>
-            <el-progress
-              :percentage="getRatingPercent(course.avgRecommend)"
-              :stroke-width="8"
-            />
-          </div>
-          <div class="dim-item">
-            <span class="dim-label">内容</span>
-            <el-progress
-              :percentage="getRatingPercent(course.avgContent)"
-              :stroke-width="8"
-            />
-          </div>
-          <div class="dim-item">
-            <span class="dim-label">工作量</span>
-            <el-progress
-              :percentage="getRatingPercent(course.avgWorkload)"
-              :stroke-width="8"
-            />
-          </div>
-          <div class="dim-item">
-            <span class="dim-label">考核</span>
-            <el-progress
-              :percentage="getRatingPercent(course.avgExam)"
-              :stroke-width="8"
-            />
-          </div>
-        </div>
+        <CourseRatingChart :course-id="courseId" />
       </div>
     </div>
 
@@ -83,17 +50,24 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { User } from '@element-plus/icons-vue'
 import ReviewCard from '@/components/review/ReviewCard.vue'
 import PostReviewDialog from '@/components/review/PostReviewDialog.vue'
-import { getCourseDetail } from '@/api/course'
+import CourseRatingChart from '@/components/review/CourseRatingChart.vue'
+import { getCourse } from '@/api/course'
 import { getCourseReviews } from '@/api/review'
 import type { Course } from '@/types/course'
 import type { Review } from '@/types/review'
 
 const route = useRoute()
+const router = useRouter()
 const courseId = Number(route.params.id)
+
+// 验证 courseId 是否有效，无效则重定向
+if (isNaN(courseId) || courseId <= 0) {
+  router.replace({ name: 'CourseList' })
+}
 
 const loading = ref(false)
 const course = ref<Course | null>(null)
@@ -103,20 +77,15 @@ const pageSize = 10
 const total = ref(0)
 const showPostDialog = ref(false)
 
-const getRatingPercent = (val?: number) => {
-  if (val === undefined) return 50
-  return ((val + 2) / 4) * 100
-}
-
 const fetchCourse = async () => {
-  const res = await getCourseDetail(courseId)
-  course.value = (res as any).data
+  const res = await getCourse(courseId)
+  course.value = res.data
 }
 
 const fetchReviews = async () => {
   const res = await getCourseReviews(courseId, page.value, pageSize)
-  reviews.value = (res as any).data?.list || []
-  total.value = (res as any).data?.total || 0
+  reviews.value = res.data?.list || []
+  total.value = res.data?.total || 0
 }
 
 const handlePageChange = (p: number) => {
@@ -174,46 +143,9 @@ onMounted(async () => {
 }
 
 .rating-summary {
-  display: flex;
-  gap: 32px;
   margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid #ebeef5;
-}
-
-.overall {
-  text-align: center;
-}
-
-.score {
-  font-size: 48px;
-  font-weight: 600;
-  color: #409eff;
-}
-
-.label {
-  display: block;
-  font-size: 14px;
-  color: #909399;
-}
-
-.dimensions {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.dim-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.dim-label {
-  width: 50px;
-  font-size: 14px;
-  color: #606266;
 }
 
 .reviews-section {

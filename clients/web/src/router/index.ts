@@ -1,8 +1,22 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { userManager } from '@/utils/auth'
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    // 认证路由
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/LoginPage.vue'),
+      meta: { guest: true }
+    },
+    {
+      path: '/auth/callback',
+      name: 'auth-callback',
+      component: () => import('@/views/AuthCallbackPage.vue'),
+      meta: { guest: true }
+    },
     {
       path: '/',
       name: 'home',
@@ -47,6 +61,25 @@ const router = createRouter({
       component: () => import('@/views/ComingSoon.vue')
     }
   ]
+})
+
+// 路由守卫
+router.beforeEach((to, from, next) => {
+  const isAuthenticated = userManager.isAuthenticated()
+
+  // 需要登录的页面
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    next({ name: 'login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  // 已登录用户访问登录页面，重定向到首页
+  if (to.meta.guest && isAuthenticated) {
+    next({ name: 'home' })
+    return
+  }
+
+  next()
 })
 
 export default router

@@ -122,9 +122,10 @@ const handleSubmit = async () => {
       ratingExam: form.value.ratings.exam
     })
     ElMessage.success('发布成功')
-    router.push(`/courses/${form.value.courseId}`)
-  } catch (e: any) {
-    ElMessage.error(e.message || '发布失败')
+    router.push(`/review/courses/${form.value.courseId}`)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : '发布失败'
+    ElMessage.error(message)
   } finally {
     submitting.value = false
   }

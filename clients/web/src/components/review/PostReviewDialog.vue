@@ -21,7 +21,7 @@
       </el-form-item>
 
       <el-form-item label="评分" prop="ratings" required>
-        <RatingGroup v-model="form.ratings" />
+        <RatingGroup ref="ratingGroupRef" v-model="form.ratings" />
       </el-form-item>
 
       <el-form-item label="测评内容" prop="content">
@@ -51,7 +51,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import RatingGroup from './RatingGroup.vue'
 import { postReview } from '@/api/review'
-import type { RatingLevel } from '@/types/course'
+import type { ReviewRatings } from '@/types/review'
 
 const props = defineProps<{
   modelValue: boolean
@@ -69,31 +69,39 @@ const visible = computed({
 })
 
 const formRef = ref<FormInstance>()
+const ratingGroupRef = ref<InstanceType<typeof RatingGroup>>()
 const submitting = ref(false)
-
-const defaultRatings = () => ({
-  recommend: 0 as RatingLevel,
-  content: 0 as RatingLevel,
-  workload: 0 as RatingLevel,
-  exam: 0 as RatingLevel
-})
 
 const form = ref({
   title: '',
   content: '',
-  ratings: defaultRatings()
+  ratings: {} as ReviewRatings
 })
+
+// 评分验证器 - 检查所有维度是否都已评分
+const validateRatings = (_rule: unknown, value: ReviewRatings, callback: (error?: Error) => void) => {
+  const dimensions = ratingGroupRef.value?.dimensions || []
+  const missingRatings = dimensions.filter(d => !value[d.key])
+  if (missingRatings.length > 0) {
+    callback(new Error('请完成所有评分项'))
+  } else {
+    callback()
+  }
+}
 
 const rules: FormRules = {
   content: [
     { required: true, message: '请输入测评内容', trigger: 'blur' },
     { min: 10, message: '测评内容至少10个字符', trigger: 'blur' }
+  ],
+  ratings: [
+    { validator: validateRatings, trigger: 'change' }
   ]
 }
 
 watch(visible, (val) => {
   if (!val) {
-    form.value = { title: '', content: '', ratings: defaultRatings() }
+    form.value = { title: '', content: '', ratings: {} }
   }
 })
 
@@ -107,15 +115,14 @@ const handleSubmit = async () => {
       courseId: props.courseId,
       title: form.value.title,
       content: form.value.content,
-      ratingRecommend: form.value.ratings.recommend,
-      ratingContent: form.value.ratings.content,
-      ratingWorkload: form.value.ratings.workload,
-      ratingExam: form.value.ratings.exam
+      ratings: form.value.ratings
     })
     ElMessage.success('发布成功')
+    visible.value = false
     emit('success')
-  } catch (e: any) {
-    ElMessage.error(e.message || '发布失败')
+  } catch (e) {
+    const message = e instanceof Error ? e.message : '发布失败'
+    ElMessage.error(message)
   } finally {
     submitting.value = false
   }

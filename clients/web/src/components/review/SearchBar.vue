@@ -48,7 +48,7 @@ const handleSearch = async (
   }
   try {
     const res = await searchCourses(query)
-    const courses = (res as any).data || []
+    const courses = res.data || []
     cb(courses.map((c: Course) => ({ ...c, value: c.name })))
   } catch {
     cb([])

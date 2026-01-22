@@ -5,6 +5,12 @@
 ## 实体关系图
 
 ```
+┌───────────────────┐
+│ RatingDimension   │
+│ (评分维度配置)     │
+└─────────┬─────────┘
+          │ 配置
+          ▼
 ┌─────────────┐       ┌─────────────┐       ┌─────────────┐
 │  Department │       │   Course    │       │   Teacher   │
 │  (院系)     │◄──────│   (课程)    │───────►│   (教师)    │
@@ -12,22 +18,54 @@
                              │
                              │ 1:N
                              ▼
-                      ┌─────────────┐
-                      │   Review    │
-                      │   (测评)    │
-                      └──────┬──────┘
+┌─────────────┐       ┌─────────────┐       ┌─────────────┐
+│    Term     │◄──────│   Review    │───────►│    Vote     │
+│  (学期)     │       │ (测评/JSON) │       │  (点赞/踩)  │
+└─────────────┘       └──────┬──────┘       └─────────────┘
                              │
-                             │ 1:N
+                             │ 统计聚合
                              ▼
                       ┌─────────────┐
-                      │    Vote     │
-                      │  (点赞/踩)  │
+                      │ RatingStats │
+                      │ (评分统计)   │
                       └─────────────┘
 ```
 
 ## 核心表结构
 
-### 1. departments (院系表)
+### 1. rating_dimensions (评分维度配置表)
+
+存储可配置的评分维度，支持动态增删改。
+
+```sql
+CREATE TABLE rating_dimensions (
+    id          SERIAL PRIMARY KEY,
+    school_id   INTEGER NOT NULL DEFAULT 1,
+    key         VARCHAR(50) NOT NULL,           -- 维度标识符
+    name        VARCHAR(100) NOT NULL,          -- 显示名称
+    description VARCHAR(500),                   -- 维度说明
+    sort_order  INTEGER DEFAULT 0,              -- 排序权重
+    is_active   BOOLEAN DEFAULT TRUE,           -- 是否启用
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(school_id, key)
+);
+
+CREATE INDEX idx_rating_dimensions_school ON rating_dimensions(school_id);
+CREATE INDEX idx_rating_dimensions_active ON rating_dimensions(is_active);
+```
+
+**默认维度**：
+
+| key | name | description |
+|-----|------|-------------|
+| `overall` | 总体评价 | 对课程的整体评价 |
+| `content` | 内容质量 | 课程内容的深度和实用性 |
+| `workload` | 工作量 | 作业、项目等课业负担 |
+| `grading` | 考核/给分 | 考核方式和给分情况 |
+| `attendance` | 考勤 | 点名、签到等考勤要求 |
+
+### 2. departments (院系表)
 
 存储学校的院系信息。
 
@@ -108,9 +146,9 @@ CREATE TABLE terms (
 );
 ```
 
-### 5. reviews (测评表)
+### 6. reviews (测评表)
 
-核心表，存储用户发布的课程测评。
+核心表，存储用户发布的课程测评。评分使用 JSON 存储，支持动态维度。
 
 ```sql
 CREATE TABLE reviews (
@@ -118,13 +156,11 @@ CREATE TABLE reviews (
     course_id       INTEGER NOT NULL REFERENCES courses(id),
     teacher_id      INTEGER REFERENCES teachers(id),
     term_id         VARCHAR(20) REFERENCES terms(id),
+    user_hash       VARCHAR(64) NOT NULL,     -- 用户标识哈希（匿名）
     title           VARCHAR(200),
     content         TEXT NOT NULL,
     grade           VARCHAR(20),              -- 成绩
-    rating_recommend SMALLINT CHECK (rating_recommend BETWEEN -2 AND 2),
-    rating_content   SMALLINT CHECK (rating_content BETWEEN -2 AND 2),
-    rating_workload  SMALLINT CHECK (rating_workload BETWEEN -2 AND 2),
-    rating_exam      SMALLINT CHECK (rating_exam BETWEEN -2 AND 2),
+    ratings         JSONB NOT NULL,           -- 动态评分 {"overall":5,"content":4,...}
     like_count      INTEGER DEFAULT 0,
     dislike_count   INTEGER DEFAULT 0,
     status          VARCHAR(20) DEFAULT 'published',
@@ -132,20 +168,34 @@ CREATE TABLE reviews (
 );
 
 CREATE INDEX idx_reviews_course ON reviews(course_id);
+CREATE INDEX idx_reviews_term ON reviews(term_id);
 CREATE INDEX idx_reviews_created ON reviews(created_at DESC);
+CREATE INDEX idx_reviews_ratings ON reviews USING gin(ratings);
 ```
 
-**四维评分说明**：
+**ratings 字段示例**：
 
-| 值 | 含义 | 图标 |
+```json
+{
+  "overall": 4,
+  "content": 5,
+  "workload": 3,
+  "grading": 4,
+  "attendance": 2
+}
+```
+
+**评分等级说明**（五级制 1-5）：
+
+| 值 | 含义 | 显示 |
 |----|------|------|
-| 2 | 非常好 | 😍 |
-| 1 | 好 | 🙂 |
-| 0 | 一般 | 😐 |
-| -1 | 不好 | 🙁 |
-| -2 | 很差 | 😭 |
+| 5 | 非常好 | ★★★★★ |
+| 4 | 好 | ★★★★☆ |
+| 3 | 一般 | ★★★☆☆ |
+| 2 | 不好 | ★★☆☆☆ |
+| 1 | 很差 | ★☆☆☆☆ |
 
-### 6. review_votes (点赞表)
+### 7. review_votes (点赞表)
 
 ```sql
 CREATE TABLE review_votes (
@@ -158,11 +208,47 @@ CREATE TABLE review_votes (
 );
 ```
 
+### 8. course_rating_stats (课程评分统计表)
+
+预计算的评分统计，支持按学期和维度查询，用于雷达图展示。
+
+```sql
+CREATE TABLE course_rating_stats (
+    id              SERIAL PRIMARY KEY,
+    course_id       INTEGER NOT NULL REFERENCES courses(id),
+    term_id         VARCHAR(20) REFERENCES terms(id),  -- NULL 表示总体统计
+    dimension_key   VARCHAR(50) NOT NULL,              -- 维度标识
+    avg_rating      DECIMAL(3,2),                      -- 平均分
+    rating_count    INTEGER DEFAULT 0,                 -- 评分数量
+    rating_dist     JSONB DEFAULT '{}',                -- 分布 {"1":5,"2":10,...}
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(course_id, term_id, dimension_key)
+);
+
+CREATE INDEX idx_course_rating_stats_course ON course_rating_stats(course_id);
+CREATE INDEX idx_course_rating_stats_term ON course_rating_stats(term_id);
+```
+
+> **雷达图数据说明**：雷达图展示该课程所有历史出现过的维度。即使维度配置发生变化，历史评分数据仍然保留并展示。
+
 ## TypeScript 类型定义
 
 ```typescript
-// 评分等级
-type RatingLevel = -2 | -1 | 0 | 1 | 2;
+// 评分值 (1-5 五级制)
+type RatingValue = 1 | 2 | 3 | 4 | 5;
+
+// 评分维度配置
+interface RatingDimension {
+  id: number;
+  key: string;
+  name: string;
+  description?: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+// 动态评分 (key -> value)
+type ReviewRatings = Record<string, RatingValue>;
 
 // 课程信息
 interface Course {
@@ -179,20 +265,40 @@ interface Course {
 interface Review {
   id: string;
   courseId: number;
-  courseName: string;
-  teacherName: string;
-  termId: string;
+  courseName?: string;
+  teacherName?: string;
+  termId?: string;
+  termName?: string;
   title: string;
   content: string;
   grade?: string;
-  ratings: {
-    recommend: RatingLevel;
-    content: RatingLevel;
-    workload: RatingLevel;
-    exam: RatingLevel;
-  };
+  ratings: ReviewRatings;  // 动态评分 JSON
   likeCount: number;
   dislikeCount: number;
   createdAt: string;
+}
+
+// 维度评分统计
+interface DimensionStats {
+  key: string;
+  name: string;
+  avgRating: number;
+  ratingCount: number;
+  distribution: Record<RatingValue, number>;
+}
+
+// 课程评分统计（用于雷达图）
+interface CourseRatingStats {
+  courseId: number;
+  overall: {
+    dimensions: DimensionStats[];
+  };
+  byTerm: {
+    termId: string;
+    termName: string;
+    dimensions: DimensionStats[];
+  }[];
+  // 所有历史出现过的维度（合并）
+  allDimensionKeys: string[];
 }
 ```

@@ -37,8 +37,8 @@ const fetchReviews = async () => {
   loading.value = true
   try {
     const res = await getLatestReviews(page.value, pageSize)
-    reviews.value = (res as any).data?.list || []
-    total.value = (res as any).data?.total || 0
+    reviews.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } finally {
     loading.value = false
   }

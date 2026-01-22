@@ -1,9 +1,9 @@
 import api from './index'
-import type { Review } from '@/types/review'
+import type { Review, PostReviewParams } from '@/types/review'
 
 // 获取课程测评
 export const getCourseReviews = (courseId: number, page = 1, pageSize = 10) => {
-  return api.get(`/courses/${courseId}/reviews`, {
+  return api.get<{ list: Review[]; total: number }>(`/courses/${courseId}/reviews`, {
     params: { page, page_size: pageSize }
   })
 }
@@ -16,25 +16,15 @@ export const getLatestReviews = (page = 1, pageSize = 10) => {
 }
 
 // 发布测评
-export interface PostReviewParams {
-  courseId: number
-  title?: string
-  content: string
-  ratingRecommend: number
-  ratingContent: number
-  ratingWorkload: number
-  ratingExam: number
-}
-
 export const postReview = (data: PostReviewParams) => {
   return api.post('/reviews', {
     course_id: data.courseId,
+    teacher_id: data.teacherId,
+    term_id: data.termId,
     title: data.title,
     content: data.content,
-    rating_recommend: data.ratingRecommend,
-    rating_content: data.ratingContent,
-    rating_workload: data.ratingWorkload,
-    rating_exam: data.ratingExam
+    grade: data.grade,
+    ratings: data.ratings
   })
 }
 

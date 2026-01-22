@@ -60,7 +60,7 @@ const handleDeptSelect = async (dept: Department) => {
 }
 
 const handleCourseSelect = (course: Course) => {
-  router.push(`/courses/${course.id}`)
+  router.push(`/review/courses/${course.id}`)
 }
 
 onMounted(() => {

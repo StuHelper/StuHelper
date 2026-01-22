@@ -44,6 +44,7 @@
 | [04_routes.md](./04_routes.md) | 页面路由设计 |
 | [05_ui_spec.md](./05_ui_spec.md) | UI 设计规范 |
 | [06_security.md](./06_security.md) | 安全与风控设计 |
+| [07_rating_dimensions.md](./07_rating_dimensions.md) | 评分维度系统设计 |
 
 ## 技术栈
 

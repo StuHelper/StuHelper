@@ -4,29 +4,52 @@ import type { Department, Course } from '@/types/course'
 import { getDepartments, getCourses } from '@/api/course'
 
 export const useCourseStore = defineStore('course', () => {
+  // 院系数据状态
   const departments = ref<Department[]>([])
+  const departmentsLoading = ref(false)
+  const departmentsError = ref<string | null>(null)
+
+  // 课程数据状态
   const courses = ref<Course[]>([])
-  const loading = ref(false)
+  const coursesLoading = ref(false)
+  const coursesError = ref<string | null>(null)
 
   const fetchDepartments = async (category?: string) => {
-    loading.value = true
+    departmentsLoading.value = true
+    departmentsError.value = null
     try {
       const res = await getDepartments(category)
-      departments.value = (res as any).data || []
+      departments.value = res.data || []
+    } catch (e) {
+      departmentsError.value = e instanceof Error ? e.message : '获取院系列表失败'
+      departments.value = []
     } finally {
-      loading.value = false
+      departmentsLoading.value = false
     }
   }
 
   const fetchCourses = async (deptId: number) => {
-    loading.value = true
+    coursesLoading.value = true
+    coursesError.value = null
     try {
       const res = await getCourses(deptId)
-      courses.value = (res as any).data || []
+      courses.value = res.data || []
+    } catch (e) {
+      coursesError.value = e instanceof Error ? e.message : '获取课程列表失败'
+      courses.value = []
     } finally {
-      loading.value = false
+      coursesLoading.value = false
     }
   }
 
-  return { departments, courses, loading, fetchDepartments, fetchCourses }
+  return {
+    departments,
+    departmentsLoading,
+    departmentsError,
+    courses,
+    coursesLoading,
+    coursesError,
+    fetchDepartments,
+    fetchCourses
+  }
 })

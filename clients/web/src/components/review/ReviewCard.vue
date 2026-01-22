@@ -12,7 +12,8 @@
         {{ review.teacherName }} 老师
       </span>
       <span class="actions">
-        <el-button size="small" :icon="'el-icon-thumb'">
+        <el-button size="small" :loading="voting" @click="handleLike">
+          <el-icon><Pointer /></el-icon>
           {{ review.likeCount }}
         </el-button>
       </span>
@@ -21,12 +22,29 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
+import { Pointer } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import type { Review } from '@/types/review'
+import { formatDate } from '@/utils/date'
+import { voteReview } from '@/api/review'
 
-defineProps<{ review: Review }>()
+const props = defineProps<{ review: Review }>()
+const emit = defineEmits<{ voted: [] }>()
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('zh-CN')
+const voting = ref(false)
+
+const handleLike = async () => {
+  voting.value = true
+  try {
+    await voteReview(Number(props.review.id), 'like')
+    emit('voted')
+  } catch (e) {
+    const message = e instanceof Error ? e.message : '投票失败'
+    ElMessage.error(message)
+  } finally {
+    voting.value = false
+  }
 }
 </script>
 
