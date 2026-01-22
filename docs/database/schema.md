@@ -2,188 +2,122 @@
 
 ## 概述
 
-StuHelper 使用 Casdoor 作为用户认证和权限管理系统，本地数据库主要存储：
-- 用户业务数据的本地缓存
-- 与用户关联的业务数据（评论、收藏等）
+StuHelper 使用 Casdoor 作为用户认证系统，本地 PostgreSQL 数据库存储业务数据。
+
+> 评课社区详细数据模型见 [modules/course/01_data_model.md](../modules/course/01_data_model.md)
 
 ## ER 图
 
 ```mermaid
 erDiagram
-    users ||--o{ course_reviews : "发布"
+    users ||--o{ reviews : "发布"
     users ||--o{ review_votes : "投票"
-    users ||--o{ user_favorites : "收藏"
-    courses ||--o{ course_reviews : "被评价"
-    courses ||--o{ user_favorites : "被收藏"
-    course_reviews ||--o{ review_votes : "被投票"
+    departments ||--o{ courses : "包含"
+    courses ||--o{ reviews : "被评价"
+    reviews ||--o{ review_votes : "被投票"
+    rating_dimensions ||--o{ course_rating_stats : "统计"
+    courses ||--o{ course_rating_stats : "统计"
 
     users {
         string id PK "Casdoor 用户 ID"
         string username "用户名"
         string display_name "显示名称"
-        string email "邮箱"
-        string avatar "头像 URL"
-        timestamp created_at "创建时间"
-        timestamp updated_at "更新时间"
-        timestamp last_login_at "最后登录时间"
+        timestamp last_login_at "最后登录"
+    }
+
+    rating_dimensions {
+        int id PK "维度ID"
+        string key "维度标识"
+        string name "显示名称"
+        bool is_active "是否启用"
+    }
+
+    departments {
+        int id PK "院系ID"
+        string name "院系名称"
+        string category "分类"
     }
 
     courses {
-        bigint id PK "课程 ID"
-        string code "课程代码"
+        int id PK "课程ID"
+        int department_id FK "院系ID"
         string name "课程名称"
-        string department "开课院系"
-        string teacher "授课教师"
-        decimal avg_rating "平均评分"
-        int review_count "评价数量"
-        timestamp created_at "创建时间"
-        timestamp updated_at "更新时间"
+        int review_count "评价数"
     }
 
-    course_reviews {
-        bigint id PK "评价 ID"
-        string user_id FK "用户 ID"
-        bigint course_id FK "课程 ID"
-        int rating "综合评分 1-5"
-        int difficulty "难度评分 1-5"
-        int workload "作业量评分 1-5"
-        int grading "给分评分 1-5"
-        int harvest "收获评分 1-5"
-        text content "评价内容"
-        string semester "学期 如 2024-2025-1"
-        int upvotes "点赞数"
-        int downvotes "点踩数"
-        boolean is_anonymous "是否匿名"
-        timestamp created_at "创建时间"
-        timestamp updated_at "更新时间"
+    reviews {
+        string id PK "测评ID"
+        int course_id FK "课程ID"
+        string user_hash "用户哈希"
+        text content "内容"
+        jsonb ratings "评分JSON"
+        int like_count "点赞数"
     }
 
     review_votes {
-        bigint id PK "投票 ID"
-        string user_id FK "用户 ID"
-        bigint review_id FK "评价 ID"
-        smallint vote_type "投票类型 1=赞 -1=踩"
-        timestamp created_at "创建时间"
+        int id PK "投票ID"
+        string review_id FK "测评ID"
+        string user_hash "用户哈希"
+        int vote_type "投票类型"
     }
 
-    user_favorites {
-        bigint id PK "收藏 ID"
-        string user_id FK "用户 ID"
-        bigint course_id FK "课程 ID"
-        timestamp created_at "创建时间"
+    course_rating_stats {
+        int id PK "统计ID"
+        int course_id FK "课程ID"
+        string dimension_key "维度"
+        decimal avg_rating "平均分"
     }
 ```
 
 ## 表结构定义 (PostgreSQL)
+
+> 完整表结构见 [modules/course/01_data_model.md](../modules/course/01_data_model.md)
 
 ### users 用户表
 
 ```sql
 CREATE TABLE users (
     id VARCHAR(64) PRIMARY KEY,           -- Casdoor 用户 ID
-    username VARCHAR(100) NOT NULL,       -- 用户名
-    display_name VARCHAR(100),            -- 显示名称
-    email VARCHAR(255),                   -- 邮箱
-    avatar VARCHAR(500),                  -- 头像 URL
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    last_login_at TIMESTAMP WITH TIME ZONE,
-
-    CONSTRAINT uk_users_username UNIQUE (username)
+    username VARCHAR(100) NOT NULL,
+    display_name VARCHAR(100),
+    email VARCHAR(255),
+    avatar VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login_at TIMESTAMP
 );
-
-CREATE INDEX idx_users_email ON users(email);
 ```
 
-### courses 课程表
+### reviews 测评表
+
+使用 JSONB 存储动态评分维度。
 
 ```sql
-CREATE TABLE courses (
-    id BIGSERIAL PRIMARY KEY,
-    code VARCHAR(50) NOT NULL,            -- 课程代码
-    name VARCHAR(200) NOT NULL,           -- 课程名称
-    department VARCHAR(100),              -- 开课院系
-    teacher VARCHAR(100),                 -- 授课教师
-    avg_rating DECIMAL(3,2) DEFAULT 0,    -- 平均评分
-    review_count INT DEFAULT 0,           -- 评价数量
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT uk_courses_code_teacher UNIQUE (code, teacher)
-);
-
-CREATE INDEX idx_courses_department ON courses(department);
-CREATE INDEX idx_courses_name ON courses(name);
-```
-
-### course_reviews 课程评价表
-
-```sql
-CREATE TABLE course_reviews (
-    id BIGSERIAL PRIMARY KEY,
-    user_id VARCHAR(64) NOT NULL REFERENCES users(id),
-    course_id BIGINT NOT NULL REFERENCES courses(id),
-    rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
-    difficulty SMALLINT CHECK (difficulty BETWEEN 1 AND 5),
-    workload SMALLINT CHECK (workload BETWEEN 1 AND 5),
-    grading SMALLINT CHECK (grading BETWEEN 1 AND 5),
-    harvest SMALLINT CHECK (harvest BETWEEN 1 AND 5),
+CREATE TABLE reviews (
+    id VARCHAR(20) PRIMARY KEY,
+    course_id INTEGER NOT NULL REFERENCES courses(id),
+    user_hash VARCHAR(64) NOT NULL,       -- 匿名用户标识
     content TEXT NOT NULL,
-    semester VARCHAR(20),
-    upvotes INT DEFAULT 0,
-    downvotes INT DEFAULT 0,
-    is_anonymous BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT uk_reviews_user_course UNIQUE (user_id, course_id)
+    ratings JSONB NOT NULL,               -- {"overall":5,"content":4,...}
+    like_count INTEGER DEFAULT 0,
+    dislike_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_reviews_course_id ON course_reviews(course_id);
-CREATE INDEX idx_reviews_created_at ON course_reviews(created_at DESC);
 ```
 
-### review_votes 评价投票表
+**ratings 字段示例**：
 
-```sql
-CREATE TABLE review_votes (
-    id BIGSERIAL PRIMARY KEY,
-    user_id VARCHAR(64) NOT NULL REFERENCES users(id),
-    review_id BIGINT NOT NULL REFERENCES course_reviews(id) ON DELETE CASCADE,
-    vote_type SMALLINT NOT NULL CHECK (vote_type IN (1, -1)),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT uk_votes_user_review UNIQUE (user_id, review_id)
-);
-
-CREATE INDEX idx_votes_review_id ON review_votes(review_id);
-```
-
-### user_favorites 用户收藏表
-
-```sql
-CREATE TABLE user_favorites (
-    id BIGSERIAL PRIMARY KEY,
-    user_id VARCHAR(64) NOT NULL REFERENCES users(id),
-    course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT uk_favorites_user_course UNIQUE (user_id, course_id)
-);
-
-CREATE INDEX idx_favorites_user_id ON user_favorites(user_id);
+```json
+{
+  "overall": 5,
+  "content": 4,
+  "workload": 3,
+  "grading": 4,
+  "attendance": 2
+}
 ```
 
 ## 设计说明
 
-1. **用户表 (users)**
-   - `id` 使用 Casdoor 的用户 ID，保持一致性
-   - 用户基本信息从 Casdoor 同步，OAuth 回调时更新
-
-2. **权限管理**
-   - 角色和权限由 Casdoor 管理，不在本地存储
-   - 通过 Casdoor SDK 的 `Enforce()` 方法进行权限检查
-
-3. **数据完整性**
-   - 使用外键约束保证数据一致性
-   - 唯一约束防止重复数据（如一个用户只能对一门课评价一次）
+1. **用户认证**: 由 Casdoor 管理，本地仅缓存基本信息
+2. **动态评分**: 使用 JSONB 存储，支持可配置的评分维度
+3. **匿名性**: 测评使用 user_hash 而非直接关联用户ID

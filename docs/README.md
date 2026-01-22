@@ -6,24 +6,26 @@
 
 ### 模块文档
 
-| 模块 | 文档路径 | 说明 |
-|------|----------|------|
-| 统一身份认证 | [modules/auth.md](modules/auth.md) | SSO认证、账号体系、安全存储 |
-| 社群自动化 | [modules/community.md](modules/community.md) | QQ群审批、Bot对接、消息路由 |
-| 评课与资料 | [modules/academic.md](modules/academic.md) | 课程评价、资料共享、志愿者审核 |
-| 策略配置 | [modules/policy.md](modules/policy.md) | 功能开关、灰度发布、访问控制 |
-| 校园工具箱 | [modules/tools.md](modules/tools.md) | 打卡、抢票、空教室查询 |
-| 日志系统 | [modules/logging.md](modules/logging.md) | 日志采集、存储、分析告警 |
-| 通知中心 | [modules/notification.md](modules/notification.md) | 多渠道推送、订阅管理 |
-| 举报审核 | [modules/moderation.md](modules/moderation.md) | 举报流程、处罚机制、申诉 |
+| 模块 | 文档路径 | 状态 | 说明 |
+|------|----------|------|------|
+| SSO 认证 | [auth.md](auth.md) | 🟢 已实现 | Casdoor OAuth2 单点登录 |
+| 教学中心 | [modules/course/](modules/course/) | 🟡 开发中 | 评课社区、资料共享 |
+| 统一身份认证 | [modules/auth.md](modules/auth.md) | 🔴 规划中 | 多认证方式、账号体系 |
+| 社群自动化 | [modules/community.md](modules/community.md) | 🔴 规划中 | QQ群审批、Bot对接 |
+| 策略配置 | [modules/policy.md](modules/policy.md) | 🔴 规划中 | 功能开关、灰度发布 |
+| 校园工具箱 | [modules/tools.md](modules/tools.md) | 🔴 规划中 | 打卡、抢票、空教室 |
+| 日志系统 | [modules/logging.md](modules/logging.md) | 🔴 规划中 | 日志采集、分析告警 |
+| 通知中心 | [modules/notification.md](modules/notification.md) | 🔴 规划中 | 多渠道推送 |
+| 举报审核 | [modules/moderation.md](modules/moderation.md) | 🔴 规划中 | 举报流程、处罚机制 |
 
 ### 基础设施文档
 
 | 文档 | 路径 | 说明 |
 |------|------|------|
-| 数据库设计 | [database/schema.md](database/schema.md) | 表结构、索引、分区策略 |
-| API 设计 | [api/overview.md](api/overview.md) | RESTful API 规范与接口列表 |
-| 安全与风控 | [security.md](security.md) | 加密方案、风控规则、合规要求 |
+| 数据库设计 | [database/schema.md](database/schema.md) | 表结构、索引设计 |
+| API 设计 | [api/overview.md](api/overview.md) | RESTful API 规范 |
+| 系统架构 | [architecture/overview.md](architecture/overview.md) | 整体架构设计 |
+| 开发规范 | [development/guide.md](development/guide.md) | 代码风格、Git 工作流 |
 
 ---
 
@@ -81,15 +83,14 @@
 
 | 层级 | 技术选型 | 说明 |
 |------|----------|------|
-| 前端 | Uni-app (Vue3) | 一套代码，多端发布 |
+| 前端 Web | Vue3 + Element Plus | 评课社区 H5 页面 |
+| 前端多端 | Uni-app (Vue3) | 小程序、App（规划中） |
 | 后端 API | Go + Gin | 高性能 HTTP 服务 |
-| 后端 Worker | Python + FastAPI | 爬虫、数据处理 |
+| 后端 Worker | Python + FastAPI | 爬虫、数据处理（规划中） |
+| 用户认证 | Casdoor | OAuth2/OIDC 单点登录 |
 | 数据库 | PostgreSQL 15+ | 关系型数据 + JSONB |
 | 缓存 | Redis 7+ | 会话、队列、配置缓存 |
 | 文件存储 | 腾讯云 COS | 前端直传，CDN 加速 |
-| 消息队列 | Redis Stream | 日志采集、异步任务 |
-| 社群对接 | NapCat + Koishi | QQ Bot 框架 |
-| 组网 | EasyTier | 公网与校内节点互通 |
 | 部署 | Docker Compose | 单机容器编排 |
 
 ---

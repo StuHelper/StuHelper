@@ -22,15 +22,17 @@
 
 | 模块 | 接口 | 方法 | 说明 |
 |------|------|------|------|
+| 配置 | `/rating-dimensions` | GET | 获取评分维度配置 |
+| 院系 | `/departments` | GET | 获取院系列表 |
 | 课程 | `/courses` | GET | 获取课程列表 |
 | 课程 | `/courses/:id` | GET | 获取课程详情 |
 | 课程 | `/courses/search` | GET | 搜索课程 |
-| 测评 | `/reviews` | GET | 获取测评列表 |
+| 课程 | `/courses/:id/rating-stats` | GET | 获取评分统计（雷达图） |
+| 测评 | `/courses/:id/reviews` | GET | 获取课程测评列表 |
 | 测评 | `/reviews/latest` | GET | 获取最新测评 |
 | 测评 | `/reviews` | POST | 发布测评 |
 | 测评 | `/reviews/:id/vote` | POST | 点赞/踩 |
-| 院系 | `/departments` | GET | 获取院系列表 |
-| 学期 | `/terms` | GET | 获取学期列表 |
+| 统计 | `/stats` | GET | 获取统计数据 |
 
 ## 课程接口
 
@@ -118,17 +120,34 @@
 ```json
 {
   "course_id": 1033,
-  "teacher_name": "周蜀林",
+  "teacher_id": 123,
   "term_id": "25-26-1",
   "title": "简单好学",
   "content": "课程听感:...",
   "grade": "99",
-  "rating_recommend": 2,
-  "rating_content": 1,
-  "rating_workload": 1,
-  "rating_exam": 2
+  "ratings": {
+    "overall": 5,
+    "content": 4,
+    "workload": 3,
+    "grading": 4,
+    "attendance": 2
+  }
 }
 ```
+
+**字段说明**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| course_id | number | 是 | 课程ID |
+| teacher_id | number | 否 | 教师ID |
+| term_id | string | 否 | 学期ID |
+| title | string | 否 | 测评标题 |
+| content | string | 是 | 测评内容（至少10字） |
+| grade | string | 否 | 成绩 |
+| ratings | object | 是 | 评分（动态维度，1-5分） |
+
+> **注意**：`ratings` 字段的 key 应与 `/rating-dimensions` 返回的维度 key 对应。
 
 ### POST /reviews/:id/vote
 
