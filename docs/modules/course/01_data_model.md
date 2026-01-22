@@ -95,6 +95,7 @@ CREATE INDEX idx_departments_category ON departments(category);
 | `pe` | 体育课 | 体育教研部 |
 | `english` | 英语课 | 外国语学院 |
 | `pols` | 思政课 | 马克思主义学院 |
+| `pro` | 专业课 | 各学院 |
 
 ### 2. courses (课程表)
 
@@ -156,7 +157,7 @@ CREATE TABLE reviews (
     course_id       INTEGER NOT NULL REFERENCES courses(id),
     teacher_id      INTEGER REFERENCES teachers(id),
     term_id         VARCHAR(20) REFERENCES terms(id),
-    user_hash       VARCHAR(64) NOT NULL,     -- 用户标识哈希（匿名）
+    user_id       VARCHAR(64) NOT NULL,     -- 用户标识哈希（匿名）
     title           VARCHAR(200),
     content         TEXT NOT NULL,
     grade           VARCHAR(20),              -- 成绩
@@ -201,10 +202,10 @@ CREATE INDEX idx_reviews_ratings ON reviews USING gin(ratings);
 CREATE TABLE review_votes (
     id          SERIAL PRIMARY KEY,
     review_id   VARCHAR(20) REFERENCES reviews(id),
-    user_hash   VARCHAR(64) NOT NULL,  -- 用户标识哈希
+    user_id   VARCHAR(64) NOT NULL,  -- 用户标识哈希
     vote_type   SMALLINT NOT NULL,     -- 1=赞, -1=踩
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(review_id, user_hash)
+    UNIQUE(review_id, user_id)
 );
 ```
 
@@ -230,6 +231,42 @@ CREATE INDEX idx_course_rating_stats_term ON course_rating_stats(term_id);
 ```
 
 > **雷达图数据说明**：雷达图展示该课程所有历史出现过的维度。即使维度配置发生变化，历史评分数据仍然保留并展示。
+
+### 9. course_aliases (课程别名表)
+
+课程的别名，方便在搜索时查找
+
+```sql
+CREATE TABLE course_aliases (
+    id          SERIAL PRIMARY KEY,
+    course_id   INTEGER NOT NULL REFERENCES courses(id),
+
+    alias       VARCHAR(200) NOT NULL,        -- 别名本体
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+);
+
+CREATE INDEX idx_course_aliases_alias ON course_aliases(alias);
+CREATE INDEX idx_course_aliases_course_id ON course_aliases(course_id);     
+```
+
+`idx_course_aliases_course_id` 用于在课程详情页向新人介绍这门课的简称
+
+### 10. course_teachers (课程-教师关联)
+
+```sql
+CREATE TABLE course_teachers (
+    course_id   INTEGER NOT NULL REFERENCES courses(id)
+    teacher_id  INTEGER NOT NULL REFERENCES teachers(id)
+    sort_order  INTEGER DEFAULT 0,        -- 展示顺序
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (course_id, teacher_id)
+);
+
+CREATE INDEX idx_course_teachers_course ON course_teachers(course_id);
+CREATE INDEX idx_course_teachers_teacher ON course_teachers(teacher_id);
+```
+
 
 ## TypeScript 类型定义
 
