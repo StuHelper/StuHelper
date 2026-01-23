@@ -14,8 +14,15 @@
 ┌─────────────┐       ┌─────────────┐       ┌─────────────┐
 │  Department │       │   Course    │       │   Teacher   │
 │  (院系)     │◄──────│   (课程)    │───────►│   (教师)    │
-└─────────────┘       └──────┬──────┘       └─────────────┘
-                             │
+└─────────────┘       └──────┬──────┘       └──────┬──────┘
+                             │                     │
+                      ┌──────┼──────┐              │
+                      │      │      │              │
+                      ▼      │      ▼              │
+               ┌──────────┐  │  ┌──────────┐       │
+               │  Alias   │  │  │ Course   │◄──────┘
+               │ (别名)   │  │  │ Teachers │
+               └──────────┘  │  └──────────┘
                              │ 1:N
                              ▼
 ┌─────────────┐       ┌─────────────┐       ┌─────────────┐
@@ -97,7 +104,7 @@ CREATE INDEX idx_departments_category ON departments(category);
 | `pols` | 思政课 | 马克思主义学院 |
 | `pro` | 专业课 | 各学院 |
 
-### 2. courses (课程表)
+### 3. courses (课程表)
 
 存储课程基本信息。
 
@@ -120,7 +127,7 @@ CREATE INDEX idx_courses_name_fts ON courses
     USING gin(to_tsvector('zhparser', name));
 ```
 
-### 3. teachers (教师表)
+### 4. teachers (教师表)
 
 ```sql
 CREATE TABLE teachers (
@@ -134,7 +141,7 @@ CREATE TABLE teachers (
 CREATE INDEX idx_teachers_name ON teachers(name);
 ```
 
-### 4. terms (学期表)
+### 5. terms (学期表)
 
 ```sql
 CREATE TABLE terms (
@@ -157,7 +164,7 @@ CREATE TABLE reviews (
     course_id       INTEGER NOT NULL REFERENCES courses(id),
     teacher_id      INTEGER REFERENCES teachers(id),
     term_id         VARCHAR(20) REFERENCES terms(id),
-    user_id       VARCHAR(64) NOT NULL,     -- 用户标识哈希（匿名）
+    user_id       INTEGER NOT NULL,          -- 发布用户ID（前端匿名展示，后台可追溯）
     title           VARCHAR(200),
     content         TEXT NOT NULL,
     grade           VARCHAR(20),              -- 成绩
@@ -169,6 +176,7 @@ CREATE TABLE reviews (
 );
 
 CREATE INDEX idx_reviews_course ON reviews(course_id);
+CREATE INDEX idx_reviews_user ON reviews(user_id);
 CREATE INDEX idx_reviews_term ON reviews(term_id);
 CREATE INDEX idx_reviews_created ON reviews(created_at DESC);
 CREATE INDEX idx_reviews_ratings ON reviews USING gin(ratings);
@@ -202,7 +210,7 @@ CREATE INDEX idx_reviews_ratings ON reviews USING gin(ratings);
 CREATE TABLE review_votes (
     id          SERIAL PRIMARY KEY,
     review_id   VARCHAR(20) REFERENCES reviews(id),
-    user_id   VARCHAR(64) NOT NULL,  -- 用户标识哈希
+    user_id     INTEGER NOT NULL,      -- 投票用户ID
     vote_type   SMALLINT NOT NULL,     -- 1=赞, -1=踩
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(review_id, user_id)
@@ -337,5 +345,21 @@ interface CourseRatingStats {
   }[];
   // 所有历史出现过的维度（合并）
   allDimensionKeys: string[];
+}
+
+// 课程别名
+interface CourseAlias {
+  id: number;
+  courseId: number;
+  alias: string;
+  createdAt: string;
+}
+
+// 课程-教师关联
+interface CourseTeacher {
+  courseId: number;
+  teacherId: number;
+  teacherName?: string;
+  sortOrder: number;
 }
 ```
