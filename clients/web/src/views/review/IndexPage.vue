@@ -33,20 +33,23 @@
 
     <!-- Quick Actions -->
     <section class="actions-section">
-      <router-link to="/review/courses" class="action-card primary">
+      <router-link to="/review/courses" class="action-card">
         <div class="action-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
           </svg>
         </div>
-        <div class="action-content">
-          <span class="action-title">浏览全部课程</span>
-          <span class="action-desc">按院系分类查看所有课程</span>
+        <span class="action-title">浏览课程</span>
+      </router-link>
+
+      <router-link to="/review/post" class="action-card primary">
+        <div class="action-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
         </div>
-        <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
+        <span class="action-title">发布测评</span>
       </router-link>
 
       <router-link to="/review/latest" class="action-card">
@@ -56,13 +59,7 @@
             <polyline points="12,6 12,12 16,14"/>
           </svg>
         </div>
-        <div class="action-content">
-          <span class="action-title">查看最新测评</span>
-          <span class="action-desc">浏览同学们的最新评价</span>
-        </div>
-        <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
+        <span class="action-title">最新测评</span>
       </router-link>
     </section>
 
@@ -116,26 +113,20 @@ const MessageIcon = () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke:
   h('path', { d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' })
 ])
 
-const BuildingIcon = () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-  h('path', { d: 'M3 21h18' }),
-  h('path', { d: 'M5 21V7l8-4v18' }),
-  h('path', { d: 'M19 21V11l-6-4' }),
-  h('path', { d: 'M9 9v.01' }),
-  h('path', { d: 'M9 12v.01' }),
-  h('path', { d: 'M9 15v.01' }),
-  h('path', { d: 'M9 18v.01' })
+const ThumbIcon = () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
+  h('path', { d: 'M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3' })
 ])
 
 const statItems = [
   { key: 'courseCount', label: '课程数量', icon: BookIcon },
   { key: 'reviewCount', label: '测评数量', icon: MessageIcon },
-  { key: 'departmentCount', label: '院系数量', icon: BuildingIcon }
+  { key: 'voteCount', label: '投票数量', icon: ThumbIcon }
 ]
 
 const stats = ref<Record<string, number>>({
   courseCount: 0,
   reviewCount: 0,
-  departmentCount: 0
+  voteCount: 0
 })
 
 const randomReviews = ref<Review[]>([])
@@ -171,7 +162,6 @@ onMounted(async () => {
   position: relative;
   padding: var(--space-16) var(--space-4);
   text-align: center;
-  overflow: hidden;
 }
 
 .hero-bg {
@@ -220,28 +210,30 @@ onMounted(async () => {
 .hero-search {
   max-width: 480px;
   margin: 0 auto;
+  position: relative;
+  z-index: 100;
 }
 
 /* Stats Section */
 .stats-section {
   padding: var(--space-8) var(--space-4);
-  max-width: 1000px;
+  max-width: 800px;
   margin: 0 auto;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-4);
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   transition: all var(--duration-base) var(--ease-out);
 }
@@ -286,8 +278,8 @@ onMounted(async () => {
 
 /* Actions Section */
 .actions-section {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-4);
   padding: 0 var(--space-4) var(--space-8);
   max-width: 600px;
@@ -296,29 +288,39 @@ onMounted(async () => {
 
 .action-card {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-2);
   padding: var(--space-5);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-decoration: none;
   transition: all var(--duration-base) var(--ease-out);
 }
 
 .action-card:hover {
-  border-color: var(--border-light);
-  background: var(--bg-elevated);
-  transform: translateX(4px);
+  border-color: var(--border-accent);
+  transform: translateY(-2px);
 }
 
 .action-card.primary {
-  border-color: var(--border-accent);
-  background: rgba(201, 162, 39, 0.05);
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
 .action-card.primary:hover {
-  background: rgba(201, 162, 39, 0.1);
+  background: var(--brand-primary-dark);
+  border-color: var(--brand-primary-dark);
+}
+
+.action-card.primary .action-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.action-card.primary .action-title {
+  color: white;
 }
 
 .action-icon {
@@ -327,10 +329,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-elevated);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-md);
-  color: var(--accent);
-  flex-shrink: 0;
+  color: var(--brand-primary);
 }
 
 .action-icon svg {
@@ -338,34 +339,10 @@ onMounted(async () => {
   height: 22px;
 }
 
-.action-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .action-title {
   font-weight: 600;
-  color: var(--text-primary);
-}
-
-.action-desc {
   font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-.action-arrow {
-  width: 20px;
-  height: 20px;
-  color: var(--text-muted);
-  transition: all var(--duration-fast);
-  flex-shrink: 0;
-}
-
-.action-card:hover .action-arrow {
-  color: var(--accent);
-  transform: translateX(4px);
+  color: var(--text-primary);
 }
 
 /* Reviews Section */

@@ -150,18 +150,20 @@ const goTo = (path: string) => {
 
 /* Features */
 .features {
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-4);
 }
 
 .feature-card {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-5);
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
   background: var(--bg-elevated);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -172,6 +174,7 @@ const goTo = (path: string) => {
 .feature-card:hover {
   border-color: var(--brand-primary);
   box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
 }
 
 .feature-card.active {
@@ -179,24 +182,19 @@ const goTo = (path: string) => {
 }
 
 .feature-icon {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-tertiary);
   border-radius: var(--radius-md);
   color: var(--brand-primary);
-  flex-shrink: 0;
 }
 
 .feature-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.feature-info {
-  flex: 1;
+  width: 28px;
+  height: 28px;
 }
 
 .feature-info h3 {
@@ -209,6 +207,7 @@ const goTo = (path: string) => {
 .feature-info p {
   font-size: var(--text-sm);
   color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .feature-badge {
@@ -253,6 +252,9 @@ const goTo = (path: string) => {
   .btn-secondary {
     width: 100%;
     justify-content: center;
+  }
+  .features {
+    grid-template-columns: 1fr;
   }
 }
 </style>

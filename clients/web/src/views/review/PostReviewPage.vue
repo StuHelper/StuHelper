@@ -136,13 +136,6 @@ const handleSubmit = async () => {
     return
   }
 
-  // 验证评分是否完成
-  const ratings = form.value.ratings
-  if (!ratings.recommend || !ratings.content || !ratings.workload || !ratings.exam) {
-    ElMessage.warning('请完成所有评分项')
-    return
-  }
-
   submitting.value = true
   try {
     await postReview({
