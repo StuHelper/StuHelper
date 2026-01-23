@@ -1,27 +1,41 @@
+/**
+ * 课程相关 API
+ */
 import api from './index'
-import type { Course, Department, RatingDimension, CourseRatingStatsResponse } from '@/types/course'
+import type {
+  Course,
+  Department,
+  RatingDimension,
+  CourseRatingStatsResponse
+} from '@/types/course'
 
 // 获取院系列表
-export const getDepartments = (category?: string) => {
-  return api.get<Department[]>('/departments', { params: { category } })
+export function getDepartments(category?: string) {
+  return api.get<Department[]>('/departments', {
+    params: category ? { category } : undefined
+  })
 }
 
 // 获取课程列表
-export const getCourses = (departmentId: number) => {
-  return api.get<Course[]>('/courses', { params: { department_id: departmentId } })
+export function getCourses(departmentId: number) {
+  return api.get<Course[]>('/courses', {
+    params: { departmentId }
+  })
 }
 
 // 获取课程详情
-export const getCourse = (id: number) => {
+export function getCourse(id: number) {
   return api.get<Course>(`/courses/${id}`)
 }
 
 // 搜索课程
-export const searchCourses = (q: string, limit = 10) => {
-  return api.get<Course[]>('/courses/search', { params: { q, limit } })
+export function searchCourses(query: string, limit = 10) {
+  return api.get<Course[]>('/courses/search', {
+    params: { q: query, limit }
+  })
 }
 
-// 统计数据类型
+// 统计数据
 export interface Stats {
   courseCount: number
   reviewCount: number
@@ -29,16 +43,16 @@ export interface Stats {
 }
 
 // 获取统计数据
-export const getStats = () => {
+export function getStats() {
   return api.get<Stats>('/stats')
 }
 
 // 获取评分维度配置
-export const getRatingDimensions = () => {
+export function getRatingDimensions() {
   return api.get<RatingDimension[]>('/rating-dimensions')
 }
 
-// 获取课程评分统计（雷达图数据）
-export const getCourseRatingStats = (courseId: number) => {
+// 获取课程评分统计
+export function getCourseRatingStats(courseId: number) {
   return api.get<CourseRatingStatsResponse>(`/courses/${courseId}/rating-stats`)
 }

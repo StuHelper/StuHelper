@@ -1,26 +1,46 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios'
+/**
+ * API 客户端核心模块
+ * 统一的请求处理、错误处理、Token 刷新
+ */
+import axios, {
+  type AxiosInstance,
+  type AxiosRequestConfig,
+  type AxiosError,
+  type InternalAxiosRequestConfig
+} from 'axios'
+import config from './config'
+import { ApiError, ErrorCode, createErrorFromStatus } from './errors'
 import { clearAuth } from '@/utils/auth'
 
-// API 响应类型（后端统一返回格式）
+// API 响应类型
 export interface ApiResponse<T> {
   data: T
   code?: number
   message?: string
 }
 
-// Token 刷新状态管理
+// 请求配置扩展
+interface RequestConfigExtra {
+  _retry?: boolean
+  _retryCount?: number
+}
+
+type ExtendedAxiosRequestConfig = AxiosRequestConfig & RequestConfigExtra
+
+// Token 刷新管理器
 class TokenRefreshManager {
   private isRefreshing = false
-  private subscribers: ((success: boolean) => void)[] = []
+  private subscribers: Array<(success: boolean) => void> = []
+  private maxSubscribers = 100
 
   async handleUnauthorized<T>(
     error: AxiosError,
-    axiosInstance: AxiosInstance,
-    transformResponse?: (response: unknown) => T
+    instance: AxiosInstance,
+    transform?: (res: unknown) => T
   ): Promise<T> {
-    const originalRequest = error.config
+    const originalRequest = error.config as ExtendedAxiosRequestConfig
     if (!originalRequest) {
-      return Promise.reject(error)
+      return Promise.reject(this.createAuthError())
     }
 
     if (!this.isRefreshing) {
@@ -30,119 +50,177 @@ class TokenRefreshManager {
       this.notifySubscribers(success)
 
       if (success) {
-        const response = await axiosInstance(originalRequest)
-        return transformResponse ? transformResponse(response) : response as T
-      } else {
-        this.handleAuthFailure()
-        return Promise.reject(error)
+        const response = await instance(originalRequest)
+        return transform ? transform(response) : (response as T)
       }
-    } else {
-      return new Promise((resolve, reject) => {
-        this.addSubscriber(async (success: boolean) => {
-          if (success) {
-            try {
-              const response = await axiosInstance(originalRequest)
-              resolve(transformResponse ? transformResponse(response) : response as T)
-            } catch (e) {
-              reject(e)
-            }
-          } else {
-            reject(error)
-          }
-        })
-      })
+      this.handleAuthFailure()
+      return Promise.reject(this.createAuthError())
     }
+
+    // 防止订阅者队列过大
+    if (this.subscribers.length >= this.maxSubscribers) {
+      return Promise.reject(this.createAuthError())
+    }
+
+    return new Promise((resolve, reject) => {
+      this.subscribers.push(async (success: boolean) => {
+        if (success) {
+          try {
+            const response = await instance(originalRequest)
+            resolve(transform ? transform(response) : (response as T))
+          } catch (e) {
+            reject(e)
+          }
+        } else {
+          reject(this.createAuthError())
+        }
+      })
+    })
   }
 
   private async refreshToken(): Promise<boolean> {
     try {
-      await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+      await axios.post(
+        `${config.baseUrl}/auth/refresh`,
+        {},
+        { withCredentials: true }
+      )
       return true
-    } catch {
+    } catch (err) {
+      const axiosError = err as AxiosError
+      if (axiosError.response?.status === 401 || axiosError.response?.status === 403) {
+        return false
+      }
+      console.error('Token refresh network error:', err)
       return false
     }
   }
 
   private notifySubscribers(success: boolean): void {
-    this.subscribers.forEach(callback => callback(success))
+    this.subscribers.forEach(cb => cb(success))
     this.subscribers = []
-  }
-
-  private addSubscriber(callback: (success: boolean) => void): void {
-    this.subscribers.push(callback)
   }
 
   private handleAuthFailure(): void {
     clearAuth()
-    // 使用 hash 路由跳转，兼容 Vue Router
     const loginPath = '/login'
     if (window.location.hash !== `#${loginPath}`) {
       window.location.hash = loginPath
     }
   }
+
+  private createAuthError(): ApiError {
+    return new ApiError({
+      message: '登录已过期',
+      code: ErrorCode.TOKEN_EXPIRED,
+      status: 401
+    })
+  }
 }
 
 const tokenManager = new TokenRefreshManager()
 
-// 创建带 token 刷新的响应拦截器
-function createAuthInterceptor<T>(
-  axiosInstance: AxiosInstance,
-  transformResponse?: (response: unknown) => T
-) {
-  return async (error: AxiosError): Promise<T> => {
-    const originalRequest = error.config
+// 错误转换函数
+function transformError(error: AxiosError): ApiError {
+  if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+    return new ApiError({
+      message: '请求超时',
+      code: ErrorCode.TIMEOUT
+    })
+  }
 
-    // 如果是 401 错误且不是刷新请求本身
-    if (
-      error.response?.status === 401 &&
-      originalRequest &&
-      !originalRequest.url?.includes('/auth/refresh')
-    ) {
-      return tokenManager.handleUnauthorized(error, axiosInstance, transformResponse)
+  if (!error.response) {
+    return new ApiError({
+      message: '网络连接失败',
+      code: ErrorCode.NETWORK_ERROR
+    })
+  }
+
+  const { status, data } = error.response
+  const responseData = data as { message?: string; error?: string } | undefined
+  const message = responseData?.message || responseData?.error
+
+  return createErrorFromStatus(status, message)
+}
+
+// 创建请求拦截器
+function createRequestInterceptor() {
+  return (config: InternalAxiosRequestConfig) => {
+    // 可以在这里添加请求 ID、时间戳等
+    return config
+  }
+}
+
+// 创建响应拦截器
+function createResponseInterceptor<T>(
+  instance: AxiosInstance,
+  transform?: (res: unknown) => T
+) {
+  return {
+    onFulfilled: (response: unknown) => {
+      return transform ? transform(response) : response
+    },
+    onRejected: async (error: AxiosError): Promise<T> => {
+      const originalRequest = error.config
+
+      // 401 错误且非刷新请求
+      if (
+        error.response?.status === 401 &&
+        originalRequest &&
+        !originalRequest.url?.includes('/auth/refresh')
+      ) {
+        return tokenManager.handleUnauthorized(error, instance, transform)
+      }
+
+      return Promise.reject(transformError(error))
     }
-    return Promise.reject(error)
   }
 }
 
 // 创建通用 API 实例
 export const request = axios.create({
-  baseURL: '/api',
-  timeout: 10000,
-  withCredentials: true
+  baseURL: config.baseUrl,
+  timeout: config.timeout,
+  withCredentials: config.withCredentials
 })
+
+request.interceptors.request.use(createRequestInterceptor())
+const requestInterceptor = createResponseInterceptor(request)
+request.interceptors.response.use(
+  requestInterceptor.onFulfilled,
+  requestInterceptor.onRejected
+)
 
 // 创建课程评价 API 实例
-const api = axios.create({
-  baseURL: '/api/v1/course-review',
-  timeout: 10000,
-  withCredentials: true
+const courseReviewApi = axios.create({
+  baseURL: config.courseReviewBaseUrl,
+  timeout: config.timeout,
+  withCredentials: config.withCredentials
 })
 
-// 响应拦截器 - 通用
-request.interceptors.response.use(
-  (response) => response,
-  createAuthInterceptor(request)
+courseReviewApi.interceptors.request.use(createRequestInterceptor())
+const courseInterceptor = createResponseInterceptor(
+  courseReviewApi,
+  (res) => (res as { data: unknown }).data
+)
+courseReviewApi.interceptors.response.use(
+  courseInterceptor.onFulfilled,
+  courseInterceptor.onRejected
 )
 
-// 响应拦截器 - 课程评价（返回 response.data）
-api.interceptors.response.use(
-  (response) => response.data,
-  createAuthInterceptor(api, (response) => (response as { data: unknown }).data)
-)
-
-// 类型安全的 API 客户端封装
+// 类型安全的 API 客户端
 export const courseApi = {
-  get<T>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return api.get(url, config) as Promise<ApiResponse<T>>
+  get<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return courseReviewApi.get(url, cfg) as Promise<ApiResponse<T>>
   },
-  post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return api.post(url, data, config) as Promise<ApiResponse<T>>
+  post<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return courseReviewApi.post(url, data, cfg) as Promise<ApiResponse<T>>
   },
-  put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return api.put(url, data, config) as Promise<ApiResponse<T>>
+  put<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return courseReviewApi.put(url, data, cfg) as Promise<ApiResponse<T>>
   },
-  delete<T>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return api.delete(url, config) as Promise<ApiResponse<T>>
+  delete<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return courseReviewApi.delete(url, cfg) as Promise<ApiResponse<T>>
   }
 }
 

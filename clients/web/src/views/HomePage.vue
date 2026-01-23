@@ -1,32 +1,67 @@
 <template>
-  <div class="teaching-center">
-    <header class="header">
-      <h1>教学中心</h1>
-      <p class="subtitle">StuHelper 教学服务平台</p>
-    </header>
+  <div class="home-page">
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-content">
+        <h1 class="hero-title">StuHelper</h1>
+        <p class="hero-subtitle">你的校园学习助手</p>
+        <div class="hero-actions">
+          <router-link to="/review" class="btn-primary">
+            开始探索
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </router-link>
+          <router-link to="/review/post" class="btn-secondary">
+            发布评价
+          </router-link>
+        </div>
+      </div>
+    </section>
 
-    <div class="modules">
-      <div class="module-card" @click="goTo('/review')">
-        <div class="icon">📝</div>
-        <h2>评课社区</h2>
-        <p>匿名课程评价平台，分享你的选课经验</p>
-        <span class="status available">立即使用</span>
+    <!-- Features Section -->
+    <section class="features">
+      <div class="feature-card active" @click="goTo('/review')">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <div class="feature-info">
+          <h3>评课社区</h3>
+          <p>匿名分享课程体验，帮助同学选课</p>
+        </div>
+        <span class="feature-badge available">可用</span>
       </div>
 
-      <div class="module-card disabled" @click="goTo('/resource')">
-        <div class="icon">📚</div>
-        <h2>资料共享</h2>
-        <p>课程资料、往年题共享平台</p>
-        <span class="status coming">开发中</span>
+      <div class="feature-card" @click="goTo('/resource')">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        </div>
+        <div class="feature-info">
+          <h3>资料共享</h3>
+          <p>课程资料、往年题共享平台</p>
+        </div>
+        <span class="feature-badge coming">开发中</span>
       </div>
 
-      <div class="module-card disabled" @click="goTo('/spoc')">
-        <div class="icon">🎬</div>
-        <h2>SPOC</h2>
-        <p>校内在线课程聚合平台</p>
-        <span class="status coming">开发中</span>
+      <div class="feature-card" @click="goTo('/spoc')">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+          </svg>
+        </div>
+        <div class="feature-info">
+          <h3>SPOC</h3>
+          <p>校内在线课程聚合平台</p>
+        </div>
+        <span class="feature-badge coming">开发中</span>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
@@ -41,88 +76,183 @@ const goTo = (path: string) => {
 </script>
 
 <style scoped>
-.teaching-center {
-  max-width: 1200px;
+.home-page {
+  min-height: 100vh;
+  padding: var(--space-6);
+}
+
+.hero {
+  max-width: 600px;
   margin: 0 auto;
-  padding: 40px 20px;
-}
-
-.header {
+  padding: var(--space-16) 0;
   text-align: center;
-  margin-bottom: 60px;
 }
 
-.header h1 {
-  font-size: 2.5rem;
-  color: #303133;
-  margin-bottom: 10px;
+.hero-title {
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+  letter-spacing: -0.02em;
 }
 
-.subtitle {
-  color: #909399;
-  font-size: 1.1rem;
+.hero-subtitle {
+  font-size: var(--text-lg);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-8);
 }
 
-.modules {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 30px;
+.hero-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
 }
 
-.module-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 30px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all var(--duration-fast);
+}
+
+.btn-primary {
+  background: var(--brand-primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--brand-primary-dark);
+  transform: translateY(-1px);
+}
+
+.btn-primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+/* Features */
+.features {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.feature-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--duration-base);
 }
 
-.module-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+.feature-card:hover {
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-md);
 }
 
-.module-card.disabled {
-  opacity: 0.7;
+.feature-card.active {
+  border-color: var(--brand-primary);
 }
 
-.module-card.disabled:hover {
-  transform: none;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  color: var(--brand-primary);
+  flex-shrink: 0;
 }
 
-.icon {
-  font-size: 3rem;
-  margin-bottom: 15px;
+.feature-icon svg {
+  width: 24px;
+  height: 24px;
 }
 
-.module-card h2 {
-  font-size: 1.5rem;
-  color: #303133;
-  margin-bottom: 10px;
+.feature-info {
+  flex: 1;
 }
 
-.module-card p {
-  color: #606266;
-  margin-bottom: 20px;
-  line-height: 1.6;
+.feature-info h3 {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
 }
 
-.status {
-  display: inline-block;
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-size: 0.9rem;
+.feature-info p {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
-.status.available {
-  background: #e1f3d8;
-  color: #67c23a;
+.feature-badge {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  border-radius: var(--radius-full);
 }
 
-.status.coming {
-  background: #fdf6ec;
-  color: #e6a23c;
+.feature-badge.available {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.feature-badge.coming {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+@media (prefers-color-scheme: dark) {
+  .feature-badge.available {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+  }
+  .feature-badge.coming {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: var(--space-10) 0;
+  }
+  .hero-title {
+    font-size: var(--text-3xl);
+  }
+  .hero-actions {
+    flex-direction: column;
+  }
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>

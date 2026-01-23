@@ -1,34 +1,41 @@
 <template>
   <div class="department-list">
-    <el-collapse v-model="activeNames">
-      <el-collapse-item
-        v-for="category in categories"
-        :key="category.key"
-        :name="category.key"
+    <div
+      v-for="category in categories"
+      :key="category.key"
+      class="category-section"
+    >
+      <button
+        class="category-header"
+        :class="{ expanded: expandedCategories.includes(category.key) }"
+        @click="toggleCategory(category.key)"
       >
-        <template #title>
-          <span class="category-title">{{ category.label }}</span>
-          <el-tag size="small" type="info">
-            {{ getDeptCount(category.key) }}
-          </el-tag>
-        </template>
-        <div class="dept-grid">
-          <div
+        <span class="category-name">{{ category.label }}</span>
+        <span class="category-count">{{ getDeptCount(category.key) }}</span>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
+
+      <Transition name="collapse">
+        <div v-if="expandedCategories.includes(category.key)" class="category-content">
+          <button
             v-for="dept in getDeptsByCategory(category.key)"
             :key="dept.id"
-            :class="['dept-item', { active: selectedId === dept.id }]"
+            class="dept-item"
+            :class="{ active: selectedId === dept.id }"
             @click="handleSelect(dept)"
           >
             {{ dept.name }}
-          </div>
+          </button>
         </div>
-      </el-collapse-item>
-    </el-collapse>
+      </Transition>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import type { Department } from '@/types/course'
 
 const props = defineProps<{
@@ -40,7 +47,7 @@ const emit = defineEmits<{
   select: [dept: Department]
 }>()
 
-const activeNames = ref(['school'])
+const expandedCategories = ref(['school'])
 
 const categories = [
   { key: 'school', label: '院系课程' },
@@ -58,6 +65,15 @@ const getDeptCount = (category: string) => {
   return getDeptsByCategory(category).length
 }
 
+const toggleCategory = (key: string) => {
+  const index = expandedCategories.value.indexOf(key)
+  if (index > -1) {
+    expandedCategories.value.splice(index, 1)
+  } else {
+    expandedCategories.value.push(key)
+  }
+}
+
 const handleSelect = (dept: Department) => {
   emit('select', dept)
 }
@@ -65,40 +81,98 @@ const handleSelect = (dept: Department) => {
 
 <style scoped>
 .department-list {
-  background: #fff;
-  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.category-title {
+.category-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.category-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-card);
+  color: var(--text-primary);
   font-weight: 500;
-  margin-right: 8px;
+  text-align: left;
+  transition: background var(--duration-fast);
 }
 
-.dept-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
-  padding: 8px 0;
+.category-header:hover {
+  background: var(--bg-elevated);
+}
+
+.category-name {
+  flex: 1;
+}
+
+.category-count {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.chevron {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  transition: transform var(--duration-fast);
+}
+
+.category-header.expanded .chevron {
+  transform: rotate(180deg);
+}
+
+.category-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--bg-secondary);
 }
 
 .dept-item {
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #606266;
-  background: #f5f7fa;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast);
 }
 
 .dept-item:hover {
-  background: #ecf5ff;
-  color: #409eff;
+  color: var(--accent);
+  background: var(--bg-elevated);
 }
 
 .dept-item.active {
-  background: #409eff;
-  color: #fff;
+  color: var(--bg-primary);
+  background: var(--accent);
+}
+
+/* Collapse Transition */
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: all var(--duration-base) var(--ease-out);
+  overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+  max-height: 500px;
 }
 </style>

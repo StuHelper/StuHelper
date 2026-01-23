@@ -1,26 +1,35 @@
+/**
+ * 测评相关 API
+ */
 import api from './index'
 import type { Review, PostReviewParams } from '@/types/review'
 
+// 分页响应类型
+interface PaginatedResponse<T> {
+  list: T[]
+  total: number
+}
+
 // 获取课程测评
-export const getCourseReviews = (courseId: number, page = 1, pageSize = 10) => {
-  return api.get<{ list: Review[]; total: number }>(`/courses/${courseId}/reviews`, {
-    params: { page, page_size: pageSize }
+export function getCourseReviews(courseId: number, page = 1, pageSize = 10) {
+  return api.get<PaginatedResponse<Review>>(`/courses/${courseId}/reviews`, {
+    params: { page, pageSize }
   })
 }
 
 // 获取最新测评
-export const getLatestReviews = (page = 1, pageSize = 10) => {
-  return api.get<{ list: Review[]; total: number }>('/reviews/latest', {
-    params: { page, page_size: pageSize }
+export function getLatestReviews(page = 1, pageSize = 10) {
+  return api.get<PaginatedResponse<Review>>('/reviews/latest', {
+    params: { page, pageSize }
   })
 }
 
 // 发布测评
-export const postReview = (data: PostReviewParams) => {
-  return api.post('/reviews', {
-    course_id: data.courseId,
-    teacher_id: data.teacherId,
-    term_id: data.termId,
+export function postReview(data: PostReviewParams) {
+  return api.post<Review>('/reviews', {
+    courseId: data.courseId,
+    teacherId: data.teacherId,
+    termId: data.termId,
     title: data.title,
     content: data.content,
     grade: data.grade,
@@ -28,7 +37,12 @@ export const postReview = (data: PostReviewParams) => {
   })
 }
 
+// 投票类型
+export type VoteType = 'like' | 'dislike'
+
 // 投票
-export const voteReview = (reviewId: number, voteType: 'like' | 'dislike') => {
-  return api.post(`/reviews/${reviewId}/vote`, { vote_type: voteType })
+export function voteReview(reviewId: number, voteType: VoteType) {
+  return api.post<{ success: boolean }>(`/reviews/${reviewId}/vote`, {
+    voteType
+  })
 }

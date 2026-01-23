@@ -1,30 +1,31 @@
 <template>
-  <el-card class="course-card" shadow="hover" @click="handleClick">
-    <div class="course-info">
-      <h3 class="name">{{ course.name }}</h3>
-      <div class="meta">
-        <span v-if="course.teacherName" class="teacher">
-          <el-icon><User /></el-icon>
-          {{ course.teacherName }}
+  <article class="course-card" @click="handleClick">
+    <div class="card-content">
+      <h3 class="course-name">{{ course.name }}</h3>
+      <div class="course-meta">
+        <span v-if="course.departmentName" class="department">
+          {{ course.departmentName }}
         </span>
-        <span class="department">{{ course.departmentName }}</span>
+        <span v-if="course.credits" class="credits">
+          {{ course.credits }}学分
+        </span>
       </div>
     </div>
-    <div class="course-stats">
-      <div class="rating" v-if="course.avgRating !== undefined">
-        <span class="score">{{ course.avgRating.toFixed(1) }}</span>
-        <span class="label">综合评分</span>
-      </div>
-      <div class="review-count">
-        <span class="count">{{ course.reviewCount || 0 }}</span>
-        <span class="label">条测评</span>
+    <div class="card-stats">
+      <div class="stat-item reviews">
+        <span class="stat-value">{{ course.reviewCount || 0 }}</span>
+        <span class="stat-label">测评</span>
       </div>
     </div>
-  </el-card>
+    <div class="card-arrow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+    </div>
+  </article>
 </template>
 
 <script setup lang="ts">
-import { User } from '@element-plus/icons-vue'
 import type { Course } from '@/types/course'
 
 const props = defineProps<{
@@ -42,67 +43,78 @@ const handleClick = () => {
 
 <style scoped>
 .course-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all var(--duration-base) var(--ease-out);
 }
 
 .course-card:hover {
-  transform: translateY(-2px);
+  border-color: var(--border-accent);
+  background: var(--bg-elevated);
+  transform: translateX(4px);
 }
 
-.course-info {
-  margin-bottom: 12px;
+.card-content {
+  flex: 1;
+  min-width: 0;
 }
 
-.name {
-  font-size: 16px;
+.course-name {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-1) 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.course-meta {
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.card-stats {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: var(--text-lg);
   font-weight: 600;
-  color: #303133;
-  margin: 0 0 8px 0;
+  color: var(--accent);
 }
 
-.meta {
-  display: flex;
-  gap: 12px;
-  font-size: 13px;
-  color: #909399;
+.stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
-.teacher {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #409eff;
+.card-arrow {
+  color: var(--text-muted);
+  transition: all var(--duration-fast);
 }
 
-.course-stats {
-  display: flex;
-  gap: 24px;
-  padding-top: 12px;
-  border-top: 1px solid #ebeef5;
+.card-arrow svg {
+  width: 20px;
+  height: 20px;
 }
 
-.rating,
-.review-count {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.score {
-  font-size: 24px;
-  font-weight: 600;
-  color: #409eff;
-}
-
-.count {
-  font-size: 20px;
-  font-weight: 600;
-  color: #606266;
-}
-
-.label {
-  font-size: 12px;
-  color: #909399;
+.course-card:hover .card-arrow {
+  color: var(--accent);
+  transform: translateX(4px);
 }
 </style>

@@ -1,3 +1,6 @@
+/**
+ * 测评相关类型定义
+ */
 import type { RatingValue } from './course'
 
 // 动态评分类型
@@ -29,4 +32,16 @@ export interface PostReviewParams {
   content: string
   grade?: string
   ratings: ReviewRatings
+}
+
+// 类型守卫：检查是否为有效的评分对象
+export function isValidRatings(
+  ratings: unknown,
+  requiredKeys: string[]
+): ratings is ReviewRatings {
+  if (!ratings || typeof ratings !== 'object') return false
+  const obj = ratings as Record<string, unknown>
+  return requiredKeys.every(
+    key => key in obj && typeof obj[key] === 'number' && obj[key] >= 1 && obj[key] <= 5
+  )
 }

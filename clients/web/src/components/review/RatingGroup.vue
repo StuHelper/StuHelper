@@ -1,31 +1,49 @@
 <template>
   <div class="rating-group">
-    <div v-if="loading" class="loading">
-      <el-skeleton :rows="4" animated />
+    <div v-if="loading" class="loading-state">
+      <div v-for="i in 5" :key="i" class="skeleton-item">
+        <div class="skeleton-label"></div>
+        <div class="skeleton-stars"></div>
+      </div>
     </div>
+
     <template v-else>
-      <div class="rating-item" v-for="dim in dimensions" :key="dim.key">
-        <div class="label-wrapper">
-          <span class="label">{{ dim.name }}</span>
-          <el-tooltip v-if="dim.description" :content="dim.description" placement="top">
-            <el-icon class="info-icon"><InfoFilled /></el-icon>
-          </el-tooltip>
+      <div
+        v-for="dim in dimensions"
+        :key="dim.key"
+        class="rating-item"
+        :class="{ 'has-value': modelValue[dim.key] }"
+      >
+        <div class="item-header">
+          <span class="dim-name">{{ dim.name }}</span>
+          <span v-if="dim.description" class="dim-desc">{{ dim.description }}</span>
         </div>
-        <div class="stars">
-          <span
-            v-for="star in 5"
-            :key="star"
-            :class="['star', { active: (modelValue[dim.key] || 0) >= star }]"
-            @click="handleSelect(dim.key, star as RatingValue)"
-            @mouseenter="hoverKey = dim.key; hoverValue = star"
-            @mouseleave="hoverKey = ''; hoverValue = 0"
-          >
-            <el-icon>
-              <StarFilled v-if="getStarState(dim.key, star)" />
-              <Star v-else />
-            </el-icon>
-          </span>
-          <span class="rating-text">{{ getRatingText(modelValue[dim.key]) }}</span>
+
+        <div class="stars-row">
+          <div class="stars">
+            <button
+              v-for="star in 5"
+              :key="star"
+              type="button"
+              class="star-btn"
+              :class="{
+                filled: getStarState(dim.key, star),
+                hovered: hoverKey === dim.key && star <= hoverValue
+              }"
+              @click="handleSelect(dim.key, star as RatingValue)"
+              @mouseenter="handleHover(dim.key, star)"
+              @mouseleave="handleHoverEnd"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </button>
+          </div>
+          <Transition name="fade">
+            <span v-if="modelValue[dim.key]" class="rating-label">
+              {{ getRatingText(modelValue[dim.key]) }}
+            </span>
+          </Transition>
         </div>
       </div>
     </template>
@@ -34,7 +52,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { StarFilled, Star, InfoFilled } from '@element-plus/icons-vue'
 import { getRatingDimensions } from '@/api/course'
 import type { RatingDimension, RatingValue } from '@/types/course'
 import type { ReviewRatings } from '@/types/review'
@@ -76,6 +93,16 @@ const handleSelect = (key: string, value: RatingValue) => {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 
+const handleHover = (key: string, value: number) => {
+  hoverKey.value = key
+  hoverValue.value = value
+}
+
+const handleHoverEnd = () => {
+  hoverKey.value = ''
+  hoverValue.value = 0
+}
+
 onMounted(async () => {
   try {
     const res = await getRatingDimensions()
@@ -94,62 +121,139 @@ defineExpose({ dimensions })
 .rating-group {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-5);
 }
 
-.loading {
-  padding: 8px 0;
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
+.skeleton-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.skeleton-label {
+  width: 80px;
+  height: 16px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-stars {
+  width: 160px;
+  height: 28px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Rating Item */
 .rating-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all var(--duration-base) var(--ease-out);
 }
 
-.label-wrapper {
+.rating-item:hover {
+  border-color: var(--border-light);
+  background: var(--bg-elevated);
+}
+
+.rating-item.has-value {
+  border-color: var(--border-accent);
+}
+
+.item-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dim-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.dim-desc {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* Stars Row */
+.stars-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  width: 100px;
-}
-
-.label {
-  font-size: 14px;
-  color: #606266;
-}
-
-.info-icon {
-  font-size: 14px;
-  color: #909399;
-  cursor: help;
+  gap: var(--space-4);
 }
 
 .stars {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
-.star {
-  font-size: 24px;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: #c0c4cc;
+.star-btn {
+  padding: var(--space-1);
+  color: var(--text-muted);
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
-.star:hover {
-  transform: scale(1.1);
+.star-btn svg {
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 
-.star.active {
-  color: #f7ba2a;
+.star-btn:hover {
+  transform: scale(1.15);
 }
 
-.rating-text {
-  margin-left: 8px;
-  font-size: 12px;
-  color: #909399;
-  min-width: 32px;
+.star-btn.hovered,
+.star-btn.filled {
+  color: var(--accent);
+}
+
+.star-btn.filled {
+  filter: drop-shadow(0 0 4px rgba(201, 162, 39, 0.4));
+}
+
+.rating-label {
+  font-size: var(--text-sm);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--duration-fast);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Responsive */
+@media (min-width: 640px) {
+  .rating-item {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .item-header {
+    flex: 1;
+  }
 }
 </style>

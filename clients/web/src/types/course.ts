@@ -1,5 +1,17 @@
+/**
+ * 课程相关类型定义
+ */
+
 // 评分值 (1-5 五级制)
 export type RatingValue = 1 | 2 | 3 | 4 | 5
+
+// 评分值数组（用于验证）
+export const RATING_VALUES: readonly RatingValue[] = [1, 2, 3, 4, 5] as const
+
+// 类型守卫：检查是否为有效评分值
+export function isValidRating(value: unknown): value is RatingValue {
+  return typeof value === 'number' && RATING_VALUES.includes(value as RatingValue)
+}
 
 // 评分维度配置
 export interface RatingDimension {
@@ -37,7 +49,7 @@ export interface DimensionStats {
   name: string
   avgRating: number
   ratingCount: number
-  distribution: Record<number, number>
+  distribution: Record<string, number>
 }
 
 // 学期评分统计
