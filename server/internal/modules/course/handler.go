@@ -162,8 +162,8 @@ type PostReviewRequest struct {
 	CourseID  int64         `json:"course_id" binding:"required"`
 	TeacherID *int64        `json:"teacher_id"`
 	TermID    string        `json:"term_id"`
-	Title     string        `json:"title"`
-	Content   string        `json:"content" binding:"required,min=10"`
+	Title     string        `json:"title" binding:"max=200"`
+	Content   string        `json:"content" binding:"required,min=10,max=5000"`
 	Grade     string        `json:"grade"`
 	Ratings   ReviewRatings `json:"ratings" binding:"required"`
 }

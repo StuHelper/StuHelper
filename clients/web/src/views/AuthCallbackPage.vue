@@ -47,7 +47,9 @@ onMounted(async () => {
     await authStore.handleCallback(code, state)
     router.push('/')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '登录失败，请重试'
+    // 使用通用错误提示，避免泄露敏感信息
+    console.error('Login failed:', err)
+    error.value = '登录失败，请重试'
     loading.value = false
   }
 })

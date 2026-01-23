@@ -3,6 +3,7 @@ package auth
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
@@ -13,21 +14,24 @@ import (
 
 // Handler 认证处理器
 type Handler struct {
-	ssoClient    *sso.Client
-	tokenService *token.Service
-	tokenConfig  config.TokenConfig
-	redirectURI  string
-	appName      string
+	ssoClient     *sso.Client
+	tokenService  *token.Service
+	tokenConfig   config.TokenConfig
+	redirectURI   string
+	appName       string
+	refreshLimiter *middleware.RateLimiter
 }
 
 // NewHandler 创建认证处理器
 func NewHandler(cfg *config.Config, tokenService *token.Service) *Handler {
 	return &Handler{
-		ssoClient:    sso.NewClient(cfg.Casdoor),
-		tokenService: tokenService,
-		tokenConfig:  cfg.Token,
-		redirectURI:  cfg.Casdoor.RedirectURI,
-		appName:      cfg.Casdoor.Application,
+		ssoClient:     sso.NewClient(cfg.Casdoor),
+		tokenService:  tokenService,
+		tokenConfig:   cfg.Token,
+		redirectURI:   cfg.Casdoor.RedirectURI,
+		appName:       cfg.Casdoor.Application,
+		// RefreshToken 限制: 每分钟最多 10 次
+		refreshLimiter: middleware.NewRateLimiter(10, time.Minute),
 	}
 }
 
@@ -38,7 +42,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		auth.GET("/login", h.GetLoginURL)
 		auth.GET("/signup", h.GetSignupURL)
 		auth.GET("/callback", h.HandleCallback)
-		auth.POST("/refresh", h.RefreshToken)
+		auth.POST("/refresh", middleware.RateLimitMiddleware(h.refreshLimiter), h.RefreshToken)
 		auth.GET("/me", middleware.AuthMiddleware(h.tokenService), h.GetCurrentUser)
 		auth.POST("/logout", middleware.AuthMiddleware(h.tokenService), h.Logout)
 		auth.POST("/logout-all", middleware.AuthMiddleware(h.tokenService), h.LogoutAll)
@@ -141,12 +145,13 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 
 // Logout 登出
 func (h *Handler) Logout(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	// 获取当前 access token 并加入黑名单
 	accessToken, _ := c.Cookie(middleware.CookieAccessToken)
 	if accessToken != "" {
 		ctx := c.Request.Context()
 		if err := h.tokenService.GetBlacklist().Add(ctx, accessToken, h.tokenService.GetAccessTokenTTL()); err != nil {
-			log.Printf("warning: failed to blacklist token: %v", err)
+			log.Printf("warning: failed to blacklist token for user %s: %v", userID, err)
 			// 继续登出流程，但记录警告
 		}
 	}
@@ -216,6 +221,9 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 
 // setTokenCookies 设置 Token Cookie
 func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken string) {
+	// 设置 SameSite 属性防止 CSRF
+	c.SetSameSite(http.SameSiteLaxMode)
+
 	// Access Token Cookie
 	c.SetCookie(
 		middleware.CookieAccessToken,

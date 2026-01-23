@@ -101,7 +101,9 @@ const rules: FormRules = {
 
 watch(visible, (val) => {
   if (!val) {
+    // 重置表单数据和验证状态
     form.value = { title: '', content: '', ratings: {} }
+    formRef.value?.resetFields()
   }
 })
 

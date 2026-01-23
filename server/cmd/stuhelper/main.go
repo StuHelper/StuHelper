@@ -63,6 +63,11 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// 健康检查端点
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	// 注册 API 路由
 	api := r.Group("/api")
 	{
