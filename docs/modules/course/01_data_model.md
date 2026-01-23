@@ -242,7 +242,7 @@ CREATE TABLE course_aliases (
     course_id   INTEGER NOT NULL REFERENCES courses(id),
 
     alias       VARCHAR(200) NOT NULL,        -- 别名本体
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_course_aliases_alias ON course_aliases(alias);
@@ -255,8 +255,8 @@ CREATE INDEX idx_course_aliases_course_id ON course_aliases(course_id);
 
 ```sql
 CREATE TABLE course_teachers (
-    course_id   INTEGER NOT NULL REFERENCES courses(id)
-    teacher_id  INTEGER NOT NULL REFERENCES teachers(id)
+    course_id   INTEGER NOT NULL REFERENCES courses(id),
+    teacher_id  INTEGER NOT NULL REFERENCES teachers(id),
     sort_order  INTEGER DEFAULT 0,        -- 展示顺序
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
