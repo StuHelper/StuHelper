@@ -15,6 +15,23 @@ type Config struct {
 	Redis    RedisConfig
 	Casdoor  CasdoorConfig
 	Token    TokenConfig
+	Log      LogConfig
+}
+
+// LogConfig 日志配置
+type LogConfig struct {
+	Level           string
+	Format          string // json, console
+	Output          string // stdout, stderr
+	SamplingEnabled bool
+	SamplingInitial int
+	SamplingAfter   int
+	FileEnabled     bool
+	FilePath        string
+	FileMaxSize     int // MB
+	FileMaxBackups  int
+	FileMaxAge      int // days
+	FileCompress    bool
 }
 
 // AppConfig 应用配置
@@ -26,11 +43,16 @@ type AppConfig struct {
 
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
-	Host     string
-	Port     string
-	Name     string
-	User     string
-	Password string
+	URL             string
+	Host            string
+	Port            string
+	Name            string
+	User            string
+	Password        string
+	MaxConns        int // 最大连接数
+	MinConns        int // 最小连接数
+	MaxConnLifetime int // 连接最大生命周期（分钟）
+	MaxConnIdleTime int // 连接最大空闲时间（分钟）
 }
 
 // CasdoorConfig Casdoor SSO 配置
@@ -71,11 +93,16 @@ func Load() (*Config, error) {
 			CORSOrigins: getEnvSlice("CORS_ORIGINS", []string{}),
 		},
 		Database: DatabaseConfig{
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "5432"),
-			Name:     getEnv("DB_NAME", "stuhelper"),
-			User:     getEnv("DB_USER", "stuhelper"),
-			Password: getEnv("DB_PASSWORD", ""),
+			URL:             getEnv("DATABASE_URL", ""),
+			Host:            getEnv("DB_HOST", "localhost"),
+			Port:            getEnv("DB_PORT", "5432"),
+			Name:            getEnv("DB_NAME", "stuhelper"),
+			User:            getEnv("DB_USER", "stuhelper"),
+			Password:        getEnv("DB_PASSWORD", ""),
+			MaxConns:        getEnvInt("DB_MAX_CONNS", 20),
+			MinConns:        getEnvInt("DB_MIN_CONNS", 2),
+			MaxConnLifetime: getEnvInt("DB_MAX_CONN_LIFETIME", 30),
+			MaxConnIdleTime: getEnvInt("DB_MAX_CONN_IDLE_TIME", 5),
 		},
 		Casdoor: CasdoorConfig{
 			Endpoint:     getEnv("CASDOOR_ENDPOINT", ""),
@@ -100,6 +127,20 @@ func Load() (*Config, error) {
 			CookieSecure:    getEnvBool("TOKEN_COOKIE_SECURE", false),
 			CookieDomain:    getEnv("TOKEN_COOKIE_DOMAIN", ""),
 		},
+		Log: LogConfig{
+			Level:           getEnv("LOG_LEVEL", "info"),
+			Format:          getEnv("LOG_FORMAT", "json"),
+			Output:          getEnv("LOG_OUTPUT", "stdout"),
+			SamplingEnabled: getEnvBool("LOG_SAMPLING_ENABLED", false),
+			SamplingInitial: getEnvInt("LOG_SAMPLING_INITIAL", 100),
+			SamplingAfter:   getEnvInt("LOG_SAMPLING_AFTER", 100),
+			FileEnabled:     getEnvBool("LOG_FILE_ENABLED", false),
+			FilePath:        getEnv("LOG_FILE_PATH", "logs/app.log"),
+			FileMaxSize:     getEnvInt("LOG_FILE_MAX_SIZE", 100),
+			FileMaxBackups:  getEnvInt("LOG_FILE_MAX_BACKUPS", 3),
+			FileMaxAge:      getEnvInt("LOG_FILE_MAX_AGE", 7),
+			FileCompress:    getEnvBool("LOG_FILE_COMPRESS", true),
+		},
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -115,8 +156,8 @@ func (c *Config) Validate() error {
 
 	// 生产环境额外验证
 	if c.App.Env == "production" {
-		if c.Database.Password == "" {
-			errs = append(errs, "DB_PASSWORD is required in production")
+		if c.Database.URL == "" {
+			errs = append(errs, "DATABASE_URL is required in production")
 		}
 		if !c.Token.CookieSecure {
 			errs = append(errs, "TOKEN_COOKIE_SECURE must be true in production")
