@@ -2,6 +2,7 @@ package course
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -67,7 +68,7 @@ func (r *ReviewRatings) Scan(value interface{}) error {
 	}
 	bytes, ok := value.([]byte)
 	if !ok {
-		return nil
+		return fmt.Errorf("ReviewRatings.Scan: expected []byte, got %T", value)
 	}
 	return json.Unmarshal(bytes, r)
 }
