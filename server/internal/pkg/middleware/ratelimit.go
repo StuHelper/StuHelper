@@ -1,87 +1,68 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
-// RateLimiter 简单的内存速率限制器
-type RateLimiter struct {
-	requests map[string][]time.Time
-	mu       sync.RWMutex
-	limit    int
-	window   time.Duration
+// RedisRateLimiter 基于 Redis 的速率限制器
+type RedisRateLimiter struct {
+	rdb    *redis.Client
+	limit  int
+	window time.Duration
 }
 
-// NewRateLimiter 创建速率限制器
-func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
-	rl := &RateLimiter{
-		requests: make(map[string][]time.Time),
-		limit:    limit,
-		window:   window,
+// NewRedisRateLimiter 创建 Redis 速率限制器
+func NewRedisRateLimiter(rdb *redis.Client, limit int, window time.Duration) *RedisRateLimiter {
+	return &RedisRateLimiter{
+		rdb:    rdb,
+		limit:  limit,
+		window: window,
 	}
-	// 定期清理过期记录
-	go rl.cleanup()
-	return rl
 }
 
-// Allow 检查是否允许请求
-func (rl *RateLimiter) Allow(key string) bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
+// Allow 检查是否允许请求（滑动窗口）
+func (rl *RedisRateLimiter) Allow(ctx context.Context, key string) (bool, error) {
+	script := redis.NewScript(`
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
 
-	now := time.Now()
-	windowStart := now.Add(-rl.window)
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+local count = redis.call('ZCARD', key)
+if count >= limit then
+  return 0
+end
+redis.call('ZADD', key, now, now)
+redis.call('EXPIRE', key, math.ceil(window/1000))
+return 1
+`)
 
-	// 过滤掉窗口外的请求
-	var valid []time.Time
-	for _, t := range rl.requests[key] {
-		if t.After(windowStart) {
-			valid = append(valid, t)
-		}
+	result, err := script.Run(ctx, rl.rdb, []string{key}, time.Now().UnixMilli(), rl.window.Milliseconds(), rl.limit).Int()
+	if err != nil {
+		return false, err
 	}
-
-	if len(valid) >= rl.limit {
-		rl.requests[key] = valid
-		return false
-	}
-
-	rl.requests[key] = append(valid, now)
-	return true
-}
-
-// cleanup 定期清理过期记录
-func (rl *RateLimiter) cleanup() {
-	ticker := time.NewTicker(rl.window)
-	for range ticker.C {
-		rl.mu.Lock()
-		now := time.Now()
-		windowStart := now.Add(-rl.window)
-		for key, times := range rl.requests {
-			var valid []time.Time
-			for _, t := range times {
-				if t.After(windowStart) {
-					valid = append(valid, t)
-				}
-			}
-			if len(valid) == 0 {
-				delete(rl.requests, key)
-			} else {
-				rl.requests[key] = valid
-			}
-		}
-		rl.mu.Unlock()
-	}
+	return result == 1, nil
 }
 
 // RateLimitMiddleware 速率限制中间件
-func RateLimitMiddleware(limiter *RateLimiter) gin.HandlerFunc {
+func RateLimitMiddleware(limiter *RedisRateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		key := c.ClientIP()
-		if !limiter.Allow(key) {
+		key := "rl:" + c.ClientIP()
+		allowed, err := limiter.Allow(c.Request.Context(), key)
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": "rate limit service unavailable",
+			})
+			c.Abort()
+			return
+		}
+		if !allowed {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error": "too many requests, please try again later",
 			})

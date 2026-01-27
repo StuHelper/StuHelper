@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"github.com/gin-gonic/gin"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 // 上下文键名常量
@@ -65,10 +65,10 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 		}
 
 		// 将用户信息注入到上下文
-		c.Set(CtxKeyUserID, claims.User.Id)
-		c.Set(CtxKeyUsername, claims.User.Name)
-		c.Set(CtxKeyEmail, claims.User.Email)
-		c.Set(CtxKeyDisplayName, claims.User.DisplayName)
+		c.Set(CtxKeyUserID, claims.Id)
+		c.Set(CtxKeyUsername, claims.Name)
+		c.Set(CtxKeyEmail, claims.Email)
+		c.Set(CtxKeyDisplayName, claims.DisplayName)
 		c.Set(CtxKeyAccessToken, tokenString)
 
 		c.Next()
@@ -77,39 +77,29 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 
 // GetUserID 从上下文获取用户 ID
 func GetUserID(c *gin.Context) string {
-	if userID, exists := c.Get(CtxKeyUserID); exists {
-		if id, ok := userID.(string); ok {
-			return id
-		}
-	}
-	return ""
+	return getContextString(c, CtxKeyUserID)
 }
 
 // GetUsername 从上下文获取用户名
 func GetUsername(c *gin.Context) string {
-	if username, exists := c.Get(CtxKeyUsername); exists {
-		if name, ok := username.(string); ok {
-			return name
-		}
-	}
-	return ""
+	return getContextString(c, CtxKeyUsername)
 }
 
 // GetEmail 从上下文获取邮箱
 func GetEmail(c *gin.Context) string {
-	if email, exists := c.Get(CtxKeyEmail); exists {
-		if e, ok := email.(string); ok {
-			return e
-		}
-	}
-	return ""
+	return getContextString(c, CtxKeyEmail)
 }
 
 // GetDisplayName 从上下文获取显示名称
 func GetDisplayName(c *gin.Context) string {
-	if displayName, exists := c.Get(CtxKeyDisplayName); exists {
-		if name, ok := displayName.(string); ok {
-			return name
+	return getContextString(c, CtxKeyDisplayName)
+}
+
+// getContextString 从上下文获取字符串值的通用函数
+func getContextString(c *gin.Context, key string) string {
+	if val, exists := c.Get(key); exists {
+		if s, ok := val.(string); ok {
+			return s
 		}
 	}
 	return ""

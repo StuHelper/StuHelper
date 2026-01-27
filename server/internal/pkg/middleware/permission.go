@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
+	"github.com/gin-gonic/gin"
 )
 
 // RequireRole 角色检查中间件 - 要求用户拥有指定角色
@@ -24,7 +24,7 @@ func RequireRole(ssoClient *sso.Client, roleName string) gin.HandlerFunc {
 		}
 
 		if !user.HasRole(roleName) {
-			abortForbidden(c, "role required: "+roleName)
+			abortForbidden(c)
 			return
 		}
 
@@ -49,7 +49,7 @@ func RequireAnyRole(ssoClient *sso.Client, roleNames ...string) gin.HandlerFunc 
 		}
 
 		if !user.HasAnyRole(roleNames...) {
-			abortForbidden(c, "insufficient role")
+			abortForbidden(c)
 			return
 		}
 
@@ -74,7 +74,7 @@ func RequirePermission(ssoClient *sso.Client, permissionName string) gin.Handler
 		}
 
 		if !user.HasPermission(permissionName) {
-			abortForbidden(c, "permission required: "+permissionName)
+			abortForbidden(c)
 			return
 		}
 
@@ -99,7 +99,7 @@ func RequireAdmin(ssoClient *sso.Client) gin.HandlerFunc {
 		}
 
 		if !user.IsAdmin {
-			abortForbidden(c, "admin required")
+			abortForbidden(c)
 			return
 		}
 
@@ -131,7 +131,7 @@ func CasbinEnforce(ssoClient *sso.Client, permissionId, obj, act string) gin.Han
 		}
 
 		if !allowed {
-			abortForbidden(c, "access denied")
+			abortForbidden(c)
 			return
 		}
 
@@ -145,8 +145,8 @@ func abortUnauthorized(c *gin.Context) {
 	c.Abort()
 }
 
-func abortForbidden(c *gin.Context, message string) {
-	c.JSON(http.StatusForbidden, gin.H{"error": message})
+func abortForbidden(c *gin.Context) {
+	c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 	c.Abort()
 }
 
