@@ -2,6 +2,8 @@ package sso
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -43,6 +45,12 @@ func NewUserCache(rdb *redis.Client) *UserCache {
 	}
 }
 
+// hashUsername 对用户名进行哈希处理，防止缓存 key 注入
+func hashUsername(username string) string {
+	h := sha256.Sum256([]byte(username))
+	return hex.EncodeToString(h[:])
+}
+
 // SetTTL 设置缓存过期时间
 func (c *UserCache) SetTTL(ttl time.Duration) {
 	c.ttl = ttl
@@ -50,7 +58,7 @@ func (c *UserCache) SetTTL(ttl time.Duration) {
 
 // Get 从缓存获取用户信息
 func (c *UserCache) Get(ctx context.Context, username string) (*CachedUser, error) {
-	key := userCachePrefix + username
+	key := userCachePrefix + hashUsername(username)
 	data, err := c.rdb.Get(ctx, key).Bytes()
 	if err == redis.Nil {
 		return nil, nil // 缓存未命中
@@ -68,7 +76,7 @@ func (c *UserCache) Get(ctx context.Context, username string) (*CachedUser, erro
 
 // Set 设置用户信息缓存
 func (c *UserCache) Set(ctx context.Context, user *CachedUser) error {
-	key := userCachePrefix + user.Name
+	key := userCachePrefix + hashUsername(user.Name)
 	data, err := json.Marshal(user)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user cache: %w", err)
@@ -78,7 +86,7 @@ func (c *UserCache) Set(ctx context.Context, user *CachedUser) error {
 
 // Delete 删除用户缓存
 func (c *UserCache) Delete(ctx context.Context, username string) error {
-	key := userCachePrefix + username
+	key := userCachePrefix + hashUsername(username)
 	return c.rdb.Del(ctx, key).Err()
 }
 

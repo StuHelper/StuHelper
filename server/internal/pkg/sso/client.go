@@ -3,32 +3,36 @@ package sso
 import (
 	"context"
 	"fmt"
+	"sync"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"github.com/redis/go-redis/v9"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"golang.org/x/oauth2"
 )
 
+var initOnce sync.Once
+
 // Client Casdoor SSO 客户端
 type Client struct {
-	initialized  bool
 	organization string
 	cache        *UserCache
 }
 
 // NewClient 创建并初始化 Casdoor 客户端
 func NewClient(cfg config.CasdoorConfig) *Client {
-	casdoorsdk.InitConfig(
-		cfg.Endpoint,
-		cfg.ClientID,
-		cfg.ClientSecret,
-		cfg.Certificate,
-		cfg.Organization,
-		cfg.Application,
-	)
+	// 使用 sync.Once 确保 InitConfig 只调用一次，避免并发问题
+	initOnce.Do(func() {
+		casdoorsdk.InitConfig(
+			cfg.Endpoint,
+			cfg.ClientID,
+			cfg.ClientSecret,
+			cfg.Certificate,
+			cfg.Organization,
+			cfg.Application,
+		)
+	})
 	return &Client{
-		initialized:  true,
 		organization: cfg.Organization,
 	}
 }
@@ -130,8 +134,8 @@ func (c *Client) GetCachedUser(ctx context.Context, username string) (*CachedUse
 	// 写入缓存
 	cached = FromCasdoorUser(user)
 	if err := c.cache.Set(ctx, cached); err != nil {
-		// 缓存写入失败不影响返回结果，只记录日志
-		// 这里不返回错误，因为用户信息已经获取成功
+		// 缓存写入失败不影响返回结果，只记录警告日志
+		fmt.Printf("warning: failed to cache user %s: %v\n", username, err)
 	}
 
 	return cached, nil
