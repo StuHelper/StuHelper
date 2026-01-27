@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"github.com/redis/go-redis/v9"
 )
 
 // Client Redis 客户端封装
