@@ -10,6 +10,17 @@ services:
     # 生产环境：使用命名卷，确保数据持久化
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
+    # 生产环境：基础性能与成本优化
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "max_connections=100"
     # 生产环境：添加资源限制
     deploy:
       resources:
@@ -42,6 +53,7 @@ services:
       --appendfsync everysec
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
+      --activedefrag yes
     # 生产环境：资源限制
     deploy:
       resources:
