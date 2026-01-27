@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 const (
@@ -46,7 +48,11 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 	key := blacklistPrefix + hashToken(token)
 	exists, err := b.rdb.Exists(ctx, key).Result()
 	if err != nil {
-		log.Printf("redis error checking blacklist: %v", err)
+		logger.L().Warn("redis error checking blacklist",
+			zap.Error(err),
+			zap.String("operation", "IsBlacklisted"),
+		)
+		// 安全优先：Redis 错误时拒绝请求
 		return true, fmt.Errorf("failed to check blacklist: %w", err)
 	}
 	return exists > 0, nil
