@@ -1,0 +1,83 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosec
+    - bodyclose
+    - noctx
+    - sqlclosecheck
+    - gocritic
+    - misspell
+    - unconvert
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+  gosec:
+    excludes:
+      - G104
+      - G115
+      - G101
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - hugeParam
+      - rangeValCopy
+      - exitAfterDefer
+  goimports:
+    local-prefixes:
+      - gitea.stuhelper.com/StuHelper/StuHelper
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+    - path: test/
+      linters:
+        - errcheck
+        - gosec
+    - path: cmd/stuhelper/main\.go
+      linters:
+        - gocritic
+      text: "exitAfterDefer"
+    - linters:
+        - gosec
+      text: "G115"
+    - linters:
+        - gosec
+      text: "G101"
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+output:
+  formats:
+    text:
+      path: stdout
+      print-linter-name: true
+  sort-order:
+    - linter
+    - file
