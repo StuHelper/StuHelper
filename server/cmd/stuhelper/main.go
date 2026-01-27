@@ -10,12 +10,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -25,12 +29,39 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// 初始化日志系统
+	logCfg := logger.Config{
+		Level:           cfg.Log.Level,
+		Format:          cfg.Log.Format,
+		Output:          cfg.Log.Output,
+		SamplingEnabled: cfg.Log.SamplingEnabled,
+		SamplingInitial: cfg.Log.SamplingInitial,
+		SamplingAfter:   cfg.Log.SamplingAfter,
+		FileEnabled:     cfg.Log.FileEnabled,
+		FilePath:        cfg.Log.FilePath,
+		FileMaxSize:     cfg.Log.FileMaxSize,
+		FileMaxBackups:  cfg.Log.FileMaxBackups,
+		FileMaxAge:      cfg.Log.FileMaxAge,
+		FileCompress:    cfg.Log.FileCompress,
+	}
+	if err := logger.Init(logCfg); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer func() { _ = logger.Sync() }()
+
 	// 初始化 Redis 客户端
 	redisClient, err := redis.NewClient(cfg.Redis)
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
+
+	// 初始化 PostgreSQL 连接池
+	pgPool, err := db.NewPGPool(cfg.Database)
+	if err != nil {
+		log.Fatalf("Failed to connect to Postgres: %v", err)
+	}
+	defer pgPool.Close()
 
 	// 初始化 Token 服务
 	tokenService := token.NewService(
@@ -45,9 +76,14 @@ func main() {
 	}
 
 	// 创建 Gin 路由
-	r := gin.Default()
+	r := gin.New()
+	r.Use(middleware.Recovery())
+	r.Use(middleware.RequestIDMiddleware())
+	r.Use(middleware.RequestLogger())
+	r.Use(middleware.SecurityHeadersMiddleware())
+	r.Use(middleware.MaxBodySize(10 << 20)) // 限制请求体大小为 10MB
 
-	// 配置 CORS（验证通配符安全性）
+	// 配置 CORS
 	corsOrigins := cfg.App.CORSOrigins
 	for _, origin := range corsOrigins {
 		if strings.TrimSpace(origin) == "*" {
@@ -57,7 +93,7 @@ func main() {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-CSRF-Token", "X-Request-ID"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -65,21 +101,59 @@ func main() {
 
 	// 健康检查端点
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		ctx := c.Request.Context()
+		status := "ok"
+		checks := gin.H{}
+
+		// 检查 PostgreSQL 连接
+		if err := pgPool.Ping(ctx); err != nil {
+			status = "degraded"
+			checks["postgres"] = "unhealthy"
+		} else {
+			checks["postgres"] = "healthy"
+		}
+
+		// 检查 Redis 连接
+		if err := redisClient.GetClient().Ping(ctx).Err(); err != nil {
+			status = "degraded"
+			checks["redis"] = "unhealthy"
+		} else {
+			checks["redis"] = "healthy"
+		}
+
+		httpStatus := http.StatusOK
+		if status == "degraded" {
+			httpStatus = http.StatusServiceUnavailable
+		}
+
+		c.JSON(httpStatus, gin.H{
+			"status": status,
+			"checks": checks,
+		})
 	})
 
 	// 注册 API 路由
 	api := r.Group("/api")
 	{
+		api.Use(middleware.CSRFMiddleware())
+
 		// 注册认证模块路由
-		authHandler := auth.NewHandler(cfg, tokenService)
+		authHandler := auth.NewHandler(cfg, tokenService, redisClient.GetClient())
 		authHandler.RegisterRoutes(api)
+
+		// 注册课程模块路由
+		courseHandler := course.NewHandler(pgPool, redisClient.GetClient())
+		courseHandler.RegisterRoutes(api, middleware.AuthMiddleware(tokenService))
 	}
 
-	// 启动服务器（支持优雅关闭）
+	// 启动服务器
 	srv := &http.Server{
-		Addr:    ":" + cfg.App.Port,
-		Handler: r,
+		Addr:              ":" + cfg.App.Port,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// 在 goroutine 中启动服务器
@@ -96,7 +170,7 @@ func main() {
 	<-quit
 	log.Println("Shutting down server...")
 
-	// 优雅关闭，等待最多 5 秒
+	// 优雅关闭
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
