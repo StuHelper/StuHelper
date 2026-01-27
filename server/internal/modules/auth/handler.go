@@ -1,12 +1,16 @@
 package auth
 
 import (
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
@@ -14,24 +18,24 @@ import (
 
 // Handler 认证处理器
 type Handler struct {
-	ssoClient     *sso.Client
-	tokenService  *token.Service
-	tokenConfig   config.TokenConfig
-	redirectURI   string
-	appName       string
-	refreshLimiter *middleware.RateLimiter
+	ssoClient      *sso.Client
+	tokenService   *token.Service
+	tokenConfig    config.TokenConfig
+	redirectURI    string
+	appName        string
+	refreshLimiter *middleware.RedisRateLimiter
 }
 
 // NewHandler 创建认证处理器
-func NewHandler(cfg *config.Config, tokenService *token.Service) *Handler {
+func NewHandler(cfg *config.Config, tokenService *token.Service, rdb *redis.Client) *Handler {
 	return &Handler{
-		ssoClient:     sso.NewClient(cfg.Casdoor),
-		tokenService:  tokenService,
-		tokenConfig:   cfg.Token,
-		redirectURI:   cfg.Casdoor.RedirectURI,
-		appName:       cfg.Casdoor.Application,
+		ssoClient:    sso.NewClientWithCache(cfg.Casdoor, rdb),
+		tokenService: tokenService,
+		tokenConfig:  cfg.Token,
+		redirectURI:  cfg.Casdoor.RedirectURI,
+		appName:      cfg.Casdoor.Application,
 		// RefreshToken 限制: 每分钟最多 10 次
-		refreshLimiter: middleware.NewRateLimiter(10, time.Minute),
+		refreshLimiter: middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
 	}
 }
 
@@ -69,6 +73,7 @@ func (h *Handler) GetSignupURL(c *gin.Context) {
 func (h *Handler) HandleCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
+	requestID := getRequestID(c)
 
 	if code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -79,7 +84,11 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 
 	// 验证 state（Casdoor SDK 使用 ApplicationName 作为 state）
 	if state != h.appName {
-		log.Printf("invalid state: expected %s, got %s", h.appName, state)
+		logger.FromGin(c).Warn("invalid state parameter",
+			zap.String("expected", h.appName),
+			zap.String("got", state),
+		)
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid state parameter",
 		})
@@ -89,7 +98,8 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	// 获取 OAuth Token
 	oauthToken, err := h.ssoClient.GetOAuthToken(code, state)
 	if err != nil {
-		log.Printf("failed to get OAuth token: %v", err)
+		logger.FromGin(c).Error("failed to get OAuth token", zap.Error(err))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "oauth token error")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "authentication failed",
 		})
@@ -99,7 +109,8 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	// 解析 JWT 获取用户信息
 	claims, err := h.ssoClient.ParseJwtToken(oauthToken.AccessToken)
 	if err != nil {
-		log.Printf("failed to parse JWT token: %v", err)
+		logger.FromGin(c).Error("failed to parse JWT token", zap.Error(err))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "jwt parse error")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to retrieve user information",
 		})
@@ -113,15 +124,19 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	ctx := c.Request.Context()
 	if err := h.tokenService.GetBlacklist().TrackUserToken(
 		ctx,
-		claims.User.Id,
+		claims.Id,
 		oauthToken.AccessToken,
 		h.tokenService.GetRefreshTokenTTL(),
 	); err != nil {
-		log.Printf("warning: failed to track user token for user %s: %v", claims.User.Id, err)
-		// 不阻止登录，但记录警告
+		logger.FromGin(c).Warn("failed to track user token",
+			zap.String("user_id", claims.Id),
+			zap.Error(err),
+		)
 	}
 
-	log.Printf("user %s logged in successfully", claims.User.Id)
+	// 记录登录成功审计日志
+	audit.LogSuccess(audit.EventUserLogin, claims.Id, claims.Name, c.ClientIP(), c.Request.UserAgent(), requestID)
+
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":           claims.Id,
@@ -146,18 +161,26 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 // Logout 登出
 func (h *Handler) Logout(c *gin.Context) {
 	userID := middleware.GetUserID(c)
+	username := middleware.GetUsername(c)
+	requestID := getRequestID(c)
+
 	// 获取当前 access token 并加入黑名单
 	accessToken, _ := c.Cookie(middleware.CookieAccessToken)
 	if accessToken != "" {
 		ctx := c.Request.Context()
 		if err := h.tokenService.GetBlacklist().Add(ctx, accessToken, h.tokenService.GetAccessTokenTTL()); err != nil {
-			log.Printf("warning: failed to blacklist token for user %s: %v", userID, err)
-			// 继续登出流程，但记录警告
+			logger.FromGin(c).Warn("failed to blacklist token",
+				zap.String("user_id", userID),
+				zap.Error(err),
+			)
 		}
 	}
 
 	// 清除 Cookie
 	h.clearTokenCookies(c)
+
+	// 记录登出审计日志
+	audit.LogSuccess(audit.EventUserLogout, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "logout successful",
@@ -167,6 +190,8 @@ func (h *Handler) Logout(c *gin.Context) {
 // LogoutAll 全设备登出
 func (h *Handler) LogoutAll(c *gin.Context) {
 	userID := middleware.GetUserID(c)
+	username := middleware.GetUsername(c)
+	requestID := getRequestID(c)
 	ctx := c.Request.Context()
 
 	// 撤销用户所有 token
@@ -175,7 +200,10 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 		userID,
 		h.tokenService.GetRefreshTokenTTL(),
 	); err != nil {
-		log.Printf("error: failed to revoke all tokens for user %s: %v", userID, err)
+		logger.FromGin(c).Error("failed to revoke all tokens",
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to logout from all devices",
 		})
@@ -184,6 +212,9 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 
 	// 清除当前设备的 Cookie
 	h.clearTokenCookies(c)
+
+	// 记录全设备登出审计日志
+	audit.LogSuccess(audit.EventUserLogoutAll, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "logged out from all devices",
@@ -200,10 +231,21 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// 刷新前检查 refresh token 是否已被撤销
+	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), refreshToken)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "service temporarily unavailable"})
+		return
+	}
+	if blacklisted {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token revoked"})
+		return
+	}
+
 	// 使用 Casdoor SDK 刷新 token
 	newToken, err := h.ssoClient.RefreshOAuthToken(refreshToken)
 	if err != nil {
-		log.Printf("failed to refresh token: %v", err)
+		logger.FromGin(c).Error("failed to refresh token", zap.Error(err))
 		h.clearTokenCookies(c)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "failed to refresh token",
@@ -211,8 +253,21 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// 将旧 refresh token 加入黑名单，避免重放
+	_ = h.tokenService.GetBlacklist().Add(c.Request.Context(), refreshToken, h.tokenService.GetRefreshTokenTTL())
+
 	// 设置新的 Cookie
 	h.setTokenCookies(c, newToken.AccessToken, newToken.RefreshToken)
+
+	// 追踪新的 access token
+	if claims, err := h.ssoClient.ParseJwtToken(newToken.AccessToken); err == nil {
+		_ = h.tokenService.GetBlacklist().TrackUserToken(
+			c.Request.Context(),
+			claims.Id,
+			newToken.AccessToken,
+			h.tokenService.GetRefreshTokenTTL(),
+		)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "token refreshed successfully",
@@ -222,7 +277,12 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 // setTokenCookies 设置 Token Cookie
 func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken string) {
 	// 设置 SameSite 属性防止 CSRF
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(http.SameSiteStrictMode)
+
+	csrfToken, err := middleware.GenerateCSRFToken()
+	if err == nil {
+		h.setCSRFCookie(c, csrfToken)
+	}
 
 	// Access Token Cookie
 	c.SetCookie(
@@ -267,4 +327,38 @@ func (h *Handler) clearTokenCookies(c *gin.Context) {
 		h.tokenConfig.CookieSecure,
 		true,
 	)
+	h.clearCSRFCookie(c)
+}
+
+func (h *Handler) setCSRFCookie(c *gin.Context, token string) {
+	c.SetCookie(
+		middleware.CookieCSRFToken,
+		token,
+		h.tokenConfig.RefreshTokenTTL,
+		"/",
+		h.tokenConfig.CookieDomain,
+		h.tokenConfig.CookieSecure,
+		false,
+	)
+}
+
+func (h *Handler) clearCSRFCookie(c *gin.Context) {
+	c.SetCookie(
+		middleware.CookieCSRFToken,
+		"",
+		-1,
+		"/",
+		h.tokenConfig.CookieDomain,
+		h.tokenConfig.CookieSecure,
+		false,
+	)
+}
+
+func getRequestID(c *gin.Context) string {
+	if id, exists := c.Get(middleware.CtxKeyRequestID); exists {
+		if s, ok := id.(string); ok {
+			return s
+		}
+	}
+	return ""
 }
