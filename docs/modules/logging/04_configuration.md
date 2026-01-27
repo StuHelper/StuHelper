@@ -24,6 +24,12 @@ LOG_FILE_MAX_SIZE=100
 LOG_FILE_MAX_BACKUPS=10
 LOG_FILE_MAX_AGE=30
 LOG_FILE_COMPRESS=true
+
+# 审计日志保留期（天）
+AUDIT_LOG_RETENTION_DAYS=180
+
+# 是否开启审计日志
+AUDIT_LOG_ENABLED=true
 ```
 
 ## 配置结构体
@@ -49,7 +55,21 @@ type LogConfig struct {
 ## 环境配置建议
 
 | 环境 | LOG_LEVEL | LOG_FORMAT | LOG_OUTPUT | 采样 |
-|------|-----------|------------|------------|------|
-| 开发 | debug | console | stdout | 关闭 |
-| 测试 | debug | json | both | 关闭 |
-| 生产 | info | json | both | 开启 |
+| ---- | --------- | ---------- | ---------- | ---- |
+| 开发 | debug     | console    | stdout     | 关闭 |
+| 测试 | debug     | json       | both       | 关闭 |
+| 生产 | info      | json       | both       | 开启 |
+
+## 采样策略建议
+
+| 场景        | 建议策略                       |
+| ----------- | ------------------------------ |
+| 高 QPS 业务 | 启用采样，保留 ERROR/WARN 全量 |
+| 敏感接口    | 禁止采样（如登录、权限变更）   |
+| 定时任务    | INFO 采样，ERROR 全量          |
+
+## 留存与合规建议
+
+- 访问日志保留 7–30 天（按成本与合规要求调整）。
+- 审计日志保留 90–365 天（按合规要求调整）。
+- 涉及个人数据的字段默认脱敏或哈希化。
