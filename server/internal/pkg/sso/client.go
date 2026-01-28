@@ -3,11 +3,13 @@ package sso
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sync"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 )
 
@@ -15,8 +17,13 @@ var initOnce sync.Once
 
 // Client Casdoor SSO 客户端
 type Client struct {
-	organization string
-	cache        *UserCache
+	organization    string
+	endpoint        string
+	clientID        string
+	applicationName string
+	cache           *UserCache
+	stateManager    *StateManager
+	logger          *zap.Logger
 }
 
 // NewClient 创建并初始化 Casdoor 客户端
@@ -33,7 +40,11 @@ func NewClient(cfg config.CasdoorConfig) *Client {
 		)
 	})
 	return &Client{
-		organization: cfg.Organization,
+		organization:    cfg.Organization,
+		endpoint:        cfg.Endpoint,
+		clientID:        cfg.ClientID,
+		applicationName: cfg.Application,
+		logger:          zap.L(),
 	}
 }
 
@@ -41,17 +52,41 @@ func NewClient(cfg config.CasdoorConfig) *Client {
 func NewClientWithCache(cfg config.CasdoorConfig, rdb *redis.Client) *Client {
 	client := NewClient(cfg)
 	client.cache = NewUserCache(rdb)
+	client.stateManager = NewStateManager(rdb)
 	return client
 }
 
-// GetSigninURL 获取登录 URL
-func (c *Client) GetSigninURL(redirectURI string) string {
-	return casdoorsdk.GetSigninUrl(redirectURI)
+// GetSigninURL 获取登录 URL（使用随机 state 防止 CSRF）
+func (c *Client) GetSigninURL(ctx context.Context, redirectURI string) (string, error) {
+	state, err := c.stateManager.Generate(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate state: %w", err)
+	}
+	return c.buildOAuthURL("/login/oauth/authorize", redirectURI, state), nil
 }
 
-// GetSignupURL 获取注册 URL
-func (c *Client) GetSignupURL(redirectURI string) string {
-	return casdoorsdk.GetSignupUrl(true, redirectURI)
+// GetSignupURL 获取注册 URL（使用随机 state 防止 CSRF）
+func (c *Client) GetSignupURL(ctx context.Context, redirectURI string) (string, error) {
+	state, err := c.stateManager.Generate(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate state: %w", err)
+	}
+	return c.buildOAuthURL("/signup/oauth/authorize", redirectURI, state), nil
+}
+
+// ValidateState 验证并消费 OAuth state（一次性使用）
+func (c *Client) ValidateState(ctx context.Context, state string) (bool, error) {
+	if c.stateManager == nil {
+		// 向后兼容：如果没有 state manager，使用旧的固定 state 校验
+		return state == c.applicationName, nil
+	}
+	return c.stateManager.Validate(ctx, state)
+}
+
+// buildOAuthURL 构建 OAuth 授权 URL
+func (c *Client) buildOAuthURL(path, redirectURI, state string) string {
+	return fmt.Sprintf("%s%s?client_id=%s&response_type=code&redirect_uri=%s&scope=read&state=%s",
+		c.endpoint, path, c.clientID, url.QueryEscape(redirectURI), state)
 }
 
 // GetOAuthToken 通过授权码获取 OAuth Token
@@ -135,7 +170,10 @@ func (c *Client) GetCachedUser(ctx context.Context, username string) (*CachedUse
 	cached = FromCasdoorUser(user)
 	if err := c.cache.Set(ctx, cached); err != nil {
 		// 缓存写入失败不影响返回结果，只记录警告日志
-		fmt.Printf("warning: failed to cache user %s: %v\n", username, err)
+		c.logger.Warn("failed to cache user",
+			zap.String("username", username),
+			zap.Error(err),
+		)
 	}
 
 	return cached, nil
