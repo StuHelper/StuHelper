@@ -1,12 +1,12 @@
 package review
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 )
 
 const (
@@ -35,10 +35,7 @@ func parseIDParam(c *gin.Context, name string) (int64, error) {
 	return strconv.ParseInt(idStr, 10, 64)
 }
 
+// hashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希，防止枚举和关联攻击
 func hashUserID(userID string) string {
-	if userID == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(userID))
-	return hex.EncodeToString(sum[:])
+	return crypto.HMACHash(userID)
 }

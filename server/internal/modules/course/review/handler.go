@@ -2,19 +2,20 @@ package review
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
 
 // Handler 评课社区处理器
 type Handler struct {
-	db    *pgxpool.Pool
+	db    *db.DB
 	cache *redis.Client
 }
 
 // NewHandler 创建处理器
-func NewHandler(db *pgxpool.Pool, cache *redis.Client) *Handler {
-	return &Handler{db: db, cache: cache}
+func NewHandler(database *db.DB, cache *redis.Client) *Handler {
+	return &Handler{db: database, cache: cache}
 }
 
 // RegisterRoutes 注册评课社区路由

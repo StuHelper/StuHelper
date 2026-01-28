@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -94,13 +93,34 @@ func (h *Handler) invalidateCache(ctx context.Context, prefix string) error {
 	return err
 }
 
-func (h *Handler) count(ctx context.Context, query string) (int, error) {
+// countTTL 计数缓存的 TTL，比列表缓存稍长以减少数据库压力
+const countTTL = 10 * time.Minute
+
+// countWithCache 带缓存的计数查询
+// cacheKey 用于缓存计数结果，避免每次请求都执行 COUNT(*)
+func (h *Handler) countWithCache(ctx context.Context, cacheKey, query string, args ...any) (int, error) {
+	// 尝试从缓存获取
+	if h.cache != nil {
+		if val, err := h.cache.Get(ctx, cacheKey).Int(); err == nil {
+			return val, nil
+		}
+	}
+
+	// 缓存未命中，执行查询
 	var total int
-	if err := h.db.QueryRow(ctx, query).Scan(&total); err != nil {
+	if err := h.db.QueryRow(ctx, query, args...).Scan(&total); err != nil {
 		return 0, err
 	}
+
+	// 写入缓存
+	if h.cache != nil {
+		if err := h.cache.Set(ctx, cacheKey, total, countTTL).Err(); err != nil {
+			logger.L().Warn("failed to cache count",
+				zap.String("key", cacheKey),
+				zap.Error(err),
+			)
+		}
+	}
+
 	return total, nil
 }
-
-// 确保 redis.Client 被使用（避免 import 警告）
-var _ *redis.Client

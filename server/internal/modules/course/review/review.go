@@ -26,8 +26,9 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	var total int
-	if err := h.db.QueryRow(ctx, `SELECT COUNT(*) FROM reviews WHERE course_id = $1`, courseID).Scan(&total); err != nil {
+	countCacheKey := "review:course:" + strconv.FormatInt(courseID, 10) + ":count"
+	total, err := h.countWithCache(ctx, countCacheKey, `SELECT COUNT(*) FROM reviews WHERE course_id = $1`, courseID)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load reviews"})
 		return
 	}
@@ -69,8 +70,8 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	var total int
-	if err := h.db.QueryRow(ctx, `SELECT COUNT(*) FROM reviews`).Scan(&total); err != nil {
+	total, err := h.countWithCache(ctx, "review:total:count", `SELECT COUNT(*) FROM reviews`)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load latest reviews"})
 		return
 	}
@@ -121,12 +122,12 @@ func (h *Handler) PostReview(c *gin.Context) {
 	}
 
 	if len(req.Ratings) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "至少需要一个评分维度"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one rating dimension is required", "code": "RATING_REQUIRED"})
 		return
 	}
 	for _, v := range req.Ratings {
 		if v < 1 || v > 5 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "评分必须在1-5之间"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "rating must be between 1 and 5", "code": "INVALID_RATING"})
 			return
 		}
 	}
@@ -185,9 +186,12 @@ func (h *Handler) PostReview(c *gin.Context) {
 		return
 	}
 
-	_ = h.invalidateCache(ctx, "review:")
+	// 精确失效相关缓存，而非清除所有 review: 前缀
+	_ = h.invalidateCache(ctx, "review:course:"+strconv.FormatInt(req.CourseID, 10))
+	_ = h.invalidateCache(ctx, "review:latest:")
+	_ = h.invalidateCache(ctx, "review:stats")
 
-	c.JSON(http.StatusOK, gin.H{"message": "发布成功", "id": reviewID})
+	c.JSON(http.StatusOK, gin.H{"message": "review published successfully", "id": reviewID})
 }
 
 // VoteReview 投票
@@ -255,9 +259,12 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		return
 	}
 
-	_ = h.invalidateCache(ctx, "review:")
+	// 投票只影响具体评论的展示，精确失效相关缓存
+	// 由于评论列表包含 like_count/dislike_count，需要失效所有评论列表缓存
+	_ = h.invalidateCache(ctx, "review:course:")
+	_ = h.invalidateCache(ctx, "review:latest:")
 
-	c.JSON(http.StatusOK, gin.H{"message": "投票成功"})
+	c.JSON(http.StatusOK, gin.H{"message": "vote submitted successfully"})
 }
 
 // GetStats 获取评课统计数据
@@ -269,7 +276,7 @@ func (h *Handler) GetStats(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	reviewCount, err := h.count(ctx, "SELECT COUNT(*) FROM reviews")
+	reviewCount, err := h.countWithCache(ctx, "review:total:count", "SELECT COUNT(*) FROM reviews")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load stats"})
 		return

@@ -53,7 +53,7 @@ func (h *Handler) GetCourses(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	total, err := h.count(ctx, "SELECT COUNT(*) FROM courses")
+	total, err := h.countWithCache(ctx, "course:courses:count", "SELECT COUNT(*) FROM courses")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load courses"})
 		return
@@ -107,10 +107,10 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 	ctx := c.Request.Context()
 	qLike := "%" + escapeLikePattern(q) + "%"
 
-	var total int
-	err := h.db.QueryRow(ctx, `
-		SELECT COUNT(*) FROM courses WHERE name ILIKE $1 OR code ILIKE $1
-	`, qLike).Scan(&total)
+	// 搜索计数使用带参数的缓存 key
+	countCacheKey := "course:courses:search:count:" + sanitizeCacheKey(q)
+	total, err := h.countWithCache(ctx, countCacheKey,
+		`SELECT COUNT(*) FROM courses WHERE name ILIKE $1 ESCAPE '\' OR code ILIKE $1 ESCAPE '\'`, qLike)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search courses"})
 		return
@@ -120,7 +120,7 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.review_count
 		FROM courses c
 		LEFT JOIN departments d ON d.id = c.department_id
-		WHERE c.name ILIKE $1 OR c.code ILIKE $1
+		WHERE c.name ILIKE $1 ESCAPE '\' OR c.code ILIKE $1 ESCAPE '\'
 		ORDER BY c.name ASC
 		LIMIT $2 OFFSET $3
 	`, qLike, pageSize, (page-1)*pageSize)
@@ -193,12 +193,12 @@ func (h *Handler) GetStats(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	courseCount, err := h.count(ctx, "SELECT COUNT(*) FROM courses")
+	courseCount, err := h.countWithCache(ctx, "course:courses:count", "SELECT COUNT(*) FROM courses")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load stats"})
 		return
 	}
-	departmentCount, err := h.count(ctx, "SELECT COUNT(*) FROM departments")
+	departmentCount, err := h.countWithCache(ctx, "course:departments:count", "SELECT COUNT(*) FROM departments")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load stats"})
 		return
