@@ -3,17 +3,17 @@
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-content">
-        <h1 class="hero-title">StuHelper</h1>
-        <p class="hero-subtitle">你的校园学习助手</p>
+        <h1 class="hero-title">{{ $t('home.title') }}</h1>
+        <p class="hero-subtitle">{{ $t('home.subtitle') }}</p>
         <div class="hero-actions">
           <router-link to="/review" class="btn-primary">
-            开始探索
+            {{ $t('home.explore') }}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
           </router-link>
           <router-link to="/review/post" class="btn-secondary">
-            发布评价
+            {{ $t('home.postReview') }}
           </router-link>
         </div>
       </div>
@@ -28,10 +28,10 @@
           </svg>
         </div>
         <div class="feature-info">
-          <h3>评课社区</h3>
-          <p>匿名分享课程体验，帮助同学选课</p>
+          <h3>{{ $t('home.features.review.title') }}</h3>
+          <p>{{ $t('home.features.review.desc') }}</p>
         </div>
-        <span class="feature-badge available">可用</span>
+        <span class="feature-badge available">{{ $t('common.status.available') }}</span>
       </div>
 
       <div class="feature-card" @click="goTo('/resource')">
@@ -42,10 +42,10 @@
           </svg>
         </div>
         <div class="feature-info">
-          <h3>资料共享</h3>
-          <p>课程资料、往年题共享平台</p>
+          <h3>{{ $t('home.features.resource.title') }}</h3>
+          <p>{{ $t('home.features.resource.desc') }}</p>
         </div>
-        <span class="feature-badge coming">开发中</span>
+        <span class="feature-badge coming">{{ $t('common.status.coming') }}</span>
       </div>
 
       <div class="feature-card" @click="goTo('/spoc')">
@@ -56,10 +56,10 @@
           </svg>
         </div>
         <div class="feature-info">
-          <h3>SPOC</h3>
-          <p>校内在线课程聚合平台</p>
+          <h3>{{ $t('home.features.spoc.title') }}</h3>
+          <p>{{ $t('home.features.spoc.desc') }}</p>
         </div>
-        <span class="feature-badge coming">开发中</span>
+        <span class="feature-badge coming">{{ $t('common.status.coming') }}</span>
       </div>
     </section>
   </div>

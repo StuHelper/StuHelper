@@ -4,27 +4,32 @@
       <!-- Logo -->
       <router-link to="/review" class="logo">
         <span class="logo-icon">📚</span>
-        <span class="logo-text">评课社区</span>
+        <span class="logo-text">{{ $t('nav.logo') }}</span>
       </router-link>
 
       <!-- Desktop Nav -->
       <div class="nav-links desktop-only">
         <router-link to="/review" class="nav-link" exact-active-class="active">
-          首页
+          {{ $t('nav.home') }}
         </router-link>
         <router-link to="/review/courses" class="nav-link" active-class="active">
-          课程
+          {{ $t('nav.courses') }}
         </router-link>
         <router-link to="/review/latest" class="nav-link" active-class="active">
-          最新
+          {{ $t('nav.latest') }}
         </router-link>
       </div>
 
       <!-- Actions -->
       <div class="nav-actions">
+        <!-- Language Switcher -->
+        <button class="lang-switch desktop-only" @click="toggleLocale" :title="currentLocaleLabel">
+          {{ localeIcon }}
+        </button>
+
         <router-link to="/review/post" class="btn-post desktop-only">
           <span class="btn-icon">✍️</span>
-          <span>发测评</span>
+          <span>{{ $t('nav.postReview') }}</span>
         </router-link>
 
         <!-- User Menu -->
@@ -35,12 +40,12 @@
           <Transition name="dropdown">
             <div v-if="userMenuOpen" class="dropdown-menu">
               <div class="dropdown-header">{{ userName }}</div>
-              <button class="dropdown-item" @click="handleLogout">退出登录</button>
+              <button class="dropdown-item" @click="handleLogout">{{ $t('nav.logout') }}</button>
             </div>
           </Transition>
         </div>
         <router-link v-else to="/login" class="btn-login desktop-only">
-          登录
+          {{ $t('nav.login') }}
         </router-link>
 
         <!-- Mobile Menu Toggle -->
@@ -57,11 +62,11 @@
     <!-- Mobile Menu -->
     <Transition name="slide-down">
       <div v-if="menuOpen" class="mobile-menu mobile-only">
-        <router-link to="/review" class="mobile-link" @click="closeMenu">首页</router-link>
-        <router-link to="/review/courses" class="mobile-link" @click="closeMenu">课程</router-link>
-        <router-link to="/review/latest" class="mobile-link" @click="closeMenu">最新</router-link>
-        <router-link to="/review/post" class="mobile-link highlight" @click="closeMenu">发测评</router-link>
-        <router-link v-if="!isAuthenticated" to="/login" class="mobile-link" @click="closeMenu">登录</router-link>
+        <router-link to="/review" class="mobile-link" @click="closeMenu">{{ $t('nav.home') }}</router-link>
+        <router-link to="/review/courses" class="mobile-link" @click="closeMenu">{{ $t('nav.courses') }}</router-link>
+        <router-link to="/review/latest" class="mobile-link" @click="closeMenu">{{ $t('nav.latest') }}</router-link>
+        <router-link to="/review/post" class="mobile-link highlight" @click="closeMenu">{{ $t('nav.postReview') }}</router-link>
+        <router-link v-if="!isAuthenticated" to="/login" class="mobile-link" @click="closeMenu">{{ $t('nav.login') }}</router-link>
       </div>
     </Transition>
   </nav>
@@ -70,18 +75,30 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t, locale } = useI18n()
 
 const isScrolled = ref(false)
 const menuOpen = ref(false)
 const userMenuOpen = ref(false)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-const userName = computed(() => authStore.user?.name || '用户')
+const userName = computed(() => authStore.user?.name || t('nav.user'))
 const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
+
+// 语言切换
+const localeIcon = computed(() => locale.value === 'zh-CN' ? '中' : 'EN')
+const currentLocaleLabel = computed(() => locale.value === 'zh-CN' ? 'Switch to English' : '切换到中文')
+
+const toggleLocale = () => {
+  const newLocale = locale.value === 'zh-CN' ? 'en-US' : 'zh-CN'
+  locale.value = newLocale
+  localStorage.setItem('locale', newLocale)
+}
 
 const toggleMenu = () => {
   menuOpen.value = !menuOpen.value
@@ -225,6 +242,26 @@ onUnmounted(() => {
 }
 
 .btn-login:hover {
+  color: var(--accent);
+}
+
+/* Language Switcher */
+.lang-switch {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast);
+}
+
+.lang-switch:hover {
+  background: var(--bg-hover);
   color: var(--accent);
 }
 

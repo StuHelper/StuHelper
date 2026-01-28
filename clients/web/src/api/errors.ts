@@ -2,6 +2,7 @@
  * API 错误类型定义
  * 统一的错误处理机制
  */
+import i18n from '@/i18n'
 
 // 错误代码枚举
 export enum ErrorCode {
@@ -89,24 +90,15 @@ export class ApiError extends Error {
     ].includes(this.code)
   }
 
-  // 获取用户友好的错误消息
+  // 获取用户友好的错误消息（使用 i18n 翻译）
   getUserMessage(): string {
-    const messages: Record<ErrorCode, string> = {
-      [ErrorCode.NETWORK_ERROR]: '网络连接失败，请检查网络设置',
-      [ErrorCode.TIMEOUT]: '请求超时，请稍后重试',
-      [ErrorCode.UNAUTHORIZED]: '请先登录',
-      [ErrorCode.TOKEN_EXPIRED]: '登录已过期，请重新登录',
-      [ErrorCode.INVALID_TOKEN]: '登录信息无效，请重新登录',
-      [ErrorCode.FORBIDDEN]: '没有权限执行此操作',
-      [ErrorCode.BAD_REQUEST]: '请求参数错误',
-      [ErrorCode.NOT_FOUND]: '请求的资源不存在',
-      [ErrorCode.VALIDATION_ERROR]: '数据验证失败',
-      [ErrorCode.SERVER_ERROR]: '服务器错误，请稍后重试',
-      [ErrorCode.SERVICE_UNAVAILABLE]: '服务暂时不可用，请稍后重试',
-      [ErrorCode.BUSINESS_ERROR]: this.message,
-      [ErrorCode.UNKNOWN]: '发生未知错误'
+    const { t } = i18n.global
+    // 业务错误直接返回原始消息
+    if (this.code === ErrorCode.BUSINESS_ERROR) {
+      return this.message
     }
-    return messages[this.code] || this.message
+    // 其他错误使用 i18n 翻译
+    return t(`errors.${this.code}`) || this.message
   }
 
   // 转换为 JSON
@@ -130,27 +122,26 @@ export function createErrorFromStatus(
   message?: string,
   details?: Record<string, unknown>
 ): ApiError {
-  const statusMap: Record<number, { code: ErrorCode; defaultMessage: string }> = {
-    400: { code: ErrorCode.BAD_REQUEST, defaultMessage: '请求参数错误' },
-    401: { code: ErrorCode.UNAUTHORIZED, defaultMessage: '未授权访问' },
-    403: { code: ErrorCode.FORBIDDEN, defaultMessage: '禁止访问' },
-    404: { code: ErrorCode.NOT_FOUND, defaultMessage: '资源不存在' },
-    408: { code: ErrorCode.TIMEOUT, defaultMessage: '请求超时' },
-    422: { code: ErrorCode.VALIDATION_ERROR, defaultMessage: '数据验证失败' },
-    500: { code: ErrorCode.SERVER_ERROR, defaultMessage: '服务器内部错误' },
-    502: { code: ErrorCode.SERVICE_UNAVAILABLE, defaultMessage: '网关错误' },
-    503: { code: ErrorCode.SERVICE_UNAVAILABLE, defaultMessage: '服务不可用' },
-    504: { code: ErrorCode.TIMEOUT, defaultMessage: '网关超时' }
+  const { t } = i18n.global
+  const statusMap: Record<number, ErrorCode> = {
+    400: ErrorCode.BAD_REQUEST,
+    401: ErrorCode.UNAUTHORIZED,
+    403: ErrorCode.FORBIDDEN,
+    404: ErrorCode.NOT_FOUND,
+    408: ErrorCode.TIMEOUT,
+    422: ErrorCode.VALIDATION_ERROR,
+    500: ErrorCode.SERVER_ERROR,
+    502: ErrorCode.SERVICE_UNAVAILABLE,
+    503: ErrorCode.SERVICE_UNAVAILABLE,
+    504: ErrorCode.TIMEOUT
   }
 
-  const errorInfo = statusMap[status] || {
-    code: ErrorCode.UNKNOWN,
-    defaultMessage: `HTTP 错误 ${status}`
-  }
+  const code = statusMap[status] || ErrorCode.UNKNOWN
+  const defaultMessage = t(`errors.${code}`)
 
   return new ApiError({
-    message: message || errorInfo.defaultMessage,
-    code: errorInfo.code,
+    message: message || defaultMessage,
+    code,
     status,
     details
   })

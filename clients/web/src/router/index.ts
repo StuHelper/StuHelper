@@ -4,13 +4,14 @@
  */
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import i18n from '@/i18n'
 
 // 路由元信息类型
 declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean
     guest?: boolean
-    title?: string
+    titleKey?: string // i18n key for route title
   }
 }
 
@@ -29,13 +30,13 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'login',
     component: lazyLoad(() => import('@/views/LoginPage.vue')),
-    meta: { guest: true, title: '登录' }
+    meta: { guest: true, titleKey: 'routes.login' }
   },
   {
     path: '/auth/callback',
     name: 'auth-callback',
     component: lazyLoad(() => import('@/views/AuthCallbackPage.vue')),
-    meta: { guest: true, title: '认证中' }
+    meta: { guest: true, titleKey: 'routes.authCallback' }
   },
 
   // 首页
@@ -43,7 +44,7 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     name: 'home',
     component: lazyLoad(() => import('@/views/HomePage.vue')),
-    meta: { title: 'StuHelper' }
+    meta: { titleKey: 'routes.home' }
   },
 
   // 评课社区
@@ -51,31 +52,31 @@ const routes: RouteRecordRaw[] = [
     path: '/review',
     name: 'review',
     component: lazyLoad(() => import('@/views/review/IndexPage.vue')),
-    meta: { title: '课程测评' }
+    meta: { titleKey: 'routes.review' }
   },
   {
     path: '/review/courses',
     name: 'courses',
     component: lazyLoad(() => import('@/views/review/CourseListPage.vue')),
-    meta: { title: '课程列表' }
+    meta: { titleKey: 'routes.courses' }
   },
   {
     path: '/review/courses/:id',
     name: 'course-detail',
     component: lazyLoad(() => import('@/views/review/CourseDetailPage.vue')),
-    meta: { title: '课程详情' }
+    meta: { titleKey: 'routes.courseDetail' }
   },
   {
     path: '/review/latest',
     name: 'latest-reviews',
     component: lazyLoad(() => import('@/views/review/LatestReviewsPage.vue')),
-    meta: { title: '最新测评' }
+    meta: { titleKey: 'routes.latestReviews' }
   },
   {
     path: '/review/post',
     name: 'post-review',
     component: lazyLoad(() => import('@/views/review/PostReviewPage.vue')),
-    meta: { requiresAuth: true, title: '发布测评' }
+    meta: { requiresAuth: true, titleKey: 'routes.postReview' }
   },
 
   // 开发中功能
@@ -83,13 +84,13 @@ const routes: RouteRecordRaw[] = [
     path: '/resource',
     name: 'resource',
     component: lazyLoad(() => import('@/views/ComingSoon.vue')),
-    meta: { title: '资料共享' }
+    meta: { titleKey: 'routes.resource' }
   },
   {
     path: '/spoc',
     name: 'spoc',
     component: lazyLoad(() => import('@/views/ComingSoon.vue')),
-    meta: { title: 'SPOC' }
+    meta: { titleKey: 'routes.spoc' }
   },
 
   // 404 页面
@@ -97,7 +98,7 @@ const routes: RouteRecordRaw[] = [
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     component: lazyLoad(() => import('@/views/errors/NotFoundPage.vue')),
-    meta: { title: '页面不存在' }
+    meta: { titleKey: 'routes.notFound' }
   }
 ]
 
@@ -116,9 +117,10 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
 
-  // 设置页面标题
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - StuHelper`
+  // 设置页面标题（使用 i18n 翻译）
+  if (to.meta.titleKey) {
+    const { t } = i18n.global
+    document.title = `${t(to.meta.titleKey)} - StuHelper`
   }
 
   // 需要登录的页面
