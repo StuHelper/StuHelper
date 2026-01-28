@@ -46,11 +46,29 @@ RESTful API 设计规范，基础路径：`/api`
 
 ## 3. 通用响应格式
 
+> 详细错误码定义见 [error-codes.md](error-codes.md)
+
 ### 成功响应
 
 ```json
 {
+  "success": true,
   "data": {}
+}
+```
+
+### 分页响应
+
+```json
+{
+  "success": true,
+  "data": [],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 5
+  }
 }
 ```
 
@@ -58,7 +76,12 @@ RESTful API 设计规范，基础路径：`/api`
 
 ```json
 {
-  "error": "错误信息"
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "error description",
+    "details": {}
+  }
 }
 ```
 
