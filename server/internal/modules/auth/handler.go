@@ -55,7 +55,15 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 // GetLoginURL 获取登录 URL
 func (h *Handler) GetLoginURL(c *gin.Context) {
-	url := h.ssoClient.GetSigninURL(h.redirectURI)
+	ctx := c.Request.Context()
+	url, err := h.ssoClient.GetSigninURL(ctx, h.redirectURI)
+	if err != nil {
+		logger.FromGin(c).Error("failed to generate login URL", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate login URL",
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"url": url,
 	})
@@ -63,7 +71,15 @@ func (h *Handler) GetLoginURL(c *gin.Context) {
 
 // GetSignupURL 获取注册 URL
 func (h *Handler) GetSignupURL(c *gin.Context) {
-	url := h.ssoClient.GetSignupURL(h.redirectURI)
+	ctx := c.Request.Context()
+	url, err := h.ssoClient.GetSignupURL(ctx, h.redirectURI)
+	if err != nil {
+		logger.FromGin(c).Error("failed to generate signup URL", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to generate signup URL",
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"url": url,
 	})
@@ -74,6 +90,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
 	requestID := getRequestID(c)
+	ctx := c.Request.Context()
 
 	if code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -82,21 +99,28 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	// 验证 state（Casdoor SDK 使用 ApplicationName 作为 state）
-	if state != h.appName {
-		logger.FromGin(c).Warn("invalid state parameter",
-			zap.String("expected", h.appName),
-			zap.String("got", state),
+	// 验证并消费 state（一次性使用，防止 CSRF 和回放攻击）
+	valid, err := h.ssoClient.ValidateState(ctx, state)
+	if err != nil {
+		logger.FromGin(c).Error("failed to validate state", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "authentication failed",
+		})
+		return
+	}
+	if !valid {
+		logger.FromGin(c).Warn("invalid or expired state parameter",
+			zap.String("state", state),
 		)
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid state parameter",
+			"error": "invalid or expired state parameter",
 		})
 		return
 	}
 
-	// 获取 OAuth Token
-	oauthToken, err := h.ssoClient.GetOAuthToken(code, state)
+	// 获取 OAuth Token（state 参数传递给 Casdoor，但我们已经自己验证过了）
+	oauthToken, err := h.ssoClient.GetOAuthToken(code, h.appName)
 	if err != nil {
 		logger.FromGin(c).Error("failed to get OAuth token", zap.Error(err))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "oauth token error")
@@ -121,7 +145,6 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	h.setTokenCookies(c, oauthToken.AccessToken, oauthToken.RefreshToken)
 
 	// 追踪用户 token（用于全设备登出）
-	ctx := c.Request.Context()
 	if err := h.tokenService.GetBlacklist().TrackUserToken(
 		ctx,
 		claims.Id,

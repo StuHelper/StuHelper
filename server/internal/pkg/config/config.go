@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/pem"
 	"fmt"
 	"log"
 	"os"
@@ -36,9 +37,12 @@ type LogConfig struct {
 
 // AppConfig 应用配置
 type AppConfig struct {
-	Env         string
-	Port        string
-	CORSOrigins []string
+	Env            string
+	Port           string
+	CORSOrigins    []string
+	TrustedProxies []string // 可信代理 IP 列表，用于正确获取客户端 IP
+	HMACSecret     string   // HMAC 密钥，用于用户 ID 哈希等场景
+	MaxBodySize    int64    // 请求体最大大小（字节）
 }
 
 // DatabaseConfig 数据库配置
@@ -53,6 +57,7 @@ type DatabaseConfig struct {
 	MinConns        int // 最小连接数
 	MaxConnLifetime int // 连接最大生命周期（分钟）
 	MaxConnIdleTime int // 连接最大空闲时间（分钟）
+	QueryTimeout    int // 查询超时时间（秒）
 }
 
 // CasdoorConfig Casdoor SSO 配置
@@ -88,9 +93,12 @@ type TokenConfig struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		App: AppConfig{
-			Env:         getEnv("APP_ENV", "development"),
-			Port:        getEnv("APP_PORT", "8080"),
-			CORSOrigins: getEnvSlice("CORS_ORIGINS", []string{}),
+			Env:            getEnv("APP_ENV", "development"),
+			Port:           getEnv("APP_PORT", "8080"),
+			CORSOrigins:    getEnvSlice("CORS_ORIGINS", []string{}),
+			TrustedProxies: getEnvSlice("TRUSTED_PROXIES", []string{}),
+			HMACSecret:     getEnv("HMAC_SECRET", ""),
+			MaxBodySize:    getEnvInt64("MAX_BODY_SIZE", 10<<20), // 默认 10MB
 		},
 		Database: DatabaseConfig{
 			URL:             getEnv("DATABASE_URL", ""),
@@ -103,6 +111,7 @@ func Load() (*Config, error) {
 			MinConns:        getEnvInt("DB_MIN_CONNS", 2),
 			MaxConnLifetime: getEnvInt("DB_MAX_CONN_LIFETIME", 30),
 			MaxConnIdleTime: getEnvInt("DB_MAX_CONN_IDLE_TIME", 5),
+			QueryTimeout:    getEnvInt("DB_QUERY_TIMEOUT", 5),
 		},
 		Casdoor: CasdoorConfig{
 			Endpoint:     getEnv("CASDOOR_ENDPOINT", ""),
@@ -165,6 +174,16 @@ func (c *Config) Validate() error {
 		if len(c.App.CORSOrigins) == 0 {
 			errs = append(errs, "CORS_ORIGINS is required in production")
 		}
+		if len(c.App.TrustedProxies) == 0 {
+			errs = append(errs, "TRUSTED_PROXIES is required in production for secure IP detection")
+		}
+		if c.App.HMACSecret == "" {
+			errs = append(errs, "HMAC_SECRET is required in production")
+		}
+		// 生产环境 fail-fast: 配置解析错误时直接退出
+		if len(configParseErrors) > 0 {
+			errs = append(errs, configParseErrors...)
+		}
 	}
 
 	// 验证 Casdoor 配置
@@ -179,6 +198,11 @@ func (c *Config) Validate() error {
 	}
 	if c.Casdoor.Certificate == "" {
 		errs = append(errs, "CASDOOR_CERTIFICATE is required")
+	} else {
+		// 验证证书格式
+		if err := validatePEMCertificate(c.Casdoor.Certificate); err != nil {
+			errs = append(errs, fmt.Sprintf("CASDOOR_CERTIFICATE format invalid: %v", err))
+		}
 	}
 	if c.Casdoor.Organization == "" {
 		errs = append(errs, "CASDOOR_ORGANIZATION is required")
@@ -220,13 +244,19 @@ func getEnvSlice(key string, defaultValue []string) []string {
 	return defaultValue
 }
 
+// configParseErrors 收集配置解析错误
+var configParseErrors []string
+
 // getEnvInt 获取整数类型的环境变量
 func getEnvInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return intValue
 		}
-		log.Printf("warning: invalid integer value for %s: %s, using default: %d", key, value, defaultValue)
+		// 记录解析错误，在 Validate 中检查
+		errMsg := fmt.Sprintf("invalid integer value for %s: %s", key, value)
+		configParseErrors = append(configParseErrors, errMsg)
+		log.Printf("warning: %s, using default: %d", errMsg, defaultValue)
 	}
 	return defaultValue
 }
@@ -237,7 +267,53 @@ func getEnvBool(key string, defaultValue bool) bool {
 		if boolValue, err := strconv.ParseBool(value); err == nil {
 			return boolValue
 		}
-		log.Printf("warning: invalid boolean value for %s: %s, using default: %v", key, value, defaultValue)
+		// 记录解析错误，在 Validate 中检查
+		errMsg := fmt.Sprintf("invalid boolean value for %s: %s", key, value)
+		configParseErrors = append(configParseErrors, errMsg)
+		log.Printf("warning: %s, using default: %v", errMsg, defaultValue)
 	}
 	return defaultValue
+}
+
+// getEnvInt64 获取 int64 类型的环境变量
+func getEnvInt64(key string, defaultValue int64) int64 {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return intValue
+		}
+		// 记录解析错误，在 Validate 中检查
+		errMsg := fmt.Sprintf("invalid int64 value for %s: %s", key, value)
+		configParseErrors = append(configParseErrors, errMsg)
+		log.Printf("warning: %s, using default: %d", errMsg, defaultValue)
+	}
+	return defaultValue
+}
+
+// validatePEMCertificate 验证 PEM 格式的证书
+func validatePEMCertificate(cert string) error {
+	// 检查基本的 PEM 格式标记
+	if !strings.Contains(cert, "-----BEGIN") {
+		return fmt.Errorf("missing PEM header (-----BEGIN)")
+	}
+	if !strings.Contains(cert, "-----END") {
+		return fmt.Errorf("missing PEM footer (-----END)")
+	}
+	// 尝试解码 PEM 块
+	block, _ := pem.Decode([]byte(cert))
+	if block == nil {
+		return fmt.Errorf("failed to decode PEM block")
+	}
+	// 验证是否为证书或公钥
+	validTypes := []string{"CERTIFICATE", "PUBLIC KEY", "RSA PUBLIC KEY"}
+	isValid := false
+	for _, t := range validTypes {
+		if block.Type == t {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return fmt.Errorf("unexpected PEM block type: %s (expected CERTIFICATE or PUBLIC KEY)", block.Type)
+	}
+	return nil
 }
