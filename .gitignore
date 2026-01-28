@@ -67,6 +67,7 @@ coverage.xml
 *.out
 # go.work  # 注释掉：项目使用 go.work 管理 workspace
 vendor/
+server/stuhelper
 
 # ==================== Docker ====================
 docker-compose.override.yml
