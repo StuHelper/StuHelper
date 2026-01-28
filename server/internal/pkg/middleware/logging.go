@@ -3,6 +3,7 @@ package middleware
 import (
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -18,6 +19,24 @@ import (
 const (
 	CtxKeyRequestID = "request_id"
 )
+
+// 敏感 query 参数黑名单（这些参数的值会被脱敏）
+var sensitiveQueryParams = map[string]bool{
+	"code":          true, // OAuth authorization code
+	"token":         true,
+	"access_token":  true,
+	"refresh_token": true,
+	"id_token":      true,
+	"password":      true,
+	"secret":        true,
+	"key":           true,
+	"api_key":       true,
+	"apikey":        true,
+	"auth":          true,
+	"authorization": true,
+	"credential":    true,
+	"credentials":   true,
+}
 
 // RequestIDMiddleware 注入请求 ID
 func RequestIDMiddleware() gin.HandlerFunc {
@@ -37,7 +56,8 @@ func RequestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
-		query := c.Request.URL.RawQuery
+		// 对 query string 中的敏感参数进行脱敏
+		query := maskSensitiveQueryParams(c.Request.URL.RawQuery)
 
 		// 注入带 request_id 的 logger 到 context
 		requestID := getRequestID(c)
@@ -136,4 +156,26 @@ func toString(v interface{}) string {
 		return s
 	}
 	return ""
+}
+
+// maskSensitiveQueryParams 对 query string 中的敏感参数进行脱敏
+func maskSensitiveQueryParams(rawQuery string) string {
+	if rawQuery == "" {
+		return ""
+	}
+
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		// 解析失败时返回固定的脱敏标记
+		return "[parse_error]"
+	}
+
+	for key := range values {
+		// 检查参数名是否在敏感参数黑名单中（不区分大小写）
+		if sensitiveQueryParams[strings.ToLower(key)] {
+			values.Set(key, "[REDACTED]")
+		}
+	}
+
+	return values.Encode()
 }

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"net/http"
 
@@ -39,7 +40,8 @@ func CSRFMiddleware() gin.HandlerFunc {
 		}
 
 		headerToken := c.GetHeader(HeaderCSRFToken)
-		if headerToken == "" || headerToken != cookieToken {
+		// 使用常量时间比较防止时序攻击
+		if headerToken == "" || subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookieToken)) != 1 {
 			c.JSON(http.StatusForbidden, gin.H{"error": "csrf token invalid"})
 			c.Abort()
 			return
