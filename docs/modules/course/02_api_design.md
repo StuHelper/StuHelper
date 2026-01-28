@@ -4,35 +4,59 @@
 
 ## 基础信息
 
-- **Base URL**: `/api/v1/course-review`
-- **认证方式**: JWT Token (可选，部分接口需要)
+- **课程模块 Base URL**: `/api/v1/course`
+- **评课子模块 Base URL**: `/api/v1/course/review`
+- **认证方式**: JWT Token (Cookie 传递，部分接口需要)
 - **响应格式**: JSON
 
 ## 通用响应格式
 
+> 详细错误码定义见 [error-codes.md](../../api/error-codes.md)
+
+### 成功响应
+
 ```json
 {
-  "code": 0,
-  "message": "success",
+  "success": true,
   "data": {}
+}
+```
+
+### 错误响应
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "error description"
+  }
 }
 ```
 
 ## 接口列表
 
-| 模块 | 接口 | 方法 | 说明 |
-|------|------|------|------|
-| 配置 | `/rating-dimensions` | GET | 获取评分维度配置 |
-| 院系 | `/departments` | GET | 获取院系列表 |
-| 课程 | `/courses` | GET | 获取课程列表 |
-| 课程 | `/courses/:id` | GET | 获取课程详情 |
-| 课程 | `/courses/search` | GET | 搜索课程 |
-| 课程 | `/courses/:id/rating-stats` | GET | 获取评分统计（雷达图） |
-| 测评 | `/courses/:id/reviews` | GET | 获取课程测评列表 |
-| 测评 | `/reviews/latest` | GET | 获取最新测评 |
-| 测评 | `/reviews` | POST | 发布测评 |
-| 测评 | `/reviews/:id/vote` | POST | 点赞/踩 |
-| 统计 | `/stats` | GET | 获取统计数据 |
+### 课程模块 (`/api/v1/course`)
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/departments` | GET | 获取院系列表 |
+| `/courses` | GET | 获取课程列表 |
+| `/courses/search` | GET | 搜索课程 |
+| `/courses/:id` | GET | 获取课程详情 |
+| `/stats` | GET | 获取统计数据 |
+
+### 评课子模块 (`/api/v1/course/review`)
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/rating-dimensions` | GET | 获取评分维度配置 |
+| `/courses/:id/rating-stats` | GET | 获取评分统计（雷达图） |
+| `/courses/:id/reviews` | GET | 获取课程测评列表 |
+| `/reviews/latest` | GET | 获取最新测评 |
+| `/reviews` | POST | 发布测评 |
+| `/reviews/:id/vote` | POST | 点赞/踩 |
+| `/stats` | GET | 获取评课统计数据 |
 
 ## 课程接口
 
@@ -51,7 +75,7 @@
 
 ```json
 {
-  "code": 0,
+  "success": true,
   "data": {
     "departments": [
       {
@@ -62,7 +86,7 @@
             "id": 1033,
             "name": "偏微分方程",
             "credits": 3,
-            "reviewCount": 30
+            "review_count": 30
           }
         ]
       }
