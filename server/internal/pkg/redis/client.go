@@ -27,8 +27,9 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 		WriteTimeout: 3 * time.Second,
 	})
 
-	// 测试连接
-	ctx := context.Background()
+	// 测试连接（带超时）
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("failed to connect to redis: %w", err)
 	}
