@@ -1,0 +1,65 @@
+package token
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func setupTestRedis(t *testing.T) (*redis.Client, func()) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+
+	client := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+
+	cleanup := func() {
+		client.Close()
+		mr.Close()
+	}
+
+	return client, cleanup
+}
+
+func TestBlacklist_Add(t *testing.T) {
+	client, cleanup := setupTestRedis(t)
+	defer cleanup()
+
+	bl := NewBlacklist(client)
+	ctx := context.Background()
+
+	err := bl.Add(ctx, "test-token", time.Hour)
+	assert.NoError(t, err)
+
+	// 验证 token 已加入黑名单
+	isBlacklisted, err := bl.IsBlacklisted(ctx, "test-token")
+	assert.NoError(t, err)
+	assert.True(t, isBlacklisted)
+}
+
+func TestBlacklist_IsBlacklisted(t *testing.T) {
+	client, cleanup := setupTestRedis(t)
+	defer cleanup()
+
+	bl := NewBlacklist(client)
+	ctx := context.Background()
+
+	// 未加入黑名单的 token
+	isBlacklisted, err := bl.IsBlacklisted(ctx, "unknown-token")
+	assert.NoError(t, err)
+	assert.False(t, isBlacklisted)
+
+	// 加入黑名单后
+	err = bl.Add(ctx, "blacklisted-token", time.Hour)
+	require.NoError(t, err)
+
+	isBlacklisted, err = bl.IsBlacklisted(ctx, "blacklisted-token")
+	assert.NoError(t, err)
+	assert.True(t, isBlacklisted)
+}
