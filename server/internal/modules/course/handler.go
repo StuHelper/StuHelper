@@ -12,14 +12,18 @@ import (
 type Handler struct {
 	db            *db.DB
 	cache         *redis.Client
+	service       *Service
 	reviewHandler *review.Handler
 }
 
 // NewHandler 创建处理器
 func NewHandler(database *db.DB, cache *redis.Client) *Handler {
+	repo := NewRepository(database)
+	svc := NewService(database, repo)
 	return &Handler{
 		db:            database,
 		cache:         cache,
+		service:       svc,
 		reviewHandler: review.NewHandler(database, cache),
 	}
 }

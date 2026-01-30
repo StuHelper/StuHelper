@@ -1,11 +1,12 @@
 package course
 
 import (
-	"net/http"
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // GetDepartments 获取院系列表
@@ -13,34 +14,18 @@ func (h *Handler) GetDepartments(c *gin.Context) {
 	category := c.Query("category")
 	cacheKey := "course:departments:" + sanitizeCacheKey(category)
 	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
-		c.JSON(http.StatusOK, gin.H{"data": cached})
+		response.Success(c, cached)
 		return
 	}
 
-	rows, err := h.db.Query(c.Request.Context(), `
-		SELECT id, school_id, name, short_name, category, sort_order
-		FROM departments
-		WHERE ($1 = '' OR category = $1)
-		ORDER BY sort_order ASC
-	`, category)
+	departments, err := h.service.GetDepartments(c.Request.Context(), category)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load departments"})
+		response.InternalError(c, "failed to load departments")
 		return
-	}
-	defer rows.Close()
-
-	departments := make([]Department, 0)
-	for rows.Next() {
-		var d Department
-		if err := rows.Scan(&d.ID, &d.SchoolID, &d.Name, &d.ShortName, &d.Category, &d.SortOrder); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse departments"})
-			return
-		}
-		departments = append(departments, d)
 	}
 
 	_ = h.setCache(c.Request.Context(), cacheKey, departments, cacheTTL)
-	c.JSON(http.StatusOK, gin.H{"data": departments})
+	response.Success(c, departments)
 }
 
 // GetCourses 获取课程列表
@@ -48,166 +33,98 @@ func (h *Handler) GetCourses(c *gin.Context) {
 	page, pageSize := parsePage(c)
 	cacheKey := "course:courses:page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
 	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
-		c.JSON(http.StatusOK, cached)
+		response.Success(c, cached)
 		return
 	}
 
-	ctx := c.Request.Context()
-	total, err := h.countWithCache(ctx, "course:courses:count", "SELECT COUNT(*) FROM courses")
+	result, err := h.service.GetCourses(c.Request.Context(), ListCoursesParams{
+		Page:     page,
+		PageSize: pageSize,
+	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load courses"})
+		response.InternalError(c, "failed to load courses")
 		return
 	}
 
-	rows, err := h.db.Query(ctx, `
-		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.review_count
-		FROM courses c
-		LEFT JOIN departments d ON d.id = c.department_id
-		ORDER BY c.name ASC
-		LIMIT $1 OFFSET $2
-	`, pageSize, (page-1)*pageSize)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load courses"})
-		return
-	}
-	defer rows.Close()
-
-	list := make([]Course, 0)
-	for rows.Next() {
-		var item Course
-		if err := rows.Scan(
-			&item.ID, &item.SchoolID, &item.DepartmentID, &item.DepartmentName,
-			&item.Code, &item.Name, &item.Credits, &item.ReviewCount,
-		); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse courses"})
-			return
-		}
-		list = append(list, item)
-	}
-
-	resp := gin.H{"data": gin.H{"list": list, "total": total}}
-	_ = h.setCache(ctx, cacheKey, resp, cacheTTL)
-	c.JSON(http.StatusOK, resp)
+	data := gin.H{"list": result.List, "total": result.Total}
+	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	response.Success(c, data)
 }
 
 // SearchCourses 搜索课程
 func (h *Handler) SearchCourses(c *gin.Context) {
 	q := c.Query("q")
 	if len(q) > maxSearchLength {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "search query too long"})
+		response.BadRequest(c, "search query too long")
 		return
 	}
 	page, pageSize := parsePage(c)
 	cacheKey := "course:courses:search:" + sanitizeCacheKey(q) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
 	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
-		c.JSON(http.StatusOK, cached)
+		response.Success(c, cached)
 		return
 	}
 
-	ctx := c.Request.Context()
-	qLike := "%" + escapeLikePattern(q) + "%"
-
-	// 搜索计数使用带参数的缓存 key
-	countCacheKey := "course:courses:search:count:" + sanitizeCacheKey(q)
-	total, err := h.countWithCache(ctx, countCacheKey,
-		`SELECT COUNT(*) FROM courses WHERE name ILIKE $1 ESCAPE '\' OR code ILIKE $1 ESCAPE '\'`, qLike)
+	result, err := h.service.SearchCourses(c.Request.Context(), SearchCoursesParams{
+		Query:    q,
+		Page:     page,
+		PageSize: pageSize,
+	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search courses"})
+		response.InternalError(c, "failed to search courses")
 		return
 	}
 
-	rows, err := h.db.Query(ctx, `
-		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.review_count
-		FROM courses c
-		LEFT JOIN departments d ON d.id = c.department_id
-		WHERE c.name ILIKE $1 ESCAPE '\' OR c.code ILIKE $1 ESCAPE '\'
-		ORDER BY c.name ASC
-		LIMIT $2 OFFSET $3
-	`, qLike, pageSize, (page-1)*pageSize)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search courses"})
-		return
-	}
-	defer rows.Close()
-
-	list := make([]Course, 0)
-	for rows.Next() {
-		var item Course
-		if err := rows.Scan(
-			&item.ID, &item.SchoolID, &item.DepartmentID, &item.DepartmentName,
-			&item.Code, &item.Name, &item.Credits, &item.ReviewCount,
-		); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse courses"})
-			return
-		}
-		list = append(list, item)
-	}
-
-	resp := gin.H{"data": gin.H{"list": list, "total": total}}
-	_ = h.setCache(ctx, cacheKey, resp, cacheTTL)
-	c.JSON(http.StatusOK, resp)
+	data := gin.H{"list": result.List, "total": result.Total}
+	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	response.Success(c, data)
 }
 
 // GetCourse 获取课程详情
 func (h *Handler) GetCourse(c *gin.Context) {
 	courseID, err := parseIDParam(c, "id")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid course id"})
+		response.BadRequest(c, "invalid course id")
 		return
 	}
 	cacheKey := "course:course:" + strconv.FormatInt(courseID, 10)
 	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
-		c.JSON(http.StatusOK, gin.H{"data": cached})
+		response.Success(c, cached)
 		return
 	}
 
-	var item Course
-	err = h.db.QueryRow(c.Request.Context(), `
-		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.review_count
-		FROM courses c
-		LEFT JOIN departments d ON d.id = c.department_id
-		WHERE c.id = $1
-	`, courseID).Scan(
-		&item.ID, &item.SchoolID, &item.DepartmentID, &item.DepartmentName,
-		&item.Code, &item.Name, &item.Credits, &item.ReviewCount,
-	)
-	if err == pgx.ErrNoRows {
-		c.JSON(http.StatusNotFound, gin.H{"error": "course not found"})
-		return
-	}
+	course, err := h.service.GetCourse(c.Request.Context(), courseID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load course"})
+		if errors.Is(err, ErrCourseNotFound) {
+			response.NotFound(c, "course not found")
+			return
+		}
+		response.InternalError(c, "failed to load course")
 		return
 	}
 
-	_ = h.setCache(c.Request.Context(), cacheKey, item, cacheTTL)
-	c.JSON(http.StatusOK, gin.H{"data": item})
+	_ = h.setCache(c.Request.Context(), cacheKey, course, cacheTTL)
+	response.Success(c, course)
 }
 
 // GetStats 获取学习中心统计数据
 func (h *Handler) GetStats(c *gin.Context) {
 	cacheKey := "course:stats"
 	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
-		c.JSON(http.StatusOK, gin.H{"data": cached})
+		response.Success(c, cached)
 		return
 	}
 
-	ctx := c.Request.Context()
-	courseCount, err := h.countWithCache(ctx, "course:courses:count", "SELECT COUNT(*) FROM courses")
+	stats, err := h.service.GetStats(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load stats"})
-		return
-	}
-	departmentCount, err := h.countWithCache(ctx, "course:departments:count", "SELECT COUNT(*) FROM departments")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load stats"})
+		response.InternalError(c, "failed to load stats")
 		return
 	}
 
 	data := gin.H{
-		"courseCount":     courseCount,
-		"departmentCount": departmentCount,
+		"courseCount":     stats.CourseCount,
+		"departmentCount": stats.DepartmentCount,
 	}
-	_ = h.setCache(ctx, cacheKey, data, cacheTTL)
-	c.JSON(http.StatusOK, gin.H{"data": data})
+	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	response.Success(c, data)
 }
