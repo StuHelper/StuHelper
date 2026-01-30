@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -14,8 +15,8 @@ import (
 // GetRatingDimensions 获取评分维度配置
 func (h *Handler) GetRatingDimensions(c *gin.Context) {
 	// 检查缓存
-	cacheKey := h.buildCacheKey(c.Request.Context(), "review:rating_dimensions", "all")
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:rating_dimensions", "all")
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -27,7 +28,7 @@ func (h *Handler) GetRatingDimensions(c *gin.Context) {
 		return
 	}
 
-	_ = h.setCache(c.Request.Context(), cacheKey, dimensions, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, dimensions, cache.DefaultTTL)
 	response.Success(c, dimensions)
 }
 
@@ -40,8 +41,8 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 	}
 
 	// 检查缓存
-	cacheKey := h.buildCacheKey(c.Request.Context(), "review:rating_stats", strconv.FormatInt(courseID, 10))
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:rating_stats", strconv.FormatInt(courseID, 10))
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -116,7 +117,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 		RadarChart:       buildRadarChart(allKeys, dimensionNames, overall),
 	}
 
-	_ = h.setCache(ctx, cacheKey, resp, cacheTTL)
+	_ = h.cache.Set(ctx, cacheKey, resp, cache.DefaultTTL)
 	response.Success(c, resp)
 }
 

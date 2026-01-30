@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -20,8 +21,8 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 	page, pageSize := parsePage(c)
 
 	// 检查缓存
-	cacheKey := h.buildCacheKey(c.Request.Context(), "review:course", strconv.FormatInt(courseID, 10)+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:course", strconv.FormatInt(courseID, 10)+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -38,7 +39,7 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
 	response.Success(c, data)
 }
 
@@ -47,8 +48,8 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 	page, pageSize := parsePage(c)
 
 	// 检查缓存
-	cacheKey := h.buildCacheKey(c.Request.Context(), "review:latest", "page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:latest", "page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -64,7 +65,7 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
 	response.Success(c, data)
 }
 
@@ -119,9 +120,9 @@ func (h *Handler) PostReview(c *gin.Context) {
 
 	// 失效相关缓存
 	ctx := c.Request.Context()
-	_ = h.invalidateCache(ctx, "review:course")
-	_ = h.invalidateCache(ctx, "review:latest")
-	_ = h.invalidateCache(ctx, "review:stats")
+	_ = h.cache.InvalidateByVersion(ctx, "review:course")
+	_ = h.cache.InvalidateByVersion(ctx, "review:latest")
+	_ = h.cache.InvalidateByVersion(ctx, "review:stats")
 
 	response.Created(c, gin.H{"message": "review published successfully", "id": result.ID})
 }
@@ -160,8 +161,8 @@ func (h *Handler) VoteReview(c *gin.Context) {
 
 	// 失效相关缓存
 	ctx := c.Request.Context()
-	_ = h.invalidateCache(ctx, "review:course")
-	_ = h.invalidateCache(ctx, "review:latest")
+	_ = h.cache.InvalidateByVersion(ctx, "review:course")
+	_ = h.cache.InvalidateByVersion(ctx, "review:latest")
 
 	response.Success(c, gin.H{"message": "vote submitted successfully"})
 }
@@ -169,8 +170,8 @@ func (h *Handler) VoteReview(c *gin.Context) {
 // GetStats 获取评课统计数据
 func (h *Handler) GetStats(c *gin.Context) {
 	// 检查缓存
-	cacheKey := h.buildCacheKey(c.Request.Context(), "review:stats", "all")
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:stats", "all")
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -183,7 +184,7 @@ func (h *Handler) GetStats(c *gin.Context) {
 	}
 
 	data := gin.H{"reviewCount": result.ReviewCount}
-	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
 	response.Success(c, data)
 }
 

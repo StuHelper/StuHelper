@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -13,7 +14,7 @@ import (
 func (h *Handler) GetDepartments(c *gin.Context) {
 	category := c.Query("category")
 	cacheKey := "course:departments:" + sanitizeCacheKey(category)
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -24,7 +25,7 @@ func (h *Handler) GetDepartments(c *gin.Context) {
 		return
 	}
 
-	_ = h.setCache(c.Request.Context(), cacheKey, departments, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, departments, cache.DefaultTTL)
 	response.Success(c, departments)
 }
 
@@ -32,7 +33,7 @@ func (h *Handler) GetDepartments(c *gin.Context) {
 func (h *Handler) GetCourses(c *gin.Context) {
 	page, pageSize := parsePage(c)
 	cacheKey := "course:courses:page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -47,7 +48,7 @@ func (h *Handler) GetCourses(c *gin.Context) {
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
 	response.Success(c, data)
 }
 
@@ -60,7 +61,7 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 	}
 	page, pageSize := parsePage(c)
 	cacheKey := "course:courses:search:" + sanitizeCacheKey(q) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -76,7 +77,7 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
 	response.Success(c, data)
 }
 
@@ -88,7 +89,7 @@ func (h *Handler) GetCourse(c *gin.Context) {
 		return
 	}
 	cacheKey := "course:course:" + strconv.FormatInt(courseID, 10)
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -103,14 +104,14 @@ func (h *Handler) GetCourse(c *gin.Context) {
 		return
 	}
 
-	_ = h.setCache(c.Request.Context(), cacheKey, course, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, course, cache.DefaultTTL)
 	response.Success(c, course)
 }
 
 // GetStats 获取学习中心统计数据
 func (h *Handler) GetStats(c *gin.Context) {
 	cacheKey := "course:stats"
-	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -125,6 +126,6 @@ func (h *Handler) GetStats(c *gin.Context) {
 		"courseCount":     stats.CourseCount,
 		"departmentCount": stats.DepartmentCount,
 	}
-	_ = h.setCache(c.Request.Context(), cacheKey, data, cacheTTL)
+	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
 	response.Success(c, data)
 }

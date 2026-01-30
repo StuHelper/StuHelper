@@ -5,26 +5,27 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
 
 // Handler 学习中心处理器
 type Handler struct {
 	db            *db.DB
-	cache         *redis.Client
+	cache         *cache.Helper
 	service       *Service
 	reviewHandler *review.Handler
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, cache *redis.Client) *Handler {
+func NewHandler(database *db.DB, rdb *redis.Client) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo)
 	return &Handler{
 		db:            database,
-		cache:         cache,
+		cache:         cache.NewHelper(rdb),
 		service:       svc,
-		reviewHandler: review.NewHandler(database, cache),
+		reviewHandler: review.NewHandler(database, rdb),
 	}
 }
 

@@ -13,27 +13,27 @@ const (
 	maxSearchLength = 100
 )
 
-// parsePage 解析分页参数（使用 httputil 包）
+// parsePage 解析分页参数
 func parsePage(c *gin.Context) (int, int) {
 	return httputil.ParsePage(c)
 }
 
-// parseIDParam 解析路径参数中的 ID（使用 httputil 包）
+// parseIDParam 解析路径参数中的 ID
 func parseIDParam(c *gin.Context, name string) (int64, error) {
 	return httputil.ParseIDParam(c, name)
 }
 
-// hashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希（使用 httputil 包）
+// hashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希
 func hashUserID(userID string) string {
 	return httputil.HashUserID(userID)
 }
 
-// escapeLikePattern 转义 LIKE 查询中的特殊字符（使用 httputil 包）
+// escapeLikePattern 转义 LIKE 查询中的特殊字符
 func escapeLikePattern(s string) string {
 	return httputil.EscapeLikePattern(s)
 }
 
-// sanitizeCacheKey 清理缓存 key 中的特殊字符（使用 httputil 包）
+// sanitizeCacheKey 清理缓存 key 中的特殊字符
 func sanitizeCacheKey(s string) string {
 	return crypto.HMACHashShort(s, 16)
 }

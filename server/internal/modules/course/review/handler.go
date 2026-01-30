@@ -4,23 +4,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
 
 // Handler 评课社区处理器
 type Handler struct {
 	db      *db.DB
-	cache   *redis.Client
+	cache   *cache.Helper
 	service *Service
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, cache *redis.Client) *Handler {
+func NewHandler(database *db.DB, rdb *redis.Client) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo)
 	return &Handler{
 		db:      database,
-		cache:   cache,
+		cache:   cache.NewHelper(rdb),
 		service: svc,
 	}
 }
