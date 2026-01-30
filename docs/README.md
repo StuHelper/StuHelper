@@ -12,6 +12,7 @@
 |------|------|
 | [产品介绍](product/overview.md) | 产品定位、核心能力、建设路线 |
 | [系统架构](architecture/overview.md) | 技术架构、技术栈、安全设计 |
+| [分层架构](architecture/layered-architecture.md) | Handler → Service → Repository 三层架构规范 |
 
 ### 模块文档
 
@@ -32,7 +33,15 @@
 |------|------|
 | [数据库设计](database/schema.md) | 表结构、索引设计 |
 | [API 设计](api/overview.md) | RESTful API 规范 |
-| [开发规范](development/guide.md) | 代码风格、Git 工作流 |
+| [API 错误码](api/error-codes.md) | 统一错误码规范 |
+
+### 开发文档
+
+| 文档 | 说明 |
+|------|------|
+| [后端快速入门](development/backend-quickstart.md) | 环境搭建、项目结构、开发流程 |
+| [开发规范](development/guide.md) | 代码风格、Git 工作流、三层架构 |
+| [代码审查报告](development/backend-code-review.md) | 后端代码审查问题清单与修复进度 |
 
 ## 文档约定
 

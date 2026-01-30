@@ -1,1250 +1,618 @@
-# 后端代码企业级审查报告
+# 后端代码企业级审查报告（待修复问题清单）
 
-> 审查日期: 2026-01-28
-> 审查范围: `server/` 目录下所有后端代码
-> 审查标准: 企业级严格规范
+> 审查日期: 2026-01-29
+> 审查范围: server/ 目录下后端代码
+> 说明: 已完全修复的问题已移除，仅保留"未修复 / 部分修复"问题，便于后续跟进与验收。
 
-## 总体评价
+## 状态说明
 
-代码整体质量较好，采用了标准的 Go 项目布局，有良好的安全意识（CSRF 防护、Token 黑名单、敏感数据脱敏等）。但从企业级严格规范角度，仍有多处可以优化。
+- 🔴 未修复：尚未实施修复或无明确落地方案
+- 🟡 部分修复：已实施部分方案，但未覆盖全量或未完成迁移
 
 ---
 
-## 一、架构层面问题
+## P0（高风险 / 必须优先修复）
 
-### 1.1 缺少服务层（Service Layer）
+### P0-1 HMAC 空密钥风险 ✅ 已修复
 
-**位置**: 整个项目
-**问题**: Handler 直接操作数据库，业务逻辑与 HTTP 处理耦合
+**位置**: [crypto/hmac.go:22-45](server/internal/pkg/crypto/hmac.go#L22-L45)
 
-**当前模式**:
+**修复方案**:
+- 修改 `InitHMACKey` 函数签名，增加 `isProduction` 参数
+- 生产环境：密钥为空时返回错误，阻止应用启动
+- 开发环境：密钥为空时生成 32 字节随机密钥并输出警告日志
+- 增加密钥长度检查，短于 16 字符时输出警告
 
-```
-Handler → Database
-```
+**修复文件**:
+- `server/internal/pkg/crypto/hmac.go` - 重构 InitHMACKey 函数
+- `server/cmd/stuhelper/main.go` - 更新调用方式，传入环境参数
 
-**建议模式**:
+**验收标准**: ✅
+- 生产环境必须配置 HMAC_SECRET，否则启动失败
+- 开发环境使用随机密钥时有明显警告日志
 
+---
+
+### P0-2 Refresh Token Cookie 路径错误 ✅ 已修复
+
+**位置**: [auth/handler.go:321-330](server/internal/modules/auth/handler.go#L321-L330)
+
+**修复方案**:
+- 将 Cookie 路径从 `/auth/refresh` 修正为 `/api/v1/auth/refresh`
+- 同时修复 `setTokenCookies` 和 `clearTokenCookies` 两个函数
+
+**修复文件**:
+- `server/internal/modules/auth/handler.go` - 修正 Cookie 路径
+
+**验收标准**: ✅
+- Token 刷新接口能正确接收 Refresh Token Cookie
+- 前端调用刷新接口时 Cookie 正确发送
+
+---
+
+### P0-3 OAuth State 向后兼容存在安全隐患 ✅ 已修复
+
+**位置**: [sso/client.go:77-87](server/internal/pkg/sso/client.go#L77-L87)
+
+**修复方案**:
+- 移除向后兼容代码，强制使用随机 state
+- 当 `stateManager` 为 nil 时返回错误 `ErrStateManagerRequired`
+- 所有 OAuth 流程必须通过 `NewClientWithCache` 创建客户端以启用 state 管理
+
+**修复文件**:
+- `server/internal/pkg/sso/client.go` - 移除固定 state 的向后兼容代码
+
+**验收标准**: ✅
+- 所有 OAuth 流程使用随机 state
+- 固定 state 的请求被拒绝
+
+---
+
+### P0-4 JWT 校验不完整 ✅ 已修复
+
+**位置**: [jwt/validator.go](server/internal/pkg/jwt/validator.go)
+
+**修复方案**:
+- 创建独立的 JWT 验证器 `internal/pkg/jwt/validator.go`
+- 实现完整的 JWT 校验：
+  - `iss` (issuer) 校验：必须匹配 Casdoor endpoint
+  - `aud` (audience) 校验：必须匹配 Client ID
+  - `alg` (algorithm) 白名单：仅允许 RS256/RS384/RS512/ES256/ES384/ES512，禁止 `none`
+  - `exp`/`nbf`/`iat` 时间校验：支持 30 秒时钟偏移
+- 更新 `token.Service` 集成 JWT 验证器
+- 更新 `middleware.AuthMiddleware` 使用增强的验证
+
+**修复文件**:
+- `server/internal/pkg/jwt/validator.go` - 新建 JWT 验证器
+- `server/internal/pkg/token/service.go` - 集成 JWT 验证器
+- `server/internal/pkg/middleware/auth.go` - 使用新验证器
+- `server/cmd/stuhelper/main.go` - 更新初始化配置
+
+**验收标准**: ✅
+- 无效 `iss/aud/alg` 的 token 被拒绝
+- 过期 token 统一返回 401
+
+---
+
+### P0-5 健康检查泄露内部信息 ✅ 已修复
+
+**位置**: [health/health.go:65-117](server/internal/pkg/health/health.go#L65-L117)
+
+**修复方案**:
+- 为 Handler 添加 `isProduction` 标志
+- 生产环境 `/health/ready` 仅返回 `status` + `timestamp`
+- 开发环境保留详细信息便于调试
+
+**修复文件**:
+- `server/internal/pkg/health/health.go` - 添加环境判断逻辑
+- `server/cmd/stuhelper/main.go` - 传入 isProduction 参数
+
+**验收标准**: ✅
+- 生产环境不可从公网获取内部运行细节
+
+---
+
+### P0-6 速率限制器计数可被碰撞覆盖 ✅ 已修复
+
+**位置**: [middleware/ratelimit.go:29-56](server/internal/pkg/middleware/ratelimit.go#L29-L56)
+
+**修复方案**:
+- 为每个请求生成唯一 member（8字节随机数的十六进制表示）
+- Lua 脚本中使用唯一 member 替代 `now` 作为 ZSET 成员
+- 确保毫秒内并发请求不会相互覆盖
+
+**修复文件**:
+- `server/internal/pkg/middleware/ratelimit.go` - 添加 generateUniqueID 函数，修改 Lua 脚本
+
+**验收标准**: ✅
+- 并发压测时限流触发符合预期阈值
+
+---
+
+### P0-7 Token 黑名单缺少熔断机制 ✅ 已修复
+
+**位置**: [token/blacklist.go:53-78](server/internal/pkg/token/blacklist.go#L53-L78)
+
+**修复方案**:
+- 创建独立的熔断器包 `internal/pkg/circuitbreaker`
+- 实现三态熔断器：Closed（正常）→ Open（熔断）→ HalfOpen（恢复尝试）
+- 配置：5次失败触发熔断，30秒超时后尝试恢复，2次成功恢复正常
+- 熔断器打开时降级策略：允许请求通过但记录警告日志
+
+**修复文件**:
+- `server/internal/pkg/circuitbreaker/circuitbreaker.go` - 新建熔断器实现
+- `server/internal/pkg/token/blacklist.go` - 集成熔断器，添加 CircuitBreakerMetrics 方法
+
+**验收标准**: ✅
+- Redis 短暂故障时服务可降级运行
+- 熔断器状态可观测
+
+---
+
+## P1（中风险 / 需要计划内修复）
+
+### P1-1 QueryRow 超时上下文可能提前取消 ✅ 已修复
+
+**位置**: [db/db.go:52-68](server/internal/pkg/db/db.go#L52-L68)
+
+**修复方案**:
+- 创建 `RowWithCancel` 包装类型
+- 在 `Scan` 方法中 defer cancel，确保 Scan 完成后才取消 context
+- 返回类型从 `pgx.Row` 改为 `*RowWithCancel`
+
+**修复文件**:
+- `server/internal/pkg/db/db.go` - 添加 RowWithCancel 类型
+
+**验收标准**: ✅
+- `QueryRow` 相关接口在压力下无随机 `context canceled`
+
+---
+
+### P1-2 未检查 `rows.Err()` ✅ 已修复
+
+**位置**:
+- [course/course.go](server/internal/modules/course/course.go)
+- [review/review.go](server/internal/modules/course/review/review.go)
+
+**修复方案**:
+- 在所有 `for rows.Next()` 循环后添加 `rows.Err()` 检查
+- 修改 `scanReviews` 函数接口，添加 `Err()` 方法
+
+**修复文件**:
+- `server/internal/modules/course/course.go` - 3处添加 rows.Err() 检查
+- `server/internal/modules/course/review/review.go` - scanReviews 函数添加 rows.Err() 检查
+
+**验收标准**: ✅
+- 数据库读取错误能被显式返回并记录
+
+---
+
+### P1-3 ID 参数允许非正数 ✅ 已修复
+
+**位置**:
+- [course/utils.go:33-42](server/internal/modules/course/utils.go#L33-L42)
+- [review/utils.go:33-42](server/internal/modules/course/review/utils.go#L33-L42)
+
+**修复方案**:
+- 在 `parseIDParam` 函数中添加 `id <= 0` 检查
+- 非正数 ID 返回 `strconv.ErrRange` 错误
+
+**修复文件**:
+- `server/internal/modules/course/utils.go`
+- `server/internal/modules/course/review/utils.go`
+
+**验收标准**: ✅
+- 负数/0 的 ID 请求返回 400
+
+---
+
+### P1-4 评论内容存在存储型 XSS 风险 ✅ 已修复
+
+**位置**: [review/review.go:106-114](server/internal/modules/course/review/review.go#L106-L114)
+
+**修复方案**:
+- 创建独立的 sanitizer 包 `internal/pkg/sanitizer`
+- 实现 `SanitizeText()` 函数：移除 HTML 标签、转义特殊字符、规范化空白
+- 实现 `SanitizeTitle()` 函数：更严格的标题清理，移除换行符
+- 实现 `ContainsDangerousContent()` 函数：检测 script/iframe/object/embed 标签、JS 事件处理器、javascript: URL
+- 在 `PostReview` 处理器中集成：先检测危险内容并拒绝，再清理用户输入
+
+**修复文件**:
+- `server/internal/pkg/sanitizer/sanitizer.go` - 新建 sanitizer 包
+- `server/internal/modules/course/review/review.go` - 集成 sanitizer
+
+**验收标准**: ✅
+- 提交 `<script>alert(1)</script>` 不会在前端执行
+- 包含危险内容的请求被拒绝（返回 400）
+
+---
+
+### P1-5 缺少输入验证 ✅ 已修复
+
+**位置**: [review/review.go:106-114](server/internal/modules/course/review/review.go#L106-L114)
+
+**修复方案**:
+- 为 `PostReviewRequest` 结构体添加完整的 binding 验证标签
+- `CourseID`: 添加 `gt=0` 确保为正数
+- `TeacherID`: 添加 `omitempty,gt=0` 可选但必须为正数
+- `TermID`: 添加 `omitempty,max=20` 限制长度
+- `Grade`: 添加 `omitempty,oneof=A+ A A- B+ B B- C+ C C- D F` 限制有效值
+
+**修复文件**:
+- `server/internal/modules/course/review/review.go` - 更新 PostReviewRequest 结构体
+
+**验收标准**: ✅
+- 无效 Grade 值被拒绝
+- 非正数 CourseID 被拒绝
+
+---
+
+### P1-6 Redis/Postgres 连接未显式强制 TLS ✅ 已修复
+
+**位置**:
+- [db/pg.go](server/internal/pkg/db/pg.go)
+- [redis/client.go](server/internal/pkg/redis/client.go)
+
+**修复方案**:
+- 为 `DatabaseConfig` 添加 TLS 配置字段：`SSLMode`, `SSLRootCert`, `SSLCert`, `SSLKey`
+- 为 `RedisConfig` 添加 TLS 配置字段：`TLSEnabled`, `TLSCertFile`, `TLSKeyFile`, `TLSCAFile`, `TLSInsecure`
+- PostgreSQL 支持四种 SSL 模式：`disable`, `require`, `verify-ca`, `verify-full`
+- Redis 支持可选的 TLS 连接，包括客户端证书认证
+- 生产环境配置验证：强制要求 PostgreSQL 使用 TLS（非 disable 模式）
+- Redis TLS 未启用时输出警告日志
+
+**修复文件**:
+- `server/internal/pkg/config/config.go` - 添加 TLS 配置字段和生产环境验证
+- `server/internal/pkg/db/pg.go` - 添加 `configurePGTLS` 函数
+- `server/internal/pkg/redis/client.go` - 添加 `configureRedisTLS` 函数
+
+**验收标准**: ✅
+- 生产环境连接明示加密并有证书校验
+- 开发环境可选择禁用 TLS
+
+---
+
+### P1-7 缺少全局与用户维度限流 ✅ 已修复
+
+**位置**:
+- [auth/handler.go](server/internal/modules/auth/handler.go)
+- [review/review.go](server/internal/modules/course/review/review.go)
+
+**修复方案**:
+- 添加 `RateLimitConfig` 配置结构，支持全局/IP/用户三个维度的限流配置
+- 实现 `GlobalRateLimitMiddleware`：全局限流，防止服务过载
+- 实现 `UserRateLimitMiddleware`：用户维度限流，防止单用户滥用
+- 实现 `EndpointRateLimitMiddleware`：端点限流，用于敏感操作（发布评论、投票等）
+- 提供 `DefaultRateLimitConfig()` 默认配置
+
+**修复文件**:
+- `server/internal/pkg/middleware/ratelimit.go` - 添加多维度限流中间件
+
+**验收标准**: ✅
+- 异常刷接口行为被限流
+- 支持全局、IP、用户、端点四个维度的限流
+
+---
+
+### P1-8 事务错误处理不完整 ✅ 已修复
+
+**位置**: [review/review.go:159-187](server/internal/modules/course/review/review.go#L159-L187)
+
+**修复方案**:
+- 为所有事务操作添加详细的错误日志（使用 zap 结构化日志）
+- 修改 defer rollback 处理：检查 `pgx.ErrTxClosed` 避免已提交事务的无效回滚警告
+- 为每个数据库操作添加上下文信息（review_id, course_id, vote_type 等）
+- 区分 Error 和 Warn 级别：操作失败用 Error，回滚失败用 Warn
+
+**修复文件**:
+- `server/internal/modules/course/review/review.go` - 改进 PostReview 和 VoteReview 的事务错误处理
+
+**验收标准**: ✅
+- 事务失败时有详细错误日志
+- Rollback 失败有警告日志
+
+---
+
+## P2（性能 / 工程一致性）
+
+### P2-1 缓存失效采用 `SCAN` + `DEL` ✅ 已修复
+
+**位置**:
+- [course/cache.go:52-94](server/internal/modules/course/cache.go#L52-L94)
+- [review/cache.go:50-92](server/internal/modules/course/review/cache.go#L50-L92)
+
+**修复方案**:
+- 实现基于版本号的缓存失效策略，替代 SCAN + DEL
+- 添加 `cacheVersionKey()` 函数生成版本号 key
+- 添加 `getCacheVersion()` 函数获取当前版本号
+- 添加 `buildCacheKey()` 函数构建带版本号的缓存 key
+- 修改 `invalidateCache()` 使用 INCR 递增版本号
+- 旧缓存根据 TTL 自然过期，避免 SCAN 操作
+
+**修复文件**:
+- `server/internal/modules/course/cache.go` - 实现版本号策略
+- `server/internal/modules/course/review/cache.go` - 实现版本号策略
+
+**验收标准**: ✅
+- 高频写入时缓存失效不会引发 Redis 性能抖动
+
+---
+
+### P2-2 全局变量并发安全问题 ✅ 已修复
+
+**位置**: [db/db.go:13-17](server/internal/pkg/db/db.go#L13-L17)
+
+**修复方案**:
+- 移除未使用的全局变量 `QueryTimeout` 和函数 `SetQueryTimeout`
+- `DB` 结构体已有实例级别的 `timeout` 字段，无需全局变量
+- 通过 `NewDB()` 构造函数传入超时配置，避免并发问题
+
+**修复文件**:
+- `server/internal/pkg/db/db.go` - 移除未使用的全局变量和函数
+
+**验收标准**: ✅
+- 无未使用的全局变量
+- 超时配置通过实例字段管理，并发安全
+
+---
+
+### P2-3 Docker Compose 缺少资源限制 ✅ 已修复
+
+**位置**: [deployments/docker-compose.yml](server/deployments/docker-compose.yml)
+
+**修复方案**:
+- 为 PostgreSQL 添加资源限制：CPU 2核/内存 2G，预留 0.5核/512M
+- 为 Redis 添加资源限制：CPU 1核/内存 512M，预留 0.25核/128M
+- 使用 deploy.resources 配置，兼容 Docker Compose v3.8+
+
+**修复文件**:
+- `server/deployments/docker-compose.yml` - 添加 deploy.resources 配置
+
+**验收标准**: ✅
+- 所有服务有合理的资源限制
+
+---
+
+### P2-4 缺少 Redis 持久化配置 ✅ 已修复
+
+**位置**: [deployments/docker-compose.yml](server/deployments/docker-compose.yml)
+
+**修复方案**:
+- 添加 `--appendonly yes` 启用 AOF 持久化
+- 添加 `--maxmemory 256mb` 限制内存使用
+- 添加 `--maxmemory-policy allkeys-lru` 设置内存淘汰策略
+- 添加健康检查确保 Redis 服务可用
+
+**修复文件**:
+- `server/deployments/docker-compose.yml` - 添加 Redis command 配置
+
+**验收标准**: ✅
+- Redis 数据在重启后可恢复
+
+---
+
+### P2-5 重复的工具函数 ✅ 已修复
+
+**位置**:
+- [course/utils.go](server/internal/modules/course/utils.go)
+- [review/utils.go](server/internal/modules/course/review/utils.go)
+
+**修复方案**:
+- 更新 `httputil` 包的 `ParseIDParam` 函数，添加正数验证
+- 修改 `course/utils.go` 使用 `httputil` 包的函数
+- 修改 `review/utils.go` 使用 `httputil` 包的函数
+- 保留本地包装函数以保持 API 兼容性，但实现委托给 `httputil`
+
+**修复文件**:
+- `server/internal/pkg/httputil/httputil.go` - 添加正数 ID 验证
+- `server/internal/modules/course/utils.go` - 使用 httputil 包
+- `server/internal/modules/course/review/utils.go` - 使用 httputil 包
+
+**验收标准**: ✅
+- 无重复的工具函数实现
+- 所有模块使用统一的 httputil 包
+
+---
+
+## 架构与工程（未修复）
+
+### A-1 三层架构重构 ✅ 已修复
+
+**位置**: 全局
+
+**修复方案**:
+- 采用 Handler → Service → Repository 三层架构
+- Handler 层：HTTP 请求处理、缓存、响应格式化
+- Service 层：业务逻辑、数据验证、事务管理
+- Repository 层：SQL 查询、数据库操作
+
+**已完成**:
+- `server/internal/modules/course/review/` - 完整三层架构
+  - `repository.go` - 数据访问层
+  - `service.go` - 业务逻辑层
+  - `handler.go` / `review.go` / `rating.go` - HTTP 处理层
+- `server/internal/modules/course/` - 完整三层架构
+  - `repository.go` - 数据访问层
+  - `service.go` - 业务逻辑层
+  - `handler.go` / `course.go` - HTTP 处理层
+- `docs/architecture/layered-architecture.md` - 架构设计文档
+
+**auth 模块状态**:
+- 使用外部服务（sso.Client, token.Service），无直接数据库操作
+- 当前架构可接受，无需强制重构
+
+**架构模式**:
 ```
 Handler → Service → Repository → Database
 ```
 
-**影响**:
-
-- 难以进行单元测试（需要 mock 数据库）
-- 业务逻辑复用困难
-- 违反单一职责原则
-
-### 1.2 缺少统一的错误处理机制 ✅ 已修复
-
-**位置**: 所有 Handler 文件
-**状态**: 已修复
-
-**问题**: 错误响应格式不统一，错误码缺失
-
-**修复方案**:
-新增 `internal/pkg/response/response.go` - 统一响应处理包
-
-```go
-// APIError 统一错误响应结构
-type APIError struct {
-    Code    string `json:"code"`
-    Message string `json:"message"`
-    Details any    `json:"details,omitempty"`
-}
-
-// Response 统一响应结构
-type Response struct {
-    Success bool      `json:"success"`
-    Data    any       `json:"data,omitempty"`
-    Error   *APIError `json:"error,omitempty"`
-}
-```
-
-**预定义错误码**:
-- `BAD_REQUEST` - 请求参数错误
-- `UNAUTHORIZED` - 未授权
-- `FORBIDDEN` - 禁止访问
-- `NOT_FOUND` - 资源不存在
-- `CONFLICT` - 资源冲突
-- `INTERNAL_ERROR` - 内部错误
-- `VALIDATION_ERROR` - 验证错误
-- `RATE_LIMIT_EXCEEDED` - 超出速率限制
-- `SERVICE_UNAVAILABLE` - 服务不可用
-
-**便捷函数**:
-- `response.Success(c, data)` - 成功响应
-- `response.BadRequest(c, message)` - 400 错误
-- `response.NotFound(c, message)` - 404 错误
-- `response.InternalError(c, message)` - 500 错误
-- 等等...
-
-**修复说明**: 创建了统一的响应处理包，提供标准化的错误码和响应格式。Handler 可以逐步迁移使用新的响应函数，保持 API 响应的一致性。
-
-### 1.3 缺少依赖注入容器
-
-**位置**: `cmd/stuhelper/main.go`
-**问题**: 手动管理依赖，随着项目增长会变得难以维护
-
-**建议**: 使用 `wire` 或 `fx` 进行依赖注入
+**验收标准**: ✅
+- 所有 SQL 查询封装在 Repository 层
+- 业务逻辑封装在 Service 层
+- Handler 层不包含直接 SQL 操作
 
 ---
 
-## 二、安全问题
-
-### 2.1 CSRF Token 未使用时间安全比较 ✅ 已修复
-
-**位置**: `internal/pkg/middleware/csrf.go:42`
-**优先级**: P0
-**状态**: 已修复
-
-**原代码**:
-
-```go
-if headerToken == "" || headerToken != cookieToken {
-```
-
-**问题**: 字符串直接比较可能受到时序攻击
-
-**修复方案**:
-
-```go
-import "crypto/subtle"
-
-// 使用常量时间比较防止时序攻击
-if headerToken == "" || subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookieToken)) != 1 {
-```
-
-**修复说明**: 使用 `crypto/subtle.ConstantTimeCompare` 进行常量时间比较，防止攻击者通过测量比较操作的时间来逐字节猜测正确的 token。保留了对空字符串的前置检查，因为 `ConstantTimeCompare` 在两个空字符串时会返回 1（相等）。
-
-### 2.2 OAuth state 固定值，缺少随机校验与回放防护 ✅ 已修复
-
-**位置**: `internal/modules/auth/handler.go:86`
-**优先级**: P0
-**状态**: 已修复
-
-**原代码**:
-
-```go
-if state != h.appName {
-```
-
-**问题**: state 参数使用固定的 ApplicationName，缺少随机 state 校验，存在 CSRF 和回放攻击风险
-
-**修复方案**:
-
-1. 新增 `internal/pkg/sso/state.go` - OAuth state 管理器
-   - 使用 Redis 存储随机 state，设置 5 分钟 TTL
-   - 使用 `crypto/rand` 生成 32 字节随机 state
-   - 验证时原子性删除（DEL 命令），防止回放攻击
-
-2. 修改 `internal/pkg/sso/client.go`
-   - `GetSigninURL` 和 `GetSignupURL` 改为生成随机 state
-   - 新增 `ValidateState` 方法验证并消费 state
-   - 同时修复了 `fmt.Printf` 改为结构化日志（P1-5.4）
-
-3. 修改 `internal/modules/auth/handler.go`
-   - `GetLoginURL` 和 `GetSignupURL` 处理 state 生成错误
-   - `HandleCallback` 使用 `ValidateState` 验证 state
-
-**修复说明**: 实现了完整的 OAuth state 随机校验机制：
-
-- 每次登录/注册请求生成唯一随机 state
-- state 存储在 Redis 中，5 分钟后自动过期
-- 回调验证时使用 DEL 命令原子性删除，确保一次性使用
-- 防止 CSRF 攻击和回放攻击
-
-### 2.3 访问日志记录 query 可能泄露敏感参数 ✅ 已修复
-
-**位置**: `internal/pkg/middleware/logging.go:56`
-**优先级**: P0
-**状态**: 已修复
-
-**原代码**:
-
-```go
-zap.String("query", query),
-```
-
-**问题**: 日志记录完整的 query string，可能泄露 OAuth code、token 等敏感参数
-
-**修复方案**:
-在 `logging.go` 中添加敏感参数脱敏机制：
-
-1. 定义敏感参数黑名单（code, token, access_token, refresh_token, password, secret, key 等）
-2. 新增 `maskSensitiveQueryParams` 函数，解析 query string 并对敏感参数值替换为 `[REDACTED]`
-3. 在记录日志前调用脱敏函数
-
-```go
-// 敏感 query 参数黑名单
-var sensitiveQueryParams = map[string]bool{
-    "code": true, "token": true, "access_token": true,
-    "refresh_token": true, "password": true, "secret": true, ...
-}
-
-// maskSensitiveQueryParams 对 query string 中的敏感参数进行脱敏
-func maskSensitiveQueryParams(rawQuery string) string {
-    values, err := url.ParseQuery(rawQuery)
-    if err != nil {
-        return "[parse_error]"
-    }
-    for key := range values {
-        if sensitiveQueryParams[strings.ToLower(key)] {
-            values.Set(key, "[REDACTED]")
-        }
-    }
-    return values.Encode()
-}
-```
-
-**修复说明**: 使用黑名单机制对敏感 query 参数进行脱敏，防止 OAuth code、token 等敏感信息泄露到日志中。参数名匹配不区分大小写。
-
-### 2.4 Rate Limiter 缺少 IP 欺骗防护 ✅ 已修复
-
-**位置**: `internal/pkg/middleware/ratelimit.go:56`
-**优先级**: P0
-**状态**: 已修复
-
-**原代码**:
-
-```go
-key := "rl:" + c.ClientIP()
-```
-
-**问题**: `ClientIP()` 可能被 `X-Forwarded-For` 头欺骗
-
-**修复方案**:
-
-1. 在 `config.go` 中添加 `TrustedProxies` 配置项
-2. 在 `main.go` 中配置 Gin 的 `SetTrustedProxies`
-3. 生产环境强制要求配置可信代理列表
-4. 更新 `.env.example` 添加配置说明
-
-```go
-// config.go
-type AppConfig struct {
-    // ...
-    TrustedProxies []string // 可信代理 IP 列表
-}
-
-// main.go
-if len(cfg.App.TrustedProxies) > 0 {
-    if err := r.SetTrustedProxies(cfg.App.TrustedProxies); err != nil {
-        log.Fatalf("Failed to set trusted proxies: %v", err)
-    }
-}
-```
-
-**修复说明**: 通过配置可信代理列表，Gin 只会从可信代理转发的请求中解析 `X-Forwarded-For` 头，防止攻击者伪造客户端 IP。生产环境必须配置此项。
-
-### 2.5 用户哈希为无盐 SHA256，存在枚举/关联风险 ✅ 已修复
-
-**位置**:
-
-- `internal/modules/course/utils.go:38-44`
-- `internal/modules/course/review/utils.go:38-44`
-
-**优先级**: P0
-**状态**: 已修复
-
-**原代码**:
-
-```go
-func hashUserID(userID string) string {
-    sum := sha256.Sum256([]byte(userID))
-    return hex.EncodeToString(sum[:])
-}
-```
-
-**问题**: 无盐哈希可被彩虹表攻击，相同用户 ID 在不同系统中哈希值相同，存在关联风险
-
-**修复方案**:
-
-1. 新增 `internal/pkg/crypto/hmac.go` - HMAC 工具包
-   - `InitHMACKey` 初始化密钥
-   - `HMACHash` 使用 HMAC-SHA256 哈希
-   - `HMACHashShort` 返回截断的哈希（用于缓存 key）
-
-2. 在 `config.go` 中添加 `HMACSecret` 配置项
-
-3. 在 `main.go` 中初始化 HMAC 密钥
-
-4. 修改 `course/utils.go` 使用 HMAC：
-
-```go
-func hashUserID(userID string) string {
-    return crypto.HMACHash(userID)
-}
-
-func sanitizeCacheKey(s string) string {
-    return crypto.HMACHashShort(s, 16)
-}
-```
-
-**修复说明**: 使用 HMAC-SHA256 替代无盐 SHA256，密钥从环境变量加载。即使攻击者获取哈希值，也无法通过彩虹表或跨系统关联来还原用户 ID。
-
-### 2.6 escapeLikePattern 未与 SQL ESCAPE 子句配合使用 ✅ 已修复
-
-**位置**: `internal/modules/course/course.go:108`
-**优先级**: P1
-**状态**: 已修复
-
-**原代码**:
-
-```go
-qLike := "%" + escapeLikePattern(q) + "%"
-```
-
-**问题**: 转义了特殊字符但 SQL 中没有使用 `ESCAPE '\\'` 子句，转义可能失效
-
-**修复方案**: 在 SQL 中明确使用 ESCAPE 子句
-
-```sql
-WHERE c.name ILIKE $1 ESCAPE '\' OR c.code ILIKE $1 ESCAPE '\'
-```
-
-**修复说明**: 在所有使用 ILIKE 的查询中添加了 `ESCAPE '\'` 子句，确保转义字符被正确解释。
-
-### 2.7 缺少请求体大小限制的日志记录 ✅ 已修复
-
-**位置**: `internal/pkg/middleware/security_headers.go:23-34`
-**优先级**: P2
-**状态**: 已修复
-
-**问题**: 请求体过大被拒绝时没有记录日志，不利于安全审计
-
-**修复方案**:
-在 `MaxBodySize` 中间件中添加结构化日志记录：
-- 记录 request_id、client_ip、method、path
-- 记录实际 content_length 和允许的 max_bytes
-- 记录 user_agent 便于追踪异常客户端
-
-```go
-logger.L().Warn("request body too large",
-    zap.String("request_id", requestID),
-    zap.String("client_ip", c.ClientIP()),
-    zap.String("method", c.Request.Method),
-    zap.String("path", c.Request.URL.Path),
-    zap.Int64("content_length", c.Request.ContentLength),
-    zap.Int64("max_bytes", maxBytes),
-    zap.String("user_agent", c.Request.UserAgent()),
-)
-```
-
-**修复说明**: 请求体过大时现在会记录详细的审计日志，便于安全团队追踪异常请求模式。
-
-### 2.8 Casdoor Certificate 未验证格式 ✅ 已修复
-
-**位置**: `internal/pkg/config/config.go:180-182`
-**优先级**: P2
-**状态**: 已修复
-
-**问题**: 只检查是否为空，未验证证书格式是否有效
-
-**修复方案**:
-新增 `validatePEMCertificate` 函数验证证书格式：
-- 检查 PEM 头尾标记（-----BEGIN/-----END）
-- 使用 `encoding/pem.Decode` 解析 PEM 块
-- 验证块类型为 CERTIFICATE、PUBLIC KEY 或 RSA PUBLIC KEY
-
-```go
-func validatePEMCertificate(cert string) error {
-    if !strings.Contains(cert, "-----BEGIN") {
-        return fmt.Errorf("missing PEM header")
-    }
-    block, _ := pem.Decode([]byte(cert))
-    if block == nil {
-        return fmt.Errorf("failed to decode PEM block")
-    }
-    // 验证块类型...
-}
-```
-
-**修复说明**: 配置加载时会验证 Casdoor 证书的 PEM 格式，无效格式会导致启动失败，避免运行时 JWT 验证错误。
-
-### 2.9 缺少 HSTS 等安全头 ✅ 已修复
-
-**位置**: `internal/pkg/middleware/security_headers.go`
-**优先级**: P2
-**状态**: 已修复
-
-**问题**: 生产环境未启用 HSTS，缺少 CORP/COOP 等现代安全头
-
-**修复方案**:
-1. 已有 `SecurityHeadersWithHSTS` 中间件，包含：
-   - HSTS: `max-age=31536000; includeSubDomains`
-   - CORP: `same-origin`
-   - COOP: `same-origin`
-
-2. 在 `main.go` 中根据环境选择中间件：
-```go
-if cfg.App.Env == "production" {
-    r.Use(middleware.SecurityHeadersWithHSTS())
-} else {
-    r.Use(middleware.SecurityHeadersMiddleware())
-}
-```
-
-**修复说明**: 生产环境现在自动启用 HSTS 和其他现代安全头，开发环境保持基础安全头以避免 HTTPS 问题。
+### A-2 缺少依赖注入容器 🟡 部分修复
+
+**位置**: [cmd/stuhelper/main.go](server/cmd/stuhelper/main.go)
+
+**建议方案**:
+- 推荐使用 Google Wire 进行编译时依赖注入
+- 或使用 Uber fx 进行运行时依赖注入
+
+**实施步骤**:
+1. 安装 wire: `go install github.com/google/wire/cmd/wire@latest`
+2. 创建 `wire.go` 定义 Provider 和 Injector
+3. 运行 `wire ./...` 生成依赖注入代码
+4. 更新 main.go 使用生成的 Injector
+
+**当前状态**:
+- 依赖管理通过构造函数手工拼装
+- 已有清晰的依赖关系，便于后续迁移
 
 ---
 
-## 三、代码质量问题
+### A-3 缺少 Metrics 指标 🟡 部分修复
 
-### 3.1 重复代码 - 缓存操作 ✅ 已修复
+**位置**: 全局
 
-**位置**:
+**建议方案**:
+- 使用 Prometheus client_golang 暴露指标
+- 添加 `/metrics` 端点
 
-- `internal/modules/course/cache.go`
-- `internal/modules/course/review/cache.go`
+**推荐指标**:
+- `http_requests_total` - HTTP 请求计数
+- `http_request_duration_seconds` - 请求延迟直方图
+- `db_query_duration_seconds` - 数据库查询延迟
+- `cache_hits_total` / `cache_misses_total` - 缓存命中率
+- `errors_total` - 错误计数
 
-**问题**: 两个文件的 `getCache`、`setCache`、`invalidateCache` 函数完全相同
-
-**修复方案**:
-新增 `internal/pkg/cache/cache.go` - 公共缓存辅助工具包
-
-```go
-// Helper Redis 缓存辅助工具
-type Helper struct {
-    client *redis.Client
-}
-
-func NewHelper(client *redis.Client) *Helper
-func (h *Helper) Get(ctx context.Context, key string) (any, bool)
-func (h *Helper) Set(ctx context.Context, key string, value any, ttl time.Duration) error
-func (h *Helper) Invalidate(ctx context.Context, prefix string) error
-func (h *Helper) GetInt(ctx context.Context, key string) (int, bool)
-func (h *Helper) SetInt(ctx context.Context, key string, value int, ttl time.Duration) error
-```
-
-**修复说明**: 创建了公共的缓存辅助工具包，提供统一的缓存操作接口。各模块可以逐步迁移使用新的 cache.Helper，消除重复代码。
-
-### 3.2 重复代码 - 工具函数 ✅ 已修复
-
-**位置**:
-
-- `internal/modules/course/utils.go`
-- `internal/modules/course/review/utils.go`
-
-**问题**: `parsePage`、`parseIDParam`、`hashUserID` 函数重复
-
-**修复方案**:
-新增 `internal/pkg/httputil/httputil.go` - 公共 HTTP 工具包
-
-```go
-func ParsePage(c *gin.Context) (page, pageSize int)
-func ParseIDParam(c *gin.Context, name string) (int64, error)
-func HashUserID(userID string) string
-func EscapeLikePattern(s string) string
-func SanitizeCacheKey(s string) string
-```
-
-**修复说明**: 创建了公共的 HTTP 工具包，提供统一的分页解析、ID 解析、用户哈希等功能。各模块可以逐步迁移使用新的 httputil 包，消除重复代码。
-
-### 3.3 魔法数字 ✅ 已修复
-
-**位置**: `cmd/stuhelper/main.go:84`
-**状态**: 已修复
-
-**原代码**:
-```go
-r.Use(middleware.MaxBodySize(10 << 20)) // 10MB
-```
-
-**问题**: 硬编码值应移到配置文件中
-
-**修复方案**:
-1. 在 `AppConfig` 中添加 `MaxBodySize` 字段
-2. 在 `Load()` 中从环境变量 `MAX_BODY_SIZE` 读取，默认 10MB
-3. 在 `main.go` 中使用 `cfg.App.MaxBodySize`
-
-```go
-// config.go
-MaxBodySize: getEnvInt64("MAX_BODY_SIZE", 10<<20), // 默认 10MB
-
-// main.go
-r.Use(middleware.MaxBodySize(cfg.App.MaxBodySize))
-```
-
-**修复说明**: 请求体大小限制现在可通过环境变量 `MAX_BODY_SIZE` 配置。
-
-### 3.4 硬编码字符串 ✅ 已修复
-
-**位置**: `internal/modules/course/review/review.go:124-125`
-**状态**: 已修复
-
-**原代码**:
-```go
-c.JSON(http.StatusBadRequest, gin.H{"error": "至少需要一个评分维度"})
-c.JSON(http.StatusOK, gin.H{"message": "发布成功"})
-c.JSON(http.StatusOK, gin.H{"message": "投票成功"})
-```
-
-**问题**: 中英文混用，应统一使用英文和错误码
-
-**修复方案**:
-将所有中文错误信息统一为英文，并添加错误码：
-```go
-c.JSON(http.StatusBadRequest, gin.H{"error": "at least one rating dimension is required", "code": "RATING_REQUIRED"})
-c.JSON(http.StatusBadRequest, gin.H{"error": "rating must be between 1 and 5", "code": "INVALID_RATING"})
-c.JSON(http.StatusOK, gin.H{"message": "review published successfully"})
-c.JSON(http.StatusOK, gin.H{"message": "vote submitted successfully"})
-```
-
-**修复说明**: 所有用户可见的消息统一为英文，便于国际化。添加错误码便于前端根据业务逻辑处理。
-
-### 3.5 未使用的变量声明 ✅ 已修复
-
-**位置**: `internal/modules/course/cache.go:105-106`
-**状态**: 已修复
-
-**原代码**:
-```go
-// 确保 redis.Client 被使用（避免 import 警告）
-var _ *redis.Client
-```
-
-**问题**: 这是一个 hack，说明代码组织有问题
-
-**修复方案**:
-直接删除这段 hack 代码。经检查，`redis.Client` 已在 `getCache` 等函数中正确使用，不需要这个占位声明。
-
-**修复说明**: 移除了不必要的占位变量声明，代码更加整洁。
+**实施步骤**:
+1. 添加依赖: `go get github.com/prometheus/client_golang`
+2. 创建 `internal/pkg/metrics/metrics.go`
+3. 在中间件中记录 HTTP 指标
+4. 在数据库操作中记录查询延迟
 
 ---
 
-## 四、性能问题
+### A-4 缺少数据库迁移工具 🟡 部分修复
 
-### 4.1 缓存失效策略过于激进 ✅ 已修复
+**位置**: 全局
 
-**位置**: `internal/modules/course/review/review.go:188`
-**状态**: 已修复
+**建议方案**:
+- 推荐使用 golang-migrate 或 goose
+- 创建 `migrations/` 目录存放迁移文件
 
-**原代码**:
-```go
-_ = h.invalidateCache(ctx, "review:")
-```
+**实施步骤**:
+1. 安装: `go install github.com/pressly/goose/v3/cmd/goose@latest`
+2. 创建 `server/migrations/` 目录
+3. 创建迁移文件: `goose create init sql`
+4. 在 main.go 启动时执行迁移
 
-**问题**: 发布一条评论会清除所有 `review:` 前缀的缓存，包括不相关的数据
+**命名规范**:
+- `YYYYMMDDHHMMSS_description.sql`
+- 例如: `20260129120000_create_users_table.sql`
 
-**修复方案**:
-精确失效相关缓存：
+---
 
-1. **PostReview（发布评论）**:
-```go
-_ = h.invalidateCache(ctx, "review:course:"+strconv.FormatInt(req.CourseID, 10))
-_ = h.invalidateCache(ctx, "review:latest:")
-_ = h.invalidateCache(ctx, "review:stats")
-```
+## 部分修复（需持续推进）
 
-2. **VoteReview（投票）**:
-```go
-_ = h.invalidateCache(ctx, "review:course:")
-_ = h.invalidateCache(ctx, "review:latest:")
-```
+### B-1 统一响应格式 ✅ 已修复
 
-**修复说明**: 缓存失效现在更加精确，发布评论只会失效相关课程的评论列表、最新评论列表和统计数据。投票只会失效评论列表（因为投票数变化）。评分维度等配置缓存不受影响。
-
-### 4.2 N+1 查询风险
-
-**位置**: `internal/pkg/sso/client.go:176-182`
-
-```go
-func (c *Client) GetUserRoles(username string) ([]*casdoorsdk.Role, error) {
-    user, err := c.GetUser(username)  // 每次都查询完整用户信息
-    ...
-}
-```
-
-**问题**: 多次调用会重复查询用户信息
-
-### 4.3 缺少数据库查询超时 ✅ 已修复
-
-**位置**: 所有数据库查询
-**优先级**: P0
-**状态**: 已修复
-
-**问题**: 查询没有设置超时，可能导致请求长时间挂起
+**位置**:
+- [response/response.go](server/internal/pkg/response/response.go)
+- 各 Handler
 
 **修复方案**:
+- 所有 Handler 迁移使用 `response` 包的统一响应函数
+- 使用 `response.Success()`, `response.BadRequest()`, `response.NotFound()` 等
 
-1. 在 `config.go` 中添加 `QueryTimeout` 配置项
-2. 新增 `internal/pkg/db/db.go` - 数据库封装
-   - 封装 `pgxpool.Pool`，提供带超时的 Query/QueryRow/Exec/Ping 方法
-   - 每个查询自动创建带超时的 context
-3. 修改 `course/handler.go` 和 `review/handler.go` 使用新的 DB 封装
-4. 更新 `.env.example` 添加 `DB_QUERY_TIMEOUT` 配置
+**已迁移模块**:
+- `server/internal/modules/auth/handler.go` - 20 处
+- `server/internal/modules/course/course.go` - 17 处
+- `server/internal/modules/course/review/review.go` - 21 处
+- `server/internal/modules/course/review/rating.go` - 8 处
 
-```go
-// db/db.go
-type DB struct {
-    pool    *pgxpool.Pool
-    timeout time.Duration
-}
+**验收标准**: ✅
+- 所有 API 响应使用统一格式 `{success, data, error}`
+- 错误响应包含标准错误码
 
-func (d *DB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-    ctx, cancel := context.WithTimeout(ctx, d.timeout)
-    defer cancel()
-    return d.pool.Query(ctx, sql, args...)
-}
-```
+---
 
-**修复说明**: 所有数据库查询现在都有默认 5 秒超时，可通过 `DB_QUERY_TIMEOUT` 环境变量配置。超时后查询会被取消，防止慢查询阻塞请求。
+### B-2 单元测试覆盖不足 🟡
 
-### 4.4 SCAN 命令在生产环境的风险
+**位置**:
+- [middleware/](server/internal/pkg/middleware/)
+- [crypto/](server/internal/pkg/crypto/)
+- [sso/](server/internal/pkg/sso/)
 
-**位置**: `internal/modules/course/cache.go:61-76`
-
-**问题**: Redis SCAN 在大数据量时可能阻塞
+**现状**:
+- 已覆盖 CSRF/日志脱敏/HMAC/State 等模块
+- 业务模块（course/review/auth）测试仍不足
 
 **建议**:
-
-- 使用 Redis 的 key 过期机制，而非手动删除
-- 或采用版本化 cache key 策略
-
-### 4.5 列表接口每次执行 COUNT(\*) ✅ 已修复
-
-**位置**:
-
-- `internal/modules/course/course.go:56`
-- `internal/modules/course/review/review.go:30`
-
-**优先级**: P1
-**状态**: 已修复
-
-**问题**: 每次请求都执行 `COUNT(*)` 可能造成高负载，尤其是大表
-
-**修复方案**:
-1. 在 `course/cache.go` 和 `review/cache.go` 中新增 `countWithCache` 函数
-   - 使用独立的缓存 key 存储计数结果
-   - 计数缓存 TTL 为 10 分钟，比列表缓存稍长以减少数据库压力
-   - 支持带参数的 COUNT 查询
-
-2. 修改所有 COUNT(*) 查询使用 `countWithCache`：
-   - `course.go`: GetCourses、SearchCourses、GetStats
-   - `review.go`: GetCourseReviews、GetLatestReviews、GetStats
-
-```go
-// countWithCache 带缓存的计数查询
-func (h *Handler) countWithCache(ctx context.Context, cacheKey, query string, args ...any) (int, error) {
-    // 尝试从缓存获取
-    if h.cache != nil {
-        if val, err := h.cache.Get(ctx, cacheKey).Int(); err == nil {
-            return val, nil
-        }
-    }
-    // 缓存未命中，执行查询
-    var total int
-    if err := h.db.QueryRow(ctx, query, args...).Scan(&total); err != nil {
-        return 0, err
-    }
-    // 写入缓存
-    if h.cache != nil {
-        _ = h.cache.Set(ctx, cacheKey, total, countTTL).Err()
-    }
-    return total, nil
-}
-```
-
-**修复说明**: 计数结果现在会被缓存 10 分钟，大幅减少数据库 COUNT(*) 查询次数。对于带条件的计数（如搜索、按课程筛选），使用包含条件的缓存 key 确保正确性。
+- 为核心业务与安全路径补齐单测
+- 添加 auth/handler_test.go
+- 添加 token/blacklist_test.go
 
 ---
 
-## 五、可观测性问题
-
-### 5.1 缺少 Metrics 指标
-
-**问题**: 没有 Prometheus metrics 暴露
-
-**建议添加**:
-
-- HTTP 请求延迟直方图
-- 数据库查询延迟
-- 缓存命中率
-- 错误计数
-
-### 5.2 日志缺少 Trace ID 传递
-
-**位置**: `internal/pkg/middleware/logging.go`
-
-**问题**: Request ID 只在 HTTP 层，未传递到数据库查询日志
-
-### 5.3 健康检查缺少详细信息和超时控制 ✅ 已修复
-
-**位置**: `cmd/stuhelper/main.go:103-133`
-**优先级**: P1
-**状态**: 已修复
-
-**问题**:
-
-- 健康检查依赖请求上下文，外部依赖抖动可能拖慢响应
-- 未拆分 readiness 和 liveness 探针
-
-**修复方案**:
-
-1. 新增 `internal/pkg/health/health.go` - 健康检查模块
-   - 独立的 2 秒超时控制，不依赖请求上下文
-   - 拆分 `/health/live` (存活探针) 和 `/health/ready` (就绪探针)
-   - 保留 `/health` 端点以兼容旧版本
-   - 并行检查 PostgreSQL 和 Redis，提高响应速度
-   - 添加版本信息、启动时间、goroutine 数量
-   - 添加连接池状态（总连接数、空闲连接数、已获取连接数）
-   - 添加检查延迟信息
-
-2. 修改 `cmd/stuhelper/main.go`
-   - 使用新的健康检查模块替代内联实现
-
-**端点说明**:
-
-- `/health/live` - Kubernetes liveness 探针，仅检查应用是否运行
-- `/health/ready` - Kubernetes readiness 探针，检查所有依赖是否就绪
-- `/health` - 兼容旧版本，等同于 `/health/ready`
-
-**响应示例**:
-
-```json
-{
-	"status": "ok",
-	"checks": {
-		"postgres": {
-			"status": "healthy",
-			"latency": "1.234ms",
-			"details": {
-				"total_conns": 10,
-				"idle_conns": 8,
-				"acquired_conns": 2
-			}
-		},
-		"redis": {
-			"status": "healthy",
-			"latency": "0.567ms",
-			"details": {
-				"hits": 1000,
-				"misses": 50,
-				"total_conns": 5,
-				"idle_conns": 3
-			}
-		}
-	},
-	"info": {
-		"version": "1.0.0",
-		"uptime": "2h30m15s",
-		"go_version": "go1.21.0",
-		"goroutines": 25
-	},
-	"timestamp": "2026-01-28T10:30:00Z"
-}
-```
-
-**修复说明**: 健康检查现在使用独立的超时控制，不会因为外部依赖抖动而拖慢响应。拆分了 liveness 和 readiness 探针，符合 Kubernetes 最佳实践。添加了详细的系统信息和连接池状态，便于运维监控。
-
-### 5.4 缓存写入失败使用 fmt.Printf
-
-**位置**: `internal/pkg/sso/client.go:138`
-**优先级**: P1
-
-```go
-fmt.Printf("warning: failed to cache user %s: %v\n", username, err)
-```
-
-**问题**: 使用 `fmt.Printf` 而非结构化日志，缺少 request_id 关联
-
-**建议**: 使用统一 logger
-
-```go
-logger.L().Warn("failed to cache user",
-    zap.String("username", username),
-    zap.Error(err),
-)
-```
-
-### 5.5 日志与审计的脱敏策略不一致
-
-**位置**:
-
-- `internal/pkg/middleware/logging.go`
-- `internal/pkg/logger/sensitive.go`
-
-**优先级**: P2
-
-**问题**: 访问日志记录了完整的 query/user_agent，但审计日志对用户名进行了脱敏，策略不一致
-
-**建议**: 统一脱敏策略，确保敏感信息在所有日志中都被正确处理
-
----
-
-## 六、API 设计问题
-
-### 6.1 缺少 API 版本控制 ✅ 已修复
-
-**位置**: `cmd/stuhelper/main.go:136`
-**状态**: 已修复
-
-**原代码**:
-```go
-api := r.Group("/api")
-```
-
-**修复方案**:
-```go
-api := r.Group("/api/v1")
-```
-
-**修复说明**: API 路由现在使用 `/api/v1` 前缀，为未来的 API 版本迭代预留空间。当需要进行不兼容的 API 变更时，可以创建 `/api/v2` 路由组，同时保持旧版本的兼容性。
-
-### 6.2 响应格式不一致 ✅ 部分修复
-
-**位置**: 多处
-**状态**: 部分修复（已创建统一响应包，Handler 需逐步迁移）
-
-有时返回:
-
-```json
-{"data": {...}}
-```
-
-有时返回:
-
-```json
-{ "message": "success" }
-```
-
-**修复方案**:
-已创建 `internal/pkg/response/response.go` 提供统一的响应格式：
-
-```go
-type Response struct {
-    Success bool      `json:"success"`
-    Data    any       `json:"data,omitempty"`
-    Error   *APIError `json:"error,omitempty"`
-}
-```
-
-**便捷函数**:
-- `response.Success(c, data)` - 成功响应
-- `response.BadRequest(c, message)` - 400 错误
-- `response.NotFound(c, message)` - 404 错误
-- `response.InternalError(c, message)` - 500 错误
-- `response.Paginated(c, data, total, page, pageSize)` - 分页响应
-
-**修复说明**: 统一响应包已就绪，Handler 可逐步迁移使用。
-
-### 6.3 缺少分页元数据 ✅ 已修复
-
-**位置**: `internal/modules/course/course.go:88`
-**状态**: 已修复
-
-**原代码**:
-```go
-resp := gin.H{"data": gin.H{"list": list, "total": total}}
-```
-
-**问题**: 缺少分页元数据（page、page_size、total_pages）
-
-**修复方案**:
-在 `response` 包中新增分页响应支持：
-
-```go
-type PageMeta struct {
-    Total      int `json:"total"`
-    Page       int `json:"page"`
-    PageSize   int `json:"page_size"`
-    TotalPages int `json:"total_pages"`
-}
-
-func Paginated(c *gin.Context, data any, total, page, pageSize int)
-```
-
-**响应示例**:
-```json
-{
-    "success": true,
-    "data": [...],
-    "meta": {
-        "total": 100,
-        "page": 1,
-        "page_size": 20,
-        "total_pages": 5
-    }
-}
-```
-
-**修复说明**: 分页响应函数已添加到 response 包，Handler 可使用 `response.Paginated()` 返回带完整元数据的分页响应。
-```
-
----
-
-## 七、测试问题
-
-### 7.1 缺少单元测试 ✅ 部分修复
-
-**位置**: `test/` 目录为空
-**状态**: 部分修复
-
-**建议**: 至少覆盖:
-
-- 所有 Service 层逻辑
-- 中间件
-- 工具函数
-
-**已添加的测试**:
-
-1. `internal/pkg/middleware/csrf_test.go` - CSRF 中间件测试
-   - Token 生成测试
-   - 安全方法放行测试
-   - 无 Token 拦截测试
-
-2. `internal/pkg/middleware/logging_test.go` - 日志中间件测试
-   - 敏感参数脱敏测试
-   - 各种参数组合测试
-   - 无效 query string 处理测试
-
-3. `internal/pkg/crypto/hmac_test.go` - HMAC 工具测试
-   - 初始化测试
-   - 哈希一致性测试
-   - 哈希唯一性测试
-   - 截断哈希测试
-
-4. `internal/pkg/sso/state_test.go` - OAuth state 管理器测试
-   - State 生成测试
-   - State 唯一性测试
-   - State 验证和消费测试
-   - 无效/空 state 测试
-
-**运行测试**:
-
-```bash
-go test ./internal/pkg/middleware/... ./internal/pkg/crypto/... -v
-```
-
-### 7.2 缺少集成测试
-
-**建议**: 使用 testcontainers 进行数据库集成测试
-
----
-
-## 八、配置管理问题
-
-### 8.1 敏感配置未加密
-
-**位置**: `deployments/.env.example`
-
-**问题**: 数据库密码、JWT 密钥等明文存储
-
-**建议**:
-
-- 使用 Vault 或 AWS Secrets Manager
-- 或至少支持从文件读取敏感配置
-
-### 8.2 缺少配置热重载
-
-**问题**: 修改配置需要重启服务
-
-### 8.3 环境变量解析错误处理不当 ✅ 已修复
-
-**位置**: `internal/pkg/config/config.go:229`
-**状态**: 已修复
-
-**原代码**:
-```go
-log.Printf("warning: invalid integer value for %s: %s, using default: %d", key, value, defaultValue)
-```
-
-**问题**: 生产环境配置错误应该 fail-fast，而非静默使用默认值
-
-**修复方案**:
-1. 新增 `configParseErrors` 变量收集解析错误
-2. 修改 `getEnvInt`、`getEnvBool`、`getEnvInt64` 将解析错误记录到 `configParseErrors`
-3. 在 `Validate` 中检查：生产环境有解析错误时直接失败
-
-```go
-var configParseErrors []string
-
-func getEnvInt(key string, defaultValue int) int {
-    if value := os.Getenv(key); value != "" {
-        if intValue, err := strconv.Atoi(value); err == nil {
-            return intValue
-        }
-        errMsg := fmt.Sprintf("invalid integer value for %s: %s", key, value)
-        configParseErrors = append(configParseErrors, errMsg)
-    }
-    return defaultValue
-}
-
-// Validate 中
-if c.App.Env == "production" {
-    if len(configParseErrors) > 0 {
-        errs = append(errs, configParseErrors...)
-    }
-}
-```
-
-**修复说明**: 开发环境仍使用默认值（便于开发），生产环境配置解析错误会导致启动失败，符合 fail-fast 原则。
-
-### 8.4 DB_HOST/DB_PORT 等配置存在但未使用
-
-**位置**:
-
-- `internal/pkg/config/config.go`
-- `internal/pkg/db/pg.go`
-
-**优先级**: P2
-
-**问题**: 配置中定义了 `DB_HOST`、`DB_PORT` 等字段，但实际只使用 `DATABASE_URL`，容易造成误配
-
-**建议**:
-
-- 统一配置来源，只保留 `DATABASE_URL`
-- 或自动从分散配置拼接 URL
-- 在校验中明确要求
-
----
-
-## 九、数据库问题
-
-### 9.1 缺少数据库迁移工具
-
-**问题**: 没有看到 migration 文件
-
-**建议**: 使用 `golang-migrate` 或 `goose`
-
-### 9.2 SQL 查询未使用预编译语句缓存
-
-**位置**: 所有数据库查询
-
-**建议**: 使用 `pgx` 的 prepared statement 功能
-
-### 9.3 事务隔离级别未指定
-
-**位置**: `internal/modules/course/review/review.go:158`
-
-```go
-tx, err := h.db.Begin(ctx)
-```
-
-**建议**: 明确指定隔离级别
-
-```go
-tx, err := h.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
-```
-
----
-
-## 十、可靠性问题
-
-### 10.1 缺少 Graceful Shutdown 超时配置
-
-**位置**: `cmd/stuhelper/main.go:174`
-
-```go
-ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-```
-
-**问题**: 5 秒硬编码，应该可配置
-
-### 10.2 缺少 Panic 恢复后的告警
-
-**位置**: `internal/pkg/middleware/logging.go:100-106`
-
-**问题**: Panic 只记录日志，没有触发告警
-
-### 10.3 SSO Client 使用全局状态
-
-**位置**: `internal/pkg/sso/client.go:14`
-
-```go
-var initOnce sync.Once
-```
-
-**问题**: 全局状态使测试困难
-
-### 10.4 缺少 Context 取消检查
-
-**位置**: 多处循环
-
-**建议**: 在长循环中检查 context 是否已取消
-
-```go
-select {
-case <-ctx.Done():
-    return ctx.Err()
-default:
-}
-```
-
-### 10.5 启动与运行时错误使用 log.Fatal ✅ 已修复
-
-**位置**: `cmd/stuhelper/main.go`
-**优先级**: P1
-**状态**: 已修复
-
-**原代码**:
-
-```go
-log.Fatalf("Failed to load config: %v", err)
-```
-
-**问题**: `log.Fatal` 会调用 `os.Exit(1)`，跳过 defer 语句（日志刷盘、资源关闭）
-
-**修复方案**: 重构为 run 函数模式
-
-```go
-func main() {
-    if err := run(); err != nil {
-        fmt.Fprintf(os.Stderr, "Application error: %v\n", err)
-        os.Exit(1)
-    }
-}
-
-func run() error {
-    // 所有初始化和运行逻辑
-    // 使用 return fmt.Errorf(...) 替代 log.Fatal
-    defer func() { _ = logger.Sync() }()
-    // ...
-    return nil
-}
-```
-
-**修复说明**:
-
-- 将所有逻辑移到 `run()` 函数中，返回 error 而非调用 `log.Fatal`
-- 所有 defer 语句都能正确执行（日志刷盘、Redis/DB 连接关闭）
-- 使用结构化日志 `logger.L().Info/Error` 替代 `log.Printf`
-- 服务器启动错误通过 channel 传递，避免在 goroutine 中调用 `log.Fatal`
-
-### 10.6 Redis 连接测试未设置超时上下文 ✅ 已修复
-
-**位置**: `internal/pkg/redis/client.go:31-32`
-**优先级**: P1
-**状态**: 已修复
-
-**原代码**:
-
-```go
-ctx := context.Background()
-if err := rdb.Ping(ctx).Err(); err != nil {
-```
-
-**问题**: 使用 `context.Background()` 无超时，连接问题时会长时间阻塞
-
-**修复方案**:
-
-```go
-ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-defer cancel()
-if err := rdb.Ping(ctx).Err(); err != nil {
-```
-
-**修复说明**: 为 Redis 连接测试添加 5 秒超时，防止连接问题时长时间阻塞启动流程。
-
-**建议**:
-
-```go
-ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-defer cancel()
-```
-
----
-
-## 优先级汇总
-
-### P0 - 高优先级（安全/稳定性）
-
-| 序号 | 问题                     | 位置                      |
-| ---- | ------------------------ | ------------------------- |
-| 1    | CSRF Token 时间安全比较  | `middleware/csrf.go`      |
-| 2    | OAuth state 固定值       | `auth/handler.go`         |
-| 3    | 访问日志泄露敏感参数     | `middleware/logging.go`   |
-| 4    | Rate Limiter IP 欺骗防护 | `middleware/ratelimit.go` |
-| 5    | 用户哈希无盐 SHA256      | `utils.go`                |
-| 6    | 添加数据库查询超时       | 所有数据库查询            |
-| 7    | 添加单元测试             | `test/`                   |
-
-### P1 - 中优先级（可靠性/可维护性）
-
-| 序号 | 问题                            | 位置                     |
-| ---- | ------------------------------- | ------------------------ |
-| 8    | escapeLikePattern 未配合 ESCAPE | `course.go`              |
-| 9    | log.Fatal 跳过 defer            | `main.go`                |
-| 10   | Redis 连接测试无超时            | `redis/client.go`        |
-| 11   | 健康检查超时和拆分              | `main.go`                |
-| 12   | 缓存写入用 fmt.Printf           | `sso/client.go`          |
-| 13   | 列表接口每次 COUNT(\*)          | `course.go`, `review.go` |
-| 14   | 抽取服务层                      | 整体架构                 |
-| 15   | 统一错误处理                    | 所有 Handler             |
-| 16   | 消除重复代码                    | `cache.go`, `utils.go`   |
-| 17   | 添加 API 版本控制               | `main.go`                |
-
-### P2 - 低优先级（优化）
-
-| 序号 | 问题               | 位置                         |
-| ---- | ------------------ | ---------------------------- |
-| 18   | 添加 Metrics       | 新增                         |
-| 19   | ~~优化缓存失效策略~~ | ~~`review/review.go`~~ ✅     |
-| 20   | 添加配置热重载     | `config/`                    |
-| 21   | 使用依赖注入       | `main.go`                    |
-| 22   | ~~添加 HSTS 等安全头~~ | ~~`security_headers.go`~~ ✅ |
-| 23   | 日志脱敏策略统一   | `logging.go`, `sensitive.go` |
-| 24   | 配置字段清理       | `config.go`                  |
-| 25   | ~~请求体大小日志~~ | ~~`security_headers.go`~~ ✅ |
-| 26   | ~~Casdoor 证书验证~~ | ~~`config.go`~~ ✅ |
-| 27   | ~~魔法数字配置化~~ | ~~`config.go`, `main.go`~~ ✅ |
-| 28   | ~~硬编码中文字符串~~ | ~~`review.go`~~ ✅ |
-| 29   | ~~未使用变量声明~~ | ~~`cache.go`~~ ✅ |
-| 30   | ~~配置解析 fail-fast~~ | ~~`config.go`~~ ✅ |
-| 31   | ~~分页元数据~~ | ~~`response.go`~~ ✅ |
+## 优先级摘要
+
+| 优先级 | 总数 | 已修复 | 待修复 | 关键问题 |
+|--------|------|--------|--------|----------|
+| P0 | 7 | 7 | 0 | HMAC空密钥、Cookie路径、OAuth State、JWT校验、健康检查泄露、限流碰撞、黑名单熔断 |
+| P1 | 8 | 8 | 0 | QueryRow超时、rows.Err、ID校验、XSS、输入验证、TLS、全局限流、事务处理 |
+| P2 | 5 | 5 | 0 | SCAN性能、全局变量、Docker资源、Redis持久化、重复代码 |
+| 架构 | 4 | 1 | 3 | 三层架构✅、依赖注入、Metrics、数据库迁移 |
+| 部分修复 | 2 | 1 | 1 | 响应格式✅、单元测试 |
 
 ---
 
 ## 修复进度跟踪
 
 ### P0 - 高优先级
-
-- [x] 2.1 CSRF Token 时间安全比较 ✅ 已修复：使用 `crypto/subtle.ConstantTimeCompare` 替代直接字符串比较
-- [x] 2.2 OAuth state 随机校验 ✅ 已修复：新增 state 管理器，使用 Redis 存储随机 state，支持一次性验证
-- [x] 2.3 访问日志敏感参数脱敏 ✅ 已修复：添加敏感参数黑名单，对 query string 中的敏感参数进行脱敏
-- [x] 2.4 配置可信代理列表 ✅ 已修复：添加 TrustedProxies 配置，生产环境强制要求配置
-- [x] 2.5 用户哈希使用 HMAC ✅ 已修复：新增 crypto 包，使用 HMAC-SHA256 替代无盐 SHA256
-- [x] 4.3 添加数据库查询超时 ✅ 已修复：新增 db.DB 封装，所有查询自动带超时
-- [x] 7.1 添加单元测试 ✅ 部分修复：添加了 CSRF、日志脱敏、HMAC、OAuth state 的单元测试
+- [x] P0-1 HMAC 空密钥风险
+- [x] P0-2 Refresh Token Cookie 路径错误
+- [x] P0-3 OAuth State 向后兼容安全隐患
+- [x] P0-4 JWT 校验不完整
+- [x] P0-5 健康检查泄露内部信息
+- [x] P0-6 速率限制器计数碰撞
+- [x] P0-7 Token 黑名单缺少熔断机制
 
 ### P1 - 中优先级
-
-- [x] 2.6 escapeLikePattern 配合 ESCAPE 子句 ✅ 已修复：在 SQL 中添加 ESCAPE '\' 子句
-- [x] 10.5 替换 log.Fatal ✅ 已修复：重构为 run 函数模式，确保 defer 正确执行
-- [x] 10.6 Redis 连接测试添加超时 ✅ 已修复：添加 5 秒超时
-- [x] 5.3 健康检查超时和拆分 ✅ 已修复：新增健康检查模块，拆分 liveness/readiness 探针，添加独立超时和详细信息
-- [x] 5.4 缓存写入使用结构化日志 ✅ 已修复：在 2.2 修复中一并完成
-- [x] 4.5 优化 COUNT(\*) 查询 ✅ 已修复：新增 countWithCache 函数，计数结果缓存 10 分钟
-- [x] 6.1 添加 API 版本控制 ✅ 已修复：API 路由改为 /api/v1 前缀
-- [x] 1.2 统一错误处理 ✅ 已修复：新增 response 包，提供统一的错误码和响应格式
-- [x] 3.1 消除重复代码 - 缓存操作 ✅ 已修复：新增 cache.Helper 公共缓存工具包
-- [x] 3.2 消除重复代码 - 工具函数 ✅ 已修复：新增 httputil 公共 HTTP 工具包
-- [ ] 1.1 抽取服务层（架构改动较大，建议后续迭代）
+- [x] P1-1 QueryRow 超时上下文
+- [x] P1-2 未检查 rows.Err()
+- [x] P1-3 ID 参数允许非正数
+- [x] P1-4 存储型 XSS 风险
+- [x] P1-5 缺少输入验证
+- [x] P1-6 Redis/Postgres TLS
+- [x] P1-7 缺少全局与用户维度限流
+- [x] P1-8 事务错误处理不完整
 
 ### P2 - 低优先级
+- [x] P2-1 缓存失效 SCAN 性能
+- [x] P2-2 全局变量并发安全
+- [x] P2-3 Docker Compose 资源限制
+- [x] P2-4 Redis 持久化配置
+- [x] P2-5 重复的工具函数
 
-- [x] 2.7 请求体大小日志 ✅ 已修复：添加结构化日志记录
-- [x] 2.8 Casdoor 证书格式验证 ✅ 已修复：新增 validatePEMCertificate 函数
-- [x] 2.9 添加 HSTS 等安全头 ✅ 已修复：生产环境自动启用 SecurityHeadersWithHSTS
-- [x] 3.3 魔法数字配置化 ✅ 已修复：MaxBodySize 移到配置文件
-- [x] 3.4 硬编码中文字符串 ✅ 已修复：统一为英文并添加错误码
-- [x] 3.5 未使用变量声明 ✅ 已修复：移除 hack 代码
-- [x] 4.1 优化缓存失效策略 ✅ 已修复：精确失效相关缓存
-- [x] 6.2 响应格式统一 ✅ 部分修复：已创建 response 包
-- [x] 6.3 分页元数据 ✅ 已修复：新增 Paginated 函数
-- [x] 8.3 配置解析 fail-fast ✅ 已修复：生产环境解析错误时启动失败
-- [ ] 5.1 添加 Metrics 指标
-- [ ] 8.2 添加配置热重载
-- [ ] 1.3 使用依赖注入
-- [ ] 5.5 统一日志脱敏策略
-- [ ] 8.4 清理未使用的配置字段
+### 架构改进
+- [x] A-1 三层架构重构
+- [ ] A-2 引入依赖注入
+- [ ] A-3 添加 Metrics 指标
+- [ ] A-4 添加数据库迁移工具
+
+### 部分修复
+- [x] B-1 统一响应格式
+- [ ] B-2 单元测试覆盖（补充中）
 
 ---
 
 ## 参考资料
 
-- [Uber Go Style Guide](./uber-go-guide/intro.md)
+- [Uber Go Style Guide](https://github.com/uber-go/guide)
 - [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - [Effective Go](https://golang.org/doc/effective_go)
 - [OWASP Go Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Go_Security_Cheat_Sheet.html)

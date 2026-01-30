@@ -119,7 +119,64 @@ graph TD
 
 ---
 
-## 5. 运维备忘录
+## 5. 后端代码架构
+
+### 5.1 目录结构
+
+```
+server/
+├── cmd/
+│   └── stuhelper/
+│       └── main.go              # 应用入口
+├── internal/
+│   ├── modules/                 # 业务模块
+│   │   ├── auth/                # 认证模块
+│   │   │   └── handler.go
+│   │   └── course/              # 课程模块
+│   │       ├── handler.go
+│   │       ├── service.go
+│   │       ├── repository.go
+│   │       └── review/          # 评课子模块
+│   │           ├── handler.go
+│   │           ├── service.go
+│   │           └── repository.go
+│   └── pkg/                     # 公共包
+│       ├── config/              # 配置管理
+│       ├── db/                  # 数据库连接
+│       ├── middleware/          # HTTP 中间件
+│       ├── response/            # 统一响应格式
+│       ├── token/               # Token 服务
+│       ├── sso/                 # SSO 客户端
+│       └── logger/              # 日志服务
+├── deployments/                 # 部署配置
+│   ├── docker-compose.yml
+│   └── .env.example
+└── go.mod
+```
+
+### 5.2 分层架构
+
+采用 **Handler → Service → Repository** 三层架构，详见 [分层架构设计](layered-architecture.md)。
+
+| 层级 | 职责 | 禁止事项 |
+|------|------|----------|
+| Handler | HTTP 请求处理、缓存、响应格式化 | 直接写 SQL、包含业务逻辑 |
+| Service | 业务逻辑、数据验证、事务管理 | 直接写 SQL、处理 HTTP |
+| Repository | SQL 查询、数据库操作 | 包含业务逻辑、处理 HTTP |
+
+### 5.3 核心依赖
+
+| 包 | 用途 |
+|----|------|
+| `github.com/gin-gonic/gin` | HTTP 框架 |
+| `github.com/jackc/pgx/v5` | PostgreSQL 驱动 |
+| `github.com/redis/go-redis/v9` | Redis 客户端 |
+| `go.uber.org/zap` | 结构化日志 |
+| `github.com/casdoor/casdoor-go-sdk` | SSO 集成 |
+
+---
+
+## 6. 运维备忘录
 
 *   **Agent 掉线处理**：Redis Key 过期自动摘除，前端提示“当前服务繁忙”。
 *   **COS 权限**：务必使用 STS (临时密钥) 签发上传权限，不要把永久 Key 写在前端代码里。

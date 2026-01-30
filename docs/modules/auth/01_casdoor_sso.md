@@ -82,11 +82,12 @@ GET /api/v1/auth/login
 {
   "success": true,
   "data": {
-    "url": "https://sso.stuhelper.com/login/oauth/authorize?...",
-    "state": "random_state_string"
+    "url": "https://sso.stuhelper.com/login/oauth/authorize?client_id=xxx&redirect_uri=xxx&response_type=code&scope=openid+profile+email&state=random_state"
   }
 }
 ```
+
+> **说明**：`state` 参数已包含在 URL 中，用于防止 CSRF 攻击。前端无需单独处理 state。
 
 #### 处理 OAuth 回调
 

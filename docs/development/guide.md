@@ -12,6 +12,11 @@
   - [三、Code Review 与 PR 规范](#三code-review-与-pr-规范)
   - [四、字段命名规范](#四字段命名规范)
   - [五、Go 后端开发规范](#五go-后端开发规范)
+    - [5.1 项目结构](#51-项目结构)
+    - [5.2 三层架构规范](#52-三层架构规范)
+    - [5.3 命名规范](#53-命名规范)
+    - [5.4 编码规范](#54-编码规范)
+    - [5.5 统一响应格式](#55-统一响应格式)
   - [六、Vue3 前端开发规范](#六vue3-前端开发规范)
   - [七、API 接口规范](#七api-接口规范)
   - [八、日志规范](#八日志规范)
@@ -273,26 +278,125 @@ interface User {
 ### 5.1 项目结构
 
 ```
-services/stuhelper/
-├── cmd/server/main.go      # 入口文件
-├── configs/                 # 配置文件
+server/
+├── cmd/stuhelper/main.go    # 入口文件
+├── configs/                  # 配置文件
+├── deployments/              # 部署配置 (Docker Compose 等)
 ├── internal/
-│   ├── app/                # 应用初始化
-│   ├── config/             # 配置结构
-│   ├── modules/            # 业务模块
-│   │   └── <module>/
-│   │       ├── handler/    # HTTP 处理器
-│   │       ├── service/    # 业务逻辑
-│   │       ├── repository/ # 数据访问
-│   │       ├── model/      # 数据模型
-│   │       ├── dto/        # 数据传输对象
-│   │       └── module.go   # 模块注册
-│   └── router/             # 路由配置
-├── pkg/                    # 公共包
-└── migrations/             # 数据库迁移
+│   ├── modules/              # 业务模块
+│   │   ├── auth/             # 认证模块
+│   │   │   └── handler.go    # HTTP 处理器
+│   │   └── course/           # 课程模块
+│   │       ├── handler.go    # HTTP 处理器
+│   │       ├── service.go    # 业务逻辑
+│   │       ├── repository.go # 数据访问
+│   │       ├── model.go      # 数据模型
+│   │       ├── cache.go      # 缓存相关
+│   │       └── review/       # 评课子模块
+│   │           ├── handler.go
+│   │           ├── service.go
+│   │           ├── repository.go
+│   │           └── model.go
+│   └── pkg/                  # 内部公共包
+│       ├── config/           # 配置结构
+│       ├── db/               # 数据库连接
+│       ├── redis/            # Redis 客户端
+│       ├── middleware/       # 中间件
+│       ├── response/         # 统一响应格式
+│       ├── logger/           # 日志工具
+│       ├── token/            # Token 管理
+│       ├── sso/              # SSO 客户端
+│       └── ...
+└── migrations/               # 数据库迁移 (规划中)
 ```
 
-### 5.2 命名规范
+### 5.2 三层架构规范
+
+后端采用 **Handler → Service → Repository** 三层架构，详细设计文档见 [分层架构设计](../architecture/layered-architecture.md)。
+
+**架构概览**：
+
+```
+┌─────────────────────────────────────────┐
+│           Handler 层 (HTTP)              │
+│   - 请求解析、参数验证、响应格式化        │
+│   - 缓存处理、错误码映射                  │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│           Service 层 (业务逻辑)          │
+│   - 业务规则、数据验证、事务管理          │
+│   - 调用 Repository 层                   │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│         Repository 层 (数据访问)         │
+│   - SQL 查询、数据库操作                 │
+│   - 数据映射、结果扫描                   │
+└─────────────────────────────────────────┘
+```
+
+**各层职责**：
+
+| 层级 | 职责 | 禁止 |
+|------|------|------|
+| Handler | HTTP 请求处理、缓存、响应格式化 | 直接写 SQL、包含业务逻辑 |
+| Service | 业务逻辑、数据验证、事务管理 | 直接写 SQL、处理 HTTP |
+| Repository | SQL 查询、数据库 CRUD | 包含业务逻辑、处理 HTTP |
+
+**新建模块示例**：
+
+```go
+// repository.go - 数据访问层
+type Repository struct {
+    db *db.DB
+}
+
+func NewRepository(database *db.DB) *Repository {
+    return &Repository{db: database}
+}
+
+func (r *Repository) GetByID(ctx context.Context, id int64) (*Model, error) {
+    var m Model
+    err := r.db.QueryRow(ctx, `SELECT id, name FROM table WHERE id = $1`, id).Scan(&m.ID, &m.Name)
+    return &m, err
+}
+```
+
+```go
+// service.go - 业务逻辑层
+type Service struct {
+    db   *db.DB
+    repo *Repository
+}
+
+func NewService(database *db.DB, repo *Repository) *Service {
+    return &Service{db: database, repo: repo}
+}
+
+func (s *Service) GetByID(ctx context.Context, id int64) (*Model, error) {
+    // 业务逻辑处理
+    return s.repo.GetByID(ctx, id)
+}
+```
+
+```go
+// handler.go - HTTP 处理层
+type Handler struct {
+    service *Service
+    cache   *redis.Client
+}
+
+func NewHandler(database *db.DB, cache *redis.Client) *Handler {
+    repo := NewRepository(database)
+    svc := NewService(database, repo)
+    return &Handler{service: svc, cache: cache}
+}
+```
+
+### 5.3 命名规范
 
 **文件命名**：
 
@@ -315,7 +419,7 @@ services/stuhelper/
 - ✅ `UserID`、`OrderID`、`GetUserByID`
 - ❌ `UserId`、`OrderId`、`GetUserById`
 
-### 5.3 编码规范
+### 5.4 编码规范
 
 Go 编码规范遵循 [Uber Go 语言编码规范](#附录uber-go-语言编码规范)，以下是项目特定补充：
 
@@ -352,6 +456,68 @@ func (h *Handler) GetUser(c *gin.Context) {
 // 使用构造函数注入依赖
 func NewUserService(repo *UserRepository, cache *redis.Client) *UserService {
     return &UserService{repo: repo, cache: cache}
+}
+```
+
+### 5.5 统一响应格式
+
+所有 Handler 必须使用 `internal/pkg/response` 包返回响应，禁止直接使用 `c.JSON()`。
+
+**响应结构**：
+
+```json
+// 成功响应
+{
+  "success": true,
+  "data": { ... }
+}
+
+// 错误响应
+{
+  "success": false,
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "invalid course id"
+  }
+}
+```
+
+**常用函数**：
+
+| 函数 | HTTP 状态码 | 用途 |
+|------|-------------|------|
+| `response.Success(c, data)` | 200 | 成功响应 |
+| `response.Created(c, data)` | 201 | 创建成功 |
+| `response.BadRequest(c, msg)` | 400 | 请求参数错误 |
+| `response.Unauthorized(c, msg)` | 401 | 未认证 |
+| `response.Forbidden(c, msg)` | 403 | 无权限 |
+| `response.NotFound(c, msg)` | 404 | 资源不存在 |
+| `response.Conflict(c, msg)` | 409 | 资源冲突 |
+| `response.InternalError(c, msg)` | 500 | 服务器内部错误 |
+
+**使用示例**：
+
+```go
+import "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+
+func (h *Handler) GetCourse(c *gin.Context) {
+    courseID, err := parseIDParam(c, "id")
+    if err != nil {
+        response.BadRequest(c, "invalid course id")
+        return
+    }
+
+    course, err := h.service.GetCourse(c.Request.Context(), courseID)
+    if err != nil {
+        if errors.Is(err, ErrCourseNotFound) {
+            response.NotFound(c, "course not found")
+            return
+        }
+        response.InternalError(c, "failed to load course")
+        return
+    }
+
+    response.Success(c, course)
 }
 ```
 

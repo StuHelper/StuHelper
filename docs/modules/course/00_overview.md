@@ -56,3 +56,29 @@
 ### 后端
 - **语言**: Go (Gin)
 - **数据库**: PostgreSQL + Redis
+- **架构**: 三层架构（Handler → Service → Repository）
+
+## 后端架构
+
+评课社区后端采用分层架构设计，详见 [分层架构设计](../../architecture/layered-architecture.md)。
+
+### 代码结构
+
+```
+server/internal/modules/course/review/
+├── handler.go      # HTTP 处理器
+├── service.go      # 业务逻辑层
+├── repository.go   # 数据访问层
+├── model.go        # 数据模型
+├── cache.go        # 缓存处理
+├── rating.go       # 评分相关处理
+└── utils.go        # 工具函数
+```
+
+### 各层职责
+
+| 层级 | 文件 | 职责 |
+|------|------|------|
+| Handler | handler.go, review.go, rating.go | HTTP 请求处理、缓存、响应格式化 |
+| Service | service.go | 业务逻辑、数据验证、事务管理 |
+| Repository | repository.go | SQL 查询、数据库操作 |
