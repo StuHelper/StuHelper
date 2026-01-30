@@ -62,7 +62,10 @@ func run() error {
 	defer func() { _ = logger.Sync() }()
 
 	// 初始化 HMAC 密钥（用于用户 ID 哈希等场景）
-	crypto.InitHMACKey(cfg.App.HMACSecret)
+	isProduction := cfg.App.Env == "production"
+	if err := crypto.InitHMACKey(cfg.App.HMACSecret, isProduction); err != nil {
+		return fmt.Errorf("failed to initialize HMAC key: %w", err)
+	}
 
 	// 初始化 Redis 客户端
 	redisClient, err := redis.NewClient(cfg.Redis)
@@ -81,12 +84,18 @@ func run() error {
 	// 创建带超时的数据库封装
 	database := db.NewDB(pgPool, time.Duration(cfg.Database.QueryTimeout)*time.Second)
 
-	// 初始化 Token 服务
-	tokenService := token.NewService(
-		redisClient.GetClient(),
-		cfg.Token.AccessTokenTTL,
-		cfg.Token.RefreshTokenTTL,
-	)
+	// 初始化 Token 服务（包含增强的 JWT 验证器）
+	tokenService, err := token.NewService(token.ServiceConfig{
+		RedisClient:    redisClient.GetClient(),
+		AccessTTL:      cfg.Token.AccessTokenTTL,
+		RefreshTTL:     cfg.Token.RefreshTokenTTL,
+		JWTIssuer:      cfg.Casdoor.Endpoint,
+		JWTAudience:    cfg.Casdoor.ClientID,
+		JWTCertificate: cfg.Casdoor.Certificate,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize token service: %w", err)
+	}
 
 	// 根据环境设置 Gin 模式
 	if cfg.App.Env == "production" {
@@ -138,7 +147,7 @@ func run() error {
 		Version:   "1.0.0",
 		GitCommit: "unknown",
 		BuildTime: "unknown",
-	})
+	}, isProduction)
 	healthHandler.RegisterRoutes(r)
 
 	// 注册 API 路由（带版本控制）
