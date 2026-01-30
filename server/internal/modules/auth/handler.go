@@ -12,6 +12,7 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
@@ -59,14 +60,10 @@ func (h *Handler) GetLoginURL(c *gin.Context) {
 	url, err := h.ssoClient.GetSigninURL(ctx, h.redirectURI)
 	if err != nil {
 		logger.FromGin(c).Error("failed to generate login URL", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to generate login URL",
-		})
+		response.InternalError(c, "failed to generate login URL")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"url": url,
-	})
+	response.Success(c, gin.H{"url": url})
 }
 
 // GetSignupURL 获取注册 URL
@@ -75,14 +72,10 @@ func (h *Handler) GetSignupURL(c *gin.Context) {
 	url, err := h.ssoClient.GetSignupURL(ctx, h.redirectURI)
 	if err != nil {
 		logger.FromGin(c).Error("failed to generate signup URL", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to generate signup URL",
-		})
+		response.InternalError(c, "failed to generate signup URL")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"url": url,
-	})
+	response.Success(c, gin.H{"url": url})
 }
 
 // HandleCallback 处理 OAuth 回调
@@ -93,9 +86,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	if code == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "missing authorization code",
-		})
+		response.BadRequest(c, "missing authorization code")
 		return
 	}
 
@@ -103,9 +94,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	valid, err := h.ssoClient.ValidateState(ctx, state)
 	if err != nil {
 		logger.FromGin(c).Error("failed to validate state", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "authentication failed",
-		})
+		response.InternalError(c, "authentication failed")
 		return
 	}
 	if !valid {
@@ -113,9 +102,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 			zap.String("state", state),
 		)
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid or expired state parameter",
-		})
+		response.BadRequest(c, "invalid or expired state parameter")
 		return
 	}
 
@@ -124,9 +111,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	if err != nil {
 		logger.FromGin(c).Error("failed to get OAuth token", zap.Error(err))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "oauth token error")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "authentication failed",
-		})
+		response.InternalError(c, "authentication failed")
 		return
 	}
 
@@ -135,9 +120,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	if err != nil {
 		logger.FromGin(c).Error("failed to parse JWT token", zap.Error(err))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "jwt parse error")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to retrieve user information",
-		})
+		response.InternalError(c, "failed to retrieve user information")
 		return
 	}
 
@@ -160,7 +143,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	// 记录登录成功审计日志
 	audit.LogSuccess(audit.EventUserLogin, claims.Id, claims.Name, c.ClientIP(), c.Request.UserAgent(), requestID)
 
-	c.JSON(http.StatusOK, gin.H{
+	response.Success(c, gin.H{
 		"user": gin.H{
 			"id":           claims.Id,
 			"name":         claims.Name,
@@ -173,7 +156,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 
 // GetCurrentUser 获取当前用户信息
 func (h *Handler) GetCurrentUser(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+	response.Success(c, gin.H{
 		"id":           middleware.GetUserID(c),
 		"name":         middleware.GetUsername(c),
 		"email":        middleware.GetEmail(c),
@@ -205,9 +188,7 @@ func (h *Handler) Logout(c *gin.Context) {
 	// 记录登出审计日志
 	audit.LogSuccess(audit.EventUserLogout, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "logout successful",
-	})
+	response.Success(c, gin.H{"message": "logout successful"})
 }
 
 // LogoutAll 全设备登出
@@ -227,9 +208,7 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 			zap.String("user_id", userID),
 			zap.Error(err),
 		)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to logout from all devices",
-		})
+		response.InternalError(c, "failed to logout from all devices")
 		return
 	}
 
@@ -239,29 +218,25 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 	// 记录全设备登出审计日志
 	audit.LogSuccess(audit.EventUserLogoutAll, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "logged out from all devices",
-	})
+	response.Success(c, gin.H{"message": "logged out from all devices"})
 }
 
 // RefreshToken 刷新 Access Token
 func (h *Handler) RefreshToken(c *gin.Context) {
 	refreshToken, err := c.Cookie(middleware.CookieRefreshToken)
 	if err != nil || refreshToken == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "missing refresh token",
-		})
+		response.Unauthorized(c, "missing refresh token")
 		return
 	}
 
 	// 刷新前检查 refresh token 是否已被撤销
 	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), refreshToken)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "service temporarily unavailable"})
+		response.ServiceUnavailable(c, "service temporarily unavailable")
 		return
 	}
 	if blacklisted {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token revoked"})
+		response.Unauthorized(c, "refresh token revoked")
 		return
 	}
 
@@ -270,9 +245,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	if err != nil {
 		logger.FromGin(c).Error("failed to refresh token", zap.Error(err))
 		h.clearTokenCookies(c)
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "failed to refresh token",
-		})
+		response.Unauthorized(c, "failed to refresh token")
 		return
 	}
 
@@ -292,9 +265,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "token refreshed successfully",
-	})
+	response.Success(c, gin.H{"message": "token refreshed successfully"})
 }
 
 // setTokenCookies 设置 Token Cookie
@@ -323,7 +294,7 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 		middleware.CookieRefreshToken,
 		refreshToken,
 		h.tokenConfig.RefreshTokenTTL,
-		"/auth/refresh",
+		"/api/v1/auth/refresh",
 		h.tokenConfig.CookieDomain,
 		h.tokenConfig.CookieSecure,
 		true, // HttpOnly
@@ -345,7 +316,7 @@ func (h *Handler) clearTokenCookies(c *gin.Context) {
 		middleware.CookieRefreshToken,
 		"",
 		-1,
-		"/auth/refresh",
+		"/api/v1/auth/refresh",
 		h.tokenConfig.CookieDomain,
 		h.tokenConfig.CookieSecure,
 		true,
