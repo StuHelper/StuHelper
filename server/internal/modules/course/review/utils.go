@@ -1,41 +1,30 @@
 package review
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
 const (
-	defaultPageSize = 20
-	maxPageSize     = 100
+	defaultPageSize = httputil.DefaultPageSize
+	maxPageSize     = httputil.MaxPageSize
 	cacheTTL        = 5 * time.Minute
 )
 
+// parsePage 解析分页参数（使用 httputil 包）
 func parsePage(c *gin.Context) (int, int) {
-	page, _ := strconv.Atoi(c.Query("page"))
-	if page <= 0 {
-		page = 1
-	}
-	pageSize, _ := strconv.Atoi(c.Query("page_size"))
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	return page, pageSize
+	return httputil.ParsePage(c)
 }
 
+// parseIDParam 解析路径参数中的 ID（使用 httputil 包）
 func parseIDParam(c *gin.Context, name string) (int64, error) {
-	idStr := c.Param(name)
-	return strconv.ParseInt(idStr, 10, 64)
+	return httputil.ParseIDParam(c, name)
 }
 
-// hashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希，防止枚举和关联攻击
+// hashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希（使用 httputil 包）
 func hashUserID(userID string) string {
-	return crypto.HMACHash(userID)
+	return httputil.HashUserID(userID)
 }

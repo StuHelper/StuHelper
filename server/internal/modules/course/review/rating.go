@@ -1,128 +1,99 @@
 package review
 
 import (
-	"context"
 	"encoding/json"
-	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // GetRatingDimensions 获取评分维度配置
 func (h *Handler) GetRatingDimensions(c *gin.Context) {
-	cacheKey := "review:rating_dimensions"
+	// 检查缓存
+	cacheKey := h.buildCacheKey(c.Request.Context(), "review:rating_dimensions", "all")
 	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
-		c.JSON(http.StatusOK, gin.H{"data": cached})
+		response.Success(c, cached)
 		return
 	}
 
-	rows, err := h.db.Query(c.Request.Context(), `
-		SELECT id, school_id, key, name, description, sort_order, is_active, created_at, updated_at
-		FROM rating_dimensions
-		WHERE is_active = true
-		ORDER BY sort_order ASC
-	`)
+	// 调用 Service 层
+	dimensions, err := h.service.GetRatingDimensions(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load rating dimensions"})
+		response.InternalError(c, "failed to load rating dimensions")
 		return
-	}
-	defer rows.Close()
-
-	dimensions := make([]RatingDimension, 0)
-	for rows.Next() {
-		var d RatingDimension
-		if err := rows.Scan(
-			&d.ID, &d.SchoolID, &d.Key, &d.Name, &d.Description,
-			&d.SortOrder, &d.IsActive, &d.CreatedAt, &d.UpdatedAt,
-		); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse rating dimensions"})
-			return
-		}
-		dimensions = append(dimensions, d)
 	}
 
 	_ = h.setCache(c.Request.Context(), cacheKey, dimensions, cacheTTL)
-	c.JSON(http.StatusOK, gin.H{"data": dimensions})
+	response.Success(c, dimensions)
 }
 
 // GetCourseRatingStats 获取课程评分统计（雷达图数据）
 func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 	courseID, err := parseIDParam(c, "id")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid course id"})
+		response.BadRequest(c, "invalid course id")
 		return
 	}
-	cacheKey := "review:rating_stats:" + strconv.FormatInt(courseID, 10)
+
+	// 检查缓存
+	cacheKey := h.buildCacheKey(c.Request.Context(), "review:rating_stats", strconv.FormatInt(courseID, 10))
 	if cached, ok := h.getCache(c.Request.Context(), cacheKey); ok {
-		c.JSON(http.StatusOK, gin.H{"data": cached})
+		response.Success(c, cached)
 		return
 	}
 
 	ctx := c.Request.Context()
-	dimensionNames, err := h.loadDimensionNames(ctx)
+
+	// 调用 Service 层获取维度名称
+	dimensionNames, err := h.service.GetDimensionNames(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load dimension names"})
+		response.InternalError(c, "failed to load dimension names")
 		return
 	}
 
-	rows, err := h.db.Query(ctx, `
-		SELECT term_id, dimension_key, avg_rating, rating_count, rating_dist
-		FROM course_rating_stats
-		WHERE course_id = $1
-		ORDER BY term_id NULLS FIRST
-	`, courseID)
+	// 调用 Service 层获取评分统计
+	stats, err := h.service.GetCourseRatingStats(ctx, courseID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load rating stats"})
+		response.InternalError(c, "failed to load rating stats")
 		return
 	}
-	defer rows.Close()
 
+	// 处理统计数据
 	byTerm := make(map[string]*TermRatingStats)
 	var overall TermRatingStats
 	allKeysSet := make(map[string]bool)
 
-	for rows.Next() {
-		var termID *string
-		var key string
-		var avg float64
-		var count int
-		var distJSON []byte
-		if err := rows.Scan(&termID, &key, &avg, &count, &distJSON); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse rating stats"})
-			return
-		}
-
-		allKeysSet[key] = true
+	for _, s := range stats {
+		allKeysSet[s.DimensionKey] = true
 		dist := map[int]int{}
-		if err := json.Unmarshal(distJSON, &dist); err != nil {
+		if err := json.Unmarshal(s.RatingDist, &dist); err != nil {
 			logger.L().Warn("failed to unmarshal rating distribution",
-				zap.String("dimension_key", key),
+				zap.String("dimension_key", s.DimensionKey),
 				zap.Error(err),
 			)
 		}
 
 		ds := DimensionStats{
-			Key:          key,
-			Name:         dimensionNames[key],
-			AvgRating:    avg,
-			RatingCount:  count,
+			Key:          s.DimensionKey,
+			Name:         dimensionNames[s.DimensionKey],
+			AvgRating:    s.AvgRating,
+			RatingCount:  s.RatingCount,
 			Distribution: dist,
 		}
 
-		if termID == nil {
+		if s.TermID == nil {
 			overall.Dimensions = append(overall.Dimensions, ds)
 			continue
 		}
 
-		term, ok := byTerm[*termID]
+		term, ok := byTerm[*s.TermID]
 		if !ok {
-			term = &TermRatingStats{TermID: *termID, TermName: *termID}
-			byTerm[*termID] = term
+			term = &TermRatingStats{TermID: *s.TermID, TermName: *s.TermID}
+			byTerm[*s.TermID] = term
 		}
 		term.Dimensions = append(term.Dimensions, ds)
 	}
@@ -137,7 +108,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 		byTermList = append(byTermList, *v)
 	}
 
-	response := CourseRatingStatsResponse{
+	resp := CourseRatingStatsResponse{
 		CourseID:         courseID,
 		Overall:          overall,
 		ByTerm:           byTermList,
@@ -145,41 +116,8 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 		RadarChart:       buildRadarChart(allKeys, dimensionNames, overall),
 	}
 
-	_ = h.setCache(ctx, cacheKey, response, cacheTTL)
-	c.JSON(http.StatusOK, gin.H{"data": response})
-}
-
-func (h *Handler) loadDimensionNames(ctx context.Context) (map[string]string, error) {
-	cacheKey := "review:dimension_names"
-	if cached, ok := h.getCache(ctx, cacheKey); ok {
-		if m, ok := cached.(map[string]interface{}); ok {
-			result := make(map[string]string, len(m))
-			for k, v := range m {
-				if s, ok := v.(string); ok {
-					result[k] = s
-				}
-			}
-			return result, nil
-		}
-	}
-
-	rows, err := h.db.Query(ctx, `SELECT key, name FROM rating_dimensions WHERE is_active = true`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := map[string]string{}
-	for rows.Next() {
-		var key, name string
-		if err := rows.Scan(&key, &name); err != nil {
-			return nil, err
-		}
-		result[key] = name
-	}
-
-	_ = h.setCache(ctx, cacheKey, result, 30*time.Minute)
-	return result, nil
+	_ = h.setCache(ctx, cacheKey, resp, cacheTTL)
+	response.Success(c, resp)
 }
 
 func buildRadarChart(keys []string, names map[string]string, overall TermRatingStats) RadarChartData {

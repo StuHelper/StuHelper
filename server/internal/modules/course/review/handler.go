@@ -9,13 +9,20 @@ import (
 
 // Handler 评课社区处理器
 type Handler struct {
-	db    *db.DB
-	cache *redis.Client
+	db      *db.DB
+	cache   *redis.Client
+	service *Service
 }
 
 // NewHandler 创建处理器
 func NewHandler(database *db.DB, cache *redis.Client) *Handler {
-	return &Handler{db: database, cache: cache}
+	repo := NewRepository(database)
+	svc := NewService(database, repo)
+	return &Handler{
+		db:      database,
+		cache:   cache,
+		service: svc,
+	}
 }
 
 // RegisterRoutes 注册评课社区路由
