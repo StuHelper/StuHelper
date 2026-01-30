@@ -2,7 +2,10 @@ package db
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"os"
 	"time"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
@@ -27,6 +30,11 @@ func NewPGPool(cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	poolCfg.MaxConnIdleTime = time.Duration(cfg.MaxConnIdleTime) * time.Minute
 	poolCfg.HealthCheckPeriod = 1 * time.Minute
 
+	// 配置 TLS
+	if err := configurePGTLS(poolCfg, cfg); err != nil {
+		return nil, fmt.Errorf("failed to configure TLS: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -41,4 +49,54 @@ func NewPGPool(cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	}
 
 	return pool, nil
+}
+
+// configurePGTLS 配置 PostgreSQL TLS
+func configurePGTLS(poolCfg *pgxpool.Config, cfg config.DatabaseConfig) error {
+	switch cfg.SSLMode {
+	case "", "disable":
+		// 不使用 TLS
+		return nil
+	case "require":
+		// 要求 TLS，但不验证证书
+		poolCfg.ConnConfig.TLSConfig = &tls.Config{
+			InsecureSkipVerify: true, //nolint:gosec // require mode skips verification
+		}
+	case "verify-ca", "verify-full":
+		tlsConfig := &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+
+		// 加载 CA 证书
+		if cfg.SSLRootCert != "" {
+			caCert, err := os.ReadFile(cfg.SSLRootCert)
+			if err != nil {
+				return fmt.Errorf("failed to read CA cert: %w", err)
+			}
+			caCertPool := x509.NewCertPool()
+			if !caCertPool.AppendCertsFromPEM(caCert) {
+				return fmt.Errorf("failed to parse CA cert")
+			}
+			tlsConfig.RootCAs = caCertPool
+		}
+
+		// 加载客户端证书（如果提供）
+		if cfg.SSLCert != "" && cfg.SSLKey != "" {
+			cert, err := tls.LoadX509KeyPair(cfg.SSLCert, cfg.SSLKey)
+			if err != nil {
+				return fmt.Errorf("failed to load client cert: %w", err)
+			}
+			tlsConfig.Certificates = []tls.Certificate{cert}
+		}
+
+		// verify-full 需要验证服务器主机名
+		if cfg.SSLMode == "verify-full" {
+			tlsConfig.ServerName = poolCfg.ConnConfig.Host
+		}
+
+		poolCfg.ConnConfig.TLSConfig = tlsConfig
+	default:
+		return fmt.Errorf("invalid SSL mode: %s", cfg.SSLMode)
+	}
+	return nil
 }

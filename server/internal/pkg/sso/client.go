@@ -74,11 +74,14 @@ func (c *Client) GetSignupURL(ctx context.Context, redirectURI string) (string, 
 	return c.buildOAuthURL("/signup/oauth/authorize", redirectURI, state), nil
 }
 
+// ErrStateManagerRequired 表示 state manager 未初始化的错误
+var ErrStateManagerRequired = fmt.Errorf("state manager is required for OAuth state validation")
+
 // ValidateState 验证并消费 OAuth state（一次性使用）
+// 必须使用随机 state，不支持固定 state 以防止 CSRF 攻击
 func (c *Client) ValidateState(ctx context.Context, state string) (bool, error) {
 	if c.stateManager == nil {
-		// 向后兼容：如果没有 state manager，使用旧的固定 state 校验
-		return state == c.applicationName, nil
+		return false, ErrStateManagerRequired
 	}
 	return c.stateManager.Validate(ctx, state)
 }

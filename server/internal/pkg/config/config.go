@@ -53,11 +53,15 @@ type DatabaseConfig struct {
 	Name            string
 	User            string
 	Password        string
-	MaxConns        int // 最大连接数
-	MinConns        int // 最小连接数
-	MaxConnLifetime int // 连接最大生命周期（分钟）
-	MaxConnIdleTime int // 连接最大空闲时间（分钟）
-	QueryTimeout    int // 查询超时时间（秒）
+	MaxConns        int    // 最大连接数
+	MinConns        int    // 最小连接数
+	MaxConnLifetime int    // 连接最大生命周期（分钟）
+	MaxConnIdleTime int    // 连接最大空闲时间（分钟）
+	QueryTimeout    int    // 查询超时时间（秒）
+	SSLMode         string // TLS 模式: disable, require, verify-ca, verify-full
+	SSLRootCert     string // CA 证书路径
+	SSLCert         string // 客户端证书路径
+	SSLKey          string // 客户端私钥路径
 }
 
 // CasdoorConfig Casdoor SSO 配置
@@ -77,8 +81,13 @@ type RedisConfig struct {
 	Port         string
 	Password     string
 	DB           int
-	PoolSize     int // 连接池大小
-	MinIdleConns int // 最小空闲连接数
+	PoolSize     int    // 连接池大小
+	MinIdleConns int    // 最小空闲连接数
+	TLSEnabled   bool   // 是否启用 TLS
+	TLSCertFile  string // TLS 证书文件路径
+	TLSKeyFile   string // TLS 私钥文件路径
+	TLSCAFile    string // TLS CA 证书文件路径
+	TLSInsecure  bool   // 是否跳过证书验证（仅用于测试）
 }
 
 // TokenConfig Token 配置
@@ -112,6 +121,10 @@ func Load() (*Config, error) {
 			MaxConnLifetime: getEnvInt("DB_MAX_CONN_LIFETIME", 30),
 			MaxConnIdleTime: getEnvInt("DB_MAX_CONN_IDLE_TIME", 5),
 			QueryTimeout:    getEnvInt("DB_QUERY_TIMEOUT", 5),
+			SSLMode:         getEnv("DB_SSL_MODE", "disable"),
+			SSLRootCert:     getEnv("DB_SSL_ROOT_CERT", ""),
+			SSLCert:         getEnv("DB_SSL_CERT", ""),
+			SSLKey:          getEnv("DB_SSL_KEY", ""),
 		},
 		Casdoor: CasdoorConfig{
 			Endpoint:     getEnv("CASDOOR_ENDPOINT", ""),
@@ -129,6 +142,11 @@ func Load() (*Config, error) {
 			DB:           getEnvInt("REDIS_DB", 0),
 			PoolSize:     getEnvInt("REDIS_POOL_SIZE", 10),
 			MinIdleConns: getEnvInt("REDIS_MIN_IDLE_CONNS", 5),
+			TLSEnabled:   getEnvBool("REDIS_TLS_ENABLED", false),
+			TLSCertFile:  getEnv("REDIS_TLS_CERT", ""),
+			TLSKeyFile:   getEnv("REDIS_TLS_KEY", ""),
+			TLSCAFile:    getEnv("REDIS_TLS_CA", ""),
+			TLSInsecure:  getEnvBool("REDIS_TLS_INSECURE", false),
 		},
 		Token: TokenConfig{
 			AccessTokenTTL:  getEnvInt("TOKEN_ACCESS_TTL", 900),
@@ -179,6 +197,13 @@ func (c *Config) Validate() error {
 		}
 		if c.App.HMACSecret == "" {
 			errs = append(errs, "HMAC_SECRET is required in production")
+		}
+		// 生产环境强制 TLS
+		if c.Database.SSLMode == "disable" || c.Database.SSLMode == "" {
+			errs = append(errs, "DB_SSL_MODE must be 'require', 'verify-ca', or 'verify-full' in production")
+		}
+		if c.Redis.TLSEnabled == false {
+			log.Println("WARNING: Redis TLS is disabled in production. Ensure Redis is in a secure internal network.")
 		}
 		// 生产环境 fail-fast: 配置解析错误时直接退出
 		if len(configParseErrors) > 0 {

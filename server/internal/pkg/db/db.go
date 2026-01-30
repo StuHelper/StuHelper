@@ -9,14 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// QueryTimeout 默认查询超时时间
-var QueryTimeout = 5 * time.Second
-
-// SetQueryTimeout 设置全局查询超时时间
-func SetQueryTimeout(timeout time.Duration) {
-	QueryTimeout = timeout
-}
-
 // DB 封装 pgxpool.Pool，提供带超时的查询方法
 type DB struct {
 	pool    *pgxpool.Pool
@@ -49,12 +41,23 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, erro
 }
 
 // QueryRow 执行带超时的单行查询
-func (d *DB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+// 返回 RowWithCancel 包装类型，确保 Scan 完成后才取消 context
+func (d *DB) QueryRow(ctx context.Context, sql string, args ...any) *RowWithCancel {
 	ctx, cancel := d.withTimeout(ctx)
-	// 注意：cancel 不能在这里 defer，因为 Row.Scan 需要在 context 有效时执行
-	// 但 pgx 的 QueryRow 会在内部处理，所以这里可以安全地 defer
-	defer cancel()
-	return d.pool.QueryRow(ctx, sql, args...)
+	row := d.pool.QueryRow(ctx, sql, args...)
+	return &RowWithCancel{row: row, cancel: cancel}
+}
+
+// RowWithCancel 包装 pgx.Row，确保 Scan 完成后才取消 context
+type RowWithCancel struct {
+	row    pgx.Row
+	cancel context.CancelFunc
+}
+
+// Scan 扫描行数据，完成后自动取消 context
+func (r *RowWithCancel) Scan(dest ...any) error {
+	defer r.cancel()
+	return r.row.Scan(dest...)
 }
 
 // Exec 执行带超时的命令

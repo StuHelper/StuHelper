@@ -24,19 +24,21 @@ type BuildInfo struct {
 
 // Handler 健康检查处理器
 type Handler struct {
-	pgPool      *pgxpool.Pool
-	redisClient *redis.Client
-	buildInfo   BuildInfo
-	startTime   time.Time
+	pgPool       *pgxpool.Pool
+	redisClient  *redis.Client
+	buildInfo    BuildInfo
+	startTime    time.Time
+	isProduction bool
 }
 
 // NewHandler 创建健康检查处理器
-func NewHandler(pgPool *pgxpool.Pool, redisClient *redis.Client, buildInfo BuildInfo) *Handler {
+func NewHandler(pgPool *pgxpool.Pool, redisClient *redis.Client, buildInfo BuildInfo, isProduction bool) *Handler {
 	return &Handler{
-		pgPool:      pgPool,
-		redisClient: redisClient,
-		buildInfo:   buildInfo,
-		startTime:   time.Now(),
+		pgPool:       pgPool,
+		redisClient:  redisClient,
+		buildInfo:    buildInfo,
+		startTime:    time.Now(),
+		isProduction: isProduction,
 	}
 }
 
@@ -99,6 +101,16 @@ func (h *Handler) Readiness(c *gin.Context) {
 		}
 	}
 
+	// 生产环境返回精简信息，避免泄露内部细节
+	if h.isProduction {
+		c.JSON(httpStatus, gin.H{
+			"status":    status,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
+
+	// 开发环境返回详细信息便于调试
 	c.JSON(httpStatus, gin.H{
 		"status":    status,
 		"checks":    checks,

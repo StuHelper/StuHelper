@@ -1,11 +1,12 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
-	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"github.com/gin-gonic/gin"
 )
 
@@ -54,19 +55,37 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 			return
 		}
 
-		// 使用 Casdoor SDK 验证 token
-		claims, err := casdoorsdk.ParseJwtToken(tokenString)
+		// 使用增强的 JWT 验证器验证 token（校验 iss/aud/alg/exp）
+		claims, err := tokenService.ValidateToken(tokenString)
 		if err != nil {
+			errorMsg := "invalid or expired token"
+
+			// 根据错误类型返回更具体的错误信息
+			switch {
+			case errors.Is(err, jwt.ErrTokenExpired):
+				errorMsg = "token has expired"
+			case errors.Is(err, jwt.ErrTokenNotYetValid):
+				errorMsg = "token not yet valid"
+			case errors.Is(err, jwt.ErrInvalidIssuer):
+				errorMsg = "invalid token issuer"
+			case errors.Is(err, jwt.ErrInvalidAudience):
+				errorMsg = "invalid token audience"
+			case errors.Is(err, jwt.ErrAlgorithmNotAllowed):
+				errorMsg = "token algorithm not allowed"
+			case errors.Is(err, jwt.ErrInvalidSignature):
+				errorMsg = "invalid token signature"
+			}
+
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid or expired token",
+				"error": errorMsg,
 			})
 			c.Abort()
 			return
 		}
 
 		// 将用户信息注入到上下文
-		c.Set(CtxKeyUserID, claims.Id)
-		c.Set(CtxKeyUsername, claims.Name)
+		c.Set(CtxKeyUserID, claims.GetUserID())
+		c.Set(CtxKeyUsername, claims.GetUsername())
 		c.Set(CtxKeyEmail, claims.Email)
 		c.Set(CtxKeyDisplayName, claims.DisplayName)
 		c.Set(CtxKeyAccessToken, tokenString)

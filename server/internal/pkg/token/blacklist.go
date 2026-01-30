@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/circuitbreaker"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
@@ -23,11 +24,19 @@ const (
 // Blacklist Token 黑名单服务
 type Blacklist struct {
 	rdb *redis.Client
+	cb  *circuitbreaker.CircuitBreaker
 }
 
 // NewBlacklist 创建黑名单服务
 func NewBlacklist(rdb *redis.Client) *Blacklist {
-	return &Blacklist{rdb: rdb}
+	return &Blacklist{
+		rdb: rdb,
+		cb: circuitbreaker.New(circuitbreaker.Config{
+			FailureThreshold: 5,
+			SuccessThreshold: 2,
+			Timeout:          30 * time.Second,
+		}),
+	}
 }
 
 // hashToken 对 token 进行 SHA256 哈希，减少 Redis 内存占用
@@ -43,18 +52,31 @@ func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration)
 }
 
 // IsBlacklisted 检查 token 是否在黑名单中
-// 安全优先：Redis 错误时返回 true，拒绝请求
+// 使用熔断器模式：Redis 持续故障时降级运行，避免服务完全不可用
 func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, error) {
+	// 检查熔断器状态
+	if !b.cb.Allow() {
+		// 熔断器打开：降级策略 - 允许请求通过但记录警告
+		logger.L().Warn("circuit breaker open, allowing request (degraded mode)",
+			zap.String("operation", "IsBlacklisted"),
+		)
+		return false, nil
+	}
+
 	key := blacklistPrefix + hashToken(token)
 	exists, err := b.rdb.Exists(ctx, key).Result()
 	if err != nil {
+		b.cb.RecordFailure()
 		logger.L().Warn("redis error checking blacklist",
 			zap.Error(err),
 			zap.String("operation", "IsBlacklisted"),
+			zap.String("circuit_state", b.cb.State().String()),
 		)
 		// 安全优先：Redis 错误时拒绝请求
 		return true, fmt.Errorf("failed to check blacklist: %w", err)
 	}
+
+	b.cb.RecordSuccess()
 	return exists > 0, nil
 }
 
@@ -89,4 +111,9 @@ func (b *Blacklist) TrackUserToken(ctx context.Context, userID, token string, ex
 	pipe.Expire(ctx, key, expiry)
 	_, err := pipe.Exec(ctx)
 	return err
+}
+
+// CircuitBreakerMetrics 获取熔断器指标（用于监控）
+func (b *Blacklist) CircuitBreakerMetrics() map[string]interface{} {
+	return b.cb.Metrics()
 }

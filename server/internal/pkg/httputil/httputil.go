@@ -34,7 +34,14 @@ func ParsePage(c *gin.Context) (page, pageSize int) {
 // ParseIDParam 解析路径参数中的 ID
 func ParseIDParam(c *gin.Context, name string) (int64, error) {
 	idStr := c.Param(name)
-	return strconv.ParseInt(idStr, 10, 64)
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if id <= 0 {
+		return 0, strconv.ErrRange
+	}
+	return id, nil
 }
 
 // HashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希，防止枚举和关联攻击
