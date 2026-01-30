@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 )
 
 // APIError 统一错误响应结构
@@ -20,19 +22,18 @@ type Response struct {
 	Error   *APIError `json:"error,omitempty"`
 }
 
-// 预定义错误码 (旧版，已废弃)
-// Deprecated: 请使用 errs 包中的新版错误码，旧版将在 v2.0 移除
-// 详细说明见 docs/api/error-codes.md
+// 旧版错误码别名 (向后兼容，将在 v2.0 移除)
+// Deprecated: 请直接使用 errs 包中的错误码
 const (
-	ErrCodeBadRequest     = "BAD_REQUEST"         // -> errs.ErrBadRequest (A00400)
-	ErrCodeUnauthorized   = "UNAUTHORIZED"        // -> errs.ErrLoginRequired (A01010)
-	ErrCodeForbidden      = "FORBIDDEN"           // -> errs.ErrForbidden (A01020)
-	ErrCodeNotFound       = "NOT_FOUND"           // -> errs.ErrNotFound (A00404)
-	ErrCodeConflict       = "CONFLICT"            // -> errs.ErrConflict (A00409)
-	ErrCodeInternal       = "INTERNAL_ERROR"      // -> errs.ErrInternal (B00001)
-	ErrCodeValidation     = "VALIDATION_ERROR"    // -> errs.ErrValidation (A00422)
-	ErrCodeRateLimit      = "RATE_LIMIT_EXCEEDED" // -> errs.ErrRateLimited (A00429)
-	ErrCodeServiceUnavail = "SERVICE_UNAVAILABLE" // -> errs.ErrServiceUnavailable (B00004)
+	ErrCodeBadRequest     = errs.ErrBadRequest       // A00400
+	ErrCodeUnauthorized   = errs.ErrLoginRequired    // A01010
+	ErrCodeForbidden      = errs.ErrForbidden        // A01020
+	ErrCodeNotFound       = errs.ErrNotFound         // A00404
+	ErrCodeConflict       = errs.ErrConflict         // A00409
+	ErrCodeInternal       = errs.ErrInternal         // B00001
+	ErrCodeValidation     = errs.ErrValidation       // A00422
+	ErrCodeRateLimit      = errs.ErrRateLimited      // A00429
+	ErrCodeServiceUnavail = errs.ErrServiceUnavailable // B00004
 )
 
 // Success 返回成功响应
