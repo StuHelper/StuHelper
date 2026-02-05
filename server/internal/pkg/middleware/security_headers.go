@@ -11,8 +11,8 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
-		c.Header("Referrer-Policy", "no-referrer")
-		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		// c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 		// API 服务器的 CSP 策略：只允许 JSON 响应，禁止脚本和样式
 		c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 		c.Next()
