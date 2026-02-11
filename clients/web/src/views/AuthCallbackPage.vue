@@ -3,13 +3,13 @@
     <div class="loading-card">
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
-        <p>正在登录中...</p>
+        <p>{{ t('errors.authCallback.loading') }}</p>
       </div>
 
       <div v-else-if="error" class="error">
-        <p>登录失败</p>
+        <p>{{ t('errors.authCallback.error') }}</p>
         <p class="error-message">{{ error }}</p>
-        <button @click="goToLogin">返回登录</button>
+        <button @click="goToLogin">{{ t('errors.authCallback.backToLogin') }}</button>
       </div>
     </div>
   </div>
@@ -18,11 +18,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const loading = ref(true)
 const error = ref('')
@@ -32,13 +34,13 @@ onMounted(async () => {
   const state = route.query.state as string
 
   if (!code) {
-    error.value = '缺少授权码'
+    error.value = t('errors.authCallback.missingCode')
     loading.value = false
     return
   }
 
   if (!state) {
-    error.value = '缺少 state 参数'
+    error.value = t('errors.authCallback.missingState')
     loading.value = false
     return
   }
@@ -46,10 +48,8 @@ onMounted(async () => {
   try {
     await authStore.handleCallback(code, state)
     router.push('/')
-  } catch (err) {
-    // 使用通用错误提示，避免泄露敏感信息
-    console.error('Login failed:', err)
-    error.value = '登录失败，请重试'
+  } catch {
+    error.value = t('errors.authCallback.loginFailed')
     loading.value = false
   }
 })
@@ -65,54 +65,65 @@ const goToLogin = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f5f5;
+  background: var(--bg-base);
 }
 
 .loading-card {
-  background: white;
-  padding: 3rem;
-  border-radius: 1rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  background: var(--bg-card);
+  padding: var(--space-12) var(--space-10);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   text-align: center;
+  max-width: 360px;
+  width: 100%;
 }
 
 .loading {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #667eea;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
 }
 
 .error {
-  color: #e74c3c;
+  color: var(--text-primary);
 }
 
 .error-message {
-  color: #666;
-  font-size: 0.875rem;
-  margin: 1rem 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-3) 0 var(--space-6);
 }
 
 button {
-  padding: 0.75rem 1.5rem;
-  background: #667eea;
-  color: white;
+  padding: var(--space-2) var(--space-6);
+  background: var(--text-primary);
+  color: var(--bg-base);
   border: none;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+button:hover {
+  background: var(--accent);
+  color: white;
 }
 </style>

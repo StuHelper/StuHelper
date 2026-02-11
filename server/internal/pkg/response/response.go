@@ -120,35 +120,3 @@ func ServiceUnavailable(c *gin.Context, message string) {
 	Error(c, http.StatusServiceUnavailable, ErrCodeServiceUnavail, message)
 }
 
-// PageMeta 分页元数据
-type PageMeta struct {
-	Total      int `json:"total"`
-	Page       int `json:"page"`
-	PageSize   int `json:"page_size"`
-	TotalPages int `json:"total_pages"`
-}
-
-// PagedResponse 分页响应结构
-type PagedResponse struct {
-	Success bool     `json:"success"`
-	Data    any      `json:"data"`
-	Meta    PageMeta `json:"meta"`
-}
-
-// Paginated 返回分页响应
-func Paginated(c *gin.Context, data any, total, page, pageSize int) {
-	totalPages := total / pageSize
-	if total%pageSize > 0 {
-		totalPages++
-	}
-	c.JSON(http.StatusOK, PagedResponse{
-		Success: true,
-		Data:    data,
-		Meta: PageMeta{
-			Total:      total,
-			Page:       page,
-			PageSize:   pageSize,
-			TotalPages: totalPages,
-		},
-	})
-}

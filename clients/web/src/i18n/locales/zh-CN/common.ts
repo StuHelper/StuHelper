@@ -7,14 +7,20 @@ export default {
     cancel: '取消',
     save: '保存',
     delete: '删除',
+    deleting: '删除中...',
     edit: '编辑',
     search: '搜索',
     loading: '加载中...',
+    loadMore: '加载更多',
     retry: '重试',
     submit: '提交',
+    send: '发送',
+    sending: '发送中...',
+    reply: '回复',
     back: '返回',
     more: '更多',
-    close: '关闭'
+    close: '关闭',
+    operationFailed: '操作失败，请重试'
   },
   status: {
     available: '可用',
@@ -37,5 +43,22 @@ export default {
     minutesAgo: '{n} 分钟前',
     hoursAgo: '{n} 小时前',
     daysAgo: '{n} 天前'
+  },
+  login: {
+    subtitle: '航小伴 - 你的校园助手',
+    ssoLogin: '使用 SSO 登录',
+    signup: '注册新账号',
+    redirecting: '跳转中...',
+    hint: '使用 StuHelper SSO 统一身份认证登录',
+    loginFailed: '登录失败',
+    signupFailed: '注册失败',
+    networkError: '网络连接失败',
+    loginUrlFailed: '获取登录链接失败',
+    signupUrlFailed: '获取注册链接失败',
+    invalidState: '无效的认证状态',
+    callbackFailed: '认证回调处理失败',
+    fetchUserFailed: '获取用户信息失败',
+    loadFailed: '加载失败',
+    noMore: '没有更多了'
   }
 }

@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInitHMACKey(t *testing.T) {
 	// 初始化密钥
-	InitHMACKey("test-secret-key")
+	require.NoError(t, InitHMACKey("test-secret-key", false))
 
 	// 验证哈希功能正常
 	hash := HMACHash("test-data")
@@ -17,7 +18,7 @@ func TestInitHMACKey(t *testing.T) {
 }
 
 func TestHMACHash(t *testing.T) {
-	InitHMACKey("test-secret-key")
+	require.NoError(t, InitHMACKey("test-secret-key", false))
 
 	tests := []struct {
 		name  string
@@ -43,7 +44,7 @@ func TestHMACHash(t *testing.T) {
 }
 
 func TestHMACHash_Consistency(t *testing.T) {
-	InitHMACKey("test-secret-key")
+	require.NoError(t, InitHMACKey("test-secret-key", false))
 
 	// 相同输入应该产生相同输出
 	hash1 := HMACHash("test-data")
@@ -52,7 +53,7 @@ func TestHMACHash_Consistency(t *testing.T) {
 }
 
 func TestHMACHash_Uniqueness(t *testing.T) {
-	InitHMACKey("test-secret-key")
+	require.NoError(t, InitHMACKey("test-secret-key", false))
 
 	// 不同输入应该产生不同输出
 	hash1 := HMACHash("data1")
@@ -61,7 +62,7 @@ func TestHMACHash_Uniqueness(t *testing.T) {
 }
 
 func TestHMACHashShort(t *testing.T) {
-	InitHMACKey("test-secret-key")
+	require.NoError(t, InitHMACKey("test-secret-key", false))
 
 	tests := []struct {
 		name   string

@@ -5,8 +5,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -25,22 +27,26 @@ func (h *Handler) GetDepartments(c *gin.Context) {
 		return
 	}
 
-	_ = h.cache.Set(c.Request.Context(), cacheKey, departments, cache.DefaultTTL)
+	if err := h.cache.Set(c.Request.Context(), cacheKey, departments, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
 	response.Success(c, departments)
 }
 
 // GetCourses 获取课程列表
 func (h *Handler) GetCourses(c *gin.Context) {
 	page, pageSize := parsePage(c)
-	cacheKey := "course:courses:page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
+	departmentID, _ := strconv.ParseInt(c.Query("departmentID"), 10, 64)
+	cacheKey := "course:courses:dept=" + strconv.FormatInt(departmentID, 10) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
 	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
 
 	result, err := h.service.GetCourses(c.Request.Context(), ListCoursesParams{
-		Page:     page,
-		PageSize: pageSize,
+		DepartmentID: departmentID,
+		Page:         page,
+		PageSize:     pageSize,
 	})
 	if err != nil {
 		response.InternalError(c, "failed to load courses")
@@ -48,7 +54,9 @@ func (h *Handler) GetCourses(c *gin.Context) {
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
 	response.Success(c, data)
 }
 
@@ -77,7 +85,9 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
 	response.Success(c, data)
 }
 
@@ -104,7 +114,9 @@ func (h *Handler) GetCourse(c *gin.Context) {
 		return
 	}
 
-	_ = h.cache.Set(c.Request.Context(), cacheKey, course, cache.DefaultTTL)
+	if err := h.cache.Set(c.Request.Context(), cacheKey, course, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
 	response.Success(c, course)
 }
 
@@ -126,6 +138,8 @@ func (h *Handler) GetStats(c *gin.Context) {
 		"courseCount":     stats.CourseCount,
 		"departmentCount": stats.DepartmentCount,
 	}
-	_ = h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL)
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
 	response.Success(c, data)
 }

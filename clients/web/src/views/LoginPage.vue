@@ -1,8 +1,11 @@
 <template>
     <div class="login-page">
         <div class="login-card">
-            <h1>StuHelper</h1>
-            <p class="subtitle">航小伴</p>
+            <!-- 渐变条 -->
+            <div class="card-gradient-bar"></div>
+
+            <h1 class="brand-name gradient-text">StuHelper</h1>
+            <p class="subtitle">{{ $t('login.subtitle') }}</p>
 
             <div class="login-buttons">
                 <button
@@ -10,28 +13,30 @@
                     @click="handleLogin"
                     :disabled="loading"
                 >
-                    {{ loading ? "跳转中..." : "使用 SSO 登录" }}
+                    {{ loading ? $t('login.redirecting') : $t('login.ssoLogin') }}
                 </button>
 
                 <button
-                    class="btn-secondary"
+                    class="btn-ghost"
                     @click="handleSignup"
                     :disabled="loading"
                 >
-                    注册新账号
+                    {{ $t('login.signup') }}
                 </button>
             </div>
 
-            <p class="hint">使用 StuHelper SSO 统一身份认证登录</p>
+            <p class="hint">{{ $t('login.hint') }}</p>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import { useI18n } from "vue-i18n";
 import { ElMessage } from "element-plus";
 import { useAuthStore } from "@/stores/auth";
 
+const { t } = useI18n();
 const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
 
@@ -39,7 +44,7 @@ const handleLogin = async () => {
     try {
         await authStore.login();
     } catch (e) {
-        const message = e instanceof Error ? e.message : "登录失败";
+        const message = e instanceof Error ? e.message : t("common.login.loginFailed");
         ElMessage.error(message);
     }
 };
@@ -48,7 +53,7 @@ const handleSignup = async () => {
     try {
         await authStore.signup();
     } catch (e) {
-        const message = e instanceof Error ? e.message : "注册失败";
+        const message = e instanceof Error ? e.message : t("common.login.signupFailed");
         ElMessage.error(message);
     }
 };
@@ -60,74 +65,93 @@ const handleSignup = async () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--bg-base);
+    padding: var(--space-4);
 }
 
 .login-card {
-    background: white;
-    padding: 3rem;
-    border-radius: 1rem;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    background: var(--bg-glass);
+    backdrop-filter: blur(20px);
+    padding: var(--space-12) var(--space-10);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
     text-align: center;
-    max-width: 400px;
-    width: 90%;
+    max-width: 380px;
+    width: 100%;
+    animation: fadeIn var(--duration-slower) var(--ease-out);
+    overflow: hidden;
 }
 
-h1 {
-    margin: 0 0 0.5rem;
-    color: #333;
-    font-size: 2rem;
+/* 渐变条 */
+.card-gradient-bar {
+    height: 3px;
+    background: var(--gradient-brand);
+    margin: calc(-1 * var(--space-12)) calc(-1 * var(--space-10)) var(--space-6);
+}
+
+.brand-name {
+    font-family: var(--font-sans);
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-extrabold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0 0 var(--space-2) 0;
 }
 
 .subtitle {
-    color: #666;
-    margin-bottom: 2rem;
+    color: var(--text-muted);
+    margin-bottom: var(--space-8);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
 }
 
 .login-buttons {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--space-3);
 }
 
 .btn-primary,
-.btn-secondary {
-    padding: 0.875rem 1.5rem;
-    border: none;
-    border-radius: 0.5rem;
-    font-size: 1rem;
+.btn-ghost {
+    padding: var(--space-3) var(--space-6);
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--duration-fast) var(--ease-out);
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--gradient-brand);
     color: white;
+    border: none;
 }
 
 .btn-primary:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    opacity: 0.9;
+    transform: translateY(-1px);
 }
 
-.btn-secondary {
-    background: #f5f5f5;
-    color: #333;
+.btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
 }
 
-.btn-secondary:hover:not(:disabled) {
-    background: #eee;
+.btn-ghost:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--text-primary);
 }
 
 .btn-primary:disabled,
-.btn-secondary:disabled {
-    opacity: 0.6;
+.btn-ghost:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
 .hint {
-    margin-top: 1.5rem;
-    color: #999;
-    font-size: 0.875rem;
+    margin-top: var(--space-6);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
 }
 </style>

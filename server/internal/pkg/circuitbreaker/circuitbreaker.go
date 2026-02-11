@@ -91,7 +91,11 @@ func (cb *CircuitBreaker) Allow() bool {
 	case StateOpen:
 		return false
 	case StateHalfOpen:
-		// 半开状态允许尝试
+		// 将状态转换持久化，防止 Allow 与 Record* 之间的 TOCTOU
+		if cb.state == StateOpen {
+			cb.state = StateHalfOpen
+			cb.successes = 0
+		}
 		return true
 	default:
 		return false
@@ -103,8 +107,7 @@ func (cb *CircuitBreaker) RecordSuccess() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	state := cb.currentState()
-	switch state {
+	switch cb.state {
 	case StateClosed:
 		cb.failures = 0
 	case StateHalfOpen:
@@ -114,10 +117,6 @@ func (cb *CircuitBreaker) RecordSuccess() {
 			cb.failures = 0
 			cb.successes = 0
 		}
-	case StateOpen:
-		// 更新状态为半开
-		cb.state = StateHalfOpen
-		cb.successes = 1
 	}
 }
 
@@ -129,8 +128,7 @@ func (cb *CircuitBreaker) RecordFailure() {
 	cb.failures++
 	cb.lastFailureTime = time.Now()
 
-	state := cb.currentState()
-	switch state {
+	switch cb.state {
 	case StateClosed:
 		if cb.failures >= cb.config.FailureThreshold {
 			cb.state = StateOpen

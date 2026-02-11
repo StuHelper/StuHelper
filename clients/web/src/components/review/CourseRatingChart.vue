@@ -23,14 +23,14 @@
           <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
           </svg>
-          评分统计
+          {{ t('review.chart.title') }}
         </h3>
 
         <!-- Custom Multi-Select -->
         <div class="term-selector" ref="selectorRef">
           <button class="selector-trigger" @click="toggleDropdown">
             <span class="selected-tags">
-              <span v-if="selectedTerms.length === 0" class="placeholder">选择学期</span>
+              <span v-if="selectedTerms.length === 0" class="placeholder">{{ t('review.chart.selectTerm') }}</span>
               <template v-else>
                 <span v-for="term in selectedTermLabels.slice(0, 2)" :key="term" class="tag">
                   {{ term }}
@@ -54,15 +54,15 @@
                     <path d="M5 12l5 5L20 7"/>
                   </svg>
                 </span>
-                <span>总体</span>
+                <span>{{ t('review.chart.overall') }}</span>
               </label>
               <label
                 v-for="term in ratingStats.byTerm"
-                :key="term.termId"
+                :key="term.termID"
                 class="dropdown-item"
-                :class="{ selected: selectedTerms.includes(term.termId) }"
+                :class="{ selected: selectedTerms.includes(term.termID ?? '') }"
               >
-                <input type="checkbox" :value="term.termId" v-model="selectedTerms" />
+                <input type="checkbox" :value="term.termID" v-model="selectedTerms" />
                 <span class="checkbox-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                     <path d="M5 12l5 5L20 7"/>
@@ -109,14 +109,15 @@
       <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
       </svg>
-      <p class="empty-text">暂无评分数据</p>
-      <p class="empty-hint">成为第一个评价者吧</p>
+      <p class="empty-text">{{ t('review.chart.emptyTitle') }}</p>
+      <p class="empty-hint">{{ t('review.chart.emptyHint') }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { use } from 'echarts/core'
 import { RadarChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
@@ -128,8 +129,14 @@ import RatingDisplay from './RatingDisplay.vue'
 
 use([RadarChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
+const { t } = useI18n()
+
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
 const props = defineProps<{
-  courseId: number
+  courseID: number
 }>()
 
 const loading = ref(true)
@@ -161,8 +168,8 @@ const closeDropdown = (e: MouseEvent) => {
 // 获取选中项的标签
 const selectedTermLabels = computed(() => {
   return selectedTerms.value.map(id => {
-    if (id === 'overall') return '总体'
-    const term = ratingStats.value?.byTerm.find(t => t.termId === id)
+    if (id === 'overall') return t('review.chart.overall')
+    const term = ratingStats.value?.byTerm.find(t => t.termID === id)
     return term?.termName || id
   })
 })
@@ -175,14 +182,14 @@ const chartOption = computed(() => {
 
   const series: { name: string; value: number[] }[] = []
 
-  selectedTerms.value.forEach((termId) => {
-    if (termId === 'overall') {
+  selectedTerms.value.forEach((termID) => {
+    if (termID === 'overall') {
       series.push({
-        name: '总体',
+        name: t('review.chart.overall'),
         value: ratingStats.value!.overall.dimensions.map(d => d.avgRating)
       })
     } else {
-      const term = ratingStats.value!.byTerm.find(t => t.termId === termId)
+      const term = ratingStats.value!.byTerm.find(t => t.termID === termID)
       if (term) {
         series.push({
           name: term.termName,
@@ -195,23 +202,23 @@ const chartOption = computed(() => {
   return {
     tooltip: {
       trigger: 'item',
-      backgroundColor: 'rgba(26, 33, 29, 0.95)',
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      textStyle: { color: '#e8e6e3' }
+      backgroundColor: cssVar('--bg-card') + 'F2',
+      borderColor: cssVar('--border'),
+      textStyle: { color: cssVar('--text-primary') }
     },
     legend: {
       data: series.map(s => s.name),
       bottom: 0,
-      textStyle: { color: '#a8a29e' }
+      textStyle: { color: cssVar('--text-muted') }
     },
     radar: {
       indicator,
       shape: 'polygon',
       splitNumber: 5,
-      axisName: { color: '#a8a29e' },
-      splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } },
-      splitArea: { areaStyle: { color: ['rgba(255, 255, 255, 0.02)', 'rgba(255, 255, 255, 0.04)'] } },
-      axisLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.1)' } }
+      axisName: { color: cssVar('--text-muted') },
+      splitLine: { lineStyle: { color: cssVar('--border') } },
+      splitArea: { areaStyle: { color: ['transparent', cssVar('--border-light') + '1A'] } },
+      axisLine: { lineStyle: { color: cssVar('--border') } }
     },
     series: [{
       type: 'radar',
@@ -231,16 +238,16 @@ const chartOption = computed(() => {
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await getCourseRatingStats(props.courseId)
+    const res = await getCourseRatingStats(props.courseID)
     ratingStats.value = res.data
-  } catch (e) {
-    console.error('Failed to load rating stats:', e)
+  } catch {
+    // 评分统计加载失败，UI 显示空状态
   } finally {
     loading.value = false
   }
 }
 
-watch(() => props.courseId, fetchData)
+watch(() => props.courseID, fetchData)
 
 onMounted(() => {
   fetchData()
@@ -344,9 +351,9 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
   color: var(--text-primary);
 }
 
@@ -366,9 +373,9 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  background: var(--bg-card);
+  background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: var(--text-sm);
   cursor: pointer;
@@ -377,8 +384,7 @@ onUnmounted(() => {
 }
 
 .selector-trigger:hover {
-  border-color: var(--border-light);
-  background: var(--bg-elevated);
+  border-color: var(--text-primary);
 }
 
 .selected-tags {
@@ -424,9 +430,9 @@ onUnmounted(() => {
   top: calc(100% + 4px);
   right: 0;
   min-width: 160px;
-  background: var(--bg-elevated);
+  background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-lg);
   z-index: var(--z-dropdown);
   overflow: hidden;

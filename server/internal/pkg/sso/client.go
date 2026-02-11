@@ -57,21 +57,21 @@ func NewClientWithCache(cfg config.CasdoorConfig, rdb *redis.Client) *Client {
 }
 
 // GetSigninURL 获取登录 URL（使用随机 state 防止 CSRF）
-func (c *Client) GetSigninURL(ctx context.Context, redirectURI string) (string, error) {
+func (c *Client) GetSigninURL(ctx context.Context, redirectURI string) (string, string, error) {
 	state, err := c.stateManager.Generate(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate state: %w", err)
+		return "", "", fmt.Errorf("failed to generate state: %w", err)
 	}
-	return c.buildOAuthURL("/login/oauth/authorize", redirectURI, state), nil
+	return c.buildOAuthURL("/login/oauth/authorize", redirectURI, state), state, nil
 }
 
 // GetSignupURL 获取注册 URL（使用随机 state 防止 CSRF）
-func (c *Client) GetSignupURL(ctx context.Context, redirectURI string) (string, error) {
+func (c *Client) GetSignupURL(ctx context.Context, redirectURI string) (string, string, error) {
 	state, err := c.stateManager.Generate(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate state: %w", err)
+		return "", "", fmt.Errorf("failed to generate state: %w", err)
 	}
-	return c.buildOAuthURL("/signup/oauth/authorize", redirectURI, state), nil
+	return c.buildOAuthURL("/signup/oauth/authorize", redirectURI, state), state, nil
 }
 
 // ErrStateManagerRequired 表示 state manager 未初始化的错误
@@ -134,45 +134,40 @@ func (c *Client) RefreshOAuthToken(refreshToken string) (*oauth2.Token, error) {
 	return token, nil
 }
 
-// GetUser 获取用户信息
+// GetUser 通过用户名获取用户信息
 func (c *Client) GetUser(name string) (*casdoorsdk.User, error) {
 	user, err := casdoorsdk.GetUser(name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user %s: %w", name, err)
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	return user, nil
 }
 
-// GetCachedUser 获取缓存的用户信息（优先从缓存读取）
-func (c *Client) GetCachedUser(ctx context.Context, username string) (*CachedUser, error) {
-	// 如果没有配置缓存，直接从 Casdoor 获取
-	if c.cache == nil {
-		user, err := c.GetUser(username)
-		if err != nil {
-			return nil, err
-		}
-		return FromCasdoorUser(user), nil
-	}
-
-	// 尝试从缓存获取
-	cached, err := c.cache.Get(ctx, username)
+// GetUserByID 通过不可变用户 ID 获取用户信息
+func (c *Client) GetUserByID(userID string) (*casdoorsdk.User, error) {
+	user, err := casdoorsdk.GetUserByUserId(userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user from cache: %w", err)
+		return nil, fmt.Errorf("failed to get user by id: %w", err)
 	}
-	if cached != nil {
-		return cached, nil
-	}
+	return user, nil
+}
 
-	// 缓存未命中，从 Casdoor 获取
+// GetCachedUser 通过用户名获取缓存的用户信息
+// 注意：此方法无法利用缓存（缓存 key 基于 user.ID，而此处只有 username），
+// 建议优先使用 GetCachedUserByID。此方法仅在只有 username 时使用。
+func (c *Client) GetCachedUser(ctx context.Context, username string) (*CachedUser, error) {
 	user, err := c.GetUser(username)
 	if err != nil {
 		return nil, err
 	}
 
-	// 写入缓存
-	cached = FromCasdoorUser(user)
+	if c.cache == nil {
+		return FromCasdoorUser(user), nil
+	}
+
+	// 获取到 user.Id 后写入缓存供后续 GetCachedUserByID 使用
+	cached := FromCasdoorUser(user)
 	if err := c.cache.Set(ctx, cached); err != nil {
-		// 缓存写入失败不影响返回结果，只记录警告日志
 		c.logger.Warn("failed to cache user",
 			zap.String("username", username),
 			zap.Error(err),
@@ -182,12 +177,50 @@ func (c *Client) GetCachedUser(ctx context.Context, username string) (*CachedUse
 	return cached, nil
 }
 
-// InvalidateUserCache 使用户缓存失效
-func (c *Client) InvalidateUserCache(ctx context.Context, username string) error {
+// GetCachedUserByID 通过用户 ID 获取缓存的用户信息（优先从缓存读取）
+func (c *Client) GetCachedUserByID(ctx context.Context, userID string) (*CachedUser, error) {
+	// 如果没有配置缓存，直接从 Casdoor 获取
+	if c.cache == nil {
+		user, err := c.GetUserByID(userID)
+		if err != nil {
+			return nil, err
+		}
+		return FromCasdoorUser(user), nil
+	}
+
+	// 尝试从缓存获取（以 userID 为 key）
+	cached, err := c.cache.Get(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user from cache: %w", err)
+	}
+	if cached != nil {
+		return cached, nil
+	}
+
+	// 缓存未命中，从 Casdoor 获取
+	user, err := c.GetUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 写入缓存
+	cached = FromCasdoorUser(user)
+	if err := c.cache.Set(ctx, cached); err != nil {
+		c.logger.Warn("failed to cache user",
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+	}
+
+	return cached, nil
+}
+
+// InvalidateUserCacheByID 通过用户 ID 使缓存失效（缓存 key 基于 user.ID）
+func (c *Client) InvalidateUserCacheByID(ctx context.Context, userID string) error {
 	if c.cache == nil {
 		return nil
 	}
-	return c.cache.Delete(ctx, username)
+	return c.cache.Delete(ctx, userID)
 }
 
 // IsUserAdmin 检查用户是否是管理员

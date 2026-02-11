@@ -30,5 +30,28 @@ export default {
   BUSINESS_ERROR: 'Operation failed',
 
   // Unknown errors
-  UNKNOWN: 'An unknown error occurred'
+  UNKNOWN: 'An unknown error occurred',
+
+  // Error pages
+  notFound: {
+    title: 'Page Not Found',
+    description: 'The page you visited may have been removed or the address is incorrect',
+    backHome: 'Back to Home',
+    goBack: 'Go Back'
+  },
+  loadError: {
+    title: 'Load Failed',
+    description: 'An error occurred while loading the page. Please refresh and try again',
+    reload: 'Refresh Page'
+  },
+
+  // Auth callback
+  authCallback: {
+    loading: 'Logging in...',
+    error: 'Login Failed',
+    backToLogin: 'Back to Login',
+    missingCode: 'Missing authorization code',
+    missingState: 'Missing state parameter',
+    loginFailed: 'Login failed, please retry'
+  }
 }

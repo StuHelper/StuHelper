@@ -1,7 +1,7 @@
 /**
  * 课程相关 API
  */
-import api from './index'
+import api, { courseEntityApi } from './index'
 import type {
   Course,
   Department,
@@ -11,26 +11,26 @@ import type {
 
 // 获取院系列表
 export function getDepartments(category?: string) {
-  return api.get<Department[]>('/departments', {
+  return courseEntityApi.get<Department[]>('/departments', {
     params: category ? { category } : undefined
   })
 }
 
 // 获取课程列表
-export function getCourses(departmentId: number) {
-  return api.get<Course[]>('/courses', {
-    params: { departmentId }
+export function getCourses(departmentID: number) {
+  return courseEntityApi.get<Course[]>('/courses', {
+    params: { departmentID }
   })
 }
 
 // 获取课程详情
 export function getCourse(id: number) {
-  return api.get<Course>(`/courses/${id}`)
+  return courseEntityApi.get<Course>(`/courses/${id}`)
 }
 
 // 搜索课程
 export function searchCourses(query: string, limit = 10) {
-  return api.get<Course[]>('/courses/search', {
+  return courseEntityApi.get<Course[]>('/courses/search', {
     params: { q: query, limit }
   })
 }
@@ -53,6 +53,52 @@ export function getRatingDimensions() {
 }
 
 // 获取课程评分统计
-export function getCourseRatingStats(courseId: number) {
-  return api.get<CourseRatingStatsResponse>(`/courses/${courseId}/rating-stats`)
+export function getCourseRatingStats(courseID: number) {
+  return api.get<CourseRatingStatsResponse>(`/courses/${courseID}/rating-stats`)
+}
+
+// 评分趋势项
+export interface RatingTrendItem {
+  termID: string
+  termName: string
+  avgRating: number
+  reviewCount: number
+}
+
+// 获取课程评分趋势
+export function getCourseRatingTrend(courseID: number) {
+  return api.get<RatingTrendItem[]>(`/courses/${courseID}/rating-trend`)
+}
+
+// 教师评分统计
+export interface TeacherRatingStats {
+  teacherID: number
+  teacherName: string
+  departmentName: string
+  avgRating: number | null
+  courseCount: number
+  reviewCount: number
+  courses: Array<{
+    id: number
+    name: string
+    avgRating: number | null
+    reviewCount: number
+  }>
+  ratingTrend: Array<{
+    termID: string
+    termName: string
+    avgRating: number
+  }>
+  radarChart: {
+    labels: string[]
+    datasets: Array<{
+      label: string
+      data: number[]
+    }>
+  }
+}
+
+// 获取教师评分统计
+export function getTeacherStats(teacherID: number) {
+  return api.get<TeacherRatingStats>(`/teachers/${teacherID}/stats`)
 }

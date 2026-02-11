@@ -44,7 +44,7 @@ export class ApiError extends Error {
   readonly severity: ErrorSeverity
   readonly details?: Record<string, unknown>
   readonly timestamp: Date
-  readonly requestId?: string
+  readonly requestID?: string
 
   constructor(options: {
     message: string
@@ -52,7 +52,7 @@ export class ApiError extends Error {
     status?: number
     severity?: ErrorSeverity
     details?: Record<string, unknown>
-    requestId?: string
+    requestID?: string
   }) {
     super(options.message)
     this.name = 'ApiError'
@@ -61,7 +61,7 @@ export class ApiError extends Error {
     this.severity = options.severity ?? 'error'
     this.details = options.details
     this.timestamp = new Date()
-    this.requestId = options.requestId
+    this.requestID = options.requestID
   }
 
   // 是否为认证错误
@@ -111,7 +111,7 @@ export class ApiError extends Error {
       severity: this.severity,
       details: this.details,
       timestamp: this.timestamp.toISOString(),
-      requestId: this.requestId
+      requestID: this.requestID
     }
   }
 }

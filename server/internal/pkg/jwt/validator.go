@@ -14,14 +14,11 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// 允许的签名算法白名单
+// 允许的签名算法白名单（仅支持 RSA，与 parseCertificate 返回 *rsa.PublicKey 一致）
 var allowedAlgorithms = map[string]bool{
 	"RS256": true,
 	"RS384": true,
 	"RS512": true,
-	"ES256": true,
-	"ES384": true,
-	"ES512": true,
 }
 
 // 常见错误
@@ -73,6 +70,7 @@ func NewValidator(cfg ValidatorConfig) (*Validator, error) {
 type Claims struct {
 	jwt.RegisteredClaims
 	// Casdoor 特定字段
+	ID          string `json:"id,omitempty"`          // 不可变 Casdoor 用户 ID
 	Owner       string `json:"owner,omitempty"`
 	Name        string `json:"name,omitempty"`
 	DisplayName string `json:"displayName,omitempty"`
@@ -102,11 +100,6 @@ func (v *Validator) Validate(tokenString string) (*Claims, error) {
 
 	if !token.Valid {
 		return nil, ErrInvalidToken
-	}
-
-	// 3. 额外的时间验证
-	if err := v.validateTime(claims); err != nil {
-		return nil, err
 	}
 
 	return claims, nil
@@ -146,11 +139,8 @@ func (v *Validator) preValidate(tokenString string) error {
 
 // keyFunc 返回用于验证签名的密钥
 func (v *Validator) keyFunc(token *jwt.Token) (interface{}, error) {
-	// 再次检查算法
 	if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-		if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
+		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 	}
 
 	if v.publicKey == nil {
@@ -158,34 +148,6 @@ func (v *Validator) keyFunc(token *jwt.Token) (interface{}, error) {
 	}
 
 	return v.publicKey, nil
-}
-
-// validateTime 额外的时间验证
-func (v *Validator) validateTime(claims *Claims) error {
-	now := time.Now()
-
-	// 检查 exp
-	if claims.ExpiresAt != nil {
-		if now.After(claims.ExpiresAt.Time.Add(v.config.ClockSkew)) {
-			return ErrTokenExpired
-		}
-	}
-
-	// 检查 nbf
-	if claims.NotBefore != nil {
-		if now.Before(claims.NotBefore.Time.Add(-v.config.ClockSkew)) {
-			return ErrTokenNotYetValid
-		}
-	}
-
-	// 检查 iat (不应该在未来)
-	if claims.IssuedAt != nil {
-		if claims.IssuedAt.Time.After(now.Add(v.config.ClockSkew)) {
-			return ErrTokenNotYetValid
-		}
-	}
-
-	return nil
 }
 
 // mapError 将 jwt 库错误映射为自定义错误
@@ -252,9 +214,9 @@ func parseCertificate(certPEM string) (*rsa.PublicKey, error) {
 	}
 }
 
-// GetUserID 从 claims 获取用户 ID
+// GetUserID 从 claims 获取用户 ID（返回不可变的 Casdoor User.Id）
 func (c *Claims) GetUserID() string {
-	return c.Subject
+	return c.ID
 }
 
 // GetUsername 从 claims 获取用户名

@@ -1,8 +1,7 @@
 package middleware
 
 import (
-	"net/http"
-
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"github.com/gin-gonic/gin"
 )
@@ -10,14 +9,13 @@ import (
 // RequireRole 角色检查中间件 - 要求用户拥有指定角色
 func RequireRole(ssoClient *sso.Client, roleName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		username := GetUsername(c)
-		if username == "" {
+		userID := GetUserID(c)
+		if userID == "" {
 			abortUnauthorized(c)
 			return
 		}
 
-		// 使用缓存获取用户信息
-		user, err := ssoClient.GetCachedUser(c.Request.Context(), username)
+		user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
 		if err != nil {
 			abortInternalError(c, "failed to check role")
 			return
@@ -35,14 +33,13 @@ func RequireRole(ssoClient *sso.Client, roleName string) gin.HandlerFunc {
 // RequireAnyRole 角色检查中间件 - 要求用户拥有任一指定角色
 func RequireAnyRole(ssoClient *sso.Client, roleNames ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		username := GetUsername(c)
-		if username == "" {
+		userID := GetUserID(c)
+		if userID == "" {
 			abortUnauthorized(c)
 			return
 		}
 
-		// 使用缓存获取用户信息
-		user, err := ssoClient.GetCachedUser(c.Request.Context(), username)
+		user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
 		if err != nil {
 			abortInternalError(c, "failed to check roles")
 			return
@@ -60,14 +57,13 @@ func RequireAnyRole(ssoClient *sso.Client, roleNames ...string) gin.HandlerFunc 
 // RequirePermission 权限检查中间件 - 要求用户拥有指定权限
 func RequirePermission(ssoClient *sso.Client, permissionName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		username := GetUsername(c)
-		if username == "" {
+		userID := GetUserID(c)
+		if userID == "" {
 			abortUnauthorized(c)
 			return
 		}
 
-		// 使用缓存获取用户信息
-		user, err := ssoClient.GetCachedUser(c.Request.Context(), username)
+		user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
 		if err != nil {
 			abortInternalError(c, "failed to check permission")
 			return
@@ -85,14 +81,13 @@ func RequirePermission(ssoClient *sso.Client, permissionName string) gin.Handler
 // RequireAdmin 管理员检查中间件
 func RequireAdmin(ssoClient *sso.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		username := GetUsername(c)
-		if username == "" {
+		userID := GetUserID(c)
+		if userID == "" {
 			abortUnauthorized(c)
 			return
 		}
 
-		// 使用缓存获取用户信息
-		user, err := ssoClient.GetCachedUser(c.Request.Context(), username)
+		user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
 		if err != nil {
 			abortInternalError(c, "failed to check admin status")
 			return
@@ -141,16 +136,16 @@ func CasbinEnforce(ssoClient *sso.Client, permissionId, obj, act string) gin.Han
 
 // 辅助函数
 func abortUnauthorized(c *gin.Context) {
-	c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	response.Unauthorized(c, "unauthorized")
 	c.Abort()
 }
 
 func abortForbidden(c *gin.Context) {
-	c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	response.Forbidden(c, "forbidden")
 	c.Abort()
 }
 
 func abortInternalError(c *gin.Context, message string) {
-	c.JSON(http.StatusInternalServerError, gin.H{"error": message})
+	response.InternalError(c, message)
 	c.Abort()
 }

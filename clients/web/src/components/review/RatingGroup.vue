@@ -52,9 +52,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getRatingDimensions } from '@/api/course'
 import type { RatingDimension, RatingValue } from '@/types/course'
 import type { ReviewRatings } from '@/types/review'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: ReviewRatings
@@ -69,17 +72,16 @@ const dimensions = ref<RatingDimension[]>([])
 const hoverKey = ref('')
 const hoverValue = ref(0)
 
-const ratingTexts: Record<number, string> = {
-  1: '很差',
-  2: '较差',
-  3: '一般',
-  4: '较好',
-  5: '很好'
-}
-
 const getRatingText = (value: number | undefined) => {
   if (!value) return ''
-  return ratingTexts[value] || ''
+  const keys: Record<number, string> = {
+    1: 'review.rating.veryBad',
+    2: 'review.rating.bad',
+    3: 'review.rating.average',
+    4: 'review.rating.good',
+    5: 'review.rating.excellent'
+  }
+  return keys[value] ? t(keys[value]) : ''
 }
 
 const getStarState = (key: string, star: number) => {
@@ -107,8 +109,8 @@ onMounted(async () => {
   try {
     const res = await getRatingDimensions()
     dimensions.value = res.data.filter(d => d.isActive)
-  } catch (e) {
-    console.error('Failed to load rating dimensions:', e)
+  } catch {
+    // 评分维度加载失败，UI 显示空状态
   } finally {
     loading.value = false
   }
@@ -158,20 +160,13 @@ defineExpose({ dimensions })
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
   transition: all var(--duration-base) var(--ease-out);
 }
 
-.rating-item:hover {
-  border-color: var(--border-light);
-  background: var(--bg-elevated);
-}
-
-.rating-item.has-value {
-  border-color: var(--border-accent);
+.rating-item:last-child {
+  border-bottom: none;
 }
 
 .item-header {
@@ -181,8 +176,9 @@ defineExpose({ dimensions })
 }
 
 .dim-name {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   color: var(--text-primary);
+  font-size: var(--text-sm);
 }
 
 .dim-desc {
@@ -220,17 +216,17 @@ defineExpose({ dimensions })
 
 .star-btn.hovered,
 .star-btn.filled {
-  color: var(--accent);
+  color: var(--brand-accent);
 }
 
 .star-btn.filled {
-  filter: drop-shadow(0 0 4px rgba(201, 162, 39, 0.4));
+  filter: none;
 }
 
 .rating-label {
   font-size: var(--text-sm);
-  color: var(--accent);
-  font-weight: 500;
+  color: var(--brand-accent);
+  font-weight: var(--weight-medium);
 }
 
 /* Transitions */

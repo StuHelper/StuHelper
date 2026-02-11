@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Config 应用配置
@@ -37,12 +38,14 @@ type LogConfig struct {
 
 // AppConfig 应用配置
 type AppConfig struct {
-	Env            string
-	Port           string
-	CORSOrigins    []string
-	TrustedProxies []string // 可信代理 IP 列表，用于正确获取客户端 IP
-	HMACSecret     string   // HMAC 密钥，用于用户 ID 哈希等场景
-	MaxBodySize    int64    // 请求体最大大小（字节）
+	Env             string
+	Port            string
+	CORSOrigins     []string
+	TrustedProxies  []string // 可信代理 IP 列表，用于正确获取客户端 IP
+	HMACSecret      string   // HMAC 密钥，用于用户 ID 哈希等场景
+	MaxBodySize     int64    // 请求体最大大小（字节）
+	MetricsUser     string   // Prometheus metrics BasicAuth 用户名
+	MetricsPassword string   // Prometheus metrics BasicAuth 密码
 }
 
 // DatabaseConfig 数据库配置
@@ -100,14 +103,21 @@ type TokenConfig struct {
 
 // Load 从环境变量加载配置
 func Load() (*Config, error) {
+	configMu.Lock()
+	defer configMu.Unlock()
+	// 重置解析错误，防止多次调用时累积
+	configParseErrors = nil
+
 	cfg := &Config{
 		App: AppConfig{
 			Env:            getEnv("APP_ENV", "development"),
 			Port:           getEnv("APP_PORT", "8080"),
 			CORSOrigins:    getEnvSlice("CORS_ORIGINS", []string{}),
 			TrustedProxies: getEnvSlice("TRUSTED_PROXIES", []string{}),
-			HMACSecret:     getEnv("HMAC_SECRET", ""),
-			MaxBodySize:    getEnvInt64("MAX_BODY_SIZE", 10<<20), // 默认 10MB
+			HMACSecret:      getEnv("HMAC_SECRET", ""),
+			MaxBodySize:     getEnvInt64("MAX_BODY_SIZE", 10<<20), // 默认 10MB
+			MetricsUser:     getEnv("METRICS_USER", "prometheus"),
+			MetricsPassword: getEnv("METRICS_PASSWORD", ""),
 		},
 		Database: DatabaseConfig{
 			URL:             getEnv("DATABASE_URL", ""),
@@ -198,12 +208,18 @@ func (c *Config) Validate() error {
 		if c.App.HMACSecret == "" {
 			errs = append(errs, "HMAC_SECRET is required in production")
 		}
+		if c.App.MetricsPassword == "" {
+			errs = append(errs, "METRICS_PASSWORD is required in production")
+		}
 		// 生产环境强制 TLS
 		if c.Database.SSLMode == "disable" || c.Database.SSLMode == "" {
 			errs = append(errs, "DB_SSL_MODE must be 'require', 'verify-ca', or 'verify-full' in production")
 		}
-		if c.Redis.TLSEnabled == false {
+		if !c.Redis.TLSEnabled {
 			log.Println("WARNING: Redis TLS is disabled in production. Ensure Redis is in a secure internal network.")
+		}
+		if c.Redis.TLSEnabled && c.Redis.TLSInsecure {
+			errs = append(errs, "REDIS_TLS_INSECURE must not be true in production (certificate verification required)")
 		}
 		// 生产环境 fail-fast: 配置解析错误时直接退出
 		if len(configParseErrors) > 0 {
@@ -270,7 +286,10 @@ func getEnvSlice(key string, defaultValue []string) []string {
 }
 
 // configParseErrors 收集配置解析错误
-var configParseErrors []string
+var (
+	configParseErrors []string
+	configMu          sync.Mutex
+)
 
 // getEnvInt 获取整数类型的环境变量
 func getEnvInt(key string, defaultValue int) int {

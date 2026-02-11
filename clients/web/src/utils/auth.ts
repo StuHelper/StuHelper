@@ -14,14 +14,33 @@ export interface StoredUser {
   avatar?: string
 }
 
+// 校验 localStorage 中的用户数据结构
+function isValidStoredUser(data: unknown): data is StoredUser {
+  if (typeof data !== 'object' || data === null) return false
+  const obj = data as Record<string, unknown>
+  return (
+    typeof obj.id === 'string' && obj.id.length > 0 &&
+    typeof obj.name === 'string' && obj.name.length > 0 &&
+    typeof obj.displayName === 'string' &&
+    typeof obj.email === 'string' &&
+    (obj.avatar === undefined || typeof obj.avatar === 'string')
+  )
+}
+
 // 用户信息管理
 export const userManager = {
   getUser(): StoredUser | null {
     const userStr = localStorage.getItem(USER_KEY)
     if (!userStr) return null
     try {
-      return JSON.parse(userStr) as StoredUser
+      const parsed: unknown = JSON.parse(userStr)
+      if (!isValidStoredUser(parsed)) {
+        localStorage.removeItem(USER_KEY)
+        return null
+      }
+      return parsed
     } catch {
+      localStorage.removeItem(USER_KEY)
       return null
     }
   },

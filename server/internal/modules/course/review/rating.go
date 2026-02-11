@@ -2,12 +2,14 @@ package review
 
 import (
 	"encoding/json"
+	"sort"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -28,13 +30,15 @@ func (h *Handler) GetRatingDimensions(c *gin.Context) {
 		return
 	}
 
-	_ = h.cache.Set(c.Request.Context(), cacheKey, dimensions, cache.DefaultTTL)
+	if err := h.cache.Set(c.Request.Context(), cacheKey, dimensions, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
 	response.Success(c, dimensions)
 }
 
 // GetCourseRatingStats 获取课程评分统计（雷达图数据）
 func (h *Handler) GetCourseRatingStats(c *gin.Context) {
-	courseID, err := parseIDParam(c, "id")
+	courseID, err := httputil.ParseIDParam(c, "id")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return
@@ -103,6 +107,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 	for k := range allKeysSet {
 		allKeys = append(allKeys, k)
 	}
+	sort.Strings(allKeys)
 
 	byTermList := make([]TermRatingStats, 0, len(byTerm))
 	for _, v := range byTerm {
@@ -117,7 +122,9 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 		RadarChart:       buildRadarChart(allKeys, dimensionNames, overall),
 	}
 
-	_ = h.cache.Set(ctx, cacheKey, resp, cache.DefaultTTL)
+	if err := h.cache.Set(ctx, cacheKey, resp, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
 	response.Success(c, resp)
 }
 
@@ -137,7 +144,7 @@ func buildRadarChart(keys []string, names map[string]string, overall TermRatingS
 		Labels: labels,
 		Datasets: []RadarChartDataset{
 			{
-				Label:           "总体",
+				Label:           "overall",
 				Data:            data,
 				BackgroundColor: "rgba(64, 158, 255, 0.2)",
 				BorderColor:     "#409EFF",

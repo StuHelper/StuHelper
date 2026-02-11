@@ -57,25 +57,25 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // GetLoginURL 获取登录 URL
 func (h *Handler) GetLoginURL(c *gin.Context) {
 	ctx := c.Request.Context()
-	url, err := h.ssoClient.GetSigninURL(ctx, h.redirectURI)
+	url, state, err := h.ssoClient.GetSigninURL(ctx, h.redirectURI)
 	if err != nil {
 		logger.FromGin(c).Error("failed to generate login URL", zap.Error(err))
 		response.InternalError(c, "failed to generate login URL")
 		return
 	}
-	response.Success(c, gin.H{"url": url})
+	response.Success(c, gin.H{"url": url, "state": state})
 }
 
 // GetSignupURL 获取注册 URL
 func (h *Handler) GetSignupURL(c *gin.Context) {
 	ctx := c.Request.Context()
-	url, err := h.ssoClient.GetSignupURL(ctx, h.redirectURI)
+	url, state, err := h.ssoClient.GetSignupURL(ctx, h.redirectURI)
 	if err != nil {
 		logger.FromGin(c).Error("failed to generate signup URL", zap.Error(err))
 		response.InternalError(c, "failed to generate signup URL")
 		return
 	}
-	response.Success(c, gin.H{"url": url})
+	response.Success(c, gin.H{"url": url, "state": state})
 }
 
 // HandleCallback 处理 OAuth 回调
@@ -99,7 +99,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	}
 	if !valid {
 		logger.FromGin(c).Warn("invalid or expired state parameter",
-			zap.String("state", state),
+			zap.Int("state_len", len(state)),
 		)
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
 		response.BadRequest(c, "invalid or expired state parameter")
@@ -145,11 +145,11 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"user": gin.H{
-			"id":           claims.Id,
-			"name":         claims.Name,
-			"display_name": claims.DisplayName,
-			"email":        claims.Email,
-			"avatar":       claims.Avatar,
+			"id":          claims.Id,
+			"name":        claims.Name,
+			"displayName": claims.DisplayName,
+			"email":       claims.Email,
+			"avatar":      claims.Avatar,
 		},
 	})
 }
@@ -157,10 +157,10 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 // GetCurrentUser 获取当前用户信息
 func (h *Handler) GetCurrentUser(c *gin.Context) {
 	response.Success(c, gin.H{
-		"id":           middleware.GetUserID(c),
-		"name":         middleware.GetUsername(c),
-		"email":        middleware.GetEmail(c),
-		"display_name": middleware.GetDisplayName(c),
+		"id":          middleware.GetUserID(c),
+		"name":        middleware.GetUsername(c),
+		"email":       middleware.GetEmail(c),
+		"displayName": middleware.GetDisplayName(c),
 	})
 }
 
@@ -250,19 +250,26 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	}
 
 	// 将旧 refresh token 加入黑名单，避免重放
-	_ = h.tokenService.GetBlacklist().Add(c.Request.Context(), refreshToken, h.tokenService.GetRefreshTokenTTL())
+	if err := h.tokenService.GetBlacklist().Add(c.Request.Context(), refreshToken, h.tokenService.GetRefreshTokenTTL()); err != nil {
+		logger.FromGin(c).Warn("failed to blacklist old refresh token", zap.Error(err))
+	}
 
 	// 设置新的 Cookie
 	h.setTokenCookies(c, newToken.AccessToken, newToken.RefreshToken)
 
 	// 追踪新的 access token
 	if claims, err := h.ssoClient.ParseJwtToken(newToken.AccessToken); err == nil {
-		_ = h.tokenService.GetBlacklist().TrackUserToken(
+		if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
 			c.Request.Context(),
 			claims.Id,
 			newToken.AccessToken,
 			h.tokenService.GetRefreshTokenTTL(),
-		)
+		); trackErr != nil {
+			logger.FromGin(c).Warn("failed to track refreshed token",
+				zap.String("user_id", claims.Id),
+				zap.Error(trackErr),
+			)
+		}
 	}
 
 	response.Success(c, gin.H{"message": "token refreshed successfully"})
@@ -274,7 +281,9 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 	c.SetSameSite(http.SameSiteStrictMode)
 
 	csrfToken, err := middleware.GenerateCSRFToken()
-	if err == nil {
+	if err != nil {
+		logger.FromGin(c).Warn("failed to generate CSRF token", zap.Error(err))
+	} else {
 		h.setCSRFCookie(c, csrfToken)
 	}
 

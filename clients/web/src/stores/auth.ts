@@ -5,7 +5,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
 import { userManager, clearAuth } from '@/utils/auth'
-import { ApiError, isApiError, ErrorCode } from '@/api/errors'
+import { isApiError } from '@/api/errors'
+import i18n from '@/i18n'
 
 // 认证错误类型
 export type AuthErrorType = 'network' | 'invalid_state' | 'auth_failed' | 'unknown'
@@ -36,9 +37,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 处理 API 错误
   const handleError = (err: unknown, defaultMsg: string): AuthError => {
+    const t = i18n.global.t
     if (isApiError(err)) {
       if (err.isNetworkError()) {
-        return { type: 'network', message: '网络连接失败' }
+        return { type: 'network', message: t('common.login.networkError') }
       }
       return { type: 'auth_failed', message: err.getUserMessage() }
     }
@@ -48,16 +50,19 @@ export const useAuthStore = defineStore('auth', () => {
     return { type: 'unknown', message: defaultMsg }
   }
 
-  // 登录
-  const login = async () => {
+  // OAuth 跳转通用流程
+  const startOAuthFlow = async (
+    apiCall: () => Promise<{ data: { url: string; state: string } }>,
+    errorMsg: string
+  ) => {
     clearError()
     loading.value = true
     try {
-      const { data } = await authApi.getLoginURL()
+      const { data } = await apiCall()
       sessionStorage.setItem('oauth_state', data.state)
       window.location.href = data.url
     } catch (err) {
-      const authErr = handleError(err, '获取登录链接失败')
+      const authErr = handleError(err, errorMsg)
       setError(authErr.type, authErr.message)
       throw err
     } finally {
@@ -65,22 +70,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // 登录
+  const login = () => startOAuthFlow(authApi.getLoginURL, i18n.global.t('common.login.loginUrlFailed'))
+
   // 注册
-  const signup = async () => {
-    clearError()
-    loading.value = true
-    try {
-      const { data } = await authApi.getSignupURL()
-      sessionStorage.setItem('oauth_state', data.state)
-      window.location.href = data.url
-    } catch (err) {
-      const authErr = handleError(err, '获取注册链接失败')
-      setError(authErr.type, authErr.message)
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
+  const signup = () => startOAuthFlow(authApi.getSignupURL, i18n.global.t('common.login.signupUrlFailed'))
 
   // 处理 OAuth 回调
   const handleCallback = async (code: string, state: string) => {
@@ -89,7 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const savedState = sessionStorage.getItem('oauth_state')
       if (savedState !== state) {
-        setError('invalid_state', '无效的认证状态')
+        setError('invalid_state', i18n.global.t('common.login.invalidState'))
         throw new Error('Invalid state parameter')
       }
 
@@ -100,7 +94,7 @@ export const useAuthStore = defineStore('auth', () => {
       return data
     } catch (err) {
       if (!error.value) {
-        const authErr = handleError(err, '认证回调处理失败')
+        const authErr = handleError(err, i18n.global.t('common.login.callbackFailed'))
         setError(authErr.type, authErr.message)
       }
       throw err
@@ -124,7 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
         clearAuth()
         user.value = null
       }
-      const authErr = handleError(err, '获取用户信息失败')
+      const authErr = handleError(err, i18n.global.t('common.login.fetchUserFailed'))
       setError(authErr.type, authErr.message)
       throw err
     } finally {
@@ -138,8 +132,8 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       await authApi.logout()
-    } catch (err) {
-      console.error('Logout API error:', err)
+    } catch {
+      // 登出 API 失败不影响本地清理
     } finally {
       clearAuth()
       user.value = null

@@ -46,10 +46,12 @@ func (r *Repository) ListDepartments(ctx context.Context, category string) ([]De
 	return departments, nil
 }
 
-// CountCourses 统计课程总数
-func (r *Repository) CountCourses(ctx context.Context) (int, error) {
+// CountCourses 统计课程总数（可按院系过滤）
+func (r *Repository) CountCourses(ctx context.Context, departmentID int64) (int, error) {
 	var count int
-	err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM courses").Scan(&count)
+	err := r.db.QueryRow(ctx,
+		"SELECT COUNT(*) FROM courses WHERE ($1::bigint = 0 OR department_id = $1)",
+		departmentID).Scan(&count)
 	return count, err
 }
 
@@ -60,36 +62,31 @@ func (r *Repository) CountDepartments(ctx context.Context) (int, error) {
 	return count, err
 }
 
-// ListCourses 获取课程列表
-func (r *Repository) ListCourses(ctx context.Context, limit, offset int) ([]Course, error) {
+// ListCourses 获取课程列表（可按院系过滤），使用窗口函数一次性返回数据和总数
+func (r *Repository) ListCourses(ctx context.Context, departmentID int64, limit, offset int) ([]Course, int, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.review_count
+		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.review_count,
+			COUNT(*) OVER() AS total
 		FROM courses c
 		LEFT JOIN departments d ON d.id = c.department_id
+		WHERE ($1::bigint = 0 OR c.department_id = $1)
 		ORDER BY c.name ASC
-		LIMIT $1 OFFSET $2
-	`, limit, offset)
+		LIMIT $2 OFFSET $3
+	`, departmentID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
-	return r.scanCourses(rows)
+	return r.scanCoursesWithTotal(rows)
 }
 
-// SearchCoursesCount 搜索课程计数
-func (r *Repository) SearchCoursesCount(ctx context.Context, pattern string) (int, error) {
-	var count int
-	err := r.db.QueryRow(ctx,
-		`SELECT COUNT(*) FROM courses WHERE name ILIKE $1 ESCAPE '\' OR code ILIKE $1 ESCAPE '\'`,
-		pattern).Scan(&count)
-	return count, err
-}
 
-// SearchCourses 搜索课程
-func (r *Repository) SearchCourses(ctx context.Context, pattern string, limit, offset int) ([]Course, error) {
+// SearchCourses 搜索课程，使用窗口函数一次性返回数据和总数
+func (r *Repository) SearchCourses(ctx context.Context, pattern string, limit, offset int) ([]Course, int, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.review_count
+		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.review_count,
+			COUNT(*) OVER() AS total
 		FROM courses c
 		LEFT JOIN departments d ON d.id = c.department_id
 		WHERE c.name ILIKE $1 ESCAPE '\' OR c.code ILIKE $1 ESCAPE '\'
@@ -97,11 +94,11 @@ func (r *Repository) SearchCourses(ctx context.Context, pattern string, limit, o
 		LIMIT $2 OFFSET $3
 	`, pattern, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
-	return r.scanCourses(rows)
+	return r.scanCoursesWithTotal(rows)
 }
 
 // GetCourseByID 根据ID获取课程
@@ -142,4 +139,25 @@ func (r *Repository) scanCourses(rows pgx.Rows) ([]Course, error) {
 		return nil, err
 	}
 	return list, nil
+}
+
+// scanCoursesWithTotal 扫描课程结果集（含 COUNT(*) OVER() 总数）
+func (r *Repository) scanCoursesWithTotal(rows pgx.Rows) ([]Course, int, error) {
+	list := make([]Course, 0)
+	var total int
+	for rows.Next() {
+		var item Course
+		if err := rows.Scan(
+			&item.ID, &item.SchoolID, &item.DepartmentID, &item.DepartmentName,
+			&item.Code, &item.Name, &item.Credits, &item.ReviewCount,
+			&total,
+		); err != nil {
+			return nil, 0, err
+		}
+		list = append(list, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }

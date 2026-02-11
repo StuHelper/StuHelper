@@ -64,8 +64,8 @@ export const useCourseStore = defineStore('course', () => {
   const coursesError = ref<StoreError | null>(null)
 
   // 当前请求 ID（防止并发）
-  let deptRequestId = 0
-  let courseRequestId = 0
+  let deptRequestID = 0
+  let courseRequestID = 0
 
   // 统一加载状态
   const loading = computed(() =>
@@ -95,61 +95,61 @@ export const useCourseStore = defineStore('course', () => {
       return cached
     }
 
-    const requestId = ++deptRequestId
+    const requestID = ++deptRequestID
     departmentsLoading.value = true
     departmentsError.value = null
 
     try {
       const res = await getDepartments(category)
       // 检查是否为最新请求
-      if (requestId !== deptRequestId) return departments.value
+      if (requestID !== deptRequestID) return departments.value
 
       const data = res.data || []
       departments.value = data
       deptCache.set(cacheKey, data)
       return data
     } catch (err) {
-      if (requestId === deptRequestId) {
+      if (requestID === deptRequestID) {
         departmentsError.value = handleError(err)
         departments.value = []
       }
       throw err
     } finally {
-      if (requestId === deptRequestId) {
+      if (requestID === deptRequestID) {
         departmentsLoading.value = false
       }
     }
   }
 
   // 获取课程列表
-  const fetchCourses = async (deptId: number) => {
-    const cacheKey = String(deptId)
+  const fetchCourses = async (deptID: number) => {
+    const cacheKey = String(deptID)
     const cached = courseCache.get(cacheKey)
     if (cached) {
       courses.value = cached
       return cached
     }
 
-    const requestId = ++courseRequestId
+    const requestID = ++courseRequestID
     coursesLoading.value = true
     coursesError.value = null
 
     try {
-      const res = await getCourses(deptId)
-      if (requestId !== courseRequestId) return courses.value
+      const res = await getCourses(deptID)
+      if (requestID !== courseRequestID) return courses.value
 
       const data = res.data || []
       courses.value = data
       courseCache.set(cacheKey, data)
       return data
     } catch (err) {
-      if (requestId === courseRequestId) {
+      if (requestID === courseRequestID) {
         coursesError.value = handleError(err)
         courses.value = []
       }
       throw err
     } finally {
-      if (requestId === courseRequestId) {
+      if (requestID === courseRequestID) {
         coursesLoading.value = false
       }
     }

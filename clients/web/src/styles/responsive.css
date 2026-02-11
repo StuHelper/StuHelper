@@ -1,16 +1,14 @@
-/* === Responsive Breakpoints === */
+/* === Responsive Breakpoints — Neon Campus === */
 
 /*
-  Mobile First Approach:
+  Mobile First:
   - xs: < 640px (default)
   - sm: >= 640px
   - md: >= 768px
   - lg: >= 1024px
   - xl: >= 1280px
-  - 2xl: >= 1536px
 */
 
-/* Portrait vs Landscape Detection */
 @media (orientation: portrait) {
   :root {
     --is-portrait: 1;
@@ -25,33 +23,33 @@
   }
 }
 
-/* Mobile Portrait Specific */
+/* Mobile Portrait */
 @media (max-width: 639px) and (orientation: portrait) {
   :root {
-    --navbar-height: 56px;
-    --text-5xl: 2.5rem;
-    --text-4xl: 2rem;
+    --navbar-height: 52px;
+    --text-5xl: 2.25rem;
+    --text-4xl: 1.875rem;
     --text-3xl: 1.5rem;
   }
 }
 
-/* Mobile Landscape Specific */
+/* Mobile Landscape */
 @media (max-width: 896px) and (orientation: landscape) {
   :root {
-    --navbar-height: 48px;
+    --navbar-height: 44px;
   }
 }
 
-/* Tablet and up */
+/* Tablet */
 @media (min-width: 768px) {
   :root {
-    --navbar-height: 72px;
+    --navbar-height: 56px;
   }
 }
 
 /* Desktop */
 @media (min-width: 1024px) {
   :root {
-    --navbar-height: 80px;
+    --navbar-height: 56px;
   }
 }

@@ -1,4 +1,4 @@
-/* === Base Styles === */
+/* === Base Styles — Neon Campus === */
 *,
 *::before,
 *::after {
@@ -10,22 +10,35 @@
 html {
   font-size: 16px;
   scroll-behavior: smooth;
+  color-scheme: var(--color-scheme, light);
 }
 
 body {
   font-family: var(--font-sans);
   font-size: var(--text-base);
-  line-height: 1.6;
+  line-height: var(--leading-normal);
   color: var(--text-primary);
   background: var(--bg-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* 点阵背景 — 数字校园氛围 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
 a {
   color: var(--brand-primary);
   text-decoration: none;
-  transition: color var(--duration-fast);
+  transition: color var(--duration-fast) var(--ease-smooth);
 }
 
 a:hover {
@@ -52,4 +65,37 @@ button {
 img {
   max-width: 100%;
   height: auto;
+}
+
+/* 滚动条 — 细线风格 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* 等宽数字 — 统计和评分 */
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 渐变文字 */
+.gradient-text {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

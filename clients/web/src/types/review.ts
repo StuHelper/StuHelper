@@ -8,11 +8,11 @@ export type ReviewRatings = Record<string, RatingValue>
 
 // 测评
 export interface Review {
-  id: string
-  courseId: number
+  id: number
+  courseID: number
   courseName?: string
   teacherName?: string
-  termId?: string
+  termID?: string
   termName?: string
   title: string
   content: string
@@ -20,14 +20,16 @@ export interface Review {
   ratings: ReviewRatings
   likeCount: number
   dislikeCount: number
+  replyCount: number
+  status?: 'published' | 'hidden'
   createdAt: string
 }
 
 // 发布测评参数
 export interface PostReviewParams {
-  courseId: number
-  teacherId?: number
-  termId?: string
+  courseID: number
+  teacherID?: number
+  termID?: string
   title?: string
   content: string
   grade?: string

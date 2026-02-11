@@ -9,6 +9,17 @@ export default defineConfig({
       '@': resolve(__dirname, 'src')
     }
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router', 'pinia', 'vue-i18n'],
+          'axios': ['axios'],
+          'echarts-core': ['echarts/core', 'echarts/renderers', 'vue-echarts'],
+        }
+      }
+    }
+  },
   server: {
     port: 3000,
     proxy: {

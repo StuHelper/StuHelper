@@ -10,6 +10,7 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"github.com/google/wire"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -111,6 +112,7 @@ func ProvideAuthHandler(
 func ProvideCourseHandler(
 	database *db.DB,
 	rc *redis.Client,
+	ssoClient *sso.Client,
 ) *course.Handler {
-	return course.NewHandler(database, rc.GetClient())
+	return course.NewHandler(database, rc.GetClient(), ssoClient)
 }

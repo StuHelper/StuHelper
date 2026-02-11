@@ -36,6 +36,10 @@ var sensitiveQueryParams = map[string]bool{
 	"authorization": true,
 	"credential":    true,
 	"credentials":   true,
+	"state":         true, // OAuth state parameter
+	"nonce":         true, // OAuth nonce
+	"session":       true,
+	"session_id":    true,
 }
 
 // RequestIDMiddleware 注入请求 ID

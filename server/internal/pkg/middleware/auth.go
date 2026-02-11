@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"github.com/gin-gonic/gin"
 )
@@ -31,9 +31,7 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 		// 优先从 Cookie 获取 token，其次从 Header
 		tokenString := getTokenFromRequest(c)
 		if tokenString == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "missing authentication token",
-			})
+			response.Unauthorized(c, "missing authentication token")
 			c.Abort()
 			return
 		}
@@ -41,16 +39,12 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 		// 检查 token 是否在黑名单中
 		isBlacklisted, err := tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), tokenString)
 		if err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "service temporarily unavailable",
-			})
+			response.ServiceUnavailable(c, "service temporarily unavailable")
 			c.Abort()
 			return
 		}
 		if isBlacklisted {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "token has been revoked",
-			})
+			response.Unauthorized(c, "token has been revoked")
 			c.Abort()
 			return
 		}
@@ -76,9 +70,7 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 				errorMsg = "invalid token signature"
 			}
 
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": errorMsg,
-			})
+			response.Unauthorized(c, errorMsg)
 			c.Abort()
 			return
 		}

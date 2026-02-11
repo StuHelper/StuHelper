@@ -1,120 +1,76 @@
 <template>
-  <article class="course-card" @click="handleClick">
-    <div class="card-content">
-      <h3 class="course-name">{{ course.name }}</h3>
-      <div class="course-meta">
-        <span v-if="course.departmentName" class="department">
-          {{ course.departmentName }}
-        </span>
-        <span v-if="course.credits" class="credits">
-          {{ course.credits }}学分
-        </span>
-      </div>
+  <router-link :to="`/review/courses/${course.id}`" class="quick-card">
+    <div class="quick-card__info">
+      <span class="quick-card__name">{{ course.name }}</span>
     </div>
-    <div class="card-stats">
-      <div class="stat-item reviews">
-        <span class="stat-value">{{ course.reviewCount || 0 }}</span>
-        <span class="stat-label">测评</span>
-      </div>
+    <div class="quick-card__meta">
+      <span v-if="course.departmentName" class="quick-card__dept">
+        {{ course.departmentName }}
+      </span>
+      <span class="quick-card__reviews font-mono">
+        {{ course.reviewCount }}
+      </span>
     </div>
-    <div class="card-arrow">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 18l6-6-6-6"/>
-      </svg>
-    </div>
-  </article>
+  </router-link>
 </template>
 
 <script setup lang="ts">
 import type { Course } from '@/types/course'
 
-const props = defineProps<{
-  course: Course
-}>()
-
-const emit = defineEmits<{
-  click: [course: Course]
-}>()
-
-const handleClick = () => {
-  emit('click', props.course)
-}
+defineProps<{ course: Course }>()
 </script>
 
 <style scoped>
-.course-card {
+.quick-card {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--bg-card);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--duration-base) var(--ease-out);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: border-color var(--duration-fast),
+    box-shadow var(--duration-fast);
 }
 
-.course-card:hover {
-  border-color: var(--border-accent);
-  background: var(--bg-elevated);
-  transform: translateX(4px);
+.quick-card:hover {
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-glow-sm);
 }
 
-.card-content {
-  flex: 1;
+.quick-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   min-width: 0;
 }
 
-.course-name {
-  font-size: var(--text-base);
-  font-weight: 500;
-  color: var(--text-primary);
-  margin: 0 0 var(--space-1) 0;
+.quick-card__name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.course-meta {
+.quick-card__meta {
   display: flex;
-  gap: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
 }
 
-.card-stats {
-  display: flex;
-  gap: var(--space-4);
-}
-
-.stat-item {
-  text-align: center;
-}
-
-.stat-value {
-  display: block;
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.stat-label {
+.quick-card__dept {
   font-size: var(--text-xs);
   color: var(--text-muted);
+  padding: 2px 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-full);
 }
 
-.card-arrow {
+.quick-card__reviews {
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  transition: all var(--duration-fast);
-}
-
-.card-arrow svg {
-  width: 20px;
-  height: 20px;
-}
-
-.course-card:hover .card-arrow {
-  color: var(--accent);
-  transform: translateX(4px);
 }
 </style>

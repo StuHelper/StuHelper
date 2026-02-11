@@ -38,8 +38,9 @@ func (s *Service) GetDepartments(ctx context.Context, category string) ([]Depart
 
 // ListCoursesParams 获取课程列表参数
 type ListCoursesParams struct {
-	Page     int
-	PageSize int
+	DepartmentID int64
+	Page         int
+	PageSize     int
 }
 
 // ListCoursesResult 获取课程列表结果
@@ -50,14 +51,8 @@ type ListCoursesResult struct {
 
 // GetCourses 获取课程列表
 func (s *Service) GetCourses(ctx context.Context, params ListCoursesParams) (*ListCoursesResult, error) {
-	total, err := s.repo.CountCourses(ctx)
-	if err != nil {
-		s.log.Error("failed to count courses", zap.Error(err))
-		return nil, err
-	}
-
 	offset := (params.Page - 1) * params.PageSize
-	list, err := s.repo.ListCourses(ctx, params.PageSize, offset)
+	list, total, err := s.repo.ListCourses(ctx, params.DepartmentID, params.PageSize, offset)
 	if err != nil {
 		s.log.Error("failed to list courses", zap.Error(err))
 		return nil, err
@@ -77,14 +72,8 @@ type SearchCoursesParams struct {
 func (s *Service) SearchCourses(ctx context.Context, params SearchCoursesParams) (*ListCoursesResult, error) {
 	pattern := "%" + escapeLikePattern(params.Query) + "%"
 
-	total, err := s.repo.SearchCoursesCount(ctx, pattern)
-	if err != nil {
-		s.log.Error("failed to count search results", zap.String("query", params.Query), zap.Error(err))
-		return nil, err
-	}
-
 	offset := (params.Page - 1) * params.PageSize
-	list, err := s.repo.SearchCourses(ctx, pattern, params.PageSize, offset)
+	list, total, err := s.repo.SearchCourses(ctx, pattern, params.PageSize, offset)
 	if err != nil {
 		s.log.Error("failed to search courses", zap.String("query", params.Query), zap.Error(err))
 		return nil, err
@@ -114,7 +103,7 @@ type StatsResult struct {
 
 // GetStats 获取统计数据
 func (s *Service) GetStats(ctx context.Context) (*StatsResult, error) {
-	courseCount, err := s.repo.CountCourses(ctx)
+	courseCount, err := s.repo.CountCourses(ctx, 0)
 	if err != nil {
 		s.log.Error("failed to count courses", zap.Error(err))
 		return nil, err

@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // RateLimitConfig 限流配置
@@ -89,7 +92,10 @@ return 1
 // generateUniqueID 生成唯一标识符
 func generateUniqueID() string {
 	b := make([]byte, 8)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand.Read 在现代 Go 中不会失败，但遵循错误处理规范
+		panic("crypto/rand.Read failed: " + err.Error())
+	}
 	return hex.EncodeToString(b)
 }
 
@@ -99,16 +105,12 @@ func RateLimitMiddleware(limiter *RedisRateLimiter) gin.HandlerFunc {
 		key := "rl:" + c.ClientIP()
 		allowed, err := limiter.Allow(c.Request.Context(), key)
 		if err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "rate limit service unavailable",
-			})
+			response.ServiceUnavailable(c, "rate limit service unavailable")
 			c.Abort()
 			return
 		}
 		if !allowed {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "too many requests, please try again later",
-			})
+			response.RateLimitExceeded(c)
 			c.Abort()
 			return
 		}
@@ -122,14 +124,16 @@ func GlobalRateLimitMiddleware(limiter *RedisRateLimiter) gin.HandlerFunc {
 		key := "rl:global"
 		allowed, err := limiter.Allow(c.Request.Context(), key)
 		if err != nil {
-			// 全局限流失败时降级放行，记录日志
-			c.Next()
+			logger.L().Warn("global rate limit check failed, rejecting request (fail-closed)",
+				zap.Error(err),
+				zap.String("client_ip", c.ClientIP()),
+			)
+			response.ServiceUnavailable(c, "service temporarily unavailable")
+			c.Abort()
 			return
 		}
 		if !allowed {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "service temporarily unavailable due to high load",
-			})
+			response.ServiceUnavailable(c, "service temporarily unavailable due to high load")
 			c.Abort()
 			return
 		}
@@ -149,13 +153,16 @@ func UserRateLimitMiddleware(limiter *RedisRateLimiter) gin.HandlerFunc {
 		key := "rl:user:" + userID
 		allowed, err := limiter.Allow(c.Request.Context(), key)
 		if err != nil {
-			c.Next()
+			logger.L().Warn("user rate limit check failed, rejecting request (fail-closed)",
+				zap.Error(err),
+				zap.String("user_id", userID),
+			)
+			response.ServiceUnavailable(c, "service temporarily unavailable")
+			c.Abort()
 			return
 		}
 		if !allowed {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "too many requests, please try again later",
-			})
+			response.RateLimitExceeded(c)
 			c.Abort()
 			return
 		}
@@ -175,13 +182,16 @@ func EndpointRateLimitMiddleware(limiter *RedisRateLimiter, endpoint string) gin
 		}
 		allowed, err := limiter.Allow(c.Request.Context(), key)
 		if err != nil {
-			c.Next()
+			logger.L().Warn("endpoint rate limit check failed, rejecting request (fail-closed)",
+				zap.Error(err),
+				zap.String("endpoint", endpoint),
+			)
+			response.ServiceUnavailable(c, "service temporarily unavailable")
+			c.Abort()
 			return
 		}
 		if !allowed {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "too many requests for this operation",
-			})
+			response.RateLimitExceeded(c)
 			c.Abort()
 			return
 		}

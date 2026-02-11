@@ -1,21 +1,20 @@
 /**
  * 路由配置
- * 统一认证检查、404 处理、懒加载错误处理
+ * 教学中心门户 + 评课模块嵌套路由
  */
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import i18n from '@/i18n'
 
-// 路由元信息类型
 declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean
     guest?: boolean
-    titleKey?: string // i18n key for route title
+    titleKey?: string
+    layout?: 'shell' | 'none' | 'admin'
   }
 }
 
-// 懒加载错误处理
 function lazyLoad(loader: () => Promise<unknown>) {
   return () =>
     loader().catch(() => {
@@ -23,68 +22,59 @@ function lazyLoad(loader: () => Promise<unknown>) {
     })
 }
 
-// 路由配置
 const routes: RouteRecordRaw[] = [
-  // 认证路由
+  // 认证路由（无 shell）
   {
     path: '/login',
     name: 'login',
     component: lazyLoad(() => import('@/views/LoginPage.vue')),
-    meta: { guest: true, titleKey: 'routes.login' }
+    meta: { guest: true, titleKey: 'routes.login', layout: 'none' }
   },
   {
     path: '/auth/callback',
     name: 'auth-callback',
     component: lazyLoad(() => import('@/views/AuthCallbackPage.vue')),
-    meta: { guest: true, titleKey: 'routes.authCallback' }
+    meta: { guest: true, titleKey: 'routes.authCallback', layout: 'none' }
   },
 
-  // 首页
+  // 教学中心门户
   {
     path: '/',
-    name: 'home',
-    component: lazyLoad(() => import('@/views/HomePage.vue')),
-    meta: { titleKey: 'routes.home' }
+    name: 'teaching-hub',
+    component: lazyLoad(() => import('@/views/TeachingHubPage.vue')),
+    meta: { titleKey: 'routes.teachingHub' }
   },
 
-  // 评课社区
+  // 评课模块（嵌套路由）
   {
     path: '/review',
     name: 'review',
-    component: lazyLoad(() => import('@/views/review/IndexPage.vue')),
-    meta: { titleKey: 'routes.review' }
-  },
-  {
-    path: '/review/courses',
-    name: 'courses',
-    component: lazyLoad(() => import('@/views/review/CourseListPage.vue')),
-    meta: { titleKey: 'routes.courses' }
-  },
-  {
-    path: '/review/courses/:id',
-    name: 'course-detail',
-    component: lazyLoad(() => import('@/views/review/CourseDetailPage.vue')),
-    meta: { titleKey: 'routes.courseDetail' }
-  },
-  {
-    path: '/review/latest',
-    name: 'latest-reviews',
-    component: lazyLoad(() => import('@/views/review/LatestReviewsPage.vue')),
-    meta: { titleKey: 'routes.latestReviews' }
-  },
-  {
-    path: '/review/post',
-    name: 'post-review',
-    component: lazyLoad(() => import('@/views/review/PostReviewPage.vue')),
-    meta: { requiresAuth: true, titleKey: 'routes.postReview' }
+    component: lazyLoad(() => import('@/views/review/ReviewPage.vue')),
+    meta: { titleKey: 'routes.review' },
+    children: [
+      {
+        path: 'courses/:id',
+        name: 'review-course-detail',
+        component: lazyLoad(() => import('@/views/review/CourseDetailPage.vue')),
+        meta: { titleKey: 'routes.courseDetail' }
+      }
+    ]
   },
 
-  // 开发中功能
+  // 教师主页
   {
-    path: '/resource',
-    name: 'resource',
+    path: '/teachers/:id',
+    name: 'teacher-profile',
+    component: lazyLoad(() => import('@/views/review/TeacherProfilePage.vue')),
+    meta: { titleKey: 'routes.teacherProfile' }
+  },
+
+  // 子模块占位
+  {
+    path: '/teacher',
+    name: 'teacher-hub',
     component: lazyLoad(() => import('@/views/ComingSoon.vue')),
-    meta: { titleKey: 'routes.resource' }
+    meta: { titleKey: 'routes.teacherHub' }
   },
   {
     path: '/spoc',
@@ -92,50 +82,112 @@ const routes: RouteRecordRaw[] = [
     component: lazyLoad(() => import('@/views/ComingSoon.vue')),
     meta: { titleKey: 'routes.spoc' }
   },
+  {
+    path: '/resource',
+    name: 'resource',
+    component: lazyLoad(() => import('@/views/ComingSoon.vue')),
+    meta: { titleKey: 'routes.resource' }
+  },
 
-  // 404 页面
+  // 用户中心
+  {
+    path: '/user',
+    name: 'user-center',
+    component: lazyLoad(() => import('@/views/user/UserCenterPage.vue')),
+    meta: { requiresAuth: true, titleKey: 'routes.userCenter' }
+  },
+
+  // 通知
+  {
+    path: '/notifications',
+    name: 'notifications',
+    component: lazyLoad(() => import('@/views/NotificationsPage.vue')),
+    meta: { requiresAuth: true, titleKey: 'routes.notifications' }
+  },
+
+  // 管理后台
+  {
+    path: '/admin',
+    component: lazyLoad(() => import('@/views/admin/AdminLayout.vue')),
+    meta: { requiresAuth: true, layout: 'admin' },
+    children: [
+      {
+        path: '',
+        name: 'admin-dashboard',
+        component: lazyLoad(() => import('@/views/admin/DashboardPage.vue')),
+        meta: { titleKey: 'routes.admin' }
+      },
+      {
+        path: 'reports',
+        name: 'admin-reports',
+        component: lazyLoad(() => import('@/views/admin/ReportsPage.vue')),
+        meta: { titleKey: 'routes.adminReports' }
+      },
+      {
+        path: 'reviews',
+        name: 'admin-reviews',
+        component: lazyLoad(() => import('@/views/admin/ReviewsManagePage.vue')),
+        meta: { titleKey: 'routes.adminReviews' }
+      },
+      {
+        path: 'logs',
+        name: 'admin-logs',
+        component: lazyLoad(() => import('@/views/admin/LogsPage.vue')),
+        meta: { titleKey: 'routes.adminLogs' }
+      }
+    ]
+  },
+
+  // 旧路由重定向
+  { path: '/courses/:id', redirect: to => `/review/courses/${to.params.id}` },
+  { path: '/campus', redirect: '/spoc' },
+  { path: '/community', redirect: '/' },
+  { path: '/review/latest', redirect: '/review' },
+  { path: '/review/rankings', redirect: '/review' },
+  { path: '/review/courses', redirect: '/review' },
+  { path: '/review/teachers/:id', redirect: to => `/teachers/${to.params.id}` },
+  { path: '/review/post', redirect: '/review' },
+
+  // 404
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     component: lazyLoad(() => import('@/views/errors/NotFoundPage.vue')),
-    meta: { titleKey: 'routes.notFound' }
+    meta: { titleKey: 'routes.notFound', layout: 'none' }
   }
 ]
 
-// 创建路由
 const router = createRouter({
   history: createWebHashHistory(),
   routes,
-  scrollBehavior(to, from, savedPosition) {
+  scrollBehavior(_to, _from, savedPosition) {
     if (savedPosition) return savedPosition
     return { top: 0 }
   }
 })
 
-// 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
 
-  // 设置页面标题（使用 i18n 翻译）
   if (to.meta.titleKey) {
     const { t } = i18n.global
     document.title = `${t(to.meta.titleKey)} - StuHelper`
   }
 
-  // 需要登录的页面
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next({
-      name: 'login',
-      query: { redirect: to.fullPath }
-    })
+    next({ name: 'login', query: { redirect: to.fullPath } })
     return
   }
 
-  // 已登录用户访问登录页
   if (to.meta.guest && isAuthenticated) {
     const redirect = to.query.redirect as string
-    next(redirect || { name: 'home' })
+    // 仅允许站内相对路径重定向，防止 Open Redirect
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+      next(redirect)
+    } else {
+      next({ name: 'teaching-hub' })
+    }
     return
   }
 

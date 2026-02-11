@@ -14,11 +14,15 @@
     </div>
     <span v-if="showValue" class="value">{{ value.toFixed(1) }}</span>
     <span v-if="showLabel && label" class="label">{{ label }}</span>
-    <span v-if="showCount && count !== undefined" class="count">{{ count }}人评价</span>
+    <span v-if="showCount && count !== undefined" class="count">{{ t('review.rating.countSuffix', { count }) }}</span>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 withDefaults(defineProps<{
   value: number
   label?: string

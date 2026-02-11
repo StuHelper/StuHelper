@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
 
 const (
@@ -38,14 +39,39 @@ func (h *Helper) Get(ctx context.Context, key string) (any, bool) {
 	if h.client == nil {
 		return nil, false
 	}
+	start := time.Now()
 	data, err := h.client.Get(ctx, key).Bytes()
+	metrics.CacheOperationDuration.WithLabelValues("get", "redis").Observe(time.Since(start).Seconds())
 	if err != nil {
+		metrics.CacheMissesTotal.WithLabelValues("redis").Inc()
 		return nil, false
 	}
 	var v any
 	if err := json.Unmarshal(data, &v); err != nil {
 		return nil, false
 	}
+	metrics.CacheHitsTotal.WithLabelValues("redis").Inc()
+	return v, true
+}
+
+// GetAs 获取缓存值并反序列化为指定类型（泛型版本，避免 any 类型丢失问题）
+func GetAs[T any](h *Helper, ctx context.Context, key string) (T, bool) {
+	var zero T
+	if h.client == nil {
+		return zero, false
+	}
+	start := time.Now()
+	data, err := h.client.Get(ctx, key).Bytes()
+	metrics.CacheOperationDuration.WithLabelValues("get", "redis").Observe(time.Since(start).Seconds())
+	if err != nil {
+		metrics.CacheMissesTotal.WithLabelValues("redis").Inc()
+		return zero, false
+	}
+	var v T
+	if err := json.Unmarshal(data, &v); err != nil {
+		return zero, false
+	}
+	metrics.CacheHitsTotal.WithLabelValues("redis").Inc()
 	return v, true
 }
 
@@ -62,6 +88,10 @@ func (h *Helper) Set(ctx context.Context, key string, value any, ttl time.Durati
 		)
 		return err
 	}
+	start := time.Now()
+	defer func() {
+		metrics.CacheOperationDuration.WithLabelValues("set", "redis").Observe(time.Since(start).Seconds())
+	}()
 	if err := h.client.Set(ctx, key, data, ttl).Err(); err != nil {
 		logger.L().Warn("failed to set cache",
 			zap.String("key", key),
@@ -73,10 +103,15 @@ func (h *Helper) Set(ctx context.Context, key string, value any, ttl time.Durati
 }
 
 // Invalidate 批量删除匹配前缀的缓存
+// 注意：优先使用 InvalidateByVersion 代替此方法，避免 SCAN 的性能问题
 func (h *Helper) Invalidate(ctx context.Context, prefix string) error {
 	if h.client == nil {
 		return nil
 	}
+
+	// 添加超时保护，防止 SCAN 长时间阻塞
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	const maxKeysToDelete = 1000
 	var keys []string

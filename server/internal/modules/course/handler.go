@@ -7,6 +7,7 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 )
 
 // Handler 学习中心处理器
@@ -18,14 +19,14 @@ type Handler struct {
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, rdb *redis.Client) *Handler {
+func NewHandler(database *db.DB, rdb *redis.Client, ssoClient *sso.Client) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo)
 	return &Handler{
 		db:            database,
 		cache:         cache.NewHelper(rdb),
 		service:       svc,
-		reviewHandler: review.NewHandler(database, rdb),
+		reviewHandler: review.NewHandler(database, rdb, ssoClient),
 	}
 }
 

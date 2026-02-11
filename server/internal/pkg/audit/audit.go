@@ -12,16 +12,44 @@ import (
 type EventType string
 
 const (
+	// 认证相关
 	EventUserLogin       EventType = "user.login"
 	EventUserLoginFailed EventType = "user.login_failed"
 	EventUserLogout      EventType = "user.logout"
 	EventUserLogoutAll   EventType = "user.logout_all"
 	EventTokenRefresh    EventType = "token.refresh"
 	EventTokenRevoked    EventType = "token.revoked"
-	EventDataAccess      EventType = "data.access"
-	EventDataCreate      EventType = "data.create"
-	EventDataUpdate      EventType = "data.update"
-	EventDataDelete      EventType = "data.delete"
+
+	// 通用数据操作
+	EventDataAccess EventType = "data.access"
+	EventDataCreate EventType = "data.create"
+	EventDataUpdate EventType = "data.update"
+	EventDataDelete EventType = "data.delete"
+	EventDataExport EventType = "data.export"
+
+	// 用户操作
+	EventUserReviewPost   EventType = "user.review_post"
+	EventUserReviewEdit   EventType = "user.review_edit"
+	EventUserReviewDelete EventType = "user.review_delete"
+	EventUserVote         EventType = "user.vote"
+	EventUserReport       EventType = "user.report"
+	EventUserReply        EventType = "user.reply"
+	EventUserFavorite     EventType = "user.favorite"
+
+	// 管理员操作
+	EventAdminReviewHide    EventType = "admin.review_hide"
+	EventAdminReviewDelete  EventType = "admin.review_delete"
+	EventAdminReportResolve EventType = "admin.report_resolve"
+	EventAdminConfigChange  EventType = "admin.config_change"
+	EventAdminUserBan       EventType = "admin.user_ban"
+	EventAdminBatchOp       EventType = "admin.batch_operation"
+
+	// 系统操作
+	EventSystemCronStart    EventType = "system.cron_start"
+	EventSystemCronComplete EventType = "system.cron_complete"
+	EventSystemCacheRefresh EventType = "system.cache_refresh"
+	EventSystemStatsUpdate  EventType = "system.stats_update"
+	EventSystemError        EventType = "system.error"
 )
 
 // Event 审计事件

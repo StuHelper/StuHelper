@@ -56,11 +56,11 @@ func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration)
 func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, error) {
 	// 检查熔断器状态
 	if !b.cb.Allow() {
-		// 熔断器打开：降级策略 - 允许请求通过但记录警告
-		logger.L().Warn("circuit breaker open, allowing request (degraded mode)",
+		// 熔断器打开：安全优先 - 拒绝请求，防止已撤销 token 被放行
+		logger.L().Warn("circuit breaker open, denying request (fail-closed)",
 			zap.String("operation", "IsBlacklisted"),
 		)
-		return false, nil
+		return true, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
 	}
 
 	key := blacklistPrefix + hashToken(token)

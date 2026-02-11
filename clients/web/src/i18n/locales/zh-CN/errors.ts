@@ -30,5 +30,28 @@ export default {
   BUSINESS_ERROR: '操作失败',
 
   // 未知错误
-  UNKNOWN: '发生未知错误'
+  UNKNOWN: '发生未知错误',
+
+  // 错误页面
+  notFound: {
+    title: '页面不存在',
+    description: '你访问的页面可能已被移除或地址有误',
+    backHome: '返回首页',
+    goBack: '返回上页'
+  },
+  loadError: {
+    title: '加载失败',
+    description: '页面加载出现问题，请刷新重试',
+    reload: '刷新页面'
+  },
+
+  // 认证回调
+  authCallback: {
+    loading: '正在登录中...',
+    error: '登录失败',
+    backToLogin: '返回登录',
+    missingCode: '缺少授权码',
+    missingState: '缺少 state 参数',
+    loginFailed: '登录失败，请重试'
+  }
 }

@@ -1,180 +1,264 @@
 <template>
-  <div class="course-detail-page">
-    <!-- Loading State -->
+  <div class="course-detail-page" :class="{ 'panel-mode': isPanelMode }">
+    <!-- Loading -->
     <div v-if="loading" class="loading-state">
-      <div class="skeleton-header">
-        <div class="skeleton-title"></div>
-        <div class="skeleton-meta"></div>
-      </div>
-      <div class="skeleton-chart"></div>
+      <div class="skeleton-hero" />
+      <div class="skeleton-tabs" />
+      <div class="skeleton-content" />
     </div>
 
-    <!-- Content -->
     <template v-else-if="course">
-      <!-- Course Header -->
-      <header class="course-header">
-        <div class="course-info">
-          <h1 class="course-name">{{ course.name }}</h1>
-          <div class="course-meta">
-            <span v-if="course.teacherName" class="teacher">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
-              {{ course.teacherName }}
-            </span>
-            <span class="department">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 21h18"/>
-                <path d="M5 21V7l8-4v18"/>
-                <path d="M19 21V11l-6-4"/>
-              </svg>
+      <!-- Hero -->
+      <header class="course-hero">
+        <div class="hero-inner">
+          <h1 class="hero-title">{{ course.name }}</h1>
+          <div class="hero-meta">
+            <span v-if="course.departmentName" class="meta-pill">
               {{ course.departmentName }}
             </span>
-            <span v-if="course.credits" class="credits">
-              {{ course.credits }} 学分
+            <span v-if="course.credits" class="meta-pill">
+              {{ t('review.course.credits', { n: course.credits }) }}
+            </span>
+            <span v-if="course.code" class="meta-pill font-mono">
+              {{ course.code }}
             </span>
           </div>
+          <div class="hero-actions">
+            <button class="hero-post-btn" @click="scrollToReviews">
+              {{ t('review.hub.postReview') }}
+            </button>
+            <FavoriteButton :course-i-d="courseID" />
+          </div>
         </div>
-        <button class="post-btn" @click="handlePostClick">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-          发布测评
-        </button>
+        <div class="hero-rating" v-if="ratingStats">
+          <RatingCircle
+            :value="overallAvgRating"
+            :size="88"
+            :stroke-width="6"
+            :subtitle="t('review.course.basedOnReviews', { count: total })"
+          />
+        </div>
       </header>
 
-      <!-- Rating Chart -->
-      <section class="rating-section">
-        <CourseRatingChart :course-id="courseId" />
+      <!-- Tab Bar -->
+      <nav class="tab-bar">
+        <TabBar :tabs="tabItems" :model-value="activeTab" @update:model-value="activeTab = $event" />
+      </nav>
+
+      <!-- Tab: 概览 -->
+      <section v-if="activeTab === 'overview'" class="tab-content">
+        <div class="overview-grid">
+          <div class="overview-card" v-if="ratingStats">
+            <h3 class="card-title">{{ t('review.rating.overall') }}</h3>
+            <DimensionBars :dimensions="dimensionList" />
+          </div>
+          <div class="overview-card" v-if="ratingStats">
+            <h3 class="card-title">{{ t('review.course.reviews') }}</h3>
+            <RatingDistribution :distribution="ratingDistribution" />
+          </div>
+        </div>
       </section>
 
-      <!-- Reviews Section -->
-      <section class="reviews-section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-            课程测评
-            <span class="review-count">({{ total }})</span>
-          </h2>
+      <!-- Tab: 测评 -->
+      <section v-if="activeTab === 'reviews'" ref="reviewsSection" class="tab-content">
+        <ReviewForm :course-i-d="courseID" @posted="handlePosted" />
+
+        <div class="reviews-header">
+          <TabBar :tabs="sortTabs" :model-value="sortBy" @update:model-value="handleSortChange" />
         </div>
 
-        <!-- Review List -->
-        <div v-if="reviews.length" class="review-list">
+        <div class="review-list">
           <ReviewCard v-for="r in reviews" :key="r.id" :review="r" />
         </div>
 
-        <!-- Empty State -->
-        <div v-else class="empty-state">
-          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-          <p class="empty-text">暂无测评</p>
-          <p class="empty-hint">成为第一个评价者吧</p>
-        </div>
+        <EmptyState v-if="!reviewsLoading && reviews.length === 0" :title="t('review.course.noReviews')" />
 
-        <!-- Pagination -->
-        <nav v-if="totalPages > 1" class="pagination">
-          <button class="page-btn" :disabled="page <= 1" @click="handlePageChange(page - 1)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 18l-6-6 6-6"/>
-            </svg>
-          </button>
-          <span class="page-info">{{ page }} / {{ totalPages }}</span>
-          <button class="page-btn" :disabled="page >= totalPages" @click="handlePageChange(page + 1)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </button>
-        </nav>
+        <InfiniteScroll :loading="reviewsLoading" :has-more="hasMore" @load-more="loadMoreReviews" />
+      </section>
+
+      <!-- Tab: 统计 -->
+      <section v-if="activeTab === 'stats'" class="tab-content">
+        <CourseRatingChart :course-i-d="courseID" />
+      </section>
+
+      <!-- Tab: 教师 -->
+      <section v-if="activeTab === 'teachers'" class="tab-content">
+        <EmptyState :title="t('review.course.noTeacherData')" />
       </section>
     </template>
-
-    <!-- Post Review Dialog -->
-    <PostReviewDialog
-      v-model="showPostDialog"
-      :course-id="courseId"
-      @success="handlePostSuccess"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import TabBar from '@/components/common/TabBar.vue'
+import RatingCircle from '@/components/common/RatingCircle.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import InfiniteScroll from '@/components/common/InfiniteScroll.vue'
+import FavoriteButton from '@/components/review/FavoriteButton.vue'
 import ReviewCard from '@/components/review/ReviewCard.vue'
-import PostReviewDialog from '@/components/review/PostReviewDialog.vue'
+import ReviewForm from '@/components/review/ReviewForm.vue'
+import DimensionBars from '@/components/review/DimensionBars.vue'
+import RatingDistribution from '@/components/review/RatingDistribution.vue'
 import CourseRatingChart from '@/components/review/CourseRatingChart.vue'
-import { getCourse } from '@/api/course'
+import { getCourse, getCourseRatingStats } from '@/api/course'
 import { getCourseReviews } from '@/api/review'
-import type { Course } from '@/types/course'
+import type { Course, CourseRatingStatsResponse } from '@/types/course'
 import type { Review } from '@/types/review'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const courseId = Number(route.params.id)
+const courseID = computed(() => Number(route.params.id))
 
-// 验证 courseId 是否有效，无效则重定向
-if (isNaN(courseId) || courseId <= 0) {
-  router.replace({ name: 'CourseList' })
-}
+// 面板模式：作为 ReviewPage 子路由时
+const isPanelMode = computed(() => {
+  return route.matched.some(r => r.name === 'review')
+})
 
+// 页面状态
 const loading = ref(false)
 const course = ref<Course | null>(null)
-const reviews = ref<Review[]>([])
-const page = ref(1)
-const pageSize = 10
-const total = ref(0)
-const showPostDialog = ref(false)
+const ratingStats = ref<CourseRatingStatsResponse | null>(null)
 
-const totalPages = computed(() => Math.ceil(total.value / pageSize))
+// Tab 状态
+const activeTab = ref('overview')
+const tabItems = computed(() => [
+  { value: 'overview', label: t('review.course.overview') },
+  { value: 'reviews', label: t('review.course.reviews') },
+  { value: 'stats', label: t('review.course.stats') },
+  { value: 'teachers', label: t('review.course.teachers') }
+])
+
+// 测评列表状态
+const reviews = ref<Review[]>([])
+const reviewsLoading = ref(false)
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const hasMore = computed(() => reviews.value.length < total.value)
+const reviewsSection = ref<HTMLElement | null>(null)
+
+// 排序
+const sortBy = ref('time')
+const sortTabs = computed(() => [
+  { value: 'time', label: t('review.filters.latest') },
+  { value: 'likes', label: t('review.filters.hottest') }
+])
+
+// 总体平均评分（从维度计算）
+const overallAvgRating = computed(() => {
+  const dims = ratingStats.value?.overall?.dimensions
+  if (!dims?.length) return 0
+  const sum = dims.reduce((acc, d) => acc + d.avgRating, 0)
+  return sum / dims.length
+})
+
+// 评分维度列表
+const dimensionList = computed(() => {
+  if (!ratingStats.value?.overall?.dimensions) return []
+  return ratingStats.value.overall.dimensions.map(d => ({
+    key: d.key,
+    name: d.name,
+    avgRating: d.avgRating
+  }))
+})
+
+// 评分分布
+const ratingDistribution = computed(() => {
+  if (!ratingStats.value?.overall?.dimensions?.length) return {}
+  const dist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  const firstDim = ratingStats.value.overall.dimensions[0]
+  if (firstDim?.distribution) {
+    for (const [key, val] of Object.entries(firstDim.distribution)) {
+      dist[Number(key)] = val
+    }
+  }
+  return dist
+})
 
 const fetchCourse = async () => {
+  const res = await getCourse(courseID.value)
+  course.value = res.data
+}
+
+const fetchRatingStats = async () => {
   try {
-    const res = await getCourse(courseId)
-    course.value = res.data
-  } catch (err) {
-    console.error('Failed to fetch course:', err)
+    const res = await getCourseRatingStats(courseID.value)
+    ratingStats.value = res.data
+  } catch {
+    // 评分统计可能不存在
   }
 }
 
-const fetchReviews = async () => {
+const fetchReviews = async (append = false) => {
+  reviewsLoading.value = true
   try {
-    const res = await getCourseReviews(courseId, page.value, pageSize)
-    reviews.value = res.data?.list || []
+    const res = await getCourseReviews(courseID.value, {
+      page: page.value,
+      pageSize,
+      sort: sortBy.value as 'time' | 'likes' | 'rating'
+    })
+    const list = res.data?.list || []
+    reviews.value = append ? [...reviews.value, ...list] : list
     total.value = res.data?.total || 0
-  } catch (err) {
-    console.error('Failed to fetch reviews:', err)
+  } catch {
+    // 评论加载失败静默处理，UI 已有空状态展示
+  } finally {
+    reviewsLoading.value = false
   }
 }
 
-const handlePageChange = (p: number) => {
-  page.value = p
-  fetchReviews()
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+const loadMoreReviews = () => {
+  if (reviewsLoading.value || !hasMore.value) return
+  page.value++
+  fetchReviews(true)
 }
 
-const handlePostClick = () => {
-  showPostDialog.value = true
+const handleSortChange = (val: string) => {
+  sortBy.value = val
+  page.value = 1
+  fetchReviews()
 }
 
-const handlePostSuccess = () => {
-  showPostDialog.value = false
+const handlePosted = () => {
+  page.value = 1
   fetchReviews()
-  fetchCourse()
+  fetchRatingStats()
+}
+
+const scrollToReviews = () => {
+  activeTab.value = 'reviews'
+  nextTick(() => {
+    reviewsSection.value?.scrollIntoView({ behavior: 'smooth' })
+  })
 }
 
 onMounted(async () => {
-  if (isNaN(courseId) || courseId <= 0) {
-    router.replace({ name: 'courses' })
+  if (isNaN(courseID.value) || courseID.value <= 0) {
+    router.replace({ name: 'teaching-hub' })
     return
   }
 
   loading.value = true
   try {
-    await Promise.all([fetchCourse(), fetchReviews()])
+    await Promise.all([fetchCourse(), fetchRatingStats(), fetchReviews()])
+  } finally {
+    loading.value = false
+  }
+})
+
+// 路由参数变化时重新加载数据
+watch(courseID, async (newID, oldID) => {
+  if (newID === oldID || isNaN(newID) || newID <= 0) return
+  page.value = 1
+  sortBy.value = 'time'
+  activeTab.value = 'overview'
+  loading.value = true
+  try {
+    await Promise.all([fetchCourse(), fetchRatingStats(), fetchReviews()])
   } finally {
     loading.value = false
   }
@@ -186,6 +270,12 @@ onMounted(async () => {
   max-width: 900px;
   margin: 0 auto;
   padding: var(--space-6);
+  animation: fadeIn var(--duration-base) var(--ease-out);
+}
+
+.course-detail-page.panel-mode {
+  max-width: none;
+  padding: 0;
 }
 
 /* Loading State */
@@ -195,234 +285,177 @@ onMounted(async () => {
   gap: var(--space-6);
 }
 
-.skeleton-header {
-  padding: var(--space-6);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+.skeleton-hero,
+.skeleton-tabs,
+.skeleton-content {
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-tertiary) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
   border-radius: var(--radius-lg);
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
-.skeleton-title {
-  width: 60%;
-  height: 28px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--space-3);
-  animation: pulse 1.5s ease-in-out infinite;
+.skeleton-hero {
+  height: 180px;
 }
 
-.skeleton-meta {
-  width: 40%;
-  height: 18px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  animation: pulse 1.5s ease-in-out infinite;
+.skeleton-tabs {
+  height: 44px;
 }
 
-.skeleton-chart {
+.skeleton-content {
   height: 300px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* Course Header */
-.course-header {
+/* Course Hero */
+.course-hero {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: var(--space-4);
-  padding: var(--space-6);
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-6);
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--space-6);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--space-5);
 }
 
-.course-name {
-  font-family: var(--font-display);
+.hero-inner {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-title {
+  font-family: var(--font-sans);
   font-size: var(--text-2xl);
-  font-weight: 700;
+  font-weight: var(--weight-extrabold);
+  letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
   margin: 0 0 var(--space-3) 0;
 }
 
-.course-meta {
+.hero-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-}
-
-.course-meta span {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.course-meta svg {
-  width: 16px;
-  height: 16px;
-}
-
-.teacher {
-  color: var(--accent);
-}
-
-.post-btn {
-  display: flex;
-  align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-5);
-  background: var(--accent);
-  color: var(--bg-primary);
-  font-weight: 600;
-  border-radius: var(--radius-md);
-  transition: all var(--duration-fast);
-  flex-shrink: 0;
+  margin-bottom: var(--space-4);
 }
 
-.post-btn:hover {
-  background: var(--accent-hover);
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-full);
+  text-decoration: none;
+}
+
+.meta-teacher {
+  color: var(--brand-primary);
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+}
+
+.meta-teacher:hover {
+  background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hero-post-btn {
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: white;
+  background: var(--gradient-brand);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: opacity var(--duration-fast), transform var(--duration-fast);
+}
+
+.hero-post-btn:hover {
+  opacity: 0.9;
   transform: translateY(-1px);
 }
 
-.post-btn svg {
-  width: 18px;
-  height: 18px;
+.hero-rating {
+  flex-shrink: 0;
 }
 
-/* Rating Section */
-.rating-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--space-6);
-}
-
-/* Reviews Section */
-.reviews-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-6);
-}
-
-.section-header {
+/* Tab Bar */
+.tab-bar {
+  position: sticky;
+  top: 56px;
+  z-index: 10;
+  padding: var(--space-3) 0;
   margin-bottom: var(--space-5);
+  background: var(--bg-base);
 }
 
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+/* Tab Content */
+.tab-content {
+  animation: fadeIn var(--duration-base) var(--ease-out);
 }
 
-.section-title svg {
-  width: 20px;
-  height: 20px;
-  color: var(--accent);
+/* Overview Grid */
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
 }
 
-.review-count {
-  color: var(--text-muted);
-  font-weight: 400;
+.overview-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.card-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-4) 0;
+}
+
+/* Reviews Header */
+.reviews-header {
+  margin: var(--space-4) 0;
 }
 
 .review-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  margin-bottom: var(--space-6);
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-12) var(--space-4);
-  text-align: center;
-}
-
-.empty-icon {
-  width: 64px;
-  height: 64px;
-  color: var(--text-muted);
-  opacity: 0.4;
   margin-bottom: var(--space-4);
-}
-
-.empty-text {
-  font-size: var(--text-lg);
-  color: var(--text-secondary);
-  margin: 0 0 var(--space-2) 0;
-}
-
-.empty-hint {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  margin: 0;
-}
-
-/* Pagination */
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-}
-
-.page-btn {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  transition: all var(--duration-fast);
-}
-
-.page-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.page-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.page-info {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
 }
 
 /* Responsive */
 @media (max-width: 640px) {
-  .course-header {
-    flex-direction: column;
+  .course-detail-page {
+    padding: var(--space-4);
   }
 
-  .post-btn {
-    width: 100%;
-    justify-content: center;
+  .course-hero {
+    flex-direction: column;
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .hero-title {
+    font-size: var(--text-xl);
+  }
+
+  .hero-rating {
+    align-self: center;
+  }
+
+  .overview-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

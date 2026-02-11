@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
@@ -23,9 +24,9 @@ const (
 type CachedUser struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
-	DisplayName string   `json:"display_name"`
+	DisplayName string   `json:"displayName"`
 	Email       string   `json:"email"`
-	IsAdmin     bool     `json:"is_admin"`
+	IsAdmin     bool     `json:"isAdmin"`
 	Roles       []string `json:"roles"`
 	Permissions []string `json:"permissions"`
 	Groups      []string `json:"groups"`
@@ -34,6 +35,7 @@ type CachedUser struct {
 // UserCache 用户信息缓存服务
 type UserCache struct {
 	rdb *redis.Client
+	mu  sync.RWMutex
 	ttl time.Duration
 }
 
@@ -45,20 +47,22 @@ func NewUserCache(rdb *redis.Client) *UserCache {
 	}
 }
 
-// hashUsername 对用户名进行哈希处理，防止缓存 key 注入
-func hashUsername(username string) string {
-	h := sha256.Sum256([]byte(username))
+// hashKey 对标识符进行哈希处理，防止缓存 key 注入
+func hashKey(identifier string) string {
+	h := sha256.Sum256([]byte(identifier))
 	return hex.EncodeToString(h[:])
 }
 
 // SetTTL 设置缓存过期时间
 func (c *UserCache) SetTTL(ttl time.Duration) {
+	c.mu.Lock()
 	c.ttl = ttl
+	c.mu.Unlock()
 }
 
 // Get 从缓存获取用户信息
-func (c *UserCache) Get(ctx context.Context, username string) (*CachedUser, error) {
-	key := userCachePrefix + hashUsername(username)
+func (c *UserCache) Get(ctx context.Context, identifier string) (*CachedUser, error) {
+	key := userCachePrefix + hashKey(identifier)
 	data, err := c.rdb.Get(ctx, key).Bytes()
 	if err == redis.Nil {
 		return nil, nil // 缓存未命中
@@ -74,19 +78,22 @@ func (c *UserCache) Get(ctx context.Context, username string) (*CachedUser, erro
 	return &user, nil
 }
 
-// Set 设置用户信息缓存
+// Set 设置用户信息缓存（以 user.ID 为 key）
 func (c *UserCache) Set(ctx context.Context, user *CachedUser) error {
-	key := userCachePrefix + hashUsername(user.Name)
+	key := userCachePrefix + hashKey(user.ID)
 	data, err := json.Marshal(user)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user cache: %w", err)
 	}
-	return c.rdb.Set(ctx, key, data, c.ttl).Err()
+	c.mu.RLock()
+	ttl := c.ttl
+	c.mu.RUnlock()
+	return c.rdb.Set(ctx, key, data, ttl).Err()
 }
 
 // Delete 删除用户缓存
-func (c *UserCache) Delete(ctx context.Context, username string) error {
-	key := userCachePrefix + hashUsername(username)
+func (c *UserCache) Delete(ctx context.Context, identifier string) error {
+	key := userCachePrefix + hashKey(identifier)
 	return c.rdb.Del(ctx, key).Err()
 }
 

@@ -5,8 +5,8 @@
 import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
-  type AxiosError,
-  type InternalAxiosRequestConfig
+  type AxiosResponse,
+  type AxiosError
 } from 'axios'
 import config from './config'
 import { ApiError, ErrorCode, createErrorFromStatus } from './errors'
@@ -35,23 +35,24 @@ class TokenRefreshManager {
 
   async handleUnauthorized<T>(
     error: AxiosError,
-    instance: AxiosInstance,
-    transform?: (res: unknown) => T
+    instance: AxiosInstance
   ): Promise<T> {
     const originalRequest = error.config as ExtendedAxiosRequestConfig
-    if (!originalRequest) {
+    if (!originalRequest || originalRequest._retry) {
       return Promise.reject(this.createAuthError())
     }
+    originalRequest._retry = true
 
     if (!this.isRefreshing) {
       this.isRefreshing = true
       const success = await this.refreshToken()
-      this.isRefreshing = false
+      // 先通知订阅者，再重置标志，防止竞态
       this.notifySubscribers(success)
+      this.isRefreshing = false
 
       if (success) {
-        const response = await instance(originalRequest)
-        return transform ? transform(response) : (response as T)
+        // instance(originalRequest) 已经过响应拦截器的 transform，不再重复应用
+        return await instance(originalRequest) as T
       }
       this.handleAuthFailure()
       return Promise.reject(this.createAuthError())
@@ -66,8 +67,8 @@ class TokenRefreshManager {
       this.subscribers.push(async (success: boolean) => {
         if (success) {
           try {
-            const response = await instance(originalRequest)
-            resolve(transform ? transform(response) : (response as T))
+            // instance(originalRequest) 已经过响应拦截器的 transform，不再重复应用
+            resolve(await instance(originalRequest) as T)
           } catch (e) {
             reject(e)
           }
@@ -86,12 +87,7 @@ class TokenRefreshManager {
         { withCredentials: true }
       )
       return true
-    } catch (err) {
-      const axiosError = err as AxiosError
-      if (axiosError.response?.status === 401 || axiosError.response?.status === 403) {
-        return false
-      }
-      console.error('Token refresh network error:', err)
+    } catch {
       return false
     }
   }
@@ -143,22 +139,18 @@ function transformError(error: AxiosError): ApiError {
   return createErrorFromStatus(status, message)
 }
 
-// 创建请求拦截器
-function createRequestInterceptor() {
-  return (config: InternalAxiosRequestConfig) => {
-    // 可以在这里添加请求 ID、时间戳等
-    return config
-  }
-}
-
 // 创建响应拦截器
 function createResponseInterceptor<T>(
   instance: AxiosInstance,
   transform?: (res: unknown) => T
 ) {
   return {
-    onFulfilled: (response: unknown) => {
-      return transform ? transform(response) : response
+    onFulfilled: (response: AxiosResponse): AxiosResponse => {
+      // blob 响应不经过 transform，直接返回原始响应
+      if (response.config.responseType === 'blob') {
+        return response
+      }
+      return (transform ? transform(response) : response) as AxiosResponse
     },
     onRejected: async (error: AxiosError): Promise<T> => {
       const originalRequest = error.config
@@ -169,7 +161,7 @@ function createResponseInterceptor<T>(
         originalRequest &&
         !originalRequest.url?.includes('/auth/refresh')
       ) {
-        return tokenManager.handleUnauthorized(error, instance, transform)
+        return tokenManager.handleUnauthorized(error, instance)
       }
 
       return Promise.reject(transformError(error))
@@ -184,7 +176,6 @@ export const request = axios.create({
   withCredentials: config.withCredentials
 })
 
-request.interceptors.request.use(createRequestInterceptor())
 const requestInterceptor = createResponseInterceptor(request)
 request.interceptors.response.use(
   requestInterceptor.onFulfilled,
@@ -198,7 +189,6 @@ const courseReviewApi = axios.create({
   withCredentials: config.withCredentials
 })
 
-courseReviewApi.interceptors.request.use(createRequestInterceptor())
 const courseInterceptor = createResponseInterceptor(
   courseReviewApi,
   (res) => (res as { data: unknown }).data
@@ -208,7 +198,39 @@ courseReviewApi.interceptors.response.use(
   courseInterceptor.onRejected
 )
 
-// 类型安全的 API 客户端
+// 创建课程实体 API 实例（院系、课程等非评价接口）
+const courseBaseApi = axios.create({
+  baseURL: config.courseBaseUrl,
+  timeout: config.timeout,
+  withCredentials: config.withCredentials
+})
+
+const courseBaseInterceptor = createResponseInterceptor(
+  courseBaseApi,
+  (res) => (res as { data: unknown }).data
+)
+courseBaseApi.interceptors.response.use(
+  courseBaseInterceptor.onFulfilled,
+  courseBaseInterceptor.onRejected
+)
+
+// 课程实体 API 客户端（/api/v1/course）
+export const courseEntityApi = {
+  get<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return courseBaseApi.get(url, cfg) as Promise<ApiResponse<T>>
+  },
+  post<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return courseBaseApi.post(url, data, cfg) as Promise<ApiResponse<T>>
+  },
+  put<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return courseBaseApi.put(url, data, cfg) as Promise<ApiResponse<T>>
+  },
+  delete<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return courseBaseApi.delete(url, cfg) as Promise<ApiResponse<T>>
+  }
+}
+
+// 课程评价 API 客户端（/api/v1/course/review）
 export const courseApi = {
   get<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     return courseReviewApi.get(url, cfg) as Promise<ApiResponse<T>>

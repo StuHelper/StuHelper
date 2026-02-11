@@ -18,23 +18,35 @@ export const formatDate = (date: string | Date, format = 'YYYY-MM-DD'): string =
     .replace('mm', minute)
 }
 
-// 相对时间
-export const timeAgo = (date: string | Date): string => {
-  const d = new Date(date)
-  if (isNaN(d.getTime())) {
-    return '-'
-  }
-  const now = Date.now()
-  const past = d.getTime()
-  const diff = now - past
+// i18n 翻译函数类型
+type TFunc = (key: string, params?: Record<string, unknown>) => string
 
-  const minute = 60 * 1000
-  const hour = 60 * minute
-  const day = 24 * hour
+/**
+ * 相对时间格式化（i18n 感知）
+ * 用于 ReviewCard、ReplyCard、NotificationItem 等组件
+ */
+export const formatRelativeTime = (
+  date: string | Date,
+  locale: string,
+  t: TFunc
+): string => {
+  const d = date instanceof Date ? date : new Date(date)
+  if (isNaN(d.getTime())) return '-'
 
-  if (diff < minute) return '刚刚'
-  if (diff < hour) return `${Math.floor(diff / minute)} 分钟前`
-  if (diff < day) return `${Math.floor(diff / hour)} 小时前`
-  if (diff < 30 * day) return `${Math.floor(diff / day)} 天前`
-  return formatDate(date)
+  const diff = Date.now() - d.getTime()
+
+  if (diff < 60_000) return t('common.time.justNow')
+  if (diff < 3_600_000) return t('common.time.minutesAgo', { n: Math.floor(diff / 60_000) })
+  if (diff < 86_400_000) return t('common.time.hoursAgo', { n: Math.floor(diff / 3_600_000) })
+  if (diff < 604_800_000) return t('common.time.daysAgo', { n: Math.floor(diff / 86_400_000) })
+
+  return d.toLocaleDateString(locale)
+}
+
+/**
+ * 绝对时间格式化（locale 感知）
+ * 用于 LogsPage、ReportsPage 等管理后台页面
+ */
+export const formatAbsoluteTime = (dateStr: string, locale: string): string => {
+  return new Date(dateStr).toLocaleString(locale)
 }

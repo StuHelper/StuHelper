@@ -25,61 +25,62 @@ func (r *ReviewRatings) Scan(value interface{}) error {
 // Review 测评
 type Review struct {
 	ID           string        `json:"id"`
-	CourseID     int64         `json:"course_id"`
-	CourseName   string        `json:"course_name,omitempty"`
-	TeacherID    *int64        `json:"teacher_id,omitempty"`
-	TeacherName  string        `json:"teacher_name,omitempty"`
-	TermID       string        `json:"term_id,omitempty"`
-	TermName     string        `json:"term_name,omitempty"`
+	CourseID     int64         `json:"courseID"`
+	CourseName   string        `json:"courseName,omitempty"`
+	TeacherID    *int64        `json:"teacherID,omitempty"`
+	TeacherName  string        `json:"teacherName,omitempty"`
+	TermID       string        `json:"termID,omitempty"`
+	TermName     string        `json:"termName,omitempty"`
 	UserHash     string        `json:"-"`
 	Title        string        `json:"title,omitempty"`
 	Content      string        `json:"content"`
 	Grade        string        `json:"grade,omitempty"`
 	Ratings      ReviewRatings `json:"ratings"`
-	LikeCount    int           `json:"like_count"`
-	DislikeCount int           `json:"dislike_count"`
+	LikeCount    int           `json:"likeCount"`
+	DislikeCount int           `json:"dislikeCount"`
+	ReplyCount   int           `json:"replyCount"`
 	Status       string        `json:"status"`
-	CreatedAt    time.Time     `json:"created_at"`
+	CreatedAt    time.Time     `json:"createdAt"`
 }
 
 // RatingDimension 评分维度配置
 type RatingDimension struct {
 	ID          int64     `json:"id"`
-	SchoolID    int64     `json:"school_id"`
+	SchoolID    int64     `json:"schoolID"`
 	Key         string    `json:"key"`
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
-	SortOrder   int       `json:"sort_order"`
-	IsActive    bool      `json:"is_active"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	SortOrder   int       `json:"sortOrder"`
+	IsActive    bool      `json:"isActive"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // CourseRatingStats 课程评分统计
 type CourseRatingStats struct {
 	ID           int64           `json:"id"`
-	CourseID     int64           `json:"course_id"`
-	TermID       *string         `json:"term_id,omitempty"`
-	DimensionKey string          `json:"dimension_key"`
-	AvgRating    float64         `json:"avg_rating"`
-	RatingCount  int             `json:"rating_count"`
-	RatingDist   json.RawMessage `json:"rating_dist"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	CourseID     int64           `json:"courseID"`
+	TermID       *string         `json:"termID,omitempty"`
+	DimensionKey string          `json:"dimensionKey"`
+	AvgRating    float64         `json:"avgRating"`
+	RatingCount  int             `json:"ratingCount"`
+	RatingDist   json.RawMessage `json:"ratingDist"`
+	UpdatedAt    time.Time       `json:"updatedAt"`
 }
 
 // DimensionStats 维度统计（用于API响应）
 type DimensionStats struct {
 	Key          string      `json:"key"`
 	Name         string      `json:"name"`
-	AvgRating    float64     `json:"avg_rating"`
-	RatingCount  int         `json:"rating_count"`
+	AvgRating    float64     `json:"avgRating"`
+	RatingCount  int         `json:"ratingCount"`
 	Distribution map[int]int `json:"distribution"`
 }
 
 // TermRatingStats 学期评分统计
 type TermRatingStats struct {
-	TermID     string           `json:"term_id"`
-	TermName   string           `json:"term_name"`
+	TermID     string           `json:"termID"`
+	TermName   string           `json:"termName"`
 	Dimensions []DimensionStats `json:"dimensions"`
 }
 
@@ -87,8 +88,8 @@ type TermRatingStats struct {
 type RadarChartDataset struct {
 	Label           string    `json:"label"`
 	Data            []float64 `json:"data"`
-	BackgroundColor string    `json:"background_color"`
-	BorderColor     string    `json:"border_color"`
+	BackgroundColor string    `json:"backgroundColor"`
+	BorderColor     string    `json:"borderColor"`
 }
 
 // RadarChartData 雷达图数据
@@ -99,9 +100,165 @@ type RadarChartData struct {
 
 // CourseRatingStatsResponse 课程评分统计响应
 type CourseRatingStatsResponse struct {
-	CourseID         int64             `json:"course_id"`
+	CourseID         int64             `json:"courseID"`
 	Overall          TermRatingStats   `json:"overall"`
-	ByTerm           []TermRatingStats `json:"by_term"`
-	AllDimensionKeys []string          `json:"all_dimension_keys"`
-	RadarChart       RadarChartData    `json:"radar_chart"`
+	ByTerm           []TermRatingStats `json:"byTerm"`
+	AllDimensionKeys []string          `json:"allDimensionKeys"`
+	RadarChart       RadarChartData    `json:"radarChart"`
 }
+
+// ReviewReport 举报记录
+type ReviewReport struct {
+	ID             int64      `json:"id"`
+	ReviewID       string     `json:"reviewID"`
+	Review         *Review    `json:"review,omitempty"`
+	ReporterHash   string     `json:"-"`
+	Reason         string     `json:"reason"`
+	Description    string     `json:"description,omitempty"`
+	Status         string     `json:"status"`
+	ResolvedBy     *string    `json:"resolvedBy,omitempty"`
+	ResolvedAt     *time.Time `json:"resolvedAt,omitempty"`
+	ResolutionNote *string    `json:"resolutionNote,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+}
+
+// AdminStats 管理统计
+type AdminStats struct {
+	TotalReviews     int `json:"totalReviews"`
+	PublishedReviews int `json:"publishedReviews"`
+	HiddenReviews    int `json:"hiddenReviews"`
+	DeletedReviews   int `json:"deletedReviews"`
+	PendingReports   int `json:"pendingReports"`
+	TotalReports     int `json:"totalReports"`
+	TodayReviews     int `json:"todayReviews"`
+	WeekReviews      int `json:"weekReviews"`
+}
+
+// CourseFavorite 课程收藏
+type CourseFavorite struct {
+	ID        int64     `json:"id"`
+	UserHash  string    `json:"-"`
+	CourseID  int64     `json:"courseID"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// FavoriteCourse 收藏的课程（包含课程信息，字段对齐前端 Course 类型）
+type FavoriteCourse struct {
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	Code           *string   `json:"code,omitempty"`
+	Credits        float64   `json:"credits"`
+	DepartmentID   int64     `json:"departmentID"`
+	DepartmentName *string   `json:"departmentName,omitempty"`
+	ReviewCount    int       `json:"reviewCount"`
+	FavoritedAt    time.Time `json:"favoritedAt"`
+}
+
+// ReviewDraft 评论草稿
+type ReviewDraft struct {
+	ID        int64         `json:"id"`
+	UserHash  string        `json:"-"`
+	CourseID  int64         `json:"courseID"`
+	TeacherID *int64        `json:"teacherID,omitempty"`
+	TermID    string        `json:"termID,omitempty"`
+	Title     string        `json:"title,omitempty"`
+	Content   string        `json:"content,omitempty"`
+	Grade     string        `json:"grade,omitempty"`
+	Ratings   ReviewRatings `json:"ratings"`
+	UpdatedAt time.Time     `json:"updatedAt"`
+}
+
+// Reply 评论回复
+type Reply struct {
+	ID        int64     `json:"id"`
+	ReviewID  string    `json:"reviewID"`
+	ParentID  *int64    `json:"parentID,omitempty"`
+	UserHash  string    `json:"-"`
+	Content   string    `json:"content"`
+	LikeCount int       `json:"likeCount"`
+	Status    string    `json:"status"`
+	IsOwner   bool      `json:"isOwner"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// Notification 通知
+type Notification struct {
+	ID          int64     `json:"id"`
+	UserHash    string    `json:"-"`
+	Type        string    `json:"type"`
+	Title       string    `json:"title"`
+	Content     string    `json:"content,omitempty"`
+	RelatedType string    `json:"relatedType,omitempty"`
+	RelatedID   string    `json:"relatedID,omitempty"`
+	IsRead      bool      `json:"isRead"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// TeacherRatingStats 教师评分统计
+type TeacherRatingStats struct {
+	ID           int64           `json:"id"`
+	TeacherID    int64           `json:"teacherID"`
+	TermID       *string         `json:"termID,omitempty"`
+	DimensionKey string          `json:"dimensionKey"`
+	AvgRating    float64         `json:"avgRating"`
+	RatingCount  int             `json:"ratingCount"`
+	RatingDist   json.RawMessage `json:"ratingDist"`
+	UpdatedAt    time.Time       `json:"updatedAt"`
+}
+
+// TeacherRatingStatsResponse 教师评分统计响应
+type TeacherRatingStatsResponse struct {
+	TeacherID      int64              `json:"teacherID"`
+	TeacherName    string             `json:"teacherName"`
+	DepartmentName string             `json:"departmentName"`
+	AvgRating      *float64           `json:"avgRating"`
+	CourseCount    int                `json:"courseCount"`
+	ReviewCount    int                `json:"reviewCount"`
+	Courses        []TeacherCourse    `json:"courses"`
+	RatingTrend    []RatingTrendItem `json:"ratingTrend"`
+	Overall        TermRatingStats   `json:"overall"`
+	ByTerm         []TermRatingStats  `json:"byTerm"`
+	RadarChart     RadarChartData     `json:"radarChart"`
+}
+
+// TeacherCourse 教师授课课程
+type TeacherCourse struct {
+	ID          int64    `json:"id"`
+	Name        string   `json:"name"`
+	AvgRating   *float64 `json:"avgRating"`
+	ReviewCount int      `json:"reviewCount"`
+}
+
+// SensitiveWord 敏感词
+type SensitiveWord struct {
+	ID        int64     `json:"id"`
+	Word      string    `json:"word"`
+	Category  string    `json:"category"`
+	Level     string    `json:"level"` // block, warn
+	IsActive  bool      `json:"isActive"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// ContentCheckResult 内容检查结果
+type ContentCheckResult struct {
+	IsValid    bool   `json:"isValid"`
+	Level      string `json:"level,omitempty"`
+	MatchCount int    `json:"matchCount,omitempty"`
+}
+
+// AdminOperationLog 管理操作日志
+type AdminOperationLog struct {
+	ID            int64           `json:"id"`
+	AdminUserID   string          `json:"adminUserID"`
+	AdminUsername string          `json:"adminUsername"`
+	Action        string          `json:"action"`
+	ResourceType  string          `json:"resourceType"`
+	ResourceID    string          `json:"resourceID"`
+	OldValue      json.RawMessage `json:"oldValue,omitempty"`
+	NewValue      json.RawMessage `json:"newValue,omitempty"`
+	IPAddress     string          `json:"ipAddress,omitempty"`
+	UserAgent     string          `json:"userAgent,omitempty"`
+	CreatedAt     time.Time       `json:"createdAt"`
+}
+

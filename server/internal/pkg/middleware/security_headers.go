@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -39,11 +41,39 @@ func SecurityHeadersWithHSTS() gin.HandlerFunc {
 	}
 }
 
+// auditedBody wraps http.MaxBytesReader to log when the body limit is exceeded,
+// covering the case where Content-Length is absent and the early check is bypassed.
+type auditedBody struct {
+	io.ReadCloser
+	logged   bool
+	c        *gin.Context
+	maxBytes int64
+}
+
+func (b *auditedBody) Read(p []byte) (n int, err error) {
+	n, err = b.ReadCloser.Read(p)
+	if err != nil && !b.logged {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			b.logged = true
+			requestID := getRequestID(b.c)
+			logger.L().Warn("request body exceeded limit (no Content-Length)",
+				zap.String("request_id", requestID),
+				zap.String("client_ip", b.c.ClientIP()),
+				zap.String("method", b.c.Request.Method),
+				zap.String("path", b.c.Request.URL.Path),
+				zap.Int64("max_bytes", b.maxBytes),
+				zap.String("user_agent", b.c.Request.UserAgent()),
+			)
+		}
+	}
+	return
+}
+
 // MaxBodySize 限制请求体大小的中间件
 func MaxBodySize(maxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.ContentLength > maxBytes {
-			// 记录请求体过大的安全审计日志
 			requestID := getRequestID(c)
 			logger.L().Warn("request body too large",
 				zap.String("request_id", requestID),
@@ -60,7 +90,11 @@ func MaxBodySize(maxBytes int64) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Request.Body = &auditedBody{
+			ReadCloser: http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes),
+			c:          c,
+			maxBytes:   maxBytes,
+		}
 		c.Next()
 	}
 }

@@ -37,10 +37,9 @@ export interface Course {
   name: string
   code?: string
   credits: number
-  departmentId: number
+  departmentID: number
   departmentName?: string
   reviewCount: number
-  teacherName?: string
 }
 
 // 维度评分统计
@@ -54,7 +53,7 @@ export interface DimensionStats {
 
 // 学期评分统计
 export interface TermRatingStats {
-  termId?: string
+  termID?: string
   termName: string
   dimensions: DimensionStats[]
 }
@@ -75,7 +74,7 @@ export interface RadarChartData {
 
 // 课程评分统计响应
 export interface CourseRatingStatsResponse {
-  courseId: number
+  courseID: number
   overall: TermRatingStats
   byTerm: TermRatingStats[]
   allDimensionKeys: string[]

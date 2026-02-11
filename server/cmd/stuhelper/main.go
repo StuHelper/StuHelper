@@ -18,11 +18,14 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -59,7 +62,11 @@ func run() error {
 	if err := logger.Init(logCfg); err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
-	defer func() { _ = logger.Sync() }()
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "logger sync error: %v\n", err)
+		}
+	}()
 
 	// 初始化 HMAC 密钥（用于用户 ID 哈希等场景）
 	isProduction := cfg.App.Env == "production"
@@ -72,7 +79,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to Redis: %w", err)
 	}
-	defer func() { _ = redisClient.Close() }()
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			logger.L().Warn("redis client close error", zap.Error(err))
+		}
+	}()
 
 	// 初始化 PostgreSQL 连接池
 	pgPool, err := db.NewPGPool(cfg.Database)
@@ -97,6 +108,9 @@ func run() error {
 		return fmt.Errorf("failed to initialize token service: %w", err)
 	}
 
+	// 初始化 SSO 客户端
+	ssoClient := sso.NewClientWithCache(cfg.Casdoor, redisClient.GetClient())
+
 	// 根据环境设置 Gin 模式
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -112,10 +126,13 @@ func run() error {
 		}
 	} else {
 		// 开发环境：信任所有代理（不推荐用于生产）
-		_ = r.SetTrustedProxies(nil)
+		if err := r.SetTrustedProxies(nil); err != nil {
+			logger.L().Warn("failed to set trusted proxies to nil", zap.Error(err))
+		}
 	}
 
 	r.Use(middleware.Recovery())
+	r.Use(metrics.Middleware())
 	r.Use(middleware.RequestIDMiddleware())
 	r.Use(middleware.RequestLogger())
 	// 根据环境选择安全头中间件
@@ -150,6 +167,15 @@ func run() error {
 	}, isProduction)
 	healthHandler.RegisterRoutes(r)
 
+	// 注册 Prometheus 指标端点（仅限内部访问，生产环境应通过网络策略限制）
+	metricsGroup := r.Group("/metrics")
+	if isProduction {
+		metricsGroup.Use(gin.BasicAuth(gin.Accounts{
+			cfg.App.MetricsUser: cfg.App.MetricsPassword,
+		}))
+	}
+	metricsGroup.GET("", gin.WrapH(promhttp.Handler()))
+
 	// 注册 API 路由（带版本控制）
 	api := r.Group("/api/v1")
 	{
@@ -160,7 +186,7 @@ func run() error {
 		authHandler.RegisterRoutes(api)
 
 		// 注册课程模块路由
-		courseHandler := course.NewHandler(database, redisClient.GetClient())
+		courseHandler := course.NewHandler(database, redisClient.GetClient(), ssoClient)
 		courseHandler.RegisterRoutes(api, middleware.AuthMiddleware(tokenService))
 	}
 

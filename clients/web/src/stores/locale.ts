@@ -9,6 +9,9 @@ import { SUPPORTED_LOCALES, DEFAULT_LOCALE, type SupportedLocale } from '@/i18n'
 const LOCALE_STORAGE_KEY = 'locale'
 
 export const useLocaleStore = defineStore('locale', () => {
+  // 在 setup 上下文中调用 useI18n
+  const { locale: i18nLocale } = useI18n()
+
   // 当前语言
   const locale = ref<SupportedLocale>(
     (localStorage.getItem(LOCALE_STORAGE_KEY) as SupportedLocale) || DEFAULT_LOCALE
@@ -23,15 +26,11 @@ export const useLocaleStore = defineStore('locale', () => {
   // 切换语言
   function setLocale(newLocale: SupportedLocale) {
     if (!SUPPORTED_LOCALES.includes(newLocale)) {
-      console.warn(`Unsupported locale: ${newLocale}`)
       return
     }
 
     locale.value = newLocale
     localStorage.setItem(LOCALE_STORAGE_KEY, newLocale)
-
-    // 更新 vue-i18n 的语言
-    const { locale: i18nLocale } = useI18n()
     i18nLocale.value = newLocale
   }
 

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 )
@@ -39,8 +40,12 @@ func InitHMACKey(secret string, isProduction bool) error {
 			return
 		}
 		// 验证密钥长度
-		if len(secret) < 16 {
-			log.Println("WARNING: HMAC_SECRET is too short (< 16 chars), consider using a longer key")
+		if len(secret) < 32 {
+			if isProduction {
+				initErr = fmt.Errorf("HMAC_SECRET is too short (%d chars), minimum 32 chars required in production", len(secret))
+				return
+			}
+			log.Println("WARNING: HMAC_SECRET is too short (< 32 chars), consider using a longer key")
 		}
 		hmacKey = []byte(secret)
 	})
@@ -51,6 +56,9 @@ func InitHMACKey(secret string, isProduction bool) error {
 func HMACHash(data string) string {
 	if data == "" {
 		return ""
+	}
+	if hmacKey == nil {
+		panic("crypto: HMACHash called before InitHMACKey")
 	}
 	h := hmac.New(sha256.New, hmacKey)
 	h.Write([]byte(data))
