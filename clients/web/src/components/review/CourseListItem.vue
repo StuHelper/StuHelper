@@ -1,10 +1,14 @@
 <template>
   <router-link
     :to="`/review/courses/${course.id}`"
-    class="course-list-item"
-    :class="{ active: isActive }"
+    class="flex items-center gap-1.5 px-3 py-1.5 text-xs no-underline transition-colors duration-fast cursor-pointer"
+    :class="isActive
+      ? 'text-primary font-semibold bg-primary/[0.08]'
+      : 'text-text-primary hover:bg-bg-hover'"
   >
-    <span class="course-list-item__name">{{ course.name }}</span>
+    <span class="truncate shrink">{{ course.name }}</span>
+    <span v-if="course.credits" class="shrink-0 text-[10px] text-text-muted">{{ course.credits }}学分</span>
+    <span class="ml-auto shrink-0 text-[10px] tabular-nums" :class="isActive ? 'text-primary/60' : 'text-text-muted'">{{ course.reviewCount }}评</span>
   </router-link>
 </template>
 
@@ -20,34 +24,3 @@ const isActive = computed(() => {
   return route.params.id && Number(route.params.id) === props.course.id
 })
 </script>
-
-<style scoped>
-.course-list-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  color: var(--text-primary);
-  transition: background var(--duration-fast) var(--ease-smooth);
-  cursor: pointer;
-}
-
-.course-list-item:hover {
-  background: var(--bg-hover);
-}
-
-.course-list-item.active {
-  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
-}
-
-.course-list-item__name {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-</style>

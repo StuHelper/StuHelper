@@ -5,9 +5,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 )
@@ -110,5 +112,23 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 		admin.GET("/stats", h.GetAdminStats)
 		admin.GET("/logs", h.GetOperationLogs)
 		admin.GET("/export", h.ExportReviews)
+	}
+}
+
+// invalidateReviewCaches 失效评论相关缓存，keys 为额外需要失效的缓存前缀
+func (h *Handler) invalidateReviewCaches(c *gin.Context, keys ...string) {
+	ctx := c.Request.Context()
+	l := logger.FromGin(c)
+	// 始终失效 course 和 latest 缓存
+	for _, key := range []string{"review:course", "review:latest"} {
+		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
+			l.Warn("failed to invalidate cache", zap.String("key", key), zap.Error(err))
+		}
+	}
+	// 失效额外指定的缓存前缀
+	for _, key := range keys {
+		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
+			l.Warn("failed to invalidate cache", zap.String("key", key), zap.Error(err))
+		}
 	}
 }

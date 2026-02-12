@@ -3,21 +3,21 @@
     <AppShell v-if="showShell">
       <router-view v-slot="{ Component, route }">
         <Transition name="page" mode="out-in">
-          <component :is="Component" :key="route.path" />
+          <component :is="Component" :key="route.matched[0]?.path || route.path" />
         </Transition>
       </router-view>
     </AppShell>
 
     <router-view v-else v-slot="{ Component, route }">
       <Transition name="page" mode="out-in">
-        <component :is="Component" :key="route.path" />
+        <component :is="Component" :key="route.matched[0]?.path || route.path" />
       </Transition>
     </router-view>
   </el-config-provider>
 </template>
 
 <script setup lang="ts">
-import '@/styles/main.css'
+import '@/styles/tailwind.css'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'

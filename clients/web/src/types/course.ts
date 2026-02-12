@@ -39,7 +39,16 @@ export interface Course {
   credits: number
   departmentID: number
   departmentName?: string
+  category: string
   reviewCount: number
+}
+
+// 课程分类（后台可配置）
+export interface CourseCategory {
+  id: number
+  schoolID: number
+  name: string
+  sortOrder: number
 }
 
 // 维度评分统计
@@ -70,6 +79,17 @@ export interface RadarChartDataset {
 export interface RadarChartData {
   labels: string[]
   datasets: RadarChartDataset[]
+}
+
+// 教师统计卡片数据
+export interface TeacherStats {
+  teacherID: number
+  teacherName: string
+  departmentName: string
+  avgRating: number | null
+  courseCount: number
+  reviewCount: number
+  tags?: string[]
 }
 
 // 课程评分统计响应

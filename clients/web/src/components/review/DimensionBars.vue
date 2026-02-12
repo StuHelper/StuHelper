@@ -1,5 +1,5 @@
 <template>
-  <div class="dim-bars">
+  <div class="flex flex-col gap-3">
     <RatingBar
       v-for="dim in dimensions"
       :key="dim.key"
@@ -21,11 +21,3 @@ defineProps<{
   }>
 }>()
 </script>
-
-<style scoped>
-.dim-bars {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-</style>

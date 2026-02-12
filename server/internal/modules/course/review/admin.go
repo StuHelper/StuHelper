@@ -3,10 +3,12 @@ package review
 import (
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
@@ -16,9 +18,29 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
+const (
+	// maxBatchSize 批量操作的最大数量上限
+	maxBatchSize = 100
+	// maxUserAgentLen UserAgent 字段最大长度，超出截断
+	maxUserAgentLen = 256
+)
+
+// truncateUserAgent 从请求中获取 UserAgent 并截断到安全长度
+func truncateUserAgent(c *gin.Context) string {
+	ua := c.GetHeader("User-Agent")
+	if len(ua) > maxUserAgentLen {
+		ua = ua[:maxUserAgentLen]
+	}
+	return ua
+}
+
 // ListReports 获取举报列表
 func (h *Handler) ListReports(c *gin.Context) {
 	status := c.DefaultQuery("status", "pending")
+	// 白名单校验 status 参数
+	if status != "pending" && status != "resolved" && status != "rejected" && status != "all" {
+		status = "pending"
+	}
 	page, pageSize := httputil.ParsePage(c)
 
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:admin:reports",
@@ -98,7 +120,7 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 		OldValue:      map[string]string{"status": "pending"},
 		NewValue:      map[string]string{"action": req.Action, "note": req.Note},
 		IPAddress:     c.ClientIP(),
-		UserAgent:     c.Request.UserAgent(),
+		UserAgent:     truncateUserAgent(c),
 	}); err != nil {
 		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
 	}
@@ -106,12 +128,7 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 	if err := h.cache.InvalidateByVersion(ctx, "review:admin:reports"); err != nil {
 		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
 	}
-	if err := h.cache.InvalidateByVersion(ctx, "review:course"); err != nil {
-		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
-	}
-	if err := h.cache.InvalidateByVersion(ctx, "review:latest"); err != nil {
-		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
-	}
+	h.invalidateReviewCaches(c)
 
 	response.Success(c, gin.H{"message": "report processed successfully"})
 }
@@ -119,6 +136,10 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 // ListAllReviews 获取所有评论（管理员）
 func (h *Handler) ListAllReviews(c *gin.Context) {
 	status := c.DefaultQuery("status", "all")
+	// 白名单校验 status 参数
+	if status != "published" && status != "hidden" && status != "deleted" && status != "all" {
+		status = "all"
+	}
 	page, pageSize := httputil.ParsePage(c)
 
 	result, err := h.service.ListAllReviews(c.Request.Context(), ListAllReviewsParams{
@@ -193,20 +214,12 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		OldValue:      map[string]string{"status": oldStatus},
 		NewValue:      map[string]string{"action": req.Action},
 		IPAddress:     c.ClientIP(),
-		UserAgent:     c.Request.UserAgent(),
+		UserAgent:     truncateUserAgent(c),
 	}); err != nil {
 		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
 	}
 
-	if err := h.cache.InvalidateByVersion(ctx, "review:course"); err != nil {
-		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
-	}
-	if err := h.cache.InvalidateByVersion(ctx, "review:latest"); err != nil {
-		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
-	}
-	if err := h.cache.InvalidateByVersion(ctx, "review:stats"); err != nil {
-		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
-	}
+	h.invalidateReviewCaches(c, "review:stats")
 
 	response.Success(c, gin.H{"message": "review updated successfully"})
 }
@@ -245,6 +258,20 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		return
 	}
 
+	// 纵深防御：显式校验批量上限（binding tag 已有 max=100，此处为双重保障）
+	if len(req.IDs) > maxBatchSize {
+		response.BadRequest(c, fmt.Sprintf("batch size %d exceeds limit of %d", len(req.IDs), maxBatchSize))
+		return
+	}
+
+	// 校验所有 ID 为合法 UUID 格式
+	for _, id := range req.IDs {
+		if _, err := uuid.Parse(id); err != nil {
+			response.BadRequest(c, fmt.Sprintf("invalid UUID: %s", id))
+			return
+		}
+	}
+
 	result, err := h.service.BatchUpdateReviews(c.Request.Context(), BatchUpdateReviewsParams{
 		IDs:    req.IDs,
 		Action: req.Action,
@@ -273,20 +300,12 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		OldValue:      nil,
 		NewValue:      map[string]interface{}{"ids": req.IDs, "action": req.Action, "affected": result.Affected},
 		IPAddress:     c.ClientIP(),
-		UserAgent:     c.Request.UserAgent(),
+		UserAgent:     truncateUserAgent(c),
 	}); err != nil {
 		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
 	}
 
-	if err := h.cache.InvalidateByVersion(ctx, "review:course"); err != nil {
-		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
-	}
-	if err := h.cache.InvalidateByVersion(ctx, "review:latest"); err != nil {
-		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
-	}
-	if err := h.cache.InvalidateByVersion(ctx, "review:stats"); err != nil {
-		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
-	}
+	h.invalidateReviewCaches(c, "review:stats")
 
 	response.Success(c, gin.H{
 		"message":  "batch update completed",

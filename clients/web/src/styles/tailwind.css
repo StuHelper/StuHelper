@@ -1,0 +1,333 @@
+/* === StuHelper — Tailwind CSS v4 Entry === */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+/* 复用现有 data-theme 属性切换暗色模式 */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* 跟随系统偏好（data-theme 未设置或为 system 时） */
+@custom-variant dark-system (&:where(:root:not([data-theme="light"]):not([data-theme="dark"])));
+
+/* === Design Tokens === */
+@theme {
+  /* 字体 */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+
+  /* 颜色 — 亮色模式默认值 */
+  --color-bg-base: #f5f7fa;
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-bg-hover: #f0f2f5;
+  --color-bg-secondary: #eef1f5;
+  --color-bg-tertiary: #e5e8ed;
+  --color-bg-overlay: rgba(0, 0, 0, 0.4);
+  --color-bg-glass: rgba(245, 247, 250, 0.85);
+  --color-bg-glass-heavy: rgba(255, 255, 255, 0.92);
+
+  --color-text-primary: #333333;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --color-text-inverse: #ffffff;
+
+  --color-border: #e5e7eb;
+  --color-border-light: #f0f2f5;
+
+  --color-sidebar-active: #e6f7ff;
+  --color-brand-pink: #ec4899;
+  --color-teacher-tag: #06b6d4;
+
+  --color-primary: #3b82f6;
+  --color-primary-light: #60a5fa;
+  --color-primary-dark: #2563eb;
+
+  --color-accent: #6366f1;
+  --color-accent-light: #818cf8;
+
+  --color-success: #22c55e;
+  --color-warning: #f97316;
+  --color-danger: #ef4444;
+
+  /* 评分色阶 */
+  --color-rating-1: #ef4444;
+  --color-rating-2: #f97316;
+  --color-rating-3: #eab308;
+  --color-rating-4: #22c55e;
+  --color-rating-5: #10b981;
+
+  /* 圆角 */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(229, 231, 235, 0.6);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.04);
+  --shadow-glow-sm: 0 0 16px rgba(59, 130, 246, 0.15);
+  --shadow-glow-md: 0 0 32px rgba(59, 130, 246, 0.2);
+
+  /* 过渡时长 */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
+
+  /* 缓动 */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 布局 */
+  --gradient-bar-height: 4px;
+  --navbar-height: 56px;
+  --sidebar-width: 240px;
+
+  /* 动画 keyframes */
+  --animate-fade-in: fade-in var(--duration-base) var(--ease-out) forwards;
+  --animate-fade-in-up: fade-in-up var(--duration-slow) var(--ease-out) forwards;
+  --animate-fade-in-down: fade-in-down var(--duration-slow) var(--ease-out) forwards;
+  --animate-scale-in: scale-in var(--duration-base) var(--ease-out) forwards;
+  --animate-slide-in-left: slide-in-left var(--duration-slow) var(--ease-out) forwards;
+  --animate-slide-in-right: slide-in-right var(--duration-slow) var(--ease-out) forwards;
+  --animate-vote-bounce: vote-bounce var(--duration-slow) var(--ease-spring);
+  --animate-shake: shake var(--duration-slow) var(--ease-out);
+  --animate-modal-in: modal-in var(--duration-slow) var(--ease-out) forwards;
+  --animate-overlay-in: overlay-in var(--duration-base) var(--ease-smooth) forwards;
+  --animate-glow-pulse: glow-pulse 2s var(--ease-smooth) infinite;
+  --animate-shimmer: shimmer 1.5s infinite;
+  --animate-spin: spin 0.6s linear infinite;
+  --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-float: float 3s var(--ease-smooth) infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in-down {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes slide-in-left {
+    from { opacity: 0; transform: translateX(-16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes vote-bounce {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.25); }
+    60% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  @keyframes modal-in {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes overlay-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(59, 130, 246, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+}
+
+/* === 暗色模式 token 覆盖 === */
+@layer base {
+  [data-theme="dark"] {
+    --color-bg-base: #1e232d;
+    --color-bg-card: #252b36;
+    --color-bg-elevated: #252b36;
+    --color-bg-hover: #2d3340;
+    --color-bg-secondary: #2a3040;
+    --color-bg-tertiary: #333a4a;
+    --color-bg-overlay: rgba(0, 0, 0, 0.6);
+    --color-bg-glass: rgba(30, 35, 45, 0.85);
+    --color-bg-glass-heavy: rgba(37, 43, 54, 0.92);
+
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #9ca3af;
+    --color-text-muted: #6b7280;
+    --color-text-inverse: #1e232d;
+
+    --color-border: #374151;
+    --color-border-light: #2d3340;
+
+    --color-sidebar-active: #2d4b7a;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(55, 65, 81, 0.5);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.5);
+    --shadow-glow-sm: 0 0 16px rgba(59, 130, 246, 0.15);
+    --shadow-glow-md: 0 0 32px rgba(59, 130, 246, 0.2);
+  }
+
+  /* 跟随系统偏好 */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]) {
+      --color-bg-base: #1e232d;
+      --color-bg-card: #252b36;
+      --color-bg-elevated: #252b36;
+      --color-bg-hover: #2d3340;
+      --color-bg-secondary: #2a3040;
+      --color-bg-tertiary: #333a4a;
+      --color-bg-overlay: rgba(0, 0, 0, 0.6);
+      --color-bg-glass: rgba(30, 35, 45, 0.85);
+      --color-bg-glass-heavy: rgba(37, 43, 54, 0.92);
+
+      --color-text-primary: #ffffff;
+      --color-text-secondary: #9ca3af;
+      --color-text-muted: #6b7280;
+      --color-text-inverse: #1e232d;
+
+      --color-border: #374151;
+      --color-border-light: #2d3340;
+
+      --color-sidebar-active: #2d4b7a;
+
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+      --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(55, 65, 81, 0.5);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.4);
+      --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.5);
+      --shadow-glow-sm: 0 0 16px rgba(59, 130, 246, 0.15);
+      --shadow-glow-md: 0 0 32px rgba(59, 130, 246, 0.2);
+    }
+  }
+
+  /* Global base styles */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-text-primary);
+    background: var(--color-bg-base);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Subtle background texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.3;
+    background-image: radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 50% 80%, rgba(59, 130, 246, 0.02) 0%, transparent 50%);
+  }
+
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color var(--duration-fast) var(--ease-smooth);
+  }
+
+  a:hover {
+    color: var(--color-primary-light);
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: white;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+  }
+
+  /* Responsive navbar height — 仅触屏设备 */
+  @media (max-width: 639px) and (orientation: portrait) and (pointer: coarse) {
+    :root {
+      --navbar-height: 52px;
+    }
+  }
+
+  @media (max-width: 896px) and (orientation: landscape) and (pointer: coarse) {
+    :root {
+      --navbar-height: 44px;
+    }
+  }
+}
+
+/* Utility classes */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

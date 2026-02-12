@@ -4,6 +4,7 @@
  */
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { isTokenExpired, clearAuth } from '@/utils/auth'
 import i18n from '@/i18n'
 
 declare module 'vue-router' {
@@ -167,6 +168,20 @@ const router = createRouter({
 })
 
 router.beforeEach((to, _from, next) => {
+  // Hash 路由兼容：SSO 回调把 code/state 放在真实 query string 中（# 之前），
+  // Vue Router 只读 # 之后的部分，所以需要重定向到 hash 路由格式
+  if (window.location.pathname === '/auth/callback') {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code) {
+      const state = params.get('state') || ''
+      window.location.replace(
+        `${window.location.origin}${window.location.pathname.replace('/auth/callback', '')}/#/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`
+      )
+      return
+    }
+  }
+
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
 
@@ -176,6 +191,14 @@ router.beforeEach((to, _from, next) => {
   }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
+    next({ name: 'login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  // 客户端 token 过期预检（不替代服务端校验）
+  if (to.meta.requiresAuth && isAuthenticated && isTokenExpired()) {
+    clearAuth()
+    authStore.user = null
     next({ name: 'login', query: { redirect: to.fullPath } })
     return
   }

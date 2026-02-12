@@ -7,6 +7,7 @@ import { ref, computed } from 'vue'
 import type { Department, Course } from '@/types/course'
 import { getDepartments, getCourses } from '@/api/course'
 import { isApiError } from '@/api/errors'
+import i18n from '@/i18n'
 
 // 缓存配置
 const CACHE_TTL = 5 * 60 * 1000 // 5 分钟
@@ -76,14 +77,14 @@ export const useCourseStore = defineStore('course', () => {
   const handleError = (err: unknown): StoreError => {
     if (isApiError(err)) {
       if (err.isNetworkError()) {
-        return { type: 'network', message: '网络连接失败' }
+        return { type: 'network', message: i18n.global.t('errors.NETWORK_ERROR') }
       }
       return { type: 'server', message: err.getUserMessage() }
     }
     if (err instanceof Error) {
       return { type: 'unknown', message: err.message }
     }
-    return { type: 'unknown', message: '未知错误' }
+    return { type: 'unknown', message: i18n.global.t('errors.UNKNOWN') }
   }
 
   // 获取院系列表
@@ -138,7 +139,7 @@ export const useCourseStore = defineStore('course', () => {
       const res = await getCourses(deptID)
       if (requestID !== courseRequestID) return courses.value
 
-      const data = res.data || []
+      const data = res.data?.list || []
       courses.value = data
       courseCache.set(cacheKey, data)
       return data

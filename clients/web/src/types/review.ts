@@ -8,7 +8,7 @@ export type ReviewRatings = Record<string, RatingValue>
 
 // 测评
 export interface Review {
-  id: number
+  id: string
   courseID: number
   courseName?: string
   teacherName?: string

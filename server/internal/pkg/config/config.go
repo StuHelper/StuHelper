@@ -108,6 +108,11 @@ func Load() (*Config, error) {
 	// 重置解析错误，防止多次调用时累积
 	configParseErrors = nil
 
+	cert, certErr := loadCertificate()
+	if certErr != nil {
+		configParseErrors = append(configParseErrors, certErr.Error())
+	}
+
 	cfg := &Config{
 		App: AppConfig{
 			Env:            getEnv("APP_ENV", "development"),
@@ -140,7 +145,7 @@ func Load() (*Config, error) {
 			Endpoint:     getEnv("CASDOOR_ENDPOINT", ""),
 			ClientID:     getEnv("CASDOOR_CLIENT_ID", ""),
 			ClientSecret: getEnv("CASDOOR_CLIENT_SECRET", ""),
-			Certificate:  getEnv("CASDOOR_CERTIFICATE", ""),
+			Certificate:  cert,
 			Organization: getEnv("CASDOOR_ORGANIZATION", ""),
 			Application:  getEnv("CASDOOR_APPLICATION", ""),
 			RedirectURI:  getEnv("CASDOOR_REDIRECT_URI", ""),
@@ -238,7 +243,7 @@ func (c *Config) Validate() error {
 		errs = append(errs, "CASDOOR_CLIENT_SECRET is required")
 	}
 	if c.Casdoor.Certificate == "" {
-		errs = append(errs, "CASDOOR_CERTIFICATE is required")
+		errs = append(errs, "CASDOOR_CERTIFICATE is required (set CASDOOR_CERTIFICATE or CASDOOR_CERTIFICATE_FILE)")
 	} else {
 		// 验证证书格式
 		if err := validatePEMCertificate(c.Casdoor.Certificate); err != nil {
@@ -331,6 +336,21 @@ func getEnvInt64(key string, defaultValue int64) int64 {
 		log.Printf("warning: %s, using default: %d", errMsg, defaultValue)
 	}
 	return defaultValue
+}
+
+// loadCertificate 加载 Casdoor 证书，优先从环境变量读取，其次从文件读取
+func loadCertificate() (string, error) {
+	if cert := os.Getenv("CASDOOR_CERTIFICATE"); cert != "" {
+		return cert, nil
+	}
+	if path := os.Getenv("CASDOOR_CERTIFICATE_FILE"); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to read CASDOOR_CERTIFICATE_FILE %s: %w", path, err)
+		}
+		return strings.TrimSpace(string(data)), nil
+	}
+	return "", nil
 }
 
 // validatePEMCertificate 验证 PEM 格式的证书

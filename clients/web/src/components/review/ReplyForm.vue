@@ -1,21 +1,35 @@
 <template>
-  <div class="reply-form">
+  <div class="py-3">
     <textarea
       v-model="content"
-      class="reply-input"
+      class="w-full min-h-[80px] p-3 bg-bg-secondary border border-border rounded-lg text-text-primary text-sm font-[inherit] resize-y transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card placeholder:text-text-muted"
       :placeholder="placeholder ?? t('review.reply.placeholder')"
+      :aria-label="t('review.reply.inputLabel')"
+      :aria-describedby="content.length > 0 && content.trim().length < minLength ? errorId : undefined"
       :maxlength="maxLength"
       @keydown.ctrl.enter="handleSubmit"
       @keydown.meta.enter="handleSubmit"
     />
-    <div class="reply-form-footer">
-      <span class="char-count" :class="{ warning: content.length > maxLength * 0.9 }">
-        {{ content.length }}/{{ maxLength }}
+    <span v-if="content.length > 0 && content.trim().length < minLength" :id="errorId" class="block text-xs text-danger mt-1">
+      {{ t('review.validation.replyTooShort', { min: minLength }) }}
+    </span>
+    <div class="flex items-center justify-between mt-2">
+      <span
+        class="text-xs text-text-muted"
+        :class="{
+          'text-rating-3': content.length > maxLength * 0.9,
+          '!text-danger': content.length > 0 && content.trim().length < minLength
+        }"
+      >
+        {{ t('review.validation.charCount', { current: content.length, max: maxLength }) }}
       </span>
-      <div class="actions">
-        <button class="cancel-btn" @click="handleCancel">{{ t('common.actions.cancel') }}</button>
+      <div class="flex gap-2">
         <button
-          class="submit-btn"
+          class="px-3 py-1 text-sm rounded-full cursor-pointer transition-all duration-fast bg-transparent border border-border text-text-secondary hover:border-text-muted"
+          @click="handleCancel"
+        >{{ t('common.actions.cancel') }}</button>
+        <button
+          class="px-3 py-1 text-sm rounded-full cursor-pointer transition-all duration-fast bg-gradient-to-br from-primary to-accent border-none text-white font-medium hover:not-disabled:opacity-90 hover:not-disabled:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit || submitting"
           @click="handleSubmit"
         >
@@ -27,18 +41,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+const errorId = `reply-form-error-${useId()}`
 
 const props = withDefaults(defineProps<{
   placeholder?: string
   maxLength?: number
+  minLength?: number
   submitting?: boolean
 }>(), {
   placeholder: undefined,
   maxLength: 500,
+  minLength: 2,
   submitting: false
 })
 
@@ -51,7 +68,7 @@ const content = ref('')
 
 const canSubmit = computed(() => {
   const trimmed = content.value.trim()
-  return trimmed.length > 0 && trimmed.length <= props.maxLength
+  return trimmed.length >= props.minLength && trimmed.length <= props.maxLength
 })
 
 const handleSubmit = () => {
@@ -69,89 +86,3 @@ defineExpose({
   clear: () => { content.value = '' }
 })
 </script>
-
-<style scoped>
-.reply-form {
-  padding: var(--space-3) 0;
-}
-
-.reply-input {
-  width: 100%;
-  min-height: 80px;
-  padding: var(--space-2);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-family: inherit;
-  resize: vertical;
-  transition: border-color var(--duration-fast);
-}
-
-.reply-input:focus {
-  outline: none;
-  border-color: var(--brand-primary);
-}
-
-.reply-input::placeholder {
-  color: var(--text-muted);
-}
-
-.reply-form-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: var(--space-2);
-}
-
-.char-count {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.char-count.warning {
-  color: #f59e0b;
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.cancel-btn,
-.submit-btn {
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition: all var(--duration-fast);
-}
-
-.cancel-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-}
-
-.cancel-btn:hover {
-  border-color: var(--text-muted);
-}
-
-.submit-btn {
-  background: var(--text-primary);
-  border: none;
-  color: var(--bg-base);
-  font-weight: var(--weight-medium);
-}
-
-.submit-btn:hover:not(:disabled) {
-  background: var(--brand-primary);
-  color: white;
-}
-
-.submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-</style>

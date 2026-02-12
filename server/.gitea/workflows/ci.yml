@@ -26,15 +26,16 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v4
         with:
-          version: latest
+          version: v1.62.0
           args: --timeout=5m
+          working-directory: server
 
   test:
     name: Test
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:15
+        image: postgres:18
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -47,7 +48,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:7
+        image: redis:8
         ports:
           - 6379:6379
         options: >-
@@ -67,9 +68,11 @@ jobs:
           cache: true
 
       - name: Download dependencies
+        working-directory: server
         run: go mod download
 
       - name: Run tests
+        working-directory: server
         run: go test -v -race -coverprofile=coverage.out ./...
         env:
           DATABASE_URL: postgres://test:test@localhost:5432/test?sslmode=disable
@@ -80,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: coverage.out
+          path: server/coverage.out
 
   build:
     name: Build
@@ -97,6 +100,7 @@ jobs:
           cache: true
 
       - name: Build
+        working-directory: server
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/stuhelper ./cmd/stuhelper
 
@@ -104,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stuhelper-linux-amd64
-          path: bin/stuhelper
+          path: server/bin/stuhelper
 
   security:
     name: Security Scan
@@ -120,6 +124,7 @@ jobs:
           cache: true
 
       - name: Run Gosec
-        uses: securego/gosec@master
-        with:
-          args: -exclude-generated ./...
+        working-directory: server
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.0
+          gosec -exclude-generated ./...

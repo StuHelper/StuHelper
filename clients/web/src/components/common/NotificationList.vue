@@ -1,7 +1,7 @@
 <template>
-  <div class="notification-list">
-    <div v-if="loading" class="loading">
-      <span class="spinner" />
+  <div class="max-h-[300px] overflow-y-auto">
+    <div v-if="loading" class="flex items-center justify-center p-6 text-text-muted text-sm">
+      <span class="w-5 h-5 border-2 border-border border-t-text-primary rounded-full animate-spin" />
     </div>
     <template v-else-if="notifications.length > 0">
       <NotificationItem
@@ -11,15 +11,18 @@
         @click="$emit('click', n.id)"
       />
     </template>
-    <div v-else class="empty">
-      暂无通知
+    <div v-else class="flex items-center justify-center p-6 text-text-muted text-sm">
+      {{ t('user.notification.empty') }}
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { Notification } from '@/types/notification'
 import NotificationItem from './NotificationItem.vue'
+
+const { t } = useI18n()
 
 defineProps<{
   notifications: Notification[]
@@ -27,36 +30,6 @@ defineProps<{
 }>()
 
 defineEmits<{
-  click: [id: number]
+  click: [id: string]
 }>()
 </script>
-
-<style scoped>
-.notification-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.loading,
-.empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border);
-  border-top-color: var(--text-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-</style>

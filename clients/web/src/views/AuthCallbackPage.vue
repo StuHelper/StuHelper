@@ -1,15 +1,37 @@
 <template>
-  <div class="callback-page">
-    <div class="loading-card">
-      <div v-if="loading" class="loading">
-        <div class="spinner"></div>
+  <div class="min-h-screen flex items-center justify-center bg-bg-base">
+    <div class="bg-bg-card py-12 px-10 border border-border rounded-md text-center max-w-[360px] w-full">
+      <!-- 加载中 -->
+      <div v-if="loading" class="flex flex-col items-center gap-4 text-text-muted text-sm">
+        <div class="w-8 h-8 border-2 border-border border-t-accent rounded-full animate-spin"></div>
         <p>{{ t('errors.authCallback.loading') }}</p>
       </div>
 
-      <div v-else-if="error" class="error">
+      <!-- 组织不匹配 -->
+      <div v-else-if="orgMismatch" class="text-text-primary">
+        <p class="text-base font-semibold m-0 mb-2">{{ t('errors.authCallback.orgMismatch') }}</p>
+        <p class="text-text-muted text-sm my-3 mb-6">{{ t('errors.authCallback.orgMismatchHint') }}</p>
+        <div class="flex flex-col gap-3">
+          <button
+            class="py-2 px-6 rounded-sm text-sm font-medium cursor-pointer transition-all duration-fast bg-gradient-to-br from-primary to-accent text-white border-none hover:opacity-90"
+            :disabled="loggingOut"
+            @click="handleSsoLogout"
+          >
+            {{ loggingOut ? t('errors.authCallback.loading') : t('errors.authCallback.ssoLogout') }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 通用错误 -->
+      <div v-else-if="error" class="text-text-primary">
         <p>{{ t('errors.authCallback.error') }}</p>
-        <p class="error-message">{{ error }}</p>
-        <button @click="goToLogin">{{ t('errors.authCallback.backToLogin') }}</button>
+        <p class="text-text-muted text-sm my-3 mb-6">{{ error }}</p>
+        <button
+          class="py-2 px-6 bg-text-primary text-bg-base border-none rounded-sm text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white"
+          @click="goToLogin"
+        >
+          {{ t('errors.authCallback.backToLogin') }}
+        </button>
       </div>
     </div>
   </div>
@@ -20,6 +42,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { isApiError, ErrorCode } from '@/api/errors'
 
 const router = useRouter()
 const route = useRoute()
@@ -28,8 +51,20 @@ const { t } = useI18n()
 
 const loading = ref(true)
 const error = ref('')
+const orgMismatch = ref(false)
+const ssoLogoutURL = ref('')
+const loggingOut = ref(false)
 
 onMounted(async () => {
+  // 刷新页面时恢复 org mismatch 状态（code/state 是一次性的，刷新后无法重新请求）
+  const saved = sessionStorage.getItem('org_mismatch')
+  if (saved) {
+    orgMismatch.value = true
+    ssoLogoutURL.value = saved
+    loading.value = false
+    return
+  }
+
   const code = route.query.code as string
   const state = route.query.state as string
 
@@ -48,82 +83,39 @@ onMounted(async () => {
   try {
     await authStore.handleCallback(code, state)
     router.push('/')
-  } catch {
-    error.value = t('errors.authCallback.loginFailed')
+  } catch (err) {
+    if (isApiError(err) && err.code === ErrorCode.FORBIDDEN) {
+      orgMismatch.value = true
+      ssoLogoutURL.value = (err.details?.ssoLogoutURL as string) || ''
+      sessionStorage.setItem('org_mismatch', ssoLogoutURL.value)
+    } else {
+      error.value = t('errors.authCallback.loginFailed')
+    }
     loading.value = false
   }
 })
 
+// 通过弹窗访问 Casdoor 登出端点清除 SSO session cookie
+// 必须用顶级导航（window.open），因为 SameSite=Lax cookie 不会随 fetch/iframe 发送
+const handleSsoLogout = () => {
+  sessionStorage.removeItem('org_mismatch')
+  if (!ssoLogoutURL.value) {
+    router.push('/login')
+    return
+  }
+  loggingOut.value = true
+  const popup = window.open(
+    ssoLogoutURL.value, 'sso_logout',
+    'width=1,height=1,left=0,top=0,menubar=no,toolbar=no,status=no'
+  )
+  setTimeout(() => {
+    try { popup?.close() } catch { /* 跨域忽略 */ }
+    router.push('/login')
+  }, 500)
+}
+
 const goToLogin = () => {
+  sessionStorage.removeItem('org_mismatch')
   router.push('/login')
 }
 </script>
-
-<style scoped>
-.callback-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-base);
-}
-
-.loading-card {
-  background: var(--bg-card);
-  padding: var(--space-12) var(--space-10);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  text-align: center;
-  max-width: 360px;
-  width: 100%;
-}
-
-.loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.error {
-  color: var(--text-primary);
-}
-
-.error-message {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  margin: var(--space-3) 0 var(--space-6);
-}
-
-button {
-  padding: var(--space-2) var(--space-6);
-  background: var(--text-primary);
-  color: var(--bg-base);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-  transition: all var(--duration-fast);
-}
-
-button:hover {
-  background: var(--accent);
-  color: white;
-}
-</style>

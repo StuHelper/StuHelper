@@ -7,7 +7,7 @@ export type NotificationType = 'reply' | 'vote' | 'system'
 
 // 通知
 export interface Notification {
-  id: number
+  id: string
   type: NotificationType
   title: string
   content?: string

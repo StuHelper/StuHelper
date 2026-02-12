@@ -1,62 +1,79 @@
 <template>
-  <div class="review-page">
-    <!-- 院系侧栏（桌面端为左侧栏，移动端为顶部水平滚动条） -->
-    <div class="review-sidebar">
-      <DepartmentSidebar />
+  <div class="relative">
+    <!-- 窄屏侧栏：固定宽度抽屉（放在 grid 外面，不影响布局） -->
+    <div class="hidden max-[820px]:block">
+      <!-- 竖排标签按钮：展开/收起共用位置和样式 -->
+      <button
+        class="fixed left-0 top-1/2 -translate-y-1/2 z-40 w-6 py-2.5 flex flex-col items-center justify-center gap-px bg-gradient-to-b from-pink-400 to-pink-500 dark:from-blue-500 dark:to-indigo-500 rounded-r-lg shadow-md cursor-pointer transition-all duration-200 ease-out hover:shadow-lg hover:brightness-110 border-none"
+        :class="sidebarOpen && 'translate-x-[260px]'"
+        @click="sidebarOpen = !sidebarOpen"
+      >
+        <span v-for="ch in '课程列表'" :key="ch" class="text-[10px] font-semibold text-white leading-[1.3]">{{ ch }}</span>
+      </button>
+
+      <!-- 抽屉面板 -->
+      <transition
+        enter-active-class="transition-transform duration-200 ease-out"
+        enter-from-class="-translate-x-full"
+        enter-to-class="translate-x-0"
+        leave-active-class="transition-transform duration-200 ease-out"
+        leave-from-class="translate-x-0"
+        leave-to-class="-translate-x-full"
+      >
+        <div
+          v-if="sidebarOpen"
+          class="fixed left-0 top-[calc(var(--gradient-bar-height)+var(--navbar-height))] bottom-0 z-30 w-[260px] bg-bg-base border-r border-border shadow-lg overflow-y-auto p-3"
+        >
+          <DepartmentSidebar />
+        </div>
+      </transition>
     </div>
 
-    <!-- 右侧内容 -->
-    <main class="review-main">
-      <router-view v-if="hasChildRoute" />
-      <ReviewFeed v-else />
-    </main>
+    <div
+      class="pl-4 pr-6 py-6 grid grid-cols-[clamp(200px,20vw,260px)_1fr] gap-4 min-h-[calc(100vh-var(--navbar-height)-var(--gradient-bar-height))] max-[820px]:grid-cols-1 max-[820px]:pl-0 max-[820px]:pr-4"
+    >
+      <!-- 院系侧栏：宽屏正常展示 -->
+      <div
+        class="sticky top-[calc(var(--gradient-bar-height)+var(--navbar-height)+1.5rem)] self-start max-h-[calc(100vh-var(--navbar-height)-var(--gradient-bar-height)-3rem)] overflow-y-auto max-[820px]:hidden"
+      >
+        <DepartmentSidebar />
+      </div>
+
+      <!-- 右侧内容 -->
+      <main class="min-w-0 max-[820px]:px-4">
+        <router-view v-if="hasChildRoute" />
+        <ReviewFeed v-else :key="feedKey" />
+      </main>
+    </div>
+    <ReviewDialog :visible="showPostModal" @close="closePostModal" @posted="handlePosted" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import DepartmentSidebar from '@/components/review/DepartmentSidebar.vue'
 import ReviewFeed from '@/components/review/ReviewFeed.vue'
+import ReviewDialog from '@/components/review/ReviewDialog.vue'
+import { useReviewPost } from '@/composables/useReviewPost'
 
 const route = useRoute()
+const sidebarOpen = ref(false)
+const { showPostModal, closePostModal, notifyPosted } = useReviewPost()
+const feedKey = ref(0)
 
 const hasChildRoute = computed(() => {
   return route.matched.length > 1 && route.name !== 'review'
 })
+
+function handlePosted() {
+  closePostModal()
+  notifyPosted()
+  feedKey.value++
+}
+
+// 选中课程（路由变化）后自动收起抽屉
+watch(() => route.params.id, () => {
+  sidebarOpen.value = false
+})
 </script>
-
-<style scoped>
-.review-page {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: var(--space-6);
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: var(--space-6);
-  min-height: calc(100vh - var(--navbar-height) - var(--gradient-bar-height));
-}
-
-.review-sidebar {
-  position: sticky;
-  top: calc(var(--gradient-bar-height) + var(--navbar-height) + var(--space-6));
-  align-self: start;
-}
-
-.review-main {
-  min-width: 0;
-}
-
-@media (max-width: 1023px) {
-  .review-page {
-    grid-template-columns: 1fr;
-    padding: var(--space-4);
-  }
-
-  .review-sidebar {
-    position: static;
-    order: -1;
-    overflow-x: auto;
-  }
-}
-</style>

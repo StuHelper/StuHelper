@@ -1,49 +1,50 @@
 <template>
-  <div class="inline-form" :class="{ expanded: isExpanded }">
-    <div v-if="!isExpanded" class="inline-form__collapsed" @click="expand">
-      <div class="inline-form__avatar">
-        <div class="avatar-circle" />
-      </div>
-      <span class="inline-form__placeholder">
-        {{ t('review.course.shareExperience') }}
-      </span>
-    </div>
+  <div class="bg-bg-card border border-border rounded-xl shadow-card p-5 flex flex-col gap-4">
+    <input
+      v-model="title"
+      class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+      :placeholder="t('review.post.title')"
+      :aria-label="t('review.post.titleLabel')"
+      :maxlength="TITLE_MAX"
+    />
+    <span class="block text-right text-xs text-text-muted -mt-2">
+      {{ t('review.validation.charCount', { current: title.length, max: TITLE_MAX }) }}
+    </span>
 
-    <div v-else class="inline-form__expanded">
-      <input
-        v-model="title"
-        class="inline-form__title"
-        :placeholder="t('review.post.title')"
-      />
+    <RatingGroup v-model="ratings" />
 
-      <RatingGroup v-model="ratings" />
+    <textarea
+      ref="textareaRef"
+      v-model="content"
+      class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans resize-vertical min-h-[100px] transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+      :placeholder="t('review.post.contentPlaceholder')"
+      :aria-label="t('review.post.contentLabel')"
+      :aria-describedby="contentError ? 'review-form-content-error' : undefined"
+      :maxlength="CONTENT_MAX"
+      rows="4"
+    />
+    <span
+      class="block text-right text-xs text-text-muted -mt-2"
+      :class="{ '!text-danger': content.length < CONTENT_MIN && content.length > 0 }"
+    >
+      {{ t('review.validation.charCount', { current: content.length, max: CONTENT_MAX }) }}
+    </span>
+    <span v-if="contentError" id="review-form-content-error" class="block text-xs text-danger -mt-2">{{ contentError }}</span>
 
-      <textarea
-        ref="textareaRef"
-        v-model="content"
-        class="inline-form__textarea"
-        :placeholder="t('review.post.contentPlaceholder')"
-        rows="4"
-      />
-
-      <div class="inline-form__footer">
-        <button class="btn-cancel" @click="collapse">
-          {{ t('common.actions.cancel') }}
-        </button>
-        <button
-          class="btn-submit"
-          :disabled="!canSubmit || submitting"
-          @click="handleSubmit"
-        >
-          {{ submitting ? t('common.actions.loading') : t('review.post.submit') }}
-        </button>
-      </div>
+    <div class="flex justify-end">
+      <button
+        class="py-2 px-5 text-sm font-medium text-white bg-gradient-to-br from-primary to-accent rounded-full cursor-pointer transition-all duration-fast hover:not-disabled:opacity-90 hover:not-disabled:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="!canSubmit || submitting"
+        @click="handleSubmit"
+      >
+        {{ submitting ? t('common.actions.loading') : t('review.post.submit') }}
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { postReview } from '@/api/review'
 import { useToast } from '@/composables/useToast'
@@ -59,24 +60,33 @@ const emit = defineEmits<{ posted: [] }>()
 const { t } = useI18n()
 const toast = useToast()
 
-const isExpanded = ref(false)
+const TITLE_MAX = 100
+const CONTENT_MIN = 10
+const CONTENT_MAX = 5000
+
 const title = ref('')
 const content = ref('')
 const ratings = ref<ReviewRatings>({})
 const submitting = ref(false)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
+const contentError = computed(() => {
+  const len = content.value.trim().length
+  if (len > 0 && len < CONTENT_MIN) {
+    return t('review.validation.contentTooShort', { min: CONTENT_MIN })
+  }
+  return ''
+})
+
 const canSubmit = computed(() =>
-  content.value.trim().length > 0 && Object.keys(ratings.value).length > 0
+  content.value.trim().length >= CONTENT_MIN &&
+  content.value.length <= CONTENT_MAX &&
+  title.value.length <= TITLE_MAX &&
+  Object.keys(ratings.value).length > 0 &&
+  Object.values(ratings.value).every((v) => v >= 1 && v <= 5)
 )
 
-function expand() {
-  isExpanded.value = true
-  nextTick(() => textareaRef.value?.focus())
-}
-
-function collapse() {
-  isExpanded.value = false
+function reset() {
   title.value = ''
   content.value = ''
   ratings.value = {}
@@ -93,7 +103,7 @@ async function handleSubmit() {
       ratings: ratings.value
     })
     toast.success(t('review.post.success'))
-    collapse()
+    reset()
     emit('posted')
   } catch {
     toast.error(t('review.post.failed'))
@@ -102,110 +112,3 @@ async function handleSubmit() {
   }
 }
 </script>
-
-<style scoped>
-.inline-form {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  transition: border-color var(--duration-base) var(--ease-smooth);
-}
-
-.inline-form.expanded {
-  border-color: var(--brand-primary);
-  box-shadow: var(--shadow-glow-sm);
-}
-
-.inline-form__collapsed {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  cursor: pointer;
-}
-
-.avatar-circle {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  background: var(--bg-tertiary);
-  flex-shrink: 0;
-}
-
-.inline-form__placeholder {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.inline-form__expanded {
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  animation: fadeInUp var(--duration-base) var(--ease-out);
-}
-
-.inline-form__title {
-  width: 100%;
-  padding: var(--space-3);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-}
-
-.inline-form__title:focus {
-  outline: none;
-  border-color: var(--brand-primary);
-}
-
-.inline-form__textarea {
-  width: 100%;
-  padding: var(--space-3);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  resize: vertical;
-  min-height: 100px;
-}
-
-.inline-form__textarea:focus {
-  outline: none;
-  border-color: var(--brand-primary);
-}
-
-.inline-form__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
-}
-
-.btn-cancel {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-}
-
-.btn-submit {
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: white;
-  background: var(--gradient-brand);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-}
-
-.btn-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-</style>

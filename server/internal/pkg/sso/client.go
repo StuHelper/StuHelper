@@ -305,6 +305,21 @@ func (c *Client) HasAnyRole(username string, roleNames ...string) (bool, error) 
 	return false, nil
 }
 
+// DeleteUserSession 删除用户在指定应用的 Casdoor 会话（用于组织不匹配时强制登出）
+// org 为用户实际所属组织（如 "built-in"），而非本应用配置的组织
+func (c *Client) DeleteUserSession(org, username string) error {
+	// 直接构造 session 对象，避免 SDK 的 GetSession 硬编码 c.OrganizationName
+	session := &casdoorsdk.Session{
+		Owner:       org,
+		Name:        username,
+		Application: c.applicationName,
+	}
+	if _, err := casdoorsdk.DeleteSession(session); err != nil {
+		return fmt.Errorf("failed to delete session: %w", err)
+	}
+	return nil
+}
+
 // HasPermission 检查用户是否拥有指定权限
 func (c *Client) HasPermission(username, permissionName string) (bool, error) {
 	permissions, err := c.GetUserPermissions(username)

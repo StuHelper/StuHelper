@@ -1,13 +1,16 @@
 <template>
-  <div class="reply-card" :class="{ 'is-owner': reply.isOwner }">
-    <div class="reply-content">
+  <div
+    class="p-3 mb-2 last:mb-0 bg-bg-secondary rounded-lg animate-fade-in-up"
+    :class="reply.isOwner && 'bg-primary/[0.06] border-l-3 border-l-primary'"
+  >
+    <div class="text-sm text-text-primary leading-relaxed break-words">
       {{ reply.content }}
     </div>
-    <div class="reply-footer">
-      <span class="reply-time">{{ formatTime(reply.createdAt) }}</span>
+    <div class="flex items-center justify-between mt-2">
+      <span class="text-xs text-text-muted">{{ formatTime(reply.createdAt) }}</span>
       <button
         v-if="reply.isOwner"
-        class="delete-btn"
+        class="text-xs text-text-muted bg-transparent border-none cursor-pointer px-2 py-1 rounded-sm transition-all duration-fast hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
         @click="handleDelete"
         :disabled="deleting"
       >
@@ -30,7 +33,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  delete: [id: number]
+  delete: [id: string]
 }>()
 
 const deleting = ref(false)
@@ -47,70 +50,3 @@ const handleDelete = () => {
   setTimeout(() => { deleting.value = false }, 3000)
 }
 </script>
-
-<style scoped>
-.reply-card {
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--border);
-  animation: fadeInUp var(--duration-base) var(--ease-out);
-}
-
-.reply-card:last-child {
-  border-bottom: none;
-}
-
-.reply-card.is-owner {
-  padding-left: var(--space-3);
-  border-left: 2px solid var(--brand-primary);
-}
-
-.reply-content {
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.reply-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: var(--space-2);
-}
-
-.reply-time {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.delete-btn {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  transition: all var(--duration-fast) ease;
-}
-
-.delete-btn:hover:not(:disabled) {
-  color: var(--brand-accent);
-}
-
-.delete-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-</style>

@@ -23,7 +23,7 @@ export default {
   RATE_LIMIT_EXCEEDED: 'Too many requests, please try again later',
 
   // Server errors
-  INTERNAL_ERROR: 'Server error, please try again later',
+  SERVER_ERROR: 'Server error, please try again later',
   SERVICE_UNAVAILABLE: 'Service temporarily unavailable',
 
   // Business errors

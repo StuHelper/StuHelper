@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -24,6 +25,7 @@ type Handler struct {
 	tokenConfig    config.TokenConfig
 	redirectURI    string
 	appName        string
+	ssoEndpoint    string
 	refreshLimiter *middleware.RedisRateLimiter
 }
 
@@ -35,6 +37,7 @@ func NewHandler(cfg *config.Config, tokenService *token.Service, rdb *redis.Clie
 		tokenConfig:  cfg.Token,
 		redirectURI:  cfg.Casdoor.RedirectURI,
 		appName:      cfg.Casdoor.Application,
+		ssoEndpoint:  cfg.Casdoor.Endpoint,
 		// RefreshToken 限制: 每分钟最多 10 次
 		refreshLimiter: middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
 	}
@@ -124,21 +127,49 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	// 设置 HttpOnly Cookie
-	h.setTokenCookies(c, oauthToken.AccessToken, oauthToken.RefreshToken)
+	// 校验用户所属组织，拒绝非本应用组织的用户登录
+	if expectedOrg := h.ssoClient.GetOrganization(); claims.Owner != expectedOrg {
+		logger.FromGin(c).Warn("user organization mismatch",
+			zap.String("expected", expectedOrg),
+			zap.String("actual", claims.Owner),
+			zap.String("username", claims.Name),
+		)
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "organization mismatch")
 
-	// 追踪用户 token（用于全设备登出）
+		// 删除该用户的 Casdoor 会话，防止下次登录自动跳过
+		if err := h.ssoClient.DeleteUserSession(claims.Owner, claims.Name); err != nil {
+			logger.FromGin(c).Warn("failed to delete casdoor session for mismatched user",
+				zap.String("username", claims.Name),
+				zap.Error(err),
+			)
+		}
+
+		// 返回 SSO 登出 URL，让前端通过顶级导航清除浏览器中的 Casdoor session cookie
+		ssoLogoutURL := fmt.Sprintf("%s/api/logout", h.ssoEndpoint)
+		response.ErrorWithDetails(c, http.StatusForbidden, response.ErrCodeForbidden,
+			"user does not belong to this application",
+			gin.H{"ssoLogoutURL": ssoLogoutURL},
+		)
+		return
+	}
+
+	// 追踪用户 token（用于全设备登出），必须在设置 cookie 之前完成
 	if err := h.tokenService.GetBlacklist().TrackUserToken(
 		ctx,
 		claims.Id,
 		oauthToken.AccessToken,
 		h.tokenService.GetRefreshTokenTTL(),
 	); err != nil {
-		logger.FromGin(c).Warn("failed to track user token",
+		logger.FromGin(c).Error("failed to track user token",
 			zap.String("user_id", claims.Id),
 			zap.Error(err),
 		)
+		response.InternalError(c, "authentication failed")
+		return
 	}
+
+	// 设置 HttpOnly Cookie（追踪成功后才发出）
+	h.setTokenCookies(c, oauthToken.AccessToken, oauthToken.RefreshToken)
 
 	// 记录登录成功审计日志
 	audit.LogSuccess(audit.EventUserLogin, claims.Id, claims.Name, c.ClientIP(), c.Request.UserAgent(), requestID)
@@ -151,6 +182,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 			"email":       claims.Email,
 			"avatar":      claims.Avatar,
 		},
+		"expiresIn": h.tokenConfig.AccessTokenTTL,
 	})
 }
 
@@ -270,9 +302,14 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 				zap.Error(trackErr),
 			)
 		}
+	} else {
+		logger.FromGin(c).Warn("failed to parse refreshed JWT for token tracking", zap.Error(err))
 	}
 
-	response.Success(c, gin.H{"message": "token refreshed successfully"})
+	response.Success(c, gin.H{
+		"message":   "token refreshed successfully",
+		"expiresIn": h.tokenConfig.AccessTokenTTL,
+	})
 }
 
 // setTokenCookies 设置 Token Cookie

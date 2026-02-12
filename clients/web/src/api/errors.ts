@@ -22,6 +22,8 @@ export enum ErrorCode {
   BAD_REQUEST = 'BAD_REQUEST',
   NOT_FOUND = 'NOT_FOUND',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
+  CONFLICT = 'CONFLICT',
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
 
   // 服务端错误
   SERVER_ERROR = 'SERVER_ERROR',
@@ -129,7 +131,9 @@ export function createErrorFromStatus(
     403: ErrorCode.FORBIDDEN,
     404: ErrorCode.NOT_FOUND,
     408: ErrorCode.TIMEOUT,
+    409: ErrorCode.CONFLICT,
     422: ErrorCode.VALIDATION_ERROR,
+    429: ErrorCode.RATE_LIMIT_EXCEEDED,
     500: ErrorCode.SERVER_ERROR,
     502: ErrorCode.SERVICE_UNAVAILABLE,
     503: ErrorCode.SERVICE_UNAVAILABLE,

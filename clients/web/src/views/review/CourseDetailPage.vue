@@ -1,74 +1,80 @@
 <template>
-  <div class="course-detail-page" :class="{ 'panel-mode': isPanelMode }">
+  <div
+    class="max-w-[900px] mx-auto p-6 animate-fade-in max-sm:p-4"
+    :class="{ '!max-w-none !p-0': isPanelMode }"
+  >
     <!-- Loading -->
-    <div v-if="loading" class="loading-state">
-      <div class="skeleton-hero" />
-      <div class="skeleton-tabs" />
-      <div class="skeleton-content" />
+    <div v-if="loading" class="flex flex-col gap-6">
+      <div class="h-[180px] rounded-xl bg-[length:200%_100%] bg-bg-secondary animate-shimmer" style="background-image: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-hover) 50%, var(--color-bg-secondary) 75%)" />
+      <div class="h-[44px] rounded-xl bg-[length:200%_100%] bg-bg-secondary animate-shimmer" style="background-image: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-hover) 50%, var(--color-bg-secondary) 75%)" />
+      <div class="h-[300px] rounded-xl bg-[length:200%_100%] bg-bg-secondary animate-shimmer" style="background-image: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-hover) 50%, var(--color-bg-secondary) 75%)" />
     </div>
 
     <template v-else-if="course">
-      <!-- Hero -->
-      <header class="course-hero">
-        <div class="hero-inner">
-          <h1 class="hero-title">{{ course.name }}</h1>
-          <div class="hero-meta">
-            <span v-if="course.departmentName" class="meta-pill">
-              {{ course.departmentName }}
-            </span>
-            <span v-if="course.credits" class="meta-pill">
-              {{ t('review.course.credits', { n: course.credits }) }}
-            </span>
-            <span v-if="course.code" class="meta-pill font-mono">
-              {{ course.code }}
-            </span>
-          </div>
-          <div class="hero-actions">
-            <button class="hero-post-btn" @click="scrollToReviews">
-              {{ t('review.hub.postReview') }}
-            </button>
-            <FavoriteButton :course-i-d="courseID" />
-          </div>
+      <!-- Course Header — single inline row -->
+      <header class="flex items-center gap-3 flex-wrap mb-5 max-sm:gap-2">
+        <h1 class="font-sans text-2xl font-extrabold -tracking-wide text-text-primary max-sm:text-xl">
+          {{ course.name }}
+        </h1>
+        <span v-if="course.departmentName" class="inline-flex items-center py-0.5 px-2.5 text-xs font-medium text-primary bg-primary/10 rounded-full">
+          {{ course.departmentName }}
+        </span>
+        <span v-if="course.credits" class="inline-flex items-center py-0.5 px-2.5 text-xs text-text-secondary bg-bg-secondary rounded-full">
+          {{ t('review.course.credits', { n: course.credits }) }}
+        </span>
+        <span v-if="course.code" class="inline-flex items-center py-0.5 px-2.5 text-xs text-text-secondary bg-bg-secondary rounded-full font-mono">
+          {{ course.code }}
+        </span>
+        <div v-if="ratingStats" class="inline-flex items-center gap-1 text-sm font-semibold text-warning">
+          <span>{{ overallAvgRating.toFixed(1) }}</span>
+          <span class="text-text-muted font-normal text-xs">({{ total }}{{ t('review.course.reviewUnit') }})</span>
         </div>
-        <div class="hero-rating" v-if="ratingStats">
-          <RatingCircle
-            :value="overallAvgRating"
-            :size="88"
-            :stroke-width="6"
-            :subtitle="t('review.course.basedOnReviews', { count: total })"
-          />
+        <div class="flex items-center gap-2 ml-auto max-sm:ml-0">
+          <button
+            class="py-1.5 px-4 text-sm font-medium text-white bg-success border-none rounded-lg cursor-pointer transition-[opacity,transform] duration-fast hover:opacity-90 hover:-translate-y-px"
+            @click="course && openPostModal(course)"
+          >
+            {{ t('review.hub.postReview') }}
+          </button>
+          <FavoriteButton :course-i-d="courseID" />
         </div>
       </header>
 
       <!-- Tab Bar -->
-      <nav class="tab-bar">
+      <nav class="sticky top-[calc(var(--gradient-bar-height)+var(--navbar-height))] z-10 py-3 mb-5 bg-bg-glass backdrop-blur-lg backdrop-saturate-150 border-b border-white/10 dark:border-white/5">
         <TabBar :tabs="tabItems" :model-value="activeTab" @update:model-value="activeTab = $event" />
       </nav>
 
       <!-- Tab: 概览 -->
-      <section v-if="activeTab === 'overview'" class="tab-content">
-        <div class="overview-grid">
-          <div class="overview-card" v-if="ratingStats">
-            <h3 class="card-title">{{ t('review.rating.overall') }}</h3>
+      <section v-if="activeTab === 'overview'" class="animate-fade-in">
+        <div class="grid grid-cols-2 gap-5 max-sm:grid-cols-1">
+          <div v-if="ratingStats" class="bg-bg-card border border-border rounded-xl p-5 shadow-card">
+            <h3 class="text-sm font-semibold text-text-secondary mb-4">{{ t('review.rating.overall') }}</h3>
             <DimensionBars :dimensions="dimensionList" />
           </div>
-          <div class="overview-card" v-if="ratingStats">
-            <h3 class="card-title">{{ t('review.course.reviews') }}</h3>
+          <div v-if="ratingStats" class="bg-bg-card border border-border rounded-xl p-5 shadow-card">
+            <h3 class="text-sm font-semibold text-text-secondary mb-4">{{ t('review.course.reviews') }}</h3>
             <RatingDistribution :distribution="ratingDistribution" />
           </div>
         </div>
       </section>
 
       <!-- Tab: 测评 -->
-      <section v-if="activeTab === 'reviews'" ref="reviewsSection" class="tab-content">
-        <ReviewForm :course-i-d="courseID" @posted="handlePosted" />
+      <section v-if="activeTab === 'reviews'" class="animate-fade-in">
 
-        <div class="reviews-header">
+        <TeacherFilter
+          v-if="uniqueTeachers.length > 0"
+          v-model="selectedTeacher"
+          :teachers="uniqueTeachers"
+          class="my-3"
+        />
+
+        <div class="my-4">
           <TabBar :tabs="sortTabs" :model-value="sortBy" @update:model-value="handleSortChange" />
         </div>
 
-        <div class="review-list">
-          <ReviewCard v-for="r in reviews" :key="r.id" :review="r" />
+        <div class="flex flex-col gap-4 mb-4">
+          <ReviewCard v-for="r in filteredReviews" :key="r.id" :review="r" />
         </div>
 
         <EmptyState v-if="!reviewsLoading && reviews.length === 0" :title="t('review.course.noReviews')" />
@@ -77,12 +83,12 @@
       </section>
 
       <!-- Tab: 统计 -->
-      <section v-if="activeTab === 'stats'" class="tab-content">
-        <CourseRatingChart :course-i-d="courseID" />
+      <section v-if="activeTab === 'stats'" class="animate-fade-in">
+        <SemesterStatsGrid :rating-stats="ratingStats" />
       </section>
 
       <!-- Tab: 教师 -->
-      <section v-if="activeTab === 'teachers'" class="tab-content">
+      <section v-if="activeTab === 'teachers'" class="animate-fade-in">
         <EmptyState :title="t('review.course.noTeacherData')" />
       </section>
     </template>
@@ -90,23 +96,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import TabBar from '@/components/common/TabBar.vue'
-import RatingCircle from '@/components/common/RatingCircle.vue'
+
 import EmptyState from '@/components/common/EmptyState.vue'
 import InfiniteScroll from '@/components/common/InfiniteScroll.vue'
 import FavoriteButton from '@/components/review/FavoriteButton.vue'
 import ReviewCard from '@/components/review/ReviewCard.vue'
-import ReviewForm from '@/components/review/ReviewForm.vue'
 import DimensionBars from '@/components/review/DimensionBars.vue'
 import RatingDistribution from '@/components/review/RatingDistribution.vue'
-import CourseRatingChart from '@/components/review/CourseRatingChart.vue'
+import SemesterStatsGrid from '@/components/review/SemesterStatsGrid.vue'
+import TeacherFilter from '@/components/review/TeacherFilter.vue'
 import { getCourse, getCourseRatingStats } from '@/api/course'
 import { getCourseReviews } from '@/api/review'
 import type { Course, CourseRatingStatsResponse } from '@/types/course'
 import type { Review } from '@/types/review'
+import { useReviewPost } from '@/composables/useReviewPost'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -139,7 +146,8 @@ const page = ref(1)
 const pageSize = 20
 const total = ref(0)
 const hasMore = computed(() => reviews.value.length < total.value)
-const reviewsSection = ref<HTMLElement | null>(null)
+
+const { openPostModal, lastPostedAt } = useReviewPost()
 
 // 排序
 const sortBy = ref('time')
@@ -147,6 +155,20 @@ const sortTabs = computed(() => [
   { value: 'time', label: t('review.filters.latest') },
   { value: 'likes', label: t('review.filters.hottest') }
 ])
+
+// 教师筛选
+const selectedTeacher = ref('')
+const uniqueTeachers = computed(() => {
+  const names = new Set<string>()
+  for (const r of reviews.value) {
+    if (r.teacherName) names.add(r.teacherName)
+  }
+  return [...names].sort()
+})
+const filteredReviews = computed(() => {
+  if (!selectedTeacher.value) return reviews.value
+  return reviews.value.filter(r => r.teacherName === selectedTeacher.value)
+})
 
 // 总体平均评分（从维度计算）
 const overallAvgRating = computed(() => {
@@ -220,6 +242,7 @@ const loadMoreReviews = () => {
 const handleSortChange = (val: string) => {
   sortBy.value = val
   page.value = 1
+  selectedTeacher.value = ''
   fetchReviews()
 }
 
@@ -229,12 +252,10 @@ const handlePosted = () => {
   fetchRatingStats()
 }
 
-const scrollToReviews = () => {
-  activeTab.value = 'reviews'
-  nextTick(() => {
-    reviewsSection.value?.scrollIntoView({ behavior: 'smooth' })
-  })
-}
+// 通过 ReviewDialog 发布测评后刷新数据
+watch(lastPostedAt, () => {
+  if (lastPostedAt.value > 0) handlePosted()
+})
 
 onMounted(async () => {
   if (isNaN(courseID.value) || courseID.value <= 0) {
@@ -255,6 +276,7 @@ watch(courseID, async (newID, oldID) => {
   if (newID === oldID || isNaN(newID) || newID <= 0) return
   page.value = 1
   sortBy.value = 'time'
+  selectedTeacher.value = ''
   activeTab.value = 'overview'
   loading.value = true
   try {
@@ -264,198 +286,3 @@ watch(courseID, async (newID, oldID) => {
   }
 })
 </script>
-
-<style scoped>
-.course-detail-page {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: var(--space-6);
-  animation: fadeIn var(--duration-base) var(--ease-out);
-}
-
-.course-detail-page.panel-mode {
-  max-width: none;
-  padding: 0;
-}
-
-/* Loading State */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-.skeleton-hero,
-.skeleton-tabs,
-.skeleton-content {
-  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-tertiary) 50%, var(--bg-secondary) 75%);
-  background-size: 200% 100%;
-  border-radius: var(--radius-lg);
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-
-.skeleton-hero {
-  height: 180px;
-}
-
-.skeleton-tabs {
-  height: 44px;
-}
-
-.skeleton-content {
-  height: 300px;
-}
-
-/* Course Hero */
-.course-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-6);
-  padding: var(--space-8) var(--space-6);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  margin-bottom: var(--space-5);
-}
-
-.hero-inner {
-  flex: 1;
-  min-width: 0;
-}
-
-.hero-title {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xl);
-  font-weight: var(--weight-extrabold);
-  letter-spacing: var(--tracking-tight);
-  color: var(--text-primary);
-  margin: 0 0 var(--space-3) 0;
-}
-
-.hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-
-.meta-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-full);
-  text-decoration: none;
-}
-
-.meta-teacher {
-  color: var(--brand-primary);
-  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
-}
-
-.meta-teacher:hover {
-  background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
-}
-
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.hero-post-btn {
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: white;
-  background: var(--gradient-brand);
-  border: none;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition: opacity var(--duration-fast), transform var(--duration-fast);
-}
-
-.hero-post-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.hero-rating {
-  flex-shrink: 0;
-}
-
-/* Tab Bar */
-.tab-bar {
-  position: sticky;
-  top: 56px;
-  z-index: 10;
-  padding: var(--space-3) 0;
-  margin-bottom: var(--space-5);
-  background: var(--bg-base);
-}
-
-/* Tab Content */
-.tab-content {
-  animation: fadeIn var(--duration-base) var(--ease-out);
-}
-
-/* Overview Grid */
-.overview-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-5);
-}
-
-.overview-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-}
-
-.card-title {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--text-secondary);
-  margin: 0 0 var(--space-4) 0;
-}
-
-/* Reviews Header */
-.reviews-header {
-  margin: var(--space-4) 0;
-}
-
-.review-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .course-detail-page {
-    padding: var(--space-4);
-  }
-
-  .course-hero {
-    flex-direction: column;
-    padding: var(--space-5) var(--space-4);
-  }
-
-  .hero-title {
-    font-size: var(--text-xl);
-  }
-
-  .hero-rating {
-    align-self: center;
-  }
-
-  .overview-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

@@ -4,6 +4,7 @@
 import api, { courseEntityApi } from './index'
 import type {
   Course,
+  CourseCategory,
   Department,
   RatingDimension,
   CourseRatingStatsResponse
@@ -16,11 +17,17 @@ export function getDepartments(category?: string) {
   })
 }
 
+// 获取课程分类列表
+export function getCourseCategories() {
+  return courseEntityApi.get<CourseCategory[]>('/categories')
+}
+
 // 获取课程列表
-export function getCourses(departmentID: number) {
-  return courseEntityApi.get<Course[]>('/courses', {
-    params: { departmentID }
-  })
+export function getCourses(departmentID?: number, category?: string) {
+  const params: Record<string, unknown> = {}
+  if (departmentID) params.departmentID = departmentID
+  if (category) params.category = category
+  return courseEntityApi.get<{ list: Course[]; total: number }>('/courses', { params })
 }
 
 // 获取课程详情
@@ -30,7 +37,7 @@ export function getCourse(id: number) {
 
 // 搜索课程
 export function searchCourses(query: string, limit = 10) {
-  return courseEntityApi.get<Course[]>('/courses/search', {
+  return courseEntityApi.get<{ list: Course[]; total: number }>('/courses/search', {
     params: { q: query, limit }
   })
 }

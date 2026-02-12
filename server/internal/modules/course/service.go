@@ -39,6 +39,7 @@ func (s *Service) GetDepartments(ctx context.Context, category string) ([]Depart
 // ListCoursesParams 获取课程列表参数
 type ListCoursesParams struct {
 	DepartmentID int64
+	Category     string
 	Page         int
 	PageSize     int
 }
@@ -52,7 +53,7 @@ type ListCoursesResult struct {
 // GetCourses 获取课程列表
 func (s *Service) GetCourses(ctx context.Context, params ListCoursesParams) (*ListCoursesResult, error) {
 	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListCourses(ctx, params.DepartmentID, params.PageSize, offset)
+	list, total, err := s.repo.ListCourses(ctx, params.DepartmentID, params.Category, params.PageSize, offset)
 	if err != nil {
 		s.log.Error("failed to list courses", zap.Error(err))
 		return nil, err
@@ -93,6 +94,11 @@ func (s *Service) GetCourse(ctx context.Context, id int64) (*Course, error) {
 		return nil, ErrCourseNotFound
 	}
 	return course, nil
+}
+
+// GetCourseCategories 获取课程分类列表
+func (s *Service) GetCourseCategories(ctx context.Context) ([]CourseCategory, error) {
+	return s.repo.ListCourseCategories(ctx)
 }
 
 // StatsResult 统计结果

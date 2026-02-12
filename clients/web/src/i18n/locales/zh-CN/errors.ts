@@ -23,7 +23,7 @@ export default {
   RATE_LIMIT_EXCEEDED: '请求过于频繁，请稍后重试',
 
   // 服务端错误
-  INTERNAL_ERROR: '服务器错误，请稍后重试',
+  SERVER_ERROR: '服务器错误，请稍后重试',
   SERVICE_UNAVAILABLE: '服务暂时不可用，请稍后重试',
 
   // 业务错误
@@ -52,6 +52,9 @@ export default {
     backToLogin: '返回登录',
     missingCode: '缺少授权码',
     missingState: '缺少 state 参数',
-    loginFailed: '登录失败，请重试'
+    loginFailed: '登录失败，请重试',
+    orgMismatch: '当前 SSO 账户无权访问本系统',
+    orgMismatchHint: '请注销当前账户后，使用正确的账户登录',
+    ssoLogout: '注销并重新登录'
   }
 }

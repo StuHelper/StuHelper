@@ -1,16 +1,16 @@
 <template>
-  <div class="rating-circle" :style="{ width: `${size}px`, height: `${size}px` }">
-    <svg :width="size" :height="size" :viewBox="`0 0 ${size} ${size}`">
+  <div class="relative inline-flex items-center justify-center" :style="{ width: `${size}px`, height: `${size}px` }">
+    <svg class="absolute inset-0 -rotate-90" :width="size" :height="size" :viewBox="`0 0 ${size} ${size}`">
       <circle
-        class="rating-circle__track"
         :cx="center"
         :cy="center"
         :r="radius"
         fill="none"
         :stroke-width="strokeWidth"
+        :style="{ stroke: 'var(--bg-secondary)' }"
       />
       <circle
-        class="rating-circle__fill"
+        class="transition-all duration-700 ease-out"
         :cx="center"
         :cy="center"
         :r="radius"
@@ -22,9 +22,9 @@
         stroke-linecap="round"
       />
     </svg>
-    <div class="rating-circle__label">
-      <span class="rating-circle__value font-mono">{{ displayValue }}</span>
-      <span v-if="subtitle" class="rating-circle__subtitle">{{ subtitle }}</span>
+    <div class="flex flex-col items-center z-[1]">
+      <span class="text-xl font-bold text-text-primary leading-none font-mono">{{ displayValue }}</span>
+      <span v-if="subtitle" class="text-xs text-text-muted mt-0.5">{{ subtitle }}</span>
     </div>
   </div>
 </template>
@@ -66,46 +66,3 @@ const strokeColor = computed(() => {
   return 'var(--rating-1)'
 })
 </script>
-
-<style scoped>
-.rating-circle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.rating-circle svg {
-  transform: rotate(-90deg);
-  position: absolute;
-  inset: 0;
-}
-
-.rating-circle__track {
-  stroke: var(--bg-secondary);
-}
-
-.rating-circle__fill {
-  transition: stroke-dashoffset var(--duration-slower) var(--ease-out);
-}
-
-.rating-circle__label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 1;
-}
-
-.rating-circle__value {
-  font-size: var(--text-xl);
-  font-weight: var(--weight-bold);
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.rating-circle__subtitle {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-</style>

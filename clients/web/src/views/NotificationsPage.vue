@@ -1,10 +1,10 @@
 <template>
-  <div class="notifications-page">
-    <div class="page-header">
-      <h1>{{ t('user.notification.title') }}</h1>
+  <div class="max-w-[600px] mx-auto p-6 animate-fade-in">
+    <div class="flex items-center justify-between mb-6 pb-4 border-b border-border">
+      <h1 class="font-sans text-xl font-extrabold tracking-tight text-text-primary m-0">{{ t('user.notification.title') }}</h1>
       <button
         v-if="hasUnread"
-        class="mark-all-btn"
+        class="py-1 px-3 bg-transparent border border-border rounded-full text-text-muted text-sm cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
         @click="handleMarkAllRead"
       >
         {{ t('user.notification.markAllRead') }}
@@ -16,7 +16,7 @@
       :has-more="hasMore"
       @load-more="loadMore"
     >
-      <div v-if="notifications.length > 0" class="notification-list">
+      <div v-if="notifications.length > 0" class="border border-border rounded-md overflow-hidden">
         <NotificationItem
           v-for="n in notifications"
           :key="n.id"
@@ -76,52 +76,3 @@ const handleClick = (n: Notification) => {
   }
 }
 </script>
-
-<style scoped>
-.notifications-page {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: var(--space-6);
-  animation: fadeIn var(--duration-base) var(--ease-out);
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-6);
-  padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border);
-}
-
-.page-header h1 {
-  font-family: var(--font-sans);
-  font-size: var(--text-xl);
-  font-weight: var(--weight-extrabold);
-  letter-spacing: var(--tracking-tight);
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.mark-all-btn {
-  padding: var(--space-1) var(--space-3);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast);
-}
-
-.mark-all-btn:hover {
-  border-color: var(--text-primary);
-  color: var(--text-primary);
-}
-
-.notification-list {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-</style>

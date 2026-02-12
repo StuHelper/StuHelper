@@ -4,12 +4,7 @@
 import api from './index'
 import type { Review, PostReviewParams } from '@/types/review'
 import type { Reply, PostReplyParams } from '@/types/reply'
-
-// 分页响应类型
-interface PaginatedResponse<T> {
-  list: T[]
-  total: number
-}
+import type { PaginatedResponse } from '@/types/api'
 
 // 排序类型
 export type SortType = 'time' | 'likes' | 'rating'
@@ -58,7 +53,7 @@ export function postReview(data: PostReviewParams) {
 export type VoteType = 'like' | 'dislike'
 
 // 投票
-export function voteReview(reviewID: number, voteType: VoteType) {
+export function voteReview(reviewID: string, voteType: VoteType) {
   return api.post<{ success: boolean }>(`/reviews/${reviewID}/vote`, {
     voteType
   })
@@ -67,7 +62,7 @@ export function voteReview(reviewID: number, voteType: VoteType) {
 // ========== 回复相关 API ==========
 
 // 获取回复列表
-export function getReplies(reviewID: number, page = 1, pageSize = 20) {
+export function getReplies(reviewID: string, page = 1, pageSize = 20) {
   return api.get<PaginatedResponse<Reply>>(`/reviews/${reviewID}/replies`, {
     params: { page, pageSize }
   })
@@ -82,6 +77,23 @@ export function postReply(params: PostReplyParams) {
 }
 
 // 删除回复
-export function deleteReply(replyID: number) {
+export function deleteReply(replyID: string) {
   return api.delete<{ success: boolean }>(`/replies/${replyID}`)
+}
+
+// ========== 测评管理 API ==========
+
+// 更新测评
+export function updateReview(reviewID: string, data: Partial<PostReviewParams>) {
+  return api.put<Review>(`/reviews/${reviewID}`, data)
+}
+
+// 删除测评
+export function deleteReview(reviewID: string) {
+  return api.delete<{ message: string }>(`/reviews/${reviewID}`)
+}
+
+// 举报测评
+export function reportReview(reviewID: string, reason: string, description?: string) {
+  return api.post<{ message: string }>(`/reviews/${reviewID}/report`, { reason, description })
 }

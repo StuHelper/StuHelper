@@ -1,22 +1,30 @@
 <template>
-  <div class="notification-bell" :class="{ 'has-new': hasUnread }">
-    <button class="bell-btn" @click="togglePanel">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-      </svg>
-      <span v-if="unreadCount > 0" class="badge">
+  <div class="notification-bell relative" :class="{ 'has-new': hasUnread }">
+    <button
+      class="bell-btn relative flex items-center justify-center w-9 h-9 bg-transparent border-none text-text-muted cursor-pointer rounded-sm transition-colors duration-fast hover:text-text-primary"
+      :aria-label="t('user.notification.bell')"
+      :aria-expanded="showPanel"
+      @click="togglePanel"
+    >
+      <Bell :size="20" />
+      <span
+        v-if="unreadCount > 0"
+        class="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 bg-accent text-white text-[10px] font-semibold tabular-nums rounded-lg flex items-center justify-center"
+      >
         {{ unreadCount > 99 ? '99+' : unreadCount }}
       </span>
     </button>
 
     <transition name="dropdown">
-      <div v-if="showPanel" class="panel">
-        <div class="panel-header">
+      <div
+        v-if="showPanel"
+        class="absolute top-[calc(100%+8px)] right-0 w-80 bg-bg-base border border-border rounded-sm overflow-hidden z-[100]"
+      >
+        <div class="flex items-center justify-between p-3 border-b border-border font-medium text-sm">
           <span>{{ t('user.notification.bell') }}</span>
           <button
             v-if="hasUnread"
-            class="mark-all-btn"
+            class="text-xs text-text-muted bg-transparent border-none cursor-pointer hover:text-text-primary transition-colors duration-fast"
             @click="handleMarkAllRead"
           >
             {{ t('user.notification.bellMarkAllRead') }}
@@ -27,7 +35,11 @@
           :loading="loading"
           @click="handleNotificationClick"
         />
-        <router-link to="/notifications" class="view-all" @click="showPanel = false">
+        <router-link
+          to="/notifications"
+          class="block p-3 text-center text-sm text-text-muted border-t border-border no-underline hover:text-text-primary transition-colors duration-fast"
+          @click="showPanel = false"
+        >
           {{ t('user.notification.viewAll') }}
         </router-link>
       </div>
@@ -38,6 +50,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Bell } from 'lucide-vue-next'
 import { useNotificationStore } from '@/stores/notification'
 import NotificationList from './NotificationList.vue'
 
@@ -61,7 +74,7 @@ const handleMarkAllRead = () => {
   store.markAllAsRead()
 }
 
-const handleNotificationClick = (id: number) => {
+const handleNotificationClick = (id: string) => {
   store.markAsRead(id)
 }
 
@@ -85,104 +98,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.notification-bell {
-  position: relative;
-}
-
-.bell-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: color var(--duration-fast);
-}
-
-.bell-btn:hover {
-  color: var(--text-primary);
-}
-
-.bell-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
 .has-new .bell-btn svg {
   animation: bellShake 0.5s ease;
-}
-
-.badge {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  background: var(--accent);
-  color: white;
-  font-size: 10px;
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 320px;
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  z-index: 100;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3);
-  border-bottom: 1px solid var(--border);
-  font-weight: var(--weight-medium);
-  font-size: var(--text-sm);
-}
-
-.mark-all-btn {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: color var(--duration-fast);
-}
-
-.mark-all-btn:hover {
-  color: var(--text-primary);
-}
-
-.view-all {
-  display: block;
-  padding: var(--space-3);
-  text-align: center;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  border-top: 1px solid var(--border);
-  text-decoration: none;
-  transition: color var(--duration-fast);
-}
-
-.view-all:hover {
-  color: var(--text-primary);
 }
 
 @keyframes bellShake {

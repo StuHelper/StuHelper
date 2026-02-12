@@ -21,7 +21,16 @@ type Course struct {
 	Code           string  `json:"code,omitempty"`
 	Name           string  `json:"name"`
 	Credits        float64 `json:"credits,omitempty"`
+	Category       string  `json:"category"`
 	ReviewCount    int     `json:"reviewCount"`
+}
+
+// CourseCategory 课程分类（后台可配置）
+type CourseCategory struct {
+	ID        int64  `json:"id"`
+	SchoolID  int64  `json:"schoolID"`
+	Name      string `json:"name"`
+	SortOrder int    `json:"sortOrder"`
 }
 
 // Teacher 教师

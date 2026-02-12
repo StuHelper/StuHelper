@@ -1,32 +1,17 @@
 # Docker Compose 开发环境配置
-# 使用方法: docker-compose -f docker-compose.yml -f docker-compose.hydra.yml -f docker-compose.dev.yml up
-
-version: '3.8'
+# 使用方法: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 services:
   postgres:
-    # 开发环境：暴露端口到主机，方便本地调试
-    ports:
-      - "5432:5432"
-    # 开发环境：使用命名卷，数据持久化
+    # 开发环境：使用独立命名卷，与生产数据隔离
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
-    # 开发环境：添加健康检查
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stuhelper}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - postgres_dev_data:/var/lib/postgresql
 
   redis:
-    # 开发环境：暴露端口到主机
-    ports:
-      - "6379:6379"
-    # 开发环境：使用命名卷
+    # 开发环境：使用独立命名卷
+    # 本地开发如需免密访问，可在 .env 中设置 REDIS_PASSWORD='' 或注释掉 base compose 中的 --requirepass
     volumes:
       - redis_dev_data:/data
-    # 开发环境：启用 AOF 持久化
-    command: redis-server --appendonly yes
 
 volumes:
   postgres_dev_data:

@@ -12,6 +12,26 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
+// GetCourseCategories 获取课程分类列表
+func (h *Handler) GetCourseCategories(c *gin.Context) {
+	cacheKey := "course:categories"
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+		response.Success(c, cached)
+		return
+	}
+
+	categories, err := h.service.GetCourseCategories(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, "failed to load categories")
+		return
+	}
+
+	if err := h.cache.Set(c.Request.Context(), cacheKey, categories, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
+	response.Success(c, categories)
+}
+
 // GetDepartments 获取院系列表
 func (h *Handler) GetDepartments(c *gin.Context) {
 	category := c.Query("category")
@@ -37,7 +57,8 @@ func (h *Handler) GetDepartments(c *gin.Context) {
 func (h *Handler) GetCourses(c *gin.Context) {
 	page, pageSize := parsePage(c)
 	departmentID, _ := strconv.ParseInt(c.Query("departmentID"), 10, 64)
-	cacheKey := "course:courses:dept=" + strconv.FormatInt(departmentID, 10) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
+	category := c.Query("category")
+	cacheKey := "course:courses:dept=" + strconv.FormatInt(departmentID, 10) + ":cat=" + sanitizeCacheKey(category) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
 	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
@@ -45,6 +66,7 @@ func (h *Handler) GetCourses(c *gin.Context) {
 
 	result, err := h.service.GetCourses(c.Request.Context(), ListCoursesParams{
 		DepartmentID: departmentID,
+		Category:     category,
 		Page:         page,
 		PageSize:     pageSize,
 	})

@@ -10,7 +10,8 @@ import axios, {
 } from 'axios'
 import config from './config'
 import { ApiError, ErrorCode, createErrorFromStatus } from './errors'
-import { clearAuth } from '@/utils/auth'
+import { clearAuth, tokenExpiry } from '@/utils/auth'
+import i18n from '@/i18n'
 
 // API 响应类型
 export interface ApiResponse<T> {
@@ -81,11 +82,16 @@ class TokenRefreshManager {
 
   private async refreshToken(): Promise<boolean> {
     try {
-      await axios.post(
+      const res = await axios.post(
         `${config.baseUrl}/auth/refresh`,
         {},
         { withCredentials: true }
       )
+      // 刷新成功后更新客户端 token 过期时间戳
+      const expiresIn = res.data?.data?.expiresIn ?? res.data?.expiresIn
+      if (typeof expiresIn === 'number' && expiresIn > 0) {
+        tokenExpiry.set(expiresIn)
+      }
       return true
     } catch {
       return false
@@ -100,14 +106,14 @@ class TokenRefreshManager {
   private handleAuthFailure(): void {
     clearAuth()
     const loginPath = '/login'
-    if (window.location.hash !== `#${loginPath}`) {
-      window.location.hash = loginPath
+    if (window.location.pathname !== loginPath) {
+      window.location.href = loginPath
     }
   }
 
   private createAuthError(): ApiError {
     return new ApiError({
-      message: '登录已过期',
+      message: i18n.global.t('errors.TOKEN_EXPIRED'),
       code: ErrorCode.TOKEN_EXPIRED,
       status: 401
     })
@@ -120,23 +126,35 @@ const tokenManager = new TokenRefreshManager()
 function transformError(error: AxiosError): ApiError {
   if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
     return new ApiError({
-      message: '请求超时',
+      message: i18n.global.t('errors.TIMEOUT'),
       code: ErrorCode.TIMEOUT
     })
   }
 
   if (!error.response) {
     return new ApiError({
-      message: '网络连接失败',
+      message: i18n.global.t('errors.NETWORK_ERROR'),
       code: ErrorCode.NETWORK_ERROR
     })
   }
 
   const { status, data } = error.response
-  const responseData = data as { message?: string; error?: string } | undefined
-  const message = responseData?.message || responseData?.error
+  const responseData = data as {
+    message?: string
+    error?: string | { code?: string; message?: string; details?: Record<string, unknown> }
+  } | undefined
 
-  return createErrorFromStatus(status, message)
+  let message: string | undefined
+  let details: Record<string, unknown> | undefined
+
+  if (responseData?.error && typeof responseData.error === 'object') {
+    message = responseData.error.message
+    details = responseData.error.details
+  } else {
+    message = responseData?.message || (responseData?.error as string | undefined)
+  }
+
+  return createErrorFromStatus(status, message, details)
 }
 
 // 创建响应拦截器
@@ -176,7 +194,10 @@ export const request = axios.create({
   withCredentials: config.withCredentials
 })
 
-const requestInterceptor = createResponseInterceptor(request)
+const requestInterceptor = createResponseInterceptor(
+  request,
+  (res) => (res as { data: unknown }).data
+)
 request.interceptors.response.use(
   requestInterceptor.onFulfilled,
   requestInterceptor.onRejected

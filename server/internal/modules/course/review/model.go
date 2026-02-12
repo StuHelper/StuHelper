@@ -45,7 +45,7 @@ type Review struct {
 
 // RatingDimension 评分维度配置
 type RatingDimension struct {
-	ID          int64     `json:"id"`
+	ID          string    `json:"id"`
 	SchoolID    int64     `json:"schoolID"`
 	Key         string    `json:"key"`
 	Name        string    `json:"name"`
@@ -58,7 +58,7 @@ type RatingDimension struct {
 
 // CourseRatingStats 课程评分统计
 type CourseRatingStats struct {
-	ID           int64           `json:"id"`
+	ID           string          `json:"id"`
 	CourseID     int64           `json:"courseID"`
 	TermID       *string         `json:"termID,omitempty"`
 	DimensionKey string          `json:"dimensionKey"`
@@ -109,7 +109,7 @@ type CourseRatingStatsResponse struct {
 
 // ReviewReport 举报记录
 type ReviewReport struct {
-	ID             int64      `json:"id"`
+	ID             string     `json:"id"`
 	ReviewID       string     `json:"reviewID"`
 	Review         *Review    `json:"review,omitempty"`
 	ReporterHash   string     `json:"-"`
@@ -136,7 +136,7 @@ type AdminStats struct {
 
 // CourseFavorite 课程收藏
 type CourseFavorite struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	UserHash  string    `json:"-"`
 	CourseID  int64     `json:"courseID"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -156,7 +156,7 @@ type FavoriteCourse struct {
 
 // ReviewDraft 评论草稿
 type ReviewDraft struct {
-	ID        int64         `json:"id"`
+	ID        string        `json:"id"`
 	UserHash  string        `json:"-"`
 	CourseID  int64         `json:"courseID"`
 	TeacherID *int64        `json:"teacherID,omitempty"`
@@ -170,9 +170,9 @@ type ReviewDraft struct {
 
 // Reply 评论回复
 type Reply struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	ReviewID  string    `json:"reviewID"`
-	ParentID  *int64    `json:"parentID,omitempty"`
+	ParentID  *string   `json:"parentID,omitempty"`
 	UserHash  string    `json:"-"`
 	Content   string    `json:"content"`
 	LikeCount int       `json:"likeCount"`
@@ -184,7 +184,7 @@ type Reply struct {
 
 // Notification 通知
 type Notification struct {
-	ID          int64     `json:"id"`
+	ID          string    `json:"id"`
 	UserHash    string    `json:"-"`
 	Type        string    `json:"type"`
 	Title       string    `json:"title"`
@@ -197,7 +197,7 @@ type Notification struct {
 
 // TeacherRatingStats 教师评分统计
 type TeacherRatingStats struct {
-	ID           int64           `json:"id"`
+	ID           string          `json:"id"`
 	TeacherID    int64           `json:"teacherID"`
 	TermID       *string         `json:"termID,omitempty"`
 	DimensionKey string          `json:"dimensionKey"`
@@ -232,7 +232,7 @@ type TeacherCourse struct {
 
 // SensitiveWord 敏感词
 type SensitiveWord struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	Word      string    `json:"word"`
 	Category  string    `json:"category"`
 	Level     string    `json:"level"` // block, warn
@@ -249,7 +249,7 @@ type ContentCheckResult struct {
 
 // AdminOperationLog 管理操作日志
 type AdminOperationLog struct {
-	ID            int64           `json:"id"`
+	ID            string          `json:"id"`
 	AdminUserID   string          `json:"adminUserID"`
 	AdminUsername string          `json:"adminUsername"`
 	Action        string          `json:"action"`

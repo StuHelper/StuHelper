@@ -26,6 +26,7 @@ export default {
     stats: '统计',
     teachers: '教师',
     basedOnReviews: '基于 {count} 条测评',
+    reviewUnit: '条测评',
     shareExperience: '分享你对这门课的体验...',
     noTeacherData: '暂无教师数据'
   },
@@ -38,20 +39,26 @@ export default {
     voteFailed: '操作失败，请重试',
     replySuccess: '回复成功',
     replyFailed: '回复失败',
-    deleteFailed: '删除失败'
+    replyLoadFailed: '加载回复失败',
+    deleteFailed: '删除失败',
+    commentBtn: '查看回复',
+    expandContent: '展开全文'
   },
   post: {
     selectCourse: '选择课程',
     selectTeacher: '选择教师',
     title: '标题（可选）',
+    titleLabel: '测评标题',
     content: '测评内容',
     contentPlaceholder: '分享你的课程体验...',
+    contentLabel: '测评内容',
     grade: '成绩',
     rating: '评分',
     submit: '发布测评',
     success: '测评发布成功',
     failed: '发布失败，请重试',
-    searchCourse: '搜索课程...'
+    searchCourse: '搜索课程...',
+    searchCourseLabel: '搜索课程'
   },
   rating: {
     overall: '综合评分',
@@ -64,14 +71,21 @@ export default {
     average: '一般',
     good: '较好',
     excellent: '很好',
-    countSuffix: '{count}人评价'
+    countSuffix: '{count}人评价',
+    level5: '强烈推荐',
+    level4: '推荐',
+    level3: '一般',
+    level2: '不推荐',
+    level1: '强烈不推荐',
+    unknown: '未知'
   },
   chart: {
     title: '评分统计',
     selectTerm: '选择学期',
     overall: '总体',
     emptyTitle: '暂无评分数据',
-    emptyHint: '成为第一个评价者吧'
+    emptyHint: '成为第一个评价者吧',
+    radarAria: '课程评分雷达图'
   },
   reply: {
     count: '{count} 条回复',
@@ -80,7 +94,15 @@ export default {
     emptyDesc: '成为第一个回复的人',
     sendFailed: '发送失败，请稍后重试',
     deleteConfirm: '确定要删除这条回复吗？',
-    deleteFailed: '删除失败，请稍后重试'
+    deleteFailed: '删除失败，请稍后重试',
+    loadFailed: '加载回复失败',
+    inputLabel: '回复内容',
+    toggleExpand: '展开回复',
+    toggleCollapse: '收起回复'
+  },
+  vote: {
+    like: '点赞',
+    dislike: '踩'
   },
   favorite: {
     favorited: '已收藏',
@@ -97,6 +119,19 @@ export default {
     saved: '已保存',
     restore: '恢复草稿'
   },
+  validation: {
+    contentTooShort: '内容至少需要 {min} 个字符',
+    contentTooLong: '内容不能超过 {max} 个字符',
+    titleTooLong: '标题不能超过 {max} 个字符',
+    replyTooShort: '回复至少需要 {min} 个字符',
+    charCount: '{current}/{max}'
+  },
+  topBar: {
+    title: '课程测评',
+    searchPlaceholder: '搜索课程...',
+    writeReview: '写测评',
+    recentSearches: '最近搜索'
+  },
   hub: {
     postReview: '发布测评',
     stats: '{courses} 门课程, {reviews} 条测评',
@@ -105,6 +140,18 @@ export default {
     totalCourses: '课程总数',
     totalReviews: '测评总数',
     todayReviews: '今日新增',
-    feedEmpty: '暂无测评，来发布第一条吧'
+    feedEmpty: '暂无测评，来发布第一条吧',
+    loadFailed: '加载测评失败，请稍后重试',
+    retry: '重试'
+  },
+  stats: {
+    insufficient: '数据较少',
+    reviewCount: '{count} 条测评',
+    insufficientHint: '评价人数不足，暂不展示详细数据',
+    noData: '暂无统计数据'
+  },
+  filter: {
+    teacher: '教师筛选',
+    all: '全部'
   }
 }

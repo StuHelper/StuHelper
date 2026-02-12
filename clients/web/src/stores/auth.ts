@@ -4,7 +4,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
-import { userManager, clearAuth } from '@/utils/auth'
+import { userManager, clearAuth, tokenExpiry } from '@/utils/auth'
 import { isApiError } from '@/api/errors'
 import i18n from '@/i18n'
 
@@ -59,14 +59,21 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const { data } = await apiCall()
+      // 校验后端返回的 URL 合法性，防止 Open Redirect
+      const parsed = new URL(data.url)
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error('Invalid OAuth URL protocol')
+      }
+      if (parsed.host === window.location.host) {
+        throw new Error('OAuth URL must not point to current site')
+      }
       sessionStorage.setItem('oauth_state', data.state)
       window.location.href = data.url
     } catch (err) {
+      loading.value = false
       const authErr = handleError(err, errorMsg)
       setError(authErr.type, authErr.message)
       throw err
-    } finally {
-      loading.value = false
     }
   }
 
@@ -90,6 +97,10 @@ export const useAuthStore = defineStore('auth', () => {
       const { data } = await authApi.handleCallback(code, state)
       userManager.setUser(data.user)
       user.value = data.user
+      // 存储 token 过期时间，供客户端预检使用
+      if (data.expiresIn) {
+        tokenExpiry.set(data.expiresIn)
+      }
       sessionStorage.removeItem('oauth_state')
       return data
     } catch (err) {

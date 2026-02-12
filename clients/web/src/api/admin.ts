@@ -12,12 +12,7 @@ import type {
 
 export type { Report, AdminStats, OperationLog }
 import type { Review } from '@/types/review'
-
-// 分页响应类型
-interface PaginatedResponse<T> {
-  list: T[]
-  total: number
-}
+import type { PaginatedResponse } from '@/types/api'
 
 // 获取管理统计
 export function getAdminStats() {
@@ -32,7 +27,7 @@ export function getReports(status = 'pending', page = 1, pageSize = 20) {
 }
 
 // 处理举报
-export function processReport(reportID: number, params: ProcessReportParams) {
+export function processReport(reportID: string, params: ProcessReportParams) {
   return api.put<{ success: boolean }>(`/admin/reports/${reportID}`, params)
 }
 
@@ -48,7 +43,7 @@ export function getAllReviews(
 }
 
 // 更新评论状态
-export function updateReviewStatus(reviewID: number, action: string) {
+export function updateReviewStatus(reviewID: string, action: string) {
   return api.put<{ success: boolean }>(`/admin/reviews/${reviewID}`, { action })
 }
 

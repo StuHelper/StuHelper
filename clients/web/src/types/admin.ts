@@ -7,7 +7,7 @@ export type ReportStatus = 'pending' | 'resolved' | 'rejected'
 
 // 举报中嵌套的评论摘要
 export interface ReportReview {
-  id: number
+  id: string
   courseID: number
   courseName: string
   teacherID?: number
@@ -26,8 +26,8 @@ export interface ReportReview {
 
 // 举报
 export interface Report {
-  id: number
-  reviewID: number
+  id: string
+  reviewID: string
   review?: ReportReview
   reason: string
   description?: string
@@ -58,7 +58,7 @@ export interface AdminStats {
 
 // 操作日志
 export interface OperationLog {
-  id: number
+  id: string
   adminUserID: string
   adminUsername: string
   action: string
@@ -73,7 +73,7 @@ export interface OperationLog {
 
 // 批量操作参数
 export interface BatchUpdateParams {
-  ids: number[]
+  ids: string[]
   action: 'hide' | 'restore' | 'delete'
 }
 

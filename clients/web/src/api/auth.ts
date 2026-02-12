@@ -21,6 +21,7 @@ export interface UserInfo {
 // 回调响应
 export interface CallbackResponse {
   user: UserInfo
+  expiresIn: number // Access Token TTL（秒）
 }
 
 // 登出响应
@@ -53,4 +54,9 @@ export function getCurrentUser() {
 // 登出
 export function logout() {
   return request.post<LogoutResponse>('/auth/logout')
+}
+
+// 登出所有设备
+export function logoutAll() {
+  return request.post<{ message: string }>('/auth/logout-all')
 }

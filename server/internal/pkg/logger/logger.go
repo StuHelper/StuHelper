@@ -3,6 +3,8 @@ package logger
 import (
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -10,7 +12,10 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var globalLogger *zap.Logger
+var (
+	globalLogger atomic.Pointer[zap.Logger]
+	fallbackOnce sync.Once
+)
 
 // Config 日志配置
 type Config struct {
@@ -47,7 +52,7 @@ func DefaultConfig() Config {
 }
 
 // Init 初始化全局 Logger
-func Init(cfg Config) error {
+func Init(cfg Config) {
 	level := parseLevel(cfg.Level)
 	encoder := buildEncoder(cfg.Format)
 
@@ -90,21 +95,28 @@ func Init(cfg Config) error {
 		)
 	}
 
-	globalLogger = zap.New(core,
+	// CallerSkip(0)：L() 直接返回 logger 给业务代码使用（logger.L().Info(...)），
+	// 无包级 wrapper 函数，不需要跳过额外调用层
+	l := zap.New(core,
 		zap.AddCaller(),
-		zap.AddCallerSkip(1),
 		zap.AddStacktrace(zapcore.ErrorLevel),
 	)
-
-	return nil
+	globalLogger.Store(l)
 }
 
 // L 返回全局 Logger
 func L() *zap.Logger {
-	if globalLogger == nil {
-		globalLogger, _ = zap.NewProduction()
+	if l := globalLogger.Load(); l != nil {
+		return l
 	}
-	return globalLogger
+	fallbackOnce.Do(func() {
+		l, err := zap.NewProduction()
+		if err != nil {
+			l = zap.NewNop()
+		}
+		globalLogger.Store(l)
+	})
+	return globalLogger.Load()
 }
 
 // S 返回全局 SugaredLogger
@@ -114,8 +126,8 @@ func S() *zap.SugaredLogger {
 
 // Sync 刷新日志缓冲
 func Sync() error {
-	if globalLogger != nil {
-		return globalLogger.Sync()
+	if l := globalLogger.Load(); l != nil {
+		return l.Sync()
 	}
 	return nil
 }

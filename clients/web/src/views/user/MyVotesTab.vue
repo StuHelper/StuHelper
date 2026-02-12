@@ -1,6 +1,6 @@
 <template>
-  <div class="my-votes">
-    <div v-if="loading" class="loading-list">
+  <div class="flex flex-col">
+    <div v-if="loading" class="flex flex-col">
       <SkeletonCard v-for="i in 3" :key="i" variant="review" />
     </div>
 
@@ -10,11 +10,15 @@
         :key="review.id"
         :review="review"
         :style="{ animationDelay: `${index * 50}ms` }"
-        class="animate-item"
+        class="animate-fade-in-up opacity-0"
       />
 
-      <div v-if="total > votes.length" class="load-more">
-        <button @click="loadMore" :disabled="loadingMore">
+      <div v-if="total > votes.length" class="flex justify-center p-4">
+        <button
+          class="px-6 py-2 bg-transparent border border-border rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
+          @click="loadMore"
+          :disabled="loadingMore"
+        >
           {{ loadingMore ? t('common.actions.loading') : t('common.actions.loadMore') }}
         </button>
       </div>
@@ -64,42 +68,3 @@ const loadMore = async () => {
   }
 }
 </script>
-
-<style scoped>
-.my-votes {
-  display: flex;
-  flex-direction: column;
-}
-
-.loading-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.animate-item {
-  animation: fadeInUp 0.4s var(--ease-out) forwards;
-  opacity: 0;
-}
-
-.load-more {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-}
-
-.load-more button {
-  padding: var(--space-2) var(--space-6);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast);
-}
-
-.load-more button:hover:not(:disabled) {
-  border-color: var(--text-primary);
-  color: var(--text-primary);
-}
-</style>

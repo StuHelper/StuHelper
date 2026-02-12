@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
@@ -38,6 +40,13 @@ func main() {
 }
 
 func run() error {
+	// 仅在非生产环境加载 .env 文件，生产环境由 docker-compose 注入环境变量
+	if os.Getenv("APP_ENV") != "production" && os.Getenv("GIN_MODE") != "release" {
+		if err := godotenv.Load("deployments/.env"); err != nil {
+			fmt.Fprintf(os.Stderr, "debug: .env not loaded: %v\n", err)
+		}
+	}
+
 	// 加载配置
 	cfg, err := config.Load()
 	if err != nil {
@@ -59,9 +68,7 @@ func run() error {
 		FileMaxAge:      cfg.Log.FileMaxAge,
 		FileCompress:    cfg.Log.FileCompress,
 	}
-	if err := logger.Init(logCfg); err != nil {
-		return fmt.Errorf("failed to initialize logger: %w", err)
-	}
+	logger.Init(logCfg)
 	defer func() {
 		if err := logger.Sync(); err != nil {
 			fmt.Fprintf(os.Stderr, "logger sync error: %v\n", err)

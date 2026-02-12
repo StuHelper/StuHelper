@@ -26,6 +26,7 @@ export default {
     stats: 'Statistics',
     teachers: 'Teachers',
     basedOnReviews: 'Based on {count} reviews',
+    reviewUnit: ' reviews',
     shareExperience: 'Share your experience with this course...',
     noTeacherData: 'No teacher data available'
   },
@@ -38,20 +39,26 @@ export default {
     voteFailed: 'Action failed, please retry',
     replySuccess: 'Reply posted',
     replyFailed: 'Reply failed',
-    deleteFailed: 'Delete failed'
+    replyLoadFailed: 'Failed to load replies',
+    deleteFailed: 'Delete failed',
+    commentBtn: 'View replies',
+    expandContent: 'Expand content'
   },
   post: {
     selectCourse: 'Select Course',
     selectTeacher: 'Select Teacher',
     title: 'Title (optional)',
+    titleLabel: 'Review title',
     content: 'Review Content',
     contentPlaceholder: 'Share your experience...',
+    contentLabel: 'Review content',
     grade: 'Grade',
     rating: 'Rating',
     submit: 'Submit Review',
     success: 'Review posted successfully',
     failed: 'Post failed, please retry',
-    searchCourse: 'Search course...'
+    searchCourse: 'Search course...',
+    searchCourseLabel: 'Search course'
   },
   rating: {
     overall: 'Overall',
@@ -64,14 +71,21 @@ export default {
     average: 'Average',
     good: 'Good',
     excellent: 'Excellent',
-    countSuffix: '{count} ratings'
+    countSuffix: '{count} ratings',
+    level5: 'Highly Recommended',
+    level4: 'Recommended',
+    level3: 'Average',
+    level2: 'Not Recommended',
+    level1: 'Strongly Not Recommended',
+    unknown: 'Unknown'
   },
   chart: {
     title: 'Rating Statistics',
     selectTerm: 'Select Term',
     overall: 'Overall',
     emptyTitle: 'No rating data',
-    emptyHint: 'Be the first to rate'
+    emptyHint: 'Be the first to rate',
+    radarAria: 'Course rating radar chart'
   },
   reply: {
     count: '{count} replies',
@@ -80,7 +94,15 @@ export default {
     emptyDesc: 'Be the first to reply',
     sendFailed: 'Send failed, please retry later',
     deleteConfirm: 'Are you sure you want to delete this reply?',
-    deleteFailed: 'Delete failed, please retry later'
+    deleteFailed: 'Delete failed, please retry later',
+    loadFailed: 'Failed to load replies',
+    inputLabel: 'Reply content',
+    toggleExpand: 'Expand replies',
+    toggleCollapse: 'Collapse replies'
+  },
+  vote: {
+    like: 'Like',
+    dislike: 'Dislike'
   },
   favorite: {
     favorited: 'Favorited',
@@ -97,6 +119,19 @@ export default {
     saved: 'Saved',
     restore: 'Restore Draft'
   },
+  validation: {
+    contentTooShort: 'Content must be at least {min} characters',
+    contentTooLong: 'Content cannot exceed {max} characters',
+    titleTooLong: 'Title cannot exceed {max} characters',
+    replyTooShort: 'Reply must be at least {min} characters',
+    charCount: '{current}/{max}'
+  },
+  topBar: {
+    title: 'Course Reviews',
+    searchPlaceholder: 'Search courses...',
+    writeReview: 'Write Review',
+    recentSearches: 'Recent Searches'
+  },
   hub: {
     postReview: 'Post Review',
     stats: '{courses} courses, {reviews} reviews',
@@ -105,6 +140,18 @@ export default {
     totalCourses: 'Total Courses',
     totalReviews: 'Total Reviews',
     todayReviews: 'Today',
-    feedEmpty: 'No reviews yet. Be the first to post!'
+    feedEmpty: 'No reviews yet. Be the first to post!',
+    loadFailed: 'Failed to load reviews, please try again later',
+    retry: 'Retry'
+  },
+  stats: {
+    insufficient: 'Limited Data',
+    reviewCount: '{count} reviews',
+    insufficientHint: 'Not enough reviews to show detailed statistics',
+    noData: 'No statistics available'
+  },
+  filter: {
+    teacher: 'Teacher',
+    all: 'All'
   }
 }

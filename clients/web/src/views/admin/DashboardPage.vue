@@ -1,27 +1,27 @@
 <template>
-  <div class="dashboard">
-    <h1>{{ t('admin.dashboard.title') }}</h1>
+  <div>
+    <h1 class="mb-6 font-sans text-xl font-extrabold tracking-tight text-text-primary">{{ t('admin.dashboard.title') }}</h1>
 
-    <div v-if="loading" class="stats-grid">
-      <div v-for="i in 4" :key="i" class="stat-card skeleton" />
+    <div v-if="loading" class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+      <div v-for="i in 4" :key="i" class="h-[100px] bg-bg-card border border-border rounded-lg animate-pulse" />
     </div>
 
-    <div v-else class="stats-grid">
-      <div class="stat-card">
-        <span class="stat-label">{{ t('admin.dashboard.totalReviews') }}</span>
-        <span class="stat-value">{{ stats.totalReviews }}</span>
+    <div v-else class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
+      <div class="flex flex-col gap-2 p-4 bg-bg-card border border-border rounded-lg">
+        <span class="text-sm text-text-muted">{{ t('admin.dashboard.totalReviews') }}</span>
+        <span class="text-2xl font-semibold tabular-nums text-text-primary">{{ stats.totalReviews }}</span>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">{{ t('admin.dashboard.pendingReports') }}</span>
-        <span class="stat-value warning">{{ stats.pendingReports }}</span>
+      <div class="flex flex-col gap-2 p-4 bg-bg-card border border-border rounded-lg">
+        <span class="text-sm text-text-muted">{{ t('admin.dashboard.pendingReports') }}</span>
+        <span class="text-2xl font-semibold tabular-nums text-accent">{{ stats.pendingReports }}</span>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">{{ t('admin.dashboard.todayReviews') }}</span>
-        <span class="stat-value">{{ stats.todayReviews }}</span>
+      <div class="flex flex-col gap-2 p-4 bg-bg-card border border-border rounded-lg">
+        <span class="text-sm text-text-muted">{{ t('admin.dashboard.todayReviews') }}</span>
+        <span class="text-2xl font-semibold tabular-nums text-text-primary">{{ stats.todayReviews }}</span>
       </div>
-      <div class="stat-card">
-        <span class="stat-label">{{ t('admin.dashboard.weekReviews') }}</span>
-        <span class="stat-value">{{ stats.weekReviews }}</span>
+      <div class="flex flex-col gap-2 p-4 bg-bg-card border border-border rounded-lg">
+        <span class="text-sm text-text-muted">{{ t('admin.dashboard.weekReviews') }}</span>
+        <span class="text-2xl font-semibold tabular-nums text-text-primary">{{ stats.weekReviews }}</span>
       </div>
     </div>
   </div>
@@ -55,56 +55,3 @@ onMounted(async () => {
   }
 })
 </script>
-
-<style scoped>
-.dashboard h1 {
-  margin: 0 0 var(--space-6);
-  font-family: var(--font-sans);
-  font-size: var(--text-xl);
-  font-weight: var(--weight-extrabold);
-  letter-spacing: var(--tracking-tight);
-  color: var(--text-primary);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-4);
-}
-
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.stat-card.skeleton {
-  height: 100px;
-  animation: pulse 1.5s infinite;
-}
-
-.stat-label {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-.stat-value {
-  font-size: var(--text-2xl);
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
-
-.stat-value.warning {
-  color: var(--brand-accent);
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-</style>

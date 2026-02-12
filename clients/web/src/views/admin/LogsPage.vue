@@ -1,32 +1,36 @@
 <template>
-  <div class="logs-page">
-    <h1>{{ t('admin.logs.title') }}</h1>
+  <div>
+    <h1 class="mb-4 font-sans text-xl font-extrabold tracking-tight text-text-primary">{{ t('admin.logs.title') }}</h1>
 
-    <div v-if="loading" class="loading">{{ t('common.actions.loading') }}</div>
+    <div v-if="loading" class="text-center p-8 text-text-muted">{{ t('common.actions.loading') }}</div>
 
-    <table v-else-if="logs.length > 0" class="logs-table">
+    <table v-else-if="logs.length > 0" class="w-full border-collapse">
       <thead>
         <tr>
-          <th>{{ t('admin.logs.operator') }}</th>
-          <th>{{ t('admin.logs.action') }}</th>
-          <th>{{ t('admin.logs.resource') }}</th>
-          <th>{{ t('admin.logs.time') }}</th>
+          <th class="p-3 text-left border-b border-border text-sm text-text-muted font-medium">{{ t('admin.logs.operator') }}</th>
+          <th class="p-3 text-left border-b border-border text-sm text-text-muted font-medium">{{ t('admin.logs.action') }}</th>
+          <th class="p-3 text-left border-b border-border text-sm text-text-muted font-medium">{{ t('admin.logs.resource') }}</th>
+          <th class="p-3 text-left border-b border-border text-sm text-text-muted font-medium">{{ t('admin.logs.time') }}</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="log in logs" :key="log.id">
-          <td>{{ log.adminUsername }}</td>
-          <td>{{ log.action }}</td>
-          <td>{{ log.resourceType }} #{{ log.resourceID }}</td>
-          <td>{{ formatTime(log.createdAt) }}</td>
+          <td class="p-3 text-left border-b border-border text-sm">{{ log.adminUsername }}</td>
+          <td class="p-3 text-left border-b border-border text-sm">{{ log.action }}</td>
+          <td class="p-3 text-left border-b border-border text-sm">{{ log.resourceType }} #{{ log.resourceID }}</td>
+          <td class="p-3 text-left border-b border-border text-sm">{{ formatTime(log.createdAt) }}</td>
         </tr>
       </tbody>
     </table>
 
     <EmptyState v-else :title="t('admin.logs.empty')" />
 
-    <div v-if="hasMore" class="load-more">
-      <button @click="loadMore" :disabled="loadingMore">
+    <div v-if="hasMore" class="flex justify-center p-4">
+      <button
+        class="px-4 py-2 bg-transparent border border-border rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
+        @click="loadMore"
+        :disabled="loadingMore"
+      >
         {{ loadingMore ? t('common.actions.loading') : t('admin.logs.loadMore') }}
       </button>
     </div>
@@ -78,60 +82,3 @@ const loadMore = async () => {
 
 const formatTime = (dateStr: string) => formatAbsoluteTime(dateStr, locale.value)
 </script>
-
-<style scoped>
-.logs-page h1 {
-  margin: 0 0 var(--space-4);
-  font-family: var(--font-sans);
-  font-size: var(--text-xl);
-  font-weight: var(--weight-extrabold);
-  letter-spacing: var(--tracking-tight);
-  color: var(--text-primary);
-}
-
-.logs-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.logs-table th,
-.logs-table td {
-  padding: var(--space-3);
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-  font-size: var(--text-sm);
-}
-
-.logs-table th {
-  color: var(--text-muted);
-  font-weight: var(--weight-medium);
-}
-
-.loading {
-  text-align: center;
-  padding: var(--space-8);
-  color: var(--text-muted);
-}
-
-.load-more {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-}
-
-.load-more button {
-  padding: var(--space-2) var(--space-4);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast);
-}
-
-.load-more button:hover:not(:disabled) {
-  border-color: var(--text-primary);
-  color: var(--text-primary);
-}
-</style>

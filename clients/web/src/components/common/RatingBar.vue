@@ -1,13 +1,13 @@
 <template>
-  <div class="rating-bar">
-    <span class="rating-bar__label">{{ label }}</span>
-    <div class="rating-bar__track">
+  <div class="flex items-center gap-3">
+    <span class="text-sm text-text-secondary min-w-[60px] whitespace-nowrap">{{ label }}</span>
+    <div class="flex-1 h-2 bg-bg-secondary rounded-full overflow-hidden">
       <div
-        class="rating-bar__fill"
+        class="h-full rounded-full transition-all duration-700 ease-out"
         :style="{ width: `${percentage}%`, background: fillColor }"
       />
     </div>
-    <span class="rating-bar__value font-mono">{{ displayValue }}</span>
+    <span class="text-sm font-semibold text-text-primary min-w-[32px] text-right font-mono">{{ displayValue }}</span>
   </div>
 </template>
 
@@ -40,40 +40,3 @@ const fillColor = computed(() => {
   return 'var(--rating-1)'
 })
 </script>
-
-<style scoped>
-.rating-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.rating-bar__label {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  min-width: 60px;
-  white-space: nowrap;
-}
-
-.rating-bar__track {
-  flex: 1;
-  height: 8px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.rating-bar__fill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  transition: width var(--duration-slower) var(--ease-out);
-}
-
-.rating-bar__value {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  min-width: 32px;
-  text-align: right;
-}
-</style>

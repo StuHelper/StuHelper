@@ -4,12 +4,7 @@
 import api from './index'
 import type { Review } from '@/types/review'
 import type { Course } from '@/types/course'
-
-// 分页响应类型
-interface PaginatedResponse<T> {
-  list: T[]
-  total: number
-}
+import type { PaginatedResponse } from '@/types/api'
 
 // 获取我的评论
 export function getMyReviews(page = 1, pageSize = 10) {

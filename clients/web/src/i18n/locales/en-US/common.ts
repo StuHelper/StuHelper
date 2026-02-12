@@ -38,6 +38,8 @@ export default {
     data: 'No data',
     result: 'No results found'
   },
+  loadFailed: 'Load failed',
+  noMore: 'No more data',
   time: {
     justNow: 'Just now',
     minutesAgo: '{n} minutes ago',
@@ -57,8 +59,6 @@ export default {
     signupUrlFailed: 'Failed to get signup URL',
     invalidState: 'Invalid authentication state',
     callbackFailed: 'Authentication callback failed',
-    fetchUserFailed: 'Failed to fetch user info',
-    loadFailed: 'Load failed',
-    noMore: 'No more data'
+    fetchUserFailed: 'Failed to fetch user info'
   }
 }

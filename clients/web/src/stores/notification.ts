@@ -53,7 +53,7 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   // 标记单条已读
-  const markAsRead = async (id: number) => {
+  const markAsRead = async (id: string) => {
     await notificationApi.markAsRead(id)
     // 更新本地状态
     const notification = notifications.value.find(n => n.id === id)

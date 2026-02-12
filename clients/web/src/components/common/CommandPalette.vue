@@ -1,70 +1,85 @@
 <template>
   <Teleport to="body">
     <Transition name="overlay">
-      <div v-if="isOpen" class="palette-overlay" @click.self="close">
-        <div class="palette-modal animate-modal-in">
-          <div class="palette-input-wrap">
-            <svg class="palette-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
+      <div
+        v-if="isOpen"
+        class="palette-overlay fixed inset-0 bg-bg-overlay z-50 flex items-start justify-center pt-[15vh] max-md:pt-4 max-md:px-4"
+        @click.self="close"
+      >
+        <div
+          ref="modalRef"
+          class="w-full max-w-[640px] bg-bg-card border border-border rounded-xl shadow-xl overflow-hidden animate-modal-in max-md:rounded-lg"
+          role="dialog"
+          aria-modal="true"
+          @keydown="trapFocus"
+        >
+          <div class="flex items-center gap-3 px-5 py-4 border-b border-border">
+            <Search class="text-text-muted shrink-0" :size="20" />
             <input
               ref="inputRef"
               v-model="searchQuery"
-              class="palette-input"
+              class="flex-1 border-none outline-none bg-transparent text-lg font-sans text-text-primary placeholder:text-text-muted"
               :placeholder="t('nav.searchCoursePlaceholder')"
+              role="combobox"
+              :aria-expanded="results.length > 0 ? 'true' : 'false'"
+              aria-haspopup="listbox"
+              :aria-controls="results.length > 0 ? 'palette-listbox' : undefined"
+              :aria-activedescendant="results.length > 0 ? `palette-option-${activeIndex}` : undefined"
               @keydown.down.prevent="moveDown"
               @keydown.up.prevent="moveUp"
               @keydown.enter.prevent="selectCurrent"
+              @keydown.esc="close"
             />
-            <kbd class="palette-esc">ESC</kbd>
+            <kbd class="font-sans text-xs py-px px-2 bg-bg-tertiary rounded text-text-muted shrink-0">ESC</kbd>
           </div>
 
-          <div class="palette-body">
-            <div v-if="loading" class="palette-loading">
-              <div class="spinner" />
+          <div class="max-h-[400px] overflow-y-auto py-2">
+            <div v-if="loading" class="flex justify-center p-8">
+              <div class="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
             </div>
 
             <template v-else-if="searchQuery.trim()">
-              <div v-if="results.length === 0" class="palette-empty">
+              <div v-if="results.length === 0" class="p-8 text-center text-text-muted text-sm">
                 {{ t('common.empty.result') }}
               </div>
-              <div v-else class="palette-section">
-                <div class="palette-section-title">{{ t('nav.searchResults') }}</div>
-                <button
-                  v-for="(item, idx) in results"
-                  :key="item.id"
-                  class="palette-item"
-                  :class="{ active: activeIndex === idx }"
-                  @click="selectItem(item)"
-                  @mouseenter="activeIndex = idx"
-                >
-                  <div class="palette-item-info">
-                    <span class="palette-item-name">{{ item.name }}</span>
+              <div v-else class="py-1">
+                <div class="py-2 px-5 text-xs font-medium text-text-muted uppercase tracking-wide">{{ t('nav.searchResults') }}</div>
+                <div role="listbox" id="palette-listbox">
+                  <button
+                    v-for="(item, idx) in results"
+                    :key="item.id"
+                    :id="`palette-option-${idx}`"
+                    class="flex items-center gap-3 w-full py-2.5 px-5 text-left text-text-primary text-sm cursor-pointer transition-colors duration-fast ease-smooth hover:bg-bg-hover"
+                    :class="{ '!bg-bg-hover': activeIndex === idx }"
+                    role="option"
+                    :aria-selected="activeIndex === idx"
+                    @click="selectItem(item)"
+                    @mouseenter="activeIndex = idx"
+                  >
+                  <div class="flex-1 flex items-center gap-2 min-w-0">
+                    <span class="font-medium whitespace-nowrap overflow-hidden text-ellipsis">{{ item.name }}</span>
                   </div>
-                  <span v-if="item.departmentName" class="palette-item-dept">
+                  <span v-if="item.departmentName" class="text-xs text-text-muted py-px px-2 bg-bg-secondary rounded-full whitespace-nowrap shrink-0">
                     {{ item.departmentName }}
                   </span>
                 </button>
+                </div>
               </div>
             </template>
 
             <template v-else>
-              <div v-if="recentSearches.length > 0" class="palette-section">
-                <div class="palette-section-title">{{ t('nav.recentSearches') }}</div>
+              <div v-if="recentSearches.length > 0" class="py-1">
+                <div class="py-2 px-5 text-xs font-medium text-text-muted uppercase tracking-wide">{{ t('nav.recentSearches') }}</div>
                 <button
                   v-for="(term, idx) in recentSearches"
                   :key="term"
-                  class="palette-item"
-                  :class="{ active: activeIndex === idx }"
+                  class="flex items-center gap-3 w-full py-2.5 px-5 text-left text-text-primary text-sm cursor-pointer transition-colors duration-fast ease-smooth hover:bg-bg-hover"
+                  :class="{ '!bg-bg-hover': activeIndex === idx }"
                   @click="searchQuery = term"
                   @mouseenter="activeIndex = idx"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12,6 12,12 16,14" />
-                  </svg>
-                  <span class="palette-item-name">{{ term }}</span>
+                  <Clock :size="14" />
+                  <span class="font-medium whitespace-nowrap overflow-hidden text-ellipsis">{{ term }}</span>
                 </button>
               </div>
             </template>
@@ -79,6 +94,7 @@
 import { ref, watch, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { Search, Clock } from 'lucide-vue-next'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { searchCourses } from '@/api/course'
 import type { Course } from '@/types/course'
@@ -88,14 +104,19 @@ const router = useRouter()
 const { isOpen, searchQuery, close } = useCommandPalette()
 
 const inputRef = ref<HTMLInputElement | null>(null)
+const modalRef = ref<HTMLElement | null>(null)
 const results = ref<Course[]>([])
 const loading = ref(false)
 const activeIndex = ref(0)
 
 const RECENT_KEY = 'recent-searches'
-const recentSearches = ref<string[]>(
-  JSON.parse(localStorage.getItem(RECENT_KEY) || '[]')
-)
+const recentSearches = ref<string[]>((() => {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]')
+  } catch {
+    return []
+  }
+})())
 
 function saveRecent(term: string) {
   const list = recentSearches.value.filter((s) => s !== term)
@@ -105,6 +126,22 @@ function saveRecent(term: string) {
 }
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+// 焦点陷阱：Tab/Shift+Tab 在对话框内循环
+function trapFocus(e: KeyboardEvent) {
+  if (e.key !== 'Tab' || !modalRef.value) return
+  const focusable = modalRef.value.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (e.shiftKey) {
+    if (document.activeElement === first) { e.preventDefault(); last.focus() }
+  } else {
+    if (document.activeElement === last) { e.preventDefault(); first.focus() }
+  }
+}
 
 watch(searchQuery, (val) => {
   activeIndex.value = 0
@@ -118,14 +155,21 @@ watch(searchQuery, (val) => {
   }
 
   loading.value = true
+  const currentQuery = q
   searchTimer = setTimeout(async () => {
     try {
-      const res = await searchCourses(q, 10)
-      results.value = res.data || []
+      const res = await searchCourses(currentQuery, 10)
+      if (searchQuery.value.trim() === currentQuery) {
+        results.value = res.data?.list || []
+      }
     } catch {
-      results.value = []
+      if (searchQuery.value.trim() === currentQuery) {
+        results.value = []
+      }
     } finally {
-      loading.value = false
+      if (searchQuery.value.trim() === currentQuery) {
+        loading.value = false
+      }
     }
   }, 300)
 })
@@ -136,8 +180,10 @@ onUnmounted(() => {
 
 watch(isOpen, (val) => {
   if (val) {
+    document.body.style.overflow = 'hidden'
     nextTick(() => inputRef.value?.focus())
   } else {
+    document.body.style.overflow = ''
     if (searchTimer) clearTimeout(searchTimer)
     searchQuery.value = ''
     results.value = []
@@ -170,177 +216,11 @@ function selectItem(course: Course) {
 </script>
 
 <style scoped>
-.palette-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--bg-overlay);
-  z-index: var(--z-modal);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 15vh;
-}
-
-.palette-modal {
-  width: 100%;
-  max-width: 640px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-  overflow: hidden;
-}
-
-.palette-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border);
-}
-
-.palette-icon {
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.palette-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: none;
-  font-size: var(--text-lg);
-  font-family: var(--font-sans);
-  color: var(--text-primary);
-}
-
-.palette-input::placeholder {
-  color: var(--text-muted);
-}
-
-.palette-esc {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 2px 8px;
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-xs);
-  color: var(--text-muted);
-  border: none;
-  flex-shrink: 0;
-}
-
-.palette-body {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: var(--space-2) 0;
-}
-
-.palette-loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-8);
-}
-
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--border);
-  border-top-color: var(--brand-primary);
-  border-radius: var(--radius-full);
-  animation: spin 0.6s linear infinite;
-}
-
-.palette-empty {
-  padding: var(--space-8);
-  text-align: center;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.palette-section {
-  padding: var(--space-1) 0;
-}
-
-.palette-section-title {
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-}
-
-.palette-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-2-5) var(--space-5);
-  text-align: left;
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  transition: background var(--duration-fast) var(--ease-smooth);
-  cursor: pointer;
-}
-
-/* space-2-5 不存在，用 padding 值代替 */
-.palette-item {
-  padding: 10px var(--space-5);
-}
-
-.palette-item.active,
-.palette-item:hover {
-  background: var(--bg-hover);
-}
-
-.palette-item-info {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.palette-item-name {
-  font-weight: var(--weight-medium);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.palette-item-meta {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  white-space: nowrap;
-}
-
-.palette-item-dept {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  padding: 2px 8px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-full);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .overlay-enter-active {
   animation: overlayIn var(--duration-base) var(--ease-out);
 }
 
 .overlay-leave-active {
   animation: overlayIn var(--duration-fast) var(--ease-out) reverse;
-}
-
-@media (max-width: 767px) {
-  .palette-overlay {
-    padding-top: var(--space-4);
-    padding-left: var(--space-4);
-    padding-right: var(--space-4);
-  }
-
-  .palette-modal {
-    border-radius: var(--radius-lg);
-  }
 }
 </style>

@@ -5,7 +5,7 @@ import type { ReviewRatings } from './review'
 
 // 草稿
 export interface Draft {
-  id: number
+  id: string
   courseID: number
   teacherID?: number
   termID?: string

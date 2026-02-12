@@ -38,6 +38,8 @@ export default {
     data: '暂无数据',
     result: '未找到结果'
   },
+  loadFailed: '加载失败',
+  noMore: '没有更多了',
   time: {
     justNow: '刚刚',
     minutesAgo: '{n} 分钟前',
@@ -57,8 +59,6 @@ export default {
     signupUrlFailed: '获取注册链接失败',
     invalidState: '无效的认证状态',
     callbackFailed: '认证回调处理失败',
-    fetchUserFailed: '获取用户信息失败',
-    loadFailed: '加载失败',
-    noMore: '没有更多了'
+    fetchUserFailed: '获取用户信息失败'
   }
 }

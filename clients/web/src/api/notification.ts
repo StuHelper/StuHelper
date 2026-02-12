@@ -3,12 +3,7 @@
  */
 import api from './index'
 import type { Notification, UnreadCountResponse } from '@/types/notification'
-
-// 分页响应类型
-interface PaginatedResponse<T> {
-  list: T[]
-  total: number
-}
+import type { PaginatedResponse } from '@/types/api'
 
 // 获取通知列表
 export function getNotifications(page = 1, pageSize = 20) {
@@ -23,7 +18,7 @@ export function getUnreadCount() {
 }
 
 // 标记单条已读
-export function markAsRead(notificationID: number) {
+export function markAsRead(notificationID: string) {
   return api.put<{ message: string }>(`/notifications/${notificationID}/read`)
 }
 

@@ -8,8 +8,8 @@ StuHelper 使用 Casdoor 作为用户认证系统，本地 PostgreSQL 存储业�
 
 | 组件 | 选型 | 用途 |
 |------|------|------|
-| 主数据库 | PostgreSQL 15+ | 业务数据，支持 JSONB |
-| 缓存 | Redis 7+ | 会话管理、热点缓存 |
+| 主数据库 | PostgreSQL 18+ | 业务数据，支持 JSONB |
+| 缓存 | Redis 8+ | 会话管理、热点缓存 |
 | 用户认证 | Casdoor | OAuth2/OIDC 单点登录 |
 
 ## 设计原则

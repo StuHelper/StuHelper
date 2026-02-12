@@ -1,36 +1,49 @@
 <template>
-  <div class="reports-page">
-    <h1>{{ t('admin.reports.title') }}</h1>
+  <div>
+    <h1 class="mb-4 font-sans text-xl font-extrabold tracking-tight text-text-primary">{{ t('admin.reports.title') }}</h1>
 
-    <div class="filter-bar">
+    <div class="flex gap-2 mb-4">
       <button
         v-for="opt in statusOptions"
         :key="opt.value"
-        class="filter-btn"
-        :class="{ active: status === opt.value }"
+        class="px-3 py-1 bg-transparent border border-transparent rounded-full text-text-muted text-sm cursor-pointer transition-all duration-fast hover:text-text-primary"
+        :class="status === opt.value && '!border-border !text-text-primary !font-medium'"
         @click="status = opt.value"
       >
         {{ opt.label }}
       </button>
     </div>
 
-    <div v-if="loading" class="loading">{{ t('common.actions.loading') }}</div>
+    <div v-if="loading" class="text-center p-8 text-text-muted">{{ t('common.actions.loading') }}</div>
 
-    <div v-else-if="reports.length > 0" class="reports-list">
-      <div v-for="report in reports" :key="report.id" class="report-card">
-        <div class="report-info">
-          <p class="reason">{{ report.reason }}</p>
-          <span class="time">{{ formatTime(report.createdAt) }}</span>
+    <div v-else-if="reports.length > 0" class="flex flex-col gap-3">
+      <div
+        v-for="report in reports"
+        :key="report.id"
+        class="flex items-center justify-between py-4 border-b border-border"
+      >
+        <div>
+          <p class="m-0 mb-1 text-text-primary">{{ report.reason }}</p>
+          <span class="text-xs text-text-muted">{{ formatTime(report.createdAt) }}</span>
         </div>
-        <div v-if="report.status === 'pending'" class="actions">
-          <button class="btn-reject" @click="handleProcess(report.id, 'reject')">
+        <div v-if="report.status === 'pending'" class="flex gap-2">
+          <button
+            class="px-3 py-1 bg-transparent border border-border rounded-full text-text-secondary text-sm cursor-pointer transition-all duration-fast"
+            @click="handleProcess(report.id, 'reject')"
+          >
             {{ t('admin.reports.reject') }}
           </button>
-          <button class="btn-hide" @click="handleProcess(report.id, 'hide_review')">
+          <button
+            class="px-3 py-1 bg-text-primary border-none rounded-full text-bg-base text-sm cursor-pointer transition-all duration-fast hover:bg-primary"
+            @click="handleProcess(report.id, 'hide_review')"
+          >
             {{ t('admin.reports.hideReview') }}
           </button>
         </div>
-        <span v-else class="status-badge" :class="report.status">
+        <span
+          v-else
+          class="px-2 py-1 rounded-sm text-xs text-text-muted"
+        >
           {{ report.status === 'resolved' ? t('admin.reports.statusResolved') : t('admin.reports.statusRejected') }}
         </span>
       </div>
@@ -72,7 +85,7 @@ const fetchReports = async () => {
   }
 }
 
-const handleProcess = async (id: number, action: ProcessReportParams['action']) => {
+const handleProcess = async (id: string, action: ProcessReportParams['action']) => {
   try {
     await processReport(id, { action })
     toast.success(t('admin.reports.processSuccess'))
@@ -87,117 +100,3 @@ const formatTime = (dateStr: string) => formatAbsoluteTime(dateStr, locale.value
 watch(status, fetchReports)
 onMounted(fetchReports)
 </script>
-
-<style scoped>
-.reports-page h1 {
-  margin: 0 0 var(--space-4);
-  font-family: var(--font-sans);
-  font-size: var(--text-xl);
-  font-weight: var(--weight-extrabold);
-  letter-spacing: var(--tracking-tight);
-  color: var(--text-primary);
-}
-
-.filter-bar {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-
-.filter-btn {
-  padding: var(--space-1) var(--space-3);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast);
-}
-
-.filter-btn:hover {
-  color: var(--text-primary);
-}
-
-.filter-btn.active {
-  border-color: var(--border);
-  color: var(--text-primary);
-  font-weight: var(--weight-medium);
-}
-
-.reports-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.report-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.reason {
-  margin: 0 0 var(--space-1);
-  color: var(--text-primary);
-}
-
-.time {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.btn-reject,
-.btn-hide {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: all var(--duration-fast);
-}
-
-.btn-reject {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-}
-
-.btn-hide {
-  background: var(--text-primary);
-  border: none;
-  color: var(--bg-base);
-}
-
-.btn-hide:hover {
-  background: var(--brand-primary);
-}
-
-.status-badge {
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-}
-
-.status-badge.resolved {
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.status-badge.rejected {
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.loading {
-  text-align: center;
-  padding: var(--space-8);
-  color: var(--text-muted);
-}
-</style>

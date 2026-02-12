@@ -1,75 +1,114 @@
 <template>
-  <div class="feed-card" :class="{ expanded: isExpanded, 'animate-shake': shaking }">
-    <!-- 头部：课程链接 + 时间 -->
-    <div class="feed-card__header">
-      <router-link :to="`/review/courses/${review.courseID}`" class="feed-card__course">
-        {{ review.courseName || `Course #${review.courseID}` }}
+  <div
+    class="bg-bg-card border border-border rounded-xl p-5 transition-all duration-200 ease-smooth shadow-card hover:shadow-md hover:-translate-y-px"
+    :class="{
+      'border-primary/30 shadow-glow-sm': isExpanded,
+      'animate-shake': shaking
+    }"
+  >
+    <!-- 头部：课程名 + 评分徽章 -->
+    <div class="flex items-center gap-2 mb-2">
+      <router-link
+        :to="`/review/courses/${review.courseID}`"
+        class="text-base font-bold text-text-primary no-underline overflow-hidden text-ellipsis whitespace-nowrap hover:text-primary"
+      >
+        {{ review.title || review.courseName || `Course #${review.courseID}` }}
       </router-link>
-      <span v-if="review.teacherName" class="feed-card__teacher">
-        {{ review.teacherName }}
-      </span>
-      <span class="feed-card__time">{{ formatTime(review.createdAt) }}</span>
-    </div>
-
-    <!-- 标题 -->
-    <h3 v-if="review.title" class="feed-card__title">{{ review.title }}</h3>
-
-    <!-- 内容 -->
-    <div
-      class="feed-card__content"
-      :class="{ truncated: !isExpanded && shouldTruncate }"
-      @click="toggleExpand"
-    >
-      {{ review.content }}
-    </div>
-
-    <!-- 评分胶囊 -->
-    <div v-if="avgRating > 0" class="feed-card__ratings">
-      <span class="rating-pill font-mono" :style="{ color: ratingColor }">
+      <span
+        v-if="avgRating > 0"
+        class="text-[11px] font-bold font-mono py-px px-2 rounded-full shrink-0"
+        :style="{
+          '--rating-clr': ratingColor,
+          background: 'color-mix(in srgb, var(--rating-clr, var(--color-primary)) 12%, transparent)',
+          color: 'var(--rating-clr, var(--color-primary))'
+        }"
+      >
         {{ avgRating.toFixed(1) }}
       </span>
     </div>
 
+    <!-- 元数据：教师 + 时间 -->
+    <div class="flex items-center gap-1.5 mb-3 text-xs">
+      <span v-if="review.teacherName" class="text-teacher-tag font-medium">{{ review.teacherName }}</span>
+      <span v-if="review.teacherName" class="text-text-muted">&middot;</span>
+      <span class="text-text-muted">{{ formatTime(review.createdAt) }}</span>
+    </div>
+
+    <!-- 内容 -->
+    <div
+      class="text-sm text-text-secondary leading-relaxed cursor-pointer break-words"
+      :class="{ 'line-clamp-3': !isExpanded && shouldTruncate }"
+      role="button"
+      tabindex="0"
+      :aria-label="t('review.review.expandContent')"
+      @click="toggleExpand"
+      @keydown.enter="toggleExpand"
+      @keydown.space.prevent="toggleExpand"
+    >
+      {{ review.content }}
+    </div>
+
+    <!-- 表情评分指标 -->
+    <div v-if="displayRatings.length > 0" class="flex flex-wrap gap-3 mt-4 pt-3 border-t border-border">
+      <span
+        v-for="dim in displayRatings"
+        :key="dim.key"
+        class="text-xs text-text-secondary flex items-center gap-1"
+      >
+        <span>{{ dim.emoji }}</span>
+        <span>{{ dim.label }}</span>
+        <span class="font-mono font-medium text-text-primary">{{ dim.value.toFixed(1) }}</span>
+      </span>
+    </div>
+
     <!-- 操作栏 -->
-    <div class="feed-card__actions">
+    <div class="flex items-center gap-1 mt-3" :class="{ 'pt-3 border-t border-border': displayRatings.length === 0 }">
       <button
-        class="action-btn"
-        :class="{ active: userVote === 'like' }"
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover"
+        :class="{ '!text-primary bg-primary/[0.08]': userVote === 'like' }"
+        :aria-label="t('review.vote.like')"
+        :aria-pressed="userVote === 'like'"
         @click="handleVote('like')"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" :stroke="userVote === 'like' ? 'var(--brand-primary)' : 'currentColor'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M7 10v12" /><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
-        </svg>
-        <span class="action-count font-mono" :class="{ bouncing: likeBounce }">
+        <Heart :size="16" :fill="userVote === 'like' ? 'currentColor' : 'none'" />
+        <span class="text-xs font-mono" :class="{ 'animate-vote-bounce': likeBounce }">
           {{ displayLikes }}
         </span>
       </button>
 
       <button
-        class="action-btn"
-        :class="{ active: userVote === 'dislike' }"
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover"
+        :class="{ '!text-primary bg-primary/[0.08]': userVote === 'dislike' }"
+        :aria-label="t('review.vote.dislike')"
+        :aria-pressed="userVote === 'dislike'"
         @click="handleVote('dislike')"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" :stroke="userVote === 'dislike' ? 'var(--accent)' : 'currentColor'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 14V2" /><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z" />
-        </svg>
-        <span class="action-count font-mono">{{ displayDislikes }}</span>
+        <ThumbsDown :size="16" />
+        <span class="text-xs font-mono">{{ displayDislikes }}</span>
       </button>
 
-      <button class="action-btn" @click="toggleExpand">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-        <span class="action-count font-mono">{{ replyCount }}</span>
+      <button
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover"
+        :aria-label="t('review.review.commentBtn')"
+        @click="toggleExpand"
+      >
+        <MessageCircle :size="16" />
+        <span class="text-xs font-mono">{{ replyCount }}</span>
       </button>
     </div>
 
     <!-- 展开区域：回复列表 + 回复输入 -->
-    <div v-if="isExpanded" class="feed-card__expanded">
-      <div v-if="repliesLoading" class="replies-loading">
-        <div class="spinner" />
+    <div v-if="isExpanded" class="mt-4 pt-4 border-t border-border animate-fade-in-up">
+      <div v-if="repliesLoading" class="flex justify-center py-4">
+        <div class="w-5 h-5 border-2 border-border border-t-primary rounded-full animate-spin" />
       </div>
-      <div v-else-if="replies.length > 0" class="replies-list">
+      <div v-else-if="repliesError" class="text-center text-accent text-sm py-4 flex items-center justify-center gap-2">
+        {{ t('review.review.replyLoadFailed') }}
+        <button class="text-primary text-sm cursor-pointer underline" @click="loadReplies">
+          {{ t('common.actions.retry') }}
+        </button>
+      </div>
+      <div v-else-if="replies.length > 0" class="mb-2">
         <ReplyCard
           v-for="reply in replies"
           :key="reply.id"
@@ -77,8 +116,8 @@
           @delete="handleDeleteReply"
         />
       </div>
-      <div v-else class="replies-empty">
-        {{ t('review.noReplies') }}
+      <div v-else class="text-center text-text-muted text-sm py-4">
+        {{ t('review.review.noReplies') }}
       </div>
 
       <ReplyForm
@@ -92,8 +131,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Heart, ThumbsDown, MessageCircle } from 'lucide-vue-next'
 import type { Review } from '@/types/review'
 import type { Reply } from '@/types/reply'
 import { voteReview, getReplies, postReply, deleteReply } from '@/api/review'
@@ -115,6 +155,7 @@ const shouldTruncate = computed(() => props.review.content.length > 200)
 
 // 投票状态
 const userVote = ref<VoteType | null>(null)
+const isVoting = ref(false)
 const likeOffset = ref(0)
 const dislikeOffset = ref(0)
 const likeBounce = ref(false)
@@ -122,6 +163,23 @@ const shaking = ref(false)
 
 const displayLikes = computed(() => props.review.likeCount + likeOffset.value)
 const displayDislikes = computed(() => props.review.dislikeCount + dislikeOffset.value)
+
+// 表情评分指标映射
+const ratingEmojiMap: Record<string, { emoji: string; label: string }> = {
+  recommendation: { emoji: '👍', label: '推荐度' },
+  content_quality: { emoji: '📚', label: '内容' },
+  workload: { emoji: '⏰', label: '工作量' },
+  grading: { emoji: '📊', label: '给分' }
+}
+
+const displayRatings = computed(() => {
+  const ratings = props.review.ratings
+  if (!ratings || Object.keys(ratings).length === 0) return []
+  return Object.entries(ratings).map(([key, value]) => {
+    const mapped = ratingEmojiMap[key] || { emoji: '⭐', label: key }
+    return { key, emoji: mapped.emoji, label: mapped.label, value }
+  })
+})
 
 // 评分
 const avgRating = computed(() => {
@@ -140,15 +198,40 @@ const ratingColor = computed(() => {
 // 回复
 const replies = ref<Reply[]>([])
 const repliesLoading = ref(false)
+const repliesError = ref(false)
 const replySubmitting = ref(false)
 const replyCount = ref(props.review.replyCount ?? 0)
 const replyFormRef = ref<InstanceType<typeof ReplyForm> | null>(null)
+
+// 同步 props 变化
+watch(() => props.review.replyCount, (val) => {
+  if (val !== undefined) replyCount.value = val
+})
+
+// 当 review 数据刷新时重置投票偏移量
+watch(() => props.review.id, () => {
+  likeOffset.value = 0
+  dislikeOffset.value = 0
+  userVote.value = null
+})
+
+// 定时器清理
+let bounceTimer: ReturnType<typeof setTimeout> | null = null
+let shakeTimer: ReturnType<typeof setTimeout> | null = null
+
+onUnmounted(() => {
+  if (bounceTimer) clearTimeout(bounceTimer)
+  if (shakeTimer) clearTimeout(shakeTimer)
+})
 
 // 时间格式化
 const formatTime = (dateStr: string) => formatRelativeTime(dateStr, locale.value, t)
 
 // 投票
 async function handleVote(type: VoteType) {
+  if (isVoting.value) return
+  isVoting.value = true
+
   const prevVote = userVote.value
   const prevLikeOffset = likeOffset.value
   const prevDislikeOffset = dislikeOffset.value
@@ -167,7 +250,7 @@ async function handleVote(type: VoteType) {
     if (type === 'like') {
       likeOffset.value++
       likeBounce.value = true
-      setTimeout(() => { likeBounce.value = false }, 300)
+      bounceTimer = setTimeout(() => { likeBounce.value = false }, 300)
     } else {
       dislikeOffset.value++
     }
@@ -181,27 +264,31 @@ async function handleVote(type: VoteType) {
     likeOffset.value = prevLikeOffset
     dislikeOffset.value = prevDislikeOffset
     shaking.value = true
-    setTimeout(() => { shaking.value = false }, 300)
-    toast.error(t('review.voteFailed'))
+    shakeTimer = setTimeout(() => { shaking.value = false }, 300)
+    toast.error(t('review.review.voteFailed'))
+  } finally {
+    isVoting.value = false
   }
 }
 
 // 展开/收起
 async function toggleExpand() {
   isExpanded.value = !isExpanded.value
-  if (isExpanded.value && replies.value.length === 0) {
+  if (isExpanded.value) {
     await loadReplies()
   }
 }
 
 async function loadReplies() {
   repliesLoading.value = true
+  repliesError.value = false
   try {
     const res = await getReplies(props.review.id)
     replies.value = res.data?.list || []
     replyCount.value = res.data?.total || 0
   } catch {
     replies.value = []
+    repliesError.value = true
   } finally {
     repliesLoading.value = false
   }
@@ -214,182 +301,26 @@ async function handleReplySubmit(content: string) {
       reviewID: props.review.id,
       content
     })
-    replies.value.push(res.data)
-    replyCount.value++
-    replyFormRef.value?.clear()
-    toast.success(t('review.replySuccess'))
+    if (res.data) {
+      replies.value.push(res.data)
+      replyCount.value++
+      replyFormRef.value?.clear()
+      toast.success(t('review.review.replySuccess'))
+    }
   } catch {
-    toast.error(t('review.replyFailed'))
+    toast.error(t('review.review.replyFailed'))
   } finally {
     replySubmitting.value = false
   }
 }
 
-async function handleDeleteReply(id: number) {
+async function handleDeleteReply(id: string) {
   try {
     await deleteReply(id)
     replies.value = replies.value.filter((r) => r.id !== id)
-    replyCount.value--
+    replyCount.value = Math.max(0, replyCount.value - 1)
   } catch {
-    toast.error(t('review.deleteFailed'))
+    toast.error(t('review.review.deleteFailed'))
   }
 }
 </script>
-
-<style scoped>
-.feed-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  transition: border-color var(--duration-base) var(--ease-smooth);
-}
-
-.feed-card:hover {
-  border-color: var(--border-light);
-}
-
-.feed-card.expanded {
-  border-color: var(--brand-primary);
-  box-shadow: var(--shadow-glow-sm);
-}
-
-.feed-card__header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.feed-card__course {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--brand-primary);
-  text-decoration: none;
-}
-
-.feed-card__course:hover {
-  text-decoration: underline;
-}
-
-.feed-card__teacher {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  padding: 2px 8px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-full);
-}
-
-.feed-card__time {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  margin-left: auto;
-}
-
-.feed-card__title {
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  margin-bottom: var(--space-2);
-  letter-spacing: var(--tracking-tight);
-}
-
-.feed-card__content {
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  line-height: var(--leading-relaxed);
-  cursor: pointer;
-  word-break: break-word;
-}
-
-.feed-card__content.truncated {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.feed-card__ratings {
-  margin-top: var(--space-3);
-}
-
-.rating-pill {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  padding: 2px 10px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-full);
-}
-
-.feed-card__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-full);
-  transition: all var(--duration-fast) var(--ease-smooth);
-  cursor: pointer;
-}
-
-.action-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.action-btn.active {
-  color: var(--brand-primary);
-}
-
-.action-count {
-  font-size: var(--text-xs);
-}
-
-.action-count.bouncing {
-  animation: voteBounce var(--duration-slow) var(--ease-spring);
-}
-
-.feed-card__expanded {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
-  animation: fadeInUp var(--duration-base) var(--ease-out);
-}
-
-.replies-loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border);
-  border-top-color: var(--brand-primary);
-  border-radius: var(--radius-full);
-  animation: spin 0.6s linear infinite;
-}
-
-.replies-empty {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  padding: var(--space-4);
-}
-
-.replies-list {
-  margin-bottom: var(--space-2);
-}
-</style>

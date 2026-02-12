@@ -1,68 +1,113 @@
 <template>
   <Teleport to="body">
     <Transition name="overlay">
-      <div v-if="visible" class="modal-overlay" @click.self="$emit('close')">
-        <div class="modal-panel animate-modal-in">
-          <div class="modal-header">
-            <h2 class="modal-title">{{ t('review.hub.postReview') }}</h2>
-            <button class="modal-close" @click="$emit('close')">&times;</button>
+      <div v-if="visible" class="fixed inset-0 bg-bg-overlay z-50 flex items-center justify-center p-4" @click.self="$emit('close')">
+        <div
+          ref="modalRef"
+          class="w-full max-w-[660px] max-h-[85vh] bg-bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden animate-modal-in"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="review-dialog-title"
+          tabindex="-1"
+          @keydown.esc="$emit('close')"
+          @keydown="trapFocus"
+        >
+          <div class="flex items-center justify-between p-5 border-b border-border">
+            <h2 id="review-dialog-title" class="text-lg font-bold tracking-tight">{{ t('review.hub.postReview') }}</h2>
+            <button class="text-2xl text-text-muted leading-none cursor-pointer w-8 h-8 flex items-center justify-center rounded-full transition-all duration-fast hover:text-text-primary hover:bg-bg-secondary" :aria-label="t('common.actions.close')" @click="$emit('close')">&times;</button>
           </div>
 
-          <div class="modal-body">
+          <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
             <!-- 课程搜索 -->
-            <div v-if="!selectedCourse" class="course-search">
+            <div v-if="!selectedCourse">
               <input
                 v-model="courseQuery"
-                class="search-input"
+                class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                 :placeholder="t('review.post.searchCourse')"
+                :aria-label="t('review.post.searchCourseLabel')"
               />
-              <div v-if="courseResults.length > 0" class="course-results">
+              <div v-if="courseResults.length > 0" class="border border-border rounded-lg max-h-[200px] overflow-y-auto mt-2">
                 <button
                   v-for="c in courseResults"
                   :key="c.id"
-                  class="course-result-item"
+                  class="flex items-center gap-2 w-full p-3 text-left text-sm text-text-primary cursor-pointer transition-[background] duration-fast hover:bg-bg-hover"
                   @click="selectCourse(c)"
                 >
-                  <span class="course-result-name">{{ c.name }}</span>
-                  <span class="course-result-dept">{{ c.departmentName }}</span>
+                  <span class="font-medium truncate">{{ c.name }}</span>
+                  <span class="shrink-0 text-xs text-text-muted"><template v-if="c.credits">{{ c.credits }}学分 · </template>{{ c.departmentName }}</span>
+                  <span class="shrink-0 text-xs tabular-nums text-text-muted ml-auto">{{ c.reviewCount ?? 0 }}评</span>
                 </button>
               </div>
             </div>
 
             <!-- 已选课程 -->
-            <div v-else class="selected-course">
-              <span class="selected-name">{{ selectedCourse.name }}</span>
-              <button class="change-btn" @click="selectedCourse = null">
+            <div v-else class="flex items-center justify-between p-3 bg-primary/[0.06] rounded-lg border border-primary/15">
+              <span class="font-semibold text-sm">{{ selectedCourse.name }}</span>
+              <button class="text-xs text-primary cursor-pointer" @click="selectedCourse = null">
                 {{ t('common.actions.edit') }}
               </button>
             </div>
 
             <!-- 表单 -->
             <template v-if="selectedCourse">
-              <input
-                v-model="title"
-                class="form-input"
-                :placeholder="t('review.post.title')"
-              />
+              <div class="relative">
+                <span class="font-medium text-text-primary text-sm mb-1.5 block">标题 <span class="text-danger text-xs">*</span></span>
+                <input
+                  v-model="title"
+                  class="w-full p-3 bg-bg-secondary border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+                  :class="attempted && titleInvalid ? 'border-danger' : 'border-border'"
+                  placeholder="一句话总结您的观点，例如：绝世好课"
+                  :aria-label="t('review.post.titleLabel')"
+                  :maxlength="TITLE_MAX"
+                />
+                <span v-if="attempted && titleInvalid" class="block text-xs text-danger mt-1">请填写标题</span>
+                <span v-else class="block text-right text-xs text-text-muted mt-1">
+                  {{ t('review.validation.charCount', { current: title.length, max: TITLE_MAX }) }}
+                </span>
+              </div>
 
-              <RatingGroup v-model="ratings" />
+              <div :class="{ 'ring-1 ring-danger rounded-lg': attempted && ratingsInvalid }">
+                <RatingGroup ref="ratingGroupRef" v-model="ratings" />
+              </div>
+              <span v-if="attempted && ratingsInvalid" class="block text-xs text-danger -mt-2">请为每个维度打分</span>
 
-              <textarea
-                v-model="content"
-                class="form-textarea"
-                :placeholder="t('review.post.contentPlaceholder')"
-                rows="5"
-              />
+              <div class="relative">
+                <span class="font-medium text-text-primary text-sm mb-1.5 block">详细评价 <span class="text-danger text-xs">*</span></span>
+                <textarea
+                  v-model="content"
+                  class="w-full p-3 bg-bg-secondary border rounded-lg text-sm text-text-primary font-sans resize-vertical min-h-[120px] transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+                  :class="attempted && contentInvalid ? 'border-danger' : 'border-border'"
+                  :placeholder="t('review.post.contentPlaceholder')"
+                  :aria-label="t('review.post.contentLabel')"
+                  :aria-describedby="contentError ? 'review-dialog-content-error' : undefined"
+                  :maxlength="CONTENT_MAX"
+                  rows="5"
+                />
+                <span v-if="contentError || (attempted && contentInvalid)" id="review-dialog-content-error" class="block text-xs text-danger mt-1">
+                  {{ contentError || `请至少填写 ${CONTENT_MIN} 个字的评价内容` }}
+                </span>
+              </div>
+
+              <div class="relative">
+                <span class="font-medium text-text-primary text-sm mb-1.5 block">成绩 <span class="text-text-muted font-normal text-xs">（选填）</span></span>
+                <input
+                  v-model="grade"
+                  class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+                  placeholder="例如：90、A+、优秀"
+                  aria-label="成绩"
+                  maxlength="20"
+                />
+              </div>
             </template>
           </div>
 
-          <div v-if="selectedCourse" class="modal-footer">
-            <button class="cancel-btn" @click="$emit('close')">
+          <div v-if="selectedCourse" class="flex justify-end gap-3 px-5 py-4 border-t border-border">
+            <button class="py-2 px-4 text-sm text-text-secondary border border-border rounded-full cursor-pointer" @click="$emit('close')">
               {{ t('common.actions.cancel') }}
             </button>
             <button
-              class="submit-btn"
-              :disabled="!canSubmit || submitting"
+              class="py-2 px-5 text-sm font-medium text-white bg-gradient-to-br from-primary to-accent rounded-full cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="submitting"
               @click="handleSubmit"
             >
               {{ submitting ? t('common.actions.loading') : t('review.post.submit') }}
@@ -75,11 +120,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { searchCourses } from '@/api/course'
 import { postReview } from '@/api/review'
 import { useToast } from '@/composables/useToast'
+import { useReviewPost } from '@/composables/useReviewPost'
 import RatingGroup from './RatingGroup.vue'
 import type { Course } from '@/types/course'
 import type { ReviewRatings } from '@/types/review'
@@ -89,26 +135,57 @@ const emit = defineEmits<{ close: []; posted: [] }>()
 
 const { t } = useI18n()
 const toast = useToast()
+const { preselectedCourse } = useReviewPost()
+
+const TITLE_MAX = 100
+const CONTENT_MIN = 10
+const CONTENT_MAX = 5000
+const CONTENT_TEMPLATE = '课程听感:\n作业/任务量:\n关于考试:'
+const TEMPLATE_LABELS = ['课程听感:', '作业/任务量:', '关于考试:']
+
+const modalRef = ref<HTMLElement | null>(null)
+const ratingGroupRef = ref<InstanceType<typeof RatingGroup> | null>(null)
 
 const courseQuery = ref('')
 const courseResults = ref<Course[]>([])
 const selectedCourse = ref<Course | null>(null)
 const title = ref('')
 const content = ref('')
+const grade = ref('')
 const ratings = ref<ReviewRatings>({})
 const submitting = ref(false)
+const attempted = ref(false)
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+// 焦点陷阱：Tab/Shift+Tab 在对话框内循环
+function trapFocus(e: KeyboardEvent) {
+  if (e.key !== 'Tab' || !modalRef.value) return
+  const focusable = modalRef.value.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (e.shiftKey) {
+    if (document.activeElement === first) { e.preventDefault(); last.focus() }
+  } else {
+    if (document.activeElement === last) { e.preventDefault(); first.focus() }
+  }
+}
 
 watch(courseQuery, (val) => {
   if (searchTimer) clearTimeout(searchTimer)
   const q = val.trim()
   if (!q) { courseResults.value = []; return }
 
+  const currentQuery = q
   searchTimer = setTimeout(async () => {
     try {
-      const res = await searchCourses(q, 8)
-      courseResults.value = res.data || []
+      const res = await searchCourses(currentQuery, 8)
+      if (courseQuery.value.trim() === currentQuery) {
+        courseResults.value = res.data?.list || []
+      }
     } catch { courseResults.value = [] }
   }, 300)
 })
@@ -117,16 +194,23 @@ onUnmounted(() => {
   if (searchTimer) clearTimeout(searchTimer)
 })
 
-// 对话框打开时重置表单
+// 对话框打开时重置表单并聚焦，锁定 body 滚动
 watch(() => props.visible, (val) => {
   if (val) {
+    document.body.style.overflow = 'hidden'
     courseQuery.value = ''
     courseResults.value = []
-    selectedCourse.value = null
+    selectedCourse.value = preselectedCourse.value ?? null
     title.value = ''
-    content.value = ''
+    content.value = CONTENT_TEMPLATE
+    grade.value = ''
     ratings.value = {}
     submitting.value = false
+    attempted.value = false
+    nextTick(() => modalRef.value?.focus())
+  } else {
+    document.body.style.overflow = ''
+    if (searchTimer) clearTimeout(searchTimer)
   }
 })
 
@@ -136,13 +220,52 @@ function selectCourse(course: Course) {
   courseResults.value = []
 }
 
+// 去掉模板标签后的实际用户输入长度
+function getUserContentLength(raw: string): number {
+  let text = raw
+  for (const label of TEMPLATE_LABELS) {
+    text = text.replaceAll(label, '')
+  }
+  return text.trim().length
+}
+
+const titleInvalid = computed(() => title.value.trim().length === 0)
+
+const ratingsInvalid = computed(() => {
+  const dims = ratingGroupRef.value?.dimensions ?? []
+  if (dims.length === 0) return Object.keys(ratings.value).length === 0
+  // 每个维度都必须评分
+  return dims.some(d => {
+    const v = ratings.value[d.key]
+    return !v || v < 1 || v > 5
+  })
+})
+
+const contentInvalid = computed(() =>
+  getUserContentLength(content.value) < CONTENT_MIN
+)
+
+const userContentLength = computed(() => getUserContentLength(content.value))
+
+const contentError = computed(() => {
+  const userLen = getUserContentLength(content.value)
+  if (userLen > 0 && userLen < CONTENT_MIN) {
+    return `请至少填写 ${CONTENT_MIN} 个字的评价内容（不含模板文字）`
+  }
+  return ''
+})
+
 const canSubmit = computed(() => {
   return selectedCourse.value &&
-    content.value.trim().length > 0 &&
-    Object.keys(ratings.value).length > 0
+    !titleInvalid.value &&
+    !contentInvalid.value &&
+    content.value.length <= CONTENT_MAX &&
+    title.value.length <= TITLE_MAX &&
+    !ratingsInvalid.value
 })
 
 async function handleSubmit() {
+  attempted.value = true
   if (!canSubmit.value || !selectedCourse.value) return
   submitting.value = true
   try {
@@ -150,6 +273,7 @@ async function handleSubmit() {
       courseID: selectedCourse.value.id,
       title: title.value.trim() || undefined,
       content: content.value.trim(),
+      grade: grade.value.trim() || undefined,
       ratings: ratings.value
     })
     toast.success(t('review.post.success'))
@@ -164,179 +288,7 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--bg-overlay);
-  z-index: var(--z-modal);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-}
-
-.modal-panel {
-  width: 100%;
-  max-width: 560px;
-  max-height: 85vh;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-5);
-  border-bottom: 1px solid var(--border);
-}
-
-.modal-title {
-  font-size: var(--text-lg);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
-}
-
-.modal-close {
-  font-size: var(--text-2xl);
-  color: var(--text-muted);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.modal-close:hover { color: var(--text-primary); }
-
-.modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.search-input,
-.form-input {
-  width: 100%;
-  padding: var(--space-3);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-}
-
-.search-input:focus,
-.form-input:focus {
-  outline: none;
-  border-color: var(--brand-primary);
-  box-shadow: var(--shadow-glow-sm);
-}
-
-.course-results {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.course-result-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: var(--space-3);
-  text-align: left;
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background var(--duration-fast);
-}
-
-.course-result-item:hover { background: var(--bg-hover); }
-
-.course-result-dept {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.selected-course {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-}
-
-.selected-name {
-  font-weight: var(--weight-semibold);
-  font-size: var(--text-sm);
-}
-
-.change-btn {
-  font-size: var(--text-xs);
-  color: var(--brand-primary);
-  cursor: pointer;
-}
-
-.form-textarea {
-  width: 100%;
-  padding: var(--space-3);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  resize: vertical;
-  min-height: 120px;
-}
-
-.form-textarea:focus {
-  outline: none;
-  border-color: var(--brand-primary);
-  box-shadow: var(--shadow-glow-sm);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid var(--border);
-}
-
-.cancel-btn {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-}
-
-.submit-btn {
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: white;
-  background: var(--gradient-brand);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-}
-
-.submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
+/* Vue Transition hooks — 无法用 utility 表达 */
 .overlay-enter-active { animation: overlayIn var(--duration-base) var(--ease-out); }
 .overlay-leave-active { animation: overlayIn var(--duration-fast) var(--ease-out) reverse; }
 </style>

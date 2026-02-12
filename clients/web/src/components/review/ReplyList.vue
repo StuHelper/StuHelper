@@ -1,30 +1,34 @@
 <template>
-  <div class="reply-list">
-    <div class="reply-header">
-      <button class="toggle-btn" @click="toggleExpand">
-        <span>{{ t('review.reply.count', { count: replies.length }) }}</span>
-        <svg
-          class="chevron"
-          :class="{ expanded }"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-        >
-          <path d="M19 9l-7 7-7-7" stroke-width="2" />
-        </svg>
+  <div class="mt-3 border-t border-border pt-3">
+    <div class="flex items-center justify-between">
+      <button
+        class="flex items-center gap-1 bg-transparent border-none text-text-muted text-sm cursor-pointer py-1 hover:text-text-secondary"
+        :aria-expanded="expanded"
+        @click="toggleExpand"
+      >
+        <span>{{ t('review.reply.count', { count: displayCount }) }}</span>
+        <ChevronDown
+          :size="16"
+          class="transition-transform duration-base ease-linear"
+          :class="{ 'rotate-180': expanded }"
+        />
       </button>
       <button
         v-if="!showForm"
-        class="reply-btn"
+        class="text-sm text-primary bg-transparent border-none cursor-pointer py-1 px-2 hover:underline"
         @click="showForm = true"
       >
         {{ t('common.actions.reply') }}
       </button>
     </div>
 
-    <transition name="collapse">
-      <div v-if="expanded" class="reply-content">
-        <div v-if="error" class="error-msg">{{ error }}</div>
+    <transition
+      @enter="onEnter"
+      @after-enter="onAfterEnter"
+      @leave="onLeave"
+      @after-leave="onAfterLeave"
+    >
+      <div v-if="expanded" class="flex flex-col gap-3 mt-3">
         <ReplyForm
           v-if="showForm"
           :submitting="submitting"
@@ -32,8 +36,18 @@
           @cancel="showForm = false"
         />
 
-        <div v-if="loading" class="loading">
-          <span class="spinner" />
+        <div v-if="loading" class="flex justify-center py-4">
+          <span class="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
+        </div>
+
+        <div v-else-if="error" class="flex items-center gap-3 p-3 text-danger text-sm">
+          {{ error }}
+          <button
+            class="py-1 px-3 bg-transparent border border-border rounded-sm text-text-secondary text-sm cursor-pointer shrink-0 hover:border-text-primary hover:text-text-primary"
+            @click="fetchReplies"
+          >
+            {{ t('common.actions.retry') }}
+          </button>
         </div>
 
         <template v-else-if="replies.length > 0">
@@ -56,8 +70,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ChevronDown } from 'lucide-vue-next'
 import type { Reply } from '@/types/reply'
 import { getReplies, postReply, deleteReply } from '@/api/review'
 import ReplyCard from './ReplyCard.vue'
@@ -67,7 +82,8 @@ import EmptyState from '@/components/common/EmptyState.vue'
 const { t } = useI18n()
 
 const props = defineProps<{
-  reviewID: number
+  reviewID: string
+  replyCount?: number
 }>()
 
 const expanded = ref(false)
@@ -77,20 +93,26 @@ const submitting = ref(false)
 const replies = ref<Reply[]>([])
 const error = ref('')
 
+// 展开前使用父组件传入的 replyCount，展开后使用实际加载的数据长度
+const displayCount = computed(() =>
+  expanded.value ? replies.value.length : (props.replyCount ?? 0)
+)
+
 const toggleExpand = () => {
   expanded.value = !expanded.value
-  if (expanded.value && replies.value.length === 0) {
+  if (expanded.value && replies.value.length === 0 && !loading.value) {
     fetchReplies()
   }
 }
 
 const fetchReplies = async () => {
   loading.value = true
+  error.value = ''
   try {
     const res = await getReplies(props.reviewID)
     replies.value = res.data?.list || []
   } catch {
-    // 回复列表加载失败，UI 显示空状态
+    error.value = t('review.reply.loadFailed')
   } finally {
     loading.value = false
   }
@@ -115,7 +137,43 @@ const handleSubmit = async (content: string) => {
   }
 }
 
-const handleDelete = async (id: number) => {
+// collapse transition hooks — 动态计算高度替代 max-height hack
+const onEnter = (el: Element) => {
+  const htmlEl = el as HTMLElement
+  htmlEl.style.overflow = 'hidden'
+  htmlEl.style.height = '0'
+  htmlEl.offsetHeight // force reflow
+  htmlEl.style.transition = 'height var(--duration-base) ease, opacity var(--duration-base) ease'
+  htmlEl.style.height = htmlEl.scrollHeight + 'px'
+  htmlEl.style.opacity = '1'
+}
+
+const onAfterEnter = (el: Element) => {
+  const htmlEl = el as HTMLElement
+  htmlEl.style.height = ''
+  htmlEl.style.overflow = ''
+  htmlEl.style.transition = ''
+}
+
+const onLeave = (el: Element) => {
+  const htmlEl = el as HTMLElement
+  htmlEl.style.overflow = 'hidden'
+  htmlEl.style.height = htmlEl.scrollHeight + 'px'
+  htmlEl.offsetHeight // force reflow
+  htmlEl.style.transition = 'height var(--duration-base) ease, opacity var(--duration-base) ease'
+  htmlEl.style.height = '0'
+  htmlEl.style.opacity = '0'
+}
+
+const onAfterLeave = (el: Element) => {
+  const htmlEl = el as HTMLElement
+  htmlEl.style.height = ''
+  htmlEl.style.overflow = ''
+  htmlEl.style.transition = ''
+  htmlEl.style.opacity = ''
+}
+
+const handleDelete = async (id: string) => {
   error.value = ''
   try {
     await deleteReply(id)
@@ -125,100 +183,3 @@ const handleDelete = async (id: number) => {
   }
 }
 </script>
-
-<style scoped>
-.reply-list {
-  margin-top: var(--space-3);
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-3);
-}
-
-.reply-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  padding: var(--space-1) 0;
-}
-
-.toggle-btn:hover {
-  color: var(--text-secondary);
-}
-
-.chevron {
-  width: 16px;
-  height: 16px;
-  transition: transform var(--duration-base) ease;
-}
-
-.chevron.expanded {
-  transform: rotate(180deg);
-}
-
-.reply-btn {
-  font-size: var(--text-sm);
-  color: var(--brand-primary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-1) var(--space-2);
-}
-
-.reply-btn:hover {
-  text-decoration: underline;
-}
-
-.reply-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-}
-
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--border);
-  border-top-color: var(--brand-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.collapse-enter-active,
-.collapse-leave-active {
-  transition: all var(--duration-base) ease;
-  overflow: hidden;
-}
-
-.collapse-enter-from,
-.collapse-leave-to {
-  opacity: 0;
-  max-height: 0;
-}
-
-.collapse-enter-to,
-.collapse-leave-from {
-  opacity: 1;
-  max-height: 1000px;
-}
-</style>
