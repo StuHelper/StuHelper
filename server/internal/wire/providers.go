@@ -2,6 +2,7 @@
 package wire
 
 import (
+	"log"
 	"time"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
@@ -42,7 +43,12 @@ func ProvideRedisClient(cfg *config.Config) (*redis.Client, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	cleanup := func() { _ = client.Close() }
+	cleanup := func() {
+		if err := client.Close(); err != nil {
+			// 关闭阶段无法恢复，仅记录
+			log.Printf("WARN: failed to close Redis client: %v", err)
+		}
+	}
 	return client, cleanup, nil
 }
 

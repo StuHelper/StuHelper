@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-bg-base p-4">
-    <div class="bg-[var(--bg-glass)] backdrop-blur-[20px] py-12 px-10 border border-border rounded-xl shadow-card text-center max-w-[380px] w-full animate-fade-in overflow-hidden">
+    <div class="bg-bg-glass backdrop-blur-[20px] py-12 px-10 border border-border rounded-xl shadow-card text-center max-w-[380px] w-full animate-fade-in overflow-hidden">
       <!-- 渐变条 -->
       <div class="h-[3px] bg-gradient-to-r from-primary to-accent -mt-12 -mx-10 mb-6"></div>
 

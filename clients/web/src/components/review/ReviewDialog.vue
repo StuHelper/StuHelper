@@ -34,8 +34,8 @@
                   @click="selectCourse(c)"
                 >
                   <span class="font-medium truncate">{{ c.name }}</span>
-                  <span class="shrink-0 text-xs text-text-muted"><template v-if="c.credits">{{ c.credits }}学分 · </template>{{ c.departmentName }}</span>
-                  <span class="shrink-0 text-xs tabular-nums text-text-muted ml-auto">{{ c.reviewCount ?? 0 }}评</span>
+                  <span class="shrink-0 text-xs text-text-muted"><template v-if="c.credits">{{ t('review.course.creditsBadge', { n: c.credits }) }} · </template>{{ c.departmentName }}</span>
+                  <span class="shrink-0 text-xs tabular-nums text-text-muted ml-auto">{{ t('review.course.reviewCountBadge', { count: c.reviewCount ?? 0 }) }}</span>
                 </button>
               </div>
             </div>
@@ -51,16 +51,16 @@
             <!-- 表单 -->
             <template v-if="selectedCourse">
               <div class="relative">
-                <span class="font-medium text-text-primary text-sm mb-1.5 block">标题 <span class="text-danger text-xs">*</span></span>
+                <span class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.titleRequired') }} <span class="text-danger text-xs">*</span></span>
                 <input
                   v-model="title"
                   class="w-full p-3 bg-bg-secondary border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                   :class="attempted && titleInvalid ? 'border-danger' : 'border-border'"
-                  placeholder="一句话总结您的观点，例如：绝世好课"
+                  :placeholder="t('review.post.titlePlaceholder')"
                   :aria-label="t('review.post.titleLabel')"
                   :maxlength="TITLE_MAX"
                 />
-                <span v-if="attempted && titleInvalid" class="block text-xs text-danger mt-1">请填写标题</span>
+                <span v-if="attempted && titleInvalid" class="block text-xs text-danger mt-1">{{ t('review.post.titleMissing') }}</span>
                 <span v-else class="block text-right text-xs text-text-muted mt-1">
                   {{ t('review.validation.charCount', { current: title.length, max: TITLE_MAX }) }}
                 </span>
@@ -69,10 +69,10 @@
               <div :class="{ 'ring-1 ring-danger rounded-lg': attempted && ratingsInvalid }">
                 <RatingGroup ref="ratingGroupRef" v-model="ratings" />
               </div>
-              <span v-if="attempted && ratingsInvalid" class="block text-xs text-danger -mt-2">请为每个维度打分</span>
+              <span v-if="attempted && ratingsInvalid" class="block text-xs text-danger -mt-2">{{ t('review.post.ratingMissing') }}</span>
 
               <div class="relative">
-                <span class="font-medium text-text-primary text-sm mb-1.5 block">详细评价 <span class="text-danger text-xs">*</span></span>
+                <span class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.detailedReview') }} <span class="text-danger text-xs">*</span></span>
                 <textarea
                   v-model="content"
                   class="w-full p-3 bg-bg-secondary border rounded-lg text-sm text-text-primary font-sans resize-vertical min-h-[120px] transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
@@ -84,17 +84,17 @@
                   rows="5"
                 />
                 <span v-if="contentError || (attempted && contentInvalid)" id="review-dialog-content-error" class="block text-xs text-danger mt-1">
-                  {{ contentError || `请至少填写 ${CONTENT_MIN} 个字的评价内容` }}
+                  {{ contentError || t('review.post.contentMinError', { min: CONTENT_MIN }) }}
                 </span>
               </div>
 
               <div class="relative">
-                <span class="font-medium text-text-primary text-sm mb-1.5 block">成绩 <span class="text-text-muted font-normal text-xs">（选填）</span></span>
+                <span class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.gradeLabel') }} <span class="text-text-muted font-normal text-xs">（{{ t('review.post.gradeOptional') }}）</span></span>
                 <input
                   v-model="grade"
                   class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
-                  placeholder="例如：90、A+、优秀"
-                  aria-label="成绩"
+                  :placeholder="t('review.post.gradePlaceholder')"
+                  :aria-label="t('review.post.gradeLabel')"
                   maxlength="20"
                 />
               </div>
@@ -140,8 +140,13 @@ const { preselectedCourse } = useReviewPost()
 const TITLE_MAX = 100
 const CONTENT_MIN = 10
 const CONTENT_MAX = 5000
-const CONTENT_TEMPLATE = '课程听感:\n作业/任务量:\n关于考试:'
-const TEMPLATE_LABELS = ['课程听感:', '作业/任务量:', '关于考试:']
+
+const templateLabels = computed(() => [
+  t('review.post.templateListening'),
+  t('review.post.templateWorkload'),
+  t('review.post.templateExam')
+])
+const contentTemplate = computed(() => templateLabels.value.join('\n'))
 
 const modalRef = ref<HTMLElement | null>(null)
 const ratingGroupRef = ref<InstanceType<typeof RatingGroup> | null>(null)
@@ -202,7 +207,7 @@ watch(() => props.visible, (val) => {
     courseResults.value = []
     selectedCourse.value = preselectedCourse.value ?? null
     title.value = ''
-    content.value = CONTENT_TEMPLATE
+    content.value = contentTemplate.value
     grade.value = ''
     ratings.value = {}
     submitting.value = false
@@ -223,7 +228,7 @@ function selectCourse(course: Course) {
 // 去掉模板标签后的实际用户输入长度
 function getUserContentLength(raw: string): number {
   let text = raw
-  for (const label of TEMPLATE_LABELS) {
+  for (const label of templateLabels.value) {
     text = text.replaceAll(label, '')
   }
   return text.trim().length
@@ -245,12 +250,10 @@ const contentInvalid = computed(() =>
   getUserContentLength(content.value) < CONTENT_MIN
 )
 
-const userContentLength = computed(() => getUserContentLength(content.value))
-
 const contentError = computed(() => {
   const userLen = getUserContentLength(content.value)
   if (userLen > 0 && userLen < CONTENT_MIN) {
-    return `请至少填写 ${CONTENT_MIN} 个字的评价内容（不含模板文字）`
+    return t('review.post.contentMinErrorNoTemplate', { min: CONTENT_MIN })
   }
   return ''
 })

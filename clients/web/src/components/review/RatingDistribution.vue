@@ -9,7 +9,7 @@
       <div class="flex-1 h-2 bg-bg-secondary rounded-full overflow-hidden">
         <div
           class="h-full rounded-full transition-all duration-slower ease-out"
-          :style="{ width: `${getPercentage(star)}%`, background: `var(--rating-${star})` }"
+          :style="{ width: `${getPercentage(star)}%`, background: `var(--color-rating-${star})` }"
         />
       </div>
       <span class="font-mono text-xs text-text-muted w-7 text-right">{{ getCount(star) }}</span>

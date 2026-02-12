@@ -7,7 +7,7 @@
         :r="radius"
         fill="none"
         :stroke-width="strokeWidth"
-        :style="{ stroke: 'var(--bg-secondary)' }"
+        :style="{ stroke: 'var(--color-bg-secondary)' }"
       />
       <circle
         class="transition-all duration-700 ease-out"
@@ -59,10 +59,10 @@ const displayValue = computed(() => props.value.toFixed(1))
 
 const strokeColor = computed(() => {
   const ratio = percentage.value
-  if (ratio >= 0.8) return 'var(--rating-5)'
-  if (ratio >= 0.6) return 'var(--rating-4)'
-  if (ratio >= 0.4) return 'var(--rating-3)'
-  if (ratio >= 0.2) return 'var(--rating-2)'
-  return 'var(--rating-1)'
+  if (ratio >= 0.8) return 'var(--color-rating-5)'
+  if (ratio >= 0.6) return 'var(--color-rating-4)'
+  if (ratio >= 0.4) return 'var(--color-rating-3)'
+  if (ratio >= 0.2) return 'var(--color-rating-2)'
+  return 'var(--color-rating-1)'
 })
 </script>

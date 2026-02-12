@@ -33,10 +33,10 @@ const displayValue = computed(() =>
 
 const fillColor = computed(() => {
   const ratio = props.value / max.value
-  if (ratio >= 0.8) return 'var(--rating-5)'
-  if (ratio >= 0.6) return 'var(--rating-4)'
-  if (ratio >= 0.4) return 'var(--rating-3)'
-  if (ratio >= 0.2) return 'var(--rating-2)'
-  return 'var(--rating-1)'
+  if (ratio >= 0.8) return 'var(--color-rating-5)'
+  if (ratio >= 0.6) return 'var(--color-rating-4)'
+  if (ratio >= 0.4) return 'var(--color-rating-3)'
+  if (ratio >= 0.2) return 'var(--color-rating-2)'
+  return 'var(--color-rating-1)'
 })
 </script>

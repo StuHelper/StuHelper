@@ -13,17 +13,17 @@
         <Check
           v-if="item.type === 'success'"
           :size="16"
-          class="shrink-0 text-[var(--rating-5)]"
+          class="shrink-0 text-[var(--color-rating-5)]"
         />
         <XCircle
           v-else-if="item.type === 'error'"
           :size="16"
-          class="shrink-0 text-[var(--rating-1)]"
+          class="shrink-0 text-[var(--color-rating-1)]"
         />
         <AlertTriangle
           v-else-if="item.type === 'warning'"
           :size="16"
-          class="shrink-0 text-[var(--rating-3)]"
+          class="shrink-0 text-[var(--color-rating-3)]"
         />
         <Info
           v-else

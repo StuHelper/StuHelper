@@ -155,10 +155,10 @@ let chartInstance: ECharts | null = null
 function readCssVars() {
   const style = getComputedStyle(document.documentElement)
   return {
-    border: style.getPropertyValue('--border').trim(),
-    borderLight: style.getPropertyValue('--border-light').trim(),
-    textMuted: style.getPropertyValue('--text-muted').trim(),
-    accent: style.getPropertyValue('--accent').trim(),
+    border: style.getPropertyValue('--color-border').trim(),
+    borderLight: style.getPropertyValue('--color-border-light').trim(),
+    textMuted: style.getPropertyValue('--color-text-muted').trim(),
+    accent: style.getPropertyValue('--color-accent').trim(),
   }
 }
 

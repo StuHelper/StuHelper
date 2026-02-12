@@ -4,7 +4,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import type { Review } from '@/types/review'
-import type { Course } from '@/types/course'
+import type { FavoriteCourse } from '@/types/course'
 import * as userApi from '@/api/user'
 
 
@@ -44,7 +44,7 @@ export const useUserStore = defineStore('user', () => {
   const myVotesLoading = ref(false)
 
   // 我的收藏
-  const myFavorites = ref<Course[]>([])
+  const myFavorites = ref<FavoriteCourse[]>([])
   const myFavoritesTotal = ref(0)
   const myFavoritesLoading = ref(false)
 

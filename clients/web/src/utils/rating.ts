@@ -11,9 +11,8 @@ export const ratingToText = (value: number, t: (key: string) => string): string 
 }
 
 // 评分转颜色 (1-5 五级制)
-// TODO: 硬编码颜色值，理想情况应使用 CSS 变量 (--rating-5 等)。
-// 但此函数用于 JS 上下文（如 ECharts），无法直接使用 CSS 变量，
-// 需配合 getComputedStyle 读取。模板中优先使用 CSS 变量（参考 ReviewCard）。
+// 硬编码颜色值，用于 JS 上下文（如 ECharts）。
+// 模板中应使用 CSS 变量 var(--color-rating-*) 替代。
 export const ratingToColor = (value: number): string => {
   if (value >= 4) return '#67c23a'
   if (value === 3) return '#909399'

@@ -3,7 +3,7 @@
  */
 import api from './index'
 import type { Review } from '@/types/review'
-import type { Course } from '@/types/course'
+import type { FavoriteCourse } from '@/types/course'
 import type { PaginatedResponse } from '@/types/api'
 
 // 获取我的评论
@@ -22,7 +22,7 @@ export function getMyVotes(page = 1, pageSize = 10) {
 
 // 获取我的收藏
 export function getMyFavorites(page = 1, pageSize = 10) {
-  return api.get<PaginatedResponse<Course>>('/user/favorites', {
+  return api.get<PaginatedResponse<FavoriteCourse>>('/user/favorites', {
     params: { page, pageSize }
   })
 }

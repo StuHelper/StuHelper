@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -84,9 +85,7 @@ func MaxBodySize(maxBytes int64) gin.HandlerFunc {
 				zap.Int64("max_bytes", maxBytes),
 				zap.String("user_agent", c.Request.UserAgent()),
 			)
-			c.JSON(http.StatusRequestEntityTooLarge, gin.H{
-				"error": "request body too large",
-			})
+			response.Error(c, http.StatusRequestEntityTooLarge, "REQUEST_TOO_LARGE", "request body too large")
 			c.Abort()
 			return
 		}

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,7 +35,7 @@ func CSRFMiddleware() gin.HandlerFunc {
 
 		cookieToken, err := c.Cookie(CookieCSRFToken)
 		if err != nil || cookieToken == "" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "csrf token missing"})
+			response.Error(c, http.StatusForbidden, "CSRF_TOKEN_MISSING", "csrf token missing")
 			c.Abort()
 			return
 		}
@@ -42,7 +43,7 @@ func CSRFMiddleware() gin.HandlerFunc {
 		headerToken := c.GetHeader(HeaderCSRFToken)
 		// 使用常量时间比较防止时序攻击
 		if headerToken == "" || subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookieToken)) != 1 {
-			c.JSON(http.StatusForbidden, gin.H{"error": "csrf token invalid"})
+			response.Error(c, http.StatusForbidden, "CSRF_TOKEN_INVALID", "csrf token invalid")
 			c.Abort()
 			return
 		}

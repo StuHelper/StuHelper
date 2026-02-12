@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Course } from '@/types/course'
+import type { Course, FavoriteCourse } from '@/types/course'
 
-defineProps<{ course: Course }>()
+defineProps<{ course: Course | FavoriteCourse }>()
 </script>

@@ -26,7 +26,7 @@ const createRipple = (event: MouseEvent) => {
   // 动画结束后移除
   circle.addEventListener('animationend', () => {
     circle.remove()
-  })
+  }, { once: true })
 }
 
 export const vRipple: Directive = {

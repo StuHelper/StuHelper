@@ -28,7 +28,9 @@ export default {
     basedOnReviews: '基于 {count} 条测评',
     reviewUnit: '条测评',
     shareExperience: '分享你对这门课的体验...',
-    noTeacherData: '暂无教师数据'
+    noTeacherData: '暂无教师数据',
+    creditsBadge: '{n}学分',
+    reviewCountBadge: '{count}评'
   },
   review: {
     anonymous: '匿名用户',
@@ -49,10 +51,23 @@ export default {
     selectTeacher: '选择教师',
     title: '标题（可选）',
     titleLabel: '测评标题',
+    titleRequired: '标题',
+    titlePlaceholder: '一句话总结您的观点，例如：绝世好课',
+    titleMissing: '请填写标题',
     content: '测评内容',
     contentPlaceholder: '分享你的课程体验...',
     contentLabel: '测评内容',
+    detailedReview: '详细评价',
+    contentMinError: '请至少填写 {min} 个字的评价内容',
+    contentMinErrorNoTemplate: '请至少填写 {min} 个字的评价内容（不含模板文字）',
+    ratingMissing: '请为每个维度打分',
     grade: '成绩',
+    gradeLabel: '成绩',
+    gradeOptional: '选填',
+    gradePlaceholder: '例如：90、A+、优秀',
+    templateListening: '课程听感:',
+    templateWorkload: '作业/任务量:',
+    templateExam: '关于考试:',
     rating: '评分',
     submit: '发布测评',
     success: '测评发布成功',
@@ -77,7 +92,12 @@ export default {
     level3: '一般',
     level2: '不推荐',
     level1: '强烈不推荐',
-    unknown: '未知'
+    unknown: '未知',
+    face5: '超赞',
+    face4: '不错',
+    face3: '一般',
+    face2: '较差',
+    face1: '很差'
   },
   chart: {
     title: '评分统计',
@@ -149,6 +169,13 @@ export default {
     reviewCount: '{count} 条测评',
     insufficientHint: '评价人数不足，暂不展示详细数据',
     noData: '暂无统计数据'
+  },
+  ratingEmoji: {
+    recommendation: '推荐度',
+    content_quality: '内容',
+    workload: '工作量',
+    grading: '给分',
+    fallback: '评分'
   },
   filter: {
     teacher: '教师筛选',

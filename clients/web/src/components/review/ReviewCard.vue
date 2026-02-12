@@ -41,6 +41,7 @@
       role="button"
       tabindex="0"
       :aria-label="t('review.review.expandContent')"
+      :aria-expanded="isExpanded"
       @click="toggleExpand"
       @keydown.enter="toggleExpand"
       @keydown.space.prevent="toggleExpand"
@@ -165,19 +166,20 @@ const displayLikes = computed(() => props.review.likeCount + likeOffset.value)
 const displayDislikes = computed(() => props.review.dislikeCount + dislikeOffset.value)
 
 // 表情评分指标映射
-const ratingEmojiMap: Record<string, { emoji: string; label: string }> = {
-  recommendation: { emoji: '👍', label: '推荐度' },
-  content_quality: { emoji: '📚', label: '内容' },
-  workload: { emoji: '⏰', label: '工作量' },
-  grading: { emoji: '📊', label: '给分' }
+const ratingEmojiMap: Record<string, string> = {
+  recommendation: '👍',
+  content_quality: '📚',
+  workload: '⏰',
+  grading: '📊'
 }
 
 const displayRatings = computed(() => {
   const ratings = props.review.ratings
   if (!ratings || Object.keys(ratings).length === 0) return []
   return Object.entries(ratings).map(([key, value]) => {
-    const mapped = ratingEmojiMap[key] || { emoji: '⭐', label: key }
-    return { key, emoji: mapped.emoji, label: mapped.label, value }
+    const emoji = ratingEmojiMap[key] || '⭐'
+    const label = t(`review.ratingEmoji.${key}`, t('review.ratingEmoji.fallback'))
+    return { key, emoji, label, value }
   })
 })
 
@@ -189,10 +191,10 @@ const avgRating = computed(() => {
 })
 
 const ratingColor = computed(() => {
-  if (avgRating.value >= 4) return 'var(--rating-5)'
-  if (avgRating.value >= 3) return 'var(--rating-4)'
-  if (avgRating.value >= 2) return 'var(--rating-3)'
-  return 'var(--rating-1)'
+  if (avgRating.value >= 4) return 'var(--color-rating-5)'
+  if (avgRating.value >= 3) return 'var(--color-rating-4)'
+  if (avgRating.value >= 2) return 'var(--color-rating-3)'
+  return 'var(--color-rating-1)'
 })
 
 // 回复

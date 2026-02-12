@@ -53,8 +53,8 @@
             @click="selectCourse(course)"
           >
             <span class="text-sm font-medium text-text-primary truncate">{{ course.name }}</span>
-            <span class="shrink-0 text-xs text-text-muted"><template v-if="course.credits">{{ course.credits }}学分 · </template>{{ course.departmentName }}</span>
-            <span class="shrink-0 text-xs tabular-nums text-text-muted ml-auto">{{ course.reviewCount }}评</span>
+            <span class="shrink-0 text-xs text-text-muted"><template v-if="course.credits">{{ t('review.course.creditsBadge', { n: course.credits }) }} · </template>{{ course.departmentName }}</span>
+            <span class="shrink-0 text-xs tabular-nums text-text-muted ml-auto">{{ t('review.course.reviewCountBadge', { count: course.reviewCount }) }}</span>
           </button>
         </template>
       </template>
@@ -74,8 +74,8 @@
           @click="selectRecent(item)"
         >
           <span class="text-sm font-medium text-text-primary truncate">{{ item.name }}</span>
-          <span class="shrink-0 text-xs text-text-muted"><template v-if="item.credits">{{ item.credits }}学分 · </template>{{ item.departmentName }}</span>
-          <span class="shrink-0 text-xs tabular-nums text-text-muted ml-auto">{{ item.reviewCount }}评</span>
+          <span class="shrink-0 text-xs text-text-muted"><template v-if="item.credits">{{ t('review.course.creditsBadge', { n: item.credits }) }} · </template>{{ item.departmentName }}</span>
+          <span class="shrink-0 text-xs tabular-nums text-text-muted ml-auto">{{ t('review.course.reviewCountBadge', { count: item.reviewCount }) }}</span>
         </button>
       </template>
     </div>

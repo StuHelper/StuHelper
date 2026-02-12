@@ -14,7 +14,6 @@
     <RatingGroup v-model="ratings" />
 
     <textarea
-      ref="textareaRef"
       v-model="content"
       class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans resize-vertical min-h-[100px] transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
       :placeholder="t('review.post.contentPlaceholder')"
@@ -68,7 +67,6 @@ const title = ref('')
 const content = ref('')
 const ratings = ref<ReviewRatings>({})
 const submitting = ref(false)
-const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const contentError = computed(() => {
   const len = content.value.trim().length

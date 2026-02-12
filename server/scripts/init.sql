@@ -115,7 +115,8 @@ CREATE TABLE IF NOT EXISTS reviews (
 
     CONSTRAINT fk_reviews_course FOREIGN KEY (course_id) REFERENCES courses(id),
     CONSTRAINT fk_reviews_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL,
-    CONSTRAINT chk_reviews_status CHECK (status IN ('published', 'hidden', 'deleted'))
+    CONSTRAINT chk_reviews_status CHECK (status IN ('published', 'hidden', 'deleted')),
+    CONSTRAINT chk_reviews_title_length CHECK (title IS NULL OR char_length(title) <= 200)
 );
 
 CREATE INDEX IF NOT EXISTS idx_reviews_course_id ON reviews(course_id);
@@ -125,6 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_avg_rating ON reviews(avg_rating DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_course_status_created ON reviews(course_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reviews_user_hash_created ON reviews(user_hash, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_user_course ON reviews(user_hash, course_id)
     WHERE status != 'deleted';
 
@@ -183,6 +185,7 @@ CREATE TABLE IF NOT EXISTS course_rating_stats (
 );
 
 CREATE INDEX IF NOT EXISTS idx_course_rating_stats_course ON course_rating_stats(course_id);
+CREATE INDEX IF NOT EXISTS idx_course_rating_stats_term ON course_rating_stats(course_id, term_id);
 
 -- ============================================
 -- 9. 创建 review_reports 表（举报记录）
@@ -265,12 +268,14 @@ CREATE TABLE IF NOT EXISTS review_replies (
         REFERENCES reviews(id) ON DELETE CASCADE,
     CONSTRAINT fk_review_replies_parent FOREIGN KEY (parent_id)
         REFERENCES review_replies(id) ON DELETE CASCADE,
-    CONSTRAINT chk_review_replies_status CHECK (status IN ('published', 'hidden', 'deleted'))
+    CONSTRAINT chk_review_replies_status CHECK (status IN ('published', 'hidden', 'deleted')),
+    CONSTRAINT chk_review_replies_content_length CHECK (char_length(content) <= 5000)
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_replies_review_id ON review_replies(review_id);
 CREATE INDEX IF NOT EXISTS idx_review_replies_parent_id ON review_replies(parent_id);
 CREATE INDEX IF NOT EXISTS idx_review_replies_user_hash ON review_replies(user_hash);
+CREATE INDEX IF NOT EXISTS idx_review_replies_created_at ON review_replies(review_id, created_at DESC);
 
 -- ============================================
 -- 13. 创建 notifications 表（通知）
@@ -290,6 +295,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE INDEX IF NOT EXISTS idx_notifications_user_hash ON notifications(user_hash);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(user_hash, is_read);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_hash, created_at DESC);
 
 -- ============================================
 -- 14. 创建 teacher_rating_stats 表（教师评分统计）

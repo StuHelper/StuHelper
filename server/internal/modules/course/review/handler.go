@@ -74,7 +74,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 
 	// 内容检查（需要认证，防止敏感词列表被探测）
 	r.POST("/content/check", authMiddleware, h.CheckContent)
-	r.POST("/content/quality", authMiddleware, h.CheckQuality)
 
 	// 用户中心（需要认证）
 	user := r.Group("/user")

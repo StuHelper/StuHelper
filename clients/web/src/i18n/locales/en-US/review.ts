@@ -28,7 +28,9 @@ export default {
     basedOnReviews: 'Based on {count} reviews',
     reviewUnit: ' reviews',
     shareExperience: 'Share your experience with this course...',
-    noTeacherData: 'No teacher data available'
+    noTeacherData: 'No teacher data available',
+    creditsBadge: '{n} cr',
+    reviewCountBadge: '{count} rev'
   },
   review: {
     anonymous: 'Anonymous',
@@ -49,10 +51,23 @@ export default {
     selectTeacher: 'Select Teacher',
     title: 'Title (optional)',
     titleLabel: 'Review title',
+    titleRequired: 'Title',
+    titlePlaceholder: 'Summarize your opinion in one sentence',
+    titleMissing: 'Please enter a title',
     content: 'Review Content',
     contentPlaceholder: 'Share your experience...',
     contentLabel: 'Review content',
+    detailedReview: 'Detailed Review',
+    contentMinError: 'Please write at least {min} characters',
+    contentMinErrorNoTemplate: 'Please write at least {min} characters (excluding template text)',
+    ratingMissing: 'Please rate each dimension',
     grade: 'Grade',
+    gradeLabel: 'Grade',
+    gradeOptional: 'Optional',
+    gradePlaceholder: 'e.g. 90, A+, Excellent',
+    templateListening: 'Course experience:',
+    templateWorkload: 'Assignments/workload:',
+    templateExam: 'About exams:',
     rating: 'Rating',
     submit: 'Submit Review',
     success: 'Review posted successfully',
@@ -77,7 +92,12 @@ export default {
     level3: 'Average',
     level2: 'Not Recommended',
     level1: 'Strongly Not Recommended',
-    unknown: 'Unknown'
+    unknown: 'Unknown',
+    face5: 'Amazing',
+    face4: 'Good',
+    face3: 'Average',
+    face2: 'Poor',
+    face1: 'Terrible'
   },
   chart: {
     title: 'Rating Statistics',
@@ -149,6 +169,13 @@ export default {
     reviewCount: '{count} reviews',
     insufficientHint: 'Not enough reviews to show detailed statistics',
     noData: 'No statistics available'
+  },
+  ratingEmoji: {
+    recommendation: 'Recommendation',
+    content_quality: 'Content',
+    workload: 'Workload',
+    grading: 'Grading',
+    fallback: 'Rating'
   },
   filter: {
     teacher: 'Teacher',

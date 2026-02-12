@@ -43,6 +43,18 @@ export interface Course {
   reviewCount: number
 }
 
+// 收藏的课程（后端 FavoriteCourse 结构，字段为 Course 子集 + favoritedAt）
+export interface FavoriteCourse {
+  id: number
+  name: string
+  code?: string
+  credits: number
+  departmentID: number
+  departmentName?: string
+  reviewCount: number
+  favoritedAt: string
+}
+
 // 课程分类（后台可配置）
 export interface CourseCategory {
   id: number

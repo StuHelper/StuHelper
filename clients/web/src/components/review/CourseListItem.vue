@@ -7,18 +7,20 @@
       : 'text-text-primary hover:bg-bg-hover'"
   >
     <span class="truncate shrink">{{ course.name }}</span>
-    <span v-if="course.credits" class="shrink-0 text-[10px] text-text-muted">{{ course.credits }}学分</span>
-    <span class="ml-auto shrink-0 text-[10px] tabular-nums" :class="isActive ? 'text-primary/60' : 'text-text-muted'">{{ course.reviewCount }}评</span>
+    <span v-if="course.credits" class="shrink-0 text-[10px] text-text-muted">{{ t('review.course.creditsBadge', { n: course.credits }) }}</span>
+    <span class="ml-auto shrink-0 text-[10px] tabular-nums" :class="isActive ? 'text-primary/60' : 'text-text-muted'">{{ t('review.course.reviewCountBadge', { count: course.reviewCount }) }}</span>
   </router-link>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import type { Course } from '@/types/course'
 
 const props = defineProps<{ course: Course }>()
 
+const { t } = useI18n()
 const route = useRoute()
 const isActive = computed(() => {
   return route.params.id && Number(route.params.id) === props.course.id
