@@ -222,6 +222,16 @@ type TeacherRatingStatsResponse struct {
 	RadarChart     RadarChartData     `json:"radarChart"`
 }
 
+// CourseTeacherStats 课程详情页教师统计卡片数据
+type CourseTeacherStats struct {
+	TeacherID      int64    `json:"teacherID"`
+	TeacherName    string   `json:"teacherName"`
+	DepartmentName string   `json:"departmentName"`
+	AvgRating      *float64 `json:"avgRating"`
+	CourseCount    int      `json:"courseCount"`
+	ReviewCount    int      `json:"reviewCount"`
+}
+
 // TeacherCourse 教师授课课程
 type TeacherCourse struct {
 	ID          int64    `json:"id"`

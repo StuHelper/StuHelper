@@ -77,6 +77,11 @@ export function getCourseRatingTrend(courseID: number) {
   return api.get<RatingTrendItem[]>(`/courses/${courseID}/rating-trend`)
 }
 
+// 获取课程的授课教师列表
+export function getCourseTeachers(courseID: number) {
+  return api.get<import('@/types/course').TeacherStats[]>(`/courses/${courseID}/teachers`)
+}
+
 // 教师评分统计
 export interface TeacherRatingStats {
   teacherID: number

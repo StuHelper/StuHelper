@@ -90,6 +90,39 @@ func (r *Repository) ListHotCourses(ctx context.Context, period string, limit in
 	return list, rows.Err()
 }
 
+// ListCourseTeachers 获取课程的授课教师列表（含全局统计）
+func (r *Repository) ListCourseTeachers(ctx context.Context, courseID int64) ([]CourseTeacherStats, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT t.id, t.name, COALESCE(d.name, '') AS department_name,
+			(SELECT AVG(r2.avg_rating) FROM reviews r2
+			 WHERE r2.teacher_id = t.id AND r2.status = 'published') AS avg_rating,
+			(SELECT COUNT(DISTINCT r3.course_id) FROM reviews r3
+			 WHERE r3.teacher_id = t.id AND r3.status = 'published') AS course_count,
+			(SELECT COUNT(*) FROM reviews r4
+			 WHERE r4.teacher_id = t.id AND r4.status = 'published') AS review_count
+		FROM (SELECT DISTINCT teacher_id FROM reviews
+		      WHERE course_id = $1 AND status = 'published' AND teacher_id IS NOT NULL) rt
+		JOIN teachers t ON t.id = rt.teacher_id
+		LEFT JOIN departments d ON d.id = t.department_id
+		ORDER BY review_count DESC
+	`, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []CourseTeacherStats
+	for rows.Next() {
+		var s CourseTeacherStats
+		if err := rows.Scan(&s.TeacherID, &s.TeacherName, &s.DepartmentName,
+			&s.AvgRating, &s.CourseCount, &s.ReviewCount); err != nil {
+			return nil, err
+		}
+		list = append(list, s)
+	}
+	return list, rows.Err()
+}
+
 // GetTeacherName 获取教师名称
 func (r *Repository) GetTeacherName(ctx context.Context, teacherID int64) (string, error) {
 	var name string

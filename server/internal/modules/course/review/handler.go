@@ -53,6 +53,9 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 	r.GET("/courses/:id/rating-stats", h.GetCourseRatingStats)
 	r.GET("/courses/:id/rating-trend", h.GetRatingTrend)
 
+	// 课程教师列表
+	r.GET("/courses/:id/teachers", h.GetCourseTeachers)
+
 	// 测评
 	r.GET("/courses/:id/reviews", h.GetCourseReviews)
 	r.GET("/reviews/latest", h.GetLatestReviews)

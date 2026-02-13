@@ -41,7 +41,7 @@
       </header>
 
       <!-- Tab Bar -->
-      <nav class="sticky top-[calc(var(--gradient-bar-height)+var(--navbar-height))] z-10 py-3 mb-5 bg-bg-glass backdrop-blur-lg backdrop-saturate-150 border-b border-white/10 dark:border-white/5">
+      <nav class="sticky top-[var(--navbar-height)] z-10 py-3 mb-5 bg-bg-glass backdrop-blur-lg backdrop-saturate-150 border-b border-white/10 dark:border-white/5">
         <TabBar :tabs="tabItems" :model-value="activeTab" @update:model-value="activeTab = $event" />
       </nav>
 
@@ -89,7 +89,10 @@
 
       <!-- Tab: 教师 -->
       <section v-if="activeTab === 'teachers'" class="animate-fade-in">
-        <EmptyState :title="t('review.course.noTeacherData')" />
+        <div v-if="courseTeachers.length" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <TeacherStatsCard v-for="teacher in courseTeachers" :key="teacher.teacherID" :stats="teacher" />
+        </div>
+        <EmptyState v-else :title="t('review.course.noTeacherData')" />
       </section>
     </template>
   </div>
@@ -109,9 +112,10 @@ import DimensionBars from '@/components/review/DimensionBars.vue'
 import RatingDistribution from '@/components/review/RatingDistribution.vue'
 import SemesterStatsGrid from '@/components/review/SemesterStatsGrid.vue'
 import TeacherFilter from '@/components/review/TeacherFilter.vue'
-import { getCourse, getCourseRatingStats } from '@/api/course'
+import TeacherStatsCard from '@/components/review/TeacherStatsCard.vue'
+import { getCourse, getCourseRatingStats, getCourseTeachers } from '@/api/course'
 import { getCourseReviews } from '@/api/review'
-import type { Course, CourseRatingStatsResponse } from '@/types/course'
+import type { Course, CourseRatingStatsResponse, TeacherStats } from '@/types/course'
 import type { Review } from '@/types/review'
 import { useReviewPost } from '@/composables/useReviewPost'
 
@@ -129,6 +133,7 @@ const isPanelMode = computed(() => {
 const loading = ref(false)
 const course = ref<Course | null>(null)
 const ratingStats = ref<CourseRatingStatsResponse | null>(null)
+const courseTeachers = ref<TeacherStats[]>([])
 
 // Tab 状态
 const activeTab = ref('overview')
@@ -215,6 +220,15 @@ const fetchRatingStats = async () => {
   }
 }
 
+const fetchCourseTeachers = async () => {
+  try {
+    const res = await getCourseTeachers(courseID.value)
+    courseTeachers.value = res.data || []
+  } catch {
+    // 教师数据加载失败静默处理
+  }
+}
+
 const fetchReviews = async (append = false) => {
   reviewsLoading.value = true
   try {
@@ -265,7 +279,7 @@ onMounted(async () => {
 
   loading.value = true
   try {
-    await Promise.all([fetchCourse(), fetchRatingStats(), fetchReviews()])
+    await Promise.all([fetchCourse(), fetchRatingStats(), fetchReviews(), fetchCourseTeachers()])
   } finally {
     loading.value = false
   }
@@ -280,7 +294,7 @@ watch(courseID, async (newID, oldID) => {
   activeTab.value = 'overview'
   loading.value = true
   try {
-    await Promise.all([fetchCourse(), fetchRatingStats(), fetchReviews()])
+    await Promise.all([fetchCourse(), fetchRatingStats(), fetchReviews(), fetchCourseTeachers()])
   } finally {
     loading.value = false
   }

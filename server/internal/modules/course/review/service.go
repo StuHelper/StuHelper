@@ -334,6 +334,11 @@ func (s *Service) GetCourseRatingStats(ctx context.Context, courseID int64) ([]R
 	return s.repo.ListCourseRatingStats(ctx, courseID)
 }
 
+// GetCourseTeachers 获取课程的授课教师列表
+func (s *Service) GetCourseTeachers(ctx context.Context, courseID int64) ([]CourseTeacherStats, error) {
+	return s.repo.ListCourseTeachers(ctx, courseID)
+}
+
 // UpdateReviewParams 更新评论参数
 type UpdateReviewParams struct {
 	ReviewID string

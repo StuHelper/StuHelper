@@ -11,6 +11,7 @@ export interface Review {
   id: string
   courseID: number
   courseName?: string
+  teacherID?: number
   teacherName?: string
   termID?: string
   termName?: string

@@ -435,6 +435,35 @@ func (h *Handler) GetHotCourses(c *gin.Context) {
 	response.Success(c, data)
 }
 
+// GetCourseTeachers 获取课程的授课教师列表
+func (h *Handler) GetCourseTeachers(c *gin.Context) {
+	courseID, err := httputil.ParseIDParam(c, "id")
+	if err != nil {
+		response.BadRequest(c, "invalid course id")
+		return
+	}
+
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:course_teachers", strconv.FormatInt(courseID, 10))
+	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+		response.Success(c, cached)
+		return
+	}
+
+	list, err := h.service.GetCourseTeachers(c.Request.Context(), courseID)
+	if err != nil {
+		response.InternalError(c, "failed to load course teachers")
+		return
+	}
+	if list == nil {
+		list = []CourseTeacherStats{}
+	}
+
+	if err := h.cache.Set(c.Request.Context(), cacheKey, list, cache.DefaultTTL); err != nil {
+		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
+	}
+	response.Success(c, list)
+}
+
 // GetTeacherRatingStats 获取教师评分统计
 func (h *Handler) GetTeacherRatingStats(c *gin.Context) {
 	teacherID, err := httputil.ParseIDParam(c, "id")
