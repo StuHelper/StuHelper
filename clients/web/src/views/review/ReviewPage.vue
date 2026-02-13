@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import DepartmentSidebar from '@/components/review/DepartmentSidebar.vue'
 import ReviewFeed from '@/components/review/ReviewFeed.vue'
@@ -59,7 +59,7 @@ import { useReviewPost } from '@/composables/useReviewPost'
 
 const route = useRoute()
 const sidebarOpen = ref(false)
-const { showPostModal, closePostModal, notifyPosted } = useReviewPost()
+const { showPostModal, closePostModal, notifyPosted, openPostModal } = useReviewPost()
 const feedKey = ref(0)
 
 const hasChildRoute = computed(() => {
@@ -71,6 +71,14 @@ function handlePosted() {
   notifyPosted()
   feedKey.value++
 }
+
+// 登录后自动恢复草稿：检测 draft_pending 标记并打开弹窗
+onMounted(() => {
+  if (sessionStorage.getItem('draft_pending')) {
+    sessionStorage.removeItem('draft_pending')
+    openPostModal()
+  }
+})
 
 // 选中课程（路由变化）后自动收起抽屉
 watch(() => route.params.id, () => {

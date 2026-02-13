@@ -69,7 +69,7 @@ export default {
     templateWorkload: '作业/任务量:',
     templateExam: '关于考试:',
     rating: '评分',
-    submit: '发布测评',
+    submit: '发布',
     success: '测评发布成功',
     failed: '发布失败，请重试',
     searchCourse: '搜索课程...',
@@ -136,8 +136,15 @@ export default {
   },
   draft: {
     saving: '保存中...',
-    saved: '已保存',
-    restore: '恢复草稿'
+    saved: '草稿已保存',
+    restore: '恢复草稿',
+    savedAndLogin: '当前未登录，内容已暂存，即将跳转登录',
+    confirmSave: '是否暂存当前内容为草稿？',
+    restored: '已恢复草稿',
+    saveFailed: '草稿保存失败',
+    redirectCountdown: '{n}秒后跳转登录...',
+    discard: '不保存',
+    saveDraft: '保存草稿'
   },
   validation: {
     contentTooShort: '内容至少需要 {min} 个字符',

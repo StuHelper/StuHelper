@@ -82,7 +82,14 @@ onMounted(async () => {
 
   try {
     await authStore.handleCallback(code, state)
-    router.push('/')
+    // 如果有草稿重定向，回到原页面；否则回首页
+    const draftRedirect = sessionStorage.getItem('draft_redirect')
+    if (draftRedirect) {
+      sessionStorage.removeItem('draft_redirect')
+      router.push(draftRedirect)
+    } else {
+      router.push('/')
+    }
   } catch (err) {
     if (isApiError(err) && err.code === ErrorCode.FORBIDDEN) {
       orgMismatch.value = true

@@ -69,7 +69,7 @@ export default {
     templateWorkload: 'Assignments/workload:',
     templateExam: 'About exams:',
     rating: 'Rating',
-    submit: 'Submit Review',
+    submit: 'Submit',
     success: 'Review posted successfully',
     failed: 'Post failed, please retry',
     searchCourse: 'Search course...',
@@ -136,8 +136,15 @@ export default {
   },
   draft: {
     saving: 'Saving...',
-    saved: 'Saved',
-    restore: 'Restore Draft'
+    saved: 'Draft saved',
+    restore: 'Restore Draft',
+    savedAndLogin: 'Not logged in. Content saved as draft. Redirecting to login...',
+    confirmSave: 'Save current content as draft?',
+    restored: 'Draft restored',
+    saveFailed: 'Failed to save draft',
+    redirectCountdown: 'Redirecting to login in {n}s...',
+    discard: 'Discard',
+    saveDraft: 'Save Draft'
   },
   validation: {
     contentTooShort: 'Content must be at least {min} characters',
