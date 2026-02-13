@@ -1,72 +1,8 @@
-# 后端快速入门指南
+# 后端开发指南
 
-本文档帮助新开发者快速搭建后端开发环境并开始开发。
+本文档介绍后端项目结构和开发模式，帮助你快速上手编写业务代码。
 
-## 环境要求
-
-| 工具 | 版本 | 说明 |
-|------|------|------|
-| Go | 1.21+ | 后端开发语言 |
-| PostgreSQL | 15+ | 主数据库 |
-| Redis | 7+ | 缓存和会话管理 |
-| Docker | 24+ | 容器化部署（可选） |
-
-## 快速开始
-
-### 1. 克隆项目
-
-```bash
-git clone https://gitea.stuhelper.com/StuHelper/StuHelper.git
-cd StuHelper/server
-```
-
-### 2. 配置环境变量
-
-```bash
-cd deployments
-cp .env.example .env
-```
-
-编辑 `.env` 文件，配置以下必要参数：
-
-```bash
-# 数据库配置
-DATABASE_HOST=localhost
-DATABASE_PORT=5432
-DATABASE_USER=postgres
-DATABASE_PASSWORD=your_password
-DATABASE_NAME=stuhelper
-
-# Redis 配置
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Casdoor SSO 配置（联系管理员获取）
-CASDOOR_ENDPOINT=https://sso.stuhelper.com
-CASDOOR_CLIENT_ID=your_client_id
-CASDOOR_CLIENT_SECRET=your_client_secret
-```
-
-### 3. 启动依赖服务
-
-**方式一：使用 Docker Compose（推荐）**
-
-```bash
-docker compose up -d postgres redis
-```
-
-**方式二：本地安装**
-
-确保 PostgreSQL 和 Redis 已安装并运行。
-
-### 4. 运行后端服务
-
-```bash
-cd ..  # 回到 server 目录
-go run cmd/stuhelper/main.go
-```
-
-服务启动后访问 http://localhost:8080/health 验证。
+> 环境搭建请先完成 [快速开始](../tutorials/quick-start.md)。
 
 ## 项目结构
 
@@ -74,18 +10,43 @@ go run cmd/stuhelper/main.go
 server/
 ├── cmd/stuhelper/       # 应用入口
 ├── internal/
-│   ├── modules/         # 业务模块
+│   ├── modules/         # 业务模块（按领域划分）
 │   │   ├── auth/        # 认证模块
-│   │   └── course/      # 课程模块
-│   └── pkg/             # 公共包
-└── deployments/         # 部署配置
+│   │   ├── course/      # 课程模块
+│   │   └── review/      # 评课模块
+│   └── pkg/             # 公共包（中间件、工具函数等）
+├── deployments/         # Docker Compose、.env 配置
+└── scripts/             # 数据库初始化和种子数据
 ```
 
-## 开发新功能
+每个业务模块遵循三层架构：`Handler → Service → Repository`。
 
-### 添加新 API 端点
+## 添加新 API 端点
 
-1. **在对应模块创建 Handler 方法**
+以"获取课程详情"为例，展示完整的开发流程。
+
+### 1. Repository — 数据访问
+
+```go
+// internal/modules/course/repository.go
+func (r *Repository) GetByID(ctx context.Context, id int64) (*Course, error) {
+    var course Course
+    err := r.db.QueryRow(ctx, `SELECT id, name FROM courses WHERE id = $1`, id).
+        Scan(&course.ID, &course.Name)
+    return &course, err
+}
+```
+
+### 2. Service — 业务逻辑
+
+```go
+// internal/modules/course/service.go
+func (s *Service) GetCourseDetail(ctx context.Context, id int64) (*Course, error) {
+    return s.repo.GetByID(ctx, id)
+}
+```
+
+### 3. Handler — HTTP 处理
 
 ```go
 // internal/modules/course/handler.go
@@ -104,28 +65,7 @@ func (h *Handler) GetCourseDetail(c *gin.Context) {
 }
 ```
 
-2. **在 Service 层实现业务逻辑**
-
-```go
-// internal/modules/course/service.go
-func (s *Service) GetCourseDetail(ctx context.Context, id int64) (*Course, error) {
-    return s.repo.GetByID(ctx, id)
-}
-```
-
-3. **在 Repository 层实现数据访问**
-
-```go
-// internal/modules/course/repository.go
-func (r *Repository) GetByID(ctx context.Context, id int64) (*Course, error) {
-    var course Course
-    err := r.db.QueryRow(ctx, `SELECT id, name FROM courses WHERE id = $1`, id).
-        Scan(&course.ID, &course.Name)
-    return &course, err
-}
-```
-
-4. **注册路由**
+### 4. 注册路由
 
 ```go
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
@@ -137,21 +77,16 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 ## 常用命令
 
 ```bash
-# 运行测试
-go test ./...
-
-# 格式化代码
-go fmt ./...
-
-# 检查代码
-go vet ./...
-
-# 构建二进制
-go build -o bin/stuhelper cmd/stuhelper/main.go
+cd server
+make run       # 运行
+make test      # 测试
+make lint      # 代码检查
+make fmt       # 格式化
+make build     # 构建二进制
 ```
 
 ## 相关文档
 
-- [分层架构](../architecture/layered-architecture.md) - 三层架构详解
-- [API 概览](../reference/api-overview.md) - API 接口规范
-- [错误码](../reference/error-codes.md) - 统一错误码定义
+- [分层架构](../architecture/layered-architecture.md) — 三层架构详解
+- [API 概览](../reference/api-overview.md) — 接口规范
+- [错误码](../reference/error-codes.md) — 统一错误码定义

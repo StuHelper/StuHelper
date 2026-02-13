@@ -6,6 +6,7 @@ services:
     # 开发环境：使用独立命名卷，与生产数据隔离
     volumes:
       - postgres_dev_data:/var/lib/postgresql
+      - ../scripts/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
 
   redis:
     # 开发环境：使用独立命名卷
