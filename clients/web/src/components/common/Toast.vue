@@ -3,7 +3,7 @@
     <TransitionGroup
       name="toast"
       tag="div"
-      class="fixed top-[calc(var(--gradient-bar-height)+var(--navbar-height)+1rem)] right-4 z-[60] flex flex-col gap-2 pointer-events-none"
+      class="fixed top-[calc(var(--navbar-height)+1rem)] right-4 z-[60] flex flex-col gap-2 pointer-events-none"
     >
       <div
         v-for="item in toasts"

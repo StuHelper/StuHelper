@@ -1,9 +1,7 @@
 <template>
   <div class="min-h-screen relative z-0">
-    <GradientBar />
-
     <header
-      class="fixed top-[var(--gradient-bar-height)] left-0 right-0 z-40 transition-all duration-200 ease-smooth bg-bg-glass backdrop-blur-lg backdrop-saturate-150"
+      class="fixed top-0 left-0 right-0 z-40 transition-all duration-200 ease-smooth bg-bg-glass backdrop-blur-lg backdrop-saturate-150"
       :class="isScrolled && 'bg-bg-glass-heavy backdrop-blur-xl border-b border-white/15 dark:border-white/8 shadow-sm'"
     >
       <!-- 第一行：Logo + 搜索(宽屏) + 写测评 + 通知 + 头像 -->
@@ -62,7 +60,7 @@
       </div>
     </header>
 
-    <main class="pt-[calc(var(--gradient-bar-height)+var(--navbar-height))] max-[820px]:pt-[calc(var(--gradient-bar-height)+var(--navbar-height)+44px)] min-h-screen">
+    <main class="pt-[var(--navbar-height)] max-[820px]:pt-[calc(var(--navbar-height)+44px)] min-h-screen">
       <slot />
     </main>
 
@@ -79,7 +77,6 @@ import { useI18n } from 'vue-i18n'
 import { PenLine } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useReviewPost } from '@/composables/useReviewPost'
-import GradientBar from './GradientBar.vue'
 import FloatingModuleNav from './FloatingModuleNav.vue'
 import InlineSearch from '@/components/common/InlineSearch.vue'
 import NotificationBell from '@/components/common/NotificationBell.vue'

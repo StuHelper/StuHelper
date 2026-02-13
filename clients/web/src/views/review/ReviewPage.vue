@@ -22,7 +22,7 @@
       >
         <div
           v-if="sidebarOpen"
-          class="fixed left-0 top-[calc(var(--gradient-bar-height)+var(--navbar-height))] bottom-0 z-30 w-[260px] bg-bg-base border-r border-border shadow-lg overflow-y-auto p-3"
+          class="fixed left-0 top-[var(--navbar-height)] bottom-0 z-30 w-[260px] bg-bg-base border-r border-border shadow-lg overflow-y-auto p-3"
         >
           <DepartmentSidebar />
         </div>
@@ -30,11 +30,11 @@
     </div>
 
     <div
-      class="pl-4 pr-6 py-6 grid grid-cols-[clamp(200px,20vw,260px)_1fr] gap-4 min-h-[calc(100vh-var(--navbar-height)-var(--gradient-bar-height))] max-[820px]:grid-cols-1 max-[820px]:pl-0 max-[820px]:pr-4"
+      class="pl-4 pr-6 py-6 grid grid-cols-[clamp(200px,20vw,260px)_1fr] gap-4 min-h-[calc(100vh-var(--navbar-height))] max-[820px]:grid-cols-1 max-[820px]:pl-0 max-[820px]:pr-4"
     >
       <!-- 院系侧栏：宽屏正常展示 -->
       <div
-        class="sticky top-[calc(var(--gradient-bar-height)+var(--navbar-height)+1.5rem)] self-start max-h-[calc(100vh-var(--navbar-height)-var(--gradient-bar-height)-3rem)] overflow-y-auto max-[820px]:hidden"
+        class="sticky top-[calc(var(--navbar-height)+1.5rem)] self-start max-h-[calc(100vh-var(--navbar-height)-3rem)] overflow-y-auto max-[820px]:hidden"
       >
         <DepartmentSidebar />
       </div>
