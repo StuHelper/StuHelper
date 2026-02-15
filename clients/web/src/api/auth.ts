@@ -16,6 +16,7 @@ export interface UserInfo {
   email: string
   displayName: string
   avatar?: string
+  isAdmin?: boolean
 }
 
 // 回调响应

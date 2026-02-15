@@ -6,6 +6,10 @@ import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
 import { userManager, clearAuth, tokenExpiry } from '@/utils/auth'
 import { isApiError } from '@/api/errors'
+import { useUserStore } from '@/stores/user'
+import { useNotificationStore } from '@/stores/notification'
+import { useCourseStore } from '@/stores/courseReview'
+import { useDraftStore } from '@/stores/draft'
 import i18n from '@/i18n'
 
 // 认证错误类型
@@ -17,8 +21,16 @@ export interface AuthError {
 }
 
 export const useAuthStore = defineStore('auth', () => {
+  // M-91: 用 try-catch 包裹 localStorage 读取，防止数据损坏导致 store 初始化失败
+  let initialUser: authApi.UserInfo | null = null
+  try {
+    initialUser = userManager.getUser()
+  } catch {
+    initialUser = null
+  }
+
   // 状态
-  const user = ref<authApi.UserInfo | null>(userManager.getUser())
+  const user = ref<authApi.UserInfo | null>(initialUser)
   const loading = ref(false)
   const error = ref<AuthError | null>(null)
 
@@ -59,13 +71,14 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const { data } = await apiCall()
-      // 校验后端返回的 URL 合法性，防止 Open Redirect
+      // H-03: 严格同源校验，防止子域名攻击和端口不匹配
       const parsed = new URL(data.url)
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
         throw new Error('Invalid OAuth URL protocol')
       }
-      if (parsed.host === window.location.host) {
-        throw new Error('OAuth URL must not point to current site')
+      const currentOrigin = window.location.origin
+      if (new URL(data.url, currentOrigin).origin === currentOrigin) {
+        throw new Error('OAuth URL must not point to current origin')
       }
       sessionStorage.setItem('oauth_state', data.state)
       window.location.href = data.url
@@ -149,7 +162,21 @@ export const useAuthStore = defineStore('auth', () => {
       clearAuth()
       user.value = null
       loading.value = false
+
+      // 重置其他 store 状态（M-39: 包含 draft store）
+      useUserStore().reset()
+      useCourseStore().reset()
+      useDraftStore().reset()
+      const notificationStore = useNotificationStore()
+      notificationStore.stopPolling()
+      notificationStore.reset()
     }
+  }
+
+  // 清除本地会话（不调用 API，用于 token 过期等场景）
+  const clearSession = () => {
+    clearAuth()
+    user.value = null
   }
 
   return {
@@ -162,6 +189,7 @@ export const useAuthStore = defineStore('auth', () => {
     handleCallback,
     fetchUser,
     logout,
+    clearSession,
     clearError
   }
 })

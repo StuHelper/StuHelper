@@ -15,12 +15,13 @@ export interface StoredUser {
   avatar?: string
 }
 
-// 校验 localStorage 中的用户数据结构
+// M-105: 校验 localStorage 中的用户数据结构，包含 ID 格式验证
 function isValidStoredUser(data: unknown): data is StoredUser {
   if (typeof data !== 'object' || data === null) return false
   const obj = data as Record<string, unknown>
   return (
     typeof obj.id === 'string' && obj.id.length > 0 &&
+    /^[a-zA-Z0-9_-]+$/.test(obj.id) &&
     typeof obj.name === 'string' && obj.name.length > 0 &&
     typeof obj.displayName === 'string' &&
     typeof obj.email === 'string' &&
@@ -80,19 +81,24 @@ export const tokenExpiry = {
   }
 }
 
+// Token 过期预检缓冲时间（秒）
+const TOKEN_EXPIRY_BUFFER_SECONDS = 60
+
 /**
  * 判断 token 是否已过期（客户端预检，不替代服务端校验）
- * 提前 60 秒判定过期，给刷新留余量
+ * 提前 TOKEN_EXPIRY_BUFFER_SECONDS 秒判定过期，给刷新留余量
  */
 export function isTokenExpired(): boolean {
   const expiresAt = tokenExpiry.get()
   if (expiresAt === null) return true
-  return expiresAt < Date.now() + 60_000
+  return expiresAt < Date.now() + TOKEN_EXPIRY_BUFFER_SECONDS * 1000
 }
 
-// 清除所有认证信息
+// 清除所有认证信息（含草稿重定向状态）
 export const clearAuth = (): void => {
   userManager.removeUser()
   tokenExpiry.remove()
   sessionStorage.removeItem('oauth_state')
+  sessionStorage.removeItem('draft_redirect')
+  sessionStorage.removeItem('draft_pending')
 }

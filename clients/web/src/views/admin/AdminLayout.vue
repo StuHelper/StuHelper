@@ -7,8 +7,8 @@
       <nav class="p-2">
         <router-link
           v-for="item in navItems"
-          :key="item.path"
-          :to="item.path"
+          :key="item.name"
+          :to="{ name: item.name }"
           class="flex items-center gap-3 px-3 py-2 text-text-muted no-underline text-sm rounded-sm transition-colors duration-fast hover:text-text-primary [&.router-link-active]:text-primary [&.router-link-active]:font-medium [&.router-link-active]:bg-primary/[0.08]"
         >
           <component :is="item.icon" class="size-[18px]" />
@@ -17,7 +17,9 @@
       </nav>
     </aside>
     <main class="flex-1 p-6 overflow-y-auto">
-      <router-view />
+      <ErrorBoundary>
+        <router-view />
+      </ErrorBoundary>
     </main>
   </div>
 </template>
@@ -26,13 +28,14 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { LayoutDashboard, Flag, MessageSquare, FileText } from 'lucide-vue-next'
+import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
 
 const { t } = useI18n()
 
 const navItems = computed(() => [
-  { path: '/admin', label: t('admin.nav.dashboard'), icon: LayoutDashboard },
-  { path: '/admin/reports', label: t('admin.nav.reports'), icon: Flag },
-  { path: '/admin/reviews', label: t('admin.nav.reviews'), icon: MessageSquare },
-  { path: '/admin/logs', label: t('admin.nav.logs'), icon: FileText }
+  { name: 'admin-dashboard', label: t('admin.nav.dashboard'), icon: LayoutDashboard },
+  { name: 'admin-reports', label: t('admin.nav.reports'), icon: Flag },
+  { name: 'admin-reviews', label: t('admin.nav.reviews'), icon: MessageSquare },
+  { name: 'admin-logs', label: t('admin.nav.logs'), icon: FileText }
 ])
 </script>

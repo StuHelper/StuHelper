@@ -49,7 +49,15 @@
       </div>
     </div>
 
-    <EmptyState v-else :title="t('admin.reports.empty')" />
+    <button
+      v-if="!loading && hasMore"
+      class="mt-4 mx-auto block px-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text-secondary cursor-pointer transition-colors duration-fast hover:bg-bg-hover"
+      @click="loadMore"
+    >
+      {{ t('common.actions.loadMore') }}
+    </button>
+
+    <EmptyState v-else-if="!loading && reports.length === 0" :title="t('admin.reports.empty')" />
   </div>
 </template>
 
@@ -74,15 +82,28 @@ const statusOptions = computed(() => [
 const status = ref('pending')
 const loading = ref(true)
 const reports = ref<Report[]>([])
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const hasMore = computed(() => reports.value.length < total.value)
 
 const fetchReports = async () => {
   loading.value = true
   try {
-    const res = await getReports(status.value)
-    reports.value = res.data?.list || []
+    const res = await getReports(status.value, page.value, pageSize)
+    reports.value = page.value === 1
+      ? (res.data?.list || [])
+      : [...reports.value, ...(res.data?.list || [])]
+    total.value = res.data?.total || 0
   } finally {
     loading.value = false
   }
+}
+
+const loadMore = () => {
+  if (loading.value || !hasMore.value) return
+  page.value++
+  fetchReports()
 }
 
 const handleProcess = async (id: string, action: ProcessReportParams['action']) => {
@@ -97,6 +118,9 @@ const handleProcess = async (id: string, action: ProcessReportParams['action']) 
 
 const formatTime = (dateStr: string) => formatAbsoluteTime(dateStr, locale.value)
 
-watch(status, fetchReports)
+watch(status, () => {
+  page.value = 1
+  fetchReports()
+})
 onMounted(fetchReports)
 </script>

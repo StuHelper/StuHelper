@@ -59,10 +59,10 @@ export function getOperationLogs(page = 1, pageSize = 20) {
   })
 }
 
-// 导出数据
-export function exportData(format: 'json' | 'csv' = 'json', status = 'all') {
-  return api.get<Blob>('/admin/export', {
+// 导出数据（NDJSON 流式导出，responseType: 'blob' 时 axios 返回 AxiosResponse<Blob>）
+export function exportData(format: 'json' | 'ndjson' | 'csv' = 'json', status = 'all') {
+  return api.get('/admin/export', {
     params: { format, status },
     responseType: 'blob'
-  })
+  }) as Promise<import('axios').AxiosResponse<Blob>>
 }

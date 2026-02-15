@@ -26,11 +26,12 @@ func (h *Handler) GetRatingDimensions(c *gin.Context) {
 	// 调用 Service 层
 	dimensions, err := h.service.GetRatingDimensions(c.Request.Context())
 	if err != nil {
+		logger.FromGin(c).Error("failed to load rating dimensions", zap.Error(err))
 		response.InternalError(c, "failed to load rating dimensions")
 		return
 	}
 
-	if err := h.cache.Set(c.Request.Context(), cacheKey, dimensions, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, dimensions, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, dimensions)
@@ -56,6 +57,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 	// 调用 Service 层获取维度名称
 	dimensionNames, err := h.service.GetDimensionNames(ctx)
 	if err != nil {
+		logger.FromGin(c).Error("failed to load dimension names", zap.Error(err))
 		response.InternalError(c, "failed to load dimension names")
 		return
 	}
@@ -63,6 +65,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 	// 调用 Service 层获取评分统计
 	stats, err := h.service.GetCourseRatingStats(ctx, courseID)
 	if err != nil {
+		logger.FromGin(c).Error("failed to load rating stats", zap.Error(err))
 		response.InternalError(c, "failed to load rating stats")
 		return
 	}
@@ -122,7 +125,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 		RadarChart:       buildRadarChart(allKeys, dimensionNames, overall),
 	}
 
-	if err := h.cache.Set(ctx, cacheKey, resp, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(ctx, cacheKey, resp, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, resp)
@@ -146,8 +149,8 @@ func buildRadarChart(keys []string, names map[string]string, overall TermRatingS
 			{
 				Label:           "overall",
 				Data:            data,
-				BackgroundColor: "rgba(64, 158, 255, 0.2)",
-				BorderColor:     "#409EFF",
+				BackgroundColor: radarBgColor,
+				BorderColor:     radarBorderColor,
 			},
 		},
 	}

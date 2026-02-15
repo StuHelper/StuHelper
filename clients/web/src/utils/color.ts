@@ -11,8 +11,8 @@
 export function withAlpha(color: string, alpha: number): string {
   const trimmed = color.trim()
 
-  // hex 格式: #rrggbb 或 #rgb
-  const hexMatch = trimmed.match(/^#([0-9a-fA-F]{3,8})$/)
+  // M-03: hex 格式: #rrggbb 或 #rgb，使用严格的 hex 字符校验
+  const hexMatch = trimmed.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
   if (hexMatch) {
     let hex = hexMatch[1]
     // 短格式 #rgb → #rrggbb
@@ -38,7 +38,6 @@ export function withAlpha(color: string, alpha: number): string {
     return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${alpha})`
   }
 
-  // 无法解析时回退：直接拼接 hex alpha 后缀（兼容旧行为）
-  const alphaHex = Math.round(alpha * 255).toString(16).padStart(2, '0').toUpperCase()
-  return trimmed + alphaHex
+  // 无法解析时原样返回，避免拼接出无效 CSS 值
+  return trimmed
 }

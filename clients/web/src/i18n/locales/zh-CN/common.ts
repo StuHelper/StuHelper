@@ -60,5 +60,9 @@ export default {
     invalidState: '无效的认证状态',
     callbackFailed: '认证回调处理失败',
     fetchUserFailed: '获取用户信息失败'
+  },
+  meta: {
+    description: 'StuHelper 评课社区 - 真实的课程评价与教学反馈平台，帮助学生选课决策',
+    ogTitle: '评课社区 - StuHelper'
   }
 }

@@ -60,5 +60,9 @@ export default {
     invalidState: 'Invalid authentication state',
     callbackFailed: 'Authentication callback failed',
     fetchUserFailed: 'Failed to fetch user info'
+  },
+  meta: {
+    description: 'StuHelper Course Review Community - Authentic course reviews and teaching feedback to help students make informed choices',
+    ogTitle: 'Course Review - StuHelper'
   }
 }

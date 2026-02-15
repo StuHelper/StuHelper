@@ -1,0 +1,11 @@
+# oapi-codegen 配置
+# 从 bundled OpenAPI spec 生成 Gin server + models
+package: gen
+generate:
+  models: true
+  gin-server: true
+  strict-server: false
+  embedded-spec: true
+output: server.gen.go
+output-options:
+  skip-prune: true

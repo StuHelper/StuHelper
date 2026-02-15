@@ -1,0 +1,135 @@
+/api/v1/course/review/stats:
+  get:
+    tags: [Review]
+    operationId: getReviewStats
+    summary: 获取评课统计数据
+    security: []
+    responses:
+      '200':
+        description: 评课统计
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/review.yaml#/ReviewStats'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/rankings/hot:
+  get:
+    tags: [Review]
+    operationId: getHotCourses
+    summary: 获取热门课程排行
+    security: []
+    parameters:
+      - name: period
+        in: query
+        schema:
+          type: string
+          enum: [week, month, all]
+          default: all
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+          maximum: 100
+    responses:
+      '200':
+        description: 热门课程列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/review.yaml#/HotCourse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/teachers/{id}/stats:
+  get:
+    tags: [Rating]
+    operationId: getTeacherRatingStats
+    summary: 获取教师评分统计
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/TeacherIDPath'
+    responses:
+      '200':
+        description: 教师评分统计
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/rating.yaml#/TeacherRatingStatsResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/content/check:
+  post:
+    tags: [Review]
+    operationId: checkContent
+    summary: 内容安全检查（敏感词 + 质量）
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/review.yaml#/ContentCheckRequest'
+    responses:
+      '200':
+        description: 检查结果
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/review.yaml#/ContentCheckResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

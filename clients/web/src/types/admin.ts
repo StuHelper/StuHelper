@@ -73,6 +73,7 @@ export interface OperationLog {
 
 // 批量操作参数
 export interface BatchUpdateParams {
+  /** 评论 ID 列表（UUIDv7 格式） */
   ids: string[]
   action: 'hide' | 'restore' | 'delete'
 }

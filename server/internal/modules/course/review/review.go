@@ -2,10 +2,14 @@ package review
 
 import (
 	"errors"
+	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"golang.org/x/text/unicode/norm"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
@@ -13,6 +17,16 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
+
+// validTermID 学期 ID 格式校验：如 "2024-1" 或 "2024-2"
+var validTermID = regexp.MustCompile(`^\d{4}-[12]$`)
+
+// sanitizeCacheKeyPart 对缓存键参数进行 Unicode NFC 规范化 + URL 编码
+// NFC 规范化确保相同语义的字符串（如不同 Unicode 编码形式）生成一致的缓存键
+// 例如 "café"(NFD) 和 "café"(NFC) 规范化后产生相同缓存键
+func sanitizeCacheKeyPart(s string) string {
+	return url.QueryEscape(norm.NFC.String(s))
+}
 
 // GetCourseReviews 获取课程测评列表
 func (h *Handler) GetCourseReviews(c *gin.Context) {
@@ -33,6 +47,11 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 	if termID == "" {
 		termID = c.Query("termID")
 	}
+	// M-84: termID 格式白名单校验，防止非法值污染缓存键
+	if termID != "" && !validTermID.MatchString(termID) {
+		response.BadRequest(c, "invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+		return
+	}
 	var teacherID *int64
 	tid := c.Query("teacher_id")
 	if tid == "" {
@@ -47,10 +66,11 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 		teacherID = &id
 	}
 
-	// 构建缓存键
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:course",
-		strconv.FormatInt(courseID, 10)+":sort="+sort+":term="+termID+
-			":teacher="+tid+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
+	// 构建缓存键（按课程粒度版本化，M-93）
+	coursePrefix := "review:course:" + strconv.FormatInt(courseID, 10)
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), coursePrefix,
+		"sort="+sanitizeCacheKeyPart(sort)+":term="+sanitizeCacheKeyPart(termID)+
+			":teacher="+sanitizeCacheKeyPart(tid)+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
 	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
@@ -66,12 +86,13 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 		TeacherID: teacherID,
 	})
 	if err != nil {
+		logger.FromGin(c).Error("failed to get course reviews", zap.Error(err))
 		response.InternalError(c, "failed to load reviews")
 		return
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, data)
@@ -87,7 +108,7 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 	}
 
 	// 检查缓存
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:latest", "page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize)+":sort="+sort)
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:latest", "page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize)+":sort="+sanitizeCacheKeyPart(sort))
 	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
@@ -100,14 +121,82 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 		Sort:     sort,
 	})
 	if err != nil {
+		logger.FromGin(c).Error("failed to get latest reviews", zap.Error(err))
 		response.InternalError(c, "failed to load latest reviews")
 		return
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
+	response.Success(c, data)
+}
+
+// GetBatchCourseReviews 批量获取多个课程的测评列表
+func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
+	idsStr := c.Query("courseIDs")
+	if idsStr == "" {
+		response.BadRequest(c, "courseIDs is required")
+		return
+	}
+
+	parts := strings.Split(idsStr, ",")
+	if len(parts) > 20 {
+		response.BadRequest(c, "maximum 20 course IDs allowed")
+		return
+	}
+
+	courseIDs := make([]int64, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(p, 10, 64)
+		if err != nil || id <= 0 {
+			response.BadRequest(c, "invalid course ID: "+p)
+			return
+		}
+		courseIDs = append(courseIDs, id)
+	}
+
+	if len(courseIDs) == 0 {
+		response.BadRequest(c, "at least one valid course ID is required")
+		return
+	}
+
+	_, pageSize := httputil.ParsePage(c)
+	sort := c.DefaultQuery("sort", "time")
+	if sort != "time" && sort != "likes" && sort != "rating" {
+		sort = "time"
+	}
+
+	result, err := h.service.GetBatchCourseReviews(c.Request.Context(), GetBatchCourseReviewsParams{
+		CourseIDs: courseIDs,
+		PageSize:  pageSize,
+		Sort:      sort,
+	})
+	if err != nil {
+		logger.FromGin(c).Error("failed to get batch reviews", zap.Error(err))
+		response.InternalError(c, "failed to get batch reviews")
+		return
+	}
+
+	// 构建响应 map: courseID string -> {list, total}
+	data := make(map[string]interface{})
+	for _, cid := range courseIDs {
+		reviews := result.Reviews[cid]
+		if reviews == nil {
+			reviews = []Review{}
+		}
+		total := result.Totals[cid]
+		data[strconv.FormatInt(cid, 10)] = map[string]interface{}{
+			"list":  reviews,
+			"total": total,
+		}
+	}
+
 	response.Success(c, data)
 }
 
@@ -131,7 +220,15 @@ func (h *Handler) PostReview(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
+
+	// L-35: 从 gin context 提取 request_id，传入 service 层用于审计日志
+	requestID, _ := c.Get(middleware.CtxKeyRequestID)
+	requestIDStr, _ := requestID.(string)
 
 	// 调用 Service 层
 	result, err := h.service.PostReview(c.Request.Context(), PostReviewParams{
@@ -144,6 +241,7 @@ func (h *Handler) PostReview(c *gin.Context) {
 		Ratings:   req.Ratings,
 		UserHash:  userHash,
 		IPAddress: c.ClientIP(),
+		RequestID: requestIDStr,
 	})
 	if err != nil {
 		switch {
@@ -162,13 +260,14 @@ func (h *Handler) PostReview(c *gin.Context) {
 		case errors.Is(err, ErrCourseNotFound):
 			response.NotFound(c, "course not found")
 		default:
+			logger.FromGin(c).Error("failed to create review", zap.Error(err))
 			response.InternalError(c, "failed to create review")
 		}
 		return
 	}
 
-	// 失效相关缓存
-	h.invalidateReviewCaches(c, "review:stats")
+	// 失效相关缓存（精确失效该课程的缓存）
+	h.invalidateReviewCaches(c, req.CourseID, "review:stats")
 
 	response.Created(c, result.Review)
 }
@@ -189,7 +288,11 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	// 调用 Service 层
 	err = h.service.VoteReview(c.Request.Context(), VoteReviewParams{
@@ -202,13 +305,14 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		case errors.Is(err, ErrReviewNotFound):
 			response.NotFound(c, "review not found")
 		default:
+			logger.FromGin(c).Error("failed to vote", zap.Error(err))
 			response.InternalError(c, "failed to vote")
 		}
 		return
 	}
 
-	// 失效相关缓存
-	h.invalidateReviewCaches(c)
+	// 失效相关缓存（无法确定课程 ID，全局失效）
+	h.invalidateReviewCaches(c, 0)
 
 	response.Success(c, gin.H{"message": "vote submitted successfully"})
 }
@@ -225,6 +329,7 @@ func (h *Handler) GetStats(c *gin.Context) {
 	// 调用 Service 层
 	result, err := h.service.GetStats(c.Request.Context())
 	if err != nil {
+		logger.FromGin(c).Error("failed to load stats", zap.Error(err))
 		response.InternalError(c, "failed to load stats")
 		return
 	}
@@ -234,7 +339,7 @@ func (h *Handler) GetStats(c *gin.Context) {
 		"reviewCount":    result.ReviewCount,
 		"departmentCount": result.DepartmentCount,
 	}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, data)
@@ -263,7 +368,11 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	err = h.service.UpdateReview(c.Request.Context(), UpdateReviewParams{
 		ReviewID: reviewID,
@@ -288,13 +397,14 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 		case errors.Is(err, ErrContentEmpty):
 			response.BadRequest(c, "content cannot be empty")
 		default:
+			logger.FromGin(c).Error("failed to update review", zap.Error(err))
 			response.InternalError(c, "failed to update review")
 		}
 		return
 	}
 
-	// 失效相关缓存
-	h.invalidateReviewCaches(c)
+	// 失效相关缓存（无法确定课程 ID，全局失效）
+	h.invalidateReviewCaches(c, 0)
 
 	response.Success(c, gin.H{"message": "review updated successfully"})
 }
@@ -307,7 +417,11 @@ func (h *Handler) DeleteReview(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	err = h.service.DeleteReview(c.Request.Context(), DeleteReviewParams{
 		ReviewID: reviewID,
@@ -320,12 +434,13 @@ func (h *Handler) DeleteReview(c *gin.Context) {
 		case errors.Is(err, ErrNotReviewOwner):
 			response.Forbidden(c, "you can only delete your own review")
 		default:
+			logger.FromGin(c).Error("failed to delete review", zap.Error(err))
 			response.InternalError(c, "failed to delete review")
 		}
 		return
 	}
 
-	h.invalidateReviewCaches(c, "review:stats")
+	h.invalidateReviewCaches(c, 0, "review:stats", "review:votes")
 
 	response.Success(c, gin.H{"message": "review deleted successfully"})
 }
@@ -351,7 +466,11 @@ func (h *Handler) ReportReview(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	err = h.service.ReportReview(c.Request.Context(), ReportReviewParams{
 		ReviewID:    reviewID,
@@ -366,6 +485,7 @@ func (h *Handler) ReportReview(c *gin.Context) {
 		case errors.Is(err, ErrAlreadyReported):
 			response.Conflict(c, "you have already reported this review")
 		default:
+			logger.FromGin(c).Error("failed to submit report", zap.Error(err))
 			response.InternalError(c, "failed to submit report")
 		}
 		return
@@ -392,12 +512,13 @@ func (h *Handler) GetRatingTrend(c *gin.Context) {
 
 	trend, err := h.service.GetRatingTrend(ctx, courseID)
 	if err != nil {
+		logger.FromGin(c).Error("failed to load rating trend", zap.Error(err))
 		response.InternalError(c, "failed to load rating trend")
 		return
 	}
 
 	data := gin.H{"trend": trend}
-	if err := h.cache.Set(ctx, cacheKey, data, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(ctx, cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, data)
@@ -416,7 +537,7 @@ func (h *Handler) GetHotCourses(c *gin.Context) {
 	}
 
 	// 使用缓存
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:hot", "period="+period+":limit="+strconv.Itoa(limit))
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:hot", "period="+sanitizeCacheKeyPart(period)+":limit="+strconv.Itoa(limit))
 	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
@@ -424,12 +545,13 @@ func (h *Handler) GetHotCourses(c *gin.Context) {
 
 	list, err := h.service.GetHotCourses(c.Request.Context(), period, limit)
 	if err != nil {
+		logger.FromGin(c).Error("failed to load hot courses", zap.Error(err))
 		response.InternalError(c, "failed to load hot courses")
 		return
 	}
 
 	data := gin.H{"list": list}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, data)
@@ -451,6 +573,7 @@ func (h *Handler) GetCourseTeachers(c *gin.Context) {
 
 	list, err := h.service.GetCourseTeachers(c.Request.Context(), courseID)
 	if err != nil {
+		logger.FromGin(c).Error("failed to load course teachers", zap.Error(err))
 		response.InternalError(c, "failed to load course teachers")
 		return
 	}
@@ -458,7 +581,7 @@ func (h *Handler) GetCourseTeachers(c *gin.Context) {
 		list = []CourseTeacherStats{}
 	}
 
-	if err := h.cache.Set(c.Request.Context(), cacheKey, list, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, list, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, list)
@@ -485,12 +608,13 @@ func (h *Handler) GetTeacherRatingStats(c *gin.Context) {
 		case errors.Is(err, ErrTeacherNotFound):
 			response.NotFound(c, "teacher not found")
 		default:
+			logger.FromGin(c).Error("failed to load teacher stats", zap.Error(err))
 			response.InternalError(c, "failed to load teacher stats")
 		}
 		return
 	}
 
-	if err := h.cache.Set(c.Request.Context(), cacheKey, stats, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, stats, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, stats)

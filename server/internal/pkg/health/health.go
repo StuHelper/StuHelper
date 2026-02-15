@@ -10,10 +10,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"go.uber.org/zap"
 )
 
-// 健康检查超时时间
-const checkTimeout = 2 * time.Second
+// defaultCheckTimeout 健康检查默认超时时间
+const defaultCheckTimeout = 3 * time.Second
 
 // BuildInfo 构建信息
 type BuildInfo struct {
@@ -29,16 +33,22 @@ type Handler struct {
 	buildInfo    BuildInfo
 	startTime    time.Time
 	isProduction bool
+	checkTimeout time.Duration
 }
 
 // NewHandler 创建健康检查处理器
-func NewHandler(pgPool *pgxpool.Pool, redisClient *redis.Client, buildInfo BuildInfo, isProduction bool) *Handler {
+// checkTimeout 为健康检查探测超时，传 0 使用默认值（3 秒）
+func NewHandler(pgPool *pgxpool.Pool, redisClient *redis.Client, buildInfo BuildInfo, isProduction bool, checkTimeout time.Duration) *Handler {
+	if checkTimeout <= 0 {
+		checkTimeout = defaultCheckTimeout
+	}
 	return &Handler{
 		pgPool:       pgPool,
 		redisClient:  redisClient,
 		buildInfo:    buildInfo,
 		startTime:    time.Now(),
 		isProduction: isProduction,
+		checkTimeout: checkTimeout,
 	}
 }
 
@@ -56,34 +66,59 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 // Liveness 存活探针 - 检查应用是否运行
 // Kubernetes 使用此端点判断是否需要重启容器
 func (h *Handler) Liveness(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+	response.Success(c, gin.H{
 		"status":    "ok",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
+// maxHealthyGoroutines goroutine 数量阈值，超过则标记为 degraded
+const maxHealthyGoroutines = 10000
+
 // Readiness 就绪探针 - 检查应用是否可以接收流量
 // Kubernetes 使用此端点判断是否将流量路由到此实例
 func (h *Handler) Readiness(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), h.checkTimeout)
 	defer cancel()
 
 	checks := make(map[string]CheckResult)
-	var wg sync.WaitGroup
 	var mu sync.Mutex
 
+	// 使用子 context 确保函数返回后 goroutine 不会继续运行（M-80）
+	checkCtx, checkCancel := context.WithCancel(ctx)
+	defer checkCancel()
+
+	var wg sync.WaitGroup
 	// 并行检查各依赖
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		result := h.checkPostgres(ctx)
+		// H-33: panic recovery
+		defer func() {
+			if r := recover(); r != nil {
+				logger.L().Error("health check: postgres goroutine panicked", zap.Any("panic", r))
+				mu.Lock()
+				checks["postgres"] = CheckResult{Status: "unhealthy", Error: "internal panic"}
+				mu.Unlock()
+			}
+		}()
+		result := h.checkPostgres(checkCtx)
 		mu.Lock()
 		checks["postgres"] = result
 		mu.Unlock()
 	}()
 	go func() {
 		defer wg.Done()
-		result := h.checkRedis(ctx)
+		// H-33: panic recovery
+		defer func() {
+			if r := recover(); r != nil {
+				logger.L().Error("health check: redis goroutine panicked", zap.Any("panic", r))
+				mu.Lock()
+				checks["redis"] = CheckResult{Status: "unhealthy", Error: "internal panic"}
+				mu.Unlock()
+			}
+		}()
+		result := h.checkRedis(checkCtx)
 		mu.Lock()
 		checks["redis"] = result
 		mu.Unlock()
@@ -101,9 +136,25 @@ func (h *Handler) Readiness(c *gin.Context) {
 		}
 	}
 
+	// L-47: goroutine 数量超过阈值时标记为 degraded
+	if numGoroutines := runtime.NumGoroutine(); numGoroutines > maxHealthyGoroutines {
+		logger.L().Warn("health check: goroutine count exceeds threshold",
+			zap.Int("goroutines", numGoroutines),
+			zap.Int("threshold", maxHealthyGoroutines),
+		)
+		status = "degraded"
+		httpStatus = http.StatusServiceUnavailable
+	}
+
+	// 就绪检查失败时返回 503，需要保留 HTTP 状态码语义
+	if httpStatus != http.StatusOK {
+		response.Error(c, httpStatus, response.ErrCodeServiceUnavail, status)
+		return
+	}
+
 	// 生产环境返回精简信息，避免泄露内部细节
 	if h.isProduction {
-		c.JSON(httpStatus, gin.H{
+		response.Success(c, gin.H{
 			"status":    status,
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
@@ -111,7 +162,7 @@ func (h *Handler) Readiness(c *gin.Context) {
 	}
 
 	// 开发环境返回详细信息便于调试
-	c.JSON(httpStatus, gin.H{
+	response.Success(c, gin.H{
 		"status":    status,
 		"checks":    checks,
 		"info":      h.getSystemInfo(),
@@ -133,10 +184,11 @@ func (h *Handler) checkPostgres(ctx context.Context) CheckResult {
 	latency := time.Since(start)
 
 	if err != nil {
+		logger.L().Warn("health check: postgres ping failed", zap.Error(err))
 		return CheckResult{
 			Status:  "unhealthy",
 			Latency: latency.String(),
-			Error:   err.Error(),
+			Error:   "unavailable",
 		}
 	}
 
@@ -155,14 +207,25 @@ func (h *Handler) checkPostgres(ctx context.Context) CheckResult {
 
 func (h *Handler) checkRedis(ctx context.Context) CheckResult {
 	start := time.Now()
-	err := h.redisClient.Ping(ctx).Err()
+	pong, err := h.redisClient.Ping(ctx).Result()
 	latency := time.Since(start)
 
 	if err != nil {
+		logger.L().Warn("health check: redis ping failed", zap.Error(err))
 		return CheckResult{
 			Status:  "unhealthy",
 			Latency: latency.String(),
-			Error:   err.Error(),
+			Error:   "unavailable",
+		}
+	}
+
+	// L-40: 验证 PING 响应确实是 "PONG"
+	if pong != "PONG" {
+		logger.L().Warn("health check: redis ping returned unexpected response", zap.String("response", pong))
+		return CheckResult{
+			Status:  "unhealthy",
+			Latency: latency.String(),
+			Error:   "unexpected ping response",
 		}
 	}
 

@@ -13,7 +13,7 @@ export interface Review {
   courseName?: string
   teacherID?: number
   teacherName?: string
-  termID?: string
+  termID: string
   termName?: string
   title: string
   content: string
@@ -22,7 +22,7 @@ export interface Review {
   likeCount: number
   dislikeCount: number
   replyCount: number
-  status?: 'published' | 'hidden'
+  status: 'published' | 'hidden'
   createdAt: string
 }
 

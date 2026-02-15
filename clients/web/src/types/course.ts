@@ -51,6 +51,7 @@ export interface FavoriteCourse {
   credits: number
   departmentID: number
   departmentName?: string
+  category: string
   reviewCount: number
   favoritedAt: string
 }

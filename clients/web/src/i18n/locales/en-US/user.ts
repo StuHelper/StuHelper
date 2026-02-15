@@ -27,6 +27,7 @@ export default {
     emptyDesc: 'New messages will appear here',
     bell: 'Notifications',
     bellMarkAllRead: 'Mark All Read',
-    viewAll: 'View All'
+    viewAll: 'View All',
+    unreadCount: '{count} unread notifications'
   }
 }

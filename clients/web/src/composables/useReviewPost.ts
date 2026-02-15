@@ -11,6 +11,8 @@ const showPostModal = ref(false)
 const lastPostedAt = ref(0)
 const preselectedCourse = ref<Course | null>(null)
 
+export type UseReviewPostReturn = ReturnType<typeof useReviewPost>
+
 export function useReviewPost() {
   function openPostModal(course?: Course) {
     preselectedCourse.value = course ?? null
@@ -19,6 +21,7 @@ export function useReviewPost() {
 
   function closePostModal() {
     showPostModal.value = false
+    preselectedCourse.value = null
   }
 
   function notifyPosted() {

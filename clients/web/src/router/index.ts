@@ -4,21 +4,34 @@
  */
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { isTokenExpired, clearAuth } from '@/utils/auth'
+import { useReviewPost } from '@/composables/useReviewPost'
+import { isTokenExpired } from '@/utils/auth'
+import { updatePageMeta } from '@/composables/usePageMeta'
 import i18n from '@/i18n'
 
 declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean
+    requiresAdmin?: boolean
     guest?: boolean
     titleKey?: string
+    descriptionKey?: string
     layout?: 'shell' | 'none' | 'admin'
   }
 }
 
+// M-92: 区分网络错误和其他加载失败原因
 function lazyLoad(loader: () => Promise<unknown>) {
   return () =>
-    loader().catch(() => {
+    loader().catch((err: unknown) => {
+      // 网络错误显示加载失败页（支持重试）
+      if (err instanceof TypeError && /fetch|network|load/i.test(err.message)) {
+        return import('@/views/errors/LoadErrorPage.vue')
+      }
+      // 其他错误（如模块不存在）也降级到加载失败页，但记录日志
+      if (import.meta.env.DEV) {
+        console.error('[Router] Chunk load failed:', err)
+      }
       return import('@/views/errors/LoadErrorPage.vue')
     })
 }
@@ -43,7 +56,7 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     name: 'teaching-hub',
     component: lazyLoad(() => import('@/views/TeachingHubPage.vue')),
-    meta: { titleKey: 'routes.teachingHub' }
+    meta: { titleKey: 'routes.teachingHub', descriptionKey: 'routes.desc.teachingHub' }
   },
 
   // 评课模块（嵌套路由）
@@ -51,13 +64,13 @@ const routes: RouteRecordRaw[] = [
     path: '/review',
     name: 'review',
     component: lazyLoad(() => import('@/views/review/ReviewPage.vue')),
-    meta: { titleKey: 'routes.review' },
+    meta: { titleKey: 'routes.review', descriptionKey: 'routes.desc.review' },
     children: [
       {
         path: 'courses/:id',
         name: 'review-course-detail',
         component: lazyLoad(() => import('@/views/review/CourseDetailPage.vue')),
-        meta: { titleKey: 'routes.courseDetail' }
+        meta: { titleKey: 'routes.courseDetail', descriptionKey: 'routes.desc.courseDetail' }
       }
     ]
   },
@@ -67,7 +80,7 @@ const routes: RouteRecordRaw[] = [
     path: '/teachers/:id',
     name: 'teacher-profile',
     component: lazyLoad(() => import('@/views/review/TeacherProfilePage.vue')),
-    meta: { titleKey: 'routes.teacherProfile' }
+    meta: { titleKey: 'routes.teacherProfile', descriptionKey: 'routes.desc.teacherProfile' }
   },
 
   // 子模块占位
@@ -95,7 +108,7 @@ const routes: RouteRecordRaw[] = [
     path: '/user',
     name: 'user-center',
     component: lazyLoad(() => import('@/views/user/UserCenterPage.vue')),
-    meta: { requiresAuth: true, titleKey: 'routes.userCenter' }
+    meta: { requiresAuth: true, titleKey: 'routes.userCenter', descriptionKey: 'routes.desc.userCenter' }
   },
 
   // 通知
@@ -103,14 +116,14 @@ const routes: RouteRecordRaw[] = [
     path: '/notifications',
     name: 'notifications',
     component: lazyLoad(() => import('@/views/NotificationsPage.vue')),
-    meta: { requiresAuth: true, titleKey: 'routes.notifications' }
+    meta: { requiresAuth: true, titleKey: 'routes.notifications', descriptionKey: 'routes.desc.notifications' }
   },
 
   // 管理后台
   {
     path: '/admin',
     component: lazyLoad(() => import('@/views/admin/AdminLayout.vue')),
-    meta: { requiresAuth: true, layout: 'admin' },
+    meta: { requiresAuth: true, requiresAdmin: true, layout: 'admin' },
     children: [
       {
         path: '',
@@ -175,9 +188,16 @@ router.beforeEach((to, _from, next) => {
     const code = params.get('code')
     if (code) {
       const state = params.get('state') || ''
+      // 防止恶意 SSO 返回超长参数导致 URL 截断或 Open Redirect
+      const MAX_PARAM_LENGTH = 4096
+      if (code.length > MAX_PARAM_LENGTH || state.length > MAX_PARAM_LENGTH) {
+        window.location.replace(`${window.location.origin}/#/login?error=invalid_callback`)
+        return
+      }
       window.location.replace(
         `${window.location.origin}${window.location.pathname.replace('/auth/callback', '')}/#/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`
       )
+      // M-77: SSO 重定向后立即返回，阻止后续 store 初始化
       return
     }
   }
@@ -185,25 +205,25 @@ router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
 
-  if (to.meta.titleKey) {
-    const { t } = i18n.global
-    document.title = `${t(to.meta.titleKey)} - StuHelper`
-  }
+  // M-41: 所有路由都更新标题和 meta 标签
+  const { t } = i18n.global
+  const title = to.meta.titleKey ? t(to.meta.titleKey) : undefined
+  const description = to.meta.descriptionKey
+    ? t(to.meta.descriptionKey)
+    : t('common.meta.description')
+  updatePageMeta({ title, description })
 
+  // H-44: 使用 if-else 链确保只调用一次 next()
   if (to.meta.requiresAuth && !isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } })
-    return
-  }
-
-  // 客户端 token 过期预检（不替代服务端校验）
-  if (to.meta.requiresAuth && isAuthenticated && isTokenExpired()) {
-    clearAuth()
-    authStore.user = null
+  } else if (to.meta.requiresAuth && isAuthenticated && isTokenExpired()) {
+    // 客户端 token 过期预检（不替代服务端校验）
+    authStore.clearSession()
     next({ name: 'login', query: { redirect: to.fullPath } })
-    return
-  }
-
-  if (to.meta.guest && isAuthenticated) {
+  } else if (to.matched.some(r => r.meta.requiresAdmin) && authStore.user?.isAdmin !== true) {
+    // M-05: 显式校验 isAdmin === true
+    next({ name: 'teaching-hub' })
+  } else if (to.meta.guest && isAuthenticated) {
     const redirect = to.query.redirect as string
     // 仅允许站内相对路径重定向，防止 Open Redirect
     if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
@@ -211,10 +231,15 @@ router.beforeEach((to, _from, next) => {
     } else {
       next({ name: 'teaching-hub' })
     }
-    return
+  } else {
+    next()
   }
+})
 
-  next()
+// 路由切换后重置共享弹窗状态，防止跨页面残留
+router.afterEach(() => {
+  const { showPostModal, closePostModal } = useReviewPost()
+  if (showPostModal.value) closePostModal()
 })
 
 export default router

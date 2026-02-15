@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-bg-card border border-border rounded-xl p-5 shadow-card">
+  <div role="status" aria-label="Loading" class="bg-bg-card border border-border rounded-xl p-5 shadow-card">
     <div v-if="variant === 'review'" class="flex flex-col gap-3">
       <!-- 头部 -->
       <div class="flex flex-col gap-1">

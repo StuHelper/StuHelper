@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen relative z-0">
     <header
-      class="fixed top-0 left-0 right-0 z-40 transition-all duration-200 ease-smooth bg-bg-glass backdrop-blur-lg backdrop-saturate-150"
+      class="fixed top-0 left-0 right-0 z-[var(--z-sticky)] transition-all duration-200 ease-smooth bg-bg-glass backdrop-blur-lg backdrop-saturate-150"
       :class="isScrolled && 'bg-bg-glass-heavy backdrop-blur-xl border-b border-white/15 dark:border-white/8 shadow-sm'"
     >
       <!-- 第一行：Logo + 搜索(宽屏) + 写测评 + 通知 + 头像 -->
@@ -11,7 +11,7 @@
         </router-link>
 
         <!-- 宽屏搜索框（contents 让 div 对 flex 布局透明） -->
-        <div class="contents max-[820px]:hidden">
+        <div class="contents max-tablet:hidden">
           <InlineSearch />
         </div>
 
@@ -26,7 +26,8 @@
 
         <div class="flex-1" />
 
-        <!-- 右侧：通知铃铛 + 头像/登录 -->
+        <!-- 右侧：语言切换 + 通知铃铛 + 头像/登录 -->
+        <LocaleSwitcher />
         <NotificationBell v-if="authStore.isAuthenticated" />
 
         <div
@@ -37,7 +38,9 @@
           <img
             v-if="authStore.user?.avatar"
             :src="authStore.user.avatar"
-            :alt="authStore.user.displayName"
+            :alt="authStore.user?.displayName || t('nav.userAvatar')"
+            loading="lazy"
+            decoding="async"
             class="w-full h-full rounded-full object-cover"
           />
           <div v-else class="w-full h-full rounded-full bg-bg-card flex items-center justify-center text-sm font-semibold text-text-primary">
@@ -55,12 +58,12 @@
       </div>
 
       <!-- 第二行：窄屏搜索框 -->
-      <div class="hidden max-[820px]:block px-4 pb-2">
+      <div class="hidden max-tablet:block px-4 pb-2">
         <InlineSearch />
       </div>
     </header>
 
-    <main class="pt-[var(--navbar-height)] max-[820px]:pt-[calc(var(--navbar-height)+44px)] min-h-screen">
+    <main class="pt-[var(--navbar-height)] max-tablet:pt-[calc(var(--navbar-height)+44px)] min-h-screen">
       <slot />
     </main>
 
@@ -82,6 +85,7 @@ import InlineSearch from '@/components/common/InlineSearch.vue'
 import NotificationBell from '@/components/common/NotificationBell.vue'
 import CommandPalette from '@/components/common/CommandPalette.vue'
 import Toast from '@/components/common/Toast.vue'
+import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -92,6 +96,8 @@ const { openPostModal } = useReviewPost()
 const isReviewRoute = computed(() => route.path.startsWith('/review'))
 
 const isScrolled = ref(false)
+// M-43: 滚动节流，避免高频触发
+let scrollTicking = false
 
 const avatarInitial = computed(() => {
   const name = authStore.user?.displayName || authStore.user?.name || '?'
@@ -103,10 +109,18 @@ function goToUser() {
 }
 
 function handleScroll() {
-  isScrolled.value = window.scrollY > 10
+  if (scrollTicking) return
+  scrollTicking = true
+  requestAnimationFrame(() => {
+    isScrolled.value = window.scrollY > 10
+    scrollTicking = false
+  })
 }
 
 onMounted(() => {
+  // L-44: 初始化时同步滚动状态，防止页面刷新后状态不一致
+  isScrolled.value = window.scrollY > 10
+  // L-16: passive 已设置
   window.addEventListener('scroll', handleScroll, { passive: true })
 })
 

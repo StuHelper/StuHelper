@@ -73,6 +73,8 @@ make run
 
 访问 http://localhost:8080/health 验证，返回 `{"status":"ok"}` 即成功。
 
+API 交互式文档：http://localhost:8080/docs/ （Swagger UI）
+
 ## 4. 启动前端
 
 新开一个终端：
@@ -123,6 +125,8 @@ make test             # 运行测试
 make lint             # 代码检查
 make fmt              # 格式化代码
 make build            # 构建二进制
+make generate         # 重新生成 OpenAPI 相关代码（修改 API 规范后必须执行）
+make lint-spec        # 验证 OpenAPI 规范
 ```
 
 ### 前端
@@ -132,6 +136,8 @@ cd clients/web
 npm run dev           # 开发服务器
 npm run build         # 生产构建
 npm run type-check    # TypeScript 类型检查
+npm run test          # 运行单元测试
+npm run generate:types # 从 OpenAPI 规范生成 TS 类型
 ```
 
 ### 基础设施
@@ -174,3 +180,5 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 - 后端详细指南：`docs/guides/backend-quickstart.md`
 - 模块文档：`docs/modules/`
 - API 概览：`docs/reference/api-overview.md`
+- OpenAPI 规范：`server/api/openapi.yaml`
+- Swagger UI：http://localhost:8080/docs/ （开发环境）

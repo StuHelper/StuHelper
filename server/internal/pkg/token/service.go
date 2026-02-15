@@ -1,6 +1,7 @@
 package token
 
 import (
+	"fmt"
 	"time"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
@@ -27,6 +28,19 @@ type ServiceConfig struct {
 
 // NewService 创建 Token 服务
 func NewService(cfg ServiceConfig) (*Service, error) {
+	if cfg.RedisClient == nil {
+		return nil, fmt.Errorf("token service: RedisClient is required")
+	}
+	if cfg.AccessTTL <= 0 {
+		return nil, fmt.Errorf("token service: AccessTTL must be > 0 (got %d)", cfg.AccessTTL)
+	}
+	if cfg.RefreshTTL <= 0 {
+		return nil, fmt.Errorf("token service: RefreshTTL must be > 0 (got %d)", cfg.RefreshTTL)
+	}
+	if cfg.JWTCertificate == "" {
+		return nil, fmt.Errorf("token service: JWTCertificate is required")
+	}
+
 	// 创建 JWT 验证器
 	jwtValidator, err := jwt.NewValidator(jwt.ValidatorConfig{
 		Issuer:      cfg.JWTIssuer,

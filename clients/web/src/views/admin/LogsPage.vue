@@ -41,10 +41,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getOperationLogs, type OperationLog } from '@/api/admin'
+import { useToast } from '@/composables/useToast'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { formatAbsoluteTime } from '@/utils/date'
 
 const { t, locale } = useI18n()
+const toast = useToast()
 
 const loading = ref(true)
 const loadingMore = ref(false)
@@ -75,6 +77,8 @@ const loadMore = async () => {
     const data = await fetchLogs(page.value + 1)
     logs.value.push(...(data?.list || []))
     page.value++
+  } catch {
+    toast.error(t('common.error.loadFailed'))
   } finally {
     loadingMore.value = false
   }

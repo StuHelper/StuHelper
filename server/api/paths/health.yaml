@@ -1,0 +1,79 @@
+/health/live:
+  get:
+    tags: [Health]
+    operationId: healthLive
+    summary: 存活探针
+    description: Kubernetes 使用此端点判断是否需要重启容器
+    security: []
+    responses:
+      '200':
+        description: 应用正在运行
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, timestamp]
+              properties:
+                status:
+                  type: string
+                  example: ok
+                timestamp:
+                  type: string
+                  format: date-time
+      '404':
+        description: 路径不存在
+
+/health/ready:
+  get:
+    tags: [Health]
+    operationId: healthReady
+    summary: 就绪探针
+    description: Kubernetes 使用此端点判断是否将流量路由到此实例
+    security: []
+    responses:
+      '200':
+        description: 应用就绪，可接收流量
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, timestamp]
+              properties:
+                status:
+                  type: string
+                  enum: [ok, degraded]
+                checks:
+                  type: object
+                  description: 各依赖检查结果（仅开发环境返回）
+                  additionalProperties:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      latency:
+                        type: string
+                      error:
+                        type: string
+                info:
+                  type: object
+                  description: 系统信息（仅开发环境返回）
+                  additionalProperties: true
+                timestamp:
+                  type: string
+                  format: date-time
+      '404':
+        description: 路径不存在
+      '503':
+        description: 服务不可用
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, timestamp]
+              properties:
+                status:
+                  type: string
+                  example: degraded
+                timestamp:
+                  type: string
+                  format: date-time

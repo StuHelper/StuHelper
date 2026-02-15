@@ -169,7 +169,8 @@ export default {
     todayReviews: 'Today',
     feedEmpty: 'No reviews yet. Be the first to post!',
     loadFailed: 'Failed to load reviews, please try again later',
-    retry: 'Retry'
+    retry: 'Retry',
+    loading: 'Loading reviews'
   },
   stats: {
     insufficient: 'Limited Data',

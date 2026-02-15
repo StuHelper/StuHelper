@@ -1,10 +1,55 @@
 package middleware
 
 import (
+	"context"
+	"net/http"
+
+	"go.uber.org/zap"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"github.com/gin-gonic/gin"
 )
+
+// getCachedUserOrAbort 获取缓存用户信息，失败时根据错误类型返回不同响应。
+// 返回 nil 表示已 abort，调用方应直接 return。
+func getCachedUserOrAbort(c *gin.Context, ssoClient *sso.Client, userID, operation string) *sso.CachedUser {
+	user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
+	if err != nil {
+		// 区分 context 取消（客户端断开）与超时
+		ctxErr := c.Request.Context().Err()
+		if ctxErr == context.Canceled {
+			logger.L().Debug("permission check aborted: client disconnected",
+				zap.String("operation", operation),
+				zap.String("user_id", userID),
+			)
+			c.Abort()
+			return nil
+		}
+		if ctxErr == context.DeadlineExceeded {
+			logger.L().Warn("permission check timed out",
+				zap.String("operation", operation),
+				zap.String("user_id", userID),
+				zap.Error(err),
+			)
+			response.Error(c, http.StatusGatewayTimeout, errs.ErrSSOTimeout, "identity service request timed out")
+			c.Abort()
+			return nil
+		}
+		// SSO 服务不可用：fail-closed（拒绝访问）+ 记录日志
+		logger.L().Error("permission check failed: SSO unavailable",
+			zap.String("operation", operation),
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		response.ServiceUnavailable(c, "identity service temporarily unavailable")
+		c.Abort()
+		return nil
+	}
+	return user
+}
 
 // RequireRole 角色检查中间件 - 要求用户拥有指定角色
 func RequireRole(ssoClient *sso.Client, roleName string) gin.HandlerFunc {
@@ -15,9 +60,8 @@ func RequireRole(ssoClient *sso.Client, roleName string) gin.HandlerFunc {
 			return
 		}
 
-		user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
-		if err != nil {
-			abortInternalError(c, "failed to check role")
+		user := getCachedUserOrAbort(c, ssoClient, userID, "require_role")
+		if user == nil {
 			return
 		}
 
@@ -39,9 +83,8 @@ func RequireAnyRole(ssoClient *sso.Client, roleNames ...string) gin.HandlerFunc 
 			return
 		}
 
-		user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
-		if err != nil {
-			abortInternalError(c, "failed to check roles")
+		user := getCachedUserOrAbort(c, ssoClient, userID, "require_any_role")
+		if user == nil {
 			return
 		}
 
@@ -63,9 +106,8 @@ func RequirePermission(ssoClient *sso.Client, permissionName string) gin.Handler
 			return
 		}
 
-		user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
-		if err != nil {
-			abortInternalError(c, "failed to check permission")
+		user := getCachedUserOrAbort(c, ssoClient, userID, "require_permission")
+		if user == nil {
 			return
 		}
 
@@ -87,9 +129,8 @@ func RequireAdmin(ssoClient *sso.Client) gin.HandlerFunc {
 			return
 		}
 
-		user, err := ssoClient.GetCachedUserByID(c.Request.Context(), userID)
-		if err != nil {
-			abortInternalError(c, "failed to check admin status")
+		user := getCachedUserOrAbort(c, ssoClient, userID, "require_admin")
+		if user == nil {
 			return
 		}
 
@@ -107,8 +148,8 @@ func RequireAdmin(ssoClient *sso.Client) gin.HandlerFunc {
 // obj: 资源, act: 操作
 func CasbinEnforce(ssoClient *sso.Client, permissionId, obj, act string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		username := GetUsername(c)
-		if username == "" {
+		userID := GetUserID(c)
+		if userID == "" {
 			abortUnauthorized(c)
 			return
 		}
@@ -116,7 +157,7 @@ func CasbinEnforce(ssoClient *sso.Client, permissionId, obj, act string) gin.Han
 		allowed, err := ssoClient.Enforce(
 			permissionId,
 			ssoClient.GetOrganization(),
-			username,
+			userID,
 			obj,
 			act,
 		)

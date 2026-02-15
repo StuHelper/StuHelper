@@ -23,9 +23,9 @@ func TestMaskSensitiveQueryParams(t *testing.T) {
 			expected: "page=1&size=10",
 		},
 		{
-			name:     "包含 code 参数",
+			name:     "包含 code 和 state 参数",
 			input:    "code=abc123&state=xyz",
-			expected: "code=%5BREDACTED%5D&state=xyz",
+			expected: "code=%5BREDACTED%5D&state=%5BREDACTED%5D",
 		},
 		{
 			name:     "包含 token 参数",

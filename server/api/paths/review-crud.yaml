@@ -1,0 +1,349 @@
+/api/v1/course/review/courses/{id}/reviews:
+  get:
+    tags: [Review]
+    operationId: getCourseReviews
+    summary: 获取课程测评列表
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/CourseIDPath'
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [time, likes, rating]
+          default: time
+      - name: termID
+        in: query
+        schema:
+          type: string
+        description: 按学期筛选
+      - name: teacherID
+        in: query
+        schema:
+          type: integer
+          format: int64
+        description: 按教师筛选
+    responses:
+      '200':
+        description: 测评分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/review.yaml#/Review'
+                    total:
+                      type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/reviews/latest:
+  get:
+    tags: [Review]
+    operationId: getLatestReviews
+    summary: 获取最新测评
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [time, likes, rating]
+          default: time
+    responses:
+      '200':
+        description: 最新测评分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/review.yaml#/Review'
+                    total:
+                      type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/reviews/batch:
+  get:
+    tags: [Review]
+    operationId: getBatchCourseReviews
+    summary: 批量获取多个课程的测评列表
+    description: 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
+    security: []
+    parameters:
+      - name: courseIDs
+        in: query
+        required: true
+        schema:
+          type: string
+        description: 逗号分隔的课程ID列表（最多20个）
+        example: "1,2,3"
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [time, likes, rating]
+          default: time
+    responses:
+      '200':
+        description: 按课程ID分组的测评列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    required: [list, total]
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '../components/schemas/review.yaml#/Review'
+                      total:
+                        type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/reviews:
+  post:
+    tags: [Review]
+    operationId: postReview
+    summary: 发布测评
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/review.yaml#/PostReviewRequest'
+    responses:
+      '201':
+        description: 测评发布成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/review.yaml#/Review'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/reviews/{id}:
+  put:
+    tags: [Review]
+    operationId: updateReview
+    summary: 更新测评
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ReviewIDPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/review.yaml#/UpdateReviewRequest'
+    responses:
+      '200':
+        description: 更新成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  delete:
+    tags: [Review]
+    operationId: deleteReview
+    summary: 删除测评
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ReviewIDPath'
+    responses:
+      '200':
+        description: 删除成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/common.yaml#/MessageData'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/reviews/{id}/vote:
+  post:
+    tags: [Review]
+    operationId: voteReview
+    summary: 投票（点赞/踩，支持切换和取消）
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ReviewIDPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/review.yaml#/VoteRequest'
+    responses:
+      '200':
+        description: 投票成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/reviews/{id}/report:
+  post:
+    tags: [Review]
+    operationId: reportReview
+    summary: 举报测评
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ReviewIDPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/review.yaml#/ReportReviewRequest'
+    responses:
+      '200':
+        description: 举报提交成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

@@ -4,10 +4,21 @@
     :class="{ '!max-w-none !p-0': isPanelMode }"
   >
     <!-- Loading -->
-    <div v-if="loading" class="flex flex-col gap-6">
-      <div class="h-[180px] rounded-xl bg-[length:200%_100%] bg-bg-secondary animate-shimmer" style="background-image: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-hover) 50%, var(--color-bg-secondary) 75%)" />
-      <div class="h-[44px] rounded-xl bg-[length:200%_100%] bg-bg-secondary animate-shimmer" style="background-image: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-hover) 50%, var(--color-bg-secondary) 75%)" />
-      <div class="h-[300px] rounded-xl bg-[length:200%_100%] bg-bg-secondary animate-shimmer" style="background-image: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-hover) 50%, var(--color-bg-secondary) 75%)" />
+    <div v-if="loading" class="flex flex-col gap-6" role="status" aria-busy="true" :aria-label="t('common.actions.loading')">
+      <div class="shimmer-box h-[180px] rounded-xl bg-bg-secondary" />
+      <div class="shimmer-box h-[44px] rounded-xl bg-bg-secondary" />
+      <div class="shimmer-box h-[300px] rounded-xl bg-bg-secondary" />
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="text-center py-12">
+      <p class="text-text-muted mb-4">{{ t('common.error.loadFailed') }}</p>
+      <button
+        class="px-4 py-2 bg-primary text-white rounded-lg border-none cursor-pointer text-sm"
+        @click="fetchCourse()"
+      >
+        {{ t('common.actions.retry') }}
+      </button>
     </div>
 
     <template v-else-if="course">
@@ -99,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import TabBar from '@/components/common/TabBar.vue'
@@ -155,20 +166,21 @@ const hasMore = computed(() => reviews.value.length < total.value)
 const { openPostModal, lastPostedAt } = useReviewPost()
 
 // 排序
-const sortBy = ref('time')
+type SortOption = 'time' | 'likes' | 'rating'
+const validSorts: SortOption[] = ['time', 'likes', 'rating']
+const sortBy = ref<SortOption>('time')
 const sortTabs = computed(() => [
   { value: 'time', label: t('review.filters.latest') },
   { value: 'likes', label: t('review.filters.hottest') }
 ])
 
-// 教师筛选
+// 教师筛选（M-75: 从 courseTeachers API 获取完整教师列表，而非从分页 reviews 中提取）
 const selectedTeacher = ref('')
 const uniqueTeachers = computed(() => {
-  const names = new Set<string>()
-  for (const r of reviews.value) {
-    if (r.teacherName) names.add(r.teacherName)
-  }
-  return [...names].sort()
+  return courseTeachers.value
+    .map(t => t.teacherName)
+    .filter(Boolean)
+    .sort()
 })
 const filteredReviews = computed(() => {
   if (!selectedTeacher.value) return reviews.value
@@ -206,9 +218,17 @@ const ratingDistribution = computed(() => {
   return dist
 })
 
+const error = ref(false)
+
 const fetchCourse = async () => {
-  const res = await getCourse(courseID.value)
-  course.value = res.data
+  try {
+    const res = await getCourse(courseID.value)
+    course.value = res.data
+    error.value = false
+  } catch {
+    course.value = null
+    error.value = true
+  }
 }
 
 const fetchRatingStats = async () => {
@@ -220,30 +240,26 @@ const fetchRatingStats = async () => {
   }
 }
 
-const fetchCourseTeachers = async () => {
-  try {
-    const res = await getCourseTeachers(courseID.value)
-    courseTeachers.value = res.data || []
-  } catch {
-    // 教师数据加载失败静默处理
-  }
-}
-
-const fetchReviews = async (append = false) => {
+const fetchReviews = async (append = false, expectedVersion?: number) => {
   reviewsLoading.value = true
   try {
     const res = await getCourseReviews(courseID.value, {
       page: page.value,
       pageSize,
-      sort: sortBy.value as 'time' | 'likes' | 'rating'
+      sort: validSorts.includes(sortBy.value) ? sortBy.value : 'time'
     })
+    // H-45: 仅在显式传入版本号时检查是否过期，undefined 表示不做版本检查
+    if (expectedVersion !== undefined && expectedVersion !== loadVersion) return
     const list = res.data?.list || []
     reviews.value = append ? [...reviews.value, ...list] : list
     total.value = res.data?.total || 0
   } catch {
     // 评论加载失败静默处理，UI 已有空状态展示
   } finally {
-    reviewsLoading.value = false
+    // H-45: undefined 时始终更新 loading 状态
+    if (expectedVersion === undefined || expectedVersion === loadVersion) {
+      reviewsLoading.value = false
+    }
   }
 }
 
@@ -254,49 +270,99 @@ const loadMoreReviews = () => {
 }
 
 const handleSortChange = (val: string) => {
-  sortBy.value = val
+  sortBy.value = val as SortOption
   page.value = 1
   selectedTeacher.value = ''
-  fetchReviews()
+  // M-171: 递增 loadVersion 使进行中的旧请求被丢弃
+  const version = ++loadVersion
+  fetchReviews(false, version)
 }
 
 const handlePosted = () => {
   page.value = 1
-  fetchReviews()
+  const version = ++loadVersion
+  fetchReviews(false, version)
   fetchRatingStats()
 }
 
 // 通过 ReviewDialog 发布测评后刷新数据
-watch(lastPostedAt, () => {
-  if (lastPostedAt.value > 0) handlePosted()
+// M-60: 在 watch 之前初始化快照，避免 immediate watch 先执行导致遗漏
+let lastPostedAtSnapshot = lastPostedAt.value
+watch(lastPostedAt, (val) => {
+  if (val > lastPostedAtSnapshot) {
+    lastPostedAtSnapshot = val
+    handlePosted()
+  }
 })
 
-onMounted(async () => {
-  if (isNaN(courseID.value) || courseID.value <= 0) {
+// H-09/M-46: 使用 loadVersion 防止并发请求交错写入
+let loadVersion = 0
+
+// 组件卸载时递增 loadVersion，使所有进行中的请求响应被丢弃
+onUnmounted(() => {
+  ++loadVersion
+})
+
+// 统一数据加载入口：初始挂载 + 路由参数变化
+// M-229: 快速切换 courseID 时，旧 Promise.all 响应到达后丢弃，防止数据不一致
+watch(courseID, async (newID, oldID) => {
+  if (oldID !== undefined && (newID === oldID || isNaN(newID) || newID <= 0)) return
+  if (isNaN(newID) || newID <= 0) {
     router.replace({ name: 'teaching-hub' })
     return
   }
 
-  loading.value = true
-  try {
-    await Promise.all([fetchCourse(), fetchRatingStats(), fetchReviews(), fetchCourseTeachers()])
-  } finally {
-    loading.value = false
-  }
-})
-
-// 路由参数变化时重新加载数据
-watch(courseID, async (newID, oldID) => {
-  if (newID === oldID || isNaN(newID) || newID <= 0) return
+  const version = ++loadVersion
+  // 重置数据状态，避免新数据加载前显示上一课程的内容
+  course.value = null
+  ratingStats.value = null
+  courseTeachers.value = []
+  reviews.value = []
+  total.value = 0
   page.value = 1
   sortBy.value = 'time'
   selectedTeacher.value = ''
   activeTab.value = 'overview'
   loading.value = true
   try {
-    await Promise.all([fetchCourse(), fetchRatingStats(), fetchReviews(), fetchCourseTeachers()])
+    const [courseRes, statsRes, reviewsRes, teachersRes] = await Promise.all([
+      getCourse(newID).catch(() => null),
+      getCourseRatingStats(newID).catch(() => null),
+      getCourseReviews(newID, { page: 1, pageSize, sort: 'time' }).catch(() => null),
+      getCourseTeachers(newID).catch(() => null)
+    ])
+    // 版本已过期，丢弃全部结果
+    if (version !== loadVersion) return
+    course.value = courseRes?.data ?? null
+    error.value = !courseRes
+    ratingStats.value = statsRes?.data ?? null
+    const list = reviewsRes?.data?.list || []
+    reviews.value = list
+    total.value = reviewsRes?.data?.total || 0
+    courseTeachers.value = teachersRes?.data || []
   } finally {
-    loading.value = false
+    if (version === loadVersion) {
+      loading.value = false
+    }
   }
-})
+}, { immediate: true })
 </script>
+
+<style scoped>
+/* L-38: 使用 transform: translateX() 替代 background-position 动画，降低 GPU 开销 */
+.shimmer-box {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 25%, var(--color-bg-hover) 50%, transparent 75%);
+  transform: translateX(-100%);
+  animation: shimmer-slide 1.5s infinite;
+}
+@keyframes shimmer-slide {
+  to { transform: translateX(100%); }
+}
+</style>

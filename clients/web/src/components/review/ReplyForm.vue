@@ -17,7 +17,7 @@
       <span
         class="text-xs text-text-muted"
         :class="{
-          'text-rating-3': content.length > maxLength * 0.9,
+          'text-color-rating-3': content.length > maxLength * 0.9,
           '!text-danger': content.length > 0 && content.trim().length < minLength
         }"
       >

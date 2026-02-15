@@ -14,10 +14,12 @@ async function fetchPaginated<T>(
   listRef: Ref<T[]>,
   totalRef: Ref<number>,
   loadingRef: Ref<boolean>,
+  errorRef: Ref<string | null>,
   page: number,
   pageSize: number
 ) {
   loadingRef.value = true
+  errorRef.value = null
   try {
     const res = await apiFn(page, pageSize)
     const items = res.data?.list || []
@@ -27,6 +29,9 @@ async function fetchPaginated<T>(
       listRef.value = [...listRef.value, ...items]
     }
     totalRef.value = res.data?.total || 0
+  } catch (err) {
+    errorRef.value = err instanceof Error ? err.message : String(err)
+    throw err
   } finally {
     loadingRef.value = false
   }
@@ -37,31 +42,34 @@ export const useUserStore = defineStore('user', () => {
   const myReviews = ref<Review[]>([])
   const myReviewsTotal = ref(0)
   const myReviewsLoading = ref(false)
+  const myReviewsError = ref<string | null>(null)
 
   // 我的点赞
   const myVotes = ref<Review[]>([])
   const myVotesTotal = ref(0)
   const myVotesLoading = ref(false)
+  const myVotesError = ref<string | null>(null)
 
   // 我的收藏
   const myFavorites = ref<FavoriteCourse[]>([])
   const myFavoritesTotal = ref(0)
   const myFavoritesLoading = ref(false)
+  const myFavoritesError = ref<string | null>(null)
 
   // 收藏状态缓存
   const favoriteIDs = ref<Set<number>>(new Set())
 
   // 获取我的评论
   const fetchMyReviews = (page = 1, pageSize = 10) =>
-    fetchPaginated(userApi.getMyReviews, myReviews, myReviewsTotal, myReviewsLoading, page, pageSize)
+    fetchPaginated(userApi.getMyReviews, myReviews, myReviewsTotal, myReviewsLoading, myReviewsError, page, pageSize)
 
   // 获取我的点赞
   const fetchMyVotes = (page = 1, pageSize = 10) =>
-    fetchPaginated(userApi.getMyVotes, myVotes, myVotesTotal, myVotesLoading, page, pageSize)
+    fetchPaginated(userApi.getMyVotes, myVotes, myVotesTotal, myVotesLoading, myVotesError, page, pageSize)
 
   // 获取我的收藏
   const fetchMyFavorites = async (page = 1, pageSize = 10) => {
-    await fetchPaginated(userApi.getMyFavorites, myFavorites, myFavoritesTotal, myFavoritesLoading, page, pageSize)
+    await fetchPaginated(userApi.getMyFavorites, myFavorites, myFavoritesTotal, myFavoritesLoading, myFavoritesError, page, pageSize)
     // 更新收藏ID缓存
     favoriteIDs.value = new Set(myFavorites.value.map(c => c.id))
   }
@@ -103,21 +111,42 @@ export const useUserStore = defineStore('user', () => {
     return favoriteIDs.value.has(courseID)
   }
 
+  // 重置状态（setup store 不支持 $reset）
+  const reset = () => {
+    myReviews.value = []
+    myReviewsTotal.value = 0
+    myReviewsLoading.value = false
+    myReviewsError.value = null
+    myVotes.value = []
+    myVotesTotal.value = 0
+    myVotesLoading.value = false
+    myVotesError.value = null
+    myFavorites.value = []
+    myFavoritesTotal.value = 0
+    myFavoritesLoading.value = false
+    myFavoritesError.value = null
+    favoriteIDs.value = new Set()
+  }
+
   return {
     myReviews,
     myReviewsTotal,
     myReviewsLoading,
+    myReviewsError,
     myVotes,
     myVotesTotal,
     myVotesLoading,
+    myVotesError,
     myFavorites,
     myFavoritesTotal,
     myFavoritesLoading,
+    myFavoritesError,
     favoriteIDs,
     fetchMyReviews,
     fetchMyVotes,
     fetchMyFavorites,
     toggleFavorite,
-    isFavorited
+    isFavorited,
+    reset
   }
 })

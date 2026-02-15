@@ -25,8 +25,10 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Heart } from 'lucide-vue-next'
 import { useUserStore } from '@/stores/user'
+import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
+const toast = useToast()
 
 const props = withDefaults(defineProps<{
   courseID: number
@@ -37,19 +39,15 @@ const props = withDefaults(defineProps<{
 
 const userStore = useUserStore()
 const loading = ref(false)
-const error = ref('')
 
 const isFavorited = computed(() => userStore.isFavorited(props.courseID))
 
 const handleClick = async () => {
   loading.value = true
-  error.value = ''
   try {
     await userStore.toggleFavorite(props.courseID)
   } catch {
-    error.value = t('review.favorite.failed')
-    // 3秒后清除错误
-    setTimeout(() => { error.value = '' }, 3000)
+    toast.error(t('review.favorite.failed'))
   } finally {
     loading.value = false
   }

@@ -84,9 +84,20 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* z-index 层级系统 */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal-backdrop: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
   /* 布局 */
   --navbar-height: 56px;
   --sidebar-width: 240px;
+
+  /* 自定义断点（M-196: 统一响应式断点） */
+  --breakpoint-tablet: 820px;
 
   /* 动画 keyframes */
   --animate-fade-in: fade-in var(--duration-base) var(--ease-out) forwards;
@@ -173,8 +184,10 @@
 }
 
 /* === 暗色模式 token 覆盖 === */
+/* 手动 data-theme="dark" 和系统偏好（未显式设置主题时）共用同一组变量 */
 @layer base {
-  [data-theme="dark"] {
+  [data-theme="dark"],
+  :root:where(:not([data-theme="light"]):not([data-theme="dark"])) {
     --color-bg-base: #1e232d;
     --color-bg-card: #252b36;
     --color-bg-elevated: #252b36;
@@ -204,36 +217,10 @@
     --shadow-glow-md: 0 0 32px rgba(59, 130, 246, 0.2);
   }
 
-  /* 跟随系统偏好 */
+  /* 系统偏好暗色模式：仅当用户未显式选择主题时生效 */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]):not([data-theme="dark"]) {
-      --color-bg-base: #1e232d;
-      --color-bg-card: #252b36;
-      --color-bg-elevated: #252b36;
-      --color-bg-hover: #2d3340;
-      --color-bg-secondary: #2a3040;
-      --color-bg-tertiary: #333a4a;
-      --color-bg-overlay: rgba(0, 0, 0, 0.6);
-      --color-bg-glass: rgba(30, 35, 45, 0.85);
-      --color-bg-glass-heavy: rgba(37, 43, 54, 0.92);
-
-      --color-text-primary: #ffffff;
-      --color-text-secondary: #9ca3af;
-      --color-text-muted: #6b7280;
-      --color-text-inverse: #1e232d;
-
-      --color-border: #374151;
-      --color-border-light: #2d3340;
-
-      --color-sidebar-active: #2d4b7a;
-
-      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-      --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(55, 65, 81, 0.5);
-      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-      --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.4);
-      --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.5);
-      --shadow-glow-sm: 0 0 16px rgba(59, 130, 246, 0.15);
-      --shadow-glow-md: 0 0 32px rgba(59, 130, 246, 0.2);
+      color-scheme: dark;
     }
   }
 
@@ -329,4 +316,14 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* 尊重用户减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

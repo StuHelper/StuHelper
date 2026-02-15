@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/jackc/pgx/v5"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
 // AdminUpdateReviewParams 管理员更新评论参数
@@ -15,9 +19,23 @@ type AdminUpdateReviewParams struct {
 	Action   string
 }
 
-// AdminUpdateReview 管理员更新评论
-func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) error {
-	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+// validTransitions 定义合法的状态转移白名单
+// key: action, value: 允许的源状态集合
+var validTransitions = map[string]map[string]bool{
+	"hide":    {"published": true},
+	"restore": {"hidden": true},
+	"delete":  {"published": true, "hidden": true},
+}
+
+// AdminUpdateReviewResult 管理员更新评论结果
+type AdminUpdateReviewResult struct {
+	OldStatus string // 事务内读取的旧状态，用于审计日志
+}
+
+// AdminUpdateReview 管理员更新评论，返回事务内读取的旧状态
+func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) (*AdminUpdateReviewResult, error) {
+	var oldStatus string
+	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		// 在事务内获取状态，消除 TOCTOU 竞态
 		currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, params.ReviewID)
 		if err != nil {
@@ -26,26 +44,28 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			}
 			return err
 		}
+		oldStatus = currentStatus
+
+		// 校验状态转移合法性
+		allowed, ok := validTransitions[params.Action]
+		if !ok {
+			return ErrInvalidAction
+		}
+		if !allowed[currentStatus] {
+			return fmt.Errorf("%w: cannot %s from %s", ErrInvalidTransition, params.Action, currentStatus)
+		}
 
 		switch params.Action {
 		case "hide":
 			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, "hidden"); err != nil {
 				return err
 			}
-			// 从 published 隐藏时递减计数
-			if currentStatus == "published" {
-				return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
-			}
-			return nil
+			return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
 		case "restore":
 			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, "published"); err != nil {
 				return err
 			}
-			// 从 hidden/deleted 恢复到 published 时递增计数
-			if currentStatus != "published" {
-				return s.repo.IncrementCourseReviewCount(ctx, tx, courseID)
-			}
-			return nil
+			return s.repo.IncrementCourseReviewCount(ctx, tx, courseID)
 		case "delete":
 			if err := s.repo.SoftDeleteReview(ctx, tx, params.ReviewID); err != nil {
 				return err
@@ -59,6 +79,10 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			return ErrInvalidAction
 		}
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &AdminUpdateReviewResult{OldStatus: oldStatus}, nil
 }
 
 // ListAllReviewsParams 获取所有评论参数
@@ -70,8 +94,9 @@ type ListAllReviewsParams struct {
 
 // ListAllReviews 获取所有评论（管理员）
 func (s *Service) ListAllReviews(ctx context.Context, params ListAllReviewsParams) (*GetCourseReviewsResult, error) {
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListAllReviews(ctx, params.Status, params.PageSize, offset)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListAllReviews(ctx, params.Status, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -197,10 +222,13 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 		Dimensions: overallDims,
 	}
 
-	// 构建学期统计列表
+	// 构建学期统计列表（按 TermID 排序，确保确定性输出）
 	for _, ts := range termStats {
 		resp.ByTerm = append(resp.ByTerm, *ts)
 	}
+	sort.Slice(resp.ByTerm, func(i, j int) bool {
+		return resp.ByTerm[i].TermID < resp.ByTerm[j].TermID
+	})
 
 	// 构建雷达图数据
 	var labels []string
@@ -219,8 +247,8 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 			{
 				Label:           teacherName,
 				Data:            data,
-				BackgroundColor: "rgba(54, 162, 235, 0.2)",
-				BorderColor:     "rgba(54, 162, 235, 1)",
+				BackgroundColor: radarBgColor,
+				BorderColor:     radarBorderColor,
 			},
 		},
 	}
@@ -288,6 +316,11 @@ func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateRevi
 
 	var affected int64
 	if err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		// 先锁定涉及的评论行，防止并发批量操作导致计数不一致
+		if err := s.repo.LockReviewsTx(ctx, tx, params.IDs); err != nil {
+			return err
+		}
+
 		// 先调整课程评论计数（在状态变更前，基于当前状态判断）
 		switch params.Action {
 		case "hide":
@@ -312,6 +345,32 @@ func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateRevi
 	}
 
 	return &BatchUpdateReviewsResult{Affected: affected}, nil
+}
+
+// BatchUpdateReviewsWithAudit 批量更新评论状态并记录审计日志（管理员）
+// M-49: 封装审计日志记录，供 handler 层调用
+func (s *Service) BatchUpdateReviewsWithAudit(ctx context.Context, params BatchUpdateReviewsParams, adminUserID, adminUsername string) (*BatchUpdateReviewsResult, error) {
+	result, err := s.BatchUpdateReviews(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// M-49: 记录批量操作审计日志
+	audit.Log(audit.Event{
+		Type:     audit.EventAdminBatchOp,
+		UserID:   adminUserID,
+		Username: adminUsername,
+		Resource: "review",
+		Action:   "batch_" + params.Action,
+		Result:   "success",
+		Details: map[string]any{
+			"ids":      params.IDs,
+			"action":   params.Action,
+			"affected": result.Affected,
+		},
+	})
+
+	return result, nil
 }
 
 // LogOperationParams 记录操作日志参数
@@ -372,8 +431,9 @@ type GetOperationLogsResult struct {
 
 // GetOperationLogs 获取操作日志列表
 func (s *Service) GetOperationLogs(ctx context.Context, params GetOperationLogsParams) (*GetOperationLogsResult, error) {
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListOperationLogs(ctx, params.PageSize, offset)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListOperationLogs(ctx, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -381,18 +441,13 @@ func (s *Service) GetOperationLogs(ctx context.Context, params GetOperationLogsP
 	return &GetOperationLogsResult{List: list, Total: total}, nil
 }
 
-// ExportReviewsParams 导出评论参数
-type ExportReviewsParams struct {
-	Format string // csv, json
-	Status string // all, published, hidden, deleted
-}
-
-// ExportReviews 导出评论数据
-func (s *Service) ExportReviews(ctx context.Context, params ExportReviewsParams) ([]Review, error) {
-	return s.repo.ListAllReviewsForExport(ctx, params.Status)
-}
-
 // StreamExportReviews 流式导出评论，逐行回调
 func (s *Service) StreamExportReviews(ctx context.Context, status string, fn func(Review) error) error {
 	return s.repo.ForEachReviewForExport(ctx, status, fn)
+}
+
+// CleanupOldOperationLogs removes operation logs older than the retention period.
+// Returns the number of deleted rows.
+func (s *Service) CleanupOldOperationLogs(ctx context.Context, retentionDays int) (int64, error) {
+	return s.repo.CleanupOldOperationLogs(ctx, retentionDays)
 }

@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 var (
 	globalLogger atomic.Pointer[zap.Logger]
 	fallbackOnce sync.Once
+	fileWriter   *lumberjack.Logger // 保留引用以便关闭
 )
 
 // Config 日志配置
@@ -68,7 +70,7 @@ func Init(cfg Config) {
 
 	// 文件输出
 	if cfg.FileEnabled {
-		fileWriter := &lumberjack.Logger{
+		fileWriter = &lumberjack.Logger{
 			Filename:   cfg.FilePath,
 			MaxSize:    cfg.FileMaxSize,
 			MaxBackups: cfg.FileMaxBackups,
@@ -101,7 +103,11 @@ func Init(cfg Config) {
 		zap.AddCaller(),
 		zap.AddStacktrace(zapcore.ErrorLevel),
 	)
-	globalLogger.Store(l)
+
+	// H-35: 替换前先 Sync 旧 logger，避免丢失缓冲日志
+	if old := globalLogger.Swap(l); old != nil {
+		_ = old.Sync() // best-effort flush，忽略 stdout/stderr 的 sync 错误
+	}
 }
 
 // L 返回全局 Logger
@@ -112,11 +118,16 @@ func L() *zap.Logger {
 	fallbackOnce.Do(func() {
 		l, err := zap.NewProduction()
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "logger: failed to create fallback logger: %v\n", err)
 			l = zap.NewNop()
 		}
 		globalLogger.Store(l)
 	})
-	return globalLogger.Load()
+	// fallbackOnce.Do 保证 Store 已完成，防御性兜底避免返回 nil
+	if l := globalLogger.Load(); l != nil {
+		return l
+	}
+	return zap.NewNop()
 }
 
 // S 返回全局 SugaredLogger
@@ -130,6 +141,26 @@ func Sync() error {
 		return l.Sync()
 	}
 	return nil
+}
+
+// Close 刷新日志缓冲并关闭文件写入器
+func Close() error {
+	err := Sync()
+	// L-28: Sync 失败时重试一次，尽量保证缓冲数据落盘
+	if err != nil {
+		if retryErr := Sync(); retryErr == nil {
+			err = nil
+		}
+		// 重试仍失败则继续关闭 fileWriter，避免资源泄漏；
+		// Sync 错误已记录在 err 中，调用方可据此判断是否有数据丢失风险
+	}
+	if fileWriter != nil {
+		if closeErr := fileWriter.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+		fileWriter = nil
+	}
+	return err
 }
 
 func parseLevel(level string) zapcore.Level {

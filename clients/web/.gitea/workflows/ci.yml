@@ -40,13 +40,37 @@ jobs:
       - name: Install dependencies
         working-directory: clients/web
         run: npm ci
-      - name: Lint
+      - name: ESLint
         working-directory: clients/web
-        run: npm run lint
+        run: npx eslint . --ext .ts,.tsx,.vue
+      - name: Prettier check
+        working-directory: clients/web
+        run: npx prettier --check "src/**/*.{ts,tsx,vue,css,json}"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: clients/web/package-lock.json
+      - name: Install dependencies
+        working-directory: clients/web
+        run: npm ci
+      - name: Run tests
+        working-directory: clients/web
+        run: |
+          if npx --no-install vitest --version > /dev/null 2>&1; then
+            npx vitest --run
+          else
+            echo "No test runner found, skipping tests"
+          fi
 
   build:
     runs-on: ubuntu-latest
-    needs: [type-check, lint]
+    needs: [type-check, lint, test]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -2,11 +2,16 @@ package course
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
+
+// ErrNotFound 表示数据库查询未找到记录的哨兵错误
+var ErrNotFound = errors.New("record not found")
 
 // Repository 课程数据访问层
 type Repository struct {
@@ -62,6 +67,14 @@ func (r *Repository) CountDepartments(ctx context.Context) (int, error) {
 	return count, err
 }
 
+// CountStats 单次查询同时获取课程数和院系数
+func (r *Repository) CountStats(ctx context.Context) (courseCount, departmentCount int, err error) {
+	err = r.db.QueryRow(ctx,
+		"SELECT (SELECT COUNT(*) FROM courses), (SELECT COUNT(*) FROM departments)").
+		Scan(&courseCount, &departmentCount)
+	return
+}
+
 // ListCourses 获取课程列表（可按院系和分类过滤），使用窗口函数一次性返回数据和总数
 func (r *Repository) ListCourses(ctx context.Context, departmentID int64, category string, limit, offset int) ([]Course, int, error) {
 	rows, err := r.db.Query(ctx, `
@@ -114,11 +127,11 @@ func (r *Repository) GetCourseByID(ctx context.Context, id int64) (*Course, erro
 		&item.ID, &item.SchoolID, &item.DepartmentID, &item.DepartmentName,
 		&item.Code, &item.Name, &item.Credits, &item.Category, &item.ReviewCount,
 	)
-	if err == pgx.ErrNoRows {
-		return nil, nil
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("course id %d: %w", id, ErrNotFound)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query course by id %d: %w", id, err)
 	}
 	return &item, nil
 }

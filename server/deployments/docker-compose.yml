@@ -9,7 +9,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
       - ../scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-stuhelper}"]
@@ -28,7 +28,8 @@ services:
   redis:
     image: redis:8-alpine
     container_name: stuhelper-redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    # M-115: 使用 volatile-lru 仅淘汰设置了过期时间的 key，避免误删无 TTL 的关键数据（如 token blacklist）
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy volatile-lru --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
@@ -45,6 +46,38 @@ services:
         limits:
           cpus: '1'
           memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  app:
+    image: stuhelper:latest
+    container_name: stuhelper-app
+    environment:
+      APP_ENV: production
+      APP_PORT: "8080"
+      DATABASE_URL: postgres://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=disable
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
         reservations:
           cpus: '0.25'
           memory: 128M

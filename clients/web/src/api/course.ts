@@ -9,6 +9,7 @@ import type {
   RatingDimension,
   CourseRatingStatsResponse
 } from '@/types/course'
+import type { PaginatedResponse } from '@/types/api'
 
 // 获取院系列表
 export function getDepartments(category?: string) {
@@ -25,9 +26,9 @@ export function getCourseCategories() {
 // 获取课程列表
 export function getCourses(departmentID?: number, category?: string) {
   const params: Record<string, unknown> = {}
-  if (departmentID) params.departmentID = departmentID
+  if (departmentID !== undefined && departmentID !== null) params.departmentID = departmentID
   if (category) params.category = category
-  return courseEntityApi.get<{ list: Course[]; total: number }>('/courses', { params })
+  return courseEntityApi.get<PaginatedResponse<Course>>('/courses', { params })
 }
 
 // 获取课程详情
@@ -37,7 +38,7 @@ export function getCourse(id: number) {
 
 // 搜索课程
 export function searchCourses(query: string, limit = 10) {
-  return courseEntityApi.get<{ list: Course[]; total: number }>('/courses/search', {
+  return courseEntityApi.get<PaginatedResponse<Course>>('/courses/search', {
     params: { q: query, limit }
   })
 }
@@ -64,12 +65,12 @@ export function getCourseRatingStats(courseID: number) {
   return api.get<CourseRatingStatsResponse>(`/courses/${courseID}/rating-stats`)
 }
 
-// 评分趋势项
+// 评分趋势项（对齐后端 review.RatingTrendItem json tag）
 export interface RatingTrendItem {
   termID: string
   termName: string
   avgRating: number
-  reviewCount: number
+  count: number
 }
 
 // 获取课程评分趋势

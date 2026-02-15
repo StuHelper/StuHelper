@@ -4,7 +4,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -17,9 +19,14 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		// c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-		// API 服务器的 CSP 策略：只允许 JSON 响应，禁止脚本和样式
-		c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		c.Header("X-Permitted-Cross-Domain-Policies", "none")
+		// Swagger UI 需要加载脚本和样式，使用宽松 CSP
+		if strings.HasPrefix(c.Request.URL.Path, "/docs") {
+			c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
+		} else {
+			// API 服务器的 CSP 策略：只允许 JSON 响应，禁止脚本和样式
+			c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		}
 		c.Next()
 	}
 }
@@ -29,9 +36,15 @@ func SecurityHeadersWithHSTS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
-		c.Header("Referrer-Policy", "no-referrer")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-		c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		c.Header("X-Permitted-Cross-Domain-Policies", "none")
+		// Swagger UI 在生产环境不注册，但保持一致的 CSP 逻辑
+		if strings.HasPrefix(c.Request.URL.Path, "/docs") {
+			c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
+		} else {
+			c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		}
 		// HSTS: 强制 HTTPS，有效期 1 年，包含子域名
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		// CORP: 限制资源只能被同源页面加载
@@ -85,7 +98,7 @@ func MaxBodySize(maxBytes int64) gin.HandlerFunc {
 				zap.Int64("max_bytes", maxBytes),
 				zap.String("user_agent", c.Request.UserAgent()),
 			)
-			response.Error(c, http.StatusRequestEntityTooLarge, "REQUEST_TOO_LARGE", "request body too large")
+			response.Error(c, http.StatusRequestEntityTooLarge, errs.ErrRequestTooLarge, "request body too large")
 			c.Abort()
 			return
 		}

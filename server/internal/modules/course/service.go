@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
@@ -52,7 +53,7 @@ type ListCoursesResult struct {
 
 // GetCourses 获取课程列表
 func (s *Service) GetCourses(ctx context.Context, params ListCoursesParams) (*ListCoursesResult, error) {
-	offset := (params.Page - 1) * params.PageSize
+	offset := httputil.SafeOffset(params.Page, params.PageSize)
 	list, total, err := s.repo.ListCourses(ctx, params.DepartmentID, params.Category, params.PageSize, offset)
 	if err != nil {
 		s.log.Error("failed to list courses", zap.Error(err))
@@ -73,7 +74,7 @@ type SearchCoursesParams struct {
 func (s *Service) SearchCourses(ctx context.Context, params SearchCoursesParams) (*ListCoursesResult, error) {
 	pattern := "%" + escapeLikePattern(params.Query) + "%"
 
-	offset := (params.Page - 1) * params.PageSize
+	offset := httputil.SafeOffset(params.Page, params.PageSize)
 	list, total, err := s.repo.SearchCourses(ctx, pattern, params.PageSize, offset)
 	if err != nil {
 		s.log.Error("failed to search courses", zap.String("query", params.Query), zap.Error(err))
@@ -87,11 +88,11 @@ func (s *Service) SearchCourses(ctx context.Context, params SearchCoursesParams)
 func (s *Service) GetCourse(ctx context.Context, id int64) (*Course, error) {
 	course, err := s.repo.GetCourseByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, ErrCourseNotFound
+		}
 		s.log.Error("failed to get course", zap.Int64("id", id), zap.Error(err))
 		return nil, err
-	}
-	if course == nil {
-		return nil, ErrCourseNotFound
 	}
 	return course, nil
 }
@@ -109,15 +110,9 @@ type StatsResult struct {
 
 // GetStats 获取统计数据
 func (s *Service) GetStats(ctx context.Context) (*StatsResult, error) {
-	courseCount, err := s.repo.CountCourses(ctx, 0)
+	courseCount, departmentCount, err := s.repo.CountStats(ctx)
 	if err != nil {
-		s.log.Error("failed to count courses", zap.Error(err))
-		return nil, err
-	}
-
-	departmentCount, err := s.repo.CountDepartments(ctx)
-	if err != nil {
-		s.log.Error("failed to count departments", zap.Error(err))
+		s.log.Error("failed to count stats", zap.Error(err))
 		return nil, err
 	}
 

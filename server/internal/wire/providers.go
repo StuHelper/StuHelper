@@ -102,7 +102,7 @@ func ProvideHealthHandler(
 		Version:   "1.0.0",
 		GitCommit: "unknown",
 		BuildTime: "unknown",
-	}, isProduction)
+	}, isProduction, 0)
 }
 
 // ProvideAuthHandler 提供认证 Handler
@@ -119,6 +119,7 @@ func ProvideCourseHandler(
 	database *db.DB,
 	rc *redis.Client,
 	ssoClient *sso.Client,
+	cfg *config.Config,
 ) *course.Handler {
-	return course.NewHandler(database, rc.GetClient(), ssoClient)
+	return course.NewHandler(database, rc.GetClient(), ssoClient, cfg)
 }

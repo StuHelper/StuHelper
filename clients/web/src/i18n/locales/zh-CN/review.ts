@@ -169,7 +169,8 @@ export default {
     todayReviews: '今日新增',
     feedEmpty: '暂无测评，来发布第一条吧',
     loadFailed: '加载测评失败，请稍后重试',
-    retry: '重试'
+    retry: '重试',
+    loading: '正在加载测评'
   },
   stats: {
     insufficient: '数据较少',

@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 
@@ -34,10 +35,34 @@ func (r *Repository) ReviewExists(ctx context.Context, reviewID string) (bool, e
 	return exists, err
 }
 
+// CourseExistsTx 在事务内检查课程是否存在
+func (r *Repository) CourseExistsTx(ctx context.Context, tx pgx.Tx, courseID int64) (bool, error) {
+	var exists bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM courses WHERE id = $1)`, courseID).Scan(&exists)
+	return exists, err
+}
+
+// TeacherExistsTx 在事务内检查教师是否存在（H-23）
+func (r *Repository) TeacherExistsTx(ctx context.Context, tx pgx.Tx, teacherID int64) (bool, error) {
+	var exists bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM teachers WHERE id = $1)`, teacherID).Scan(&exists)
+	return exists, err
+}
+
+// UserHasReviewedCourseTx 在事务内检查用户是否已对该课程发布评论
+func (r *Repository) UserHasReviewedCourseTx(ctx context.Context, tx pgx.Tx, userHash string, courseID int64) (bool, error) {
+	var exists bool
+	err := tx.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM reviews WHERE user_hash = $1 AND course_id = $2 AND status != 'deleted')
+	`, userHash, courseID).Scan(&exists)
+	return exists, err
+}
+
 // ReviewExistsTx 在事务内检查评论是否存在（已发布状态）
+// 使用 FOR SHARE 防止并发事务在检查与写入之间删除评论（TOCTOU）
 func (r *Repository) ReviewExistsTx(ctx context.Context, tx pgx.Tx, reviewID string) (bool, error) {
 	var exists bool
-	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reviews WHERE id = $1 AND status = 'published')`, reviewID).Scan(&exists)
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reviews WHERE id = $1 AND status = 'published' FOR SHARE)`, reviewID).Scan(&exists)
 	return exists, err
 }
 
@@ -88,8 +113,8 @@ func (r *Repository) ListByCourse(ctx context.Context, courseID int64, limit, of
 		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
-		       (SELECT COUNT(*) FROM review_replies rr WHERE rr.review_id = r.id AND rr.status = 'published') AS reply_count,
-		       r.status, r.created_at
+		       r.reply_count,
+		       r.status, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
@@ -106,11 +131,14 @@ func (r *Repository) ListByCourse(ctx context.Context, courseID int64, limit, of
 
 // ListLatest 获取最新评论列表（含总数）
 func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort string) ([]Review, int, error) {
+	// SQL 注入安全保证：orderClause 的值 **仅** 来自下方硬编码的 map 字面量，
+	// 不包含任何用户输入。即使 sort 参数被篡改，最坏情况也只会命中默认排序。
+	// 使用 map 查找（O(1)）而非 switch，确保编译时可审计所有合法值。
 	allowedSorts := map[string]string{
 		"likes":  "r.like_count DESC, r.created_at DESC",
 		"rating": "r.avg_rating DESC, r.created_at DESC",
 	}
-	orderClause := "r.created_at DESC"
+	orderClause := "r.created_at DESC" // 默认排序（白名单未命中时使用）
 	if clause, ok := allowedSorts[sort]; ok {
 		orderClause = clause
 	}
@@ -119,8 +147,8 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
-		       (SELECT COUNT(*) FROM review_replies rr WHERE rr.review_id = r.id AND rr.status = 'published') AS reply_count,
-		       r.status, r.created_at,
+		       r.reply_count,
+		       r.status, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
@@ -161,6 +189,32 @@ func (r *Repository) Create(ctx context.Context, tx pgx.Tx, p CreateParams) erro
 	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
 		p.Content, p.Grade, p.Ratings, p.UserHash, "published")
 	return err
+}
+
+// CreateReturning 创建评论并通过 RETURNING 返回完整记录（H-16: 避免创建后查询失败导致孤儿记录）
+func (r *Repository) CreateReturning(ctx context.Context, tx pgx.Tx, p CreateParams) (*Review, error) {
+	var review Review
+	err := tx.QueryRow(ctx, `
+		INSERT INTO reviews (
+			id, course_id, teacher_id, term_id, title, content, grade,
+			ratings, avg_rating, user_hash, status, created_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
+			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($8) WHERE value ~ '^\d+(\.\d+)?$'), 0),
+			$9,$10,NOW())
+		RETURNING id, course_id, teacher_id, term_id, title, content, grade,
+			ratings, like_count, dislike_count, reply_count, status, created_at, updated_at
+	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
+		p.Content, p.Grade, p.Ratings, p.UserHash, "published",
+	).Scan(
+		&review.ID, &review.CourseID, &review.TeacherID, &review.TermID,
+		&review.Title, &review.Content, &review.Grade, &review.Ratings,
+		&review.LikeCount, &review.DislikeCount, &review.ReplyCount,
+		&review.Status, &review.CreatedAt, &review.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("CreateReturning: %w", err)
+	}
+	return &review, nil
 }
 
 // IncrementCourseReviewCount 增加课程评论计数
@@ -240,13 +294,13 @@ func scanReviews(rows interface {
 	Scan(...interface{}) error
 	Err() error
 }) ([]Review, error) {
-	list := make([]Review, 0)
+	list := make([]Review, 0, 20)
 	for rows.Next() {
 		var item Review
 		if err := rows.Scan(
 			&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
 			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
-			&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt,
+			&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -264,14 +318,14 @@ func scanReviewsWithTotal(rows interface {
 	Scan(...interface{}) error
 	Err() error
 }) ([]Review, int, error) {
-	list := make([]Review, 0)
+	list := make([]Review, 0, 20)
 	var total int
 	for rows.Next() {
 		var item Review
 		if err := rows.Scan(
 			&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
 			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
-			&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt,
+			&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt, &item.UpdatedAt,
 			&total,
 		); err != nil {
 			return nil, 0, err

@@ -35,6 +35,7 @@
     </div>
 
     <!-- 内容 -->
+    <!-- H-10: 使用 v-text 防御 XSS，确保用户内容不被解析为 HTML -->
     <div
       class="text-sm text-text-secondary leading-relaxed cursor-pointer break-words"
       :class="{ 'line-clamp-3': !isExpanded && shouldTruncate }"
@@ -45,9 +46,8 @@
       @click="toggleExpand"
       @keydown.enter="toggleExpand"
       @keydown.space.prevent="toggleExpand"
-    >
-      {{ review.content }}
-    </div>
+      v-text="review.content"
+    />
 
     <!-- 表情评分指标 -->
     <div v-if="displayRatings.length > 0" class="flex flex-wrap gap-3 mt-4 pt-3 border-t border-border">
@@ -162,30 +162,26 @@ const dislikeOffset = ref(0)
 const likeBounce = ref(false)
 const shaking = ref(false)
 
-const displayLikes = computed(() => props.review.likeCount + likeOffset.value)
-const displayDislikes = computed(() => props.review.dislikeCount + dislikeOffset.value)
+// M-69: 评分值钳位，防止负值导致进度条异常
+const displayLikes = computed(() => Math.max(0, props.review.likeCount + likeOffset.value))
+const displayDislikes = computed(() => Math.max(0, props.review.dislikeCount + dislikeOffset.value))
 
-// 表情评分指标映射
-const ratingEmojiMap: Record<string, string> = {
-  recommendation: '👍',
-  content_quality: '📚',
-  workload: '⏰',
-  grading: '📊'
-}
-
+// M-102: 表情评分指标映射，通过 i18n 获取 emoji（支持本地化）
 const displayRatings = computed(() => {
   const ratings = props.review.ratings
   if (!ratings || Object.keys(ratings).length === 0) return []
   return Object.entries(ratings).map(([key, value]) => {
-    const emoji = ratingEmojiMap[key] || '⭐'
+    const emoji = t(`review.ratingEmoji.icon.${key}`, '⭐')
     const label = t(`review.ratingEmoji.${key}`, t('review.ratingEmoji.fallback'))
-    return { key, emoji, label, value }
+    // M-69: 钳位评分值，防止负值或超范围值
+    const clampedValue = Math.max(0, Math.min(5, value))
+    return { key, emoji, label, value: clampedValue }
   })
 })
 
 // 评分
 const avgRating = computed(() => {
-  const ratings = Object.values(props.review.ratings)
+  const ratings = Object.values(props.review.ratings || {})
   if (ratings.length === 0) return 0
   return ratings.reduce((a, b) => a + b, 0) / ratings.length
 })
@@ -205,25 +201,29 @@ const replySubmitting = ref(false)
 const replyCount = ref(props.review.replyCount ?? 0)
 const replyFormRef = ref<InstanceType<typeof ReplyForm> | null>(null)
 
-// 同步 props 变化
+// 同步 props 变化（仅在无本地修改时同步，避免覆盖乐观更新）
+let replyCountDirty = false
 watch(() => props.review.replyCount, (val) => {
-  if (val !== undefined) replyCount.value = val
+  if (val !== undefined && !replyCountDirty) replyCount.value = val
 })
 
 // 当 review 数据刷新时重置投票偏移量
-watch(() => props.review.id, () => {
+let voteVersion = 0
+watch(() => props.review, () => {
+  voteVersion++
   likeOffset.value = 0
   dislikeOffset.value = 0
   userVote.value = null
+  replyCountDirty = false
 })
 
-// 定时器清理
+// L-32: 定时器清理后置空，释放闭包引用
 let bounceTimer: ReturnType<typeof setTimeout> | null = null
 let shakeTimer: ReturnType<typeof setTimeout> | null = null
 
 onUnmounted(() => {
-  if (bounceTimer) clearTimeout(bounceTimer)
-  if (shakeTimer) clearTimeout(shakeTimer)
+  if (bounceTimer) { clearTimeout(bounceTimer); bounceTimer = null }
+  if (shakeTimer) { clearTimeout(shakeTimer); shakeTimer = null }
 })
 
 // 时间格式化
@@ -237,6 +237,8 @@ async function handleVote(type: VoteType) {
   const prevVote = userVote.value
   const prevLikeOffset = likeOffset.value
   const prevDislikeOffset = dislikeOffset.value
+  // M-103: 使用 review.id 判断是否应回滚，而非 voteVersion
+  const targetReviewId = props.review.id
 
   // 乐观更新
   if (userVote.value === type) {
@@ -252,7 +254,7 @@ async function handleVote(type: VoteType) {
     if (type === 'like') {
       likeOffset.value++
       likeBounce.value = true
-      bounceTimer = setTimeout(() => { likeBounce.value = false }, 300)
+      bounceTimer = setTimeout(() => { likeBounce.value = false; bounceTimer = null }, 300)
     } else {
       dislikeOffset.value++
     }
@@ -261,13 +263,15 @@ async function handleVote(type: VoteType) {
   try {
     await voteReview(props.review.id, type)
   } catch {
-    // 回滚
-    userVote.value = prevVote
-    likeOffset.value = prevLikeOffset
-    dislikeOffset.value = prevDislikeOffset
-    shaking.value = true
-    shakeTimer = setTimeout(() => { shaking.value = false }, 300)
-    toast.error(t('review.review.voteFailed'))
+    // M-103: review.id 变化后跳过回滚，确保只回滚同一条评论的投票
+    if (props.review.id === targetReviewId) {
+      userVote.value = prevVote
+      likeOffset.value = prevLikeOffset
+      dislikeOffset.value = prevDislikeOffset
+      shaking.value = true
+      shakeTimer = setTimeout(() => { shaking.value = false; shakeTimer = null }, 300)
+      toast.error(t('review.review.voteFailed'))
+    }
   } finally {
     isVoting.value = false
   }
@@ -288,6 +292,7 @@ async function loadReplies() {
     const res = await getReplies(props.review.id)
     replies.value = res.data?.list || []
     replyCount.value = res.data?.total || 0
+    replyCountDirty = false
   } catch {
     replies.value = []
     repliesError.value = true
@@ -306,6 +311,7 @@ async function handleReplySubmit(content: string) {
     if (res.data) {
       replies.value.push(res.data)
       replyCount.value++
+      replyCountDirty = true
       replyFormRef.value?.clear()
       toast.success(t('review.review.replySuccess'))
     }
@@ -321,6 +327,7 @@ async function handleDeleteReply(id: string) {
     await deleteReply(id)
     replies.value = replies.value.filter((r) => r.id !== id)
     replyCount.value = Math.max(0, replyCount.value - 1)
+    replyCountDirty = true
   } catch {
     toast.error(t('review.review.deleteFailed'))
   }

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"time"
+	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
 
@@ -28,6 +30,17 @@ type ReportReviewParams struct {
 
 // ReportReview 举报评论
 func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) error {
+	// L-22: 校验 reason 非空
+	if strings.TrimSpace(params.Reason) == "" {
+		return ErrInvalidAction
+	}
+
+	// XSS 防护：清洗举报描述
+	if sanitizer.ContainsDangerousContent(params.Description) {
+		return ErrDangerousContent
+	}
+	params.Description = sanitizer.SanitizeText(params.Description)
+
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		// 在事务内检查评论是否存在，消除 TOCTOU 竞态
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
@@ -68,10 +81,24 @@ type ListReportsResult struct {
 	Total int
 }
 
+// validReportStatuses 举报状态白名单（L-23）
+var validReportStatuses = map[string]bool{
+	"pending":  true,
+	"resolved": true,
+	"rejected": true,
+	"all":      true,
+}
+
 // ListReports 获取举报列表（管理员）
 func (s *Service) ListReports(ctx context.Context, params ListReportsParams) (*ListReportsResult, error) {
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListReports(ctx, params.Status, params.PageSize, offset)
+	// L-23: 白名单校验 status 参数
+	status := params.Status
+	if !validReportStatuses[status] {
+		status = "all"
+	}
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListReports(ctx, status, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +108,7 @@ func (s *Service) ListReports(ctx context.Context, params ListReportsParams) (*L
 
 // ProcessReportParams 处理举报参数
 type ProcessReportParams struct {
-	ReportID   int64
+	ReportID   string
 	Action     string
 	Note       string
 	ResolvedBy string
@@ -89,6 +116,14 @@ type ProcessReportParams struct {
 
 // ProcessReport 处理举报（管理员）
 func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams) error {
+	// 在事务外预先校验 action，避免无效操作占用事务资源
+	switch params.Action {
+	case "reject", "hide_review", "delete_review":
+		// 合法 action，继续
+	default:
+		return ErrInvalidAction
+	}
+
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		// 在事务内获取并加锁，防止并发处理同一举报
 		report, err := s.repo.GetReportByIDForUpdate(ctx, tx, params.ReportID)
@@ -133,8 +168,6 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 					return err
 				}
 			}
-		default:
-			return ErrInvalidAction
 		}
 
 		return s.repo.UpdateReport(ctx, tx, UpdateReportParams{
@@ -184,8 +217,9 @@ type GetUserFavoritesResult struct {
 
 // GetUserFavorites 获取用户收藏列表
 func (s *Service) GetUserFavorites(ctx context.Context, params GetUserFavoritesParams) (*GetUserFavoritesResult, error) {
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListFavorites(ctx, params.UserHash, params.PageSize, offset)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListFavorites(ctx, params.UserHash, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -202,8 +236,9 @@ type GetUserReviewsParams struct {
 
 // GetUserReviews 获取用户评论列表
 func (s *Service) GetUserReviews(ctx context.Context, params GetUserReviewsParams) (*GetCourseReviewsResult, error) {
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListByUserHash(ctx, params.UserHash, params.PageSize, offset)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListByUserHash(ctx, params.UserHash, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -221,8 +256,9 @@ type GetUserVotesParams struct {
 
 // GetUserVotes 获取用户点赞列表
 func (s *Service) GetUserVotes(ctx context.Context, params GetUserVotesParams) (*GetCourseReviewsResult, error) {
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListVotedReviews(ctx, params.UserHash, params.VoteType, params.PageSize, offset)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListVotedReviews(ctx, params.UserHash, params.VoteType, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -253,6 +289,11 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 		return nil, ErrCourseNotFound
 	}
 
+	// termID 格式校验（与发布链路一致）
+	if params.TermID != "" && !validTermIDFormat.MatchString(params.TermID) {
+		return nil, fmt.Errorf("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+	}
+
 	// XSS 防护
 	if sanitizer.ContainsDangerousContent(params.Title) || sanitizer.ContainsDangerousContent(params.Content) {
 		return nil, ErrDangerousContent
@@ -280,14 +321,7 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 
 // GetDraft 获取草稿
 func (s *Service) GetDraft(ctx context.Context, userHash string, courseID int64) (*ReviewDraft, error) {
-	draft, err := s.repo.GetDraft(ctx, userHash, courseID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrDraftNotFound
-		}
-		return nil, err
-	}
-	return draft, nil
+	return s.repo.GetDraft(ctx, userHash, courseID)
 }
 
 // DeleteDraft 删除草稿
@@ -315,7 +349,7 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 	}
 
 	var replyID string
-	now := time.Now()
+	var replyTS *ReplyTimestamps
 	if err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		// 在事务内检查评论是否存在，消除 TOCTOU 竞态
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
@@ -326,7 +360,7 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 			return ErrReviewNotFound
 		}
 
-		replyID, err = s.repo.CreateReply(ctx, tx, CreateReplyParams{
+		replyID, replyTS, err = s.repo.CreateReply(ctx, tx, CreateReplyParams{
 			ReviewID: params.ReviewID,
 			ParentID: params.ParentID,
 			UserHash: params.UserHash,
@@ -340,6 +374,11 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 		return nil, err
 	}
 
+	// M-116: 防御性 nil 检查，RETURNING 正常情况下不会返回 nil
+	if replyTS == nil {
+		return nil, fmt.Errorf("CreateReply: unexpected nil timestamps from RETURNING clause")
+	}
+
 	return &CreateReplyResult{
 		Reply: Reply{
 			ID:        replyID,
@@ -349,8 +388,8 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 			LikeCount: 0,
 			Status:    "published",
 			IsOwner:   true,
-			CreatedAt: now,
-			UpdatedAt: now,
+			CreatedAt: replyTS.CreatedAt,
+			UpdatedAt: replyTS.UpdatedAt,
 		},
 	}, nil
 }
@@ -371,8 +410,9 @@ type GetRepliesResult struct {
 
 // GetReplies 获取回复列表
 func (s *Service) GetReplies(ctx context.Context, params GetRepliesParams) (*GetRepliesResult, error) {
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListReplies(ctx, params.ReviewID, params.PageSize, offset)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListReplies(ctx, params.ReviewID, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -381,6 +421,7 @@ func (s *Service) GetReplies(ctx context.Context, params GetRepliesParams) (*Get
 		if params.UserHash != "" {
 			list[i].IsOwner = list[i].UserHash == params.UserHash
 		}
+		// 纵深防御：json:"-" 阻止序列化，手动清空防止 tag 被误删后泄漏
 		list[i].UserHash = ""
 	}
 
@@ -438,18 +479,14 @@ type GetNotificationsResult struct {
 
 // GetNotifications 获取通知列表
 func (s *Service) GetNotifications(ctx context.Context, params GetNotificationsParams) (*GetNotificationsResult, error) {
-	unread, err := s.repo.CountUnreadNotifications(ctx, params.UserHash)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	result, err := s.repo.ListNotifications(ctx, params.UserHash, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
 
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListNotifications(ctx, params.UserHash, params.PageSize, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GetNotificationsResult{List: list, Total: total, Unread: unread}, nil
+	return &GetNotificationsResult{List: result.List, Total: result.Total, Unread: result.Unread}, nil
 }
 
 // GetUnreadNotificationCount 获取未读通知数量

@@ -9,11 +9,15 @@
 ```
 server/
 ├── cmd/stuhelper/       # 应用入口
+├── api/                 # OpenAPI 3.0.3 规范（Spec-First 源文件）
+│   ├── openapi.yaml     # 主入口
+│   ├── paths/           # 路径定义（按领域拆分）
+│   └── components/      # 公共组件（schemas/parameters/responses）
 ├── internal/
+│   ├── api/gen/         # 自动生成的代码（禁止手动修改）
 │   ├── modules/         # 业务模块（按领域划分）
 │   │   ├── auth/        # 认证模块
-│   │   ├── course/      # 课程模块
-│   │   └── review/      # 评课模块
+│   │   └── course/      # 课程 + 评课模块
 │   └── pkg/             # 公共包（中间件、工具函数等）
 ├── deployments/         # Docker Compose、.env 配置
 └── scripts/             # 数据库初始化和种子数据
@@ -21,11 +25,45 @@ server/
 
 每个业务模块遵循三层架构：`Handler → Service → Repository`。
 
-## 添加新 API 端点
+## 添加新 API 端点（Spec-First 流程）
 
-以"获取课程详情"为例，展示完整的开发流程。
+项目采用 OpenAPI 3 Spec-First 模式。以"获取课程详情"为例：
 
-### 1. Repository — 数据访问
+### 1. 编写 OpenAPI 规范
+
+在 `server/api/paths/` 中定义端点，在 `server/api/components/schemas/` 中定义数据模型：
+
+```yaml
+# api/paths/course.yaml
+/api/v1/course/courses/{id}:
+  get:
+    operationId: getCourseDetail
+    tags: [Course]
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PathID'
+    responses:
+      '200':
+        description: 课程详情
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - properties:
+                    data:
+                      $ref: '../components/schemas/course.yaml#/CourseDetail'
+```
+
+### 2. 生成代码
+
+```bash
+cd server
+make generate   # lint → bundle → 生成 Go models/interface → 生成 TS 类型
+```
+
+生成的 `server.gen.go` 会包含 `GetCourseDetail` 的 handler 签名和请求/响应 models。
+
+### 3. Repository — 数据访问
 
 ```go
 // internal/modules/course/repository.go
@@ -33,11 +71,14 @@ func (r *Repository) GetByID(ctx context.Context, id int64) (*Course, error) {
     var course Course
     err := r.db.QueryRow(ctx, `SELECT id, name FROM courses WHERE id = $1`, id).
         Scan(&course.ID, &course.Name)
-    return &course, err
+    if err != nil {
+        return nil, fmt.Errorf("GetByID: %w", err)
+    }
+    return &course, nil
 }
 ```
 
-### 2. Service — 业务逻辑
+### 4. Service — 业务逻辑
 
 ```go
 // internal/modules/course/service.go
@@ -46,7 +87,7 @@ func (s *Service) GetCourseDetail(ctx context.Context, id int64) (*Course, error
 }
 ```
 
-### 3. Handler — HTTP 处理
+### 5. Handler — HTTP 处理
 
 ```go
 // internal/modules/course/handler.go
@@ -58,14 +99,14 @@ func (h *Handler) GetCourseDetail(c *gin.Context) {
     }
     result, err := h.service.GetCourseDetail(c.Request.Context(), id)
     if err != nil {
-        response.InternalError(c, "failed to get course")
+        response.InternalError(c)
         return
     }
     response.Success(c, result)
 }
 ```
 
-### 4. 注册路由
+### 6. 注册路由
 
 ```go
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
@@ -74,15 +115,27 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 }
 ```
 
+### 7. 验证
+
+```bash
+make lint-spec   # 确认规范无错误
+make generate    # 重新生成，确认无漂移
+make build       # 编译通过
+```
+
+开发环境访问 http://localhost:8080/docs/ 可在 Swagger UI 中查看和测试新端点。
+
 ## 常用命令
 
 ```bash
 cd server
-make run       # 运行
-make test      # 测试
-make lint      # 代码检查
-make fmt       # 格式化
-make build     # 构建二进制
+make run              # 运行
+make test             # 测试
+make lint             # 代码检查
+make fmt              # 格式化
+make build            # 构建二进制
+make generate         # 重新生成 OpenAPI 相关代码
+make lint-spec        # 验证 OpenAPI 规范
 ```
 
 ## 相关文档
@@ -90,3 +143,5 @@ make build     # 构建二进制
 - [分层架构](../architecture/layered-architecture.md) — 三层架构详解
 - [API 概览](../reference/api-overview.md) — 接口规范
 - [错误码](../reference/error-codes.md) — 统一错误码定义
+- OpenAPI 规范: `server/api/openapi.yaml`
+- Swagger UI: http://localhost:8080/docs/ （开发环境）

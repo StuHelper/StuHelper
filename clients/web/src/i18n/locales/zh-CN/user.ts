@@ -27,6 +27,7 @@ export default {
     emptyDesc: '有新消息时会在这里显示',
     bell: '通知',
     bellMarkAllRead: '全部已读',
-    viewAll: '查看全部'
+    viewAll: '查看全部',
+    unreadCount: '{count} 条未读通知'
   }
 }

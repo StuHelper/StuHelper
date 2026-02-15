@@ -5,6 +5,7 @@
 export default {
   // Network errors
   NETWORK_ERROR: 'Network connection failed, please check your network',
+  OFFLINE: 'You are offline. Please check your connection and try again',
   TIMEOUT: 'Request timed out, please try again',
 
   // Auth errors
@@ -45,6 +46,13 @@ export default {
     reload: 'Refresh Page'
   },
 
+  // Error boundary
+  boundary: {
+    title: 'Something went wrong',
+    description: 'An unexpected error occurred while rendering the page. Please try refreshing.',
+    reload: 'Refresh Page'
+  },
+
   // Auth callback
   authCallback: {
     loading: 'Logging in...',
@@ -52,6 +60,9 @@ export default {
     backToLogin: 'Back to Login',
     missingCode: 'Missing authorization code',
     missingState: 'Missing state parameter',
-    loginFailed: 'Login failed, please retry'
+    loginFailed: 'Login failed, please retry',
+    orgMismatch: 'Your SSO account does not have access to this system',
+    orgMismatchHint: 'Please log out and sign in with the correct account',
+    ssoLogout: 'Log out and sign in again'
   }
 }

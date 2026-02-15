@@ -7,7 +7,7 @@ services:
     ports: []
     # 生产环境：使用命名卷，确保数据持久化
     volumes:
-      - postgres_prod_data:/var/lib/postgresql
+      - postgres_prod_data:/var/lib/postgresql/data
       - ../scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     # 生产环境：基础性能与成本优化
     command:

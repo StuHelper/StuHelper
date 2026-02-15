@@ -52,24 +52,33 @@ func InitHMACKey(secret string, isProduction bool) error {
 	return initErr
 }
 
+// ErrHMACNotInitialized 表示 HMAC 密钥未初始化
+var ErrHMACNotInitialized = errors.New("crypto: HMACHash called before InitHMACKey")
+
+// ErrEmptyInput 表示输入为空
+var ErrEmptyInput = errors.New("crypto: HMACHash input must not be empty")
+
 // HMACHash 使用 HMAC-SHA256 对数据进行哈希
-func HMACHash(data string) string {
+func HMACHash(data string) (string, error) {
 	if data == "" {
-		return ""
+		return "", ErrEmptyInput
 	}
 	if hmacKey == nil {
-		panic("crypto: HMACHash called before InitHMACKey")
+		return "", ErrHMACNotInitialized
 	}
 	h := hmac.New(sha256.New, hmacKey)
 	h.Write([]byte(data))
-	return hex.EncodeToString(h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // HMACHashShort 返回截断的 HMAC 哈希（用于缓存 key 等场景）
-func HMACHashShort(data string, length int) string {
-	hash := HMACHash(data)
-	if len(hash) > length {
-		return hash[:length]
+func HMACHashShort(data string, length int) (string, error) {
+	hash, err := HMACHash(data)
+	if err != nil {
+		return "", err
 	}
-	return hash
+	if len(hash) > length {
+		return hash[:length], nil
+	}
+	return hash, nil
 }

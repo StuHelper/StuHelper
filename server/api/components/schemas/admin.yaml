@@ -1,0 +1,129 @@
+ReviewReport:
+  type: object
+  required: [id, reviewID, reason, status, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    reviewID:
+      type: string
+      format: uuid
+    review:
+      $ref: 'review.yaml#/Review'
+    reason:
+      type: string
+      enum: [spam, inappropriate, harassment, false_info, other]
+    description:
+      type: string
+    status:
+      type: string
+      enum: [pending, resolved, rejected]
+    resolvedBy:
+      type: string
+      nullable: true
+    resolvedAt:
+      type: string
+      format: date-time
+      nullable: true
+    resolutionNote:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+ProcessReportRequest:
+  type: object
+  required: [action]
+  properties:
+    action:
+      type: string
+      enum: [reject, hide_review, delete_review]
+    note:
+      type: string
+      maxLength: 500
+
+AdminUpdateReviewRequest:
+  type: object
+  required: [action]
+  properties:
+    action:
+      type: string
+      enum: [hide, restore, delete]
+
+BatchUpdateReviewsRequest:
+  type: object
+  required: [ids, action]
+  properties:
+    ids:
+      type: array
+      items:
+        type: string
+        format: uuid
+      minItems: 1
+      maxItems: 100
+    action:
+      type: string
+      enum: [hide, restore, delete]
+
+BatchUpdateResult:
+  type: object
+  required: [message, affected]
+  properties:
+    message:
+      type: string
+    affected:
+      type: integer
+      format: int64
+
+AdminStats:
+  type: object
+  required: [totalReviews, publishedReviews, hiddenReviews, deletedReviews, pendingReports, totalReports, todayReviews, weekReviews]
+  properties:
+    totalReviews:
+      type: integer
+    publishedReviews:
+      type: integer
+    hiddenReviews:
+      type: integer
+    deletedReviews:
+      type: integer
+    pendingReports:
+      type: integer
+    totalReports:
+      type: integer
+    todayReviews:
+      type: integer
+    weekReviews:
+      type: integer
+
+AdminOperationLog:
+  type: object
+  required: [id, adminUserID, adminUsername, action, resourceType, resourceID, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    adminUserID:
+      type: string
+    adminUsername:
+      type: string
+    action:
+      type: string
+    resourceType:
+      type: string
+    resourceID:
+      type: string
+    oldValue:
+      type: object
+      additionalProperties: true
+    newValue:
+      type: object
+      additionalProperties: true
+    ipAddress:
+      type: string
+    userAgent:
+      type: string
+    createdAt:
+      type: string
+      format: date-time

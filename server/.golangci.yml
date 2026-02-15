@@ -27,7 +27,7 @@ formatters:
 linters-settings:
   errcheck:
     check-type-assertions: true
-    check-blank: false
+    check-blank: true
   govet:
     enable-all: true
     disable:

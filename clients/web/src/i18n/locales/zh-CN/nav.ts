@@ -19,5 +19,6 @@ export default {
   searchPlaceholder: '搜索课程...',
   searchCoursePlaceholder: '搜索课程名称、教师...',
   searchResults: '搜索结果',
-  recentSearches: '最近搜索'
+  recentSearches: '最近搜索',
+  userAvatar: '用户头像'
 }

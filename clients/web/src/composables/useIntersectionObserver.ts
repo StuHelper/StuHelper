@@ -1,7 +1,7 @@
 /**
  * 滚动触发动画 composable
  */
-import { ref, onMounted, onUnmounted, type Ref } from 'vue'
+import { ref, watch, onUnmounted, type Ref } from 'vue'
 
 export function useIntersectionObserver(
   elementRef: Ref<HTMLElement | null>,
@@ -10,6 +10,8 @@ export function useIntersectionObserver(
   const isVisible = ref(false)
   const hasBeenVisible = ref(false)
   let observer: IntersectionObserver | null = null
+  // L-54: 防抖，避免条件渲染导致频繁重建观察器
+  let rebuildTimer: ReturnType<typeof setTimeout> | null = null
 
   const defaultOptions: IntersectionObserverInit = {
     threshold: 0.1,
@@ -17,9 +19,21 @@ export function useIntersectionObserver(
     ...options
   }
 
-  onMounted(() => {
-    if (!elementRef.value) return
+  const cleanup = () => {
+    if (rebuildTimer) {
+      clearTimeout(rebuildTimer)
+      rebuildTimer = null
+    }
+    if (observer) {
+      observer.disconnect()
+      observer = null
+    }
+  }
 
+  const setupObserver = (el: HTMLElement) => {
+    if (observer) {
+      observer.disconnect()
+    }
     observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         isVisible.value = entry.isIntersecting
@@ -28,13 +42,35 @@ export function useIntersectionObserver(
         }
       })
     }, defaultOptions)
+    observer.observe(el)
+  }
 
-    observer.observe(elementRef.value)
-  })
+  // 监听 elementRef 变化，支持条件渲染元素后续可用
+  watch(
+    () => elementRef.value,
+    (el) => {
+      if (rebuildTimer) {
+        clearTimeout(rebuildTimer)
+        rebuildTimer = null
+      }
+      if (!el) {
+        if (observer) {
+          observer.disconnect()
+          observer = null
+        }
+        return
+      }
+      // L-54: 防抖 50ms，避免频繁挂载/卸载时大量创建销毁
+      rebuildTimer = setTimeout(() => {
+        if (elementRef.value) {
+          setupObserver(elementRef.value)
+        }
+      }, 50)
+    },
+    { immediate: true }
+  )
 
-  onUnmounted(() => {
-    observer?.disconnect()
-  })
+  onUnmounted(cleanup)
 
   return {
     isVisible,

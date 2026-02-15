@@ -3,6 +3,7 @@ package course
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -26,7 +27,7 @@ func (h *Handler) GetCourseCategories(c *gin.Context) {
 		return
 	}
 
-	if err := h.cache.Set(c.Request.Context(), cacheKey, categories, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, categories, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, categories)
@@ -47,7 +48,7 @@ func (h *Handler) GetDepartments(c *gin.Context) {
 		return
 	}
 
-	if err := h.cache.Set(c.Request.Context(), cacheKey, departments, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, departments, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, departments)
@@ -58,6 +59,13 @@ func (h *Handler) GetCourses(c *gin.Context) {
 	page, pageSize := parsePage(c)
 	departmentID, _ := strconv.ParseInt(c.Query("departmentID"), 10, 64)
 	category := c.Query("category")
+
+	// 参数范围校验：departmentID 不能为负数，pageSize 上限由 parsePage 保证
+	if departmentID < 0 {
+		response.BadRequest(c, "invalid departmentID")
+		return
+	}
+
 	cacheKey := "course:courses:dept=" + strconv.FormatInt(departmentID, 10) + ":cat=" + sanitizeCacheKey(category) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
 	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
@@ -76,7 +84,7 @@ func (h *Handler) GetCourses(c *gin.Context) {
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, data)
@@ -84,7 +92,11 @@ func (h *Handler) GetCourses(c *gin.Context) {
 
 // SearchCourses 搜索课程
 func (h *Handler) SearchCourses(c *gin.Context) {
-	q := c.Query("q")
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		response.BadRequest(c, "search query is required")
+		return
+	}
 	if len(q) > maxSearchLength {
 		response.BadRequest(c, "search query too long")
 		return
@@ -107,7 +119,7 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 	}
 
 	data := gin.H{"list": result.List, "total": result.Total}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, data)
@@ -136,7 +148,7 @@ func (h *Handler) GetCourse(c *gin.Context) {
 		return
 	}
 
-	if err := h.cache.Set(c.Request.Context(), cacheKey, course, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, course, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, course)
@@ -160,7 +172,7 @@ func (h *Handler) GetStats(c *gin.Context) {
 		"courseCount":     stats.CourseCount,
 		"departmentCount": stats.DepartmentCount,
 	}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.DefaultTTL); err != nil {
+	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, data)

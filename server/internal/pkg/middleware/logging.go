@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"net"
-	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -14,11 +14,17 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 const (
 	CtxKeyRequestID = "request_id"
+	// maxRequestIDLen X-Request-ID 最大允许长度
+	maxRequestIDLen = 128
 )
+
+// validRequestID 仅允许字母、数字和连字符（排除点号和下划线以减少注入面）
+var validRequestID = regexp.MustCompile(`^[a-zA-Z0-9\-]+$`)
 
 // 敏感 query 参数黑名单（这些参数的值会被脱敏）
 var sensitiveQueryParams = map[string]bool{
@@ -43,10 +49,11 @@ var sensitiveQueryParams = map[string]bool{
 }
 
 // RequestIDMiddleware 注入请求 ID
+// 客户端提供的 X-Request-ID 必须通过长度和字符校验，否则生成新 UUID
 func RequestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")
-		if requestID == "" {
+		if requestID == "" || len(requestID) > maxRequestIDLen || !validRequestID.MatchString(requestID) {
 			requestID = uuid.NewString()
 		}
 		c.Set(CtxKeyRequestID, requestID)
@@ -82,7 +89,7 @@ func RequestLogger() gin.HandlerFunc {
 			zap.Duration("latency", latency),
 			zap.Int("size", c.Writer.Size()),
 			zap.String("client_ip", c.ClientIP()),
-			zap.String("user_agent", c.Request.UserAgent()),
+			zap.String("user_agent", truncateString(c.Request.UserAgent(), 256)),
 		}
 
 		// 添加用户 ID（如果存在）
@@ -121,12 +128,15 @@ func Recovery() gin.HandlerFunc {
 				stack := string(debug.Stack())
 				requestID := getRequestID(c)
 
+				// 按行拆分栈追踪，便于日志聚合系统解析
+				stackLines := strings.Split(stack, "\n")
+
 				logger.L().Error("panic_recovered",
 					zap.String("request_id", requestID),
 					zap.Any("error", err),
 					zap.String("path", c.Request.URL.Path),
 					zap.String("method", c.Request.Method),
-					zap.String("stack", stack),
+					zap.Strings("stack", stackLines),
 				)
 
 				if brokenPipe {
@@ -134,9 +144,8 @@ func Recovery() gin.HandlerFunc {
 					return
 				}
 
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"error": "internal server error",
-				})
+				response.InternalError(c, "internal server error")
+				c.Abort()
 			}
 		}()
 		c.Next()
@@ -162,6 +171,15 @@ func toString(v interface{}) string {
 	return ""
 }
 
+// truncateString 按 rune 截断字符串，避免切断多字节 UTF-8 字符
+func truncateString(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen])
+}
+
 // maskSensitiveQueryParams 对 query string 中的敏感参数进行脱敏
 func maskSensitiveQueryParams(rawQuery string) string {
 	if rawQuery == "" {
@@ -170,14 +188,26 @@ func maskSensitiveQueryParams(rawQuery string) string {
 
 	values, err := url.ParseQuery(rawQuery)
 	if err != nil {
-		// 解析失败时返回固定的脱敏标记
+		// 解析失败时记录警告并返回固定的脱敏标记
+		logger.L().Warn("failed to parse query string for sensitive param masking",
+			zap.String("raw_query", truncateString(rawQuery, 128)),
+			zap.Error(err),
+		)
 		return "[parse_error]"
 	}
 
 	for key := range values {
 		// 检查参数名是否在敏感参数黑名单中（不区分大小写）
-		if sensitiveQueryParams[strings.ToLower(key)] {
-			values.Set(key, "[REDACTED]")
+		lowerKey := strings.ToLower(key)
+		// M-67: 同时匹配 token 和 token[] 形式的数组参数
+		baseKey := strings.TrimSuffix(lowerKey, "[]")
+		if sensitiveQueryParams[lowerKey] || sensitiveQueryParams[baseKey] {
+			// 遍历所有值（处理 ?token[]=xxx&token[]=yyy 数组形式）
+			redacted := make([]string, len(values[key]))
+			for i := range redacted {
+				redacted[i] = "[REDACTED]"
+			}
+			values[key] = redacted
 		}
 	}
 

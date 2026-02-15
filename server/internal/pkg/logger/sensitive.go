@@ -6,9 +6,11 @@ import (
 )
 
 var (
-	emailRegex  = regexp.MustCompile(`([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`)
-	phoneRegex  = regexp.MustCompile(`1[3-9]\d{9}`)
-	idCardRegex = regexp.MustCompile(`\d{17}[\dXx]`)
+	emailRegex = regexp.MustCompile(`([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`)
+	// 中国大陆手机号：1[3-9] 开头共 11 位，添加边界防止匹配更长数字子串
+	phoneRegex = regexp.MustCompile(`\b1[3-9]\d{9}\b`)
+	// 中国大陆二代身份证号：17 位数字 + 校验位（数字或 X），添加边界防止误匹配
+	idCardRegex = regexp.MustCompile(`\b\d{17}[\dXx]\b`)
 )
 
 // MaskEmail 脱敏邮箱地址
@@ -55,14 +57,14 @@ func MaskToken(token string) string {
 	return token[:4] + "..." + token[len(token)-4:]
 }
 
-// MaskIP 脱敏 IP 地址
-// 192.168.1.100 -> 192.168.*.*
+// MaskIP 脱敏 IP 地址，仅掩码最后一个八位组，保留网络段信息用于问题排查
+// 192.168.1.100 -> 192.168.1.***
 func MaskIP(ip string) string {
 	parts := strings.Split(ip, ".")
 	if len(parts) != 4 {
 		return ip // IPv6 或无效格式，不处理
 	}
-	return parts[0] + "." + parts[1] + ".*.*"
+	return parts[0] + "." + parts[1] + "." + parts[2] + ".***"
 }
 
 // MaskSensitiveData 自动检测并脱敏字符串中的敏感信息

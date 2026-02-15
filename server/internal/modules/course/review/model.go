@@ -41,6 +41,7 @@ type Review struct {
 	ReplyCount   int           `json:"replyCount"`
 	Status       string        `json:"status"`
 	CreatedAt    time.Time     `json:"createdAt"`
+	UpdatedAt    time.Time     `json:"updatedAt"`
 }
 
 // RatingDimension 评分维度配置
@@ -83,6 +84,12 @@ type TermRatingStats struct {
 	TermName   string           `json:"termName"`
 	Dimensions []DimensionStats `json:"dimensions"`
 }
+
+// 雷达图默认配色（统一使用同一蓝色系）
+const (
+	radarBgColor     = "rgba(64, 158, 255, 0.2)"
+	radarBorderColor = "rgba(64, 158, 255, 1)"
+)
 
 // RadarChartDataset 雷达图数据集
 type RadarChartDataset struct {

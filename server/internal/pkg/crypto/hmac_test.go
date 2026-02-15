@@ -12,7 +12,8 @@ func TestInitHMACKey(t *testing.T) {
 	require.NoError(t, InitHMACKey("test-secret-key", false))
 
 	// 验证哈希功能正常
-	hash := HMACHash("test-data")
+	hash, err := HMACHash("test-data")
+	require.NoError(t, err)
 	assert.NotEmpty(t, hash)
 	assert.Len(t, hash, 64) // SHA256 输出 32 字节，hex 编码后 64 字符
 }
@@ -20,11 +21,16 @@ func TestInitHMACKey(t *testing.T) {
 func TestHMACHash(t *testing.T) {
 	require.NoError(t, InitHMACKey("test-secret-key", false))
 
+	t.Run("空字符串应返回ErrEmptyInput", func(t *testing.T) {
+		hash, err := HMACHash("")
+		assert.ErrorIs(t, err, ErrEmptyInput)
+		assert.Empty(t, hash)
+	})
+
 	tests := []struct {
 		name  string
 		input string
 	}{
-		{"空字符串", ""},
 		{"普通字符串", "hello"},
 		{"用户ID", "user-123"},
 		{"特殊字符", "user@example.com"},
@@ -32,13 +38,10 @@ func TestHMACHash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hash := HMACHash(tt.input)
-			if tt.input == "" {
-				assert.Empty(t, hash)
-			} else {
-				assert.NotEmpty(t, hash)
-				assert.Len(t, hash, 64)
-			}
+			hash, err := HMACHash(tt.input)
+			require.NoError(t, err)
+			assert.NotEmpty(t, hash)
+			assert.Len(t, hash, 64)
 		})
 	}
 }
@@ -47,8 +50,10 @@ func TestHMACHash_Consistency(t *testing.T) {
 	require.NoError(t, InitHMACKey("test-secret-key", false))
 
 	// 相同输入应该产生相同输出
-	hash1 := HMACHash("test-data")
-	hash2 := HMACHash("test-data")
+	hash1, err := HMACHash("test-data")
+	require.NoError(t, err)
+	hash2, err := HMACHash("test-data")
+	require.NoError(t, err)
 	assert.Equal(t, hash1, hash2)
 }
 
@@ -56,8 +61,10 @@ func TestHMACHash_Uniqueness(t *testing.T) {
 	require.NoError(t, InitHMACKey("test-secret-key", false))
 
 	// 不同输入应该产生不同输出
-	hash1 := HMACHash("data1")
-	hash2 := HMACHash("data2")
+	hash1, err := HMACHash("data1")
+	require.NoError(t, err)
+	hash2, err := HMACHash("data2")
+	require.NoError(t, err)
 	assert.NotEqual(t, hash1, hash2)
 }
 
@@ -76,7 +83,8 @@ func TestHMACHashShort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hash := HMACHashShort(tt.input, tt.length)
+			hash, err := HMACHashShort(tt.input, tt.length)
+			require.NoError(t, err)
 			if tt.length >= 64 {
 				assert.Len(t, hash, 64)
 			} else {

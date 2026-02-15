@@ -16,23 +16,29 @@
 // 详细说明见 docs/api/error-codes.md
 package errs
 
+// ErrorCode 错误码类型，提供编译期拼写检查
+type ErrorCode string
+
+// String 返回错误码字符串
+func (c ErrorCode) String() string { return string(c) }
+
 // ============================================================================
 // A000xxxx - 通用客户端错误
 // 序号使用 HTTP 状态码便于记忆
 // ============================================================================
 
 const (
-	ErrBadRequest       = "A0000400" // 请求参数错误
-	ErrInvalidParam     = "A0000401" // 参数格式无效
-	ErrMissingParam     = "A0000402" // 缺少必填参数
-	ErrParamOutOfRange  = "A0000403" // 参数超出范围
-	ErrNotFound         = "A0000404" // 资源不存在
-	ErrMethodNotAllowed = "A0000405" // 请求方法不允许
-	ErrConflict         = "A0000409" // 资源冲突
-	ErrPayloadTooLarge  = "A0000413" // 请求体过大
-	ErrUnsupportedMedia = "A0000415" // 不支持的媒体类型
-	ErrValidation       = "A0000422" // 数据验证失败
-	ErrRateLimited      = "A0000429" // 请求频率超限
+	ErrBadRequest       ErrorCode = "A0000400" // 请求参数错误
+	ErrInvalidParam     ErrorCode = "A0000401" // 参数格式无效
+	ErrMissingParam     ErrorCode = "A0000402" // 缺少必填参数
+	ErrParamOutOfRange  ErrorCode = "A0000403" // 参数超出范围
+	ErrNotFound         ErrorCode = "A0000404" // 资源不存在
+	ErrMethodNotAllowed ErrorCode = "A0000405" // 请求方法不允许
+	ErrConflict         ErrorCode = "A0000409" // 资源冲突
+	ErrPayloadTooLarge  ErrorCode = "A0000413" // 请求体过大
+	ErrUnsupportedMedia ErrorCode = "A0000415" // 不支持的媒体类型
+	ErrValidation       ErrorCode = "A0000422" // 数据验证失败
+	ErrRateLimited      ErrorCode = "A0000429" // 请求频率超限
 )
 
 // ============================================================================
@@ -42,28 +48,28 @@ const (
 
 const (
 	// Token 相关 (0001-0099)
-	ErrTokenExpired        = "A0010001" // Token 已过期
-	ErrTokenInvalid        = "A0010002" // Token 无效
-	ErrTokenMissing        = "A0010003" // 未提供 Token
-	ErrTokenRevoked        = "A0010004" // Token 已被撤销
-	ErrRefreshTokenExpired = "A0010005" // Refresh Token 已过期
-	ErrRefreshTokenInvalid = "A0010006" // Refresh Token 无效
+	ErrTokenExpired        ErrorCode = "A0010001" // Token 已过期
+	ErrTokenInvalid        ErrorCode = "A0010002" // Token 无效
+	ErrTokenMissing        ErrorCode = "A0010003" // 未提供 Token
+	ErrTokenRevoked        ErrorCode = "A0010004" // Token 已被撤销
+	ErrRefreshTokenExpired ErrorCode = "A0010005" // Refresh Token 已过期
+	ErrRefreshTokenInvalid ErrorCode = "A0010006" // Refresh Token 无效
 
 	// 登录相关 (0100-0199)
-	ErrLoginRequired   = "A0010100" // 请先登录
-	ErrLoginFailed     = "A0010101" // 登录失败
-	ErrAccountDisabled = "A0010102" // 账号已禁用
-	ErrAccountLocked   = "A0010103" // 账号已锁定
+	ErrLoginRequired   ErrorCode = "A0010100" // 请先登录
+	ErrLoginFailed     ErrorCode = "A0010101" // 登录失败
+	ErrAccountDisabled ErrorCode = "A0010102" // 账号已禁用
+	ErrAccountLocked   ErrorCode = "A0010103" // 账号已锁定
 
 	// 权限相关 (0200-0299)
-	ErrForbidden        = "A0010200" // 权限不足
-	ErrAccessDenied     = "A0010201" // 访问被拒绝
-	ErrCSRFTokenInvalid = "A0010202" // CSRF Token 无效
+	ErrForbidden        ErrorCode = "A0010200" // 权限不足
+	ErrAccessDenied     ErrorCode = "A0010201" // 访问被拒绝
+	ErrCSRFTokenInvalid ErrorCode = "A0010202" // CSRF Token 无效
 
 	// OAuth 相关 (0300-0399)
-	ErrOAuthFailed       = "A0010300" // OAuth 认证失败
-	ErrOAuthStateInvalid = "A0010301" // OAuth State 无效
-	ErrOAuthCodeInvalid  = "A0010302" // OAuth 授权码无效
+	ErrOAuthFailed       ErrorCode = "A0010300" // OAuth 认证失败
+	ErrOAuthStateInvalid ErrorCode = "A0010301" // OAuth State 无效
+	ErrOAuthCodeInvalid  ErrorCode = "A0010302" // OAuth 授权码无效
 )
 
 // ============================================================================
@@ -71,12 +77,12 @@ const (
 // ============================================================================
 
 const (
-	ErrUserNotFound     = "A0020001" // 用户不存在
-	ErrUserExists       = "A0020002" // 用户已存在
-	ErrUsernameTaken    = "A0020003" // 用户名已被占用
-	ErrEmailTaken       = "A0020004" // 邮箱已被占用
-	ErrPasswordWeak     = "A0020005" // 密码强度不足
-	ErrPasswordMismatch = "A0020006" // 密码不匹配
+	ErrUserNotFound     ErrorCode = "A0020001" // 用户不存在
+	ErrUserExists       ErrorCode = "A0020002" // 用户已存在
+	ErrUsernameTaken    ErrorCode = "A0020003" // 用户名已被占用
+	ErrEmailTaken       ErrorCode = "A0020004" // 邮箱已被占用
+	ErrPasswordWeak     ErrorCode = "A0020005" // 密码强度不足
+	ErrPasswordMismatch ErrorCode = "A0020006" // 密码不匹配
 )
 
 // ============================================================================
@@ -84,10 +90,10 @@ const (
 // ============================================================================
 
 const (
-	ErrCourseNotFound     = "A0100001" // 课程不存在
-	ErrDepartmentNotFound = "A0100002" // 院系不存在
-	ErrTeacherNotFound    = "A0100003" // 教师不存在
-	ErrTermNotFound       = "A0100004" // 学期不存在
+	ErrCourseNotFound     ErrorCode = "A0100001" // 课程不存在
+	ErrDepartmentNotFound ErrorCode = "A0100002" // 院系不存在
+	ErrTeacherNotFound    ErrorCode = "A0100003" // 教师不存在
+	ErrTermNotFound       ErrorCode = "A0100004" // 学期不存在
 )
 
 // ============================================================================
@@ -97,22 +103,22 @@ const (
 
 const (
 	// 测评基础 (0001-0099)
-	ErrReviewNotFound        = "A0110001" // 测评不存在
-	ErrReviewExists          = "A0110002" // 已评价过该课程
-	ErrReviewContentTooShort = "A0110003" // 测评内容过短
-	ErrReviewContentTooLong  = "A0110004" // 测评内容过长
+	ErrReviewNotFound        ErrorCode = "A0110001" // 测评不存在
+	ErrReviewExists          ErrorCode = "A0110002" // 已评价过该课程
+	ErrReviewContentTooShort ErrorCode = "A0110003" // 测评内容过短
+	ErrReviewContentTooLong  ErrorCode = "A0110004" // 测评内容过长
 
 	// 投票相关 (0100-0199)
-	ErrVoteExists      = "A0110100" // 已投票过该测评
-	ErrVoteTypeInvalid = "A0110101" // 投票类型无效
-	ErrVoteSelfReview  = "A0110102" // 不能给自己的测评投票
+	ErrVoteExists      ErrorCode = "A0110100" // 已投票过该测评
+	ErrVoteTypeInvalid ErrorCode = "A0110101" // 投票类型无效
+	ErrVoteSelfReview  ErrorCode = "A0110102" // 不能给自己的测评投票
 
 	// 评分相关 (0200-0299)
-	ErrRatingInvalid          = "A0110200" // 评分无效
-	ErrRatingDimensionMissing = "A0110201" // 缺少必填评分维度
+	ErrRatingInvalid          ErrorCode = "A0110200" // 评分无效
+	ErrRatingDimensionMissing ErrorCode = "A0110201" // 缺少必填评分维度
 
 	// 内容审核 (0300-0399)
-	ErrDangerousContent = "A0110300" // 内容包含危险元素
+	ErrDangerousContent ErrorCode = "A0110300" // 内容包含危险元素
 )
 
 // ============================================================================
@@ -120,13 +126,13 @@ const (
 // ============================================================================
 
 const (
-	ErrInternal           = "B0000001" // 服务器内部错误
-	ErrDatabaseError      = "B0000002" // 数据库错误
-	ErrCacheError         = "B0000003" // 缓存错误
-	ErrServiceUnavailable = "B0000004" // 服务暂时不可用
-	ErrServiceOverloaded  = "B0000005" // 服务过载
-	ErrTimeout            = "B0000006" // 请求超时
-	ErrConfigError        = "B0000007" // 配置错误
+	ErrInternal           ErrorCode = "B0000001" // 服务器内部错误
+	ErrDatabaseError      ErrorCode = "B0000002" // 数据库错误
+	ErrCacheError         ErrorCode = "B0000003" // 缓存错误
+	ErrServiceUnavailable ErrorCode = "B0000004" // 服务暂时不可用
+	ErrServiceOverloaded  ErrorCode = "B0000005" // 服务过载
+	ErrTimeout            ErrorCode = "B0000006" // 请求超时
+	ErrConfigError        ErrorCode = "B0000007" // 配置错误
 )
 
 // ============================================================================
@@ -134,9 +140,9 @@ const (
 // ============================================================================
 
 const (
-	ErrUpstreamError       = "C0000001" // 上游服务错误
-	ErrUpstreamTimeout     = "C0000002" // 上游服务超时
-	ErrUpstreamUnavailable = "C0000003" // 上游服务不可用
+	ErrUpstreamError       ErrorCode = "C0000001" // 上游服务错误
+	ErrUpstreamTimeout     ErrorCode = "C0000002" // 上游服务超时
+	ErrUpstreamUnavailable ErrorCode = "C0000003" // 上游服务不可用
 )
 
 // ============================================================================
@@ -144,7 +150,17 @@ const (
 // ============================================================================
 
 const (
-	ErrSSOError       = "C0010001" // SSO 服务错误
-	ErrSSOTimeout     = "C0010002" // SSO 服务超时
-	ErrSSOUnavailable = "C0010003" // SSO 服务不可用
+	ErrSSOError       ErrorCode = "C0010001" // SSO 服务错误
+	ErrSSOTimeout     ErrorCode = "C0010002" // SSO 服务超时
+	ErrSSOUnavailable ErrorCode = "C0010003" // SSO 服务不可用
+)
+
+// ============================================================================
+// 中间件专用错误码（非业务错误，用于安全中间件响应）
+// ============================================================================
+
+const (
+	ErrCSRFTokenMissing ErrorCode = "CSRF_TOKEN_MISSING" // CSRF Token 缺失
+	ErrCSRFTokenBad     ErrorCode = "CSRF_TOKEN_INVALID" // CSRF Token 校验失败
+	ErrRequestTooLarge  ErrorCode = "REQUEST_TOO_LARGE"  // 请求体过大
 )

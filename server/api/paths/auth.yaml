@@ -1,0 +1,243 @@
+/api/v1/auth/login:
+  get:
+    tags: [Auth]
+    operationId: getLoginURL
+    summary: 获取 SSO 登录 URL
+    security: []
+    responses:
+      '200':
+        description: 返回 Casdoor 登录 URL 和 state
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [url, state]
+                  properties:
+                    url:
+                      type: string
+                      format: uri
+                    state:
+                      type: string
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/signup:
+  get:
+    tags: [Auth]
+    operationId: getSignupURL
+    summary: 获取 SSO 注册 URL
+    security: []
+    responses:
+      '200':
+        description: 返回 Casdoor 注册 URL 和 state
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [url, state]
+                  properties:
+                    url:
+                      type: string
+                      format: uri
+                    state:
+                      type: string
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/callback:
+  get:
+    tags: [Auth]
+    operationId: handleCallback
+    summary: 处理 OAuth 回调
+    security: []
+    parameters:
+      - name: code
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 登录成功，返回用户信息和 token 过期时间
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [user, expiresIn]
+                  properties:
+                    user:
+                      type: object
+                      required: [id, name, displayName]
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        displayName:
+                          type: string
+                        email:
+                          type: string
+                        avatar:
+                          type: string
+                    expiresIn:
+                      type: integer
+                      description: Access token TTL（秒）
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/refresh:
+  post:
+    tags: [Auth]
+    operationId: refreshToken
+    summary: 刷新 Access Token
+    security:
+      - cookieAuth: []
+    responses:
+      '200':
+        description: Token 刷新成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [message, expiresIn]
+                  properties:
+                    message:
+                      type: string
+                    expiresIn:
+                      type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/me:
+  get:
+    tags: [Auth]
+    operationId: getCurrentUser
+    summary: 获取当前用户信息
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 当前用户信息
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [id, name]
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    email:
+                      type: string
+                    displayName:
+                      type: string
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/logout:
+  post:
+    tags: [Auth]
+    operationId: logout
+    summary: 登出当前设备
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 登出成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/common.yaml#/MessageData'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/logout-all:
+  post:
+    tags: [Auth]
+    operationId: logoutAll
+    summary: 全设备登出
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 全设备登出成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/common.yaml#/MessageData'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

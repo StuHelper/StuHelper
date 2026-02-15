@@ -4,7 +4,10 @@ import (
 	"errors"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"github.com/gin-gonic/gin"
@@ -16,7 +19,7 @@ const (
 	CtxKeyUsername    = "username"
 	CtxKeyEmail       = "email"
 	CtxKeyDisplayName = "display_name"
-	CtxKeyAccessToken = "access_token"
+	CtxKeyIsAdmin = "is_admin"
 )
 
 // Cookie 名称常量
@@ -52,25 +55,13 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 		// 使用增强的 JWT 验证器验证 token（校验 iss/aud/alg/exp）
 		claims, err := tokenService.ValidateToken(tokenString)
 		if err != nil {
-			errorMsg := "invalid or expired token"
+			// 仅在服务端日志记录具体错误类型，避免向客户端泄露验证细节
+			logger.L().Debug("JWT validation failed",
+				zap.String("reason", classifyJWTError(err)),
+				zap.Error(err),
+			)
 
-			// 根据错误类型返回更具体的错误信息
-			switch {
-			case errors.Is(err, jwt.ErrTokenExpired):
-				errorMsg = "token has expired"
-			case errors.Is(err, jwt.ErrTokenNotYetValid):
-				errorMsg = "token not yet valid"
-			case errors.Is(err, jwt.ErrInvalidIssuer):
-				errorMsg = "invalid token issuer"
-			case errors.Is(err, jwt.ErrInvalidAudience):
-				errorMsg = "invalid token audience"
-			case errors.Is(err, jwt.ErrAlgorithmNotAllowed):
-				errorMsg = "token algorithm not allowed"
-			case errors.Is(err, jwt.ErrInvalidSignature):
-				errorMsg = "invalid token signature"
-			}
-
-			response.Unauthorized(c, errorMsg)
+			response.Unauthorized(c, "invalid or expired token")
 			c.Abort()
 			return
 		}
@@ -80,7 +71,7 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 		c.Set(CtxKeyUsername, claims.GetUsername())
 		c.Set(CtxKeyEmail, claims.Email)
 		c.Set(CtxKeyDisplayName, claims.DisplayName)
-		c.Set(CtxKeyAccessToken, tokenString)
+		c.Set(CtxKeyIsAdmin, claims.IsAdmin)
 
 		c.Next()
 	}
@@ -106,6 +97,16 @@ func GetDisplayName(c *gin.Context) string {
 	return getContextString(c, CtxKeyDisplayName)
 }
 
+// GetIsAdmin 从上下文获取管理员状态
+func GetIsAdmin(c *gin.Context) bool {
+	if val, exists := c.Get(CtxKeyIsAdmin); exists {
+		if b, ok := val.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
 // getContextString 从上下文获取字符串值的通用函数
 func getContextString(c *gin.Context, key string) string {
 	if val, exists := c.Get(key); exists {
@@ -116,14 +117,21 @@ func getContextString(c *gin.Context, key string) string {
 	return ""
 }
 
-// getTokenFromRequest 从请求中获取 token（优先 Cookie，其次 Header）
+// getTokenFromRequest 从请求中获取 access token。
+//
+// Token 来源优先级：Cookie > Authorization Header
+//   1. Cookie（access_token）：浏览器端自动携带，CSRF 中间件配合防护
+//   2. Authorization Header（Bearer <token>）：供非浏览器客户端（移动端、API 调试工具）使用
+//
+// Cookie 优先的原因：浏览器场景下 HttpOnly Cookie 比 localStorage 存储的 Bearer token 更安全，
+// 不受 XSS 攻击窃取；同时 Cookie 由服务端 Set-Cookie 自动管理，前端无需手动处理 token 存储。
 func getTokenFromRequest(c *gin.Context) string {
-	// 优先从 Cookie 获取
+	// 1. 优先从 Cookie 获取（浏览器客户端）
 	if token, err := c.Cookie(CookieAccessToken); err == nil && token != "" {
 		return token
 	}
 
-	// 其次从 Authorization Header 获取
+	// 2. 其次从 Authorization Header 获取（非浏览器客户端）
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
 		return ""
@@ -135,4 +143,24 @@ func getTokenFromRequest(c *gin.Context) string {
 	}
 
 	return strings.TrimSpace(parts[1])
+}
+
+// classifyJWTError 将 JWT 错误分类为日志友好的字符串（仅用于服务端日志，不暴露给客户端）
+func classifyJWTError(err error) string {
+	switch {
+	case errors.Is(err, jwt.ErrTokenExpired):
+		return "token_expired"
+	case errors.Is(err, jwt.ErrTokenNotYetValid):
+		return "token_not_yet_valid"
+	case errors.Is(err, jwt.ErrInvalidIssuer):
+		return "invalid_issuer"
+	case errors.Is(err, jwt.ErrInvalidAudience):
+		return "invalid_audience"
+	case errors.Is(err, jwt.ErrAlgorithmNotAllowed):
+		return "algorithm_not_allowed"
+	case errors.Is(err, jwt.ErrInvalidSignature):
+		return "invalid_signature"
+	default:
+		return "unknown"
+	}
 }

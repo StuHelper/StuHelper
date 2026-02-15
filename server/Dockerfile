@@ -13,8 +13,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Build binary (TARGETARCH is auto-set by Docker BuildKit: amd64, arm64, etc.)
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     -ldflags="-s -w" \
     -o /app/bin/stuhelper \
     ./cmd/stuhelper
@@ -30,8 +31,18 @@ RUN apk add --no-cache ca-certificates tzdata
 # Copy binary from builder
 COPY --from=builder /app/bin/stuhelper /app/stuhelper
 
-# Create non-root user
-RUN adduser -D -g '' appuser
+# Create non-root user with explicit UID
+RUN adduser -D -u 1000 appuser
+
+# M-84: 创建专用临时目录并限制权限，避免使用全局 /tmp
+RUN mkdir -p /app/tmp && chown appuser:appuser /app/tmp && chmod 700 /app/tmp
+
+# Make app directory read-only (except tmp)
+RUN chmod -R 555 /app && chmod 700 /app/tmp
+
+# Set dedicated temp directory
+ENV TMPDIR=/app/tmp
+
 USER appuser
 
 # Expose port

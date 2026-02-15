@@ -29,7 +29,7 @@
     <table v-else-if="reviews.length > 0" class="w-full border-collapse">
       <thead>
         <tr>
-          <th class="p-3 text-left border-b border-border text-sm"><input type="checkbox" @change="toggleAll" /></th>
+          <th class="p-3 text-left border-b border-border text-sm"><input type="checkbox" :checked="isAllSelected" :indeterminate="isIndeterminate" :aria-label="t('admin.reviews.selectAll')" @change="toggleAll" /></th>
           <th class="p-3 text-left border-b border-border text-sm">{{ t('admin.reviews.tableContent') }}</th>
           <th class="p-3 text-left border-b border-border text-sm">{{ t('admin.reviews.tableStatus') }}</th>
           <th class="p-3 text-left border-b border-border text-sm">{{ t('admin.reviews.tableActions') }}</th>
@@ -98,6 +98,13 @@ const pageSize = 20
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
+const isAllSelected = computed(() =>
+  reviews.value.length > 0 && selected.value.length === reviews.value.length
+)
+const isIndeterminate = computed(() =>
+  selected.value.length > 0 && selected.value.length < reviews.value.length
+)
+
 const fetchReviews = async () => {
   loading.value = true
   try {
@@ -140,6 +147,9 @@ watch(status, () => {
   page.value = 1
   fetchReviews()
 })
-watch(page, fetchReviews)
+watch(page, () => {
+  selected.value = []
+  fetchReviews()
+})
 onMounted(fetchReviews)
 </script>

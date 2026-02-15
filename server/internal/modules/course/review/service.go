@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -11,10 +13,19 @@ import (
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
+
+// maskHash 返回哈希值的前 8 个字符，用于日志脱敏，防止跨日志条目追踪用户
+func maskHash(hash string) string {
+	if len(hash) <= 8 {
+		return hash
+	}
+	return hash[:8] + "..."
+}
 
 // 业务错误定义
 var (
@@ -33,7 +44,8 @@ var (
 	ErrReportNotFound     = errors.New("report not found")
 	ErrDraftNotFound          = errors.New("draft not found")
 	ErrNotificationNotFound   = errors.New("notification not found")
-	ErrInvalidAction          = errors.New("invalid action")
+	ErrInvalidAction     = errors.New("invalid action")
+	ErrInvalidTransition = errors.New("invalid status transition")
 )
 
 // Service 评课服务层
@@ -53,6 +65,61 @@ func NewService(database *db.DB, repo *Repository) *Service {
 		filter: filter,
 		log:    logger.L(),
 	}
+}
+
+// validTermID 学期 ID 格式校验：如 "2024-1"（春季）或 "2024-2"（秋季）
+var validTermIDFormat = regexp.MustCompile(`^\d{4}-[12]$`)
+
+// validateAndSanitizeReview 校验评分、清洗标题/内容、检测危险内容和敏感词
+// 返回清洗后的 title、content，调用方应使用返回值覆盖原始参数
+// validRatingKey 评分维度 key 仅允许小写字母、数字、下划线（对齐 DB VARCHAR(50)）
+var validRatingKey = regexp.MustCompile(`^[a-z][a-z0-9_]{0,49}$`)
+
+func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewRatings, title, content, termID string) (string, string, error) {
+	// L-20: 校验 term_id 格式
+	if termID != "" && !validTermIDFormat.MatchString(termID) {
+		return "", "", fmt.Errorf("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+	}
+
+	if len(ratings) == 0 {
+		return "", "", ErrRatingRequired
+	}
+
+	// M-114: 从 DB 获取有效的评分维度 key 白名单，校验提交的 key 是否合法
+	validKeys, err := s.repo.GetDimensionNames(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to load rating dimensions: %w", err)
+	}
+
+	for k, v := range ratings {
+		if !validRatingKey.MatchString(k) {
+			return "", "", ErrInvalidRating
+		}
+		// L-25: 校验 key 是否在 rating_dimensions 表中存在
+		if _, ok := validKeys[k]; !ok {
+			return "", "", fmt.Errorf("%w: unknown dimension key %q", ErrInvalidRating, k)
+		}
+		if v < 1 || v > 5 {
+			return "", "", ErrInvalidRating
+		}
+	}
+
+	title = sanitizer.SanitizeTitle(title)
+	content = sanitizer.SanitizeText(content)
+
+	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
+		return "", "", ErrDangerousContent
+	}
+	if strings.TrimSpace(content) == "" {
+		return "", "", ErrContentEmpty
+	}
+
+	checkResult := s.filter.CheckContent(ctx, title+" "+content)
+	if !checkResult.IsValid {
+		return "", "", ErrSensitiveContent
+	}
+
+	return title, content, nil
 }
 
 // GetCourseReviewsParams 获取课程评论参数
@@ -82,6 +149,7 @@ type PostReviewParams struct {
 	Ratings   ReviewRatings
 	UserHash  string
 	IPAddress string
+	RequestID string // L-35: 由 handler 层从 gin context 提取后传入
 }
 
 // PostReviewResult 发布评论结果
@@ -105,13 +173,14 @@ type StatsResult struct {
 
 // GetCourseReviews 获取课程评论列表
 func (s *Service) GetCourseReviews(ctx context.Context, params GetCourseReviewsParams) (*GetCourseReviewsResult, error) {
-	offset := (params.Page - 1) * params.PageSize
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
 	list, total, err := s.repo.ListByCourseWithSort(ctx, ListByCourseWithSortParams{
 		CourseID:  params.CourseID,
 		Sort:      params.Sort,
 		TermID:    params.TermID,
 		TeacherID: params.TeacherID,
-		Limit:     params.PageSize,
+		Limit:     pageSize,
 		Offset:    offset,
 	})
 	if err != nil {
@@ -119,6 +188,29 @@ func (s *Service) GetCourseReviews(ctx context.Context, params GetCourseReviewsP
 	}
 
 	return &GetCourseReviewsResult{List: list, Total: total}, nil
+}
+
+// GetBatchCourseReviewsParams 批量获取课程测评参数
+type GetBatchCourseReviewsParams struct {
+	CourseIDs []int64
+	PageSize  int
+	Sort      string
+}
+
+// BatchCourseReviewsResult 批量课程测评结果（按课程ID分组）
+type BatchCourseReviewsResult struct {
+	Reviews map[int64][]Review
+	Totals  map[int64]int
+}
+
+// GetBatchCourseReviews 批量获取多个课程的测评列表
+func (s *Service) GetBatchCourseReviews(ctx context.Context, params GetBatchCourseReviewsParams) (*BatchCourseReviewsResult, error) {
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	reviews, totals, err := s.repo.ListByMultipleCourses(ctx, params.CourseIDs, params.Sort, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return &BatchCourseReviewsResult{Reviews: reviews, Totals: totals}, nil
 }
 
 // CheckCourseExists 检查课程是否存在
@@ -135,8 +227,9 @@ type GetLatestReviewsParams struct {
 
 // GetLatestReviews 获取最新评论列表
 func (s *Service) GetLatestReviews(ctx context.Context, params GetLatestReviewsParams) (*GetCourseReviewsResult, error) {
-	offset := (params.Page - 1) * params.PageSize
-	list, total, err := s.repo.ListLatest(ctx, params.PageSize, offset, params.Sort)
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.ListLatest(ctx, pageSize, offset, params.Sort)
 	if err != nil {
 		return nil, err
 	}
@@ -146,55 +239,16 @@ func (s *Service) GetLatestReviews(ctx context.Context, params GetLatestReviewsP
 
 // PostReview 发布评论
 func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*PostReviewResult, error) {
-	// 验证评分
-	if len(params.Ratings) == 0 {
-		return nil, ErrRatingRequired
-	}
-	for _, v := range params.Ratings {
-		if v < 1 || v > 5 {
-			return nil, ErrInvalidRating
-		}
-	}
-
-	// XSS 防护
-	if sanitizer.ContainsDangerousContent(params.Title) || sanitizer.ContainsDangerousContent(params.Content) {
-		return nil, ErrDangerousContent
-	}
-	params.Title = sanitizer.SanitizeTitle(params.Title)
-	params.Content = sanitizer.SanitizeText(params.Content)
-
-	// 清洗后验证内容非空
-	if strings.TrimSpace(params.Content) == "" {
-		return nil, ErrContentEmpty
-	}
-
-	// 敏感词检查
-	checkResult := s.filter.CheckContent(ctx, params.Title+" "+params.Content)
-	if !checkResult.IsValid {
-		return nil, ErrSensitiveContent
-	}
-
-	// 检查课程是否存在
-	exists, err := s.repo.CourseExists(ctx, params.CourseID)
+	var err error
+	params.Title, params.Content, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
 	if err != nil {
 		return nil, err
-	}
-	if !exists {
-		return nil, ErrCourseNotFound
-	}
-
-	// 检查用户是否已对该课程发布评论
-	hasReviewed, err := s.repo.UserHasReviewedCourse(ctx, params.UserHash, params.CourseID)
-	if err != nil {
-		return nil, err
-	}
-	if hasReviewed {
-		return nil, ErrAlreadyReviewed
 	}
 
 	// 序列化评分数据
 	ratingsData, err := json.Marshal(params.Ratings)
 	if err != nil {
+		logger.L().Error("failed to marshal ratings", zap.Any("ratings", params.Ratings), zap.Error(err))
 		return nil, err
 	}
 
@@ -203,8 +257,39 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		return nil, err
 	}
 
+	var review Review
 	if err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if err := s.repo.Create(ctx, tx, CreateParams{
+		// 在事务内检查课程是否存在，防止 TOCTOU 竞态
+		exists, err := s.repo.CourseExistsTx(ctx, tx, params.CourseID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return ErrCourseNotFound
+		}
+
+		// H-23: 在事务内校验 teacher_id 是否有效
+		if params.TeacherID != nil {
+			teacherExists, err := s.repo.TeacherExistsTx(ctx, tx, *params.TeacherID)
+			if err != nil {
+				return err
+			}
+			if !teacherExists {
+				return ErrTeacherNotFound
+			}
+		}
+
+		// 在事务内检查用户是否已对该课程发布评论
+		hasReviewed, err := s.repo.UserHasReviewedCourseTx(ctx, tx, params.UserHash, params.CourseID)
+		if err != nil {
+			return err
+		}
+		if hasReviewed {
+			return ErrAlreadyReviewed
+		}
+
+		// H-16: 使用 RETURNING 在事务内直接获取完整 Review，避免孤儿记录问题
+		created, err := s.repo.CreateReturning(ctx, tx, CreateParams{
 			ID:        reviewID,
 			CourseID:  params.CourseID,
 			TeacherID: params.TeacherID,
@@ -214,9 +299,11 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 			Grade:     params.Grade,
 			Ratings:   ratingsData,
 			UserHash:  params.UserHash,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
+		review = *created
 		return s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID)
 	}); err != nil {
 		return nil, err
@@ -224,25 +311,20 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 
 	// 记录用户操作日志
 	audit.Log(audit.Event{
-		Type:     audit.EventDataCreate,
-		UserID:   params.UserHash,
-		IP:       params.IPAddress,
-		Resource: "review",
-		Action:   "post_review",
-		Result:   "success",
+		Type:      audit.EventDataCreate,
+		UserID:    maskHash(params.UserHash),
+		IP:        params.IPAddress,
+		RequestID: params.RequestID,
+		Resource:  "review",
+		Action:    "post_review",
+		Result:    "success",
 		Details: map[string]interface{}{
 			"review_id": reviewID,
 			"course_id": params.CourseID,
 		},
 	})
 
-	// 获取完整的 Review 对象返回给调用方
-	review, err := s.repo.GetReviewByID(ctx, reviewID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &PostReviewResult{Review: *review}, nil
+	return &PostReviewResult{Review: review}, nil
 }
 
 // VoteReview 投票（支持新建、取消、切换）
@@ -351,32 +433,11 @@ type UpdateReviewParams struct {
 
 // UpdateReview 更新评论
 func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) error {
-	// 验证评分
-	if len(params.Ratings) == 0 {
-		return ErrRatingRequired
-	}
-	for _, v := range params.Ratings {
-		if v < 1 || v > 5 {
-			return ErrInvalidRating
-		}
-	}
-
-	// XSS 防护
-	if sanitizer.ContainsDangerousContent(params.Title) || sanitizer.ContainsDangerousContent(params.Content) {
-		return ErrDangerousContent
-	}
-	params.Title = sanitizer.SanitizeTitle(params.Title)
-	params.Content = sanitizer.SanitizeText(params.Content)
-
-	// 清洗后验证内容非空
-	if strings.TrimSpace(params.Content) == "" {
-		return ErrContentEmpty
-	}
-
-	// 敏感词检查
-	checkResult := s.filter.CheckContent(ctx, params.Title+" "+params.Content)
-	if !checkResult.IsValid {
-		return ErrSensitiveContent
+	var err error
+	// UpdateReview 不涉及 termID 变更，传空字符串跳过校验
+	params.Title, params.Content, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, "")
+	if err != nil {
+		return err
 	}
 
 	ratingsData, err := json.Marshal(params.Ratings)
@@ -437,9 +498,12 @@ func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) e
 		if err := s.repo.SoftDeleteReview(ctx, tx, params.ReviewID); err != nil {
 			return err
 		}
-		// 仅从 published 状态删除时递减计数
+		// 仅从 published 状态删除时递减计数并刷新评分统计
 		if status == "published" {
-			return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
+			if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+				return err
+			}
+			return s.repo.RefreshCourseRatingStatsTx(ctx, tx, courseID)
 		}
 		return nil
 	})

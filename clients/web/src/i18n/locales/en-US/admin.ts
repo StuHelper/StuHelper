@@ -44,7 +44,8 @@ export default {
     tableContent: 'Content',
     tableStatus: 'Status',
     tableActions: 'Actions',
-    empty: 'No reviews'
+    empty: 'No reviews',
+    selectAll: 'Select all / Deselect all'
   },
   logs: {
     title: 'Operation Logs',

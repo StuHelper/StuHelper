@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"fmt"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
@@ -22,20 +23,20 @@ func (r *Repository) GetRatingTrend(ctx context.Context, courseID int64) ([]Rati
 			COUNT(*) as count
 		FROM reviews r
 		LEFT JOIN terms t ON r.term_id = t.id
-		WHERE r.course_id = $1 AND r.status = 'published' AND r.term_id IS NOT NULL
+		WHERE r.course_id = $1 AND r.status = 'published' AND r.term_id IS NOT NULL AND r.term_id != ''
 		GROUP BY r.term_id, t.name
 		ORDER BY r.term_id ASC
 	`, courseID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("GetRatingTrend: %w", err)
 	}
 	defer rows.Close()
 
-	var list []RatingTrendItem
+	list := make([]RatingTrendItem, 0, 16)
 	for rows.Next() {
 		var item RatingTrendItem
 		if err := rows.Scan(&item.TermID, &item.TermName, &item.AvgRating, &item.Count); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("GetRatingTrend scan: %w", err)
 		}
 		list = append(list, item)
 	}
@@ -51,7 +52,9 @@ type HotCourse struct {
 }
 
 // ListHotCourses 获取热门课程排行
+// M-97: timeFilter 的值仅来自下方 switch 硬编码的 INTERVAL 字面量，不包含任何用户输入，无 SQL 注入风险
 func (r *Repository) ListHotCourses(ctx context.Context, period string, limit int) ([]HotCourse, error) {
+	// 安全保证：timeFilter 仅从 switch 硬编码值中选取，period 参数不直接拼入 SQL
 	var timeFilter string
 	switch period {
 	case "week":
@@ -75,48 +78,51 @@ func (r *Repository) ListHotCourses(ctx context.Context, period string, limit in
 
 	rows, err := r.db.Query(ctx, query, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ListHotCourses: %w", err)
 	}
 	defer rows.Close()
 
-	var list []HotCourse
+	list := make([]HotCourse, 0, limit)
 	for rows.Next() {
 		var item HotCourse
 		if err := rows.Scan(&item.CourseID, &item.CourseName, &item.ReviewCount, &item.AvgRating); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("ListHotCourses scan: %w", err)
 		}
 		list = append(list, item)
 	}
 	return list, rows.Err()
 }
 
-// ListCourseTeachers 获取课程的授课教师列表（含全局统计）
+// ListCourseTeachers 获取课程的授课教师列表（含全局统计，CTE + JOIN 避免 IN 子查询性能问题）
 func (r *Repository) ListCourseTeachers(ctx context.Context, courseID int64) ([]CourseTeacherStats, error) {
 	rows, err := r.db.Query(ctx, `
+		WITH course_teachers AS (
+			SELECT DISTINCT teacher_id
+			FROM reviews
+			WHERE course_id = $1 AND status = 'published' AND teacher_id IS NOT NULL
+		)
 		SELECT t.id, t.name, COALESCE(d.name, '') AS department_name,
-			(SELECT AVG(r2.avg_rating) FROM reviews r2
-			 WHERE r2.teacher_id = t.id AND r2.status = 'published') AS avg_rating,
-			(SELECT COUNT(DISTINCT r3.course_id) FROM reviews r3
-			 WHERE r3.teacher_id = t.id AND r3.status = 'published') AS course_count,
-			(SELECT COUNT(*) FROM reviews r4
-			 WHERE r4.teacher_id = t.id AND r4.status = 'published') AS review_count
-		FROM (SELECT DISTINCT teacher_id FROM reviews
-		      WHERE course_id = $1 AND status = 'published' AND teacher_id IS NOT NULL) rt
-		JOIN teachers t ON t.id = rt.teacher_id
+			AVG(r.avg_rating) AS avg_rating,
+			COUNT(DISTINCT r.course_id) AS course_count,
+			COUNT(*) AS review_count
+		FROM course_teachers ct
+		JOIN reviews r ON r.teacher_id = ct.teacher_id AND r.status = 'published'
+		JOIN teachers t ON t.id = ct.teacher_id
 		LEFT JOIN departments d ON d.id = t.department_id
+		GROUP BY t.id, t.name, d.name
 		ORDER BY review_count DESC
 	`, courseID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ListCourseTeachers: %w", err)
 	}
 	defer rows.Close()
 
-	var list []CourseTeacherStats
+	list := make([]CourseTeacherStats, 0, 8)
 	for rows.Next() {
 		var s CourseTeacherStats
 		if err := rows.Scan(&s.TeacherID, &s.TeacherName, &s.DepartmentName,
 			&s.AvgRating, &s.CourseCount, &s.ReviewCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("ListCourseTeachers scan: %w", err)
 		}
 		list = append(list, s)
 	}
@@ -129,7 +135,10 @@ func (r *Repository) GetTeacherName(ctx context.Context, teacherID int64) (strin
 	err := r.db.QueryRow(ctx, `
 		SELECT name FROM teachers WHERE id = $1
 	`, teacherID).Scan(&name)
-	return name, err
+	if err != nil {
+		return "", fmt.Errorf("GetTeacherName: %w", err)
+	}
+	return name, nil
 }
 
 // GetTeacherInfo 获取教师基本信息（名称 + 院系名称）
@@ -140,6 +149,9 @@ func (r *Repository) GetTeacherInfo(ctx context.Context, teacherID int64) (name,
 		LEFT JOIN departments d ON d.id = t.department_id
 		WHERE t.id = $1
 	`, teacherID).Scan(&name, &departmentName)
+	if err != nil {
+		err = fmt.Errorf("GetTeacherInfo: %w", err)
+	}
 	return
 }
 
@@ -156,15 +168,15 @@ func (r *Repository) ListTeacherCourses(ctx context.Context, teacherID int64) ([
 		ORDER BY review_count DESC
 	`, teacherID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ListTeacherCourses: %w", err)
 	}
 	defer rows.Close()
 
-	var list []TeacherCourse
+	list := make([]TeacherCourse, 0, 8)
 	for rows.Next() {
 		var tc TeacherCourse
 		if err := rows.Scan(&tc.ID, &tc.Name, &tc.AvgRating, &tc.ReviewCount); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("ListTeacherCourses scan: %w", err)
 		}
 		list = append(list, tc)
 	}
@@ -178,7 +190,10 @@ func (r *Repository) GetTeacherReviewCount(ctx context.Context, teacherID int64)
 		SELECT COUNT(*) FROM reviews
 		WHERE teacher_id = $1 AND status = 'published'
 	`, teacherID).Scan(&count)
-	return count, err
+	if err != nil {
+		return 0, fmt.Errorf("GetTeacherReviewCount: %w", err)
+	}
+	return count, nil
 }
 
 // GetTeacherRatingStats 获取教师评分统计
@@ -190,18 +205,18 @@ func (r *Repository) GetTeacherRatingStats(ctx context.Context, teacherID int64)
 		ORDER BY term_id NULLS FIRST, dimension_key
 	`, teacherID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("GetTeacherRatingStats: %w", err)
 	}
 	defer rows.Close()
 
-	var list []TeacherRatingStats
+	list := make([]TeacherRatingStats, 0, 20)
 	for rows.Next() {
 		var s TeacherRatingStats
 		if err := rows.Scan(
 			&s.ID, &s.TeacherID, &s.TermID, &s.DimensionKey,
 			&s.AvgRating, &s.RatingCount, &s.RatingDist, &s.UpdatedAt,
 		); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("GetTeacherRatingStats scan: %w", err)
 		}
 		list = append(list, s)
 	}
@@ -212,7 +227,7 @@ func (r *Repository) GetTeacherRatingStats(ctx context.Context, teacherID int64)
 func (r *Repository) RefreshTeacherRatingStats(ctx context.Context, teacherID int64) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("RefreshTeacherRatingStats begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -250,7 +265,7 @@ func (r *Repository) RefreshTeacherRatingStats(ctx context.Context, teacherID in
 		LEFT JOIN dist d ON s.term_id IS NOT DISTINCT FROM d.term_id AND s.dimension_key = d.dimension_key
 	`, teacherID)
 	if err != nil {
-		return err
+		return fmt.Errorf("RefreshTeacherRatingStats query: %w", err)
 	}
 	defer rows.Close()
 
@@ -261,37 +276,56 @@ func (r *Repository) RefreshTeacherRatingStats(ctx context.Context, teacherID in
 		ratingCount  int
 		ratingDist   []byte
 	}
-	var statRows []statRow
+	statRows := make([]statRow, 0, 20)
 	for rows.Next() {
 		var s statRow
 		if err := rows.Scan(&s.termID, &s.dimensionKey, &s.avgRating, &s.ratingCount, &s.ratingDist); err != nil {
-			return err
+			return fmt.Errorf("RefreshTeacherRatingStats scan: %w", err)
 		}
 		statRows = append(statRows, s)
 	}
 	if err := rows.Err(); err != nil {
-		return err
+		return fmt.Errorf("RefreshTeacherRatingStats rows iteration: %w", err)
 	}
 
-	// 逐行 upsert，使用 Go 端生成的 UUIDv7
+	// 批量 upsert：构建数组参数，单次 INSERT ... ON CONFLICT 完成全部写入
+	if len(statRows) == 0 {
+		return tx.Commit(ctx)
+	}
+
+	ids := make([]string, 0, len(statRows))
+	termIDs := make([]*string, 0, len(statRows))
+	dimKeys := make([]string, 0, len(statRows))
+	avgRatings := make([]float64, 0, len(statRows))
+	ratingCounts := make([]int, 0, len(statRows))
+	ratingDists := make([][]byte, 0, len(statRows))
+
 	for _, s := range statRows {
 		newID, err := id.New()
 		if err != nil {
-			return err
+			return fmt.Errorf("RefreshTeacherRatingStats generate id: %w", err)
 		}
-		_, err = tx.Exec(ctx, `
-			INSERT INTO teacher_rating_stats (id, teacher_id, term_id, dimension_key, avg_rating, rating_count, rating_dist, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-			ON CONFLICT (teacher_id, term_id, dimension_key)
-			DO UPDATE SET
-				avg_rating = EXCLUDED.avg_rating,
-				rating_count = EXCLUDED.rating_count,
-				rating_dist = EXCLUDED.rating_dist,
-				updated_at = NOW()
-		`, newID, teacherID, s.termID, s.dimensionKey, s.avgRating, s.ratingCount, s.ratingDist)
-		if err != nil {
-			return err
-		}
+		ids = append(ids, newID)
+		termIDs = append(termIDs, s.termID)
+		dimKeys = append(dimKeys, s.dimensionKey)
+		avgRatings = append(avgRatings, s.avgRating)
+		ratingCounts = append(ratingCounts, s.ratingCount)
+		ratingDists = append(ratingDists, s.ratingDist)
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO teacher_rating_stats (id, teacher_id, term_id, dimension_key, avg_rating, rating_count, rating_dist, updated_at)
+		SELECT unnest($1::text[]), $2, unnest($3::text[]), unnest($4::text[]),
+			unnest($5::decimal[]), unnest($6::int[]), unnest($7::jsonb[]), NOW()
+		ON CONFLICT (teacher_id, term_id, dimension_key)
+		DO UPDATE SET
+			avg_rating = EXCLUDED.avg_rating,
+			rating_count = EXCLUDED.rating_count,
+			rating_dist = EXCLUDED.rating_dist,
+			updated_at = NOW()
+	`, ids, teacherID, termIDs, dimKeys, avgRatings, ratingCounts, ratingDists)
+	if err != nil {
+		return fmt.Errorf("RefreshTeacherRatingStats batch upsert: %w", err)
 	}
 	return tx.Commit(ctx)
 }
@@ -305,15 +339,15 @@ func (r *Repository) ListActiveSensitiveWords(ctx context.Context) ([]SensitiveW
 		ORDER BY id
 	`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ListActiveSensitiveWords: %w", err)
 	}
 	defer rows.Close()
 
-	var list []SensitiveWord
+	list := make([]SensitiveWord, 0, 64)
 	for rows.Next() {
 		var w SensitiveWord
 		if err := rows.Scan(&w.ID, &w.Word, &w.Category, &w.Level, &w.IsActive, &w.CreatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("ListActiveSensitiveWords scan: %w", err)
 		}
 		list = append(list, w)
 	}

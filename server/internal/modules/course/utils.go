@@ -24,7 +24,7 @@ func parseIDParam(c *gin.Context, name string) (int64, error) {
 }
 
 // hashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希
-func hashUserID(userID string) string {
+func hashUserID(userID string) (string, error) {
 	return httputil.HashUserID(userID)
 }
 
@@ -34,6 +34,16 @@ func escapeLikePattern(s string) string {
 }
 
 // sanitizeCacheKey 清理缓存 key 中的特殊字符
+// 失败时返回原始输入的截断值作为降级，避免空字符串导致缓存碰撞
 func sanitizeCacheKey(s string) string {
-	return crypto.HMACHashShort(s, 16)
+	hash, err := crypto.HMACHashShort(s, 16)
+	if err != nil {
+		// 降级：截断原始输入，仅保留安全字符
+		safe := httputil.EscapeLikePattern(s)
+		if len(safe) > 64 {
+			safe = safe[:64]
+		}
+		return safe
+	}
+	return hash
 }

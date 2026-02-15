@@ -1,0 +1,94 @@
+Course:
+  type: object
+  required: [id, name, credits, departmentID, reviewCount]
+  properties:
+    id:
+      type: integer
+      format: int64
+    schoolID:
+      type: integer
+      format: int64
+    departmentID:
+      type: integer
+      format: int64
+    departmentName:
+      type: string
+    code:
+      type: string
+    name:
+      type: string
+    credits:
+      type: number
+      format: double
+    category:
+      type: string
+    reviewCount:
+      type: integer
+
+Department:
+  type: object
+  required: [id, name, category]
+  properties:
+    id:
+      type: integer
+      format: int64
+    schoolID:
+      type: integer
+      format: int64
+    name:
+      type: string
+    shortName:
+      type: string
+    category:
+      type: string
+    sortOrder:
+      type: integer
+
+CourseCategory:
+  type: object
+  required: [id, name]
+  properties:
+    id:
+      type: integer
+      format: int64
+    schoolID:
+      type: integer
+      format: int64
+    name:
+      type: string
+    sortOrder:
+      type: integer
+
+FavoriteCourse:
+  type: object
+  required: [id, name, credits, departmentID, reviewCount, favoritedAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    name:
+      type: string
+    code:
+      type: string
+    credits:
+      type: number
+      format: double
+    departmentID:
+      type: integer
+      format: int64
+    departmentName:
+      type: string
+    reviewCount:
+      type: integer
+    favoritedAt:
+      type: string
+      format: date-time
+
+CourseStats:
+  type: object
+  required: [courseCount, departmentCount]
+  properties:
+    courseCount:
+      type: integer
+    departmentCount:
+      type: integer

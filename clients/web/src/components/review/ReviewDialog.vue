@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="overlay">
-      <div v-if="visible" class="fixed inset-0 bg-bg-overlay z-50 flex items-center justify-center p-4" @click.self="handleCancel">
+      <div v-if="visible" class="fixed inset-0 bg-bg-overlay z-[var(--z-modal-backdrop)] flex items-center justify-center p-4" @click.self="handleCancel">
         <div
           ref="modalRef"
           class="relative w-full max-w-[660px] max-h-[85vh] bg-bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden animate-modal-in"
@@ -22,15 +22,27 @@
             <div v-if="!selectedCourse">
               <input
                 v-model="courseQuery"
+                autocomplete="off"
+                role="combobox"
+                :aria-expanded="courseResults.length > 0"
+                aria-haspopup="listbox"
+                aria-autocomplete="list"
+                :aria-activedescendant="highlightedIndex >= 0 ? `course-option-${courseResults[highlightedIndex]?.id}` : undefined"
+                aria-controls="course-search-listbox"
                 class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                 :placeholder="t('review.post.searchCourse')"
                 :aria-label="t('review.post.searchCourseLabel')"
+                @keydown="handleSearchKeydown"
               />
-              <div v-if="courseResults.length > 0" class="border border-border rounded-lg max-h-[200px] overflow-y-auto mt-2">
+              <div v-if="courseResults.length > 0" id="course-search-listbox" role="listbox" class="border border-border rounded-lg max-h-[200px] overflow-y-auto mt-2">
                 <button
-                  v-for="c in courseResults"
+                  v-for="(c, idx) in courseResults"
+                  :id="`course-option-${c.id}`"
                   :key="c.id"
+                  role="option"
+                  :aria-selected="idx === highlightedIndex"
                   class="flex items-center gap-2 w-full p-3 text-left text-sm text-text-primary cursor-pointer transition-[background] duration-fast hover:bg-bg-hover"
+                  :class="{ 'bg-bg-hover': idx === highlightedIndex }"
                   @click="selectCourse(c)"
                 >
                   <span class="font-medium truncate">{{ c.name }}</span>
@@ -51,13 +63,14 @@
             <!-- 表单 -->
             <template v-if="selectedCourse">
               <div class="relative">
-                <span class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.titleRequired') }} <span class="text-danger text-xs">*</span></span>
+                <label for="review-title-input" class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.titleRequired') }} <span class="text-danger text-xs">*</span></label>
                 <input
+                  id="review-title-input"
                   v-model="title"
+                  autocomplete="off"
                   class="w-full p-3 bg-bg-secondary border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                   :class="attempted && titleInvalid ? 'border-danger' : 'border-border'"
                   :placeholder="t('review.post.titlePlaceholder')"
-                  :aria-label="t('review.post.titleLabel')"
                   :maxlength="TITLE_MAX"
                 />
                 <span v-if="attempted && titleInvalid" class="block text-xs text-danger mt-1">{{ t('review.post.titleMissing') }}</span>
@@ -72,13 +85,13 @@
               <span v-if="attempted && ratingsInvalid" class="block text-xs text-danger -mt-2">{{ t('review.post.ratingMissing') }}</span>
 
               <div class="relative">
-                <span class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.detailedReview') }} <span class="text-danger text-xs">*</span></span>
+                <label for="review-content-input" class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.detailedReview') }} <span class="text-danger text-xs">*</span></label>
                 <textarea
+                  id="review-content-input"
                   v-model="content"
                   class="w-full p-3 bg-bg-secondary border rounded-lg text-sm text-text-primary font-sans resize-vertical min-h-[120px] transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                   :class="attempted && contentInvalid ? 'border-danger' : 'border-border'"
                   :placeholder="t('review.post.contentPlaceholder')"
-                  :aria-label="t('review.post.contentLabel')"
                   :aria-describedby="contentError ? 'review-dialog-content-error' : undefined"
                   :maxlength="CONTENT_MAX"
                   rows="5"
@@ -89,12 +102,13 @@
               </div>
 
               <div class="relative">
-                <span class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.gradeLabel') }} <span class="text-text-muted font-normal text-xs">（{{ t('review.post.gradeOptional') }}）</span></span>
+                <label for="review-grade-input" class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.gradeLabel') }} <span class="text-text-muted font-normal text-xs">（{{ t('review.post.gradeOptional') }}）</span></label>
                 <input
+                  id="review-grade-input"
                   v-model="grade"
+                  autocomplete="off"
                   class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                   :placeholder="t('review.post.gradePlaceholder')"
-                  :aria-label="t('review.post.gradeLabel')"
                   maxlength="20"
                 />
               </div>
@@ -130,7 +144,7 @@
 
     <!-- 取消确认小弹窗（独立于发布弹窗） -->
     <Transition name="overlay">
-      <div v-if="showCancelConfirm" class="fixed inset-0 bg-black/30 z-[60] flex items-center justify-center p-4" @click.self="showCancelConfirm = false">
+      <div v-if="showCancelConfirm" class="fixed inset-0 bg-black/30 z-[var(--z-modal)] flex items-center justify-center p-4" @click.self="showCancelConfirm = false">
         <div class="bg-bg-card border border-border rounded-xl shadow-2xl w-full max-w-[340px] p-6 flex flex-col items-center gap-4 animate-modal-in">
           <div class="w-11 h-11 rounded-full bg-warning/10 flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-warning"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>
@@ -167,6 +181,11 @@ import { saveDraft, getDraft, deleteDraft } from '@/api/draft'
 import { useToast } from '@/composables/useToast'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { useAuthStore } from '@/stores/auth'
+import {
+  REVIEW_TITLE_MAX_LENGTH,
+  REVIEW_CONTENT_MIN_LENGTH,
+  REVIEW_CONTENT_MAX_LENGTH
+} from '@/constants/review'
 import RatingGroup from './RatingGroup.vue'
 import type { Course } from '@/types/course'
 import type { ReviewRatings } from '@/types/review'
@@ -180,9 +199,17 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { preselectedCourse } = useReviewPost()
 
-const TITLE_MAX = 100
-const CONTENT_MIN = 10
-const CONTENT_MAX = 5000
+const TITLE_MAX = REVIEW_TITLE_MAX_LENGTH
+const CONTENT_MIN = REVIEW_CONTENT_MIN_LENGTH
+const CONTENT_MAX = REVIEW_CONTENT_MAX_LENGTH
+const AUTO_SAVE_DEBOUNCE_MS = 300
+const GRADE_PATTERN = /^[A-Za-z0-9+\-./\s]*$/
+
+// H-36: 硬编码的默认评分维度，API 失败时作为 fallback
+const DEFAULT_RATING_DIMENSIONS = ['recommendation', 'content_quality', 'workload', 'grading']
+
+// M-108: 合法的评分维度键名白名单（防止原型污染）
+const VALID_RATING_KEYS = new Set(DEFAULT_RATING_DIMENSIONS)
 
 const templateLabels = computed(() => [
   t('review.post.templateListening'),
@@ -190,6 +217,16 @@ const templateLabels = computed(() => [
   t('review.post.templateExam')
 ])
 const contentTemplate = computed(() => templateLabels.value.join('\n'))
+
+// M-110: 追踪用户是否手动编辑过内容，防止语言切换时覆盖用户输入
+let userHasEditedContent = false
+
+// 语言切换时，仅当用户未手动编辑且内容仍为旧模板时才更新
+watch(contentTemplate, (newTpl, oldTpl) => {
+  if (props.visible && !userHasEditedContent && content.value === oldTpl) {
+    content.value = newTpl
+  }
+})
 
 const modalRef = ref<HTMLElement | null>(null)
 const ratingGroupRef = ref<InstanceType<typeof RatingGroup> | null>(null)
@@ -209,6 +246,37 @@ const savingDraft = ref(false)
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
+// M-15: 自动保存防抖 timer
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+// H-08: 草稿恢复版本追踪，防止并发恢复覆盖表单
+let restoreVersion = 0
+// M-96: beforeunload 事件管理
+let unloadController: AbortController | null = null
+
+// 课程搜索键盘导航
+const highlightedIndex = ref(-1)
+
+function handleSearchKeydown(e: KeyboardEvent) {
+  const len = courseResults.value.length
+  if (len === 0) return
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      highlightedIndex.value = (highlightedIndex.value + 1) % len
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      highlightedIndex.value = (highlightedIndex.value - 1 + len) % len
+      break
+    case 'Enter':
+      e.preventDefault()
+      if (highlightedIndex.value >= 0 && highlightedIndex.value < len) {
+        selectCourse(courseResults.value[highlightedIndex.value])
+      }
+      break
+  }
+}
 
 // --- localStorage 草稿工具 ---
 const LOCAL_DRAFT_KEY = 'review_draft'
@@ -235,15 +303,43 @@ function saveLocalDraft() {
     ratings: ratings.value,
     updatedAt: Date.now()
   }
-  localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(draft))
-  localStorage.removeItem(LOCAL_DRAFT_CLEARED_KEY)
+  try {
+    localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(draft))
+    localStorage.removeItem(LOCAL_DRAFT_CLEARED_KEY)
+  } catch (e) {
+    console.warn('[ReviewDialog] Failed to save local draft:', e)
+  }
+}
+
+// M-101 & M-108: 验证草稿结构，包括评分维度键名白名单（防止原型污染）
+function isValidLocalDraft(v: unknown): v is LocalDraft {
+  if (!v || typeof v !== 'object') return false
+  const d = v as Record<string, unknown>
+  if (
+    typeof d.courseID !== 'number' ||
+    typeof d.courseName !== 'string' ||
+    typeof d.title !== 'string' ||
+    typeof d.content !== 'string' ||
+    typeof d.grade !== 'string' ||
+    typeof d.updatedAt !== 'number' ||
+    !d.ratings || typeof d.ratings !== 'object'
+  ) return false
+  const ratingsObj = d.ratings as Record<string, unknown>
+  return Object.entries(ratingsObj).every(
+    ([k, val]) => VALID_RATING_KEYS.has(k) && typeof val === 'number' && val >= 1 && val <= 5
+  )
 }
 
 function loadLocalDraft(): LocalDraft | null {
   try {
     const raw = localStorage.getItem(LOCAL_DRAFT_KEY)
     if (!raw) return null
-    return JSON.parse(raw) as LocalDraft
+    const parsed: unknown = JSON.parse(raw)
+    if (!isValidLocalDraft(parsed)) {
+      localStorage.removeItem(LOCAL_DRAFT_KEY)
+      return null
+    }
+    return parsed
   } catch { return null }
 }
 
@@ -303,6 +399,7 @@ function trapFocus(e: KeyboardEvent) {
 
 watch(courseQuery, (val) => {
   if (searchTimer) clearTimeout(searchTimer)
+  highlightedIndex.value = -1
   const q = val.trim()
   if (!q) { courseResults.value = []; return }
 
@@ -311,16 +408,26 @@ watch(courseQuery, (val) => {
     try {
       const res = await searchCourses(currentQuery, 8)
       if (courseQuery.value.trim() === currentQuery) {
-        courseResults.value = res.data?.list || []
+        const list = res.data?.list || []
+        const seen = new Set<number>()
+        courseResults.value = list.filter(c => {
+          if (seen.has(c.id)) return false
+          seen.add(c.id)
+          return true
+        })
+        highlightedIndex.value = -1
       }
-    } catch { courseResults.value = [] }
+    } catch (err) { console.warn('[ReviewDialog] Course search failed:', err); courseResults.value = [] }
   }, 300)
 })
 
 onUnmounted(() => {
+  document.body.style.overflow = ''
   if (searchTimer) clearTimeout(searchTimer)
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
   clearCountdownTimer()
-  window.removeEventListener('beforeunload', onBeforeUnload)
+  unloadController?.abort()
+  unloadController = null
 })
 
 function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -347,11 +454,29 @@ function startRedirectCountdown() {
   }, 1000)
 }
 
+// M-15: 表单变更时防抖自动保存草稿
+watch([title, content, grade, ratings], () => {
+  // M-110: 标记用户已手动编辑内容
+  userHasEditedContent = true
+  if (!selectedCourse.value) return
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => { saveLocalDraft() }, AUTO_SAVE_DEBOUNCE_MS)
+}, { deep: true })
+
+// M-53: Grade 格式校验
+const gradeInvalid = computed(() => {
+  const g = grade.value.trim()
+  return g.length > 0 && !GRADE_PATTERN.test(g)
+})
+
 // 对话框打开时重置表单并聚焦，锁定 body 滚动
 watch(() => props.visible, async (val) => {
   if (val) {
     document.body.style.overflow = 'hidden'
-    window.addEventListener('beforeunload', onBeforeUnload)
+    // M-96: 使用 AbortController 管理 beforeunload，防止监听器累积
+    unloadController?.abort()
+    unloadController = new AbortController()
+    window.addEventListener('beforeunload', onBeforeUnload, { signal: unloadController.signal })
     courseQuery.value = ''
     courseResults.value = []
     selectedCourse.value = preselectedCourse.value ?? null
@@ -362,17 +487,26 @@ watch(() => props.visible, async (val) => {
     submitting.value = false
     attempted.value = false
     showCancelConfirm.value = false
+    userHasEditedContent = false
 
-    // 尝试恢复草稿
+    // H-08: 版本追踪，防止并发恢复覆盖表单
+    const currentVersion = ++restoreVersion
     await nextTick()
-    await tryRestoreDraft()
+    await tryRestoreDraft(currentVersion)
 
-    nextTick(() => modalRef.value?.focus())
+    // M-12: 聚焦首个可交互输入框而非 modal div
+    nextTick(() => {
+      const firstInput = modalRef.value?.querySelector<HTMLElement>('input, textarea')
+      if (firstInput) firstInput.focus()
+      else modalRef.value?.focus()
+    })
   } else {
     document.body.style.overflow = ''
     if (searchTimer) clearTimeout(searchTimer)
+    if (autoSaveTimer) clearTimeout(autoSaveTimer)
     clearCountdownTimer()
-    window.removeEventListener('beforeunload', onBeforeUnload)
+    unloadController?.abort()
+    unloadController = null
   }
 })
 
@@ -383,7 +517,7 @@ function selectCourse(course: Course) {
 }
 
 /** 尝试恢复草稿：两端 + 清除时间戳三方比较，取最新的 */
-async function tryRestoreDraft() {
+async function tryRestoreDraft(expectedVersion: number) {
   const local = loadLocalDraft()
   const clearedAt = getLocalClearedAt()
   let serverDraft: { title?: string; content?: string; grade?: string; ratings?: ReviewRatings; updatedAt: string } | null = null
@@ -398,6 +532,9 @@ async function tryRestoreDraft() {
       } catch { /* 静默忽略 */ }
     }
   }
+
+  // H-08: 异步操作后检查版本，防止并发恢复覆盖表单
+  if (restoreVersion !== expectedVersion) return
 
   // 收集各端时间戳，取最新事件
   const localTime = local?.updatedAt ?? 0
@@ -437,11 +574,11 @@ function getUserContentLength(raw: string): number {
 const titleInvalid = computed(() => title.value.trim().length === 0)
 
 const ratingsInvalid = computed(() => {
+  // H-36: API 失败时使用硬编码默认维度作为 fallback
   const dims = ratingGroupRef.value?.dimensions ?? []
-  if (dims.length === 0) return Object.keys(ratings.value).length === 0
-  // 每个维度都必须评分
-  return dims.some(d => {
-    const v = ratings.value[d.key]
+  const keys = dims.length > 0 ? dims.map(d => d.key) : DEFAULT_RATING_DIMENSIONS
+  return keys.some(k => {
+    const v = ratings.value[k]
     return !v || v < 1 || v > 5
   })
 })
@@ -462,12 +599,15 @@ const canSubmit = computed(() => {
   return selectedCourse.value &&
     !titleInvalid.value &&
     !contentInvalid.value &&
+    !gradeInvalid.value &&
     content.value.length <= CONTENT_MAX &&
     title.value.length <= TITLE_MAX &&
     !ratingsInvalid.value
 })
 
 async function handleSubmit() {
+  // 防重复提交：即使按钮 disabled 未渲染，也阻止快速双击或 Enter 键触发
+  if (submitting.value) return
   attempted.value = true
   if (!canSubmit.value || !selectedCourse.value) return
 
@@ -503,8 +643,9 @@ async function handleSubmit() {
   }
 }
 
-/** 取消按钮：有内容时弹出自定义确认面板 */
+/** 取消按钮：倒计时期间禁止关闭，有内容时弹出自定义确认面板 */
 function handleCancel() {
+  if (redirectCountdown.value > 0) return
   if (selectedCourse.value && hasFormContent()) {
     showCancelConfirm.value = true
     return
@@ -517,10 +658,13 @@ async function confirmSaveDraft() {
   try {
     await saveDraftAuto()
     toast.success(t('review.draft.saved'))
-  } finally {
-    savingDraft.value = false
     showCancelConfirm.value = false
     emit('close')
+  } catch {
+    toast.error(t('review.draft.saveFailed'))
+    showCancelConfirm.value = false
+  } finally {
+    savingDraft.value = false
   }
 }
 

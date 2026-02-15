@@ -88,6 +88,14 @@ modules/
         └── utils.go        # 工具函数
 ```
 
+OpenAPI 相关的自动生成代码位于独立目录：
+
+```
+internal/api/gen/
+├── generate.go      # go:generate 指令
+└── server.gen.go    # 自动生成（禁止手动修改）
+```
+
 ## 4. 代码示例
 
 ### 4.1 Repository 层示例
@@ -187,7 +195,7 @@ func NewHandler(database *db.DB, cache *redis.Client) *Handler {
 func (h *Handler) Create(c *gin.Context) {
     var req CreateRequest
     if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        response.BadRequest(c, "invalid request body")
         return
     }
 
@@ -199,17 +207,17 @@ func (h *Handler) Create(c *gin.Context) {
         // 错误映射
         switch {
         case errors.Is(err, ErrNameRequired):
-            c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+            response.BadRequest(c, "name is required")
         default:
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+            response.InternalError(c)
         }
         return
     }
 
     // 失效缓存
-    _ = h.invalidateCache(c.Request.Context(), "prefix")
+    h.invalidateCache(c.Request.Context(), "prefix")
 
-    c.JSON(http.StatusOK, gin.H{"id": result.ID})
+    response.Success(c, result)
 }
 ```
 
@@ -229,16 +237,16 @@ var (
 ### 5.2 Handler 层错误映射
 
 ```go
-// handler.go
+// handler.go — 使用 response 包统一响应格式（禁止直接 c.JSON()）
 switch {
 case errors.Is(err, ErrNotFound):
-    c.JSON(http.StatusNotFound, gin.H{"error": "resource not found"})
+    response.Error(c, http.StatusNotFound, "resource not found")
 case errors.Is(err, ErrAlreadyExists):
-    c.JSON(http.StatusConflict, gin.H{"error": "resource already exists"})
+    response.Error(c, http.StatusConflict, "resource already exists")
 case errors.Is(err, ErrInvalidInput):
-    c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
+    response.BadRequest(c, "invalid input")
 default:
-    c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+    response.InternalError(c)
 }
 ```
 
@@ -255,3 +263,5 @@ default:
 
 完整的分层架构实现示例请参考：
 - [review 模块](../../server/internal/modules/course/review/)
+- [OpenAPI 规范](../../server/api/openapi.yaml) — API 的权威定义
+- [后端开发指南](../guides/backend-quickstart.md) — Spec-First 开发流程

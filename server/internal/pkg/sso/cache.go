@@ -16,9 +16,17 @@ import (
 const (
 	// 用户信息缓存前缀
 	userCachePrefix = "sso:user:"
-	// 默认缓存过期时间
+	// 默认 Redis 缓存过期时间
 	defaultCacheTTL = 5 * time.Minute
+	// 本地内存缓存过期时间（短于 Redis，作为热点数据加速层和 Redis 宕机降级）
+	localCacheTTL = 1 * time.Minute
 )
+
+// localEntry 本地内存缓存条目
+type localEntry struct {
+	user      *CachedUser
+	expiresAt time.Time
+}
 
 // CachedUser 缓存的用户信息
 type CachedUser struct {
@@ -32,11 +40,12 @@ type CachedUser struct {
 	Groups      []string `json:"groups"`
 }
 
-// UserCache 用户信息缓存服务
+// UserCache 用户信息缓存服务（L1 本地内存 + L2 Redis 二级缓存）
 type UserCache struct {
-	rdb *redis.Client
-	mu  sync.RWMutex
-	ttl time.Duration
+	rdb   *redis.Client
+	local sync.Map // L1: 本地内存缓存，key → *localEntry
+	mu    sync.RWMutex
+	ttl   time.Duration
 }
 
 // NewUserCache 创建用户缓存服务
@@ -60,27 +69,46 @@ func (c *UserCache) SetTTL(ttl time.Duration) {
 	c.mu.Unlock()
 }
 
-// Get 从缓存获取用户信息
+// Get 从缓存获取用户信息（L1 本地 → L2 Redis，Redis 错误降级为未命中）
 func (c *UserCache) Get(ctx context.Context, identifier string) (*CachedUser, error) {
 	key := userCachePrefix + hashKey(identifier)
-	data, err := c.rdb.Get(ctx, key).Bytes()
-	if err == redis.Nil {
-		return nil, nil // 缓存未命中
+
+	// L1: 本地内存缓存
+	if entry, ok := c.local.Load(key); ok {
+		if e, ok := entry.(*localEntry); ok && time.Now().Before(e.expiresAt) {
+			return e.user, nil
+		}
+		c.local.Delete(key) // 过期条目清理
 	}
+
+	// L2: Redis 缓存（错误降级为未命中，不阻断请求）
+	data, err := c.rdb.Get(ctx, key).Bytes()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user cache: %w", err)
+		// redis.Nil 或 Redis 不可用均视为未命中
+		return nil, nil
 	}
 
 	var user CachedUser
 	if err := json.Unmarshal(data, &user); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal user cache: %w", err)
+		// 数据损坏：删除坏条目，降级为未命中
+		_ = c.rdb.Del(ctx, key).Err()
+		return nil, nil
 	}
+
+	// 回填本地缓存
+	c.local.Store(key, &localEntry{user: &user, expiresAt: time.Now().Add(localCacheTTL)})
+
 	return &user, nil
 }
 
-// Set 设置用户信息缓存（以 user.ID 为 key）
+// Set 设置用户信息缓存（以 user.ID 为 key，同时写入 L1 和 L2）
 func (c *UserCache) Set(ctx context.Context, user *CachedUser) error {
 	key := userCachePrefix + hashKey(user.ID)
+
+	// L1: 本地内存缓存
+	c.local.Store(key, &localEntry{user: user, expiresAt: time.Now().Add(localCacheTTL)})
+
+	// L2: Redis 缓存
 	data, err := json.Marshal(user)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user cache: %w", err)
@@ -91,14 +119,19 @@ func (c *UserCache) Set(ctx context.Context, user *CachedUser) error {
 	return c.rdb.Set(ctx, key, data, ttl).Err()
 }
 
-// Delete 删除用户缓存
+// Delete 删除用户缓存（同时清除 L1 和 L2）
 func (c *UserCache) Delete(ctx context.Context, identifier string) error {
 	key := userCachePrefix + hashKey(identifier)
+	c.local.Delete(key)
 	return c.rdb.Del(ctx, key).Err()
 }
 
 // FromCasdoorUser 从 Casdoor 用户转换为缓存用户
 func FromCasdoorUser(user *casdoorsdk.User) *CachedUser {
+	if user == nil {
+		return nil
+	}
+
 	cached := &CachedUser{
 		ID:          user.Id,
 		Name:        user.Name,

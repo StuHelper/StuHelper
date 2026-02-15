@@ -1,0 +1,3315 @@
+openapi: 3.0.3
+info:
+  title: StuHelper API
+  version: 1.0.0
+  description: StuHelper 学习助手平台 API
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:8080
+    description: Development
+  - url: https://api.stuhelper.com
+    description: Production
+tags:
+  - name: Health
+    description: 健康检查
+  - name: Auth
+    description: 认证与授权
+  - name: Course
+    description: 课程实体
+  - name: Review
+    description: 测评
+  - name: Rating
+    description: 评分统计
+  - name: Notification
+    description: 通知
+  - name: Draft
+    description: 草稿
+  - name: Favorite
+    description: 收藏
+  - name: User
+    description: 用户中心
+  - name: Admin
+    description: 管理后台
+paths:
+  /health/live:
+    get:
+      tags:
+        - Health
+      operationId: healthLive
+      summary: 存活探针
+      description: Kubernetes 使用此端点判断是否需要重启容器
+      security: []
+      responses:
+        '200':
+          description: 应用正在运行
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - timestamp
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+        '404':
+          description: 路径不存在
+  /health/ready:
+    get:
+      tags:
+        - Health
+      operationId: healthReady
+      summary: 就绪探针
+      description: Kubernetes 使用此端点判断是否将流量路由到此实例
+      security: []
+      responses:
+        '200':
+          description: 应用就绪，可接收流量
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - timestamp
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ok
+                      - degraded
+                  checks:
+                    type: object
+                    description: 各依赖检查结果（仅开发环境返回）
+                    additionalProperties:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                        latency:
+                          type: string
+                        error:
+                          type: string
+                  info:
+                    type: object
+                    description: 系统信息（仅开发环境返回）
+                    additionalProperties: true
+                  timestamp:
+                    type: string
+                    format: date-time
+        '404':
+          description: 路径不存在
+        '503':
+          description: 服务不可用
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - timestamp
+                properties:
+                  status:
+                    type: string
+                    example: degraded
+                  timestamp:
+                    type: string
+                    format: date-time
+  /api/v1/auth/login:
+    get:
+      tags:
+        - Auth
+      operationId: getLoginURL
+      summary: 获取 SSO 登录 URL
+      security: []
+      responses:
+        '200':
+          description: 返回 Casdoor 登录 URL 和 state
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - url
+                      - state
+                    properties:
+                      url:
+                        type: string
+                        format: uri
+                      state:
+                        type: string
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/signup:
+    get:
+      tags:
+        - Auth
+      operationId: getSignupURL
+      summary: 获取 SSO 注册 URL
+      security: []
+      responses:
+        '200':
+          description: 返回 Casdoor 注册 URL 和 state
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - url
+                      - state
+                    properties:
+                      url:
+                        type: string
+                        format: uri
+                      state:
+                        type: string
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/callback:
+    get:
+      tags:
+        - Auth
+      operationId: handleCallback
+      summary: 处理 OAuth 回调
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 登录成功，返回用户信息和 token 过期时间
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - user
+                      - expiresIn
+                    properties:
+                      user:
+                        type: object
+                        required:
+                          - id
+                          - name
+                          - displayName
+                        properties:
+                          id:
+                            type: string
+                          name:
+                            type: string
+                          displayName:
+                            type: string
+                          email:
+                            type: string
+                          avatar:
+                            type: string
+                      expiresIn:
+                        type: integer
+                        description: Access token TTL（秒）
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Auth
+      operationId: refreshToken
+      summary: 刷新 Access Token
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Token 刷新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - message
+                      - expiresIn
+                    properties:
+                      message:
+                        type: string
+                      expiresIn:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Auth
+      operationId: getCurrentUser
+      summary: 获取当前用户信息
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 当前用户信息
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - name
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      email:
+                        type: string
+                      displayName:
+                        type: string
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Auth
+      operationId: logout
+      summary: 登出当前设备
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/logout-all:
+    post:
+      tags:
+        - Auth
+      operationId: logoutAll
+      summary: 全设备登出
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 全设备登出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/departments:
+    get:
+      tags:
+        - Course
+      operationId: getDepartments
+      summary: 获取院系列表
+      security: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 按分类筛选
+      responses:
+        '200':
+          description: 院系列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Department'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/categories:
+    get:
+      tags:
+        - Course
+      operationId: getCourseCategories
+      summary: 获取课程分类列表
+      security: []
+      responses:
+        '200':
+          description: 课程分类列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CourseCategory'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/courses:
+    get:
+      tags:
+        - Course
+      operationId: getCourses
+      summary: 获取课程列表
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: departmentID
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: 按院系筛选
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 按分类筛选
+      responses:
+        '200':
+          description: 课程分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Course'
+                      total:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/courses/search:
+    get:
+      tags:
+        - Course
+      operationId: searchCourses
+      summary: 搜索课程
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 搜索关键词
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 搜索结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Course'
+                      total:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/courses/{id}:
+    get:
+      tags:
+        - Course
+      operationId: getCourse
+      summary: 获取课程详情
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CourseIDPath'
+      responses:
+        '200':
+          description: 课程详情
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/stats:
+    get:
+      tags:
+        - Course
+      operationId: getCourseStats
+      summary: 获取学习中心统计
+      security: []
+      responses:
+        '200':
+          description: 统计数据
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/CourseStats'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/rating-dimensions:
+    get:
+      tags:
+        - Rating
+      operationId: getRatingDimensions
+      summary: 获取评分维度配置
+      security: []
+      responses:
+        '200':
+          description: 评分维度列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RatingDimension'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/courses/{id}/rating-stats:
+    get:
+      tags:
+        - Rating
+      operationId: getCourseRatingStats
+      summary: 获取课程评分统计（雷达图数据）
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CourseIDPath'
+      responses:
+        '200':
+          description: 课程评分统计
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/CourseRatingStatsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/courses/{id}/rating-trend:
+    get:
+      tags:
+        - Rating
+      operationId: getRatingTrend
+      summary: 获取课程评分趋势
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CourseIDPath'
+      responses:
+        '200':
+          description: 评分趋势数据
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - trend
+                    properties:
+                      trend:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RatingTrendItem'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/courses/{id}/teachers:
+    get:
+      tags:
+        - Rating
+      operationId: getCourseTeachers
+      summary: 获取课程的授课教师列表
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CourseIDPath'
+      responses:
+        '200':
+          description: 教师统计列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CourseTeacherStats'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/courses/{id}/reviews:
+    get:
+      tags:
+        - Review
+      operationId: getCourseReviews
+      summary: 获取课程测评列表
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CourseIDPath'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - time
+              - likes
+              - rating
+            default: time
+        - name: termID
+          in: query
+          schema:
+            type: string
+          description: 按学期筛选
+        - name: teacherID
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: 按教师筛选
+      responses:
+        '200':
+          description: 测评分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Review'
+                      total:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/reviews/latest:
+    get:
+      tags:
+        - Review
+      operationId: getLatestReviews
+      summary: 获取最新测评
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - time
+              - likes
+              - rating
+            default: time
+      responses:
+        '200':
+          description: 最新测评分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Review'
+                      total:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/reviews/batch:
+    get:
+      tags:
+        - Review
+      operationId: getBatchCourseReviews
+      summary: 批量获取多个课程的测评列表
+      description: 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
+      security: []
+      parameters:
+        - name: courseIDs
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 逗号分隔的课程ID列表（最多20个）
+          example: 1,2,3
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - time
+              - likes
+              - rating
+            default: time
+      responses:
+        '200':
+          description: 按课程ID分组的测评列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required:
+                        - list
+                        - total
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/Review'
+                        total:
+                          type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/reviews:
+    post:
+      tags:
+        - Review
+      operationId: postReview
+      summary: 发布测评
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostReviewRequest'
+      responses:
+        '201':
+          description: 测评发布成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/Review'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/reviews/{id}:
+    put:
+      tags:
+        - Review
+      operationId: updateReview
+      summary: 更新测评
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReviewRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags:
+        - Review
+      operationId: deleteReview
+      summary: 删除测评
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/reviews/{id}/vote:
+    post:
+      tags:
+        - Review
+      operationId: voteReview
+      summary: 投票（点赞/踩，支持切换和取消）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoteRequest'
+      responses:
+        '200':
+          description: 投票成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/reviews/{id}/report:
+    post:
+      tags:
+        - Review
+      operationId: reportReview
+      summary: 举报测评
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportReviewRequest'
+      responses:
+        '200':
+          description: 举报提交成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/reviews/{id}/replies:
+    get:
+      tags:
+        - Review
+      operationId: getReplies
+      summary: 获取回复列表
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 回复分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Reply'
+                      total:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Review
+      operationId: createReply
+      summary: 创建回复
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReplyRequest'
+      responses:
+        '201':
+          description: 回复创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/Reply'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/replies/{id}:
+    delete:
+      tags:
+        - Review
+      operationId: deleteReply
+      summary: 删除回复
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 回复 ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/stats:
+    get:
+      tags:
+        - Review
+      operationId: getReviewStats
+      summary: 获取评课统计数据
+      security: []
+      responses:
+        '200':
+          description: 评课统计
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/ReviewStats'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/rankings/hot:
+    get:
+      tags:
+        - Review
+      operationId: getHotCourses
+      summary: 获取热门课程排行
+      security: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum:
+              - week
+              - month
+              - all
+            default: all
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: 热门课程列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/HotCourse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/teachers/{id}/stats:
+    get:
+      tags:
+        - Rating
+      operationId: getTeacherRatingStats
+      summary: 获取教师评分统计
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TeacherIDPath'
+      responses:
+        '200':
+          description: 教师评分统计
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/TeacherRatingStatsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/content/check:
+    post:
+      tags:
+        - Review
+      operationId: checkContent
+      summary: 内容安全检查（敏感词 + 质量）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentCheckRequest'
+      responses:
+        '200':
+          description: 检查结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/ContentCheckResult'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/user/reviews:
+    get:
+      tags:
+        - User
+      operationId: getUserReviews
+      summary: 获取用户评论列表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 用户评论分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Review'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/user/votes:
+    get:
+      tags:
+        - User
+      operationId: getUserVotes
+      summary: 获取用户点赞列表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: vote_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - like
+              - dislike
+            default: like
+      responses:
+        '200':
+          description: 用户投票分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Review'
+                      total:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/user/favorites:
+    get:
+      tags:
+        - User
+      operationId: getUserFavorites
+      summary: 获取用户收藏列表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 用户收藏分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FavoriteCourse'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/notifications:
+    get:
+      tags:
+        - Notification
+      operationId: getNotifications
+      summary: 获取通知列表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 通知分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                      - unread
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Notification'
+                      total:
+                        type: integer
+                      unread:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/notifications/unread-count:
+    get:
+      tags:
+        - Notification
+      operationId: getUnreadCount
+      summary: 获取未读通知数量
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 未读数量
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/UnreadCountData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/notifications/{id}/read:
+    put:
+      tags:
+        - Notification
+      operationId: markNotificationRead
+      summary: 标记通知已读
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NotificationIDPath'
+      responses:
+        '200':
+          description: 标记成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/notifications/read-all:
+    put:
+      tags:
+        - Notification
+      operationId: markAllNotificationsRead
+      summary: 标记所有通知已读
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 全部标记成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/drafts:
+    post:
+      tags:
+        - Draft
+      operationId: saveDraft
+      summary: 保存草稿
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveDraftRequest'
+      responses:
+        '200':
+          description: 草稿保存成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/ReviewDraft'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/drafts/{courseID}:
+    get:
+      tags:
+        - Draft
+      operationId: getDraft
+      summary: 获取草稿
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DraftCourseIDPath'
+      responses:
+        '200':
+          description: 草稿内容
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/ReviewDraft'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags:
+        - Draft
+      operationId: deleteDraft
+      summary: 删除草稿
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DraftCourseIDPath'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/courses/{id}/favorite:
+    post:
+      tags:
+        - Favorite
+      operationId: addFavorite
+      summary: 添加课程收藏
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseIDPath'
+      responses:
+        '200':
+          description: 收藏成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags:
+        - Favorite
+      operationId: removeFavorite
+      summary: 取消课程收藏
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseIDPath'
+      responses:
+        '200':
+          description: 取消收藏成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/reports:
+    get:
+      tags:
+        - Admin
+      operationId: listReports
+      summary: 获取举报列表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - resolved
+              - rejected
+              - all
+            default: pending
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 举报分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ReviewReport'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/reports/{id}:
+    put:
+      tags:
+        - Admin
+      operationId: processReport
+      summary: 处理举报
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 举报 ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessReportRequest'
+      responses:
+        '200':
+          description: 处理成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/reviews:
+    get:
+      tags:
+        - Admin
+      operationId: listAllReviews
+      summary: 获取所有评论（管理员）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - published
+              - hidden
+              - deleted
+              - all
+            default: all
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 评论分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Review'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/reviews/{id}:
+    put:
+      tags:
+        - Admin
+      operationId: adminUpdateReview
+      summary: 管理员更新评论状态
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateReviewRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/reviews/batch:
+    post:
+      tags:
+        - Admin
+      operationId: batchUpdateReviews
+      summary: 批量更新评论状态
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchUpdateReviewsRequest'
+      responses:
+        '200':
+          description: 批量更新完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/BatchUpdateResult'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/stats:
+    get:
+      tags:
+        - Admin
+      operationId: getAdminStats
+      summary: 获取管理统计
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 管理统计数据
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/AdminStats'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/logs:
+    get:
+      tags:
+        - Admin
+      operationId: getOperationLogs
+      summary: 获取操作日志
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 操作日志分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AdminOperationLog'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/export:
+    get:
+      tags:
+        - Admin
+      operationId: exportReviews
+      summary: 导出评论数据
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          description: 导出格式。json 和 ndjson 均返回 NDJSON 流（每行一个 JSON 对象）
+          schema:
+            type: string
+            enum:
+              - json
+              - ndjson
+              - csv
+            default: json
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - all
+              - published
+              - hidden
+              - deleted
+            default: all
+      responses:
+        '200':
+          description: |
+            流式导出数据。NDJSON 格式每行一个 JSON 对象，末尾追加 `# EXPORT_COMPLETE` 标记行；
+            CSV 格式包含 UTF-8 BOM 头，末尾同样追加完成标记。客户端应检查标记判断导出完整性。
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+                description: 每行一个 Review JSON 对象，末尾 `# EXPORT_COMPLETE`
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    ErrorResponse:
+      description: 统一错误响应
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponseBody'
+  schemas:
+    SuccessResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+    ErrorResponseBody:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          enum:
+            - false
+        error:
+          $ref: '#/components/schemas/APIError'
+    APIError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: A00400
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    MessageData:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+    LoginURLResponse:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+    CallbackResponse:
+      type: object
+      required:
+        - user
+        - expiresIn
+      properties:
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        expiresIn:
+          type: integer
+          description: Access token TTL in seconds
+    RefreshResponse:
+      type: object
+      required:
+        - expiresIn
+      properties:
+        expiresIn:
+          type: integer
+    UserInfo:
+      type: object
+      required:
+        - id
+        - name
+        - displayName
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        avatar:
+          type: string
+        email:
+          type: string
+        isAdmin:
+          type: boolean
+    Course:
+      type: object
+      required:
+        - id
+        - name
+        - credits
+        - departmentID
+        - reviewCount
+      properties:
+        id:
+          type: integer
+          format: int64
+        schoolID:
+          type: integer
+          format: int64
+        departmentID:
+          type: integer
+          format: int64
+        departmentName:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        credits:
+          type: number
+          format: double
+        category:
+          type: string
+        reviewCount:
+          type: integer
+    Department:
+      type: object
+      required:
+        - id
+        - name
+        - category
+      properties:
+        id:
+          type: integer
+          format: int64
+        schoolID:
+          type: integer
+          format: int64
+        name:
+          type: string
+        shortName:
+          type: string
+        category:
+          type: string
+        sortOrder:
+          type: integer
+    CourseCategory:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+        schoolID:
+          type: integer
+          format: int64
+        name:
+          type: string
+        sortOrder:
+          type: integer
+    FavoriteCourse:
+      type: object
+      required:
+        - id
+        - name
+        - credits
+        - departmentID
+        - reviewCount
+        - favoritedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        code:
+          type: string
+        credits:
+          type: number
+          format: double
+        departmentID:
+          type: integer
+          format: int64
+        departmentName:
+          type: string
+        reviewCount:
+          type: integer
+        favoritedAt:
+          type: string
+          format: date-time
+    CourseStats:
+      type: object
+      required:
+        - courseCount
+        - departmentCount
+      properties:
+        courseCount:
+          type: integer
+        departmentCount:
+          type: integer
+    Review:
+      type: object
+      required:
+        - id
+        - courseID
+        - content
+        - ratings
+        - likeCount
+        - dislikeCount
+        - replyCount
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        courseID:
+          type: integer
+          format: int64
+        courseName:
+          type: string
+        teacherID:
+          type: integer
+          format: int64
+          nullable: true
+        teacherName:
+          type: string
+        termID:
+          type: string
+        termName:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        grade:
+          type: string
+          enum:
+            - A+
+            - A
+            - A-
+            - B+
+            - B
+            - B-
+            - C+
+            - C
+            - C-
+            - D
+            - F
+        ratings:
+          $ref: '#/components/schemas/ReviewRatings'
+        likeCount:
+          type: integer
+        dislikeCount:
+          type: integer
+        replyCount:
+          type: integer
+        status:
+          type: string
+          enum:
+            - published
+            - hidden
+            - deleted
+        createdAt:
+          type: string
+          format: date-time
+    ReviewRatings:
+      type: object
+      additionalProperties:
+        type: integer
+        minimum: 1
+        maximum: 5
+      description: Map of dimension key to rating value (1-5)
+    PostReviewRequest:
+      type: object
+      required:
+        - courseID
+        - content
+        - ratings
+      properties:
+        courseID:
+          type: integer
+          format: int64
+          minimum: 1
+        teacherID:
+          type: integer
+          format: int64
+          minimum: 1
+        termID:
+          type: string
+          maxLength: 20
+          pattern: ^\d{4}-[12]$
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+          minLength: 10
+          maxLength: 5000
+        grade:
+          type: string
+          enum:
+            - A+
+            - A
+            - A-
+            - B+
+            - B
+            - B-
+            - C+
+            - C
+            - C-
+            - D
+            - F
+        ratings:
+          $ref: '#/components/schemas/ReviewRatings'
+    UpdateReviewRequest:
+      type: object
+      required:
+        - content
+        - ratings
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+          minLength: 10
+          maxLength: 5000
+        grade:
+          type: string
+          enum:
+            - A+
+            - A
+            - A-
+            - B+
+            - B
+            - B-
+            - C+
+            - C
+            - C-
+            - D
+            - F
+        ratings:
+          $ref: '#/components/schemas/ReviewRatings'
+    VoteRequest:
+      type: object
+      required:
+        - voteType
+      properties:
+        voteType:
+          type: string
+          enum:
+            - like
+            - dislike
+    ReportReviewRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          enum:
+            - spam
+            - inappropriate
+            - harassment
+            - false_info
+            - other
+        description:
+          type: string
+          maxLength: 500
+    Reply:
+      type: object
+      required:
+        - id
+        - reviewID
+        - content
+        - likeCount
+        - status
+        - isOwner
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        reviewID:
+          type: string
+          format: uuid
+        parentID:
+          type: string
+          format: uuid
+          nullable: true
+        content:
+          type: string
+        likeCount:
+          type: integer
+        status:
+          type: string
+        isOwner:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateReplyRequest:
+      type: object
+      required:
+        - content
+      properties:
+        parentID:
+          type: string
+          format: uuid
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    ReviewDraft:
+      type: object
+      required:
+        - id
+        - courseID
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        courseID:
+          type: integer
+          format: int64
+        teacherID:
+          type: integer
+          format: int64
+          nullable: true
+        termID:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        grade:
+          type: string
+        ratings:
+          $ref: '#/components/schemas/ReviewRatings'
+        updatedAt:
+          type: string
+          format: date-time
+    SaveDraftRequest:
+      type: object
+      required:
+        - courseID
+      properties:
+        courseID:
+          type: integer
+          format: int64
+          minimum: 1
+        teacherID:
+          type: integer
+          format: int64
+          minimum: 1
+        termID:
+          type: string
+          maxLength: 20
+          pattern: ^\d{4}-[12]$
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+          maxLength: 5000
+        grade:
+          type: string
+          enum:
+            - A+
+            - A
+            - A-
+            - B+
+            - B
+            - B-
+            - C+
+            - C
+            - C-
+            - D
+            - F
+        ratings:
+          $ref: '#/components/schemas/ReviewRatings'
+    ContentCheckRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+    ContentCheckResult:
+      type: object
+      required:
+        - isValid
+      properties:
+        isValid:
+          type: boolean
+        level:
+          type: string
+          enum:
+            - block
+            - warn
+        matchCount:
+          type: integer
+    QualityCheckResult:
+      type: object
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        suggestions:
+          type: array
+          items:
+            type: string
+    ContentCheckResponse:
+      type: object
+      properties:
+        sensitive:
+          $ref: '#/components/schemas/ContentCheckResult'
+        quality:
+          $ref: '#/components/schemas/QualityCheckResult'
+    HotCourse:
+      type: object
+      required:
+        - courseID
+        - courseName
+        - reviewCount
+        - avgRating
+      properties:
+        courseID:
+          type: integer
+          format: int64
+        courseName:
+          type: string
+        reviewCount:
+          type: integer
+        avgRating:
+          type: number
+          format: double
+    ReviewStats:
+      type: object
+      required:
+        - courseCount
+        - reviewCount
+        - departmentCount
+      properties:
+        courseCount:
+          type: integer
+        reviewCount:
+          type: integer
+        departmentCount:
+          type: integer
+    RatingDimension:
+      type: object
+      required:
+        - id
+        - key
+        - name
+        - sortOrder
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        schoolID:
+          type: integer
+          format: int64
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        sortOrder:
+          type: integer
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DimensionStats:
+      type: object
+      required:
+        - key
+        - name
+        - avgRating
+        - ratingCount
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        avgRating:
+          type: number
+          format: double
+        ratingCount:
+          type: integer
+        distribution:
+          type: object
+          additionalProperties:
+            type: integer
+    TermRatingStats:
+      type: object
+      required:
+        - termName
+        - dimensions
+      properties:
+        termID:
+          type: string
+        termName:
+          type: string
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/DimensionStats'
+    CourseRatingStatsResponse:
+      type: object
+      required:
+        - courseID
+        - overall
+        - byTerm
+        - allDimensionKeys
+        - radarChart
+      properties:
+        courseID:
+          type: integer
+          format: int64
+        overall:
+          $ref: '#/components/schemas/TermRatingStats'
+        byTerm:
+          type: array
+          items:
+            $ref: '#/components/schemas/TermRatingStats'
+        allDimensionKeys:
+          type: array
+          items:
+            type: string
+        radarChart:
+          $ref: '#/components/schemas/RadarChartData'
+    RatingTrendItem:
+      type: object
+      required:
+        - termID
+        - termName
+        - avgRating
+      properties:
+        termID:
+          type: string
+        termName:
+          type: string
+        avgRating:
+          type: number
+          format: double
+    CourseTeacherStats:
+      type: object
+      required:
+        - teacherID
+        - teacherName
+        - departmentName
+        - courseCount
+        - reviewCount
+      properties:
+        teacherID:
+          type: integer
+          format: int64
+        teacherName:
+          type: string
+        departmentName:
+          type: string
+        avgRating:
+          type: number
+          format: double
+          nullable: true
+        courseCount:
+          type: integer
+        reviewCount:
+          type: integer
+    TeacherCourse:
+      type: object
+      required:
+        - id
+        - name
+        - reviewCount
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        avgRating:
+          type: number
+          format: double
+          nullable: true
+        reviewCount:
+          type: integer
+    TeacherRatingStatsResponse:
+      type: object
+      required:
+        - teacherID
+        - teacherName
+        - departmentName
+        - courseCount
+        - reviewCount
+        - courses
+        - ratingTrend
+        - overall
+        - byTerm
+        - radarChart
+      properties:
+        teacherID:
+          type: integer
+          format: int64
+        teacherName:
+          type: string
+        departmentName:
+          type: string
+        avgRating:
+          type: number
+          format: double
+          nullable: true
+        courseCount:
+          type: integer
+        reviewCount:
+          type: integer
+        courses:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeacherCourse'
+        ratingTrend:
+          type: array
+          items:
+            $ref: '#/components/schemas/RatingTrendItem'
+        overall:
+          $ref: '#/components/schemas/TermRatingStats'
+        byTerm:
+          type: array
+          items:
+            $ref: '#/components/schemas/TermRatingStats'
+        radarChart:
+          $ref: '#/components/schemas/RadarChartData'
+    Notification:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - isRead
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - reply
+            - vote
+            - system
+        title:
+          type: string
+        content:
+          type: string
+        relatedType:
+          type: string
+        relatedID:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    UnreadCountData:
+      type: object
+      required:
+        - count
+      properties:
+        count:
+          type: integer
+    ReviewReport:
+      type: object
+      required:
+        - id
+        - reviewID
+        - reason
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        reviewID:
+          type: string
+          format: uuid
+        review:
+          $ref: '#/components/schemas/Review'
+        reason:
+          type: string
+          enum:
+            - spam
+            - inappropriate
+            - harassment
+            - false_info
+            - other
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - resolved
+            - rejected
+        resolvedBy:
+          type: string
+          nullable: true
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolutionNote:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    ProcessReportRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - reject
+            - hide_review
+            - delete_review
+        note:
+          type: string
+          maxLength: 500
+    AdminUpdateReviewRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - hide
+            - restore
+            - delete
+    BatchUpdateReviewsRequest:
+      type: object
+      required:
+        - ids
+        - action
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+        action:
+          type: string
+          enum:
+            - hide
+            - restore
+            - delete
+    BatchUpdateResult:
+      type: object
+      required:
+        - message
+        - affected
+      properties:
+        message:
+          type: string
+        affected:
+          type: integer
+          format: int64
+    AdminStats:
+      type: object
+      required:
+        - totalReviews
+        - publishedReviews
+        - hiddenReviews
+        - deletedReviews
+        - pendingReports
+        - totalReports
+        - todayReviews
+        - weekReviews
+      properties:
+        totalReviews:
+          type: integer
+        publishedReviews:
+          type: integer
+        hiddenReviews:
+          type: integer
+        deletedReviews:
+          type: integer
+        pendingReports:
+          type: integer
+        totalReports:
+          type: integer
+        todayReviews:
+          type: integer
+        weekReviews:
+          type: integer
+    AdminOperationLog:
+      type: object
+      required:
+        - id
+        - adminUserID
+        - adminUsername
+        - action
+        - resourceType
+        - resourceID
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        adminUserID:
+          type: string
+        adminUsername:
+          type: string
+        action:
+          type: string
+        resourceType:
+          type: string
+        resourceID:
+          type: string
+        oldValue:
+          type: object
+          additionalProperties: true
+        newValue:
+          type: object
+          additionalProperties: true
+        ipAddress:
+          type: string
+        userAgent:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    RadarChartDataset:
+      type: object
+      required:
+        - label
+        - data
+        - backgroundColor
+        - borderColor
+      properties:
+        label:
+          type: string
+        data:
+          type: array
+          items:
+            type: number
+            format: double
+        backgroundColor:
+          type: string
+        borderColor:
+          type: string
+    RadarChartData:
+      type: object
+      required:
+        - labels
+        - datasets
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+        datasets:
+          type: array
+          items:
+            $ref: '#/components/schemas/RadarChartDataset'
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: 页码
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    PageSizeParam:
+      name: pageSize
+      in: query
+      description: 每页数量
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+    CourseIDPath:
+      name: id
+      in: path
+      required: true
+      description: 课程 ID
+      schema:
+        type: integer
+        format: int64
+    ReviewIDPath:
+      name: id
+      in: path
+      required: true
+      description: 测评 ID
+      schema:
+        type: string
+        format: uuid
+    TeacherIDPath:
+      name: id
+      in: path
+      required: true
+      description: 教师 ID
+      schema:
+        type: integer
+        format: int64
+    NotificationIDPath:
+      name: id
+      in: path
+      required: true
+      description: 通知 ID
+      schema:
+        type: string
+        format: uuid
+    DraftCourseIDPath:
+      name: courseID
+      in: path
+      required: true
+      description: 课程 ID（用于草稿）
+      schema:
+        type: integer
+        format: int64

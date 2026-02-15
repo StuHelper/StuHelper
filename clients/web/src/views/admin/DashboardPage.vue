@@ -1,6 +1,16 @@
 <template>
   <div>
-    <h1 class="mb-6 font-sans text-xl font-extrabold tracking-tight text-text-primary">{{ t('admin.dashboard.title') }}</h1>
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="font-sans text-xl font-extrabold tracking-tight text-text-primary">{{ t('admin.dashboard.title') }}</h1>
+      <button
+        class="px-3 py-1.5 text-sm text-text-secondary border border-border rounded-lg transition-colors duration-fast hover:bg-bg-secondary disabled:opacity-50"
+        :disabled="loading"
+        :aria-label="t('common.actions.refresh')"
+        @click="fetchStats"
+      >
+        {{ t('common.actions.refresh') }}
+      </button>
+    </div>
 
     <div v-if="loading" class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
       <div v-for="i in 4" :key="i" class="h-[100px] bg-bg-card border border-border rounded-lg animate-pulse" />
@@ -46,12 +56,17 @@ const stats = ref<AdminStats>({
   weekReviews: 0
 })
 
-onMounted(async () => {
+async function fetchStats() {
+  loading.value = true
   try {
     const res = await getAdminStats()
     if (res.data) stats.value = res.data
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(fetchStats)
+
+defineExpose({ refresh: fetchStats })
 </script>

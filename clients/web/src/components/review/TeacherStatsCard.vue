@@ -2,7 +2,7 @@
   <div class="border border-border rounded-md p-5 transition-all duration-base ease-out hover:shadow-md hover:-translate-y-0.5">
     <div class="flex items-center gap-3 mb-4">
       <div class="w-11 h-11 bg-bg-secondary border border-border rounded-sm flex items-center justify-center text-text-muted">
-        <User :size="28" :stroke-width="1.5" />
+        <User :size="28" :stroke-width="1.5" aria-hidden="true" />
       </div>
       <div class="flex-1">
         <h3 class="font-serif text-base font-semibold text-text-primary m-0 mb-1">{{ stats.teacherName }}</h3>

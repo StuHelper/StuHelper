@@ -44,7 +44,8 @@ export default {
     tableContent: '内容',
     tableStatus: '状态',
     tableActions: '操作',
-    empty: '暂无评论'
+    empty: '暂无评论',
+    selectAll: '全选/取消全选'
   },
   logs: {
     title: '操作日志',

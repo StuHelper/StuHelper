@@ -13,10 +13,13 @@ export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
 // 默认语言
 export const DEFAULT_LOCALE: SupportedLocale = 'zh-CN'
 
+// localStorage key（与 stores/locale.ts 共享）
+export const LOCALE_STORAGE_KEY = 'locale'
+
 // 语言检测：localStorage → navigator.language → 默认
 function detectLocale(): SupportedLocale {
   // 1. 从 localStorage 读取
-  const stored = localStorage.getItem('locale')
+  const stored = localStorage.getItem(LOCALE_STORAGE_KEY)
   if (stored && SUPPORTED_LOCALES.includes(stored as SupportedLocale)) {
     return stored as SupportedLocale
   }

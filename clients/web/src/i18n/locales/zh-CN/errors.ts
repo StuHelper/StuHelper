@@ -5,6 +5,7 @@
 export default {
   // 网络错误
   NETWORK_ERROR: '网络连接失败，请检查网络设置',
+  OFFLINE: '当前无网络连接，请检查网络后重试',
   TIMEOUT: '请求超时，请稍后重试',
 
   // 认证错误
@@ -42,6 +43,13 @@ export default {
   loadError: {
     title: '加载失败',
     description: '页面加载出现问题，请刷新重试',
+    reload: '刷新页面'
+  },
+
+  // 错误边界
+  boundary: {
+    title: '页面出现了问题',
+    description: '渲染过程中发生了意外错误，请尝试刷新页面',
     reload: '刷新页面'
   },
 

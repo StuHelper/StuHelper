@@ -26,8 +26,8 @@ func NewPGPool(cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	// 使用配置值设置连接池参数
 	poolCfg.MaxConns = int32(cfg.MaxConns) //nolint:gosec // G115: config values are validated
 	poolCfg.MinConns = int32(cfg.MinConns) //nolint:gosec // G115: config values are validated
-	poolCfg.MaxConnLifetime = time.Duration(cfg.MaxConnLifetime) * time.Minute
-	poolCfg.MaxConnIdleTime = time.Duration(cfg.MaxConnIdleTime) * time.Minute
+	poolCfg.MaxConnLifetime = time.Duration(cfg.MaxConnLifetime) * time.Minute // cfg 单位：分钟
+	poolCfg.MaxConnIdleTime = time.Duration(cfg.MaxConnIdleTime) * time.Minute // cfg 单位：分钟
 	poolCfg.HealthCheckPeriod = 1 * time.Minute
 
 	// 配置 TLS

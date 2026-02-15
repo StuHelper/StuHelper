@@ -14,11 +14,12 @@
 
 | 层级 | 技术选型 | 说明 |
 |------|----------|------|
-| 前端 Web | Vue3 + Element Plus | 评课社区 H5 |
+| 前端 Web | Vue3 + Tailwind CSS v4 | 评课社区 SPA |
 | 后端 API | Go + Gin | 高性能 HTTP 服务 |
+| API 规范 | OpenAPI 3.0.3 | Spec-First，自动生成前后端代码 |
 | 用户认证 | Casdoor | OAuth2/OIDC 单点登录 |
-| 数据库 | PostgreSQL 15+ | 关系型数据 + JSONB |
-| 缓存 | Redis 7+ | 会话管理、任务分发 |
+| 数据库 | PostgreSQL 18 | 关系型数据 + JSONB |
+| 缓存 | Redis 8 | 会话管理、限流、缓存 |
 | 文件存储 | 腾讯云 COS | 前端直传，CDN 加速 |
 | 部署 | Docker Compose | 单机容器编排 |
 

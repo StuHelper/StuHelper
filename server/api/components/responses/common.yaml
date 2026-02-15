@@ -1,0 +1,6 @@
+ErrorResponse:
+  description: 统一错误响应
+  content:
+    application/json:
+      schema:
+        $ref: '../schemas/common.yaml#/ErrorResponseBody'

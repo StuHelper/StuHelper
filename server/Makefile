@@ -1,6 +1,7 @@
 # StuHelper Server Makefile
 
-.PHONY: help tidy fmt lint test test-coverage build run clean security ci
+.PHONY: help tidy fmt lint test test-coverage build run clean security ci \
+       bundle-spec lint-spec generate generate-go generate-ts check-drift
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -22,8 +23,15 @@ help:
 	@echo "  build         - build binary"
 	@echo "  run           - run application"
 	@echo ""
+	@echo "OpenAPI:"
+	@echo "  bundle-spec   - bundle multi-file OpenAPI spec into single YAML"
+	@echo "  lint-spec     - validate OpenAPI spec with redocly lint"
+	@echo "  generate-go   - regenerate Go types and server interface"
+	@echo "  generate-ts   - regenerate frontend TypeScript types"
+	@echo "  generate      - bundle spec + regenerate all code (Go + TS)"
+	@echo ""
 	@echo "CI/CD:"
-	@echo "  ci            - run all CI checks (lint, test, build)"
+	@echo "  ci            - run all CI checks (lint, test, build, drift check)"
 	@echo "  security      - run security scan with gosec"
 	@echo "  clean         - remove build artifacts"
 
@@ -59,5 +67,35 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f $(COVERAGE_FILE)
 
-ci: lint test build
+ci: lint test security build check-drift
 	@echo "CI checks passed!"
+
+# ── OpenAPI ──
+
+bundle-spec:
+	@if command -v redocly >/dev/null 2>&1; then \
+		redocly bundle api/openapi.yaml -o api/openapi.bundled.yaml; \
+	else \
+		npx --yes @redocly/cli@latest bundle api/openapi.yaml -o api/openapi.bundled.yaml; \
+	fi
+
+lint-spec:
+	@if command -v redocly >/dev/null 2>&1; then \
+		redocly lint api/openapi.yaml; \
+	else \
+		npx --yes @redocly/cli@latest lint api/openapi.yaml; \
+	fi
+
+generate-go: bundle-spec
+	go generate ./internal/api/gen/...
+
+generate-ts: bundle-spec
+	cd ../clients/web && npm run generate:types
+
+generate: generate-go generate-ts
+	@echo "All code generation complete."
+
+# ── CI Drift Detection ──
+
+check-drift: generate
+	@git diff --exit-code -- internal/api/gen/ ../clients/web/src/types/api.gen.ts || (echo "ERROR: Generated code is out of sync with OpenAPI spec. Run 'make generate' and commit." && exit 1)

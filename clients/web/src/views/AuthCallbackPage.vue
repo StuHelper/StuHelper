@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -102,6 +102,12 @@ onMounted(async () => {
   }
 })
 
+let logoutTimer: ReturnType<typeof setTimeout> | null = null
+
+onUnmounted(() => {
+  if (logoutTimer) clearTimeout(logoutTimer)
+})
+
 // 通过弹窗访问 Casdoor 登出端点清除 SSO session cookie
 // 必须用顶级导航（window.open），因为 SameSite=Lax cookie 不会随 fetch/iframe 发送
 const handleSsoLogout = () => {
@@ -110,13 +116,32 @@ const handleSsoLogout = () => {
     router.push('/login')
     return
   }
+  // 验证 URL 协议，防止 javascript:/data: 等 XSS 向量
+  try {
+    const parsed = new URL(ssoLogoutURL.value)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      console.warn('[AuthCallback] SSO logout URL has unsafe protocol')
+      router.push('/login')
+      return
+    }
+  } catch {
+    console.warn('[AuthCallback] SSO logout URL is invalid')
+    router.push('/login')
+    return
+  }
   loggingOut.value = true
   const popup = window.open(
     ssoLogoutURL.value, 'sso_logout',
     'width=1,height=1,left=0,top=0,menubar=no,toolbar=no,status=no'
   )
-  setTimeout(() => {
-    try { popup?.close() } catch { /* 跨域忽略 */ }
+  if (!popup) {
+    // 弹窗被浏览器拦截，直接跳转登录页（SSO session 未清除，但不阻塞用户）
+    console.warn('[AuthCallback] SSO logout popup blocked by browser')
+    router.push('/login')
+    return
+  }
+  logoutTimer = setTimeout(() => {
+    try { popup.close() } catch { /* 跨域忽略 */ }
     router.push('/login')
   }, 500)
 }

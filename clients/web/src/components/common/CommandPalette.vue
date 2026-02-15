@@ -3,7 +3,7 @@
     <Transition name="overlay">
       <div
         v-if="isOpen"
-        class="palette-overlay fixed inset-0 bg-bg-overlay z-50 flex items-start justify-center pt-[15vh] max-md:pt-4 max-md:px-4"
+        class="palette-overlay fixed inset-0 bg-bg-overlay z-[var(--z-modal-backdrop)] flex items-start justify-center pt-[15vh] max-md:pt-4 max-md:px-4"
         @click.self="close"
       >
         <div
@@ -109,20 +109,32 @@ const results = ref<Course[]>([])
 const loading = ref(false)
 const activeIndex = ref(0)
 
+// M-19: 保存打开前的 body overflow 原始值，关闭时恢复而非无条件置空
+let savedBodyOverflow = ''
+
 const RECENT_KEY = 'recent-searches'
+// M-104: 最大搜索历史条数常量化
+const MAX_RECENT = 5
 const recentSearches = ref<string[]>((() => {
   try {
-    return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]')
+    const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]')
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string').slice(0, MAX_RECENT) : []
   } catch {
     return []
   }
 })())
 
 function saveRecent(term: string) {
-  const list = recentSearches.value.filter((s) => s !== term)
-  list.unshift(term)
-  recentSearches.value = list.slice(0, 5)
-  localStorage.setItem(RECENT_KEY, JSON.stringify(recentSearches.value))
+  const trimmed = term.trim()
+  if (!trimmed) return
+  const list = recentSearches.value.filter((s) => s !== trimmed)
+  list.unshift(trimmed)
+  recentSearches.value = list.slice(0, MAX_RECENT)
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(recentSearches.value))
+  } catch {
+    // M-31: localStorage 不可用时静默忽略
+  }
 }
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -160,7 +172,14 @@ watch(searchQuery, (val) => {
     try {
       const res = await searchCourses(currentQuery, 10)
       if (searchQuery.value.trim() === currentQuery) {
-        results.value = res.data?.list || []
+        // M-93: 按 ID 去重，防止后端返回重复课程
+        const list = res.data?.list || []
+        const seen = new Set<number>()
+        results.value = list.filter(c => {
+          if (seen.has(c.id)) return false
+          seen.add(c.id)
+          return true
+        })
       }
     } catch {
       if (searchQuery.value.trim() === currentQuery) {
@@ -175,16 +194,25 @@ watch(searchQuery, (val) => {
 })
 
 onUnmounted(() => {
-  if (searchTimer) clearTimeout(searchTimer)
+  // L-50: 清理 timer 后置空
+  if (searchTimer) { clearTimeout(searchTimer); searchTimer = null }
+  // 组件卸载时恢复 body overflow，防止路由切换后滚动被锁定
+  if (isOpen.value) {
+    document.body.style.overflow = savedBodyOverflow
+    isOpen.value = false
+  }
 })
 
 watch(isOpen, (val) => {
   if (val) {
+    // M-19: 保存当前 overflow 值，避免关闭时覆盖其他模态框的滚动锁定
+    savedBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     nextTick(() => inputRef.value?.focus())
   } else {
-    document.body.style.overflow = ''
-    if (searchTimer) clearTimeout(searchTimer)
+    document.body.style.overflow = savedBodyOverflow
+    // M-119: 关闭时清理搜索 timer，防止关闭后仍触发搜索
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null }
     searchQuery.value = ''
     results.value = []
     activeIndex.value = 0
@@ -205,6 +233,9 @@ function moveUp() {
 function selectCurrent() {
   if (searchQuery.value.trim() && results.value[activeIndex.value]) {
     selectItem(results.value[activeIndex.value])
+  } else if (!searchQuery.value.trim() && recentSearches.value[activeIndex.value]) {
+    // 最近搜索列表中按 Enter，填充搜索词触发搜索
+    searchQuery.value = recentSearches.value[activeIndex.value]
   }
 }
 

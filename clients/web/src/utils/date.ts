@@ -40,13 +40,64 @@ export const formatRelativeTime = (
   if (diff < 86_400_000) return t('common.time.hoursAgo', { n: Math.floor(diff / 3_600_000) })
   if (diff < 604_800_000) return t('common.time.daysAgo', { n: Math.floor(diff / 86_400_000) })
 
-  return d.toLocaleDateString(locale)
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }).format(d)
 }
 
 /**
  * 绝对时间格式化（locale 感知）
  * 用于 LogsPage、ReportsPage 等管理后台页面
+ * 使用 Intl.DateTimeFormat 保证跨浏览器一致性
  */
 export const formatAbsoluteTime = (dateStr: string, locale: string): string => {
-  return new Date(dateStr).toLocaleString(locale)
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '-'
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).format(d)
+}
+
+/**
+ * 本地化日期格式化
+ * 基于 Intl.DateTimeFormat，自动适配 locale
+ */
+export const formatLocalDate = (
+  date: string | Date,
+  locale: string,
+  options?: Intl.DateTimeFormatOptions
+): string => {
+  const d = date instanceof Date ? date : new Date(date)
+  if (isNaN(d.getTime())) return '-'
+  return new Intl.DateTimeFormat(locale, options ?? {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(d)
+}
+
+/**
+ * 本地化日期时间格式化
+ * 包含日期和时间，适用于详情页展示
+ */
+export const formatLocalDateTime = (
+  date: string | Date,
+  locale: string
+): string => {
+  const d = date instanceof Date ? date : new Date(date)
+  if (isNaN(d.getTime())) return '-'
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(d)
 }

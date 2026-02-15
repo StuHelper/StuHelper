@@ -1,0 +1,189 @@
+RatingDimension:
+  type: object
+  required: [id, key, name, sortOrder, isActive, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+    schoolID:
+      type: integer
+      format: int64
+    key:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+    sortOrder:
+      type: integer
+    isActive:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+DimensionStats:
+  type: object
+  required: [key, name, avgRating, ratingCount]
+  properties:
+    key:
+      type: string
+    name:
+      type: string
+    avgRating:
+      type: number
+      format: double
+    ratingCount:
+      type: integer
+    distribution:
+      type: object
+      additionalProperties:
+        type: integer
+
+TermRatingStats:
+  type: object
+  required: [termName, dimensions]
+  properties:
+    termID:
+      type: string
+    termName:
+      type: string
+    dimensions:
+      type: array
+      items:
+        $ref: '#/DimensionStats'
+
+RadarChartDataset:
+  type: object
+  required: [label, data, backgroundColor, borderColor]
+  properties:
+    label:
+      type: string
+    data:
+      type: array
+      items:
+        type: number
+        format: double
+    backgroundColor:
+      type: string
+    borderColor:
+      type: string
+
+RadarChartData:
+  type: object
+  required: [labels, datasets]
+  properties:
+    labels:
+      type: array
+      items:
+        type: string
+    datasets:
+      type: array
+      items:
+        $ref: '#/RadarChartDataset'
+
+CourseRatingStatsResponse:
+  type: object
+  required: [courseID, overall, byTerm, allDimensionKeys, radarChart]
+  properties:
+    courseID:
+      type: integer
+      format: int64
+    overall:
+      $ref: '#/TermRatingStats'
+    byTerm:
+      type: array
+      items:
+        $ref: '#/TermRatingStats'
+    allDimensionKeys:
+      type: array
+      items:
+        type: string
+    radarChart:
+      $ref: '#/RadarChartData'
+
+RatingTrendItem:
+  type: object
+  required: [termID, termName, avgRating]
+  properties:
+    termID:
+      type: string
+    termName:
+      type: string
+    avgRating:
+      type: number
+      format: double
+
+CourseTeacherStats:
+  type: object
+  required: [teacherID, teacherName, departmentName, courseCount, reviewCount]
+  properties:
+    teacherID:
+      type: integer
+      format: int64
+    teacherName:
+      type: string
+    departmentName:
+      type: string
+    avgRating:
+      type: number
+      format: double
+      nullable: true
+    courseCount:
+      type: integer
+    reviewCount:
+      type: integer
+
+TeacherCourse:
+  type: object
+  required: [id, name, reviewCount]
+  properties:
+    id:
+      type: integer
+      format: int64
+    name:
+      type: string
+    avgRating:
+      type: number
+      format: double
+      nullable: true
+    reviewCount:
+      type: integer
+
+TeacherRatingStatsResponse:
+  type: object
+  required: [teacherID, teacherName, departmentName, courseCount, reviewCount, courses, ratingTrend, overall, byTerm, radarChart]
+  properties:
+    teacherID:
+      type: integer
+      format: int64
+    teacherName:
+      type: string
+    departmentName:
+      type: string
+    avgRating:
+      type: number
+      format: double
+      nullable: true
+    courseCount:
+      type: integer
+    reviewCount:
+      type: integer
+    courses:
+      type: array
+      items:
+        $ref: '#/TeacherCourse'
+    ratingTrend:
+      type: array
+      items:
+        $ref: '#/RatingTrendItem'
+    overall:
+      $ref: '#/TermRatingStats'
+    byTerm:
+      type: array
+      items:
+        $ref: '#/TermRatingStats'
+    radarChart:
+      $ref: '#/RadarChartData'

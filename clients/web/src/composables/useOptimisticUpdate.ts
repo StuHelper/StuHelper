@@ -3,11 +3,18 @@
  * 先更新 UI，再发 API，失败时回滚
  */
 import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+import i18n from '@/i18n'
 import { useToast } from './useToast'
 
+// H-04: 返回结果对象，调用方可区分成功与失败
+export interface OptimisticResult<T> {
+  success: boolean
+  data?: T
+  error?: unknown
+}
+
 export function useOptimisticUpdate() {
-  const { t } = useI18n()
+  const t = i18n.global.t
   const toast = useToast()
   const pending = ref(false)
 
@@ -16,17 +23,17 @@ export function useOptimisticUpdate() {
     request: () => Promise<T>
     rollback: () => void
     errorMessage?: string
-  }): Promise<T | null> {
+  }): Promise<OptimisticResult<T>> {
     pending.value = true
     options.optimistic()
 
     try {
       const result = await options.request()
-      return result
-    } catch {
+      return { success: true, data: result }
+    } catch (err) {
       options.rollback()
       toast.error(options.errorMessage || t('common.actions.operationFailed'))
-      return null
+      return { success: false, error: err }
     } finally {
       pending.value = false
     }

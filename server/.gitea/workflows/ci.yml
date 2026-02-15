@@ -30,6 +30,51 @@ jobs:
           args: --timeout=5m
           working-directory: server
 
+  openapi:
+    name: OpenAPI Spec
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Lint OpenAPI spec
+        working-directory: server
+        run: npx --yes @redocly/cli@latest lint api/openapi.yaml
+
+      - name: Bundle OpenAPI spec
+        working-directory: server
+        run: npx --yes @redocly/cli@latest bundle api/openapi.yaml -o api/openapi.bundled.yaml
+
+      - name: Regenerate Go code
+        working-directory: server
+        run: |
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
+          go generate ./internal/api/gen/...
+
+      - name: Regenerate TypeScript types
+        working-directory: clients/web
+        run: |
+          npm ci
+          npm run generate:types
+
+      - name: Check for drift
+        run: |
+          if ! git diff --exit-code; then
+            echo "::error::Generated code is out of date. Run 'make generate' in server/ and commit the changes."
+            exit 1
+          fi
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -71,6 +116,13 @@ jobs:
         working-directory: server
         run: go mod download
 
+      - name: Validate init.sql against test database
+        working-directory: server
+        run: |
+          PGPASSWORD=test psql -h localhost -U test -d test -f scripts/init.sql
+        env:
+          PGPASSWORD: test
+
       - name: Run tests
         working-directory: server
         run: go test -v -race -timeout=10m -coverprofile=coverage.out ./...
@@ -78,6 +130,7 @@ jobs:
           DATABASE_URL: postgres://test:test@localhost:5432/test?sslmode=disable
           REDIS_HOST: localhost
           REDIS_PORT: 6379
+          REDIS_PASSWORD: ""
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
@@ -88,7 +141,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, openapi]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

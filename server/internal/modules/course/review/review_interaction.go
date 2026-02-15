@@ -2,10 +2,13 @@ package review
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -19,7 +22,11 @@ func (h *Handler) AddFavorite(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	err = h.service.AddFavorite(c.Request.Context(), AddFavoriteParams{
 		UserHash: userHash,
@@ -30,6 +37,7 @@ func (h *Handler) AddFavorite(c *gin.Context) {
 			response.NotFound(c, "course not found")
 			return
 		}
+		logger.FromGin(c).Error("failed to add favorite", zap.Error(err))
 		response.InternalError(c, "failed to add favorite")
 		return
 	}
@@ -46,10 +54,15 @@ func (h *Handler) RemoveFavorite(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	err = h.service.RemoveFavorite(c.Request.Context(), userHash, courseID)
 	if err != nil {
+		logger.FromGin(c).Error("failed to remove favorite", zap.Error(err))
 		response.InternalError(c, "failed to remove favorite")
 		return
 	}
@@ -61,7 +74,11 @@ func (h *Handler) RemoveFavorite(c *gin.Context) {
 func (h *Handler) GetUserFavorites(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	result, err := h.service.GetUserFavorites(c.Request.Context(), GetUserFavoritesParams{
 		UserHash: userHash,
@@ -69,6 +86,7 @@ func (h *Handler) GetUserFavorites(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
+		logger.FromGin(c).Error("failed to load favorites", zap.Error(err))
 		response.InternalError(c, "failed to load favorites")
 		return
 	}
@@ -80,7 +98,11 @@ func (h *Handler) GetUserFavorites(c *gin.Context) {
 func (h *Handler) GetUserReviews(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	result, err := h.service.GetUserReviews(c.Request.Context(), GetUserReviewsParams{
 		UserHash: userHash,
@@ -88,6 +110,7 @@ func (h *Handler) GetUserReviews(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
+		logger.FromGin(c).Error("failed to load reviews", zap.Error(err))
 		response.InternalError(c, "failed to load reviews")
 		return
 	}
@@ -104,7 +127,11 @@ func (h *Handler) GetUserVotes(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	result, err := h.service.GetUserVotes(c.Request.Context(), GetUserVotesParams{
 		UserHash: userHash,
@@ -113,6 +140,7 @@ func (h *Handler) GetUserVotes(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
+		logger.FromGin(c).Error("failed to load votes", zap.Error(err))
 		response.InternalError(c, "failed to load votes")
 		return
 	}
@@ -139,8 +167,18 @@ func (h *Handler) SaveDraft(c *gin.Context) {
 		return
 	}
 
+	// 草稿内容非空时，至少需要 1 个有效字符
+	if req.Content != "" && strings.TrimSpace(req.Content) == "" {
+		response.BadRequest(c, "content must contain at least 1 non-whitespace character")
+		return
+	}
+
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	draft, err := h.service.SaveDraft(c.Request.Context(), SaveDraftParams{
 		UserHash:  userHash,
@@ -159,6 +197,7 @@ func (h *Handler) SaveDraft(c *gin.Context) {
 		case errors.Is(err, ErrDangerousContent):
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		default:
+			logger.FromGin(c).Error("failed to save draft", zap.Error(err))
 			response.InternalError(c, "failed to save draft")
 		}
 		return
@@ -169,20 +208,25 @@ func (h *Handler) SaveDraft(c *gin.Context) {
 
 // GetDraft 获取草稿
 func (h *Handler) GetDraft(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "courseId")
+	courseID, err := httputil.ParseIDParam(c, "courseID")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	draft, err := h.service.GetDraft(c.Request.Context(), userHash, courseID)
 	if err != nil {
 		if errors.Is(err, ErrDraftNotFound) {
 			response.NotFound(c, "draft not found")
 		} else {
+			logger.FromGin(c).Error("failed to get draft", zap.Error(err))
 			response.InternalError(c, "failed to get draft")
 		}
 		return
@@ -193,17 +237,22 @@ func (h *Handler) GetDraft(c *gin.Context) {
 
 // DeleteDraft 删除草稿
 func (h *Handler) DeleteDraft(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "courseId")
+	courseID, err := httputil.ParseIDParam(c, "courseID")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	err = h.service.DeleteDraft(c.Request.Context(), userHash, courseID)
 	if err != nil {
+		logger.FromGin(c).Error("failed to delete draft", zap.Error(err))
 		response.InternalError(c, "failed to delete draft")
 		return
 	}
@@ -222,7 +271,12 @@ func (h *Handler) GetReplies(c *gin.Context) {
 
 	var userHash string
 	if userID := middleware.GetUserID(c); userID != "" {
-		userHash = httputil.HashUserID(userID)
+		var hashErr error
+		userHash, hashErr = httputil.HashUserID(userID)
+		if hashErr != nil {
+			response.InternalError(c, "failed to hash user identity")
+			return
+		}
 	}
 
 	result, err := h.service.GetReplies(c.Request.Context(), GetRepliesParams{
@@ -232,6 +286,7 @@ func (h *Handler) GetReplies(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
+		logger.FromGin(c).Error("failed to load replies", zap.Error(err))
 		response.InternalError(c, "failed to load replies")
 		return
 	}
@@ -260,7 +315,11 @@ func (h *Handler) CreateReply(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	result, err := h.service.CreateReply(c.Request.Context(), CreateReplyParams{
 		ReviewID: reviewID,
@@ -277,13 +336,14 @@ func (h *Handler) CreateReply(c *gin.Context) {
 		case errors.Is(err, ErrSensitiveContent):
 			response.BadRequest(c, "content contains sensitive words")
 		default:
+			logger.FromGin(c).Error("failed to create reply", zap.Error(err))
 			response.InternalError(c, "failed to create reply")
 		}
 		return
 	}
 
-	// 失效相关缓存
-	h.invalidateReviewCaches(c)
+	// 失效相关缓存（无法确定课程 ID，全局失效）
+	h.invalidateReviewCaches(c, 0)
 
 	response.Created(c, result.Reply)
 }
@@ -297,7 +357,11 @@ func (h *Handler) DeleteReply(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	err = h.service.DeleteReply(c.Request.Context(), DeleteReplyParams{
 		ReplyID:  replyID,
@@ -310,13 +374,14 @@ func (h *Handler) DeleteReply(c *gin.Context) {
 		case errors.Is(err, ErrNotReplyOwner):
 			response.Forbidden(c, "you can only delete your own reply")
 		default:
+			logger.FromGin(c).Error("failed to delete reply", zap.Error(err))
 			response.InternalError(c, "failed to delete reply")
 		}
 		return
 	}
 
-	// 失效相关缓存
-	h.invalidateReviewCaches(c)
+	// 失效相关缓存（无法确定课程 ID，全局失效）
+	h.invalidateReviewCaches(c, 0)
 
 	response.Success(c, gin.H{"message": "reply deleted"})
 }
@@ -325,7 +390,11 @@ func (h *Handler) DeleteReply(c *gin.Context) {
 func (h *Handler) GetNotifications(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	result, err := h.service.GetNotifications(c.Request.Context(), GetNotificationsParams{
 		UserHash: userHash,
@@ -333,6 +402,7 @@ func (h *Handler) GetNotifications(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
+		logger.FromGin(c).Error("failed to load notifications", zap.Error(err))
 		response.InternalError(c, "failed to load notifications")
 		return
 	}
@@ -347,10 +417,15 @@ func (h *Handler) GetNotifications(c *gin.Context) {
 // GetUnreadCount 获取未读通知数量
 func (h *Handler) GetUnreadCount(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	count, err := h.service.GetUnreadNotificationCount(c.Request.Context(), userHash)
 	if err != nil {
+		logger.FromGin(c).Error("failed to get unread count", zap.Error(err))
 		response.InternalError(c, "failed to get unread count")
 		return
 	}
@@ -367,10 +442,15 @@ func (h *Handler) MarkNotificationRead(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
 
 	err = h.service.MarkNotificationRead(c.Request.Context(), notifID, userHash)
 	if err != nil {
+		logger.FromGin(c).Error("failed to mark notification as read", zap.Error(err))
 		response.InternalError(c, "failed to mark notification as read")
 		return
 	}
@@ -381,10 +461,15 @@ func (h *Handler) MarkNotificationRead(c *gin.Context) {
 // MarkAllNotificationsRead 标记所有通知已读
 func (h *Handler) MarkAllNotificationsRead(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	userHash := httputil.HashUserID(userID)
-
-	err := h.service.MarkAllNotificationsRead(c.Request.Context(), userHash)
+	userHash, err := httputil.HashUserID(userID)
 	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
+
+	err = h.service.MarkAllNotificationsRead(c.Request.Context(), userHash)
+	if err != nil {
+		logger.FromGin(c).Error("failed to mark all notifications as read", zap.Error(err))
 		response.InternalError(c, "failed to mark all notifications as read")
 		return
 	}

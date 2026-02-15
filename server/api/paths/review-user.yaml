@@ -1,0 +1,121 @@
+/api/v1/course/review/user/reviews:
+  get:
+    tags: [User]
+    operationId: getUserReviews
+    summary: 获取用户评论列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 用户评论分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/review.yaml#/Review'
+                    total:
+                      type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/user/votes:
+  get:
+    tags: [User]
+    operationId: getUserVotes
+    summary: 获取用户点赞列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: vote_type
+        in: query
+        schema:
+          type: string
+          enum: [like, dislike]
+          default: like
+    responses:
+      '200':
+        description: 用户投票分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/review.yaml#/Review'
+                    total:
+                      type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/user/favorites:
+  get:
+    tags: [User]
+    operationId: getUserFavorites
+    summary: 获取用户收藏列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 用户收藏分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/course.yaml#/FavoriteCourse'
+                    total:
+                      type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

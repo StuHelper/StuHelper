@@ -22,5 +22,14 @@ export default {
   adminReports: '举报管理',
   adminReviews: '评论管理',
   adminLogs: '操作日志',
-  rankings: '排行榜'
+  rankings: '排行榜',
+  // 页面描述（用于 meta description）
+  desc: {
+    teachingHub: '教学中心门户 - 课程评价、教师评价、学习资源一站式平台',
+    review: '评课社区 - 真实的课程评价与教学反馈，帮助学生选课决策',
+    courseDetail: '查看课程详细评价、评分统计和教师信息',
+    teacherProfile: '查看教师教学评价和课程列表',
+    userCenter: '管理个人信息、查看我的评价和收藏',
+    notifications: '查看系统通知和消息提醒'
+  }
 }

@@ -1,12 +1,12 @@
 <template>
-  <div class="relative inline-flex items-center justify-center" :style="{ width: `${size}px`, height: `${size}px` }">
-    <svg class="absolute inset-0 -rotate-90" :width="size" :height="size" :viewBox="`0 0 ${size} ${size}`">
+  <div class="relative inline-flex items-center justify-center" :style="{ width: `${resolvedSize}px`, height: `${resolvedSize}px` }">
+    <svg class="absolute inset-0 -rotate-90" :width="resolvedSize" :height="resolvedSize" :viewBox="`0 0 ${resolvedSize} ${resolvedSize}`">
       <circle
         :cx="center"
         :cy="center"
         :r="radius"
         fill="none"
-        :stroke-width="strokeWidth"
+        :stroke-width="resolvedStrokeWidth"
         :style="{ stroke: 'var(--color-bg-secondary)' }"
       />
       <circle
@@ -15,7 +15,7 @@
         :cy="center"
         :r="radius"
         fill="none"
-        :stroke-width="strokeWidth"
+        :stroke-width="resolvedStrokeWidth"
         :stroke-dasharray="circumference"
         :stroke-dashoffset="dashOffset"
         :stroke="strokeColor"
@@ -40,15 +40,16 @@ const props = defineProps<{
   subtitle?: string
 }>()
 
-const size = computed(() => props.size ?? 80)
-const strokeWidth = computed(() => props.strokeWidth ?? 6)
-const max = computed(() => props.max ?? 5)
-const center = computed(() => size.value / 2)
-const radius = computed(() => center.value - strokeWidth.value)
+const resolvedSize = computed(() => props.size ?? 80)
+const resolvedStrokeWidth = computed(() => props.strokeWidth ?? 6)
+// L-43: 防止 max 为 0 时除零
+const resolvedMax = computed(() => Math.max(props.max ?? 5, 0.01))
+const center = computed(() => resolvedSize.value / 2)
+const radius = computed(() => center.value - resolvedStrokeWidth.value)
 const circumference = computed(() => 2 * Math.PI * radius.value)
 
 const percentage = computed(() =>
-  Math.min(1, props.value / max.value)
+  Math.min(1, props.value / resolvedMax.value)
 )
 
 const dashOffset = computed(() =>

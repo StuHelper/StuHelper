@@ -1,0 +1,328 @@
+/api/v1/course/review/admin/reports:
+  get:
+    tags: [Admin]
+    operationId: listReports
+    summary: 获取举报列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [pending, resolved, rejected, all]
+          default: pending
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 举报分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/admin.yaml#/ReviewReport'
+                    total:
+                      type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/admin/reports/{id}:
+  put:
+    tags: [Admin]
+    operationId: processReport
+    summary: 处理举报
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: 举报 ID
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admin.yaml#/ProcessReportRequest'
+    responses:
+      '200':
+        description: 处理成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/admin/reviews:
+  get:
+    tags: [Admin]
+    operationId: listAllReviews
+    summary: 获取所有评论（管理员）
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [published, hidden, deleted, all]
+          default: all
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 评论分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/review.yaml#/Review'
+                    total:
+                      type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/admin/reviews/{id}:
+  put:
+    tags: [Admin]
+    operationId: adminUpdateReview
+    summary: 管理员更新评论状态
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ReviewIDPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admin.yaml#/AdminUpdateReviewRequest'
+    responses:
+      '200':
+        description: 更新成功
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/admin/reviews/batch:
+  post:
+    tags: [Admin]
+    operationId: batchUpdateReviews
+    summary: 批量更新评论状态
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admin.yaml#/BatchUpdateReviewsRequest'
+    responses:
+      '200':
+        description: 批量更新完成
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/admin.yaml#/BatchUpdateResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/admin/stats:
+  get:
+    tags: [Admin]
+    operationId: getAdminStats
+    summary: 获取管理统计
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 管理统计数据
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/admin.yaml#/AdminStats'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/admin/logs:
+  get:
+    tags: [Admin]
+    operationId: getOperationLogs
+    summary: 获取操作日志
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 操作日志分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/admin.yaml#/AdminOperationLog'
+                    total:
+                      type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/admin/export:
+  get:
+    tags: [Admin]
+    operationId: exportReviews
+    summary: 导出评论数据
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: format
+        in: query
+        description: 导出格式。json 和 ndjson 均返回 NDJSON 流（每行一个 JSON 对象）
+        schema:
+          type: string
+          enum: [json, ndjson, csv]
+          default: json
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [all, published, hidden, deleted]
+          default: all
+    responses:
+      '200':
+        description: |
+          流式导出数据。NDJSON 格式每行一个 JSON 对象，末尾追加 `# EXPORT_COMPLETE` 标记行；
+          CSV 格式包含 UTF-8 BOM 头，末尾同样追加完成标记。客户端应检查标记判断导出完整性。
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              description: 每行一个 Review JSON 对象，末尾 `# EXPORT_COMPLETE`
+          text/csv:
+            schema:
+              type: string
+              format: binary
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

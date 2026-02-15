@@ -9,6 +9,10 @@ import (
 )
 
 // APIError 统一错误响应结构
+//
+// 安全警告：Details 字段类型为 any，会直接序列化到 JSON 响应中。
+// 调用方必须确保 Details 不包含敏感信息（如内部错误堆栈、SQL 语句、用户隐私数据等）。
+// 生产环境中建议仅传入验证错误摘要等脱敏信息，避免信息泄露。
 type APIError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -52,23 +56,26 @@ func Created(c *gin.Context, data any) {
 	})
 }
 
-// Error 返回错误响应
-func Error(c *gin.Context, status int, code, message string) {
-	c.JSON(status, Response{
+// Error 返回错误响应并中止后续 handler 链（AbortWithStatusJSON）
+func Error(c *gin.Context, status int, code errs.ErrorCode, message string) {
+	c.AbortWithStatusJSON(status, Response{
 		Success: false,
 		Error: &APIError{
-			Code:    code,
+			Code:    string(code),
 			Message: message,
 		},
 	})
 }
 
-// ErrorWithDetails 返回带详情的错误响应
-func ErrorWithDetails(c *gin.Context, status int, code, message string, details any) {
-	c.JSON(status, Response{
+// ErrorWithDetails 返回带详情的错误响应并中止后续 handler 链。
+//
+// 安全注意：details 参数会直接序列化到响应 JSON 中，调用方必须确保不传入
+// 内部错误信息、堆栈跟踪、SQL 语句等敏感数据。仅应传入面向用户的验证错误摘要。
+func ErrorWithDetails(c *gin.Context, status int, code errs.ErrorCode, message string, details any) {
+	c.AbortWithStatusJSON(status, Response{
 		Success: false,
 		Error: &APIError{
-			Code:    code,
+			Code:    string(code),
 			Message: message,
 			Details: details,
 		},

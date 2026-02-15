@@ -3,15 +3,12 @@
  */
 import api from './index'
 
-// 热门课程
+// 热门课程（对齐后端 review.HotCourse）
 export interface HotCourse {
-  id: number
-  name: string
-  code: string
-  departmentName: string
+  courseID: number
+  courseName: string
   reviewCount: number
   avgRating: number
-  hotScore: number
 }
 
 // 获取热门课程排行

@@ -2,6 +2,7 @@ package httputil
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -18,8 +19,15 @@ const (
 	MaxPage         = 1000 // 防止过大的 OFFSET 导致性能问题
 )
 
-// ParsePage 解析分页参数
+// ParsePage 解析分页参数。
+// 无效或缺失的查询参数会被静默钳位到合法范围：
+//   - page: [1, MaxPage]，非法值（非数字/负数/零）默认为 1
+//   - pageSize: [1, MaxPageSize]，非法值默认为 DefaultPageSize
+//
+// 这是有意为之的设计：分页参数来自用户输入，返回错误会降低 API 易用性，
+// 静默钳位更符合 "宽容输入、严格输出" 原则。
 func ParsePage(c *gin.Context) (page, pageSize int) {
+	// strconv.Atoi 错误被有意忽略：解析失败时 page=0，下方钳位逻辑会将其修正为 1
 	page, _ = strconv.Atoi(c.Query("page"))
 	if page <= 0 {
 		page = 1
@@ -31,6 +39,7 @@ func ParsePage(c *gin.Context) (page, pageSize int) {
 	if pageSizeStr == "" {
 		pageSizeStr = c.Query("pageSize")
 	}
+	// strconv.Atoi 错误被有意忽略：解析失败时 pageSize=0，下方钳位逻辑会将其修正为 DefaultPageSize
 	pageSize, _ = strconv.Atoi(pageSizeStr)
 	if pageSize <= 0 {
 		pageSize = DefaultPageSize
@@ -39,6 +48,40 @@ func ParsePage(c *gin.Context) (page, pageSize int) {
 		pageSize = MaxPageSize
 	}
 	return page, pageSize
+}
+
+// ClampPageSize 将 pageSize 限制在 [1, MaxPageSize] 范围内（纵深防御：即使 handler 层已校验）
+func ClampPageSize(pageSize int) int {
+	if pageSize < 1 {
+		return DefaultPageSize
+	}
+	if pageSize > MaxPageSize {
+		return MaxPageSize
+	}
+	return pageSize
+}
+
+// SafeOffset 计算安全的分页偏移量，确保 page 和 pageSize 在合法范围内。
+// 同时检查 page 上界和乘法溢出，防止极端值导致的性能问题或整数溢出。
+func SafeOffset(page, pageSize int) int {
+	if page < 1 {
+		page = 1
+	}
+	if page > MaxPage {
+		page = MaxPage
+	}
+	if pageSize < 1 {
+		pageSize = DefaultPageSize
+	}
+	if pageSize > MaxPageSize {
+		pageSize = MaxPageSize
+	}
+	// 溢出保护：(page-1) * pageSize 可能在极端值下溢出 int
+	offset := page - 1
+	if offset > 0 && pageSize > math.MaxInt/offset {
+		return MaxPage * MaxPageSize // 安全上界
+	}
+	return offset * pageSize
 }
 
 // ParseIDParam 解析路径参数中的 ID
@@ -64,7 +107,7 @@ func ParseUUIDParam(c *gin.Context, name string) (string, error) {
 }
 
 // HashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希，防止枚举和关联攻击
-func HashUserID(userID string) string {
+func HashUserID(userID string) (string, error) {
 	return crypto.HMACHash(userID)
 }
 
@@ -78,5 +121,9 @@ func EscapeLikePattern(s string) string {
 
 // SanitizeCacheKey 清理缓存 key 中的特殊字符，防止缓存 key 注入
 func SanitizeCacheKey(s string) string {
-	return crypto.HMACHashShort(s, 16)
+	hash, err := crypto.HMACHashShort(s, 16)
+	if err != nil {
+		return ""
+	}
+	return hash
 }

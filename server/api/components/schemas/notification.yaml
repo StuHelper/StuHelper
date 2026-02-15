@@ -1,0 +1,30 @@
+Notification:
+  type: object
+  required: [id, type, title, isRead, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    type:
+      type: string
+      enum: [reply, vote, system]
+    title:
+      type: string
+    content:
+      type: string
+    relatedType:
+      type: string
+    relatedID:
+      type: string
+    isRead:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+
+UnreadCountData:
+  type: object
+  required: [count]
+  properties:
+    count:
+      type: integer

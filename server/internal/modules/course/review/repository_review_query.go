@@ -2,9 +2,14 @@ package review
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
 // ListRatingDimensions 获取评分维度列表
@@ -20,7 +25,7 @@ func (r *Repository) ListRatingDimensions(ctx context.Context) ([]RatingDimensio
 	}
 	defer rows.Close()
 
-	var dimensions []RatingDimension
+	dimensions := make([]RatingDimension, 0, 10)
 	for rows.Next() {
 		var d RatingDimension
 		if err := rows.Scan(
@@ -54,6 +59,8 @@ func (r *Repository) GetDimensionNames(ctx context.Context) (map[string]string, 
 }
 
 // RatingStatRow 评分统计行
+// M-90: TermID 为 *string，JSON 序列化时 nil 产生 null；
+// 调用方应在构建响应时处理 nil（model.CourseRatingStats 已有 omitempty tag）
 type RatingStatRow struct {
 	TermID       *string
 	DimensionKey string
@@ -75,7 +82,7 @@ func (r *Repository) ListCourseRatingStats(ctx context.Context, courseID int64) 
 	}
 	defer rows.Close()
 
-	var stats []RatingStatRow
+	stats := make([]RatingStatRow, 0, 20)
 	for rows.Next() {
 		var s RatingStatRow
 		if err := rows.Scan(&s.TermID, &s.DimensionKey, &s.AvgRating, &s.RatingCount, &s.RatingDist); err != nil {
@@ -86,26 +93,30 @@ func (r *Repository) ListCourseRatingStats(ctx context.Context, courseID int64) 
 	return stats, rows.Err()
 }
 
-// GetReviewByID 根据ID获取评论
+// GetReviewByID 根据ID获取已发布的评论（仅返回 published 状态）
+// M-55: 包装 pgx.ErrNoRows 为业务层 sentinel error
 func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Review, error) {
 	var item Review
 	err := r.db.QueryRow(ctx, `
 		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
-		       (SELECT COUNT(*) FROM review_replies rr WHERE rr.review_id = r.id AND rr.status = 'published') AS reply_count,
-		       r.status, r.created_at
+		       r.reply_count,
+		       r.status, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.id = $1
+		WHERE r.id = $1 AND r.status = 'published'
 	`, reviewID).Scan(
 		&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
 		&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
-		&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt,
+		&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt, &item.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrReviewNotFound
+		}
+		return nil, fmt.Errorf("GetReviewByID: %w", err)
 	}
 	return &item, nil
 }
@@ -207,7 +218,79 @@ func (r *Repository) GetReviewStatusAndCourseIDTx(ctx context.Context, tx pgx.Tx
 	return status, courseID, err
 }
 
+// maxBatchCourseIDs limits the number of course IDs in a batch query
+const maxBatchCourseIDs = 20
+
+// ListByMultipleCourses 批量获取多个课程的测评列表（消除 N+1 查询）
+// 返回按 courseID 分组的结果 map
+func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int64, sort string, limit int) (map[int64][]Review, map[int64]int, error) {
+	if len(courseIDs) == 0 {
+		return nil, nil, nil
+	}
+	if len(courseIDs) > maxBatchCourseIDs {
+		courseIDs = courseIDs[:maxBatchCourseIDs]
+	}
+
+	orderBy, ok := allowedSortOrders[sort]
+	if !ok {
+		orderBy = allowedSortOrders["time"]
+	}
+
+	// 使用 LATERAL join 高效获取每个课程的 top-N 测评
+	rows, err := r.db.Query(ctx, `
+		SELECT sub.course_id, sub.id, c.name, sub.teacher_id, t.name, sub.term_id,
+		       sub.title, sub.content, sub.grade, sub.ratings,
+		       sub.like_count, sub.dislike_count,
+		       sub.reply_count,
+		       sub.status, sub.created_at, sub.updated_at,
+		       sub.total
+		FROM unnest($1::bigint[]) AS cid(id)
+		CROSS JOIN LATERAL (
+			SELECT r.*, COUNT(*) OVER() AS total
+			FROM reviews r
+			WHERE r.course_id = cid.id AND r.status = 'published'
+			ORDER BY `+orderBy+`
+			LIMIT $2
+		) sub
+		LEFT JOIN courses c ON c.id = sub.course_id
+		LEFT JOIN teachers t ON t.id = sub.teacher_id
+	`, courseIDs, limit)
+	if err != nil {
+		return nil, nil, fmt.Errorf("ListByMultipleCourses: %w", err)
+	}
+	defer rows.Close()
+
+	reviewsMap := make(map[int64][]Review)
+	totalsMap := make(map[int64]int)
+	for rows.Next() {
+		var courseID int64
+		var item Review
+		var total int
+		if err := rows.Scan(
+			&courseID,
+			&item.ID, &item.CourseName, &item.TeacherID, &item.TeacherName,
+			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
+			&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
+			&item.Status, &item.CreatedAt, &item.UpdatedAt,
+			&total,
+		); err != nil {
+			return nil, nil, fmt.Errorf("ListByMultipleCourses scan: %w", err)
+		}
+		item.CourseID = courseID
+		reviewsMap[courseID] = append(reviewsMap[courseID], item)
+		totalsMap[courseID] = total
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("ListByMultipleCourses rows: %w", err)
+	}
+
+	return reviewsMap, totalsMap, nil
+}
+
 // allowedSortOrders 排序参数白名单（纵深防御：即使 handler 层已校验，Repository 层也独立校验）
+// L-56: 列别名约定 — 所有别名均使用 "r." 前缀引用 reviews 表列，
+// 与 ListByCourseWithSort / ListLatest 的 SELECT 别名一致。
+// 修改此 map 时需同步检查对应查询的 SELECT 列别名。
 var allowedSortOrders = map[string]string{
 	"time":   "r.created_at DESC",
 	"likes":  "r.like_count DESC, r.created_at DESC",
@@ -225,43 +308,46 @@ type ListByCourseWithSortParams struct {
 }
 
 // ListByCourseWithSort 获取课程评论列表（支持排序和筛选，含总数）
+// L-33: 使用 strings.Builder 构建动态查询，提高可读性
 func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWithSortParams) ([]Review, int, error) {
-	query := `
+	var qb strings.Builder
+	qb.WriteString(`
 		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
-		       (SELECT COUNT(*) FROM review_replies rr WHERE rr.review_id = r.id AND rr.status = 'published') AS reply_count,
-		       r.status, r.created_at,
+		       r.reply_count,
+		       r.status, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
 		WHERE r.course_id = $1 AND r.status = 'published'
-	`
+	`)
 	args := []interface{}{p.CourseID}
 	argIdx := 2
 
 	if p.TermID != "" {
-		query += ` AND r.term_id = $` + strconv.Itoa(argIdx)
+		qb.WriteString(` AND r.term_id = $` + strconv.Itoa(argIdx))
 		args = append(args, p.TermID)
 		argIdx++
 	}
 	if p.TeacherID != nil {
-		query += ` AND r.teacher_id = $` + strconv.Itoa(argIdx)
+		qb.WriteString(` AND r.teacher_id = $` + strconv.Itoa(argIdx))
 		args = append(args, *p.TeacherID)
 		argIdx++
 	}
 
+	// SQL 注入安全保证：orderBy 仅来自 allowedSortOrders 硬编码 map，不含用户输入
 	orderBy, ok := allowedSortOrders[p.Sort]
 	if !ok {
 		orderBy = allowedSortOrders["time"]
 	}
-	query += ` ORDER BY ` + orderBy
+	qb.WriteString(` ORDER BY ` + orderBy)
 
-	query += ` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1)
+	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
 	args = append(args, p.Limit, p.Offset)
 
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, qb.String(), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -275,8 +361,8 @@ func (r *Repository) ListByUserHash(ctx context.Context, userHash string, limit,
 		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
-		       (SELECT COUNT(*) FROM review_replies rr WHERE rr.review_id = r.id AND rr.status = 'published') AS reply_count,
-		       r.status, r.created_at,
+		       r.reply_count,
+		       r.status, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
@@ -298,8 +384,8 @@ func (r *Repository) ListVotedReviews(ctx context.Context, userHash, voteType st
 		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
-		       (SELECT COUNT(*) FROM review_replies rr WHERE rr.review_id = r.id AND rr.status = 'published') AS reply_count,
-		       r.status, r.created_at,
+		       r.reply_count,
+		       r.status, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		JOIN review_votes rv ON rv.review_id = r.id
@@ -314,4 +400,107 @@ func (r *Repository) ListVotedReviews(ctx context.Context, userHash, voteType st
 	}
 	defer rows.Close()
 	return scanReviewsWithTotal(rows)
+}
+
+// RefreshCourseRatingStatsTx 在事务内刷新课程评分统计（从 reviews 表聚合）
+// H-24: 使用 UPSERT (INSERT ... ON CONFLICT DO UPDATE) 替代 DELETE+INSERT，保证原子性
+// H-47: CROSS JOIN rating_dimensions 是安全的，因为 rating_dimensions 表仅包含少量活跃维度（通常 4-5 行），
+// 且 WHERE 条件 `r.ratings ? d.key` 进一步过滤，结果集规模 = reviews数 × 匹配维度数，不会产生笛卡尔积爆炸
+func (r *Repository) RefreshCourseRatingStatsTx(ctx context.Context, tx pgx.Tx, courseID int64) error {
+	rows, err := tx.Query(ctx, `
+		WITH base AS (
+			SELECT r.term_id, d.key AS dimension_key,
+				(r.ratings->>d.key)::numeric AS rating_num,
+				(r.ratings->>d.key)::text AS rating_val
+			FROM reviews r
+			CROSS JOIN rating_dimensions d
+			WHERE r.course_id = $1 AND r.status = 'published' AND d.is_active = true
+				AND r.ratings ? d.key
+		),
+		stats AS (
+			SELECT term_id, dimension_key,
+				AVG(rating_num) AS avg_rating,
+				COUNT(*) AS rating_count
+			FROM base
+			GROUP BY term_id, dimension_key
+		),
+		dist AS (
+			SELECT term_id, dimension_key,
+				jsonb_object_agg(rating_val, cnt) AS rating_dist
+			FROM (
+				SELECT term_id, dimension_key, rating_val, COUNT(*) AS cnt
+				FROM base
+				GROUP BY term_id, dimension_key, rating_val
+			) sub
+			GROUP BY term_id, dimension_key
+		)
+		SELECT s.term_id, s.dimension_key, s.avg_rating, s.rating_count,
+			COALESCE(d.rating_dist, '{}'::jsonb)
+		FROM stats s
+		LEFT JOIN dist d ON s.term_id IS NOT DISTINCT FROM d.term_id AND s.dimension_key = d.dimension_key
+	`, courseID)
+	if err != nil {
+		return fmt.Errorf("RefreshCourseRatingStatsTx query: %w", err)
+	}
+	defer rows.Close()
+
+	type statRow struct {
+		termID       *string
+		dimensionKey string
+		avgRating    float64
+		ratingCount  int
+		ratingDist   []byte
+	}
+	var statRows []statRow
+	for rows.Next() {
+		var s statRow
+		if err := rows.Scan(&s.termID, &s.dimensionKey, &s.avgRating, &s.ratingCount, &s.ratingDist); err != nil {
+			return fmt.Errorf("RefreshCourseRatingStatsTx scan: %w", err)
+		}
+		statRows = append(statRows, s)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("RefreshCourseRatingStatsTx rows iteration: %w", err)
+	}
+
+	// H-24: 使用 UPSERT 逐行写入，避免先 DELETE 再 INSERT 导致中间状态数据丢失
+	for _, s := range statRows {
+		newID, err := id.New()
+		if err != nil {
+			return fmt.Errorf("RefreshCourseRatingStatsTx generate id: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO course_rating_stats (id, course_id, term_id, dimension_key, avg_rating, rating_count, rating_dist, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+			ON CONFLICT (course_id, term_id, dimension_key)
+			DO UPDATE SET
+				avg_rating = EXCLUDED.avg_rating,
+				rating_count = EXCLUDED.rating_count,
+				rating_dist = EXCLUDED.rating_dist,
+				updated_at = NOW()
+		`, newID, courseID, s.termID, s.dimensionKey, s.avgRating, s.ratingCount, s.ratingDist); err != nil {
+			return fmt.Errorf("RefreshCourseRatingStatsTx upsert: %w", err)
+		}
+	}
+
+	// 删除不再存在的维度统计（维度被禁用或评论被删除后的残留数据）
+	if len(statRows) > 0 {
+		keepKeys := make([]string, 0, len(statRows))
+		for _, s := range statRows {
+			keepKeys = append(keepKeys, s.dimensionKey)
+		}
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM course_rating_stats
+			WHERE course_id = $1 AND dimension_key != ALL($2::text[])
+		`, courseID, keepKeys); err != nil {
+			return fmt.Errorf("RefreshCourseRatingStatsTx cleanup: %w", err)
+		}
+	} else {
+		// 无统计数据时清空该课程的所有统计
+		if _, err := tx.Exec(ctx, `DELETE FROM course_rating_stats WHERE course_id = $1`, courseID); err != nil {
+			return fmt.Errorf("RefreshCourseRatingStatsTx cleanup all: %w", err)
+		}
+	}
+
+	return nil
 }

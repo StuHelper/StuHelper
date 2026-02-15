@@ -1,12 +1,18 @@
 package course
 
 import (
+	"context"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 )
 
@@ -19,14 +25,14 @@ type Handler struct {
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, rdb *redis.Client, ssoClient *sso.Client) *Handler {
+func NewHandler(database *db.DB, rdb *redis.Client, ssoClient *sso.Client, cfg *config.Config) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo)
 	return &Handler{
 		db:            database,
 		cache:         cache.NewHelper(rdb),
 		service:       svc,
-		reviewHandler: review.NewHandler(database, rdb, ssoClient),
+		reviewHandler: review.NewHandler(database, rdb, ssoClient, cfg.RateLimit),
 	}
 }
 
@@ -46,4 +52,41 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 		reviewGroup := course.Group("/review")
 		h.reviewHandler.RegisterRoutes(reviewGroup, authMiddleware)
 	}
+}
+
+// StartBackgroundJobs 启动后台定时任务（日志清理等）
+// 调用方需传入可取消的 context，用于优雅关闭时停止后台任务
+func (h *Handler) StartBackgroundJobs(ctx context.Context) {
+	go func() {
+		const cleanupInterval = 24 * time.Hour
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+
+		// 启动时立即执行一次清理
+		h.runLogCleanup(ctx)
+
+		for {
+			select {
+			case <-ticker.C:
+				h.runLogCleanup(ctx)
+			case <-ctx.Done():
+				logger.L().Info("Background jobs stopped")
+				return
+			}
+		}
+	}()
+}
+
+// runLogCleanup 执行操作日志清理
+func (h *Handler) runLogCleanup(ctx context.Context) {
+	deleted, err := h.reviewHandler.CleanupOldLogs(ctx)
+	if err != nil {
+		logger.L().Error("Failed to cleanup old operation logs",
+			zap.Error(err),
+		)
+		return
+	}
+	logger.L().Info("Operation logs cleanup completed",
+		zap.Int64("deleted_count", deleted),
+	)
 }

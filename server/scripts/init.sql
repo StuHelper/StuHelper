@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS courses (
     name VARCHAR(255) NOT NULL,
     code VARCHAR(50),
     department_id BIGINT,
-    credits DECIMAL(3,1),
+    credits DECIMAL(4,1),
     category VARCHAR(50) NOT NULL DEFAULT '',
     description TEXT,
     review_count INT NOT NULL DEFAULT 0 CHECK (review_count >= 0),
@@ -85,12 +85,13 @@ CREATE TABLE IF NOT EXISTS course_categories (
     school_id BIGINT NOT NULL DEFAULT 1,
     name VARCHAR(50) NOT NULL,
     sort_order INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (school_id, name)
 );
 
 INSERT INTO course_categories (name, sort_order) VALUES
     ('通识', 0), ('体育', 1), ('英语', 2), ('思政', 3)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (school_id, name) DO NOTHING;
 
 -- ============================================
 -- 5. 创建 reviews 表（评论主表）
@@ -99,7 +100,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     id VARCHAR(36) PRIMARY KEY,
     course_id BIGINT NOT NULL,
     teacher_id BIGINT,
-    term_id VARCHAR(20),
+    term_id VARCHAR(20) NOT NULL DEFAULT '',
     user_hash VARCHAR(64) NOT NULL,
     title VARCHAR(200),
     content TEXT NOT NULL,
@@ -123,9 +124,17 @@ CREATE INDEX IF NOT EXISTS idx_reviews_course_id ON reviews(course_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_teacher_id ON reviews(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_user_hash ON reviews(user_hash);
 CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
+CREATE INDEX IF NOT EXISTS idx_reviews_term_id ON reviews(term_id);
+-- L-58: 此索引可能被 idx_reviews_course_status_created 和 idx_reviews_user_hash_created 覆盖，
+-- 仅在全局按时间排序（不带 course_id/user_hash 过滤）时有用。
+-- 建议上线后用 EXPLAIN ANALYZE 验证实际查询是否命中此索引，若未命中可考虑移除。
 CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_avg_rating ON reviews(avg_rating DESC);
+-- M-113: 索引列顺序 (course_id, status, created_at DESC) 经过优化：
+-- course_id 等值过滤在前（高选择性），status 等值过滤居中，created_at DESC 用于排序避免 filesort。
+-- 此顺序匹配主查询 WHERE course_id=? AND status='published' ORDER BY created_at DESC。
 CREATE INDEX IF NOT EXISTS idx_reviews_course_status_created ON reviews(course_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reviews_course_teacher_status ON reviews(course_id, teacher_id, status);
 CREATE INDEX IF NOT EXISTS idx_reviews_user_hash_created ON reviews(user_hash, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_user_course ON reviews(user_hash, course_id)
     WHERE status != 'deleted';
@@ -146,6 +155,7 @@ CREATE TABLE IF NOT EXISTS review_votes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_votes_review_id ON review_votes(review_id);
+CREATE INDEX IF NOT EXISTS idx_review_votes_review_user ON review_votes(review_id, user_hash);
 
 -- ============================================
 -- 7. 创建 rating_dimensions 表（评分维度配置）
@@ -161,7 +171,8 @@ CREATE TABLE IF NOT EXISTS rating_dimensions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT uq_rating_dimensions_key UNIQUE (school_id, key)
+    CONSTRAINT uq_rating_dimensions_key UNIQUE (school_id, key),
+    CONSTRAINT uq_rating_dimensions_key_global UNIQUE (key)
 );
 
 CREATE INDEX IF NOT EXISTS idx_rating_dimensions_school ON rating_dimensions(school_id);
@@ -181,6 +192,7 @@ CREATE TABLE IF NOT EXISTS course_rating_stats (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_course_rating_stats_course FOREIGN KEY (course_id) REFERENCES courses(id),
+    CONSTRAINT fk_course_rating_stats_dimension FOREIGN KEY (dimension_key) REFERENCES rating_dimensions(key) ON DELETE CASCADE,
     CONSTRAINT uq_course_rating_stats UNIQUE (course_id, term_id, dimension_key)
 );
 
@@ -210,6 +222,10 @@ CREATE TABLE IF NOT EXISTS review_reports (
 CREATE INDEX IF NOT EXISTS idx_review_reports_review_id ON review_reports(review_id);
 CREATE INDEX IF NOT EXISTS idx_review_reports_status ON review_reports(status);
 CREATE INDEX IF NOT EXISTS idx_review_reports_created_at ON review_reports(created_at DESC);
+-- M-35: 支持按 review_id + reporter_hash 快速查询是否已举报（去重检查）
+CREATE INDEX IF NOT EXISTS idx_review_reports_review_reporter ON review_reports(review_id, reporter_hash);
+-- M-36: 支持管理后台按状态+时间排序查询举报列表
+CREATE INDEX IF NOT EXISTS idx_review_reports_status_created ON review_reports(status, created_at DESC);
 
 -- ============================================
 -- 10. 创建 course_favorites 表（课程收藏）
@@ -269,7 +285,7 @@ CREATE TABLE IF NOT EXISTS review_replies (
     CONSTRAINT fk_review_replies_parent FOREIGN KEY (parent_id)
         REFERENCES review_replies(id) ON DELETE CASCADE,
     CONSTRAINT chk_review_replies_status CHECK (status IN ('published', 'hidden', 'deleted')),
-    CONSTRAINT chk_review_replies_content_length CHECK (char_length(content) <= 5000)
+    CONSTRAINT chk_review_replies_content_length CHECK (LENGTH(TRIM(content)) >= 1 AND char_length(content) <= 5000)
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_replies_review_id ON review_replies(review_id);
@@ -296,6 +312,8 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_hash ON notifications(user_has
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(user_hash, is_read);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_hash, created_at DESC);
+-- M-38: 支持「未读通知列表」查询 WHERE user_hash=? AND is_read=false ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read_created ON notifications(user_hash, is_read, created_at DESC);
 
 -- ============================================
 -- 14. 创建 teacher_rating_stats 表（教师评分统计）
@@ -311,6 +329,8 @@ CREATE TABLE IF NOT EXISTS teacher_rating_stats (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT fk_teacher_rating_stats_teacher FOREIGN KEY (teacher_id)
         REFERENCES teachers(id) ON DELETE CASCADE,
+    CONSTRAINT fk_teacher_rating_stats_dimension FOREIGN KEY (dimension_key)
+        REFERENCES rating_dimensions(key) ON DELETE CASCADE,
     CONSTRAINT uq_teacher_rating_stats UNIQUE (teacher_id, term_id, dimension_key)
 );
 

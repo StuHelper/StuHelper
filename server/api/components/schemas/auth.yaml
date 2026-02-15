@@ -1,0 +1,48 @@
+LoginURLResponse:
+  type: object
+  required: [url]
+  properties:
+    url:
+      type: string
+      format: uri
+
+CallbackResponse:
+  type: object
+  required: [user, expiresIn]
+  properties:
+    user:
+      $ref: '#/UserInfo'
+    expiresIn:
+      type: integer
+      description: Access token TTL in seconds
+
+RefreshResponse:
+  type: object
+  required: [expiresIn]
+  properties:
+    expiresIn:
+      type: integer
+
+UserInfo:
+  type: object
+  required: [id, name, displayName]
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    displayName:
+      type: string
+    avatar:
+      type: string
+    email:
+      type: string
+    isAdmin:
+      type: boolean
+
+CSRFToken:
+  type: object
+  required: [csrfToken]
+  properties:
+    csrfToken:
+      type: string

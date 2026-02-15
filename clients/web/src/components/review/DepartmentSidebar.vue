@@ -4,14 +4,14 @@
     <div class="flex gap-1.5 overflow-x-auto pb-2 mb-2 border-b border-border scrollbar-none">
       <button
         v-for="cat in allCategories"
-        :key="cat"
+        :key="cat.id"
         class="shrink-0 px-3 py-1 text-xs rounded-full transition-colors duration-fast cursor-pointer border-none"
-        :class="activeCategory === cat
+        :class="activeCategory === cat.id
           ? 'bg-primary text-white font-medium'
           : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'"
-        @click="selectCategory(cat)"
+        @click="selectCategory(cat.id)"
       >
-        {{ cat }}
+        {{ cat.name }}
       </button>
     </div>
 
@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { getDepartments, getCourses, getCourseCategories } from '@/api/course'
@@ -82,9 +82,12 @@ const { t } = useI18n()
 const categories = ref<CourseCategory[]>([])
 const activeCategory = ref('')  // 空字符串表示"全部"
 
-// 计算所有分类选项（"全部" + 后端分类）
+// 计算所有分类选项（"全部" + 后端分类），使用 id 而非翻译文本作为标识
 const allCategories = computed(() => {
-  return [t('review.filters.all'), ...categories.value.map(c => c.name)]
+  return [
+    { id: '', name: t('review.filters.all') },
+    ...categories.value.map(c => ({ id: c.name, name: c.name }))
+  ]
 })
 
 // 院系相关
@@ -92,15 +95,15 @@ const departments = ref<Department[]>([])
 const deptLoading = ref(false)
 
 // 展开/收起状态
-const expandedDepts = reactive(new Set<number>())
-const loadingDepts = reactive(new Set<number>())
-const deptCourses = reactive(new Map<number, Course[]>())
+const expandedDepts = ref(new Set<number>())
+const loadingDepts = ref(new Set<number>())
+const deptCourses = ref(new Map<number, Course[]>())
 
 // 判断某院系下是否有当前选中的课程
 function isDeptActive(deptId: number): boolean {
   const activeCourseId = Number(route.params.id)
   if (!activeCourseId) return false
-  const courses = deptCourses.get(deptId)
+  const courses = deptCourses.value.get(deptId)
   return !!courses?.some(c => c.id === activeCourseId)
 }
 
@@ -120,7 +123,7 @@ async function loadDepartments() {
     const res = await getDepartments(categoryParam)
     departments.value = res.data || []
     // 清空展开状态
-    expandedDepts.clear()
+    expandedDepts.value.clear()
   } catch {
     departments.value = []
   } finally {
@@ -128,33 +131,46 @@ async function loadDepartments() {
   }
 }
 
-function selectCategory(cat: string) {
-  const allLabel = t('review.filters.all')
-  activeCategory.value = cat === allLabel ? '' : cat
+// 分类版本号，用于防止旧分类的请求写入新分类的缓存
+let categoryVersion = 0
+
+function selectCategory(catId: string) {
+  activeCategory.value = catId
+  categoryVersion++
   // 分类变了，清空课程缓存
-  deptCourses.clear()
+  deptCourses.value.clear()
   loadDepartments()
 }
 
 async function toggleDept(id: number) {
-  if (expandedDepts.has(id)) {
-    expandedDepts.delete(id)
+  if (expandedDepts.value.has(id)) {
+    expandedDepts.value.delete(id)
     return
   }
 
-  expandedDepts.add(id)
+  expandedDepts.value.add(id)
 
-  // 已有缓存则不重新加载
-  if (deptCourses.has(id)) return
+  // 已有缓存则不重新请求
+  if (deptCourses.value.has(id)) return
+  // H-20 & M-13: 正在加载时不重复请求
+  if (loadingDepts.value.has(id)) return
 
-  loadingDepts.add(id)
+  const version = categoryVersion
+  loadingDepts.value = new Set([...loadingDepts.value, id])
   try {
     const res = await getCourses(id)
-    deptCourses.set(id, res.data?.list || [])
+    // 仅当分类未切换时才写入缓存
+    if (version === categoryVersion) {
+      deptCourses.value.set(id, res.data?.list || [])
+    }
   } catch {
-    deptCourses.set(id, [])
+    if (version === categoryVersion) {
+      deptCourses.value.set(id, [])
+    }
   } finally {
-    loadingDepts.delete(id)
+    const next = new Set(loadingDepts.value)
+    next.delete(id)
+    loadingDepts.value = next
   }
 }
 

@@ -1,0 +1,115 @@
+/api/v1/course/review/rating-dimensions:
+  get:
+    tags: [Rating]
+    operationId: getRatingDimensions
+    summary: 获取评分维度配置
+    security: []
+    responses:
+      '200':
+        description: 评分维度列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: array
+                  items:
+                    $ref: '../components/schemas/rating.yaml#/RatingDimension'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/courses/{id}/rating-stats:
+  get:
+    tags: [Rating]
+    operationId: getCourseRatingStats
+    summary: 获取课程评分统计（雷达图数据）
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/CourseIDPath'
+    responses:
+      '200':
+        description: 课程评分统计
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/rating.yaml#/CourseRatingStatsResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/courses/{id}/rating-trend:
+  get:
+    tags: [Rating]
+    operationId: getRatingTrend
+    summary: 获取课程评分趋势
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/CourseIDPath'
+    responses:
+      '200':
+        description: 评分趋势数据
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [trend]
+                  properties:
+                    trend:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/rating.yaml#/RatingTrendItem'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/courses/{id}/teachers:
+  get:
+    tags: [Rating]
+    operationId: getCourseTeachers
+    summary: 获取课程的授课教师列表
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/CourseIDPath'
+    responses:
+      '200':
+        description: 教师统计列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: array
+                  items:
+                    $ref: '../components/schemas/rating.yaml#/CourseTeacherStats'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

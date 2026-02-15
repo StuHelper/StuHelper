@@ -63,7 +63,8 @@ type Event struct {
 	Resource  string
 	Action    string
 	Result    string
-	Details   map[string]interface{}
+	Duration  time.Duration
+	Details   map[string]any
 	Timestamp time.Time
 }
 
@@ -77,13 +78,17 @@ func Log(e Event) {
 		zap.String("audit_type", string(e.Type)),
 		zap.String("user_id", e.UserID),
 		zap.String("username", logger.MaskSensitiveData(e.Username)),
-		zap.String("ip", e.IP),
+		zap.String("ip", logger.MaskIP(e.IP)),
 		zap.String("user_agent", e.UserAgent),
 		zap.String("request_id", e.RequestID),
 		zap.String("resource", e.Resource),
 		zap.String("action", e.Action),
 		zap.String("result", e.Result),
 		zap.Time("timestamp", e.Timestamp),
+	}
+
+	if e.Duration > 0 {
+		fields = append(fields, zap.Duration("duration", e.Duration))
 	}
 
 	if len(e.Details) > 0 {
@@ -114,6 +119,6 @@ func LogFailure(eventType EventType, ip, userAgent, requestID, reason string) {
 		UserAgent: userAgent,
 		RequestID: requestID,
 		Result:    "failure",
-		Details:   map[string]interface{}{"reason": reason},
+		Details:   map[string]any{"reason": reason},
 	})
 }

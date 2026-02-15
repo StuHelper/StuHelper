@@ -3,6 +3,41 @@ package circuitbreaker
 import (
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+// Prometheus 指标
+var (
+	cbStateGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "circuit_breaker_state",
+			Help: "Current circuit breaker state (0=closed, 1=open, 2=half-open)",
+		},
+		[]string{"name"},
+	)
+	cbFailuresGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "circuit_breaker_failures",
+			Help: "Current failure count of circuit breaker",
+		},
+		[]string{"name"},
+	)
+	cbSuccessesGauge = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "circuit_breaker_successes",
+			Help: "Current success count of circuit breaker (half-open state)",
+		},
+		[]string{"name"},
+	)
+	cbTransitionsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "circuit_breaker_transitions_total",
+			Help: "Total number of circuit breaker state transitions",
+		},
+		[]string{"name", "from", "to"},
+	)
 )
 
 // State 熔断器状态
@@ -46,6 +81,7 @@ func DefaultConfig() Config {
 // CircuitBreaker 熔断器
 type CircuitBreaker struct {
 	config           Config
+	name             string
 	state            State
 	failures         int
 	successes        int
@@ -55,10 +91,18 @@ type CircuitBreaker struct {
 
 // New 创建熔断器
 func New(cfg Config) *CircuitBreaker {
-	return &CircuitBreaker{
+	return NewNamed("default", cfg)
+}
+
+// NewNamed 创建带名称的熔断器（名称用于 Prometheus 指标标签）
+func NewNamed(name string, cfg Config) *CircuitBreaker {
+	cb := &CircuitBreaker{
 		config: cfg,
+		name:   name,
 		state:  StateClosed,
 	}
+	cbStateGauge.WithLabelValues(name).Set(float64(StateClosed))
+	return cb
 }
 
 // State 获取当前状态
@@ -68,10 +112,10 @@ func (cb *CircuitBreaker) State() State {
 	return cb.currentState()
 }
 
-// currentState 获取当前状态（内部使用，需要持有锁）
+// currentState 获取当前逻辑状态（内部使用，需要持有读锁或写锁）
+// 注意：此方法仅返回逻辑状态，不修改 cb.state 字段
 func (cb *CircuitBreaker) currentState() State {
 	if cb.state == StateOpen {
-		// 检查是否应该转换到半开状态
 		if time.Since(cb.lastFailureTime) >= cb.config.Timeout {
 			return StateHalfOpen
 		}
@@ -79,23 +123,38 @@ func (cb *CircuitBreaker) currentState() State {
 	return cb.state
 }
 
+// ensureStateTransition 在持有写锁时，将 Open→HalfOpen 的隐式转换持久化
+// 所有需要修改状态的方法（Allow/RecordSuccess/RecordFailure）统一调用此方法
+func (cb *CircuitBreaker) ensureStateTransition() State {
+	logical := cb.currentState()
+	if logical == StateHalfOpen && cb.state == StateOpen {
+		cb.transition(StateHalfOpen)
+		cb.failures = 0
+		cb.successes = 0
+	}
+	return cb.state
+}
+
+// transition 记录状态转换并更新 Prometheus 指标（需持有写锁）
+func (cb *CircuitBreaker) transition(to State) {
+	from := cb.state
+	if from == to {
+		return
+	}
+	cbTransitionsTotal.WithLabelValues(cb.name, from.String(), to.String()).Inc()
+	cbStateGauge.WithLabelValues(cb.name).Set(float64(to))
+	cb.state = to
+}
+
 // Allow 检查是否允许执行操作
 func (cb *CircuitBreaker) Allow() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	state := cb.currentState()
+	// 统一通过 ensureStateTransition 处理 Open→HalfOpen 转换
+	state := cb.ensureStateTransition()
 	switch state {
-	case StateClosed:
-		return true
-	case StateOpen:
-		return false
-	case StateHalfOpen:
-		// 将状态转换持久化，防止 Allow 与 Record* 之间的 TOCTOU
-		if cb.state == StateOpen {
-			cb.state = StateHalfOpen
-			cb.successes = 0
-		}
+	case StateClosed, StateHalfOpen:
 		return true
 	default:
 		return false
@@ -107,17 +166,21 @@ func (cb *CircuitBreaker) RecordSuccess() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
+	// 统一通过 ensureStateTransition 处理 Open→HalfOpen 转换
+	cb.ensureStateTransition()
+
 	switch cb.state {
 	case StateClosed:
 		cb.failures = 0
 	case StateHalfOpen:
 		cb.successes++
 		if cb.successes >= cb.config.SuccessThreshold {
-			cb.state = StateClosed
+			cb.transition(StateClosed)
 			cb.failures = 0
 			cb.successes = 0
 		}
 	}
+	cb.updateGauges()
 }
 
 // RecordFailure 记录失败
@@ -125,29 +188,39 @@ func (cb *CircuitBreaker) RecordFailure() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
+	// 统一通过 ensureStateTransition 处理 Open→HalfOpen 转换
+	cb.ensureStateTransition()
+
 	cb.failures++
 	cb.lastFailureTime = time.Now()
 
 	switch cb.state {
 	case StateClosed:
 		if cb.failures >= cb.config.FailureThreshold {
-			cb.state = StateOpen
+			cb.transition(StateOpen)
 		}
 	case StateHalfOpen:
-		cb.state = StateOpen
+		cb.transition(StateOpen)
 		cb.successes = 0
 	}
+	cb.updateGauges()
+}
+
+// updateGauges 更新 Prometheus failure/success gauges（需持有锁）
+func (cb *CircuitBreaker) updateGauges() {
+	cbFailuresGauge.WithLabelValues(cb.name).Set(float64(cb.failures))
+	cbSuccessesGauge.WithLabelValues(cb.name).Set(float64(cb.successes))
 }
 
 // Metrics 获取熔断器指标
-func (cb *CircuitBreaker) Metrics() map[string]interface{} {
+func (cb *CircuitBreaker) Metrics() map[string]any {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
 
-	return map[string]interface{}{
-		"state":            cb.currentState().String(),
-		"failures":         cb.failures,
-		"successes":        cb.successes,
-		"last_failure":     cb.lastFailureTime,
+	return map[string]any{
+		"state":        cb.currentState().String(),
+		"failures":     cb.failures,
+		"successes":    cb.successes,
+		"last_failure": cb.lastFailureTime,
 	}
 }

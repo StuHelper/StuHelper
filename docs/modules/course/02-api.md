@@ -2,6 +2,10 @@
 
 本文档定义评课社区模块的 RESTful API 接口规范。
 
+> **OpenAPI 规范**: API 的权威定义在 `server/api/openapi.yaml`（多文件拆分）。
+> 开发环境访问 http://localhost:8080/docs/ 可查看交互式文档。
+> 修改 API 时请先编辑 OpenAPI 规范，再运行 `make generate` 生成代码。
+
 ## 基础信息
 
 - **课程模块 Base URL**: `/api/v1/course`
@@ -85,8 +89,8 @@
 | `/courses/:id/favorite` | POST | 收藏课程 |
 | `/courses/:id/favorite` | DELETE | 取消收藏 |
 | `/drafts` | POST | 保存草稿 |
-| `/drafts/:courseId` | GET | 获取草稿 |
-| `/drafts/:courseId` | DELETE | 删除草稿 |
+| `/drafts/:courseID` | GET | 获取草稿 |
+| `/drafts/:courseID` | DELETE | 删除草稿 |
 
 ### 评课子模块 — 用户中心（需要认证）
 

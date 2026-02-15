@@ -4,6 +4,10 @@
 
 RESTful API 设计规范，基础路径：`/api/v1`
 
+> **OpenAPI 规范**: 本项目采用 Spec-First 模式，API 的权威定义在 `server/api/openapi.yaml`。
+> 开发环境可访问 http://localhost:8080/docs/ 查看交互式 Swagger UI 文档。
+> 以下表格为快速参考，详细的请求/响应 Schema 请查阅 OpenAPI 规范。
+
 ## 1. 认证接口 (`/api/v1/auth`)
 
 | 接口 | 方法 | 说明 | 状态 |
@@ -57,8 +61,8 @@ RESTful API 设计规范，基础路径：`/api/v1`
 | `/courses/:id/favorite` | POST | 收藏课程 | 🟢 已实现 |
 | `/courses/:id/favorite` | DELETE | 取消收藏 | 🟢 已实现 |
 | `/drafts` | POST | 保存草稿 | 🟢 已实现 |
-| `/drafts/:courseId` | GET | 获取草稿 | 🟢 已实现 |
-| `/drafts/:courseId` | DELETE | 删除草稿 | 🟢 已实现 |
+| `/drafts/:courseID` | GET | 获取草稿 | 🟢 已实现 |
+| `/drafts/:courseID` | DELETE | 删除草稿 | 🟢 已实现 |
 
 ### 用户中心接口（需要认证）
 

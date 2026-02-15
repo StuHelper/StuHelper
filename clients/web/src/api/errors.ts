@@ -8,6 +8,7 @@ import i18n from '@/i18n'
 export enum ErrorCode {
   // 网络错误
   NETWORK_ERROR = 'NETWORK_ERROR',
+  OFFLINE = 'OFFLINE',
   TIMEOUT = 'TIMEOUT',
 
   // 认证错误
@@ -57,6 +58,8 @@ export class ApiError extends Error {
     requestID?: string
   }) {
     super(options.message)
+    // 修正原型链，确保 instanceof 检查在所有环境下可靠
+    Object.setPrototypeOf(this, ApiError.prototype)
     this.name = 'ApiError'
     this.code = options.code
     this.status = options.status
@@ -79,6 +82,7 @@ export class ApiError extends Error {
   isNetworkError(): boolean {
     return [
       ErrorCode.NETWORK_ERROR,
+      ErrorCode.OFFLINE,
       ErrorCode.TIMEOUT
     ].includes(this.code)
   }
@@ -94,13 +98,14 @@ export class ApiError extends Error {
 
   // 获取用户友好的错误消息（使用 i18n 翻译）
   getUserMessage(): string {
-    const { t } = i18n.global
+    const { t, te } = i18n.global
     // 业务错误直接返回原始消息
     if (this.code === ErrorCode.BUSINESS_ERROR) {
       return this.message
     }
-    // 其他错误使用 i18n 翻译
-    return t(`errors.${this.code}`) || this.message
+    // 其他错误使用 i18n 翻译，key 不存在时 fallback 到原始消息
+    const key = `errors.${this.code}`
+    return te(key) ? t(key) : this.message
   }
 
   // 转换为 JSON

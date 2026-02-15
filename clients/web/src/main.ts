@@ -13,3 +13,7 @@ app.use(router)
 app.use(i18n)
 
 app.mount('#app')
+
+// Web Vitals 性能监控（异步加载，不阻塞首屏）
+import { reportWebVitals } from '@/utils/webVitals'
+reportWebVitals()

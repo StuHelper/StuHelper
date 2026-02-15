@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -55,7 +55,9 @@ const emit = defineEmits<{
 const sentinelRef = ref<HTMLElement>()
 let observer: IntersectionObserver | null = null
 
-onMounted(() => {
+const setupObserver = () => {
+  // M-78: disconnect 后置空，释放引用
+  if (observer) { observer.disconnect(); observer = null }
   if (!sentinelRef.value) return
 
   observer = new IntersectionObserver(
@@ -71,9 +73,24 @@ onMounted(() => {
   )
 
   observer.observe(sentinelRef.value)
+}
+
+onMounted(setupObserver)
+
+// threshold 变化时重建 observer（IntersectionObserver 选项创建后不可变）
+watch(() => props.threshold, setupObserver)
+
+// L-04: loading 结束后若 sentinel 仍在视口内，手动触发下一次加载
+watch(() => props.loading, (newVal, oldVal) => {
+  if (oldVal && !newVal && props.hasMore && !props.error && sentinelRef.value) {
+    const rect = sentinelRef.value.getBoundingClientRect()
+    if (rect.top < window.innerHeight + props.threshold) {
+      emit('loadMore')
+    }
+  }
 })
 
 onUnmounted(() => {
-  observer?.disconnect()
+  if (observer) { observer.disconnect(); observer = null }
 })
 </script>

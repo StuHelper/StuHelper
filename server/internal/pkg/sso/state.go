@@ -17,6 +17,8 @@ const (
 	stateTTL = 5 * time.Minute
 	// state 长度（字节）
 	stateLength = 32
+	// state 生成最大重试次数（防止碰撞时无限递归）
+	stateMaxRetries = 3
 )
 
 // StateManager OAuth state 管理器，用于防止 CSRF 和回放攻击
@@ -31,23 +33,41 @@ func NewStateManager(rdb *redis.Client) *StateManager {
 
 // Generate 生成随机 state 并存储到 Redis
 func (m *StateManager) Generate(ctx context.Context) (string, error) {
-	b := make([]byte, stateLength)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to generate random state: %w", err)
+	for i := 0; i < stateMaxRetries; i++ {
+		b := make([]byte, stateLength)
+		if _, err := rand.Read(b); err != nil {
+			return "", fmt.Errorf("failed to generate random state: %w", err)
+		}
+
+		state := base64.RawURLEncoding.EncodeToString(b)
+		key := stateKeyPrefix + state
+
+		// 使用 SetNX 原子性存储 state，防止极端并发下碰撞覆盖
+		ok, err := m.rdb.SetNX(ctx, key, "1", stateTTL).Result()
+		if err != nil {
+			return "", fmt.Errorf("failed to store state: %w", err)
+		}
+		if ok {
+			return state, nil
+		}
+		// 极端情况：随机 state 碰撞，重试
 	}
-
-	state := base64.RawURLEncoding.EncodeToString(b)
-	key := stateKeyPrefix + state
-
-	// 存储 state 到 Redis，设置 TTL
-	if err := m.rdb.Set(ctx, key, "1", stateTTL).Err(); err != nil {
-		return "", fmt.Errorf("failed to store state: %w", err)
-	}
-
-	return state, nil
+	return "", fmt.Errorf("failed to generate unique state after %d attempts", stateMaxRetries)
 }
 
+// validateStateScript 使用 Lua 脚本原子性地 GET+DEL state，
+// 防止攻击者在 GET 和 DEL 之间重放 state 参数（时序攻击）
+var validateStateScript = redis.NewScript(`
+local v = redis.call('GET', KEYS[1])
+if v then
+	redis.call('DEL', KEYS[1])
+	return 1
+end
+return 0
+`)
+
 // Validate 验证并消费 state（一次性使用，防止回放攻击）
+// 使用 Lua 脚本保证 GET+DEL 原子性，单次 RTT 完成
 func (m *StateManager) Validate(ctx context.Context, state string) (bool, error) {
 	if state == "" {
 		return false, nil
@@ -55,12 +75,10 @@ func (m *StateManager) Validate(ctx context.Context, state string) (bool, error)
 
 	key := stateKeyPrefix + state
 
-	// 使用 DEL 命令原子性地删除并检查是否存在
-	deleted, err := m.rdb.Del(ctx, key).Result()
+	result, err := validateStateScript.Run(ctx, m.rdb, []string{key}).Int64()
 	if err != nil {
 		return false, fmt.Errorf("failed to validate state: %w", err)
 	}
 
-	// deleted > 0 表示 key 存在且已被删除
-	return deleted > 0, nil
+	return result == 1, nil
 }

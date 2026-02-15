@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-[600px] shrink-0 max-[820px]:w-full">
+  <div class="relative w-[600px] shrink-0 max-tablet:w-full">
     <div
       class="flex items-center gap-2 px-3 py-2 rounded-full bg-bg-secondary border border-border transition-all duration-fast ease-smooth"
       :class="isFocused && 'border-primary shadow-glow-sm'"
@@ -34,8 +34,8 @@
     >
       <!-- 搜索结果 -->
       <template v-if="query.trim()">
-        <div v-if="isLoading" class="flex items-center justify-center py-6">
-          <div class="w-5 h-5 border-2 border-border border-t-primary rounded-full animate-spin" />
+        <div v-if="isLoading" class="flex items-center justify-center py-6" aria-busy="true" :aria-label="t('common.actions.loading')">
+          <div class="w-5 h-5 border-2 border-border border-t-primary rounded-full animate-spin" aria-hidden="true" />
         </div>
         <div v-else-if="results.length === 0" class="py-6 text-center text-sm text-text-muted">
           {{ t('review.chart.emptyTitle') }}
@@ -112,7 +112,7 @@ const isFocused = ref(false)
 const activeIndex = ref(-1)
 const recentSearches = ref<RecentItem[]>(loadRecent())
 
-const isMac = navigator.platform.toUpperCase().includes('MAC')
+const isMac = /mac/i.test(navigator.userAgent)
 
 // 下拉面板显示条件：聚焦 && (有输入 || 有最近搜索)
 const showDropdown = computed(() =>
@@ -139,9 +139,17 @@ watch(query, (val) => {
       const res = await searchCourses(trimmed, 10)
       // 防止旧请求覆盖新结果
       if (query.value.trim() === trimmed) {
-        results.value = res.data.list || []
+        const list = res.data.list || []
+        // 按 ID 去重，防止后端返回重复课程
+        const seen = new Set<number>()
+        results.value = list.filter(c => {
+          if (seen.has(c.id)) return false
+          seen.add(c.id)
+          return true
+        })
       }
-    } catch {
+    } catch (err) {
+      console.warn('[InlineSearch] Search failed:', err)
       if (query.value.trim() === trimmed) {
         results.value = []
       }
@@ -153,10 +161,11 @@ watch(query, (val) => {
   }, 300)
 })
 
+// M-14: blur 延迟关闭使用 undefined 初始值，统一清理
 let blurTimer: ReturnType<typeof setTimeout> | undefined
 
 function handleFocus() {
-  if (blurTimer) { clearTimeout(blurTimer); blurTimer = undefined }
+  if (blurTimer !== undefined) { clearTimeout(blurTimer); blurTimer = undefined }
   isFocused.value = true
 }
 

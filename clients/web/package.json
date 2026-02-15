@@ -8,7 +8,13 @@
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
-    "lint": "vue-tsc --noEmit"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,vue,css,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,vue,css,json}\"",
+    "generate:types": "openapi-typescript ../../server/api/openapi.yaml -o src/types/api.gen.ts",
+    "test": "vitest --run",
+    "analyze": "vite build --mode analyze"
   },
   "dependencies": {
     "axios": "^1.13.4",
@@ -19,14 +25,24 @@
     "vue": "^3.4.0",
     "vue-echarts": "^8.0.1",
     "vue-i18n": "^11.2.8",
-    "vue-router": "^5.0.2"
+    "vue-router": "^5.0.2",
+    "web-vitals": "^5.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.18.0",
     "@tailwindcss/vite": "^4.1.18",
     "@vitejs/plugin-vue": "^6.0.4",
+    "eslint": "^9.18.0",
+    "eslint-plugin-vue": "^9.32.0",
+    "jsdom": "^26.1.0",
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.4.2",
+    "rollup-plugin-visualizer": "^5.14.0",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.21.0",
     "vite": "^7.3.1",
+    "vitest": "^3.1.1",
     "vue-tsc": "^3.2.4"
   }
 }

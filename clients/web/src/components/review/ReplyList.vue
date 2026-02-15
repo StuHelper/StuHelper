@@ -142,7 +142,7 @@ const onEnter = (el: Element) => {
   const htmlEl = el as HTMLElement
   htmlEl.style.overflow = 'hidden'
   htmlEl.style.height = '0'
-  htmlEl.offsetHeight // force reflow
+  void htmlEl.offsetHeight // force reflow
   htmlEl.style.transition = 'height var(--duration-base) ease, opacity var(--duration-base) ease'
   htmlEl.style.height = htmlEl.scrollHeight + 'px'
   htmlEl.style.opacity = '1'
@@ -159,7 +159,7 @@ const onLeave = (el: Element) => {
   const htmlEl = el as HTMLElement
   htmlEl.style.overflow = 'hidden'
   htmlEl.style.height = htmlEl.scrollHeight + 'px'
-  htmlEl.offsetHeight // force reflow
+  void htmlEl.offsetHeight // force reflow
   htmlEl.style.transition = 'height var(--duration-base) ease, opacity var(--duration-base) ease'
   htmlEl.style.height = '0'
   htmlEl.style.opacity = '0'

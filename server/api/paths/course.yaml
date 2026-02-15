@@ -1,0 +1,202 @@
+/api/v1/course/departments:
+  get:
+    tags: [Course]
+    operationId: getDepartments
+    summary: 获取院系列表
+    security: []
+    parameters:
+      - name: category
+        in: query
+        schema:
+          type: string
+        description: 按分类筛选
+    responses:
+      '200':
+        description: 院系列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: array
+                  items:
+                    $ref: '../components/schemas/course.yaml#/Department'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/categories:
+  get:
+    tags: [Course]
+    operationId: getCourseCategories
+    summary: 获取课程分类列表
+    security: []
+    responses:
+      '200':
+        description: 课程分类列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: array
+                  items:
+                    $ref: '../components/schemas/course.yaml#/CourseCategory'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/courses:
+  get:
+    tags: [Course]
+    operationId: getCourses
+    summary: 获取课程列表
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: departmentID
+        in: query
+        schema:
+          type: integer
+          format: int64
+        description: 按院系筛选
+      - name: category
+        in: query
+        schema:
+          type: string
+        description: 按分类筛选
+    responses:
+      '200':
+        description: 课程分页列表
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/course.yaml#/Course'
+                    total:
+                      type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/courses/search:
+  get:
+    tags: [Course]
+    operationId: searchCourses
+    summary: 搜索课程
+    security: []
+    parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+        description: 搜索关键词
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 搜索结果
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  type: object
+                  required: [list, total]
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/course.yaml#/Course'
+                    total:
+                      type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/courses/{id}:
+  get:
+    tags: [Course]
+    operationId: getCourse
+    summary: 获取课程详情
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/CourseIDPath'
+    responses:
+      '200':
+        description: 课程详情
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/course.yaml#/Course'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/stats:
+  get:
+    tags: [Course]
+    operationId: getCourseStats
+    summary: 获取学习中心统计
+    security: []
+    responses:
+      '200':
+        description: 统计数据
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [success, data]
+              properties:
+                success:
+                  type: boolean
+                  enum: [true]
+                data:
+                  $ref: '../components/schemas/course.yaml#/CourseStats'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

@@ -9,6 +9,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 )
 
 func setupTestRedis(t *testing.T) (*redis.Client, func()) {
@@ -28,6 +30,9 @@ func setupTestRedis(t *testing.T) (*redis.Client, func()) {
 }
 
 func TestBlacklist_Add(t *testing.T) {
+	// 初始化 HMAC key（Blacklist 内部使用 crypto.HMACHash）
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
 	client, cleanup := setupTestRedis(t)
 	defer cleanup()
 
@@ -44,6 +49,9 @@ func TestBlacklist_Add(t *testing.T) {
 }
 
 func TestBlacklist_IsBlacklisted(t *testing.T) {
+	// 显式初始化 HMAC key，确保单独运行时不依赖其他测试的副作用
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
 	client, cleanup := setupTestRedis(t)
 	defer cleanup()
 

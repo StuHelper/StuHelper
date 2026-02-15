@@ -10,16 +10,22 @@ export const ratingToText = (value: number, t: (key: string) => string): string 
   return texts[value] || t('review.rating.unknown')
 }
 
-// 评分转颜色 (1-5 五级制)
+// 评分转颜色 (1-5 五级制，对齐 CSS 变量 --color-rating-1 ~ --color-rating-5)
 // 硬编码颜色值，用于 JS 上下文（如 ECharts）。
 // 模板中应使用 CSS 变量 var(--color-rating-*) 替代。
+const ratingColors: Record<number, string> = {
+  1: '#f56c6c',
+  2: '#e6a23c',
+  3: '#909399',
+  4: '#67c23a',
+  5: '#529b2e'
+}
 export const ratingToColor = (value: number): string => {
-  if (value >= 4) return '#67c23a'
-  if (value === 3) return '#909399'
-  return '#f56c6c'
+  return ratingColors[Math.round(value)] || '#909399'
 }
 
-// 计算综合评分 (1-5 转换为 0-10)
+// 计算综合评分 (1-5 转换为 0-10，输入 clamp 到 [1, 5])
 export const normalizeRating = (value: number): number => {
-  return ((value - 1) / 4) * 10
+  const clamped = Math.max(1, Math.min(5, value))
+  return ((clamped - 1) / 4) * 10
 }
