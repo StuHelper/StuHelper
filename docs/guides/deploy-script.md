@@ -37,7 +37,9 @@
 - `REMOTE_HOST`：默认 `81.70.178.230`
 - `REMOTE_USER`：远端 SSH 用户
 - `REMOTE_BACKEND_BIN_DIR`：后端二进制落盘目录
-- `REMOTE_WEB_DIR`：前端静态资源目录
+- `WEB_MODULES`：前端模块映射（`module:relative_path`）
+- `SITES_BASE_DIR`：站点根目录（默认 `/opt/1panel/www/sites`）
+- `REMOTE_WEB_DIR`：旧模式下单模块静态目录（仅 `WEB_MODULES` 为空时使用）
 - `RESTART_BACKEND_CMD`：后端重启命令（可空）
 - `RELOAD_WEB_CMD`：Web 重载命令（可空）
 
@@ -66,6 +68,24 @@
 - `TRUSTED_PROXIES`
 - `METRICS_PASSWORD`
 - `DB_SSL_MODE`
+
+## 前端多模块部署（推荐）
+
+可通过 `WEB_MODULES` 一次部署多个前端模块，并映射到对应子域名：
+
+- `clients/web/<module>` -> `<module>.stuhelper.com` -> `/opt/1panel/www/sites/<module>.stuhelper.com/index`
+- 特例：`module=homepage` -> `stuhelper.com`
+
+示例：
+
+```dotenv
+WEB_MODULES="course:clients/web,homepage:clients/web/homepage"
+SITES_BASE_DIR="/opt/1panel/www/sites"
+```
+
+兼容模式（旧版）：
+
+- 当 `WEB_MODULES` 留空时，脚本仅构建一个前端目录，并发布到 `REMOTE_WEB_DIR`。
 
 脚本会做基础校验：
 - `HMAC_SECRET` 长度 >= 32
