@@ -50,6 +50,9 @@ AdminUpdateReviewRequest:
     action:
       type: string
       enum: [hide, restore, delete]
+    reason:
+      type: string
+      maxLength: 500
 
 BatchUpdateReviewsRequest:
   type: object
@@ -97,6 +100,121 @@ AdminStats:
     weekReviews:
       type: integer
 
+AdminEditReviewRequest:
+  type: object
+  required: [content]
+  properties:
+    title:
+      type: string
+      maxLength: 200
+    content:
+      type: string
+      minLength: 1
+      maxLength: 5000
+    reason:
+      type: string
+      maxLength: 500
+
+AdminTeacher:
+  type: object
+  required: [id, name, createdAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    name:
+      type: string
+    departmentID:
+      type: integer
+      format: int64
+      nullable: true
+    departmentName:
+      type: string
+      nullable: true
+    reviewCount:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+
+CreateTeacherRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+    departmentID:
+      type: integer
+      format: int64
+
+UpdateTeacherRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+    departmentID:
+      type: integer
+      format: int64
+      nullable: true
+
+AdminSensitiveWord:
+  type: object
+  required: [id, word, category, level, isActive, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    word:
+      type: string
+    category:
+      type: string
+    level:
+      type: string
+      enum: [block, warn, review]
+    isActive:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+
+CreateSensitiveWordRequest:
+  type: object
+  required: [word]
+  properties:
+    word:
+      type: string
+      minLength: 1
+      maxLength: 100
+    category:
+      type: string
+      maxLength: 50
+      default: general
+    level:
+      type: string
+      enum: [block, warn, review]
+      default: block
+
+UpdateSensitiveWordRequest:
+  type: object
+  properties:
+    word:
+      type: string
+      minLength: 1
+      maxLength: 100
+    category:
+      type: string
+      maxLength: 50
+    level:
+      type: string
+      enum: [block, warn, review]
+    isActive:
+      type: boolean
+
 AdminOperationLog:
   type: object
   required: [id, adminUserID, adminUsername, action, resourceType, resourceID, createdAt]
@@ -106,6 +224,7 @@ AdminOperationLog:
       format: uuid
     adminUserID:
       type: string
+      format: uuid
     adminUsername:
       type: string
     action:

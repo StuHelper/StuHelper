@@ -54,7 +54,7 @@ export type VoteType = 'like' | 'dislike'
 
 // 投票
 export function voteReview(reviewID: string, voteType: VoteType) {
-  return api.post<{ success: boolean }>(`/reviews/${reviewID}/vote`, {
+  return api.post<{ success: boolean }>(`/reviews/${reviewID}/votes`, {
     voteType
   })
 }
@@ -95,5 +95,5 @@ export function deleteReview(reviewID: string) {
 
 // 举报测评
 export function reportReview(reviewID: string, reason: string, description?: string) {
-  return api.post<{ message: string }>(`/reviews/${reviewID}/report`, { reason, description })
+  return api.post<{ message: string }>(`/reviews/${reviewID}/reports`, { reason, description })
 }

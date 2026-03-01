@@ -111,6 +111,11 @@ CREATE TABLE IF NOT EXISTS reviews (
     dislike_count INT NOT NULL DEFAULT 0 CHECK (dislike_count >= 0),
     reply_count INT NOT NULL DEFAULT 0 CHECK (reply_count >= 0),
     status VARCHAR(20) NOT NULL DEFAULT 'published',
+    moderation_reason TEXT,
+    original_content TEXT,
+    original_title VARCHAR(200),
+    moderated_by VARCHAR(255),
+    moderated_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

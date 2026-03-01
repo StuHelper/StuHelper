@@ -340,7 +340,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 获取课程测评列表 */
+        /** 获取课程测评列表（支持可选认证） */
         get: operations["getCourseReviews"];
         put?: never;
         post?: never;
@@ -357,8 +357,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 获取最新测评 */
+        /** 获取最新测评（支持可选认证） */
         get: operations["getLatestReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/review/reviews/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 批量获取多个课程的测评列表（支持可选认证）
+         * @description 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
+         */
+        get: operations["getBatchCourseReviews"];
         put?: never;
         post?: never;
         delete?: never;
@@ -402,7 +422,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/course/review/reviews/{id}/vote": {
+    "/api/v1/course/review/reviews/{id}/votes": {
         parameters: {
             query?: never;
             header?: never;
@@ -419,7 +439,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/course/review/reviews/{id}/report": {
+    "/api/v1/course/review/reviews/{id}/reports": {
         parameters: {
             query?: never;
             header?: never;
@@ -590,7 +610,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/course/review/notifications": {
+    "/api/v1/course/review/user/notifications": {
         parameters: {
             query?: never;
             header?: never;
@@ -607,7 +627,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/course/review/notifications/unread-count": {
+    "/api/v1/course/review/user/notifications/unread-count": {
         parameters: {
             query?: never;
             header?: never;
@@ -624,7 +644,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/course/review/notifications/{id}/read": {
+    "/api/v1/course/review/user/notifications/{id}/read": {
         parameters: {
             query?: never;
             header?: never;
@@ -641,7 +661,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/course/review/notifications/read-all": {
+    "/api/v1/course/review/user/notifications/read-all": {
         parameters: {
             query?: never;
             header?: never;
@@ -675,7 +695,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/course/review/drafts/{courseId}": {
+    "/api/v1/course/review/drafts/{courseID}": {
         parameters: {
             query?: never;
             header?: never;
@@ -693,7 +713,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/course/review/courses/{id}/favorite": {
+    "/api/v1/course/review/courses/{id}/favorites": {
         parameters: {
             query?: never;
             header?: never;
@@ -796,6 +816,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course/review/admin/reviews/{id}/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 管理员编辑评论内容 */
+        post: operations["adminEditReviewContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/course/review/admin/stats": {
         parameters: {
             query?: never;
@@ -847,6 +884,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course/review/admin/teachers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取教师列表（管理员） */
+        get: operations["listAdminTeachers"];
+        put?: never;
+        /** 新增教师 */
+        post: operations["createTeacher"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/review/admin/teachers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新教师 */
+        put: operations["updateTeacher"];
+        post?: never;
+        /** 删除教师 */
+        delete: operations["deleteTeacher"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/review/admin/sensitive-words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取敏感词列表 */
+        get: operations["listSensitiveWords"];
+        put?: never;
+        /** 新增敏感词 */
+        post: operations["createSensitiveWord"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/review/admin/sensitive-words/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新敏感词 */
+        put: operations["updateSensitiveWord"];
+        post?: never;
+        /** 删除敏感词 */
+        delete: operations["deleteSensitiveWord"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -876,8 +985,8 @@ export interface components {
             url: string;
         };
         CallbackResponse: {
-            token: string;
-            /** @description Token TTL in seconds */
+            user: components["schemas"]["UserInfo"];
+            /** @description Access token TTL in seconds */
             expiresIn: number;
         };
         RefreshResponse: {
@@ -963,8 +1072,12 @@ export interface components {
             replyCount: number;
             /** @enum {string} */
             status: "published" | "hidden" | "deleted";
+            /** @description 屏蔽原因（仅 hidden 状态时存在） */
+            moderationReason?: string | null;
             /** Format: date-time */
             createdAt: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         /** @description Map of dimension key to rating value (1-5) */
         ReviewRatings: {
@@ -1194,6 +1307,7 @@ export interface components {
         AdminUpdateReviewRequest: {
             /** @enum {string} */
             action: "hide" | "restore" | "delete";
+            reason?: string;
         };
         BatchUpdateReviewsRequest: {
             ids: string[];
@@ -1215,9 +1329,15 @@ export interface components {
             todayReviews: number;
             weekReviews: number;
         };
+        AdminEditReviewRequest: {
+            title?: string;
+            content: string;
+            reason?: string;
+        };
         AdminOperationLog: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
             adminUserID: string;
             adminUsername: string;
             action: string;
@@ -1233,6 +1353,55 @@ export interface components {
             userAgent?: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        AdminTeacher: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            departmentID?: number | null;
+            departmentName?: string | null;
+            reviewCount?: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreateTeacherRequest: {
+            name: string;
+            /** Format: int64 */
+            departmentID?: number;
+        };
+        UpdateTeacherRequest: {
+            name: string;
+            /** Format: int64 */
+            departmentID?: number | null;
+        };
+        AdminSensitiveWord: {
+            /** Format: uuid */
+            id: string;
+            word: string;
+            category: string;
+            /** @enum {string} */
+            level: "block" | "warn" | "review";
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CreateSensitiveWordRequest: {
+            word: string;
+            /** @default general */
+            category: string;
+            /**
+             * @default block
+             * @enum {string}
+             */
+            level: "block" | "warn" | "review";
+        };
+        UpdateSensitiveWordRequest: {
+            word?: string;
+            category?: string;
+            /** @enum {string} */
+            level?: "block" | "warn" | "review";
+            isActive?: boolean;
         };
         RadarChartDataset: {
             label: string;
@@ -1270,7 +1439,7 @@ export interface components {
         /** @description 通知 ID */
         NotificationIDPath: string;
         /** @description 课程 ID（用于草稿） */
-        CourseIdPath: number;
+        DraftCourseIDPath: number;
     };
     requestBodies: never;
     headers: never;
@@ -1494,6 +1663,8 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
         };
     };
@@ -1545,7 +1716,11 @@ export interface operations {
                     "application/json": {
                         /** @enum {boolean} */
                         success: true;
-                        data: components["schemas"]["MessageData"];
+                        data: {
+                            message: string;
+                            /** Format: uri */
+                            ssoLogoutURL: string;
+                        };
                     };
                 };
             };
@@ -1955,6 +2130,46 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    getBatchCourseReviews: {
+        parameters: {
+            query: {
+                /**
+                 * @description 逗号分隔的课程ID列表（最多20个）
+                 * @example 1,2,3
+                 */
+                courseIDs: string;
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+                sort?: "time" | "likes" | "rating";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 按课程ID分组的测评列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            [key: string]: {
+                                list: components["schemas"]["Review"][];
+                                total: number;
+                            };
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
     postReview: {
         parameters: {
             query?: never;
@@ -1983,6 +2198,7 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
@@ -2199,6 +2415,7 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
@@ -2351,6 +2568,7 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -2545,6 +2763,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -2571,6 +2790,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -2602,6 +2822,7 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
@@ -2612,7 +2833,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description 课程 ID（用于草稿） */
-                courseId: components["parameters"]["CourseIdPath"];
+                courseID: components["parameters"]["DraftCourseIDPath"];
             };
             cookie?: never;
         };
@@ -2642,7 +2863,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description 课程 ID（用于草稿） */
-                courseId: components["parameters"]["CourseIdPath"];
+                courseID: components["parameters"]["DraftCourseIDPath"];
             };
             cookie?: never;
         };
@@ -2662,6 +2883,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -2691,6 +2913,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
@@ -2721,6 +2944,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -2766,7 +2990,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description 举报 ID */
-                id: number;
+                id: string;
             };
             cookie?: never;
         };
@@ -2900,6 +3124,42 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    adminEditReviewContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 测评 ID */
+                id: components["parameters"]["ReviewIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description 编辑成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
     getAdminStats: {
         parameters: {
             query?: never;
@@ -2965,7 +3225,8 @@ export interface operations {
     exportReviews: {
         parameters: {
             query?: {
-                format?: "json" | "csv";
+                /** @description 导出格式。json 和 ndjson 均返回 NDJSON 流（每行一个 JSON 对象） */
+                format?: "json" | "ndjson" | "csv";
                 status?: "all" | "published" | "hidden" | "deleted";
             };
             header?: never;
@@ -2974,7 +3235,41 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 导出数据（JSON 格式返回 JSON，CSV 格式返回文件流） */
+            /**
+             * @description 流式导出数据。NDJSON 格式每行一个 JSON 对象，末尾追加 `# EXPORT_COMPLETE` 标记行；
+             *     CSV 格式包含 UTF-8 BOM 头，末尾同样追加完成标记。客户端应检查标记判断导出完整性。
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": string;
+                    "text/csv": string;
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminTeachers: {
+        parameters: {
+            query?: {
+                search?: string;
+                departmentID?: number;
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 教师分页列表 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2984,15 +3279,248 @@ export interface operations {
                         /** @enum {boolean} */
                         success: true;
                         data: {
-                            data: components["schemas"]["Review"][];
-                            count: number;
+                            list: components["schemas"]["AdminTeacher"][];
+                            total: number;
                         };
                     };
-                    "text/csv": string;
                 };
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    createTeacher: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTeacherRequest"];
+            };
+        };
+        responses: {
+            /** @description 创建成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: components["schemas"]["AdminTeacher"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateTeacher: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 教师 ID */
+                id: components["parameters"]["TeacherIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTeacherRequest"];
+            };
+        };
+        responses: {
+            /** @description 更新成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    deleteTeacher: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 教师 ID */
+                id: components["parameters"]["TeacherIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 删除成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listSensitiveWords: {
+        parameters: {
+            query?: {
+                category?: string;
+                level?: "block" | "warn" | "review";
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 敏感词分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            list: components["schemas"]["AdminSensitiveWord"][];
+                            total: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    createSensitiveWord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSensitiveWordRequest"];
+            };
+        };
+        responses: {
+            /** @description 创建成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: components["schemas"]["AdminSensitiveWord"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateSensitiveWord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSensitiveWordRequest"];
+            };
+        };
+        responses: {
+            /** @description 更新成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    deleteSensitiveWord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 删除成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };

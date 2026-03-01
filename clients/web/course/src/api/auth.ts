@@ -28,6 +28,7 @@ export interface CallbackResponse {
 // 登出响应
 export interface LogoutResponse {
   message: string
+  ssoLogoutURL?: string
 }
 
 // 获取登录 URL

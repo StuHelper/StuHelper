@@ -1,4 +1,4 @@
-/api/v1/course/review/notifications:
+/api/v1/course/review/user/notifications:
   get:
     tags: [Notification]
     operationId: getNotifications
@@ -38,7 +38,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/notifications/unread-count:
+/api/v1/course/review/user/notifications/unread-count:
   get:
     tags: [Notification]
     operationId: getUnreadCount
@@ -65,7 +65,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/notifications/{id}/read:
+/api/v1/course/review/user/notifications/{id}/read:
   put:
     tags: [Notification]
     operationId: markNotificationRead
@@ -96,7 +96,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/notifications/read-all:
+/api/v1/course/review/user/notifications/read-all:
   put:
     tags: [Notification]
     operationId: markAllNotificationsRead

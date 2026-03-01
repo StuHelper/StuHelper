@@ -44,7 +44,9 @@ export default {
     replyLoadFailed: 'Failed to load replies',
     deleteFailed: 'Delete failed',
     commentBtn: 'View replies',
-    expandContent: 'Expand content'
+    expandContent: 'Expand content',
+    titleLabel: 'Review title',
+    contentLabel: 'Review content'
   },
   post: {
     selectCourse: 'Select Course',
@@ -73,7 +75,12 @@ export default {
     success: 'Review posted successfully',
     failed: 'Post failed, please retry',
     searchCourse: 'Search course...',
-    searchCourseLabel: 'Search course'
+    searchCourseLabel: 'Search course',
+    teacherLabel: 'Instructor',
+    teacherOptional: 'Optional',
+    teacherPlaceholder: 'Select or type teacher name...',
+    teacherLoading: 'Loading teachers...',
+    teacherNone: 'No teacher data'
   },
   rating: {
     overall: 'Overall',
@@ -184,6 +191,28 @@ export default {
     workload: 'Workload',
     grading: 'Grading',
     fallback: 'Rating'
+  },
+  card: {
+    loginToView: 'Log in to view full content',
+    loginBtn: 'Log In',
+    contentHidden: 'This content has been hidden by a moderator'
+  },
+  admin: {
+    hide: 'Hide',
+    restore: 'Restore',
+    edit: 'Edit',
+    moderateTitle: 'Hide Review',
+    moderateReasonLabel: 'Reason (optional)',
+    moderateReasonPlaceholder: 'Enter reason for hiding...',
+    moderateConfirm: 'Confirm Hide',
+    editTitle: 'Edit Review Content',
+    editReasonLabel: 'Edit Reason',
+    editReasonPlaceholder: 'Enter reason for editing...',
+    editConfirm: 'Save Changes',
+    moderateSuccess: 'Review hidden',
+    restoreSuccess: 'Review restored',
+    editSuccess: 'Review content updated',
+    actionFailed: 'Action failed, please retry'
   },
   filter: {
     teacher: 'Teacher',

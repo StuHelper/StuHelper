@@ -17,6 +17,8 @@ import (
 type AdminUpdateReviewParams struct {
 	ReviewID string
 	Action   string
+	Reason   string // 可选，hide 时记录屏蔽原因
+	AdminID  string // 可选，hide/restore 时记录操作人
 }
 
 // validTransitions 定义合法的状态转移白名单
@@ -33,10 +35,10 @@ type AdminUpdateReviewResult struct {
 }
 
 // AdminUpdateReview 管理员更新评论，返回事务内读取的旧状态
+// hide 时如果提供了 Reason/AdminID，同时记录屏蔽原因；restore 时自动清除屏蔽信息
 func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) (*AdminUpdateReviewResult, error) {
 	var oldStatus string
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		// 在事务内获取状态，消除 TOCTOU 竞态
 		currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -46,7 +48,6 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 		}
 		oldStatus = currentStatus
 
-		// 校验状态转移合法性
 		allowed, ok := validTransitions[params.Action]
 		if !ok {
 			return ErrInvalidAction
@@ -60,9 +61,17 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, "hidden"); err != nil {
 				return err
 			}
+			if params.AdminID != "" {
+				if err := s.repo.ModerateReviewTx(ctx, tx, params.ReviewID, params.Reason, params.AdminID); err != nil {
+					return err
+				}
+			}
 			return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
 		case "restore":
 			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, "published"); err != nil {
+				return err
+			}
+			if err := s.repo.ClearModerationTx(ctx, tx, params.ReviewID); err != nil {
 				return err
 			}
 			return s.repo.IncrementCourseReviewCount(ctx, tx, courseID)
@@ -70,7 +79,6 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			if err := s.repo.SoftDeleteReview(ctx, tx, params.ReviewID); err != nil {
 				return err
 			}
-			// 从 published 删除时递减计数（hidden 状态已不计数）
 			if currentStatus == "published" {
 				return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
 			}
@@ -83,6 +91,30 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 		return nil, err
 	}
 	return &AdminUpdateReviewResult{OldStatus: oldStatus}, nil
+}
+
+// AdminEditReviewParams 管理员编辑评论内容参数
+type AdminEditReviewParams struct {
+	ReviewID string
+	Title    string
+	Content  string
+	Reason   string
+	AdminID  string
+}
+
+// AdminEditReview 管理员编辑评论内容
+func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewParams) error {
+	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		// 确认评论存在
+		_, _, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, params.ReviewID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrReviewNotFound
+			}
+			return err
+		}
+		return s.repo.AdminEditReviewContentTx(ctx, tx, params.ReviewID, params.Title, params.Content, params.Reason, params.AdminID)
+	})
 }
 
 // ListAllReviewsParams 获取所有评论参数

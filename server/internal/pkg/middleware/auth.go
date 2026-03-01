@@ -107,6 +107,43 @@ func GetIsAdmin(c *gin.Context) bool {
 	return false
 }
 
+// OptionalAuthMiddleware 可选认证中间件：尝试解析 token，成功则注入用户上下文，失败则静默跳过
+func OptionalAuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString := getTokenFromRequest(c)
+		if tokenString == "" {
+			c.Next()
+			return
+		}
+
+		// 检查黑名单，失败时静默跳过
+		isBlacklisted, err := tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), tokenString)
+		if err != nil || isBlacklisted {
+			c.Next()
+			return
+		}
+
+		claims, err := tokenService.ValidateToken(tokenString)
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		c.Set(CtxKeyUserID, claims.GetUserID())
+		c.Set(CtxKeyUsername, claims.GetUsername())
+		c.Set(CtxKeyEmail, claims.Email)
+		c.Set(CtxKeyDisplayName, claims.DisplayName)
+		c.Set(CtxKeyIsAdmin, claims.IsAdmin)
+
+		c.Next()
+	}
+}
+
+// IsAuthenticated 检查当前请求是否已认证
+func IsAuthenticated(c *gin.Context) bool {
+	return GetUserID(c) != ""
+}
+
 // getContextString 从上下文获取字符串值的通用函数
 func getContextString(c *gin.Context, key string) string {
 	if val, exists := c.Get(key); exists {

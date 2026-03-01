@@ -255,7 +255,10 @@ func (h *Handler) Logout(c *gin.Context) {
 	// 记录登出审计日志
 	audit.LogSuccess(audit.EventUserLogout, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
 
-	response.Success(c, gin.H{"message": "logout successful"})
+	response.Success(c, gin.H{
+		"message":      "logout successful",
+		"ssoLogoutURL": fmt.Sprintf("%s/api/logout", h.ssoEndpoint),
+	})
 }
 
 // LogoutAll 全设备登出

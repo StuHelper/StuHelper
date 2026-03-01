@@ -29,10 +29,10 @@ export function getMyFavorites(page = 1, pageSize = 10) {
 
 // 收藏课程
 export function addFavorite(courseID: number) {
-  return api.post<{ success: boolean }>(`/courses/${courseID}/favorite`)
+  return api.post<{ success: boolean }>(`/courses/${courseID}/favorites`)
 }
 
 // 取消收藏
 export function removeFavorite(courseID: number) {
-  return api.delete<{ success: boolean }>(`/courses/${courseID}/favorite`)
+  return api.delete<{ success: boolean }>(`/courses/${courseID}/favorites`)
 }

@@ -4,66 +4,74 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'clients/web/**'
+      - 'clients/web/course/**'
   pull_request:
     branches: [main, develop]
     paths:
-      - 'clients/web/**'
+      - 'clients/web/course/**'
 
 jobs:
   type-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          # TODO: Gitea Actions 可能不完全支持 setup-node 内置缓存，如不生效可移除此行
-          cache: 'npm'
-          cache-dependency-path: clients/web/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: clients/web/course/pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: clients/web
-        run: npm ci
+        working-directory: clients/web/course
+        run: pnpm install --frozen-lockfile
       - name: Type check
-        working-directory: clients/web
-        run: npm run type-check
+        working-directory: clients/web/course
+        run: pnpm run type-check
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: clients/web/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: clients/web/course/pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: clients/web
-        run: npm ci
+        working-directory: clients/web/course
+        run: pnpm install --frozen-lockfile
       - name: ESLint
-        working-directory: clients/web
-        run: npx eslint . --ext .ts,.tsx,.vue
+        working-directory: clients/web/course
+        run: pnpm exec eslint . --ext .ts,.tsx,.vue
       - name: Prettier check
-        working-directory: clients/web
-        run: npx prettier --check "src/**/*.{ts,tsx,vue,css,json}"
+        working-directory: clients/web/course
+        run: pnpm exec prettier --check "src/**/*.{ts,tsx,vue,css,json}"
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: clients/web/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: clients/web/course/pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: clients/web
-        run: npm ci
+        working-directory: clients/web/course
+        run: pnpm install --frozen-lockfile
       - name: Run tests
-        working-directory: clients/web
+        working-directory: clients/web/course
         run: |
-          if npx --no-install vitest --version > /dev/null 2>&1; then
-            npx vitest --run
+          if pnpm exec vitest --version > /dev/null 2>&1; then
+            pnpm exec vitest --run
           else
             echo "No test runner found, skipping tests"
           fi
@@ -73,14 +81,17 @@ jobs:
     needs: [type-check, lint, test]
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: clients/web/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: clients/web/course/pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: clients/web
-        run: npm ci
+        working-directory: clients/web/course
+        run: pnpm install --frozen-lockfile
       - name: Build
-        working-directory: clients/web
-        run: npm run build
+        working-directory: clients/web/course
+        run: pnpm run build

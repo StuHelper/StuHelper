@@ -48,7 +48,7 @@ func NewHandler(database *db.DB, rdb *redis.Client, ssoClient *sso.Client, rlCfg
 }
 
 // RegisterRoutes 注册评课社区路由
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAuthMiddleware gin.HandlerFunc) {
 	// 评分维度配置
 	r.GET("/rating-dimensions", h.GetRatingDimensions)
 
@@ -59,15 +59,15 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 	// 课程教师列表
 	r.GET("/courses/:id/teachers", h.GetCourseTeachers)
 
-	// 测评
-	r.GET("/courses/:id/reviews", h.GetCourseReviews)
-	r.GET("/reviews/latest", h.GetLatestReviews)
-	r.GET("/reviews/batch", h.GetBatchCourseReviews)
+	// 测评（使用 optionalAuth：已登录用户看完整内容，未登录用户看脱敏内容）
+	r.GET("/courses/:id/reviews", optionalAuthMiddleware, h.GetCourseReviews)
+	r.GET("/reviews/latest", optionalAuthMiddleware, h.GetLatestReviews)
+	r.GET("/reviews/batch", optionalAuthMiddleware, h.GetBatchCourseReviews)
 	r.POST("/reviews", authMiddleware, middleware.EndpointRateLimitMiddleware(h.postLimiter, "post-review"), h.PostReview)
 	r.PUT("/reviews/:id", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "update-review"), h.UpdateReview)
 	r.DELETE("/reviews/:id", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "delete-review"), h.DeleteReview)
-	r.POST("/reviews/:id/vote", authMiddleware, middleware.EndpointRateLimitMiddleware(h.voteLimiter, "vote"), h.VoteReview)
-	r.POST("/reviews/:id/report", authMiddleware, middleware.EndpointRateLimitMiddleware(h.reportLimiter, "report"), h.ReportReview)
+	r.POST("/reviews/:id/votes", authMiddleware, middleware.EndpointRateLimitMiddleware(h.voteLimiter, "vote"), h.VoteReview)
+	r.POST("/reviews/:id/reports", authMiddleware, middleware.EndpointRateLimitMiddleware(h.reportLimiter, "report"), h.ReportReview)
 
 	// 回复
 	r.GET("/reviews/:id/replies", h.GetReplies)
@@ -89,13 +89,11 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 		user.GET("/reviews", h.GetUserReviews)
 		user.GET("/votes", h.GetUserVotes)
 		user.GET("/favorites", h.GetUserFavorites)
+		user.GET("/notifications", h.GetNotifications)
+		user.GET("/notifications/unread-count", h.GetUnreadCount)
+		user.PUT("/notifications/:id/read", h.MarkNotificationRead)
+		user.PUT("/notifications/read-all", h.MarkAllNotificationsRead)
 	}
-
-	// 通知（需要认证）
-	r.GET("/notifications", authMiddleware, h.GetNotifications)
-	r.GET("/notifications/unread-count", authMiddleware, h.GetUnreadCount)
-	r.PUT("/notifications/:id/read", authMiddleware, h.MarkNotificationRead)
-	r.PUT("/notifications/read-all", authMiddleware, h.MarkAllNotificationsRead)
 
 	// 草稿（需要认证）
 	r.POST("/drafts", authMiddleware, h.SaveDraft)
@@ -103,8 +101,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 	r.DELETE("/drafts/:courseID", authMiddleware, h.DeleteDraft)
 
 	// 课程收藏（需要认证）
-	r.POST("/courses/:id/favorite", authMiddleware, h.AddFavorite)
-	r.DELETE("/courses/:id/favorite", authMiddleware, h.RemoveFavorite)
+	r.POST("/courses/:id/favorites", authMiddleware, h.AddFavorite)
+	r.DELETE("/courses/:id/favorites", authMiddleware, h.RemoveFavorite)
 
 	// 管理员路由组
 	admin := r.Group("/admin")
@@ -114,10 +112,23 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 		admin.PUT("/reports/:id", h.ProcessReport)
 		admin.GET("/reviews", h.ListAllReviews)
 		admin.PUT("/reviews/:id", h.AdminUpdateReview)
+		admin.POST("/reviews/:id/edit", h.AdminEditReviewContent)
 		admin.POST("/reviews/batch", h.BatchUpdateReviews)
 		admin.GET("/stats", h.GetAdminStats)
 		admin.GET("/logs", h.GetOperationLogs)
 		admin.GET("/export", h.ExportReviews)
+
+		// 教师管理
+		admin.GET("/teachers", h.ListAdminTeachers)
+		admin.POST("/teachers", h.CreateTeacher)
+		admin.PUT("/teachers/:id", h.UpdateTeacher)
+		admin.DELETE("/teachers/:id", h.DeleteTeacher)
+
+		// 敏感词管理
+		admin.GET("/sensitive-words", h.ListSensitiveWords)
+		admin.POST("/sensitive-words", h.CreateSensitiveWord)
+		admin.PUT("/sensitive-words/:id", h.UpdateSensitiveWord)
+		admin.DELETE("/sensitive-words/:id", h.DeleteSensitiveWord)
 	}
 }
 

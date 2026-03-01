@@ -163,6 +163,7 @@ func (h *Handler) ListAllReviews(c *gin.Context) {
 // AdminUpdateReviewRequest 管理员更新评论请求
 type AdminUpdateReviewRequest struct {
 	Action string `json:"action" binding:"required,oneof=hide restore delete"`
+	Reason string `json:"reason" binding:"max=500"`
 }
 
 // AdminUpdateReview 管理员更新评论
@@ -179,9 +180,14 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		return
 	}
 
+	userID := middleware.GetUserID(c)
+	username := middleware.GetUsername(c)
+
 	result, err := h.service.AdminUpdateReview(c.Request.Context(), AdminUpdateReviewParams{
 		ReviewID: reviewID,
 		Action:   req.Action,
+		Reason:   req.Reason,
+		AdminID:  userID,
 	})
 	if err != nil {
 		switch {
@@ -200,9 +206,11 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// 记录操作日志（oldStatus 来自事务内读取，无 TOCTOU 竞态）
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
+	// 记录操作日志
+	newValue := map[string]string{"action": req.Action}
+	if req.Reason != "" {
+		newValue["reason"] = req.Reason
+	}
 	if err := h.service.LogOperation(ctx, LogOperationParams{
 		AdminUserID:   userID,
 		AdminUsername: username,
@@ -210,7 +218,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		ResourceType:  "review",
 		ResourceID:    reviewID,
 		OldValue:      map[string]string{"status": result.OldStatus},
-		NewValue:      map[string]string{"action": req.Action},
+		NewValue:      newValue,
 		IPAddress:     c.ClientIP(),
 		UserAgent:     truncateUserAgent(c),
 	}); err != nil {
@@ -439,9 +447,76 @@ func (h *Handler) exportCSVStream(c *gin.Context, status string) {
 	}
 }
 
+// AdminEditReviewRequest 管理员编辑评论内容请求
+type AdminEditReviewRequest struct {
+	Title   string `json:"title" binding:"max=200"`
+	Content string `json:"content" binding:"required,min=1,max=5000"`
+	Reason  string `json:"reason" binding:"max=500"`
+}
+
+// AdminEditReviewContent 管理员编辑评论内容
+func (h *Handler) AdminEditReviewContent(c *gin.Context) {
+	reviewID, err := httputil.ParseUUIDParam(c, "id")
+	if err != nil {
+		response.BadRequest(c, "invalid review ID")
+		return
+	}
+
+	var req AdminEditReviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	userID := middleware.GetUserID(c)
+	username := middleware.GetUsername(c)
+
+	err = h.service.AdminEditReview(c.Request.Context(), AdminEditReviewParams{
+		ReviewID: reviewID,
+		Title:    req.Title,
+		Content:  req.Content,
+		Reason:   req.Reason,
+		AdminID:  userID,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrReviewNotFound):
+			response.NotFound(c, "review not found")
+		default:
+			logger.FromGin(c).Error("failed to edit review", zap.Error(err))
+			response.InternalError(c, "failed to edit review")
+		}
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// 记录操作日志
+	if err := h.service.LogOperation(ctx, LogOperationParams{
+		AdminUserID:   userID,
+		AdminUsername: username,
+		Action:        "edit_content",
+		ResourceType:  "review",
+		ResourceID:    reviewID,
+		OldValue:      nil,
+		NewValue:      map[string]string{"title": req.Title, "reason": req.Reason},
+		IPAddress:     c.ClientIP(),
+		UserAgent:     truncateUserAgent(c),
+	}); err != nil {
+		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
+	}
+
+	h.invalidateReviewCaches(c, 0)
+
+	response.Success(c, gin.H{"message": "review content updated successfully"})
+}
+
 // sanitizeCSVField 防止 CSV 公式注入（RFC 4180 转义由 csv.Writer 处理）
 // 同时检测 Unicode 全角变体（＝＋－＠），防止旧版 Excel 解释为公式
 func sanitizeCSVField(s string) string {
+	if s == "" {
+		return s
+	}
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
 		runes := []rune(strings.TrimLeft(line, " "))

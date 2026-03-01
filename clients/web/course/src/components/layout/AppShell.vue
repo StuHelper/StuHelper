@@ -32,19 +32,44 @@
 
         <div
           v-if="authStore.isAuthenticated"
-          class="w-8 h-8 rounded-full cursor-pointer overflow-hidden shrink-0 bg-gradient-to-br from-primary to-accent p-0.5"
-          @click="goToUser"
+          class="relative"
+          ref="userMenuRef"
         >
-          <img
-            v-if="authStore.user?.avatar"
-            :src="authStore.user.avatar"
-            :alt="authStore.user?.displayName || t('nav.userAvatar')"
-            loading="lazy"
-            decoding="async"
-            class="w-full h-full rounded-full object-cover"
-          />
-          <div v-else class="w-full h-full rounded-full bg-bg-card flex items-center justify-center text-sm font-semibold text-text-primary">
-            {{ avatarInitial }}
+          <button
+            class="w-8 h-8 rounded-full cursor-pointer overflow-hidden shrink-0 bg-gradient-to-br from-primary to-accent p-0.5"
+            @click="userMenuOpen = !userMenuOpen"
+          >
+            <img
+              v-if="authStore.user?.avatar"
+              :src="authStore.user.avatar"
+              :alt="authStore.user?.displayName || t('nav.userAvatar')"
+              loading="lazy"
+              decoding="async"
+              class="w-full h-full rounded-full object-cover"
+            />
+            <div v-else class="w-full h-full rounded-full bg-bg-card flex items-center justify-center text-sm font-semibold text-text-primary">
+              {{ avatarInitial }}
+            </div>
+          </button>
+          <div
+            v-if="userMenuOpen"
+            class="absolute right-0 top-full mt-1.5 w-40 bg-bg-card border border-border rounded-lg shadow-md py-1 z-[var(--z-dropdown)] animate-fade-in"
+          >
+            <button
+              class="flex items-center gap-2 w-full px-3 py-2 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
+              @click="goToUser"
+            >
+              <User class="size-4" />
+              {{ t('nav.profile') }}
+            </button>
+            <div class="h-px bg-border mx-2 my-0.5" />
+            <button
+              class="flex items-center gap-2 w-full px-3 py-2 text-sm text-danger transition-colors duration-fast hover:bg-danger/10"
+              @click="handleLogout"
+            >
+              <LogOut class="size-4" />
+              {{ t('nav.logout') }}
+            </button>
           </div>
         </div>
 
@@ -77,7 +102,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { PenLine } from 'lucide-vue-next'
+import { PenLine, LogOut, User } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useReviewPost } from '@/composables/useReviewPost'
 import FloatingModuleNav from './FloatingModuleNav.vue'
@@ -96,6 +121,8 @@ const { openPostModal } = useReviewPost()
 const isReviewRoute = computed(() => route.path.startsWith('/review'))
 
 const isScrolled = ref(false)
+const userMenuOpen = ref(false)
+const userMenuRef = ref<HTMLElement | null>(null)
 // M-43: 滚动节流，避免高频触发
 let scrollTicking = false
 
@@ -105,7 +132,24 @@ const avatarInitial = computed(() => {
 })
 
 function goToUser() {
+  userMenuOpen.value = false
   router.push('/user')
+}
+
+async function handleLogout() {
+  userMenuOpen.value = false
+  const ssoLogoutURL = await authStore.logout()
+  if (ssoLogoutURL) {
+    window.location.href = ssoLogoutURL
+  } else {
+    router.push('/')
+  }
+}
+
+function onClickOutside(e: MouseEvent) {
+  if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
+    userMenuOpen.value = false
+  }
 }
 
 function handleScroll() {
@@ -122,9 +166,11 @@ onMounted(() => {
   isScrolled.value = window.scrollY > 10
   // L-16: passive 已设置
   window.addEventListener('scroll', handleScroll, { passive: true })
+  document.addEventListener('click', onClickOutside, true)
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  document.removeEventListener('click', onClickOutside, true)
 })
 </script>

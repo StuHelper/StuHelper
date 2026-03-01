@@ -62,6 +62,35 @@
 
             <!-- 表单 -->
             <template v-if="selectedCourse">
+              <!-- 教师选择器 -->
+              <div class="relative">
+                <label for="review-teacher-input" class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.teacherLabel') }} <span class="text-text-muted font-normal text-xs">（{{ t('review.post.teacherOptional') }}）</span></label>
+                <div v-if="loadingTeachers" class="text-xs text-text-muted py-2">{{ t('review.post.teacherLoading') }}</div>
+                <div v-else class="relative">
+                  <input
+                    id="review-teacher-input"
+                    v-model="teacherQuery"
+                    autocomplete="off"
+                    class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+                    :placeholder="t('review.post.teacherPlaceholder')"
+                    @focus="teacherDropdownOpen = true"
+                    @input="selectedTeacherID = undefined"
+                  />
+                  <button v-if="teacherQuery" class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary" @click="clearTeacher">&times;</button>
+                  <div v-if="teacherDropdownOpen && filteredTeachers.length > 0" class="absolute left-0 right-0 mt-1 border border-border rounded-lg bg-bg-card shadow-md max-h-[160px] overflow-y-auto z-10">
+                    <button
+                      v-for="teacher in filteredTeachers"
+                      :key="teacher.teacherID"
+                      class="flex items-center justify-between w-full p-2.5 text-left text-sm text-text-primary hover:bg-bg-hover transition-colors duration-fast"
+                      @mousedown.prevent="selectTeacher(teacher)"
+                    >
+                      <span>{{ teacher.teacherName }}</span>
+                      <span class="text-xs text-text-muted">{{ teacher.departmentName }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div class="relative">
                 <label for="review-title-input" class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.titleRequired') }} <span class="text-danger text-xs">*</span></label>
                 <input
@@ -175,7 +204,7 @@
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { searchCourses } from '@/api/course'
+import { searchCourses, getCourseTeachers } from '@/api/course'
 import { postReview } from '@/api/review'
 import { saveDraft, getDraft, deleteDraft } from '@/api/draft'
 import { useToast } from '@/composables/useToast'
@@ -187,7 +216,7 @@ import {
   REVIEW_CONTENT_MAX_LENGTH
 } from '@/constants/review'
 import RatingGroup from './RatingGroup.vue'
-import type { Course } from '@/types/course'
+import type { Course, TeacherStats } from '@/types/course'
 import type { ReviewRatings } from '@/types/review'
 
 const props = defineProps<{ visible: boolean }>()
@@ -243,6 +272,11 @@ const attempted = ref(false)
 const redirectCountdown = ref(0)
 const showCancelConfirm = ref(false)
 const savingDraft = ref(false)
+const teacherList = ref<TeacherStats[]>([])
+const selectedTeacherID = ref<number | undefined>(undefined)
+const teacherQuery = ref('')
+const teacherDropdownOpen = ref(false)
+const loadingTeachers = ref(false)
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
@@ -480,10 +514,15 @@ watch(() => props.visible, async (val) => {
     courseQuery.value = ''
     courseResults.value = []
     selectedCourse.value = preselectedCourse.value ?? null
+    if (selectedCourse.value) loadTeachers(selectedCourse.value.id)
     title.value = ''
     content.value = contentTemplate.value
     grade.value = ''
     ratings.value = {}
+    teacherList.value = []
+    selectedTeacherID.value = undefined
+    teacherQuery.value = ''
+    teacherDropdownOpen.value = false
     submitting.value = false
     attempted.value = false
     showCancelConfirm.value = false
@@ -514,6 +553,36 @@ function selectCourse(course: Course) {
   selectedCourse.value = course
   courseQuery.value = ''
   courseResults.value = []
+  loadTeachers(course.id)
+}
+
+async function loadTeachers(courseID: number) {
+  loadingTeachers.value = true
+  teacherList.value = []
+  selectedTeacherID.value = undefined
+  teacherQuery.value = ''
+  try {
+    const res = await getCourseTeachers(courseID)
+    teacherList.value = res.data ?? []
+  } catch { /* 静默忽略 */ }
+  finally { loadingTeachers.value = false }
+}
+
+const filteredTeachers = computed(() => {
+  const q = teacherQuery.value.trim().toLowerCase()
+  if (!q) return teacherList.value
+  return teacherList.value.filter(t => t.teacherName.toLowerCase().includes(q))
+})
+
+function selectTeacher(teacher: TeacherStats) {
+  selectedTeacherID.value = teacher.teacherID
+  teacherQuery.value = teacher.teacherName
+  teacherDropdownOpen.value = false
+}
+
+function clearTeacher() {
+  selectedTeacherID.value = undefined
+  teacherQuery.value = ''
 }
 
 /** 尝试恢复草稿：两端 + 清除时间戳三方比较，取最新的 */
@@ -625,6 +694,7 @@ async function handleSubmit() {
   try {
     await postReview({
       courseID: selectedCourse.value.id,
+      teacherID: selectedTeacherID.value,
       title: title.value.trim() || undefined,
       content: content.value.trim(),
       grade: grade.value.trim() || undefined,

@@ -16,12 +16,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onErrorCaptured } from 'vue'
+import { ref, onErrorCaptured, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle } from 'lucide-vue-next'
 
 const { t } = useI18n()
+const route = useRoute()
 const error = ref<Error | null>(null)
+
+// 路由切换时自动清除错误状态，恢复正常渲染
+watch(() => route.fullPath, () => {
+  if (error.value) {
+    error.value = null
+    retryCount = 0
+  }
+})
 
 onErrorCaptured((err: Error) => {
   console.error('[ErrorBoundary] Captured error:', err)

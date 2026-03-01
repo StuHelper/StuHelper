@@ -21,6 +21,8 @@ export default {
   admin: '管理后台',
   adminReports: '举报管理',
   adminReviews: '评论管理',
+  adminTeachers: '教师管理',
+  adminSensitiveWords: '敏感词管理',
   adminLogs: '操作日志',
   rankings: '排行榜',
   // 页面描述（用于 meta description）

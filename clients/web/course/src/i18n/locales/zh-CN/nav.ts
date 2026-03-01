@@ -16,6 +16,7 @@ export default {
   login: '登录',
   logout: '退出登录',
   user: '用户',
+  profile: '个人中心',
   searchPlaceholder: '搜索课程...',
   searchCoursePlaceholder: '搜索课程名称、教师...',
   searchResults: '搜索结果',

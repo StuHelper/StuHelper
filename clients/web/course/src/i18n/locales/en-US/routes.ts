@@ -21,6 +21,8 @@ export default {
   admin: 'Admin Dashboard',
   adminReports: 'Reports',
   adminReviews: 'Reviews Management',
+  adminTeachers: 'Teacher Management',
+  adminSensitiveWords: 'Sensitive Words',
   adminLogs: 'Operation Logs',
   rankings: 'Rankings',
   // Page descriptions (for meta description)

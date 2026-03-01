@@ -98,19 +98,20 @@ func (r *Repository) ListCourseRatingStats(ctx context.Context, courseID int64) 
 func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Review, error) {
 	var item Review
 	err := r.db.QueryRow(ctx, `
-		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
+		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.created_at, r.updated_at
+		       r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.id = $1 AND r.status = 'published'
+		WHERE r.id = $1 AND r.status IN ('published', 'hidden')
 	`, reviewID).Scan(
 		&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
 		&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
-		&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt, &item.UpdatedAt,
+		&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
+		&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -242,13 +243,13 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 		       sub.title, sub.content, sub.grade, sub.ratings,
 		       sub.like_count, sub.dislike_count,
 		       sub.reply_count,
-		       sub.status, sub.created_at, sub.updated_at,
+		       sub.status, sub.moderation_reason, sub.created_at, sub.updated_at,
 		       sub.total
 		FROM unnest($1::bigint[]) AS cid(id)
 		CROSS JOIN LATERAL (
 			SELECT r.*, COUNT(*) OVER() AS total
 			FROM reviews r
-			WHERE r.course_id = cid.id AND r.status = 'published'
+			WHERE r.course_id = cid.id AND r.status IN ('published', 'hidden')
 			ORDER BY `+orderBy+`
 			LIMIT $2
 		) sub
@@ -271,7 +272,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 			&item.ID, &item.CourseName, &item.TeacherID, &item.TeacherName,
 			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
 			&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
-			&item.Status, &item.CreatedAt, &item.UpdatedAt,
+			&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 			&total,
 		); err != nil {
 			return nil, nil, fmt.Errorf("ListByMultipleCourses scan: %w", err)
@@ -286,6 +287,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 
 	return reviewsMap, totalsMap, nil
 }
+
 
 // allowedSortOrders 排序参数白名单（纵深防御：即使 handler 层已校验，Repository 层也独立校验）
 // L-56: 列别名约定 — 所有别名均使用 "r." 前缀引用 reviews 表列，
@@ -312,16 +314,16 @@ type ListByCourseWithSortParams struct {
 func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWithSortParams) ([]Review, int, error) {
 	var qb strings.Builder
 	qb.WriteString(`
-		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
+		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.created_at, r.updated_at,
+		       r.status, r.moderation_reason, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.course_id = $1 AND r.status = 'published'
+		WHERE r.course_id = $1 AND r.status IN ('published', 'hidden')
 	`)
 	args := []interface{}{p.CourseID}
 	argIdx := 2
@@ -358,11 +360,11 @@ func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWit
 // ListByUserHash 获取用户的评论列表（含总数）
 func (r *Repository) ListByUserHash(ctx context.Context, userHash string, limit, offset int) ([]Review, int, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
+		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.created_at, r.updated_at,
+		       r.status, r.moderation_reason, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
@@ -381,11 +383,11 @@ func (r *Repository) ListByUserHash(ctx context.Context, userHash string, limit,
 // ListVotedReviews 获取用户点赞/踩的评论列表（含总数）
 func (r *Repository) ListVotedReviews(ctx context.Context, userHash, voteType string, limit, offset int) ([]Review, int, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
+		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.created_at, r.updated_at,
+		       r.status, r.moderation_reason, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		JOIN review_votes rv ON rv.review_id = r.id

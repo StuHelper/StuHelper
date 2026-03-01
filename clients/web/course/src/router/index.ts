@@ -144,6 +144,18 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'routes.adminReviews' }
       },
       {
+        path: 'teachers',
+        name: 'admin-teachers',
+        component: lazyLoad(() => import('@/views/admin/TeachersManagePage.vue')),
+        meta: { titleKey: 'routes.adminTeachers' }
+      },
+      {
+        path: 'sensitive-words',
+        name: 'admin-sensitive-words',
+        component: lazyLoad(() => import('@/views/admin/SensitiveWordsPage.vue')),
+        meta: { titleKey: 'routes.adminSensitiveWords' }
+      },
+      {
         path: 'logs',
         name: 'admin-logs',
         component: lazyLoad(() => import('@/views/admin/LogsPage.vue')),

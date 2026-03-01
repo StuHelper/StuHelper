@@ -20,7 +20,8 @@ export default {
     back: 'Back',
     more: 'More',
     close: 'Close',
-    operationFailed: 'Operation failed, please retry'
+    operationFailed: 'Operation failed, please retry',
+    refresh: 'Refresh'
   },
   status: {
     available: 'Available',

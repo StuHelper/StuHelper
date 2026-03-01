@@ -242,8 +242,10 @@ func run() error {
 		authHandler.RegisterRoutes(api)
 
 		// 注册课程模块路由
+		authMW := middleware.AuthMiddleware(tokenService)
+		optionalAuthMW := middleware.OptionalAuthMiddleware(tokenService)
 		courseHandler := course.NewHandler(database, redisClient.GetClient(), ssoClient, cfg)
-		courseHandler.RegisterRoutes(api, middleware.AuthMiddleware(tokenService))
+		courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 
 		// 启动后台定时任务（日志清理等）
 		bgCtx, bgCancel := context.WithCancel(context.Background())

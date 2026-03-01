@@ -93,10 +93,10 @@ paths:
     $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews'
   /api/v1/course/review/reviews/{id}:
     $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{id}'
-  /api/v1/course/review/reviews/{id}/vote:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{id}~1vote'
-  /api/v1/course/review/reviews/{id}/report:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{id}~1report'
+  /api/v1/course/review/reviews/{id}/votes:
+    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{id}~1votes'
+  /api/v1/course/review/reviews/{id}/reports:
+    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{id}~1reports'
 
   # ── Review: Replies ──
   /api/v1/course/review/reviews/{id}/replies:
@@ -122,15 +122,15 @@ paths:
   /api/v1/course/review/user/favorites:
     $ref: 'paths/review-user.yaml#/~1api~1v1~1course~1review~1user~1favorites'
 
-  # ── Review: Notifications ──
-  /api/v1/course/review/notifications:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1notifications'
-  /api/v1/course/review/notifications/unread-count:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1notifications~1unread-count'
-  /api/v1/course/review/notifications/{id}/read:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1notifications~1{id}~1read'
-  /api/v1/course/review/notifications/read-all:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1notifications~1read-all'
+  # ── Review: Notifications (under /user/) ──
+  /api/v1/course/review/user/notifications:
+    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications'
+  /api/v1/course/review/user/notifications/unread-count:
+    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1unread-count'
+  /api/v1/course/review/user/notifications/{id}/read:
+    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1{id}~1read'
+  /api/v1/course/review/user/notifications/read-all:
+    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1read-all'
 
   # ── Review: Drafts ──
   /api/v1/course/review/drafts:
@@ -139,8 +139,8 @@ paths:
     $ref: 'paths/review-draft.yaml#/~1api~1v1~1course~1review~1drafts~1{courseID}'
 
   # ── Review: Favorites ──
-  /api/v1/course/review/courses/{id}/favorite:
-    $ref: 'paths/review-favorite.yaml#/~1api~1v1~1course~1review~1courses~1{id}~1favorite'
+  /api/v1/course/review/courses/{id}/favorites:
+    $ref: 'paths/review-favorite.yaml#/~1api~1v1~1course~1review~1courses~1{id}~1favorites'
 
   # ── Review: Admin ──
   /api/v1/course/review/admin/reports:
@@ -153,12 +153,22 @@ paths:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{id}'
   /api/v1/course/review/admin/reviews/batch:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1batch'
+  /api/v1/course/review/admin/reviews/{id}/edit:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{id}~1edit'
   /api/v1/course/review/admin/stats:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1stats'
   /api/v1/course/review/admin/logs:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1logs'
   /api/v1/course/review/admin/export:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1export'
+  /api/v1/course/review/admin/teachers:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers'
+  /api/v1/course/review/admin/teachers/{id}:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers~1{id}'
+  /api/v1/course/review/admin/sensitive-words:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words'
+  /api/v1/course/review/admin/sensitive-words/{id}:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words~1{id}'
 
 components:
   securitySchemes:
@@ -275,8 +285,22 @@ components:
       $ref: 'components/schemas/admin.yaml#/BatchUpdateResult'
     AdminStats:
       $ref: 'components/schemas/admin.yaml#/AdminStats'
+    AdminEditReviewRequest:
+      $ref: 'components/schemas/admin.yaml#/AdminEditReviewRequest'
     AdminOperationLog:
       $ref: 'components/schemas/admin.yaml#/AdminOperationLog'
+    AdminTeacher:
+      $ref: 'components/schemas/admin.yaml#/AdminTeacher'
+    CreateTeacherRequest:
+      $ref: 'components/schemas/admin.yaml#/CreateTeacherRequest'
+    UpdateTeacherRequest:
+      $ref: 'components/schemas/admin.yaml#/UpdateTeacherRequest'
+    AdminSensitiveWord:
+      $ref: 'components/schemas/admin.yaml#/AdminSensitiveWord'
+    CreateSensitiveWordRequest:
+      $ref: 'components/schemas/admin.yaml#/CreateSensitiveWordRequest'
+    UpdateSensitiveWordRequest:
+      $ref: 'components/schemas/admin.yaml#/UpdateSensitiveWordRequest'
 
   parameters:
     PageParam:

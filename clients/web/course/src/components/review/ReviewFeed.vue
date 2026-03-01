@@ -39,6 +39,7 @@
           v-for="review in reviews"
           :key="review.id"
           :review="review"
+          @moderated="() => loadReviews(true)"
         />
       </div>
 

@@ -42,11 +42,11 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 
 	var qb strings.Builder
 	qb.WriteString(`
-		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
+		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.created_at,
+		       r.status, r.moderation_reason, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
@@ -482,7 +482,7 @@ func buildExportQuery(status string) (string, []interface{}) {
 			r.term_id, r.title, r.content, r.grade, r.ratings,
 			r.like_count, r.dislike_count,
 			r.reply_count,
-			r.status, r.created_at, r.updated_at
+			r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON r.course_id = c.id
 		LEFT JOIN teachers t ON r.teacher_id = t.id`
@@ -515,7 +515,8 @@ func (r *Repository) ForEachReviewForExport(ctx context.Context, status string, 
 			&review.TermID, &review.Title, &review.Content,
 			&review.Grade, &review.Ratings,
 			&review.LikeCount, &review.DislikeCount,
-			&review.ReplyCount, &review.Status, &review.CreatedAt, &review.UpdatedAt,
+			&review.ReplyCount, &review.Status, &review.ModerationReason,
+			&review.CreatedAt, &review.UpdatedAt,
 		); err != nil {
 			return fmt.Errorf("ForEachReviewForExport scan: %w", err)
 		}
@@ -525,6 +526,51 @@ func (r *Repository) ForEachReviewForExport(ctx context.Context, status string, 
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("ForEachReviewForExport rows iteration: %w", err)
+	}
+	return nil
+}
+
+// ModerateReviewTx 设置屏蔽原因 + 状态（事务内执行）
+func (r *Repository) ModerateReviewTx(ctx context.Context, tx pgx.Tx, reviewID, reason, moderatedBy string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE reviews SET
+			moderation_reason = $2, moderated_by = $3, moderated_at = NOW(),
+			updated_at = NOW()
+		WHERE id = $1
+	`, reviewID, reason, moderatedBy)
+	if err != nil {
+		return fmt.Errorf("ModerateReviewTx: %w", err)
+	}
+	return nil
+}
+
+// ClearModerationTx 恢复时清除屏蔽信息（事务内执行）
+func (r *Repository) ClearModerationTx(ctx context.Context, tx pgx.Tx, reviewID string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE reviews SET
+			moderation_reason = NULL, moderated_by = NULL, moderated_at = NULL,
+			updated_at = NOW()
+		WHERE id = $1
+	`, reviewID)
+	if err != nil {
+		return fmt.Errorf("ClearModerationTx: %w", err)
+	}
+	return nil
+}
+
+// AdminEditReviewContentTx 管理员编辑内容（首次编辑保存原始内容，事务内执行）
+func (r *Repository) AdminEditReviewContentTx(ctx context.Context, tx pgx.Tx, reviewID, title, content, reason, moderatedBy string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE reviews SET
+			original_title = CASE WHEN original_title IS NULL THEN title ELSE original_title END,
+			original_content = CASE WHEN original_content IS NULL THEN content ELSE original_content END,
+			title = $2, content = $3,
+			moderation_reason = $4, moderated_by = $5, moderated_at = NOW(),
+			updated_at = NOW()
+		WHERE id = $1
+	`, reviewID, title, content, reason, moderatedBy)
+	if err != nil {
+		return fmt.Errorf("AdminEditReviewContentTx: %w", err)
 	}
 	return nil
 }

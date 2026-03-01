@@ -20,7 +20,8 @@ export default {
     back: '返回',
     more: '更多',
     close: '关闭',
-    operationFailed: '操作失败，请重试'
+    operationFailed: '操作失败，请重试',
+    refresh: '刷新'
   },
   status: {
     available: '可用',

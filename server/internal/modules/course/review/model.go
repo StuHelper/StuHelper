@@ -24,24 +24,29 @@ func (r *ReviewRatings) Scan(value interface{}) error {
 
 // Review 测评
 type Review struct {
-	ID           string        `json:"id"`
-	CourseID     int64         `json:"courseID"`
-	CourseName   string        `json:"courseName,omitempty"`
-	TeacherID    *int64        `json:"teacherID,omitempty"`
-	TeacherName  string        `json:"teacherName,omitempty"`
-	TermID       string        `json:"termID,omitempty"`
-	TermName     string        `json:"termName,omitempty"`
-	UserHash     string        `json:"-"`
-	Title        string        `json:"title,omitempty"`
-	Content      string        `json:"content"`
-	Grade        string        `json:"grade,omitempty"`
-	Ratings      ReviewRatings `json:"ratings"`
-	LikeCount    int           `json:"likeCount"`
-	DislikeCount int           `json:"dislikeCount"`
-	ReplyCount   int           `json:"replyCount"`
-	Status       string        `json:"status"`
-	CreatedAt    time.Time     `json:"createdAt"`
-	UpdatedAt    time.Time     `json:"updatedAt"`
+	ID               string        `json:"id"`
+	CourseID         int64         `json:"courseID"`
+	CourseName       string        `json:"courseName,omitempty"`
+	TeacherID        *int64        `json:"teacherID,omitempty"`
+	TeacherName      string        `json:"teacherName,omitempty"`
+	TermID           string        `json:"termID,omitempty"`
+	TermName         string        `json:"termName,omitempty"`
+	UserHash         string        `json:"-"`
+	Title            string        `json:"title,omitempty"`
+	Content          string        `json:"content"`
+	Grade            string        `json:"grade,omitempty"`
+	Ratings          ReviewRatings `json:"ratings"`
+	LikeCount        int           `json:"likeCount"`
+	DislikeCount     int           `json:"dislikeCount"`
+	ReplyCount       int           `json:"replyCount"`
+	Status           string        `json:"status"`
+	ModerationReason *string       `json:"moderationReason,omitempty"`
+	OriginalContent  *string       `json:"-"`
+	OriginalTitle    *string       `json:"-"`
+	ModeratedBy      *string       `json:"-"`
+	ModeratedAt      *time.Time    `json:"-"`
+	CreatedAt        time.Time     `json:"createdAt"`
+	UpdatedAt        time.Time     `json:"updatedAt"`
 }
 
 // RatingDimension 评分维度配置
@@ -245,6 +250,16 @@ type TeacherCourse struct {
 	Name        string   `json:"name"`
 	AvgRating   *float64 `json:"avgRating"`
 	ReviewCount int      `json:"reviewCount"`
+}
+
+// AdminTeacher 管理后台教师（含院系名和评论数）
+type AdminTeacher struct {
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	DepartmentID   *int64    `json:"departmentID,omitempty"`
+	DepartmentName *string   `json:"departmentName,omitempty"`
+	ReviewCount    int       `json:"reviewCount"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 // SensitiveWord 敏感词

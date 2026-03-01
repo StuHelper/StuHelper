@@ -12,7 +12,7 @@
 
     <!-- Error State -->
     <div v-else-if="error" class="text-center py-12">
-      <p class="text-text-muted mb-4">{{ t('common.error.loadFailed') }}</p>
+      <p class="text-text-muted mb-4">{{ t('common.loadFailed') }}</p>
       <button
         class="px-4 py-2 bg-primary text-white rounded-lg border-none cursor-pointer text-sm"
         @click="fetchCourse()"
@@ -85,7 +85,7 @@
         </div>
 
         <div class="flex flex-col gap-4 mb-4">
-          <ReviewCard v-for="r in filteredReviews" :key="r.id" :review="r" />
+          <ReviewCard v-for="r in filteredReviews" :key="r.id" :review="r" @moderated="handleReviewModerated" />
         </div>
 
         <EmptyState v-if="!reviewsLoading && reviews.length === 0" :title="t('review.course.noReviews')" />
@@ -283,6 +283,12 @@ const handlePosted = () => {
   const version = ++loadVersion
   fetchReviews(false, version)
   fetchRatingStats()
+}
+
+const handleReviewModerated = () => {
+  page.value = 1
+  const version = ++loadVersion
+  fetchReviews(false, version)
 }
 
 // 通过 ReviewDialog 发布测评后刷新数据

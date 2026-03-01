@@ -21,7 +21,15 @@ import (
 )
 
 const (
+	BearerAuthScopes = "bearerAuth.Scopes"
 	CookieAuthScopes = "cookieAuth.Scopes"
+)
+
+// Defines values for AdminSensitiveWordLevel.
+const (
+	AdminSensitiveWordLevelBlock  AdminSensitiveWordLevel = "block"
+	AdminSensitiveWordLevelReview AdminSensitiveWordLevel = "review"
+	AdminSensitiveWordLevelWarn   AdminSensitiveWordLevel = "warn"
 )
 
 // Defines values for AdminUpdateReviewRequestAction.
@@ -40,8 +48,15 @@ const (
 
 // Defines values for ContentCheckResultLevel.
 const (
-	Block ContentCheckResultLevel = "block"
-	Warn  ContentCheckResultLevel = "warn"
+	ContentCheckResultLevelBlock ContentCheckResultLevel = "block"
+	ContentCheckResultLevelWarn  ContentCheckResultLevel = "warn"
+)
+
+// Defines values for CreateSensitiveWordRequestLevel.
+const (
+	CreateSensitiveWordRequestLevelBlock  CreateSensitiveWordRequestLevel = "block"
+	CreateSensitiveWordRequestLevelReview CreateSensitiveWordRequestLevel = "review"
+	CreateSensitiveWordRequestLevelWarn   CreateSensitiveWordRequestLevel = "warn"
 )
 
 // Defines values for ErrorResponseBodySuccess.
@@ -160,6 +175,13 @@ const (
 	UpdateReviewRequestGradeF  UpdateReviewRequestGrade = "F"
 )
 
+// Defines values for UpdateSensitiveWordRequestLevel.
+const (
+	UpdateSensitiveWordRequestLevelBlock  UpdateSensitiveWordRequestLevel = "block"
+	UpdateSensitiveWordRequestLevelReview UpdateSensitiveWordRequestLevel = "review"
+	UpdateSensitiveWordRequestLevelWarn   UpdateSensitiveWordRequestLevel = "warn"
+)
+
 // Defines values for VoteRequestVoteType.
 const (
 	VoteRequestVoteTypeDislike VoteRequestVoteType = "dislike"
@@ -168,8 +190,9 @@ const (
 
 // Defines values for ExportReviewsParamsFormat.
 const (
-	Csv  ExportReviewsParamsFormat = "csv"
-	Json ExportReviewsParamsFormat = "json"
+	Csv    ExportReviewsParamsFormat = "csv"
+	Json   ExportReviewsParamsFormat = "json"
+	Ndjson ExportReviewsParamsFormat = "ndjson"
 )
 
 // Defines values for ExportReviewsParamsStatus.
@@ -196,6 +219,13 @@ const (
 	ListAllReviewsParamsStatusPublished ListAllReviewsParamsStatus = "published"
 )
 
+// Defines values for ListSensitiveWordsParamsLevel.
+const (
+	ListSensitiveWordsParamsLevelBlock  ListSensitiveWordsParamsLevel = "block"
+	ListSensitiveWordsParamsLevelReview ListSensitiveWordsParamsLevel = "review"
+	ListSensitiveWordsParamsLevelWarn   ListSensitiveWordsParamsLevel = "warn"
+)
+
 // Defines values for GetCourseReviewsParamsSort.
 const (
 	GetCourseReviewsParamsSortLikes  GetCourseReviewsParamsSort = "likes"
@@ -210,11 +240,18 @@ const (
 	GetHotCoursesParamsPeriodWeek  GetHotCoursesParamsPeriod = "week"
 )
 
+// Defines values for GetBatchCourseReviewsParamsSort.
+const (
+	GetBatchCourseReviewsParamsSortLikes  GetBatchCourseReviewsParamsSort = "likes"
+	GetBatchCourseReviewsParamsSortRating GetBatchCourseReviewsParamsSort = "rating"
+	GetBatchCourseReviewsParamsSortTime   GetBatchCourseReviewsParamsSort = "time"
+)
+
 // Defines values for GetLatestReviewsParamsSort.
 const (
-	GetLatestReviewsParamsSortLikes  GetLatestReviewsParamsSort = "likes"
-	GetLatestReviewsParamsSortRating GetLatestReviewsParamsSort = "rating"
-	GetLatestReviewsParamsSortTime   GetLatestReviewsParamsSort = "time"
+	Likes  GetLatestReviewsParamsSort = "likes"
+	Rating GetLatestReviewsParamsSort = "rating"
+	Time   GetLatestReviewsParamsSort = "time"
 )
 
 // Defines values for GetUserVotesParamsVoteType.
@@ -230,10 +267,17 @@ type APIError struct {
 	Message string                  `json:"message"`
 }
 
+// AdminEditReviewRequest defines model for AdminEditReviewRequest.
+type AdminEditReviewRequest struct {
+	Content string  `json:"content"`
+	Reason  *string `json:"reason,omitempty"`
+	Title   *string `json:"title,omitempty"`
+}
+
 // AdminOperationLog defines model for AdminOperationLog.
 type AdminOperationLog struct {
 	Action        string                  `json:"action"`
-	AdminUserID   string                  `json:"adminUserID"`
+	AdminUserID   openapi_types.UUID      `json:"adminUserID"`
 	AdminUsername string                  `json:"adminUsername"`
 	CreatedAt     time.Time               `json:"createdAt"`
 	Id            openapi_types.UUID      `json:"id"`
@@ -244,6 +288,19 @@ type AdminOperationLog struct {
 	ResourceType  string                  `json:"resourceType"`
 	UserAgent     *string                 `json:"userAgent,omitempty"`
 }
+
+// AdminSensitiveWord defines model for AdminSensitiveWord.
+type AdminSensitiveWord struct {
+	Category  string                  `json:"category"`
+	CreatedAt time.Time               `json:"createdAt"`
+	Id        openapi_types.UUID      `json:"id"`
+	IsActive  bool                    `json:"isActive"`
+	Level     AdminSensitiveWordLevel `json:"level"`
+	Word      string                  `json:"word"`
+}
+
+// AdminSensitiveWordLevel defines model for AdminSensitiveWord.Level.
+type AdminSensitiveWordLevel string
 
 // AdminStats defines model for AdminStats.
 type AdminStats struct {
@@ -257,9 +314,20 @@ type AdminStats struct {
 	WeekReviews      int `json:"weekReviews"`
 }
 
+// AdminTeacher defines model for AdminTeacher.
+type AdminTeacher struct {
+	CreatedAt      time.Time `json:"createdAt"`
+	DepartmentID   *int64    `json:"departmentID"`
+	DepartmentName *string   `json:"departmentName"`
+	Id             int64     `json:"id"`
+	Name           string    `json:"name"`
+	ReviewCount    *int      `json:"reviewCount,omitempty"`
+}
+
 // AdminUpdateReviewRequest defines model for AdminUpdateReviewRequest.
 type AdminUpdateReviewRequest struct {
 	Action AdminUpdateReviewRequestAction `json:"action"`
+	Reason *string                        `json:"reason,omitempty"`
 }
 
 // AdminUpdateReviewRequestAction defines model for AdminUpdateReviewRequest.Action.
@@ -282,9 +350,9 @@ type BatchUpdateReviewsRequestAction string
 
 // CallbackResponse defines model for CallbackResponse.
 type CallbackResponse struct {
-	// ExpiresIn Token TTL in seconds
-	ExpiresIn int    `json:"expiresIn"`
-	Token     string `json:"token"`
+	// ExpiresIn Access token TTL in seconds
+	ExpiresIn int      `json:"expiresIn"`
+	User      UserInfo `json:"user"`
 }
 
 // ContentCheckRequest defines model for ContentCheckRequest.
@@ -358,6 +426,22 @@ type CourseTeacherStats struct {
 type CreateReplyRequest struct {
 	Content  string              `json:"content"`
 	ParentID *openapi_types.UUID `json:"parentID,omitempty"`
+}
+
+// CreateSensitiveWordRequest defines model for CreateSensitiveWordRequest.
+type CreateSensitiveWordRequest struct {
+	Category *string                          `json:"category,omitempty"`
+	Level    *CreateSensitiveWordRequestLevel `json:"level,omitempty"`
+	Word     string                           `json:"word"`
+}
+
+// CreateSensitiveWordRequestLevel defines model for CreateSensitiveWordRequest.Level.
+type CreateSensitiveWordRequestLevel string
+
+// CreateTeacherRequest defines model for CreateTeacherRequest.
+type CreateTeacherRequest struct {
+	DepartmentID *int64 `json:"departmentID,omitempty"`
+	Name         string `json:"name"`
 }
 
 // Department defines model for Department.
@@ -536,6 +620,9 @@ type Review struct {
 	Id           openapi_types.UUID `json:"id"`
 	LikeCount    int                `json:"likeCount"`
 
+	// ModerationReason 屏蔽原因（仅 hidden 状态时存在）
+	ModerationReason *string `json:"moderationReason"`
+
 	// Ratings Map of dimension key to rating value (1-5)
 	Ratings     ReviewRatings `json:"ratings"`
 	ReplyCount  int           `json:"replyCount"`
@@ -545,6 +632,7 @@ type Review struct {
 	TermID      *string       `json:"termID,omitempty"`
 	TermName    *string       `json:"termName,omitempty"`
 	Title       *string       `json:"title,omitempty"`
+	UpdatedAt   *time.Time    `json:"updatedAt,omitempty"`
 }
 
 // ReviewGrade defines model for Review.Grade.
@@ -670,6 +758,23 @@ type UpdateReviewRequest struct {
 // UpdateReviewRequestGrade defines model for UpdateReviewRequest.Grade.
 type UpdateReviewRequestGrade string
 
+// UpdateSensitiveWordRequest defines model for UpdateSensitiveWordRequest.
+type UpdateSensitiveWordRequest struct {
+	Category *string                          `json:"category,omitempty"`
+	IsActive *bool                            `json:"isActive,omitempty"`
+	Level    *UpdateSensitiveWordRequestLevel `json:"level,omitempty"`
+	Word     *string                          `json:"word,omitempty"`
+}
+
+// UpdateSensitiveWordRequestLevel defines model for UpdateSensitiveWordRequest.Level.
+type UpdateSensitiveWordRequestLevel string
+
+// UpdateTeacherRequest defines model for UpdateTeacherRequest.
+type UpdateTeacherRequest struct {
+	DepartmentID *int64 `json:"departmentID"`
+	Name         string `json:"name"`
+}
+
 // UserInfo defines model for UserInfo.
 type UserInfo struct {
 	Avatar      *string `json:"avatar,omitempty"`
@@ -691,8 +796,8 @@ type VoteRequestVoteType string
 // CourseIDPath defines model for CourseIDPath.
 type CourseIDPath = int64
 
-// CourseIdPath defines model for CourseIdPath.
-type CourseIdPath = int64
+// DraftCourseIDPath defines model for DraftCourseIDPath.
+type DraftCourseIDPath = int64
 
 // NotificationIDPath defines model for NotificationIDPath.
 type NotificationIDPath = openapi_types.UUID
@@ -753,6 +858,7 @@ type GetDepartmentsParams struct {
 
 // ExportReviewsParams defines parameters for ExportReviews.
 type ExportReviewsParams struct {
+	// Format 导出格式。json 和 ndjson 均返回 NDJSON 流（每行一个 JSON 对象）
 	Format *ExportReviewsParamsFormat `form:"format,omitempty" json:"format,omitempty"`
 	Status *ExportReviewsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
 }
@@ -800,6 +906,33 @@ type ListAllReviewsParams struct {
 // ListAllReviewsParamsStatus defines parameters for ListAllReviews.
 type ListAllReviewsParamsStatus string
 
+// ListSensitiveWordsParams defines parameters for ListSensitiveWords.
+type ListSensitiveWordsParams struct {
+	Category *string                        `form:"category,omitempty" json:"category,omitempty"`
+	Level    *ListSensitiveWordsParamsLevel `form:"level,omitempty" json:"level,omitempty"`
+
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListSensitiveWordsParamsLevel defines parameters for ListSensitiveWords.
+type ListSensitiveWordsParamsLevel string
+
+// ListAdminTeachersParams defines parameters for ListAdminTeachers.
+type ListAdminTeachersParams struct {
+	Search       *string `form:"search,omitempty" json:"search,omitempty"`
+	DepartmentID *int64  `form:"departmentID,omitempty" json:"departmentID,omitempty"`
+
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
 // GetCourseReviewsParams defines parameters for GetCourseReviews.
 type GetCourseReviewsParams struct {
 	// Page 页码
@@ -819,15 +952,6 @@ type GetCourseReviewsParams struct {
 // GetCourseReviewsParamsSort defines parameters for GetCourseReviews.
 type GetCourseReviewsParamsSort string
 
-// GetNotificationsParams defines parameters for GetNotifications.
-type GetNotificationsParams struct {
-	// Page 页码
-	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
-
-	// PageSize 每页数量
-	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-}
-
 // GetHotCoursesParams defines parameters for GetHotCourses.
 type GetHotCoursesParams struct {
 	Period *GetHotCoursesParamsPeriod `form:"period,omitempty" json:"period,omitempty"`
@@ -836,6 +960,19 @@ type GetHotCoursesParams struct {
 
 // GetHotCoursesParamsPeriod defines parameters for GetHotCourses.
 type GetHotCoursesParamsPeriod string
+
+// GetBatchCourseReviewsParams defines parameters for GetBatchCourseReviews.
+type GetBatchCourseReviewsParams struct {
+	// CourseIDs 逗号分隔的课程ID列表（最多20个）
+	CourseIDs string `form:"courseIDs" json:"courseIDs"`
+
+	// PageSize 每页数量
+	PageSize *PageSizeParam                   `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Sort     *GetBatchCourseReviewsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// GetBatchCourseReviewsParamsSort defines parameters for GetBatchCourseReviews.
+type GetBatchCourseReviewsParamsSort string
 
 // GetLatestReviewsParams defines parameters for GetLatestReviews.
 type GetLatestReviewsParams struct {
@@ -861,6 +998,15 @@ type GetRepliesParams struct {
 
 // GetUserFavoritesParams defines parameters for GetUserFavorites.
 type GetUserFavoritesParams struct {
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// GetNotificationsParams defines parameters for GetNotifications.
+type GetNotificationsParams struct {
 	// Page 页码
 	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
 
@@ -898,6 +1044,21 @@ type BatchUpdateReviewsJSONRequestBody = BatchUpdateReviewsRequest
 
 // AdminUpdateReviewJSONRequestBody defines body for AdminUpdateReview for application/json ContentType.
 type AdminUpdateReviewJSONRequestBody = AdminUpdateReviewRequest
+
+// AdminEditReviewContentJSONRequestBody defines body for AdminEditReviewContent for application/json ContentType.
+type AdminEditReviewContentJSONRequestBody = AdminEditReviewRequest
+
+// CreateSensitiveWordJSONRequestBody defines body for CreateSensitiveWord for application/json ContentType.
+type CreateSensitiveWordJSONRequestBody = CreateSensitiveWordRequest
+
+// UpdateSensitiveWordJSONRequestBody defines body for UpdateSensitiveWord for application/json ContentType.
+type UpdateSensitiveWordJSONRequestBody = UpdateSensitiveWordRequest
+
+// CreateTeacherJSONRequestBody defines body for CreateTeacher for application/json ContentType.
+type CreateTeacherJSONRequestBody = CreateTeacherRequest
+
+// UpdateTeacherJSONRequestBody defines body for UpdateTeacher for application/json ContentType.
+type UpdateTeacherJSONRequestBody = UpdateTeacherRequest
 
 // CheckContentJSONRequestBody defines body for CheckContent for application/json ContentType.
 type CheckContentJSONRequestBody = ContentCheckRequest
@@ -969,7 +1130,7 @@ type ServerInterface interface {
 	ListReports(c *gin.Context, params ListReportsParams)
 	// 处理举报
 	// (PUT /api/v1/course/review/admin/reports/{id})
-	ProcessReport(c *gin.Context, id int64)
+	ProcessReport(c *gin.Context, id openapi_types.UUID)
 	// 获取所有评论（管理员）
 	// (GET /api/v1/course/review/admin/reviews)
 	ListAllReviews(c *gin.Context, params ListAllReviewsParams)
@@ -979,17 +1140,44 @@ type ServerInterface interface {
 	// 管理员更新评论状态
 	// (PUT /api/v1/course/review/admin/reviews/{id})
 	AdminUpdateReview(c *gin.Context, id ReviewIDPath)
+	// 管理员编辑评论内容
+	// (POST /api/v1/course/review/admin/reviews/{id}/edit)
+	AdminEditReviewContent(c *gin.Context, id ReviewIDPath)
+	// 获取敏感词列表
+	// (GET /api/v1/course/review/admin/sensitive-words)
+	ListSensitiveWords(c *gin.Context, params ListSensitiveWordsParams)
+	// 新增敏感词
+	// (POST /api/v1/course/review/admin/sensitive-words)
+	CreateSensitiveWord(c *gin.Context)
+	// 删除敏感词
+	// (DELETE /api/v1/course/review/admin/sensitive-words/{id})
+	DeleteSensitiveWord(c *gin.Context, id openapi_types.UUID)
+	// 更新敏感词
+	// (PUT /api/v1/course/review/admin/sensitive-words/{id})
+	UpdateSensitiveWord(c *gin.Context, id openapi_types.UUID)
 	// 获取管理统计
 	// (GET /api/v1/course/review/admin/stats)
 	GetAdminStats(c *gin.Context)
+	// 获取教师列表（管理员）
+	// (GET /api/v1/course/review/admin/teachers)
+	ListAdminTeachers(c *gin.Context, params ListAdminTeachersParams)
+	// 新增教师
+	// (POST /api/v1/course/review/admin/teachers)
+	CreateTeacher(c *gin.Context)
+	// 删除教师
+	// (DELETE /api/v1/course/review/admin/teachers/{id})
+	DeleteTeacher(c *gin.Context, id TeacherIDPath)
+	// 更新教师
+	// (PUT /api/v1/course/review/admin/teachers/{id})
+	UpdateTeacher(c *gin.Context, id TeacherIDPath)
 	// 内容安全检查（敏感词 + 质量）
 	// (POST /api/v1/course/review/content/check)
 	CheckContent(c *gin.Context)
 	// 取消课程收藏
-	// (DELETE /api/v1/course/review/courses/{id}/favorite)
+	// (DELETE /api/v1/course/review/courses/{id}/favorites)
 	RemoveFavorite(c *gin.Context, id CourseIDPath)
 	// 添加课程收藏
-	// (POST /api/v1/course/review/courses/{id}/favorite)
+	// (POST /api/v1/course/review/courses/{id}/favorites)
 	AddFavorite(c *gin.Context, id CourseIDPath)
 	// 获取课程评分统计（雷达图数据）
 	// (GET /api/v1/course/review/courses/{id}/rating-stats)
@@ -997,7 +1185,7 @@ type ServerInterface interface {
 	// 获取课程评分趋势
 	// (GET /api/v1/course/review/courses/{id}/rating-trend)
 	GetRatingTrend(c *gin.Context, id CourseIDPath)
-	// 获取课程测评列表
+	// 获取课程测评列表（支持可选认证）
 	// (GET /api/v1/course/review/courses/{id}/reviews)
 	GetCourseReviews(c *gin.Context, id CourseIDPath, params GetCourseReviewsParams)
 	// 获取课程的授课教师列表
@@ -1007,23 +1195,11 @@ type ServerInterface interface {
 	// (POST /api/v1/course/review/drafts)
 	SaveDraft(c *gin.Context)
 	// 删除草稿
-	// (DELETE /api/v1/course/review/drafts/{courseId})
-	DeleteDraft(c *gin.Context, courseId CourseIdPath)
+	// (DELETE /api/v1/course/review/drafts/{courseID})
+	DeleteDraft(c *gin.Context, courseID DraftCourseIDPath)
 	// 获取草稿
-	// (GET /api/v1/course/review/drafts/{courseId})
-	GetDraft(c *gin.Context, courseId CourseIdPath)
-	// 获取通知列表
-	// (GET /api/v1/course/review/notifications)
-	GetNotifications(c *gin.Context, params GetNotificationsParams)
-	// 标记所有通知已读
-	// (PUT /api/v1/course/review/notifications/read-all)
-	MarkAllNotificationsRead(c *gin.Context)
-	// 获取未读通知数量
-	// (GET /api/v1/course/review/notifications/unread-count)
-	GetUnreadCount(c *gin.Context)
-	// 标记通知已读
-	// (PUT /api/v1/course/review/notifications/{id}/read)
-	MarkNotificationRead(c *gin.Context, id NotificationIDPath)
+	// (GET /api/v1/course/review/drafts/{courseID})
+	GetDraft(c *gin.Context, courseID DraftCourseIDPath)
 	// 获取热门课程排行
 	// (GET /api/v1/course/review/rankings/hot)
 	GetHotCourses(c *gin.Context, params GetHotCoursesParams)
@@ -1036,7 +1212,10 @@ type ServerInterface interface {
 	// 发布测评
 	// (POST /api/v1/course/review/reviews)
 	PostReview(c *gin.Context)
-	// 获取最新测评
+	// 批量获取多个课程的测评列表（支持可选认证）
+	// (GET /api/v1/course/review/reviews/batch)
+	GetBatchCourseReviews(c *gin.Context, params GetBatchCourseReviewsParams)
+	// 获取最新测评（支持可选认证）
 	// (GET /api/v1/course/review/reviews/latest)
 	GetLatestReviews(c *gin.Context, params GetLatestReviewsParams)
 	// 删除测评
@@ -1052,10 +1231,10 @@ type ServerInterface interface {
 	// (POST /api/v1/course/review/reviews/{id}/replies)
 	CreateReply(c *gin.Context, id ReviewIDPath)
 	// 举报测评
-	// (POST /api/v1/course/review/reviews/{id}/report)
+	// (POST /api/v1/course/review/reviews/{id}/reports)
 	ReportReview(c *gin.Context, id ReviewIDPath)
 	// 投票（点赞/踩，支持切换和取消）
-	// (POST /api/v1/course/review/reviews/{id}/vote)
+	// (POST /api/v1/course/review/reviews/{id}/votes)
 	VoteReview(c *gin.Context, id ReviewIDPath)
 	// 获取评课统计数据
 	// (GET /api/v1/course/review/stats)
@@ -1066,6 +1245,18 @@ type ServerInterface interface {
 	// 获取用户收藏列表
 	// (GET /api/v1/course/review/user/favorites)
 	GetUserFavorites(c *gin.Context, params GetUserFavoritesParams)
+	// 获取通知列表
+	// (GET /api/v1/course/review/user/notifications)
+	GetNotifications(c *gin.Context, params GetNotificationsParams)
+	// 标记所有通知已读
+	// (PUT /api/v1/course/review/user/notifications/read-all)
+	MarkAllNotificationsRead(c *gin.Context)
+	// 获取未读通知数量
+	// (GET /api/v1/course/review/user/notifications/unread-count)
+	GetUnreadCount(c *gin.Context)
+	// 标记通知已读
+	// (PUT /api/v1/course/review/user/notifications/{id}/read)
+	MarkNotificationRead(c *gin.Context, id NotificationIDPath)
 	// 获取用户评论列表
 	// (GET /api/v1/course/review/user/reviews)
 	GetUserReviews(c *gin.Context, params GetUserReviewsParams)
@@ -1158,6 +1349,8 @@ func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1173,6 +1366,8 @@ func (siw *ServerInterfaceWrapper) LogoutAll(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1187,6 +1382,8 @@ func (siw *ServerInterfaceWrapper) LogoutAll(c *gin.Context) {
 func (siw *ServerInterfaceWrapper) GetCurrentUser(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1395,6 +1592,8 @@ func (siw *ServerInterfaceWrapper) ExportReviews(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ExportReviewsParams
 
@@ -1431,6 +1630,8 @@ func (siw *ServerInterfaceWrapper) GetOperationLogs(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetOperationLogsParams
 
@@ -1466,6 +1667,8 @@ func (siw *ServerInterfaceWrapper) ListReports(c *gin.Context) {
 	var err error
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListReportsParams
@@ -1510,7 +1713,7 @@ func (siw *ServerInterfaceWrapper) ProcessReport(c *gin.Context) {
 	var err error
 
 	// ------------- Path parameter "id" -------------
-	var id int64
+	var id openapi_types.UUID
 
 	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
@@ -1519,6 +1722,8 @@ func (siw *ServerInterfaceWrapper) ProcessReport(c *gin.Context) {
 	}
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1536,6 +1741,8 @@ func (siw *ServerInterfaceWrapper) ListAllReviews(c *gin.Context) {
 	var err error
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListAllReviewsParams
@@ -1579,6 +1786,8 @@ func (siw *ServerInterfaceWrapper) BatchUpdateReviews(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1605,6 +1814,8 @@ func (siw *ServerInterfaceWrapper) AdminUpdateReview(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1615,10 +1826,167 @@ func (siw *ServerInterfaceWrapper) AdminUpdateReview(c *gin.Context) {
 	siw.Handler.AdminUpdateReview(c, id)
 }
 
+// AdminEditReviewContent operation middleware
+func (siw *ServerInterfaceWrapper) AdminEditReviewContent(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ReviewIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminEditReviewContent(c, id)
+}
+
+// ListSensitiveWords operation middleware
+func (siw *ServerInterfaceWrapper) ListSensitiveWords(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSensitiveWordsParams
+
+	// ------------- Optional query parameter "category" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "category", c.Request.URL.Query(), &params.Category)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "level" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "level", c.Request.URL.Query(), &params.Level)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter level: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListSensitiveWords(c, params)
+}
+
+// CreateSensitiveWord operation middleware
+func (siw *ServerInterfaceWrapper) CreateSensitiveWord(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSensitiveWord(c)
+}
+
+// DeleteSensitiveWord operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSensitiveWord(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteSensitiveWord(c, id)
+}
+
+// UpdateSensitiveWord operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSensitiveWord(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateSensitiveWord(c, id)
+}
+
 // GetAdminStats operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminStats(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1630,10 +1998,139 @@ func (siw *ServerInterfaceWrapper) GetAdminStats(c *gin.Context) {
 	siw.Handler.GetAdminStats(c)
 }
 
+// ListAdminTeachers operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminTeachers(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminTeachersParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", c.Request.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter search: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "departmentID" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "departmentID", c.Request.URL.Query(), &params.DepartmentID)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentID: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminTeachers(c, params)
+}
+
+// CreateTeacher operation middleware
+func (siw *ServerInterfaceWrapper) CreateTeacher(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateTeacher(c)
+}
+
+// DeleteTeacher operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTeacher(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id TeacherIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteTeacher(c, id)
+}
+
+// UpdateTeacher operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTeacher(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id TeacherIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateTeacher(c, id)
+}
+
 // CheckContent operation middleware
 func (siw *ServerInterfaceWrapper) CheckContent(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1661,6 +2158,8 @@ func (siw *ServerInterfaceWrapper) RemoveFavorite(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1686,6 +2185,8 @@ func (siw *ServerInterfaceWrapper) AddFavorite(c *gin.Context) {
 	}
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1758,6 +2259,10 @@ func (siw *ServerInterfaceWrapper) GetCourseReviews(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetCourseReviewsParams
@@ -1841,6 +2346,8 @@ func (siw *ServerInterfaceWrapper) SaveDraft(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1856,16 +2363,18 @@ func (siw *ServerInterfaceWrapper) DeleteDraft(c *gin.Context) {
 
 	var err error
 
-	// ------------- Path parameter "courseId" -------------
-	var courseId CourseIdPath
+	// ------------- Path parameter "courseID" -------------
+	var courseID DraftCourseIDPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "courseId", c.Param("courseId"), &courseId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseId: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1874,7 +2383,7 @@ func (siw *ServerInterfaceWrapper) DeleteDraft(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.DeleteDraft(c, courseId)
+	siw.Handler.DeleteDraft(c, courseID)
 }
 
 // GetDraft operation middleware
@@ -1882,52 +2391,18 @@ func (siw *ServerInterfaceWrapper) GetDraft(c *gin.Context) {
 
 	var err error
 
-	// ------------- Path parameter "courseId" -------------
-	var courseId CourseIdPath
+	// ------------- Path parameter "courseID" -------------
+	var courseID DraftCourseIDPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "courseId", c.Param("courseId"), &courseId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseId: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	c.Set(CookieAuthScopes, []string{})
 
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetDraft(c, courseId)
-}
-
-// GetNotifications operation middleware
-func (siw *ServerInterfaceWrapper) GetNotifications(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetNotificationsParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1936,63 +2411,7 @@ func (siw *ServerInterfaceWrapper) GetNotifications(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetNotifications(c, params)
-}
-
-// MarkAllNotificationsRead operation middleware
-func (siw *ServerInterfaceWrapper) MarkAllNotificationsRead(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.MarkAllNotificationsRead(c)
-}
-
-// GetUnreadCount operation middleware
-func (siw *ServerInterfaceWrapper) GetUnreadCount(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUnreadCount(c)
-}
-
-// MarkNotificationRead operation middleware
-func (siw *ServerInterfaceWrapper) MarkNotificationRead(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "id" -------------
-	var id NotificationIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.MarkNotificationRead(c, id)
+	siw.Handler.GetDraft(c, courseID)
 }
 
 // GetHotCourses operation middleware
@@ -2058,6 +2477,8 @@ func (siw *ServerInterfaceWrapper) DeleteReply(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2073,6 +2494,8 @@ func (siw *ServerInterfaceWrapper) PostReview(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2083,10 +2506,67 @@ func (siw *ServerInterfaceWrapper) PostReview(c *gin.Context) {
 	siw.Handler.PostReview(c)
 }
 
+// GetBatchCourseReviews operation middleware
+func (siw *ServerInterfaceWrapper) GetBatchCourseReviews(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetBatchCourseReviewsParams
+
+	// ------------- Required query parameter "courseIDs" -------------
+
+	if paramValue := c.Query("courseIDs"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument courseIDs is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "courseIDs", c.Request.URL.Query(), &params.CourseIDs)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseIDs: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "sort", c.Request.URL.Query(), &params.Sort)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetBatchCourseReviews(c, params)
+}
+
 // GetLatestReviews operation middleware
 func (siw *ServerInterfaceWrapper) GetLatestReviews(c *gin.Context) {
 
 	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetLatestReviewsParams
@@ -2141,6 +2621,8 @@ func (siw *ServerInterfaceWrapper) DeleteReview(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2166,6 +2648,8 @@ func (siw *ServerInterfaceWrapper) UpdateReview(c *gin.Context) {
 	}
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -2236,6 +2720,8 @@ func (siw *ServerInterfaceWrapper) CreateReply(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2262,6 +2748,8 @@ func (siw *ServerInterfaceWrapper) ReportReview(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2287,6 +2775,8 @@ func (siw *ServerInterfaceWrapper) VoteReview(c *gin.Context) {
 	}
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -2342,6 +2832,8 @@ func (siw *ServerInterfaceWrapper) GetUserFavorites(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetUserFavoritesParams
 
@@ -2371,12 +2863,114 @@ func (siw *ServerInterfaceWrapper) GetUserFavorites(c *gin.Context) {
 	siw.Handler.GetUserFavorites(c, params)
 }
 
+// GetNotifications operation middleware
+func (siw *ServerInterfaceWrapper) GetNotifications(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetNotificationsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", c.Request.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetNotifications(c, params)
+}
+
+// MarkAllNotificationsRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkAllNotificationsRead(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkAllNotificationsRead(c)
+}
+
+// GetUnreadCount operation middleware
+func (siw *ServerInterfaceWrapper) GetUnreadCount(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUnreadCount(c)
+}
+
+// MarkNotificationRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkNotificationRead(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id NotificationIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkNotificationRead(c, id)
+}
+
 // GetUserReviews operation middleware
 func (siw *ServerInterfaceWrapper) GetUserReviews(c *gin.Context) {
 
 	var err error
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetUserReviewsParams
@@ -2413,6 +3007,8 @@ func (siw *ServerInterfaceWrapper) GetUserVotes(c *gin.Context) {
 	var err error
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetUserVotesParams
@@ -2536,35 +3132,45 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/v1/course/review/admin/reviews", wrapper.ListAllReviews)
 	router.POST(options.BaseURL+"/api/v1/course/review/admin/reviews/batch", wrapper.BatchUpdateReviews)
 	router.PUT(options.BaseURL+"/api/v1/course/review/admin/reviews/:id", wrapper.AdminUpdateReview)
+	router.POST(options.BaseURL+"/api/v1/course/review/admin/reviews/:id/edit", wrapper.AdminEditReviewContent)
+	router.GET(options.BaseURL+"/api/v1/course/review/admin/sensitive-words", wrapper.ListSensitiveWords)
+	router.POST(options.BaseURL+"/api/v1/course/review/admin/sensitive-words", wrapper.CreateSensitiveWord)
+	router.DELETE(options.BaseURL+"/api/v1/course/review/admin/sensitive-words/:id", wrapper.DeleteSensitiveWord)
+	router.PUT(options.BaseURL+"/api/v1/course/review/admin/sensitive-words/:id", wrapper.UpdateSensitiveWord)
 	router.GET(options.BaseURL+"/api/v1/course/review/admin/stats", wrapper.GetAdminStats)
+	router.GET(options.BaseURL+"/api/v1/course/review/admin/teachers", wrapper.ListAdminTeachers)
+	router.POST(options.BaseURL+"/api/v1/course/review/admin/teachers", wrapper.CreateTeacher)
+	router.DELETE(options.BaseURL+"/api/v1/course/review/admin/teachers/:id", wrapper.DeleteTeacher)
+	router.PUT(options.BaseURL+"/api/v1/course/review/admin/teachers/:id", wrapper.UpdateTeacher)
 	router.POST(options.BaseURL+"/api/v1/course/review/content/check", wrapper.CheckContent)
-	router.DELETE(options.BaseURL+"/api/v1/course/review/courses/:id/favorite", wrapper.RemoveFavorite)
-	router.POST(options.BaseURL+"/api/v1/course/review/courses/:id/favorite", wrapper.AddFavorite)
+	router.DELETE(options.BaseURL+"/api/v1/course/review/courses/:id/favorites", wrapper.RemoveFavorite)
+	router.POST(options.BaseURL+"/api/v1/course/review/courses/:id/favorites", wrapper.AddFavorite)
 	router.GET(options.BaseURL+"/api/v1/course/review/courses/:id/rating-stats", wrapper.GetCourseRatingStats)
 	router.GET(options.BaseURL+"/api/v1/course/review/courses/:id/rating-trend", wrapper.GetRatingTrend)
 	router.GET(options.BaseURL+"/api/v1/course/review/courses/:id/reviews", wrapper.GetCourseReviews)
 	router.GET(options.BaseURL+"/api/v1/course/review/courses/:id/teachers", wrapper.GetCourseTeachers)
 	router.POST(options.BaseURL+"/api/v1/course/review/drafts", wrapper.SaveDraft)
-	router.DELETE(options.BaseURL+"/api/v1/course/review/drafts/:courseId", wrapper.DeleteDraft)
-	router.GET(options.BaseURL+"/api/v1/course/review/drafts/:courseId", wrapper.GetDraft)
-	router.GET(options.BaseURL+"/api/v1/course/review/notifications", wrapper.GetNotifications)
-	router.PUT(options.BaseURL+"/api/v1/course/review/notifications/read-all", wrapper.MarkAllNotificationsRead)
-	router.GET(options.BaseURL+"/api/v1/course/review/notifications/unread-count", wrapper.GetUnreadCount)
-	router.PUT(options.BaseURL+"/api/v1/course/review/notifications/:id/read", wrapper.MarkNotificationRead)
+	router.DELETE(options.BaseURL+"/api/v1/course/review/drafts/:courseID", wrapper.DeleteDraft)
+	router.GET(options.BaseURL+"/api/v1/course/review/drafts/:courseID", wrapper.GetDraft)
 	router.GET(options.BaseURL+"/api/v1/course/review/rankings/hot", wrapper.GetHotCourses)
 	router.GET(options.BaseURL+"/api/v1/course/review/rating-dimensions", wrapper.GetRatingDimensions)
 	router.DELETE(options.BaseURL+"/api/v1/course/review/replies/:id", wrapper.DeleteReply)
 	router.POST(options.BaseURL+"/api/v1/course/review/reviews", wrapper.PostReview)
+	router.GET(options.BaseURL+"/api/v1/course/review/reviews/batch", wrapper.GetBatchCourseReviews)
 	router.GET(options.BaseURL+"/api/v1/course/review/reviews/latest", wrapper.GetLatestReviews)
 	router.DELETE(options.BaseURL+"/api/v1/course/review/reviews/:id", wrapper.DeleteReview)
 	router.PUT(options.BaseURL+"/api/v1/course/review/reviews/:id", wrapper.UpdateReview)
 	router.GET(options.BaseURL+"/api/v1/course/review/reviews/:id/replies", wrapper.GetReplies)
 	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:id/replies", wrapper.CreateReply)
-	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:id/report", wrapper.ReportReview)
-	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:id/vote", wrapper.VoteReview)
+	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:id/reports", wrapper.ReportReview)
+	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:id/votes", wrapper.VoteReview)
 	router.GET(options.BaseURL+"/api/v1/course/review/stats", wrapper.GetReviewStats)
 	router.GET(options.BaseURL+"/api/v1/course/review/teachers/:id/stats", wrapper.GetTeacherRatingStats)
 	router.GET(options.BaseURL+"/api/v1/course/review/user/favorites", wrapper.GetUserFavorites)
+	router.GET(options.BaseURL+"/api/v1/course/review/user/notifications", wrapper.GetNotifications)
+	router.PUT(options.BaseURL+"/api/v1/course/review/user/notifications/read-all", wrapper.MarkAllNotificationsRead)
+	router.GET(options.BaseURL+"/api/v1/course/review/user/notifications/unread-count", wrapper.GetUnreadCount)
+	router.PUT(options.BaseURL+"/api/v1/course/review/user/notifications/:id/read", wrapper.MarkNotificationRead)
 	router.GET(options.BaseURL+"/api/v1/course/review/user/reviews", wrapper.GetUserReviews)
 	router.GET(options.BaseURL+"/api/v1/course/review/user/votes", wrapper.GetUserVotes)
 	router.GET(options.BaseURL+"/api/v1/course/stats", wrapper.GetCourseStats)
@@ -2575,108 +3181,124 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"/xcAAP//eF6k4RPWAAA=",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

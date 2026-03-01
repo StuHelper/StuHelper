@@ -1,4 +1,4 @@
-/api/v1/course/review/courses/{id}/favorite:
+/api/v1/course/review/courses/{id}/favorites:
   post:
     tags: [Favorite]
     operationId: addFavorite

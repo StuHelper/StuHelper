@@ -37,7 +37,7 @@ func NewHandler(database *db.DB, rdb *redis.Client, ssoClient *sso.Client, cfg *
 }
 
 // RegisterRoutes 注册学习中心路由
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAuthMiddleware gin.HandlerFunc) {
 	course := r.Group("/course")
 	{
 		// 通用实体接口（课程、院系等）
@@ -50,7 +50,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware gin.HandlerF
 
 		// 评课社区子模块
 		reviewGroup := course.Group("/review")
-		h.reviewHandler.RegisterRoutes(reviewGroup, authMiddleware)
+		h.reviewHandler.RegisterRoutes(reviewGroup, authMiddleware, optionalAuthMiddleware)
 	}
 }
 

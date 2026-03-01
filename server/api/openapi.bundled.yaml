@@ -366,7 +366,16 @@ paths:
                     enum:
                       - true
                   data:
-                    $ref: '#/components/schemas/MessageData'
+                    type: object
+                    required:
+                      - message
+                      - ssoLogoutURL
+                    properties:
+                      message:
+                        type: string
+                      ssoLogoutURL:
+                        type: string
+                        format: uri
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/auth/logout-all:
@@ -758,8 +767,11 @@ paths:
       tags:
         - Review
       operationId: getCourseReviews
-      summary: 获取课程测评列表
-      security: []
+      summary: 获取课程测评列表（支持可选认证）
+      security:
+        - {}
+        - cookieAuth: []
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/CourseIDPath'
         - $ref: '#/components/parameters/PageParam'
@@ -820,8 +832,11 @@ paths:
       tags:
         - Review
       operationId: getLatestReviews
-      summary: 获取最新测评
-      security: []
+      summary: 获取最新测评（支持可选认证）
+      security:
+        - {}
+        - cookieAuth: []
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
@@ -870,9 +885,12 @@ paths:
       tags:
         - Review
       operationId: getBatchCourseReviews
-      summary: 批量获取多个课程的测评列表
+      summary: 批量获取多个课程的测评列表（支持可选认证）
       description: 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
-      security: []
+      security:
+        - {}
+        - cookieAuth: []
+        - bearerAuth: []
       parameters:
         - name: courseIDs
           in: query
@@ -1053,7 +1071,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/reviews/{id}/vote:
+  /api/v1/course/review/reviews/{id}/votes:
     post:
       tags:
         - Review
@@ -1097,7 +1115,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/reviews/{id}/report:
+  /api/v1/course/review/reviews/{id}/reports:
     post:
       tags:
         - Review
@@ -1565,7 +1583,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/notifications:
+  /api/v1/course/review/user/notifications:
     get:
       tags:
         - Notification
@@ -1611,7 +1629,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/notifications/unread-count:
+  /api/v1/course/review/user/notifications/unread-count:
     get:
       tags:
         - Notification
@@ -1641,7 +1659,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/notifications/{id}/read:
+  /api/v1/course/review/user/notifications/{id}/read:
     put:
       tags:
         - Notification
@@ -1675,7 +1693,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/notifications/read-all:
+  /api/v1/course/review/user/notifications/read-all:
     put:
       tags:
         - Notification
@@ -1816,7 +1834,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/courses/{id}/favorite:
+  /api/v1/course/review/courses/{id}/favorites:
     post:
       tags:
         - Favorite
@@ -2129,6 +2147,50 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/reviews/{id}/edit:
+    post:
+      tags:
+        - Admin
+      operationId: adminEditReviewContent
+      summary: 管理员编辑评论内容
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminEditReviewRequest'
+      responses:
+        '200':
+          description: 编辑成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/review/admin/stats:
     get:
       tags:
@@ -2253,6 +2315,365 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/teachers:
+    get:
+      tags:
+        - Admin
+      operationId: listAdminTeachers
+      summary: 获取教师列表（管理员）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: departmentID
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 教师分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AdminTeacher'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Admin
+      operationId: createTeacher
+      summary: 新增教师
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeacherRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/AdminTeacher'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/teachers/{id}:
+    put:
+      tags:
+        - Admin
+      operationId: updateTeacher
+      summary: 更新教师
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TeacherIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeacherRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags:
+        - Admin
+      operationId: deleteTeacher
+      summary: 删除教师
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TeacherIDPath'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/sensitive-words:
+    get:
+      tags:
+        - Admin
+      operationId: listSensitiveWords
+      summary: 获取敏感词列表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum:
+              - block
+              - warn
+              - review
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 敏感词分页列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    type: object
+                    required:
+                      - list
+                      - total
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AdminSensitiveWord'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Admin
+      operationId: createSensitiveWord
+      summary: 新增敏感词
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSensitiveWordRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/AdminSensitiveWord'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/sensitive-words/{id}:
+    put:
+      tags:
+        - Admin
+      operationId: updateSensitiveWord
+      summary: 更新敏感词
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSensitiveWordRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags:
+        - Admin
+      operationId: deleteSensitiveWord
+      summary: 删除敏感词
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - data
+                properties:
+                  success:
+                    type: boolean
+                    enum:
+                      - true
+                  data:
+                    $ref: '#/components/schemas/MessageData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
@@ -2532,7 +2953,14 @@ components:
             - published
             - hidden
             - deleted
+        moderationReason:
+          type: string
+          nullable: true
+          description: 屏蔽原因（仅 hidden 状态时存在）
         createdAt:
+          type: string
+          format: date-time
+        updatedAt:
           type: string
           format: date-time
     ReviewRatings:
@@ -3127,6 +3555,9 @@ components:
             - hide
             - restore
             - delete
+        reason:
+          type: string
+          maxLength: 500
     BatchUpdateReviewsRequest:
       type: object
       required:
@@ -3185,6 +3616,21 @@ components:
           type: integer
         weekReviews:
           type: integer
+    AdminEditReviewRequest:
+      type: object
+      required:
+        - content
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        reason:
+          type: string
+          maxLength: 500
     AdminOperationLog:
       type: object
       required:
@@ -3201,6 +3647,7 @@ components:
           format: uuid
         adminUserID:
           type: string
+          format: uuid
         adminUsername:
           type: string
         action:
@@ -3222,6 +3669,121 @@ components:
         createdAt:
           type: string
           format: date-time
+    AdminTeacher:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        departmentID:
+          type: integer
+          format: int64
+          nullable: true
+        departmentName:
+          type: string
+          nullable: true
+        reviewCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    CreateTeacherRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        departmentID:
+          type: integer
+          format: int64
+    UpdateTeacherRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        departmentID:
+          type: integer
+          format: int64
+          nullable: true
+    AdminSensitiveWord:
+      type: object
+      required:
+        - id
+        - word
+        - category
+        - level
+        - isActive
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        word:
+          type: string
+        category:
+          type: string
+        level:
+          type: string
+          enum:
+            - block
+            - warn
+            - review
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    CreateSensitiveWordRequest:
+      type: object
+      required:
+        - word
+      properties:
+        word:
+          type: string
+          minLength: 1
+          maxLength: 100
+        category:
+          type: string
+          maxLength: 50
+          default: general
+        level:
+          type: string
+          enum:
+            - block
+            - warn
+            - review
+          default: block
+    UpdateSensitiveWordRequest:
+      type: object
+      properties:
+        word:
+          type: string
+          minLength: 1
+          maxLength: 100
+        category:
+          type: string
+          maxLength: 50
+        level:
+          type: string
+          enum:
+            - block
+            - warn
+            - review
+        isActive:
+          type: boolean
     RadarChartDataset:
       type: object
       required:

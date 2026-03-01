@@ -44,7 +44,9 @@ export default {
     replyLoadFailed: '加载回复失败',
     deleteFailed: '删除失败',
     commentBtn: '查看回复',
-    expandContent: '展开全文'
+    expandContent: '展开全文',
+    titleLabel: '测评标题',
+    contentLabel: '测评内容'
   },
   post: {
     selectCourse: '选择课程',
@@ -73,7 +75,12 @@ export default {
     success: '测评发布成功',
     failed: '发布失败，请重试',
     searchCourse: '搜索课程...',
-    searchCourseLabel: '搜索课程'
+    searchCourseLabel: '搜索课程',
+    teacherLabel: '授课教师',
+    teacherOptional: '选填',
+    teacherPlaceholder: '选择或输入教师姓名...',
+    teacherLoading: '加载教师列表...',
+    teacherNone: '暂无教师数据'
   },
   rating: {
     overall: '综合评分',
@@ -184,6 +191,28 @@ export default {
     workload: '工作量',
     grading: '给分',
     fallback: '评分'
+  },
+  card: {
+    loginToView: '登录后查看完整内容',
+    loginBtn: '立即登录',
+    contentHidden: '此内容已被管理员屏蔽'
+  },
+  admin: {
+    hide: '屏蔽',
+    restore: '恢复',
+    edit: '编辑',
+    moderateTitle: '屏蔽测评',
+    moderateReasonLabel: '屏蔽原因（选填）',
+    moderateReasonPlaceholder: '请输入屏蔽原因...',
+    moderateConfirm: '确认屏蔽',
+    editTitle: '编辑测评内容',
+    editReasonLabel: '编辑原因',
+    editReasonPlaceholder: '请输入编辑原因...',
+    editConfirm: '保存修改',
+    moderateSuccess: '测评已屏蔽',
+    restoreSuccess: '测评已恢复',
+    editSuccess: '测评内容已更新',
+    actionFailed: '操作失败，请重试'
   },
   filter: {
     teacher: '教师筛选',

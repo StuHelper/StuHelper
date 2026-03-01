@@ -21,6 +21,24 @@ import (
 // validTermID 学期 ID 格式校验：如 "2024-1" 或 "2024-2"
 var validTermID = regexp.MustCompile(`^\d{4}-[12]$`)
 
+// stripReviewsForResponse 根据认证状态和管理员身份脱敏评论内容
+// - hidden 评论：非管理员看不到内容（保留 moderationReason）
+// - 未登录用户：看不到任何评论正文
+func stripReviewsForResponse(reviews []Review, isAuthenticated, isAdmin bool) []Review {
+	result := make([]Review, len(reviews))
+	copy(result, reviews)
+	for i := range result {
+		if result[i].Status == "hidden" && !isAdmin {
+			result[i].Content = ""
+			result[i].Title = ""
+		} else if !isAuthenticated {
+			result[i].Content = ""
+			result[i].Title = ""
+		}
+	}
+	return result
+}
+
 // sanitizeCacheKeyPart 对缓存键参数进行 Unicode NFC 规范化 + URL 编码
 // NFC 规范化确保相同语义的字符串（如不同 Unicode 编码形式）生成一致的缓存键
 // 例如 "café"(NFD) 和 "café"(NFC) 规范化后产生相同缓存键
@@ -66,15 +84,6 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 		teacherID = &id
 	}
 
-	// 构建缓存键（按课程粒度版本化，M-93）
-	coursePrefix := "review:course:" + strconv.FormatInt(courseID, 10)
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), coursePrefix,
-		"sort="+sanitizeCacheKeyPart(sort)+":term="+sanitizeCacheKeyPart(termID)+
-			":teacher="+sanitizeCacheKeyPart(tid)+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
 
 	// 调用 Service 层
 	result, err := h.service.GetCourseReviews(c.Request.Context(), GetCourseReviewsParams{
@@ -91,11 +100,11 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 		return
 	}
 
-	data := gin.H{"list": result.List, "total": result.Total}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, data)
+	// 按认证状态脱敏后返回（缓存存完整数据在 service 层，脱敏在 handler 层按请求执行）
+	authenticated := middleware.IsAuthenticated(c)
+	isAdmin := middleware.GetIsAdmin(c)
+	stripped := stripReviewsForResponse(result.List, authenticated, isAdmin)
+	response.Success(c, gin.H{"list": stripped, "total": result.Total, "authenticated": authenticated})
 }
 
 // GetLatestReviews 获取最新测评
@@ -107,12 +116,6 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 		sort = "time"
 	}
 
-	// 检查缓存
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:latest", "page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize)+":sort="+sanitizeCacheKeyPart(sort))
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
 
 	// 调用 Service 层
 	result, err := h.service.GetLatestReviews(c.Request.Context(), GetLatestReviewsParams{
@@ -126,11 +129,11 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 		return
 	}
 
-	data := gin.H{"list": result.List, "total": result.Total}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, data)
+	// 按认证状态脱敏后返回
+	authenticated := middleware.IsAuthenticated(c)
+	isAdmin := middleware.GetIsAdmin(c)
+	stripped := stripReviewsForResponse(result.List, authenticated, isAdmin)
+	response.Success(c, gin.H{"list": stripped, "total": result.Total, "authenticated": authenticated})
 }
 
 // GetBatchCourseReviews 批量获取多个课程的测评列表
@@ -183,6 +186,10 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 		return
 	}
 
+	// 按认证状态脱敏后返回
+	authenticated := middleware.IsAuthenticated(c)
+	isAdmin := middleware.GetIsAdmin(c)
+
 	// 构建响应 map: courseID string -> {list, total}
 	data := make(map[string]interface{})
 	for _, cid := range courseIDs {
@@ -190,14 +197,15 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 		if reviews == nil {
 			reviews = []Review{}
 		}
+		stripped := stripReviewsForResponse(reviews, authenticated, isAdmin)
 		total := result.Totals[cid]
 		data[strconv.FormatInt(cid, 10)] = map[string]interface{}{
-			"list":  reviews,
+			"list":  stripped,
 			"total": total,
 		}
 	}
 
-	response.Success(c, data)
+	response.Success(c, gin.H{"data": data, "authenticated": authenticated})
 }
 
 // PostReviewRequest 发布测评请求
@@ -637,14 +645,3 @@ func (h *Handler) CheckContent(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// CheckQuality 检查内容质量
-func (h *Handler) CheckQuality(c *gin.Context) {
-	var req CheckContentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	result := h.service.CheckQuality(req.Content)
-	response.Success(c, result)
-}

@@ -1,13 +1,42 @@
 <template>
   <div
-    class="bg-bg-card border border-border rounded-xl p-5 transition-all duration-200 ease-smooth shadow-card hover:shadow-md hover:-translate-y-px"
+    class="relative bg-bg-card border border-border rounded-xl p-5 transition-all duration-200 ease-smooth shadow-card hover:shadow-md hover:-translate-y-px"
     :class="{
       'border-primary/30 shadow-glow-sm': isExpanded,
-      'animate-shake': shaking
+      'animate-shake': shaking,
+      'border-warning/30': isHidden
     }"
   >
+    <!-- 管理员工具栏 -->
+    <div v-if="isAdmin" class="absolute top-3 right-3 flex items-center gap-1">
+      <button
+        v-if="!isHidden"
+        class="p-1.5 rounded-lg text-text-muted hover:text-warning hover:bg-warning/10 cursor-pointer transition-colors"
+        :title="t('review.admin.hide')"
+        @click="showModerationDialog = true"
+      >
+        <EyeOff :size="16" />
+      </button>
+      <template v-else>
+        <button
+          class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 cursor-pointer transition-colors"
+          :title="t('review.admin.restore')"
+          @click="handleRestore"
+        >
+          <Eye :size="16" />
+        </button>
+        <button
+          class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 cursor-pointer transition-colors"
+          :title="t('review.admin.edit')"
+          @click="showEditDialog = true"
+        >
+          <Pencil :size="16" />
+        </button>
+      </template>
+    </div>
+
     <!-- 头部：课程名 + 评分徽章 -->
-    <div class="flex items-center gap-2 mb-2">
+    <div class="flex items-center gap-2 mb-2 pr-20">
       <router-link
         :to="`/review/courses/${review.courseID}`"
         class="text-base font-bold text-text-primary no-underline overflow-hidden text-ellipsis whitespace-nowrap hover:text-primary"
@@ -34,20 +63,41 @@
       <span class="text-text-muted">{{ formatTime(review.createdAt) }}</span>
     </div>
 
-    <!-- 内容 -->
-    <!-- H-10: 使用 v-text 防御 XSS，确保用户内容不被解析为 HTML -->
-    <div
-      class="text-sm text-text-secondary leading-relaxed cursor-pointer break-words"
-      :class="{ 'line-clamp-3': !isExpanded && shouldTruncate }"
-      role="button"
-      tabindex="0"
-      :aria-label="t('review.review.expandContent')"
-      :aria-expanded="isExpanded"
-      @click="toggleExpand"
-      @keydown.enter="toggleExpand"
-      @keydown.space.prevent="toggleExpand"
-      v-text="review.content"
-    />
+    <!-- 内容区：三态显示 -->
+    <!-- 状态1: 屏蔽锁定（非管理员看到锁定提示） -->
+    <div v-if="isHidden && !isAdmin" class="flex items-start gap-2 py-4 px-3 bg-warning/5 border border-warning/20 rounded-lg">
+      <ShieldAlert :size="18" class="text-warning shrink-0 mt-0.5" />
+      <div>
+        <span class="text-sm font-medium text-text-secondary">{{ t('review.card.contentHidden') }}</span>
+        <p v-if="review.moderationReason" class="text-xs text-text-muted mt-1" v-text="review.moderationReason" />
+      </div>
+    </div>
+
+    <!-- 状态2: 未登录锁定 -->
+    <div v-else-if="!isAuthenticated && !isHidden" class="flex flex-col items-center gap-2 py-6 text-text-muted">
+      <Lock :size="24" />
+      <span class="text-sm">{{ t('review.card.loginToView') }}</span>
+      <button class="text-primary text-sm font-medium cursor-pointer" @click="handleLogin">
+        {{ t('review.card.loginBtn') }}
+      </button>
+    </div>
+
+    <!-- 状态3: 正常显示（已登录 + published，或管理员查看 hidden） -->
+    <template v-else>
+      <!-- H-10: 使用 v-text 防御 XSS，确保用户内容不被解析为 HTML -->
+      <div
+        class="text-sm text-text-secondary leading-relaxed cursor-pointer break-words"
+        :class="{ 'line-clamp-3': !isExpanded && shouldTruncate }"
+        role="button"
+        tabindex="0"
+        :aria-label="t('review.review.expandContent')"
+        :aria-expanded="isExpanded"
+        @click="toggleExpand"
+        @keydown.enter="toggleExpand"
+        @keydown.space.prevent="toggleExpand"
+        v-text="review.content"
+      />
+    </template>
 
     <!-- 表情评分指标 -->
     <div v-if="displayRatings.length > 0" class="flex flex-wrap gap-3 mt-4 pt-3 border-t border-border">
@@ -62,8 +112,12 @@
       </span>
     </div>
 
-    <!-- 操作栏 -->
-    <div class="flex items-center gap-1 mt-3" :class="{ 'pt-3 border-t border-border': displayRatings.length === 0 }">
+    <!-- 操作栏（未登录或屏蔽时隐藏） -->
+    <div
+      v-if="showActions"
+      class="flex items-center gap-1 mt-3"
+      :class="{ 'pt-3 border-t border-border': displayRatings.length === 0 }"
+    >
       <button
         class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover"
         :class="{ '!text-primary bg-primary/[0.08]': userVote === 'like' }"
@@ -128,31 +182,65 @@
         @cancel="isExpanded = false"
       />
     </div>
+
+    <!-- 屏蔽弹窗 -->
+    <ModerationDialog
+      :visible="showModerationDialog"
+      :review-i-d="review.id"
+      @confirm="handleModerate"
+      @close="showModerationDialog = false"
+    />
+
+    <!-- 编辑弹窗 -->
+    <AdminEditDialog
+      :visible="showEditDialog"
+      :review="review"
+      @confirm="handleAdminEdit"
+      @close="showEditDialog = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Heart, ThumbsDown, MessageCircle } from 'lucide-vue-next'
+import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, Lock, ShieldAlert } from 'lucide-vue-next'
 import type { Review } from '@/types/review'
 import type { Reply } from '@/types/reply'
 import { voteReview, getReplies, postReply, deleteReply } from '@/api/review'
 import type { VoteType } from '@/api/review'
+import { updateReviewStatus, adminEditReview } from '@/api/admin'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
 import ReplyCard from './ReplyCard.vue'
 import ReplyForm from './ReplyForm.vue'
+import ModerationDialog from './ModerationDialog.vue'
+import AdminEditDialog from './AdminEditDialog.vue'
 
 const props = defineProps<{
   review: Review
 }>()
 
+const emit = defineEmits<{
+  moderated: []
+}>()
+
 const { t, locale } = useI18n()
 const toast = useToast()
+const authStore = useAuthStore()
+
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const isAdmin = computed(() => authStore.user?.isAdmin === true)
+const isHidden = computed(() => props.review.status === 'hidden')
+const showActions = computed(() => isAuthenticated.value && !isHidden.value)
 
 const isExpanded = ref(false)
-const shouldTruncate = computed(() => props.review.content.length > 200)
+const shouldTruncate = computed(() => (props.review.content?.length ?? 0) > 200)
+
+// 管理员弹窗状态
+const showModerationDialog = ref(false)
+const showEditDialog = ref(false)
 
 // 投票状态
 const userVote = ref<VoteType | null>(null)
@@ -330,6 +418,46 @@ async function handleDeleteReply(id: string) {
     replyCountDirty = true
   } catch {
     toast.error(t('review.review.deleteFailed'))
+  }
+}
+
+// 登录跳转
+function handleLogin() {
+  authStore.login()
+}
+
+// 管理员屏蔽
+async function handleModerate(reason: string) {
+  showModerationDialog.value = false
+  try {
+    await updateReviewStatus(props.review.id, 'hide', reason)
+    toast.success(t('review.admin.moderateSuccess'))
+    emit('moderated')
+  } catch {
+    toast.error(t('review.admin.actionFailed'))
+  }
+}
+
+// 管理员恢复
+async function handleRestore() {
+  try {
+    await updateReviewStatus(props.review.id, 'restore')
+    toast.success(t('review.admin.restoreSuccess'))
+    emit('moderated')
+  } catch {
+    toast.error(t('review.admin.actionFailed'))
+  }
+}
+
+// 管理员编辑
+async function handleAdminEdit(payload: { title: string; content: string; reason: string }) {
+  showEditDialog.value = false
+  try {
+    await adminEditReview(props.review.id, payload)
+    toast.success(t('review.admin.editSuccess'))
+    emit('moderated')
+  } catch {
+    toast.error(t('review.admin.actionFailed'))
   }
 }
 </script>

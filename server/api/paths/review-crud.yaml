@@ -2,8 +2,11 @@
   get:
     tags: [Review]
     operationId: getCourseReviews
-    summary: 获取课程测评列表
-    security: []
+    summary: 获取课程测评列表（支持可选认证）
+    security:
+      - {}
+      - cookieAuth: []
+      - bearerAuth: []
     parameters:
       - $ref: '../components/parameters/common.yaml#/CourseIDPath'
       - $ref: '../components/parameters/common.yaml#/PageParam'
@@ -56,8 +59,11 @@
   get:
     tags: [Review]
     operationId: getLatestReviews
-    summary: 获取最新测评
-    security: []
+    summary: 获取最新测评（支持可选认证）
+    security:
+      - {}
+      - cookieAuth: []
+      - bearerAuth: []
     parameters:
       - $ref: '../components/parameters/common.yaml#/PageParam'
       - $ref: '../components/parameters/common.yaml#/PageSizeParam'
@@ -98,9 +104,12 @@
   get:
     tags: [Review]
     operationId: getBatchCourseReviews
-    summary: 批量获取多个课程的测评列表
+    summary: 批量获取多个课程的测评列表（支持可选认证）
     description: 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
-    security: []
+    security:
+      - {}
+      - cookieAuth: []
+      - bearerAuth: []
     parameters:
       - name: courseIDs
         in: query
@@ -264,7 +273,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/reviews/{id}/vote:
+/api/v1/course/review/reviews/{id}/votes:
   post:
     tags: [Review]
     operationId: voteReview
@@ -305,7 +314,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/reviews/{id}/report:
+/api/v1/course/review/reviews/{id}/reports:
   post:
     tags: [Review]
     operationId: reportReview

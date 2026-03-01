@@ -211,7 +211,14 @@
                   type: boolean
                   enum: [true]
                 data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+                  type: object
+                  required: [message, ssoLogoutURL]
+                  properties:
+                    message:
+                      type: string
+                    ssoLogoutURL:
+                      type: string
+                      format: uri
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 

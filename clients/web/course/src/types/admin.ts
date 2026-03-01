@@ -83,3 +83,57 @@ export interface ExportParams {
   format: 'json' | 'csv'
   status?: string
 }
+
+// 管理员编辑评论内容参数
+export interface AdminEditReviewParams {
+  title?: string
+  content: string
+  reason?: string
+}
+
+// 管理后台教师
+export interface AdminTeacher {
+  id: number
+  name: string
+  departmentID?: number
+  departmentName?: string
+  reviewCount: number
+  createdAt: string
+}
+
+// 创建教师参数
+export interface CreateTeacherParams {
+  name: string
+  departmentID?: number
+}
+
+// 更新教师参数
+export interface UpdateTeacherParams {
+  name: string
+  departmentID?: number | null
+}
+
+// 敏感词
+export interface AdminSensitiveWord {
+  id: string
+  word: string
+  category: string
+  level: 'block' | 'warn' | 'review'
+  isActive: boolean
+  createdAt: string
+}
+
+// 创建敏感词参数
+export interface CreateSensitiveWordParams {
+  word: string
+  category?: string
+  level?: 'block' | 'warn' | 'review'
+}
+
+// 更新敏感词参数
+export interface UpdateSensitiveWordParams {
+  word?: string
+  category?: string
+  level?: 'block' | 'warn' | 'review'
+  isActive?: boolean
+}

@@ -150,12 +150,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 登出
-  const logout = async () => {
+  // 登出（返回 SSO 登出 URL，调用方可选择跳转）
+  const logout = async (): Promise<string | undefined> => {
     clearError()
     loading.value = true
+    let ssoLogoutURL: string | undefined
     try {
-      await authApi.logout()
+      const { data } = await authApi.logout()
+      ssoLogoutURL = data.ssoLogoutURL
     } catch {
       // 登出 API 失败不影响本地清理
     } finally {
@@ -171,6 +173,7 @@ export const useAuthStore = defineStore('auth', () => {
       notificationStore.stopPolling()
       notificationStore.reset()
     }
+    return ssoLogoutURL
   }
 
   // 清除本地会话（不调用 API，用于 token 过期等场景）

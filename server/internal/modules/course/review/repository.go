@@ -114,11 +114,11 @@ func (r *Repository) ListByCourse(ctx context.Context, courseID int64, limit, of
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.created_at, r.updated_at
+		       r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.course_id = $1 AND r.status = 'published'
+		WHERE r.course_id = $1 AND r.status IN ('published', 'hidden')
 		ORDER BY r.created_at DESC
 		LIMIT $2 OFFSET $3
 	`, courseID, limit, offset)
@@ -148,12 +148,12 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.created_at, r.updated_at,
+		       r.status, r.moderation_reason, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.status = 'published'
+		WHERE r.status IN ('published', 'hidden')
 		ORDER BY `+orderClause+`
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
@@ -300,7 +300,8 @@ func scanReviews(rows interface {
 		if err := rows.Scan(
 			&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
 			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
-			&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt, &item.UpdatedAt,
+			&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
+			&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -325,7 +326,8 @@ func scanReviewsWithTotal(rows interface {
 		if err := rows.Scan(
 			&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
 			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
-			&item.LikeCount, &item.DislikeCount, &item.ReplyCount, &item.Status, &item.CreatedAt, &item.UpdatedAt,
+			&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
+			&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 			&total,
 		); err != nil {
 			return nil, 0, err

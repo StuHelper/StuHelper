@@ -90,7 +90,7 @@ generate-go: bundle-spec
 	go generate ./internal/api/gen/...
 
 generate-ts: bundle-spec
-	cd ../clients/web && npm run generate:types
+	cd ../clients/web/course && pnpm run generate:types
 
 generate: generate-go generate-ts
 	@echo "All code generation complete."
@@ -98,4 +98,4 @@ generate: generate-go generate-ts
 # ── CI Drift Detection ──
 
 check-drift: generate
-	@git diff --exit-code -- internal/api/gen/ ../clients/web/src/types/api.gen.ts || (echo "ERROR: Generated code is out of sync with OpenAPI spec. Run 'make generate' and commit." && exit 1)
+	@git diff --exit-code -- internal/api/gen/ ../clients/web/course/src/types/api.gen.ts || (echo "ERROR: Generated code is out of sync with OpenAPI spec. Run 'make generate' and commit." && exit 1)

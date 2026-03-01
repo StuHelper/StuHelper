@@ -23,6 +23,7 @@ export interface Review {
   dislikeCount: number
   replyCount: number
   status: 'published' | 'hidden'
+  moderationReason?: string
   createdAt: string
 }
 

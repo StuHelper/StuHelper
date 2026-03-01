@@ -2,6 +2,7 @@ package ldap
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -17,14 +18,11 @@ var (
 	ErrInvalidUID = errors.New("invalid uid")
 	// ErrUserNotFound 表示查无此人。
 	ErrUserNotFound = errors.New("ldap user not found")
+	// ErrMissingConfig 表示必填配置项缺失。
+	ErrMissingConfig = errors.New("ldap: missing required config")
 )
 
-// 默认配置（与现有文档保持一致）。
 const (
-	defaultLDAPURL  = "ldap://10.212.24.175"
-	defaultBaseDN   = "ou=people,dc=buaa,dc=edu,dc=cn"
-	defaultSystemDN = "uid=test,ou=system,dc=buaa,dc=edu,dc=cn"
-	defaultSystemPW = "test"
 	defaultTimeout  = 5 * time.Second
 	uidRegexPattern = `^[a-zA-Z0-9._-]+$`
 )
@@ -33,11 +31,20 @@ var uidRegex = regexp.MustCompile(uidRegexPattern)
 
 // Config LDAP 连接配置。
 type Config struct {
-	URL                string
-	BaseDN             string
-	SystemBindDN       string // test
-	SystemBindPassword string // test
-	Timeout            time.Duration
+	// URL 为 LDAP 服务器地址，如 ldap://host:389 或 ldaps://host:636，必填。
+	URL string
+	// BaseDN 为搜索的基础 DN，必填。
+	BaseDN string
+	// SystemBindDN 为系统绑定账号的完整 DN，必填。
+	SystemBindDN string
+	// SystemBindPassword 为系统绑定账号的密码，必填。
+	SystemBindPassword string
+	// Timeout 为连接超时时间，默认 5s。
+	Timeout time.Duration
+	// UseTLS 启用 StartTLS 升级（仅对 ldap:// 连接生效，ldaps:// 自动处理）。
+	UseTLS bool
+	// InsecureSkipVerify 跳过 TLS 证书验证（仅用于开发/测试环境）。
+	InsecureSkipVerify bool
 }
 
 // Client LDAP 客户端。
@@ -64,23 +71,23 @@ type UserInfo struct {
 	EmployeeType     string `json:"employeeType"`
 }
 
-// NewClient 创建 LDAP 客户端。
+// NewClient 创建 LDAP 客户端，必填配置缺失时返回错误。
 func NewClient(cfg Config) (*Client, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
-		cfg.URL = defaultLDAPURL
+		return nil, fmt.Errorf("%w: URL is required", ErrMissingConfig)
 	}
 	if strings.TrimSpace(cfg.BaseDN) == "" {
-		cfg.BaseDN = defaultBaseDN
+		return nil, fmt.Errorf("%w: BaseDN is required", ErrMissingConfig)
 	}
-	if cfg.Timeout <= 0 {
-		cfg.Timeout = defaultTimeout
-	}
-
 	if strings.TrimSpace(cfg.SystemBindDN) == "" {
-		cfg.SystemBindDN = defaultSystemDN
+		return nil, fmt.Errorf("%w: SystemBindDN is required", ErrMissingConfig)
 	}
 	if cfg.SystemBindPassword == "" {
-		cfg.SystemBindPassword = defaultSystemPW
+		return nil, fmt.Errorf("%w: SystemBindPassword is required", ErrMissingConfig)
+	}
+
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = defaultTimeout
 	}
 
 	return &Client{cfg: cfg}, nil
@@ -92,7 +99,7 @@ func (c *Client) Login(ctx context.Context, uid, password string) (*LoginResult,
 	if err := validateUID(uid); err != nil {
 		return nil, err
 	}
-	uid = strings.ToLower(strings.TrimSpace(uid))
+	uid = strings.ToLower(uid)
 	if password == "" {
 		return &LoginResult{Authenticated: false, Message: "empty password"}, nil
 	}
@@ -121,34 +128,7 @@ func (c *Client) Login(ctx context.Context, uid, password string) (*LoginResult,
 		return nil, fmt.Errorf("ldap bind failed: %w", err)
 	}
 
-	// 登录成功后做一次 objectclass=* 查询。
-	searchReq := ldapv3.NewSearchRequest(
-		c.cfg.BaseDN,
-		ldapv3.ScopeWholeSubtree,
-		ldapv3.NeverDerefAliases,
-		0,
-		0,
-		false,
-		"(objectclass=*)",
-		[]string{"dn"},
-		nil,
-	)
-
-	if _, err := conn.Search(searchReq); err != nil {
-		if ldapErr, ok := err.(*ldapv3.Error); ok {
-			return &LoginResult{
-				Authenticated: true,
-				ResultCode:    ldapErr.ResultCode,
-				Message:       ldapErr.Error(),
-			}, nil
-		}
-
-		return &LoginResult{
-			Authenticated: true,
-			Message:       err.Error(),
-		}, nil
-	}
-
+	// Bind 成功即表示认证通过，无需额外搜索。
 	return &LoginResult{Authenticated: true, ResultCode: ldapv3.LDAPResultSuccess}, nil
 }
 
@@ -157,7 +137,7 @@ func (c *Client) QueryUserByUID(ctx context.Context, uid string) (*UserInfo, err
 	if err := validateUID(uid); err != nil {
 		return nil, err
 	}
-	uid = strings.ToLower(strings.TrimSpace(uid))
+	uid = strings.ToLower(uid)
 
 	conn, err := c.dial()
 	if err != nil {
@@ -177,7 +157,7 @@ func (c *Client) QueryUserByUID(ctx context.Context, uid string) (*UserInfo, err
 		c.cfg.BaseDN,
 		ldapv3.ScopeWholeSubtree,
 		ldapv3.NeverDerefAliases,
-		0,
+		1, // SizeLimit=1，防御性编程：uid 应唯一
 		0,
 		false,
 		fmt.Sprintf("(uid=%s)", ldapv3.EscapeFilter(uid)),
@@ -206,6 +186,7 @@ func (c *Client) QueryUserByUID(ctx context.Context, uid string) (*UserInfo, err
 	}, nil
 }
 
+// dial 建立 LDAP 连接，根据配置决定是否升级 TLS。
 func (c *Client) dial() (*ldapv3.Conn, error) {
 	conn, err := ldapv3.DialURL(
 		c.cfg.URL,
@@ -214,9 +195,22 @@ func (c *Client) dial() (*ldapv3.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial ldap failed: %w", err)
 	}
+
+	// ldaps:// 由 go-ldap 自动处理 TLS；对 ldap:// 且启用 TLS 时执行 StartTLS 升级。
+	if c.cfg.UseTLS && strings.HasPrefix(strings.ToLower(c.cfg.URL), "ldap://") {
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: c.cfg.InsecureSkipVerify, //nolint:gosec // 仅开发/测试环境使用
+		}
+		if err := conn.StartTLS(tlsCfg); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("ldap StartTLS failed: %w", err)
+		}
+	}
+
 	return conn, nil
 }
 
+// validateUID 校验 uid 合法性（防止 LDAP 注入）。
 func validateUID(uid string) error {
 	uid = strings.TrimSpace(uid)
 	if uid == "" || !uidRegex.MatchString(uid) {
