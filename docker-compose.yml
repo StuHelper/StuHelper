@@ -1,0 +1,146 @@
+# StuHelper Docker Compose
+#
+# 使用方式:
+#   开发（仅基础设施）:  docker compose up
+#   全 Docker 开发:      docker compose --profile dev-full up
+#   生产部署:            docker compose --profile prod up -d
+
+services:
+  # ─── 基础设施（始终启动）───────────────────────────
+  postgres:
+    image: postgres:18-alpine
+    container_name: stuhelper-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stuhelper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-stuhelper}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/scripts/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./server/scripts/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-stuhelper}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    container_name: stuhelper-redis
+    command: >-
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy volatile-lru
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── 全 Docker 开发（--profile dev-full）────────────
+  # 后端：air 热重载，源码挂载
+  app-dev:
+    profiles: [dev-full]
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: stuhelper-app-dev
+    env_file: .env
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgres://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=disable
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ./server:/app
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 前端：pnpm dev 热重载，源码挂载
+  frontend-dev:
+    profiles: [dev-full]
+    image: node:24-alpine
+    container_name: stuhelper-frontend-dev
+    working_dir: /app
+    command: sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0"
+    volumes:
+      - ./clients/web/course:/app
+      - frontend_dev_node_modules:/app/node_modules
+    ports:
+      - "127.0.0.1:5173:5173"
+    environment:
+      - NODE_ENV=development
+
+  # ─── 生产服务（--profile prod）──────────────────────
+  app:
+    profiles: [prod]
+    image: registry.stuhelper.com/stuhelper/backend:${TAG:-latest}
+    container_name: stuhelper-app
+    env_file: .env
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-disable}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+  frontend:
+    profiles: [prod]
+    image: registry.stuhelper.com/stuhelper/frontend:${TAG:-latest}
+    container_name: stuhelper-frontend
+    ports:
+      - "127.0.0.1:3000:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+volumes:
+  postgres_data:
+  redis_data:
+  frontend_dev_node_modules:
+
+networks:
+  default:
+    name: stuhelper
+    driver: bridge

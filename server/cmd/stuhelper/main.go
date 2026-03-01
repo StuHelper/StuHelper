@@ -50,7 +50,7 @@ func main() {
 func run() error {
 	// 仅在非生产环境加载 .env 文件，生产环境由 docker-compose 注入环境变量
 	if os.Getenv("APP_ENV") != "production" && os.Getenv("GIN_MODE") != "release" {
-		if err := godotenv.Load("deployments/.env"); err != nil {
+		if err := godotenv.Load("../.env"); err != nil {
 			fmt.Fprintf(os.Stderr, "debug: .env not loaded: %v\n", err)
 		}
 	}

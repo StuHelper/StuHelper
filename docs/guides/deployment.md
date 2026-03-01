@@ -1,87 +1,144 @@
 # 生产环境部署指南
 
-本文档说明 StuHelper 后端在生产环境中的关键配置，重点覆盖数据库连接安全和基础设施配置。
+StuHelper 生产环境使用 Docker Compose 部署，镜像通过 Gitea Actions CI/CD 自动构建并推送到 `registry.stuhelper.com`。
 
-> 开发环境搭建请参考 [快速开始](../tutorials/quick-start.md)。
+## 架构
 
-## PostgreSQL 连接安全（SSL/TLS）
+```
+registry.stuhelper.com
+  ├── stuhelper/backend:latest    # Go API 服务
+  └── stuhelper/frontend:latest   # Nginx + Vue SPA
 
-### sslmode 级别说明
-
-| sslmode | 加密 | 证书校验 | 适用场景 |
-|---------|------|----------|----------|
-| `disable` | 否 | 否 | 仅限本地开发 |
-| `require` | 是 | 否 | 加密传输但不验证服务端身份，存在 MITM 风险 |
-| `verify-ca` | 是 | 验证 CA | 确认服务端证书由可信 CA 签发 |
-| `verify-full` | 是 | 验证 CA + 主机名 | **生产环境推荐**，完整的身份验证 |
-
-### 生产环境配置
-
-生产环境**必须**使用 `verify-ca` 或 `verify-full`（推荐后者）。应用启动时会自动校验：
-
-```go
-// config.go 生产环境校验逻辑
-if c.App.Env == "production" {
-    if c.Database.SSLMode == "disable" || c.Database.SSLMode == "" {
-        // 启动失败，强制要求配置 SSL
-    }
-}
+服务器 (docker compose --profile prod)
+  ├── postgres    # PostgreSQL 18
+  ├── redis       # Redis 8
+  ├── app         # 后端 (从 registry 拉取)
+  └── frontend    # 前端 (从 registry 拉取)
 ```
 
-### 环境变量
+## 首次部署
+
+### 1. 服务器准备
 
 ```bash
-# 必填：SSL 模式
+# 安装 Docker
+curl -fsSL https://get.docker.com | sh
+
+# 创建部署目录
+mkdir -p /opt/stuhelper && cd /opt/stuhelper
+```
+
+### 2. 获取配置文件
+
+只需两个文件：
+
+```bash
+# 从仓库获取 docker-compose.yml 和 .env.example
+# 方式 1: 直接下载
+curl -o docker-compose.yml https://gitea.stuhelper.com/StuHelper/StuHelper/raw/branch/main/docker-compose.yml
+curl -o .env.example https://gitea.stuhelper.com/StuHelper/StuHelper/raw/branch/main/.env.example
+
+# 方式 2: clone 后复制
+git clone --depth 1 https://gitea.stuhelper.com/StuHelper/StuHelper.git /tmp/stuhelper-src
+cp /tmp/stuhelper-src/docker-compose.yml /tmp/stuhelper-src/.env.example .
+rm -rf /tmp/stuhelper-src
+```
+
+### 3. 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，填入生产配置：
+
+```bash
+# 必须修改
+POSTGRES_PASSWORD=<strong-password>
+REDIS_PASSWORD=<strong-password>
+DATABASE_URL=postgres://stuhelper:<strong-password>@postgres:5432/stuhelper?sslmode=disable
+APP_ENV=production
+HMAC_SECRET=<openssl rand -hex 32>
+
+# Casdoor SSO
+CASDOOR_ENDPOINT=https://sso.stuhelper.com
+CASDOOR_CLIENT_ID=<from-casdoor-admin>
+CASDOOR_CLIENT_SECRET=<from-casdoor-admin>
+CASDOOR_REDIRECT_URI=https://course.stuhelper.com/auth/callback
+CASDOOR_CERTIFICATE=<pem-content>
+
+# 安全
+TOKEN_COOKIE_SECURE=true
+CORS_ORIGINS=https://course.stuhelper.com
+TRUSTED_PROXIES=127.0.0.1/32
+METRICS_PASSWORD=<strong-password>
+```
+
+### 4. 启动服务
+
+```bash
+docker login registry.stuhelper.com
+docker compose --profile prod pull
+docker compose --profile prod up -d
+```
+
+### 5. 验证
+
+```bash
+docker compose --profile prod ps       # 所有服务 healthy
+curl http://localhost:8080/health       # 后端
+curl http://localhost:3000/             # 前端
+```
+
+## CI/CD 自动部署
+
+合并到 `main` 分支后，Gitea Actions 自动执行：
+
+1. 构建后端 Docker 镜像 -> push 到 registry
+2. 构建前端 Docker 镜像 -> push 到 registry
+3. SSH 到服务器执行 `docker compose --profile prod pull && up -d`
+
+### Gitea 仓库 Secrets 配置
+
+| Secret | 说明 |
+|--------|------|
+| `REGISTRY_USERNAME` | Registry 用户名 |
+| `REGISTRY_PASSWORD` | Registry 密码 |
+| `DEPLOY_HOST` | 服务器 IP |
+| `DEPLOY_PORT` | SSH 端口 |
+| `DEPLOY_USER` | SSH 用户 |
+| `DEPLOY_SSH_KEY` | SSH 私钥 |
+| `DEPLOY_APP_DIR` | 部署目录（如 `/opt/stuhelper`） |
+
+## 手动更新
+
+```bash
+cd /opt/stuhelper
+docker compose --profile prod pull
+docker compose --profile prod up -d --remove-orphans
+```
+
+## 回滚
+
+每个构建都打了 git commit short hash 的 tag：
+
+```bash
+# 回滚到指定版本
+TAG=abc1234 docker compose --profile prod up -d
+```
+
+## 数据库安全
+
+生产环境建议配置数据库 SSL：
+
+```bash
 DB_SSL_MODE=verify-full
-
-# 证书文件路径（verify-ca / verify-full 时必填）
-DB_SSL_ROOT_CERT=/etc/ssl/certs/pg-ca.crt    # CA 根证书
-DB_SSL_CERT=/etc/ssl/certs/pg-client.crt      # 客户端证书（双向 TLS 时）
-DB_SSL_KEY=/etc/ssl/private/pg-client.key      # 客户端私钥（双向 TLS 时）
+DB_SSL_ROOT_CERT=/etc/ssl/certs/pg-ca.crt
 ```
 
-如果使用 `DATABASE_URL` 连接字符串，SSL 参数需包含在 URL 中：
-
-```bash
-DATABASE_URL=postgres://user:pass@db-host:5432/stuhelper?sslmode=verify-full&sslrootcert=/etc/ssl/certs/pg-ca.crt
-```
-
-### Docker Compose 生产配置示例
-
-```yaml
-# docker-compose.prod.yml
-services:
-  app:
-    environment:
-      DB_SSL_MODE: verify-full
-      DB_SSL_ROOT_CERT: /etc/ssl/certs/pg-ca.crt
-    volumes:
-      - ./certs/pg-ca.crt:/etc/ssl/certs/pg-ca.crt:ro
-```
-
-### 云数据库服务
-
-主流云服务商的托管 PostgreSQL 默认启用 SSL：
-
-- **AWS RDS**: 下载 [RDS CA 证书](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html)，设置 `DB_SSL_ROOT_CERT`
-- **阿里云 RDS**: 从控制台下载 CA 证书，配置 `verify-ca`（部分实例不支持 `verify-full`）
-- **自建 PostgreSQL**: 使用 `pg_hba.conf` 中 `hostssl` 规则强制 SSL 连接
-
-## Redis 安全配置
-
-生产环境 Redis 配置要点：
-
-```bash
-REDIS_PASSWORD=<strong-password>       # 必填
-REDIS_TLS_ENABLED=true                  # 启用 TLS（如果 Redis 支持）
-REDIS_TLS_CERT=/etc/ssl/certs/redis.crt
-REDIS_TLS_KEY=/etc/ssl/private/redis.key
-```
-
-当前 `maxmemory-policy` 设置为 `volatile-lru`，仅淘汰设置了 TTL 的 key，保护 token 黑名单等无 TTL 数据。
+详细说明见 `.env.example` 中 `DB_SSL_*` 相关注释。
 
 ## 相关文档
 
-- [快速开始](../tutorials/quick-start.md) — 开发环境搭建
-- [后端开发指南](./backend-quickstart.md) — 项目结构和开发模式
-- [错误码参考](../reference/error-codes.md) — 统一错误码定义
+- [快速开始](../tutorials/quick-start.md) — 开发环境
+- [错误码参考](../reference/error-codes.md)

@@ -1,16 +1,25 @@
 # 快速开始
 
-本文档帮助新开发者在 5 分钟内搭建完整的全栈开发环境。
+本文档帮助新开发者搭建完整的全栈开发环境。
 
-采用**混合模式**：Docker 运行基础设施（PostgreSQL + Redis），本地运行后端和前端，兼顾隔离性和开发体验。
+提供两种开发模式：
+- **混合模式（推荐）**：Docker 运行 PG + Redis，后端和前端在宿主机运行
+- **全 Docker 模式**：所有服务都在 Docker 容器中运行，支持热重载
 
 ## 环境要求
+
+### 混合模式
 
 | 工具 | 版本 | 安装 |
 |------|------|------|
 | Docker & Compose | 24+ | [docker.com](https://www.docker.com/) |
-| Go | 1.23+ | `brew install go` |
-| Node.js | 20+ | `brew install node` |
+| Go | 1.24+ | `brew install go` |
+| Node.js | 24+ | `brew install node` |
+| pnpm | 10+ | `npm install -g pnpm` |
+
+### 全 Docker 模式
+
+只需要 Docker & Compose。
 
 ## 1. 克隆项目
 
@@ -19,10 +28,9 @@ git clone https://gitea.stuhelper.com/StuHelper/StuHelper.git
 cd StuHelper
 ```
 
-## 2. 启动 PostgreSQL + Redis
+## 2. 配置环境变量
 
 ```bash
-cd server/deployments
 cp .env.example .env
 ```
 
@@ -36,82 +44,95 @@ DATABASE_URL=postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disabl
 # Redis 密码
 REDIS_PASSWORD=dev123
 
-# 本地开发必须改为 localhost（Go 进程在宿主机运行）
-REDIS_HOST=localhost
-
-# HMAC 密钥（开发环境随便填，≥32 字符）
-HMAC_SECRET=dev-hmac-secret-at-least-32-chars!!
-
 # Casdoor SSO（联系管理员获取，或先留空跳过认证功能）
 CASDOOR_CLIENT_ID=
 CASDOOR_CLIENT_SECRET=
 ```
 
-> **注意**: `.env` 中 `DATABASE_URL` 的 host 是 `localhost`（不是 `postgres`），因为 Go 进程在宿主机运行，通过映射端口访问 Docker 内的 PG。
+## 3A. 混合模式开发（推荐）
 
-启动基础设施：
+### 启动基础设施
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+docker compose up -d
 ```
 
 验证服务状态：
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml ps
+docker compose ps
 ```
 
-两个容器都应显示 `healthy`。数据库表会通过挂载的 `scripts/init.sql` 自动初始化。
+两个容器都应显示 `healthy`。数据库会通过 `init.sql` + `seed.sql` 自动初始化。
 
-## 3. 启动后端
+### 启动后端
 
 ```bash
-cd ../../server   # 回到 server 目录
+cd server
 make run
-# 或者: go run ./cmd/stuhelper
 ```
 
 访问 http://localhost:8080/health 验证，返回 `{"status":"ok"}` 即成功。
 
-API 交互式文档：http://localhost:8080/docs/ （Swagger UI）
+API 文档：http://localhost:8080/docs/
 
-## 4. 启动前端
+### 启动前端
 
 新开一个终端：
 
 ```bash
-cd clients/web
-npm install
-npm run dev
+cd clients/web/course
+pnpm install
+pnpm dev
 ```
 
-浏览器打开 http://localhost:5173 即可看到页面。
+浏览器打开 http://localhost:5173。
 
-## 5. 加载种子数据（可选）
+## 3B. 全 Docker 模式开发
 
-首次开发时可导入测试数据，方便调试：
+无需修改 `.env`，compose 内部已自动配置容器间网络连接。
+
+一键启动所有服务：
 
 ```bash
-cd server/deployments
-docker compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres \
-  psql -U stuhelper -d stuhelper -f /docker-entrypoint-initdb.d/seed.sql
+docker compose --profile dev-full up
 ```
 
-> 种子数据文件位于 `server/scripts/seed.sql`，包含院系、教师、课程和测评示例数据。
-> 如果需要重新加载，先清空再导入即可。
+- 后端使用 [air](https://github.com/air-verse/air) 热重载（修改 Go 代码自动重编译）
+- 前端使用 pnpm dev（Vite HMR 热更新）
+- 后端：http://localhost:8080
+- 前端：http://localhost:5173
+
+查看容器日志：
+
+```bash
+docker compose --profile dev-full logs -f app-dev     # 后端日志
+docker compose --profile dev-full logs -f frontend-dev # 前端日志
+```
 
 ## 日常开发流程
 
+### 混合模式
+
 ```bash
-# 终端 1: 基础设施（首次启动后常驻，无需每次重启）
-cd server/deployments
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# 终端 1: 基础设施（首次启动后常驻）
+docker compose up -d
 
 # 终端 2: 后端（修改 Go 代码后 Ctrl+C 重启）
 cd server && make run
 
 # 终端 3: 前端（Vite HMR 自动热更新）
-cd clients/web && npm run dev
+cd clients/web/course && pnpm dev
+```
+
+### 全 Docker 模式
+
+```bash
+# 一键启动（后台运行）
+docker compose --profile dev-full up -d
+
+# 查看日志
+docker compose --profile dev-full logs -f
 ```
 
 ## 常用命令
@@ -125,60 +146,52 @@ make test             # 运行测试
 make lint             # 代码检查
 make fmt              # 格式化代码
 make build            # 构建二进制
-make generate         # 重新生成 OpenAPI 相关代码（修改 API 规范后必须执行）
-make lint-spec        # 验证 OpenAPI 规范
+make generate         # 重新生成 OpenAPI 代码
 ```
 
 ### 前端
 
 ```bash
-cd clients/web
-npm run dev           # 开发服务器
-npm run build         # 生产构建
-npm run type-check    # TypeScript 类型检查
-npm run test          # 运行单元测试
-npm run generate:types # 从 OpenAPI 规范生成 TS 类型
+cd clients/web/course
+pnpm dev              # 开发服务器
+pnpm build            # 生产构建
+pnpm run type-check   # TypeScript 类型检查
+pnpm run generate:types # 生成 TS 类型
 ```
 
-### 基础设施
+### Docker
 
 ```bash
-cd server/deployments
-# 以下命令均需指定两个 compose 文件
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d      # 启动
-docker compose -f docker-compose.yml -f docker-compose.dev.yml down       # 停止
-docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f    # 查看日志
-docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v    # 停止并删除数据卷（重置数据库）
+docker compose up -d          # 启动基础设施
+docker compose down           # 停止
+docker compose logs -f        # 查看日志
+docker compose down -v        # 停止并删除数据卷（重置数据库）
 ```
 
 ## 常见问题
 
 ### 端口冲突
 
-- 后端默认 `8080`，前端默认 `5173`，PG `5432`，Redis `6379`
-- 如果 8080 被占用，修改 `.env` 中的 `APP_PORT`
+- 后端 `8080`，前端 `5173`，PG `5432`，Redis `6379`
+- 如果端口被占用，修改 `.env` 中对应的配置
 
 ### 数据库连接失败
 
-- 确认 Docker 容器状态为 `healthy`
-- 确认 `.env` 中 `DATABASE_URL` 的 host 是 `localhost`，不是 `postgres`
-- 确认密码一致：`POSTGRES_PASSWORD` 和 `DATABASE_URL` 中的密码
+- 确认 Docker 容器状态为 `healthy`：`docker compose ps`
+- 混合模式下 `DATABASE_URL` 的 host 必须是 `localhost`
+- 确认 `POSTGRES_PASSWORD` 和 `DATABASE_URL` 中的密码一致
 
 ### 重置数据库
 
 ```bash
-cd server/deployments
-docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+docker compose down -v
+docker compose up -d
 ```
-
-删除数据卷后重新启动，`init.sql` 会自动重新执行。
 
 ## 相关文档
 
 - 开发规范：`.project_rule/project_rules.md`
-- 后端详细指南：`docs/guides/backend-quickstart.md`
-- 模块文档：`docs/modules/`
+- 部署指南：`docs/guides/deployment.md`
 - API 概览：`docs/reference/api-overview.md`
 - OpenAPI 规范：`server/api/openapi.yaml`
-- Swagger UI：http://localhost:8080/docs/ （开发环境）
+- Swagger UI：http://localhost:8080/docs/
