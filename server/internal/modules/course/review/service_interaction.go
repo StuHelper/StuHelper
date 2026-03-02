@@ -83,10 +83,10 @@ type ListReportsResult struct {
 
 // validReportStatuses 举报状态白名单（L-23）
 var validReportStatuses = map[string]bool{
-	"pending":  true,
-	"resolved": true,
-	"rejected": true,
-	"all":      true,
+	ReportStatusPending:  true,
+	ReportStatusResolved: true,
+	ReportStatusRejected: true,
+	StatusAll:            true,
 }
 
 // ListReports 获取举报列表（管理员）
@@ -94,7 +94,7 @@ func (s *Service) ListReports(ctx context.Context, params ListReportsParams) (*L
 	// L-23: 白名单校验 status 参数
 	status := params.Status
 	if !validReportStatuses[status] {
-		status = "all"
+		status = StatusAll
 	}
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
@@ -137,24 +137,24 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 		var reportStatus string
 		switch params.Action {
 		case "reject":
-			reportStatus = "rejected"
+			reportStatus = ReportStatusRejected
 		case "hide_review":
-			reportStatus = "resolved"
+			reportStatus = ReportStatusResolved
 			currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, report.ReviewID)
 			if err != nil {
 				return err
 			}
-			if err := s.repo.UpdateReviewStatus(ctx, tx, report.ReviewID, "hidden"); err != nil {
+			if err := s.repo.UpdateReviewStatus(ctx, tx, report.ReviewID, StatusHidden); err != nil {
 				return err
 			}
 			// 仅从 published 状态隐藏时递减计数
-			if currentStatus == "published" {
+			if currentStatus == StatusPublished {
 				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
 					return err
 				}
 			}
 		case "delete_review":
-			reportStatus = "resolved"
+			reportStatus = ReportStatusResolved
 			currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, report.ReviewID)
 			if err != nil {
 				return err
@@ -163,7 +163,7 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 				return err
 			}
 			// 仅从 published 状态删除时递减计数
-			if currentStatus == "published" {
+			if currentStatus == StatusPublished {
 				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
 					return err
 				}
@@ -386,7 +386,7 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 			ParentID:  params.ParentID,
 			Content:   params.Content,
 			LikeCount: 0,
-			Status:    "published",
+			Status:    StatusPublished,
 			IsOwner:   true,
 			CreatedAt: replyTS.CreatedAt,
 			UpdatedAt: replyTS.UpdatedAt,
@@ -447,7 +447,7 @@ func (s *Service) DeleteReply(ctx context.Context, params DeleteReplyParams) err
 		}
 
 		// 已删除的回复不可重复删除（防止并发双击导致计数双减）
-		if status == "deleted" {
+		if status == StatusDeleted {
 			return ErrReplyNotFound
 		}
 

@@ -72,7 +72,7 @@ type SearchCoursesParams struct {
 
 // SearchCourses 搜索课程
 func (s *Service) SearchCourses(ctx context.Context, params SearchCoursesParams) (*ListCoursesResult, error) {
-	pattern := "%" + escapeLikePattern(params.Query) + "%"
+	pattern := "%" + httputil.EscapeLikePattern(params.Query) + "%"
 
 	offset := httputil.SafeOffset(params.Page, params.PageSize)
 	list, total, err := s.repo.SearchCourses(ctx, pattern, params.PageSize, offset)

@@ -288,10 +288,8 @@ func isConnectionError(err error) bool {
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 		return true
 	}
-	// 超时错误（context deadline exceeded）
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
+	// 不重试 context.DeadlineExceeded：超时意味着客户端无法确认服务端是否已完成执行，
+	// 重试非幂等写操作（INSERT/UPDATE）会导致重复写入
 	// 网络层错误（connection refused / reset / timeout 等）
 	var netErr *net.OpError
 	if errors.As(err, &netErr) {

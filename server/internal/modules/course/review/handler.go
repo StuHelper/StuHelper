@@ -12,6 +12,7 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
@@ -137,6 +138,23 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 func (h *Handler) CleanupOldLogs(ctx context.Context) (int64, error) {
 	const retentionDays = 90
 	return h.service.CleanupOldOperationLogs(ctx, retentionDays)
+}
+
+// logAdminOp 记录管理员操作日志的辅助函数，提取 gin context 中的公共字段
+func (h *Handler) logAdminOp(c *gin.Context, action, resourceType, resourceID string, oldValue, newValue any) {
+	if err := h.service.LogOperation(c.Request.Context(), LogOperationParams{
+		AdminUserID:   middleware.GetUserID(c),
+		AdminUsername: middleware.GetUsername(c),
+		Action:        action,
+		ResourceType:  resourceType,
+		ResourceID:    resourceID,
+		OldValue:      oldValue,
+		NewValue:      newValue,
+		IPAddress:     c.ClientIP(),
+		UserAgent:     httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
+	}); err != nil {
+		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
+	}
 }
 
 // invalidateReviewCaches 失效评论相关缓存

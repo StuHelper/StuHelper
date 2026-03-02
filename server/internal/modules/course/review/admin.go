@@ -22,26 +22,14 @@ import (
 const (
 	// maxBatchSize 批量操作的最大数量上限
 	maxBatchSize = 100
-	// maxUserAgentLen UserAgent 字段最大长度，超出截断
-	maxUserAgentLen = 256
 )
-
-// truncateUserAgent 从请求中获取 UserAgent 并截断到安全长度（按 rune 截断，避免破坏 UTF-8）
-func truncateUserAgent(c *gin.Context) string {
-	ua := c.GetHeader("User-Agent")
-	runes := []rune(ua)
-	if len(runes) > maxUserAgentLen {
-		return string(runes[:maxUserAgentLen])
-	}
-	return ua
-}
 
 // ListReports 获取举报列表
 func (h *Handler) ListReports(c *gin.Context) {
 	status := c.DefaultQuery("status", "pending")
 	// 白名单校验 status 参数
-	if status != "pending" && status != "resolved" && status != "rejected" && status != "all" {
-		status = "pending"
+	if !isValidReportStatus(status) {
+		status = ReportStatusPending
 	}
 	page, pageSize := httputil.ParsePage(c)
 
@@ -86,11 +74,10 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 
 	var req ProcessReportRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
-	userID := middleware.GetUserID(c)
 	username := middleware.GetUsername(c)
 
 	err = h.service.ProcessReport(c.Request.Context(), ProcessReportParams{
@@ -115,19 +102,9 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// 记录操作日志
-	if err := h.service.LogOperation(ctx, LogOperationParams{
-		AdminUserID:   userID,
-		AdminUsername: username,
-		Action:        "process_report_" + req.Action,
-		ResourceType:  "report",
-		ResourceID:    reportID,
-		OldValue:      map[string]string{"status": "pending"},
-		NewValue:      map[string]string{"action": req.Action, "note": req.Note},
-		IPAddress:     c.ClientIP(),
-		UserAgent:     truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "process_report_"+req.Action, "report", reportID,
+		map[string]string{"status": "pending"},
+		map[string]string{"action": req.Action, "note": req.Note})
 
 	if err := h.cache.InvalidateByVersion(ctx, "review:admin:reports"); err != nil {
 		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
@@ -141,8 +118,8 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 func (h *Handler) ListAllReviews(c *gin.Context) {
 	status := c.DefaultQuery("status", "all")
 	// 白名单校验 status 参数
-	if status != "published" && status != "hidden" && status != "deleted" && status != "all" {
-		status = "all"
+	if !isValidReviewStatus(status) {
+		status = StatusAll
 	}
 	page, pageSize := httputil.ParsePage(c)
 
@@ -176,12 +153,11 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 
 	var req AdminUpdateReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
 	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
 
 	result, err := h.service.AdminUpdateReview(c.Request.Context(), AdminUpdateReviewParams{
 		ReviewID: reviewID,
@@ -196,7 +172,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		case errors.Is(err, ErrInvalidAction):
 			response.BadRequest(c, "invalid action")
 		case errors.Is(err, ErrInvalidTransition):
-			response.BadRequest(c, err.Error())
+			response.BadRequest(c, "invalid status transition for this action")
 		default:
 			logger.FromGin(c).Error("failed to update review", zap.Error(err))
 			response.InternalError(c, "failed to update review")
@@ -204,26 +180,14 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-
 	// 记录操作日志
 	newValue := map[string]string{"action": req.Action}
 	if req.Reason != "" {
 		newValue["reason"] = req.Reason
 	}
-	if err := h.service.LogOperation(ctx, LogOperationParams{
-		AdminUserID:   userID,
-		AdminUsername: username,
-		Action:        req.Action,
-		ResourceType:  "review",
-		ResourceID:    reviewID,
-		OldValue:      map[string]string{"status": result.OldStatus},
-		NewValue:      newValue,
-		IPAddress:     c.ClientIP(),
-		UserAgent:     truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, req.Action, "review", reviewID,
+		map[string]string{"status": result.OldStatus},
+		newValue)
 
 	h.invalidateReviewCaches(c, 0, "review:stats")
 
@@ -261,7 +225,7 @@ type BatchUpdateReviewsRequest struct {
 func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 	var req BatchUpdateReviewsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
@@ -294,24 +258,10 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-
 	// 记录操作日志
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
-	if err := h.service.LogOperation(ctx, LogOperationParams{
-		AdminUserID:   userID,
-		AdminUsername: username,
-		Action:        "batch_" + req.Action,
-		ResourceType:  "review",
-		ResourceID:    fmt.Sprintf("batch:%d_items", len(req.IDs)),
-		OldValue:      nil,
-		NewValue:      map[string]interface{}{"ids": req.IDs, "action": req.Action, "affected": result.Affected},
-		IPAddress:     c.ClientIP(),
-		UserAgent:     truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "batch_"+req.Action, "review", fmt.Sprintf("batch:%d_items", len(req.IDs)),
+		nil,
+		map[string]interface{}{"ids": req.IDs, "action": req.Action, "affected": result.Affected})
 
 	h.invalidateReviewCaches(c, 0, "review:stats")
 
@@ -348,8 +298,8 @@ func (h *Handler) ExportReviews(c *gin.Context) {
 		format = "json"
 	}
 	// 验证 status 参数
-	if status != "all" && status != "published" && status != "hidden" && status != "deleted" {
-		status = "all"
+	if !isValidReviewStatus(status) {
+		status = StatusAll
 	}
 
 	if format == "csv" {
@@ -378,13 +328,13 @@ func (h *Handler) exportNDJSONStream(c *gin.Context, status string) {
 		return err
 	})
 	if streamErr != nil {
-		logger.L().Warn("failed to stream export reviews (ndjson)", zap.Error(streamErr))
+		logger.FromGin(c).Warn("failed to stream export reviews (ndjson)", zap.Error(streamErr))
 		return // 不写入完成标记，客户端可据此检测到导出不完整
 	}
 
 	// 所有行写入成功，追加完成标记
 	if _, err := c.Writer.Write([]byte("# EXPORT_COMPLETE\n")); err != nil {
-		logger.L().Warn("failed to write export completion marker", zap.Error(err))
+		logger.FromGin(c).Warn("failed to write export completion marker", zap.Error(err))
 	}
 }
 
@@ -436,14 +386,14 @@ func (h *Handler) exportCSVStream(c *gin.Context, status string) {
 		return w.Write(record)
 	})
 	if streamErr != nil {
-		logger.L().Warn("failed to stream export reviews", zap.Error(streamErr))
+		logger.FromGin(c).Warn("failed to stream export reviews", zap.Error(streamErr))
 		return // 不写入完成标记，客户端可据此检测到导出不完整
 	}
 
 	// 所有行写入成功，追加完成标记
 	w.Flush()
 	if _, err := c.Writer.Write([]byte("# EXPORT_COMPLETE\n")); err != nil {
-		logger.L().Warn("failed to write export completion marker", zap.Error(err))
+		logger.FromGin(c).Warn("failed to write export completion marker", zap.Error(err))
 	}
 }
 
@@ -464,12 +414,11 @@ func (h *Handler) AdminEditReviewContent(c *gin.Context) {
 
 	var req AdminEditReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
 	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
 
 	err = h.service.AdminEditReview(c.Request.Context(), AdminEditReviewParams{
 		ReviewID: reviewID,
@@ -489,22 +438,10 @@ func (h *Handler) AdminEditReviewContent(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-
 	// 记录操作日志
-	if err := h.service.LogOperation(ctx, LogOperationParams{
-		AdminUserID:   userID,
-		AdminUsername: username,
-		Action:        "edit_content",
-		ResourceType:  "review",
-		ResourceID:    reviewID,
-		OldValue:      nil,
-		NewValue:      map[string]string{"title": req.Title, "reason": req.Reason},
-		IPAddress:     c.ClientIP(),
-		UserAgent:     truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "edit_content", "review", reviewID,
+		nil,
+		map[string]string{"title": req.Title, "reason": req.Reason})
 
 	h.invalidateReviewCaches(c, 0)
 

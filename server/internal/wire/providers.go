@@ -5,6 +5,10 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/wire"
+	"github.com/jackc/pgx/v5/pgxpool"
+	redisv9 "github.com/redis/go-redis/v9"
+
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
@@ -13,9 +17,6 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
-	"github.com/google/wire"
-	"github.com/jackc/pgx/v5/pgxpool"
-	redisv9 "github.com/redis/go-redis/v9"
 )
 
 // ConfigSet 配置相关的 Provider
@@ -110,8 +111,9 @@ func ProvideAuthHandler(
 	cfg *config.Config,
 	ts *token.Service,
 	rc *redis.Client,
+	ssoClient *sso.Client,
 ) *auth.Handler {
-	return auth.NewHandler(cfg, ts, rc.GetClient())
+	return auth.NewHandler(cfg, ts, rc.GetClient(), ssoClient)
 }
 
 // ProvideCourseHandler 提供课程 Handler

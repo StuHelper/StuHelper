@@ -71,6 +71,7 @@ func NewClient(cfg config.CasdoorConfig) (*Client, error) {
 	// 检查后续调用的配置是否与首次初始化一致
 	if initializedCfg.Endpoint != cfg.Endpoint ||
 		initializedCfg.ClientID != cfg.ClientID ||
+		initializedCfg.ClientSecret != cfg.ClientSecret ||
 		initializedCfg.Organization != cfg.Organization ||
 		initializedCfg.Application != cfg.Application {
 		return nil, errConfigMismatch

@@ -70,7 +70,7 @@ func (b *auditedBody) Read(p []byte) (n int, err error) {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
 			b.logged = true
-			requestID := getRequestID(b.c)
+			requestID := GetRequestID(b.c)
 			logger.L().Warn("request body exceeded limit (no Content-Length)",
 				zap.String("request_id", requestID),
 				zap.String("client_ip", b.c.ClientIP()),
@@ -88,7 +88,7 @@ func (b *auditedBody) Read(p []byte) (n int, err error) {
 func MaxBodySize(maxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.ContentLength > maxBytes {
-			requestID := getRequestID(c)
+			requestID := GetRequestID(c)
 			logger.L().Warn("request body too large",
 				zap.String("request_id", requestID),
 				zap.String("client_ip", c.ClientIP()),

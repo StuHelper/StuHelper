@@ -24,9 +24,9 @@ type AdminUpdateReviewParams struct {
 // validTransitions 定义合法的状态转移白名单
 // key: action, value: 允许的源状态集合
 var validTransitions = map[string]map[string]bool{
-	"hide":    {"published": true},
-	"restore": {"hidden": true},
-	"delete":  {"published": true, "hidden": true},
+	"hide":    {StatusPublished: true},
+	"restore": {StatusHidden: true},
+	"delete":  {StatusPublished: true, StatusHidden: true},
 }
 
 // AdminUpdateReviewResult 管理员更新评论结果
@@ -58,7 +58,7 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 
 		switch params.Action {
 		case "hide":
-			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, "hidden"); err != nil {
+			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, StatusHidden); err != nil {
 				return err
 			}
 			if params.AdminID != "" {
@@ -68,7 +68,7 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			}
 			return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
 		case "restore":
-			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, "published"); err != nil {
+			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, StatusPublished); err != nil {
 				return err
 			}
 			if err := s.repo.ClearModerationTx(ctx, tx, params.ReviewID); err != nil {
@@ -79,7 +79,7 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			if err := s.repo.SoftDeleteReview(ctx, tx, params.ReviewID); err != nil {
 				return err
 			}
-			if currentStatus == "published" {
+			if currentStatus == StatusPublished {
 				return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
 			}
 			return nil
@@ -199,7 +199,22 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 		Courses:        courses,
 	}
 
-	// 按学期分组统计
+	// 分组统计并填充响应
+	overallStats := s.groupRatingStats(stats, dimensions, resp)
+	s.buildRatingCharts(resp, dimensions, overallStats, teacherName)
+
+	return resp, nil
+}
+
+// groupRatingStats 按学期分组统计评分数据，填充 resp.Overall 和 resp.ByTerm
+// 返回总体维度统计 map（用于雷达图和平均分计算）
+func (s *Service) groupRatingStats(stats []TeacherRatingStats, dimensions []RatingDimension, resp *TeacherRatingStatsResponse) map[string]*DimensionStats {
+	// 构建维度名称查找表
+	dimNameMap := make(map[string]string, len(dimensions))
+	for _, d := range dimensions {
+		dimNameMap[d.Key] = d.Name
+	}
+
 	termStats := make(map[string]*TermRatingStats)
 	overallStats := make(map[string]*DimensionStats)
 
@@ -209,13 +224,9 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 			termID = *stat.TermID
 		}
 
-		// 查找维度名称
 		dimName := stat.DimensionKey
-		for _, d := range dimensions {
-			if d.Key == stat.DimensionKey {
-				dimName = d.Name
-				break
-			}
+		if name, ok := dimNameMap[stat.DimensionKey]; ok {
+			dimName = name
 		}
 
 		ds := &DimensionStats{
@@ -226,10 +237,8 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 		}
 
 		if termID == "" {
-			// 总体统计
 			overallStats[stat.DimensionKey] = ds
 		} else {
-			// 按学期统计
 			if _, ok := termStats[termID]; !ok {
 				termStats[termID] = &TermRatingStats{
 					TermID:     termID,
@@ -241,7 +250,7 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 		}
 	}
 
-	// 构建总体统计
+	// 构建总体统计（按维度配置顺序）
 	var overallDims []DimensionStats
 	for _, d := range dimensions {
 		if ds, ok := overallStats[d.Key]; ok {
@@ -262,9 +271,14 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 		return resp.ByTerm[i].TermID < resp.ByTerm[j].TermID
 	})
 
-	// 构建雷达图数据
-	var labels []string
-	var data []float64
+	return overallStats
+}
+
+// buildRatingCharts 构建雷达图、平均分和评分趋势
+func (s *Service) buildRatingCharts(resp *TeacherRatingStatsResponse, dimensions []RatingDimension, overallStats map[string]*DimensionStats, teacherName string) {
+	// 雷达图数据
+	labels := make([]string, 0, len(dimensions))
+	data := make([]float64, 0, len(dimensions))
 	for _, d := range dimensions {
 		labels = append(labels, d.Name)
 		if ds, ok := overallStats[d.Key]; ok {
@@ -285,17 +299,17 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 		},
 	}
 
-	// 计算总体平均分（所有维度的均值）
-	if len(overallDims) > 0 {
+	// 总体平均分
+	if len(resp.Overall.Dimensions) > 0 {
 		var sum float64
-		for _, d := range overallDims {
+		for _, d := range resp.Overall.Dimensions {
 			sum += d.AvgRating
 		}
-		avg := sum / float64(len(overallDims))
+		avg := sum / float64(len(resp.Overall.Dimensions))
 		resp.AvgRating = &avg
 	}
 
-	// 构建评分趋势（按学期的平均分）
+	// 评分趋势（按学期的平均分）
 	ratingTrend := make([]RatingTrendItem, 0, len(resp.ByTerm))
 	for _, ts := range resp.ByTerm {
 		if len(ts.Dimensions) == 0 {
@@ -312,8 +326,6 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 		})
 	}
 	resp.RatingTrend = ratingTrend
-
-	return resp, nil
 }
 
 // BatchUpdateReviewsParams 批量更新评论参数
@@ -337,11 +349,11 @@ func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateRevi
 	var status string
 	switch params.Action {
 	case "hide":
-		status = "hidden"
+		status = StatusHidden
 	case "restore":
-		status = "published"
+		status = StatusPublished
 	case "delete":
-		status = "deleted"
+		status = StatusDeleted
 	default:
 		return nil, ErrInvalidAction
 	}
@@ -412,8 +424,8 @@ type LogOperationParams struct {
 	Action        string
 	ResourceType  string
 	ResourceID    string
-	OldValue      interface{}
-	NewValue      interface{}
+	OldValue      any
+	NewValue      any
 	IPAddress     string
 	UserAgent     string
 }

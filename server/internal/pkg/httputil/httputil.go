@@ -119,11 +119,32 @@ func EscapeLikePattern(s string) string {
 	return s
 }
 
-// SanitizeCacheKey 清理缓存 key 中的特殊字符，防止缓存 key 注入
+// SanitizeCacheKey 清理缓存 key 中的特殊字符，防止缓存 key 注入。
+// 失败时返回原始输入的截断值作为降级，避免空字符串导致缓存碰撞。
 func SanitizeCacheKey(s string) string {
 	hash, err := crypto.HMACHashShort(s, 16)
 	if err != nil {
-		return ""
+		safe := EscapeLikePattern(s)
+		if len(safe) > 64 {
+			safe = safe[:64]
+		}
+		return safe
 	}
 	return hash
+}
+
+// maxUserAgentLen UserAgent 字段最大长度，超出截断
+const maxUserAgentLen = 256
+
+// TruncateUserAgent 截断 User-Agent 字符串到安全长度（按 rune 截断，避免破坏 UTF-8）。
+// 调用方应通过 c.GetHeader("User-Agent") 获取原始值后传入。
+func TruncateUserAgent(ua string) string {
+	if len(ua) <= maxUserAgentLen {
+		return ua
+	}
+	runes := []rune(ua)
+	if len(runes) > maxUserAgentLen {
+		return string(runes[:maxUserAgentLen])
+	}
+	return ua
 }

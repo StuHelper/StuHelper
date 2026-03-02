@@ -131,16 +131,11 @@ func (r *Repository) ListByCourse(ctx context.Context, courseID int64, limit, of
 
 // ListLatest 获取最新评论列表（含总数）
 func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort string) ([]Review, int, error) {
-	// SQL 注入安全保证：orderClause 的值 **仅** 来自下方硬编码的 map 字面量，
+	// SQL 注入安全保证：orderClause 的值 **仅** 来自 allowedSortOrders 硬编码 map，
 	// 不包含任何用户输入。即使 sort 参数被篡改，最坏情况也只会命中默认排序。
-	// 使用 map 查找（O(1)）而非 switch，确保编译时可审计所有合法值。
-	allowedSorts := map[string]string{
-		"likes":  "r.like_count DESC, r.created_at DESC",
-		"rating": "r.avg_rating DESC, r.created_at DESC",
-	}
-	orderClause := "r.created_at DESC" // 默认排序（白名单未命中时使用）
-	if clause, ok := allowedSorts[sort]; ok {
-		orderClause = clause
+	orderClause, ok := allowedSortOrders[sort]
+	if !ok {
+		orderClause = allowedSortOrders[SortTime]
 	}
 
 	rows, err := r.db.Query(ctx, `

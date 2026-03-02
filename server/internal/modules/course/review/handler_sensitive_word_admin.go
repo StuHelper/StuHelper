@@ -9,7 +9,6 @@ import (
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -35,7 +34,7 @@ func (h *Handler) ListSensitiveWords(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	offset := httputil.SafeOffset(page, pageSize)
 
-	list, total, err := h.service.repo.ListSensitiveWords(c.Request.Context(), category, level, pageSize, offset)
+	list, total, err := h.service.ListSensitiveWords(c.Request.Context(), category, level, pageSize, offset)
 	if err != nil {
 		logger.FromGin(c).Error("failed to list sensitive words", zap.Error(err))
 		response.InternalError(c, "failed to list sensitive words")
@@ -49,31 +48,20 @@ func (h *Handler) ListSensitiveWords(c *gin.Context) {
 func (h *Handler) CreateSensitiveWord(c *gin.Context) {
 	var req CreateSensitiveWordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
-	w, err := h.service.repo.CreateSensitiveWord(c.Request.Context(), req.Word, req.Category, req.Level)
+	w, err := h.service.CreateSensitiveWord(c.Request.Context(), req.Word, req.Category, req.Level)
 	if err != nil {
 		logger.FromGin(c).Error("failed to create sensitive word", zap.Error(err))
 		response.InternalError(c, "failed to create sensitive word")
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
-	if err := h.service.LogOperation(c.Request.Context(), LogOperationParams{
-		AdminUserID:  userID,
-		AdminUsername: username,
-		Action:       "create_sensitive_word",
-		ResourceType: "sensitive_word",
-		ResourceID:   w.ID,
-		NewValue:     map[string]interface{}{"word": req.Word, "category": req.Category, "level": req.Level},
-		IPAddress:    c.ClientIP(),
-		UserAgent:    truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "create_sensitive_word", "sensitive_word", w.ID,
+		nil,
+		map[string]interface{}{"word": req.Word, "category": req.Category, "level": req.Level})
 
 	response.Success(c, w)
 }
@@ -88,11 +76,11 @@ func (h *Handler) UpdateSensitiveWord(c *gin.Context) {
 
 	var req UpdateSensitiveWordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
-	if err := h.service.repo.UpdateSensitiveWord(c.Request.Context(), wordID, req.Word, req.Category, req.Level, req.IsActive); err != nil {
+	if err := h.service.UpdateSensitiveWord(c.Request.Context(), wordID, req.Word, req.Category, req.Level, req.IsActive); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			response.NotFound(c, "sensitive word not found")
 			return
@@ -102,19 +90,7 @@ func (h *Handler) UpdateSensitiveWord(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
-	if err := h.service.LogOperation(c.Request.Context(), LogOperationParams{
-		AdminUserID:  userID,
-		AdminUsername: username,
-		Action:       "update_sensitive_word",
-		ResourceType: "sensitive_word",
-		ResourceID:   wordID,
-		IPAddress:    c.ClientIP(),
-		UserAgent:    truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "update_sensitive_word", "sensitive_word", wordID, nil, nil)
 
 	response.Success(c, gin.H{"message": "sensitive word updated"})
 }
@@ -127,7 +103,7 @@ func (h *Handler) DeleteSensitiveWord(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.repo.DeleteSensitiveWord(c.Request.Context(), wordID); err != nil {
+	if err := h.service.DeleteSensitiveWord(c.Request.Context(), wordID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			response.NotFound(c, "sensitive word not found")
 			return
@@ -137,19 +113,7 @@ func (h *Handler) DeleteSensitiveWord(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
-	if err := h.service.LogOperation(c.Request.Context(), LogOperationParams{
-		AdminUserID:  userID,
-		AdminUsername: username,
-		Action:       "delete_sensitive_word",
-		ResourceType: "sensitive_word",
-		ResourceID:   wordID,
-		IPAddress:    c.ClientIP(),
-		UserAgent:    truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "delete_sensitive_word", "sensitive_word", wordID, nil, nil)
 
 	response.Success(c, gin.H{"message": "sensitive word deleted"})
 }

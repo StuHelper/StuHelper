@@ -238,7 +238,7 @@ func run() error {
 		api.Use(middleware.CSRFMiddleware())
 
 		// 注册认证模块路由
-		authHandler := auth.NewHandler(cfg, tokenService, redisClient.GetClient())
+		authHandler := auth.NewHandler(cfg, tokenService, redisClient.GetClient(), ssoClient)
 		authHandler.RegisterRoutes(api)
 
 		// 注册课程模块路由
