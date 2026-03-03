@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -84,7 +85,7 @@ func (h *Handler) UpdateTeacher(c *gin.Context) {
 
 	if err := h.service.UpdateTeacher(c.Request.Context(), id, req.Name, req.DepartmentID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "teacher not found")
+			response.NotFound(c, "teacher not found", errs.ErrTeacherNotFound)
 			return
 		}
 		logger.FromGin(c).Error("failed to update teacher", zap.Error(err))
@@ -109,7 +110,7 @@ func (h *Handler) DeleteTeacher(c *gin.Context) {
 
 	if err := h.service.DeleteTeacher(c.Request.Context(), id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "teacher not found")
+			response.NotFound(c, "teacher not found", errs.ErrTeacherNotFound)
 			return
 		}
 		logger.FromGin(c).Error("failed to delete teacher", zap.Error(err))

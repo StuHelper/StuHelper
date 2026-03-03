@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -145,7 +146,7 @@ func (h *Handler) GetCourse(c *gin.Context) {
 	course, err := h.service.GetCourse(c.Request.Context(), courseID)
 	if err != nil {
 		if errors.Is(err, ErrCourseNotFound) {
-			response.NotFound(c, "course not found")
+			response.NotFound(c, "course not found", errs.ErrCourseNotFound)
 			return
 		}
 		response.InternalError(c, "failed to load course")

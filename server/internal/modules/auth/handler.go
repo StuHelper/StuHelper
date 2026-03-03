@@ -12,6 +12,7 @@ import (
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -106,7 +107,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 			zap.Int("state_len", len(state)),
 		)
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
-		response.BadRequest(c, "invalid or expired state parameter")
+		response.BadRequest(c, "invalid or expired state parameter", errs.ErrOAuthStateInvalid)
 		return
 	}
 
@@ -115,7 +116,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	if err != nil {
 		logger.FromGin(c).Error("SSO token exchange failed", zap.Error(err))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "oauth token error")
-		response.Error(c, http.StatusUnauthorized, response.ErrCodeUnauthorized, "authentication failed")
+		response.Error(c, http.StatusUnauthorized, errs.ErrOAuthFailed, "authentication failed")
 		return
 	}
 
@@ -150,7 +151,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 
 		// 返回 SSO 登出 URL，让前端通过顶级导航清除浏览器中的 Casdoor session cookie
 		ssoLogoutURL := fmt.Sprintf("%s/api/logout", h.ssoEndpoint)
-		response.ErrorWithDetails(c, http.StatusForbidden, response.ErrCodeForbidden,
+		response.ErrorWithDetails(c, http.StatusForbidden, errs.ErrForbidden,
 			"user does not belong to this application",
 			gin.H{"ssoLogoutURL": ssoLogoutURL},
 		)
@@ -308,7 +309,7 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 func (h *Handler) RefreshToken(c *gin.Context) {
 	refreshToken, err := c.Cookie(middleware.CookieRefreshToken)
 	if err != nil || refreshToken == "" {
-		response.Unauthorized(c, "missing refresh token")
+		response.Unauthorized(c, "missing refresh token", errs.ErrTokenMissing)
 		return
 	}
 
@@ -322,7 +323,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 	if blacklisted {
-		response.Unauthorized(c, "refresh token revoked")
+		response.Unauthorized(c, "refresh token revoked", errs.ErrTokenRevoked)
 		return
 	}
 
@@ -339,7 +340,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	if err != nil {
 		logger.FromGin(c).Error("failed to refresh token", zap.Error(err))
 		h.clearTokenCookies(c)
-		response.Unauthorized(c, "failed to refresh token")
+		response.Unauthorized(c, "failed to refresh token", errs.ErrRefreshTokenInvalid)
 		return
 	}
 

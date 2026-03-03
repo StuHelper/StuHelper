@@ -177,12 +177,12 @@ func CasbinEnforce(ssoClient *sso.Client, permissionId, obj, act string) gin.Han
 
 // 辅助函数
 func abortUnauthorized(c *gin.Context) {
-	response.Unauthorized(c, "unauthorized")
+	response.Unauthorized(c, "unauthorized", errs.ErrTokenMissing)
 	c.Abort()
 }
 
 func abortForbidden(c *gin.Context) {
-	response.Forbidden(c, "forbidden")
+	response.Forbidden(c, "forbidden", errs.ErrAccessDenied)
 	c.Abort()
 }
 

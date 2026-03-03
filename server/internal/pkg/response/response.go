@@ -26,20 +26,6 @@ type Response struct {
 	Error   *APIError `json:"error,omitempty"`
 }
 
-// 旧版错误码别名 (向后兼容，将在 v2.0 移除)
-// Deprecated: 请直接使用 errs 包中的错误码
-const (
-	ErrCodeBadRequest     = errs.ErrBadRequest       // A00400
-	ErrCodeUnauthorized   = errs.ErrLoginRequired    // A01010
-	ErrCodeForbidden      = errs.ErrForbidden        // A01020
-	ErrCodeNotFound       = errs.ErrNotFound         // A00404
-	ErrCodeConflict       = errs.ErrConflict         // A00409
-	ErrCodeInternal       = errs.ErrInternal         // B00001
-	ErrCodeValidation     = errs.ErrValidation       // A00422
-	ErrCodeRateLimit      = errs.ErrRateLimited      // A00429
-	ErrCodeServiceUnavail = errs.ErrServiceUnavailable // B00004
-)
-
 // Success 返回成功响应
 func Success(c *gin.Context, data any) {
 	c.JSON(http.StatusOK, Response{
@@ -83,47 +69,86 @@ func ErrorWithDetails(c *gin.Context, status int, code errs.ErrorCode, message s
 }
 
 // BadRequest 返回 400 错误
-func BadRequest(c *gin.Context, message string) {
-	Error(c, http.StatusBadRequest, ErrCodeBadRequest, message)
+// 可选的 code 参数允许传入具体业务错误码，不传则使用通用码 errs.ErrBadRequest
+func BadRequest(c *gin.Context, message string, code ...errs.ErrorCode) {
+	ec := errs.ErrBadRequest
+	if len(code) > 0 {
+		ec = code[0]
+	}
+	Error(c, http.StatusBadRequest, ec, message)
 }
 
 // ValidationError 返回验证错误
 func ValidationError(c *gin.Context, message string, details any) {
-	ErrorWithDetails(c, http.StatusBadRequest, ErrCodeValidation, message, details)
+	ErrorWithDetails(c, http.StatusBadRequest, errs.ErrValidation, message, details)
 }
 
 // Unauthorized 返回 401 错误
-func Unauthorized(c *gin.Context, message string) {
-	Error(c, http.StatusUnauthorized, ErrCodeUnauthorized, message)
+// 可选的 code 参数允许传入具体业务错误码，不传则使用通用码 errs.ErrLoginRequired
+func Unauthorized(c *gin.Context, message string, code ...errs.ErrorCode) {
+	ec := errs.ErrLoginRequired
+	if len(code) > 0 {
+		ec = code[0]
+	}
+	Error(c, http.StatusUnauthorized, ec, message)
 }
 
 // Forbidden 返回 403 错误
-func Forbidden(c *gin.Context, message string) {
-	Error(c, http.StatusForbidden, ErrCodeForbidden, message)
+// 可选的 code 参数允许传入具体业务错误码，不传则使用通用码 errs.ErrForbidden
+func Forbidden(c *gin.Context, message string, code ...errs.ErrorCode) {
+	ec := errs.ErrForbidden
+	if len(code) > 0 {
+		ec = code[0]
+	}
+	Error(c, http.StatusForbidden, ec, message)
 }
 
 // NotFound 返回 404 错误
-func NotFound(c *gin.Context, message string) {
-	Error(c, http.StatusNotFound, ErrCodeNotFound, message)
+// 可选的 code 参数允许传入具体业务错误码，不传则使用通用码 errs.ErrNotFound
+func NotFound(c *gin.Context, message string, code ...errs.ErrorCode) {
+	ec := errs.ErrNotFound
+	if len(code) > 0 {
+		ec = code[0]
+	}
+	Error(c, http.StatusNotFound, ec, message)
 }
 
 // Conflict 返回 409 错误
-func Conflict(c *gin.Context, message string) {
-	Error(c, http.StatusConflict, ErrCodeConflict, message)
+// 可选的 code 参数允许传入具体业务错误码，不传则使用通用码 errs.ErrConflict
+func Conflict(c *gin.Context, message string, code ...errs.ErrorCode) {
+	ec := errs.ErrConflict
+	if len(code) > 0 {
+		ec = code[0]
+	}
+	Error(c, http.StatusConflict, ec, message)
 }
 
 // InternalError 返回 500 错误
-func InternalError(c *gin.Context, message string) {
-	Error(c, http.StatusInternalServerError, ErrCodeInternal, message)
+// 可选的 code 参数允许传入具体业务错误码，不传则使用通用码 errs.ErrInternal
+func InternalError(c *gin.Context, message string, code ...errs.ErrorCode) {
+	ec := errs.ErrInternal
+	if len(code) > 0 {
+		ec = code[0]
+	}
+	Error(c, http.StatusInternalServerError, ec, message)
 }
 
 // RateLimitExceeded 返回 429 错误
-func RateLimitExceeded(c *gin.Context) {
-	Error(c, http.StatusTooManyRequests, ErrCodeRateLimit, "rate limit exceeded")
+func RateLimitExceeded(c *gin.Context, message ...string) {
+	msg := "rate limit exceeded"
+	if len(message) > 0 {
+		msg = message[0]
+	}
+	Error(c, http.StatusTooManyRequests, errs.ErrRateLimited, msg)
 }
 
 // ServiceUnavailable 返回 503 错误
-func ServiceUnavailable(c *gin.Context, message string) {
-	Error(c, http.StatusServiceUnavailable, ErrCodeServiceUnavail, message)
+// 可选的 code 参数允许传入具体业务错误码，不传则使用通用码 errs.ErrServiceUnavailable
+func ServiceUnavailable(c *gin.Context, message string, code ...errs.ErrorCode) {
+	ec := errs.ErrServiceUnavailable
+	if len(code) > 0 {
+		ec = code[0]
+	}
+	Error(c, http.StatusServiceUnavailable, ec, message)
 }
 

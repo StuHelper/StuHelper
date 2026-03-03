@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -34,7 +35,7 @@ func (h *Handler) AddFavorite(c *gin.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, ErrCourseNotFound) {
-			response.NotFound(c, "course not found")
+			response.NotFound(c, "course not found", errs.ErrCourseNotFound)
 			return
 		}
 		logger.FromGin(c).Error("failed to add favorite", zap.Error(err))
@@ -193,7 +194,7 @@ func (h *Handler) SaveDraft(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrCourseNotFound):
-			response.NotFound(c, "course not found")
+			response.NotFound(c, "course not found", errs.ErrCourseNotFound)
 		case errors.Is(err, ErrDangerousContent):
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		default:
@@ -224,7 +225,7 @@ func (h *Handler) GetDraft(c *gin.Context) {
 	draft, err := h.service.GetDraft(c.Request.Context(), userHash, courseID)
 	if err != nil {
 		if errors.Is(err, ErrDraftNotFound) {
-			response.NotFound(c, "draft not found")
+			response.NotFound(c, "draft not found", errs.ErrDraftNotFound)
 		} else {
 			logger.FromGin(c).Error("failed to get draft", zap.Error(err))
 			response.InternalError(c, "failed to get draft")
@@ -330,11 +331,11 @@ func (h *Handler) CreateReply(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found")
+			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
 		case errors.Is(err, ErrDangerousContent):
 			response.BadRequest(c, "content contains dangerous elements")
 		case errors.Is(err, ErrSensitiveContent):
-			response.BadRequest(c, "content contains sensitive words")
+			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
 		default:
 			logger.FromGin(c).Error("failed to create reply", zap.Error(err))
 			response.InternalError(c, "failed to create reply")
@@ -370,9 +371,9 @@ func (h *Handler) DeleteReply(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReplyNotFound):
-			response.NotFound(c, "reply not found")
+			response.NotFound(c, "reply not found", errs.ErrReplyNotFound)
 		case errors.Is(err, ErrNotReplyOwner):
-			response.Forbidden(c, "you can only delete your own reply")
+			response.Forbidden(c, "you can only delete your own reply", errs.ErrNotReplyOwner)
 		default:
 			logger.FromGin(c).Error("failed to delete reply", zap.Error(err))
 			response.InternalError(c, "failed to delete reply")
