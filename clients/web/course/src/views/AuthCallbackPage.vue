@@ -42,7 +42,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { isApiError, ErrorCode } from '@/api/errors'
+import { isApiError } from '@/api/errors'
 
 const router = useRouter()
 const route = useRoute()
@@ -91,7 +91,7 @@ onMounted(async () => {
       router.push('/')
     }
   } catch (err) {
-    if (isApiError(err) && err.code === ErrorCode.FORBIDDEN) {
+    if (isApiError(err) && err.status === 403) {
       orgMismatch.value = true
       ssoLogoutURL.value = (err.details?.ssoLogoutURL as string) || ''
       sessionStorage.setItem('org_mismatch', ssoLogoutURL.value)

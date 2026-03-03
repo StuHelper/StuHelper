@@ -9,7 +9,7 @@ import axios, {
   type AxiosError
 } from 'axios'
 import config from './config'
-import { ApiError, ErrorCode, createErrorFromStatus } from './errors'
+import { ApiError, httpStatusToDefaultCode } from './errors'
 import { clearAuth, tokenExpiry } from '@/utils/auth'
 import i18n from '@/i18n'
 
@@ -154,8 +154,8 @@ class TokenRefreshManager {
 
   private createAuthError(): ApiError {
     return new ApiError({
-      message: i18n.global.t('errors.TOKEN_EXPIRED'),
-      code: ErrorCode.TOKEN_EXPIRED,
+      message: i18n.global.t('errors.A0010001'),
+      code: 'A0010001',
       status: 401
     })
   }
@@ -170,7 +170,7 @@ function addOfflineInterceptor(instance: AxiosInstance) {
       return Promise.reject(
         new ApiError({
           message: i18n.global.t('errors.OFFLINE'),
-          code: ErrorCode.OFFLINE
+          code: 'OFFLINE'
         })
       )
     }
@@ -197,38 +197,54 @@ function transformError(error: AxiosError): ApiError {
   if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
     return new ApiError({
       message: i18n.global.t('errors.TIMEOUT'),
-      code: ErrorCode.TIMEOUT
+      code: 'TIMEOUT'
     })
   }
 
   if (!error.response) {
     return new ApiError({
       message: i18n.global.t('errors.NETWORK_ERROR'),
-      code: ErrorCode.NETWORK_ERROR
+      code: 'NETWORK_ERROR'
     })
   }
 
   const { status, data } = error.response
-  // M-08/M-107: 使用类型守卫校验响应结构
   const responseData = isErrorResponseBody(data) ? data : undefined
 
+  let code: string | undefined
   let message: string | undefined
   let details: Record<string, unknown> | undefined
 
   if (
     responseData?.error &&
     typeof responseData.error === 'object' &&
-    responseData.error !== null &&
-    'message' in responseData.error
+    responseData.error !== null
   ) {
-    message = responseData.error.message
-    details = responseData.error.details
+    if ('code' in responseData.error && typeof responseData.error.code === 'string') {
+      code = responseData.error.code
+    }
+    if ('message' in responseData.error) {
+      message = responseData.error.message
+    }
+    if ('details' in responseData.error) {
+      details = responseData.error.details
+    }
   } else {
     message = responseData?.message ||
       (typeof responseData?.error === 'string' ? responseData.error : undefined)
   }
 
-  return createErrorFromStatus(status, message, details)
+  // 后端未返回 code 时，用 HTTP 状态码映射到默认 8 位码
+  if (!code) {
+    code = httpStatusToDefaultCode(status)
+  }
+
+  return new ApiError({
+    message: message || `HTTP ${status}`,
+    code,
+    status,
+    details
+  })
 }
 
 // 创建响应拦截器

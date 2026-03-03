@@ -6,7 +6,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Department, Course } from '@/types/course'
 import { getDepartments, getCourses } from '@/api/course'
-import { isApiError } from '@/api/errors'
+import { isApiError, isNetworkError } from '@/api/errors'
 import i18n from '@/i18n'
 
 // 缓存配置
@@ -108,7 +108,7 @@ export const useCourseStore = defineStore('course', () => {
   // 处理错误
   const handleError = (err: unknown): StoreError => {
     if (isApiError(err)) {
-      if (err.isNetworkError()) {
+      if (isNetworkError(err.code)) {
         return { type: 'network', message: i18n.global.t('errors.NETWORK_ERROR') }
       }
       return { type: 'server', message: err.getUserMessage() }

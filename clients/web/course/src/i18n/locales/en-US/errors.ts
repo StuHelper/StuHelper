@@ -1,37 +1,56 @@
 /**
  * Error messages - English
- * Corresponds to backend error codes, see docs/api/error-codes.md
+ * Error codes correspond to backend 8-digit codes or client codes, see docs/reference/error-codes.md
  */
 export default {
-  // Network errors
+  // Client-only codes (backend never returns these)
   NETWORK_ERROR: 'Network connection failed, please check your network',
   OFFLINE: 'You are offline. Please check your connection and try again',
   TIMEOUT: 'Request timed out, please try again',
 
-  // Auth errors
-  UNAUTHORIZED: 'Please log in first',
-  TOKEN_EXPIRED: 'Session expired, please log in again',
-  INVALID_TOKEN: 'Invalid session, please log in again',
+  // A000xxxx - General client errors
+  A0000400: 'Invalid request parameters',
+  A0000404: 'The requested resource was not found',
+  A0000409: 'Resource conflict',
+  A0000422: 'Validation failed',
+  A0000429: 'Too many requests, please try again later',
 
-  // Permission errors
-  FORBIDDEN: 'You do not have permission to perform this action',
+  // A001xxxx - Auth and authorization
+  A0010001: 'Session expired, please log in again',
+  A0010002: 'Invalid session, please log in again',
+  A0010003: 'Please log in first',
+  A0010100: 'Please log in first',
+  A0010200: 'You do not have permission to perform this action',
+  A0010201: 'Access denied',
+  A0010202: 'CSRF validation failed, please refresh the page',
+  A0010203: 'CSRF token missing, please refresh the page',
 
-  // Client errors
-  BAD_REQUEST: 'Invalid request parameters',
-  NOT_FOUND: 'The requested resource was not found',
-  VALIDATION_ERROR: 'Validation failed',
-  CONFLICT: 'Resource conflict',
-  RATE_LIMIT_EXCEEDED: 'Too many requests, please try again later',
+  // A010xxxx - Course module
+  A0100001: 'Course not found',
+  A0100003: 'Teacher not found',
 
-  // Server errors
-  SERVER_ERROR: 'Server error, please try again later',
-  SERVICE_UNAVAILABLE: 'Service temporarily unavailable',
+  // A011xxxx - Review module
+  A0110001: 'Review not found',
+  A0110002: 'You have already reviewed this course',
+  A0110005: 'Reply not found',
+  A0110006: 'Draft not found',
+  A0110007: 'Report not found',
+  A0110008: 'Sensitive word not found',
+  A0110010: 'You do not own this review',
+  A0110011: 'You do not own this reply',
+  A0110100: 'You have already voted on this review',
+  A0110102: 'You cannot vote on your own review',
+  A0110103: 'You have already reported this content',
+  A0110301: 'Content contains sensitive words, please revise',
+  A0110302: 'Invalid status transition',
 
-  // Business errors
-  BUSINESS_ERROR: 'Operation failed',
+  // B000xxxx - System errors
+  B0000001: 'Server error, please try again later',
+  B0000004: 'Service temporarily unavailable',
+  B0000006: 'Request timed out, please try again later',
 
-  // Unknown errors
-  UNKNOWN: 'An unknown error occurred',
+  // C000xxxx - Third-party service errors
+  C0000001: 'Upstream service error',
 
   // Error pages
   notFound: {
