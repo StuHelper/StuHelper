@@ -63,7 +63,8 @@ CREATE TABLE rating_dimensions (
     is_active   BOOLEAN NOT NULL DEFAULT true,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_rating_dimensions_key UNIQUE (school_id, key)
+    CONSTRAINT uq_rating_dimensions_key UNIQUE (school_id, key),
+    CONSTRAINT uq_rating_dimensions_key_global UNIQUE (key)
 );
 ```
 
@@ -100,12 +101,25 @@ CREATE TABLE courses (
     name            VARCHAR(255) NOT NULL,
     code            VARCHAR(50),
     department_id   BIGINT REFERENCES departments(id),
-    credits         DECIMAL(3,1),
+    credits         DECIMAL(4,1),
     category        VARCHAR(50) NOT NULL DEFAULT '',
     description     TEXT,
     review_count    INT NOT NULL DEFAULT 0 CHECK (review_count >= 0),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### 3.5 teachers (教师表)
+
+```sql
+CREATE TABLE teachers (
+    id              BIGSERIAL PRIMARY KEY,
+    school_id       BIGINT NOT NULL DEFAULT 1,
+    name            VARCHAR(255) NOT NULL,
+    department_id   BIGINT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_teachers_department FOREIGN KEY (department_id) REFERENCES departments(id)
 );
 ```
 
@@ -132,7 +146,7 @@ CREATE TABLE reviews (
     id              VARCHAR(36) PRIMARY KEY,
     course_id       BIGINT NOT NULL REFERENCES courses(id),
     teacher_id      BIGINT REFERENCES teachers(id) ON DELETE SET NULL,
-    term_id         VARCHAR(20),
+    term_id         VARCHAR(20) NOT NULL DEFAULT '',
     user_hash       VARCHAR(64) NOT NULL,
     title           VARCHAR(200),
     content         TEXT NOT NULL,
@@ -143,6 +157,11 @@ CREATE TABLE reviews (
     dislike_count   INT NOT NULL DEFAULT 0 CHECK (dislike_count >= 0),
     reply_count     INT NOT NULL DEFAULT 0 CHECK (reply_count >= 0),
     status          VARCHAR(20) NOT NULL DEFAULT 'published',
+    moderation_reason TEXT,
+    original_content  TEXT,
+    original_title    VARCHAR(200),
+    moderated_by      VARCHAR(255),
+    moderated_at      TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -191,7 +210,7 @@ CREATE TABLE review_replies (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT chk_review_replies_status CHECK (status IN ('published', 'hidden', 'deleted')),
-    CONSTRAINT chk_review_replies_content_length CHECK (char_length(content) <= 5000)
+    CONSTRAINT chk_review_replies_content_length CHECK (LENGTH(TRIM(content)) >= 1 AND char_length(content) <= 5000)
 );
 ```
 

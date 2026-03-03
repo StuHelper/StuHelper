@@ -80,18 +80,26 @@ userHash = HMAC-SHA256(userID, secret)
 ### 限流故障策略
 
 - Redis 故障时限流器 fail-closed（返回 503），不放行请求
-- 熔断器开启时 fail-closed（返回 401）
+- 熔断器开启时 fail-closed（返回 503）
 
 ## 安全中间件
 
 ### 安全响应头
 
 通过 `security_headers.go` 中间件统一设置：
+
+**开发环境**：
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
-- `X-XSS-Protection: 1; mode=block`
 - `Referrer-Policy: strict-origin-when-cross-origin`
-- `Content-Security-Policy`
+- `X-Permitted-Cross-Domain-Policies: none`
+- `Content-Security-Policy`（API 路径使用严格策略）
+
+**生产环境额外添加**：
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- `Permissions-Policy: geolocation=(), microphone=(), camera=()`
+- `Cross-Origin-Resource-Policy: same-origin`
+- `Cross-Origin-Opener-Policy: same-origin`
 
 ### 请求体大小限制
 
@@ -123,7 +131,7 @@ userHash = HMAC-SHA256(userID, secret)
 - 删除/隐藏/恢复测评
 - 处理举报
 - 批量操作
-- CSV 导出
+- 数据导出
 
 ### 数据备份
 

@@ -19,7 +19,7 @@ server/
 │   │   ├── auth/        # 认证模块
 │   │   └── course/      # 课程 + 评课模块
 │   └── pkg/             # 公共包（中间件、工具函数等）
-├── deployments/         # Docker Compose、.env 配置
+├── deployments/         # 环境变量（.env 已移至项目根目录）
 └── scripts/             # 数据库初始化和种子数据
 ```
 
