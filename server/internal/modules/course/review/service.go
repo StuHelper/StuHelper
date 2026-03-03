@@ -29,23 +29,23 @@ func maskHash(hash string) string {
 
 // 业务错误定义
 var (
-	ErrCourseNotFound     = errors.New("course not found")
-	ErrReviewNotFound     = errors.New("review not found")
-	ErrTeacherNotFound    = errors.New("teacher not found")
-	ErrAlreadyVoted       = errors.New("already voted")
-	ErrAlreadyReviewed    = errors.New("already reviewed this course")
-	ErrDangerousContent   = errors.New("content contains dangerous elements")
-	ErrSensitiveContent   = errors.New("content contains sensitive words")
-	ErrContentEmpty       = errors.New("content cannot be empty after sanitization")
-	ErrInvalidRating      = errors.New("invalid rating value")
-	ErrRatingRequired     = errors.New("at least one rating dimension is required")
-	ErrNotReviewOwner     = errors.New("not the review owner")
-	ErrAlreadyReported    = errors.New("already reported this review")
-	ErrReportNotFound     = errors.New("report not found")
-	ErrDraftNotFound          = errors.New("draft not found")
-	ErrNotificationNotFound   = errors.New("notification not found")
-	ErrInvalidAction     = errors.New("invalid action")
-	ErrInvalidTransition = errors.New("invalid status transition")
+	ErrCourseNotFound       = errors.New("course not found")
+	ErrReviewNotFound       = errors.New("review not found")
+	ErrTeacherNotFound      = errors.New("teacher not found")
+	ErrAlreadyVoted         = errors.New("already voted")
+	ErrAlreadyReviewed      = errors.New("already reviewed this course")
+	ErrDangerousContent     = errors.New("content contains dangerous elements")
+	ErrSensitiveContent     = errors.New("content contains sensitive words")
+	ErrContentEmpty         = errors.New("content cannot be empty after sanitization")
+	ErrInvalidRating        = errors.New("invalid rating value")
+	ErrRatingRequired       = errors.New("at least one rating dimension is required")
+	ErrNotReviewOwner       = errors.New("not the review owner")
+	ErrAlreadyReported      = errors.New("already reported this review")
+	ErrReportNotFound       = errors.New("report not found")
+	ErrDraftNotFound        = errors.New("draft not found")
+	ErrNotificationNotFound = errors.New("notification not found")
+	ErrInvalidAction        = errors.New("invalid action")
+	ErrInvalidTransition    = errors.New("invalid status transition")
 )
 
 // Service 评课服务层
@@ -53,7 +53,6 @@ type Service struct {
 	db     *db.DB
 	repo   *Repository
 	filter *Filter
-	log    *zap.Logger
 }
 
 // NewService 创建评课服务
@@ -63,7 +62,6 @@ func NewService(database *db.DB, repo *Repository) *Service {
 		db:     database,
 		repo:   repo,
 		filter: filter,
-		log:    logger.L(),
 	}
 }
 
@@ -454,7 +452,7 @@ func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) e
 			}
 			return err
 		}
-		if status != "published" {
+		if status != StatusPublished {
 			return ErrReviewNotFound
 		}
 		if ownerHash != params.UserHash {
@@ -488,7 +486,7 @@ func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) e
 			}
 			return err
 		}
-		if status == "deleted" {
+		if status == StatusDeleted {
 			return ErrReviewNotFound
 		}
 		if ownerHash != params.UserHash {
@@ -499,7 +497,7 @@ func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) e
 			return err
 		}
 		// 仅从 published 状态删除时递减计数并刷新评分统计
-		if status == "published" {
+		if status == StatusPublished {
 			if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
 				return err
 			}
@@ -522,4 +520,48 @@ func (s *Service) CheckContent(ctx context.Context, content string) *ContentChec
 // CheckQuality 检查内容质量
 func (s *Service) CheckQuality(content string) *QualityCheckResult {
 	return s.filter.CheckQuality(content)
+}
+
+// --- 敏感词管理 pass-through ---
+
+// ListSensitiveWords returns a paginated list of sensitive words (pass-through to Repository).
+func (s *Service) ListSensitiveWords(ctx context.Context, category, level string, limit, offset int) ([]SensitiveWord, int, error) {
+	return s.repo.ListSensitiveWords(ctx, category, level, limit, offset)
+}
+
+// CreateSensitiveWord creates a new sensitive word entry (pass-through to Repository).
+func (s *Service) CreateSensitiveWord(ctx context.Context, word, category, level string) (SensitiveWord, error) {
+	return s.repo.CreateSensitiveWord(ctx, word, category, level)
+}
+
+// UpdateSensitiveWord updates an existing sensitive word (pass-through to Repository).
+func (s *Service) UpdateSensitiveWord(ctx context.Context, wordID string, word, category, level *string, isActive *bool) error {
+	return s.repo.UpdateSensitiveWord(ctx, wordID, word, category, level, isActive)
+}
+
+// DeleteSensitiveWord deletes a sensitive word by ID (pass-through to Repository).
+func (s *Service) DeleteSensitiveWord(ctx context.Context, wordID string) error {
+	return s.repo.DeleteSensitiveWord(ctx, wordID)
+}
+
+// --- 教师管理 pass-through ---
+
+// ListAdminTeachers returns a paginated list of teachers for admin management (pass-through to Repository).
+func (s *Service) ListAdminTeachers(ctx context.Context, search string, departmentID int64, limit, offset int) ([]AdminTeacher, int, error) {
+	return s.repo.ListAdminTeachers(ctx, search, departmentID, limit, offset)
+}
+
+// CreateTeacher creates a new teacher record (pass-through to Repository).
+func (s *Service) CreateTeacher(ctx context.Context, name string, departmentID *int64) (*AdminTeacher, error) {
+	return s.repo.CreateTeacher(ctx, name, departmentID)
+}
+
+// UpdateTeacher updates an existing teacher's information (pass-through to Repository).
+func (s *Service) UpdateTeacher(ctx context.Context, id int64, name string, departmentID *int64) error {
+	return s.repo.UpdateTeacher(ctx, id, name, departmentID)
+}
+
+// DeleteTeacher deletes a teacher by ID (pass-through to Repository).
+func (s *Service) DeleteTeacher(ctx context.Context, id int64) error {
+	return s.repo.DeleteTeacher(ctx, id)
 }

@@ -36,7 +36,7 @@ interface ErrorResponseBody {
 
 function isErrorResponseBody(data: unknown): data is ErrorResponseBody {
   if (typeof data !== 'object' || data === null) return false
-  return true
+  return 'message' in data || 'error' in data
 }
 
 // API 响应类型
@@ -262,98 +262,39 @@ function createResponseInterceptor<T>(
   }
 }
 
-// 创建通用 API 实例
-export const request = axios.create({
-  baseURL: config.baseUrl,
-  timeout: config.timeout,
-  withCredentials: config.withCredentials
-})
-addOfflineInterceptor(request)
-addCSRFInterceptor(request)
+// 工厂函数：创建带标准拦截器的 API 实例
+function createApiInstance(baseURL: string): AxiosInstance {
+  const instance = axios.create({ baseURL, timeout: config.timeout, withCredentials: config.withCredentials })
+  addOfflineInterceptor(instance)
+  addCSRFInterceptor(instance)
+  const interceptor = createResponseInterceptor(instance, (res) => (res as { data: unknown }).data)
+  instance.interceptors.response.use(interceptor.onFulfilled, interceptor.onRejected)
+  return instance
+}
 
-const requestInterceptor = createResponseInterceptor(
-  request,
-  (res) => (res as { data: unknown }).data
-)
-request.interceptors.response.use(
-  requestInterceptor.onFulfilled,
-  requestInterceptor.onRejected
-)
-
-// 创建课程评价 API 实例
-const courseReviewApi = axios.create({
-  baseURL: config.courseReviewBaseUrl,
-  timeout: config.timeout,
-  withCredentials: config.withCredentials
-})
-addOfflineInterceptor(courseReviewApi)
-addCSRFInterceptor(courseReviewApi)
-
-const courseInterceptor = createResponseInterceptor(
-  courseReviewApi,
-  (res) => (res as { data: unknown }).data
-)
-courseReviewApi.interceptors.response.use(
-  courseInterceptor.onFulfilled,
-  courseInterceptor.onRejected
-)
-
-// 创建课程实体 API 实例（院系、课程等非评价接口）
-const courseBaseApi = axios.create({
-  baseURL: config.courseBaseUrl,
-  timeout: config.timeout,
-  withCredentials: config.withCredentials
-})
-addOfflineInterceptor(courseBaseApi)
-addCSRFInterceptor(courseBaseApi)
-
-const courseBaseInterceptor = createResponseInterceptor(
-  courseBaseApi,
-  (res) => (res as { data: unknown }).data
-)
-courseBaseApi.interceptors.response.use(
-  courseBaseInterceptor.onFulfilled,
-  courseBaseInterceptor.onRejected
-)
-
-// 课程实体 API 客户端（/api/v1/course）
-export const courseEntityApi = {
-  get<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return courseBaseApi.get(url, cfg) as Promise<ApiResponse<T>>
-  },
-  post<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return courseBaseApi.post(url, data, cfg) as Promise<ApiResponse<T>>
-  },
-  put<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return courseBaseApi.put(url, data, cfg) as Promise<ApiResponse<T>>
-  },
-  delete<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return courseBaseApi.delete(url, cfg) as Promise<ApiResponse<T>>
-  },
-  // H-39: blob 响应独立方法，不经过 JSON transform
-  downloadBlob(url: string, cfg?: AxiosRequestConfig): Promise<AxiosResponse<Blob>> {
-    return courseBaseApi.get(url, { ...cfg, responseType: 'blob' })
+// 工厂函数：创建类型安全的 API 客户端
+function createTypedClient(instance: AxiosInstance) {
+  return {
+    get<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+      return instance.get(url, cfg) as Promise<ApiResponse<T>>
+    },
+    post<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+      return instance.post(url, data, cfg) as Promise<ApiResponse<T>>
+    },
+    put<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+      return instance.put(url, data, cfg) as Promise<ApiResponse<T>>
+    },
+    delete<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+      return instance.delete(url, cfg) as Promise<ApiResponse<T>>
+    },
+    downloadBlob(url: string, cfg?: AxiosRequestConfig): Promise<AxiosResponse<Blob>> {
+      return instance.get(url, { ...cfg, responseType: 'blob' })
+    }
   }
 }
 
-// 课程评价 API 客户端（/api/v1/course/review）
-export const courseApi = {
-  get<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return courseReviewApi.get(url, cfg) as Promise<ApiResponse<T>>
-  },
-  post<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return courseReviewApi.post(url, data, cfg) as Promise<ApiResponse<T>>
-  },
-  put<T>(url: string, data?: unknown, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return courseReviewApi.put(url, data, cfg) as Promise<ApiResponse<T>>
-  },
-  delete<T>(url: string, cfg?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    return courseReviewApi.delete(url, cfg) as Promise<ApiResponse<T>>
-  },
-  // H-39: blob 响应独立方法，不经过 JSON transform
-  downloadBlob(url: string, cfg?: AxiosRequestConfig): Promise<AxiosResponse<Blob>> {
-    return courseReviewApi.get(url, { ...cfg, responseType: 'blob' })
-  }
-}
+export const request = createApiInstance(config.baseUrl)
+export const courseEntityApi = createTypedClient(createApiInstance(config.courseBaseUrl))
+export const courseApi = createTypedClient(createApiInstance(config.courseReviewBaseUrl))
 
 export default courseApi

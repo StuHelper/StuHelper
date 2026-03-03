@@ -234,7 +234,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 
 	orderBy, ok := allowedSortOrders[sort]
 	if !ok {
-		orderBy = allowedSortOrders["time"]
+		orderBy = allowedSortOrders[SortTime]
 	}
 
 	// 使用 LATERAL join 高效获取每个课程的 top-N 测评
@@ -294,9 +294,9 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 // 与 ListByCourseWithSort / ListLatest 的 SELECT 别名一致。
 // 修改此 map 时需同步检查对应查询的 SELECT 列别名。
 var allowedSortOrders = map[string]string{
-	"time":   "r.created_at DESC",
-	"likes":  "r.like_count DESC, r.created_at DESC",
-	"rating": "r.avg_rating DESC, r.created_at DESC",
+	SortTime:   "r.created_at DESC",
+	SortLikes:  "r.like_count DESC, r.created_at DESC",
+	SortRating: "r.avg_rating DESC, r.created_at DESC",
 }
 
 // ListByCourseWithSortParams 带排序筛选的评论列表参数

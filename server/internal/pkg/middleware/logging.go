@@ -71,7 +71,7 @@ func RequestLogger() gin.HandlerFunc {
 		query := maskSensitiveQueryParams(c.Request.URL.RawQuery)
 
 		// 注入带 request_id 的 logger 到 context
-		requestID := getRequestID(c)
+		requestID := GetRequestID(c)
 		reqLogger := logger.L().With(zap.String("request_id", requestID))
 		logger.GinContext(c, reqLogger)
 
@@ -126,7 +126,7 @@ func Recovery() gin.HandlerFunc {
 				}
 
 				stack := string(debug.Stack())
-				requestID := getRequestID(c)
+				requestID := GetRequestID(c)
 
 				// 按行拆分栈追踪，便于日志聚合系统解析
 				stackLines := strings.Split(stack, "\n")
@@ -152,7 +152,8 @@ func Recovery() gin.HandlerFunc {
 	}
 }
 
-func getRequestID(c *gin.Context) string {
+// GetRequestID 从 Gin context 中提取请求 ID
+func GetRequestID(c *gin.Context) string {
 	if id, exists := c.Get(CtxKeyRequestID); exists {
 		if s, ok := id.(string); ok {
 			return s

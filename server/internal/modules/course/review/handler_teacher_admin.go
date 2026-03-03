@@ -10,7 +10,6 @@ import (
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -36,7 +35,7 @@ func (h *Handler) ListAdminTeachers(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	offset := httputil.SafeOffset(page, pageSize)
 
-	list, total, err := h.service.repo.ListAdminTeachers(c.Request.Context(), search, departmentID, pageSize, offset)
+	list, total, err := h.service.ListAdminTeachers(c.Request.Context(), search, departmentID, pageSize, offset)
 	if err != nil {
 		logger.FromGin(c).Error("failed to list teachers", zap.Error(err))
 		response.InternalError(c, "failed to list teachers")
@@ -50,11 +49,11 @@ func (h *Handler) ListAdminTeachers(c *gin.Context) {
 func (h *Handler) CreateTeacher(c *gin.Context) {
 	var req CreateTeacherRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
-	teacher, err := h.service.repo.CreateTeacher(c.Request.Context(), req.Name, req.DepartmentID)
+	teacher, err := h.service.CreateTeacher(c.Request.Context(), req.Name, req.DepartmentID)
 	if err != nil {
 		logger.FromGin(c).Error("failed to create teacher", zap.Error(err))
 		response.InternalError(c, "failed to create teacher")
@@ -62,20 +61,9 @@ func (h *Handler) CreateTeacher(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
-	if err := h.service.LogOperation(c.Request.Context(), LogOperationParams{
-		AdminUserID:  userID,
-		AdminUsername: username,
-		Action:       "create_teacher",
-		ResourceType: "teacher",
-		ResourceID:   strconv.FormatInt(teacher.ID, 10),
-		NewValue:     map[string]interface{}{"name": req.Name, "departmentID": req.DepartmentID},
-		IPAddress:    c.ClientIP(),
-		UserAgent:    truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "create_teacher", "teacher", strconv.FormatInt(teacher.ID, 10),
+		nil,
+		map[string]interface{}{"name": req.Name, "departmentID": req.DepartmentID})
 
 	response.Success(c, teacher)
 }
@@ -90,11 +78,11 @@ func (h *Handler) UpdateTeacher(c *gin.Context) {
 
 	var req UpdateTeacherRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
-	if err := h.service.repo.UpdateTeacher(c.Request.Context(), id, req.Name, req.DepartmentID); err != nil {
+	if err := h.service.UpdateTeacher(c.Request.Context(), id, req.Name, req.DepartmentID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			response.NotFound(c, "teacher not found")
 			return
@@ -104,20 +92,9 @@ func (h *Handler) UpdateTeacher(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
-	if err := h.service.LogOperation(c.Request.Context(), LogOperationParams{
-		AdminUserID:  userID,
-		AdminUsername: username,
-		Action:       "update_teacher",
-		ResourceType: "teacher",
-		ResourceID:   strconv.FormatInt(id, 10),
-		NewValue:     map[string]interface{}{"name": req.Name, "departmentID": req.DepartmentID},
-		IPAddress:    c.ClientIP(),
-		UserAgent:    truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "update_teacher", "teacher", strconv.FormatInt(id, 10),
+		nil,
+		map[string]interface{}{"name": req.Name, "departmentID": req.DepartmentID})
 
 	response.Success(c, gin.H{"message": "teacher updated successfully"})
 }
@@ -130,29 +107,17 @@ func (h *Handler) DeleteTeacher(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.repo.DeleteTeacher(c.Request.Context(), id); err != nil {
+	if err := h.service.DeleteTeacher(c.Request.Context(), id); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			response.NotFound(c, "teacher not found")
 			return
 		}
 		logger.FromGin(c).Error("failed to delete teacher", zap.Error(err))
-		response.BadRequest(c, err.Error())
+		response.InternalError(c, "failed to delete teacher")
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
-	if err := h.service.LogOperation(c.Request.Context(), LogOperationParams{
-		AdminUserID:  userID,
-		AdminUsername: username,
-		Action:       "delete_teacher",
-		ResourceType: "teacher",
-		ResourceID:   strconv.FormatInt(id, 10),
-		IPAddress:    c.ClientIP(),
-		UserAgent:    truncateUserAgent(c),
-	}); err != nil {
-		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
-	}
+	h.logAdminOp(c, "delete_teacher", "teacher", strconv.FormatInt(id, 10), nil, nil)
 
 	response.Success(c, gin.H{"message": "teacher deleted successfully"})
 }

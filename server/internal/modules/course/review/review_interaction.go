@@ -163,7 +163,7 @@ type SaveDraftRequest struct {
 func (h *Handler) SaveDraft(c *gin.Context) {
 	var req SaveDraftRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
@@ -310,7 +310,7 @@ func (h *Handler) CreateReply(c *gin.Context) {
 
 	var req CreateReplyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 

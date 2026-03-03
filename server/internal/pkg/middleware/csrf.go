@@ -30,29 +30,6 @@ func GenerateCSRFToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// CSRFSetCookieMiddleware 在响应中自动设置 CSRF cookie（如果尚未存在）
-// 前端从 cookie 读取 token 并在请求头中回传，实现双重提交校验
-//
-// 安全权衡: HttpOnly=false 是双重提交模式的必要条件——前端 JS 必须能读取 cookie 值
-// 以便将其放入 X-CSRF-Token 请求头。这意味着 XSS 攻击可以读取该 token。
-// 缓解措施:
-//   - SameSite=Strict 阻止跨站请求携带 cookie
-//   - 依赖 CSP (Content-Security-Policy) 头限制脚本执行来源，降低 XSS 风险
-//   - token 仅用于 CSRF 校验，不包含敏感信息
-func CSRFSetCookieMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if _, err := c.Cookie(CookieCSRFToken); err != nil {
-			token, genErr := GenerateCSRFToken()
-			if genErr == nil {
-				// SameSite=Strict 防止跨站携带；HttpOnly=false 允许前端 JS 读取
-				c.SetSameSite(http.SameSiteStrictMode)
-				c.SetCookie(CookieCSRFToken, token, 0, "/", "", false, false)
-			}
-		}
-		c.Next()
-	}
-}
-
 // CSRFMiddleware 双重提交 CSRF 校验
 func CSRFMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

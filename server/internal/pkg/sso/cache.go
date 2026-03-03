@@ -42,17 +42,49 @@ type CachedUser struct {
 
 // UserCache 用户信息缓存服务（L1 本地内存 + L2 Redis 二级缓存）
 type UserCache struct {
-	rdb   *redis.Client
-	local sync.Map // L1: 本地内存缓存，key → *localEntry
-	mu    sync.RWMutex
-	ttl   time.Duration
+	rdb       *redis.Client
+	local     sync.Map // L1: 本地内存缓存，key → *localEntry
+	mu        sync.RWMutex
+	ttl       time.Duration
+	stopCh    chan struct{}
+	closeOnce sync.Once
 }
 
 // NewUserCache 创建用户缓存服务
 func NewUserCache(rdb *redis.Client) *UserCache {
-	return &UserCache{
-		rdb: rdb,
-		ttl: defaultCacheTTL,
+	uc := &UserCache{
+		rdb:    rdb,
+		ttl:    defaultCacheTTL,
+		stopCh: make(chan struct{}),
+	}
+	go uc.cleanupLoop()
+	return uc
+}
+
+// Close 优雅关闭缓存服务，停止后台清理 goroutine（安全支持多次调用）
+func (c *UserCache) Close() {
+	c.closeOnce.Do(func() {
+		close(c.stopCh)
+	})
+}
+
+// cleanupLoop 定期清理过期的本地缓存条目，防止 sync.Map 无限增长
+func (c *UserCache) cleanupLoop() {
+	ticker := time.NewTicker(localCacheTTL * 2)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.stopCh:
+			return
+		case <-ticker.C:
+			now := time.Now()
+			c.local.Range(func(key, value any) bool {
+				if e, ok := value.(*localEntry); ok && now.After(e.expiresAt) {
+					c.local.Delete(key)
+				}
+				return true
+			})
+		}
 	}
 }
 

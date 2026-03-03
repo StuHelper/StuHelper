@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
 // ListAdminTeachers 获取教师列表（管理员，含院系名和评论数）
@@ -26,7 +28,7 @@ func (r *Repository) ListAdminTeachers(ctx context.Context, search string, depar
 
 	if search != "" {
 		qb.WriteString(fmt.Sprintf(` AND t.name ILIKE $%d`, argIdx))
-		args = append(args, "%"+search+"%")
+		args = append(args, "%"+httputil.EscapeLikePattern(search)+"%")
 		argIdx++
 	}
 	if departmentID > 0 {

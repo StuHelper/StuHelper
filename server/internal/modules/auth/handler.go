@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -32,11 +31,7 @@ type Handler struct {
 }
 
 // NewHandler 创建认证处理器
-func NewHandler(cfg *config.Config, tokenService *token.Service, rdb *redis.Client) *Handler {
-	ssoClient, err := sso.NewClientWithCache(cfg.Casdoor, rdb)
-	if err != nil {
-		log.Fatalf("failed to create SSO client: %v", err)
-	}
+func NewHandler(cfg *config.Config, tokenService *token.Service, rdb *redis.Client, ssoClient *sso.Client) *Handler {
 	return &Handler{
 		ssoClient:    ssoClient,
 		tokenService: tokenService,
@@ -91,7 +86,7 @@ func (h *Handler) GetSignupURL(c *gin.Context) {
 func (h *Handler) HandleCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
-	requestID := getRequestID(c)
+	requestID := middleware.GetRequestID(c)
 	ctx := c.Request.Context()
 
 	if code == "" {
@@ -177,13 +172,31 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		response.InternalError(c, "authentication failed")
 		return
 	}
+	// 同时追踪 refresh token，确保 LogoutAll 可撤销
+	if err := h.tokenService.GetBlacklist().TrackUserToken(
+		ctx,
+		claims.Id,
+		oauthToken.RefreshToken,
+		h.tokenService.GetRefreshTokenTTL(),
+	); err != nil {
+		logger.FromGin(c).Error("failed to track user refresh token, blocking login",
+			zap.String("user_id", claims.Id),
+			zap.Error(err),
+		)
+		response.InternalError(c, "authentication failed")
+		return
+	}
 
 	// 设置 HttpOnly Cookie
-	h.setTokenCookies(c, oauthToken.AccessToken, oauthToken.RefreshToken)
+	if err := h.setTokenCookies(c, oauthToken.AccessToken, oauthToken.RefreshToken); err != nil {
+		response.InternalError(c, "authentication failed")
+		return
+	}
 
-	// 预热用户缓存：使用独立 context 和较短超时，避免 Casdoor 响应慢时延迟整个登录响应
+	// 预热用户缓存：使用独立超时避免 Casdoor 响应慢时延迟整个登录响应
+	// 使用 context.WithoutCancel 保留追踪信息，但不受请求取消影响
 	// 预热失败不阻断登录，仅记录警告
-	warmCtx, warmCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	warmCtx, warmCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer warmCancel()
 	if _, err := h.ssoClient.GetCachedUserByID(warmCtx, claims.Id); err != nil {
 		logger.FromGin(c).Warn("failed to pre-warm user cache",
@@ -223,7 +236,7 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 func (h *Handler) Logout(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	username := middleware.GetUsername(c)
-	requestID := getRequestID(c)
+	requestID := middleware.GetRequestID(c)
 
 	ctx := c.Request.Context()
 
@@ -265,7 +278,7 @@ func (h *Handler) Logout(c *gin.Context) {
 func (h *Handler) LogoutAll(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	username := middleware.GetUsername(c)
-	requestID := getRequestID(c)
+	requestID := middleware.GetRequestID(c)
 	ctx := c.Request.Context()
 
 	// 撤销用户所有 token
@@ -299,6 +312,9 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// 提前读取旧 access token，在 setTokenCookies 覆盖响应 Cookie 之前捕获
+	oldAccessToken, _ := c.Cookie(middleware.CookieAccessToken)
+
 	// 刷新前检查 refresh token 是否已被撤销
 	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), refreshToken)
 	if err != nil {
@@ -328,10 +344,37 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	}
 
 	// 设置新的 Cookie
-	h.setTokenCookies(c, newToken.AccessToken, newToken.RefreshToken)
+	if err := h.setTokenCookies(c, newToken.AccessToken, newToken.RefreshToken); err != nil {
+		response.InternalError(c, "failed to refresh token")
+		return
+	}
 
 	// 追踪新的 access token 和 refresh token
 	if claims, err := h.ssoClient.ParseJwtToken(newToken.AccessToken); err == nil {
+		// 从用户 token 集合中移除旧的 refresh token，防止集合无限增长
+		if untrackErr := h.tokenService.GetBlacklist().UntrackUserToken(
+			c.Request.Context(),
+			claims.Id,
+			refreshToken,
+		); untrackErr != nil {
+			logger.FromGin(c).Warn("failed to untrack old refresh token",
+				zap.String("user_id", claims.Id),
+				zap.Error(untrackErr),
+			)
+		}
+		// 同时移除旧的 access token（在函数开头已从请求 Cookie 中读取）
+		if oldAccessToken != "" {
+			if untrackErr := h.tokenService.GetBlacklist().UntrackUserToken(
+				c.Request.Context(),
+				claims.Id,
+				oldAccessToken,
+			); untrackErr != nil {
+				logger.FromGin(c).Warn("failed to untrack old access token",
+					zap.String("user_id", claims.Id),
+					zap.Error(untrackErr),
+				)
+			}
+		}
 		if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
 			c.Request.Context(),
 			claims.Id,
@@ -366,15 +409,15 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 }
 
 // setTokenCookies 设置 Token Cookie
-func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken string) {
+// 返回 error 而非直接写响应，由调用方统一处理错误响应，避免双重 HTTP 写入
+func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken string) error {
 	// 设置 SameSite 属性防止 CSRF
 	c.SetSameSite(http.SameSiteStrictMode)
 
 	csrfToken, err := middleware.GenerateCSRFToken()
 	if err != nil {
-		logger.FromGin(c).Error("failed to generate CSRF token, blocking login", zap.Error(err))
-		response.InternalError(c, "authentication failed")
-		return
+		logger.FromGin(c).Error("failed to generate CSRF token", zap.Error(err))
+		return err
 	}
 	h.setCSRFCookie(c, csrfToken)
 
@@ -399,10 +442,13 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 		h.tokenConfig.CookieSecure,
 		true, // HttpOnly
 	)
+
+	return nil
 }
 
 // clearTokenCookies 清除 Token Cookie
 func (h *Handler) clearTokenCookies(c *gin.Context) {
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		middleware.CookieAccessToken,
 		"",
@@ -448,13 +494,4 @@ func (h *Handler) clearCSRFCookie(c *gin.Context) {
 		HttpOnly: false,
 		SameSite: http.SameSiteStrictMode,
 	})
-}
-
-func getRequestID(c *gin.Context) string {
-	if id, exists := c.Get(middleware.CtxKeyRequestID); exists {
-		if s, ok := id.(string); ok {
-			return s
-		}
-	}
-	return ""
 }

@@ -43,6 +43,7 @@ type Blacklist struct {
 	cb         *circuitbreaker.CircuitBreaker
 	localCache sync.Map // map[string]localCacheEntry
 	stopCh     chan struct{}
+	closeOnce  sync.Once
 }
 
 // NewBlacklist 创建黑名单服务
@@ -61,9 +62,11 @@ func NewBlacklist(rdb *redis.Client) *Blacklist {
 	return b
 }
 
-// Close 优雅关闭黑名单服务，停止后台清理 goroutine
+// Close 优雅关闭黑名单服务，停止后台清理 goroutine（安全支持多次调用）
 func (b *Blacklist) Close() {
-	close(b.stopCh)
+	b.closeOnce.Do(func() {
+		close(b.stopCh)
+	})
 }
 
 // cleanupLoop 定期清理过期的本地缓存条目
@@ -166,7 +169,11 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 
 		// Redis 错误时尝试本地缓存降级
 		if entry, ok := b.localCache.Load(hash); ok {
-			cached := entry.(localCacheEntry)
+			cached, ok := entry.(localCacheEntry)
+			if !ok {
+				b.localCache.Delete(hash)
+				return true, fmt.Errorf("blacklist service unavailable")
+			}
 			if time.Now().Before(cached.expiresAt) {
 				return cached.blacklisted, nil
 			}
@@ -270,4 +277,23 @@ func (b *Blacklist) TrackUserToken(ctx context.Context, userID, token string, ex
 // CircuitBreakerMetrics 获取熔断器指标（用于监控）
 func (b *Blacklist) CircuitBreakerMetrics() map[string]any {
 	return b.cb.Metrics()
+}
+
+// UntrackUserToken 从用户 token 集合中移除指定 token，防止集合无限增长
+func (b *Blacklist) UntrackUserToken(ctx context.Context, userID, token string) error {
+	if !b.cb.Allow() {
+		return fmt.Errorf("UntrackUserToken: blacklist service unavailable (circuit breaker open)")
+	}
+
+	tokenHash, err := hashToken(token)
+	if err != nil {
+		return fmt.Errorf("failed to hash token: %w", err)
+	}
+
+	if err := b.rdb.SRem(ctx, userTokensPrefix+userID, tokenHash).Err(); err != nil {
+		b.cb.RecordFailure()
+		return fmt.Errorf("UntrackUserToken: SRem failed: %w", err)
+	}
+	b.cb.RecordSuccess()
+	return nil
 }

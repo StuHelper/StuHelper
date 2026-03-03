@@ -2,14 +2,11 @@ package review
 
 import (
 	"errors"
-	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"golang.org/x/text/unicode/norm"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
@@ -18,9 +15,6 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
-// validTermID 学期 ID 格式校验：如 "2024-1" 或 "2024-2"
-var validTermID = regexp.MustCompile(`^\d{4}-[12]$`)
-
 // stripReviewsForResponse 根据认证状态和管理员身份脱敏评论内容
 // - hidden 评论：非管理员看不到内容（保留 moderationReason）
 // - 未登录用户：看不到任何评论正文
@@ -28,7 +22,7 @@ func stripReviewsForResponse(reviews []Review, isAuthenticated, isAdmin bool) []
 	result := make([]Review, len(reviews))
 	copy(result, reviews)
 	for i := range result {
-		if result[i].Status == "hidden" && !isAdmin {
+		if result[i].Status == StatusHidden && !isAdmin {
 			result[i].Content = ""
 			result[i].Title = ""
 		} else if !isAuthenticated {
@@ -37,13 +31,6 @@ func stripReviewsForResponse(reviews []Review, isAuthenticated, isAdmin bool) []
 		}
 	}
 	return result
-}
-
-// sanitizeCacheKeyPart 对缓存键参数进行 Unicode NFC 规范化 + URL 编码
-// NFC 规范化确保相同语义的字符串（如不同 Unicode 编码形式）生成一致的缓存键
-// 例如 "café"(NFD) 和 "café"(NFC) 规范化后产生相同缓存键
-func sanitizeCacheKeyPart(s string) string {
-	return url.QueryEscape(norm.NFC.String(s))
 }
 
 // GetCourseReviews 获取课程测评列表
@@ -58,15 +45,15 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 	// 解析排序和筛选参数
 	sort := c.DefaultQuery("sort", "time")
 	// 验证 sort 参数
-	if sort != "time" && sort != "likes" && sort != "rating" {
-		sort = "time"
+	if !isValidSort(sort) {
+		sort = SortTime
 	}
 	termID := c.Query("term_id")
 	if termID == "" {
 		termID = c.Query("termID")
 	}
 	// M-84: termID 格式白名单校验，防止非法值污染缓存键
-	if termID != "" && !validTermID.MatchString(termID) {
+	if termID != "" && !validTermIDFormat.MatchString(termID) {
 		response.BadRequest(c, "invalid term_id format, expected YYYY-S (e.g. 2024-1)")
 		return
 	}
@@ -112,8 +99,8 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	sort := c.DefaultQuery("sort", "time")
 	// 白名单校验 sort 参数
-	if sort != "time" && sort != "likes" && sort != "rating" {
-		sort = "time"
+	if !isValidSort(sort) {
+		sort = SortTime
 	}
 
 
@@ -171,8 +158,8 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 
 	_, pageSize := httputil.ParsePage(c)
 	sort := c.DefaultQuery("sort", "time")
-	if sort != "time" && sort != "likes" && sort != "rating" {
-		sort = "time"
+	if !isValidSort(sort) {
+		sort = SortTime
 	}
 
 	result, err := h.service.GetBatchCourseReviews(c.Request.Context(), GetBatchCourseReviewsParams{
@@ -223,7 +210,7 @@ type PostReviewRequest struct {
 func (h *Handler) PostReview(c *gin.Context) {
 	var req PostReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
@@ -286,7 +273,7 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		VoteType string `json:"voteType" binding:"required,oneof=like dislike"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
@@ -371,7 +358,7 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 
 	var req UpdateReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
@@ -469,7 +456,7 @@ func (h *Handler) ReportReview(c *gin.Context) {
 
 	var req ReportReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 
@@ -545,7 +532,7 @@ func (h *Handler) GetHotCourses(c *gin.Context) {
 	}
 
 	// 使用缓存
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:hot", "period="+sanitizeCacheKeyPart(period)+":limit="+strconv.Itoa(limit))
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:hot", "period="+period+":limit="+strconv.Itoa(limit))
 	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
@@ -637,7 +624,7 @@ type CheckContentRequest struct {
 func (h *Handler) CheckContent(c *gin.Context) {
 	var req CheckContentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
+		response.BadRequest(c, "invalid request parameters")
 		return
 	}
 

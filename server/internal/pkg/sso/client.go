@@ -71,6 +71,7 @@ func NewClient(cfg config.CasdoorConfig) (*Client, error) {
 	// 检查后续调用的配置是否与首次初始化一致
 	if initializedCfg.Endpoint != cfg.Endpoint ||
 		initializedCfg.ClientID != cfg.ClientID ||
+		initializedCfg.ClientSecret != cfg.ClientSecret ||
 		initializedCfg.Organization != cfg.Organization ||
 		initializedCfg.Application != cfg.Application {
 		return nil, errConfigMismatch
@@ -94,6 +95,13 @@ func NewClientWithCache(cfg config.CasdoorConfig, rdb *redis.Client) (*Client, e
 	client.cache = NewUserCache(rdb)
 	client.stateManager = NewStateManager(rdb)
 	return client, nil
+}
+
+// Close 优雅关闭客户端，释放后台资源（UserCache 清理 goroutine）
+func (c *Client) Close() {
+	if c.cache != nil {
+		c.cache.Close()
+	}
 }
 
 // GetSigninURL 获取登录 URL（使用随机 state 防止 CSRF）
