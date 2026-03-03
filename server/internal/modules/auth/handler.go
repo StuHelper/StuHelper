@@ -348,7 +348,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 
 	// 追踪新的 access token 和 refresh token
 	if claims, err := h.ssoClient.ParseJwtToken(newToken.AccessToken); err == nil {
-		// 从用户 token 集合中移除旧的 refresh token，防止集合无限增长
+		// 从用户 token 集合中移除旧的 refresh token 和 access token，防止集合无限增长
 		if untrackErr := h.tokenService.GetBlacklist().UntrackUserToken(
 			c.Request.Context(),
 			claims.Id,
@@ -358,6 +358,18 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 				zap.String("user_id", claims.Id),
 				zap.Error(untrackErr),
 			)
+		}
+		if oldAccessToken, err := c.Cookie(middleware.CookieAccessToken); err == nil && oldAccessToken != "" {
+			if untrackErr := h.tokenService.GetBlacklist().UntrackUserToken(
+				c.Request.Context(),
+				claims.Id,
+				oldAccessToken,
+			); untrackErr != nil {
+				logger.FromGin(c).Warn("failed to untrack old access token",
+					zap.String("user_id", claims.Id),
+					zap.Error(untrackErr),
+				)
+			}
 		}
 		if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
 			c.Request.Context(),

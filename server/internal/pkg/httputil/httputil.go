@@ -144,7 +144,7 @@ func TruncateUserAgent(ua string) string {
 	}
 	runes := []rune(ua)
 	if len(runes) > maxUserAgentLen {
-		return string(runes[:maxUserAgentLen])
+		runes = runes[:maxUserAgentLen]
 	}
-	return ua
+	return string(runes)
 }

@@ -97,6 +97,13 @@ func NewClientWithCache(cfg config.CasdoorConfig, rdb *redis.Client) (*Client, e
 	return client, nil
 }
 
+// Close 优雅关闭客户端，释放后台资源（UserCache 清理 goroutine）
+func (c *Client) Close() {
+	if c.cache != nil {
+		c.cache.Close()
+	}
+}
+
 // GetSigninURL 获取登录 URL（使用随机 state 防止 CSRF）
 func (c *Client) GetSigninURL(ctx context.Context, redirectURI string) (string, string, error) {
 	if err := validateRedirectURI(redirectURI); err != nil {

@@ -142,6 +142,9 @@ func run() error {
 		runCleanups()
 		return fmt.Errorf("failed to initialize SSO client: %w", err)
 	}
+	cleanups = append(cleanups, func() {
+		ssoClient.Close()
+	})
 
 	// 根据环境设置 Gin 模式
 	if cfg.App.Env == "production" {
