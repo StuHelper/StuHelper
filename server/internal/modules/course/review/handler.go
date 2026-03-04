@@ -175,10 +175,10 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 				zap.Error(err))
 		}
 	} else {
-		// 无法确定课程 ID 时，使用 SCAN 前缀匹配失效所有课程缓存
-		if err := h.cache.Invalidate(ctx, "review:course:"); err != nil {
-			l.Warn("failed to invalidate all course caches",
-				zap.String("cache_prefix", "review:course:"),
+		// 无法确定课程 ID 时，失效全局课程缓存版本号（避免 SCAN）
+		if err := h.cache.InvalidateByVersion(ctx, "review:course"); err != nil {
+			l.Warn("failed to invalidate global course cache version",
+				zap.String("cache_key", "review:course"),
 				zap.Error(err))
 		}
 	}

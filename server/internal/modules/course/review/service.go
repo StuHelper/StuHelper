@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync/atomic"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -19,12 +20,12 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
 
-// maskHash 返回哈希值的前 8 个字符，用于日志脱敏，防止跨日志条目追踪用户
+// maskHash 返回哈希值的前 12 个字符，用于日志脱敏，防止跨日志条目追踪用户
 func maskHash(hash string) string {
-	if len(hash) <= 8 {
+	if len(hash) <= 12 {
 		return hash
 	}
-	return hash[:8] + "..."
+	return hash[:12] + "..."
 }
 
 // 业务错误定义
@@ -50,19 +51,43 @@ var (
 
 // Service 评课服务层
 type Service struct {
-	db     *db.DB
-	repo   *Repository
-	filter *Filter
+	db             *db.DB
+	repo           *Repository
+	filter         *Filter
+	dimensionCache atomic.Value // map[string]string
 }
 
 // NewService 创建评课服务
 func NewService(database *db.DB, repo *Repository) *Service {
 	filter := NewFilter(repo)
-	return &Service{
+	s := &Service{
 		db:     database,
 		repo:   repo,
 		filter: filter,
 	}
+	// 初始化时加载维度缓存
+	if err := s.refreshDimensionCache(context.Background()); err != nil {
+		logger.L().Warn("failed to initialize dimension cache", zap.Error(err))
+	}
+	return s
+}
+
+// refreshDimensionCache 刷新评分维度缓存
+func (s *Service) refreshDimensionCache(ctx context.Context) error {
+	dims, err := s.repo.GetDimensionNames(ctx)
+	if err != nil {
+		return err
+	}
+	s.dimensionCache.Store(dims)
+	return nil
+}
+
+// getDimensionNames 获取缓存的评分维度列表
+func (s *Service) getDimensionNames() map[string]string {
+	if v := s.dimensionCache.Load(); v != nil {
+		return v.(map[string]string)
+	}
+	return nil
 }
 
 // validTermID 学期 ID 格式校验：如 "2024-1"（春季）或 "2024-2"（秋季）
@@ -83,10 +108,15 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 		return "", "", ErrRatingRequired
 	}
 
-	// M-114: 从 DB 获取有效的评分维度 key 白名单，校验提交的 key 是否合法
-	validKeys, err := s.repo.GetDimensionNames(ctx)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to load rating dimensions: %w", err)
+	// 从缓存获取有效的评分维度 key 白名单
+	validKeys := s.getDimensionNames()
+	if validKeys == nil {
+		// 缓存未初始化，回退到数据库查询
+		var err error
+		validKeys, err = s.repo.GetDimensionNames(ctx)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to load rating dimensions: %w", err)
+		}
 	}
 
 	for k, v := range ratings {

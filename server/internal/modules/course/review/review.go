@@ -49,20 +49,14 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 	if !isValidSort(sort) {
 		sort = SortTime
 	}
-	termID := c.Query("term_id")
-	if termID == "" {
-		termID = c.Query("termID")
-	}
+	termID := c.Query("termID")
 	// M-84: termID 格式白名单校验，防止非法值污染缓存键
 	if termID != "" && !validTermIDFormat.MatchString(termID) {
 		response.BadRequest(c, "invalid term_id format, expected YYYY-S (e.g. 2024-1)")
 		return
 	}
 	var teacherID *int64
-	tid := c.Query("teacher_id")
-	if tid == "" {
-		tid = c.Query("teacherID")
-	}
+	tid := c.Query("teacherID")
 	if tid != "" {
 		id, err := strconv.ParseInt(tid, 10, 64)
 		if err != nil || id <= 0 {

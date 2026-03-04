@@ -983,6 +983,8 @@ export interface components {
         LoginURLResponse: {
             /** Format: uri */
             url: string;
+            /** @description OAuth state parameter for CSRF protection */
+            state: string;
         };
         CallbackResponse: {
             user: components["schemas"]["UserInfo"];

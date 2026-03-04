@@ -36,6 +36,9 @@ export default {
   A0010201: 'Access denied',
   A0010202: 'CSRF validation failed, please refresh the page',
   A0010203: 'CSRF token missing, please refresh the page',
+  A0010300: 'OAuth authentication failed',
+  A0010301: 'Invalid OAuth state parameter',
+  A0010302: 'Invalid OAuth authorization code',
 
   // A002xxxx - User related
   A0020001: 'User not found',

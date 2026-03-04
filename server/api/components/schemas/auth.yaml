@@ -1,10 +1,13 @@
 LoginURLResponse:
   type: object
-  required: [url]
+  required: [url, state]
   properties:
     url:
       type: string
       format: uri
+    state:
+      type: string
+      description: OAuth state parameter for CSRF protection
 
 CallbackResponse:
   type: object

@@ -186,7 +186,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		)
 		// 回滚已追踪的 access token
 		if rollbackErr := h.tokenService.GetBlacklist().UntrackUserToken(ctx, claims.Id, oauthToken.AccessToken); rollbackErr != nil {
-			logger.FromGin(c).Warn("failed to rollback access token tracking",
+			logger.FromGin(c).Error("CRITICAL: failed to rollback token tracking, orphan token in Redis",
 				zap.String("user_id", claims.Id),
 				zap.Error(rollbackErr),
 			)
@@ -365,7 +365,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 			claims.Id,
 			refreshToken,
 		); untrackErr != nil {
-			logger.FromGin(c).Warn("failed to untrack old refresh token",
+			logger.FromGin(c).Error("failed to untrack old refresh token, may cause token set growth",
 				zap.String("user_id", claims.Id),
 				zap.Error(untrackErr),
 			)
@@ -377,7 +377,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 				claims.Id,
 				oldAccessToken,
 			); untrackErr != nil {
-				logger.FromGin(c).Warn("failed to untrack old access token",
+				logger.FromGin(c).Error("failed to untrack old access token, may cause token set growth",
 					zap.String("user_id", claims.Id),
 					zap.Error(untrackErr),
 				)

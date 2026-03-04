@@ -22,9 +22,10 @@ export interface Review {
   likeCount: number
   dislikeCount: number
   replyCount: number
-  status: 'published' | 'hidden'
+  status: 'published' | 'hidden' | 'deleted'
   moderationReason?: string
   createdAt: string
+  updatedAt?: string
 }
 
 // 发布测评参数

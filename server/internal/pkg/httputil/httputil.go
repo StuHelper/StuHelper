@@ -70,12 +70,7 @@ func SafeOffset(page, pageSize int) int {
 	if page > MaxPage {
 		page = MaxPage
 	}
-	if pageSize < 1 {
-		pageSize = DefaultPageSize
-	}
-	if pageSize > MaxPageSize {
-		pageSize = MaxPageSize
-	}
+	pageSize = ClampPageSize(pageSize)
 	// 溢出保护：(page-1) * pageSize 可能在极端值下溢出 int
 	offset := page - 1
 	if offset > 0 && pageSize > math.MaxInt/offset {

@@ -6,7 +6,10 @@
  *   - API 错误: 后端 8 位结构化码 (A0110001, B0000001 等)
  *   - 客户端专属: NETWORK_ERROR, OFFLINE, TIMEOUT
  *
- * 行为判断通过前缀: A001=认证, B/C=可重试
+ * 行为判断通过前缀:
+ *   - A001xxxx = 认证授权模块
+ *   - Bxxxx = 系统错误（可重试）
+ *   - Cxxxx = 第三方服务错误（可重试）
  * 详见 docs/reference/error-codes.md
  */
 import i18n from '@/i18n'
