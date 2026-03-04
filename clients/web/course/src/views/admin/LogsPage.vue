@@ -90,25 +90,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MessageSquare, Flag, FileText } from 'lucide-vue-next'
-import { getOperationLogs, type OperationLog } from '@/api/admin'
+import { getOperationLogs } from '@/api/admin'
 import TabBar from '@/components/common/TabBar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import { useToast } from '@/composables/useToast'
+import { useAsyncData } from '@/composables/useAsyncData'
 import { formatRelativeTime, formatAbsoluteTime } from '@/utils/date'
 import type { Component } from 'vue'
 
 const { t, locale } = useI18n()
-const toast = useToast()
 
 const actionFilter = ref('all')
-const loading = ref(true)
-const logs = ref<OperationLog[]>([])
-const total = ref(0)
 const page = ref(1)
 const pageSize = 20
+
+const { data: logsData, loading, execute: fetchLogs } = useAsyncData(async () => {
+  const res = await getOperationLogs(page.value, pageSize)
+  return {
+    logs: res.data?.list || [],
+    total: res.data?.total || 0
+  }
+})
+
+const logs = computed(() => logsData.value?.logs || [])
+const total = computed(() => logsData.value?.total || 0)
 
 const actionTabs = computed(() => [
   { value: 'all', label: t('admin.logs.filterAll') },
@@ -160,19 +167,5 @@ function resourceIcon(type: string): Component {
 const formatRelative = (dateStr: string) => formatRelativeTime(dateStr, locale.value, t)
 const formatAbsolute = (dateStr: string) => formatAbsoluteTime(dateStr, locale.value)
 
-const fetchLogs = async () => {
-  loading.value = true
-  try {
-    const res = await getOperationLogs(page.value, pageSize)
-    logs.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } catch {
-    toast.error(t('common.loadFailed'))
-  } finally {
-    loading.value = false
-  }
-}
-
 watch(page, () => fetchLogs())
-onMounted(fetchLogs)
 </script>

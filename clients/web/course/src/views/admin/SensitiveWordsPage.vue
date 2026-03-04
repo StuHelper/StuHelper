@@ -143,24 +143,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Plus, Pencil, Trash2 } from 'lucide-vue-next'
 import { getSensitiveWords, createSensitiveWord, updateSensitiveWord, deleteSensitiveWord } from '@/api/admin'
 import type { AdminSensitiveWord } from '@/types/admin'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
+import { useAsyncData } from '@/composables/useAsyncData'
 
 const { t } = useI18n()
 const toast = useToast()
 
-const loading = ref(true)
-const words = ref<AdminSensitiveWord[]>([])
 const page = ref(1)
 const pageSize = ref(20)
-const total = ref(0)
 const filterCategory = ref('')
 const filterLevel = ref('')
+
+const { data: wordsData, loading, execute: fetchWords } = useAsyncData(async () => {
+  const res = await getSensitiveWords(page.value, pageSize.value, filterCategory.value, filterLevel.value)
+  return {
+    words: res.data?.list || [],
+    total: res.data?.total || 0
+  }
+})
+
+const words = computed(() => wordsData.value?.words || [])
+const total = computed(() => wordsData.value?.total || 0)
 
 // Distinct categories extracted from loaded data
 const categories = computed(() => [...new Set(words.value.map(w => w.category))].sort())
@@ -195,17 +204,6 @@ function levelLabel(level: string) {
   if (level === 'block') return t('admin.sensitiveWords.levelBlock')
   if (level === 'warn') return t('admin.sensitiveWords.levelWarn')
   return t('admin.sensitiveWords.levelReview')
-}
-
-async function fetchWords() {
-  loading.value = true
-  try {
-    const res = await getSensitiveWords(page.value, pageSize.value, filterCategory.value, filterLevel.value)
-    words.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } finally {
-    loading.value = false
-  }
 }
 
 function openForm(w?: AdminSensitiveWord) {
@@ -268,6 +266,4 @@ async function handleDelete(w: AdminSensitiveWord) {
 watch(filterCategory, () => { page.value = 1; fetchWords() })
 watch(filterLevel, () => { page.value = 1; fetchWords() })
 watch(page, () => fetchWords())
-
-onMounted(fetchWords)
 </script>

@@ -109,13 +109,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getReports, processReport } from '@/api/admin'
-import type { Report, ProcessReportParams } from '@/types/admin'
+import type { ProcessReportParams } from '@/types/admin'
 import TabBar from '@/components/common/TabBar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
+import { useAsyncData } from '@/composables/useAsyncData'
 import { useStaggerAnimation } from '@/composables/useStaggerAnimation'
 import { formatRelativeTime, formatAbsoluteTime } from '@/utils/date'
 
@@ -130,11 +131,19 @@ const statusTabs = computed(() => [
 ])
 
 const status = ref('pending')
-const loading = ref(true)
-const reports = ref<Report[]>([])
 const page = ref(1)
 const pageSize = 20
-const total = ref(0)
+
+const { data: reportsData, loading, execute: fetchReports } = useAsyncData(async () => {
+  const res = await getReports(status.value, page.value, pageSize)
+  return {
+    reports: res.data?.list || [],
+    total: res.data?.total || 0
+  }
+})
+
+const reports = computed(() => reportsData.value?.reports || [])
+const total = computed(() => reportsData.value?.total || 0)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
@@ -167,17 +176,6 @@ function statusLabel(s: string) {
 const formatRelative = (dateStr: string) => formatRelativeTime(dateStr, locale.value, t)
 const formatAbsolute = (dateStr: string) => formatAbsoluteTime(dateStr, locale.value)
 
-const fetchReports = async () => {
-  loading.value = true
-  try {
-    const res = await getReports(status.value, page.value, pageSize)
-    reports.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } finally {
-    loading.value = false
-  }
-}
-
 const handleProcess = async (id: string, action: ProcessReportParams['action']) => {
   try {
     await processReport(id, { action })
@@ -193,7 +191,6 @@ watch(status, () => {
   fetchReports()
 })
 watch(page, () => fetchReports())
-onMounted(fetchReports)
 </script>
 
 <style scoped>

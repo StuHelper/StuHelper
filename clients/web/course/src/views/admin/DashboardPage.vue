@@ -120,25 +120,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   MessageSquare, CheckCircle, EyeOff, Trash2,
   Flag, Shield, TrendingUp, Calendar,
   RefreshCw, Download
 } from 'lucide-vue-next'
-import { getAdminStats, getOperationLogs, exportData, type AdminStats, type OperationLog } from '@/api/admin'
+import { getAdminStats, getOperationLogs, exportData } from '@/api/admin'
 import { useCountUp } from '@/composables/useCountUp'
 import { useStaggerAnimation } from '@/composables/useStaggerAnimation'
 import { useToast } from '@/composables/useToast'
+import { useAsyncData } from '@/composables/useAsyncData'
 import { formatRelativeTime, formatAbsoluteTime } from '@/utils/date'
 
 const { t, locale } = useI18n()
 const toast = useToast()
 const { isVisible, getStyle } = useStaggerAnimation(50)
 
-const loading = ref(true)
-const stats = ref<AdminStats>({
+const { data: dashboardData, loading, execute: fetchStats } = useAsyncData(async () => {
+  const [statsRes, logsRes] = await Promise.all([
+    getAdminStats(),
+    getOperationLogs(1, 5)
+  ])
+  return {
+    stats: statsRes.data || {
+      totalReviews: 0,
+      publishedReviews: 0,
+      hiddenReviews: 0,
+      deletedReviews: 0,
+      pendingReports: 0,
+      totalReports: 0,
+      todayReviews: 0,
+      weekReviews: 0
+    },
+    recentLogs: logsRes.data?.list || []
+  }
+})
+
+const stats = computed(() => dashboardData.value?.stats || {
   totalReviews: 0,
   publishedReviews: 0,
   hiddenReviews: 0,
@@ -148,8 +168,8 @@ const stats = ref<AdminStats>({
   todayReviews: 0,
   weekReviews: 0
 })
-const recentLogs = ref<OperationLog[]>([])
-const hasData = ref(false)
+const recentLogs = computed(() => dashboardData.value?.recentLogs || [])
+const hasData = computed(() => dashboardData.value !== null)
 
 // Count-up animations
 const totalCount = useCountUp(() => stats.value.totalReviews)
@@ -259,21 +279,6 @@ function actionDotClass(action: string) {
 const formatRelative = (dateStr: string) => formatRelativeTime(dateStr, locale.value, t)
 const formatAbsolute = (dateStr: string) => formatAbsoluteTime(dateStr, locale.value)
 
-async function fetchStats() {
-  loading.value = true
-  try {
-    const [statsRes, logsRes] = await Promise.all([
-      getAdminStats(),
-      getOperationLogs(1, 5)
-    ])
-    if (statsRes.data) stats.value = statsRes.data
-    recentLogs.value = logsRes.data?.list || []
-    hasData.value = true
-  } finally {
-    loading.value = false
-  }
-}
-
 async function handleExport() {
   try {
     const res = await exportData('ndjson')
@@ -287,8 +292,6 @@ async function handleExport() {
     toast.error(t('common.error.loadFailed'))
   }
 }
-
-onMounted(fetchStats)
 
 defineExpose({ refresh: fetchStats })
 </script>

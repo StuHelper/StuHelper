@@ -161,19 +161,28 @@ import type { AdminTeacher } from '@/types/admin'
 import type { Department } from '@/types/course'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
+import { useAsyncData } from '@/composables/useAsyncData'
 import { formatAbsoluteTime } from '@/utils/date'
 
 const { t, locale } = useI18n()
 const toast = useToast()
 
-const loading = ref(true)
-const teachers = ref<AdminTeacher[]>([])
 const departments = ref<Department[]>([])
 const page = ref(1)
 const pageSize = ref(20)
-const total = ref(0)
 const searchQuery = ref('')
 const filterDeptID = ref(0)
+
+const { data: teachersData, loading, execute: fetchTeachers } = useAsyncData(async () => {
+  const res = await getAdminTeachers(page.value, pageSize.value, searchQuery.value, filterDeptID.value || undefined)
+  return {
+    teachers: res.data?.list || [],
+    total: res.data?.total || 0
+  }
+})
+
+const teachers = computed(() => teachersData.value?.teachers || [])
+const total = computed(() => teachersData.value?.total || 0)
 
 // Form state
 const formOpen = ref(false)
@@ -199,17 +208,6 @@ const visiblePages = computed(() => {
 })
 
 const formatAbsolute = (dateStr: string) => formatAbsoluteTime(dateStr, locale.value)
-
-async function fetchTeachers() {
-  loading.value = true
-  try {
-    const res = await getAdminTeachers(page.value, pageSize.value, searchQuery.value, filterDeptID.value || undefined)
-    teachers.value = res.data?.list || []
-    total.value = res.data?.total || 0
-  } finally {
-    loading.value = false
-  }
-}
 
 async function fetchDepartments() {
   try {
