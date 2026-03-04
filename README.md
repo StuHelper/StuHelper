@@ -1,125 +1,211 @@
-# StuHelper 🌟
+# StuHelper
 
-**北航校园的「对象主页 + 订阅提醒」平台**
-把课程、老师、教室、食堂、校车、校园卡等校园里常用的“东西”，都做成一个个**对象主页**：资料、评价、经验、状态、提醒都挂在对应对象下面。
-不再靠翻群、找截图、问学长；信息能沉淀，更新会提醒 ✅
+北航校园信息平台 - 课程评价、资料共享、校园服务一站式解决方案
+
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
+[![Vue Version](https://img.shields.io/badge/vue-3.5+-4FC08D.svg)](https://vuejs.org/)
+
+## 项目简介
+
+StuHelper 是一个面向北航校园的信息聚合平台，提供课程评价、资料共享、空教室查询、校园卡管理等服务。采用前后端分离架构，支持 SSO 单点登录。
+
+**核心功能**：
+- 📚 课程评价与资料共享
+- 🪑 空教室查询与预约
+- 💳 校园卡余额查询与提醒
+- 🚌 校车时刻表与实时查询
+- 🔔 订阅提醒与消息推送
+
+## 技术栈
+
+### 后端
+- **语言**: Go 1.23+
+- **框架**: Gin
+- **数据库**: PostgreSQL 16+
+- **缓存**: Redis 7+
+- **认证**: Casdoor SSO
+- **部署**: Docker + Docker Compose
+
+### 前端
+- **框架**: Vue 3.5+
+- **语言**: TypeScript 5+
+- **构建**: Vite 6+
+- **UI**: Element Plus
+- **状态管理**: Pinia
+- **国际化**: vue-i18n
+
+## 快速开始
+
+### 前置要求
+
+- Go 1.23+
+- Node.js 20+
+- PostgreSQL 16+
+- Redis 7+
+- pnpm 9+
+
+### 安装
+
+```bash
+# 克隆仓库
+git clone https://gitea.stuhelper.com/StuHelper/StuHelper.git
+cd StuHelper
+
+# 安装后端依赖
+cd server
+go mod download
+
+# 安装前端依赖
+cd ../clients/web/course
+pnpm install
+```
+
+### 配置
+
+```bash
+# 复制配置文件模板
+cp server/configs/config.example.yaml server/configs/config.yaml
+
+# 编辑配置文件，填入数据库、Redis、Casdoor 等配置
+vim server/configs/config.yaml
+```
+
+### 运行
+
+**开发环境**：
+
+```bash
+# 启动后端（支持热重载）
+cd server
+air
+
+# 启动前端开发服务器
+cd clients/web/course
+pnpm dev
+```
+
+**生产环境**：
+
+```bash
+# 使用 Docker Compose
+docker-compose up -d
+```
+
+访问 `http://localhost:5173` 查看前端应用。
+
+## 项目结构
+
+```
+StuHelper/
+├── server/                 # 后端服务
+│   ├── cmd/               # 应用入口
+│   ├── internal/          # 内部代码
+│   │   ├── modules/       # 业务模块
+│   │   │   ├── auth/      # 认证模块
+│   │   │   └── course/    # 课程模块
+│   │   └── pkg/           # 公共包
+│   ├── configs/           # 配置文件
+│   └── migrations/        # 数据库迁移
+├── clients/               # 前端应用
+│   └── web/
+│       └── course/        # 课程评价前端
+├── docs/                  # 项目文档
+│   ├── guides/            # 开发指南
+│   ├── modules/           # 模块文档
+│   └── reference/         # API 参考
+└── .project_rule/         # 项目规范
+```
+
+## 开发指南
+
+### 后端开发
+
+```bash
+cd server
+
+# 运行测试
+go test ./...
+
+# 代码检查
+go vet ./...
+
+# 格式化代码
+go fmt ./...
+
+# 生成 Wire 依赖注入代码
+wire ./internal/wire
+```
+
+### 前端开发
+
+```bash
+cd clients/web/course
+
+# 类型检查
+pnpm run type-check
+
+# 代码检查
+pnpm run lint
+
+# 格式化代码
+pnpm run format
+
+# 构建生产版本
+pnpm run build
+```
+
+### 数据库迁移
+
+```bash
+cd server
+
+# 创建新迁移
+migrate create -ext sql -dir migrations -seq migration_name
+
+# 执行迁移
+migrate -path migrations -database "postgresql://user:pass@localhost:5432/stuhelper?sslmode=disable" up
+
+# 回滚迁移
+migrate -path migrations -database "postgresql://user:pass@localhost:5432/stuhelper?sslmode=disable" down 1
+```
+
+## 文档
+
+- [快速开始指南](docs/guides/README.md)
+- [后端开发指南](docs/guides/backend-quickstart.md)
+- [认证模块文档](docs/modules/auth/README.md)
+- [课程模块文档](docs/modules/course/README.md)
+- [API 参考](docs/reference/api-overview.md)
+- [错误码参考](docs/reference/error-codes.md)
+
+## 贡献指南
+
+欢迎贡献代码、文档或提出建议！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
+
+**提交规范**：遵循 [Conventional Commits](https://www.conventionalcommits.org/)
+
+**代码规范**：
+- Go: 遵循 [Effective Go](https://go.dev/doc/effective_go)
+- TypeScript: 遵循 [Vue 3 风格指南](https://vuejs.org/style-guide/)
+
+详见 [项目规范](.project_rule/project_rules.md)
+
+## 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+
+## 联系方式
+
+- 项目地址: https://gitea.stuhelper.com/StuHelper/StuHelper
+- 问题反馈: https://gitea.stuhelper.com/StuHelper/StuHelper/issues
 
 ---
 
-## StuHelper 想解决什么问题？🤔
-
-在北航，大家常遇到这些事：
-
-* 资料在某个群里，但忘了是哪个群
-* 同一个问题年年有人问：**“这课咋样？往年题在哪？”**
-* 空教室、校车时刻表、食堂排队这种信息全靠运气和截图
-* 重要变化只能靠转发：错过就没了
-
-StuHelper 的思路是：
-**别让信息只在时间线上滚动；让信息“挂在对象上”沉淀下来。**
-
----
-
-## 这不是“又一个校园墙”😄
-
-很多平台是“刷时间线”：
-消息过去就过去，内容很难回溯。
-
-StuHelper 更像一个“校园对象的百科 + 动态订阅”📌
-
-* 想了解某门课 → 进**课程主页**
-* 想找某个教室 → 进**教室主页**
-* 想关注校车 → 进**线路/站点主页**
-* 想看食堂某窗口 → 进**窗口主页**
-
----
-
-## 核心功能一览 ✨
-
-### 1) 课程与老师：把学习资料沉淀下来 📚
-
-* 评课：多维评分 + 文字评价
-* 课程主页聚合：往年题 / 作业经验 / 复习资料 / 常见问题
-* 关联老师主页：同一位老师不同课的风格也能看得更清楚
-
-> 目标：**少一点重复问，多一点可复用的沉淀。**
-
----
-
-### 2) 资料共享中心：用积分鼓励高质量资源 💾
-
-* 上传资料、整理经验可获得积分
-* 下载/使用资源按规则消耗积分
-* 让“好资料”更容易被发现，也更容易长期维护
-
----
-
-### 3) 空教室与学习空间：把“找地方自习”这件事变简单 🪑
-
-* 空教室查询
-* 收藏常用教室
-* 教室状态变化支持提醒（比如“喜欢的教室空闲了”）
-
----
-
-### 4) 校园生活：电费、校园卡、食堂等 🍜💳
-
-* 电费/电量查询与提醒
-* 校园卡余额提醒 + 直达充值入口（避免尴尬时刻）
-* 食堂菜品/窗口评价（慢慢完善中）
-
----
-
-### 5) 校车与地点：再也不用找那张“破图”🚌🗺️
-
-* 校车/摆渡车下一班倒计时
-* 时刻表导入与更新
-* 上车点、校医院、报告厅等高频地点标记
-
----
-
-### 6) 校园互动：更“有上下文”的交流 🧩
-
-* 即时寻人：在某地需要人来帮忙/组队/搬东西等，可触达附近在线同学
-* 对象主页下的讨论区：讨论不会漂走，能沉淀成 FAQ/经验贴
-
----
-
-## StuHelper 的独特之处 ✅
-
-一句话：**信息不是按“发帖时间”组织，而是按“校园对象”组织。**
-
-* 想看某门课？看这门课的主页
-* 想找资料？看这门课/老师的主页
-* 想找空教室？看这个教室的主页
-* 想持续关注？直接订阅，更新会提醒
-
----
-
-## 目前进度与路线图 🛠️
-
-StuHelper 会优先把高频、低争议、能立刻提升体验的功能做扎实：
-
-* 课程主页：评课 + 资料沉淀（优先）
-* 订阅提醒：关注课程/教室等对象的更新
-* 空教室、电费、校园卡等便民工具
-* 校车/地点导航与更多生活服务
-* 更强的搜索与“常见问题沉淀”
-
----
-
-## 加入与贡献 🤝
-
-* 想提需求：欢迎开 issue / 在讨论区留言
-* 想贡献资料：整理课程资料、复习经验、FAQ 都很有价值
-* 想参与开发：后续会开放更完整的开发者文档与接口说明
-
----
-
-## FAQ 🙋
-
-**Q：会不会变成“水贴广场”？**
-A：目标不是做情绪广场，而是让内容“挂在对象上”沉淀，讨论可回溯、可整理。
-
-**Q：需要实名吗？**
-A：会有校内身份验证来保证生态质量；展示与互动规则会在上线时明确说明。
+**注意**: 本项目仅供北航校内使用，需要校内 SSO 认证。
