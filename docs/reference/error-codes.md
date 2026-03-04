@@ -146,8 +146,8 @@
 | `A0110006` | 404 | `ErrDraftNotFound` | 草稿不存在 | Draft not found |
 | `A0110007` | 404 | `ErrReportNotFound` | 举报记录不存在 | Report not found |
 | `A0110008` | 404 | `ErrSensitiveWordNotFound` | 敏感词不存在 | Sensitive word not found |
-| `A0110010` | 403 | `ErrReviewOwnership` | 无权操作此测评 | Not review owner |
-| `A0110011` | 403 | `ErrReplyOwnership` | 无权操作此回复 | Not reply owner |
+| `A0110010` | 403 | `ErrNotReviewOwner` | 无权操作此测评 | Not review owner |
+| `A0110011` | 403 | `ErrNotReplyOwner` | 无权操作此回复 | Not reply owner |
 
 #### 投票相关错误 (0100-0199)
 
@@ -156,7 +156,7 @@
 | `A0110100` | 409 | `ErrVoteExists` | 已投票过该测评 | Vote already exists |
 | `A0110101` | 400 | `ErrVoteTypeInvalid` | 投票类型无效 | Invalid vote type |
 | `A0110102` | 403 | `ErrVoteSelfReview` | 不能给自己的测评投票 | Cannot vote on own review |
-| `A0110103` | 409 | `ErrReportExists` | 已举报过该内容 | Report already exists |
+| `A0110103` | 409 | `ErrAlreadyReported` | 已举报过该内容 | Report already exists |
 
 #### 评分相关错误 (0200-0299)
 
@@ -278,7 +278,7 @@ response.BadRequest(c, "invalid request parameters")                    // → A
 response.NotFound(c, "review not found", errs.ErrReviewNotFound)        // → A0110001
 response.NotFound(c, "course not found", errs.ErrCourseNotFound)        // → A0100001
 response.Conflict(c, "already reviewed", errs.ErrReviewExists)          // → A0110002
-response.Forbidden(c, "not review owner", errs.ErrReviewOwnership)      // → A0110010
+response.Forbidden(c, "not review owner", errs.ErrNotReviewOwner)      // → A0110010
 response.RateLimitExceeded(c)                                           // → A0000429
 response.ServiceUnavailable(c, "service unavailable")                   // → B0000004
 

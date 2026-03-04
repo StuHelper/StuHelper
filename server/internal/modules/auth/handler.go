@@ -184,6 +184,8 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 			zap.String("user_id", claims.Id),
 			zap.Error(err),
 		)
+		// 回滚已追踪的 access token
+		_ = h.tokenService.GetBlacklist().UntrackUserToken(ctx, claims.Id, oauthToken.AccessToken)
 		response.InternalError(c, "authentication failed")
 		return
 	}
