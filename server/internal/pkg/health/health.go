@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"go.uber.org/zap"
@@ -148,7 +149,7 @@ func (h *Handler) Readiness(c *gin.Context) {
 
 	// 就绪检查失败时返回 503，需要保留 HTTP 状态码语义
 	if httpStatus != http.StatusOK {
-		response.Error(c, httpStatus, response.ErrCodeServiceUnavail, status)
+		response.Error(c, httpStatus, errs.ErrServiceUnavailable, status)
 		return
 	}
 

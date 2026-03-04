@@ -73,6 +73,8 @@
 | `/stats` | GET | 获取门户统计数据（课程数/评论数/院系数） |
 | `/rankings/hot` | GET | 热门课程排行（支持 period + limit） |
 | `/teachers/:id/stats` | GET | 教师评分统计（含课程列表、评分趋势） |
+| `/courses/:id/teachers` | GET | 获取课程教师列表 |
+| `/reviews/batch` | GET | 批量获取课程评价 |
 
 ### 评课子模块 — 用户接口（需要认证）
 
@@ -81,13 +83,13 @@
 | `/reviews` | POST | 发布测评 |
 | `/reviews/:id` | PUT | 编辑测评（仅作者） |
 | `/reviews/:id` | DELETE | 删除测评（仅作者） |
-| `/reviews/:id/vote` | POST | 点赞/踩（支持切换和取消） |
-| `/reviews/:id/report` | POST | 举报测评 |
+| `/reviews/:id/votes` | POST | 点赞/踩（支持切换和取消） |
+| `/reviews/:id/reports` | POST | 举报测评 |
 | `/reviews/:id/replies` | POST | 发布回复 |
 | `/replies/:id` | DELETE | 删除回复（仅作者） |
 | `/content/check` | POST | 内容检查（敏感词检测 + 质量评估，合并响应） |
-| `/courses/:id/favorite` | POST | 收藏课程 |
-| `/courses/:id/favorite` | DELETE | 取消收藏 |
+| `/courses/:id/favorites` | POST | 收藏课程 |
+| `/courses/:id/favorites` | DELETE | 取消收藏 |
 | `/drafts` | POST | 保存草稿 |
 | `/drafts/:courseID` | GET | 获取草稿 |
 | `/drafts/:courseID` | DELETE | 删除草稿 |
@@ -104,10 +106,10 @@
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/notifications` | GET | 获取通知列表（分页） |
-| `/notifications/unread-count` | GET | 获取未读通知数 |
-| `/notifications/:id/read` | PUT | 标记通知已读 |
-| `/notifications/read-all` | PUT | 标记全部已读 |
+| `/user/notifications` | GET | 获取通知列表（分页） |
+| `/user/notifications/unread-count` | GET | 获取未读通知数 |
+| `/user/notifications/:id/read` | PUT | 标记通知已读 |
+| `/user/notifications/read-all` | PUT | 标记全部已读 |
 
 ### 评课子模块 — 管理员（需要认证 + 管理员权限）
 
@@ -120,7 +122,16 @@
 | `/admin/reviews/batch` | POST | 批量更新测评（最多 100 条） |
 | `/admin/stats` | GET | 管理后台统计 |
 | `/admin/logs` | GET | 操作日志（分页） |
-| `/admin/export` | GET | 导出测评（CSV 流式下载） |
+| `/admin/export` | GET | 导出测评（支持 CSV/NDJSON/JSON 格式，format 参数） |
+| `/admin/reviews/:id/edit` | POST | 管理员编辑评价内容 |
+| `/admin/teachers` | GET | 获取教师列表（分页，支持搜索） |
+| `/admin/teachers` | POST | 创建教师 |
+| `/admin/teachers/:id` | PUT | 更新教师 |
+| `/admin/teachers/:id` | DELETE | 删除教师（检查关联评价） |
+| `/admin/sensitive-words` | GET | 获取敏感词列表（分页） |
+| `/admin/sensitive-words` | POST | 创建敏感词 |
+| `/admin/sensitive-words/:id` | PUT | 更新敏感词 |
+| `/admin/sensitive-words/:id` | DELETE | 删除敏感词 |
 
 ## 限流策略
 

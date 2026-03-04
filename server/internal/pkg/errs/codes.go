@@ -13,7 +13,7 @@
 //   - 040-099: 业务扩展预留
 //   - 100-999: 未来扩展预留
 //
-// 详细说明见 docs/api/error-codes.md
+// 详细说明见 docs/reference/error-codes.md
 package errs
 
 // ErrorCode 错误码类型，提供编译期拼写检查
@@ -65,6 +65,7 @@ const (
 	ErrForbidden        ErrorCode = "A0010200" // 权限不足
 	ErrAccessDenied     ErrorCode = "A0010201" // 访问被拒绝
 	ErrCSRFTokenInvalid ErrorCode = "A0010202" // CSRF Token 无效
+	ErrCSRFTokenMissing ErrorCode = "A0010203" // CSRF Token 缺失
 
 	// OAuth 相关 (0300-0399)
 	ErrOAuthFailed       ErrorCode = "A0010300" // OAuth 认证失败
@@ -107,11 +108,20 @@ const (
 	ErrReviewExists          ErrorCode = "A0110002" // 已评价过该课程
 	ErrReviewContentTooShort ErrorCode = "A0110003" // 测评内容过短
 	ErrReviewContentTooLong  ErrorCode = "A0110004" // 测评内容过长
+	ErrReplyNotFound         ErrorCode = "A0110005" // 回复不存在
+	ErrDraftNotFound         ErrorCode = "A0110006" // 草稿不存在
+	ErrReportNotFound        ErrorCode = "A0110007" // 举报记录不存在
+	ErrSensitiveWordNotFound ErrorCode = "A0110008" // 敏感词不存在
+	ErrContentEmpty          ErrorCode = "A0110009" // 内容为空
+	ErrNotReviewOwner        ErrorCode = "A0110010" // 非测评所有者
+	ErrNotReplyOwner         ErrorCode = "A0110011" // 非回复所有者
 
 	// 投票相关 (0100-0199)
 	ErrVoteExists      ErrorCode = "A0110100" // 已投票过该测评
 	ErrVoteTypeInvalid ErrorCode = "A0110101" // 投票类型无效
 	ErrVoteSelfReview  ErrorCode = "A0110102" // 不能给自己的测评投票
+	ErrAlreadyReported ErrorCode = "A0110103" // 已举报过
+	ErrInvalidVoteAction ErrorCode = "A0110104" // 无效投票操作
 
 	// 评分相关 (0200-0299)
 	ErrRatingInvalid          ErrorCode = "A0110200" // 评分无效
@@ -119,6 +129,8 @@ const (
 
 	// 内容审核 (0300-0399)
 	ErrDangerousContent ErrorCode = "A0110300" // 内容包含危险元素
+	ErrSensitiveContent ErrorCode = "A0110301" // 内容包含敏感词
+	ErrInvalidTransition ErrorCode = "A0110302" // 无效状态转换
 )
 
 // ============================================================================
@@ -156,11 +168,11 @@ const (
 )
 
 // ============================================================================
-// 中间件专用错误码（非业务错误，用于安全中间件响应）
+// 中间件错误码别名（向后兼容，指向对应的 8 位码）
+// Deprecated: 直接使用上方的 8 位码常量
 // ============================================================================
 
 const (
-	ErrCSRFTokenMissing ErrorCode = "CSRF_TOKEN_MISSING" // CSRF Token 缺失
-	ErrCSRFTokenBad     ErrorCode = "CSRF_TOKEN_INVALID" // CSRF Token 校验失败
-	ErrRequestTooLarge  ErrorCode = "REQUEST_TOO_LARGE"  // 请求体过大
+	ErrCSRFTokenBad    = ErrCSRFTokenInvalid // → A0010202
+	ErrRequestTooLarge = ErrPayloadTooLarge  // → A0000413
 )

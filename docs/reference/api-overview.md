@@ -29,6 +29,8 @@ RESTful API 设计规范，基础路径：`/api/v1`
 | `/courses/search` | GET | 否 | 搜索课程 | 🟢 已实现 |
 | `/courses/:id` | GET | 否 | 获取课程详情 | 🟢 已实现 |
 | `/categories` | GET | 否 | 获取课程分类列表 | 🟢 已实现 |
+| `/stats` | GET | 否 | 门户统计数据 | 🟢 已实现 |
+| `/courses/:id/teachers` | GET | 否 | 获取课程教师列表 | 🟢 已实现 |
 
 ## 3. 评课社区接口 (`/api/v1/course/review`)
 
@@ -45,6 +47,7 @@ RESTful API 设计规范，基础路径：`/api/v1`
 | `/stats` | GET | 获取门户统计数据 | 🟢 已实现 |
 | `/rankings/hot` | GET | 热门课程排行 | 🟢 已实现 |
 | `/teachers/:id/stats` | GET | 教师评分统计 | 🟢 已实现 |
+| `/reviews/batch` | GET | 批量获取课程评价 | 🟢 已实现 |
 
 ### 用户接口（需要认证）
 
@@ -53,13 +56,13 @@ RESTful API 设计规范，基础路径：`/api/v1`
 | `/reviews` | POST | 发布测评 | 🟢 已实现 |
 | `/reviews/:id` | PUT | 编辑测评 | 🟢 已实现 |
 | `/reviews/:id` | DELETE | 删除测评 | 🟢 已实现 |
-| `/reviews/:id/vote` | POST | 点赞/踩 | 🟢 已实现 |
-| `/reviews/:id/report` | POST | 举报测评 | 🟢 已实现 |
+| `/reviews/:id/votes` | POST | 点赞/踩 | 🟢 已实现 |
+| `/reviews/:id/reports` | POST | 举报测评 | 🟢 已实现 |
 | `/reviews/:id/replies` | POST | 发布回复 | 🟢 已实现 |
 | `/replies/:id` | DELETE | 删除回复 | 🟢 已实现 |
 | `/content/check` | POST | 内容检查（敏感词+质量） | 🟢 已实现 |
-| `/courses/:id/favorite` | POST | 收藏课程 | 🟢 已实现 |
-| `/courses/:id/favorite` | DELETE | 取消收藏 | 🟢 已实现 |
+| `/courses/:id/favorites` | POST | 收藏课程 | 🟢 已实现 |
+| `/courses/:id/favorites` | DELETE | 取消收藏 | 🟢 已实现 |
 | `/drafts` | POST | 保存草稿 | 🟢 已实现 |
 | `/drafts/:courseID` | GET | 获取草稿 | 🟢 已实现 |
 | `/drafts/:courseID` | DELETE | 删除草稿 | 🟢 已实现 |
@@ -76,10 +79,10 @@ RESTful API 设计规范，基础路径：`/api/v1`
 
 | 接口 | 方法 | 说明 | 状态 |
 |------|------|------|------|
-| `/notifications` | GET | 获取通知列表 | 🟢 已实现 |
-| `/notifications/unread-count` | GET | 获取未读通知数 | 🟢 已实现 |
-| `/notifications/:id/read` | PUT | 标记通知已读 | 🟢 已实现 |
-| `/notifications/read-all` | PUT | 标记全部已读 | 🟢 已实现 |
+| `/user/notifications` | GET | 获取通知列表 | 🟢 已实现 |
+| `/user/notifications/unread-count` | GET | 获取未读通知数 | 🟢 已实现 |
+| `/user/notifications/:id/read` | PUT | 标记通知已读 | 🟢 已实现 |
+| `/user/notifications/read-all` | PUT | 标记全部已读 | 🟢 已实现 |
 
 ### 管理员接口（需要认证 + 管理员权限）
 
@@ -92,7 +95,16 @@ RESTful API 设计规范，基础路径：`/api/v1`
 | `/admin/reviews/batch` | POST | 批量更新测评 | 🟢 已实现 |
 | `/admin/stats` | GET | 管理后台统计 | 🟢 已实现 |
 | `/admin/logs` | GET | 操作日志 | 🟢 已实现 |
-| `/admin/export` | GET | 导出测评（CSV） | 🟢 已实现 |
+| `/admin/export` | GET | 导出测评（CSV/NDJSON/JSON，format 参数） | 🟢 已实现 |
+| `/admin/reviews/:id/edit` | POST | 管理员编辑评价内容 | 🟢 已实现 |
+| `/admin/teachers` | GET | 获取教师列表 | 🟢 已实现 |
+| `/admin/teachers` | POST | 创建教师 | 🟢 已实现 |
+| `/admin/teachers/:id` | PUT | 更新教师 | 🟢 已实现 |
+| `/admin/teachers/:id` | DELETE | 删除教师 | 🟢 已实现 |
+| `/admin/sensitive-words` | GET | 获取敏感词列表 | 🟢 已实现 |
+| `/admin/sensitive-words` | POST | 创建敏感词 | 🟢 已实现 |
+| `/admin/sensitive-words/:id` | PUT | 更新敏感词 | 🟢 已实现 |
+| `/admin/sensitive-words/:id` | DELETE | 删除敏感词 | 🟢 已实现 |
 
 ## 4. 通用响应格式
 

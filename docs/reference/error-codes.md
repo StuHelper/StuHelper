@@ -105,6 +105,7 @@
 | `A0010200` | 403 | `ErrForbidden` | 权限不足 | Permission denied |
 | `A0010201` | 403 | `ErrAccessDenied` | 访问被拒绝 | Access denied |
 | `A0010202` | 403 | `ErrCSRFTokenInvalid` | CSRF Token 无效 | Invalid CSRF token |
+| `A0010203` | 403 | `ErrCSRFTokenMissing` | 缺少 CSRF Token | CSRF token missing |
 | `A0010300` | 401 | `ErrOAuthFailed` | OAuth 认证失败 | OAuth authentication failed |
 | `A0010301` | 401 | `ErrOAuthStateInvalid` | OAuth State 无效 | Invalid OAuth state |
 | `A0010302` | 401 | `ErrOAuthCodeInvalid` | OAuth 授权码无效 | Invalid OAuth code |
@@ -141,6 +142,12 @@
 | `A0110002` | 409 | `ErrReviewExists` | 已评价过该课程 | Review already exists |
 | `A0110003` | 400 | `ErrReviewContentTooShort` | 测评内容过短 | Review content too short |
 | `A0110004` | 400 | `ErrReviewContentTooLong` | 测评内容过长 | Review content too long |
+| `A0110005` | 404 | `ErrReplyNotFound` | 回复不存在 | Reply not found |
+| `A0110006` | 404 | `ErrDraftNotFound` | 草稿不存在 | Draft not found |
+| `A0110007` | 404 | `ErrReportNotFound` | 举报记录不存在 | Report not found |
+| `A0110008` | 404 | `ErrSensitiveWordNotFound` | 敏感词不存在 | Sensitive word not found |
+| `A0110010` | 403 | `ErrNotReviewOwner` | 无权操作此测评 | Not review owner |
+| `A0110011` | 403 | `ErrNotReplyOwner` | 无权操作此回复 | Not reply owner |
 
 #### 投票相关错误 (0100-0199)
 
@@ -149,6 +156,7 @@
 | `A0110100` | 409 | `ErrVoteExists` | 已投票过该测评 | Vote already exists |
 | `A0110101` | 400 | `ErrVoteTypeInvalid` | 投票类型无效 | Invalid vote type |
 | `A0110102` | 403 | `ErrVoteSelfReview` | 不能给自己的测评投票 | Cannot vote on own review |
+| `A0110103` | 409 | `ErrAlreadyReported` | 已举报过该内容 | Report already exists |
 
 #### 评分相关错误 (0200-0299)
 
@@ -162,6 +170,8 @@
 | 错误码 | HTTP | 常量名 | 中文说明 | 英文说明 |
 |--------|------|--------|----------|----------|
 | `A0110300` | 400 | `ErrDangerousContent` | 内容包含危险元素 | Content contains dangerous elements |
+| `A0110301` | 400 | `ErrSensitiveContent` | 内容包含敏感词 | Content contains sensitive words |
+| `A0110302` | 400 | `ErrInvalidStatusTransition` | 无效的状态转换 | Invalid status transition |
 
 ### B000xxxx - 系统通用错误
 
@@ -191,120 +201,98 @@
 | `C0010002` | 504 | `ErrSSOTimeout` | SSO 服务超时 | SSO service timeout |
 | `C0010003` | 503 | `ErrSSOUnavailable` | SSO 服务不可用 | SSO service unavailable |
 
----
+### 中间件错误码（已迁移到 8 位格式）
 
-## 兼容性说明
+> 以下旧格式字符串错误码已全部迁移到 8 位格式，中间件层现在使用统一的结构化错误码。
 
-为保持向后兼容，系统同时支持旧版错误码。旧版错误码将在 v2.0 版本移除。
-
-| 旧版错误码 | 新版错误码 | 说明 |
-|------------|------------|------|
-| `BAD_REQUEST` | `A0000400` | 请求参数错误 |
-| `UNAUTHORIZED` | `A0010100` | 未授权 |
-| `FORBIDDEN` | `A0010200` | 权限不足 |
-| `NOT_FOUND` | `A0000404` | 资源不存在 |
-| `CONFLICT` | `A0000409` | 资源冲突 |
-| `VALIDATION_ERROR` | `A0000422` | 验证失败 |
-| `RATE_LIMIT_EXCEEDED` | `A0000429` | 频率超限 |
-| `INTERNAL_ERROR` | `B0000001` | 内部错误 |
-| `SERVICE_UNAVAILABLE` | `B0000004` | 服务不可用 |
+| 旧格式码 | 新错误码 | HTTP | 常量名 | 说明 |
+|----------|----------|------|--------|------|
+| `CSRF_TOKEN_MISSING` | `A0010203` | 403 | `ErrCSRFTokenMissing` | 缺少 CSRF Token |
+| `CSRF_TOKEN_INVALID` | `A0010202` | 403 | `ErrCSRFTokenInvalid` | CSRF Token 无效 |
+| `REQUEST_TOO_LARGE` | `A0000413` | 413 | `ErrPayloadTooLarge` | 请求体超出大小限制 |
 
 ---
 
-## 前端处理建议
+## 前端处理
 
-### 错误码国际化
+### 错误码使用
 
-```typescript
-// i18n/errors.ts
-export const errorMessages: Record<string, Record<string, string>> = {
-  'zh-CN': {
-    // 通用错误
-    A0000400: '请求参数错误',
-    A0000404: '资源不存在',
-    A0000422: '数据验证失败',
-    A0000429: '请求过于频繁，请稍后再试',
-    // 认证错误
-    A0010001: '登录已过期，请重新登录',
-    A0010002: '登录凭证无效',
-    A0010100: '请先登录',
-    A0010200: '权限不足',
-    // 评课错误
-    A0110002: '您已评价过该课程',
-    A0110003: '测评内容至少需要10个字',
-    // 系统错误
-    B0000001: '服务器开小差了，请稍后再试',
-    B0000004: '服务暂时不可用',
-  },
-  'en-US': {
-    A0000400: 'Bad request',
-    A0000404: 'Resource not found',
-    A0000422: 'Validation failed',
-    A0000429: 'Too many requests, please try again later',
-    A0010001: 'Session expired, please login again',
-    A0010002: 'Invalid credentials',
-    A0010100: 'Please login first',
-    A0010200: 'Permission denied',
-    A0110002: 'You have already reviewed this course',
-    A0110003: 'Review content must be at least 10 characters',
-    B0000001: 'Server error, please try again later',
-    B0000004: 'Service unavailable',
-  },
-};
-```
+前端 `ApiError.code` 直接存储后端 8 位码或 3 个客户端专属码：
 
-### 错误处理示例
+| 来源 | 错误码示例 | 说明 |
+|------|-----------|------|
+| 后端 API 响应 | `A0110001`, `B0000001` | 从 `error.code` 字段直接提取 |
+| 客户端（离线/超时） | `NETWORK_ERROR`, `OFFLINE`, `TIMEOUT` | 前端自行生成，后端不会返回 |
 
 ```typescript
-// utils/error-handler.ts
-import { errorMessages } from '@/i18n/errors';
+// api/errors.ts
+export class ApiError extends Error {
+  readonly code: string  // 'A0110001' 或 'NETWORK_ERROR'
 
-interface APIError {
-  code: string;
-  message: string;
-  details?: Record<string, any>;
-}
-
-export function getErrorMessage(error: APIError, locale = 'zh-CN'): string {
-  const messages = errorMessages[locale] || errorMessages['zh-CN'];
-
-  // 优先使用国际化消息
-  if (messages[error.code]) {
-    return messages[error.code];
+  getUserMessage(): string {
+    const key = `errors.${this.code}`
+    return te(key) ? t(key) : this.message
   }
-
-  // 按错误类别返回通用消息
-  if (error.code.startsWith('A')) {
-    return messages['A0000400'] || '请求错误';
-  }
-  if (error.code.startsWith('B')) {
-    return messages['B0000001'] || '服务器错误';
-  }
-  if (error.code.startsWith('C')) {
-    return messages['B0000004'] || '服务暂时不可用';
-  }
-
-  // 兜底返回原始消息
-  return error.message;
-}
-
-// 判断是否需要重新登录
-export function shouldRelogin(code: string): boolean {
-  return ['A0010001', 'A0010002', 'A0010003', 'A0010004', 'A0010100'].includes(code);
-}
-
-// 判断是否可以重试
-export function isRetryable(code: string): boolean {
-  return code.startsWith('B') || code.startsWith('C') || code === 'A0000429';
 }
 ```
+
+### 行为判断
+
+通过错误码前缀判断行为类别，不再使用枚举：
+
+```typescript
+isAuthError(code)    // code.startsWith('A001') — 认证错误
+isNetworkError(code) // NETWORK_ERROR | OFFLINE | TIMEOUT — 网络错误
+isRetryable(code)    // B* | C* | 网络错误 — 可重试
+```
+
+### 错误国际化
+
+所有错误码翻译全部平级，不存在嵌套命名空间：
+
+```typescript
+// i18n/locales/zh-CN/errors.ts
+export default {
+  NETWORK_ERROR: '网络连接失败',
+  TIMEOUT: '请求超时',
+  A0110001: '测评不存在',
+  A0010001: '登录已过期，请重新登录',
+  B0000001: '服务器错误',
+  // ...
+}
+```
+
+### 兜底机制
+
+当后端响应不包含 `error.code` 字段时（异常情况），前端使用 `httpStatusToDefaultCode(status)` 将 HTTP 状态码映射到默认 8 位码。正常情况下后端总会返回 `code` 字段。
 
 ---
 
 ## 后端使用示例
 
+### 便捷方法（业务 Handler 推荐）
+
 ```go
-// 使用预定义错误码
+// 便捷方法支持可选的 code 参数，传入具体错误码以实现前端精确翻译
+response.BadRequest(c, "invalid request parameters")                    // → A0000400（默认码）
+response.NotFound(c, "review not found", errs.ErrReviewNotFound)        // → A0110001
+response.NotFound(c, "course not found", errs.ErrCourseNotFound)        // → A0100001
+response.Conflict(c, "already reviewed", errs.ErrReviewExists)          // → A0110002
+response.Forbidden(c, "not review owner", errs.ErrNotReviewOwner)      // → A0110010
+response.RateLimitExceeded(c)                                           // → A0000429
+response.ServiceUnavailable(c, "service unavailable")                   // → B0000004
+
+// 不传第三个参数时行为不变，使用便捷方法的默认码
+response.Unauthorized(c, "login required")                              // → A0010100
+response.Forbidden(c, "permission denied")                              // → A0010200
+response.InternalError(c, "internal error")                             // → B0000001
+```
+
+便捷函数签名：`func NotFound(c *gin.Context, message string, code ...errs.ErrorCode)`
+
+### 直接指定错误码（中间件或需要精确错误码时）
+
+```go
 response.Error(c, http.StatusUnauthorized, errs.ErrTokenExpired, "token expired")
 
 // 带详情的错误
@@ -312,9 +300,6 @@ response.ErrorWithDetails(c, http.StatusBadRequest, errs.ErrValidation, "validat
     "field": "email",
     "reason": "invalid format",
 })
-
-// 业务错误
-response.Error(c, http.StatusConflict, errs.ErrReviewExists, "already reviewed this course")
 ```
 
 ---

@@ -14,6 +14,8 @@
 
 ## 加密方案
 
+> **注意**：以下加密方案为规划设计，尚未实现。当前仅使用 HMAC-SHA256 进行用户哈希处理。
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │                  密钥管理架构                        │
@@ -45,7 +47,7 @@ DEK (Data Encryption Key): 由 KEK 加密后存储，运行时解密到内存
 ┌─────────────────────────────────────────────────────┐
 │                   JWT Token 结构                     │
 ├─────────────────────────────────────────────────────┤
-│ Header:  { "alg": "HS256", "typ": "JWT" }           │
+│ Header:  { "alg": "RS256", "typ": "JWT" }           │
 ├─────────────────────────────────────────────────────┤
 │ Payload: {                                          │
 │   "sub": "user_id",                                 │
@@ -54,7 +56,8 @@ DEK (Data Encryption Key): 由 KEK 加密后存储，运行时解密到内存
 │   "jti": "unique_token_id"                          │
 │ }                                                   │
 ├─────────────────────────────────────────────────────┤
-│ Signature: HMACSHA256(...)                          │
+│ Signature: RSA-SHA256(...)                          │
+│ 仅允许 RS256/RS384/RS512 算法，HMAC 算法被显式拒绝 │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -62,7 +65,7 @@ DEK (Data Encryption Key): 由 KEK 加密后存储，运行时解密到内存
 
 | Token 类型 | 有效期 | 存储位置 |
 |------------|--------|----------|
-| Access Token | 2 小时 | HttpOnly Cookie |
+| Access Token | 15 分钟（默认 900s，可配置 60-86400s） | HttpOnly Cookie |
 | Refresh Token | 7 天 | HttpOnly Cookie |
 | 会话状态 | 7 天 | Redis |
 
@@ -73,7 +76,7 @@ DEK (Data Encryption Key): 由 KEK 加密后存储，运行时解密到内存
 3. 服务端验证 Refresh Token 有效性
 4. 检查 Redis 中会话状态
 5. 签发新的 Access Token
-6. (可选) 轮换 Refresh Token
+6. 轮换 Refresh Token（旧 token 加入黑名单，签发新的 token 对，清理用户 token 集合中的旧 token）
 
 ## 监控指标
 

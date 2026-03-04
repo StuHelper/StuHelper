@@ -25,3 +25,8 @@
 |------|------|
 | [01-data-model.md](01-data-model.md) | 数据模型设计 |
 | [02-api.md](02-api.md) | API 接口设计 |
+| [03-components.md](03-components.md) | 前端组件设计 |
+| [04-routes.md](04-routes.md) | 前端路由设计 |
+| [05-ui-spec.md](05-ui-spec.md) | UI 设计规范 |
+| [06-security.md](06-security.md) | 安全设计 |
+| [07-rating-dimensions.md](07-rating-dimensions.md) | 评分维度配置 |

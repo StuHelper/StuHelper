@@ -5,7 +5,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
 import { userManager, clearAuth, tokenExpiry } from '@/utils/auth'
-import { isApiError } from '@/api/errors'
+import { isApiError, isNetworkError } from '@/api/errors'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
 import { useCourseStore } from '@/stores/courseReview'
@@ -51,8 +51,8 @@ export const useAuthStore = defineStore('auth', () => {
   const handleError = (err: unknown, defaultMsg: string): AuthError => {
     const t = i18n.global.t
     if (isApiError(err)) {
-      if (err.isNetworkError()) {
-        return { type: 'network', message: t('common.login.networkError') }
+      if (isNetworkError(err.code)) {
+        return { type: 'network', message: t('errors.NETWORK_ERROR') }
       }
       return { type: 'auth_failed', message: err.getUserMessage() }
     }
@@ -138,7 +138,7 @@ export const useAuthStore = defineStore('auth', () => {
       return data
     } catch (err) {
       // 区分网络错误和认证错误
-      if (isApiError(err) && !err.isNetworkError()) {
+      if (isApiError(err) && !isNetworkError(err.code)) {
         clearAuth()
         user.value = null
       }

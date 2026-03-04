@@ -6,6 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -34,7 +35,7 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 		// 优先从 Cookie 获取 token，其次从 Header
 		tokenString := getTokenFromRequest(c)
 		if tokenString == "" {
-			response.Unauthorized(c, "missing authentication token")
+			response.Unauthorized(c, "missing authentication token", errs.ErrTokenMissing)
 			c.Abort()
 			return
 		}
@@ -42,12 +43,12 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 		// 检查 token 是否在黑名单中
 		isBlacklisted, err := tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), tokenString)
 		if err != nil {
-			response.ServiceUnavailable(c, "service temporarily unavailable")
+			response.ServiceUnavailable(c, "service temporarily unavailable", errs.ErrServiceUnavailable)
 			c.Abort()
 			return
 		}
 		if isBlacklisted {
-			response.Unauthorized(c, "token has been revoked")
+			response.Unauthorized(c, "token has been revoked", errs.ErrTokenRevoked)
 			c.Abort()
 			return
 		}
@@ -61,7 +62,7 @@ func AuthMiddleware(tokenService *token.Service) gin.HandlerFunc {
 				zap.Error(err),
 			)
 
-			response.Unauthorized(c, "invalid or expired token")
+			response.Unauthorized(c, "invalid or expired token", errs.ErrTokenInvalid)
 			c.Abort()
 			return
 		}

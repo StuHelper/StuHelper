@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -89,7 +90,7 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReportNotFound):
-			response.NotFound(c, "report not found")
+			response.NotFound(c, "report not found", errs.ErrReportNotFound)
 		case errors.Is(err, ErrInvalidAction):
 			response.BadRequest(c, "invalid action")
 		default:
@@ -168,11 +169,11 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found")
+			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
 		case errors.Is(err, ErrInvalidAction):
 			response.BadRequest(c, "invalid action")
 		case errors.Is(err, ErrInvalidTransition):
-			response.BadRequest(c, "invalid status transition for this action")
+			response.BadRequest(c, "invalid status transition for this action", errs.ErrInvalidTransition)
 		default:
 			logger.FromGin(c).Error("failed to update review", zap.Error(err))
 			response.InternalError(c, "failed to update review")
@@ -430,7 +431,7 @@ func (h *Handler) AdminEditReviewContent(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found")
+			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
 		default:
 			logger.FromGin(c).Error("failed to edit review", zap.Error(err))
 			response.InternalError(c, "failed to edit review")

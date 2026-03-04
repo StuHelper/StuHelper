@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -82,7 +83,7 @@ func (h *Handler) UpdateSensitiveWord(c *gin.Context) {
 
 	if err := h.service.UpdateSensitiveWord(c.Request.Context(), wordID, req.Word, req.Category, req.Level, req.IsActive); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "sensitive word not found")
+			response.NotFound(c, "sensitive word not found", errs.ErrSensitiveWordNotFound)
 			return
 		}
 		logger.FromGin(c).Error("failed to update sensitive word", zap.Error(err))
@@ -105,7 +106,7 @@ func (h *Handler) DeleteSensitiveWord(c *gin.Context) {
 
 	if err := h.service.DeleteSensitiveWord(c.Request.Context(), wordID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "sensitive word not found")
+			response.NotFound(c, "sensitive word not found", errs.ErrSensitiveWordNotFound)
 			return
 		}
 		logger.FromGin(c).Error("failed to delete sensitive word", zap.Error(err))

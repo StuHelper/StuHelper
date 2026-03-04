@@ -32,7 +32,7 @@
 ### 2. 配置环境变量
 
 ```bash
-cd server/deployments
+# 在项目根目录
 cp .env.example .env
 ```
 
@@ -49,7 +49,7 @@ CASDOOR_REDIRECT_URI=http://localhost:8080/api/v1/auth/callback
 CASDOOR_CERTIFICATE=your_certificate_here
 
 # Token 配置
-TOKEN_ACCESS_TTL=7200
+TOKEN_ACCESS_TTL=900
 TOKEN_REFRESH_TTL=604800
 TOKEN_COOKIE_DOMAIN=localhost
 TOKEN_COOKIE_SECURE=false
@@ -101,10 +101,12 @@ GET /api/v1/auth/callback?code=xxx&state=xxx
     "user": {
       "id": "user_id",
       "name": "username",
-      "display_name": "显示名称",
+      "displayName": "显示名称",
       "email": "user@example.com",
-      "avatar": "avatar_url"
-    }
+      "avatar": "avatar_url",
+      "isAdmin": false
+    },
+    "expiresIn": 900
   }
 }
 ```
@@ -172,10 +174,16 @@ server/internal/
 ├── modules/auth/
 │   └── handler.go          # 认证 API 处理器
 └── pkg/
+    ├── crypto/
+    │   └── hmac.go         # HMAC 哈希
+    ├── jwt/
+    │   └── validator.go    # JWT 验证（RSA-only）
     ├── middleware/
-    │   └── auth.go         # 认证中间件
+    │   ├── auth.go         # 认证中间件
+    │   └── csrf.go         # CSRF 中间件
     ├── sso/
     │   ├── client.go       # SSO 客户端
+    │   ├── cache.go        # 用户信息缓存（L1 本地 + L2 Redis）
     │   └── state.go        # State 管理
     └── token/
         ├── blacklist.go    # Token 黑名单

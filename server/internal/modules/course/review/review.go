@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -247,13 +248,13 @@ func (h *Handler) PostReview(c *gin.Context) {
 		case errors.Is(err, ErrDangerousContent):
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		case errors.Is(err, ErrSensitiveContent):
-			response.BadRequest(c, "content contains sensitive words")
+			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
 		case errors.Is(err, ErrContentEmpty):
-			response.BadRequest(c, "content cannot be empty")
+			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
 		case errors.Is(err, ErrAlreadyReviewed):
-			response.Conflict(c, "you have already reviewed this course")
+			response.Conflict(c, "you have already reviewed this course", errs.ErrReviewExists)
 		case errors.Is(err, ErrCourseNotFound):
-			response.NotFound(c, "course not found")
+			response.NotFound(c, "course not found", errs.ErrCourseNotFound)
 		default:
 			logger.FromGin(c).Error("failed to create review", zap.Error(err))
 			response.InternalError(c, "failed to create review")
@@ -298,7 +299,7 @@ func (h *Handler) VoteReview(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found")
+			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
 		default:
 			logger.FromGin(c).Error("failed to vote", zap.Error(err))
 			response.InternalError(c, "failed to vote")
@@ -380,9 +381,9 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found")
+			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
 		case errors.Is(err, ErrNotReviewOwner):
-			response.Forbidden(c, "you can only edit your own review")
+			response.Forbidden(c, "you can only edit your own review", errs.ErrNotReviewOwner)
 		case errors.Is(err, ErrRatingRequired):
 			response.BadRequest(c, "at least one rating dimension is required")
 		case errors.Is(err, ErrInvalidRating):
@@ -390,7 +391,7 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 		case errors.Is(err, ErrDangerousContent):
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		case errors.Is(err, ErrContentEmpty):
-			response.BadRequest(c, "content cannot be empty")
+			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
 		default:
 			logger.FromGin(c).Error("failed to update review", zap.Error(err))
 			response.InternalError(c, "failed to update review")
@@ -425,9 +426,9 @@ func (h *Handler) DeleteReview(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found")
+			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
 		case errors.Is(err, ErrNotReviewOwner):
-			response.Forbidden(c, "you can only delete your own review")
+			response.Forbidden(c, "you can only delete your own review", errs.ErrNotReviewOwner)
 		default:
 			logger.FromGin(c).Error("failed to delete review", zap.Error(err))
 			response.InternalError(c, "failed to delete review")
@@ -476,9 +477,9 @@ func (h *Handler) ReportReview(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found")
+			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
 		case errors.Is(err, ErrAlreadyReported):
-			response.Conflict(c, "you have already reported this review")
+			response.Conflict(c, "you have already reported this review", errs.ErrAlreadyReported)
 		default:
 			logger.FromGin(c).Error("failed to submit report", zap.Error(err))
 			response.InternalError(c, "failed to submit report")
@@ -601,7 +602,7 @@ func (h *Handler) GetTeacherRatingStats(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrTeacherNotFound):
-			response.NotFound(c, "teacher not found")
+			response.NotFound(c, "teacher not found", errs.ErrTeacherNotFound)
 		default:
 			logger.FromGin(c).Error("failed to load teacher stats", zap.Error(err))
 			response.InternalError(c, "failed to load teacher stats")
