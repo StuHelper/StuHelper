@@ -134,12 +134,13 @@ func InternalError(c *gin.Context, message string, code ...errs.ErrorCode) {
 }
 
 // RateLimitExceeded 返回 429 错误
-func RateLimitExceeded(c *gin.Context, message ...string) {
-	msg := "rate limit exceeded"
-	if len(message) > 0 {
-		msg = message[0]
+// 可选的 code 参数允许传入具体业务错误码，不传则使用通用码 errs.ErrRateLimited
+func RateLimitExceeded(c *gin.Context, message string, code ...errs.ErrorCode) {
+	ec := errs.ErrRateLimited
+	if len(code) > 0 {
+		ec = code[0]
 	}
-	Error(c, http.StatusTooManyRequests, errs.ErrRateLimited, msg)
+	Error(c, http.StatusTooManyRequests, ec, message)
 }
 
 // ServiceUnavailable 返回 503 错误

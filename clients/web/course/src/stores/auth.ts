@@ -52,7 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
     const t = i18n.global.t
     if (isApiError(err)) {
       if (isNetworkError(err.code)) {
-        return { type: 'network', message: t('common.login.networkError') }
+        return { type: 'network', message: t('errors.NETWORK_ERROR') }
       }
       return { type: 'auth_failed', message: err.getUserMessage() }
     }

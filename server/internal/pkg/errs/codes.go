@@ -64,8 +64,8 @@ const (
 	// 权限相关 (0200-0299)
 	ErrForbidden        ErrorCode = "A0010200" // 权限不足
 	ErrAccessDenied     ErrorCode = "A0010201" // 访问被拒绝
-	ErrCSRFTokenInvalid  ErrorCode = "A0010202" // CSRF Token 无效
-	ErrCSRFTokenMissing8 ErrorCode = "A0010203" // CSRF Token 缺失
+	ErrCSRFTokenInvalid ErrorCode = "A0010202" // CSRF Token 无效
+	ErrCSRFTokenMissing ErrorCode = "A0010203" // CSRF Token 缺失
 
 	// OAuth 相关 (0300-0399)
 	ErrOAuthFailed       ErrorCode = "A0010300" // OAuth 认证失败
@@ -173,7 +173,6 @@ const (
 // ============================================================================
 
 const (
-	ErrCSRFTokenMissing = ErrCSRFTokenMissing8 // → A0010203
-	ErrCSRFTokenBad     = ErrCSRFTokenInvalid  // → A0010202
-	ErrRequestTooLarge  = ErrPayloadTooLarge   // → A0000413
+	ErrCSRFTokenBad    = ErrCSRFTokenInvalid // → A0010202
+	ErrRequestTooLarge = ErrPayloadTooLarge  // → A0000413
 )

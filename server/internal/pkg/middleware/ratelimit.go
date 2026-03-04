@@ -143,7 +143,7 @@ func RateLimitMiddleware(limiter *RedisRateLimiter) gin.HandlerFunc {
 			return
 		}
 		if !allowed {
-			response.RateLimitExceeded(c)
+			response.RateLimitExceeded(c, "rate limit exceeded")
 			c.Abort()
 			return
 		}
@@ -195,7 +195,7 @@ func UserRateLimitMiddleware(limiter *RedisRateLimiter) gin.HandlerFunc {
 			return
 		}
 		if !allowed {
-			response.RateLimitExceeded(c)
+			response.RateLimitExceeded(c, "rate limit exceeded")
 			c.Abort()
 			return
 		}
@@ -224,7 +224,7 @@ func EndpointRateLimitMiddleware(limiter *RedisRateLimiter, endpoint string) gin
 			return
 		}
 		if !allowed {
-			response.RateLimitExceeded(c)
+			response.RateLimitExceeded(c, "rate limit exceeded")
 			c.Abort()
 			return
 		}
