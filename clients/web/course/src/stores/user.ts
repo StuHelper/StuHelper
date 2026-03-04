@@ -3,7 +3,6 @@
  */
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
-import type { Review } from '@/types/review'
 import type { FavoriteCourse } from '@/types/course'
 import * as userApi from '@/api/user'
 
@@ -38,18 +37,6 @@ async function fetchPaginated<T>(
 }
 
 export const useUserStore = defineStore('user', () => {
-  // 我的评论
-  const myReviews = ref<Review[]>([])
-  const myReviewsTotal = ref(0)
-  const myReviewsLoading = ref(false)
-  const myReviewsError = ref<string | null>(null)
-
-  // 我的点赞
-  const myVotes = ref<Review[]>([])
-  const myVotesTotal = ref(0)
-  const myVotesLoading = ref(false)
-  const myVotesError = ref<string | null>(null)
-
   // 我的收藏
   const myFavorites = ref<FavoriteCourse[]>([])
   const myFavoritesTotal = ref(0)
@@ -58,14 +45,6 @@ export const useUserStore = defineStore('user', () => {
 
   // 收藏状态缓存
   const favoriteIDs = ref<Set<number>>(new Set())
-
-  // 获取我的评论
-  const fetchMyReviews = (page = 1, pageSize = 10) =>
-    fetchPaginated(userApi.getMyReviews, myReviews, myReviewsTotal, myReviewsLoading, myReviewsError, page, pageSize)
-
-  // 获取我的点赞
-  const fetchMyVotes = (page = 1, pageSize = 10) =>
-    fetchPaginated(userApi.getMyVotes, myVotes, myVotesTotal, myVotesLoading, myVotesError, page, pageSize)
 
   // 获取我的收藏
   const fetchMyFavorites = async (page = 1, pageSize = 10) => {
@@ -113,14 +92,6 @@ export const useUserStore = defineStore('user', () => {
 
   // 重置状态（setup store 不支持 $reset）
   const reset = () => {
-    myReviews.value = []
-    myReviewsTotal.value = 0
-    myReviewsLoading.value = false
-    myReviewsError.value = null
-    myVotes.value = []
-    myVotesTotal.value = 0
-    myVotesLoading.value = false
-    myVotesError.value = null
     myFavorites.value = []
     myFavoritesTotal.value = 0
     myFavoritesLoading.value = false
@@ -129,21 +100,11 @@ export const useUserStore = defineStore('user', () => {
   }
 
   return {
-    myReviews,
-    myReviewsTotal,
-    myReviewsLoading,
-    myReviewsError,
-    myVotes,
-    myVotesTotal,
-    myVotesLoading,
-    myVotesError,
     myFavorites,
     myFavoritesTotal,
     myFavoritesLoading,
     myFavoritesError,
     favoriteIDs,
-    fetchMyReviews,
-    fetchMyVotes,
     fetchMyFavorites,
     toggleFavorite,
     isFavorited,

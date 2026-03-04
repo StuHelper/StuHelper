@@ -33,26 +33,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useUserStore } from '@/stores/user'
+import { getMyVotes } from '@/api/user'
+import type { Review } from '@/types/review'
 import ReviewCard from '@/components/review/ReviewCard.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 
 const { t } = useI18n()
 
-const store = useUserStore()
 const loading = ref(true)
 const loadingMore = ref(false)
+const votes = ref<Review[]>([])
+const total = ref(0)
 const page = ref(1)
-
-const votes = computed(() => store.myVotes)
-const total = computed(() => store.myVotesTotal)
 
 onMounted(async () => {
   try {
-    await store.fetchMyVotes(1)
+    const res = await getMyVotes(1, 10)
+    votes.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } finally {
     loading.value = false
   }
@@ -62,7 +63,8 @@ const loadMore = async () => {
   loadingMore.value = true
   try {
     page.value++
-    await store.fetchMyVotes(page.value)
+    const res = await getMyVotes(page.value, 10)
+    votes.value = [...votes.value, ...(res.data?.list || [])]
   } finally {
     loadingMore.value = false
   }

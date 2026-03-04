@@ -42,26 +42,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useUserStore } from '@/stores/user'
+import { getMyReviews } from '@/api/user'
+import type { Review } from '@/types/review'
 import ReviewCard from '@/components/review/ReviewCard.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 
 const { t } = useI18n()
 
-const store = useUserStore()
 const loading = ref(true)
 const loadingMore = ref(false)
+const reviews = ref<Review[]>([])
+const total = ref(0)
 const page = ref(1)
-
-const reviews = computed(() => store.myReviews)
-const total = computed(() => store.myReviewsTotal)
 
 onMounted(async () => {
   try {
-    await store.fetchMyReviews(1)
+    const res = await getMyReviews(1, 10)
+    reviews.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } finally {
     loading.value = false
   }
@@ -71,7 +72,8 @@ const loadMore = async () => {
   loadingMore.value = true
   try {
     page.value++
-    await store.fetchMyReviews(page.value)
+    const res = await getMyReviews(page.value, 10)
+    reviews.value = [...reviews.value, ...(res.data?.list || [])]
   } finally {
     loadingMore.value = false
   }
