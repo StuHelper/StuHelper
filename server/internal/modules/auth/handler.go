@@ -185,7 +185,12 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 			zap.Error(err),
 		)
 		// 回滚已追踪的 access token
-		_ = h.tokenService.GetBlacklist().UntrackUserToken(ctx, claims.Id, oauthToken.AccessToken)
+		if rollbackErr := h.tokenService.GetBlacklist().UntrackUserToken(ctx, claims.Id, oauthToken.AccessToken); rollbackErr != nil {
+			logger.FromGin(c).Warn("failed to rollback access token tracking",
+				zap.String("user_id", claims.Id),
+				zap.Error(rollbackErr),
+			)
+		}
 		response.InternalError(c, "authentication failed")
 		return
 	}
