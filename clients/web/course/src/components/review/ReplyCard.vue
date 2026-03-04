@@ -7,7 +7,7 @@
       {{ reply.content }}
     </div>
     <div class="flex items-center justify-between mt-2">
-      <span class="text-xs text-text-muted">{{ formatTime(reply.createdAt) }}</span>
+      <span class="text-xs text-text-muted">{{ formattedTime }}</span>
       <button
         v-if="reply.isOwner"
         class="text-xs text-text-muted bg-transparent border-none cursor-pointer px-2 py-1 rounded-sm transition-all duration-fast hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed"
@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Reply } from '@/types/reply'
 import { formatRelativeTime } from '@/utils/date'
@@ -38,7 +38,7 @@ const emit = defineEmits<{
 
 const deleting = ref(false)
 
-const formatTime = (dateStr: string) => formatRelativeTime(dateStr, locale.value, t)
+const formattedTime = computed(() => formatRelativeTime(props.reply.createdAt, locale.value, t))
 
 const handleDelete = () => {
   if (!window.confirm(t('review.reply.deleteConfirm'))) {

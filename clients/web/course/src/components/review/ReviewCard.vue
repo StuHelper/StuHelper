@@ -60,7 +60,7 @@
     <div class="flex items-center gap-1.5 mb-3 text-xs">
       <span v-if="review.teacherName" class="text-teacher-tag font-medium">{{ review.teacherName }}</span>
       <span v-if="review.teacherName" class="text-text-muted">&middot;</span>
-      <span class="text-text-muted">{{ formatTime(review.createdAt) }}</span>
+      <span class="text-text-muted">{{ formattedTime }}</span>
     </div>
 
     <!-- 内容区：三态显示 -->
@@ -314,8 +314,8 @@ onUnmounted(() => {
   if (shakeTimer) { clearTimeout(shakeTimer); shakeTimer = null }
 })
 
-// 时间格式化
-const formatTime = (dateStr: string) => formatRelativeTime(dateStr, locale.value, t)
+// 时间格式化（computed 缓存）
+const formattedTime = computed(() => formatRelativeTime(props.review.createdAt, locale.value, t))
 
 // 投票
 async function handleVote(type: VoteType) {

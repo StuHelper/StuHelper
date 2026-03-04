@@ -11,13 +11,14 @@
     <div class="flex-1 min-w-0">
       <p class="text-sm text-text-primary m-0 mb-1 leading-snug">{{ notification.title }}</p>
       <p v-if="notification.content" class="text-xs text-text-muted m-0 mb-1 overflow-hidden text-ellipsis whitespace-nowrap">{{ notification.content }}</p>
-      <span class="text-xs text-text-muted">{{ formatTime(notification.createdAt) }}</span>
+      <span class="text-xs text-text-muted">{{ formattedTime }}</span>
     </div>
     <span v-if="!notification.isRead" class="w-2 h-2 bg-accent rounded-full shrink-0" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MessageSquare, ThumbsUp, Info } from 'lucide-vue-next'
 import type { Notification } from '@/types/notification'
@@ -25,7 +26,7 @@ import { formatRelativeTime } from '@/utils/date'
 
 const { t, locale } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   notification: Notification
 }>()
 
@@ -33,5 +34,5 @@ defineEmits<{
   click: []
 }>()
 
-const formatTime = (dateStr: string) => formatRelativeTime(dateStr, locale.value, t)
+const formattedTime = computed(() => formatRelativeTime(props.notification.createdAt, locale.value, t))
 </script>
