@@ -10,21 +10,20 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [url, state]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    url:
-                      type: string
-                      format: uri
-                    state:
-                      type: string
+                    data:
+                      type: object
+                      required: [url, state]
+                      properties:
+                        url:
+                          type: string
+                          format: uri
+                        state:
+                          type: string
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -42,21 +41,20 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [url, state]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    url:
-                      type: string
-                      format: uri
-                    state:
-                      type: string
+                    data:
+                      type: object
+                      required: [url, state]
+                      properties:
+                        url:
+                          type: string
+                          format: uri
+                        state:
+                          type: string
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -85,33 +83,20 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [user, expiresIn]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    user:
+                    data:
                       type: object
-                      required: [id, name, displayName]
+                      required: [user, expiresIn]
                       properties:
-                        id:
-                          type: string
-                        name:
-                          type: string
-                        displayName:
-                          type: string
-                        email:
-                          type: string
-                        avatar:
-                          type: string
-                    expiresIn:
-                      type: integer
-                      description: Access token TTL（秒）
+                        user:
+                          $ref: '../components/schemas/auth.yaml#/UserInfo'
+                        expiresIn:
+                          type: integer
+                          description: Access token TTL（秒）
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -132,20 +117,19 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [message, expiresIn]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    message:
-                      type: string
-                    expiresIn:
-                      type: integer
+                    data:
+                      type: object
+                      required: [message, expiresIn]
+                      properties:
+                        message:
+                          type: string
+                        expiresIn:
+                          type: integer
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -169,24 +153,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [id, name]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    id:
-                      type: string
-                    name:
-                      type: string
-                    email:
-                      type: string
-                    displayName:
-                      type: string
+                    data:
+                      $ref: '../components/schemas/auth.yaml#/UserInfo'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -204,21 +177,20 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [message, ssoLogoutURL]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    message:
-                      type: string
-                    ssoLogoutURL:
-                      type: string
-                      format: uri
+                    data:
+                      type: object
+                      required: [message, ssoLogoutURL]
+                      properties:
+                        message:
+                          type: string
+                        ssoLogoutURL:
+                          type: string
+                          format: uri
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -236,14 +208,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':

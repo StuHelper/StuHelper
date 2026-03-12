@@ -10,14 +10,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/review.yaml#/ReviewStats'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/review.yaml#/ReviewStats'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -49,26 +48,25 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/review.yaml#/HotCourse'
+                    data:
+                      type: object
+                      required: [list]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/HotCourse'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/teachers/{id}/stats:
+/api/v1/course/review/teachers/{teacherID}/stats:
   get:
     tags: [Rating]
     operationId: getTeacherRatingStats
@@ -82,14 +80,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/rating.yaml#/TeacherRatingStatsResponse'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/rating.yaml#/TeacherRatingStatsResponse'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
@@ -117,14 +114,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/review.yaml#/ContentCheckResult'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/review.yaml#/ContentCheckResult'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':

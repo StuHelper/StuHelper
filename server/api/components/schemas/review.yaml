@@ -8,7 +8,7 @@ ReviewRatings:
 
 Review:
   type: object
-  required: [id, courseID, content, ratings, likeCount, dislikeCount, replyCount, status, createdAt]
+  required: [id, courseID, title, termID, content, ratings, likeCount, dislikeCount, replyCount, status, createdAt]
   properties:
     id:
       type: string
@@ -34,7 +34,6 @@ Review:
       type: string
     grade:
       type: string
-      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: '#/ReviewRatings'
     likeCount:
@@ -59,7 +58,7 @@ Review:
 
 PostReviewRequest:
   type: object
-  required: [courseID, content, ratings]
+  required: [courseID, title, termID, content, ratings]
   properties:
     courseID:
       type: integer
@@ -82,7 +81,6 @@ PostReviewRequest:
       maxLength: 5000
     grade:
       type: string
-      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: '#/ReviewRatings'
 
@@ -99,7 +97,6 @@ UpdateReviewRequest:
       maxLength: 5000
     grade:
       type: string
-      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: '#/ReviewRatings'
 
@@ -215,7 +212,6 @@ SaveDraftRequest:
       maxLength: 5000
     grade:
       type: string
-      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: '#/ReviewRatings'
 

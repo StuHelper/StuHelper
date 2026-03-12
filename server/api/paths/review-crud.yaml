@@ -1,4 +1,4 @@
-/api/v1/course/review/courses/{id}/reviews:
+/api/v1/course/review/courses/{courseID}/reviews:
   get:
     tags: [Review]
     operationId: getCourseReviews
@@ -34,22 +34,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/review.yaml#/Review'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/Review'
+                        total:
+                          type: integer
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -79,22 +78,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/review.yaml#/Review'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/Review'
+                        total:
+                          type: integer
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -115,9 +113,14 @@
         in: query
         required: true
         schema:
-          type: string
-        description: 逗号分隔的课程ID列表（最多20个）
-        example: "1,2,3"
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 20
+        style: form
+        explode: false
+        description: 课程ID列表（最多20个）
       - $ref: '../components/parameters/common.yaml#/PageSizeParam'
       - name: sort
         in: query
@@ -131,24 +134,23 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  additionalProperties:
-                    type: object
-                    required: [list, total]
-                    properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '../components/schemas/review.yaml#/Review'
-                      total:
-                        type: integer
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      additionalProperties:
+                        type: object
+                        required: [list, total]
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '../components/schemas/review.yaml#/Review'
+                          total:
+                            type: integer
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -174,14 +176,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/review.yaml#/Review'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/review.yaml#/Review'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -197,7 +198,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/reviews/{id}:
+/api/v1/course/review/reviews/{reviewID}:
   put:
     tags: [Review]
     operationId: updateReview
@@ -219,14 +220,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -254,14 +254,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -273,7 +272,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/reviews/{id}/votes:
+/api/v1/course/review/reviews/{reviewID}/votes:
   post:
     tags: [Review]
     operationId: voteReview
@@ -295,14 +294,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -314,7 +312,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/reviews/{id}/reports:
+/api/v1/course/review/reviews/{reviewID}/reports:
   post:
     tags: [Review]
     operationId: reportReview
@@ -336,14 +334,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':

@@ -86,3 +86,6 @@ cos-credentials.json
 build/
 output/
 bin/
+storybook-static/
+test-results/
+playwright-report/

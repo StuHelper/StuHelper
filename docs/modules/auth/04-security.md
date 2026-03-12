@@ -4,13 +4,13 @@
 
 ## 敏感数据分类
 
-| 数据类型 | 敏感级别 | 存储方式 |
-|----------|----------|----------|
-| 用户密码 | 极高 | **禁止存储**，仅内存中转 |
-| 身份证号 | 极高 | AES-256-GCM 加密 |
-| 手机号 | 高 | AES-256-GCM 加密 |
-| 学号 | 中 | AES-256-GCM 加密 |
-| 昵称 | 低 | 明文存储 |
+| 数据类型 | 敏感级别 | 存储方式                 |
+| -------- | -------- | ------------------------ |
+| 用户密码 | 极高     | **禁止存储**，仅内存中转 |
+| 身份证号 | 极高     | AES-256-GCM 加密         |
+| 手机号   | 高       | AES-256-GCM 加密         |
+| 学号     | 中       | AES-256-GCM 加密         |
+| 昵称     | 低       | 明文存储                 |
 
 ## 加密方案
 
@@ -63,11 +63,11 @@ DEK (Data Encryption Key): 由 KEK 加密后存储，运行时解密到内存
 
 ### Token 生命周期
 
-| Token 类型 | 有效期 | 存储位置 |
-|------------|--------|----------|
-| Access Token | 15 分钟（默认 900s，可配置 60-86400s） | HttpOnly Cookie |
-| Refresh Token | 7 天 | HttpOnly Cookie |
-| 会话状态 | 7 天 | Redis |
+| Token 类型    | 有效期                                 | 存储位置        |
+| ------------- | -------------------------------------- | --------------- |
+| Access Token  | 15 分钟（默认 900s，可配置 60-86400s） | HttpOnly Cookie |
+| Refresh Token | 7 天                                   | HttpOnly Cookie |
+| 会话状态      | 7 天                                   | Redis           |
 
 ### Token 刷新流程
 
@@ -80,9 +80,9 @@ DEK (Data Encryption Key): 由 KEK 加密后存储，运行时解密到内存
 
 ## 监控指标
 
-| 指标 | 说明 | 告警阈值 |
-|------|------|----------|
-| `auth_sso_success_rate` | SSO 认证成功率 | < 95% |
-| `auth_sso_latency_p99` | SSO 认证 P99 延迟 | > 5s |
-| `auth_token_refresh_rate` | Token 刷新频率 | 异常波动 |
-| `auth_failed_attempts` | 认证失败次数 | > 100/min |
+| 指标                      | 说明              | 告警阈值  |
+| ------------------------- | ----------------- | --------- |
+| `auth_sso_success_rate`   | SSO 认证成功率    | < 95%     |
+| `auth_sso_latency_p99`    | SSO 认证 P99 延迟 | > 5s      |
+| `auth_token_refresh_rate` | Token 刷新频率    | 异常波动  |
+| `auth_failed_attempts`    | 认证失败次数      | > 100/min |

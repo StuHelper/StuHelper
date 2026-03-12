@@ -42,6 +42,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	{
 		// 通用实体接口（课程、院系等）
 		course.GET("/departments", h.GetDepartments)
+		course.GET("/terms", h.GetTerms)
 		course.GET("/categories", h.GetCourseCategories)
 		course.GET("/courses", h.GetCourses)
 		course.GET("/courses/search", h.SearchCourses)

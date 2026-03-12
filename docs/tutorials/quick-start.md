@@ -1,69 +1,85 @@
 # 快速开始
 
-本文档帮助新开发者搭建完整的全栈开发环境。
+这份文档帮你把 StuHelper 跑起来，并知道第一次应该从哪里开始改代码。
 
-提供两种开发模式：
-- **混合模式（推荐）**：Docker 运行 PG + Redis，后端和前端在宿主机运行
-- **全 Docker 模式**：所有服务都在 Docker 容器中运行，支持热重载
+当前仓库是一个前后端混合 Monorepo：
+
+- `server/` 是 Go 后端。
+- `clients/web` 是 Vue Web 主站。
+- `clients/uniappx` 是 uni-app x 客户端。
+- `clients/shared` 是跨端共享 API 与类型。
+
+推荐先用“混合模式”开发：数据库和 Redis 用 Docker，后端和前端在宿主机启动。这样排查问题最直接。
 
 ## 环境要求
 
-### 混合模式
+| 工具             | 版本建议 | 安装方式                              |
+| ---------------- | -------- | ------------------------------------- |
+| Docker & Compose | 24+      | [docker.com](https://www.docker.com/) |
+| Go               | 1.24+    | `brew install go`                     |
+| Node.js          | 24+      | `brew install node`                   |
+| pnpm             | 10+      | `npm install -g pnpm`                 |
 
-| 工具 | 版本 | 安装 |
-|------|------|------|
-| Docker & Compose | 24+ | [docker.com](https://www.docker.com/) |
-| Go | 1.24+ | `brew install go` |
-| Node.js | 24+ | `brew install node` |
-| pnpm | 10+ | `npm install -g pnpm` |
-
-### 全 Docker 模式
-
-只需要 Docker & Compose。
-
-## 1. 克隆项目
+## 1. 克隆仓库
 
 ```bash
 git clone https://gitea.stuhelper.com/StuHelper/StuHelper.git
 cd StuHelper
 ```
 
-## 2. 配置环境变量
+## 2. 配置后端环境变量
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env`，修改以下关键项（其余保持默认即可）：
+至少确认下面这些值：
 
 ```bash
-# 数据库密码（自定义，两处保持一致）
 POSTGRES_PASSWORD=dev123
 DATABASE_URL=postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable
-
-# Redis 密码
 REDIS_PASSWORD=dev123
 
-# Casdoor SSO（联系管理员获取，或先留空跳过认证功能）
+CASDOOR_ENDPOINT=https://sso.stuhelper.com
 CASDOOR_CLIENT_ID=
 CASDOOR_CLIENT_SECRET=
+CASDOOR_REDIRECT_URI=http://localhost:3000/auth/callback
 ```
 
-## 3A. 混合模式开发（推荐）
+说明：
+
+- 本项目当前依赖已部署的 Casdoor `https://sso.stuhelper.com`。
+- 如果本地只做匿名浏览或接口联调，可以先不配置完整 SSO。
+- 如果要走完整登录流程，前端回调地址必须与 Casdoor 应用配置一致。
+
+## 3. 配置前端环境变量
+
+Web 端默认读取 `clients/web/.env`：
+
+```bash
+cp clients/web/.env.example clients/web/.env
+```
+
+本地常用配置如下：
+
+```bash
+VITE_API_URL=http://localhost:8080
+VITE_SSO_URL=https://sso.stuhelper.com
+VITE_CASDOOR_CLIENT_ID=<same-as-backend-app>
+```
+
+如果你只是本地访问同源反向代理，也可以把 `VITE_API_URL` 改为 `/api`。
+
+## 4A. 混合模式开发（推荐）
 
 ### 启动基础设施
 
 ```bash
 docker compose up -d
-```
-
-验证服务状态：
-
-```bash
 docker compose ps
 ```
 
-两个容器都应显示 `healthy`。数据库会通过 `init.sql` + `seed.sql` 自动初始化。
+`postgres` 和 `redis` 都应为 `healthy`。
 
 ### 启动后端
 
@@ -72,126 +88,126 @@ cd server
 make run
 ```
 
-访问 http://localhost:8080/health 验证，返回 `{"status":"ok"}` 即成功。
+验证：
 
-API 文档：http://localhost:8080/docs/
+- 健康检查：`http://localhost:8080/health`
+- Swagger UI：`http://localhost:8080/docs/`
 
 ### 启动前端
 
 新开一个终端：
 
 ```bash
-cd clients/web/course
+cd clients
 pnpm install
-pnpm dev
+pnpm dev:web
 ```
 
-浏览器打开 http://localhost:5173。
+默认打开：
 
-## 3B. 全 Docker 模式开发
+- Web 主站：`http://localhost:3000`
 
-无需修改 `.env`，compose 内部已自动配置容器间网络连接。
+## 4B. 全 Docker 模式开发
 
-一键启动所有服务：
+如果你希望前后端都在容器里跑：
 
 ```bash
 docker compose --profile dev-full up
 ```
 
-- 后端使用 [air](https://github.com/air-verse/air) 热重载（修改 Go 代码自动重编译）
-- 前端使用 pnpm dev（Vite HMR 热更新）
-- 后端：http://localhost:8080
-- 前端：http://localhost:5173
+默认地址：
 
-查看容器日志：
+- 后端：`http://localhost:8080`
+- 前端：`http://localhost:3000`
 
-```bash
-docker compose --profile dev-full logs -f app-dev     # 后端日志
-docker compose --profile dev-full logs -f frontend-dev # 前端日志
-```
-
-## 日常开发流程
-
-### 混合模式
+查看日志：
 
 ```bash
-# 终端 1: 基础设施（首次启动后常驻）
-docker compose up -d
-
-# 终端 2: 后端（修改 Go 代码后 Ctrl+C 重启）
-cd server && make run
-
-# 终端 3: 前端（Vite HMR 自动热更新）
-cd clients/web/course && pnpm dev
+docker compose --profile dev-full logs -f app-dev
+docker compose --profile dev-full logs -f frontend-dev
 ```
 
-### 全 Docker 模式
+## 第一次启动后建议做的事
+
+先确认这几个命令都能跑通：
 
 ```bash
-# 一键启动（后台运行）
-docker compose --profile dev-full up -d
+cd server
+make generate
 
-# 查看日志
-docker compose --profile dev-full logs -f
+cd ../clients
+pnpm type-check
+pnpm test:web
 ```
 
-## 常用命令
+如果你要做组件开发，再跑：
+
+```bash
+cd clients
+pnpm storybook:web
+```
+
+如果你要做页面或路由改动，再跑：
+
+```bash
+cd clients
+pnpm test:e2e:web
+```
+
+## 日常开发命令
 
 ### 后端
 
 ```bash
 cd server
-make run              # 运行后端
-make test             # 运行测试
-make lint             # 代码检查
-make fmt              # 格式化代码
-make build            # 构建二进制
-make generate         # 重新生成 OpenAPI 代码
+make run
+make test
+make lint
+make fmt
+make build
+make generate
+make lint-spec
 ```
 
 ### 前端
 
 ```bash
-cd clients/web/course
-pnpm dev              # 开发服务器
-pnpm build            # 生产构建
-pnpm run type-check   # TypeScript 类型检查
-pnpm run generate:types # 生成 TS 类型
-```
-
-### Docker
-
-```bash
-docker compose up -d          # 启动基础设施
-docker compose down           # 停止
-docker compose logs -f        # 查看日志
-docker compose down -v        # 停止并删除数据卷（重置数据库）
+cd clients
+pnpm dev:web
+pnpm dev:uni
+pnpm type-check
+pnpm test:web
+pnpm test:e2e:web
+pnpm storybook:web
+pnpm build:web
 ```
 
 ## 常见问题
 
-### 端口冲突
+### 前端提示接口跨域或连不上
 
-- 后端 `8080`，前端 `5173`，PG `5432`，Redis `6379`
-- 如果端口被占用，修改 `.env` 中对应的配置
+- 检查 `clients/web/.env` 里的 `VITE_API_URL`。
+- 宿主机开发通常使用 `http://localhost:8080`。
+- 走反向代理时可改成 `/api`。
 
-### 数据库连接失败
+### 登录后没有回跳到原页面
 
-- 确认 Docker 容器状态为 `healthy`：`docker compose ps`
-- 混合模式下 `DATABASE_URL` 的 host 必须是 `localhost`
-- 确认 `POSTGRES_PASSWORD` 和 `DATABASE_URL` 中的密码一致
+- 检查 Casdoor 应用里的回调地址是否包含 `http://localhost:3000/auth/callback`。
+- 检查浏览器是否拦截了第三方 Cookie 或弹窗。
 
-### 重置数据库
+### OpenAPI 类型不一致
+
+先重新生成：
 
 ```bash
-docker compose down -v
-docker compose up -d
+cd server
+make generate
 ```
 
-## 相关文档
+这会同时更新后端生成代码和 `clients/shared/src/types/api.gen.ts`。
 
-- 开发规范：`.project_rule/project_rules.md`
-- 部署指南：`docs/guides/deployment.md`
-- API 概览：`docs/reference/api-overview.md`
-- OpenAPI 规范：`server/api/openapi.yaml`
-- Swagger UI：http://localhost:8080/docs/
+## 下一步看什么
+
+- 前端开发看 [前端开发指南](../guides/frontend-development.md)
+- 后端开发看 [后端开发指南](../guides/backend-quickstart.md)
+- API 协作看 [OpenAPI 3 开发指南](../guides/openapi-development-guide.md)

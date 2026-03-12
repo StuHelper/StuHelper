@@ -57,7 +57,7 @@ cd server
 go mod download
 
 # 安装前端依赖
-cd ../clients/web/course
+cd ../clients
 pnpm install
 ```
 
@@ -81,8 +81,8 @@ cd server
 air
 
 # 启动前端开发服务器
-cd clients/web/course
-pnpm dev
+cd clients
+pnpm dev:web
 ```
 
 **生产环境**：
@@ -92,7 +92,7 @@ pnpm dev
 docker-compose up -d
 ```
 
-访问 `http://localhost:5173` 查看前端应用。
+访问 `http://localhost:3000` 查看前端应用。
 
 ## 项目结构
 
@@ -107,9 +107,10 @@ StuHelper/
 │   │   └── pkg/           # 公共包
 │   ├── configs/           # 配置文件
 │   └── migrations/        # 数据库迁移
-├── clients/               # 前端应用
-│   └── web/
-│       └── course/        # 课程评价前端
+├── clients/               # 前端 Monorepo
+│   ├── web/               # Web 主站
+│   ├── shared/            # 跨端共享 API / 类型层
+│   └── uniappx/           # uni-app x 实验性脚手架
 ├── docs/                  # 项目文档
 │   ├── guides/            # 开发指南
 │   ├── modules/           # 模块文档
@@ -140,19 +141,16 @@ wire ./internal/wire
 ### 前端开发
 
 ```bash
-cd clients/web/course
+cd clients
 
-# 类型检查
-pnpm run type-check
+# Web 类型检查
+pnpm --filter @stuhelper/web type-check
 
-# 代码检查
-pnpm run lint
+# Web 代码检查
+pnpm --filter @stuhelper/web lint
 
-# 格式化代码
-pnpm run format
-
-# 构建生产版本
-pnpm run build
+# Web 构建生产版本
+pnpm --filter @stuhelper/web build
 ```
 
 ### 数据库迁移

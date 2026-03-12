@@ -4,26 +4,26 @@
 
 ### 认证相关
 
-| 事件类型                | 说明     | 保留期 |
-| ----------------------- | -------- | ------ |
-| `user.login`            | 用户登录 | 90 天  |
-| `user.login_failed`     | 登录失败 | 180 天 |
-| `user.logout`           | 用户登出 | 90 天  |
-| `user.logout_all`       | 全设备登出 | 90 天  |
-| `token.refresh`         | Token 刷新 | 30 天  |
-| `token.revoked`         | Token 撤销 | 90 天  |
+| 事件类型            | 说明       | 保留期 |
+| ------------------- | ---------- | ------ |
+| `user.login`        | 用户登录   | 90 天  |
+| `user.login_failed` | 登录失败   | 180 天 |
+| `user.logout`       | 用户登出   | 90 天  |
+| `user.logout_all`   | 全设备登出 | 90 天  |
+| `token.refresh`     | Token 刷新 | 30 天  |
+| `token.revoked`     | Token 撤销 | 90 天  |
 
 ### 用户操作
 
-| 事件类型                | 说明     | 保留期 |
-| ----------------------- | -------- | ------ |
-| `user.review_post`      | 发布评论 | 180 天 |
-| `user.review_edit`      | 编辑评论 | 180 天 |
-| `user.review_delete`    | 删除评论 | 180 天 |
-| `user.vote`             | 投票     | 90 天  |
-| `user.report`           | 举报     | 180 天 |
-| `user.reply`            | 回复     | 90 天  |
-| `user.favorite`         | 收藏     | 90 天  |
+| 事件类型             | 说明     | 保留期 |
+| -------------------- | -------- | ------ |
+| `user.review_post`   | 发布评论 | 180 天 |
+| `user.review_edit`   | 编辑评论 | 180 天 |
+| `user.review_delete` | 删除评论 | 180 天 |
+| `user.vote`          | 投票     | 90 天  |
+| `user.report`        | 举报     | 180 天 |
+| `user.reply`         | 回复     | 90 天  |
+| `user.favorite`      | 收藏     | 90 天  |
 
 ### 管理员操作
 
@@ -38,23 +38,23 @@
 
 ### 数据操作
 
-| 事件类型                | 说明     | 保留期 |
-| ----------------------- | -------- | ------ |
-| `data.access`           | 数据访问 | 30 天  |
-| `data.create`           | 数据创建 | 180 天 |
-| `data.update`           | 数据更新 | 180 天 |
-| `data.delete`           | 数据删除 | 永久   |
-| `data.export`           | 数据导出 | 永久   |
+| 事件类型      | 说明     | 保留期 |
+| ------------- | -------- | ------ |
+| `data.access` | 数据访问 | 30 天  |
+| `data.create` | 数据创建 | 180 天 |
+| `data.update` | 数据更新 | 180 天 |
+| `data.delete` | 数据删除 | 永久   |
+| `data.export` | 数据导出 | 永久   |
 
 ### 系统操作
 
-| 事件类型                | 说明       | 保留期 |
-| ----------------------- | ---------- | ------ |
-| `system.cron_start`     | 定时任务开始 | 30 天  |
-| `system.cron_complete`  | 定时任务完成 | 30 天  |
-| `system.cache_refresh`  | 缓存刷新   | 30 天  |
-| `system.stats_update`   | 统计更新   | 30 天  |
-| `system.error`          | 系统错误   | 180 天 |
+| 事件类型               | 说明         | 保留期 |
+| ---------------------- | ------------ | ------ |
+| `system.cron_start`    | 定时任务开始 | 30 天  |
+| `system.cron_complete` | 定时任务完成 | 30 天  |
+| `system.cache_refresh` | 缓存刷新     | 30 天  |
+| `system.stats_update`  | 统计更新     | 30 天  |
+| `system.error`         | 系统错误     | 180 天 |
 
 ## 审计日志格式
 

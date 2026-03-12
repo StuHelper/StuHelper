@@ -41,9 +41,9 @@
 
 ## ID 策略
 
-| 场景 | 类型 | 示例表 | 理由 |
-| --- | --- | --- | --- |
-| 用户可见的实体（URL 中出现） | BIGSERIAL (int64) | courses, teachers, departments | URL 短且直观 |
+| 场景                           | 类型                 | 示例表                                                  | 理由                           |
+| ------------------------------ | -------------------- | ------------------------------------------------------- | ------------------------------ |
+| 用户可见的实体（URL 中出现）   | BIGSERIAL (int64)    | courses, teachers, departments                          | URL 短且直观                   |
 | 内部业务数据（用户不直接访问） | UUIDv7 (VARCHAR(36)) | reviews, replies, votes, reports, drafts, notifications | 不可预测、分布式友好、自带时序 |
 
 ## 核心表结构
@@ -70,13 +70,13 @@ CREATE TABLE rating_dimensions (
 
 **默认维度**：
 
-| key | name | description |
-|-----|------|-------------|
-| `difficulty` | 课程难度 | 课程内容的难易程度 |
-| `workload` | 作业量 | 课程作业和任务的工作量 |
-| `usefulness` | 实用性 | 课程内容对未来学习或工作的帮助程度 |
-| `teaching` | 教学质量 | 教师的授课水平和教学效果 |
-| `grading` | 给分情况 | 课程的评分标准和给分宽松程度 |
+| key          | name     | description                        |
+| ------------ | -------- | ---------------------------------- |
+| `difficulty` | 课程难度 | 课程内容的难易程度                 |
+| `workload`   | 作业量   | 课程作业和任务的工作量             |
+| `usefulness` | 实用性   | 课程内容对未来学习或工作的帮助程度 |
+| `teaching`   | 教学质量 | 教师的授课水平和教学效果           |
+| `grading`    | 给分情况 | 课程的评分标准和给分宽松程度       |
 
 ### 2. departments (院系表)
 
@@ -177,23 +177,23 @@ CREATE UNIQUE INDEX idx_reviews_user_course ON reviews(user_hash, course_id)
 
 ```json
 {
-  "difficulty": 4,
-  "workload": 3,
-  "usefulness": 5,
-  "teaching": 4,
-  "grading": 4
+	"difficulty": 4,
+	"workload": 3,
+	"usefulness": 5,
+	"teaching": 4,
+	"grading": 4
 }
 ```
 
 **评分等级说明**（五级制 1-5，表情评分）：
 
-| 值 | 含义 | 表情 |
-|----|------|------|
-| 5 | 超赞 | 😍 |
-| 4 | 不错 | 😊 |
-| 3 | 一般 | 😐 |
-| 2 | 较差 | 😟 |
-| 1 | 很差 | 😢 |
+| 值  | 含义 | 表情 |
+| --- | ---- | ---- |
+| 5   | 超赞 | 😍   |
+| 4   | 不错 | 😊   |
+| 3   | 一般 | 😐   |
+| 2   | 较差 | 😟   |
+| 1   | 很差 | 😢   |
 
 ### 6. review_replies (评论回复表)
 
@@ -216,62 +216,62 @@ CREATE TABLE review_replies (
 
 ### 7. 其他表
 
-| 表名 | 用途 | ID 类型 |
-|------|------|---------|
-| review_votes | 点赞/踩记录（review_id + user_hash 唯一） | UUIDv7 |
-| review_reports | 举报记录（review_id + reporter_hash 唯一） | UUIDv7 |
-| course_rating_stats | 课程评分统计（按学期+维度聚合） | UUIDv7 |
-| teacher_rating_stats | 教师评分统计（按学期+维度聚合） | UUIDv7 |
-| course_favorites | 课程收藏（user_hash + course_id 唯一） | UUIDv7 |
-| review_drafts | 评论草稿（user_hash + course_id 唯一） | UUIDv7 |
-| notifications | 通知（支持 reply/vote/system 类型） | UUIDv7 |
-| sensitive_words | 敏感词（block/warn/review 三级） | UUIDv7 |
-| admin_operation_logs | 管理操作日志 | UUIDv7 |
+| 表名                 | 用途                                       | ID 类型 |
+| -------------------- | ------------------------------------------ | ------- |
+| review_votes         | 点赞/踩记录（review_id + user_hash 唯一）  | UUIDv7  |
+| review_reports       | 举报记录（review_id + reporter_hash 唯一） | UUIDv7  |
+| course_rating_stats  | 课程评分统计（按学期+维度聚合）            | UUIDv7  |
+| teacher_rating_stats | 教师评分统计（按学期+维度聚合）            | UUIDv7  |
+| course_favorites     | 课程收藏（user_hash + course_id 唯一）     | UUIDv7  |
+| review_drafts        | 评论草稿（user_hash + course_id 唯一）     | UUIDv7  |
+| notifications        | 通知（支持 reply/vote/system 类型）        | UUIDv7  |
+| sensitive_words      | 敏感词（block/warn/review 三级）           | UUIDv7  |
+| admin_operation_logs | 管理操作日志                               | UUIDv7  |
 
 ## TypeScript 类型定义
 
 ```typescript
 // 评分值 (1-5 五级制)
-type RatingValue = 1 | 2 | 3 | 4 | 5
+type RatingValue = 1 | 2 | 3 | 4 | 5;
 
 // 动态评分 (key -> value)
-type ReviewRatings = Record<string, RatingValue>
+type ReviewRatings = Record<string, RatingValue>;
 
 // 课程信息
 interface Course {
-  id: number
-  name: string
-  code?: string
-  credits: number
-  departmentID: number
-  departmentName?: string
-  category: string
-  reviewCount: number
+	id: number;
+	name: string;
+	code?: string;
+	credits: number;
+	departmentID: number;
+	departmentName?: string;
+	category: string;
+	reviewCount: number;
 }
 
 // 课程分类
 interface CourseCategory {
-  id: number
-  schoolID: number
-  name: string
-  sortOrder: number
+	id: number;
+	schoolID: number;
+	name: string;
+	sortOrder: number;
 }
 
 // 测评信息
 interface Review {
-  id: string
-  courseID: number
-  courseName?: string
-  teacherName?: string
-  termID?: string
-  title: string
-  content: string
-  grade?: string
-  ratings: ReviewRatings
-  likeCount: number
-  dislikeCount: number
-  replyCount: number
-  status?: 'published' | 'hidden'
-  createdAt: string
+	id: string;
+	courseID: number;
+	courseName?: string;
+	teacherName?: string;
+	termID?: string;
+	title: string;
+	content: string;
+	grade?: string;
+	ratings: ReviewRatings;
+	likeCount: number;
+	dislikeCount: number;
+	replyCount: number;
+	status?: "published" | "hidden";
+	createdAt: string;
 }
 ```

@@ -18,7 +18,7 @@ PageSizeParam:
     maximum: 100
 
 CourseIDPath:
-  name: id
+  name: courseID
   in: path
   required: true
   description: 课程 ID
@@ -27,7 +27,7 @@ CourseIDPath:
     format: int64
 
 ReviewIDPath:
-  name: id
+  name: reviewID
   in: path
   required: true
   description: 测评 ID
@@ -36,7 +36,7 @@ ReviewIDPath:
     format: uuid
 
 TeacherIDPath:
-  name: id
+  name: teacherID
   in: path
   required: true
   description: 教师 ID
@@ -45,7 +45,7 @@ TeacherIDPath:
     format: int64
 
 NotificationIDPath:
-  name: id
+  name: notificationID
   in: path
   required: true
   description: 通知 ID
@@ -61,3 +61,30 @@ DraftCourseIDPath:
   schema:
     type: integer
     format: int64
+
+ReplyIDPath:
+  name: replyID
+  in: path
+  required: true
+  description: 回复 ID
+  schema:
+    type: string
+    format: uuid
+
+ReportIDPath:
+  name: reportID
+  in: path
+  required: true
+  description: 举报 ID
+  schema:
+    type: string
+    format: uuid
+
+SensitiveWordIDPath:
+  name: sensitiveWordID
+  in: path
+  required: true
+  description: 敏感词 ID
+  schema:
+    type: string
+    format: uuid

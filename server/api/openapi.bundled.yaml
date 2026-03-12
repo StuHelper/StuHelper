@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: StuHelper API
   version: 1.0.0
@@ -134,26 +134,23 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - url
-                      - state
+                      - data
                     properties:
-                      url:
-                        type: string
-                        format: uri
-                      state:
-                        type: string
+                      data:
+                        type: object
+                        required:
+                          - url
+                          - state
+                        properties:
+                          url:
+                            type: string
+                            format: uri
+                          state:
+                            type: string
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -171,26 +168,23 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - url
-                      - state
+                      - data
                     properties:
-                      url:
-                        type: string
-                        format: uri
-                      state:
-                        type: string
+                      data:
+                        type: object
+                        required:
+                          - url
+                          - state
+                        properties:
+                          url:
+                            type: string
+                            format: uri
+                          state:
+                            type: string
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -219,41 +213,23 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - user
-                      - expiresIn
+                      - data
                     properties:
-                      user:
+                      data:
                         type: object
                         required:
-                          - id
-                          - name
-                          - displayName
+                          - user
+                          - expiresIn
                         properties:
-                          id:
-                            type: string
-                          name:
-                            type: string
-                          displayName:
-                            type: string
-                          email:
-                            type: string
-                          avatar:
-                            type: string
-                      expiresIn:
-                        type: integer
-                        description: Access token TTL（秒）
+                          user:
+                            $ref: '#/components/schemas/UserInfo'
+                          expiresIn:
+                            type: integer
+                            description: Access token TTL（秒）
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -274,25 +250,22 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - message
-                      - expiresIn
+                      - data
                     properties:
-                      message:
-                        type: string
-                      expiresIn:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - message
+                          - expiresIn
+                        properties:
+                          message:
+                            type: string
+                          expiresIn:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -316,29 +289,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - id
-                      - name
+                      - data
                     properties:
-                      id:
-                        type: string
-                      name:
-                        type: string
-                      email:
-                        type: string
-                      displayName:
-                        type: string
+                      data:
+                        $ref: '#/components/schemas/UserInfo'
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/auth/logout:
@@ -356,26 +314,23 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - message
-                      - ssoLogoutURL
+                      - data
                     properties:
-                      message:
-                        type: string
-                      ssoLogoutURL:
-                        type: string
-                        format: uri
+                      data:
+                        type: object
+                        required:
+                          - message
+                          - ssoLogoutURL
+                        properties:
+                          message:
+                            type: string
+                          ssoLogoutURL:
+                            type: string
+                            format: uri
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/auth/logout-all:
@@ -393,17 +348,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -427,21 +379,43 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Department'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Department'
         '400':
           $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/terms:
+    get:
+      tags:
+        - Course
+      operationId: getTerms
+      summary: 获取学期列表
+      security: []
+      responses:
+        '200':
+          description: 学期列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Term'
         '500':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/categories:
@@ -457,19 +431,16 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/CourseCategory'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CourseCategory'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -484,6 +455,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+          description: 按课程名称或课程代码搜索
         - name: departmentID
           in: query
           schema:
@@ -495,33 +472,40 @@ paths:
           schema:
             type: string
           description: 按分类筛选
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - name
+              - credits
+              - reviewCount
+            default: name
+          description: 排序方式
       responses:
         '200':
           description: 课程分页列表
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Course'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Course'
+                          total:
+                            type: integer
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -548,32 +532,29 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Course'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Course'
+                          total:
+                            type: integer
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/courses/{id}:
+  /api/v1/course/courses/{courseID}:
     get:
       tags:
         - Course
@@ -588,17 +569,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/Course'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Course'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '404':
@@ -618,17 +596,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/CourseStats'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CourseStats'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -646,24 +621,21 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/RatingDimension'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RatingDimension'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/courses/{id}/rating-stats:
+  /api/v1/course/review/courses/{courseID}/rating-stats:
     get:
       tags:
         - Rating
@@ -678,22 +650,19 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/CourseRatingStatsResponse'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CourseRatingStatsResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/courses/{id}/rating-trend:
+  /api/v1/course/review/courses/{courseID}/rating-trend:
     get:
       tags:
         - Rating
@@ -708,29 +677,26 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - trend
+                      - data
                     properties:
-                      trend:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/RatingTrendItem'
+                      data:
+                        type: object
+                        required:
+                          - trend
+                        properties:
+                          trend:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/RatingTrendItem'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/courses/{id}/teachers:
+  /api/v1/course/review/courses/{courseID}/teachers:
     get:
       tags:
         - Rating
@@ -745,24 +711,21 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/CourseTeacherStats'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CourseTeacherStats'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/courses/{id}/reviews:
+  /api/v1/course/review/courses/{courseID}/reviews:
     get:
       tags:
         - Review
@@ -802,27 +765,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Review'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Review'
+                          total:
+                            type: integer
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -855,27 +815,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Review'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Review'
+                          total:
+                            type: integer
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -896,9 +853,14 @@ paths:
           in: query
           required: true
           schema:
-            type: string
-          description: 逗号分隔的课程ID列表（最多20个）
-          example: 1,2,3
+            type: array
+            items:
+              type: integer
+              format: int64
+            maxItems: 20
+          style: form
+          explode: false
+          description: 课程ID列表（最多20个）
         - $ref: '#/components/parameters/PageSizeParam'
         - name: sort
           in: query
@@ -915,29 +877,26 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
-                    additionalProperties:
-                      type: object
-                      required:
-                        - list
-                        - total
-                      properties:
-                        list:
-                          type: array
-                          items:
-                            $ref: '#/components/schemas/Review'
-                        total:
-                          type: integer
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties:
+                          type: object
+                          required:
+                            - list
+                            - total
+                          properties:
+                            list:
+                              type: array
+                              items:
+                                $ref: '#/components/schemas/Review'
+                            total:
+                              type: integer
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -963,17 +922,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/Review'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Review'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -988,7 +944,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/reviews/{id}:
+  /api/v1/course/review/reviews/{reviewID}:
     put:
       tags:
         - Review
@@ -1011,17 +967,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -1050,17 +1003,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -1071,7 +1021,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/reviews/{id}/votes:
+  /api/v1/course/review/reviews/{reviewID}/votes:
     post:
       tags:
         - Review
@@ -1094,17 +1044,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -1115,7 +1062,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/reviews/{id}/reports:
+  /api/v1/course/review/reviews/{reviewID}/reports:
     post:
       tags:
         - Review
@@ -1138,17 +1085,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -1161,7 +1105,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/reviews/{id}/replies:
+  /api/v1/course/review/reviews/{reviewID}/replies:
     get:
       tags:
         - Review
@@ -1178,27 +1122,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Reply'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Reply'
+                          total:
+                            type: integer
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -1225,17 +1166,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/Reply'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Reply'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -1248,7 +1186,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/replies/{id}:
+  /api/v1/course/review/replies/{replyID}:
     delete:
       tags:
         - Review
@@ -1258,30 +1196,21 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: 回复 ID
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ReplyIDPath'
       responses:
         '200':
           description: 删除成功
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -1305,17 +1234,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/ReviewStats'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReviewStats'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -1350,29 +1276,26 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/HotCourse'
+                      data:
+                        type: object
+                        required:
+                          - list
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/HotCourse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/teachers/{id}/stats:
+  /api/v1/course/review/teachers/{teacherID}/stats:
     get:
       tags:
         - Rating
@@ -1387,17 +1310,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/TeacherRatingStatsResponse'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TeacherRatingStatsResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '404':
@@ -1425,17 +1345,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/ContentCheckResult'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ContentCheckResult'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -1462,27 +1379,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Review'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Review'
+                          total:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -1499,7 +1413,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
-        - name: vote_type
+        - name: voteType
           in: query
           schema:
             type: string
@@ -1513,27 +1427,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Review'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Review'
+                          total:
+                            type: integer
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -1558,27 +1469,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/FavoriteCourse'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/FavoriteCourse'
+                          total:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -1601,30 +1509,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
-                      - unread
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Notification'
-                      total:
-                        type: integer
-                      unread:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Notification'
+                          total:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -1644,22 +1546,19 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/UnreadCountData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UnreadCountData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/user/notifications/{id}/read:
+  /api/v1/course/review/user/notifications/{notificationID}/read:
     put:
       tags:
         - Notification
@@ -1676,17 +1575,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -1708,17 +1604,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -1746,17 +1639,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/ReviewDraft'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReviewDraft'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -1784,17 +1674,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/ReviewDraft'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReviewDraft'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '404':
@@ -1817,24 +1704,21 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/courses/{id}/favorites:
+  /api/v1/course/review/courses/{courseID}/favorites:
     post:
       tags:
         - Favorite
@@ -1851,17 +1735,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -1886,17 +1767,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -1931,34 +1809,31 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/ReviewReport'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ReviewReport'
+                          total:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/admin/reports/{id}:
+  /api/v1/course/review/admin/reports/{reportID}:
     put:
       tags:
         - Admin
@@ -1968,13 +1843,7 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: 举报 ID
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ReportIDPath'
       requestBody:
         required: true
         content:
@@ -1987,17 +1856,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2036,34 +1902,31 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Review'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Review'
+                          total:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/admin/reviews/{id}:
+  /api/v1/course/review/admin/reviews/{reviewID}:
     put:
       tags:
         - Admin
@@ -2086,17 +1949,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2128,17 +1988,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/BatchUpdateResult'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BatchUpdateResult'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2147,7 +2004,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/admin/reviews/{id}/edit:
+  /api/v1/course/review/admin/reviews/{reviewID}/edit:
     post:
       tags:
         - Admin
@@ -2170,17 +2027,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2206,17 +2060,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/AdminStats'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminStats'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -2241,27 +2092,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/AdminOperationLog'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AdminOperationLog'
+                          total:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -2345,27 +2193,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/AdminTeacher'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AdminTeacher'
+                          total:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -2387,22 +2232,19 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateTeacherRequest'
       responses:
-        '200':
+        '201':
           description: 创建成功
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/AdminTeacher'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminTeacher'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2411,7 +2253,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/admin/teachers/{id}:
+  /api/v1/course/review/admin/teachers/{teacherID}:
     put:
       tags:
         - Admin
@@ -2434,17 +2276,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2471,17 +2310,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2522,27 +2358,24 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    type: object
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
                     required:
-                      - list
-                      - total
+                      - data
                     properties:
-                      list:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/AdminSensitiveWord'
-                      total:
-                        type: integer
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AdminSensitiveWord'
+                          total:
+                            type: integer
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -2564,22 +2397,19 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateSensitiveWordRequest'
       responses:
-        '200':
+        '201':
           description: 创建成功
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/AdminSensitiveWord'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AdminSensitiveWord'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2588,7 +2418,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/admin/sensitive-words/{id}:
+  /api/v1/course/review/admin/sensitive-words/{sensitiveWordID}:
     put:
       tags:
         - Admin
@@ -2598,12 +2428,7 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/SensitiveWordIDPath'
       requestBody:
         required: true
         content:
@@ -2616,17 +2441,14 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
@@ -2646,29 +2468,21 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/SensitiveWordIDPath'
       responses:
         '200':
           description: 删除成功
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - success
-                  - data
-                properties:
-                  success:
-                    type: boolean
-                    enum:
-                      - true
-                  data:
-                    $ref: '#/components/schemas/MessageData'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -2838,6 +2652,22 @@ components:
           type: string
         sortOrder:
           type: integer
+    Term:
+      type: object
+      required:
+        - id
+        - name
+        - isCurrent
+      properties:
+        id:
+          type: string
+        schoolID:
+          type: integer
+          format: int64
+        name:
+          type: string
+        isCurrent:
+          type: boolean
     CourseCategory:
       type: object
       required:
@@ -2855,35 +2685,15 @@ components:
         sortOrder:
           type: integer
     FavoriteCourse:
-      type: object
-      required:
-        - id
-        - name
-        - credits
-        - departmentID
-        - reviewCount
-        - favoritedAt
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-        code:
-          type: string
-        credits:
-          type: number
-          format: double
-        departmentID:
-          type: integer
-          format: int64
-        departmentName:
-          type: string
-        reviewCount:
-          type: integer
-        favoritedAt:
-          type: string
-          format: date-time
+      allOf:
+        - $ref: '#/components/schemas/Course'
+        - type: object
+          required:
+            - favoritedAt
+          properties:
+            favoritedAt:
+              type: string
+              format: date-time
     CourseStats:
       type: object
       required:
@@ -2899,6 +2709,8 @@ components:
       required:
         - id
         - courseID
+        - title
+        - termID
         - content
         - ratings
         - likeCount
@@ -2931,18 +2743,6 @@ components:
           type: string
         grade:
           type: string
-          enum:
-            - A+
-            - A
-            - A-
-            - B+
-            - B
-            - B-
-            - C+
-            - C
-            - C-
-            - D
-            - F
         ratings:
           $ref: '#/components/schemas/ReviewRatings'
         likeCount:
@@ -2978,6 +2778,8 @@ components:
       type: object
       required:
         - courseID
+        - title
+        - termID
         - content
         - ratings
       properties:
@@ -3002,18 +2804,6 @@ components:
           maxLength: 5000
         grade:
           type: string
-          enum:
-            - A+
-            - A
-            - A-
-            - B+
-            - B
-            - B-
-            - C+
-            - C
-            - C-
-            - D
-            - F
         ratings:
           $ref: '#/components/schemas/ReviewRatings'
     UpdateReviewRequest:
@@ -3031,18 +2821,6 @@ components:
           maxLength: 5000
         grade:
           type: string
-          enum:
-            - A+
-            - A
-            - A-
-            - B+
-            - B
-            - B-
-            - C+
-            - C
-            - C-
-            - D
-            - F
         ratings:
           $ref: '#/components/schemas/ReviewRatings'
     VoteRequest:
@@ -3174,18 +2952,6 @@ components:
           maxLength: 5000
         grade:
           type: string
-          enum:
-            - A+
-            - A
-            - A-
-            - B+
-            - B
-            - B-
-            - C+
-            - C
-            - C-
-            - D
-            - F
         ratings:
           $ref: '#/components/schemas/ReviewRatings'
     ContentCheckRequest:
@@ -3332,7 +3098,6 @@ components:
         - overall
         - byTerm
         - allDimensionKeys
-        - radarChart
       properties:
         courseID:
           type: integer
@@ -3347,8 +3112,6 @@ components:
           type: array
           items:
             type: string
-        radarChart:
-          $ref: '#/components/schemas/RadarChartData'
     RatingTrendItem:
       type: object
       required:
@@ -3417,7 +3180,6 @@ components:
         - ratingTrend
         - overall
         - byTerm
-        - radarChart
       properties:
         teacherID:
           type: integer
@@ -3448,8 +3210,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TermRatingStats'
-        radarChart:
-          $ref: '#/components/schemas/RadarChartData'
     Notification:
       type: object
       required:
@@ -3543,8 +3303,8 @@ components:
           type: string
           enum:
             - reject
-            - hide_review
-            - delete_review
+            - hide
+            - delete
         note:
           type: string
           maxLength: 500
@@ -3788,39 +3548,6 @@ components:
             - review
         isActive:
           type: boolean
-    RadarChartDataset:
-      type: object
-      required:
-        - label
-        - data
-        - backgroundColor
-        - borderColor
-      properties:
-        label:
-          type: string
-        data:
-          type: array
-          items:
-            type: number
-            format: double
-        backgroundColor:
-          type: string
-        borderColor:
-          type: string
-    RadarChartData:
-      type: object
-      required:
-        - labels
-        - datasets
-      properties:
-        labels:
-          type: array
-          items:
-            type: string
-        datasets:
-          type: array
-          items:
-            $ref: '#/components/schemas/RadarChartDataset'
   parameters:
     PageParam:
       name: page
@@ -3840,7 +3567,7 @@ components:
         minimum: 1
         maximum: 100
     CourseIDPath:
-      name: id
+      name: courseID
       in: path
       required: true
       description: 课程 ID
@@ -3848,7 +3575,7 @@ components:
         type: integer
         format: int64
     ReviewIDPath:
-      name: id
+      name: reviewID
       in: path
       required: true
       description: 测评 ID
@@ -3856,7 +3583,7 @@ components:
         type: string
         format: uuid
     TeacherIDPath:
-      name: id
+      name: teacherID
       in: path
       required: true
       description: 教师 ID
@@ -3864,7 +3591,7 @@ components:
         type: integer
         format: int64
     NotificationIDPath:
-      name: id
+      name: notificationID
       in: path
       required: true
       description: 通知 ID
@@ -3879,3 +3606,27 @@ components:
       schema:
         type: integer
         format: int64
+    ReplyIDPath:
+      name: replyID
+      in: path
+      required: true
+      description: 回复 ID
+      schema:
+        type: string
+        format: uuid
+    ReportIDPath:
+      name: reportID
+      in: path
+      required: true
+      description: 举报 ID
+      schema:
+        type: string
+        format: uuid
+    SensitiveWordIDPath:
+      name: sensitiveWordID
+      in: path
+      required: true
+      description: 敏感词 ID
+      schema:
+        type: string
+        format: uuid

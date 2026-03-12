@@ -4,7 +4,7 @@
 
 ```yaml
 # deployments/docker-compose.logging.yml
-version: '3.8'
+version: "3.8"
 
 services:
   loki:

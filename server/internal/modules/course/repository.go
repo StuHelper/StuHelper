@@ -51,6 +51,33 @@ func (r *Repository) ListDepartments(ctx context.Context, category string) ([]De
 	return departments, nil
 }
 
+// ListTerms 获取学期列表
+func (r *Repository) ListTerms(ctx context.Context) ([]Term, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, school_id, name, is_current
+		FROM terms
+		ORDER BY is_current DESC, id DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	terms := make([]Term, 0)
+	for rows.Next() {
+		var item Term
+		if err := rows.Scan(&item.ID, &item.SchoolID, &item.Name, &item.IsCurrent); err != nil {
+			return nil, err
+		}
+		terms = append(terms, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return terms, nil
+}
+
 // CountCourses 统计课程总数（可按院系过滤）
 func (r *Repository) CountCourses(ctx context.Context, departmentID int64) (int, error) {
 	var count int
@@ -75,18 +102,28 @@ func (r *Repository) CountStats(ctx context.Context) (courseCount, departmentCou
 	return
 }
 
-// ListCourses 获取课程列表（可按院系和分类过滤），使用窗口函数一次性返回数据和总数
-func (r *Repository) ListCourses(ctx context.Context, departmentID int64, category string, limit, offset int) ([]Course, int, error) {
+// ListCourses 获取课程列表（支持搜索、院系和分类过滤），使用窗口函数一次性返回数据和总数
+func (r *Repository) ListCourses(ctx context.Context, query string, departmentID int64, category, sort string, limit, offset int) ([]Course, int, error) {
+	orderBy := "c.name ASC"
+	switch sort {
+	case CourseSortCredits:
+		orderBy = "c.credits DESC, c.name ASC"
+	case CourseSortReviewCount:
+		orderBy = "c.review_count DESC, c.name ASC"
+	}
+
+	pattern := "%" + query + "%"
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.category, c.review_count,
 			COUNT(*) OVER() AS total
 		FROM courses c
 		LEFT JOIN departments d ON d.id = c.department_id
-		WHERE ($1::bigint = 0 OR c.department_id = $1)
-		  AND ($4 = '' OR c.category = $4)
-		ORDER BY c.name ASC
-		LIMIT $2 OFFSET $3
-	`, departmentID, limit, offset, category)
+		WHERE ($1 = '' OR c.name ILIKE $1 ESCAPE '\\' OR c.code ILIKE $1 ESCAPE '\\')
+		  AND ($2::bigint = 0 OR c.department_id = $2)
+		  AND ($5 = '' OR c.category = $5)
+		ORDER BY `+orderBy+`
+		LIMIT $3 OFFSET $4
+	`, pattern, departmentID, limit, offset, category)
 	if err != nil {
 		return nil, 0, err
 	}

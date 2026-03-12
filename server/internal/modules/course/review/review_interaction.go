@@ -122,9 +122,13 @@ func (h *Handler) GetUserReviews(c *gin.Context) {
 // GetUserVotes 获取用户点赞列表
 func (h *Handler) GetUserVotes(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
-	voteType := c.DefaultQuery("vote_type", "like")
+	if c.Query("vote_type") != "" {
+		response.BadRequest(c, "voteType must be 'like' or 'dislike'")
+		return
+	}
+	voteType := c.DefaultQuery("voteType", "like")
 	if voteType != "like" && voteType != "dislike" {
-		response.BadRequest(c, "vote_type must be 'like' or 'dislike'")
+		response.BadRequest(c, "voteType must be 'like' or 'dislike'")
 		return
 	}
 	userID := middleware.GetUserID(c)

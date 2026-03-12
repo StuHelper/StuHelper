@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: StuHelper API
   version: "1.0.0"
@@ -61,56 +61,58 @@ paths:
   # ── Course Entity ──
   /api/v1/course/departments:
     $ref: 'paths/course.yaml#/~1api~1v1~1course~1departments'
+  /api/v1/course/terms:
+    $ref: 'paths/course.yaml#/~1api~1v1~1course~1terms'
   /api/v1/course/categories:
     $ref: 'paths/course.yaml#/~1api~1v1~1course~1categories'
   /api/v1/course/courses:
     $ref: 'paths/course.yaml#/~1api~1v1~1course~1courses'
   /api/v1/course/courses/search:
     $ref: 'paths/course.yaml#/~1api~1v1~1course~1courses~1search'
-  /api/v1/course/courses/{id}:
-    $ref: 'paths/course.yaml#/~1api~1v1~1course~1courses~1{id}'
+  /api/v1/course/courses/{courseID}:
+    $ref: 'paths/course.yaml#/~1api~1v1~1course~1courses~1{courseID}'
   /api/v1/course/stats:
     $ref: 'paths/course.yaml#/~1api~1v1~1course~1stats'
 
   # ── Review: Rating ──
   /api/v1/course/review/rating-dimensions:
     $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1rating-dimensions'
-  /api/v1/course/review/courses/{id}/rating-stats:
-    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{id}~1rating-stats'
-  /api/v1/course/review/courses/{id}/rating-trend:
-    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{id}~1rating-trend'
-  /api/v1/course/review/courses/{id}/teachers:
-    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{id}~1teachers'
+  /api/v1/course/review/courses/{courseID}/rating-stats:
+    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1rating-stats'
+  /api/v1/course/review/courses/{courseID}/rating-trend:
+    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1rating-trend'
+  /api/v1/course/review/courses/{courseID}/teachers:
+    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1teachers'
 
   # ── Review: CRUD ──
-  /api/v1/course/review/courses/{id}/reviews:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1courses~1{id}~1reviews'
+  /api/v1/course/review/courses/{courseID}/reviews:
+    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1reviews'
   /api/v1/course/review/reviews/latest:
     $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1latest'
   /api/v1/course/review/reviews/batch:
     $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1batch'
   /api/v1/course/review/reviews:
     $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews'
-  /api/v1/course/review/reviews/{id}:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{id}'
-  /api/v1/course/review/reviews/{id}/votes:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{id}~1votes'
-  /api/v1/course/review/reviews/{id}/reports:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{id}~1reports'
+  /api/v1/course/review/reviews/{reviewID}:
+    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}'
+  /api/v1/course/review/reviews/{reviewID}/votes:
+    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1votes'
+  /api/v1/course/review/reviews/{reviewID}/reports:
+    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1reports'
 
   # ── Review: Replies ──
-  /api/v1/course/review/reviews/{id}/replies:
-    $ref: 'paths/review-reply.yaml#/~1api~1v1~1course~1review~1reviews~1{id}~1replies'
-  /api/v1/course/review/replies/{id}:
-    $ref: 'paths/review-reply.yaml#/~1api~1v1~1course~1review~1replies~1{id}'
+  /api/v1/course/review/reviews/{reviewID}/replies:
+    $ref: 'paths/review-reply.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1replies'
+  /api/v1/course/review/replies/{replyID}:
+    $ref: 'paths/review-reply.yaml#/~1api~1v1~1course~1review~1replies~1{replyID}'
 
   # ── Review: Stats & Rankings ──
   /api/v1/course/review/stats:
     $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1stats'
   /api/v1/course/review/rankings/hot:
     $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1rankings~1hot'
-  /api/v1/course/review/teachers/{id}/stats:
-    $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1teachers~1{id}~1stats'
+  /api/v1/course/review/teachers/{teacherID}/stats:
+    $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1teachers~1{teacherID}~1stats'
   /api/v1/course/review/content/check:
     $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1content~1check'
 
@@ -127,8 +129,8 @@ paths:
     $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications'
   /api/v1/course/review/user/notifications/unread-count:
     $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1unread-count'
-  /api/v1/course/review/user/notifications/{id}/read:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1{id}~1read'
+  /api/v1/course/review/user/notifications/{notificationID}/read:
+    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1{notificationID}~1read'
   /api/v1/course/review/user/notifications/read-all:
     $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1read-all'
 
@@ -139,22 +141,22 @@ paths:
     $ref: 'paths/review-draft.yaml#/~1api~1v1~1course~1review~1drafts~1{courseID}'
 
   # ── Review: Favorites ──
-  /api/v1/course/review/courses/{id}/favorites:
-    $ref: 'paths/review-favorite.yaml#/~1api~1v1~1course~1review~1courses~1{id}~1favorites'
+  /api/v1/course/review/courses/{courseID}/favorites:
+    $ref: 'paths/review-favorite.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1favorites'
 
   # ── Review: Admin ──
   /api/v1/course/review/admin/reports:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reports'
-  /api/v1/course/review/admin/reports/{id}:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reports~1{id}'
+  /api/v1/course/review/admin/reports/{reportID}:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reports~1{reportID}'
   /api/v1/course/review/admin/reviews:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews'
-  /api/v1/course/review/admin/reviews/{id}:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{id}'
+  /api/v1/course/review/admin/reviews/{reviewID}:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{reviewID}'
   /api/v1/course/review/admin/reviews/batch:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1batch'
-  /api/v1/course/review/admin/reviews/{id}/edit:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{id}~1edit'
+  /api/v1/course/review/admin/reviews/{reviewID}/edit:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{reviewID}~1edit'
   /api/v1/course/review/admin/stats:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1stats'
   /api/v1/course/review/admin/logs:
@@ -163,12 +165,12 @@ paths:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1export'
   /api/v1/course/review/admin/teachers:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers'
-  /api/v1/course/review/admin/teachers/{id}:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers~1{id}'
+  /api/v1/course/review/admin/teachers/{teacherID}:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers~1{teacherID}'
   /api/v1/course/review/admin/sensitive-words:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words'
-  /api/v1/course/review/admin/sensitive-words/{id}:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words~1{id}'
+  /api/v1/course/review/admin/sensitive-words/{sensitiveWordID}:
+    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words~1{sensitiveWordID}'
 
 components:
   securitySchemes:
@@ -207,6 +209,8 @@ components:
       $ref: 'components/schemas/course.yaml#/Course'
     Department:
       $ref: 'components/schemas/course.yaml#/Department'
+    Term:
+      $ref: 'components/schemas/course.yaml#/Term'
     CourseCategory:
       $ref: 'components/schemas/course.yaml#/CourseCategory'
     FavoriteCourse:
@@ -317,3 +321,9 @@ components:
       $ref: 'components/parameters/common.yaml#/NotificationIDPath'
     DraftCourseIDPath:
       $ref: 'components/parameters/common.yaml#/DraftCourseIDPath'
+    ReplyIDPath:
+      $ref: 'components/parameters/common.yaml#/ReplyIDPath'
+    ReportIDPath:
+      $ref: 'components/parameters/common.yaml#/ReportIDPath'
+    SensitiveWordIDPath:
+      $ref: 'components/parameters/common.yaml#/SensitiveWordIDPath'

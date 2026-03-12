@@ -42,10 +42,3 @@ UserInfo:
       type: string
     isAdmin:
       type: boolean
-
-CSRFToken:
-  type: object
-  required: [csrfToken]
-  properties:
-    csrfToken:
-      type: string

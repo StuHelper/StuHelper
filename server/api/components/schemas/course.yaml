@@ -59,30 +59,29 @@ CourseCategory:
     sortOrder:
       type: integer
 
-FavoriteCourse:
+Term:
   type: object
-  required: [id, name, credits, departmentID, reviewCount, favoritedAt]
+  required: [id, name, isCurrent]
   properties:
     id:
+      type: string
+    schoolID:
       type: integer
       format: int64
     name:
       type: string
-    code:
-      type: string
-    credits:
-      type: number
-      format: double
-    departmentID:
-      type: integer
-      format: int64
-    departmentName:
-      type: string
-    reviewCount:
-      type: integer
-    favoritedAt:
-      type: string
-      format: date-time
+    isCurrent:
+      type: boolean
+
+FavoriteCourse:
+  allOf:
+    - $ref: '#/Course'
+    - type: object
+      required: [favoritedAt]
+      properties:
+        favoritedAt:
+          type: string
+          format: date-time
 
 CourseStats:
   type: object

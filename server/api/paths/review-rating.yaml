@@ -10,22 +10,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: array
-                  items:
-                    $ref: '../components/schemas/rating.yaml#/RatingDimension'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/rating.yaml#/RatingDimension'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/courses/{id}/rating-stats:
+/api/v1/course/review/courses/{courseID}/rating-stats:
   get:
     tags: [Rating]
     operationId: getCourseRatingStats
@@ -39,20 +38,19 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/rating.yaml#/CourseRatingStatsResponse'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/rating.yaml#/CourseRatingStatsResponse'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/courses/{id}/rating-trend:
+/api/v1/course/review/courses/{courseID}/rating-trend:
   get:
     tags: [Rating]
     operationId: getRatingTrend
@@ -66,26 +64,25 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [trend]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    trend:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/rating.yaml#/RatingTrendItem'
+                    data:
+                      type: object
+                      required: [trend]
+                      properties:
+                        trend:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/rating.yaml#/RatingTrendItem'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/courses/{id}/teachers:
+/api/v1/course/review/courses/{courseID}/teachers:
   get:
     tags: [Rating]
     operationId: getCourseTeachers
@@ -99,16 +96,15 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: array
-                  items:
-                    $ref: '../components/schemas/rating.yaml#/CourseTeacherStats'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/rating.yaml#/CourseTeacherStats'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':

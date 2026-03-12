@@ -66,7 +66,7 @@ func (h *Handler) CreateTeacher(c *gin.Context) {
 		nil,
 		map[string]interface{}{"name": req.Name, "departmentID": req.DepartmentID})
 
-	response.Success(c, teacher)
+	response.Created(c, teacher)
 }
 
 // UpdateTeacher 更新教师
