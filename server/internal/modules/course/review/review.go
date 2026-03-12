@@ -66,7 +66,6 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 		teacherID = &id
 	}
 
-
 	// 调用 Service 层
 	result, err := h.service.GetCourseReviews(c.Request.Context(), GetCourseReviewsParams{
 		CourseID:  courseID,
@@ -97,7 +96,6 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 	if !isValidSort(sort) {
 		sort = SortTime
 	}
-
 
 	// 调用 Service 层
 	result, err := h.service.GetLatestReviews(c.Request.Context(), GetLatestReviewsParams{
@@ -194,8 +192,8 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 type PostReviewRequest struct {
 	CourseID  int64         `json:"courseID" binding:"required,gt=0"`
 	TeacherID *int64        `json:"teacherID" binding:"omitempty,gt=0"`
-	TermID    string        `json:"termID" binding:"omitempty,max=20"`
-	Title     string        `json:"title" binding:"max=200"`
+	TermID    string        `json:"termID" binding:"required,max=20"`
+	Title     string        `json:"title" binding:"required,max=200"`
 	Content   string        `json:"content" binding:"required,min=10,max=5000"`
 	Grade     string        `json:"grade" binding:"omitempty,oneof=A+ A A- B+ B B- C+ C C- D F"`
 	Ratings   ReviewRatings `json:"ratings" binding:"required"`
@@ -239,6 +237,8 @@ func (h *Handler) PostReview(c *gin.Context) {
 			response.BadRequest(c, "at least one rating dimension is required")
 		case errors.Is(err, ErrInvalidRating):
 			response.BadRequest(c, "rating must be between 1 and 5")
+		case errors.Is(err, ErrTitleEmpty):
+			response.BadRequest(c, "title cannot be empty")
 		case errors.Is(err, ErrDangerousContent):
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		case errors.Is(err, ErrSensitiveContent):
@@ -326,7 +326,7 @@ func (h *Handler) GetStats(c *gin.Context) {
 
 	data := gin.H{
 		"courseCount":     result.CourseCount,
-		"reviewCount":    result.ReviewCount,
+		"reviewCount":     result.ReviewCount,
 		"departmentCount": result.DepartmentCount,
 	}
 	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
@@ -382,6 +382,8 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 			response.BadRequest(c, "at least one rating dimension is required")
 		case errors.Is(err, ErrInvalidRating):
 			response.BadRequest(c, "rating must be between 1 and 5")
+		case errors.Is(err, ErrTitleEmpty):
+			response.BadRequest(c, "title cannot be empty")
 		case errors.Is(err, ErrDangerousContent):
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		case errors.Is(err, ErrContentEmpty):
@@ -626,4 +628,3 @@ func (h *Handler) CheckContent(c *gin.Context) {
 	result := h.service.CheckContent(c.Request.Context(), req.Content)
 	response.Success(c, result)
 }
-

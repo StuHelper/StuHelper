@@ -37,6 +37,7 @@ var (
 	ErrAlreadyReviewed      = errors.New("already reviewed this course")
 	ErrDangerousContent     = errors.New("content contains dangerous elements")
 	ErrSensitiveContent     = errors.New("content contains sensitive words")
+	ErrTitleEmpty           = errors.New("title cannot be empty after sanitization")
 	ErrContentEmpty         = errors.New("content cannot be empty after sanitization")
 	ErrInvalidRating        = errors.New("invalid rating value")
 	ErrRatingRequired       = errors.New("at least one rating dimension is required")
@@ -135,6 +136,9 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 	title = sanitizer.SanitizeTitle(title)
 	content = sanitizer.SanitizeText(content)
 
+	if strings.TrimSpace(title) == "" {
+		return "", "", ErrTitleEmpty
+	}
 	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
 		return "", "", ErrDangerousContent
 	}

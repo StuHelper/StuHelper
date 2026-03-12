@@ -38,7 +38,7 @@ ProcessReportRequest:
   properties:
     action:
       type: string
-      enum: [reject, hide_review, delete_review]
+      enum: [reject, hide, delete]
     note:
       type: string
       maxLength: 500

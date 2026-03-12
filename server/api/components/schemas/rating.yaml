@@ -55,38 +55,9 @@ TermRatingStats:
       items:
         $ref: '#/DimensionStats'
 
-RadarChartDataset:
-  type: object
-  required: [label, data, backgroundColor, borderColor]
-  properties:
-    label:
-      type: string
-    data:
-      type: array
-      items:
-        type: number
-        format: double
-    backgroundColor:
-      type: string
-    borderColor:
-      type: string
-
-RadarChartData:
-  type: object
-  required: [labels, datasets]
-  properties:
-    labels:
-      type: array
-      items:
-        type: string
-    datasets:
-      type: array
-      items:
-        $ref: '#/RadarChartDataset'
-
 CourseRatingStatsResponse:
   type: object
-  required: [courseID, overall, byTerm, allDimensionKeys, radarChart]
+  required: [courseID, overall, byTerm, allDimensionKeys]
   properties:
     courseID:
       type: integer
@@ -101,8 +72,6 @@ CourseRatingStatsResponse:
       type: array
       items:
         type: string
-    radarChart:
-      $ref: '#/RadarChartData'
 
 RatingTrendItem:
   type: object
@@ -154,7 +123,7 @@ TeacherCourse:
 
 TeacherRatingStatsResponse:
   type: object
-  required: [teacherID, teacherName, departmentName, courseCount, reviewCount, courses, ratingTrend, overall, byTerm, radarChart]
+  required: [teacherID, teacherName, departmentName, courseCount, reviewCount, courses, ratingTrend, overall, byTerm]
   properties:
     teacherID:
       type: integer
@@ -185,5 +154,3 @@ TeacherRatingStatsResponse:
       type: array
       items:
         $ref: '#/TermRatingStats'
-    radarChart:
-      $ref: '#/RadarChartData'

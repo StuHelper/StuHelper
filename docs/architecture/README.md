@@ -1,9 +1,9 @@
 # 架构文档
 
-系统架构设计与技术决策。
+这里解释 StuHelper 为什么这样设计，以及当前已经落地的核心技术决策。
 
-| 文档 | 说明 |
-|------|------|
-| [产品概述](product.md) | 产品定位、核心能力 |
-| [技术架构](technical.md) | 系统架构、技术栈 |
-| [分层架构](layered-architecture.md) | Handler-Service-Repository 三层架构规范 |
+| 文档                       | 说明                                         |
+| -------------------------- | -------------------------------------------- |
+| [product.md](product.md)   | 产品定位、模块边界、长期规划                 |
+| [frontend.md](frontend.md) | 当前前端 Monorepo、路由、认证、测试体系      |
+| [layered.md](layered.md)   | 后端 Handler → Service → Repository 分层规范 |

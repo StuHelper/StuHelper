@@ -21,22 +21,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/admin.yaml#/ReviewReport'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/admin.yaml#/ReviewReport'
+                        total:
+                          type: integer
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -44,7 +43,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/admin/reports/{id}:
+/api/v1/course/review/admin/reports/{reportID}:
   put:
     tags: [Admin]
     operationId: processReport
@@ -53,13 +52,7 @@
       - cookieAuth: []
       - bearerAuth: []
     parameters:
-      - name: id
-        in: path
-        required: true
-        description: 举报 ID
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters/common.yaml#/ReportIDPath'
     requestBody:
       required: true
       content:
@@ -72,14 +65,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -114,22 +106,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/review.yaml#/Review'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/Review'
+                        total:
+                          type: integer
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -137,7 +128,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/admin/reviews/{id}:
+/api/v1/course/review/admin/reviews/{reviewID}:
   put:
     tags: [Admin]
     operationId: adminUpdateReview
@@ -159,14 +150,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -198,14 +188,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/admin.yaml#/BatchUpdateResult'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admin.yaml#/BatchUpdateResult'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -215,7 +204,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/admin/reviews/{id}/edit:
+/api/v1/course/review/admin/reviews/{reviewID}/edit:
   post:
     tags: [Admin]
     operationId: adminEditReviewContent
@@ -237,14 +226,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -270,14 +258,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/admin.yaml#/AdminStats'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admin.yaml#/AdminStats'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -302,22 +289,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/admin.yaml#/AdminOperationLog'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/admin.yaml#/AdminOperationLog'
+                        total:
+                          type: integer
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -394,22 +380,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/admin.yaml#/AdminTeacher'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/admin.yaml#/AdminTeacher'
+                        total:
+                          type: integer
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -430,19 +415,18 @@
           schema:
             $ref: '../components/schemas/admin.yaml#/CreateTeacherRequest'
     responses:
-      '200':
+      '201':
         description: 创建成功
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/admin.yaml#/AdminTeacher'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admin.yaml#/AdminTeacher'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -452,7 +436,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/admin/teachers/{id}:
+/api/v1/course/review/admin/teachers/{teacherID}:
   put:
     tags: [Admin]
     operationId: updateTeacher
@@ -474,14 +458,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -507,14 +490,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -552,22 +534,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/admin.yaml#/AdminSensitiveWord'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/admin.yaml#/AdminSensitiveWord'
+                        total:
+                          type: integer
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -588,19 +569,18 @@
           schema:
             $ref: '../components/schemas/admin.yaml#/CreateSensitiveWordRequest'
     responses:
-      '200':
+      '201':
         description: 创建成功
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/admin.yaml#/AdminSensitiveWord'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admin.yaml#/AdminSensitiveWord'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -610,7 +590,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/admin/sensitive-words/{id}:
+/api/v1/course/review/admin/sensitive-words/{sensitiveWordID}:
   put:
     tags: [Admin]
     operationId: updateSensitiveWord
@@ -619,12 +599,7 @@
       - cookieAuth: []
       - bearerAuth: []
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters/common.yaml#/SensitiveWordIDPath'
     requestBody:
       required: true
       content:
@@ -637,14 +612,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -663,26 +637,20 @@
       - cookieAuth: []
       - bearerAuth: []
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters/common.yaml#/SensitiveWordIDPath'
     responses:
       '200':
         description: 删除成功
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

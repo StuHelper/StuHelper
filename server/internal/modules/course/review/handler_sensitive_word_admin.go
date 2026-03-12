@@ -64,7 +64,7 @@ func (h *Handler) CreateSensitiveWord(c *gin.Context) {
 		nil,
 		map[string]interface{}{"word": req.Word, "category": req.Category, "level": req.Level})
 
-	response.Success(c, w)
+	response.Created(c, w)
 }
 
 // UpdateSensitiveWord 更新敏感词

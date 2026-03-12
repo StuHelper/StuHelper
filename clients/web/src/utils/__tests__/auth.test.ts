@@ -1,0 +1,97 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import { clearAuth, isTokenExpired, tokenExpiry, userManager, type StoredUser } from '../auth'
+
+class MemoryStorage implements Storage {
+  private store = new Map<string, string>()
+
+  get length() {
+    return this.store.size
+  }
+
+  clear() {
+    this.store.clear()
+  }
+
+  getItem(key: string) {
+    return this.store.get(key) ?? null
+  }
+
+  key(index: number) {
+    return Array.from(this.store.keys())[index] ?? null
+  }
+
+  removeItem(key: string) {
+    this.store.delete(key)
+  }
+
+  setItem(key: string, value: string) {
+    this.store.set(key, value)
+  }
+}
+
+const localStorageMock = new MemoryStorage()
+const sessionStorageMock = new MemoryStorage()
+
+Object.defineProperty(globalThis, 'localStorage', {
+  value: localStorageMock,
+  configurable: true
+})
+
+Object.defineProperty(globalThis, 'sessionStorage', {
+  value: sessionStorageMock,
+  configurable: true
+})
+
+describe('auth utilities', () => {
+  beforeEach(() => {
+    localStorageMock.clear()
+    sessionStorageMock.clear()
+  })
+
+  it('removes malformed user payloads from storage', () => {
+    localStorage.setItem('stuhelper_user', JSON.stringify({ id: '', name: 1 }))
+
+    expect(userManager.getUser()).toBeNull()
+    expect(localStorage.getItem('stuhelper_user')).toBeNull()
+  })
+
+  it('persists and restores a valid user payload', () => {
+    const user: StoredUser = {
+      id: 'user_1',
+      name: 'alice',
+      displayName: 'Alice',
+    }
+
+    userManager.setUser(user)
+
+    expect(userManager.getUser()).toEqual(user)
+    expect(userManager.isAuthenticated()).toBe(true)
+  })
+
+  it('treats tokens inside the safety buffer as expired', () => {
+    tokenExpiry.set(30)
+
+    expect(isTokenExpired()).toBe(true)
+
+    tokenExpiry.set(120)
+    expect(isTokenExpired()).toBe(false)
+  })
+
+  it('clears auth, redirect, and draft session state together', () => {
+    localStorage.setItem('stuhelper_user', JSON.stringify({ id: 'user_2', name: 'bob', displayName: 'Bob' }))
+    localStorage.setItem('stuhelper_token_expiry', String(Date.now() + 60_000))
+    sessionStorage.setItem('oauth_state', 'oauth-state')
+    sessionStorage.setItem('post_login_redirect', '/courses/1/reviews/post')
+    sessionStorage.setItem('draft_redirect', '/courses/1/reviews')
+    sessionStorage.setItem('draft_pending', '1')
+
+    clearAuth()
+
+    expect(localStorage.getItem('stuhelper_user')).toBeNull()
+    expect(localStorage.getItem('stuhelper_token_expiry')).toBeNull()
+    expect(sessionStorage.getItem('oauth_state')).toBeNull()
+    expect(sessionStorage.getItem('post_login_redirect')).toBeNull()
+    expect(sessionStorage.getItem('draft_redirect')).toBeNull()
+    expect(sessionStorage.getItem('draft_pending')).toBeNull()
+  })
+})

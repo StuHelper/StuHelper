@@ -1,4 +1,4 @@
-/api/v1/course/review/courses/{id}/favorites:
+/api/v1/course/review/courses/{courseID}/favorites:
   post:
     tags: [Favorite]
     operationId: addFavorite
@@ -14,14 +14,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -45,14 +44,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

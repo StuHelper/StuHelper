@@ -55,6 +55,22 @@ CREATE INDEX IF NOT EXISTS idx_teachers_department_id ON teachers(department_id)
 CREATE INDEX IF NOT EXISTS idx_teachers_name ON teachers(name);
 
 -- ============================================
+-- 3b. 创建 terms 表（学期）
+-- ============================================
+CREATE TABLE IF NOT EXISTS terms (
+    id VARCHAR(20) PRIMARY KEY,
+    school_id BIGINT NOT NULL DEFAULT 1,
+    name VARCHAR(100) NOT NULL,
+    is_current BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO terms (id, name, is_current) VALUES
+    ('2025-1', '2025 春', false),
+    ('2025-2', '2025 秋', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================
 -- 4. 创建 courses 表（课程）
 -- ============================================
 CREATE TABLE IF NOT EXISTS courses (
@@ -102,7 +118,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     teacher_id BIGINT,
     term_id VARCHAR(20) NOT NULL DEFAULT '',
     user_hash VARCHAR(64) NOT NULL,
-    title VARCHAR(200),
+    title VARCHAR(200) NOT NULL,
     content TEXT NOT NULL,
     grade VARCHAR(5),
     ratings JSONB NOT NULL DEFAULT '{}',
@@ -122,7 +138,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     CONSTRAINT fk_reviews_course FOREIGN KEY (course_id) REFERENCES courses(id),
     CONSTRAINT fk_reviews_teacher FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL,
     CONSTRAINT chk_reviews_status CHECK (status IN ('published', 'hidden', 'deleted')),
-    CONSTRAINT chk_reviews_title_length CHECK (title IS NULL OR char_length(title) <= 200)
+    CONSTRAINT chk_reviews_title_length CHECK (char_length(btrim(title)) >= 1 AND char_length(title) <= 200)
 );
 
 CREATE INDEX IF NOT EXISTS idx_reviews_course_id ON reviews(course_id);

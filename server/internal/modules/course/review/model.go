@@ -29,10 +29,10 @@ type Review struct {
 	CourseName       string        `json:"courseName,omitempty"`
 	TeacherID        *int64        `json:"teacherID,omitempty"`
 	TeacherName      string        `json:"teacherName,omitempty"`
-	TermID           string        `json:"termID,omitempty"`
+	TermID           string        `json:"termID"`
 	TermName         string        `json:"termName,omitempty"`
 	UserHash         string        `json:"-"`
-	Title            string        `json:"title,omitempty"`
+	Title            string        `json:"title"`
 	Content          string        `json:"content"`
 	Grade            string        `json:"grade,omitempty"`
 	Ratings          ReviewRatings `json:"ratings"`

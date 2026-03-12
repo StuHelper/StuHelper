@@ -18,14 +18,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/review.yaml#/ReviewDraft'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/review.yaml#/ReviewDraft'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -53,14 +52,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/review.yaml#/ReviewDraft'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/review.yaml#/ReviewDraft'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
@@ -82,14 +80,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

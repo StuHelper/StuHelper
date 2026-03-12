@@ -1,4 +1,4 @@
-/api/v1/course/review/reviews/{id}/replies:
+/api/v1/course/review/reviews/{reviewID}/replies:
   get:
     tags: [Review]
     operationId: getReplies
@@ -14,22 +14,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/review.yaml#/Reply'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/Reply'
+                        total:
+                          type: integer
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -55,14 +54,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/review.yaml#/Reply'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/review.yaml#/Reply'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -76,7 +74,7 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/replies/{id}:
+/api/v1/course/review/replies/{replyID}:
   delete:
     tags: [Review]
     operationId: deleteReply
@@ -85,27 +83,20 @@
       - cookieAuth: []
       - bearerAuth: []
     parameters:
-      - name: id
-        in: path
-        required: true
-        description: 回复 ID
-        schema:
-          type: string
-          format: uuid
+      - $ref: '../components/parameters/common.yaml#/ReplyIDPath'
     responses:
       '200':
         description: 删除成功
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/common.yaml#/MessageData'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

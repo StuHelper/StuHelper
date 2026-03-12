@@ -13,6 +13,7 @@ userHash = HMAC-SHA256(userID, secret)
 ```
 
 **隐私保护要点**：
+
 - 前端不展示任何用户标识
 - 后端仅存储哈希值，API 响应中回复的 UserHash 在 service 层返回前被清空
 - HMAC 密钥生产环境最低 32 字符，不足则拒绝启动
@@ -25,14 +26,14 @@ userHash = HMAC-SHA256(userID, secret)
 
 ```json
 {
-  "sensitive": {
-    "hasSensitive": false,
-    "matchCount": 0
-  },
-  "quality": {
-    "score": 85,
-    "suggestions": ["quality_too_short"]
-  }
+	"sensitive": {
+		"hasSensitive": false,
+		"matchCount": 0
+	},
+	"quality": {
+		"score": 85,
+		"suggestions": ["quality_too_short"]
+	}
 }
 ```
 
@@ -51,24 +52,24 @@ userHash = HMAC-SHA256(userID, secret)
 
 ### 举报机制
 
-| 举报类型 | 说明 |
-|----------|------|
-| spam | 垃圾广告 |
-| abuse | 辱骂攻击 |
-| privacy | 隐私泄露 |
-| false | 虚假信息 |
-| other | 其他 |
+| 举报类型 | 说明     |
+| -------- | -------- |
+| spam     | 垃圾广告 |
+| abuse    | 辱骂攻击 |
+| privacy  | 隐私泄露 |
+| false    | 虚假信息 |
+| other    | 其他     |
 
 ## 防刷机制
 
 ### 频率限制（Redis 限流）
 
-| 操作 | 限制 |
-|------|------|
-| 发布测评 | 5 次/分钟 |
-| 投票 | 30 次/分钟 |
-| 举报 | 10 次/分钟 |
-| 回复 | 10 次/分钟 |
+| 操作      | 限制       |
+| --------- | ---------- |
+| 发布测评  | 5 次/分钟  |
+| 投票      | 30 次/分钟 |
+| 举报      | 10 次/分钟 |
+| 回复      | 10 次/分钟 |
 | 更新/删除 | 10 次/分钟 |
 
 ### 业务约束
@@ -89,6 +90,7 @@ userHash = HMAC-SHA256(userID, secret)
 通过 `security_headers.go` 中间件统一设置：
 
 **开发环境**：
+
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `Referrer-Policy: strict-origin-when-cross-origin`
@@ -96,6 +98,7 @@ userHash = HMAC-SHA256(userID, secret)
 - `Content-Security-Policy`（API 路径使用严格策略）
 
 **生产环境额外添加**：
+
 - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
 - `Permissions-Policy: geolocation=(), microphone=(), camera=()`
 - `Cross-Origin-Resource-Policy: same-origin`
@@ -111,11 +114,11 @@ userHash = HMAC-SHA256(userID, secret)
 
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "..."
-  }
+	"success": false,
+	"error": {
+		"code": "ERROR_CODE",
+		"message": "..."
+	}
 }
 ```
 
@@ -128,6 +131,7 @@ userHash = HMAC-SHA256(userID, secret)
 ### 审计日志
 
 记录所有管理操作：
+
 - 删除/隐藏/恢复测评
 - 处理举报
 - 批量操作

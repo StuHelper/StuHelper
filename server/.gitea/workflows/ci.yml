@@ -68,10 +68,10 @@ jobs:
           go generate ./internal/api/gen/...
 
       - name: Regenerate TypeScript types
-        working-directory: clients/web/course
+        working-directory: clients
         run: |
           pnpm install --frozen-lockfile
-          pnpm run generate:types
+          pnpm run api:generate
 
       - name: Check for drift
         run: |

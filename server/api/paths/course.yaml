@@ -16,18 +16,41 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: array
-                  items:
-                    $ref: '../components/schemas/course.yaml#/Department'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/course.yaml#/Department'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/terms:
+  get:
+    tags: [Course]
+    operationId: getTerms
+    summary: 获取学期列表
+    security: []
+    responses:
+      '200':
+        description: 学期列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/course.yaml#/Term'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -43,16 +66,15 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: array
-                  items:
-                    $ref: '../components/schemas/course.yaml#/CourseCategory'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/course.yaml#/CourseCategory'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -67,6 +89,12 @@
     parameters:
       - $ref: '../components/parameters/common.yaml#/PageParam'
       - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 100
+        description: 按课程名称或课程代码搜索
       - name: departmentID
         in: query
         schema:
@@ -78,28 +106,34 @@
         schema:
           type: string
         description: 按分类筛选
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [name, credits, reviewCount]
+          default: name
+        description: 排序方式
     responses:
       '200':
         description: 课程分页列表
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/course.yaml#/Course'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/course.yaml#/Course'
+                        total:
+                          type: integer
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -126,28 +160,27 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  type: object
-                  required: [list, total]
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/course.yaml#/Course'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/course.yaml#/Course'
+                        total:
+                          type: integer
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/courses/{id}:
+/api/v1/course/courses/{courseID}:
   get:
     tags: [Course]
     operationId: getCourse
@@ -161,14 +194,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/course.yaml#/Course'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/course.yaml#/Course'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
@@ -188,14 +220,13 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [success, data]
-              properties:
-                success:
-                  type: boolean
-                  enum: [true]
-                data:
-                  $ref: '../components/schemas/course.yaml#/CourseStats'
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/course.yaml#/CourseStats'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':

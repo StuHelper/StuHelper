@@ -3,6 +3,7 @@ package course
 import (
 	"context"
 	"errors"
+	"sort"
 
 	"go.uber.org/zap"
 
@@ -37,10 +38,31 @@ func (s *Service) GetDepartments(ctx context.Context, category string) ([]Depart
 	return s.repo.ListDepartments(ctx, category)
 }
 
+func sortTermsForResponse(terms []Term) []Term {
+	sorted := append([]Term(nil), terms...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].IsCurrent != sorted[j].IsCurrent {
+			return sorted[i].IsCurrent
+		}
+		return sorted[i].ID > sorted[j].ID
+	})
+	return sorted
+}
+
+func (s *Service) GetTerms(ctx context.Context) ([]Term, error) {
+	terms, err := s.repo.ListTerms(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return sortTermsForResponse(terms), nil
+}
+
 // ListCoursesParams 获取课程列表参数
 type ListCoursesParams struct {
+	Query        string
 	DepartmentID int64
 	Category     string
+	Sort         string
 	Page         int
 	PageSize     int
 }
@@ -54,7 +76,7 @@ type ListCoursesResult struct {
 // GetCourses 获取课程列表
 func (s *Service) GetCourses(ctx context.Context, params ListCoursesParams) (*ListCoursesResult, error) {
 	offset := httputil.SafeOffset(params.Page, params.PageSize)
-	list, total, err := s.repo.ListCourses(ctx, params.DepartmentID, params.Category, params.PageSize, offset)
+	list, total, err := s.repo.ListCourses(ctx, params.Query, params.DepartmentID, params.Category, normalizeCourseSort(params.Sort), params.PageSize, offset)
 	if err != nil {
 		s.log.Error("failed to list courses", zap.Error(err))
 		return nil, err

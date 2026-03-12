@@ -1,0 +1,27 @@
+{
+  "name": "stuhelper-clients",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StuHelper 前端 Monorepo",
+  "scripts": {
+    "dev:web": "pnpm --filter @stuhelper/web dev",
+    "dev:uni": "pnpm --filter @stuhelper/uniappx dev:h5",
+    "build:web": "pnpm --filter @stuhelper/web build",
+    "build:uni:mp": "pnpm --filter @stuhelper/uniappx build:mp-weixin",
+    "storybook:web": "pnpm --filter @stuhelper/web storybook",
+    "build:storybook:web": "pnpm --filter @stuhelper/web build-storybook",
+    "test:web": "pnpm --filter @stuhelper/web test",
+    "test:coverage:web": "pnpm --filter @stuhelper/web test:coverage",
+    "test:e2e:web": "pnpm --filter @stuhelper/web test:e2e",
+    "api:generate": "openapi-typescript ../server/api/openapi.yaml -o shared/src/types/api.gen.ts",
+    "lint": "pnpm -r lint",
+    "type-check": "pnpm -r type-check"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  }
+}
