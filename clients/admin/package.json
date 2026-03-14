@@ -7,7 +7,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
-    "lint": "eslint src --ext .vue,.ts"
+    "lint": "eslint src"
   },
   "dependencies": {
     "@stuhelper/shared": "workspace:*",

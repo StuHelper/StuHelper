@@ -7,7 +7,7 @@ import type { Metric } from 'web-vitals'
 function sendMetric(metric: Metric) {
   if (import.meta.env.DEV) {
     const label = metric.rating === 'good' ? '✅' : metric.rating === 'needs-improvement' ? '⚠️' : '❌'
-    console.log(`[WebVitals] ${label} ${metric.name}: ${Math.round(metric.value)}ms (${metric.rating})`)
+    console.info(`[WebVitals] ${label} ${metric.name}: ${Math.round(metric.value)}ms (${metric.rating})`)
     return
   }
 

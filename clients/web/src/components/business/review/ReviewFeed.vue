@@ -134,7 +134,7 @@ async function loadReviews(reset = false) {
     }
     hasMore.value = list.length >= pageSize
     page.value++
-  } catch (err) {
+  } catch {
     if (signal.aborted || currentVersion !== requestVersion) return
     error.value = t('review.hub.loadFailed')
   } finally {

@@ -358,7 +358,9 @@ router.beforeEach(async (to) => {
     if (authStore.isAuthenticated && isTokenExpired()) {
         try {
             await authStore.refreshSession();
-        } catch {}
+        } catch {
+            return undefined;
+        }
     }
 
     const isAuthenticated = authStore.isAuthenticated;

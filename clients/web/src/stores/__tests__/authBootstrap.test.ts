@@ -45,7 +45,7 @@ vi.mock('@/stores/draft', () => ({
 vi.mock('@/i18n', () => ({
   default: {
     global: {
-      t: (_key: string) => 'translated'
+      t: () => 'translated'
     }
   }
 }))

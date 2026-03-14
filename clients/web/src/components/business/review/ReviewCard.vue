@@ -331,9 +331,7 @@ watch(() => props.review.replyCount, (val) => {
 })
 
 // 当 review 数据刷新时重置投票偏移量
-let voteVersion = 0
 watch(() => props.review, () => {
-  voteVersion++
   likeOffset.value = 0
   dislikeOffset.value = 0
   userVote.value = null
