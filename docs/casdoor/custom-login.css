@@ -1,0 +1,431 @@
+/*
+ * StuHelper Casdoor SSO Login Page - Custom CSS
+ *
+ * Glassmorphism design matching stuhelper.com main theme.
+ * Color palette: cyan (#06b6d4) / indigo (#4f46e5)
+ *
+ * Inject this CSS in Casdoor Admin > Applications > StuHelper > Custom CSS
+ */
+
+/* ============================================================
+   1. Page Background - Gradient + animated mesh
+   ============================================================ */
+body,
+.login-page {
+  min-height: 100vh;
+  margin: 0;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow-x: hidden;
+}
+
+/* Animated gradient orbs behind the login card */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  z-index: 0;
+  animation: float 12s ease-in-out infinite;
+}
+
+body::before {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, #06b6d4 0%, transparent 70%);
+  top: -100px;
+  right: -100px;
+}
+
+body::after {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, #4f46e5 0%, transparent 70%);
+  bottom: -150px;
+  left: -150px;
+  animation-delay: -6s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 15px) scale(0.95); }
+}
+
+/* ============================================================
+   2. Login Card - Glassmorphism
+   ============================================================ */
+.login-form,
+.login-panel,
+.ant-card,
+.panel-module {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 20px !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 40px 36px !important;
+}
+
+/* ============================================================
+   3. Logo / Title Area
+   ============================================================ */
+.login-logo,
+.login-form .logo,
+.panel-module .logo {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-logo img,
+.login-form .logo img,
+.panel-module .logo img {
+  height: 48px;
+  filter: brightness(1.2);
+}
+
+/* App name / title */
+.login-form h1,
+.login-form .title,
+.panel-module h1,
+.panel-module .title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #06b6d4, #818cf8, #4f46e5);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 4s ease-in-out infinite;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.login-form .subtitle,
+.panel-module .subtitle {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  text-align: center;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ============================================================
+   4. Form Inputs
+   ============================================================ */
+.login-form input,
+.ant-input,
+.ant-input-affix-wrapper,
+.panel-module input[type="text"],
+.panel-module input[type="password"],
+.panel-module input[type="email"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  color: #e2e8f0 !important;
+  padding: 12px 16px !important;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  height: auto !important;
+}
+
+.login-form input::placeholder,
+.ant-input::placeholder,
+.panel-module input::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.login-form input:focus,
+.ant-input:focus,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused,
+.panel-module input:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: #06b6d4 !important;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15) !important;
+  outline: none !important;
+}
+
+/* Input prefix icons */
+.ant-input-prefix,
+.ant-input-suffix {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* Labels */
+.login-form label,
+.ant-form-item-label label,
+.panel-module label {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ============================================================
+   5. Primary Button (Login / Submit)
+   ============================================================ */
+.login-form .btn-primary,
+.login-form button[type="submit"],
+.ant-btn-primary,
+.panel-module .btn-primary {
+  width: 100%;
+  height: auto !important;
+  padding: 12px 24px !important;
+  background: linear-gradient(135deg, #06b6d4, #4f46e5) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  color: #ffffff !important;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-form .btn-primary:hover,
+.login-form button[type="submit"]:hover,
+.ant-btn-primary:hover,
+.panel-module .btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(6, 182, 212, 0.35) !important;
+  opacity: 0.95;
+}
+
+.login-form .btn-primary:active,
+.ant-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2) !important;
+}
+
+/* Button shimmer effect */
+.login-form .btn-primary::after,
+.ant-btn-primary::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  transform: rotate(45deg) translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.login-form .btn-primary:hover::after,
+.ant-btn-primary:hover::after {
+  transform: rotate(45deg) translateX(100%);
+}
+
+/* ============================================================
+   6. Secondary / Link Buttons
+   ============================================================ */
+.login-form a,
+.panel-module a {
+  color: #06b6d4 !important;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.login-form a:hover,
+.panel-module a:hover {
+  color: #22d3ee !important;
+}
+
+/* "Register" / "Forgot Password" links */
+.login-form .extra-links,
+.login-form .other-options,
+.panel-module .other-options {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.login-form .extra-links a,
+.login-form .other-options a {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.login-form .extra-links a:hover,
+.login-form .other-options a:hover {
+  color: #06b6d4 !important;
+}
+
+/* ============================================================
+   7. OAuth Provider Buttons (GitHub, Google, etc.)
+   ============================================================ */
+.login-form .social-login,
+.login-form .provider-list,
+.panel-module .provider-button {
+  margin-top: 24px;
+}
+
+.login-form .social-login .btn,
+.login-form .provider-list button,
+.panel-module .provider-button {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  padding: 10px 16px !important;
+  transition: all 0.2s ease;
+}
+
+.login-form .social-login .btn:hover,
+.login-form .provider-list button:hover,
+.panel-module .provider-button:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Divider ("or") */
+.login-form .divider,
+.panel-module .divider,
+.ant-divider {
+  color: rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.ant-divider-inner-text {
+  color: rgba(255, 255, 255, 0.3) !important;
+  font-size: 12px;
+}
+
+/* ============================================================
+   8. Checkbox & Remember me
+   ============================================================ */
+.ant-checkbox-wrapper,
+.login-form .remember-me {
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-size: 13px;
+}
+
+.ant-checkbox-inner {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px;
+}
+
+.ant-checkbox-checked .ant-checkbox-inner {
+  background: #06b6d4 !important;
+  border-color: #06b6d4 !important;
+}
+
+/* ============================================================
+   9. Error / Alert Messages
+   ============================================================ */
+.ant-alert,
+.login-form .error-msg,
+.panel-module .error-msg {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+  border-radius: 10px !important;
+  color: #fca5a5 !important;
+}
+
+.ant-form-item-explain-error {
+  color: #fca5a5 !important;
+  font-size: 12px;
+}
+
+/* ============================================================
+   10. Footer
+   ============================================================ */
+.login-footer,
+.panel-module .footer {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  margin-top: 32px;
+}
+
+/* ============================================================
+   11. Mobile Responsive
+   ============================================================ */
+@media (max-width: 480px) {
+  .login-form,
+  .login-panel,
+  .ant-card,
+  .panel-module {
+    margin: 16px;
+    padding: 28px 20px !important;
+    border-radius: 16px !important;
+  }
+
+  body::before { width: 250px; height: 250px; }
+  body::after  { width: 300px; height: 300px; }
+}
+
+/* ============================================================
+   12. Signup page adjustments
+   ============================================================ */
+.signup-form,
+.register-panel {
+  max-width: 460px;
+}
+
+/* ============================================================
+   13. Loading spinner
+   ============================================================ */
+.ant-spin-dot-item {
+  background-color: #06b6d4 !important;
+}
+
+.ant-spin-text {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* ============================================================
+   14. Ant Design overrides (Casdoor uses antd)
+   ============================================================ */
+
+/* Tabs (if Casdoor uses tabs for login/signup) */
+.ant-tabs-tab {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #06b6d4 !important;
+}
+
+.ant-tabs-ink-bar {
+  background: linear-gradient(90deg, #06b6d4, #4f46e5) !important;
+}
+
+/* Select dropdowns */
+.ant-select-selector {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  color: #e2e8f0 !important;
+}
+
+.ant-select-arrow {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* Tooltip */
+.ant-tooltip-inner {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-radius: 8px;
+}
