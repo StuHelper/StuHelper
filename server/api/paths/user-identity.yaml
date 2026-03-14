@@ -1,0 +1,211 @@
+/api/v1/user/identity:
+  get:
+    tags: [User]
+    operationId: getUserIdentity
+    summary: 获取当前用户实名认证状态
+    security:
+      - cookieAuth: []
+    responses:
+      '200':
+        description: 用户实名认证信息
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/UserIdentity'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [User]
+    operationId: submitIdentity
+    summary: 提交实名认证
+    security:
+      - cookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/SubmitIdentityRequest'
+    responses:
+      '201':
+        description: 实名认证提交成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/UserIdentity'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/user/profile:
+  get:
+    tags: [User]
+    operationId: getUserProfile
+    summary: 获取当前用户学生认证状态
+    security:
+      - cookieAuth: []
+    responses:
+      '200':
+        description: 用户学生认证信息
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/UserProfile'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/user/profile/verify:
+  post:
+    tags: [User]
+    operationId: submitStudentVerification
+    summary: 提交学生认证（LDAP）
+    security:
+      - cookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/SubmitStudentVerificationRequest'
+    responses:
+      '200':
+        description: 学生认证结果
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/UserProfile'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/user/profile/bind-phone:
+  post:
+    tags: [User]
+    operationId: bindPhone
+    summary: 绑定手机号
+    security:
+      - cookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/BindPhoneRequest'
+    responses:
+      '200':
+        description: 手机号绑定成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/user/profile/academic-info:
+  get:
+    tags: [User]
+    operationId: getAcademicInfo
+    summary: 获取已认证用户的学籍信息
+    security:
+      - cookieAuth: []
+    responses:
+      '200':
+        description: 本地学籍数据库中的学生信息
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/AcademicStudentInfo'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/user/schools:
+  get:
+    tags: [User]
+    operationId: listSchools
+    summary: 获取可用学校列表
+    security: []
+    responses:
+      '200':
+        description: 学校配置列表（不含敏感字段）
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/SchoolConfig'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

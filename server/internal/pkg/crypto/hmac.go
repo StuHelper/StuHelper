@@ -58,6 +58,11 @@ var ErrHMACNotInitialized = errors.New("crypto: HMACHash called before InitHMACK
 // ErrEmptyInput 表示输入为空
 var ErrEmptyInput = errors.New("crypto: HMACHash input must not be empty")
 
+// GetHMACKey 返回已初始化的 HMAC 密钥（需在 InitHMACKey 之后调用）
+func GetHMACKey() []byte {
+	return hmacKey
+}
+
 // HMACHash 使用 HMAC-SHA256 对数据进行哈希
 func HMACHash(data string) (string, error) {
 	if data == "" {

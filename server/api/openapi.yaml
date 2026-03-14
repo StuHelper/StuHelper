@@ -32,6 +32,12 @@ tags:
     description: 收藏
   - name: User
     description: 用户中心
+  - name: Identity
+    description: 实名认证
+  - name: Profile
+    description: 学生认证
+  - name: RBAC
+    description: 角色权限管理
   - name: Admin
     description: 管理后台
 
@@ -172,6 +178,58 @@ paths:
   /api/v1/course/review/admin/sensitive-words/{sensitiveWordID}:
     $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words~1{sensitiveWordID}'
 
+  # ── User Identity & Profile ──
+  /api/v1/user/identity:
+    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1identity'
+  /api/v1/user/profile:
+    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1profile'
+  /api/v1/user/profile/verify:
+    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1profile~1verify'
+  /api/v1/user/profile/bind-phone:
+    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1profile~1bind-phone'
+  /api/v1/user/profile/academic-info:
+    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1profile~1academic-info'
+  /api/v1/user/schools:
+    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1schools'
+
+  # ── Admin: User System ──
+  /api/v1/admin/identities:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1identities'
+  /api/v1/admin/identities/{userID}:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1identities~1{userID}'
+  /api/v1/admin/student-verifications:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications'
+  /api/v1/admin/student-verifications/{userID}:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications~1{userID}'
+  /api/v1/admin/roles:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles'
+  /api/v1/admin/roles/{roleID}:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles~1{roleID}'
+  /api/v1/admin/roles/{roleID}/permissions:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles~1{roleID}~1permissions'
+  /api/v1/admin/permissions:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1permissions'
+  /api/v1/admin/users/{userID}/roles:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1users~1{userID}~1roles'
+  /api/v1/admin/users/{userID}/permissions:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1users~1{userID}~1permissions'
+  /api/v1/admin/groups:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups'
+  /api/v1/admin/groups/{groupID}:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}'
+  /api/v1/admin/groups/{groupID}/members:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}~1members'
+  /api/v1/admin/groups/{groupID}/permissions:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}~1permissions'
+  /api/v1/admin/school-configs:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs'
+  /api/v1/admin/school-configs/{schoolID}:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs~1{schoolID}'
+  /api/v1/admin/system-configs:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs'
+  /api/v1/admin/system-configs/{key}:
+    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs~1{key}'
+
 components:
   securitySchemes:
     cookieAuth:
@@ -305,6 +363,64 @@ components:
       $ref: 'components/schemas/admin.yaml#/CreateSensitiveWordRequest'
     UpdateSensitiveWordRequest:
       $ref: 'components/schemas/admin.yaml#/UpdateSensitiveWordRequest'
+
+    # User System
+    UserIdentity:
+      $ref: 'components/schemas/user-system.yaml#/UserIdentity'
+    SubmitIdentityRequest:
+      $ref: 'components/schemas/user-system.yaml#/SubmitIdentityRequest'
+    UserProfile:
+      $ref: 'components/schemas/user-system.yaml#/UserProfile'
+    SubmitStudentVerificationRequest:
+      $ref: 'components/schemas/user-system.yaml#/SubmitStudentVerificationRequest'
+    BindPhoneRequest:
+      $ref: 'components/schemas/user-system.yaml#/BindPhoneRequest'
+    SchoolConfig:
+      $ref: 'components/schemas/user-system.yaml#/SchoolConfig'
+    AcademicStudentInfo:
+      $ref: 'components/schemas/user-system.yaml#/AcademicStudentInfo'
+    ReviewIdentityRequest:
+      $ref: 'components/schemas/user-system.yaml#/ReviewIdentityRequest'
+    ReviewStudentVerificationRequest:
+      $ref: 'components/schemas/user-system.yaml#/ReviewStudentVerificationRequest'
+    Role:
+      $ref: 'components/schemas/user-system.yaml#/Role'
+    Permission:
+      $ref: 'components/schemas/user-system.yaml#/Permission'
+    UserGroupSchema:
+      $ref: 'components/schemas/user-system.yaml#/UserGroup'
+    CreateRoleRequest:
+      $ref: 'components/schemas/user-system.yaml#/CreateRoleRequest'
+    UpdateRoleRequest:
+      $ref: 'components/schemas/user-system.yaml#/UpdateRoleRequest'
+    CreateUserGroupRequest:
+      $ref: 'components/schemas/user-system.yaml#/CreateUserGroupRequest'
+    UpdateUserGroupRequest:
+      $ref: 'components/schemas/user-system.yaml#/UpdateUserGroupRequest'
+    AssignRolePermissionsRequest:
+      $ref: 'components/schemas/user-system.yaml#/AssignRolePermissionsRequest'
+    AssignUserRolesRequest:
+      $ref: 'components/schemas/user-system.yaml#/AssignUserRolesRequest'
+    AssignGroupMembersRequest:
+      $ref: 'components/schemas/user-system.yaml#/AssignGroupMembersRequest'
+    AssignGroupPermissionsRequest:
+      $ref: 'components/schemas/user-system.yaml#/AssignGroupPermissionsRequest'
+    SetUserPermissionRequest:
+      $ref: 'components/schemas/user-system.yaml#/SetUserPermissionRequest'
+    SystemConfigSchema:
+      $ref: 'components/schemas/user-system.yaml#/SystemConfig'
+    UpdateSystemConfigRequest:
+      $ref: 'components/schemas/user-system.yaml#/UpdateSystemConfigRequest'
+    UserPermissionOverride:
+      $ref: 'components/schemas/user-system.yaml#/UserPermissionOverride'
+    EffectivePermission:
+      $ref: 'components/schemas/user-system.yaml#/EffectivePermission'
+    GroupMember:
+      $ref: 'components/schemas/user-system.yaml#/GroupMember'
+    AdminSchoolConfig:
+      $ref: 'components/schemas/user-system.yaml#/AdminSchoolConfig'
+    UpdateSchoolConfigRequest:
+      $ref: 'components/schemas/user-system.yaml#/UpdateSchoolConfigRequest'
 
   parameters:
     PageParam:

@@ -1,0 +1,1014 @@
+/api/v1/admin/identities:
+  get:
+    tags: [Admin]
+    operationId: listIdentityVerifications
+    summary: 获取实名认证审核列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [pending, verified, rejected, all]
+          default: pending
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 实名认证分页列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/user-system.yaml#/UserIdentity'
+                        total:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/identities/{userID}:
+  put:
+    tags: [Admin]
+    operationId: reviewIdentityVerification
+    summary: 审核实名认证
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        description: 用户 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/ReviewIdentityRequest'
+    responses:
+      '200':
+        description: 审核成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verifications:
+  get:
+    tags: [Admin]
+    operationId: listStudentVerifications
+    summary: 获取学生认证审核列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [pending, verified, rejected, all]
+          default: pending
+      - name: schoolId
+        in: query
+        description: 按学校筛选
+        schema:
+          type: string
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 学生认证分页列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/user-system.yaml#/UserProfile'
+                        total:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verifications/{userID}:
+  put:
+    tags: [Admin]
+    operationId: reviewStudentVerification
+    summary: 审核学生认证
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        description: 用户 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/ReviewStudentVerificationRequest'
+    responses:
+      '200':
+        description: 审核成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/roles:
+  get:
+    tags: [Admin]
+    operationId: listRoles
+    summary: 获取角色列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 角色列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/Role'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Admin]
+    operationId: createRole
+    summary: 创建角色
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/CreateRoleRequest'
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/Role'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/roles/{roleID}:
+  put:
+    tags: [Admin]
+    operationId: updateRole
+    summary: 更新角色
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: roleID
+        in: path
+        required: true
+        description: 角色 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/UpdateRoleRequest'
+    responses:
+      '200':
+        description: 更新成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  delete:
+    tags: [Admin]
+    operationId: deleteRole
+    summary: 删除角色
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: roleID
+        in: path
+        required: true
+        description: 角色 ID
+        schema:
+          type: integer
+          format: int64
+    responses:
+      '200':
+        description: 删除成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/roles/{roleID}/permissions:
+  put:
+    tags: [Admin]
+    operationId: assignRolePermissions
+    summary: 设置角色权限
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: roleID
+        in: path
+        required: true
+        description: 角色 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/AssignRolePermissionsRequest'
+    responses:
+      '200':
+        description: 设置成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/permissions:
+  get:
+    tags: [Admin]
+    operationId: listPermissions
+    summary: 获取权限列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: module
+        in: query
+        description: 按模块筛选
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 权限列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/Permission'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/users/{userID}/roles:
+  get:
+    tags: [Admin]
+    operationId: getUserRoles
+    summary: 获取用户角色
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        description: 用户 ID
+        schema:
+          type: integer
+          format: int64
+    responses:
+      '200':
+        description: 用户角色列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/Role'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  put:
+    tags: [Admin]
+    operationId: assignUserRoles
+    summary: 设置用户角色
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        description: 用户 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/AssignUserRolesRequest'
+    responses:
+      '200':
+        description: 设置成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/users/{userID}/permissions:
+  get:
+    tags: [Admin]
+    operationId: getUserEffectivePermissions
+    summary: 获取用户有效权限（合并角色+用户组+个人覆盖）
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        description: 用户 ID
+        schema:
+          type: integer
+          format: int64
+    responses:
+      '200':
+        description: 用户有效权限列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/EffectivePermission'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  put:
+    tags: [Admin]
+    operationId: setUserPermissionOverride
+    summary: 设置用户个人权限覆盖
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        description: 用户 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/SetUserPermissionRequest'
+    responses:
+      '200':
+        description: 设置成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/groups:
+  get:
+    tags: [Admin]
+    operationId: listUserGroups
+    summary: 获取用户组列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 用户组列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/UserGroup'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Admin]
+    operationId: createUserGroup
+    summary: 创建用户组
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/CreateUserGroupRequest'
+    responses:
+      '201':
+        description: 创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/UserGroup'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/groups/{groupID}:
+  put:
+    tags: [Admin]
+    operationId: updateUserGroup
+    summary: 更新用户组
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: groupID
+        in: path
+        required: true
+        description: 用户组 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/UpdateUserGroupRequest'
+    responses:
+      '200':
+        description: 更新成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  delete:
+    tags: [Admin]
+    operationId: deleteUserGroup
+    summary: 删除用户组
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: groupID
+        in: path
+        required: true
+        description: 用户组 ID
+        schema:
+          type: integer
+          format: int64
+    responses:
+      '200':
+        description: 删除成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/groups/{groupID}/members:
+  get:
+    tags: [Admin]
+    operationId: listGroupMembers
+    summary: 获取用户组成员
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: groupID
+        in: path
+        required: true
+        description: 用户组 ID
+        schema:
+          type: integer
+          format: int64
+    responses:
+      '200':
+        description: 用户组成员列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/GroupMember'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  put:
+    tags: [Admin]
+    operationId: assignGroupMembers
+    summary: 设置用户组成员
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: groupID
+        in: path
+        required: true
+        description: 用户组 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/AssignGroupMembersRequest'
+    responses:
+      '200':
+        description: 设置成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/groups/{groupID}/permissions:
+  put:
+    tags: [Admin]
+    operationId: assignGroupPermissions
+    summary: 设置用户组权限
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: groupID
+        in: path
+        required: true
+        description: 用户组 ID
+        schema:
+          type: integer
+          format: int64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/AssignGroupPermissionsRequest'
+    responses:
+      '200':
+        description: 设置成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/school-configs:
+  get:
+    tags: [Admin]
+    operationId: listSchoolConfigs
+    summary: 获取学校配置列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 学校配置列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/AdminSchoolConfig'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/school-configs/{schoolID}:
+  put:
+    tags: [Admin]
+    operationId: updateSchoolConfig
+    summary: 更新学校配置
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: schoolID
+        in: path
+        required: true
+        description: 学校 ID
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/UpdateSchoolConfigRequest'
+    responses:
+      '200':
+        description: 更新成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/system-configs:
+  get:
+    tags: [Admin]
+    operationId: listSystemConfigs
+    summary: 获取系统配置列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 系统配置列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/user-system.yaml#/SystemConfig'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/system-configs/{key}:
+  put:
+    tags: [Admin]
+    operationId: updateSystemConfig
+    summary: 更新系统配置
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 配置键名
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/UpdateSystemConfigRequest'
+    responses:
+      '200':
+        description: 更新成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

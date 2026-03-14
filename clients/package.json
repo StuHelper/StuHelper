@@ -5,8 +5,10 @@
   "description": "StuHelper 前端 Monorepo",
   "scripts": {
     "dev:web": "pnpm --filter @stuhelper/web dev",
+    "dev:admin": "pnpm --filter @stuhelper/admin dev",
     "dev:uni": "pnpm --filter @stuhelper/uniappx dev:h5",
     "build:web": "pnpm --filter @stuhelper/web build",
+    "build:admin": "pnpm --filter @stuhelper/admin build",
     "build:uni:mp": "pnpm --filter @stuhelper/uniappx build:mp-weixin",
     "storybook:web": "pnpm --filter @stuhelper/web storybook",
     "build:storybook:web": "pnpm --filter @stuhelper/web build-storybook",

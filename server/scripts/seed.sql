@@ -407,4 +407,35 @@ UNION ALL
 SELECT gen_random_uuid()::varchar, teacher_id, term_id, dimension_key, avg_rating, rating_count, rating_dist
 FROM dist_overall;
 
+-- ============================================
+-- 10. 开发环境：测试用学籍数据
+-- ============================================
+INSERT INTO academic.buaa_students (xh, xm, sfzjlxdm, sfzjh, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh, dzxx, xjztdm, sfzx, sfzj) VALUES
+    ('20211001', '张三', '1', '110101200301010011', '001', '0812', '210101', '4', '2021', '01', '01', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
+    ('20211002', '李四', '1', '110101200301020022', '001', '0812', '210101', '4', '2021', '01', '01', '13800138002', 'lisi@buaa.edu.cn', '01', '1', '1'),
+    ('20211003', '王五', '1', '110101200301030033', '003', '0502', '210301', '4', '2021', '01', '01', '13800138003', 'wangwu@buaa.edu.cn', '01', '1', '1'),
+    ('20241001', '张三', '1', '110101200301010011', '001', '0812', '241001', '1', '2024', '02', '02', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
+    ('20211004', 'John Smith', 'A', 'H12345678', '001', '0812', '210102', '4', '2021', '01', '01', NULL, 'john@buaa.edu.cn', '01', '1', '1')
+ON CONFLICT (xh) DO NOTHING;
+
+-- ============================================
+-- 11. 开发环境：测试用户认证数据
+-- ============================================
+-- 为测试用户1设置实名认证（已通过）和学生认证（已通过）
+INSERT INTO user_identities (user_id, doc_type, doc_number_enc, person_uid, real_name, verified, verify_method, verified_at)
+SELECT id, 'MAINLAND_ID', '\x00'::bytea, 'test_person_uid_001', '测试用户', TRUE, 'academic_db_match', NOW()
+FROM users WHERE username = 'test_admin'
+ON CONFLICT (user_id) DO NOTHING;
+
+INSERT INTO user_profiles (user_id, school_id, student_ids, active_student_id, verification_status, verification_method, phone, phone_verified, consent_given_at, verified_at)
+SELECT id, '10006', '["20211001"]'::jsonb, '20211001', 'verified', 'ldap', '13800138001', TRUE, NOW(), NOW()
+FROM users WHERE username = 'test_admin'
+ON CONFLICT (user_id) DO NOTHING;
+
+-- 为测试用户分配 super_admin 角色
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id FROM users u, roles r
+WHERE u.username = 'test_admin' AND r.name = 'super_admin'
+ON CONFLICT DO NOTHING;
+
 COMMIT;
