@@ -53,7 +53,7 @@
           </button>
           <div
             v-if="userMenuOpen"
-            class="absolute right-0 top-full mt-1.5 w-40 bg-bg-card border border-border rounded-lg shadow-md py-1 z-[var(--z-dropdown)] animate-fade-in"
+            class="absolute right-0 top-full mt-1.5 w-48 bg-bg-card border border-border rounded-lg shadow-md py-1 z-[var(--z-dropdown)] animate-fade-in"
           >
             <button
               class="flex items-center gap-2 w-full px-3 py-2 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
@@ -61,6 +61,24 @@
             >
               <User class="size-4" />
               {{ t('nav.profile') }}
+            </button>
+            <button
+              class="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors duration-fast hover:bg-bg-hover"
+              :class="verificationStore.identityVerified ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
+              @click="goTo('identity-verification')"
+            >
+              <ShieldCheck class="size-4" />
+              {{ t('nav.identityVerification') }}
+              <span v-if="verificationStore.identityVerified" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.identity.verified') }}</span>
+            </button>
+            <button
+              class="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors duration-fast hover:bg-bg-hover"
+              :class="verificationStore.studentVerified ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
+              @click="goTo('student-verification')"
+            >
+              <GraduationCap class="size-4" />
+              {{ t('nav.studentVerification') }}
+              <span v-if="verificationStore.studentVerified" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.student.verified') }}</span>
             </button>
             <div class="h-px bg-border mx-2 my-0.5" />
             <button
@@ -102,8 +120,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { PenLine, LogOut, User } from 'lucide-vue-next'
+import { PenLine, LogOut, User, ShieldCheck, GraduationCap } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import { useVerificationStore } from '@/stores/verification'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { useToast } from '@/composables/useToast'
 import FloatingModuleNav from './FloatingModuleNav.vue'
@@ -117,6 +136,7 @@ const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const verificationStore = useVerificationStore()
 const toast = useToast()
 const { openPostModal } = useReviewPost()
 
@@ -140,6 +160,11 @@ const avatarInitial = computed(() => {
 function goToUser() {
   userMenuOpen.value = false
   router.push('/user/reviews')
+}
+
+function goTo(routeName: string) {
+  userMenuOpen.value = false
+  router.push({ name: routeName })
 }
 
 function handleWriteReview() {
@@ -188,6 +213,10 @@ onMounted(() => {
   // L-16: passive 已设置
   window.addEventListener('scroll', handleScroll, { passive: true })
   document.addEventListener('click', onClickOutside, true)
+  // Bootstrap verification status for authenticated users
+  if (authStore.isAuthenticated) {
+    verificationStore.fetchStatus().catch(() => {})
+  }
 })
 
 onUnmounted(() => {

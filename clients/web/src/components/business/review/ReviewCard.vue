@@ -82,6 +82,23 @@
       </button>
     </div>
 
+    <!-- 状态2.5: 已登录未认证 — 预览模式（D8: 模糊 + 锁图标） -->
+    <div v-else-if="isPreviewMode" class="relative">
+      <div class="text-sm text-text-secondary leading-relaxed break-words" v-text="previewContent" />
+      <div class="relative mt-1 h-16 overflow-hidden select-none" aria-hidden="true">
+        <div class="absolute inset-0 bg-bg-card/60 backdrop-blur-md flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border/50">
+          <Lock :size="16" class="text-text-muted" />
+          <span class="text-xs text-text-muted">{{ t('review.card.verifyToView') }}</span>
+          <button
+            class="text-primary text-xs font-medium cursor-pointer hover:underline"
+            @click="$router.push({ name: 'student-verification' })"
+          >
+            {{ t('review.card.goVerify') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 状态3: 正常显示（已登录 + published，或管理员查看 hidden） -->
     <template v-else>
       <!-- H-10: 使用 v-text 防御 XSS，确保用户内容不被解析为 HTML -->
@@ -210,6 +227,7 @@ import type { Reply } from '@/types/reply'
 import { api } from '@/api'
 import type { components } from '@stuhelper/shared'
 import { useAuthStore } from '@/stores/auth'
+import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
 import ReplyCard from './ReplyCard.vue'
@@ -235,6 +253,22 @@ const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.user?.isAdmin === true)
 const isHidden = computed(() => props.review.status === 'hidden')
 const showActions = computed(() => isAuthenticated.value && !isHidden.value)
+
+// D8: Graded display - preview mode for logged-in but unverified users
+const verificationStore = useVerificationStore()
+const canViewFull = computed(() => isAdmin.value || verificationStore.canViewFullReviews)
+const isPreviewMode = computed(() => isAuthenticated.value && !isHidden.value && !canViewFull.value)
+
+const PREVIEW_CHARS = 20
+const PREVIEW_PERCENT = 20
+const previewContent = computed(() => {
+  const content = props.review.content || ''
+  const byChars = PREVIEW_CHARS
+  const byPercent = Math.floor(content.length * PREVIEW_PERCENT / 100)
+  const previewLen = Math.min(byChars, byPercent)
+  if (content.length <= previewLen) return content
+  return content.slice(0, previewLen)
+})
 
 const isExpanded = ref(false)
 const shouldTruncate = computed(() => (props.review.content?.length ?? 0) > 200)

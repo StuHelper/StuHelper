@@ -29,5 +29,67 @@ export default {
     bellMarkAllRead: '全部已读',
     viewAll: '查看全部',
     unreadCount: '{count} 条未读通知'
+  },
+  verification: {
+    identity: {
+      title: '实名认证',
+      verified: '已认证',
+      unverified: '未认证',
+      pending: '审核中',
+      rejected: '已拒绝',
+      submit: '提交认证',
+      resubmit: '重新提交',
+      mainlandId: '大陆居民身份证',
+      hkMacau: '港澳居民来往内地通行证',
+      twPass: '台湾居民来往大陆通行证',
+      passport: '护照',
+      docType: '证件类型',
+      docNumber: '证件号码',
+      realName: '真实姓名',
+      photoFront: '证件正面',
+      photoBack: '证件背面',
+      photoSelfie: '手持证件照',
+      photoRequired: '非大陆证件需上传证件照片',
+      successAuto: '认证通过（自动匹配学籍）',
+      successManual: '已提交，等待管理员审核',
+      rejectionReason: '拒绝原因',
+      desc: '实名认证后可进行学生身份验证'
+    },
+    student: {
+      title: '学生认证',
+      verified: '已认证',
+      unverified: '未认证',
+      pending: '审核中',
+      rejected: '已拒绝',
+      selectSchool: '选择学校',
+      studentId: '学号',
+      password: '统一身份认证密码',
+      consent: '我已阅读并同意',
+      consentText: '风险告知书',
+      verify: '验证',
+      identityRequired: '请先完成实名认证',
+      verifySuccess: '学生认证成功',
+      verifyPending: '已提交，等待管理员审核',
+      verifyFailed: '验证失败，请检查学号和密码',
+      desc: '学生认证后可查看完整评课信息'
+    },
+    phone: {
+      title: '绑定手机',
+      bind: '绑定',
+      phoneNumber: '手机号码',
+      verifyCode: '验证码',
+      sendCode: '发送验证码',
+      bound: '已绑定',
+      unbound: '未绑定'
+    },
+    profile: {
+      title: '个人资料',
+      identityStatus: '实名认证状态',
+      studentStatus: '学生认证状态',
+      school: '学校',
+      studentId: '学号',
+      goVerify: '去认证',
+      viewDetail: '查看详情'
+    }
   }
 }

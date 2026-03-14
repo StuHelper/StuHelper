@@ -23,5 +23,8 @@ export default {
   recentSearches: 'Recent Searches',
   userAvatar: 'User Avatar',
   logoutServerError: 'Server error, please try again later',
-  logoutNetworkError: 'Logout failed, please check your network and try again'
+  logoutNetworkError: 'Logout failed, please check your network and try again',
+  identityVerification: 'Identity Verification',
+  studentVerification: 'Student Verification',
+  verificationStatus: 'Verification Status'
 }

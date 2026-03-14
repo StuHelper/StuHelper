@@ -23,5 +23,8 @@ export default {
   recentSearches: '最近搜索',
   userAvatar: '用户头像',
   logoutServerError: '服务器异常，请稍后重试',
-  logoutNetworkError: '登出失败，请检查网络后重试'
+  logoutNetworkError: '登出失败，请检查网络后重试',
+  identityVerification: '实名认证',
+  studentVerification: '学生认证',
+  verificationStatus: '认证状态'
 }

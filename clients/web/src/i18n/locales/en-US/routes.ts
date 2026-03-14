@@ -35,6 +35,8 @@ export default {
   adminSensitiveWords: 'Sensitive Words',
   adminLogs: 'Operation Logs',
   rankings: 'Rankings',
+  identityVerification: 'Identity Verification',
+  studentVerification: 'Student Verification',
   // Page descriptions (for meta description)
   desc: {
     teachingHub: 'Teaching Hub - Course reviews, teacher ratings, and learning resources in one place',
