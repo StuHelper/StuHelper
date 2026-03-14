@@ -20,7 +20,7 @@ type Permission struct {
 	Module         string    `json:"module"`
 	Action         string    `json:"action"`
 	DisplayName    string    `json:"displayName"`
-	ScopeSchoolIDs []string  `json:"scopeSchoolIds,omitempty"` // JSON array, nil = no restriction
+	ScopeSchoolIDs []string  `json:"scopeSchoolIDs,omitempty"` // JSON array, nil = no restriction
 	ScopeRoles     []string  `json:"scopeRoles,omitempty"`     // JSON array, nil = no restriction
 	CreatedAt      time.Time `json:"createdAt"`
 }
@@ -37,17 +37,26 @@ type UserGroup struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+// GroupMember 用户组成员详情（join users 表）
+type GroupMember struct {
+	UserID    int64     `json:"userID"`
+	Username  string    `json:"username"`
+	Email     *string   `json:"email,omitempty"`
+	AvatarURL *string   `json:"avatarURL,omitempty"`
+	JoinedAt  time.Time `json:"joinedAt"`
+}
+
 // UserPermissionOverride 用户个人权限覆盖
 type UserPermissionOverride struct {
-	UserID       int64  `json:"userId"`
-	PermissionID int64  `json:"permissionId"`
-	PermName     string `json:"permName"`
-	Granted      bool   `json:"granted"`
+	UserID         int64  `json:"userID"`
+	PermissionID   int64  `json:"permissionID"`
+	PermissionName string `json:"permissionName"`
+	Granted        bool   `json:"granted"`
 }
 
 // EffectivePermission 用户最终生效权限
 type EffectivePermission struct {
-	PermissionID int64  `json:"permissionId"`
+	PermissionID int64  `json:"permissionID"`
 	Name         string `json:"name"`
 	Module       string `json:"module"`
 	Action       string `json:"action"`

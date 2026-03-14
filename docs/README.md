@@ -51,6 +51,7 @@
 
 ## 开发规范
 
-- 项目级规则：`.project_rule/project_rules.md`
-- 历史归档：`.project_rule/archiving.md`
+- 项目级规则入口：`.trellis/spec/guides/index.md`
+- 会话与工作流约束：`.trellis/workflow.md`
+- 项目历史归档：`.trellis/workspace/wztxy/journal-1.md` 中的 `Project Archive`
 - API 契约权威来源：`server/api/openapi.yaml`

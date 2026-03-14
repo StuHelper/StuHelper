@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,40 +19,18 @@ type Repository struct {
 	db *db.DB
 }
 
+// 编译期接口合规检查
+var _ Repo = (*Repository)(nil)
+
 // NewRepository 创建数据访问层
 func NewRepository(database *db.DB) *Repository {
 	return &Repository{db: database}
 }
 
-// ---------- Identity ----------
-
-// GetIdentityByUserID 根据用户ID获取实名认证记录
-func (r *Repository) GetIdentityByUserID(ctx context.Context, userID int64) (*Identity, error) {
-	var item Identity
-	err := r.db.QueryRow(ctx, `
-		SELECT user_id, doc_type, doc_number_enc, person_uid, real_name,
-		       verified, verify_method, verified_at,
-		       doc_photo_front, doc_photo_back, doc_photo_selfie,
-		       rejection_reason, created_at, updated_at
-		FROM user_identities
-		WHERE user_id = $1
-	`, userID).Scan(
-		&item.UserID, &item.DocType, &item.DocNumberEnc, &item.PersonUID, &item.RealName,
-		&item.Verified, &item.VerifyMethod, &item.VerifiedAt,
-		&item.DocPhotoFront, &item.DocPhotoBack, &item.DocPhotoSelfie,
-		&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("GetIdentityByUserID: %w", err)
-	}
-	return &item, nil
-}
+// ---------- Identity: 写入路径（完整记录） ----------
 
 // CreateIdentity 创建实名认证记录
-func (r *Repository) CreateIdentity(ctx context.Context, identity *Identity) error {
+func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecord) error {
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO user_identities (
 			user_id, doc_type, doc_number_enc, person_uid, real_name,
@@ -70,22 +49,110 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *Identity) err
 	return nil
 }
 
-// UpdateIdentity 更新实名认证记录
-func (r *Repository) UpdateIdentity(ctx context.Context, identity *Identity) error {
-	_, err := r.db.Exec(ctx, `
-		UPDATE user_identities SET
-			doc_type = $2, doc_number_enc = $3, person_uid = $4, real_name = $5,
-			verified = $6, verify_method = $7, verified_at = $8,
-			doc_photo_front = $9, doc_photo_back = $10, doc_photo_selfie = $11,
-			rejection_reason = $12, updated_at = NOW()
+// ---------- Identity: 状态查询路径（不含敏感字段） ----------
+
+// GetIdentityStatusByUserID 根据用户ID获取实名认证状态（最小字段集，不含 doc_number_enc/person_uid）
+func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error) {
+	var item IdentityStatus
+	err := r.db.QueryRow(ctx, `
+		SELECT user_id, doc_type, real_name,
+		       verified, verify_method, verified_at,
+		       rejection_reason, created_at, updated_at
+		FROM user_identities
 		WHERE user_id = $1
-	`, identity.UserID, identity.DocType, identity.DocNumberEnc, identity.PersonUID, identity.RealName,
-		identity.Verified, identity.VerifyMethod, identity.VerifiedAt,
-		identity.DocPhotoFront, identity.DocPhotoBack, identity.DocPhotoSelfie,
-		identity.RejectionReason,
+	`, userID).Scan(
+		&item.UserID, &item.DocType, &item.RealName,
+		&item.Verified, &item.VerifyMethod, &item.VerifiedAt,
+		&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("UpdateIdentity: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("GetIdentityStatusByUserID: %w", err)
+	}
+	return &item, nil
+}
+
+// ---------- Identity: 审核路径（精准更新，不整行回写） ----------
+
+// ListIdentityReviewItems 分页查询实名认证审核列表（不含 doc_number_enc/person_uid）
+func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error) {
+	var qb strings.Builder
+	qb.WriteString(`
+		SELECT user_id, doc_type, real_name,
+		       verified, verify_method, verified_at,
+		       doc_photo_front, doc_photo_back, doc_photo_selfie,
+		       rejection_reason, created_at, updated_at,
+		       COUNT(*) OVER() AS total
+		FROM user_identities
+		WHERE 1=1
+	`)
+	args := make([]any, 0, 4)
+	argIdx := 1
+
+	switch status {
+	case StatusPending:
+		qb.WriteString(` AND verified = false AND rejection_reason IS NULL`)
+	case StatusRejected:
+		qb.WriteString(` AND verified = false AND rejection_reason IS NOT NULL`)
+	case StatusVerified:
+		qb.WriteString(` AND verified = true`)
+	case StatusUnverified:
+		qb.WriteString(` AND verified = false`)
+	}
+
+	qb.WriteString(` ORDER BY created_at DESC`)
+	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
+	args = append(args, pageSize, (page-1)*pageSize)
+
+	rows, err := r.db.Query(ctx, qb.String(), args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("ListIdentityReviewItems: %w", err)
+	}
+	defer rows.Close()
+
+	list := make([]IdentityReviewItem, 0, pageSize)
+	var total int
+	for rows.Next() {
+		var item IdentityReviewItem
+		if err := rows.Scan(
+			&item.UserID, &item.DocType, &item.RealName,
+			&item.Verified, &item.VerifyMethod, &item.VerifiedAt,
+			&item.DocPhotoFront, &item.DocPhotoBack, &item.DocPhotoSelfie,
+			&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
+			&total,
+		); err != nil {
+			return nil, 0, fmt.Errorf("ListIdentityReviewItems scan: %w", err)
+		}
+		list = append(list, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("ListIdentityReviewItems rows: %w", err)
+	}
+	return list, total, nil
+}
+
+// UpdateIdentityReviewStatus 精准更新实名认证审核状态（只更新状态字段，不触碰敏感字段）
+func (r *Repository) UpdateIdentityReviewStatus(
+	ctx context.Context,
+	userID int64,
+	approved bool,
+	verifyMethod *string,
+	verifiedAt *time.Time,
+	rejectionReason *string,
+) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE user_identities SET
+			verified = $2,
+			verify_method = $3,
+			verified_at = $4,
+			rejection_reason = $5,
+			updated_at = NOW()
+		WHERE user_id = $1
+	`, userID, approved, verifyMethod, verifiedAt, rejectionReason)
+	if err != nil {
+		return fmt.Errorf("UpdateIdentityReviewStatus: %w", err)
 	}
 	return nil
 }
@@ -169,61 +236,7 @@ func (r *Repository) UpdateProfile(ctx context.Context, profile *Profile) error 
 	return nil
 }
 
-// ---------- Identity / Profile 列表查询 ----------
-
-// ListIdentitiesByStatus 分页查询实名认证记录（按状态筛选）
-func (r *Repository) ListIdentitiesByStatus(ctx context.Context, status string, page, pageSize int) ([]Identity, int, error) {
-	var qb strings.Builder
-	qb.WriteString(`
-		SELECT user_id, doc_type, doc_number_enc, person_uid, real_name,
-		       verified, verify_method, verified_at,
-		       doc_photo_front, doc_photo_back, doc_photo_selfie,
-		       rejection_reason, created_at, updated_at,
-		       COUNT(*) OVER() AS total
-		FROM user_identities
-		WHERE 1=1
-	`)
-	args := make([]any, 0, 4)
-	argIdx := 1
-
-	if status != "" {
-		if status == "verified" {
-			qb.WriteString(` AND verified = true`)
-		} else if status == "unverified" {
-			qb.WriteString(` AND verified = false`)
-		}
-	}
-
-	qb.WriteString(` ORDER BY created_at DESC`)
-	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
-	args = append(args, pageSize, (page-1)*pageSize)
-
-	rows, err := r.db.Query(ctx, qb.String(), args...)
-	if err != nil {
-		return nil, 0, fmt.Errorf("ListIdentitiesByStatus: %w", err)
-	}
-	defer rows.Close()
-
-	list := make([]Identity, 0, pageSize)
-	var total int
-	for rows.Next() {
-		var item Identity
-		if err := rows.Scan(
-			&item.UserID, &item.DocType, &item.DocNumberEnc, &item.PersonUID, &item.RealName,
-			&item.Verified, &item.VerifyMethod, &item.VerifiedAt,
-			&item.DocPhotoFront, &item.DocPhotoBack, &item.DocPhotoSelfie,
-			&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
-			&total,
-		); err != nil {
-			return nil, 0, fmt.Errorf("ListIdentitiesByStatus scan: %w", err)
-		}
-		list = append(list, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("ListIdentitiesByStatus rows: %w", err)
-	}
-	return list, total, nil
-}
+// ---------- Profile 列表查询 ----------
 
 // ListProfilesByStatus 分页查询学生认证档案（按状态和学校筛选）
 func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, schoolID string, page, pageSize int) ([]Profile, int, error) {

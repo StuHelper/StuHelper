@@ -27,10 +27,21 @@ describe('stale frontend artifacts', () => {
     expect(source).not.toContain('http://localhost:5174')
   })
 
-  it('updates project rules away from old frontend path and generated type path', () => {
-    const source = readFileSync(resolve(repoRoot, '.project_rule/project_rules.md'), 'utf-8')
+  it('removes legacy project_rule docs and keeps trellis rules free of stale frontend paths', () => {
+    expect(existsSync(resolve(repoRoot, '.project_rule'))).toBe(false)
+
+    const source = [
+      readFileSync(resolve(repoRoot, 'AGENTS.md'), 'utf-8'),
+      readFileSync(resolve(repoRoot, '.trellis/.template-hashes.json'), 'utf-8'),
+      readFileSync(resolve(repoRoot, '.trellis/spec/guides/index.md'), 'utf-8'),
+      readFileSync(resolve(repoRoot, '.trellis/spec/backend/index.md'), 'utf-8'),
+      readFileSync(resolve(repoRoot, '.trellis/spec/frontend/index.md'), 'utf-8'),
+    ].join('\n')
+
     expect(source).not.toContain('clients/web/course/src/')
     expect(source).not.toContain('clients/web/course/src/types/api.gen.ts')
+    expect(source).not.toContain('.project_rule/')
+    expect(source).not.toContain('$(python3 ./.trellis/scripts/get_developer.py)')
   })
 
   it('updates auth and quick-start docs away from old local frontend port', () => {

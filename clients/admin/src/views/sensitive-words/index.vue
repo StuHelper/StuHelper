@@ -136,7 +136,7 @@ const formRules: FormRules = {
   level: [{ required: true, message: '请选择级别', trigger: 'change' }],
 }
 
-function levelTagType(level: string): '' | 'success' | 'warning' | 'danger' | 'info' {
+function levelTagType(level: string): 'success' | 'warning' | 'danger' | 'info' {
   if (level === 'block') return 'danger'
   if (level === 'warn') return 'warning'
   return 'info'

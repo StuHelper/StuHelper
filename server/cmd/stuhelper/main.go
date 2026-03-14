@@ -21,6 +21,7 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -278,7 +279,19 @@ func run() error {
 
 		// 注册用户中心模块路由
 		userRepo := user.NewRepository(database)
-		userService := user.NewService(userRepo, ldapClient, crypto.GetHMACKey())
+
+		// 构造 PII 加密器（密钥已在 config.Load() 阶段完成解码和校验）
+		piiCipher, err := pii.NewCipher(cfg.Security.DocAESActiveKeyID, cfg.Security.DocAESKeys)
+		if err != nil {
+			runCleanups()
+			return fmt.Errorf("failed to initialize PII cipher: %w", err)
+		}
+
+		userService, err := user.NewService(userRepo, ldapClient, crypto.GetHMACKey(), piiCipher)
+		if err != nil {
+			runCleanups()
+			return fmt.Errorf("failed to initialize user service: %w", err)
+		}
 		userHandler := user.NewHandler(userService)
 		userHandler.RegisterRoutes(api, authMW)
 

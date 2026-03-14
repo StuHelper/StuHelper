@@ -115,7 +115,10 @@ StuHelper/
 │   ├── guides/            # 开发指南
 │   ├── modules/           # 模块文档
 │   └── reference/         # API 参考
-└── .project_rule/         # 项目规范
+├── .trellis/              # AI workflow, spec, workspace, tasks
+│   ├── spec/              # 项目规范入口
+│   ├── workspace/         # 开发日志与项目归档
+│   └── tasks/             # Trellis 任务目录
 ```
 
 ## 开发指南
@@ -193,7 +196,7 @@ migrate -path migrations -database "postgresql://user:pass@localhost:5432/stuhel
 - Go: 遵循 [Effective Go](https://go.dev/doc/effective_go)
 - TypeScript: 遵循 [Vue 3 风格指南](https://vuejs.org/style-guide/)
 
-详见 [项目规范](.project_rule/project_rules.md)
+详见 [项目规范入口](.trellis/spec/guides/index.md) 与 [开发工作流](.trellis/workflow.md)
 
 ## 许可证
 

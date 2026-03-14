@@ -19,6 +19,21 @@ StuHelper 使用 Casdoor 作为用户认证系统，本地 PostgreSQL 存储业�
 3. **匿名展示**：前端匿名，后台可追溯
 4. **多校支持**：核心表含 school_id 字段
 
+## 实名认证数据保护
+
+实名认证相关数据存放在 `user_identities` 表。
+
+当前实现里有两个和证件号强相关的字段：
+
+- `doc_number_enc`：证件号密文，使用 AES-256-GCM 版本化信封格式存储
+- `person_uid`：对 `doc_type + ":" + doc_number` 做 HMAC-SHA256 后得到的稳定标识
+
+这样拆分的目的：
+
+- 数据库里不直接保存证件号明文
+- 业务逻辑仍然可以用 `person_uid` 做去重和跨学籍匹配
+- 普通查询和审核流默认不需要读取 `doc_number_enc`
+
 ## 模块数据模型
 
 各模块数据模型详见对应模块文档：

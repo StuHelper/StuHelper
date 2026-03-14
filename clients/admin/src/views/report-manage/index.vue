@@ -127,7 +127,7 @@ function reasonLabel(reason: string) {
   return map[reason] || reason
 }
 
-function statusTagType(s: string): '' | 'success' | 'warning' | 'danger' | 'info' {
+function statusTagType(s: string): 'success' | 'warning' | 'danger' | 'info' {
   if (s === 'pending') return 'warning'
   if (s === 'resolved') return 'success'
   return 'info'

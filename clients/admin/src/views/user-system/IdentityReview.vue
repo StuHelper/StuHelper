@@ -124,9 +124,9 @@ function docTypeLabel(type: string): string {
   return DOC_TYPE_MAP[type] ?? type
 }
 
-function docTypeTagType(type: string): '' | 'success' | 'warning' | 'info' | 'danger' {
-  const map: Record<string, '' | 'success' | 'warning' | 'info' | 'danger'> = {
-    MAINLAND_ID: '',
+function docTypeTagType(type: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
+  const map: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
+    MAINLAND_ID: 'primary',
     HK_MACAU: 'warning',
     TW: 'success',
     PASSPORT: 'info',

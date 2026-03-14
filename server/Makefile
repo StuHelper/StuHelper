@@ -10,6 +10,8 @@
 BINARY_NAME := stuhelper
 BUILD_DIR := bin
 COVERAGE_FILE := coverage.out
+REDOCLY_VERSION := 2.21.1
+REDOCLY := npx --yes @redocly/cli@$(REDOCLY_VERSION)
 
 help:
 	@echo "Usage: make [target]"
@@ -73,18 +75,10 @@ ci: lint test security build check-drift
 # ── OpenAPI ──
 
 bundle-spec:
-	@if command -v redocly >/dev/null 2>&1; then \
-		redocly bundle api/openapi.yaml -o api/openapi.bundled.yaml; \
-	else \
-		npx --yes @redocly/cli@latest bundle api/openapi.yaml -o api/openapi.bundled.yaml; \
-	fi
+	$(REDOCLY) bundle --config redocly.yaml api/openapi.yaml -o api/openapi.bundled.yaml
 
 lint-spec:
-	@if command -v redocly >/dev/null 2>&1; then \
-		redocly lint api/openapi.yaml; \
-	else \
-		npx --yes @redocly/cli@latest lint api/openapi.yaml; \
-	fi
+	$(REDOCLY) lint --config redocly.yaml api/openapi.yaml
 
 generate-go: bundle-spec
 	go generate ./internal/api/gen/...

@@ -1,13 +1,48 @@
 package user
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
-// Identity 实名认证记录
-type Identity struct {
+// IdentityRecord 实名认证完整记录（仅用于写入路径：创建/更新认证记录）
+// 包含敏感字段 DocNumberEnc 和 PersonUID，不允许用于 JSON 序列化返回
+type IdentityRecord struct {
 	UserID          int64
 	DocType         string
 	DocNumberEnc    []byte
 	PersonUID       string
+	RealName        string
+	Verified        bool
+	VerifyMethod    *string
+	VerifiedAt      *time.Time
+	DocPhotoFront   *string
+	DocPhotoBack    *string
+	DocPhotoSelfie  *string
+	RejectionReason *string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// IdentityStatus 实名认证状态（用于普通用户查询）
+// 不包含 DocNumberEnc 和 PersonUID，安全可序列化
+type IdentityStatus struct {
+	UserID          int64
+	DocType         string
+	RealName        string
+	Verified        bool
+	VerifyMethod    *string
+	VerifiedAt      *time.Time
+	RejectionReason *string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// IdentityReviewItem 实名认证审核列表项（用于管理员列表和审核）
+// 不包含 DocNumberEnc 和 PersonUID，包含照片字段供审核
+type IdentityReviewItem struct {
+	UserID          int64
+	DocType         string
 	RealName        string
 	Verified        bool
 	VerifyMethod    *string
@@ -41,10 +76,10 @@ type SchoolConfig struct {
 	SchoolID           string
 	SchoolName         string
 	VerificationMethod string
-	LDAPConfig         []byte // encrypted
+	LDAPConfig         json.RawMessage
 	AcademicDBTable    *string
 	ConsentText        *string
-	ManualFormFields   []byte // JSONB
+	ManualFormFields   json.RawMessage
 	Enabled            bool
 	CreatedAt          time.Time
 	UpdatedAt          time.Time

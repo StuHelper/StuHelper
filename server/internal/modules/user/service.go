@@ -2,15 +2,12 @@ package user
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 	"time"
@@ -18,23 +15,25 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // 业务错误定义
 var (
-	ErrIdentityAlreadyExists  = errors.New("identity already exists")
+	ErrIdentityAlreadyExists   = errors.New("identity already exists")
 	ErrIdentityAlreadyVerified = errors.New("identity already verified")
-	ErrProfileAlreadyVerified = errors.New("profile already verified")
-	ErrSchoolNotFound         = errors.New("school not found")
-	ErrSchoolDisabled         = errors.New("school verification disabled")
-	ErrConsentRequired        = errors.New("consent is required")
-	ErrPhotoRequired          = errors.New("photo upload required for non-mainland documents")
-	ErrLDAPFailed             = errors.New("LDAP verification failed")
-	ErrIdentityRequired       = errors.New("identity verification required before student verification")
-	ErrStudentNotFound        = errors.New("student record not found in academic database")
-	ErrProfileNotFound        = errors.New("student profile not found")
-	ErrIdentityNotFound       = errors.New("identity not found")
+	ErrProfileAlreadyVerified  = errors.New("profile already verified")
+	ErrSchoolNotFound          = errors.New("school not found")
+	ErrSchoolDisabled          = errors.New("school verification disabled")
+	ErrConsentRequired         = errors.New("consent is required")
+	ErrPhotoRequired           = errors.New("photo upload required for non-mainland documents")
+	ErrLDAPFailed              = errors.New("LDAP verification failed")
+	ErrIdentityRequired        = errors.New("identity verification required before student verification")
+	ErrStudentNotFound         = errors.New("student record not found in academic database")
+	ErrProfileNotFound         = errors.New("student profile not found")
+	ErrIdentityNotFound        = errors.New("identity not found")
+	ErrRejectionReasonRequired = errors.New("rejection reason is required when rejecting")
 )
 
 // DocType 证件类型常量
@@ -61,49 +60,80 @@ const (
 	VerifyMethodLDAP       = "ldap"
 )
 
-// Service 用户服务层
-type Service struct {
-	repo       *Repository
-	ldapClient *ldap.Client
-	hmacKey    []byte
-	aesKey     []byte // AES-256 key for doc number encryption (32 bytes)
+// Repo defines the data access methods required by Service.
+type Repo interface {
+	GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error)
+	CreateIdentity(ctx context.Context, identity *IdentityRecord) error
+	ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
+	UpdateIdentityReviewStatus(ctx context.Context, userID int64, approved bool, verifyMethod *string, verifiedAt *time.Time, rejectionReason *string) error
+
+	GetProfileByUserID(ctx context.Context, userID int64) (*Profile, error)
+	CreateProfile(ctx context.Context, profile *Profile) error
+	UpdateProfile(ctx context.Context, profile *Profile) error
+	ListProfilesByStatus(ctx context.Context, status string, schoolID string, page, pageSize int) ([]Profile, int, error)
+
+	GetSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error)
+	ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
+	ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
+	UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error
+
+	GetAcademicStudentByXH(ctx context.Context, xh string) (*AcademicStudent, error)
+	FindAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm, sfzjh string) ([]AcademicStudent, error)
+
+	ListSystemConfigs(ctx context.Context) ([]SystemConfig, error)
+	UpdateSystemConfig(ctx context.Context, key, value string) error
+
+	GetInternalUserID(ctx context.Context, externalID string) (int64, error)
 }
 
-// NewService 创建用户服务
-func NewService(repo *Repository, ldapClient *ldap.Client, hmacKey []byte) *Service {
+// Service 用户服务层
+type Service struct {
+	repo       Repo
+	ldapClient *ldap.Client
+	hmacKey    []byte
+	docCipher  pii.Encryptor
+}
+
+// NewService 创建用户服务（构造期校验关键依赖）
+func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pii.Encryptor) (*Service, error) {
+	if repo == nil {
+		return nil, errors.New("user.NewService: repo must not be nil")
+	}
+	if len(hmacKey) == 0 {
+		return nil, errors.New("user.NewService: hmacKey must not be empty")
+	}
+	if docCipher == nil {
+		return nil, errors.New("user.NewService: docCipher must not be nil")
+	}
 	return &Service{
 		repo:       repo,
 		ldapClient: ldapClient,
 		hmacKey:    hmacKey,
-	}
-}
-
-// SetAESKey 设置 AES 加密密钥（可选，用于证件号加密）
-func (s *Service) SetAESKey(key []byte) {
-	s.aesKey = key
+		docCipher:  docCipher,
+	}, nil
 }
 
 // ---------- Identity ----------
 
 // SubmitIdentityRequest 提交实名认证请求
 type SubmitIdentityRequest struct {
-	DocType       string  `json:"docType"`
-	DocNumber     string  `json:"docNumber"`
-	RealName      string  `json:"realName"`
-	DocPhotoFront *string `json:"docPhotoFront"`
-	DocPhotoBack  *string `json:"docPhotoBack"`
+	DocType        string  `json:"docType"`
+	DocNumber      string  `json:"docNumber"`
+	RealName       string  `json:"realName"`
+	DocPhotoFront  *string `json:"docPhotoFront"`
+	DocPhotoBack   *string `json:"docPhotoBack"`
 	DocPhotoSelfie *string `json:"docPhotoSelfie"`
 }
 
-// GetIdentity 获取实名认证信息
-func (s *Service) GetIdentity(ctx context.Context, userID int64) (*Identity, error) {
-	return s.repo.GetIdentityByUserID(ctx, userID)
+// GetIdentity 获取实名认证状态信息（不含敏感字段）
+func (s *Service) GetIdentity(ctx context.Context, userID int64) (*IdentityStatus, error) {
+	return s.repo.GetIdentityStatusByUserID(ctx, userID)
 }
 
 // SubmitIdentity 提交实名认证
-func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitIdentityRequest) (*Identity, error) {
-	// 检查是否已存在认证记录
-	existing, err := s.repo.GetIdentityByUserID(ctx, userID)
+func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitIdentityRequest) (*IdentityStatus, error) {
+	// 仅查询状态字段判断是否已存在/已认证，不读取 doc_number_enc/person_uid
+	existing, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("SubmitIdentity check existing: %w", err)
 	}
@@ -124,13 +154,13 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 	// 计算 person_uid: HMAC(doc_type + ':' + doc_number)
 	personUID := s.computePersonUID(req.DocType, req.DocNumber)
 
-	// 加密证件号
-	docNumberEnc, err := s.encryptDocNumber(req.DocNumber)
+	// 使用 PII 加密器加密证件号
+	docNumberEnc, err := s.docCipher.Encrypt(req.DocNumber)
 	if err != nil {
 		return nil, fmt.Errorf("SubmitIdentity encrypt doc number: %w", err)
 	}
 
-	identity := &Identity{
+	identity := &IdentityRecord{
 		UserID:         userID,
 		DocType:        req.DocType,
 		DocNumberEnc:   docNumberEnc,
@@ -165,8 +195,8 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 		return nil, fmt.Errorf("SubmitIdentity create: %w", err)
 	}
 
-	// 重新查询以获取完整记录（含 created_at/updated_at）
-	result, err := s.repo.GetIdentityByUserID(ctx, userID)
+	// 重新查询状态（不含敏感字段）
+	result, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("SubmitIdentity reload: %w", err)
 	}
@@ -199,11 +229,16 @@ type VerifyStudentRequest struct {
 	Consent   bool   `json:"consent"`
 }
 
-// BindPhoneRequest 绑定手机号请求
-type BindPhoneRequest struct {
-	Phone string `json:"phone"`
-	// Code 短信验证码（预留，当前阶段不校验）
-	Code string `json:"code"`
+// UpdateSchoolConfigInput 学校配置更新请求（管理端）
+// 使用可选字段做合并更新，避免未提供字段被误清空。
+type UpdateSchoolConfigInput struct {
+	SchoolName         *string
+	VerificationMethod *string
+	LDAPConfig         *map[string]any
+	AcademicDBTable    *string
+	ConsentText        *string
+	ManualFormFields   *map[string]any
+	Enabled            *bool
 }
 
 // GetProfile 获取学生认证档案
@@ -213,12 +248,12 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*Profile, error
 
 // VerifyStudent 学生认证（LDAP 方式）
 func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStudentRequest) (*Profile, error) {
-	// 检查是否已通过实名认证
-	identity, err := s.repo.GetIdentityByUserID(ctx, userID)
+	// 检查是否已通过实名认证（使用状态查询，不读取敏感字段）
+	identityStatus, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("VerifyStudent check identity: %w", err)
 	}
-	if identity == nil || !identity.Verified {
+	if identityStatus == nil || !identityStatus.Verified {
 		return nil, ErrIdentityRequired
 	}
 
@@ -374,7 +409,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 }
 
 // BindPhone 绑定手机号
-func (s *Service) BindPhone(ctx context.Context, userID int64, req BindPhoneRequest) error {
+func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) error {
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("BindPhone get profile: %w", err)
@@ -383,8 +418,7 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, req BindPhoneRequ
 		return ErrProfileNotFound
 	}
 
-	// TODO: 接入短信验证码校验（当前阶段预留接口，不做实际验证）
-	profile.Phone = &req.Phone
+	profile.Phone = &phone
 	profile.PhoneVerified = false // 短信验证完成后才标记为 true
 
 	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
@@ -414,36 +448,43 @@ func (s *Service) GetInternalUserID(ctx context.Context, externalID string) (int
 	return s.repo.GetInternalUserID(ctx, externalID)
 }
 
-// ListIdentities 分页查询实名认证记录（管理端）
-func (s *Service) ListIdentities(ctx context.Context, status string, page, pageSize int) ([]Identity, int, error) {
-	return s.repo.ListIdentitiesByStatus(ctx, status, page, pageSize)
+// ListIdentities 分页查询实名认证审核列表（管理端，不含敏感字段）
+func (s *Service) ListIdentities(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error) {
+	return s.repo.ListIdentityReviewItems(ctx, status, page, pageSize)
 }
 
 // ReviewIdentity 管理员审核实名认证（通过/驳回）
+// 使用精准更新，不读取也不回写敏感字段
 func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved bool, reason string) error {
-	identity, err := s.repo.GetIdentityByUserID(ctx, userID)
+	if !approved && strings.TrimSpace(reason) == "" {
+		return ErrRejectionReasonRequired
+	}
+
+	// 只查询状态，不触碰 doc_number_enc
+	identityStatus, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("ReviewIdentity get: %w", err)
 	}
-	if identity == nil {
+	if identityStatus == nil {
 		return ErrIdentityNotFound
 	}
 
-	now := time.Now()
+	var (
+		verifyMethod    *string
+		verifiedAt      *time.Time
+		rejectionReason *string
+	)
+
 	if approved {
 		method := VerifyMethodManual
-		identity.Verified = true
-		identity.VerifyMethod = &method
-		identity.VerifiedAt = &now
-		identity.RejectionReason = nil
+		now := time.Now()
+		verifyMethod = &method
+		verifiedAt = &now
 	} else {
-		identity.Verified = false
-		identity.VerifyMethod = nil
-		identity.VerifiedAt = nil
-		identity.RejectionReason = &reason
+		rejectionReason = &reason
 	}
 
-	return s.repo.UpdateIdentity(ctx, identity)
+	return s.repo.UpdateIdentityReviewStatus(ctx, userID, approved, verifyMethod, verifiedAt, rejectionReason)
 }
 
 // ListProfiles 分页查询学生认证档案（管理端）
@@ -452,7 +493,11 @@ func (s *Service) ListProfiles(ctx context.Context, status, schoolID string, pag
 }
 
 // ReviewStudentVerification 管理员审核学生认证（通过/驳回）
-func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, status, reason string) error {
+func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, approved bool, reason string) error {
+	if !approved && strings.TrimSpace(reason) == "" {
+		return ErrRejectionReasonRequired
+	}
+
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("ReviewStudentVerification get: %w", err)
@@ -462,12 +507,14 @@ func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, s
 	}
 
 	now := time.Now()
-	profile.VerificationStatus = status
-	if status == StatusVerified {
+	if approved {
+		profile.VerificationStatus = StatusVerified
+	} else {
+		profile.VerificationStatus = StatusRejected
+	}
+	if approved {
 		profile.VerifiedAt = &now
 	}
-	// Store reason in a way that we can query later if needed
-	// For now, just update the status
 
 	return s.repo.UpdateProfile(ctx, profile)
 }
@@ -478,7 +525,48 @@ func (s *Service) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, err
 }
 
 // UpdateSchoolConfig 更新学校认证配置
-func (s *Service) UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error {
+// 使用合并更新语义，保持未提供字段的现有值。
+func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID string, input UpdateSchoolConfigInput) error {
+	config, err := s.repo.GetSchoolConfig(ctx, schoolID)
+	if err != nil {
+		return fmt.Errorf("UpdateSchoolConfig get existing: %w", err)
+	}
+	if config == nil {
+		return ErrSchoolNotFound
+	}
+
+	if input.SchoolName != nil {
+		config.SchoolName = *input.SchoolName
+	}
+	if input.VerificationMethod != nil {
+		config.VerificationMethod = *input.VerificationMethod
+	}
+	if input.AcademicDBTable != nil {
+		value := *input.AcademicDBTable
+		config.AcademicDBTable = &value
+	}
+	if input.ConsentText != nil {
+		value := *input.ConsentText
+		config.ConsentText = &value
+	}
+	if input.Enabled != nil {
+		config.Enabled = *input.Enabled
+	}
+	if input.LDAPConfig != nil {
+		raw, err := json.Marshal(*input.LDAPConfig)
+		if err != nil {
+			return fmt.Errorf("UpdateSchoolConfig marshal ldapConfig: %w", err)
+		}
+		config.LDAPConfig = raw
+	}
+	if input.ManualFormFields != nil {
+		raw, err := json.Marshal(*input.ManualFormFields)
+		if err != nil {
+			return fmt.Errorf("UpdateSchoolConfig marshal manualFormFields: %w", err)
+		}
+		config.ManualFormFields = raw
+	}
+
 	return s.repo.UpdateSchoolConfig(ctx, config)
 }
 
@@ -499,31 +587,4 @@ func (s *Service) computePersonUID(docType, docNumber string) string {
 	mac := hmac.New(sha256.New, s.hmacKey)
 	mac.Write([]byte(docType + ":" + docNumber))
 	return hex.EncodeToString(mac.Sum(nil))
-}
-
-// encryptDocNumber 加密证件号（AES-256-GCM）
-// 如果 AES 密钥未配置，返回明文的 hex 编码作为降级方案
-func (s *Service) encryptDocNumber(docNumber string) ([]byte, error) {
-	if len(s.aesKey) == 0 {
-		// AES 密钥未配置，降级为明文存储（开发环境）
-		return []byte(docNumber), nil
-	}
-
-	block, err := aes.NewCipher(s.aesKey)
-	if err != nil {
-		return nil, fmt.Errorf("encryptDocNumber new cipher: %w", err)
-	}
-
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("encryptDocNumber new GCM: %w", err)
-	}
-
-	nonce := make([]byte, aesGCM.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, fmt.Errorf("encryptDocNumber generate nonce: %w", err)
-	}
-
-	ciphertext := aesGCM.Seal(nonce, nonce, []byte(docNumber), nil)
-	return ciphertext, nil
 }

@@ -33,7 +33,7 @@
                         list:
                           type: array
                           items:
-                            $ref: '../components/schemas/user-system.yaml#/UserIdentity'
+                            $ref: '../components/schemas/user-system.yaml#/AdminIdentityReviewItem'
                         total:
                           type: integer
       '401':
@@ -104,7 +104,7 @@
           type: string
           enum: [pending, verified, rejected, all]
           default: pending
-      - name: schoolId
+      - name: schoolID
         in: query
         description: 按学校筛选
         schema:
@@ -285,7 +285,7 @@
                   required: [data]
                   properties:
                     data:
-                      $ref: '../components/schemas/common.yaml#/MessageData'
+                      $ref: '../components/schemas/user-system.yaml#/Role'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -685,7 +685,7 @@
                   required: [data]
                   properties:
                     data:
-                      $ref: '../components/schemas/common.yaml#/MessageData'
+                      $ref: '../components/schemas/user-system.yaml#/UserGroup'
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
