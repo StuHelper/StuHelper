@@ -198,7 +198,10 @@ export default {
   card: {
     loginToView: '登录后查看完整内容',
     loginBtn: '立即登录',
-    contentHidden: '此内容已被管理员屏蔽'
+    contentHidden: '此内容已被管理员屏蔽',
+    previewHint: '登录并完成学生认证后即可浏览全部信息',
+    verifyToView: '完成学生认证查看完整评课',
+    goVerify: '去认证'
   },
   admin: {
     hide: '屏蔽',

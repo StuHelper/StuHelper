@@ -10,6 +10,7 @@ import { useUserStore } from "@/stores/user";
 import { useNotificationStore } from "@/stores/notification";
 import { useCourseStore } from "@/stores/courseReview";
 import { useDraftStore } from "@/stores/draft";
+import { useVerificationStore } from "@/stores/verification";
 import i18n from "@/i18n";
 import type { components, operations } from "@stuhelper/shared";
 
@@ -319,6 +320,7 @@ export const useAuthStore = defineStore("auth", () => {
         useUserStore().reset();
         useCourseStore().reset();
         useDraftStore().reset();
+        useVerificationStore().reset();
         const notificationStore = useNotificationStore();
         notificationStore.stopPolling();
         notificationStore.reset();

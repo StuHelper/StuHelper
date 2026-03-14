@@ -212,6 +212,24 @@ const routes: RouteRecordRaw[] = [
         redirect: { name: "user-reviews" },
     },
 
+    // Verification pages
+    {
+        path: "/user/identity-verification",
+        name: "identity-verification",
+        component: lazyLoad(
+            () => import("@/modules/user/views/IdentityVerificationPage.vue"),
+        ),
+        meta: { titleKey: "routes.identityVerification", requiresAuth: true },
+    },
+    {
+        path: "/user/student-verification",
+        name: "student-verification",
+        component: lazyLoad(
+            () => import("@/modules/user/views/StudentVerificationPage.vue"),
+        ),
+        meta: { titleKey: "routes.studentVerification", requiresAuth: true },
+    },
+
     // Notifications
     {
         path: "/notifications",

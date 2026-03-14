@@ -198,7 +198,10 @@ export default {
   card: {
     loginToView: 'Log in to view full content',
     loginBtn: 'Log In',
-    contentHidden: 'This content has been hidden by a moderator'
+    contentHidden: 'This content has been hidden by a moderator',
+    previewHint: 'Login and complete student verification to view full content',
+    verifyToView: 'Complete student verification to view full reviews',
+    goVerify: 'Verify Now'
   },
   admin: {
     hide: 'Hide',

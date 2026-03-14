@@ -35,6 +35,8 @@ export default {
   adminSensitiveWords: '敏感词管理',
   adminLogs: '操作日志',
   rankings: '排行榜',
+  identityVerification: '实名认证',
+  studentVerification: '学生认证',
   // 页面描述（用于 meta description）
   desc: {
     teachingHub: '教学中心门户 - 课程评价、教师评价、学习资源一站式平台',
