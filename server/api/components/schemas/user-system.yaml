@@ -1,0 +1,482 @@
+UserIdentity:
+  type: object
+  required: [userId, docType, personUid, realName, verified, createdAt, updatedAt]
+  properties:
+    userId:
+      type: integer
+      format: int64
+    docType:
+      type: string
+      enum: [MAINLAND_ID, HK_MACAU, TW, PASSPORT]
+    personUid:
+      type: string
+    realName:
+      type: string
+    verified:
+      type: boolean
+    verifyMethod:
+      type: string
+      enum: [academic_db_match, tencent_cloud, manual]
+    verifiedAt:
+      type: string
+      format: date-time
+      nullable: true
+    docPhotoFront:
+      type: string
+      nullable: true
+    docPhotoBack:
+      type: string
+      nullable: true
+    docPhotoSelfie:
+      type: string
+      nullable: true
+    rejectionReason:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+SubmitIdentityRequest:
+  type: object
+  required: [docType, docNumber, realName]
+  properties:
+    docType:
+      type: string
+      enum: [MAINLAND_ID, HK_MACAU, TW, PASSPORT]
+    docNumber:
+      type: string
+    realName:
+      type: string
+    docPhotoFront:
+      type: string
+      nullable: true
+    docPhotoBack:
+      type: string
+      nullable: true
+    docPhotoSelfie:
+      type: string
+      nullable: true
+
+UserProfile:
+  type: object
+  required: [userId, verificationStatus, createdAt, updatedAt]
+  properties:
+    userId:
+      type: integer
+      format: int64
+    schoolId:
+      type: string
+    studentIds:
+      type: array
+      items:
+        type: string
+    activeStudentId:
+      type: string
+    verificationStatus:
+      type: string
+      enum: [unverified, pending, verified, rejected]
+    verificationMethod:
+      type: string
+    phone:
+      type: string
+    phoneVerified:
+      type: boolean
+    consentGivenAt:
+      type: string
+      format: date-time
+      nullable: true
+    verifiedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+SubmitStudentVerificationRequest:
+  type: object
+  required: [schoolId, studentId, password, consent]
+  properties:
+    schoolId:
+      type: string
+    studentId:
+      type: string
+    password:
+      type: string
+      writeOnly: true
+    consent:
+      type: boolean
+
+BindPhoneRequest:
+  type: object
+  required: [phone]
+  properties:
+    phone:
+      type: string
+    verificationCode:
+      type: string
+      description: Required when phone differs from academic DB record
+
+SchoolConfig:
+  type: object
+  required: [schoolId, schoolName, verificationMethod, enabled]
+  properties:
+    schoolId:
+      type: string
+    schoolName:
+      type: string
+    verificationMethod:
+      type: string
+    consentText:
+      type: string
+    manualFormFields:
+      type: object
+      additionalProperties: true
+      nullable: true
+    enabled:
+      type: boolean
+
+Role:
+  type: object
+  required: [id, name, displayName, isSystem, createdAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    name:
+      type: string
+    displayName:
+      type: string
+    description:
+      type: string
+    isSystem:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+
+Permission:
+  type: object
+  required: [id, name, module, action]
+  properties:
+    id:
+      type: integer
+      format: int64
+    name:
+      type: string
+    module:
+      type: string
+    action:
+      type: string
+    displayName:
+      type: string
+    scopeSchoolIds:
+      type: array
+      items:
+        type: string
+      nullable: true
+    scopeRoles:
+      type: array
+      items:
+        type: string
+      nullable: true
+
+UserGroup:
+  type: object
+  required: [id, name, displayName, createdAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    name:
+      type: string
+    displayName:
+      type: string
+    description:
+      type: string
+    memberCount:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+
+CreateRoleRequest:
+  type: object
+  required: [name, displayName]
+  properties:
+    name:
+      type: string
+    displayName:
+      type: string
+    description:
+      type: string
+
+UpdateRoleRequest:
+  type: object
+  properties:
+    displayName:
+      type: string
+    description:
+      type: string
+
+CreateUserGroupRequest:
+  type: object
+  required: [name, displayName]
+  properties:
+    name:
+      type: string
+    displayName:
+      type: string
+    description:
+      type: string
+
+UpdateUserGroupRequest:
+  type: object
+  properties:
+    displayName:
+      type: string
+    description:
+      type: string
+
+AssignRolePermissionsRequest:
+  type: object
+  required: [permissionIds]
+  properties:
+    permissionIds:
+      type: array
+      items:
+        type: integer
+        format: int64
+
+AssignUserRolesRequest:
+  type: object
+  required: [roleIds]
+  properties:
+    roleIds:
+      type: array
+      items:
+        type: integer
+        format: int64
+
+AssignGroupMembersRequest:
+  type: object
+  required: [userIds]
+  properties:
+    userIds:
+      type: array
+      items:
+        type: integer
+        format: int64
+
+AssignGroupPermissionsRequest:
+  type: object
+  required: [permissionIds]
+  properties:
+    permissionIds:
+      type: array
+      items:
+        type: integer
+        format: int64
+
+SetUserPermissionRequest:
+  type: object
+  required: [permissionId, granted]
+  properties:
+    permissionId:
+      type: integer
+      format: int64
+    granted:
+      type: boolean
+
+ReviewIdentityRequest:
+  type: object
+  required: [approved]
+  properties:
+    approved:
+      type: boolean
+    rejectionReason:
+      type: string
+      nullable: true
+
+ReviewStudentVerificationRequest:
+  type: object
+  required: [approved]
+  properties:
+    approved:
+      type: boolean
+    rejectionReason:
+      type: string
+      nullable: true
+
+SystemConfig:
+  type: object
+  required: [key, value, updatedAt]
+  properties:
+    key:
+      type: string
+    value:
+      type: string
+    description:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+
+UpdateSystemConfigRequest:
+  type: object
+  required: [value]
+  properties:
+    value:
+      type: string
+
+AcademicStudentInfo:
+  type: object
+  required: [xh, xm]
+  properties:
+    xh:
+      type: string
+      description: Student ID
+    xm:
+      type: string
+      description: Student name
+    yxdm:
+      type: string
+      description: College code
+    zydm:
+      type: string
+      description: Major code
+    bjdm:
+      type: string
+      description: Class code
+    xznj:
+      type: string
+      description: Current grade
+    rxnj:
+      type: string
+      description: Enrollment grade
+    pyccdm:
+      type: string
+      description: Education level code
+    sjh:
+      type: string
+      description: Phone number
+    dzxx:
+      type: string
+      description: Email address
+
+EffectivePermission:
+  type: object
+  required: [permissionId, name, module, action, granted, source]
+  properties:
+    permissionId:
+      type: integer
+      format: int64
+    name:
+      type: string
+    module:
+      type: string
+    action:
+      type: string
+    granted:
+      type: boolean
+    source:
+      type: string
+      enum: [role, group, override]
+      description: 权限来源
+
+GroupMember:
+  type: object
+  required: [userId, username]
+  properties:
+    userId:
+      type: integer
+      format: int64
+    username:
+      type: string
+    email:
+      type: string
+      nullable: true
+    avatarUrl:
+      type: string
+      nullable: true
+    joinedAt:
+      type: string
+      format: date-time
+
+AdminSchoolConfig:
+  type: object
+  required: [schoolId, schoolName, verificationMethod, enabled, createdAt]
+  properties:
+    schoolId:
+      type: string
+    schoolName:
+      type: string
+    verificationMethod:
+      type: string
+      enum: [ldap, manual]
+    ldapConfig:
+      type: object
+      additionalProperties: true
+      nullable: true
+      description: LDAP 连接配置
+    academicDbTable:
+      type: string
+      nullable: true
+      description: 本地学籍表名
+    consentText:
+      type: string
+      nullable: true
+    manualFormFields:
+      type: object
+      additionalProperties: true
+      nullable: true
+    enabled:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+
+UpdateSchoolConfigRequest:
+  type: object
+  properties:
+    schoolName:
+      type: string
+      maxLength: 100
+    verificationMethod:
+      type: string
+      enum: [ldap, manual]
+    ldapConfig:
+      type: object
+      additionalProperties: true
+    academicDbTable:
+      type: string
+      maxLength: 100
+    consentText:
+      type: string
+    manualFormFields:
+      type: object
+      additionalProperties: true
+    enabled:
+      type: boolean
+
+UserPermissionOverride:
+  type: object
+  required: [userId, permissionId, permissionName, granted]
+  properties:
+    userId:
+      type: integer
+      format: int64
+    permissionId:
+      type: integer
+      format: int64
+    permissionName:
+      type: string
+    granted:
+      type: boolean

@@ -19,6 +19,67 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
+  admin:
+    dependencies:
+      '@element-plus/icons-vue':
+        specifier: ^2.3.1
+        version: 2.3.2(vue@3.5.29(typescript@5.9.3))
+      '@stuhelper/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@vueuse/core':
+        specifier: ^11.0.0
+        version: 11.3.0(vue@3.5.29(typescript@5.9.3))
+      dayjs:
+        specifier: ^1.11.13
+        version: 1.11.19
+      element-plus:
+        specifier: ^2.13.2
+        version: 2.13.3(vue@3.5.29(typescript@5.9.3))
+      pinia:
+        specifier: ^2.2.0
+        version: 2.3.1(typescript@5.9.3)(vue@3.5.29(typescript@5.9.3))
+      vue:
+        specifier: ^3.5.13
+        version: 3.5.29(typescript@5.9.3)
+      vue-i18n:
+        specifier: ^11.2.8
+        version: 11.2.8(vue@3.5.29(typescript@5.9.3))
+      vue-router:
+        specifier: ^4.5.0
+        version: 4.6.4(vue@3.5.29(typescript@5.9.3))
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.0.0
+        version: 4.2.1(vite@6.4.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0))
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.13
+      '@vitejs/plugin-vue':
+        specifier: ^5.2.0
+        version: 5.2.4(vite@6.4.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0))(vue@3.5.29(typescript@5.9.3))
+      eslint:
+        specifier: ^9.0.0
+        version: 9.39.3(jiti@2.6.1)
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.2.1
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      unplugin-auto-import:
+        specifier: ^0.18.0
+        version: 0.18.6(@nuxt/kit@3.21.1(magicast@0.5.2))(@vueuse/core@11.3.0(vue@3.5.29(typescript@5.9.3)))(rollup@4.59.0)
+      unplugin-vue-components:
+        specifier: ^0.27.0
+        version: 0.27.5(@babel/parser@7.29.0)(@nuxt/kit@3.21.1(magicast@0.5.2))(rollup@4.59.0)(vue@3.5.29(typescript@5.9.3))
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.1(@types/node@22.19.13)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)
+      vue-tsc:
+        specifier: ^2.0.0
+        version: 2.2.12(typescript@5.9.3)
+
   shared:
     devDependencies:
       typescript:

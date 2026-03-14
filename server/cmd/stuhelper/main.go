@@ -16,6 +16,9 @@ import (
 	apidocs "gitea.stuhelper.com/StuHelper/StuHelper/api"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
@@ -249,6 +252,47 @@ func run() error {
 		optionalAuthMW := middleware.OptionalAuthMiddleware(tokenService)
 		courseHandler := course.NewHandler(database, redisClient.GetClient(), ssoClient, cfg)
 		courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
+
+		// 初始化 LDAP 客户端（可选，仅在配置了 LDAP_URL 时启用）
+		var ldapClient *ldap.Client
+		if ldapURL := os.Getenv("LDAP_URL"); ldapURL != "" {
+			ldapCfg := ldap.Config{
+				URL:                ldapURL,
+				BaseDN:             os.Getenv("LDAP_BASE_DN"),
+				SystemBindDN:       os.Getenv("LDAP_SYSTEM_BIND_DN"),
+				SystemBindPassword: os.Getenv("LDAP_SYSTEM_BIND_PASSWORD"),
+				UseTLS:             os.Getenv("LDAP_USE_TLS") == "true",
+				InsecureSkipVerify: os.Getenv("LDAP_INSECURE_SKIP_VERIFY") == "true",
+			}
+			var ldapErr error
+			ldapClient, ldapErr = ldap.NewClient(ldapCfg)
+			if ldapErr != nil {
+				logger.L().Warn("LDAP client initialization failed, student verification via LDAP unavailable",
+					zap.Error(ldapErr),
+				)
+				ldapClient = nil
+			} else {
+				logger.L().Info("LDAP client initialized", zap.String("url", ldapURL))
+			}
+		}
+
+		// 注册用户中心模块路由
+		userRepo := user.NewRepository(database)
+		userService := user.NewService(userRepo, ldapClient, crypto.GetHMACKey())
+		userHandler := user.NewHandler(userService)
+		userHandler.RegisterRoutes(api, authMW)
+
+		// 注册 RBAC 模块
+		rbacRepo := rbac.NewRepository(database)
+		rbacService := rbac.NewService(rbacRepo)
+		rbacHandler := rbac.NewHandler(rbacService)
+
+		// 管理后台路由组（authMW + adminMW 双重鉴权）
+		adminMW := middleware.RequireAdmin(ssoClient)
+		adminGroup := api.Group("/admin")
+		adminGroup.Use(authMW, adminMW)
+		rbacHandler.RegisterAdminRoutes(adminGroup)
+		userHandler.RegisterAdminRoutes(adminGroup)
 
 		// 启动后台定时任务（日志清理等）
 		bgCtx, bgCancel := context.WithCancel(context.Background())
