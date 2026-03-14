@@ -1,0 +1,68 @@
+backend_lint:
+  stage: lint
+  image: golang:1.24.0-bookworm
+  script:
+    - cd server
+    - go install github.com/golangci-lint/golangci-lint/cmd/golangci-lint@v1.62.0
+    - make lint
+
+backend_security:
+  stage: lint
+  image: golang:1.24.0-bookworm
+  script:
+    - cd server
+    - go install github.com/securego/gosec/v2/cmd/gosec@v2.22.0
+    - make security
+
+openapi_contract:
+  stage: lint
+  image: golang:1.24.0-bookworm
+  script:
+    - apt-get update
+    - apt-get install -y curl ca-certificates gnupg
+    - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+    - apt-get install -y nodejs
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd server
+    - make lint-spec
+    - make check-drift
+
+backend_test:
+  stage: test
+  image: golang:1.24.0-bookworm
+  services:
+    - name: postgres:18
+      alias: postgres
+    - name: redis:8
+      alias: redis
+  variables:
+    POSTGRES_DB: test
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    DATABASE_URL: postgres://test:test@postgres:5432/test?sslmode=disable
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    REDIS_PASSWORD: ""
+    PGPASSWORD: test
+  script:
+    - apt-get update
+    - apt-get install -y postgresql-client
+    - cd server
+    - psql -h postgres -U test -d test -f scripts/init.sql
+    - go test -v -race -timeout=10m -coverprofile=coverage.out ./...
+  artifacts:
+    when: always
+    paths:
+      - server/coverage.out
+
+backend_build:
+  stage: build
+  image: golang:1.24.0-bookworm
+  script:
+    - cd server
+    - make build
+  artifacts:
+    when: always
+    paths:
+      - server/bin/stuhelper

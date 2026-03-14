@@ -1,6 +1,6 @@
 # 生产环境部署指南
 
-StuHelper 生产环境使用 Docker Compose 部署，镜像通过 Gitea Actions 构建并推送到 `registry.stuhelper.com`。
+StuHelper 生产环境使用 Docker Compose 部署，镜像通过 GitLab CI/CD 构建并推送到 `registry.stuhelper.com`。
 
 ## 部署形态
 
@@ -30,8 +30,8 @@ cd /opt/stuhelper
 ### 2. 获取配置文件
 
 ```bash
-curl -o docker-compose.yml https://gitea.stuhelper.com/StuHelper/StuHelper/raw/branch/main/docker-compose.yml
-curl -o .env.example https://gitea.stuhelper.com/StuHelper/StuHelper/raw/branch/main/.env.example
+curl -o docker-compose.yml https://git.stuhelper.com/stuhelper/StuHelper/-/raw/main/docker-compose.yml
+curl -o .env.example https://git.stuhelper.com/stuhelper/StuHelper/-/raw/main/.env.example
 cp .env.example .env
 ```
 

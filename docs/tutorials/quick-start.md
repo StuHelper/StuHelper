@@ -23,7 +23,7 @@
 ## 1. 克隆仓库
 
 ```bash
-git clone https://gitea.stuhelper.com/StuHelper/StuHelper.git
+git clone https://git.stuhelper.com/stuhelper/StuHelper.git
 cd StuHelper
 ```
 

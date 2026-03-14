@@ -1,0 +1,88 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: never
+
+stages:
+  - lint
+  - test
+  - build
+  - package
+  - deploy
+
+default:
+  interruptible: true
+
+variables:
+  REGISTRY: registry.stuhelper.com
+  BACKEND_IMAGE: registry.stuhelper.com/stuhelper/backend
+  FRONTEND_IMAGE: registry.stuhelper.com/stuhelper/frontend
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+
+include:
+  - local: ".gitlab/server-ci.yml"
+  - local: ".gitlab/cd.yml"
+
+frontend_lint:
+  stage: lint
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients
+    - pnpm install --frozen-lockfile
+    - pnpm --filter @stuhelper/web lint
+    - pnpm --filter @stuhelper/admin lint
+    - pnpm --filter @stuhelper/web exec prettier --check .
+
+frontend_typecheck:
+  stage: test
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients
+    - pnpm install --frozen-lockfile
+    - pnpm run type-check
+
+frontend_test:
+  stage: test
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients
+    - pnpm install --frozen-lockfile
+    - pnpm --filter @stuhelper/web test
+
+frontend_build:
+  stage: build
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients
+    - pnpm install --frozen-lockfile
+    - pnpm --filter @stuhelper/web build
+    - pnpm --filter @stuhelper/admin build
+
+docker_build_backend:
+  stage: build
+  image: docker:27.5.1-cli
+  services:
+    - name: docker:27.5.1-dind
+      command: ["--tls=false"]
+  script:
+    - docker build --pull -t "stuhelper/backend:ci-${CI_COMMIT_SHORT_SHA}" server
+
+docker_build_frontend:
+  stage: build
+  image: docker:27.5.1-cli
+  services:
+    - name: docker:27.5.1-dind
+      command: ["--tls=false"]
+  script:
+    - docker build --pull -f clients/web/Dockerfile -t "stuhelper/frontend:ci-${CI_COMMIT_SHORT_SHA}" clients

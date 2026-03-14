@@ -533,7 +533,7 @@ console.log('微信小程序')
 - 构建产物：`dist/build/h5/`
 - 部署到：CDN 或 Nginx
 - 域名：`stuhelper.com`
-- 自动部署：Gitea Actions
+- 自动部署：GitLab CI/CD
 
 **小程序部署：**
 - 构建产物：`dist/build/mp-weixin/`

@@ -39,17 +39,17 @@ StuHelper 是一个面向北航校园的信息聚合平台，提供课程评价�
 
 ### 前置要求
 
-- Go 1.23+
-- Node.js 20+
+- Go 1.24+
+- Node.js 24+
 - PostgreSQL 16+
 - Redis 7+
-- pnpm 9+
+- pnpm 10+
 
 ### 安装
 
 ```bash
 # 克隆仓库
-git clone https://gitea.stuhelper.com/StuHelper/StuHelper.git
+git clone https://git.stuhelper.com/stuhelper/StuHelper.git
 cd StuHelper
 
 # 安装后端依赖
@@ -204,8 +204,8 @@ migrate -path migrations -database "postgresql://user:pass@localhost:5432/stuhel
 
 ## 联系方式
 
-- 项目地址: https://gitea.stuhelper.com/StuHelper/StuHelper
-- 问题反馈: https://gitea.stuhelper.com/StuHelper/StuHelper/issues
+- 项目地址: https://git.stuhelper.com/stuhelper/StuHelper
+- 问题反馈: https://git.stuhelper.com/stuhelper/StuHelper/-/issues
 
 ---
 
