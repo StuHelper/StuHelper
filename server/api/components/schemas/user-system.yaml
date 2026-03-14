@@ -1,15 +1,13 @@
 UserIdentity:
   type: object
-  required: [userId, docType, personUid, realName, verified, createdAt, updatedAt]
+  required: [userID, docType, realName, verified, createdAt, updatedAt]
   properties:
-    userId:
+    userID:
       type: integer
       format: int64
     docType:
       type: string
       enum: [MAINLAND_ID, HK_MACAU, TW, PASSPORT]
-    personUid:
-      type: string
     realName:
       type: string
     verified:
@@ -18,21 +16,59 @@ UserIdentity:
       type: string
       enum: [academic_db_match, tencent_cloud, manual]
     verifiedAt:
+      type:
+        - string
+        - 'null'
+      format: date-time
+    rejectionReason:
+      type:
+        - string
+        - 'null'
+    createdAt:
       type: string
       format: date-time
-      nullable: true
+    updatedAt:
+      type: string
+      format: date-time
+
+AdminIdentityReviewItem:
+  type: object
+  required: [userID, docType, realName, verified, createdAt, updatedAt]
+  properties:
+    userID:
+      type: integer
+      format: int64
+    docType:
+      type: string
+      enum: [MAINLAND_ID, HK_MACAU, TW, PASSPORT]
+    realName:
+      type: string
+    verified:
+      type: boolean
+    verifyMethod:
+      type: string
+      enum: [academic_db_match, tencent_cloud, manual]
+    verifiedAt:
+      type:
+        - string
+        - 'null'
+      format: date-time
     docPhotoFront:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     docPhotoBack:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     docPhotoSelfie:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     rejectionReason:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     createdAt:
       type: string
       format: date-time
@@ -52,29 +88,32 @@ SubmitIdentityRequest:
     realName:
       type: string
     docPhotoFront:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     docPhotoBack:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     docPhotoSelfie:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
 
 UserProfile:
   type: object
-  required: [userId, verificationStatus, createdAt, updatedAt]
+  required: [userID, verificationStatus, createdAt, updatedAt]
   properties:
-    userId:
+    userID:
       type: integer
       format: int64
-    schoolId:
+    schoolID:
       type: string
-    studentIds:
+    studentIDs:
       type: array
       items:
         type: string
-    activeStudentId:
+    activeStudentID:
       type: string
     verificationStatus:
       type: string
@@ -86,13 +125,15 @@ UserProfile:
     phoneVerified:
       type: boolean
     consentGivenAt:
-      type: string
+      type:
+        - string
+        - 'null'
       format: date-time
-      nullable: true
     verifiedAt:
-      type: string
+      type:
+        - string
+        - 'null'
       format: date-time
-      nullable: true
     createdAt:
       type: string
       format: date-time
@@ -102,11 +143,11 @@ UserProfile:
 
 SubmitStudentVerificationRequest:
   type: object
-  required: [schoolId, studentId, password, consent]
+  required: [schoolID, studentID, password, consent]
   properties:
-    schoolId:
+    schoolID:
       type: string
-    studentId:
+    studentID:
       type: string
     password:
       type: string
@@ -120,15 +161,12 @@ BindPhoneRequest:
   properties:
     phone:
       type: string
-    verificationCode:
-      type: string
-      description: Required when phone differs from academic DB record
 
 SchoolConfig:
   type: object
-  required: [schoolId, schoolName, verificationMethod, enabled]
+  required: [schoolID, schoolName, verificationMethod, enabled]
   properties:
-    schoolId:
+    schoolID:
       type: string
     schoolName:
       type: string
@@ -137,15 +175,16 @@ SchoolConfig:
     consentText:
       type: string
     manualFormFields:
-      type: object
+      type:
+        - object
+        - 'null'
       additionalProperties: true
-      nullable: true
     enabled:
       type: boolean
 
 Role:
   type: object
-  required: [id, name, displayName, isSystem, createdAt]
+  required: [id, name, displayName, isSystem, createdAt, updatedAt]
   properties:
     id:
       type: integer
@@ -161,10 +200,13 @@ Role:
     createdAt:
       type: string
       format: date-time
+    updatedAt:
+      type: string
+      format: date-time
 
 Permission:
   type: object
-  required: [id, name, module, action]
+  required: [id, name, module, action, displayName, createdAt]
   properties:
     id:
       type: integer
@@ -177,20 +219,25 @@ Permission:
       type: string
     displayName:
       type: string
-    scopeSchoolIds:
-      type: array
+    scopeSchoolIDs:
+      type:
+        - array
+        - 'null'
       items:
         type: string
-      nullable: true
     scopeRoles:
-      type: array
+      type:
+        - array
+        - 'null'
       items:
         type: string
-      nullable: true
+    createdAt:
+      type: string
+      format: date-time
 
 UserGroup:
   type: object
-  required: [id, name, displayName, createdAt]
+  required: [id, name, displayName, memberCount, createdAt, updatedAt]
   properties:
     id:
       type: integer
@@ -203,7 +250,13 @@ UserGroup:
       type: string
     memberCount:
       type: integer
+    createdBy:
+      type: integer
+      format: int64
     createdAt:
+      type: string
+      format: date-time
+    updatedAt:
       type: string
       format: date-time
 
@@ -247,9 +300,9 @@ UpdateUserGroupRequest:
 
 AssignRolePermissionsRequest:
   type: object
-  required: [permissionIds]
+  required: [permissionIDs]
   properties:
-    permissionIds:
+    permissionIDs:
       type: array
       items:
         type: integer
@@ -257,9 +310,9 @@ AssignRolePermissionsRequest:
 
 AssignUserRolesRequest:
   type: object
-  required: [roleIds]
+  required: [roleIDs]
   properties:
-    roleIds:
+    roleIDs:
       type: array
       items:
         type: integer
@@ -267,9 +320,9 @@ AssignUserRolesRequest:
 
 AssignGroupMembersRequest:
   type: object
-  required: [userIds]
+  required: [userIDs]
   properties:
-    userIds:
+    userIDs:
       type: array
       items:
         type: integer
@@ -277,9 +330,9 @@ AssignGroupMembersRequest:
 
 AssignGroupPermissionsRequest:
   type: object
-  required: [permissionIds]
+  required: [permissionIDs]
   properties:
-    permissionIds:
+    permissionIDs:
       type: array
       items:
         type: integer
@@ -287,9 +340,9 @@ AssignGroupPermissionsRequest:
 
 SetUserPermissionRequest:
   type: object
-  required: [permissionId, granted]
+  required: [permissionID, granted]
   properties:
-    permissionId:
+    permissionID:
       type: integer
       format: int64
     granted:
@@ -302,8 +355,9 @@ ReviewIdentityRequest:
     approved:
       type: boolean
     rejectionReason:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
 
 ReviewStudentVerificationRequest:
   type: object
@@ -312,8 +366,9 @@ ReviewStudentVerificationRequest:
     approved:
       type: boolean
     rejectionReason:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
 
 SystemConfig:
   type: object
@@ -373,9 +428,9 @@ AcademicStudentInfo:
 
 EffectivePermission:
   type: object
-  required: [permissionId, name, module, action, granted, source]
+  required: [permissionID, name, module, action, granted, source]
   properties:
-    permissionId:
+    permissionID:
       type: integer
       format: int64
     name:
@@ -393,28 +448,30 @@ EffectivePermission:
 
 GroupMember:
   type: object
-  required: [userId, username]
+  required: [userID, username]
   properties:
-    userId:
+    userID:
       type: integer
       format: int64
     username:
       type: string
     email:
-      type: string
-      nullable: true
-    avatarUrl:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
+    avatarURL:
+      type:
+        - string
+        - 'null'
     joinedAt:
       type: string
       format: date-time
 
 AdminSchoolConfig:
   type: object
-  required: [schoolId, schoolName, verificationMethod, enabled, createdAt]
+  required: [schoolID, schoolName, verificationMethod, enabled, createdAt]
   properties:
-    schoolId:
+    schoolID:
       type: string
     schoolName:
       type: string
@@ -422,21 +479,25 @@ AdminSchoolConfig:
       type: string
       enum: [ldap, manual]
     ldapConfig:
-      type: object
+      type:
+        - object
+        - 'null'
       additionalProperties: true
-      nullable: true
       description: LDAP 连接配置
     academicDbTable:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
       description: 本地学籍表名
     consentText:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     manualFormFields:
-      type: object
+      type:
+        - object
+        - 'null'
       additionalProperties: true
-      nullable: true
     enabled:
       type: boolean
     createdAt:
@@ -468,12 +529,12 @@ UpdateSchoolConfigRequest:
 
 UserPermissionOverride:
   type: object
-  required: [userId, permissionId, permissionName, granted]
+  required: [userID, permissionID, permissionName, granted]
   properties:
-    userId:
+    userID:
       type: integer
       format: int64
-    permissionId:
+    permissionID:
       type: integer
       format: int64
     permissionName:

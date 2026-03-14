@@ -19,9 +19,10 @@ Review:
     courseName:
       type: string
     teacherID:
-      type: integer
+      type:
+        - integer
+        - 'null'
       format: int64
-      nullable: true
     teacherName:
       type: string
     termID:
@@ -46,8 +47,9 @@ Review:
       type: string
       enum: [published, hidden, deleted]
     moderationReason:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
       description: 屏蔽原因（仅 hidden 状态时存在）
     createdAt:
       type: string
@@ -130,9 +132,10 @@ Reply:
       type: string
       format: uuid
     parentID:
-      type: string
+      type:
+        - string
+        - 'null'
       format: uuid
-      nullable: true
     content:
       type: string
     likeCount:
@@ -171,9 +174,10 @@ ReviewDraft:
       type: integer
       format: int64
     teacherID:
-      type: integer
+      type:
+        - integer
+        - 'null'
       format: int64
-      nullable: true
     termID:
       type: string
     title:

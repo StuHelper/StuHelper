@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -14,13 +15,35 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
+// HandlerService defines the RBAC service methods used by HTTP handlers.
+type HandlerService interface {
+	ListRoles(ctx context.Context) ([]Role, error)
+	CreateRole(ctx context.Context, name, displayName, description string) (*Role, error)
+	UpdateRole(ctx context.Context, id int64, input UpdateRoleInput) (*Role, error)
+	DeleteRole(ctx context.Context, id int64) error
+	SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64) error
+	ListPermissions(ctx context.Context, module string) ([]Permission, error)
+	GetUserRoles(ctx context.Context, userID int64) ([]Role, error)
+	SetUserRoles(ctx context.Context, userID int64, roleIDs []int64) error
+	GetEffectivePermissions(ctx context.Context, userID int64) ([]EffectivePermission, error)
+	SetUserPermission(ctx context.Context, userID int64, permID int64, granted bool) error
+	ListGroups(ctx context.Context) ([]UserGroup, error)
+	CreateGroup(ctx context.Context, name, displayName, desc string, createdBy int64) (*UserGroup, error)
+	UpdateGroup(ctx context.Context, id int64, input UpdateGroupInput) (*UserGroup, error)
+	DeleteGroup(ctx context.Context, id int64) error
+	GetGroupMembers(ctx context.Context, groupID int64) ([]GroupMember, error)
+	SetGroupMembers(ctx context.Context, groupID int64, userIDs []int64) error
+	SetGroupPermissions(ctx context.Context, groupID int64, permIDs []int64) error
+	GetInternalUserID(ctx context.Context, externalID string) (int64, error)
+}
+
 // Handler RBAC HTTP 处理器
 type Handler struct {
-	service *Service
+	service HandlerService
 }
 
 // NewHandler 创建 RBAC 处理器
-func NewHandler(service *Service) *Handler {
+func NewHandler(service HandlerService) *Handler {
 	return &Handler{service: service}
 }
 
@@ -29,27 +52,27 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	// 角色管理
 	admin.GET("/roles", h.handleListRoles)
 	admin.POST("/roles", h.handleCreateRole)
-	admin.PUT("/roles/:id", h.handleUpdateRole)
-	admin.DELETE("/roles/:id", h.handleDeleteRole)
-	admin.PUT("/roles/:id/permissions", h.handleSetRolePermissions)
+	admin.PUT("/roles/:roleID", h.handleUpdateRole)
+	admin.DELETE("/roles/:roleID", h.handleDeleteRole)
+	admin.PUT("/roles/:roleID/permissions", h.handleSetRolePermissions)
 
 	// 权限列表
 	admin.GET("/permissions", h.handleListPermissions)
 
 	// 用户角色/权限管理
-	admin.GET("/users/:userId/roles", h.handleGetUserRoles)
-	admin.PUT("/users/:userId/roles", h.handleSetUserRoles)
-	admin.GET("/users/:userId/permissions", h.handleGetUserPermissions)
-	admin.PUT("/users/:userId/permissions", h.handleSetUserPermission)
+	admin.GET("/users/:userID/roles", h.handleGetUserRoles)
+	admin.PUT("/users/:userID/roles", h.handleSetUserRoles)
+	admin.GET("/users/:userID/permissions", h.handleGetUserPermissions)
+	admin.PUT("/users/:userID/permissions", h.handleSetUserPermission)
 
 	// 用户组管理
 	admin.GET("/groups", h.handleListGroups)
 	admin.POST("/groups", h.handleCreateGroup)
-	admin.PUT("/groups/:id", h.handleUpdateGroup)
-	admin.DELETE("/groups/:id", h.handleDeleteGroup)
-	admin.GET("/groups/:id/members", h.handleGetGroupMembers)
-	admin.PUT("/groups/:id/members", h.handleSetGroupMembers)
-	admin.PUT("/groups/:id/permissions", h.handleSetGroupPermissions)
+	admin.PUT("/groups/:groupID", h.handleUpdateGroup)
+	admin.DELETE("/groups/:groupID", h.handleDeleteGroup)
+	admin.GET("/groups/:groupID/members", h.handleGetGroupMembers)
+	admin.PUT("/groups/:groupID/members", h.handleSetGroupMembers)
+	admin.PUT("/groups/:groupID/permissions", h.handleSetGroupPermissions)
 }
 
 // ---------------------------------------------------------------------------
@@ -64,7 +87,7 @@ func (h *Handler) handleListRoles(c *gin.Context) {
 		response.InternalError(c, "failed to list roles")
 		return
 	}
-	response.Success(c, gin.H{"roles": roles})
+	response.Success(c, roles)
 }
 
 type createRoleRequest struct {
@@ -91,17 +114,17 @@ func (h *Handler) handleCreateRole(c *gin.Context) {
 		response.InternalError(c, "failed to create role")
 		return
 	}
-	response.Created(c, gin.H{"role": role})
+	response.Created(c, role)
 }
 
 type updateRoleRequest struct {
-	DisplayName string `json:"displayName" binding:"required"`
-	Description string `json:"description"`
+	DisplayName *string `json:"displayName"`
+	Description *string `json:"description"`
 }
 
 // handleUpdateRole 更新角色
 func (h *Handler) handleUpdateRole(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("roleID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid role ID")
 		return
@@ -113,7 +136,10 @@ func (h *Handler) handleUpdateRole(c *gin.Context) {
 		return
 	}
 
-	role, err := h.service.UpdateRole(c.Request.Context(), id, req.DisplayName, req.Description)
+	role, err := h.service.UpdateRole(c.Request.Context(), id, UpdateRoleInput{
+		DisplayName: req.DisplayName,
+		Description: req.Description,
+	})
 	if err != nil {
 		if errors.Is(err, ErrRoleNotFound) {
 			response.NotFound(c, "role not found", errs.ErrRoleNotFound)
@@ -127,12 +153,12 @@ func (h *Handler) handleUpdateRole(c *gin.Context) {
 		response.InternalError(c, "failed to update role")
 		return
 	}
-	response.Success(c, gin.H{"role": role})
+	response.Success(c, role)
 }
 
 // handleDeleteRole 删除角色
 func (h *Handler) handleDeleteRole(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("roleID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid role ID")
 		return
@@ -156,12 +182,12 @@ func (h *Handler) handleDeleteRole(c *gin.Context) {
 }
 
 type setRolePermissionsRequest struct {
-	PermissionIDs []int64 `json:"permissionIds" binding:"required"`
+	PermissionIDs []int64 `json:"permissionIDs" binding:"required"`
 }
 
 // handleSetRolePermissions 设置角色权限
 func (h *Handler) handleSetRolePermissions(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("roleID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid role ID")
 		return
@@ -199,7 +225,7 @@ func (h *Handler) handleListPermissions(c *gin.Context) {
 		response.InternalError(c, "failed to list permissions")
 		return
 	}
-	response.Success(c, gin.H{"permissions": perms})
+	response.Success(c, perms)
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +234,7 @@ func (h *Handler) handleListPermissions(c *gin.Context) {
 
 // handleGetUserRoles 获取用户角色
 func (h *Handler) handleGetUserRoles(c *gin.Context) {
-	userID, err := h.resolveUserID(c, "userId")
+	userID, err := h.resolveUserID(c, "userID")
 	if err != nil {
 		return // response already sent
 	}
@@ -219,16 +245,16 @@ func (h *Handler) handleGetUserRoles(c *gin.Context) {
 		response.InternalError(c, "failed to get user roles")
 		return
 	}
-	response.Success(c, gin.H{"roles": roles})
+	response.Success(c, roles)
 }
 
 type setUserRolesRequest struct {
-	RoleIDs []int64 `json:"roleIds" binding:"required"`
+	RoleIDs []int64 `json:"roleIDs" binding:"required"`
 }
 
 // handleSetUserRoles 设置用户角色
 func (h *Handler) handleSetUserRoles(c *gin.Context) {
-	userID, err := h.resolveUserID(c, "userId")
+	userID, err := h.resolveUserID(c, "userID")
 	if err != nil {
 		return
 	}
@@ -250,7 +276,7 @@ func (h *Handler) handleSetUserRoles(c *gin.Context) {
 
 // handleGetUserPermissions 获取用户最终生效权限
 func (h *Handler) handleGetUserPermissions(c *gin.Context) {
-	userID, err := h.resolveUserID(c, "userId")
+	userID, err := h.resolveUserID(c, "userID")
 	if err != nil {
 		return
 	}
@@ -261,17 +287,17 @@ func (h *Handler) handleGetUserPermissions(c *gin.Context) {
 		response.InternalError(c, "failed to get user permissions")
 		return
 	}
-	response.Success(c, gin.H{"permissions": perms})
+	response.Success(c, perms)
 }
 
 type setUserPermissionRequest struct {
-	PermissionID int64 `json:"permissionId" binding:"required"`
-	Granted      bool  `json:"granted"`
+	PermissionID int64 `json:"permissionID" binding:"required"`
+	Granted      *bool `json:"granted" binding:"required"`
 }
 
 // handleSetUserPermission 设置用户个人权限覆盖
 func (h *Handler) handleSetUserPermission(c *gin.Context) {
-	userID, err := h.resolveUserID(c, "userId")
+	userID, err := h.resolveUserID(c, "userID")
 	if err != nil {
 		return
 	}
@@ -282,7 +308,7 @@ func (h *Handler) handleSetUserPermission(c *gin.Context) {
 		return
 	}
 
-	err = h.service.SetUserPermission(c.Request.Context(), userID, req.PermissionID, req.Granted)
+	err = h.service.SetUserPermission(c.Request.Context(), userID, req.PermissionID, *req.Granted)
 	if err != nil {
 		if errors.Is(err, ErrPermNotFound) {
 			response.NotFound(c, "permission not found", errs.ErrPermissionNotFound)
@@ -307,7 +333,7 @@ func (h *Handler) handleListGroups(c *gin.Context) {
 		response.InternalError(c, "failed to list groups")
 		return
 	}
-	response.Success(c, gin.H{"groups": groups})
+	response.Success(c, groups)
 }
 
 type createGroupRequest struct {
@@ -343,17 +369,17 @@ func (h *Handler) handleCreateGroup(c *gin.Context) {
 		response.InternalError(c, "failed to create group")
 		return
 	}
-	response.Created(c, gin.H{"group": group})
+	response.Created(c, group)
 }
 
 type updateGroupRequest struct {
-	DisplayName string `json:"displayName" binding:"required"`
-	Description string `json:"description"`
+	DisplayName *string `json:"displayName"`
+	Description *string `json:"description"`
 }
 
 // handleUpdateGroup 更新用户组
 func (h *Handler) handleUpdateGroup(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("groupID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid group ID")
 		return
@@ -365,7 +391,10 @@ func (h *Handler) handleUpdateGroup(c *gin.Context) {
 		return
 	}
 
-	group, err := h.service.UpdateGroup(c.Request.Context(), id, req.DisplayName, req.Description)
+	group, err := h.service.UpdateGroup(c.Request.Context(), id, UpdateGroupInput{
+		DisplayName: req.DisplayName,
+		Description: req.Description,
+	})
 	if err != nil {
 		if errors.Is(err, ErrGroupNotFound) {
 			response.NotFound(c, "group not found", errs.ErrGroupNotFound)
@@ -375,12 +404,12 @@ func (h *Handler) handleUpdateGroup(c *gin.Context) {
 		response.InternalError(c, "failed to update group")
 		return
 	}
-	response.Success(c, gin.H{"group": group})
+	response.Success(c, group)
 }
 
 // handleDeleteGroup 删除用户组
 func (h *Handler) handleDeleteGroup(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("groupID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid group ID")
 		return
@@ -401,7 +430,7 @@ func (h *Handler) handleDeleteGroup(c *gin.Context) {
 
 // handleGetGroupMembers 获取用户组成员
 func (h *Handler) handleGetGroupMembers(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("groupID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid group ID")
 		return
@@ -413,16 +442,16 @@ func (h *Handler) handleGetGroupMembers(c *gin.Context) {
 		response.InternalError(c, "failed to get group members")
 		return
 	}
-	response.Success(c, gin.H{"memberIds": members})
+	response.Success(c, members)
 }
 
 type setGroupMembersRequest struct {
-	UserIDs []int64 `json:"userIds" binding:"required"`
+	UserIDs []int64 `json:"userIDs" binding:"required"`
 }
 
 // handleSetGroupMembers 设置用户组成员
 func (h *Handler) handleSetGroupMembers(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("groupID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid group ID")
 		return
@@ -448,12 +477,12 @@ func (h *Handler) handleSetGroupMembers(c *gin.Context) {
 }
 
 type setGroupPermissionsRequest struct {
-	PermissionIDs []int64 `json:"permissionIds" binding:"required"`
+	PermissionIDs []int64 `json:"permissionIDs" binding:"required"`
 }
 
 // handleSetGroupPermissions 设置用户组权限
 func (h *Handler) handleSetGroupPermissions(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("groupID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid group ID")
 		return

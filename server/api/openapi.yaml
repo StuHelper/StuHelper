@@ -8,7 +8,7 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:8080
+  - url: http://127.0.0.1:8080
     description: Development
   - url: https://api.stuhelper.com
     description: Production
@@ -367,6 +367,8 @@ components:
     # User System
     UserIdentity:
       $ref: 'components/schemas/user-system.yaml#/UserIdentity'
+    AdminIdentityReviewItem:
+      $ref: 'components/schemas/user-system.yaml#/AdminIdentityReviewItem'
     SubmitIdentityRequest:
       $ref: 'components/schemas/user-system.yaml#/SubmitIdentityRequest'
     UserProfile:

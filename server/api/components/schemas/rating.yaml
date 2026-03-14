@@ -97,9 +97,10 @@ CourseTeacherStats:
     departmentName:
       type: string
     avgRating:
-      type: number
+      type:
+        - number
+        - 'null'
       format: double
-      nullable: true
     courseCount:
       type: integer
     reviewCount:
@@ -115,9 +116,10 @@ TeacherCourse:
     name:
       type: string
     avgRating:
-      type: number
+      type:
+        - number
+        - 'null'
       format: double
-      nullable: true
     reviewCount:
       type: integer
 
@@ -133,9 +135,10 @@ TeacherRatingStatsResponse:
     departmentName:
       type: string
     avgRating:
-      type: number
+      type:
+        - number
+        - 'null'
       format: double
-      nullable: true
     courseCount:
       type: integer
     reviewCount:

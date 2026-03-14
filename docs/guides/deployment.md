@@ -45,6 +45,8 @@ REDIS_PASSWORD=<strong-password>
 DATABASE_URL=postgres://stuhelper:<strong-password>@postgres:5432/stuhelper?sslmode=disable
 APP_ENV=production
 HMAC_SECRET=<openssl-rand-hex-32>
+DOC_AES_ACTIVE_KEY_ID=1
+DOC_AES_KEYS=1:<openssl-rand-hex-32>
 
 CASDOOR_ENDPOINT=https://sso.stuhelper.com
 CASDOOR_CLIENT_ID=<from-casdoor-admin>
@@ -54,6 +56,20 @@ CASDOOR_REDIRECT_URI=https://stuhelper.com/auth/callback
 TOKEN_COOKIE_SECURE=true
 CORS_ORIGINS=https://stuhelper.com
 ```
+
+这两个密钥不要漏掉：
+
+- `HMAC_SECRET`：用于生成稳定的 `person_uid`。
+- `DOC_AES_KEYS`：用于加密实名认证证件号。
+
+`DOC_AES_KEYS` 的格式固定为 `keyID:hex`，支持未来做密钥轮换。例如：
+
+```bash
+DOC_AES_ACTIVE_KEY_ID=1
+DOC_AES_KEYS=1:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+如果 `DOC_AES_ACTIVE_KEY_ID` 或 `DOC_AES_KEYS` 缺失、格式错误、长度不是 32 字节 AES key，后端会直接拒绝启动。
 
 ### 4. 启动服务
 

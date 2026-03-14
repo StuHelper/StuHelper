@@ -178,13 +178,13 @@ function avgRating(r: Review): number | null {
   return vals.reduce((a, b) => a + b, 0) / vals.length
 }
 
-function ratingTagType(rating: number): '' | 'success' | 'warning' | 'danger' {
+function ratingTagType(rating: number): 'success' | 'warning' | 'danger' {
   if (rating >= 4) return 'success'
   if (rating >= 3) return 'warning'
   return 'danger'
 }
 
-function statusTagType(s: string): '' | 'success' | 'warning' | 'danger' | 'info' {
+function statusTagType(s: string): 'success' | 'warning' | 'danger' | 'info' {
   if (s === 'published') return 'success'
   if (s === 'hidden') return 'warning'
   return 'info'

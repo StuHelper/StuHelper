@@ -1,6 +1,8 @@
 package rbac
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
@@ -10,9 +12,15 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
+// PermissionService defines the RBAC methods required by permission middleware.
+type PermissionService interface {
+	GetInternalUserID(ctx context.Context, externalID string) (int64, error)
+	CheckPermission(ctx context.Context, userID int64, permName string, schoolID *string) (bool, error)
+}
+
 // RequirePermission RBAC 权限检查中间件
 // 检查当前用户是否拥有指定权限名，支持 scope 限制（school, role）
-func RequirePermission(service *Service, permName string) gin.HandlerFunc {
+func RequirePermission(service PermissionService, permName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		externalID := middleware.GetUserID(c)
 		if externalID == "" {
@@ -35,7 +43,7 @@ func RequirePermission(service *Service, permName string) gin.HandlerFunc {
 
 		// 从请求上下文获取用户的 schoolID（如果适用）
 		var schoolID *string
-		if sid := c.Query("schoolId"); sid != "" {
+		if sid := c.Query("schoolID"); sid != "" {
 			schoolID = &sid
 		}
 

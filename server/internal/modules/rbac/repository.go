@@ -16,6 +16,9 @@ type Repository struct {
 	db *db.DB
 }
 
+// 编译期接口合规检查
+var _ Repo = (*Repository)(nil)
+
 // NewRepository 创建 RBAC 数据访问层
 func NewRepository(database *db.DB) *Repository {
 	return &Repository{db: database}
@@ -463,6 +466,31 @@ func (r *Repository) GetGroupMembers(ctx context.Context, groupID int64) ([]int6
 	return userIDs, rows.Err()
 }
 
+// GetGroupMembersDetail 获取用户组成员详情（join users 表）
+func (r *Repository) GetGroupMembersDetail(ctx context.Context, groupID int64) ([]GroupMember, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT u.id, u.username, u.email, u.avatar_url, m.created_at
+		FROM user_group_members m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.group_id = $1
+		ORDER BY m.created_at ASC
+	`, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("GetGroupMembersDetail: %w", err)
+	}
+	defer rows.Close()
+
+	members := make([]GroupMember, 0, 32)
+	for rows.Next() {
+		var m GroupMember
+		if err := rows.Scan(&m.UserID, &m.Username, &m.Email, &m.AvatarURL, &m.JoinedAt); err != nil {
+			return nil, fmt.Errorf("GetGroupMembersDetail scan: %w", err)
+		}
+		members = append(members, m)
+	}
+	return members, rows.Err()
+}
+
 // SetGroupMembers 设置用户组成员（事务内 DELETE + INSERT）
 func (r *Repository) SetGroupMembers(ctx context.Context, groupID int64, userIDs []int64) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
@@ -534,7 +562,7 @@ func (r *Repository) GetUserPermissionOverrides(ctx context.Context, userID int6
 	overrides := make([]UserPermissionOverride, 0, 8)
 	for rows.Next() {
 		var o UserPermissionOverride
-		if err := rows.Scan(&o.UserID, &o.PermissionID, &o.PermName, &o.Granted); err != nil {
+		if err := rows.Scan(&o.UserID, &o.PermissionID, &o.PermissionName, &o.Granted); err != nil {
 			return nil, fmt.Errorf("GetUserPermissionOverrides scan: %w", err)
 		}
 		overrides = append(overrides, o)

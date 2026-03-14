@@ -39,6 +39,9 @@ cp .env.example .env
 POSTGRES_PASSWORD=dev123
 DATABASE_URL=postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable
 REDIS_PASSWORD=dev123
+HMAC_SECRET=dev_hmac_secret_change_in_production_32ch
+DOC_AES_ACTIVE_KEY_ID=1
+DOC_AES_KEYS=1:<openssl-rand-hex-32>
 
 CASDOOR_ENDPOINT=https://sso.stuhelper.com
 CASDOOR_CLIENT_ID=
@@ -49,6 +52,14 @@ CASDOOR_REDIRECT_URI=http://localhost:3000/auth/callback
 说明：
 
 - 本项目当前依赖已部署的 Casdoor `https://sso.stuhelper.com`。
+- 后端现在会强制校验 PII 加密密钥；如果 `DOC_AES_ACTIVE_KEY_ID` 或 `DOC_AES_KEYS` 没配好，服务不会启动。
+- `DOC_AES_KEYS` 的格式是 `keyID:hex`，例如 `1:0123...abcd`。本地开发也不能省略。
+- 生成一把可用的证件号加密密钥：
+
+```bash
+openssl rand -hex 32
+```
+
 - 如果本地只做匿名浏览或接口联调，可以先不配置完整 SSO。
 - 如果要走完整登录流程，前端回调地址必须与 Casdoor 应用配置一致。
 

@@ -140,8 +140,8 @@ function statusLabel(status: string): string {
   return map[status] ?? status
 }
 
-function statusTagType(status: string): '' | 'success' | 'warning' | 'info' | 'danger' {
-  const map: Record<string, '' | 'success' | 'warning' | 'info' | 'danger'> = {
+function statusTagType(status: string): 'success' | 'warning' | 'info' | 'danger' {
+  const map: Record<string, 'success' | 'warning' | 'info' | 'danger'> = {
     unverified: 'info',
     pending: 'warning',
     verified: 'success',

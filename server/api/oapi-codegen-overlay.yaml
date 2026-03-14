@@ -1,0 +1,34 @@
+overlay: 1.0.0
+x-speakeasy-jsonpath: rfc9535
+info:
+  title: StuHelper oapi-codegen compatibility overlay
+  version: 1.0.0
+actions:
+  - target: "$.openapi"
+    description: Downgrade the spec version for oapi-codegen's OpenAPI 3.0 parser only.
+    update: "3.0.3"
+  - target: "$.components.schemas.*.properties[?(@.type && length(@.type) == 2 && ((@.type[0] == 'string' && @.type[1] == 'null') || (@.type[0] == 'null' && @.type[1] == 'string')))]"
+    description: Convert nullable string unions back to OpenAPI 3.0 nullable strings for Go codegen.
+    update:
+      type: string
+      nullable: true
+  - target: "$.components.schemas.*.properties[?(@.type && length(@.type) == 2 && ((@.type[0] == 'integer' && @.type[1] == 'null') || (@.type[0] == 'null' && @.type[1] == 'integer')))]"
+    description: Convert nullable integer unions back to OpenAPI 3.0 nullable integers for Go codegen.
+    update:
+      type: integer
+      nullable: true
+  - target: "$.components.schemas.*.properties[?(@.type && length(@.type) == 2 && ((@.type[0] == 'number' && @.type[1] == 'null') || (@.type[0] == 'null' && @.type[1] == 'number')))]"
+    description: Convert nullable number unions back to OpenAPI 3.0 nullable numbers for Go codegen.
+    update:
+      type: number
+      nullable: true
+  - target: "$.components.schemas.*.properties[?(@.type && length(@.type) == 2 && ((@.type[0] == 'array' && @.type[1] == 'null') || (@.type[0] == 'null' && @.type[1] == 'array')))]"
+    description: Convert nullable array unions back to OpenAPI 3.0 nullable arrays for Go codegen.
+    update:
+      type: array
+      nullable: true
+  - target: "$.components.schemas.*.properties[?(@.type && length(@.type) == 2 && ((@.type[0] == 'object' && @.type[1] == 'null') || (@.type[0] == 'null' && @.type[1] == 'object')))]"
+    description: Convert nullable object unions back to OpenAPI 3.0 nullable objects for Go codegen.
+    update:
+      type: object
+      nullable: true

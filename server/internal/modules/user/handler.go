@@ -1,7 +1,10 @@
 package user
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -73,7 +76,7 @@ func (h *Handler) handleGetIdentity(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"identity": identityToJSON(identity)})
+	response.Success(c, identityStatusToJSON(identity))
 }
 
 type submitIdentityHTTPRequest struct {
@@ -120,7 +123,7 @@ func (h *Handler) handleSubmitIdentity(c *gin.Context) {
 		return
 	}
 
-	response.Created(c, gin.H{"identity": identityToJSON(identity)})
+	response.Created(c, identityStatusToJSON(identity))
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +147,7 @@ func (h *Handler) handleGetProfile(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"profile": profileToJSON(profile)})
+	response.Success(c, profileToJSON(profile))
 }
 
 type verifyStudentHTTPRequest struct {
@@ -193,12 +196,11 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"profile": profileToJSON(profile)})
+	response.Success(c, profileToJSON(profile))
 }
 
 type bindPhoneHTTPRequest struct {
 	Phone string `json:"phone" binding:"required,max=20"`
-	Code  string `json:"code"`
 }
 
 func (h *Handler) handleBindPhone(c *gin.Context) {
@@ -213,10 +215,7 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 		return
 	}
 
-	err := h.service.BindPhone(c.Request.Context(), userID, BindPhoneRequest{
-		Phone: req.Phone,
-		Code:  req.Code,
-	})
+	err := h.service.BindPhone(c.Request.Context(), userID, req.Phone)
 	if err != nil {
 		if errors.Is(err, ErrProfileNotFound) {
 			response.NotFound(c, "student profile not found", errs.ErrProfileNotFound)
@@ -259,15 +258,18 @@ func (h *Handler) handleGetAcademicInfo(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"student": gin.H{
-		"xh":   student.XH,
-		"xm":   student.XM,
-		"yxdm": student.YXDM,
-		"zydm": student.ZYDM,
-		"bjdm": student.BJDM,
-		"xznj": student.XZNJ,
-		"rxnj": student.RXNJ,
-	}})
+	response.Success(c, gin.H{
+		"xh":     student.XH,
+		"xm":     student.XM,
+		"yxdm":   student.YXDM,
+		"zydm":   student.ZYDM,
+		"bjdm":   student.BJDM,
+		"xznj":   student.XZNJ,
+		"rxnj":   student.RXNJ,
+		"pyccdm": student.PYCCDM,
+		"sjh":    student.SJH,
+		"dzxx":   student.DZXX,
+	})
 }
 
 func (h *Handler) handleListSchools(c *gin.Context) {
@@ -280,16 +282,10 @@ func (h *Handler) handleListSchools(c *gin.Context) {
 
 	list := make([]gin.H, 0, len(schools))
 	for _, s := range schools {
-		list = append(list, gin.H{
-			"schoolID":           s.SchoolID,
-			"schoolName":         s.SchoolName,
-			"verificationMethod": s.VerificationMethod,
-			"consentText":        s.ConsentText,
-			"enabled":            s.Enabled,
-		})
+		list = append(list, schoolConfigPublicToJSON(&s))
 	}
 
-	response.Success(c, gin.H{"schools": list})
+	response.Success(c, list)
 }
 
 // ---------------------------------------------------------------------------
@@ -297,9 +293,10 @@ func (h *Handler) handleListSchools(c *gin.Context) {
 // ---------------------------------------------------------------------------
 
 func (h *Handler) handleAdminListIdentities(c *gin.Context) {
-	status := c.DefaultQuery("status", "all")
-	if status == "all" {
-		status = ""
+	status, ok := normalizeAdminReviewStatus(c.Query("status"))
+	if !ok {
+		response.BadRequest(c, "invalid status")
+		return
 	}
 	page, pageSize := httputil.ParsePage(c)
 
@@ -312,14 +309,14 @@ func (h *Handler) handleAdminListIdentities(c *gin.Context) {
 
 	items := make([]gin.H, 0, len(list))
 	for i := range list {
-		items = append(items, identityToJSON(&list[i]))
+		items = append(items, identityReviewItemToJSON(&list[i]))
 	}
 
 	response.Success(c, gin.H{"list": items, "total": total})
 }
 
 type reviewIdentityHTTPRequest struct {
-	Approved        bool   `json:"approved"`
+	Approved        *bool  `json:"approved" binding:"required"`
 	RejectionReason string `json:"rejectionReason"`
 }
 
@@ -336,17 +333,20 @@ func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
 		return
 	}
 
-	err = h.service.ReviewIdentity(c.Request.Context(), userID, req.Approved, req.RejectionReason)
+	err = h.service.ReviewIdentity(c.Request.Context(), userID, *req.Approved, req.RejectionReason)
 	if err != nil {
-		if errors.Is(err, ErrIdentityNotFound) {
+		switch {
+		case errors.Is(err, ErrIdentityNotFound):
 			response.NotFound(c, "identity not found", errs.ErrIdentityNotFound)
-			return
+		case errors.Is(err, ErrRejectionReasonRequired):
+			response.BadRequest(c, "rejection reason is required when rejecting")
+		default:
+			logger.FromGin(c).Error("failed to review identity",
+				zap.Int64("target_user_id", userID),
+				zap.Error(err),
+			)
+			response.InternalError(c, "failed to review identity")
 		}
-		logger.FromGin(c).Error("failed to review identity",
-			zap.Int64("target_user_id", userID),
-			zap.Error(err),
-		)
-		response.InternalError(c, "failed to review identity")
 		return
 	}
 
@@ -358,11 +358,12 @@ func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
 // ---------------------------------------------------------------------------
 
 func (h *Handler) handleAdminListStudentVerifications(c *gin.Context) {
-	status := c.DefaultQuery("status", "all")
-	if status == "all" {
-		status = ""
+	status, ok := normalizeAdminReviewStatus(c.Query("status"))
+	if !ok {
+		response.BadRequest(c, "invalid status")
+		return
 	}
-	schoolID := c.Query("schoolId")
+	schoolID := c.Query("schoolID")
 	page, pageSize := httputil.ParsePage(c)
 
 	list, total, err := h.service.ListProfiles(c.Request.Context(), status, schoolID, page, pageSize)
@@ -381,7 +382,7 @@ func (h *Handler) handleAdminListStudentVerifications(c *gin.Context) {
 }
 
 type reviewStudentVerificationHTTPRequest struct {
-	Status          string `json:"status" binding:"required,oneof=verified rejected"`
+	Approved        *bool  `json:"approved" binding:"required"`
 	RejectionReason string `json:"rejectionReason"`
 }
 
@@ -398,17 +399,20 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 		return
 	}
 
-	err = h.service.ReviewStudentVerification(c.Request.Context(), userID, req.Status, req.RejectionReason)
+	err = h.service.ReviewStudentVerification(c.Request.Context(), userID, *req.Approved, req.RejectionReason)
 	if err != nil {
-		if errors.Is(err, ErrProfileNotFound) {
+		switch {
+		case errors.Is(err, ErrProfileNotFound):
 			response.NotFound(c, "student profile not found", errs.ErrProfileNotFound)
-			return
+		case errors.Is(err, ErrRejectionReasonRequired):
+			response.BadRequest(c, "rejection reason is required when rejecting")
+		default:
+			logger.FromGin(c).Error("failed to review student verification",
+				zap.Int64("target_user_id", userID),
+				zap.Error(err),
+			)
+			response.InternalError(c, "failed to review student verification")
 		}
-		logger.FromGin(c).Error("failed to review student verification",
-			zap.Int64("target_user_id", userID),
-			zap.Error(err),
-		)
-		response.InternalError(c, "failed to review student verification")
 		return
 	}
 
@@ -427,14 +431,31 @@ func (h *Handler) handleAdminListSchoolConfigs(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"configs": configs})
+	items := make([]gin.H, 0, len(configs))
+	for i := range configs {
+		item, err := adminSchoolConfigToJSON(&configs[i])
+		if err != nil {
+			logger.FromGin(c).Error("failed to serialize school config",
+				zap.String("school_id", configs[i].SchoolID),
+				zap.Error(err),
+			)
+			response.InternalError(c, "failed to list school configs")
+			return
+		}
+		items = append(items, item)
+	}
+
+	response.Success(c, items)
 }
 
 type updateSchoolConfigHTTPRequest struct {
-	SchoolName         string `json:"schoolName" binding:"required"`
-	VerificationMethod string `json:"verificationMethod" binding:"required,oneof=ldap manual"`
-	ConsentText        string `json:"consentText"`
-	Enabled            bool   `json:"enabled"`
+	SchoolName         *string         `json:"schoolName" binding:"omitempty,max=100"`
+	VerificationMethod *string         `json:"verificationMethod" binding:"omitempty,oneof=ldap manual"`
+	LDAPConfig         *map[string]any `json:"ldapConfig"`
+	AcademicDBTable    *string         `json:"academicDbTable" binding:"omitempty,max=100"`
+	ConsentText        *string         `json:"consentText"`
+	ManualFormFields   *map[string]any `json:"manualFormFields"`
+	Enabled            *bool           `json:"enabled"`
 }
 
 func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
@@ -450,16 +471,19 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 		return
 	}
 
-	consentText := req.ConsentText
-	config := &SchoolConfig{
-		SchoolID:           schoolID,
+	if err := h.service.UpdateSchoolConfig(c.Request.Context(), schoolID, UpdateSchoolConfigInput{
 		SchoolName:         req.SchoolName,
 		VerificationMethod: req.VerificationMethod,
-		ConsentText:        &consentText,
+		LDAPConfig:         req.LDAPConfig,
+		AcademicDBTable:    req.AcademicDBTable,
+		ConsentText:        req.ConsentText,
+		ManualFormFields:   req.ManualFormFields,
 		Enabled:            req.Enabled,
-	}
-
-	if err := h.service.UpdateSchoolConfig(c.Request.Context(), config); err != nil {
+	}); err != nil {
+		if errors.Is(err, ErrSchoolNotFound) {
+			response.NotFound(c, "school config not found", errs.ErrProfileSchoolNotFound)
+			return
+		}
 		logger.FromGin(c).Error("failed to update school config",
 			zap.String("school_id", schoolID),
 			zap.Error(err),
@@ -483,7 +507,12 @@ func (h *Handler) handleAdminListSystemConfigs(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"configs": configs})
+	items := make([]gin.H, 0, len(configs))
+	for i := range configs {
+		items = append(items, systemConfigToJSON(&configs[i]))
+	}
+
+	response.Success(c, items)
 }
 
 type updateSystemConfigHTTPRequest struct {
@@ -540,7 +569,7 @@ func (h *Handler) resolveCurrentUser(c *gin.Context) (int64, bool) {
 	return userID, true
 }
 
-func identityToJSON(i *Identity) gin.H {
+func identityStatusToJSON(i *IdentityStatus) gin.H {
 	return gin.H{
 		"userID":          i.UserID,
 		"docType":         i.DocType,
@@ -548,6 +577,23 @@ func identityToJSON(i *Identity) gin.H {
 		"verified":        i.Verified,
 		"verifyMethod":    i.VerifyMethod,
 		"verifiedAt":      i.VerifiedAt,
+		"rejectionReason": i.RejectionReason,
+		"createdAt":       i.CreatedAt,
+		"updatedAt":       i.UpdatedAt,
+	}
+}
+
+func identityReviewItemToJSON(i *IdentityReviewItem) gin.H {
+	return gin.H{
+		"userID":          i.UserID,
+		"docType":         i.DocType,
+		"realName":        i.RealName,
+		"verified":        i.Verified,
+		"verifyMethod":    i.VerifyMethod,
+		"verifiedAt":      i.VerifiedAt,
+		"docPhotoFront":   i.DocPhotoFront,
+		"docPhotoBack":    i.DocPhotoBack,
+		"docPhotoSelfie":  i.DocPhotoSelfie,
 		"rejectionReason": i.RejectionReason,
 		"createdAt":       i.CreatedAt,
 		"updatedAt":       i.UpdatedAt,
@@ -568,5 +614,72 @@ func profileToJSON(p *Profile) gin.H {
 		"verifiedAt":         p.VerifiedAt,
 		"createdAt":          p.CreatedAt,
 		"updatedAt":          p.UpdatedAt,
+	}
+}
+
+func schoolConfigPublicToJSON(s *SchoolConfig) gin.H {
+	return gin.H{
+		"schoolID":           s.SchoolID,
+		"schoolName":         s.SchoolName,
+		"verificationMethod": s.VerificationMethod,
+		"consentText":        s.ConsentText,
+		"enabled":            s.Enabled,
+	}
+}
+
+func adminSchoolConfigToJSON(s *SchoolConfig) (gin.H, error) {
+	ldapConfig, err := decodeJSONObject(s.LDAPConfig)
+	if err != nil {
+		return nil, fmt.Errorf("decode ldapConfig: %w", err)
+	}
+	manualFormFields, err := decodeJSONObject(s.ManualFormFields)
+	if err != nil {
+		return nil, fmt.Errorf("decode manualFormFields: %w", err)
+	}
+
+	return gin.H{
+		"schoolID":           s.SchoolID,
+		"schoolName":         s.SchoolName,
+		"verificationMethod": s.VerificationMethod,
+		"ldapConfig":         ldapConfig,
+		"academicDbTable":    s.AcademicDBTable,
+		"consentText":        s.ConsentText,
+		"manualFormFields":   manualFormFields,
+		"enabled":            s.Enabled,
+		"createdAt":          s.CreatedAt,
+	}, nil
+}
+
+func systemConfigToJSON(c *SystemConfig) gin.H {
+	return gin.H{
+		"key":         c.Key,
+		"value":       c.Value,
+		"description": c.Description,
+		"updatedAt":   c.UpdatedAt,
+	}
+}
+
+func decodeJSONObject(raw json.RawMessage) (map[string]any, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil, nil
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func normalizeAdminReviewStatus(raw string) (string, bool) {
+	switch raw {
+	case "", StatusPending:
+		return StatusPending, true
+	case StatusVerified, StatusRejected:
+		return raw, true
+	case "all":
+		return "", true
+	default:
+		return "", false
 	}
 }

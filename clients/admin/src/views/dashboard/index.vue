@@ -122,14 +122,14 @@ const statCards = computed(() => [
   { key: 'week', label: '本周新增', value: stats.value.weekReviews, icon: TrendCharts, color: '#9b59b6' },
 ])
 
-function actionTagType(action: string): '' | 'success' | 'warning' | 'danger' | 'info' {
-  const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
+function actionTagType(action: string): 'success' | 'warning' | 'danger' | 'info' {
+  const map: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
     hide: 'warning',
     restore: 'success',
     delete: 'danger',
     edit: 'info',
   }
-  return map[action] || ''
+  return map[action] || 'info'
 }
 
 function formatTime(dateStr: string) {

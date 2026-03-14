@@ -1,0 +1,10 @@
+apis:
+  main:
+    root: ./api/openapi.yaml
+
+extends:
+  - recommended
+
+rules:
+  no-server-example.com: error
+  operation-4xx-response: error

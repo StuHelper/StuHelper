@@ -19,15 +19,18 @@ ReviewReport:
       type: string
       enum: [pending, resolved, rejected]
     resolvedBy:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     resolvedAt:
-      type: string
+      type:
+        - string
+        - 'null'
       format: date-time
-      nullable: true
     resolutionNote:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     createdAt:
       type: string
       format: date-time
@@ -125,12 +128,14 @@ AdminTeacher:
     name:
       type: string
     departmentID:
-      type: integer
+      type:
+        - integer
+        - 'null'
       format: int64
-      nullable: true
     departmentName:
-      type: string
-      nullable: true
+      type:
+        - string
+        - 'null'
     reviewCount:
       type: integer
     createdAt:
@@ -158,9 +163,10 @@ UpdateTeacherRequest:
       minLength: 1
       maxLength: 100
     departmentID:
-      type: integer
+      type:
+        - integer
+        - 'null'
       format: int64
-      nullable: true
 
 AdminSensitiveWord:
   type: object
