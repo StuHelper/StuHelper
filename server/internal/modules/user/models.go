@@ -61,6 +61,7 @@ type Profile struct {
 	SchoolID           *string
 	StudentIDs         []string // JSON array
 	ActiveStudentID    *string
+	ManualFormData     json.RawMessage
 	VerificationStatus string
 	VerificationMethod *string
 	Phone              *string
@@ -69,6 +70,16 @@ type Profile struct {
 	VerifiedAt         *time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+// ManualFieldDescriptor manual 模式动态字段定义
+type ManualFieldDescriptor struct {
+	Key         string   `json:"key"`
+	Label       string   `json:"label"`
+	Type        string   `json:"type"`
+	Required    bool     `json:"required"`
+	Options     []string `json:"options,omitempty"`
+	Placeholder *string  `json:"placeholder,omitempty"`
 }
 
 // SchoolConfig 学校认证配置

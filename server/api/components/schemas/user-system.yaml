@@ -141,9 +141,55 @@ UserProfile:
       type: string
       format: date-time
 
+AdminStudentVerificationItem:
+  type: object
+  required: [userID, verificationStatus, createdAt, updatedAt]
+  properties:
+    userID:
+      type: integer
+      format: int64
+    schoolID:
+      type: string
+    studentIDs:
+      type: array
+      items:
+        type: string
+    activeStudentID:
+      type: string
+    manualFormData:
+      type:
+        - object
+        - 'null'
+      additionalProperties: true
+    verificationStatus:
+      type: string
+      enum: [unverified, pending, verified, rejected]
+    verificationMethod:
+      type: string
+    phone:
+      type: string
+    phoneVerified:
+      type: boolean
+    consentGivenAt:
+      type:
+        - string
+        - 'null'
+      format: date-time
+    verifiedAt:
+      type:
+        - string
+        - 'null'
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
 SubmitStudentVerificationRequest:
   type: object
-  required: [schoolID, studentID, password, consent]
+  required: [schoolID, consent]
   properties:
     schoolID:
       type: string
@@ -152,8 +198,42 @@ SubmitStudentVerificationRequest:
     password:
       type: string
       writeOnly: true
+    manualFormData:
+      type:
+        - object
+        - 'null'
+      additionalProperties: true
+      description: manual 模式动态表单提交数据
     consent:
       type: boolean
+
+ManualFieldDescriptor:
+  type: object
+  required: [key, label, type, required]
+  properties:
+    key:
+      type: string
+      description: 动态字段唯一标识
+    label:
+      type: string
+      description: 字段展示文案
+    type:
+      type: string
+      enum: [text, textarea, select, date]
+    required:
+      type: boolean
+    options:
+      type:
+        - array
+        - 'null'
+      items:
+        type: string
+      description: select 类型可选项
+    placeholder:
+      type:
+        - string
+        - 'null'
+      description: 输入占位文案
 
 BindPhoneRequest:
   type: object
@@ -176,9 +256,10 @@ SchoolConfig:
       type: string
     manualFormFields:
       type:
-        - object
+        - array
         - 'null'
-      additionalProperties: true
+      items:
+        $ref: '#/ManualFieldDescriptor'
     enabled:
       type: boolean
 
@@ -495,9 +576,10 @@ AdminSchoolConfig:
         - 'null'
     manualFormFields:
       type:
-        - object
+        - array
         - 'null'
-      additionalProperties: true
+      items:
+        $ref: '#/ManualFieldDescriptor'
     enabled:
       type: boolean
     createdAt:
@@ -522,8 +604,9 @@ UpdateSchoolConfigRequest:
     consentText:
       type: string
     manualFormFields:
-      type: object
-      additionalProperties: true
+      type: array
+      items:
+        $ref: '#/ManualFieldDescriptor'
     enabled:
       type: boolean
 

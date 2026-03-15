@@ -1897,8 +1897,12 @@ export interface components {
         };
         SubmitStudentVerificationRequest: {
             schoolID: string;
-            studentID: string;
-            password: string;
+            studentID?: string;
+            password?: string;
+            /** @description manual 模式动态表单提交数据 */
+            manualFormData?: {
+                [key: string]: unknown;
+            } | null;
             consent: boolean;
         };
         BindPhoneRequest: {
@@ -1909,9 +1913,7 @@ export interface components {
             schoolName: string;
             verificationMethod: string;
             consentText?: string;
-            manualFormFields?: {
-                [key: string]: unknown;
-            } | null;
+            manualFormFields?: components["schemas"]["ManualFieldDescriptor"][] | null;
             enabled: boolean;
         };
         AcademicStudentInfo: {
@@ -2050,9 +2052,7 @@ export interface components {
             /** @description 本地学籍表名 */
             academicDbTable?: string | null;
             consentText?: string | null;
-            manualFormFields?: {
-                [key: string]: unknown;
-            } | null;
+            manualFormFields?: components["schemas"]["ManualFieldDescriptor"][] | null;
             enabled: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -2066,10 +2066,44 @@ export interface components {
             };
             academicDbTable?: string;
             consentText?: string;
-            manualFormFields?: {
-                [key: string]: unknown;
-            };
+            manualFormFields?: components["schemas"]["ManualFieldDescriptor"][];
             enabled?: boolean;
+        };
+        ManualFieldDescriptor: {
+            /** @description 动态字段唯一标识 */
+            key: string;
+            /** @description 字段展示文案 */
+            label: string;
+            /** @enum {string} */
+            type: "text" | "textarea" | "select" | "date";
+            required: boolean;
+            /** @description select 类型可选项 */
+            options?: string[] | null;
+            /** @description 输入占位文案 */
+            placeholder?: string | null;
+        };
+        AdminStudentVerificationItem: {
+            /** Format: int64 */
+            userID: number;
+            schoolID?: string;
+            studentIDs?: string[];
+            activeStudentID?: string;
+            manualFormData?: {
+                [key: string]: unknown;
+            } | null;
+            /** @enum {string} */
+            verificationStatus: "unverified" | "pending" | "verified" | "rejected";
+            verificationMethod?: string;
+            phone?: string;
+            phoneVerified?: boolean;
+            /** Format: date-time */
+            consentGivenAt?: string | null;
+            /** Format: date-time */
+            verifiedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         UserGroup: {
             /** Format: int64 */
@@ -4388,7 +4422,7 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
                         data: {
-                            list: components["schemas"]["UserProfile"][];
+                            list: components["schemas"]["AdminStudentVerificationItem"][];
                             total: number;
                         };
                     };

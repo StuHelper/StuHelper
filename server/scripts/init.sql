@@ -449,6 +449,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     school_id VARCHAR(10),
     student_ids JSONB,
     active_student_id VARCHAR(50),
+    manual_form_data JSONB,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'unverified',
     verification_method VARCHAR(20),
     phone VARCHAR(20),

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -21,19 +22,24 @@ import (
 
 // 业务错误定义
 var (
-	ErrIdentityAlreadyExists   = errors.New("identity already exists")
-	ErrIdentityAlreadyVerified = errors.New("identity already verified")
-	ErrProfileAlreadyVerified  = errors.New("profile already verified")
-	ErrSchoolNotFound          = errors.New("school not found")
-	ErrSchoolDisabled          = errors.New("school verification disabled")
-	ErrConsentRequired         = errors.New("consent is required")
-	ErrPhotoRequired           = errors.New("photo upload required for non-mainland documents")
-	ErrLDAPFailed              = errors.New("LDAP verification failed")
-	ErrIdentityRequired        = errors.New("identity verification required before student verification")
-	ErrStudentNotFound         = errors.New("student record not found in academic database")
-	ErrProfileNotFound         = errors.New("student profile not found")
-	ErrIdentityNotFound        = errors.New("identity not found")
-	ErrRejectionReasonRequired = errors.New("rejection reason is required when rejecting")
+	ErrIdentityAlreadyExists    = errors.New("identity already exists")
+	ErrIdentityAlreadyVerified  = errors.New("identity already verified")
+	ErrProfileAlreadyVerified   = errors.New("profile already verified")
+	ErrSchoolNotFound           = errors.New("school not found")
+	ErrSchoolDisabled           = errors.New("school verification disabled")
+	ErrConsentRequired          = errors.New("consent is required")
+	ErrPhotoRequired            = errors.New("photo upload required for non-mainland documents")
+	ErrLDAPFailed               = errors.New("LDAP verification failed")
+	ErrIdentityRequired         = errors.New("identity verification required before student verification")
+	ErrStudentIDRequired        = errors.New("student ID is required for LDAP verification")
+	ErrPasswordRequired         = errors.New("password is required for LDAP verification")
+	ErrStudentNotFound          = errors.New("student record not found in academic database")
+	ErrProfileNotFound          = errors.New("student profile not found")
+	ErrIdentityNotFound         = errors.New("identity not found")
+	ErrRejectionReasonRequired  = errors.New("rejection reason is required when rejecting")
+	ErrManualFieldRequired      = errors.New("required manual form field is missing")
+	ErrManualFieldInvalid       = errors.New("manual form field value is invalid")
+	ErrInvalidManualFieldConfig = errors.New("manual form field config is invalid")
 )
 
 // DocType 证件类型常量
@@ -223,10 +229,11 @@ func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName st
 
 // VerifyStudentRequest 学生认证请求
 type VerifyStudentRequest struct {
-	SchoolID  string `json:"schoolID"`
-	StudentID string `json:"studentID"`
-	Password  string `json:"password"`
-	Consent   bool   `json:"consent"`
+	SchoolID       string         `json:"schoolID"`
+	StudentID      string         `json:"studentID"`
+	Password       string         `json:"password"`
+	ManualFormData map[string]any `json:"manualFormData"`
+	Consent        bool           `json:"consent"`
 }
 
 // UpdateSchoolConfigInput 学校配置更新请求（管理端）
@@ -237,7 +244,7 @@ type UpdateSchoolConfigInput struct {
 	LDAPConfig         *map[string]any
 	AcademicDBTable    *string
 	ConsentText        *string
-	ManualFormFields   *map[string]any
+	ManualFormFields   *[]ManualFieldDescriptor
 	Enabled            *bool
 }
 
@@ -283,6 +290,52 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		return nil, ErrConsentRequired
 	}
 
+	trimmedStudentID := strings.TrimSpace(req.StudentID)
+	manualFormData := sanitizeManualFormData(req.ManualFormData)
+	manualFieldDescriptors, err := decodeManualFieldDescriptors(school.ManualFormFields)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidManualFieldConfig, err)
+	}
+
+	if school.VerificationMethod == VerifyMethodLDAP {
+		if trimmedStudentID == "" {
+			return nil, ErrStudentIDRequired
+		}
+		if req.Password == "" {
+			return nil, ErrPasswordRequired
+		}
+	} else {
+		allowedFields := make(map[string]ManualFieldDescriptor, len(manualFieldDescriptors))
+		for _, field := range manualFieldDescriptors {
+			allowedFields[field.Key] = field
+		}
+		for key := range manualFormData {
+			if _, ok := allowedFields[key]; !ok {
+				return nil, fmt.Errorf("%w: %s", ErrManualFieldInvalid, key)
+			}
+		}
+		for _, field := range manualFieldDescriptors {
+			value := getManualFormValueAsString(manualFormData, field.Key)
+			if value == "" && field.Key == "studentID" {
+				value = trimmedStudentID
+			}
+			if field.Required && value == "" {
+				return nil, fmt.Errorf("%w: %s", ErrManualFieldRequired, field.Key)
+			}
+			if field.Type == "select" && value != "" && !slices.Contains(field.Options, value) {
+				return nil, fmt.Errorf("%w: %s", ErrManualFieldInvalid, field.Key)
+			}
+			if field.Type == "date" && value != "" {
+				if _, err := time.Parse("2006-01-02", value); err != nil {
+					return nil, fmt.Errorf("%w: %s", ErrManualFieldInvalid, field.Key)
+				}
+			}
+		}
+		if trimmedStudentID == "" {
+			trimmedStudentID = getManualFormValueAsString(manualFormData, "studentID")
+		}
+	}
+
 	now := time.Now()
 	method := VerifyMethodLDAP
 	schoolID := req.SchoolID
@@ -296,13 +349,13 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	}
 
 	// 按学校认证方式执行验证
-	if school.VerificationMethod == "ldap" {
+	if school.VerificationMethod == VerifyMethodLDAP {
 		if s.ldapClient == nil {
 			return nil, fmt.Errorf("VerifyStudent: LDAP client not configured")
 		}
 
 		// LDAP bind 验证
-		loginResult, err := s.ldapClient.Login(ctx, req.StudentID, req.Password)
+		loginResult, err := s.ldapClient.Login(ctx, trimmedStudentID, req.Password)
 		if err != nil {
 			if errors.Is(err, ldap.ErrInvalidUID) {
 				return nil, ErrLDAPFailed
@@ -314,22 +367,22 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 
 		// LDAP 验证成功，查询学生详细信息
-		ldapInfo, err := s.ldapClient.QueryUserByUID(ctx, req.StudentID)
+		ldapInfo, err := s.ldapClient.QueryUserByUID(ctx, trimmedStudentID)
 		if err != nil {
 			logger.L().Warn("LDAP query user info failed after successful login",
 				zap.Int64("user_id", userID),
-				zap.String("student_id", req.StudentID),
+				zap.String("student_id", trimmedStudentID),
 				zap.Error(err),
 			)
 			// 查询失败不阻断认证，但无法自动绑定手机号
 		}
 
 		// 从学籍数据库查找该学号关联的所有学籍
-		studentIDs := []string{req.StudentID}
-		academicStudent, err := s.repo.GetAcademicStudentByXH(ctx, req.StudentID)
+		studentIDs := []string{trimmedStudentID}
+		academicStudent, err := s.repo.GetAcademicStudentByXH(ctx, trimmedStudentID)
 		if err != nil {
 			logger.L().Warn("failed to query academic student",
-				zap.String("student_id", req.StudentID),
+				zap.String("student_id", trimmedStudentID),
 				zap.Error(err),
 			)
 		}
@@ -365,7 +418,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 
 		if profile.ActiveStudentID == nil {
-			profile.ActiveStudentID = &req.StudentID
+			profile.ActiveStudentID = &trimmedStudentID
 		}
 
 		profile.StudentIDs = studentIDs
@@ -384,8 +437,22 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		manualMethod := VerifyMethodManual
 		profile.VerificationMethod = &manualMethod
 		profile.VerificationStatus = StatusPending
-		profile.StudentIDs = []string{req.StudentID}
-		profile.ActiveStudentID = &req.StudentID
+		if trimmedStudentID != "" {
+			profile.StudentIDs = []string{trimmedStudentID}
+			profile.ActiveStudentID = &trimmedStudentID
+		}
+		if len(manualFormData) > 0 {
+			if trimmedStudentID != "" {
+				if _, ok := manualFormData["studentID"]; !ok {
+					manualFormData["studentID"] = trimmedStudentID
+				}
+			}
+			raw, err := json.Marshal(manualFormData)
+			if err != nil {
+				return nil, fmt.Errorf("VerifyStudent marshal manual form data: %w", err)
+			}
+			profile.ManualFormData = raw
+		}
 	}
 
 	// 创建或更新 profile
@@ -560,6 +627,9 @@ func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID string, input
 		config.LDAPConfig = raw
 	}
 	if input.ManualFormFields != nil {
+		if err := validateManualFieldDescriptors(*input.ManualFormFields); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidManualFieldConfig, err)
+		}
 		raw, err := json.Marshal(*input.ManualFormFields)
 		if err != nil {
 			return fmt.Errorf("UpdateSchoolConfig marshal manualFormFields: %w", err)

@@ -129,7 +129,7 @@
                         list:
                           type: array
                           items:
-                            $ref: '../components/schemas/user-system.yaml#/UserProfile'
+                            $ref: '../components/schemas/user-system.yaml#/AdminStudentVerificationItem'
                         total:
                           type: integer
       '401':

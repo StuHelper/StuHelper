@@ -33,9 +33,12 @@ type mockRepo struct {
 	onFindAcademicStudentsByPersonUID func(ctx context.Context, sfzjlxdm, sfzjh string) ([]AcademicStudent, error)
 	onUpdateIdentityReviewStatus      func(ctx context.Context, userID int64, approved bool, verifyMethod *string, verifiedAt *time.Time, rejectionReason *string) error
 	onGetProfileByUserID              func(ctx context.Context, userID int64) (*Profile, error)
+	onCreateProfile                   func(ctx context.Context, profile *Profile) error
 	onUpdateProfile                   func(ctx context.Context, profile *Profile) error
 	onListProfilesByStatus            func(ctx context.Context, status, schoolID string, page, pageSize int) ([]Profile, int, error)
 	onGetSchoolConfig                 func(ctx context.Context, schoolID string) (*SchoolConfig, error)
+	onListSchoolConfigs               func(ctx context.Context) ([]SchoolConfig, error)
+	onGetAcademicStudentByXH          func(ctx context.Context, xh string) (*AcademicStudent, error)
 	onListAllSchoolConfigs            func(ctx context.Context) ([]SchoolConfig, error)
 	onUpdateSchoolConfig              func(ctx context.Context, config *SchoolConfig) error
 	onListSystemConfigs               func(ctx context.Context) ([]SystemConfig, error)
@@ -93,7 +96,12 @@ func (m *mockRepo) ListIdentityReviewItems(ctx context.Context, status string, p
 	return nil, 0, nil
 }
 
-func (m *mockRepo) CreateProfile(_ context.Context, _ *Profile) error { return nil }
+func (m *mockRepo) CreateProfile(ctx context.Context, profile *Profile) error {
+	if m.onCreateProfile != nil {
+		return m.onCreateProfile(ctx, profile)
+	}
+	return nil
+}
 
 func (m *mockRepo) ListProfilesByStatus(ctx context.Context, status string, schoolID string, page, pageSize int) ([]Profile, int, error) {
 	if m.onListProfilesByStatus != nil {
@@ -109,7 +117,19 @@ func (m *mockRepo) GetSchoolConfig(ctx context.Context, schoolID string) (*Schoo
 	return nil, nil
 }
 
-func (m *mockRepo) ListSchoolConfigs(_ context.Context) ([]SchoolConfig, error) { return nil, nil }
+func (m *mockRepo) GetAcademicStudentByXH(ctx context.Context, xh string) (*AcademicStudent, error) {
+	if m.onGetAcademicStudentByXH != nil {
+		return m.onGetAcademicStudentByXH(ctx, xh)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
+	if m.onListSchoolConfigs != nil {
+		return m.onListSchoolConfigs(ctx)
+	}
+	return nil, nil
+}
 
 func (m *mockRepo) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
 	if m.onListAllSchoolConfigs != nil {
@@ -123,10 +143,6 @@ func (m *mockRepo) UpdateSchoolConfig(ctx context.Context, config *SchoolConfig)
 		return m.onUpdateSchoolConfig(ctx, config)
 	}
 	return nil
-}
-
-func (m *mockRepo) GetAcademicStudentByXH(_ context.Context, _ string) (*AcademicStudent, error) {
-	return nil, nil
 }
 
 func (m *mockRepo) ListSystemConfigs(ctx context.Context) ([]SystemConfig, error) {
@@ -357,6 +373,153 @@ func TestReviewIdentity_NotFoundReturnsError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// VerifyStudent
+// ---------------------------------------------------------------------------
+
+func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *testing.T) {
+	var captured *Profile
+
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 1, Verified: true}, nil
+		},
+		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
+			require.Equal(t, "10006", schoolID)
+			return &SchoolConfig{
+				SchoolID:           "10006",
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				ManualFormFields: json.RawMessage(`[
+					{"key":"studentID","label":"学号","type":"text","required":true},
+					{"key":"department","label":"院系","type":"text","required":false}
+				]`),
+				Enabled: true,
+			}, nil
+		},
+		onCreateProfile: func(_ context.Context, profile *Profile) error {
+			captured = profile
+			return nil
+		},
+		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+			if captured == nil {
+				return nil, nil
+			}
+			return captured, nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	profile, err := svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
+		SchoolID: "10006",
+		ManualFormData: map[string]any{
+			"studentID":  "20240001",
+			"department": "计算机学院",
+		},
+		Consent: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, profile)
+	require.NotNil(t, captured)
+
+	require.NotNil(t, captured.VerificationMethod)
+	assert.Equal(t, VerifyMethodManual, *captured.VerificationMethod)
+	assert.Equal(t, StatusPending, captured.VerificationStatus)
+	assert.Equal(t, []string{"20240001"}, captured.StudentIDs)
+	require.NotNil(t, captured.ActiveStudentID)
+	assert.Equal(t, "20240001", *captured.ActiveStudentID)
+	assert.JSONEq(t, `{"department":"计算机学院","studentID":"20240001"}`, string(captured.ManualFormData))
+}
+
+func TestVerifyStudent_ManualWithoutStudentIDDoesNotPersistBlankIdentifiers(t *testing.T) {
+	var captured *Profile
+
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 1, Verified: true}, nil
+		},
+		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           "manual",
+				SchoolName:         "人工审核学校",
+				VerificationMethod: VerifyMethodManual,
+				Enabled:            true,
+			}, nil
+		},
+		onCreateProfile: func(_ context.Context, profile *Profile) error {
+			captured = profile
+			return nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
+		SchoolID: "manual",
+		Consent:  true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Nil(t, captured.StudentIDs)
+	assert.Nil(t, captured.ActiveStudentID)
+	assert.Nil(t, captured.ManualFormData)
+}
+
+func TestVerifyStudent_LDAPRequiresStudentID(t *testing.T) {
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 1, Verified: true}, nil
+		},
+		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           "ldap",
+				SchoolName:         "LDAP 学校",
+				VerificationMethod: VerifyMethodLDAP,
+				Enabled:            true,
+			}, nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
+		SchoolID: "ldap",
+		Password: "secret",
+		Consent:  true,
+	})
+	assert.ErrorIs(t, err, ErrStudentIDRequired)
+}
+
+func TestVerifyStudent_LDAPRequiresPassword(t *testing.T) {
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 1, Verified: true}, nil
+		},
+		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           "ldap",
+				SchoolName:         "LDAP 学校",
+				VerificationMethod: VerifyMethodLDAP,
+				Enabled:            true,
+			}, nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
+		SchoolID:  "ldap",
+		StudentID: "20240001",
+		Consent:   true,
+	})
+	assert.ErrorIs(t, err, ErrPasswordRequired)
+}
+
+// ---------------------------------------------------------------------------
 // ReviewStudentVerification
 // ---------------------------------------------------------------------------
 
@@ -410,7 +573,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 				LDAPConfig:         json.RawMessage(`{"host":"ldap.old","port":389}`),
 				AcademicDBTable:    &academicTable,
 				ConsentText:        &consentText,
-				ManualFormFields:   json.RawMessage(`{"fields":["idCard"]}`),
+				ManualFormFields:   json.RawMessage(`[{"key":"idCard","label":"身份证号","type":"text","required":true}]`),
 				Enabled:            true,
 			}, nil
 		},
@@ -446,7 +609,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 	assert.Equal(t, "academic.buaa_students", *captured.AcademicDBTable, "未提供的 academicDbTable 应保留原值")
 	require.NotNil(t, captured.ConsentText)
 	assert.Equal(t, "原始授权文本", *captured.ConsentText, "未提供的 consentText 应保留原值")
-	assert.JSONEq(t, `{"fields":["idCard"]}`, string(captured.ManualFormFields), "未提供的 manualFormFields 应保留原值")
+	assert.JSONEq(t, `[{"key":"idCard","label":"身份证号","type":"text","required":true}]`, string(captured.ManualFormFields), "未提供的 manualFormFields 应保留原值")
 	assert.False(t, captured.Enabled)
 }
 
@@ -456,4 +619,26 @@ func TestUpdateSchoolConfig_SchoolNotFoundReturnsError(t *testing.T) {
 
 	err = svc.UpdateSchoolConfig(context.Background(), "missing", UpdateSchoolConfigInput{})
 	assert.ErrorIs(t, err, ErrSchoolNotFound)
+}
+
+func TestUpdateSchoolConfig_InvalidManualFieldConfigReturnsError(t *testing.T) {
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           "10006",
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				Enabled:            true,
+			}, nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	fields := []ManualFieldDescriptor{{Key: "", Label: "空 key", Type: "text", Required: true}}
+	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
+		ManualFormFields: &fields,
+	})
+	assert.ErrorIs(t, err, ErrInvalidManualFieldConfig)
 }

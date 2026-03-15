@@ -27,6 +27,10 @@ type handlerTestResponse struct {
 	Error   *response.APIError `json:"error,omitempty"`
 }
 
+func ptr[T any](value T) *T {
+	return &value
+}
+
 func setupAdminHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engine {
 	t.Helper()
 
@@ -225,6 +229,132 @@ func TestHandleAdminListStudentVerifications_DefaultsStatusToPending(t *testing.
 	assert.Equal(t, StatusPending, capturedStatus)
 }
 
+func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T) {
+	repo := &mockRepo{
+		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+			assert.Equal(t, StatusPending, status)
+			return []Profile{{
+				UserID:             7,
+				SchoolID:           ptr("10006"),
+				VerificationStatus: StatusPending,
+				VerificationMethod: ptr(VerifyMethodManual),
+				ManualFormData:     json.RawMessage(`{"studentID":"20240001","department":"计算机学院"}`),
+			}}, 1, nil
+		},
+	}
+
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	data := resp["data"].(map[string]any)
+	list := data["list"].([]any)
+	require.Len(t, list, 1)
+	item := list[0].(map[string]any)
+	manualFormData := item["manualFormData"].(map[string]any)
+	assert.Equal(t, "20240001", manualFormData["studentID"])
+	assert.Equal(t, "计算机学院", manualFormData["department"])
+}
+
+func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
+			assert.Equal(t, "external-user-123", externalID)
+			return 42, nil
+		},
+		onGetIdentityStatusByUserID: func(_ context.Context, userID int64) (*IdentityStatus, error) {
+			assert.Equal(t, int64(42), userID)
+			return &IdentityStatus{UserID: userID, Verified: true}, nil
+		},
+		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
+			assert.Equal(t, "10006", schoolID)
+			return &SchoolConfig{
+				SchoolID:           "10006",
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				ManualFormFields:   json.RawMessage(`[{"key":"studentID","label":"学号","type":"text","required":true}]`),
+				Enabled:            true,
+			}, nil
+		},
+		onCreateProfile: func(_ context.Context, profile *Profile) error {
+			assert.Equal(t, StatusPending, profile.VerificationStatus)
+			assert.Equal(t, []string{"20240001"}, profile.StudentIDs)
+			return nil
+		},
+		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+			schoolID := "10006"
+			method := VerifyMethodManual
+			activeStudentID := "20240001"
+			return &Profile{
+				UserID:             42,
+				SchoolID:           &schoolID,
+				StudentIDs:         []string{"20240001"},
+				ActiveStudentID:    &activeStudentID,
+				VerificationStatus: StatusPending,
+				VerificationMethod: &method,
+			}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/profile/verify",
+		strings.NewReader(`{"schoolID":"10006","manualFormData":{"studentID":"20240001"},"consent":true}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	data := resp["data"].(map[string]any)
+	assert.Equal(t, "pending", data["verificationStatus"])
+}
+
+func TestHandleVerifyStudent_LDAPMissingStudentIDReturns400(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 42, Verified: true}, nil
+		},
+		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           "ldap",
+				SchoolName:         "LDAP 学校",
+				VerificationMethod: VerifyMethodLDAP,
+				Enabled:            true,
+			}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/user/profile/verify",
+		strings.NewReader(`{"schoolID":"ldap","password":"secret","consent":true}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	now := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
 	repo := &mockRepo{
@@ -238,7 +368,7 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 				LDAPConfig:         json.RawMessage(`{"host":"ldap.example","port":636}`),
 				AcademicDBTable:    &academicTable,
 				ConsentText:        &consentText,
-				ManualFormFields:   json.RawMessage(`{"fields":["studentID"]}`),
+				ManualFormFields:   json.RawMessage(`[{"key":"studentID","label":"学号","type":"text","required":true}]`),
 				Enabled:            true,
 				CreatedAt:          now,
 			}}, nil
@@ -265,8 +395,44 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	assert.NotContains(t, item, "LDAPConfig")
 	ldapConfig := item["ldapConfig"].(map[string]any)
 	assert.Equal(t, "ldap.example", ldapConfig["host"])
-	manualFormFields := item["manualFormFields"].(map[string]any)
-	assert.Equal(t, "studentID", manualFormFields["fields"].([]any)[0])
+	manualFormFields := item["manualFormFields"].([]any)
+	require.Len(t, manualFormFields, 1)
+	firstField := manualFormFields[0].(map[string]any)
+	assert.Equal(t, "studentID", firstField["key"])
+	assert.Equal(t, "学号", firstField["label"])
+}
+
+func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
+	repo := &mockRepo{
+		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{{
+				SchoolID:           "manual",
+				SchoolName:         "人工审核学校",
+				VerificationMethod: VerifyMethodManual,
+				ManualFormFields:   json.RawMessage(`[{"key":"studentID","label":"学号","type":"text","required":true}]`),
+				Enabled:            true,
+			}}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/schools", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	list := resp["data"].([]any)
+	require.Len(t, list, 1)
+	item := list[0].(map[string]any)
+	manualFormFields := item["manualFormFields"].([]any)
+	require.Len(t, manualFormFields, 1)
+	firstField := manualFormFields[0].(map[string]any)
+	assert.Equal(t, "studentID", firstField["key"])
 }
 
 func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {
