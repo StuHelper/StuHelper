@@ -26,7 +26,7 @@
       <!-- Nav items -->
       <nav class="flex-1 p-2 space-y-0.5 overflow-y-auto">
         <router-link
-          v-for="item in navItems"
+          v-for="item in visibleNavItems"
           :key="item.name"
           :to="{ name: item.name }"
           class="group relative flex items-center gap-3 px-3 py-2.5 text-text-muted no-underline text-sm rounded-lg transition-all duration-fast hover:text-text-primary hover:bg-bg-hover [&.router-link-active]:text-primary [&.router-link-active]:bg-primary/[0.08] [&.router-link-active]:font-medium"
@@ -145,6 +145,15 @@ import {
 import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import {
+  ADMIN_DASHBOARD_VIEW,
+  ADMIN_LOGS_VIEW,
+  ADMIN_REPORTS_MANAGE,
+  ADMIN_REVIEWS_MANAGE,
+  ADMIN_SENSITIVE_WORDS_MANAGE,
+  ADMIN_TEACHERS_MANAGE,
+  hasAnyCapability,
+} from '@stuhelper/shared/constants'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -183,13 +192,19 @@ onMounted(() => document.addEventListener('click', onClickOutside, true))
 onUnmounted(() => document.removeEventListener('click', onClickOutside, true))
 
 const navItems = computed(() => [
-  { name: 'admin-dashboard', label: t('admin.nav.dashboard'), icon: LayoutDashboard },
-  { name: 'admin-reports', label: t('admin.nav.reports'), icon: Flag },
-  { name: 'admin-reviews', label: t('admin.nav.reviews'), icon: MessageSquare },
-  { name: 'admin-teachers', label: t('admin.nav.teachers'), icon: Users },
-  { name: 'admin-sensitive-words', label: t('admin.nav.sensitiveWords'), icon: ShieldAlert },
-  { name: 'admin-logs', label: t('admin.nav.logs'), icon: FileText }
+  { name: 'admin-dashboard', label: t('admin.nav.dashboard'), icon: LayoutDashboard, requiredCapabilities: [ADMIN_DASHBOARD_VIEW] },
+  { name: 'admin-reports', label: t('admin.nav.reports'), icon: Flag, requiredCapabilities: [ADMIN_REPORTS_MANAGE] },
+  { name: 'admin-reviews', label: t('admin.nav.reviews'), icon: MessageSquare, requiredCapabilities: [ADMIN_REVIEWS_MANAGE] },
+  { name: 'admin-teachers', label: t('admin.nav.teachers'), icon: Users, requiredCapabilities: [ADMIN_TEACHERS_MANAGE] },
+  { name: 'admin-sensitive-words', label: t('admin.nav.sensitiveWords'), icon: ShieldAlert, requiredCapabilities: [ADMIN_SENSITIVE_WORDS_MANAGE] },
+  { name: 'admin-logs', label: t('admin.nav.logs'), icon: FileText, requiredCapabilities: [ADMIN_LOGS_VIEW] },
 ])
+
+const visibleNavItems = computed(() =>
+  navItems.value.filter((item) =>
+    hasAnyCapability(authStore.user?.capabilities ?? [], item.requiredCapabilities),
+  ),
+)
 
 const currentPageLabel = computed(() => {
   const current = navItems.value.find(item => item.name === route.name)

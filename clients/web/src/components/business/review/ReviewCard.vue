@@ -8,7 +8,7 @@
     }"
   >
     <!-- 管理员工具栏 -->
-    <div v-if="isAdmin" class="absolute top-3 right-3 flex items-center gap-1">
+    <div v-if="canManageReviews" class="absolute top-3 right-3 flex items-center gap-1">
       <button
         v-if="!isHidden"
         class="p-1.5 rounded-lg text-text-muted hover:text-warning hover:bg-warning/10 cursor-pointer transition-colors"
@@ -65,7 +65,7 @@
 
     <!-- 内容区：三态显示 -->
     <!-- 状态1: 屏蔽锁定（非管理员看到锁定提示） -->
-    <div v-if="isHidden && !isAdmin" class="flex items-start gap-2 py-4 px-3 bg-warning/5 border border-warning/20 rounded-lg">
+    <div v-if="isHidden && !canManageReviews" class="flex items-start gap-2 py-4 px-3 bg-warning/5 border border-warning/20 rounded-lg">
       <ShieldAlert :size="18" class="text-warning shrink-0 mt-0.5" />
       <div>
         <span class="text-sm font-medium text-text-secondary">{{ t('review.card.contentHidden') }}</span>
@@ -226,6 +226,7 @@ import type { Review } from '@/types/review'
 import type { Reply } from '@/types/reply'
 import { api } from '@/api'
 import type { components } from '@stuhelper/shared'
+import { ADMIN_REVIEWS_MANAGE, hasCapability } from '@stuhelper/shared/constants'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'
@@ -250,13 +251,15 @@ const toast = useToast()
 const authStore = useAuthStore()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-const isAdmin = computed(() => authStore.user?.isAdmin === true)
+const canManageReviews = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REVIEWS_MANAGE),
+)
 const isHidden = computed(() => props.review.status === 'hidden')
 const showActions = computed(() => isAuthenticated.value && !isHidden.value)
 
 // D8: Graded display - preview mode for logged-in but unverified users
 const verificationStore = useVerificationStore()
-const canViewFull = computed(() => isAdmin.value || verificationStore.canViewFullReviews)
+const canViewFull = computed(() => canManageReviews.value || verificationStore.canViewFullReviews)
 const isPreviewMode = computed(() => isAuthenticated.value && !isHidden.value && !canViewFull.value)
 
 const PREVIEW_CHARS = 20

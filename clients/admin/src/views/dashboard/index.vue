@@ -23,31 +23,15 @@
     </el-row>
 
     <!-- Quick actions -->
-    <div>
+    <div v-if="quickActions.length > 0">
       <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">快捷操作</h2>
       <el-row :gutter="12">
-        <el-col :xs="24" :sm="8" class="mb-3">
-          <el-card shadow="hover" class="cursor-pointer" @click="$router.push({ name: 'admin-reviews' })">
+        <el-col v-for="action in quickActions" :key="action.key" :xs="24" :sm="8" class="mb-3">
+          <el-card shadow="hover" class="cursor-pointer relative" @click="action.onClick">
             <div class="flex items-center gap-3">
-              <el-icon :size="20" color="#409eff"><ChatDotRound /></el-icon>
-              <span class="text-sm font-medium">评课管理</span>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="8" class="mb-3">
-          <el-card shadow="hover" class="cursor-pointer relative" @click="$router.push({ name: 'admin-reports' })">
-            <div class="flex items-center gap-3">
-              <el-icon :size="20" color="#f56c6c"><Flag /></el-icon>
-              <span class="text-sm font-medium">举报处理</span>
-              <el-badge v-if="stats.pendingReports > 0" :value="stats.pendingReports" class="ml-auto" type="danger" />
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="8" class="mb-3">
-          <el-card shadow="hover" class="cursor-pointer" @click="handleExport">
-            <div class="flex items-center gap-3">
-              <el-icon :size="20" color="#67c23a"><Download /></el-icon>
-              <span class="text-sm font-medium">导出数据</span>
+              <el-icon :size="20" :color="action.color"><component :is="action.icon" /></el-icon>
+              <span class="text-sm font-medium">{{ action.label }}</span>
+              <el-badge v-if="action.badge && action.badge > 0" :value="action.badge" class="ml-auto" type="danger" />
             </div>
           </el-card>
         </el-col>
@@ -55,7 +39,7 @@
     </div>
 
     <!-- Recent logs -->
-    <div>
+    <div v-if="canViewLogs">
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">近期操作日志</h2>
         <el-link type="primary" @click="$router.push({ name: 'admin-logs' })">查看全部</el-link>
@@ -94,10 +78,15 @@ import {
 } from '@element-plus/icons-vue'
 import { api } from '@/api'
 import type { components } from '@/api'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { ADMIN_LOGS_VIEW, ADMIN_REPORTS_MANAGE, ADMIN_REVIEWS_MANAGE, hasCapability } from '@stuhelper/shared/constants'
 
 type AdminStats = components['schemas']['AdminStats']
 type AdminOperationLog = components['schemas']['AdminOperationLog']
 
+const router = useRouter()
+const authStore = useAuthStore()
 const loading = ref(false)
 const stats = ref<AdminStats>({
   totalReviews: 0,
@@ -111,6 +100,16 @@ const stats = ref<AdminStats>({
 })
 const recentLogs = ref<AdminOperationLog[]>([])
 
+const canManageReviews = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REVIEWS_MANAGE),
+)
+const canManageReports = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REPORTS_MANAGE),
+)
+const canViewLogs = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], ADMIN_LOGS_VIEW),
+)
+
 const statCards = computed(() => [
   { key: 'total', label: '全部评课', value: stats.value.totalReviews, icon: TrendCharts, color: '#409eff' },
   { key: 'published', label: '已发布', value: stats.value.publishedReviews, icon: SuccessFilled, color: '#67c23a' },
@@ -121,6 +120,47 @@ const statCards = computed(() => [
   { key: 'today', label: '今日新增', value: stats.value.todayReviews, icon: TrendCharts, color: '#409eff' },
   { key: 'week', label: '本周新增', value: stats.value.weekReviews, icon: TrendCharts, color: '#9b59b6' },
 ])
+
+const quickActions = computed(() => {
+  const actions: Array<{
+    key: string
+    label: string
+    icon: typeof Download
+    color: string
+    badge?: number
+    onClick: () => void
+  }> = []
+
+  if (canManageReviews.value) {
+    actions.push({
+      key: 'reviews',
+      label: '评课管理',
+      icon: ChatDotRound,
+      color: '#409eff',
+      onClick: () => router.push({ name: 'admin-reviews' }),
+    })
+    actions.push({
+      key: 'export',
+      label: '导出数据',
+      icon: Download,
+      color: '#67c23a',
+      onClick: handleExport,
+    })
+  }
+
+  if (canManageReports.value) {
+    actions.push({
+      key: 'reports',
+      label: '举报处理',
+      icon: Flag,
+      color: '#f56c6c',
+      badge: stats.value.pendingReports,
+      onClick: () => router.push({ name: 'admin-reports' }),
+    })
+  }
+
+  return actions
+})
 
 function actionTagType(action: string): 'success' | 'warning' | 'danger' | 'info' {
   const map: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
@@ -141,7 +181,9 @@ async function fetchData() {
   try {
     const [statsRes, logsRes] = await Promise.all([
       api.admin.getStats(),
-      api.admin.getLogs({ page: 1, pageSize: 5 }),
+      canViewLogs.value
+        ? api.admin.getLogs({ page: 1, pageSize: 5 })
+        : Promise.resolve({ data: { data: { list: [] } } }),
     ])
     if (statsRes.data?.data) {
       stats.value = statsRes.data.data

@@ -3916,6 +3916,9 @@ components:
         - id
         - name
         - displayName
+        - capabilities
+        - canAccessAdmin
+        - isPlatformAdmin
       properties:
         id:
           type: string
@@ -3927,8 +3930,17 @@ components:
           type: string
         email:
           type: string
-        isAdmin:
+        isPlatformAdmin:
           type: boolean
+          description: Casdoor 平台管理员标记，不代表航小伴业务管理员
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: 航小伴应用能力集合，作为前端菜单与后端业务授权的输入
+        canAccessAdmin:
+          type: boolean
+          description: 当前用户是否拥有至少一个航小伴后台能力
     Course:
       type: object
       required:

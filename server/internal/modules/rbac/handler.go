@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -49,32 +50,32 @@ func NewHandler(service HandlerService) *Handler {
 }
 
 // RegisterAdminRoutes 注册 RBAC 管理路由（调用方负责挂载到 /admin 组并添加鉴权中间件）
-func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
+func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup, rbacService PermissionService) {
 	// 角色管理
-	admin.GET("/roles", h.handleListRoles)
-	admin.POST("/roles", h.handleCreateRole)
-	admin.PUT("/roles/:roleID", h.handleUpdateRole)
-	admin.DELETE("/roles/:roleID", h.handleDeleteRole)
-	admin.GET("/roles/:roleID/permissions", h.handleGetRolePermissions)
-	admin.PUT("/roles/:roleID/permissions", h.handleSetRolePermissions)
+	admin.GET("/roles", RequirePermission(rbacService, capability.RBACRoleRead), h.handleListRoles)
+	admin.POST("/roles", RequirePermission(rbacService, capability.RBACRoleCreate), h.handleCreateRole)
+	admin.PUT("/roles/:roleID", RequirePermission(rbacService, capability.RBACRoleUpdate), h.handleUpdateRole)
+	admin.DELETE("/roles/:roleID", RequirePermission(rbacService, capability.RBACRoleDelete), h.handleDeleteRole)
+	admin.GET("/roles/:roleID/permissions", RequirePermission(rbacService, capability.RBACRoleRead), h.handleGetRolePermissions)
+	admin.PUT("/roles/:roleID/permissions", RequirePermission(rbacService, capability.RBACRoleUpdate), h.handleSetRolePermissions)
 
 	// 权限列表
-	admin.GET("/permissions", h.handleListPermissions)
+	admin.GET("/permissions", RequirePermission(rbacService, capability.RBACPermissionRead), h.handleListPermissions)
 
 	// 用户角色/权限管理
-	admin.GET("/users/:userID/roles", h.handleGetUserRoles)
-	admin.PUT("/users/:userID/roles", h.handleSetUserRoles)
-	admin.GET("/users/:userID/permissions", h.handleGetUserPermissions)
-	admin.PUT("/users/:userID/permissions", h.handleSetUserPermission)
+	admin.GET("/users/:userID/roles", RequirePermission(rbacService, capability.RBACUserRead), h.handleGetUserRoles)
+	admin.PUT("/users/:userID/roles", RequirePermission(rbacService, capability.RBACUserUpdate), h.handleSetUserRoles)
+	admin.GET("/users/:userID/permissions", RequirePermission(rbacService, capability.RBACUserRead), h.handleGetUserPermissions)
+	admin.PUT("/users/:userID/permissions", RequirePermission(rbacService, capability.RBACUserUpdate), h.handleSetUserPermission)
 
 	// 用户组管理
-	admin.GET("/groups", h.handleListGroups)
-	admin.POST("/groups", h.handleCreateGroup)
-	admin.PUT("/groups/:groupID", h.handleUpdateGroup)
-	admin.DELETE("/groups/:groupID", h.handleDeleteGroup)
-	admin.GET("/groups/:groupID/members", h.handleGetGroupMembers)
-	admin.PUT("/groups/:groupID/members", h.handleSetGroupMembers)
-	admin.PUT("/groups/:groupID/permissions", h.handleSetGroupPermissions)
+	admin.GET("/groups", RequirePermission(rbacService, capability.RBACGroupRead), h.handleListGroups)
+	admin.POST("/groups", RequirePermission(rbacService, capability.RBACGroupCreate), h.handleCreateGroup)
+	admin.PUT("/groups/:groupID", RequirePermission(rbacService, capability.RBACGroupUpdate), h.handleUpdateGroup)
+	admin.DELETE("/groups/:groupID", RequirePermission(rbacService, capability.RBACGroupDelete), h.handleDeleteGroup)
+	admin.GET("/groups/:groupID/members", RequirePermission(rbacService, capability.RBACGroupRead), h.handleGetGroupMembers)
+	admin.PUT("/groups/:groupID/members", RequirePermission(rbacService, capability.RBACGroupUpdate), h.handleSetGroupMembers)
+	admin.PUT("/groups/:groupID/permissions", RequirePermission(rbacService, capability.RBACGroupUpdate), h.handleSetGroupPermissions)
 }
 
 // ---------------------------------------------------------------------------

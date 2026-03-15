@@ -68,7 +68,9 @@ describe('auth bootstrap', () => {
           name: 'alice',
           displayName: 'Alice',
           email: 'alice@example.com',
-          isAdmin: true
+          isPlatformAdmin: false,
+          capabilities: ['admin:reviews:manage'],
+          canAccessAdmin: true,
         }
       }
     })

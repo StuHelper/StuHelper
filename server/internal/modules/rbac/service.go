@@ -7,6 +7,7 @@ import (
 
 	"go.uber.org/zap"
 
+	appcapability "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
@@ -327,6 +328,29 @@ func (s *Service) SetUserPermission(ctx context.Context, userID int64, permID in
 		return err
 	}
 	return s.repo.SetUserPermission(ctx, userID, permID, granted)
+}
+
+// GetUserCapabilities 返回用户在航小伴内的最终生效能力集合。
+func (s *Service) GetUserCapabilities(ctx context.Context, externalID string) ([]string, error) {
+	userID, err := s.repo.GetInternalUserID(ctx, externalID)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserCapabilities resolve user: %w", err)
+	}
+
+	effectivePerms, err := s.repo.GetEffectivePermissions(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserCapabilities load permissions: %w", err)
+	}
+
+	names := make([]string, 0, len(effectivePerms))
+	for _, perm := range effectivePerms {
+		if !perm.Granted || perm.Name == "" {
+			continue
+		}
+		names = append(names, perm.Name)
+	}
+
+	return appcapability.Normalize(names), nil
 }
 
 // CheckPermission 核心授权检查

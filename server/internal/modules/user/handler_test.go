@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	appmiddleware "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -31,6 +32,16 @@ func ptr[T any](value T) *T {
 	return &value
 }
 
+type allowAllPermissionService struct{}
+
+func (allowAllPermissionService) GetInternalUserID(context.Context, string) (int64, error) {
+	return 1, nil
+}
+
+func (allowAllPermissionService) CheckPermission(context.Context, int64, string, *string) (bool, error) {
+	return true, nil
+}
+
 func setupAdminHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engine {
 	t.Helper()
 
@@ -45,7 +56,12 @@ func setupAdminHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engi
 	r := gin.New()
 	api := r.Group("/api/v1")
 	admin := api.Group("/admin")
-	h.RegisterAdminRoutes(admin)
+	admin.Use(func(c *gin.Context) {
+		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+		c.Next()
+	})
+	var permissionService rbac.PermissionService = allowAllPermissionService{}
+	h.RegisterAdminRoutes(admin, permissionService)
 
 	return r
 }

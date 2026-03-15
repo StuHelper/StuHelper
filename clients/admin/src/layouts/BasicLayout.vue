@@ -20,7 +20,7 @@
             router
             class="!border-r-0"
           >
-            <template v-for="route in menuRoutes" :key="route.path">
+            <template v-for="route in filteredMenuRoutes" :key="route.path">
               <!-- Has children -->
               <el-sub-menu v-if="route.children && route.children.length > 1" :index="route.path">
                 <template #title>
@@ -122,6 +122,7 @@ import { useRoute } from 'vue-router'
 import { Fold, Expand, Link, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { menuRoutes } from '@/router'
+import { hasAnyCapability } from '@stuhelper/shared/constants'
 
 const authStore = useAuthStore()
 const route = useRoute()
@@ -134,6 +135,23 @@ const currentTitle = computed(() => {
   const last = matched[matched.length - 1]
   return (last?.meta?.title as string) || ''
 })
+
+const filteredMenuRoutes = computed(() =>
+  menuRoutes
+    .map((group) => {
+      const children = (group.children ?? []).filter((child) => {
+        const requiredCapabilities = Array.isArray(child.meta?.requiredCapabilities)
+          ? (child.meta.requiredCapabilities as string[])
+          : []
+        if (requiredCapabilities.length === 0) {
+          return true
+        }
+        return hasAnyCapability(authStore.user?.capabilities ?? [], requiredCapabilities)
+      })
+      return { ...group, children }
+    })
+    .filter((group) => (group.children?.length ?? 0) > 0),
+)
 
 function handleCommand(command: string) {
   if (command === 'logout') {

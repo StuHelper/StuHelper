@@ -11,6 +11,7 @@ import (
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
@@ -112,16 +113,27 @@ func ProvideAuthHandler(
 	ts *token.Service,
 	rc *redis.Client,
 	ssoClient *sso.Client,
+	database *db.DB,
 ) *auth.Handler {
-	return auth.NewHandler(cfg, ts, rc.GetClient(), ssoClient)
+	rbacRepo := rbac.NewRepository(database)
+	rbacService := rbac.NewService(rbacRepo)
+	return auth.NewHandler(
+		cfg,
+		ts,
+		rc.GetClient(),
+		ssoClient,
+		auth.NewUserSyncRepository(database),
+		rbacService,
+	)
 }
 
 // ProvideCourseHandler 提供课程 Handler
 func ProvideCourseHandler(
 	database *db.DB,
 	rc *redis.Client,
-	ssoClient *sso.Client,
 	cfg *config.Config,
 ) *course.Handler {
-	return course.NewHandler(database, rc.GetClient(), ssoClient, cfg)
+	rbacRepo := rbac.NewRepository(database)
+	rbacService := rbac.NewService(rbacRepo)
+	return course.NewHandler(database, rc.GetClient(), rbacService, cfg)
 }

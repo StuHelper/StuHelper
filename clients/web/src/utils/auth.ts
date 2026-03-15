@@ -12,7 +12,9 @@ export interface StoredUser {
   name: string
   displayName: string
   avatar?: string
-  isAdmin?: boolean
+  isPlatformAdmin?: boolean
+  capabilities?: string[]
+  canAccessAdmin?: boolean
 }
 
 // M-105: 校验 localStorage 中的用户数据结构，包含 ID 格式验证
@@ -25,7 +27,9 @@ function isValidStoredUser(data: unknown): data is StoredUser {
     typeof obj.name === 'string' && obj.name.length > 0 &&
     typeof obj.displayName === 'string' &&
     (obj.avatar === undefined || typeof obj.avatar === 'string') &&
-    (obj.isAdmin === undefined || typeof obj.isAdmin === 'boolean')
+    (obj.isPlatformAdmin === undefined || typeof obj.isPlatformAdmin === 'boolean') &&
+    (obj.canAccessAdmin === undefined || typeof obj.canAccessAdmin === 'boolean') &&
+    (obj.capabilities === undefined || (Array.isArray(obj.capabilities) && obj.capabilities.every((item) => typeof item === 'string')))
   )
 }
 
@@ -54,7 +58,9 @@ export const userManager = {
       name: user.name,
       displayName: user.displayName,
       ...(user.avatar !== undefined && { avatar: user.avatar }),
-      ...(user.isAdmin !== undefined && { isAdmin: user.isAdmin }),
+      ...(user.isPlatformAdmin !== undefined && { isPlatformAdmin: user.isPlatformAdmin }),
+      ...(user.capabilities !== undefined && { capabilities: user.capabilities }),
+      ...(user.canAccessAdmin !== undefined && { canAccessAdmin: user.canAccessAdmin }),
     }
     localStorage.setItem(USER_KEY, JSON.stringify(minimal))
   },

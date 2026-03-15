@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -43,16 +45,16 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMW gin.HandlerFunc) {
 	rg.GET("/user/schools", h.handleListSchools)
 }
 
-// RegisterAdminRoutes 注册管理后台路由（调用方负责挂载到 /admin 组并添加鉴权中间件）
-func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
-	admin.GET("/identities", h.handleAdminListIdentities)
-	admin.PUT("/identities/:userID", h.handleAdminReviewIdentity)
-	admin.GET("/student-verifications", h.handleAdminListStudentVerifications)
-	admin.PUT("/student-verifications/:userID", h.handleAdminReviewStudentVerification)
-	admin.GET("/school-configs", h.handleAdminListSchoolConfigs)
-	admin.PUT("/school-configs/:schoolID", h.handleAdminUpdateSchoolConfig)
-	admin.GET("/system-configs", h.handleAdminListSystemConfigs)
-	admin.PUT("/system-configs/:key", h.handleAdminUpdateSystemConfig)
+// RegisterAdminRoutes 注册管理后台路由（调用方负责挂载到 /admin 组并添加认证中间件）
+func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup, permissionService rbac.PermissionService) {
+	admin.GET("/identities", rbac.RequirePermission(permissionService, capability.UserIdentityRead), h.handleAdminListIdentities)
+	admin.PUT("/identities/:userID", rbac.RequirePermission(permissionService, capability.UserIdentityReview), h.handleAdminReviewIdentity)
+	admin.GET("/student-verifications", rbac.RequirePermission(permissionService, capability.UserStudentRead), h.handleAdminListStudentVerifications)
+	admin.PUT("/student-verifications/:userID", rbac.RequirePermission(permissionService, capability.UserStudentReview), h.handleAdminReviewStudentVerification)
+	admin.GET("/school-configs", rbac.RequirePermission(permissionService, capability.UserSchoolRead), h.handleAdminListSchoolConfigs)
+	admin.PUT("/school-configs/:schoolID", rbac.RequirePermission(permissionService, capability.UserSchoolUpdate), h.handleAdminUpdateSchoolConfig)
+	admin.GET("/system-configs", rbac.RequirePermission(permissionService, capability.UserSystemRead), h.handleAdminListSystemConfigs)
+	admin.PUT("/system-configs/:key", rbac.RequirePermission(permissionService, capability.UserSystemUpdate), h.handleAdminUpdateSystemConfig)
 }
 
 // ---------------------------------------------------------------------------

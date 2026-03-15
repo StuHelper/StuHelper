@@ -1434,7 +1434,12 @@ export interface components {
             displayName: string;
             avatar?: string;
             email?: string;
-            isAdmin?: boolean;
+            /** @description Casdoor 平台管理员标记，不代表航小伴业务管理员 */
+            isPlatformAdmin: boolean;
+            /** @description 航小伴应用能力集合，作为前端菜单与后端业务授权的输入 */
+            capabilities: string[];
+            /** @description 当前用户是否拥有至少一个航小伴后台能力 */
+            canAccessAdmin: boolean;
         };
         Course: {
             /** Format: int64 */

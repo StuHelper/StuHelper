@@ -126,6 +126,9 @@ func run() error {
 	// 创建带超时的数据库封装
 	database := db.NewDB(pgPool, time.Duration(cfg.Database.QueryTimeout)*time.Second)
 
+	rbacRepo := rbac.NewRepository(database)
+	rbacService := rbac.NewService(rbacRepo)
+
 	// 初始化 Token 服务（包含增强的 JWT 验证器）
 	tokenService, err := token.NewService(token.ServiceConfig{
 		RedisClient:    redisClient.GetClient(),
@@ -245,13 +248,20 @@ func run() error {
 		api.Use(middleware.CSRFMiddleware())
 
 		// 注册认证模块路由
-		authHandler := auth.NewHandler(cfg, tokenService, redisClient.GetClient(), ssoClient)
+		authHandler := auth.NewHandler(
+			cfg,
+			tokenService,
+			redisClient.GetClient(),
+			ssoClient,
+			auth.NewUserSyncRepository(database),
+			rbacService,
+		)
 		authHandler.RegisterRoutes(api)
 
 		// 注册课程模块路由
 		authMW := middleware.AuthMiddleware(tokenService)
 		optionalAuthMW := middleware.OptionalAuthMiddleware(tokenService)
-		courseHandler := course.NewHandler(database, redisClient.GetClient(), ssoClient, cfg)
+		courseHandler := course.NewHandler(database, redisClient.GetClient(), rbacService, cfg)
 		courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 
 		// 初始化 LDAP 客户端（可选，仅在配置了 LDAP_URL 时启用）
@@ -293,19 +303,14 @@ func run() error {
 			return fmt.Errorf("failed to initialize user service: %w", err)
 		}
 		userHandler := user.NewHandler(userService)
+		rbacHandler := rbac.NewHandler(rbacService)
 		userHandler.RegisterRoutes(api, authMW)
 
-		// 注册 RBAC 模块
-		rbacRepo := rbac.NewRepository(database)
-		rbacService := rbac.NewService(rbacRepo)
-		rbacHandler := rbac.NewHandler(rbacService)
-
-		// 管理后台路由组（authMW + adminMW 双重鉴权）
-		adminMW := middleware.RequireAdmin(ssoClient)
+		// 管理后台路由组（只做认证，业务授权由具体路由负责）
 		adminGroup := api.Group("/admin")
-		adminGroup.Use(authMW, adminMW)
-		rbacHandler.RegisterAdminRoutes(adminGroup)
-		userHandler.RegisterAdminRoutes(adminGroup)
+		adminGroup.Use(authMW)
+		rbacHandler.RegisterAdminRoutes(adminGroup, rbacService)
+		userHandler.RegisterAdminRoutes(adminGroup, rbacService)
 
 		// 启动后台定时任务（日志清理等）
 		bgCtx, bgCancel := context.WithCancel(context.Background())

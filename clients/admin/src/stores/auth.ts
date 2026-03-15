@@ -8,7 +8,9 @@ interface UserInfo {
   displayName?: string
   email?: string
   avatar?: string
-  isAdmin: boolean
+  isPlatformAdmin: boolean
+  capabilities: string[]
+  canAccessAdmin: boolean
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -17,7 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
   const initialized = ref(false)
 
   const isAuthenticated = computed(() => !!user.value)
-  const isAdmin = computed(() => user.value?.isAdmin === true)
+  const canAccessAdmin = computed(() => user.value?.canAccessAdmin === true)
 
   async function bootstrap(): Promise<boolean> {
     if (initialized.value) return isAuthenticated.value
@@ -32,7 +34,9 @@ export const useAuthStore = defineStore('auth', () => {
           displayName: data.displayName ?? data.name,
           email: data.email,
           avatar: data.avatar,
-          isAdmin: data.isAdmin === true,
+          isPlatformAdmin: data.isPlatformAdmin === true,
+          capabilities: Array.isArray(data.capabilities) ? data.capabilities : [],
+          canAccessAdmin: data.canAccessAdmin === true,
         }
         return true
       }
@@ -73,7 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     initialized,
     isAuthenticated,
-    isAdmin,
+    canAccessAdmin,
     bootstrap,
     getSSOLoginURL,
     logout,

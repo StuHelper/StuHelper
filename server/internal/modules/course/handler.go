@@ -9,11 +9,11 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 )
 
 // Handler 学习中心处理器
@@ -25,14 +25,14 @@ type Handler struct {
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, rdb *redis.Client, ssoClient *sso.Client, cfg *config.Config) *Handler {
+func NewHandler(database *db.DB, rdb *redis.Client, permissionSvc rbac.PermissionService, cfg *config.Config) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo)
 	return &Handler{
 		db:            database,
 		cache:         cache.NewHelper(rdb),
 		service:       svc,
-		reviewHandler: review.NewHandler(database, rdb, ssoClient, cfg.RateLimit),
+		reviewHandler: review.NewHandler(database, rdb, permissionSvc, cfg.RateLimit),
 	}
 }
 

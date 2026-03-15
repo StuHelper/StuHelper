@@ -2,7 +2,7 @@
   <div>
     <div class="mb-4 flex items-center justify-between">
       <h2 class="text-lg font-semibold text-gray-900">角色管理</h2>
-      <el-button type="primary" @click="openCreateDialog">新增角色</el-button>
+      <el-button v-if="canCreateRole" type="primary" @click="openCreateDialog">新增角色</el-button>
     </div>
 
     <!-- Table -->
@@ -19,9 +19,34 @@
       </el-table-column>
       <el-table-column label="操作" width="240" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" :disabled="row.isSystem" @click="openPermissionDialog(row)">配置权限</el-button>
-          <el-button size="small" :disabled="row.isSystem" @click="openEditDialog(row)">编辑</el-button>
-          <el-button size="small" type="danger" :disabled="row.isSystem" @click="handleDelete(row)">删除</el-button>
+          <template v-if="canManageRolePermissions || canUpdateRole || canDeleteRole">
+            <el-button
+              v-if="canManageRolePermissions"
+              size="small"
+              :disabled="row.isSystem"
+              @click="openPermissionDialog(row)"
+            >
+              配置权限
+            </el-button>
+            <el-button
+              v-if="canUpdateRole"
+              size="small"
+              :disabled="row.isSystem"
+              @click="openEditDialog(row)"
+            >
+              编辑
+            </el-button>
+            <el-button
+              v-if="canDeleteRole"
+              size="small"
+              type="danger"
+              :disabled="row.isSystem"
+              @click="handleDelete(row)"
+            >
+              删除
+            </el-button>
+          </template>
+          <span v-else class="text-sm text-gray-400">—</span>
         </template>
       </el-table-column>
     </el-table>
@@ -100,14 +125,43 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { api } from '@/api'
 import type { components } from '@stuhelper/shared'
+import { useAuthStore } from '@/stores/auth'
+import {
+  RBAC_PERMISSION_READ,
+  RBAC_ROLE_CREATE,
+  RBAC_ROLE_DELETE,
+  RBAC_ROLE_READ,
+  RBAC_ROLE_UPDATE,
+  hasCapability,
+} from '@stuhelper/shared/constants'
 
 type Role = components['schemas']['Role']
 type Permission = components['schemas']['Permission']
 
+const authStore = useAuthStore()
 const loading = ref(false)
 const submitting = ref(false)
 const roles = ref<Role[]>([])
 const allPermissions = ref<Permission[]>([])
+
+const canReadRoles = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], RBAC_ROLE_READ),
+)
+const canReadPermissions = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], RBAC_PERMISSION_READ),
+)
+const canCreateRole = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], RBAC_ROLE_CREATE),
+)
+const canUpdateRole = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], RBAC_ROLE_UPDATE),
+)
+const canDeleteRole = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], RBAC_ROLE_DELETE),
+)
+const canManageRolePermissions = computed(() =>
+  canReadPermissions.value && canUpdateRole.value,
+)
 
 // Role dialog state
 const roleDialogVisible = ref(false)
@@ -145,6 +199,10 @@ const canSavePermissions = computed(() =>
 )
 
 async function fetchRoles() {
+  if (!canReadRoles.value) {
+    roles.value = []
+    return
+  }
   loading.value = true
   try {
     const res = await api.rbac.listRoles()
@@ -157,6 +215,9 @@ async function fetchRoles() {
 }
 
 async function fetchPermissions() {
+  if (!canReadPermissions.value || allPermissions.value.length > 0) {
+    return
+  }
   try {
     const res = await api.rbac.listPermissions()
     allPermissions.value = res.data?.data ?? []
@@ -166,11 +227,13 @@ async function fetchPermissions() {
 }
 
 function openCreateDialog() {
+  if (!canCreateRole.value) return
   editingRole.value = null
   roleDialogVisible.value = true
 }
 
 function openEditDialog(row: Role) {
+  if (!canUpdateRole.value) return
   editingRole.value = row
   roleForm.value = {
     name: row.name,
@@ -216,6 +279,7 @@ async function handleSaveRole() {
 }
 
 async function handleDelete(row: Role) {
+  if (!canDeleteRole.value) return
   try {
     await ElMessageBox.confirm(`确定要删除角色 "${row.displayName}" 吗？`, '删除确认', {
       type: 'warning',
@@ -237,12 +301,14 @@ async function handleDelete(row: Role) {
 }
 
 async function openPermissionDialog(row: Role) {
+  if (!canManageRolePermissions.value) return
   permissionTargetRole.value = row
   selectedPermissionIDs.value = []
   permissionLoadFailed.value = false
   permissionDialogVisible.value = true
   permissionLoading.value = true
   try {
+    await fetchPermissions()
     const res = await api.rbac.getRolePermissions(row.id)
     selectedPermissionIDs.value = res.data?.data.permissionIDs ?? []
   } catch {
@@ -294,7 +360,5 @@ async function handleSavePermissions() {
   }
 }
 
-onMounted(async () => {
-  await Promise.all([fetchRoles(), fetchPermissions()])
-})
+onMounted(fetchRoles)
 </script>

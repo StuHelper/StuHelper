@@ -44,41 +44,32 @@
     </div>
 
     <!-- Quick actions -->
-    <div class="space-y-3">
+    <div v-if="quickActions.length > 0" class="space-y-3">
       <h2 class="text-sm font-semibold text-text-secondary uppercase tracking-wider">{{ t('admin.dashboard.quickActions') }}</h2>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <router-link
-          :to="{ name: 'admin-reviews' }"
-          class="flex items-center gap-3 p-4 bg-bg-card border border-border rounded-xl shadow-card no-underline text-text-primary transition-all duration-fast hover:shadow-md hover:border-primary/30"
+        <component
+          :is="action.to ? 'router-link' : 'button'"
+          v-for="action in quickActions"
+          :key="action.key"
+          v-bind="action.to ? { to: action.to } : { type: 'button' }"
+          class="relative flex items-center gap-3 p-4 bg-bg-card border border-border rounded-xl shadow-card text-left text-text-primary transition-all duration-fast hover:shadow-md hover:border-primary/30"
+          :class="action.to ? 'no-underline' : ''"
+          @click="action.onClick?.()"
         >
-          <MessageSquare class="size-5 text-primary" />
-          <span class="text-sm font-medium">{{ t('admin.dashboard.manageReviews') }}</span>
-        </router-link>
-        <router-link
-          :to="{ name: 'admin-reports' }"
-          class="relative flex items-center gap-3 p-4 bg-bg-card border border-border rounded-xl shadow-card no-underline text-text-primary transition-all duration-fast hover:shadow-md hover:border-primary/30"
-        >
-          <Flag class="size-5 text-accent" />
-          <span class="text-sm font-medium">{{ t('admin.dashboard.handleReports') }}</span>
+          <component :is="action.icon" class="size-5" :class="action.iconClass" />
+          <span class="text-sm font-medium">{{ action.label }}</span>
           <span
-            v-if="stats.pendingReports > 0"
+            v-if="action.badge && action.badge > 0"
             class="absolute top-3 right-3 min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-danger text-text-inverse text-xs font-medium rounded-full"
           >
-            {{ stats.pendingReports }}
+            {{ action.badge }}
           </span>
-        </router-link>
-        <button
-          class="flex items-center gap-3 p-4 bg-bg-card border border-border rounded-xl shadow-card text-text-primary transition-all duration-fast hover:shadow-md hover:border-primary/30 text-left"
-          @click="handleExport"
-        >
-          <Download class="size-5 text-success" />
-          <span class="text-sm font-medium">{{ t('admin.dashboard.exportData') }}</span>
-        </button>
+        </component>
       </div>
     </div>
 
     <!-- Recent logs -->
-    <div class="space-y-3">
+    <div v-if="canViewLogs" class="space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-semibold text-text-secondary uppercase tracking-wider">{{ t('admin.dashboard.recentLogs') }}</h2>
         <router-link
@@ -133,15 +124,35 @@ import { useStaggerAnimation } from '@/composables/useStaggerAnimation'
 import { useToast } from '@/composables/useToast'
 import { useAsyncData } from '@/composables/useAsyncData'
 import { formatRelativeTime, formatAbsoluteTime } from '@/utils/date'
+import { useAuthStore } from '@/stores/auth'
+import {
+  ADMIN_LOGS_VIEW,
+  ADMIN_REPORTS_MANAGE,
+  ADMIN_REVIEWS_MANAGE,
+  hasCapability,
+} from '@stuhelper/shared/constants'
 
 const { t, locale } = useI18n()
 const toast = useToast()
+const authStore = useAuthStore()
 const { isVisible, getStyle } = useStaggerAnimation(50)
+
+const canManageReviews = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REVIEWS_MANAGE),
+)
+const canManageReports = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REPORTS_MANAGE),
+)
+const canViewLogs = computed(() =>
+  hasCapability(authStore.user?.capabilities ?? [], ADMIN_LOGS_VIEW),
+)
 
 const { data: dashboardData, loading, execute: fetchStats } = useAsyncData(async () => {
   const [statsRes, logsRes] = await Promise.all([
     api.admin.getStats(),
-    api.admin.getLogs({ page: 1, pageSize: 5 })
+    canViewLogs.value
+      ? api.admin.getLogs({ page: 1, pageSize: 5 })
+      : Promise.resolve({ data: { data: { list: [] } } })
   ])
   return {
     stats: statsRes.data?.data || {
@@ -170,6 +181,47 @@ const stats = computed(() => dashboardData.value?.stats || {
 })
 const recentLogs = computed(() => dashboardData.value?.recentLogs || [])
 const hasData = computed(() => dashboardData.value !== null)
+const quickActions = computed(() => {
+  const actions: Array<{
+    key: string
+    label: string
+    icon: typeof Download
+    iconClass: string
+    badge?: number
+    to?: { name: string }
+    onClick?: () => void
+  }> = []
+
+  if (canManageReviews.value) {
+    actions.push({
+      key: 'reviews',
+      label: t('admin.dashboard.manageReviews'),
+      icon: MessageSquare,
+      iconClass: 'text-primary',
+      to: { name: 'admin-reviews' },
+    })
+    actions.push({
+      key: 'export',
+      label: t('admin.dashboard.exportData'),
+      icon: Download,
+      iconClass: 'text-success',
+      onClick: handleExport,
+    })
+  }
+
+  if (canManageReports.value) {
+    actions.push({
+      key: 'reports',
+      label: t('admin.dashboard.handleReports'),
+      icon: Flag,
+      iconClass: 'text-accent',
+      badge: stats.value.pendingReports,
+      to: { name: 'admin-reports' },
+    })
+  }
+
+  return actions
+})
 
 const statCards = computed(() => [
   {

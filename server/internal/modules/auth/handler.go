@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -22,24 +23,35 @@ import (
 
 // Handler 认证处理器
 type Handler struct {
-	ssoClient      *sso.Client
-	tokenService   *token.Service
-	tokenConfig    config.TokenConfig
-	redirectURI    string
-	appName        string
-	ssoEndpoint    string
-	refreshLimiter *middleware.RedisRateLimiter
+	ssoClient        *sso.Client
+	tokenService     *token.Service
+	tokenConfig      config.TokenConfig
+	redirectURI      string
+	appName          string
+	ssoEndpoint      string
+	refreshLimiter   *middleware.RedisRateLimiter
+	userSyncRepo     UserSyncRepo
+	capabilityReader CapabilityReader
 }
 
 // NewHandler 创建认证处理器
-func NewHandler(cfg *config.Config, tokenService *token.Service, rdb *redis.Client, ssoClient *sso.Client) *Handler {
+func NewHandler(
+	cfg *config.Config,
+	tokenService *token.Service,
+	rdb *redis.Client,
+	ssoClient *sso.Client,
+	userSyncRepo UserSyncRepo,
+	capabilityReader CapabilityReader,
+) *Handler {
 	return &Handler{
-		ssoClient:    ssoClient,
-		tokenService: tokenService,
-		tokenConfig:  cfg.Token,
-		redirectURI:  cfg.Casdoor.RedirectURI,
-		appName:      cfg.Casdoor.Application,
-		ssoEndpoint:  cfg.Casdoor.Endpoint,
+		ssoClient:        ssoClient,
+		tokenService:     tokenService,
+		tokenConfig:      cfg.Token,
+		redirectURI:      cfg.Casdoor.RedirectURI,
+		appName:          cfg.Casdoor.Application,
+		ssoEndpoint:      cfg.Casdoor.Endpoint,
+		userSyncRepo:     userSyncRepo,
+		capabilityReader: capabilityReader,
 		// RefreshToken 限制: 每分钟最多 10 次
 		refreshLimiter: middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
 	}
@@ -213,31 +225,39 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		)
 	}
 
+	userInfo, err := h.buildUserInfo(ctx, claims.Id, claims.Name, claims.DisplayName, claims.Email, optionalString(claims.Avatar), claims.IsAdmin)
+	if err != nil {
+		logger.FromGin(c).Error("failed to build current user info after callback", zap.Error(err))
+		response.ServiceUnavailable(c, "identity service temporarily unavailable")
+		return
+	}
+
 	// 记录登录成功审计日志
 	audit.LogSuccess(audit.EventUserLogin, claims.Id, claims.Name, c.ClientIP(), c.Request.UserAgent(), requestID)
 
 	response.Success(c, gin.H{
-		"user": gin.H{
-			"id":          claims.Id,
-			"name":        claims.Name,
-			"displayName": claims.DisplayName,
-			"email":       claims.Email,
-			"avatar":      claims.Avatar,
-			"isAdmin":     claims.IsAdmin,
-		},
+		"user":      userInfo,
 		"expiresIn": h.tokenConfig.AccessTokenTTL,
 	})
 }
 
 // GetCurrentUser 获取当前用户信息
 func (h *Handler) GetCurrentUser(c *gin.Context) {
-	response.Success(c, gin.H{
-		"id":          middleware.GetUserID(c),
-		"name":        middleware.GetUsername(c),
-		"email":       middleware.GetEmail(c),
-		"displayName": middleware.GetDisplayName(c),
-		"isAdmin":     middleware.GetIsAdmin(c),
-	})
+	userInfo, err := h.buildUserInfo(
+		c.Request.Context(),
+		middleware.GetUserID(c),
+		middleware.GetUsername(c),
+		middleware.GetDisplayName(c),
+		middleware.GetEmail(c),
+		nil,
+		middleware.GetIsAdmin(c),
+	)
+	if err != nil {
+		logger.FromGin(c).Error("failed to build current user info", zap.Error(err))
+		response.ServiceUnavailable(c, "identity service temporarily unavailable")
+		return
+	}
+	response.Success(c, userInfo)
 }
 
 // Logout 登出
@@ -414,6 +434,81 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		"message":   "token refreshed successfully",
 		"expiresIn": h.tokenConfig.AccessTokenTTL,
 	})
+}
+
+func (h *Handler) buildUserInfo(
+	ctx context.Context,
+	userID string,
+	fallbackName string,
+	fallbackDisplayName string,
+	fallbackEmail string,
+	fallbackAvatar *string,
+	fallbackIsPlatformAdmin bool,
+) (gin.H, error) {
+	cachedUser, err := h.ssoClient.GetCachedUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	name := fallbackName
+	displayName := fallbackDisplayName
+	email := fallbackEmail
+	isPlatformAdmin := fallbackIsPlatformAdmin
+
+	if cachedUser != nil {
+		if cachedUser.Name != "" {
+			name = cachedUser.Name
+		}
+		if cachedUser.DisplayName != "" {
+			displayName = cachedUser.DisplayName
+		}
+		if cachedUser.Email != "" {
+			email = cachedUser.Email
+		}
+		isPlatformAdmin = cachedUser.IsAdmin
+	}
+
+	if displayName == "" {
+		displayName = name
+	}
+
+	if h.userSyncRepo != nil {
+		if err := h.userSyncRepo.UpsertUser(ctx, UserSyncInput{
+			ExternalID: userID,
+			Username:   name,
+			Email:      email,
+			AvatarURL:  fallbackAvatar,
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	capabilities := []string{}
+	if h.capabilityReader != nil {
+		resolvedCapabilities, err := h.capabilityReader.GetUserCapabilities(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		capabilities = capability.Normalize(resolvedCapabilities)
+	}
+
+	return gin.H{
+		"id":              userID,
+		"name":            name,
+		"displayName":     displayName,
+		"email":           email,
+		"avatar":          fallbackAvatar,
+		"isPlatformAdmin": isPlatformAdmin,
+		"capabilities":    capabilities,
+		"canAccessAdmin":  capability.CanAccessAdmin(capabilities),
+	}, nil
+}
+
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // setTokenCookies 设置 Token Cookie

@@ -123,7 +123,15 @@ func setupRBACAdminRouter(service HandlerService) *gin.Engine {
 	r := gin.New()
 	api := r.Group("/api/v1")
 	admin := api.Group("/admin")
-	NewHandler(service).RegisterAdminRoutes(admin)
+	admin.Use(func(c *gin.Context) {
+		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+		c.Next()
+	})
+	permissionService, ok := service.(PermissionService)
+	if !ok {
+		panic("test handler service must implement PermissionService")
+	}
+	NewHandler(service).RegisterAdminRoutes(admin, permissionService)
 	return r
 }
 

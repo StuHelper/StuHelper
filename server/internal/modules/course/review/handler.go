@@ -9,13 +9,15 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 )
 
 // Handler 评课社区处理器
@@ -23,7 +25,8 @@ type Handler struct {
 	db            *db.DB
 	cache         *cache.Helper
 	service       *Service
-	ssoClient     *sso.Client
+	permissionSvc rbac.PermissionService
+	userRepo      *user.Repository
 	postLimiter   *middleware.RedisRateLimiter // 发布评论限流
 	voteLimiter   *middleware.RedisRateLimiter // 投票限流
 	reportLimiter *middleware.RedisRateLimiter // 举报限流
@@ -32,14 +35,15 @@ type Handler struct {
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, rdb *redis.Client, ssoClient *sso.Client, rlCfg config.ReviewRateLimitConfig) *Handler {
+func NewHandler(database *db.DB, rdb *redis.Client, permissionSvc rbac.PermissionService, rlCfg config.ReviewRateLimitConfig) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo)
 	return &Handler{
 		db:            database,
 		cache:         cache.NewHelper(rdb),
 		service:       svc,
-		ssoClient:     ssoClient,
+		permissionSvc: permissionSvc,
+		userRepo:      user.NewRepository(database),
 		postLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.PostLimit, time.Minute),
 		voteLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.VoteLimit, time.Minute),
 		reportLimiter: middleware.NewRedisRateLimiter(rdb, rlCfg.ReportLimit, time.Minute),
@@ -107,29 +111,29 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 
 	// 管理员路由组
 	admin := r.Group("/admin")
-	admin.Use(authMiddleware, middleware.RequireAdmin(h.ssoClient))
+	admin.Use(authMiddleware)
 	{
-		admin.GET("/reports", h.ListReports)
-		admin.PUT("/reports/:id", h.ProcessReport)
-		admin.GET("/reviews", h.ListAllReviews)
-		admin.PUT("/reviews/:id", h.AdminUpdateReview)
-		admin.POST("/reviews/:id/edit", h.AdminEditReviewContent)
-		admin.POST("/reviews/batch", h.BatchUpdateReviews)
-		admin.GET("/stats", h.GetAdminStats)
-		admin.GET("/logs", h.GetOperationLogs)
-		admin.GET("/export", h.ExportReviews)
+		admin.GET("/reports", rbac.RequirePermission(h.permissionSvc, capability.AdminReportsManage), h.ListReports)
+		admin.PUT("/reports/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminReportsManage), h.ProcessReport)
+		admin.GET("/reviews", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.ListAllReviews)
+		admin.PUT("/reviews/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.AdminUpdateReview)
+		admin.POST("/reviews/:id/edit", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.AdminEditReviewContent)
+		admin.POST("/reviews/batch", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.BatchUpdateReviews)
+		admin.GET("/stats", rbac.RequirePermission(h.permissionSvc, capability.AdminDashboardView), h.GetAdminStats)
+		admin.GET("/logs", rbac.RequirePermission(h.permissionSvc, capability.AdminLogsView), h.GetOperationLogs)
+		admin.GET("/export", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.ExportReviews)
 
 		// 教师管理
-		admin.GET("/teachers", h.ListAdminTeachers)
-		admin.POST("/teachers", h.CreateTeacher)
-		admin.PUT("/teachers/:id", h.UpdateTeacher)
-		admin.DELETE("/teachers/:id", h.DeleteTeacher)
+		admin.GET("/teachers", rbac.RequirePermission(h.permissionSvc, capability.AdminTeachersManage), h.ListAdminTeachers)
+		admin.POST("/teachers", rbac.RequirePermission(h.permissionSvc, capability.AdminTeachersManage), h.CreateTeacher)
+		admin.PUT("/teachers/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminTeachersManage), h.UpdateTeacher)
+		admin.DELETE("/teachers/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminTeachersManage), h.DeleteTeacher)
 
 		// 敏感词管理
-		admin.GET("/sensitive-words", h.ListSensitiveWords)
-		admin.POST("/sensitive-words", h.CreateSensitiveWord)
-		admin.PUT("/sensitive-words/:id", h.UpdateSensitiveWord)
-		admin.DELETE("/sensitive-words/:id", h.DeleteSensitiveWord)
+		admin.GET("/sensitive-words", rbac.RequirePermission(h.permissionSvc, capability.AdminSensitiveWordsManage), h.ListSensitiveWords)
+		admin.POST("/sensitive-words", rbac.RequirePermission(h.permissionSvc, capability.AdminSensitiveWordsManage), h.CreateSensitiveWord)
+		admin.PUT("/sensitive-words/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminSensitiveWordsManage), h.UpdateSensitiveWord)
+		admin.DELETE("/sensitive-words/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminSensitiveWordsManage), h.DeleteSensitiveWord)
 	}
 }
 

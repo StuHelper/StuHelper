@@ -60,9 +60,25 @@ function normalizeCurrentUser(
         displayName: data.displayName ?? data.name,
         email: data.email,
         avatar: _currentUser?.avatar,
-        // I-4: isAdmin 应由服务端在 /auth/me 或 /auth/callback 响应中提供
-        // 不从 localStorage 继承 isAdmin，防止服务端撤销权限后客户端仍显示管理员 UI
-        isAdmin: data.isAdmin === true,
+        isPlatformAdmin: data.isPlatformAdmin === true,
+        capabilities: data.capabilities ?? [],
+        canAccessAdmin: data.canAccessAdmin === true,
+    };
+}
+
+function normalizeStoredUser(data: ReturnType<typeof userManager.getUser>): UserInfo | null {
+    if (!data) {
+        return null;
+    }
+
+    return {
+        id: data.id,
+        name: data.name,
+        displayName: data.displayName,
+        avatar: data.avatar,
+        isPlatformAdmin: data.isPlatformAdmin === true,
+        capabilities: data.capabilities ?? [],
+        canAccessAdmin: data.canAccessAdmin === true,
     };
 }
 
@@ -70,7 +86,7 @@ export const useAuthStore = defineStore("auth", () => {
     // M-91: 用 try-catch 包裹 localStorage 读取，防止数据损坏导致 store 初始化失败
     let initialUser: UserInfo | null = null;
     try {
-        initialUser = userManager.getUser();
+        initialUser = normalizeStoredUser(userManager.getUser());
     } catch {
         initialUser = null;
     }
@@ -249,7 +265,12 @@ export const useAuthStore = defineStore("auth", () => {
             userManager.setUser(normalizedUser);
             return true;
         } catch (err) {
-            if (isApiError(err) && !isNetworkError(err.code) && !isCsrfError(err.code)) {
+            if (
+                isApiError(err) &&
+                !isNetworkError(err.code) &&
+                !isCsrfError(err.code) &&
+                (err.status === 401 || err.status === 403 || isAuthError(err.code))
+            ) {
                 clearAuth();
                 user.value = null;
             }

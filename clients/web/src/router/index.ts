@@ -8,6 +8,16 @@ import { useReviewPost } from "@/composables/useReviewPost";
 import { isTokenExpired } from "@/utils/auth";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
+import {
+    ADMIN_DASHBOARD_VIEW,
+    ADMIN_LOGS_VIEW,
+    ADMIN_REPORTS_MANAGE,
+    ADMIN_REVIEWS_MANAGE,
+    ADMIN_SENSITIVE_WORDS_MANAGE,
+    ADMIN_TEACHERS_MANAGE,
+    WEB_ADMIN_ENTRY_CAPABILITIES,
+    hasAnyCapability,
+} from "@stuhelper/shared/constants";
 // H3: 静态导入，确保 chunk load 失败时仍可渲染
 import ChunkErrorPage from "@/modules/errors/views/ChunkErrorPage.vue";
 import NotFoundPage from "@/modules/errors/views/NotFoundPage.vue";
@@ -16,7 +26,7 @@ declare module "vue-router" {
     interface RouteMeta {
         title?: string;
         requiresAuth?: boolean;
-        requiresAdmin?: boolean;
+        requiredCapabilities?: string[];
         guest?: boolean;
         titleKey?: string;
         layout?: "shell" | "none" | "admin";
@@ -249,7 +259,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.admin",
             requiresAuth: true,
-            requiresAdmin: true,
+            requiredCapabilities: [...WEB_ADMIN_ENTRY_CAPABILITIES],
             layout: "admin",
         },
         children: [
@@ -259,6 +269,7 @@ const routes: RouteRecordRaw[] = [
                 component: lazyLoad(
                     () => import("@/modules/admin/views/DashboardPage.vue"),
                 ),
+                meta: { requiredCapabilities: [ADMIN_DASHBOARD_VIEW] },
             },
             {
                 path: "reports",
@@ -266,6 +277,7 @@ const routes: RouteRecordRaw[] = [
                 component: lazyLoad(
                     () => import("@/modules/admin/views/ReportsPage.vue"),
                 ),
+                meta: { requiredCapabilities: [ADMIN_REPORTS_MANAGE] },
             },
             {
                 path: "reviews",
@@ -273,6 +285,7 @@ const routes: RouteRecordRaw[] = [
                 component: lazyLoad(
                     () => import("@/modules/admin/views/ReviewsManagePage.vue"),
                 ),
+                meta: { requiredCapabilities: [ADMIN_REVIEWS_MANAGE] },
             },
             {
                 path: "teachers",
@@ -281,6 +294,7 @@ const routes: RouteRecordRaw[] = [
                     () =>
                         import("@/modules/admin/views/TeachersManagePage.vue"),
                 ),
+                meta: { requiredCapabilities: [ADMIN_TEACHERS_MANAGE] },
             },
             {
                 path: "sensitive-words",
@@ -289,6 +303,7 @@ const routes: RouteRecordRaw[] = [
                     () =>
                         import("@/modules/admin/views/SensitiveWordsPage.vue"),
                 ),
+                meta: { requiredCapabilities: [ADMIN_SENSITIVE_WORDS_MANAGE] },
             },
             {
                 path: "logs",
@@ -296,6 +311,7 @@ const routes: RouteRecordRaw[] = [
                 component: lazyLoad(
                     () => import("@/modules/admin/views/LogsPage.vue"),
                 ),
+                meta: { requiredCapabilities: [ADMIN_LOGS_VIEW] },
             },
         ],
     },
@@ -330,6 +346,33 @@ const router = createRouter({
         return savedPosition || { top: 0 };
     },
 });
+
+function hasAdminRouteAccess(
+    route: RouteRecordRaw,
+    capabilities: readonly string[],
+): boolean {
+    const requiredCapabilities = Array.isArray(route.meta?.requiredCapabilities)
+        ? route.meta.requiredCapabilities
+        : [];
+    if (requiredCapabilities.length === 0) {
+        return true;
+    }
+    return hasAnyCapability(capabilities, requiredCapabilities);
+}
+
+function findFirstAccessibleAdminPath(
+    capabilities: readonly string[],
+): string | null {
+    const adminParent = routes.find((route) => route.path === "/admin");
+    const adminChildren = adminParent?.children ?? [];
+    const firstAccessible = adminChildren.find((route) =>
+        hasAdminRouteAccess(route, capabilities),
+    );
+    if (!firstAccessible) {
+        return null;
+    }
+    return firstAccessible.path ? `/admin/${firstAccessible.path}` : "/admin";
+}
 
 router.beforeEach(async (to) => {
     if (to.path === "/auth/callback") {
@@ -370,9 +413,37 @@ router.beforeEach(async (to) => {
         return { name: "login", query: { redirect: to.fullPath } };
     }
 
+    if (to.path.startsWith("/admin")) {
+        const adminParentAllowed = hasAnyCapability(
+            authStore.user?.capabilities ?? [],
+            WEB_ADMIN_ENTRY_CAPABILITIES,
+        );
+        if (!adminParentAllowed) {
+            return { name: "home" };
+        }
+
+        const adminParent = routes.find((route) => route.path === "/admin");
+        const adminChildren = adminParent?.children ?? [];
+        const matchedAdminRoute = adminChildren.find((route) => route.name === to.name);
+        if (
+            matchedAdminRoute &&
+            !hasAdminRouteAccess(matchedAdminRoute, authStore.user?.capabilities ?? [])
+        ) {
+            const fallbackPath = findFirstAccessibleAdminPath(
+                authStore.user?.capabilities ?? [],
+            );
+            return fallbackPath ? { path: fallbackPath } : { name: "home" };
+        }
+    }
+
+    const requiredCapabilities = to.matched.flatMap((route) =>
+        Array.isArray(route.meta.requiredCapabilities)
+            ? route.meta.requiredCapabilities
+            : [],
+    );
     if (
-        to.matched.some((r) => r.meta.requiresAdmin) &&
-        authStore.user?.isAdmin !== true
+        requiredCapabilities.length > 0 &&
+        !hasAnyCapability(authStore.user?.capabilities ?? [], requiredCapabilities)
     ) {
         return { name: "home" };
     }
