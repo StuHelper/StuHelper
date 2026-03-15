@@ -3,6 +3,7 @@ import {
     createAuthApi,
     createAdminApi,
     createUserAdminApi,
+    createRbacApi,
 } from "@stuhelper/shared/api";
 
 // Raw fetch helper for endpoints not yet in generated types
@@ -45,6 +46,7 @@ export const api = {
     auth: createAuthApi(apiClient),
     admin: createAdminApi(apiClient),
     userAdmin: createUserAdminApi(apiClient),
+    rbac: createRbacApi(apiClient),
     userSystem: {
         // Identities
         listIdentities: (params?: {
@@ -104,50 +106,6 @@ export const api = {
             fetchJSON(`/admin/system-configs/${key}`, {
                 method: "PUT",
                 body: JSON.stringify(data),
-            }),
-        // RBAC
-        listRoles: () =>
-            fetchJSON<{ data: { roles: unknown[] } }>("/admin/roles"),
-        createRole: (data: {
-            name: string;
-            displayName: string;
-            description?: string;
-        }) =>
-            fetchJSON("/admin/roles", {
-                method: "POST",
-                body: JSON.stringify(data),
-            }),
-        updateRole: (
-            id: number,
-            data: { displayName: string; description?: string },
-        ) =>
-            fetchJSON(`/admin/roles/${id}`, {
-                method: "PUT",
-                body: JSON.stringify(data),
-            }),
-        deleteRole: (id: number) =>
-            fetchJSON(`/admin/roles/${id}`, { method: "DELETE" }),
-        getRolePermissions: (id: number) =>
-            fetchJSON<{ data: { permissions: unknown[] } }>(
-                `/admin/roles/${id}/permissions`,
-            ),
-        setRolePermissions: (id: number, permissionIDs: number[]) =>
-            fetchJSON(`/admin/roles/${id}/permissions`, {
-                method: "PUT",
-                body: JSON.stringify({ permissionIDs }),
-            }),
-        listPermissions: () =>
-            fetchJSON<{ data: { permissions: unknown[] } }>(
-                "/admin/permissions",
-            ),
-        listUserRoles: (userID: number) =>
-            fetchJSON<{ data: { roles: unknown[] } }>(
-                `/admin/users/${userID}/roles`,
-            ),
-        setUserRoles: (userID: number, roleIDs: number[]) =>
-            fetchJSON(`/admin/users/${userID}/roles`, {
-                method: "PUT",
-                body: JSON.stringify({ roleIDs }),
             }),
     },
 };

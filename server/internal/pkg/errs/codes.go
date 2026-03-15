@@ -91,12 +91,12 @@ const (
 // ============================================================================
 
 const (
-	ErrIdentityNotFound       ErrorCode = "A0030001" // 实名认证记录不存在
-	ErrIdentityAlreadyExists  ErrorCode = "A0030002" // 已提交实名认证
-	ErrIdentityDocInvalid     ErrorCode = "A0030003" // 证件信息无效
-	ErrIdentityNameMismatch   ErrorCode = "A0030004" // 姓名与证件不匹配
-	ErrIdentityPhotoRequired  ErrorCode = "A0030005" // 需要上传证件照片
-	ErrIdentityVerifyFailed   ErrorCode = "A0030006" // 实名认证验证失败
+	ErrIdentityNotFound        ErrorCode = "A0030001" // 实名认证记录不存在
+	ErrIdentityAlreadyExists   ErrorCode = "A0030002" // 已提交实名认证
+	ErrIdentityDocInvalid      ErrorCode = "A0030003" // 证件信息无效
+	ErrIdentityNameMismatch    ErrorCode = "A0030004" // 姓名与证件不匹配
+	ErrIdentityPhotoRequired   ErrorCode = "A0030005" // 需要上传证件照片
+	ErrIdentityVerifyFailed    ErrorCode = "A0030006" // 实名认证验证失败
 	ErrIdentityAlreadyVerified ErrorCode = "A0030007" // 已通过实名认证
 )
 
@@ -105,15 +105,15 @@ const (
 // ============================================================================
 
 const (
-	ErrProfileNotFound         ErrorCode = "A0040001" // 学生认证记录不存在
-	ErrProfileAlreadyVerified  ErrorCode = "A0040002" // 已通过学生认证
-	ErrProfileSchoolNotFound   ErrorCode = "A0040003" // 学校配置不存在
-	ErrProfileSchoolDisabled   ErrorCode = "A0040004" // 学校认证通道未开启
-	ErrProfileLDAPFailed       ErrorCode = "A0040005" // LDAP 认证失败
-	ErrProfileConsentRequired  ErrorCode = "A0040006" // 需要同意数据使用授权
-	ErrProfilePendingReview    ErrorCode = "A0040007" // 认证正在审核中
-	ErrProfilePhoneRequired    ErrorCode = "A0040008" // 需要绑定手机号
-	ErrProfilePhoneMismatch    ErrorCode = "A0040009" // 手机号需要验证
+	ErrProfileNotFound        ErrorCode = "A0040001" // 学生认证记录不存在
+	ErrProfileAlreadyVerified ErrorCode = "A0040002" // 已通过学生认证
+	ErrProfileSchoolNotFound  ErrorCode = "A0040003" // 学校配置不存在
+	ErrProfileSchoolDisabled  ErrorCode = "A0040004" // 学校认证通道未开启
+	ErrProfileLDAPFailed      ErrorCode = "A0040005" // LDAP 认证失败
+	ErrProfileConsentRequired ErrorCode = "A0040006" // 需要同意数据使用授权
+	ErrProfilePendingReview   ErrorCode = "A0040007" // 认证正在审核中
+	ErrProfilePhoneRequired   ErrorCode = "A0040008" // 需要绑定手机号
+	ErrProfilePhoneMismatch   ErrorCode = "A0040009" // 手机号需要验证
 )
 
 // ============================================================================
@@ -121,13 +121,15 @@ const (
 // ============================================================================
 
 const (
-	ErrRoleNotFound          ErrorCode = "A0050001" // 角色不存在
-	ErrRoleNameTaken         ErrorCode = "A0050002" // 角色名已存在
-	ErrRoleIsSystem          ErrorCode = "A0050003" // 系统角色不可修改
-	ErrPermissionNotFound    ErrorCode = "A0050004" // 权限不存在
-	ErrPermissionDenied      ErrorCode = "A0050005" // 权限不足（RBAC 检查失败）
-	ErrGroupNotFound         ErrorCode = "A0050006" // 用户组不存在
-	ErrGroupNameTaken        ErrorCode = "A0050007" // 用户组名已存在
+	ErrRoleNotFound               ErrorCode = "A0050001" // 角色不存在
+	ErrRoleNameTaken              ErrorCode = "A0050002" // 角色名已存在
+	ErrRoleIsSystem               ErrorCode = "A0050003" // 系统角色不可修改
+	ErrPermissionNotFound         ErrorCode = "A0050004" // 权限不存在
+	ErrPermissionDenied           ErrorCode = "A0050005" // 权限不足（RBAC 检查失败）
+	ErrGroupNotFound              ErrorCode = "A0050006" // 用户组不存在
+	ErrGroupNameTaken             ErrorCode = "A0050007" // 用户组名已存在
+	ErrPermissionSelectionInvalid ErrorCode = "A0050008" // 权限选择无效
+	ErrRolePermissionClearConfirm ErrorCode = "A0050009" // 清空角色权限需显式确认
 )
 
 // ============================================================================
@@ -161,10 +163,10 @@ const (
 	ErrNotReplyOwner         ErrorCode = "A0110011" // 非回复所有者
 
 	// 投票相关 (0100-0199)
-	ErrVoteExists      ErrorCode = "A0110100" // 已投票过该测评
-	ErrVoteTypeInvalid ErrorCode = "A0110101" // 投票类型无效
-	ErrVoteSelfReview  ErrorCode = "A0110102" // 不能给自己的测评投票
-	ErrAlreadyReported ErrorCode = "A0110103" // 已举报过
+	ErrVoteExists        ErrorCode = "A0110100" // 已投票过该测评
+	ErrVoteTypeInvalid   ErrorCode = "A0110101" // 投票类型无效
+	ErrVoteSelfReview    ErrorCode = "A0110102" // 不能给自己的测评投票
+	ErrAlreadyReported   ErrorCode = "A0110103" // 已举报过
 	ErrInvalidVoteAction ErrorCode = "A0110104" // 无效投票操作
 
 	// 评分相关 (0200-0299)
@@ -172,8 +174,8 @@ const (
 	ErrRatingDimensionMissing ErrorCode = "A0110201" // 缺少必填评分维度
 
 	// 内容审核 (0300-0399)
-	ErrDangerousContent ErrorCode = "A0110300" // 内容包含危险元素
-	ErrSensitiveContent ErrorCode = "A0110301" // 内容包含敏感词
+	ErrDangerousContent  ErrorCode = "A0110300" // 内容包含危险元素
+	ErrSensitiveContent  ErrorCode = "A0110301" // 内容包含敏感词
 	ErrInvalidTransition ErrorCode = "A0110302" // 无效状态转换
 )
 

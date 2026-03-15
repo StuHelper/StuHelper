@@ -21,7 +21,8 @@ type HandlerService interface {
 	CreateRole(ctx context.Context, name, displayName, description string) (*Role, error)
 	UpdateRole(ctx context.Context, id int64, input UpdateRoleInput) (*Role, error)
 	DeleteRole(ctx context.Context, id int64) error
-	SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64) error
+	GetRolePermissionIDs(ctx context.Context, roleID int64) ([]int64, error)
+	SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64, clearAll bool) error
 	ListPermissions(ctx context.Context, module string) ([]Permission, error)
 	GetUserRoles(ctx context.Context, userID int64) ([]Role, error)
 	SetUserRoles(ctx context.Context, userID int64, roleIDs []int64) error
@@ -54,6 +55,7 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	admin.POST("/roles", h.handleCreateRole)
 	admin.PUT("/roles/:roleID", h.handleUpdateRole)
 	admin.DELETE("/roles/:roleID", h.handleDeleteRole)
+	admin.GET("/roles/:roleID/permissions", h.handleGetRolePermissions)
 	admin.PUT("/roles/:roleID/permissions", h.handleSetRolePermissions)
 
 	// 权限列表
@@ -182,7 +184,30 @@ func (h *Handler) handleDeleteRole(c *gin.Context) {
 }
 
 type setRolePermissionsRequest struct {
-	PermissionIDs []int64 `json:"permissionIDs" binding:"required"`
+	PermissionIDs *[]int64 `json:"permissionIDs"`
+	ClearAll      bool     `json:"clearAll"`
+}
+
+// handleGetRolePermissions 获取角色已分配权限 ID 列表
+func (h *Handler) handleGetRolePermissions(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("roleID"), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "invalid role ID")
+		return
+	}
+
+	permissionIDs, err := h.service.GetRolePermissionIDs(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrRoleNotFound) {
+			response.NotFound(c, "role not found", errs.ErrRoleNotFound)
+			return
+		}
+		logger.FromGin(c).Error("failed to get role permissions", zap.Error(err))
+		response.InternalError(c, "failed to get role permissions")
+		return
+	}
+
+	response.Success(c, gin.H{"permissionIDs": permissionIDs})
 }
 
 // handleSetRolePermissions 设置角色权限
@@ -198,11 +223,27 @@ func (h *Handler) handleSetRolePermissions(c *gin.Context) {
 		response.BadRequest(c, "invalid request parameters")
 		return
 	}
+	if req.PermissionIDs == nil {
+		response.BadRequest(c, "permissionIDs is required")
+		return
+	}
 
-	err = h.service.SetRolePermissions(c.Request.Context(), id, req.PermissionIDs)
+	err = h.service.SetRolePermissions(c.Request.Context(), id, *req.PermissionIDs, req.ClearAll)
 	if err != nil {
 		if errors.Is(err, ErrRoleNotFound) {
 			response.NotFound(c, "role not found", errs.ErrRoleNotFound)
+			return
+		}
+		if errors.Is(err, ErrRoleIsSystem) {
+			response.Forbidden(c, "system role cannot be modified", errs.ErrRoleIsSystem)
+			return
+		}
+		if errors.Is(err, ErrPermissionSelectionInvalid) {
+			response.BadRequest(c, "one or more selected permissions are invalid", errs.ErrPermissionSelectionInvalid)
+			return
+		}
+		if errors.Is(err, ErrRolePermissionClearConfirmRequired) {
+			response.BadRequest(c, "clearing all permissions requires explicit confirmation", errs.ErrRolePermissionClearConfirm)
 			return
 		}
 		logger.FromGin(c).Error("failed to set role permissions", zap.Error(err))

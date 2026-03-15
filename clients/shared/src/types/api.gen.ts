@@ -1187,7 +1187,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** 获取角色已分配权限 */
+        get: operations["getRolePermissions"];
         /** 设置角色权限 */
         put: operations["assignRolePermissions"];
         post?: never;
@@ -1991,6 +1992,8 @@ export interface components {
         };
         AssignRolePermissionsRequest: {
             permissionIDs: number[];
+            /** @description 显式确认清空角色全部权限；仅当 permissionIDs 为空时生效 */
+            clearAll?: boolean;
         };
         AssignUserRolesRequest: {
             roleIDs: number[];
@@ -2104,6 +2107,9 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        RolePermissionIDsResponse: {
+            permissionIDs: number[];
         };
         UserGroup: {
             /** Format: int64 */
@@ -4577,6 +4583,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
                         data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getRolePermissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 角色 ID */
+                roleID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 角色权限 ID 列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["RolePermissionIDsResponse"];
                     };
                 };
             };

@@ -388,6 +388,19 @@ AssignRolePermissionsRequest:
       items:
         type: integer
         format: int64
+    clearAll:
+      type: boolean
+      description: 显式确认清空角色全部权限；仅当 permissionIDs 为空时生效
+
+RolePermissionIDsResponse:
+  type: object
+  required: [permissionIDs]
+  properties:
+    permissionIDs:
+      type: array
+      items:
+        type: integer
+        format: int64
 
 AssignUserRolesRequest:
   type: object

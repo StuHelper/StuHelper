@@ -12,12 +12,14 @@ import (
 
 // 业务错误定义
 var (
-	ErrRoleNotFound   = errors.New("role not found")
-	ErrRoleNameTaken  = errors.New("role name already taken")
-	ErrRoleIsSystem   = errors.New("system role cannot be modified")
-	ErrGroupNotFound  = errors.New("group not found")
-	ErrGroupNameTaken = errors.New("group name already taken")
-	ErrPermNotFound   = errors.New("permission not found")
+	ErrRoleNotFound                       = errors.New("role not found")
+	ErrRoleNameTaken                      = errors.New("role name already taken")
+	ErrRoleIsSystem                       = errors.New("system role cannot be modified")
+	ErrGroupNotFound                      = errors.New("group not found")
+	ErrGroupNameTaken                     = errors.New("group name already taken")
+	ErrPermNotFound                       = errors.New("permission not found")
+	ErrPermissionSelectionInvalid         = errors.New("one or more selected permissions are invalid")
+	ErrRolePermissionClearConfirmRequired = errors.New("clearing all role permissions requires explicit confirmation")
 )
 
 // Repo defines the repository methods required by the RBAC service.
@@ -28,10 +30,12 @@ type Repo interface {
 	GetRoleByID(ctx context.Context, id int64) (*Role, error)
 	UpdateRole(ctx context.Context, role *Role) error
 	DeleteRole(ctx context.Context, id int64) error
+	GetRolePermissionIDs(ctx context.Context, roleID int64) ([]int64, error)
 	SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64) error
 
 	ListPermissions(ctx context.Context, module string) ([]Permission, error)
 	GetPermissionByID(ctx context.Context, id int64) (*Permission, error)
+	GetPermissionsByIDs(ctx context.Context, ids []int64) ([]Permission, error)
 
 	GetUserRoles(ctx context.Context, userID int64) ([]Role, error)
 	SetUserRoles(ctx context.Context, userID int64, roleIDs []int64) error
@@ -145,13 +149,53 @@ func (s *Service) DeleteRole(ctx context.Context, id int64) error {
 	return s.repo.DeleteRole(ctx, id)
 }
 
-// SetRolePermissions 设置角色权限
-func (s *Service) SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64) error {
-	// 校验角色存在
+// GetRolePermissionIDs 获取角色已分配权限 ID 列表
+func (s *Service) GetRolePermissionIDs(ctx context.Context, roleID int64) ([]int64, error) {
 	if _, err := s.repo.GetRoleByID(ctx, roleID); err != nil {
+		return nil, err
+	}
+	return s.repo.GetRolePermissionIDs(ctx, roleID)
+}
+
+// SetRolePermissions 设置角色权限
+func (s *Service) SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64, clearAll bool) error {
+	// 校验角色存在
+	role, err := s.repo.GetRoleByID(ctx, roleID)
+	if err != nil {
 		return err
 	}
-	return s.repo.SetRolePermissions(ctx, roleID, permIDs)
+	if role.IsSystem {
+		return ErrRoleIsSystem
+	}
+	uniquePermIDs := make([]int64, 0, len(permIDs))
+	seen := make(map[int64]struct{}, len(permIDs))
+	for _, permID := range permIDs {
+		if permID <= 0 {
+			return ErrPermissionSelectionInvalid
+		}
+		if _, ok := seen[permID]; ok {
+			continue
+		}
+		seen[permID] = struct{}{}
+		uniquePermIDs = append(uniquePermIDs, permID)
+	}
+
+	if len(uniquePermIDs) == 0 {
+		if !clearAll {
+			return ErrRolePermissionClearConfirmRequired
+		}
+		return s.repo.SetRolePermissions(ctx, roleID, nil)
+	}
+
+	perms, err := s.repo.GetPermissionsByIDs(ctx, uniquePermIDs)
+	if err != nil {
+		return fmt.Errorf("SetRolePermissions validate permissions: %w", err)
+	}
+	if len(perms) != len(uniquePermIDs) {
+		return ErrPermissionSelectionInvalid
+	}
+
+	return s.repo.SetRolePermissions(ctx, roleID, uniquePermIDs)
 }
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,7 @@
       </el-table-column>
       <el-table-column label="操作" width="240" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="openPermissionDialog(row)">配置权限</el-button>
+          <el-button size="small" :disabled="row.isSystem" @click="openPermissionDialog(row)">配置权限</el-button>
           <el-button size="small" :disabled="row.isSystem" @click="openEditDialog(row)">编辑</el-button>
           <el-button size="small" type="danger" :disabled="row.isSystem" @click="handleDelete(row)">删除</el-button>
         </template>
@@ -57,6 +57,13 @@
       width="600px"
       @closed="resetPermissionState"
     >
+      <el-alert
+        v-if="permissionLoadFailed"
+        class="mb-4"
+        type="error"
+        :closable="false"
+        title="加载角色权限失败，请关闭弹窗后重试。"
+      />
       <div v-loading="permissionLoading">
         <div class="mb-3 text-sm text-gray-500">
           为角色 <span class="font-semibold text-gray-800">{{ permissionTargetRole?.displayName }}</span> 配置权限
@@ -64,7 +71,11 @@
         <el-scrollbar max-height="400px">
           <div v-for="(perms, module) in groupedPermissions" :key="module" class="mb-4">
             <div class="text-sm font-semibold text-gray-700 mb-2">{{ module }}</div>
-            <el-checkbox-group v-model="selectedPermissionIDs" class="flex flex-wrap gap-2">
+            <el-checkbox-group
+              v-model="selectedPermissionIDs"
+              class="flex flex-wrap gap-2"
+              :disabled="permissionLoadFailed"
+            >
               <el-checkbox
                 v-for="perm in perms"
                 :key="perm.id"
@@ -78,7 +89,7 @@
       </div>
       <template #footer>
         <el-button @click="permissionDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSavePermissions">保存</el-button>
+        <el-button type="primary" :loading="submitting" :disabled="!canSavePermissions" @click="handleSavePermissions">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -88,21 +99,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { api } from '@/api'
+import type { components } from '@stuhelper/shared'
 
-interface Role {
-  id: number
-  name: string
-  displayName: string
-  description?: string
-  isSystem: boolean
-}
-
-interface Permission {
-  id: number
-  name: string
-  displayName?: string
-  module?: string
-}
+type Role = components['schemas']['Role']
+type Permission = components['schemas']['Permission']
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -126,6 +126,7 @@ const roleRules: FormRules = {
 // Permission dialog state
 const permissionDialogVisible = ref(false)
 const permissionLoading = ref(false)
+const permissionLoadFailed = ref(false)
 const permissionTargetRole = ref<Role | null>(null)
 const selectedPermissionIDs = ref<number[]>([])
 
@@ -139,12 +140,15 @@ const groupedPermissions = computed(() => {
   return groups
 })
 
+const canSavePermissions = computed(() =>
+  !permissionLoading.value && !permissionLoadFailed.value && permissionTargetRole.value !== null,
+)
+
 async function fetchRoles() {
   loading.value = true
   try {
-    const res = await api.userSystem.listRoles()
-    const data = (res as { data?: { list?: Role[] } }).data
-    roles.value = data?.list ?? (Array.isArray(data) ? (data as Role[]) : [])
+    const res = await api.rbac.listRoles()
+    roles.value = res.data?.data ?? []
   } catch {
     ElMessage.error('获取角色列表失败')
   } finally {
@@ -154,9 +158,8 @@ async function fetchRoles() {
 
 async function fetchPermissions() {
   try {
-    const res = await api.userSystem.listPermissions()
-    const data = (res as { data?: { list?: Permission[] } }).data
-    allPermissions.value = data?.list ?? (Array.isArray(data) ? (data as Permission[]) : [])
+    const res = await api.rbac.listPermissions()
+    allPermissions.value = res.data?.data ?? []
   } catch {
     ElMessage.error('获取权限列表失败')
   }
@@ -190,13 +193,13 @@ async function handleSaveRole() {
   submitting.value = true
   try {
     if (editingRole.value) {
-      await api.userSystem.updateRole(editingRole.value.id, {
+      await api.rbac.updateRole(editingRole.value.id, {
         displayName: roleForm.value.displayName,
-        description: roleForm.value.description || undefined,
+        description: roleForm.value.description,
       })
       ElMessage.success('更新成功')
     } else {
-      await api.userSystem.createRole({
+      await api.rbac.createRole({
         name: roleForm.value.name,
         displayName: roleForm.value.displayName,
         description: roleForm.value.description || undefined,
@@ -204,7 +207,7 @@ async function handleSaveRole() {
       ElMessage.success('创建成功')
     }
     roleDialogVisible.value = false
-    fetchRoles()
+    await fetchRoles()
   } catch {
     ElMessage.error('操作失败')
   } finally {
@@ -225,9 +228,9 @@ async function handleDelete(row: Role) {
   }
 
   try {
-    await api.userSystem.deleteRole(row.id)
+    await api.rbac.deleteRole(row.id)
     ElMessage.success('删除成功')
-    fetchRoles()
+    await fetchRoles()
   } catch {
     ElMessage.error('操作失败')
   }
@@ -236,14 +239,14 @@ async function handleDelete(row: Role) {
 async function openPermissionDialog(row: Role) {
   permissionTargetRole.value = row
   selectedPermissionIDs.value = []
+  permissionLoadFailed.value = false
   permissionDialogVisible.value = true
   permissionLoading.value = true
   try {
-    const res = await api.userSystem.getRolePermissions(row.id)
-    const data = (res as { data?: { list?: { id: number }[] } }).data
-    const assigned = data?.list ?? (Array.isArray(data) ? (data as { id: number }[]) : [])
-    selectedPermissionIDs.value = assigned.map((p) => p.id)
+    const res = await api.rbac.getRolePermissions(row.id)
+    selectedPermissionIDs.value = res.data?.data.permissionIDs ?? []
   } catch {
+    permissionLoadFailed.value = true
     ElMessage.error('获取权限失败')
   } finally {
     permissionLoading.value = false
@@ -253,13 +256,35 @@ async function openPermissionDialog(row: Role) {
 function resetPermissionState() {
   permissionTargetRole.value = null
   selectedPermissionIDs.value = []
+  permissionLoadFailed.value = false
 }
 
 async function handleSavePermissions() {
-  if (!permissionTargetRole.value) return
+  if (!permissionTargetRole.value || !canSavePermissions.value) return
+
+  const clearAll = selectedPermissionIDs.value.length === 0
+  if (clearAll) {
+    try {
+      await ElMessageBox.confirm(
+        '您即将清空该角色的所有权限，确定继续吗？',
+        '清空权限确认',
+        {
+          type: 'warning',
+          confirmButtonText: '确认清空',
+          cancelButtonText: '取消',
+        },
+      )
+    } catch {
+      return
+    }
+  }
+
   submitting.value = true
   try {
-    await api.userSystem.setRolePermissions(permissionTargetRole.value.id, selectedPermissionIDs.value)
+    await api.rbac.assignRolePermissions(permissionTargetRole.value.id, {
+      permissionIDs: selectedPermissionIDs.value,
+      clearAll,
+    })
     ElMessage.success('权限配置已保存')
     permissionDialogVisible.value = false
   } catch {
