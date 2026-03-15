@@ -269,20 +269,28 @@ func (r *Repository) SetRolePermissions(ctx context.Context, roleID int64, permI
 	})
 }
 
-// GetRolePermissions 获取角色拥有的权限列表
-func (r *Repository) GetRolePermissions(ctx context.Context, roleID int64) ([]Permission, error) {
+// GetRolePermissionIDs 获取角色拥有的权限 ID 列表
+func (r *Repository) GetRolePermissionIDs(ctx context.Context, roleID int64) ([]int64, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT p.id, p.name, p.module, p.action, p.display_name, p.scope_school_ids, p.scope_roles, p.created_at
-		FROM permissions p
-		JOIN role_permissions rp ON rp.permission_id = p.id
-		WHERE rp.role_id = $1
-		ORDER BY p.module, p.action
+		SELECT permission_id
+		FROM role_permissions
+		WHERE role_id = $1
+		ORDER BY permission_id ASC
 	`, roleID)
 	if err != nil {
-		return nil, fmt.Errorf("GetRolePermissions: %w", err)
+		return nil, fmt.Errorf("GetRolePermissionIDs: %w", err)
 	}
 	defer rows.Close()
-	return scanPermissions(rows)
+
+	permIDs := make([]int64, 0, 16)
+	for rows.Next() {
+		var permID int64
+		if err := rows.Scan(&permID); err != nil {
+			return nil, fmt.Errorf("GetRolePermissionIDs scan: %w", err)
+		}
+		permIDs = append(permIDs, permID)
+	}
+	return permIDs, rows.Err()
 }
 
 // ---------------------------------------------------------------------------

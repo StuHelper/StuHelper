@@ -10,10 +10,13 @@ import (
 )
 
 type fakeServiceRepo struct {
-	onGetRoleByID  func(ctx context.Context, id int64) (*Role, error)
-	onUpdateRole   func(ctx context.Context, role *Role) error
-	onGetGroupByID func(ctx context.Context, id int64) (*UserGroup, error)
-	onUpdateGroup  func(ctx context.Context, group *UserGroup) error
+	onGetRoleByID          func(ctx context.Context, id int64) (*Role, error)
+	onGetRolePermissionIDs func(ctx context.Context, roleID int64) ([]int64, error)
+	onGetPermissionsByIDs  func(ctx context.Context, ids []int64) ([]Permission, error)
+	onSetRolePermissions   func(ctx context.Context, roleID int64, permIDs []int64) error
+	onUpdateRole           func(ctx context.Context, role *Role) error
+	onGetGroupByID         func(ctx context.Context, id int64) (*UserGroup, error)
+	onUpdateGroup          func(ctx context.Context, group *UserGroup) error
 }
 
 func (f *fakeServiceRepo) ListRoles(context.Context) ([]Role, error) { return nil, nil }
@@ -33,13 +36,30 @@ func (f *fakeServiceRepo) UpdateRole(ctx context.Context, role *Role) error {
 	}
 	return nil
 }
-func (f *fakeServiceRepo) DeleteRole(context.Context, int64) error                  { return nil }
-func (f *fakeServiceRepo) SetRolePermissions(context.Context, int64, []int64) error { return nil }
+func (f *fakeServiceRepo) DeleteRole(context.Context, int64) error { return nil }
+func (f *fakeServiceRepo) GetRolePermissionIDs(ctx context.Context, roleID int64) ([]int64, error) {
+	if f.onGetRolePermissionIDs != nil {
+		return f.onGetRolePermissionIDs(ctx, roleID)
+	}
+	return nil, nil
+}
+func (f *fakeServiceRepo) SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64) error {
+	if f.onSetRolePermissions != nil {
+		return f.onSetRolePermissions(ctx, roleID, permIDs)
+	}
+	return nil
+}
 func (f *fakeServiceRepo) ListPermissions(context.Context, string) ([]Permission, error) {
 	return nil, nil
 }
 func (f *fakeServiceRepo) GetPermissionByID(context.Context, int64) (*Permission, error) {
 	return nil, ErrPermNotFound
+}
+func (f *fakeServiceRepo) GetPermissionsByIDs(ctx context.Context, ids []int64) ([]Permission, error) {
+	if f.onGetPermissionsByIDs != nil {
+		return f.onGetPermissionsByIDs(ctx, ids)
+	}
+	return nil, nil
 }
 func (f *fakeServiceRepo) GetUserRoles(context.Context, int64) ([]Role, error) { return nil, nil }
 func (f *fakeServiceRepo) SetUserRoles(context.Context, int64, []int64) error  { return nil }
@@ -137,6 +157,106 @@ func TestUpdateRole_EmptyInputIsNoOp(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, updateCalled)
 	assert.Equal(t, "Reviewer", role.DisplayName)
+}
+
+func TestGetRolePermissionIDs_ChecksRoleExistenceFirst(t *testing.T) {
+	svc := NewService(&fakeServiceRepo{
+		onGetRoleByID: func(_ context.Context, id int64) (*Role, error) {
+			return &Role{ID: id, Name: "editor", DisplayName: "Editor"}, nil
+		},
+		onGetRolePermissionIDs: func(_ context.Context, roleID int64) ([]int64, error) {
+			assert.Equal(t, int64(7), roleID)
+			return []int64{1, 3, 5}, nil
+		},
+	})
+
+	permIDs, err := svc.GetRolePermissionIDs(context.Background(), 7)
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{1, 3, 5}, permIDs)
+}
+
+func TestSetRolePermissions_EmptySelectionRequiresClearAllConfirmation(t *testing.T) {
+	called := false
+	svc := NewService(&fakeServiceRepo{
+		onGetRoleByID: func(_ context.Context, id int64) (*Role, error) {
+			return &Role{ID: id, Name: "editor", DisplayName: "Editor"}, nil
+		},
+		onSetRolePermissions: func(_ context.Context, roleID int64, permIDs []int64) error {
+			called = true
+			return nil
+		},
+	})
+
+	err := svc.SetRolePermissions(context.Background(), 7, nil, false)
+
+	require.ErrorIs(t, err, ErrRolePermissionClearConfirmRequired)
+	assert.False(t, called)
+}
+
+func TestSetRolePermissions_ClearAllAllowsEmptySelection(t *testing.T) {
+	var (
+		capturedRoleID  int64
+		capturedPermIDs []int64
+	)
+	svc := NewService(&fakeServiceRepo{
+		onGetRoleByID: func(_ context.Context, id int64) (*Role, error) {
+			return &Role{ID: id, Name: "editor", DisplayName: "Editor"}, nil
+		},
+		onSetRolePermissions: func(_ context.Context, roleID int64, permIDs []int64) error {
+			capturedRoleID = roleID
+			capturedPermIDs = append([]int64(nil), permIDs...)
+			return nil
+		},
+	})
+
+	err := svc.SetRolePermissions(context.Background(), 7, []int64{}, true)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(7), capturedRoleID)
+	assert.Empty(t, capturedPermIDs)
+}
+
+func TestSetRolePermissions_RejectsUnknownPermissionIDs(t *testing.T) {
+	called := false
+	svc := NewService(&fakeServiceRepo{
+		onGetRoleByID: func(_ context.Context, id int64) (*Role, error) {
+			return &Role{ID: id, Name: "editor", DisplayName: "Editor"}, nil
+		},
+		onGetPermissionsByIDs: func(_ context.Context, ids []int64) ([]Permission, error) {
+			assert.Equal(t, []int64{1, 2}, ids)
+			return []Permission{
+				{ID: 1, Name: "perm.one", Module: "rbac", Action: "read", DisplayName: "One"},
+			}, nil
+		},
+		onSetRolePermissions: func(_ context.Context, roleID int64, permIDs []int64) error {
+			called = true
+			return nil
+		},
+	})
+
+	err := svc.SetRolePermissions(context.Background(), 7, []int64{1, 2}, false)
+
+	require.ErrorIs(t, err, ErrPermissionSelectionInvalid)
+	assert.False(t, called)
+}
+
+func TestSetRolePermissions_RejectsSystemRole(t *testing.T) {
+	called := false
+	svc := NewService(&fakeServiceRepo{
+		onGetRoleByID: func(_ context.Context, id int64) (*Role, error) {
+			return &Role{ID: id, Name: "admin", DisplayName: "Admin", IsSystem: true}, nil
+		},
+		onSetRolePermissions: func(_ context.Context, roleID int64, permIDs []int64) error {
+			called = true
+			return nil
+		},
+	})
+
+	err := svc.SetRolePermissions(context.Background(), 1, []int64{1, 2}, false)
+
+	require.ErrorIs(t, err, ErrRoleIsSystem)
+	assert.False(t, called)
 }
 
 func TestUpdateGroup_MergesPartialFields(t *testing.T) {

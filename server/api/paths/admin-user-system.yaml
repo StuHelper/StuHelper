@@ -336,6 +336,44 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/admin/roles/{roleID}/permissions:
+  get:
+    tags: [Admin]
+    operationId: getRolePermissions
+    summary: 获取角色已分配权限
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: roleID
+        in: path
+        required: true
+        description: 角色 ID
+        schema:
+          type: integer
+          format: int64
+    responses:
+      '200':
+        description: 角色权限 ID 列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/RolePermissionIDsResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
   put:
     tags: [Admin]
     operationId: assignRolePermissions

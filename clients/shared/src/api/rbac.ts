@@ -25,6 +25,9 @@ export const createRbacApi = (client: ApiClient) => ({
   deleteRole: (roleID: number) =>
     client.DELETE('/api/v1/admin/roles/{roleID}', { params: { path: { roleID } } }),
 
+  getRolePermissions: (roleID: number) =>
+    client.GET('/api/v1/admin/roles/{roleID}/permissions', { params: { path: { roleID } } }),
+
   assignRolePermissions: (roleID: number, data: AssignRolePermissionsRequest) =>
     client.PUT('/api/v1/admin/roles/{roleID}/permissions', { params: { path: { roleID } }, body: data }),
 

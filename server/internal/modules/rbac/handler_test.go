@@ -26,15 +26,16 @@ type rbacHandlerTestResponse struct {
 }
 
 type fakeHandlerService struct {
-	onUpdateRole          func(ctx context.Context, id int64, input UpdateRoleInput) (*Role, error)
-	onSetRolePermissions  func(ctx context.Context, roleID int64, permIDs []int64) error
-	onSetUserRoles        func(ctx context.Context, userID int64, roleIDs []int64) error
-	onSetUserPermission   func(ctx context.Context, userID int64, permID int64, granted bool) error
-	onUpdateGroup         func(ctx context.Context, id int64, input UpdateGroupInput) (*UserGroup, error)
-	onSetGroupMembers     func(ctx context.Context, groupID int64, userIDs []int64) error
-	onSetGroupPermissions func(ctx context.Context, groupID int64, permIDs []int64) error
-	onGetInternalUserID   func(ctx context.Context, externalID string) (int64, error)
-	onCheckPermission     func(ctx context.Context, userID int64, permName string, schoolID *string) (bool, error)
+	onUpdateRole           func(ctx context.Context, id int64, input UpdateRoleInput) (*Role, error)
+	onGetRolePermissionIDs func(ctx context.Context, roleID int64) ([]int64, error)
+	onSetRolePermissions   func(ctx context.Context, roleID int64, permIDs []int64, clearAll bool) error
+	onSetUserRoles         func(ctx context.Context, userID int64, roleIDs []int64) error
+	onSetUserPermission    func(ctx context.Context, userID int64, permID int64, granted bool) error
+	onUpdateGroup          func(ctx context.Context, id int64, input UpdateGroupInput) (*UserGroup, error)
+	onSetGroupMembers      func(ctx context.Context, groupID int64, userIDs []int64) error
+	onSetGroupPermissions  func(ctx context.Context, groupID int64, permIDs []int64) error
+	onGetInternalUserID    func(ctx context.Context, externalID string) (int64, error)
+	onCheckPermission      func(ctx context.Context, userID int64, permName string, schoolID *string) (bool, error)
 }
 
 func (f *fakeHandlerService) ListRoles(context.Context) ([]Role, error) { return nil, nil }
@@ -48,9 +49,15 @@ func (f *fakeHandlerService) UpdateRole(ctx context.Context, id int64, input Upd
 	return &Role{}, nil
 }
 func (f *fakeHandlerService) DeleteRole(context.Context, int64) error { return nil }
-func (f *fakeHandlerService) SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64) error {
+func (f *fakeHandlerService) GetRolePermissionIDs(ctx context.Context, roleID int64) ([]int64, error) {
+	if f.onGetRolePermissionIDs != nil {
+		return f.onGetRolePermissionIDs(ctx, roleID)
+	}
+	return nil, nil
+}
+func (f *fakeHandlerService) SetRolePermissions(ctx context.Context, roleID int64, permIDs []int64, clearAll bool) error {
 	if f.onSetRolePermissions != nil {
-		return f.onSetRolePermissions(ctx, roleID, permIDs)
+		return f.onSetRolePermissions(ctx, roleID, permIDs, clearAll)
 	}
 	return nil
 }
@@ -121,11 +128,15 @@ func setupRBACAdminRouter(service HandlerService) *gin.Engine {
 }
 
 func TestHandleSetRolePermissions_AcceptsPermissionIDs(t *testing.T) {
-	var captured []int64
+	var (
+		captured []int64
+		clearAll bool
+	)
 	r := setupRBACAdminRouter(&fakeHandlerService{
-		onSetRolePermissions: func(_ context.Context, roleID int64, permIDs []int64) error {
+		onSetRolePermissions: func(_ context.Context, roleID int64, permIDs []int64, reqClearAll bool) error {
 			assert.Equal(t, int64(7), roleID)
 			captured = append([]int64(nil), permIDs...)
+			clearAll = reqClearAll
 			return nil
 		},
 	})
@@ -138,6 +149,77 @@ func TestHandleSetRolePermissions_AcceptsPermissionIDs(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, []int64{1, 2, 3}, captured)
+	assert.False(t, clearAll)
+}
+
+func TestHandleGetRolePermissions_ReturnsPermissionIDs(t *testing.T) {
+	r := setupRBACAdminRouter(&fakeHandlerService{
+		onGetRolePermissionIDs: func(_ context.Context, roleID int64) ([]int64, error) {
+			assert.Equal(t, int64(7), roleID)
+			return []int64{2, 4, 8}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/roles/7/permissions", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"success":true,"data":{"permissionIDs":[2,4,8]}}`, w.Body.String())
+}
+
+func TestHandleSetRolePermissions_RequiresExplicitClearAllConfirmation(t *testing.T) {
+	r := setupRBACAdminRouter(&fakeHandlerService{
+		onSetRolePermissions: func(_ context.Context, roleID int64, permIDs []int64, clearAll bool) error {
+			assert.Equal(t, int64(7), roleID)
+			assert.Empty(t, permIDs)
+			assert.False(t, clearAll)
+			return ErrRolePermissionClearConfirmRequired
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/roles/7/permissions", strings.NewReader(`{"permissionIDs":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "clearing all permissions requires explicit confirmation")
+}
+
+func TestHandleSetRolePermissions_RequiresPermissionIDsField(t *testing.T) {
+	r := setupRBACAdminRouter(&fakeHandlerService{})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/roles/7/permissions", strings.NewReader(`{"clearAll":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "permissionIDs is required")
+}
+
+func TestHandleSetRolePermissions_RejectsSystemRole(t *testing.T) {
+	r := setupRBACAdminRouter(&fakeHandlerService{
+		onSetRolePermissions: func(_ context.Context, roleID int64, permIDs []int64, clearAll bool) error {
+			assert.Equal(t, int64(7), roleID)
+			assert.Equal(t, []int64{1, 2}, permIDs)
+			assert.False(t, clearAll)
+			return ErrRoleIsSystem
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/roles/7/permissions", strings.NewReader(`{"permissionIDs":[1,2]}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "system role cannot be modified")
 }
 
 func TestHandleUpdateRole_AllowsDescriptionOnlyPartialUpdate(t *testing.T) {

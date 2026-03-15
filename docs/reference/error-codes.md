@@ -121,6 +121,20 @@
 | `A0020005` | 400  | `ErrPasswordWeak`     | 密码强度不足   | Password too weak      |
 | `A0020006` | 400  | `ErrPasswordMismatch` | 密码不匹配     | Password mismatch      |
 
+### A005xxxx - RBAC 权限模块错误
+
+| 错误码     | HTTP | 常量名                          | 中文说明               | 英文说明                                             |
+| ---------- | ---- | ------------------------------- | ---------------------- | ---------------------------------------------------- |
+| `A0050001` | 404  | `ErrRoleNotFound`               | 角色不存在             | Role not found                                       |
+| `A0050002` | 409  | `ErrRoleNameTaken`              | 角色名已存在           | Role name already taken                              |
+| `A0050003` | 403  | `ErrRoleIsSystem`               | 系统角色不可修改       | System role cannot be modified                       |
+| `A0050004` | 404  | `ErrPermissionNotFound`         | 权限不存在             | Permission not found                                 |
+| `A0050005` | 403  | `ErrPermissionDenied`           | 权限不足               | Permission denied                                    |
+| `A0050006` | 404  | `ErrGroupNotFound`              | 用户组不存在           | Group not found                                      |
+| `A0050007` | 409  | `ErrGroupNameTaken`             | 用户组名已存在         | Group name already taken                             |
+| `A0050008` | 400  | `ErrPermissionSelectionInvalid` | 权限选择无效           | One or more selected permissions are invalid         |
+| `A0050009` | 400  | `ErrRolePermissionClearConfirm` | 清空角色权限需显式确认 | Clearing all role permissions requires confirmation  |
+
 ### A010xxxx - 课程模块错误
 
 | 错误码     | HTTP | 常量名                  | 中文说明   | 英文说明             |
