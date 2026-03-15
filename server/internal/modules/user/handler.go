@@ -151,10 +151,11 @@ func (h *Handler) handleGetProfile(c *gin.Context) {
 }
 
 type verifyStudentHTTPRequest struct {
-	SchoolID  string `json:"schoolID" binding:"required,max=10"`
-	StudentID string `json:"studentID" binding:"required,max=50"`
-	Password  string `json:"password" binding:"required,max=200"`
-	Consent   bool   `json:"consent"`
+	SchoolID       string         `json:"schoolID" binding:"required,max=10"`
+	StudentID      string         `json:"studentID" binding:"omitempty,max=50"`
+	Password       string         `json:"password" binding:"omitempty,max=200"`
+	ManualFormData map[string]any `json:"manualFormData"`
+	Consent        bool           `json:"consent"`
 }
 
 func (h *Handler) handleVerifyStudent(c *gin.Context) {
@@ -170,10 +171,11 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 	}
 
 	profile, err := h.service.VerifyStudent(c.Request.Context(), userID, VerifyStudentRequest{
-		SchoolID:  req.SchoolID,
-		StudentID: req.StudentID,
-		Password:  req.Password,
-		Consent:   req.Consent,
+		SchoolID:       req.SchoolID,
+		StudentID:      req.StudentID,
+		Password:       req.Password,
+		ManualFormData: req.ManualFormData,
+		Consent:        req.Consent,
 	})
 	if err != nil {
 		switch {
@@ -187,6 +189,9 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 			response.BadRequest(c, "school verification is not enabled", errs.ErrProfileSchoolDisabled)
 		case errors.Is(err, ErrConsentRequired):
 			response.BadRequest(c, "consent is required for verification", errs.ErrProfileConsentRequired)
+		case errors.Is(err, ErrStudentIDRequired), errors.Is(err, ErrPasswordRequired),
+			errors.Is(err, ErrManualFieldRequired), errors.Is(err, ErrManualFieldInvalid):
+			response.BadRequest(c, err.Error())
 		case errors.Is(err, ErrLDAPFailed):
 			response.BadRequest(c, "LDAP verification failed, please check your credentials", errs.ErrProfileLDAPFailed)
 		default:
@@ -281,8 +286,17 @@ func (h *Handler) handleListSchools(c *gin.Context) {
 	}
 
 	list := make([]gin.H, 0, len(schools))
-	for _, s := range schools {
-		list = append(list, schoolConfigPublicToJSON(&s))
+	for i := range schools {
+		item, err := schoolConfigPublicToJSON(&schools[i])
+		if err != nil {
+			logger.FromGin(c).Error("failed to serialize school config",
+				zap.String("school_id", schools[i].SchoolID),
+				zap.Error(err),
+			)
+			response.InternalError(c, "failed to list schools")
+			return
+		}
+		list = append(list, item)
 	}
 
 	response.Success(c, list)
@@ -375,7 +389,16 @@ func (h *Handler) handleAdminListStudentVerifications(c *gin.Context) {
 
 	items := make([]gin.H, 0, len(list))
 	for i := range list {
-		items = append(items, profileToJSON(&list[i]))
+		item, err := adminStudentVerificationToJSON(&list[i])
+		if err != nil {
+			logger.FromGin(c).Error("failed to serialize student verification",
+				zap.Int64("user_id", list[i].UserID),
+				zap.Error(err),
+			)
+			response.InternalError(c, "failed to list student verifications")
+			return
+		}
+		items = append(items, item)
 	}
 
 	response.Success(c, gin.H{"list": items, "total": total})
@@ -449,13 +472,13 @@ func (h *Handler) handleAdminListSchoolConfigs(c *gin.Context) {
 }
 
 type updateSchoolConfigHTTPRequest struct {
-	SchoolName         *string         `json:"schoolName" binding:"omitempty,max=100"`
-	VerificationMethod *string         `json:"verificationMethod" binding:"omitempty,oneof=ldap manual"`
-	LDAPConfig         *map[string]any `json:"ldapConfig"`
-	AcademicDBTable    *string         `json:"academicDbTable" binding:"omitempty,max=100"`
-	ConsentText        *string         `json:"consentText"`
-	ManualFormFields   *map[string]any `json:"manualFormFields"`
-	Enabled            *bool           `json:"enabled"`
+	SchoolName         *string                  `json:"schoolName" binding:"omitempty,max=100"`
+	VerificationMethod *string                  `json:"verificationMethod" binding:"omitempty,oneof=ldap manual"`
+	LDAPConfig         *map[string]any          `json:"ldapConfig"`
+	AcademicDBTable    *string                  `json:"academicDbTable" binding:"omitempty,max=100"`
+	ConsentText        *string                  `json:"consentText"`
+	ManualFormFields   *[]ManualFieldDescriptor `json:"manualFormFields"`
+	Enabled            *bool                    `json:"enabled"`
 }
 
 func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
@@ -482,6 +505,10 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 	}); err != nil {
 		if errors.Is(err, ErrSchoolNotFound) {
 			response.NotFound(c, "school config not found", errs.ErrProfileSchoolNotFound)
+			return
+		}
+		if errors.Is(err, ErrInvalidManualFieldConfig) {
+			response.BadRequest(c, err.Error())
 			return
 		}
 		logger.FromGin(c).Error("failed to update school config",
@@ -617,14 +644,22 @@ func profileToJSON(p *Profile) gin.H {
 	}
 }
 
-func schoolConfigPublicToJSON(s *SchoolConfig) gin.H {
-	return gin.H{
+func schoolConfigPublicToJSON(s *SchoolConfig) (gin.H, error) {
+	manualFormFields, err := decodeManualFieldDescriptors(s.ManualFormFields)
+	if err != nil {
+		return nil, fmt.Errorf("decode manualFormFields: %w", err)
+	}
+	result := gin.H{
 		"schoolID":           s.SchoolID,
 		"schoolName":         s.SchoolName,
 		"verificationMethod": s.VerificationMethod,
 		"consentText":        s.ConsentText,
 		"enabled":            s.Enabled,
 	}
+	if s.VerificationMethod == VerifyMethodManual {
+		result["manualFormFields"] = manualFormFields
+	}
+	return result, nil
 }
 
 func adminSchoolConfigToJSON(s *SchoolConfig) (gin.H, error) {
@@ -632,7 +667,7 @@ func adminSchoolConfigToJSON(s *SchoolConfig) (gin.H, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode ldapConfig: %w", err)
 	}
-	manualFormFields, err := decodeJSONObject(s.ManualFormFields)
+	manualFormFields, err := decodeManualFieldDescriptors(s.ManualFormFields)
 	if err != nil {
 		return nil, fmt.Errorf("decode manualFormFields: %w", err)
 	}
@@ -647,6 +682,28 @@ func adminSchoolConfigToJSON(s *SchoolConfig) (gin.H, error) {
 		"manualFormFields":   manualFormFields,
 		"enabled":            s.Enabled,
 		"createdAt":          s.CreatedAt,
+	}, nil
+}
+
+func adminStudentVerificationToJSON(p *Profile) (gin.H, error) {
+	manualFormData, err := decodeJSONObject(p.ManualFormData)
+	if err != nil {
+		return nil, fmt.Errorf("decode manualFormData: %w", err)
+	}
+	return gin.H{
+		"userID":             p.UserID,
+		"schoolID":           p.SchoolID,
+		"studentIDs":         p.StudentIDs,
+		"activeStudentID":    p.ActiveStudentID,
+		"manualFormData":     manualFormData,
+		"verificationStatus": p.VerificationStatus,
+		"verificationMethod": p.VerificationMethod,
+		"phone":              p.Phone,
+		"phoneVerified":      p.PhoneVerified,
+		"consentGivenAt":     p.ConsentGivenAt,
+		"verifiedAt":         p.VerifiedAt,
+		"createdAt":          p.CreatedAt,
+		"updatedAt":          p.UpdatedAt,
 	}, nil
 }
 
