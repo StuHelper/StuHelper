@@ -76,8 +76,6 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 		qb.WriteString(` AND verified = false AND rejection_reason IS NOT NULL`)
 	case StatusVerified:
 		qb.WriteString(` AND verified = true`)
-	case StatusUnverified:
-		qb.WriteString(` AND verified = false`)
 	}
 
 	qb.WriteString(` ORDER BY created_at DESC`)

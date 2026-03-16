@@ -52,7 +52,10 @@ func (s *Service) GetUserCapabilities(ctx context.Context, externalID string) ([
 }
 
 // CheckPermission 核心授权检查
-// 检查用户是否拥有指定权限名，并验证 scope 限制（scope_school_ids, scope_roles）
+// 检查用户是否拥有指定权限名，并验证 scope 限制（scope_school_ids, scope_roles）。
+// 注意：此方法每次调用都会从数据库加载 effective permissions。如果调用方已经
+// 持有缓存的 effective permissions（例如中间件链），应改用
+// CheckPermissionScope 以避免重复查询。
 func (s *Service) CheckPermission(ctx context.Context, userID int64, permName string, schoolID *string) (bool, error) {
 	effectivePerms, err := s.repo.GetEffectivePermissions(ctx, userID)
 	if err != nil {
@@ -70,10 +73,22 @@ func (s *Service) CheckPermission(ctx context.Context, userID int64, permName st
 		return false, nil
 	}
 
-	perm, err := s.repo.GetPermissionByID(ctx, found.PermissionID)
+	return s.CheckPermissionScope(ctx, *found, userID, schoolID)
+}
+
+// CheckPermissionScope 验证已匹配的 effective permission 的 scope 约束
+// （scope_school_ids、scope_roles）。当调用方已持有缓存的 effective
+// permissions 并完成了名称匹配时，使用此方法可避免重新加载 effective
+// permissions。
+func (s *Service) CheckPermissionScope(ctx context.Context, ep EffectivePermission, userID int64, schoolID *string) (bool, error) {
+	if !ep.Granted {
+		return false, nil
+	}
+
+	perm, err := s.repo.GetPermissionByID(ctx, ep.PermissionID)
 	if err != nil {
-		logger.L().Warn("CheckPermission: failed to get permission detail",
-			zap.Int64("permission_id", found.PermissionID),
+		logger.L().Warn("CheckPermissionScope: failed to get permission detail",
+			zap.Int64("permission_id", ep.PermissionID),
 			zap.Error(err),
 		)
 		return false, nil
@@ -95,7 +110,7 @@ func (s *Service) CheckPermission(ctx context.Context, userID int64, permName st
 	if len(perm.ScopeRoles) > 0 {
 		userRoleNames, err := s.repo.GetUserRoleNames(ctx, userID)
 		if err != nil {
-			logger.L().Warn("CheckPermission: failed to get user roles",
+			logger.L().Warn("CheckPermissionScope: failed to get user roles",
 				zap.Int64("user_id", userID),
 				zap.Error(err),
 			)

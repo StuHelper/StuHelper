@@ -639,15 +639,10 @@ INSERT INTO permissions (name, module, action, display_name, scope_school_ids, s
     ('review:delete:own', 'review', 'delete:own', '删除自己的评课', NULL, '["verified_student"]'),
     -- 管理后台
     ('admin:dashboard:view', 'admin', 'dashboard:view', '查看管理后台仪表盘', NULL, '["admin", "super_admin"]'),
-    ('admin:users:manage', 'admin', 'users:manage', '用户管理', NULL, '["admin", "super_admin"]'),
-    ('admin:roles:manage', 'admin', 'roles:manage', '角色权限管理', NULL, '["super_admin"]'),
     ('admin:reviews:manage', 'admin', 'reviews:manage', '评课管理', NULL, '["admin", "super_admin", "moderator"]'),
     ('admin:reports:manage', 'admin', 'reports:manage', '举报管理', NULL, '["admin", "super_admin", "moderator"]'),
     ('admin:teachers:manage', 'admin', 'teachers:manage', '教师管理', NULL, '["admin", "super_admin"]'),
     ('admin:sensitive_words:manage', 'admin', 'sensitive_words:manage', '敏感词管理', NULL, '["admin", "super_admin"]'),
-    ('admin:school_configs:manage', 'admin', 'school_configs:manage', '学校配置管理', NULL, '["super_admin"]'),
-    ('admin:system_configs:manage', 'admin', 'system_configs:manage', '系统配置管理', NULL, '["super_admin"]'),
-    ('admin:verification:review', 'admin', 'verification:review', '审核实名/学生认证', NULL, '["admin", "super_admin"]'),
     ('admin:logs:view', 'admin', 'logs:view', '查看操作日志', NULL, '["admin", "super_admin"]'),
     -- RBAC 细粒度权限
     ('rbac:role:read', 'rbac', 'role:read', '查看角色', NULL, '["admin", "super_admin"]'),
@@ -686,9 +681,8 @@ WHERE r.name = 'verified_student' AND p.name IN (
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'admin' AND p.name IN (
-    'admin:dashboard:view', 'admin:users:manage', 'admin:reviews:manage',
-    'admin:reports:manage', 'admin:teachers:manage', 'admin:sensitive_words:manage',
-    'admin:verification:review', 'admin:logs:view',
+    'admin:dashboard:view', 'admin:reviews:manage', 'admin:reports:manage',
+    'admin:teachers:manage', 'admin:sensitive_words:manage', 'admin:logs:view',
     'rbac:role:read', 'rbac:permission:read', 'rbac:user:read', 'rbac:group:read',
     'user:identity:read', 'user:identity:review', 'user:student:read', 'user:student:review',
     'user:school:read', 'user:system:read'

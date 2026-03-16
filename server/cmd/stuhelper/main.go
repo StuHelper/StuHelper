@@ -19,6 +19,7 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
@@ -306,9 +307,9 @@ func run() error {
 		rbacHandler := rbac.NewHandler(rbacService)
 		userHandler.RegisterRoutes(api, authMW)
 
-		// 管理后台路由组（只做认证，业务授权由具体路由负责）
+		// 管理后台路由组先做认证和管理入口能力校验，具体路由继续做细粒度授权。
 		adminGroup := api.Group("/admin")
-		adminGroup.Use(authMW)
+		adminGroup.Use(authMW, rbac.RequireAnyPermission(rbacService, capability.AdminEntryCapabilities...))
 		rbacHandler.RegisterAdminRoutes(adminGroup, rbacService)
 		userHandler.RegisterAdminRoutes(adminGroup, rbacService)
 

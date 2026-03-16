@@ -111,7 +111,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 
 	// 管理员路由组
 	admin := r.Group("/admin")
-	admin.Use(authMiddleware)
+	admin.Use(authMiddleware, rbac.RequireAnyPermission(h.permissionSvc, capability.AdminEntryCapabilities...))
 	{
 		admin.GET("/reports", rbac.RequirePermission(h.permissionSvc, capability.AdminReportsManage), h.ListReports)
 		admin.PUT("/reports/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminReportsManage), h.ProcessReport)

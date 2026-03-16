@@ -44,8 +44,13 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 		now := time.Now()
 		verifyMethod = &method
 		verifiedAt = &now
+		// 显式清除旧拒绝原因：批准后 rejection_reason 必须为 NULL
+		rejectionReason = nil
 	} else {
 		rejectionReason = &reason
+		// 显式清除：拒绝时 verify_method 和 verified_at 不应保留
+		verifyMethod = nil
+		verifiedAt = nil
 	}
 
 	return s.repo.UpdateIdentityReviewStatus(ctx, userID, approved, verifyMethod, verifiedAt, rejectionReason)

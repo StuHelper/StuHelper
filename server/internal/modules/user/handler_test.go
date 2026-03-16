@@ -38,7 +38,24 @@ func (allowAllPermissionService) GetInternalUserID(context.Context, string) (int
 	return 1, nil
 }
 
+func (allowAllPermissionService) GetEffectivePermissions(context.Context, int64) ([]rbac.EffectivePermission, error) {
+	return []rbac.EffectivePermission{
+		{PermissionID: 1, Name: "user:identity:read", Granted: true},
+		{PermissionID: 2, Name: "user:identity:review", Granted: true},
+		{PermissionID: 3, Name: "user:student:read", Granted: true},
+		{PermissionID: 4, Name: "user:student:review", Granted: true},
+		{PermissionID: 5, Name: "user:school:read", Granted: true},
+		{PermissionID: 6, Name: "user:school:update", Granted: true},
+		{PermissionID: 7, Name: "user:system:read", Granted: true},
+		{PermissionID: 8, Name: "user:system:update", Granted: true},
+	}, nil
+}
+
 func (allowAllPermissionService) CheckPermission(context.Context, int64, string, *string) (bool, error) {
+	return true, nil
+}
+
+func (allowAllPermissionService) CheckPermissionScope(context.Context, rbac.EffectivePermission, int64, *string) (bool, error) {
 	return true, nil
 }
 
@@ -243,6 +260,52 @@ func TestHandleAdminListStudentVerifications_DefaultsStatusToPending(t *testing.
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, StatusPending, capturedStatus)
+}
+
+func TestHandleAdminListIdentities_AllStatusClearsRepositoryFilter(t *testing.T) {
+	var capturedStatus string
+	repo := &mockRepo{
+		onListIdentityReviewItems: func(_ context.Context, status string, _, _ int) ([]IdentityReviewItem, int, error) {
+			capturedStatus = status
+			return []IdentityReviewItem{}, 0, nil
+		},
+	}
+
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/identities?status=all", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, capturedStatus)
+}
+
+func TestHandleAdminListStudentVerifications_AllStatusClearsRepositoryFilter(t *testing.T) {
+	var capturedStatus string
+	repo := &mockRepo{
+		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+			capturedStatus = status
+			assert.Empty(t, schoolID)
+			return []Profile{}, 0, nil
+		},
+	}
+
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications?status=all", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, capturedStatus)
+}
+
+func TestHandleAdminListIdentities_RejectsUnverifiedStatus(t *testing.T) {
+	r := setupAdminHandlerTestRouter(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/identities?status=unverified", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T) {

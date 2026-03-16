@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	appmiddleware "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -35,7 +36,9 @@ type fakeHandlerService struct {
 	onSetGroupMembers      func(ctx context.Context, groupID int64, userIDs []int64) error
 	onSetGroupPermissions  func(ctx context.Context, groupID int64, permIDs []int64) error
 	onGetInternalUserID    func(ctx context.Context, externalID string) (int64, error)
+	onGetEffectivePerms    func(ctx context.Context, userID int64) ([]EffectivePermission, error)
 	onCheckPermission      func(ctx context.Context, userID int64, permName string, schoolID *string) (bool, error)
+	onCheckPermissionScope func(ctx context.Context, ep EffectivePermission, userID int64, schoolID *string) (bool, error)
 }
 
 func (f *fakeHandlerService) ListRoles(context.Context) ([]Role, error) { return nil, nil }
@@ -71,7 +74,10 @@ func (f *fakeHandlerService) SetUserRoles(ctx context.Context, userID int64, rol
 	}
 	return nil
 }
-func (f *fakeHandlerService) GetEffectivePermissions(context.Context, int64) ([]EffectivePermission, error) {
+func (f *fakeHandlerService) GetEffectivePermissions(ctx context.Context, userID int64) ([]EffectivePermission, error) {
+	if f.onGetEffectivePerms != nil {
+		return f.onGetEffectivePerms(ctx, userID)
+	}
 	return nil, nil
 }
 func (f *fakeHandlerService) SetUserPermission(ctx context.Context, userID int64, permID int64, granted bool) error {
@@ -118,6 +124,12 @@ func (f *fakeHandlerService) CheckPermission(ctx context.Context, userID int64, 
 	}
 	return true, nil
 }
+func (f *fakeHandlerService) CheckPermissionScope(ctx context.Context, ep EffectivePermission, userID int64, schoolID *string) (bool, error) {
+	if f.onCheckPermissionScope != nil {
+		return f.onCheckPermissionScope(ctx, ep, userID, schoolID)
+	}
+	return true, nil
+}
 
 func setupRBACAdminRouter(service HandlerService) *gin.Engine {
 	r := gin.New()
@@ -125,6 +137,10 @@ func setupRBACAdminRouter(service HandlerService) *gin.Engine {
 	admin := api.Group("/admin")
 	admin.Use(func(c *gin.Context) {
 		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+		// 注入缓存，跳过 RequireAnyPermission / RequirePermission 中的 DB 查询，
+		// 使 handler 测试专注于 handler 逻辑本身而不是中间件授权。
+		c.Set(ctxKeyInternalUserID, int64(1))
+		c.Set(ctxKeyEffectivePerms, allAdminEffectivePermissions())
 		c.Next()
 	})
 	permissionService, ok := service.(PermissionService)
@@ -133,6 +149,17 @@ func setupRBACAdminRouter(service HandlerService) *gin.Engine {
 	}
 	NewHandler(service).RegisterAdminRoutes(admin, permissionService)
 	return r
+}
+
+// allAdminEffectivePermissions 返回所有 admin 能力对应的 EffectivePermission
+// 列表，用于 handler 测试中绕过权限中间件。
+func allAdminEffectivePermissions() []EffectivePermission {
+	caps := capability.AdminEntryCapabilities
+	perms := make([]EffectivePermission, len(caps))
+	for i, name := range caps {
+		perms[i] = EffectivePermission{PermissionID: int64(i + 1), Name: name, Granted: true}
+	}
+	return perms
 }
 
 func TestHandleSetRolePermissions_AcceptsPermissionIDs(t *testing.T) {
@@ -375,9 +402,15 @@ func TestRequirePermission_UsesSchoolIDQuery(t *testing.T) {
 			assert.Equal(t, "external-123", externalID)
 			return 42, nil
 		},
-		onCheckPermission: func(_ context.Context, userID int64, permName string, schoolID *string) (bool, error) {
+		onGetEffectivePerms: func(_ context.Context, userID int64) ([]EffectivePermission, error) {
 			assert.Equal(t, int64(42), userID)
-			assert.Equal(t, "admin.users.read", permName)
+			return []EffectivePermission{
+				{PermissionID: 1, Name: "admin.users.read", Granted: true},
+			}, nil
+		},
+		onCheckPermissionScope: func(_ context.Context, ep EffectivePermission, userID int64, schoolID *string) (bool, error) {
+			assert.Equal(t, int64(42), userID)
+			assert.Equal(t, "admin.users.read", ep.Name)
 			capturedSchoolID = schoolID
 			return true, nil
 		},
