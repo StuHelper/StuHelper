@@ -7,9 +7,10 @@
     <!-- Filters -->
     <div class="mb-4">
       <el-radio-group v-model="filterStatus" @change="handleFilterChange">
-        <el-radio-button value="">全部</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+        <el-radio-button value="pending">待审核</el-radio-button>
         <el-radio-button value="verified">已认证</el-radio-button>
-        <el-radio-button value="unverified">未认证</el-radio-button>
+        <el-radio-button value="rejected">已拒绝</el-radio-button>
       </el-radio-group>
     </div>
 
@@ -26,8 +27,8 @@
       <el-table-column prop="realName" label="姓名" width="120" />
       <el-table-column label="认证状态" width="110">
         <template #default="{ row }">
-          <el-tag :type="row.verified ? 'success' : 'info'" size="small">
-            {{ row.verified ? '已认证' : '未认证' }}
+          <el-tag :type="statusTagType(identityStatus(row))" size="small">
+            {{ statusLabel(identityStatus(row)) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -44,7 +45,7 @@
       </el-table-column>
       <el-table-column label="操作" width="160" fixed="right">
         <template #default="{ row }">
-          <template v-if="!row.verified">
+          <template v-if="identityStatus(row) !== 'verified'">
             <el-button type="success" size="small" @click="handleApprove(row)">通过</el-button>
             <el-button type="danger" size="small" @click="openRejectDialog(row)">拒绝</el-button>
           </template>
@@ -88,30 +89,25 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import type { components } from '@stuhelper/shared'
 import { ElMessage } from 'element-plus'
 import { api } from '@/api'
 
-interface Identity {
-  userID: number
-  docType: string
-  realName: string
-  verified: boolean
-  verifyMethod: string
-  rejectionReason?: string
-  createdAt: string
-}
+type IdentityReviewItem = components['schemas']['AdminIdentityReviewItem']
+type IdentityFilterStatus = 'pending' | 'verified' | 'rejected' | 'all'
+type IdentityStatus = Exclude<IdentityFilterStatus, 'all'>
 
 const loading = ref(false)
 const submitting = ref(false)
-const list = ref<Identity[]>([])
+const list = ref<IdentityReviewItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
-const filterStatus = ref('')
+const filterStatus = ref<IdentityFilterStatus>('pending')
 
 const rejectDialogVisible = ref(false)
 const rejectReason = ref('')
-const currentRow = ref<Identity | null>(null)
+const currentRow = ref<IdentityReviewItem | null>(null)
 
 const DOC_TYPE_MAP: Record<string, string> = {
   MAINLAND_ID: '大陆身份证',
@@ -140,7 +136,8 @@ const VERIFY_METHOD_MAP: Record<string, string> = {
   manual: '人工审核',
 }
 
-function verifyMethodLabel(method: string): string {
+function verifyMethodLabel(method?: string | null): string {
+  if (!method) return '—'
   return VERIFY_METHOD_MAP[method] ?? method
 }
 
@@ -150,15 +147,39 @@ function formatDate(dateStr: string): string {
   return d.toLocaleString('zh-CN', { hour12: false })
 }
 
+function identityStatus(row: IdentityReviewItem): IdentityStatus {
+  if (row.verified) return 'verified'
+  if (row.rejectionReason) return 'rejected'
+  return 'pending'
+}
+
+function statusLabel(status: IdentityStatus): string {
+  const map: Record<IdentityStatus, string> = {
+    pending: '待审核',
+    verified: '已认证',
+    rejected: '已拒绝',
+  }
+  return map[status]
+}
+
+function statusTagType(status: IdentityStatus): 'success' | 'warning' | 'danger' {
+  const map: Record<IdentityStatus, 'success' | 'warning' | 'danger'> = {
+    pending: 'warning',
+    verified: 'success',
+    rejected: 'danger',
+  }
+  return map[status]
+}
+
 async function fetchList() {
   loading.value = true
   try {
-    const res = await api.userSystem.listIdentities({
-      status: filterStatus.value || undefined,
+    const res = await api.userAdmin.listIdentityVerifications({
+      status: filterStatus.value,
       page: page.value,
       pageSize: pageSize.value,
     })
-    const data = (res as { data?: { list?: Identity[]; total?: number } }).data
+    const data = res.data?.data
     list.value = data?.list ?? []
     total.value = data?.total ?? 0
   } catch {
@@ -178,9 +199,9 @@ function handleSizeChange() {
   fetchList()
 }
 
-async function handleApprove(row: Identity) {
+async function handleApprove(row: IdentityReviewItem) {
   try {
-    await api.userSystem.reviewIdentity(row.userID, { approved: true })
+    await api.userAdmin.reviewIdentity(row.userID, { approved: true })
     ElMessage.success('审核通过')
     fetchList()
   } catch {
@@ -188,7 +209,7 @@ async function handleApprove(row: Identity) {
   }
 }
 
-function openRejectDialog(row: Identity) {
+function openRejectDialog(row: IdentityReviewItem) {
   currentRow.value = row
   rejectReason.value = ''
   rejectDialogVisible.value = true
@@ -198,7 +219,7 @@ async function handleReject() {
   if (!currentRow.value) return
   submitting.value = true
   try {
-    await api.userSystem.reviewIdentity(currentRow.value.userID, {
+    await api.userAdmin.reviewIdentity(currentRow.value.userID, {
       approved: false,
       rejectionReason: rejectReason.value,
     })

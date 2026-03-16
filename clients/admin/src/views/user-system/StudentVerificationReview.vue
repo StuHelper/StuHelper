@@ -214,8 +214,7 @@ async function fetchList() {
     loading.value = true;
     try {
         const res = await api.userAdmin.listStudentVerifications({
-            status:
-                filterStatus.value === "all" ? undefined : filterStatus.value,
+            status: filterStatus.value,
             schoolID: filterSchoolID.value || undefined,
             page: page.value,
             pageSize: pageSize.value,

@@ -51,7 +51,7 @@ export default {
             photoSelfie: "手持证件照",
             photoRequired: "非大陆证件需上传证件照片",
             successAuto: "认证通过（自动匹配学籍）",
-            successManual: "已提交，等待管理员审核",
+            successManual: "认证通过（人工审核）",
             rejectionReason: "拒绝原因",
             desc: "实名认证后可进行学生身份验证",
         },

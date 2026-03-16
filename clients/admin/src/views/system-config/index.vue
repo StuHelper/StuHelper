@@ -43,15 +43,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import type { components } from '@stuhelper/shared'
 import { ElMessage } from 'element-plus'
 import { api } from '@/api'
 
-interface SystemConfig {
-  key: string
-  value: string
-  description?: string
-  updatedAt?: string
-}
+type SystemConfig = components['schemas']['SystemConfig']
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -69,13 +65,8 @@ function formatDate(dateStr?: string): string {
 async function fetchList() {
   loading.value = true
   try {
-    const res = await api.userSystem.listSystemConfigs()
-    const data = (res as { data?: { list?: SystemConfig[] } | SystemConfig[] }).data
-    if (Array.isArray(data)) {
-      list.value = data
-    } else {
-      list.value = (data as { list?: SystemConfig[] })?.list ?? []
-    }
+    const res = await api.userAdmin.listSystemConfigs()
+    list.value = res.data?.data ?? []
   } catch {
     ElMessage.error('获取数据失败')
   } finally {
@@ -96,7 +87,7 @@ function cancelEdit() {
 async function handleSaveInline(row: SystemConfig) {
   submitting.value = true
   try {
-    await api.userSystem.updateSystemConfig(row.key, { value: editingValue.value })
+    await api.userAdmin.updateSystemConfig(row.key, { value: editingValue.value })
     row.value = editingValue.value
     row.updatedAt = new Date().toISOString()
     ElMessage.success('保存成功')

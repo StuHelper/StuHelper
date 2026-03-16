@@ -51,7 +51,7 @@ export default {
             photoSelfie: "Selfie with Document",
             photoRequired: "Photo upload required for non-mainland documents",
             successAuto: "Verified (auto-matched with academic records)",
-            successManual: "Submitted, pending admin review",
+            successManual: "Verified (manual review)",
             rejectionReason: "Rejection Reason",
             desc: "Verify identity to proceed with student verification",
         },

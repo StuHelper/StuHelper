@@ -68,26 +68,27 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import type { components } from '@stuhelper/shared'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { api } from '@/api'
 
-interface SchoolConfig {
-  schoolID: string
+type SchoolConfigRow = components['schemas']['AdminSchoolConfig'] & { _toggling?: boolean }
+type VerificationMethod = components['schemas']['AdminSchoolConfig']['verificationMethod']
+type SchoolConfigForm = {
   schoolName: string
-  verificationMethod: string
-  consentText?: string
+  verificationMethod: VerificationMethod
+  consentText: string
   enabled: boolean
-  _toggling?: boolean
 }
 
 const loading = ref(false)
 const submitting = ref(false)
-const list = ref<SchoolConfig[]>([])
+const list = ref<SchoolConfigRow[]>([])
 
 const editDialogVisible = ref(false)
 const editingSchoolID = ref('')
 const formRef = ref<FormInstance>()
-const form = ref({
+const form = ref<SchoolConfigForm>({
   schoolName: '',
   verificationMethod: 'manual',
   consentText: '',
@@ -109,13 +110,8 @@ function verificationMethodLabel(method: string): string {
 async function fetchList() {
   loading.value = true
   try {
-    const res = await api.userSystem.listSchoolConfigs()
-    const data = (res as { data?: { list?: SchoolConfig[] } | SchoolConfig[] }).data
-    if (Array.isArray(data)) {
-      list.value = data.map((item) => ({ ...item, _toggling: false }))
-    } else {
-      list.value = ((data as { list?: SchoolConfig[] })?.list ?? []).map((item) => ({ ...item, _toggling: false }))
-    }
+    const res = await api.userAdmin.listSchoolConfigs()
+    list.value = (res.data?.data ?? []).map((item) => ({ ...item, _toggling: false }))
   } catch {
     ElMessage.error('获取数据失败')
   } finally {
@@ -123,13 +119,13 @@ async function fetchList() {
   }
 }
 
-async function handleToggleEnabled(row: SchoolConfig) {
+async function handleToggleEnabled(row: SchoolConfigRow) {
   row._toggling = true
   try {
-    await api.userSystem.updateSchoolConfig(row.schoolID, {
+    await api.userAdmin.updateSchoolConfig(row.schoolID, {
       schoolName: row.schoolName,
       verificationMethod: row.verificationMethod,
-      consentText: row.consentText,
+      consentText: row.consentText ?? undefined,
       enabled: row.enabled,
     })
     ElMessage.success(row.enabled ? '已启用' : '已禁用')
@@ -141,7 +137,7 @@ async function handleToggleEnabled(row: SchoolConfig) {
   }
 }
 
-function openEditDialog(row: SchoolConfig) {
+function openEditDialog(row: SchoolConfigRow) {
   editingSchoolID.value = row.schoolID
   form.value = {
     schoolName: row.schoolName,
@@ -164,7 +160,7 @@ async function handleSave() {
 
   submitting.value = true
   try {
-    await api.userSystem.updateSchoolConfig(editingSchoolID.value, {
+    await api.userAdmin.updateSchoolConfig(editingSchoolID.value, {
       schoolName: form.value.schoolName,
       verificationMethod: form.value.verificationMethod,
       consentText: form.value.consentText || undefined,
