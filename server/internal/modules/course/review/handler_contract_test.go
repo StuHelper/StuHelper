@@ -36,7 +36,11 @@ func setupContractRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
 	t.Cleanup(func() { mr.Close() })
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { rdb.Close() })
+	t.Cleanup(func() {
+		if err := rdb.Close(); err != nil {
+			t.Logf("redis close error: %v", err)
+		}
+	})
 
 	return rdb, mr
 }
@@ -138,7 +142,7 @@ func TestContract_429_RateLimited(t *testing.T) {
 	csrfToken := "test-csrf-token"
 
 	// 发送请求直到触发限流（PostLimit=2）
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/course/review/reviews", nil)
 		req.Header.Set("Authorization", "Bearer "+validToken)

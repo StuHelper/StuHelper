@@ -172,25 +172,6 @@ func (r *Repository) GetCourseByID(ctx context.Context, id int64) (*Course, erro
 	return &item, nil
 }
 
-// scanCourses 扫描课程结果集
-func (r *Repository) scanCourses(rows pgx.Rows) ([]Course, error) {
-	list := make([]Course, 0)
-	for rows.Next() {
-		var item Course
-		if err := rows.Scan(
-			&item.ID, &item.SchoolID, &item.DepartmentID, &item.DepartmentName,
-			&item.Code, &item.Name, &item.Credits, &item.Category, &item.ReviewCount,
-		); err != nil {
-			return nil, err
-		}
-		list = append(list, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return list, nil
-}
-
 // scanCoursesWithTotal 扫描课程结果集（含 COUNT(*) OVER() 总数）
 func (r *Repository) scanCoursesWithTotal(rows pgx.Rows) ([]Course, int, error) {
 	list := make([]Course, 0)

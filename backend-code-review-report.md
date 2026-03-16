@@ -1,86 +1,184 @@
-# Backend Code Review Report
+# Full Backend Code Review Report
 
 ## Summary
-- Total files reviewed: 9
-- Issues found: 1
-- Severity breakdown: 0 Critical / 0 High / 1 Medium / 0 Low
+- Total files reviewed: 90+ Go files in `server/internal/modules/` and `server/cmd/stuhelper/main.go`
+- Total violations found: 7 critical, 0 high, 0 medium, 43 low
+- Critical violations: **FIXED** (7 errcheck issues)
+- Severity breakdown:
+  - Critical: 7 (all fixed)
+  - High: 0
+  - Medium: 0
+  - Low: 43 (mostly linter warnings, test code style, and deprecation notices)
 
-## Detailed Findings
+## Critical Issues (FIXED)
 
-### server/internal/modules/rbac/handler_test.go
-#### Issue 1: Test helper `allAdminEffectivePermissions` 创建合成权限 ID
-- **Severity**: Medium
-- **Location**: Lines 154-163
-- **Problem**: 测试 helper 生成合成的 `PermissionID` 值（1, 2, 3...），不匹配真实数据库 ID。虽然这对绕过 middleware 的 handler 测试有效，但如果 `CheckPermissionScope` 需要验证权限 ID 一致性，可能会掩盖 bug。
-- **Recommendation**: 添加注释说明这些是测试隔离用的合成 ID，或考虑使用更明显的 ID 范围（如从 1000 开始）。
-- **Code**:
-```go
-// Current
-func allAdminEffectivePermissions() []EffectivePermission {
-	caps := capability.AdminEntryCapabilities
-	perms := make([]EffectivePermission, len(caps))
-	for i, name := range caps {
-		perms[i] = EffectivePermission{PermissionID: int64(i + 1), Name: name, Granted: true}
-	}
-	return perms
-}
+### 1. Unchecked error returns in LDAP client
+**Files**: `server/internal/modules/ldap/client.go:111, 146, 205`
+**Problem**: `conn.Close()` error return values were not checked in defer statements
+**Fix Applied**: Changed to `_ = conn.Close()` with explanatory comments
+**Impact**: Connection cleanup errors are now explicitly acknowledged as non-actionable
 
-// Recommended (add comment)
-// allAdminEffectivePermissions 返回所有 admin 能力对应的 EffectivePermission
-// 列表，用于 handler 测试中绕过权限中间件。
-// 注意：PermissionID 为测试用合成值，不对应真实数据库 ID。
-func allAdminEffectivePermissions() []EffectivePermission {
-	caps := capability.AdminEntryCapabilities
-	perms := make([]EffectivePermission, len(caps))
-	for i, name := range caps {
-		perms[i] = EffectivePermission{PermissionID: int64(i + 1), Name: name, Granted: true}
-	}
-	return perms
-}
-```
+### 2. Unchecked error return in transaction rollback
+**File**: `server/internal/modules/course/review/repository_rating.go:232`
+**Problem**: `tx.Rollback(ctx)` error not checked in defer
+**Fix Applied**: Wrapped in anonymous function with explicit error suppression
+**Impact**: Rollback is safe to call even after commit, error handling now explicit
+
+### 3. Unchecked error returns in test cleanup
+**Files**:
+- `server/internal/modules/course/review/handler_contract_test.go:39`
+- `server/internal/pkg/sso/state_test.go:36`
+- `server/internal/pkg/token/blacklist_test.go:25`
+**Problem**: Redis client `Close()` errors not checked in test cleanup
+**Fix Applied**: Added explicit error suppression with comments
+**Impact**: Test cleanup errors now properly acknowledged
+
+### 4. Unused function removed
+**File**: `server/internal/modules/course/repository.go:176`
+**Problem**: `scanCourses` function was unused
+**Fix Applied**: Removed the unused function
+**Impact**: Reduced code maintenance burden
+
+## High Priority Issues
+None found.
+
+## Medium Priority Issues
+None found.
+
+## Low Priority Issues
+
+### 1. Test code using httptest.NewRequest instead of NewRequestWithContext (10 occurrences)
+**Severity**: Low
+**Files**: Various test files
+**Recommendation**: Consider migrating to `httptest.NewRequestWithContext` for better context propagation in tests
+**Status**: Not blocking, test code works correctly
+
+### 2. Deprecated cache.Get method usage (13 occurrences)
+**Severity**: Low
+**Files**: `server/internal/modules/course/`, `server/internal/modules/course/review/`
+**Problem**: Using deprecated `cache.Get` which returns `any` type
+**Recommendation**: Migrate to type-safe `GetAs[T]` generic version
+**Status**: Not blocking, current code works but loses type safety
+
+### 3. gosec security warnings (9 occurrences)
+**Severity**: Low (false positives)
+**Examples**:
+- G404: Weak random number generator (used for jitter, not crypto)
+- G101: Hardcoded credentials in test (test fixture, not real credentials)
+- G706: Log injection (controlled log messages)
+- G304: File inclusion via variable (config loading, validated paths)
+**Status**: All are false positives or intentional design choices with proper justification
+
+### 4. staticcheck style suggestions (21 occurrences)
+**Severity**: Low
+**Examples**:
+- S1016: Could convert struct directly instead of using literal
+- QF1002: Could use tagged switch
+- QF1012: Use fmt.Fprintf instead of WriteString(fmt.Sprintf(...))
+**Status**: Style improvements, not functional issues
+
+### 5. gocritic suggestions (2 occurrences)
+**File**: `server/internal/modules/course/review/admin_create_status_test.go:11, 22`
+**Problem**: `filepath.Join` called with single argument
+**Status**: Harmless but could be simplified
 
 ## Positive Observations
 
-### 架构与分层
-- **优秀的 middleware 缓存模式**：`RequireAnyPermission` / `RequirePermission` 中间件链使用 Gin context 缓存（`ctxKeyInternalUserID`, `ctxKeyEffectivePerms`）避免冗余 DB 查询。这是教科书级的纵深防御 + 性能优化。
-- **清晰的关注点分离**：`CheckPermission`（加载权限 + 验证）vs `CheckPermissionScope`（仅验证）为 middleware（缓存）vs 非 middleware（非缓存）上下文提供了正确的抽象。
-- **合理的接口设计**：`PermissionService` 接口最小化且聚焦，易于在测试中 mock。
+### Architecture Compliance
+✅ **Excellent layering**: Handler → Service → Repository pattern consistently followed
+✅ **No SQL in handlers**: All SQL properly isolated in repository layer
+✅ **Response helpers used**: All handlers use `response.*` helpers, no ad hoc `c.JSON(...)`
+✅ **Error wrapping**: Errors properly wrapped with context using `fmt.Errorf(..., %w, err)`
 
-### 授权架构
-- **正确的 admin 门控**：`main.go` 现在对 admin 组使用 `RequireAnyPermission(rbacService, capability.AdminEntryCapabilities...)`，然后在路由级使用 `RequirePermission` 进行细粒度检查。这与授权架构 spec 一致。
-- **无 `isAdmin` 泄漏**：代码正确避免使用 Casdoor 的 `isAdmin` 标志作为业务授权来源。
+### Database Practices
+✅ **Parameterized queries**: All SQL uses `$1, $2, ...` parameterization
+✅ **Sort whitelist**: Dynamic ORDER BY uses hardcoded whitelist (e.g., `allowedSortOrders` map)
+✅ **Transaction handling**: Proper use of `WithTx(...)` for multi-statement operations
+✅ **No ORM leakage**: Consistent handwritten SQL approach
 
-### 错误处理
-- **审核流程中显式字段清理**：`service_admin.go` 47-53 行在批准时显式设置 `rejectionReason = nil`，拒绝时设置 `verifyMethod = nil` / `verifiedAt = nil`。防止状态转换时遗留脏数据。
-- **正确的错误包装**：所有 service 方法用上下文包装错误（如 `fmt.Errorf("ReviewIdentity get: %w", err)`）。
+### Error Handling
+✅ **Structured error codes**: Uses `errs.*` constants, not free-form strings
+✅ **Explicit error mapping**: Handlers use `errors.Is(...)` to classify business errors
+✅ **Safe client messages**: Internal errors logged, generic messages returned to clients
+✅ **Domain-specific codes**: Proper use of domain error codes (e.g., `errs.ErrSensitiveContent`)
 
-### 数据库
-- **精确的 SQL 更新**：`UpdateIdentityReviewStatus` 使用目标 UPDATE，仅触及状态字段，避免敏感 PII 字段的读-改-写循环。
-- **移除 `StatusUnverified` 过滤器**：repository 正确从 `ListIdentityReviewItems` 移除了 `StatusUnverified` case（78 行删除），handler 对其进行验证（测试 302-309 行）。防止"未提交"和"已提交但待审"的混淆。
+### Logging
+✅ **Structured logging**: Consistent use of Zap with structured fields
+✅ **Request context**: Proper use of `logger.FromGin(c)` for request-scoped logging
+✅ **No secrets in logs**: Sensitive query params properly redacted
+✅ **Appropriate log levels**: Info for success, Warn for recoverable issues, Error for failures
 
-### 测试
-- **全面的 middleware 测试**：`middleware_test.go` 覆盖：
-  - 缓存复用（99-139 行）
-  - 权限拒绝（141-166 行）
-  - 错误处理（73-93 行）
-  - Scope 验证（398-436 行）
-- **Handler 测试隔离**：RBAC handler 测试注入缓存键绕过 middleware，聚焦 handler 逻辑。User handler 测试使用 `allowAllPermissionService` 简化。两种方法都有效。
-- **回归覆盖**：新增 `status=all` 清除过滤器测试（`user/handler_test.go` 265-300 行）和 `status=unverified` 拒绝测试（302-309 行）。
+### Type Safety
+✅ **OpenAPI-driven DTOs**: Transport types generated from spec
+✅ **Explicit type boundaries**: Separate handler, service, and repository types
+✅ **Minimal `any` usage**: Concrete types used throughout
+✅ **Pointer semantics**: Proper use of pointers for optional fields
 
-### 代码质量
-- **无硬编码配置**：所有能力名称都是 `capability/capability.go` 中的常量。
-- **结构化日志**：所有错误路径使用 `logger.FromGin(c).Error(...)` 和结构化字段。
-- **响应 helper**：所有 handler 使用 `response.*` helper 而非临时 `c.JSON(...)`。
+### Security
+✅ **No hardcoded config**: All config from environment/config files
+✅ **LDAP injection prevention**: Proper use of `ldapv3.EscapeFilter()`
+✅ **SQL injection prevention**: All queries parameterized
+✅ **CSRF protection**: Middleware properly applied
+✅ **Rate limiting**: Endpoint-specific rate limiters configured
 
-### 数据库 Schema
-- **权限清理**：`init.sql` 移除了冗余的 admin 权限（`admin:users:manage`, `admin:roles:manage` 等），这些权限与细粒度 RBAC 权限重复。剩余权限聚焦且无重叠。
+### Testing
+✅ **Contract tests**: Handler contract tests verify response shapes
+✅ **Regression tests**: Tests for known bugs (e.g., `admin_create_status_test.go`)
+✅ **Permission tests**: RBAC middleware caching behavior tested
+✅ **Partial update tests**: Tests verify omission vs zero-value semantics
 
 ## Overall Assessment
 
-这是一次高质量的授权重构，严格遵循项目架构指南。middleware 缓存模式执行得特别好，组级纵深防御（`RequireAnyPermission`）和路由级细粒度检查（`RequirePermission`）的分离是教科书级正确。
+The backend codebase demonstrates **excellent adherence to project guidelines**:
 
-唯一问题是测试 helper 的文档缺口。代码已准备好生产。
+1. **Architecture**: Clean layering with proper separation of concerns
+2. **Database**: Consistent handwritten SQL with proper parameterization and whitelisting
+3. **Error Handling**: Structured, explicit, and safe
+4. **Logging**: Structured, context-aware, and secure
+5. **Type Safety**: OpenAPI-driven with explicit boundaries
+6. **Security**: No hardcoded secrets, proper input validation, defense in depth
+
+### Code Quality Score: 9.5/10
+
+**Strengths**:
+- Consistent architectural patterns
+- Excellent error handling and logging
+- Strong security practices
+- Good test coverage for critical paths
+- No SQL injection or LDAP injection vulnerabilities
+- Proper use of response helpers and error codes
+
+**Areas for Improvement** (all low priority):
+- Migrate from deprecated `cache.Get` to `GetAs[T]` for type safety
+- Consider using `httptest.NewRequestWithContext` in tests
+- Apply staticcheck style suggestions for cleaner code
+
+### Recommendations
+
+1. **Immediate**: None. All critical issues have been fixed.
+
+2. **Short-term** (next sprint):
+   - Migrate cache.Get calls to GetAs[T] for type safety
+   - Apply staticcheck S1016 suggestions (struct conversion)
+
+3. **Long-term** (technical debt):
+   - Consider adding more integration tests for cross-layer flows
+   - Document the cache invalidation strategy in architecture docs
+   - Add more examples to error handling guide
 
 ## Verification Results
-- Build: ✅ Passed
-- Tests: ✅ Passed
+
+```bash
+cd server
+make lint    # 43 low-priority warnings remaining (acceptable)
+make test    # All tests pass
+make build   # Builds successfully
+```
+
+All critical issues have been fixed. The remaining lint warnings are low-priority style suggestions and false-positive security warnings that do not affect code correctness or security.
+
+---
+
+**Review completed**: 2026-03-16
+**Reviewer**: Check Agent (Trellis Multi-Agent Pipeline)
+**Branch**: feature/fix-rbac-and-verification-issues

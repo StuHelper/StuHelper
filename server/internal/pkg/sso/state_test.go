@@ -19,7 +19,7 @@ func skipIfNoRedis(t *testing.T, client *redis.Client) {
 	}
 }
 
-func setupTestRedis(t *testing.T) (*redis.Client, func()) {
+func setupTestRedis(_ *testing.T) (*redis.Client, func()) {
 	// 尝试连接本地 Redis
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
@@ -33,7 +33,7 @@ func setupTestRedis(t *testing.T) (*redis.Client, func()) {
 		if len(keys) > 0 {
 			client.Del(ctx, keys...)
 		}
-		client.Close()
+		_ = client.Close() // test cleanup, error not actionable
 	}
 
 	return client, cleanup
@@ -69,7 +69,7 @@ func TestStateManager_Generate_Uniqueness(t *testing.T) {
 
 	// 生成多个 state，应该都不同
 	states := make(map[string]bool)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		state, err := sm.Generate(ctx)
 		assert.NoError(t, err)
 		assert.False(t, states[state], "生成了重复的 state")
