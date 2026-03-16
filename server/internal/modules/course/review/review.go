@@ -16,24 +16,6 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
-// stripReviewsForResponse 根据认证状态和管理员身份脱敏评论内容
-// - hidden 评论：非管理员看不到内容（保留 moderationReason）
-// - 未登录用户：看不到任何评论正文
-func stripReviewsForResponse(reviews []Review, isAuthenticated, isAdmin bool) []Review {
-	result := make([]Review, len(reviews))
-	copy(result, reviews)
-	for i := range result {
-		if result[i].Status == StatusHidden && !isAdmin {
-			result[i].Content = ""
-			result[i].Title = ""
-		} else if !isAuthenticated {
-			result[i].Content = ""
-			result[i].Title = ""
-		}
-	}
-	return result
-}
-
 // GetCourseReviews 获取课程测评列表
 func (h *Handler) GetCourseReviews(c *gin.Context) {
 	courseID, err := httputil.ParseIDParam(c, "id")
@@ -82,10 +64,9 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 	}
 
 	// 按认证状态脱敏后返回（缓存存完整数据在 service 层，脱敏在 handler 层按请求执行）
-	authenticated := middleware.IsAuthenticated(c)
-	isAdmin := middleware.GetIsAdmin(c)
-	stripped := stripReviewsForResponse(result.List, authenticated, isAdmin)
-	response.Success(c, gin.H{"list": stripped, "total": result.Total, "authenticated": authenticated})
+	facts := h.resolveReviewAccessFactsForRequest(c)
+	stripped := stripReviewsForResponse(result.List, facts)
+	response.Success(c, gin.H{"list": stripped, "total": result.Total, "authenticated": facts.Authenticated})
 }
 
 // GetLatestReviews 获取最新测评
@@ -110,10 +91,9 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 	}
 
 	// 按认证状态脱敏后返回
-	authenticated := middleware.IsAuthenticated(c)
-	isAdmin := middleware.GetIsAdmin(c)
-	stripped := stripReviewsForResponse(result.List, authenticated, isAdmin)
-	response.Success(c, gin.H{"list": stripped, "total": result.Total, "authenticated": authenticated})
+	facts := h.resolveReviewAccessFactsForRequest(c)
+	stripped := stripReviewsForResponse(result.List, facts)
+	response.Success(c, gin.H{"list": stripped, "total": result.Total, "authenticated": facts.Authenticated})
 }
 
 // GetBatchCourseReviews 批量获取多个课程的测评列表
@@ -167,8 +147,7 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 	}
 
 	// 按认证状态脱敏后返回
-	authenticated := middleware.IsAuthenticated(c)
-	isAdmin := middleware.GetIsAdmin(c)
+	facts := h.resolveReviewAccessFactsForRequest(c)
 
 	// 构建响应 map: courseID string -> {list, total}
 	data := make(map[string]interface{})
@@ -177,7 +156,7 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 		if reviews == nil {
 			reviews = []Review{}
 		}
-		stripped := stripReviewsForResponse(reviews, authenticated, isAdmin)
+		stripped := stripReviewsForResponse(reviews, facts)
 		total := result.Totals[cid]
 		data[strconv.FormatInt(cid, 10)] = map[string]interface{}{
 			"list":  stripped,
@@ -185,7 +164,7 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 		}
 	}
 
-	response.Success(c, gin.H{"data": data, "authenticated": authenticated})
+	response.Success(c, gin.H{"data": data, "authenticated": facts.Authenticated})
 }
 
 // PostReviewRequest 发布测评请求
@@ -201,6 +180,12 @@ type PostReviewRequest struct {
 
 // PostReview 发布测评
 func (h *Handler) PostReview(c *gin.Context) {
+	facts := h.resolveReviewAccessFactsForRequest(c)
+	if !facts.CanPostReview {
+		response.Forbidden(c, "student and identity verification are required to post reviews", errs.ErrAccessDenied)
+		return
+	}
+
 	var req PostReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request parameters")

@@ -17,6 +17,7 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
@@ -149,6 +150,9 @@ func run() error {
 		ssoClient.Close()
 	})
 
+	rbacRepo := rbac.NewRepository(database)
+	rbacService := rbac.NewService(rbacRepo)
+
 	// 根据环境设置 Gin 模式
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -244,13 +248,20 @@ func run() error {
 		api.Use(middleware.CSRFMiddleware())
 
 		// 注册认证模块路由
-		authHandler := auth.NewHandler(cfg, tokenService, redisClient.GetClient(), ssoClient, auth.NewUserSyncRepository(database))
+		authHandler := auth.NewHandler(
+			cfg,
+			tokenService,
+			redisClient.GetClient(),
+			ssoClient,
+			auth.NewUserSyncRepository(database),
+			rbacService,
+		)
 		authHandler.RegisterRoutes(api)
 
 		// 注册课程模块路由
 		authMW := middleware.AuthMiddleware(tokenService)
 		optionalAuthMW := middleware.OptionalAuthMiddleware(tokenService)
-		courseHandler := course.NewHandler(database, redisClient.GetClient(), ssoClient, cfg)
+		courseHandler := course.NewHandler(database, redisClient.GetClient(), rbacService, cfg)
 		courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 
 		// 初始化 LDAP 客户端（可选，仅在配置了 LDAP_URL 时启用）
@@ -292,12 +303,14 @@ func run() error {
 			return fmt.Errorf("failed to initialize user service: %w", err)
 		}
 		userHandler := user.NewHandler(userService)
+		rbacHandler := rbac.NewHandler(rbacService)
 		userHandler.RegisterRoutes(api, authMW)
 
 		// 管理后台路由组（只做认证，业务授权由具体路由负责）
 		adminGroup := api.Group("/admin")
 		adminGroup.Use(authMW)
-		userHandler.RegisterAdminRoutes(adminGroup, ssoClient)
+		rbacHandler.RegisterAdminRoutes(adminGroup, rbacService)
+		userHandler.RegisterAdminRoutes(adminGroup, rbacService)
 
 		// 启动后台定时任务（日志清理等）
 		bgCtx, bgCancel := context.WithCancel(context.Background())
