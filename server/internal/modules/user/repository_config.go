@@ -1,0 +1,143 @@
+package user
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// GetSchoolConfig 获取学校认证配置
+func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error) {
+	var item SchoolConfig
+	err := r.db.QueryRow(ctx, `
+		SELECT school_id, school_name, verification_method, ldap_config,
+		       academic_db_table, consent_text, manual_form_fields,
+		       enabled, created_at, updated_at
+		FROM school_configs
+		WHERE school_id = $1
+	`, schoolID).Scan(
+		&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.LDAPConfig,
+		&item.AcademicDBTable, &item.ConsentText, &item.ManualFormFields,
+		&item.Enabled, &item.CreatedAt, &item.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("GetSchoolConfig: %w", err)
+	}
+	return &item, nil
+}
+
+// ListSchoolConfigs 获取所有启用的学校认证配置
+func (r *Repository) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT school_id, school_name, verification_method, ldap_config,
+		       academic_db_table, consent_text, manual_form_fields,
+		       enabled, created_at, updated_at
+		FROM school_configs
+		WHERE enabled = true
+		ORDER BY school_name ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("ListSchoolConfigs: %w", err)
+	}
+	defer rows.Close()
+
+	list := make([]SchoolConfig, 0, 10)
+	for rows.Next() {
+		var item SchoolConfig
+		if err := rows.Scan(
+			&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.LDAPConfig,
+			&item.AcademicDBTable, &item.ConsentText, &item.ManualFormFields,
+			&item.Enabled, &item.CreatedAt, &item.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("ListSchoolConfigs scan: %w", err)
+		}
+		list = append(list, item)
+	}
+	return list, rows.Err()
+}
+
+// ListAllSchoolConfigs 获取所有学校认证配置（含禁用，管理端用）
+func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT school_id, school_name, verification_method, ldap_config,
+		       academic_db_table, consent_text, manual_form_fields,
+		       enabled, created_at, updated_at
+		FROM school_configs
+		ORDER BY school_name ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("ListAllSchoolConfigs: %w", err)
+	}
+	defer rows.Close()
+
+	list := make([]SchoolConfig, 0, 10)
+	for rows.Next() {
+		var item SchoolConfig
+		if err := rows.Scan(
+			&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.LDAPConfig,
+			&item.AcademicDBTable, &item.ConsentText, &item.ManualFormFields,
+			&item.Enabled, &item.CreatedAt, &item.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("ListAllSchoolConfigs scan: %w", err)
+		}
+		list = append(list, item)
+	}
+	return list, rows.Err()
+}
+
+// UpdateSchoolConfig 更新学校认证配置
+func (r *Repository) UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE school_configs SET
+			school_name = $2, verification_method = $3, ldap_config = $4,
+			academic_db_table = $5, consent_text = $6, manual_form_fields = $7,
+			enabled = $8, updated_at = NOW()
+		WHERE school_id = $1
+	`, config.SchoolID, config.SchoolName, config.VerificationMethod, config.LDAPConfig,
+		config.AcademicDBTable, config.ConsentText, config.ManualFormFields,
+		config.Enabled,
+	)
+	if err != nil {
+		return fmt.Errorf("UpdateSchoolConfig: %w", err)
+	}
+	return nil
+}
+
+// ListSystemConfigs 获取所有系统配置项
+func (r *Repository) ListSystemConfigs(ctx context.Context) ([]SystemConfig, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT key, value, description, updated_at
+		FROM system_configs
+		ORDER BY key ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("ListSystemConfigs: %w", err)
+	}
+	defer rows.Close()
+
+	list := make([]SystemConfig, 0, 20)
+	for rows.Next() {
+		var item SystemConfig
+		if err := rows.Scan(&item.Key, &item.Value, &item.Description, &item.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("ListSystemConfigs scan: %w", err)
+		}
+		list = append(list, item)
+	}
+	return list, rows.Err()
+}
+
+// UpdateSystemConfig 更新系统配置项
+func (r *Repository) UpdateSystemConfig(ctx context.Context, key, value string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE system_configs SET value = $2, updated_at = NOW() WHERE key = $1
+	`, key, value)
+	if err != nil {
+		return fmt.Errorf("UpdateSystemConfig: %w", err)
+	}
+	return nil
+}

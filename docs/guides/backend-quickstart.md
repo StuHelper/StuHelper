@@ -1,114 +1,86 @@
 # 后端开发指南
 
-这份文档帮你在现有后端上继续开发新接口和新模块。
+这份文档面向已经把服务跑起来的开发者，默认你要在现有后端上继续加功能或改契约。
 
-> 环境搭建请先完成 [快速开始](../tutorials/quick-start.md)。
+> 环境准备先看 [快速开始](../tutorials/quick-start.md)。
 
-## 项目结构
+## 当前目录结构
 
 ```text
 server/
-├── cmd/stuhelper/       # 应用入口
-├── api/                 # OpenAPI 3 规范（Spec-First 源文件）
-│   ├── openapi.yaml     # 主入口
-│   ├── paths/           # 路径定义（按领域拆分）
-│   └── components/      # 公共组件（schemas / parameters / responses）
+├── cmd/stuhelper/        # 应用入口
+├── api/                  # OpenAPI 3 源文件
 ├── internal/
-│   ├── api/gen/         # 自动生成的 Go 代码（禁止手改）
-│   ├── modules/         # 业务模块
-│   └── pkg/             # 公共包（中间件、日志、配置、响应等）
-└── scripts/             # 初始化 SQL、种子数据
+│   ├── api/gen/          # 生成代码，禁止手改
+│   ├── modules/          # 业务模块
+│   └── pkg/              # 公共能力
+└── scripts/              # init.sql、seed.sql
 ```
 
-每个业务模块默认遵循三层结构：
+业务模块统一遵循：
 
 ```text
 Handler → Service → Repository
 ```
 
-详细约束见 [分层架构](../architecture/layered.md)。
+一个模块允许拆成多个 `handler_*.go`、`service_*.go`、`repository_*.go` 文件。当前项目已经按这个方式把用户系统、RBAC、评课读写、配置加载等大文件拆开。新代码也按这个规则走，单文件优先控制在 300 到 400 行附近。
 
-## 新增一个接口时的推荐顺序
+## 改接口的标准顺序
 
-### 1. 先改 OpenAPI 3 规范
+### 1. 先改 OpenAPI
 
-接口契约的权威来源是：
-
-```text
-server/api/openapi.yaml
-```
-
-通常你会同时修改：
+权威接口契约在 `server/api/openapi.yaml`。通常要一起改：
 
 - `server/api/paths/*.yaml`
 - `server/api/components/schemas/*.yaml`
 
-### 2. 生成代码
+### 2. 重新生成
 
 ```bash
 cd server
 make generate
 ```
 
-这一步会同时更新：
+这会更新：
 
 - `server/internal/api/gen/`
 - `clients/shared/src/types/api.gen.ts`
 
-### 3. 补后端实现
+### 3. 再补实现
 
-推荐顺序：
+- Repository 只管 SQL 和数据映射
+- Service 只管业务规则、事务和授权事实编排
+- Handler 只管 HTTP 绑定、错误映射、响应包装
 
-1. Repository 处理数据库访问
-2. Service 组织业务逻辑
-3. Handler 解析参数并返回响应
-
-### 4. 验证
+### 4. 跑完整验证
 
 ```bash
 cd server
-make lint-spec
-make test
-make build
-```
-
-如果你同时动了前端接口使用，再跑：
-
-```bash
-cd ../clients
-pnpm type-check
-```
-
-## 常用命令
-
-```bash
-cd server
-make run
-make test
-make lint
 make fmt
+make lint
+make test
 make build
-make generate
+```
+
+如果动了 OpenAPI，还要补：
+
+```bash
+cd server
 make lint-spec
 make check-drift
 ```
 
-## 开发时最容易忽略的两件事
+## 开发时必须守住的几条线
 
-### 不要手改生成代码
-
-这些目录都应视为生成产物：
-
-- `server/internal/api/gen/`
-- `clients/shared/src/types/api.gen.ts`
-
-### 不要跳过 OpenAPI
-
-即使是临时接口，也应该先写规范。否则前端和后端很快会出现返回结构漂移。
+- 不要手改 `server/internal/api/gen/` 和 `clients/shared/src/types/api.gen.ts`
+- 不要在 handler 里写 SQL
+- 不要直接 `c.JSON(...)`，统一用 `response.*`
+- 不要把运行时配置写死在模块里，统一走 `internal/pkg/config`
+- 不要把一个 handler、service 或 repository 累到几百行还不拆
 
 ## 相关文档
 
-- [OpenAPI 3 开发指南](openapi-development-guide.md)
 - [分层架构](../architecture/layered.md)
 - [API 概览](../reference/api-overview.md)
-- [错误码](../reference/error-codes.md)
+- [数据库参考](../reference/database.md)
+- [OpenAPI 开发指南](openapi-development-guide.md)

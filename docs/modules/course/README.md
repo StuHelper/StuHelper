@@ -1,44 +1,35 @@
 # 评课社区模块
 
-> 访问方式：`https://stuhelper.com/review`、`https://stuhelper.com/courses`、`https://stuhelper.com/teachers/:id`
+评课社区是当前最完整的业务域。它不只是一组测评接口，还包含课程索引、教师信息、用户交互、通知和后台内容治理。
 
-## 模块定位
+## 代码范围
 
-评课社区是 StuHelper 当前最完整的业务域，覆盖课程检索、匿名测评、教师主页、用户中心、通知与管理后台。
+| 代码位置 | 职责 |
+| --- | --- |
+| `server/internal/modules/course` | 课程、院系、学期、分类等实体接口 |
+| `server/internal/modules/course/review` | 评课读写、回复、收藏、通知、举报、后台审核 |
+| `server/api/paths/course.yaml` | 课程实体契约 |
+| `server/api/paths/review-*.yaml` | 评课子域契约 |
 
-## 当前功能状态
+## 当前能力
 
-| 功能                   | 状态      |
-| ---------------------- | --------- |
-| Casdoor SSO 登录       | 🟢 已完成 |
-| 课程 / 院系 / 教师查询 | 🟢 已完成 |
-| 动态评分维度           | 🟢 已完成 |
-| 发布、编辑、删除测评   | 🟢 已完成 |
-| 回复、收藏、投票       | 🟢 已完成 |
-| 草稿保存与恢复         | 🟢 已完成 |
-| 站内通知               | 🟢 已完成 |
-| 举报审核与敏感词管理   | 🟢 已完成 |
-| 管理后台               | 🟢 已完成 |
+| 子域 | 说明 |
+| --- | --- |
+| 课程实体 | 院系、学期、分类、课程搜索、课程详情 |
+| 测评内容 | 发布、编辑、删除、评分维度、评分统计、教师统计 |
+| 用户交互 | 点赞、踩、收藏、草稿、回复、我的测评、我的投票 |
+| 站内通知 | 通知列表、未读数、已读、全部已读 |
+| 内容治理 | 举报、敏感词、隐藏、恢复、批量审核、导出、操作日志 |
 
-## 前端路由概览
+## 权限边界
 
-| 路径                        | 说明         |
-| --------------------------- | ------------ |
-| `/review`                   | 评课社区首页 |
-| `/courses`                  | 课程列表     |
-| `/courses/:id`              | 课程概览     |
-| `/courses/:id/reviews`      | 课程测评列表 |
-| `/courses/:id/reviews/post` | 发布测评页   |
-| `/teachers/:id`             | 教师主页     |
+- 公开列表接口允许匿名访问，但会按访问事实裁剪内容
+- 发布测评需要登录、学生认证通过且实名认证通过
+- 后台管理能力全部走应用内 RBAC capability，不再复用平台 `isAdmin`
 
-## 文档索引
+## 推荐搭配文档
 
-| 文档                                               | 说明         |
-| -------------------------------------------------- | ------------ |
-| [01-data-model.md](01-data-model.md)               | 数据模型设计 |
-| [02-api.md](02-api.md)                             | API 接口设计 |
-| [03-components.md](03-components.md)               | 前端组件设计 |
-| [04-routes.md](04-routes.md)                       | 前端路由设计 |
-| [05-ui-spec.md](05-ui-spec.md)                     | UI 设计规范  |
-| [06-security.md](06-security.md)                   | 安全设计     |
-| [07-rating-dimensions.md](07-rating-dimensions.md) | 评分维度配置 |
+- 接口清单看 [../../reference/api-overview.md](../../reference/api-overview.md)
+- 数据库结构看 [../../reference/database.md](../../reference/database.md)
+- 安全细节看 [06-security.md](06-security.md)
+- 评分维度设计看 [07-rating-dimensions.md](07-rating-dimensions.md)

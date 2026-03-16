@@ -2,20 +2,16 @@ package review
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"sync/atomic"
 
-	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
@@ -170,32 +166,6 @@ type GetCourseReviewsResult struct {
 	Total int
 }
 
-// PostReviewParams 发布评论参数
-type PostReviewParams struct {
-	CourseID  int64
-	TeacherID *int64
-	TermID    string
-	Title     string
-	Content   string
-	Grade     string
-	Ratings   ReviewRatings
-	UserHash  string
-	IPAddress string
-	RequestID string // L-35: 由 handler 层从 gin context 提取后传入
-}
-
-// PostReviewResult 发布评论结果
-type PostReviewResult struct {
-	Review Review
-}
-
-// VoteReviewParams 投票参数
-type VoteReviewParams struct {
-	ReviewID string
-	UserHash string
-	VoteType string // "like" or "dislike"
-}
-
 // StatsResult 统计结果
 type StatsResult struct {
 	CourseCount     int
@@ -269,157 +239,6 @@ func (s *Service) GetLatestReviews(ctx context.Context, params GetLatestReviewsP
 	return &GetCourseReviewsResult{List: list, Total: total}, nil
 }
 
-// PostReview 发布评论
-func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*PostReviewResult, error) {
-	var err error
-	params.Title, params.Content, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
-	if err != nil {
-		return nil, err
-	}
-
-	// 序列化评分数据
-	ratingsData, err := json.Marshal(params.Ratings)
-	if err != nil {
-		logger.L().Error("failed to marshal ratings", zap.Any("ratings", params.Ratings), zap.Error(err))
-		return nil, err
-	}
-
-	reviewID, err := id.New()
-	if err != nil {
-		return nil, err
-	}
-
-	var review Review
-	if err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		// 在事务内检查课程是否存在，防止 TOCTOU 竞态
-		exists, err := s.repo.CourseExistsTx(ctx, tx, params.CourseID)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return ErrCourseNotFound
-		}
-
-		// H-23: 在事务内校验 teacher_id 是否有效
-		if params.TeacherID != nil {
-			teacherExists, err := s.repo.TeacherExistsTx(ctx, tx, *params.TeacherID)
-			if err != nil {
-				return err
-			}
-			if !teacherExists {
-				return ErrTeacherNotFound
-			}
-		}
-
-		// 在事务内检查用户是否已对该课程发布评论
-		hasReviewed, err := s.repo.UserHasReviewedCourseTx(ctx, tx, params.UserHash, params.CourseID)
-		if err != nil {
-			return err
-		}
-		if hasReviewed {
-			return ErrAlreadyReviewed
-		}
-
-		// H-16: 使用 RETURNING 在事务内直接获取完整 Review，避免孤儿记录问题
-		created, err := s.repo.CreateReturning(ctx, tx, CreateParams{
-			ID:        reviewID,
-			CourseID:  params.CourseID,
-			TeacherID: params.TeacherID,
-			TermID:    params.TermID,
-			Title:     params.Title,
-			Content:   params.Content,
-			Grade:     params.Grade,
-			Ratings:   ratingsData,
-			UserHash:  params.UserHash,
-		})
-		if err != nil {
-			return err
-		}
-		review = *created
-		return s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID)
-	}); err != nil {
-		return nil, err
-	}
-
-	// 记录用户操作日志
-	audit.Log(audit.Event{
-		Type:      audit.EventDataCreate,
-		UserID:    maskHash(params.UserHash),
-		IP:        params.IPAddress,
-		RequestID: params.RequestID,
-		Resource:  "review",
-		Action:    "post_review",
-		Result:    "success",
-		Details: map[string]interface{}{
-			"review_id": reviewID,
-			"course_id": params.CourseID,
-		},
-	})
-
-	return &PostReviewResult{Review: review}, nil
-}
-
-// VoteReview 投票（支持新建、取消、切换）
-func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error {
-	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		// 在事务内检查评论是否存在，防止 TOCTOU 竞态
-		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return ErrReviewNotFound
-		}
-
-		existing, err := s.repo.GetVoteType(ctx, tx, params.ReviewID, params.UserHash)
-		if err != nil {
-			return err
-		}
-
-		switch {
-		case existing == "":
-			// 新投票：检查是否实际插入，防止并发重复计数
-			inserted, err := s.repo.CreateVote(ctx, tx, params.ReviewID, params.UserHash, params.VoteType)
-			if err != nil {
-				return err
-			}
-			if !inserted {
-				return nil // 并发冲突，ON CONFLICT DO NOTHING 跳过了插入
-			}
-			if params.VoteType == "like" {
-				return s.repo.IncrementLikeCount(ctx, tx, params.ReviewID)
-			}
-			return s.repo.IncrementDislikeCount(ctx, tx, params.ReviewID)
-
-		case existing == params.VoteType:
-			// 相同类型 → 取消投票
-			if err := s.repo.DeleteVote(ctx, tx, params.ReviewID, params.UserHash); err != nil {
-				return err
-			}
-			if existing == "like" {
-				return s.repo.DecrementLikeCount(ctx, tx, params.ReviewID)
-			}
-			return s.repo.DecrementDislikeCount(ctx, tx, params.ReviewID)
-
-		default:
-			// 不同类型 → 切换投票
-			if err := s.repo.UpdateVoteType(ctx, tx, params.ReviewID, params.UserHash, params.VoteType); err != nil {
-				return err
-			}
-			if params.VoteType == "like" {
-				if err := s.repo.DecrementDislikeCount(ctx, tx, params.ReviewID); err != nil {
-					return err
-				}
-				return s.repo.IncrementLikeCount(ctx, tx, params.ReviewID)
-			}
-			if err := s.repo.DecrementLikeCount(ctx, tx, params.ReviewID); err != nil {
-				return err
-			}
-			return s.repo.IncrementDislikeCount(ctx, tx, params.ReviewID)
-		}
-	})
-}
-
 // GetStats 获取统计数据
 func (s *Service) GetStats(ctx context.Context) (*StatsResult, error) {
 	courseCount, reviewCount, departmentCount, err := s.repo.GetPortalStats(ctx)
@@ -451,94 +270,6 @@ func (s *Service) GetCourseRatingStats(ctx context.Context, courseID int64) ([]R
 // GetCourseTeachers 获取课程的授课教师列表
 func (s *Service) GetCourseTeachers(ctx context.Context, courseID int64) ([]CourseTeacherStats, error) {
 	return s.repo.ListCourseTeachers(ctx, courseID)
-}
-
-// UpdateReviewParams 更新评论参数
-type UpdateReviewParams struct {
-	ReviewID string
-	UserHash string
-	Title    string
-	Content  string
-	Grade    string
-	Ratings  ReviewRatings
-}
-
-// UpdateReview 更新评论
-func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) error {
-	var err error
-	// UpdateReview 不涉及 termID 变更，传空字符串跳过校验
-	params.Title, params.Content, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, "")
-	if err != nil {
-		return err
-	}
-
-	ratingsData, err := json.Marshal(params.Ratings)
-	if err != nil {
-		return err
-	}
-
-	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		// 在事务内获取所有者和状态，消除 TOCTOU 竞态
-		ownerHash, status, err := s.repo.GetReviewOwnerAndStatusTx(ctx, tx, params.ReviewID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrReviewNotFound
-			}
-			return err
-		}
-		if status != StatusPublished {
-			return ErrReviewNotFound
-		}
-		if ownerHash != params.UserHash {
-			return ErrNotReviewOwner
-		}
-
-		return s.repo.Update(ctx, tx, UpdateParams{
-			ID:      params.ReviewID,
-			Title:   params.Title,
-			Content: params.Content,
-			Grade:   params.Grade,
-			Ratings: ratingsData,
-		})
-	})
-}
-
-// DeleteReviewParams 删除评论参数
-type DeleteReviewParams struct {
-	ReviewID string
-	UserHash string
-}
-
-// DeleteReview 删除评论
-func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) error {
-	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		// 在事务内获取所有者、课程ID和状态（带行锁），消除 TOCTOU 竞态
-		ownerHash, courseID, status, err := s.repo.GetReviewOwnerCourseIDAndStatusTx(ctx, tx, params.ReviewID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrReviewNotFound
-			}
-			return err
-		}
-		if status == StatusDeleted {
-			return ErrReviewNotFound
-		}
-		if ownerHash != params.UserHash {
-			return ErrNotReviewOwner
-		}
-
-		if err := s.repo.SoftDeleteReview(ctx, tx, params.ReviewID); err != nil {
-			return err
-		}
-		// 仅从 published 状态删除时递减计数并刷新评分统计
-		if status == StatusPublished {
-			if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
-				return err
-			}
-			return s.repo.RefreshCourseRatingStatsTx(ctx, tx, courseID)
-		}
-		return nil
-	})
 }
 
 // GetReviewByID 根据 ID 获取评论

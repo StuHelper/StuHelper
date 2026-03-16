@@ -16,7 +16,9 @@ registry.stuhelper.com
   └── frontend
 ```
 
-对外访问建议统一收敛到根域名 `https://stuhelper.com`，前端再通过子路径区分模块。Casdoor 仍作为独立 SSO 服务运行在 `https://sso.stuhelper.com`。
+对外访问建议统一收敛到根域名 `https://stuhelper.com`，主站通过子路径区分模块。Casdoor 仍作为独立 SSO 服务运行在 `https://sso.stuhelper.com`。
+
+当前根目录 `docker-compose.yml` 的 `prod` profile 只部署 `app`、`frontend`、`postgres` 和 `redis`。`clients/admin` 已经存在，但还没有接进根 compose 的生产 profile。
 
 ## 首次部署
 
@@ -104,5 +106,5 @@ TAG=<git-short-sha> docker compose --profile prod up -d
 ## 相关文档
 
 - [快速开始](../tutorials/quick-start.md)
-- [前端架构](../architecture/frontend.md)
+- [前端架构](../architecture/frontend-architecture.md)
 - [错误码](../reference/error-codes.md)

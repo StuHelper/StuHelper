@@ -1,53 +1,78 @@
 # 数据库设计
 
-## 概述
+当前后端使用 PostgreSQL 存业务数据，Redis 存会话和缓存，Casdoor 只负责身份平面。
 
-StuHelper 使用 Casdoor 作为用户认证系统，本地 PostgreSQL 存储业务数据。
+## 权威来源
 
-## 技术选型
+- 初始化结构在 `server/scripts/init.sql`
+- 种子数据在 `server/scripts/seed.sql`
+- 运行时查询约束以 `server/internal/modules/**/repository*.go` 为准
 
-| 组件     | 选型           | 用途                 |
-| -------- | -------------- | -------------------- |
-| 主数据库 | PostgreSQL 18+ | 业务数据，支持 JSONB |
-| 缓存     | Redis 8+       | 会话管理、热点缓存   |
-| 用户认证 | Casdoor        | OAuth2/OIDC 单点登录 |
+## 基础组件
 
-## 设计原则
+| 组件 | 作用 |
+| --- | --- |
+| PostgreSQL 18+ | 主业务库 |
+| Redis 8+ | Token、限流、缓存 |
+| Casdoor | 登录、OAuth/OIDC、平台管理员 |
 
-1. **用户认证外置**：Casdoor 管理账号，本地仅存储 user_id
-2. **动态评分**：JSONB 存储评分，支持可配置维度
-3. **匿名展示**：前端匿名，后台可追溯
-4. **多校支持**：核心表含 school_id 字段
+## 数据分层
 
-## 身份事实、业务事实、授权事实分层
+### 身份事实
 
-当前架构要把三类数据分开看：
+放在 Casdoor：
 
-- **身份事实** 在 `sso.stuhelper.com` 上，由 Casdoor 管理，例如账号、登录态、OAuth client、scope、平台管理员身份
-- **业务事实** 在航小伴自己的数据库里，例如课程、教师、课程归属、学生认证、实名认证、资源分类、内容 owner
-- **授权事实** 也属于航小伴业务域，例如课程管理员、分类管理员、owner、teacher-of-course 这类关系，以及基于 `schoolID`、学生/老师、认证状态的判断条件
+- 账号
+- 登录态
+- OAuth client
+- scope
+- 平台管理员身份
 
-这意味着本地数据库不应该把 Casdoor 平台管理员身份当成业务权限真相源。
+### 业务事实
 
-如果后续引入 OpenFGA / SpiceDB，这类高基数授权关系可以迁到专门的关系引擎里，但航小伴业务事实仍然在本地数据库。
+放在本地 PostgreSQL：
 
-## 实名认证数据保护
+- 课程、教师、院系、评分维度
+- 实名认证、学生认证、学校配置
+- 测评、回复、举报、通知、草稿
 
-实名认证相关数据存放在 `user_identities` 表。
+### 授权事实
 
-当前实现里有两个和证件号强相关的字段：
+当前也放在本地 PostgreSQL：
 
-- `doc_number_enc`：证件号密文，使用 AES-256-GCM 版本化信封格式存储
-- `person_uid`：对 `doc_type + ":" + doc_number` 做 HMAC-SHA256 后得到的稳定标识
+- `roles`
+- `permissions`
+- `role_permissions`
+- `user_roles`
+- `user_group_*`
+- `user_permissions`
 
-这样拆分的目的：
+这意味着 Casdoor 的平台管理员身份不是航小伴业务授权的真相源。
 
-- 数据库里不直接保存证件号明文
-- 业务逻辑仍然可以用 `person_uid` 做去重和跨学籍匹配
-- 普通查询和审核流默认不需要读取 `doc_number_enc`
+## 重点表域
 
-## 模块数据模型
+| 域 | 代表表 |
+| --- | --- |
+| 用户系统 | `users`、`user_identities`、`user_profiles`、`school_configs`、`system_configs` |
+| RBAC | `roles`、`permissions`、`role_permissions`、`user_roles`、`user_groups`、`user_group_members`、`user_group_permissions`、`user_permissions` |
+| 课程与评课 | `departments`、`courses`、`teachers`、`rating_dimensions`、`reviews`、`review_votes`、`review_reports`、`review_replies`、`course_favorites`、`review_drafts`、`notifications` |
+| 审计 | `admin_operation_logs` |
 
-各模块数据模型详见对应模块文档：
+## 实名信息保护
 
-- [评课模块](../modules/course/)
+实名认证相关字段在 `user_identities`：
+
+- `doc_number_enc` 保存证件号密文
+- `person_uid` 保存 `doc_type + ":" + doc_number` 的 HMAC 稳定标识
+
+这样做是为了：
+
+- 数据库不落证件号明文
+- 还能做同人匹配和去重
+- 日常查询和审核默认不需要读取密文
+
+## 相关模块文档
+
+- [评课社区](../modules/course/)
+- [用户系统](../modules/user-system/)
+- [应用内 RBAC](../modules/rbac/)

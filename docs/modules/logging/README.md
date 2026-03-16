@@ -1,38 +1,29 @@
 # 日志系统模块
 
-## 当前状态
+当前项目没有单独的 logging 模块目录，日志能力分散在公共包和评课后台里。这份文档只记录已经落地的运行形态。
 
-🟢 已实现并在运行中使用
+## 代码位置
 
-## 当前范围
+| 位置 | 作用 |
+| --- | --- |
+| `server/internal/pkg/logger` | Zap 全局 logger、context 注入、敏感值脱敏 |
+| `server/internal/pkg/middleware/logging.go` | 请求日志中间件 |
+| `server/internal/modules/course/review/*log*` | 后台操作日志写入、查询、清理 |
 
-日志系统已经覆盖这些场景：
+## 当前能力
 
-- 请求日志
-- 审计日志
+- 结构化日志输出，支持 console 和 JSON
+- 基于请求上下文的字段透传
 - 敏感字段脱敏
-- 管理后台日志查询
+- 评课后台操作日志查询和清理
 
-当前后台入口：
+## 当前边界
 
-- `/admin/logs`
+- 应用运行日志走 Zap
+- 后台可查询的审计数据是评课域 `admin_operation_logs`
+- 更重型的日志采集和集中检索暂时不作为当前实现事实
 
-## 存储策略
+## 相关入口
 
-- 当前主实现仍基于应用日志与结构化日志输出
-- 管理后台可以查询操作日志
-- 更重型的 Loki / Grafana / ClickHouse 方案仍保留为后续扩展方向
-
-## 文档索引
-
-| 文档                                         | 说明                 |
-| -------------------------------------------- | -------------------- |
-| [01-log-levels.md](01-log-levels.md)         | 日志级别定义         |
-| [02-log-fields.md](02-log-fields.md)         | 日志字段规范         |
-| [03-sensitive-data.md](03-sensitive-data.md) | 敏感数据处理         |
-| [04-configuration.md](04-configuration.md)   | 日志配置             |
-| [05-implementation.md](05-implementation.md) | Logger 核心实现      |
-| [06-middleware.md](06-middleware.md)         | 中间件实现           |
-| [07-usage-examples.md](07-usage-examples.md) | 使用示例             |
-| [08-log-collection.md](08-log-collection.md) | 日志收集（扩展方案） |
-| [09-audit-log.md](09-audit-log.md)           | 审计日志设计         |
+- 后台操作日志接口是 `/api/v1/course/review/admin/logs`
+- 日志配置由 `internal/pkg/config` 装配
