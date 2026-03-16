@@ -1,29 +1,107 @@
-# 日志系统模块
+# Logging and Audit
 
-当前项目没有单独的 logging 模块目录，日志能力分散在公共包和评课后台里。这份文档只记录已经落地的运行形态。
+The logging system consists of three parts: structured application logs, request logs, and operation audit.
 
-## 代码位置
+## Code Locations
 
-| 位置 | 作用 |
+| Location | Purpose |
 | --- | --- |
-| `server/internal/pkg/logger` | Zap 全局 logger、context 注入、敏感值脱敏 |
-| `server/internal/pkg/middleware/logging.go` | 请求日志中间件 |
-| `server/internal/modules/course/review/*log*` | 后台操作日志写入、查询、清理 |
+| `server/internal/pkg/logger` | Zap logger, field propagation, sensitive value masking |
+| `server/internal/pkg/middleware/logging.go` | Request logging middleware |
+| `server/internal/pkg/audit` | Authentication and business audit events |
+| `server/internal/modules/course/review/*log*` | Review admin operation log write, query, cleanup |
 
-## 当前能力
+## Capabilities
 
-- 结构化日志输出，支持 console 和 JSON
-- 基于请求上下文的字段透传
-- 敏感字段脱敏
-- 评课后台操作日志查询和清理
+### Application Logs
 
-## 当前边界
+Structured logging using Zap with:
 
-- 应用运行日志走 Zap
-- 后台可查询的审计数据是评课域 `admin_operation_logs`
-- 更重型的日志采集和集中检索暂时不作为当前实现事实
+- Console or JSON output format (configurable)
+- Request context field propagation (request ID, user ID)
+- Sensitive value masking (PII, tokens)
 
-## 相关入口
+### Request Logs
 
-- 后台操作日志接口是 `/api/v1/course/review/admin/logs`
-- 日志配置由 `internal/pkg/config` 装配
+Middleware-level logging for every HTTP request:
+
+- Request path and method
+- Response status code
+- Request duration
+- Request ID for tracing
+
+### Audit Logs
+
+Authentication and critical business events:
+
+- `user.login` / `user.login_failed`
+- `user.logout` / `user.logout_all`
+- `token.refresh`
+- Admin operations (review moderation, report handling, batch operations)
+
+### Operation Log Query
+
+Admin users can query operation logs through the API:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/api/v1/course/review/admin/logs` | Query review admin operation logs |
+
+## Configuration
+
+Logging configuration is loaded from `internal/pkg/config`:
+
+| Environment Variable | Description | Default |
+| --- | --- | --- |
+| `LOG_LEVEL` | Minimum log level (`debug`, `info`, `warn`, `error`) | `info` |
+| `LOG_FORMAT` | Output format (`console`, `json`) | `console` |
+| `APP_ENV` | Application environment (`development`, `production`) | `development` |
+
+## Usage Examples
+
+### Structured Logging
+
+```go
+import "server/internal/pkg/logger"
+
+// With context fields
+logger.Info(ctx, "review created",
+    "reviewID", review.ID,
+    "courseID", review.CourseID,
+    "userID", userID,
+)
+
+// Error with context
+logger.Error(ctx, "failed to create review",
+    "error", err,
+    "courseID", courseID,
+)
+```
+
+### Audit Event
+
+```go
+import "server/internal/pkg/audit"
+
+audit.Log(ctx, audit.Event{
+    Action:  "user.login",
+    UserID:  userID,
+    Details: map[string]any{
+        "method": "casdoor_sso",
+        "ip":     clientIP,
+    },
+})
+```
+
+## Storage
+
+| Log Type | Storage | Retention |
+| --- | --- | --- |
+| Application logs | stdout/stderr | Managed by container runtime |
+| Request logs | stdout/stderr | Managed by container runtime |
+| Operation audit | `admin_operation_logs` table | Queryable via admin API |
+
+## Related Documentation
+
+- [Backend Quality Guidelines](../../.trellis/spec/backend/quality-guidelines.md)
+- [Backend Logging Guidelines](../../.trellis/spec/backend/logging-guidelines.md)

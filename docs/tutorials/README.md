@@ -1,16 +1,9 @@
-# 教程
+# Tutorials
 
-教程面向第一次接触 StuHelper 的开发者，建议按顺序阅读。
+`tutorials/` provides a sequential onboarding path, suitable for first-time entry into this repository.
 
-## 使用方式
+## Reading Order
 
-1. 先看 [快速开始](quick-start.md)，把数据库、Redis、后端、前端都跑起来。
-2. 环境能正常运行后，再去看 [操作指南](../guides/) 里的专项文档。
+1. [quick-start.md](quick-start.md) - Set up the development environment and run the project
 
-如果你已经熟悉仓库结构，只是要完成一个具体任务，不需要重复看教程，直接查 [guides/README.md](../guides/README.md)。
-
-## 文档索引
-
-| 文档                       | 说明                         |
-| -------------------------- | ---------------------------- |
-| [快速开始](quick-start.md) | 环境搭建、首次启动、常用命令 |
+After the environment is running, continue to [../guides/README.md](../guides/README.md) for specific development tasks.

@@ -1,54 +1,119 @@
-# 航小伴授权判断顺序
+# Authorization Decision Flow
 
-权限判断不能散落在前端菜单、路由守卫和业务方法里各写一套。当前后端已经按下面这条顺序收口。
+Backend authorization decisions follow a fixed sequence. Both review and admin routes execute along this chain.
 
-## 统一顺序
+## Decision Sequence
 
 ```text
-1. 会话认证
-2. 本地用户同步与 capability 解析
-3. 后台能力判断
-4. 业务访问事实判断
-5. owner / 资源状态判断
-6. 内容整形与响应
+1. Session authentication
+2. Local user sync
+3. Capability computation
+4. Admin capability check
+5. Business access fact evaluation
+6. Ownership / resource status check
+7. Response content shaping
 ```
 
-## 1. 会话认证
+## Layer Entry Points
 
-先判断 Cookie 会话是否有效。失败就停在 `401`。
+| Step | Code Entry Point |
+| --- | --- |
+| Session authentication | `internal/pkg/middleware/auth.go` |
+| Local user sync | `internal/modules/auth/user_sync.go` |
+| Capability computation | `internal/modules/rbac/service*.go` |
+| Admin capability check | `internal/modules/rbac/middleware.go` |
+| Business access fact evaluation | `internal/modules/course/review/access.go`, `internal/modules/user/service*.go` |
+| Ownership check | `internal/modules/course/review/review*.go` |
+| Response shaping | Handler layer and review access results |
 
-## 2. 本地用户同步与 capability 解析
+## Example: Review Access Decision
 
-`/auth/callback` 和 `/auth/me` 会先把用户同步到本地 `users` 表，再从本地 RBAC 解析最终 `capabilities`。
+```go
+// 1. Session authentication (middleware)
+func AuthMiddleware(c *gin.Context) {
+    token := extractToken(c)
+    if token == "" {
+        response.Error(c, ErrTokenMissing)
+        c.Abort()
+        return
+    }
 
-## 3. 后台能力判断
+    userID, err := validateToken(token)
+    if err != nil {
+        response.Error(c, err)
+        c.Abort()
+        return
+    }
 
-后台接口统一用 `rbac.RequirePermission(...)` 判断 capability。这里不再复用平台 `isAdmin`。
+    c.Set("userID", userID)
+    c.Next()
+}
 
-## 4. 业务访问事实判断
+// 2-3. User sync and capability computation (in handler)
+func (h *Handler) GetReview(c *gin.Context) {
+    userID := c.GetString("userID")
 
-用户态内容接口会进一步解析业务事实，例如：
+    // Sync user if needed
+    user, err := h.authService.SyncUser(c.Request.Context(), userID)
+    if err != nil {
+        response.Error(c, err)
+        return
+    }
 
-- `studentVerified`
-- `identityVerified`
-- `schoolID`
-- `canManageReviews`
+    // 4. Skip admin capability check for public endpoints
 
-评课列表和发评资格都在这一层决定。
+    // 5. Evaluate access facts
+    accessFacts := h.reviewService.GetAccessFacts(c.Request.Context(), userID)
 
-## 5. owner / 资源状态判断
+    // 6. Get review with ownership and status checks
+    review, err := h.reviewService.GetReview(c.Request.Context(), reviewID, accessFacts)
+    if err != nil {
+        response.Error(c, err)
+        return
+    }
 
-修改和删除评论、回复之类的接口，还会在事务里判断：
+    // 7. Shape response based on access facts
+    if !accessFacts.StudentVerified {
+        review.Content = truncateContent(review.Content)
+    }
 
-- 当前用户是不是内容 owner
-- 内容是否已删除或已隐藏
+    response.Success(c, review)
+}
+```
 
-## 6. 内容整形与响应
+## Example: Admin Action Decision
 
-最终不一定只有放行或拒绝，还可能是：
+```go
+// 1-3. Session auth, user sync, capability computation (middleware)
 
-- 匿名用户返回空正文
-- 已登录但未满足完整查看条件时返回截断内容
-- 后台管理员可见隐藏内容
+// 4. Admin capability check (middleware)
+adminGroup := router.Group("/api/v1/admin")
+adminGroup.Use(rbacMiddleware.RequireCapability("admin:dashboard:view"))
 
-这一步只能在后端做，前端只能消费结果。
+reviewsGroup := adminGroup.Group("/reviews")
+reviewsGroup.Use(rbacMiddleware.RequireCapability("admin:reviews:manage"))
+
+// 5-7. Business logic in handler
+func (h *Handler) UpdateReviewStatus(c *gin.Context) {
+    reviewID := c.Param("id")
+    var req UpdateReviewStatusRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        response.Error(c, ErrBadRequest)
+        return
+    }
+
+    // Service handles ownership and status checks
+    if err := h.reviewService.UpdateReviewStatus(c.Request.Context(), reviewID, req.Status); err != nil {
+        response.Error(c, err)
+        return
+    }
+
+    response.Success(c, nil)
+}
+```
+
+## Related Documentation
+
+- [Authorization Model](01-hangxiaoban-authorization-model.md)
+- [RBAC Module](../rbac/README.md)
+- [Layered Architecture](../../architecture/layered.md)

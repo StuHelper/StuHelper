@@ -1,35 +1,160 @@
-# 评课社区模块
+# Course Review Community
 
-评课社区是当前最完整的业务域。它不只是一组测评接口，还包含课程索引、教师信息、用户交互、通知和后台内容治理。
+The course review community revolves around course entities, teacher profiles, review content, notifications, and admin moderation. This is the most complete business domain in the system.
 
-## 代码范围
+## Code Scope
 
-| 代码位置 | 职责 |
+| Location | Purpose |
 | --- | --- |
-| `server/internal/modules/course` | 课程、院系、学期、分类等实体接口 |
-| `server/internal/modules/course/review` | 评课读写、回复、收藏、通知、举报、后台审核 |
-| `server/api/paths/course.yaml` | 课程实体契约 |
-| `server/api/paths/review-*.yaml` | 评课子域契约 |
+| `server/internal/modules/course` | Departments, terms, categories, courses, portal statistics |
+| `server/internal/modules/course/review` | Review read/write, replies, drafts, favorites, notifications, reports, admin moderation |
+| `server/api/paths/course.yaml` | Course entity contracts |
+| `server/api/paths/review-*.yaml` | Review subdomain contracts |
 
-## 当前能力
+## Capabilities
 
-| 子域 | 说明 |
+### Course Entities
+
+- Course search and listing
+- Course details
+- Departments, terms, and categories
+- Portal statistics
+
+### Review Content
+
+- Post, edit, delete reviews
+- Rating dimensions and rating statistics
+- Teacher statistics
+- Review visibility based on verification status
+
+### User Interactions
+
+- Upvote and downvote reviews
+- Favorite courses
+- Save and load drafts
+- Reply to reviews
+- View my reviews and votes
+
+### Notifications
+
+- Notification list
+- Unread count
+- Mark as read
+- Mark all as read
+
+### Content Moderation
+
+- Report reviews
+- Hide and restore reviews
+- Batch review operations
+- Export reviews
+- Operation logs
+- Teacher management
+- Sensitive word management
+
+## Access Rules
+
+| Scenario | Rule |
 | --- | --- |
-| 课程实体 | 院系、学期、分类、课程搜索、课程详情 |
-| 测评内容 | 发布、编辑、删除、评分维度、评分统计、教师统计 |
-| 用户交互 | 点赞、踩、收藏、草稿、回复、我的测评、我的投票 |
-| 站内通知 | 通知列表、未读数、已读、全部已读 |
-| 内容治理 | 举报、敏感词、隐藏、恢复、批量审核、导出、操作日志 |
+| Public browsing | Returns publicly visible content |
+| Full content viewing | Determined by access facts (student verification status) |
+| Post review | Requires student verification and identity verification |
+| Admin management | Requires appropriate capabilities |
 
-## 权限边界
+## API Endpoints
 
-- 公开列表接口允许匿名访问，但会按访问事实裁剪内容
-- 发布测评需要登录、学生认证通过且实名认证通过
-- 后台管理能力全部走应用内 RBAC capability，不再复用平台 `isAdmin`
+### Public Endpoints
 
-## 推荐搭配文档
+```text
+GET  /api/v1/course/departments
+GET  /api/v1/course/terms
+GET  /api/v1/course/categories
+GET  /api/v1/course/courses
+GET  /api/v1/course/courses/search
+GET  /api/v1/course/courses/{courseID}
+GET  /api/v1/course/stats
 
-- 接口清单看 [../../reference/api-overview.md](../../reference/api-overview.md)
-- 数据库结构看 [../../reference/database.md](../../reference/database.md)
-- 安全细节看 [06-security.md](06-security.md)
-- 评分维度设计看 [07-rating-dimensions.md](07-rating-dimensions.md)
+GET  /api/v1/course/review/rating-dimensions
+GET  /api/v1/course/review/courses/{courseID}/rating-stats
+GET  /api/v1/course/review/courses/{courseID}/rating-trend
+GET  /api/v1/course/review/courses/{courseID}/teachers
+GET  /api/v1/course/review/courses/{courseID}/reviews
+GET  /api/v1/course/review/reviews/latest
+GET  /api/v1/course/review/reviews/batch
+GET  /api/v1/course/review/reviews/{reviewID}/replies
+GET  /api/v1/course/review/stats
+GET  /api/v1/course/review/rankings/hot
+GET  /api/v1/course/review/teachers/{teacherID}/stats
+```
+
+### Authenticated Endpoints
+
+```text
+POST   /api/v1/course/review/reviews
+PUT    /api/v1/course/review/reviews/{reviewID}
+DELETE /api/v1/course/review/reviews/{reviewID}
+POST   /api/v1/course/review/reviews/{reviewID}/votes
+POST   /api/v1/course/review/reviews/{reviewID}/reports
+POST   /api/v1/course/review/reviews/{reviewID}/replies
+DELETE /api/v1/course/review/replies/{replyID}
+POST   /api/v1/course/review/content/check
+POST   /api/v1/course/review/courses/{courseID}/favorites
+DELETE /api/v1/course/review/courses/{courseID}/favorites
+POST   /api/v1/course/review/drafts
+GET    /api/v1/course/review/drafts/{courseID}
+DELETE /api/v1/course/review/drafts/{courseID}
+
+GET  /api/v1/course/review/user/reviews
+GET  /api/v1/course/review/user/votes
+GET  /api/v1/course/review/user/favorites
+GET  /api/v1/course/review/user/notifications
+GET  /api/v1/course/review/user/notifications/unread-count
+PUT  /api/v1/course/review/user/notifications/{notificationID}/read
+PUT  /api/v1/course/review/user/notifications/read-all
+```
+
+### Admin Endpoints
+
+```text
+GET  /api/v1/course/review/admin/reports
+PUT  /api/v1/course/review/admin/reports/{reportID}
+GET  /api/v1/course/review/admin/reviews
+PUT  /api/v1/course/review/admin/reviews/{reviewID}
+POST /api/v1/course/review/admin/reviews/batch
+POST /api/v1/course/review/admin/reviews/{reviewID}/edit
+GET  /api/v1/course/review/admin/stats
+GET  /api/v1/course/review/admin/logs
+GET  /api/v1/course/review/admin/export
+GET  /api/v1/course/review/admin/teachers
+POST /api/v1/course/review/admin/teachers
+PUT  /api/v1/course/review/admin/teachers/{teacherID}
+DELETE /api/v1/course/review/admin/teachers/{teacherID}
+GET  /api/v1/course/review/admin/sensitive-words
+POST /api/v1/course/review/admin/sensitive-words
+PUT  /api/v1/course/review/admin/sensitive-words/{sensitiveWordID}
+DELETE /api/v1/course/review/admin/sensitive-words/{sensitiveWordID}
+```
+
+## Database Tables
+
+| Table | Purpose |
+| --- | --- |
+| `departments` | Academic departments |
+| `courses` | Course records |
+| `teachers` | Teacher profiles |
+| `rating_dimensions` | Configurable rating dimensions |
+| `reviews` | Course reviews |
+| `review_votes` | Upvotes and downvotes |
+| `review_reports` | User reports |
+| `review_replies` | Review replies |
+| `course_favorites` | User course favorites |
+| `review_drafts` | Unsaved review drafts |
+| `notifications` | User notifications |
+| `admin_operation_logs` | Admin operation audit |
+
+## Related Documentation
+
+- [API Overview](../../reference/api-overview.md)
+- [Database Design](../../reference/database.md)
+- [Security Design](06-security.md)
+- [Rating Dimensions](07-rating-dimensions.md)

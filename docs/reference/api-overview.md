@@ -1,6 +1,6 @@
 # API 概览
 
-基础路径是 `/api/v1`。细节以 `server/api/openapi.yaml` 为准，这里只做当前接口面的快速索引。
+基础路径是 `/api/v1`。这里提供当前接口面的快速索引，详细字段以 `server/api/openapi.yaml` 为准。
 
 ## 健康检查
 
@@ -81,8 +81,6 @@
 
 ## 评课后台
 
-这些接口都要求登录，并按应用内 capability 继续授权。
-
 | 路径 | 方法 | 说明 |
 | --- | --- | --- |
 | `/api/v1/course/review/admin/reports` | GET | 举报列表 |
@@ -138,8 +136,8 @@
 | `/api/v1/admin/groups/{groupID}/members` | GET/PUT | 用户组成员 |
 | `/api/v1/admin/groups/{groupID}/permissions` | PUT | 用户组权限 |
 
-## 认证与权限说明
+## 当前认证与权限语义
 
-- 认证靠 Cookie 会话和 CSRF 头
-- 后台接口统一使用应用内 capability 授权
-- `isPlatformAdmin` 不是航小伴业务后台权限
+- 认证使用 Cookie 会话和 CSRF 头
+- 后台接口读取应用 capability
+- `isPlatformAdmin` 保持平台管理员字段语义

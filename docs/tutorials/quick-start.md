@@ -13,7 +13,7 @@
 
 ## 环境要求
 
-| 工具             | 版本建议 | 安装方式                              |
+| 工具             | 版本 | 安装方式                              |
 | ---------------- | -------- | ------------------------------------- |
 | Docker & Compose | 24+      | [docker.com](https://www.docker.com/) |
 | Go               | 1.24+    | `brew install go`                     |
@@ -52,8 +52,8 @@ CASDOOR_REDIRECT_URI=http://localhost:3000/auth/callback
 说明：
 
 - 本项目当前依赖已部署的 Casdoor `https://sso.stuhelper.com`。
-- 后端现在会强制校验 PII 加密密钥；如果 `DOC_AES_ACTIVE_KEY_ID` 或 `DOC_AES_KEYS` 没配好，服务不会启动。
-- `DOC_AES_KEYS` 的格式是 `keyID:hex`，例如 `1:0123...abcd`。本地开发也不能省略。
+- 后端启动前会校验 PII 加密密钥。
+- `DOC_AES_KEYS` 的格式是 `keyID:hex`，例如 `1:0123...abcd`。本地开发同样需要这组配置。
 - 生成一把可用的证件号加密密钥：
 
 ```bash
@@ -138,7 +138,7 @@ docker compose --profile dev-full logs -f app-dev
 docker compose --profile dev-full logs -f frontend-dev
 ```
 
-## 第一次启动后建议做的事
+## 启动后检查
 
 先确认这几个命令都能跑通：
 
@@ -217,7 +217,7 @@ make generate
 
 这会同时更新后端生成代码和 `clients/shared/src/types/api.gen.ts`。
 
-## 下一步看什么
+## 继续阅读
 
 - 前端开发看 [前端开发指南](../guides/frontend-development.md)
 - 后端开发看 [后端开发指南](../guides/backend-quickstart.md)

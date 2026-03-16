@@ -1,43 +1,133 @@
-# 应用内 RBAC 模块
+# Application RBAC
 
-RBAC 模块是航小伴自己的业务授权基础，不属于 Casdoor 身份平面。
+The RBAC module manages admin capabilities, role relationships, and personal permission overrides.
 
-## 代码范围
+## Code Scope
 
-| 代码位置 | 作用 |
+| Code Location | Purpose |
 | --- | --- |
-| `server/internal/modules/rbac` | 角色、权限、用户组、能力判断 |
-| `server/internal/pkg/capability` | capability 常量和后台入口能力集合 |
+| `server/internal/modules/rbac` | Roles, permissions, user groups, capability computation |
+| `server/internal/pkg/capability` | Capability constants and admin entry capability sets |
 
-## 当前模型
+## Data Model
 
-| 实体 | 说明 |
+| Entity | Description |
 | --- | --- |
-| Role | 粗粒度业务角色 |
-| Permission | capability，对应具体后台能力 |
-| User Role | 用户角色绑定 |
-| User Group | 用户组及用户组权限 |
-| User Permission Override | 对单个用户的显式覆盖 |
+| **Role** | Coarse-grained business role (e.g., "Content Moderator", "System Admin") |
+| **Permission** | Fine-grained capability string (e.g., `admin:reviews:manage`) |
+| **User Role** | User-to-role binding |
+| **User Group** | User group and membership relationships |
+| **User Permission Override** | Explicit permission grants or denials for individual users |
 
-最终能力是角色权限、用户组权限和个人覆盖合并后的结果。
+Final capabilities are computed by merging role permissions, user group permissions, and personal overrides.
 
-## 当前接口
+## Capability Computation
 
-后台接口统一挂在 `/api/v1/admin` 下：
+```go
+// Pseudocode for capability computation
+func ComputeUserCapabilities(userID string) []string {
+    capabilities := []string{}
 
-- `/roles`
-- `/roles/{roleID}`
-- `/roles/{roleID}/permissions`
-- `/permissions`
-- `/users/{userID}/roles`
-- `/users/{userID}/permissions`
-- `/groups`
-- `/groups/{groupID}`
-- `/groups/{groupID}/members`
-- `/groups/{groupID}/permissions`
+    // 1. Get capabilities from user roles
+    roles := GetUserRoles(userID)
+    for role in roles {
+        capabilities += GetRolePermissions(role.ID)
+    }
 
-## 当前规则
+    // 2. Get capabilities from user groups
+    groups := GetUserGroups(userID)
+    for group in groups {
+        capabilities += GetGroupPermissions(group.ID)
+    }
 
-- 后台路由全部按 permission 判定
-- `/auth/me` 返回的 `capabilities` 来自这里
-- 平台 `isAdmin` 不会自动变成航小伴后台权限
+    // 3. Apply user-specific overrides
+    overrides := GetUserPermissionOverrides(userID)
+    for override in overrides {
+        if override.Type == "grant" {
+            capabilities += override.Permission
+        } else if override.Type == "deny" {
+            capabilities -= override.Permission
+        }
+    }
+
+    return unique(capabilities)
+}
+```
+
+## API Endpoints
+
+All admin endpoints are under `/api/v1/admin`:
+
+- `/roles` - List and create roles
+- `/roles/{roleID}` - Update and delete roles
+- `/roles/{roleID}/permissions` - View and set role permissions
+- `/permissions` - List all available permissions
+- `/users/{userID}/roles` - View and set user roles
+- `/users/{userID}/permissions` - View and set user permission overrides
+- `/groups` - List and create user groups
+- `/groups/{groupID}` - Update and delete user groups
+- `/groups/{groupID}/members` - View and set group members
+- `/groups/{groupID}/permissions` - Set group permissions
+
+## Usage Pattern
+
+### Frontend: Check Capability
+
+```typescript
+import { useAuth } from '@/composables/useAuth'
+
+const { hasCapability } = useAuth()
+
+// In template
+<el-button v-if="hasCapability('admin:reviews:manage')">
+  Moderate Reviews
+</el-button>
+
+// In script
+if (hasCapability('admin:reviews:manage')) {
+  // Show admin UI
+}
+```
+
+### Backend: Require Capability
+
+```go
+// In handler registration
+adminGroup := router.Group("/api/v1/admin")
+adminGroup.Use(rbacMiddleware.RequireCapability("admin:dashboard:view"))
+
+reviewsGroup := adminGroup.Group("/reviews")
+reviewsGroup.Use(rbacMiddleware.RequireCapability("admin:reviews:manage"))
+reviewsGroup.GET("", handler.ListReviews)
+reviewsGroup.PUT("/:id", handler.UpdateReview)
+```
+
+## Common Capabilities
+
+| Capability | Purpose |
+| --- | --- |
+| `admin:dashboard:view` | Access admin dashboard |
+| `admin:reviews:manage` | Moderate reviews and content |
+| `admin:reports:manage` | Handle user reports |
+| `admin:teachers:manage` | Manage teacher records |
+| `admin:sensitive_words:manage` | Manage sensitive word list |
+| `admin:logs:view` | View operation logs |
+| `user:identities:review` | Review identity verification requests |
+| `user:students:review` | Review student verification requests |
+| `user:schools:manage` | Manage school configurations |
+| `user:system_configs:manage` | Manage system configurations |
+| `rbac:roles:manage` | Manage roles |
+| `rbac:permissions:manage` | Manage permissions |
+| `rbac:groups:manage` | Manage user groups |
+
+## Consumption Pattern
+
+- `/auth/me` returns the capability set
+- Admin routes and admin pages read capabilities
+- `isPlatformAdmin` maintains platform administrator semantics (separate from application capabilities)
+
+## Related Documentation
+
+- [Authorization Model](../policy/01-hangxiaoban-authorization-model.md)
+- [Policy Evaluation Order](../policy/02-policy-evaluation-order.md)
+- [Identity and Authorization](../../architecture/ecosystem-identity-and-authorization.md)

@@ -80,7 +80,7 @@ userHash = HMAC-SHA256(userID, secret)
 
 ### 限流故障策略
 
-- Redis 故障时限流器 fail-closed（返回 503），不放行请求
+- Redis 故障时限流器采用 fail-closed，直接返回 503
 - 熔断器开启时 fail-closed（返回 503）
 
 ## 安全中间件

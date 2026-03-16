@@ -1,36 +1,52 @@
-# LDAP 认证
+# LDAP Validation
 
-> 状态：原型阶段
+The repository provides an LDAP client via `server/internal/modules/ldap/client.go`. This is used in the student verification flow for LDAP-based validation.
 
-学校 LDAP 认证不是当前主登录入口，但项目里已经有服务端客户端封装，不再是纯文档占位。
+## Client Methods
 
-## 当前定位
+| Method | Purpose |
+| --- | --- |
+| `NewClient` | Validate configuration and create client |
+| `Login` | Perform LDAP bind with `uid + password` |
+| `QueryUserByUID` | Query user profile using system account |
 
-- 主认证链路仍是 Casdoor SSO。
-- LDAP 作为学校统一身份数据源的补充能力保留。
-- 当前目标不是替代 SSO，而是为后续直连认证或账号校验做准备。
+## Integration Point
 
-## 已有实现
+The student verification service selects the verification method based on school configuration. When `verificationMethod` is `ldap`, `user.Service.VerifyStudent` performs:
 
-当前仓库已经包含 LDAP 客户端原型：
+1. Validate `schoolID`, `studentID`, `password`, and consent status
+2. Call `ldap.Client.Login` to verify credentials
+3. Call `ldap.Client.QueryUserByUID` to fetch user profile
+4. Update phone number, student ID list, active student ID, and verification status
 
-- `server/internal/modules/ldap/client.go`
+## Configuration
 
-这意味着“连接、Bind、基础查询”的最底层能力已经存在。
+The LDAP client is initialized in `server/cmd/stuhelper/main.go` with these environment variables:
 
-## 还没做完的部分
+| Variable | Description |
+| --- | --- |
+| `LDAP_URL` | LDAP server URL |
+| `LDAP_BASE_DN` | Base DN for searches |
+| `LDAP_SYSTEM_BIND_DN` | System account bind DN |
+| `LDAP_SYSTEM_BIND_PASSWORD` | System account password |
+| `LDAP_USE_TLS` | Enable TLS connection |
+| `LDAP_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification (development only) |
 
-以下内容仍未进入主业务流程：
+## Data Flow
 
-- 面向前端的 LDAP 登录入口
-- 与现有 Token / 会话体系的正式整合
-- 登录失败提示、限流和审计日志的完整链路
+School configuration API returns `verificationMethod` and `ldapConfig`. The main app student verification page displays either an LDAP login form or a manual submission form based on the school configuration.
 
-## 适合的下一步
-
-如果后续要继续推进 LDAP，建议顺序如下：
-
-1. 明确它是独立登录入口，还是 Casdoor 的补充数据源
-2. 补完后端认证接口和错误码
-3. 接入统一的审计、限流、会话管理
-4. 再决定是否暴露到前端
+```text
+School Config (verificationMethod: "ldap")
+    ↓
+Frontend: Show LDAP login form
+    ↓
+POST /api/v1/user/profile/verify
+    ↓
+Backend: user.Service.VerifyStudent
+    ↓
+    ├─→ ldap.Client.Login (verify credentials)
+    └─→ ldap.Client.QueryUserByUID (fetch profile)
+    ↓
+Update user_profiles (student_ids, active_student_id, student_verified)
+```

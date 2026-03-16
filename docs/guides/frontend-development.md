@@ -1,66 +1,113 @@
-# 前端开发指南
+# Frontend Development Guide
 
-这份指南面向已经把项目跑起来的开发者。它回答的是当前前端 Monorepo 里该怎么继续开发，不再描述旧的单入口方案。
+This guide is for developers who already have the project running. It focuses on the frontend monorepo's development entry points and collaboration sequence.
 
-## 先理解这 4 个包
+> For environment setup, see [Quick Start](../tutorials/quick-start.md).
 
-| 包 | 作用 | 你通常会改什么 |
+## The Four Packages
+
+| Package | Purpose | What You Typically Change |
 | --- | --- | --- |
-| `clients/web` | Web 主站 | 页面、路由、浏览器适配、用户态体验 |
-| `clients/admin` | 独立后台 | 后台页面、菜单、RBAC 管理流 |
-| `clients/shared` | 共享 API 与类型 | OpenAPI 生成类型、共享 client、capability 常量 |
-| `clients/uniappx` | 跨端实验入口 | 预研页面和平台适配 |
+| `clients/web` | Main web app | Pages, routes, browser adaptation, user experience |
+| `clients/admin` | Independent admin console | Admin pages, menus, RBAC management flows |
+| `clients/shared` | Shared API and types | OpenAPI-generated types, shared client, capability constants |
+| `clients/uniappx` | Cross-platform experimental entry | Experimental pages and platform adaptation |
 
-多数线上功能改动会同时碰到 `clients/web` 或 `clients/admin`，再加上 `clients/shared`。
+Most feature changes touch `clients/web` or `clients/admin`, plus `clients/shared`.
 
-## 新增页面时怎么放
+## Adding a New Page
 
-- 主站页面放在 `clients/web/src/modules/<module>/views/`
-- 后台页面按各自应用的 `views/` 和 `router/` 结构放
-- 业务组件放在 `clients/web/src/components/business/<domain>/` 或 admin 对应模块内
-- 共享契约和 capability 放在 `clients/shared`
+- Main app pages go in `clients/web/src/modules/<module>/views/`
+- Admin pages follow each app's `views/` and `router/` structure
+- Business components go in `clients/web/src/components/business/<domain>/` or the corresponding admin module
+- Shared contracts and capabilities go in `clients/shared`
 
-## 路由和权限怎么接
+## Routing and Access Control
 
-当前项目的路由约定是对象优先：
+The project uses object-oriented routing conventions:
 
-- 列表页用名词复数，比如 `/courses`
-- 详情页挂在对象下，比如 `/courses/:id`
-- 某对象上的动作继续下钻，比如 `/courses/:id/reviews/post`
+- List pages use plural nouns: `/courses`
+- Detail pages nest under the object: `/courses/:id`
+- Actions on an object continue nesting: `/courses/:id/reviews/post`
 
-登录态交给现有路由守卫处理。后台或受限页面不要再用 `requiresAdmin` 这种旧语义，统一按下面三层接：
+Login state is handled by existing route guards. Admin or restricted pages use three layers of access control:
 
-- 路由声明 `requiresAuth`
-- 路由或菜单声明 `requiredCapabilities`
-- 页面按钮再按 `capabilities` 和 `canAccessAdmin` 收口
+1. Route declares `requiresAuth`
+2. Route or menu declares `requiredCapabilities`
+3. Page buttons further check `capabilities` and `canAccessAdmin`
 
-`clients/web` 和 `clients/admin` 都走这套规则。
+Both `clients/web` and `clients/admin` follow these rules.
 
-## 新增接口时怎么接
+Example route definition:
 
-正确顺序不是前端先猜返回结构，而是：
+```typescript
+{
+  path: '/admin/reviews',
+  component: () => import('@/views/admin/ReviewList.vue'),
+  meta: {
+    requiresAuth: true,
+    requiredCapabilities: ['admin:reviews:manage']
+  }
+}
+```
 
-1. 先改 `server/api/openapi.yaml` 及其拆分文件
-2. 在 `server` 下运行 `make generate`
-3. 确认 `server/internal/api/gen/` 和 `clients/shared/src/types/api.gen.ts` 已同步
-4. 在 `clients/shared/src/api/` 补领域 API 包装
-5. 再在 `web` 或 `admin` 侧接具体页面逻辑
+Example button visibility:
 
-不要重新引入裸 `fetch`、旧 Axios 实例或手写第二份 DTO。
+```vue
+<template>
+  <el-button
+    v-if="hasCapability('admin:reviews:manage')"
+    @click="handleModerate"
+  >
+    Moderate
+  </el-button>
+</template>
+```
 
-## 认证相关注意点
+## Adding a New API Endpoint
 
-- Access Token 和 Refresh Token 由后端写入 Cookie
-- 浏览器请求统一 `credentials: 'include'`
-- 变更型请求自动带 `X-CSRF-Token`
-- 401 场景先走 `/api/v1/auth/refresh`，失败后再清本地会话
-- 登录完成后的用户态与后台可达性以 `/api/v1/auth/me` 返回的 `capabilities`、`canAccessAdmin`、`isPlatformAdmin` 为准
+Follow this sequence when adding a new endpoint:
 
-其中 `isPlatformAdmin` 只是生态平台身份，不是航小伴业务后台门禁。
+1. Edit `server/api/openapi.yaml` and its split files
+2. Run `make generate` in `server/`
+3. Verify `server/internal/api/gen/` and `clients/shared/src/types/api.gen.ts` are updated
+4. Add domain API wrappers in `clients/shared/src/api/`
+5. Implement page logic in `web` or `admin`
 
-## 提交前检查
+The shared pipeline is: OpenAPI -> `clients/shared` -> `web/admin`.
 
-前端改动至少跑一遍：
+Example API wrapper:
+
+```typescript
+// clients/shared/src/api/course.ts
+import { client } from './client'
+
+export const courseApi = {
+  getCourse: (courseID: string) =>
+    client.GET('/api/v1/course/courses/{courseID}', {
+      params: { path: { courseID } }
+    }),
+
+  searchCourses: (query: string, page = 1) =>
+    client.GET('/api/v1/course/courses/search', {
+      params: { query: { q: query, page } }
+    })
+}
+```
+
+## Authentication Notes
+
+- Access Token and Refresh Token are written to cookies by the backend
+- Browser requests use `credentials: 'include'`
+- Mutation requests automatically include `X-CSRF-Token`
+- On 401, the client first tries `/api/v1/auth/refresh`; if that fails, it clears the local session
+- After login, user state and admin accessibility are determined by the `/api/v1/auth/me` response: `capabilities`, `canAccessAdmin`, `isPlatformAdmin`
+
+The `isPlatformAdmin` field represents the platform admin identity from Casdoor. Application-level admin access is controlled by capabilities.
+
+## Pre-Commit Checks
+
+Run at minimum before committing frontend changes:
 
 ```bash
 cd clients
@@ -68,7 +115,7 @@ pnpm type-check
 pnpm lint
 ```
 
-涉及主站关键流时，再补：
+For changes to critical main app flows, also run:
 
 ```bash
 cd clients
@@ -76,13 +123,19 @@ pnpm test:web
 pnpm test:e2e:web
 ```
 
-## 常见入口文件
+## Key Files
 
-| 文件 | 用途 |
+| File | Purpose |
 | --- | --- |
-| `clients/web/src/router/index.ts` | 主站路由与守卫 |
-| `clients/admin/src/router/index.ts` | 独立后台路由与门禁 |
-| `clients/web/src/api/client.ts` | 浏览器 Cookie、CSRF、刷新逻辑 |
-| `clients/admin/src/api/` | 后台 API 封装 |
-| `clients/shared/src/api/` | 共享基础客户端 |
-| `clients/shared/src/types/api.gen.ts` | OpenAPI 生成类型 |
+| `clients/web/src/router/index.ts` | Main app routes and guards |
+| `clients/admin/src/router/index.ts` | Admin console routes and access control |
+| `clients/web/src/api/client.ts` | Browser Cookie, CSRF, refresh logic |
+| `clients/admin/src/api/` | Admin API wrappers |
+| `clients/shared/src/api/` | Shared base client |
+| `clients/shared/src/types/api.gen.ts` | OpenAPI-generated types |
+
+## Related Documentation
+
+- [Frontend Architecture](../architecture/frontend-architecture.md)
+- [OpenAPI Development Guide](openapi-development-guide.md)
+- [API Overview](../reference/api-overview.md)

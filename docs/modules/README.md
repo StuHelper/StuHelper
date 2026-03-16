@@ -1,12 +1,14 @@
-# 模块文档
+# Module Documentation
 
-这里按当前代码里的业务域组织文档，不再把尚未落地的规划模块单独挂出来。
+`modules/` organizes documentation by business domain. Directories directly align with code modules and API domains.
 
-| 模块 | 当前状态 | 说明 |
-| --- | --- | --- |
-| [auth/](auth/) | 🟢 已实现 | SSO、会话、开放平台最小身份事实 |
-| [course/](course/) | 🟢 已实现 | 课程、评课、教师、收藏、回复、通知、后台内容管理 |
-| [user-system/](user-system/) | 🟢 已实现 | 实名认证、学生认证、学校配置、系统配置 |
-| [rbac/](rbac/) | 🟢 已实现 | 角色、权限、用户组、个人权限覆盖 |
-| [policy/](policy/) | 🟢 主干已实现 | 应用内 capability 授权、访问事实、内容整形顺序 |
-| [logging/](logging/) | 🟢 已实现 | 结构化日志、请求日志、后台操作日志 |
+## Module Index
+
+| Module | Description |
+| --- | --- |
+| [auth/](auth/) | SSO integration, sessions, account sync, security |
+| [course/](course/) | Course entities, reviews, notifications, admin moderation |
+| [user-system/](user-system/) | Identity verification, student verification, school config, system config |
+| [rbac/](rbac/) | Roles, permissions, user groups, personal permission overrides |
+| [policy/](policy/) | Capability-based authorization and access control decision flow |
+| [logging/](logging/) | Structured logging, request logs, operation audit |

@@ -1,70 +1,59 @@
-# 账号体系
+# Account Synchronization
 
-> 状态：部分实现
+The account model revolves around Casdoor users and the local `users` table. Casdoor provides external identity; the application side stores local user records needed for business operations.
 
-> **注意**：以下描述的第三方绑定（QQ/微信/GitHub）、解绑规则和多校支持（schools 表）均为规划设计，代码中尚未实现。当前仅通过 Casdoor SSO 完成基础认证。
+## Data Sync
 
-## 概述
+Both login callback and `/auth/me` call `UpsertUser` in `user_sync.go`:
 
-账号体系负责用户身份标识管理和第三方平台绑定。
+| Field | Source |
+| --- | --- |
+| `external_id` | Casdoor `id` |
+| `username` | Casdoor `name` |
+| `email` | Casdoor `email` |
+| `avatar_url` | Casdoor `avatar` |
 
-## 身份标识结构
+## Table Relationships
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    用户账号                          │
-│  ┌───────────────────────────────────────────────┐  │
-│  │           主身份 (Primary Identity)            │  │
-│  │  ┌─────────────┐  ┌─────────────────────────┐ │  │
-│  │  │  school_id  │  │      student_id         │ │  │
-│  │  │  (学校ID)   │  │       (学号)            │ │  │
-│  │  └─────────────┘  └─────────────────────────┘ │  │
-│  └───────────────────────────────────────────────┘  │
-│                         │                           │
-│                         ▼                           │
-│  ┌───────────────────────────────────────────────┐  │
-│  │         第三方绑定 (OAuth Bindings)            │  │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐    │  │
-│  │  │    QQ    │  │   微信   │  │  GitHub  │    │  │
-│  │  │ (可选)   │  │  (可选)  │  │  (预留)  │    │  │
-│  │  └──────────┘  └──────────┘  └──────────┘    │  │
-│  └───────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────┘
-```
+| Table | Purpose |
+| --- | --- |
+| `users` | Local basic account records |
+| `user_identities` | Identity verification data |
+| `user_profiles` | Student verification data, school, phone |
+| `user_roles` / `user_permissions` / `user_group_*` | Application authorization relationships |
 
-## 绑定规则
+## User Identifiers
 
-| 规则     | 说明                                  |
-| -------- | ------------------------------------- |
-| 唯一性   | 一个学生身份只能绑定一个 QQ、一个微信 |
-| 解绑限制 | 解绑需人工审核或等待 30 天冷却期      |
-| 防交易   | 频繁解绑/绑定触发风控，账号冻结       |
+| Identifier | Description |
+| --- | --- |
+| `users.external_id` | Stable external ID aligned with Casdoor |
+| `users.username` | Username after login |
+| `user_identities.person_uid` | Stable matching identifier derived from government ID |
+| `user_profiles.active_student_id` | Currently active student ID |
 
-## 多校支持
+## Account Flow
 
-通过 `school_id` 字段区分不同学校：
-
-```sql
-CREATE TABLE schools (
-    id          SERIAL PRIMARY KEY,
-    code        VARCHAR(20) UNIQUE NOT NULL,  -- 如 'buaa', 'bit'
-    name        VARCHAR(100) NOT NULL,        -- 如 '北京航空航天大学'
-    sso_config  JSONB,                        -- SSO 配置
-    created_at  TIMESTAMPTZ DEFAULT NOW()
-);
+```text
+Casdoor user → auth callback → users upsert → /auth/me → frontend state initialization
 ```
 
-## 账号接口
+## Sync Logic
 
-| 接口                      | 方法 | 说明         |
-| ------------------------- | ---- | ------------ |
-| `/api/v1/user/profile`    | GET  | 获取用户信息 |
-| `/api/v1/user/bindQQ`     | POST | 绑定 QQ      |
-| `/api/v1/user/bindWechat` | POST | 绑定微信     |
-| `/api/v1/user/unbind`     | POST | 解绑第三方   |
+```go
+// Simplified sync logic
+func (s *Service) UpsertUser(ctx context.Context, casdoorUser *CasdoorUser) (*User, error) {
+    user := &User{
+        ExternalID: casdoorUser.ID,
+        Username:   casdoorUser.Name,
+        Email:      casdoorUser.Email,
+        AvatarURL:  casdoorUser.Avatar,
+    }
 
-## 待实现
+    // Upsert: insert if not exists, update if exists
+    if err := s.repo.UpsertUser(ctx, user); err != nil {
+        return nil, fmt.Errorf("upsert user: %w", err)
+    }
 
-- [ ] 第三方平台绑定功能
-- [ ] 解绑冷却期机制
-- [ ] 多校支持数据模型
+    return user, nil
+}
+```

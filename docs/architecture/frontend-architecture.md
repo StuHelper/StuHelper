@@ -1,76 +1,167 @@
-# 前端架构
+# Frontend Architecture
 
-这份文档只描述当前代码树已经落地的前端结构，不保留旧的 uni-app 单入口方案。
+The frontend workspace consists of four packages: main app, admin console, shared contracts, and experimental cross-platform client. All collaborate around the same `/api/v1` backend service.
 
-## 当前包结构
+## Package Structure
 
-| 包 | 作用 | 当前状态 |
-| --- | --- | --- |
-| `clients/web` | 主站 Web SPA，承载课程、评课、教师、用户中心和一套嵌入式后台路由 | 主入口 |
-| `clients/admin` | 独立后台控制台，聚焦评课管理、用户系统和 RBAC 管理 | 已实现 |
-| `clients/shared` | OpenAPI 生成类型、`openapi-fetch` 客户端、共享 capability 常量 | 契约中心 |
-| `clients/uniappx` | 跨端实验入口 | 预研态 |
-
-`clients/pnpm-workspace.yaml` 当前工作区包含这四个包。
-
-## 路由与部署形态
-
-主站路由集中在 `clients/web/src/router/index.ts`，核心路径包括：
-
-| 路径 | 说明 |
+| Package | Purpose |
 | --- | --- |
-| `/` | 主站首页 |
-| `/course` | 教学门户入口 |
-| `/review` | 评课社区入口 |
-| `/courses/:id` | 课程概览 |
-| `/courses/:id/reviews` | 课程测评列表 |
-| `/courses/:id/reviews/post` | 发布测评 |
-| `/teachers/:id` | 教师主页 |
-| `/user/*` | 用户中心 |
-| `/admin/*` | 主站内嵌后台页面 |
+| `clients/web` | Main web SPA hosting homepage, courses, teachers, reviews, user center, and embedded admin |
+| `clients/admin` | Independent admin console for review management, user system, and RBAC management |
+| `clients/shared` | OpenAPI-generated types, shared API wrappers, capability constants |
+| `clients/uniappx` | Experimental cross-platform package |
 
-独立后台在 `clients/admin`，路由基地址是 `/admin`。它和 `clients/web` 共用同一套 `/api/v1/auth/me` 用户态与 capability 契约，但页面骨架、菜单和视图独立维护。
+## Routing Structure
 
-当前仓库里保留了两套后台入口：
+### `clients/web`
 
-- `clients/web` 里的后台路由，用于主站一体化集成
-- `clients/admin` 独立控制台，用于后台能力集中开发
+Main app routes are centralized in `clients/web/src/router/index.ts`. Core pages include:
 
-## 认证与权限边界
+- `/` - Homepage
+- `/course` - Course list
+- `/review` - Review list
+- `/courses/:id` - Course details
+- `/teachers/:id` - Teacher details
+- `/user/*` - User center
+- `/admin/*` - Embedded admin
 
-前端统一使用 Cookie 会话，不在业务代码里保存 access token。
+### `clients/admin`
 
-当前登录流是：
+Admin console routes are centralized in `clients/admin/src/router/index.ts`. The deployment base path is `/admin`. Menus, route guards, and button visibility all read `requiredCapabilities`.
 
-1. 前端请求 `/api/v1/auth/login` 或 `/api/v1/auth/signup`
-2. 浏览器跳转到 `https://sso.stuhelper.com`
-3. Casdoor 回跳前端 `/auth/callback`
-4. 前端再调用 `/api/v1/auth/callback`
-5. 后端写入 `HttpOnly` 的 access token、refresh token 和 `csrf_token` Cookie
+## Authentication Flow
 
-后台门禁不再使用 `isAdmin`。当前前端只认三件事：
+Frontend accesses backend via Cookie sessions. Login flow initiated by `clients/web`:
 
-- `/api/v1/auth/me` 返回的 `capabilities`
-- `/api/v1/auth/me` 返回的 `canAccessAdmin`
-- 路由级 `requiredCapabilities`
+```mermaid
+sequenceDiagram
+    participant User
+    participant Web as clients/web
+    participant API as Backend API
+    participant SSO as Casdoor SSO
 
-`clients/web` 和 `clients/admin` 都用同一套 capability 常量做菜单过滤、页面守卫和按钮控制。
+    User->>Web: Click login
+    Web->>API: GET /api/v1/auth/login
+    API->>Web: Return auth URL + state
+    Web->>SSO: Redirect to sso.stuhelper.com
+    SSO->>User: Show login form
+    User->>SSO: Submit credentials
+    SSO->>Web: Redirect to /auth/callback?code=xxx
+    Web->>API: GET /api/v1/auth/callback?code=xxx
+    API->>SSO: Exchange code for tokens
+    SSO->>API: Return access + refresh tokens
+    API->>Web: Set HttpOnly cookies + return user info
+    Web->>User: Show logged-in state
+```
 
-## 共享契约
+Frontend persistent auth state comes from:
 
-前后端通过 `server/api/openapi.yaml` 协作，生成产物是：
+- `/api/v1/auth/me` response
+- `capabilities` array
+- `canAccessAdmin` boolean
+- `isPlatformAdmin` boolean
 
-- `server/internal/api/gen/`
-- `clients/shared/src/types/api.gen.ts`
+## Shared Contracts
 
-共享层的职责边界如下：
-
-| 位置 | 职责 |
+| Location | Purpose |
 | --- | --- |
-| `clients/shared/src/types/api.gen.ts` | OpenAPI 生成的传输层类型 |
-| `clients/shared/src/api/` | 基础 API client 和共享封装 |
-| `clients/shared/src/constants/` | capability、业务常量、跨端共享枚举 |
-| `clients/web/src/api/` | 浏览器侧 Cookie、CSRF、刷新会话适配 |
-| `clients/admin/src/api/` | 后台侧 API 封装 |
+| `server/api/openapi.yaml` | Contract source file |
+| `server/internal/api/gen/` | Go-side generated code |
+| `clients/shared/src/types/api.gen.ts` | Frontend transport types |
+| `clients/shared/src/api/` | Shared API client |
+| `clients/shared/src/constants/` | Capability and cross-platform constants |
 
-如果前端接口形状变了，应该先改 OpenAPI，再重新生成，不要在 `web` 或 `admin` 里手写第二份契约。
+## API Client Architecture
+
+```text
+OpenAPI Spec (server/api/openapi.yaml)
+    ↓
+    ├─→ Backend: server/internal/api/gen/ (Go types)
+    └─→ Frontend: clients/shared/src/types/api.gen.ts (TypeScript types)
+            ↓
+        clients/shared/src/api/client.ts (openapi-fetch wrapper)
+            ↓
+            ├─→ clients/web/src/api/client.ts (Browser: Cookie, CSRF, refresh)
+            └─→ clients/admin/src/api/ (Admin-specific wrappers)
+```
+
+## Admin Entry Points
+
+The repository maintains two admin entry points:
+
+- `clients/web` embedded admin pages
+- `clients/admin` independent admin console
+
+Both share the same capability set and user contract. Page skeletons and menus are maintained separately.
+
+## State Management
+
+| State Type | Solution |
+| --- | --- |
+| Server state | API calls via `openapi-fetch` |
+| Local component state | Vue `ref` / `reactive` |
+| Shared UI state | Composables (e.g., `useAuth`, `useUser`) |
+| Form state | Local component state |
+
+No global state management library (Vuex/Pinia) is used. State is kept local unless truly shared across routes.
+
+## Type Safety
+
+```typescript
+// Generated types from OpenAPI
+import type { components } from '@/types/api.gen'
+
+type Review = components['schemas']['Review']
+type CreateReviewRequest = components['schemas']['CreateReviewRequest']
+
+// API client with full type inference
+import { api } from '@/api'
+
+const { data, error } = await api.course.review.createReview({
+  body: {
+    courseID: '123',
+    content: 'Great course!',
+    ratings: { overall: 5 }
+  }
+})
+
+if (error) {
+  // error is typed
+  console.error(error.code, error.message)
+} else {
+  // data is typed as Review
+  console.log(data.id, data.content)
+}
+```
+
+## Build and Development
+
+```bash
+# Install dependencies
+cd clients
+pnpm install
+
+# Development
+pnpm dev:web      # Main app on :3000
+pnpm dev:admin    # Admin console on :3001
+
+# Type checking
+pnpm type-check
+
+# Linting
+pnpm lint
+
+# Testing
+pnpm test:web
+pnpm test:e2e:web
+
+# Build
+pnpm build:web
+pnpm build:admin
+```
+
+## Related Documentation
+
+- [Frontend Development Guide](../guides/frontend-development.md)
+- [OpenAPI Development Guide](../guides/openapi-development-guide.md)
+- [Frontend Guidelines](.trellis/spec/frontend/index.md)

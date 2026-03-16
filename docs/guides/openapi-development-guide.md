@@ -1,6 +1,6 @@
 # OpenAPI 3 开发指南
 
-StuHelper 当前采用 OpenAPI 3 Spec-First 流程。你应该把 OpenAPI 当成前后端共享的事实来源，而不是“最后再补的文档”。
+StuHelper 当前采用 OpenAPI 3 Spec-First 流程。OpenAPI 是前后端共享的契约源。
 
 ## 权威来源在哪里
 
@@ -81,14 +81,14 @@ const res = await api.course.getCourse("123");
 const course = res.data?.data;
 ```
 
-### 不推荐
+### 当前链路之外的写法
 
 ```typescript
 const res = await fetch("/api/v1/course/courses/123");
 const json = await res.json();
 ```
 
-原因很简单：裸请求不会自动获得 OpenAPI 类型、Cookie 会话、CSRF 头和刷新逻辑。
+裸请求缺少 OpenAPI 类型、Cookie 会话、CSRF 头和刷新逻辑。
 
 ## 什么时候需要重新生成
 
@@ -102,7 +102,7 @@ const json = await res.json();
 
 ## 检查漂移
 
-提交前建议至少跑：
+提交前至少运行：
 
 ```bash
 cd server
@@ -119,7 +119,7 @@ make check-drift
 
 ### 前端类型更新了，但接口还是调用失败
 
-类型只能保证契约层面一致，不能替代后端实现。继续检查：
+类型保证契约一致，后端实现还需要继续检查：
 
 - 后端 handler 是否已注册
 - 路径和方法是否与规范一致

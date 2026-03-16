@@ -16,7 +16,7 @@ registry.stuhelper.com
   └── frontend
 ```
 
-对外访问建议统一收敛到根域名 `https://stuhelper.com`，主站通过子路径区分模块。Casdoor 仍作为独立 SSO 服务运行在 `https://sso.stuhelper.com`。
+当前对外访问使用根域名 `https://stuhelper.com`，主站通过子路径区分模块。Casdoor 运行在 `https://sso.stuhelper.com`。
 
 当前根目录 `docker-compose.yml` 的 `prod` profile 只部署 `app`、`frontend`、`postgres` 和 `redis`。`clients/admin` 已经存在，但还没有接进根 compose 的生产 profile。
 
@@ -64,14 +64,14 @@ CORS_ORIGINS=https://stuhelper.com
 - `HMAC_SECRET`：用于生成稳定的 `person_uid`。
 - `DOC_AES_KEYS`：用于加密实名认证证件号。
 
-`DOC_AES_KEYS` 的格式固定为 `keyID:hex`，支持未来做密钥轮换。例如：
+`DOC_AES_KEYS` 的格式固定为 `keyID:hex`，例如：
 
 ```bash
 DOC_AES_ACTIVE_KEY_ID=1
 DOC_AES_KEYS=1:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
 
-如果 `DOC_AES_ACTIVE_KEY_ID` 或 `DOC_AES_KEYS` 缺失、格式错误、长度不是 32 字节 AES key，后端会直接拒绝启动。
+`DOC_AES_ACTIVE_KEY_ID` 和 `DOC_AES_KEYS` 通过启动校验后，后端才会进入运行状态。
 
 ### 4. 启动服务
 

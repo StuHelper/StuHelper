@@ -1,19 +1,18 @@
-# 操作指南
+# Development Guides
 
-操作指南面向已经把项目跑起来的开发者。它不再从环境安装讲起，而是直接回答“接下来该怎么做”。
+`guides/` is for developers who are already in development mode. Each document focuses on a specific task type, emphasizing the current repository's working methods, directory entry points, and collaboration sequence.
 
-## 文档索引
+## Documentation Index
 
-| 文档                                                         | 说明                                    |
-| ------------------------------------------------------------ | --------------------------------------- |
-| [frontend-development.md](frontend-development.md)           | 前端 Monorepo、路由约定、测试和联调流程 |
-| [backend-quickstart.md](backend-quickstart.md)               | 后端目录、分层模式、添加新接口          |
-| [openapi-development-guide.md](openapi-development-guide.md) | OpenAPI 3 Spec-First 工作流             |
-| [deployment.md](deployment.md)                               | Docker Compose 生产部署                 |
+| Document | Description |
+| --- | --- |
+| [frontend-development.md](frontend-development.md) | Main app, admin console, shared contracts, access control |
+| [backend-quickstart.md](backend-quickstart.md) | Backend directory structure, layer responsibilities, API addition entry points |
+| [openapi-development-guide.md](openapi-development-guide.md) | OpenAPI workflow and generated artifacts |
+| [deployment.md](deployment.md) | Docker Compose deployment, service orchestration, runtime checks |
 
-## 和教程的区别
+## Usage
 
-- `tutorials/` 是顺序式入门文档。
-- `guides/` 是任务式操作文档。
+After receiving a specific task, first choose the guide closest to your current work, then refer to `reference/` and `modules/` for detailed facts.
 
-如果你刚拿到仓库，先从 [快速开始](../tutorials/quick-start.md) 开始。
+For environment setup and first-time startup, see [../tutorials/quick-start.md](../tutorials/quick-start.md).
