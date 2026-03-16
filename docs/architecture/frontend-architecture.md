@@ -2,19 +2,20 @@
 
 ## 设计背景
 
-StuHelper 是面向校园场景的"对象主页 + 订阅通知"统一信息与服务平台，需要支持多平台部署（H5、小程序、App）。本文档描述前端的整体架构设计。
+StuHelper 是一个生态，航小伴是其中一个 first-party 应用。本文档描述的是航小伴前端的整体架构，以及它如何接入 `sso.stuhelper.com`。
 
 **核心需求：**
-- 多模块：course（评课）、tools（工具箱）、community（社群）、notification（通知）等
+- 多模块：评课社区、资源共享、对象主页、用户中心等
 - 跨平台：H5、微信小程序、App（iOS/Android）
-- 统一认证：所有模块使用 sso.stuhelper.com（Casdoor）进行身份认证
-- 统一 API：所有模块通过 api.stuhelper.com 访问后端服务
+- 统一身份：通过 `sso.stuhelper.com`（Casdoor）进行登录
+- 应用授权：由航小伴后端返回 capabilities / effective permissions
+- 统一 API：所有模块通过应用后端访问服务
 
 **架构决策：**
-- 域名架构：根域名 + 子路径（stuhelper.com/course, stuhelper.com/tools）
 - 代码组织：Monorepo 单一代码库
 - 跨平台方案：uni-app 一套代码多端输出
-- 后端 API：统一端点 api.stuhelper.com
+- 认证：Cookie 会话，不在前端保存 access token
+- 后台门禁：不再使用 `isAdmin` 作为应用业务后台总开关
 
 ---
 
@@ -222,21 +223,19 @@ clients/web/uni-app/
 interface RequestConfig {
   url: string
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
-  data?: any
+  data?: unknown
   header?: Record<string, string>
 }
 
 export function request<T>(config: RequestConfig): Promise<T> {
-  const token = uni.getStorageSync('access_token')
-
   return new Promise((resolve, reject) => {
     uni.request({
       url: `${import.meta.env.VITE_API_URL}${config.url}`,
       method: config.method || 'GET',
       data: config.data,
+      withCredentials: true,
       header: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : '',
         ...config.header
       },
       success: (res) => {
@@ -299,27 +298,19 @@ export const courseApi = {
 ```
 1. 用户访问需要登录的页面
    ↓
-2. 前端检测未登录 → 重定向到 Casdoor
-   https://sso.stuhelper.com/login/oauth/authorize
-     ?client_id=xxx
-     &response_type=code
-     &redirect_uri=https://stuhelper.com/auth/callback
-     &scope=openid profile email
-     &state=random_state
+2. 前端调用应用后端登录入口
    ↓
-3. 用户在 Casdoor 完成登录
+3. 后端返回 Casdoor 授权地址和随机 state
    ↓
-4. Casdoor 回调
-   https://stuhelper.com/auth/callback?code=xxx&state=xxx
+4. 浏览器跳转到 https://sso.stuhelper.com
    ↓
-5. 前端将 code 发送到后端
-   POST /api/v1/auth/callback { code }
+5. Casdoor 登录完成后回跳到应用前端 callback 页面
    ↓
-6. 后端使用 code + client_secret 换取 token
+6. 前端 callback 页面调用应用后端 /api/v1/auth/callback
    ↓
-7. 后端返回 access_token 和 refresh_token
+7. 后端使用 code + client_secret 换取 token，并写入 HttpOnly Cookie
    ↓
-8. 前端保存 token → 跳转到原目标页面
+8. 前端只保存最小会话信息和回跳目标
 ```
 
 ### 认证 Store
@@ -328,57 +319,28 @@ export const courseApi = {
 // stores/auth.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { request } from '@/api/request'
+import { authApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-  const accessToken = ref<string | null>(null)
-  const refreshToken = ref<string | null>(null)
+  const user = ref<UserSession | null>(null)
+  const capabilities = ref<string[]>([])
   const redirectUrl = ref<string>('/')
 
-  const isAuthenticated = computed(() => !!accessToken.value)
+  const isAuthenticated = computed(() => user.value !== null)
 
-  function login() {
-    const state = Math.random().toString(36).substring(2, 15)
-    uni.setStorageSync('oauth_state', state)
-
-    const params = new URLSearchParams({
-      client_id: import.meta.env.VITE_CASDOOR_CLIENT_ID,
-      response_type: 'code',
-      redirect_uri: `${import.meta.env.VITE_APP_URL}/pages/auth/callback`,
-      scope: 'openid profile email',
-      state
-    })
-
-    // #ifdef H5
-    window.location.href = `${import.meta.env.VITE_SSO_URL}/login/oauth/authorize?${params}`
-    // #endif
-
-    // #ifdef MP-WEIXIN
-    // 小程序需要使用 web-view 或其他方式处理
-    // #endif
+  async function login() {
+    const { data } = await authApi.getLoginURL()
+    window.location.href = data.loginURL
   }
 
   async function handleCallback(code: string, state: string) {
-    const savedState = uni.getStorageSync('oauth_state')
-    if (state !== savedState) {
-      throw new Error('Invalid state')
-    }
-
-    const { data } = await request({
-      url: '/api/v1/auth/callback',
-      method: 'POST',
-      data: { code }
-    })
-
-    accessToken.value = data.accessToken
-    refreshToken.value = data.refreshToken
-    uni.setStorageSync('access_token', data.accessToken)
-    uni.setStorageSync('refresh_token', data.refreshToken)
-
+    const { data } = await authApi.handleCallback({ code, state })
+    user.value = data.user
+    capabilities.value = data.capabilities ?? []
     return redirectUrl.value
   }
 
-  return { accessToken, isAuthenticated, login, handleCallback }
+  return { user, capabilities, isAuthenticated, login, handleCallback }
 })
 ```
 
@@ -404,7 +366,7 @@ export const useAuthStore = defineStore('auth', () => {
 
 ```
 stores/
-├── auth.ts          # 认证状态（token、登录状态）
+├── auth.ts          # 认证状态（会话、用户信息、能力）
 ├── user.ts          # 用户信息（profile、偏好设置）
 ├── app.ts           # 应用状态（主题、语言）
 └── favorites.ts     # 收藏状态（跨页面共享）

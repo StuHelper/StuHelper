@@ -302,7 +302,7 @@ func (h *Handler) GetReplies(c *gin.Context) {
 // CreateReplyRequest 创建回复请求
 type CreateReplyRequest struct {
 	ParentID *string `json:"parentID" binding:"omitempty"`
-	Content  string `json:"content" binding:"required,min=1,max=1000"`
+	Content  string  `json:"content" binding:"required,min=1,max=1000"`
 }
 
 // CreateReply 创建回复

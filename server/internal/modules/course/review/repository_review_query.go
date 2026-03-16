@@ -288,7 +288,6 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 	return reviewsMap, totalsMap, nil
 }
 
-
 // allowedSortOrders 排序参数白名单（纵深防御：即使 handler 层已校验，Repository 层也独立校验）
 // L-56: 列别名约定 — 所有别名均使用 "r." 前缀引用 reviews 表列，
 // 与 ListByCourseWithSort / ListLatest 的 SELECT 别名一致。

@@ -18,12 +18,12 @@ type Service struct {
 
 // ServiceConfig Token 服务配置
 type ServiceConfig struct {
-	RedisClient     *redis.Client
-	AccessTTL       int    // 秒
-	RefreshTTL      int    // 秒
-	JWTIssuer       string // Casdoor endpoint
-	JWTAudience     string // Client ID
-	JWTCertificate  string // PEM 格式公钥
+	RedisClient    *redis.Client
+	AccessTTL      int    // 秒
+	RefreshTTL     int    // 秒
+	JWTIssuer      string // Casdoor endpoint
+	JWTAudience    string // Client ID
+	JWTCertificate string // PEM 格式公钥
 }
 
 // NewService 创建 Token 服务

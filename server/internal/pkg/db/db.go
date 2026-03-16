@@ -146,16 +146,16 @@ type RowsWithCancel struct {
 	cancel context.CancelFunc
 }
 
-func (r *RowsWithCancel) Next() bool                              { return r.rows.Next() }
-func (r *RowsWithCancel) Scan(dest ...any) error                  { return r.rows.Scan(dest...) }
-func (r *RowsWithCancel) Err() error                              { return r.rows.Err() }
-func (r *RowsWithCancel) CommandTag() pgconn.CommandTag            { return r.rows.CommandTag() }
+func (r *RowsWithCancel) Next() bool                    { return r.rows.Next() }
+func (r *RowsWithCancel) Scan(dest ...any) error        { return r.rows.Scan(dest...) }
+func (r *RowsWithCancel) Err() error                    { return r.rows.Err() }
+func (r *RowsWithCancel) CommandTag() pgconn.CommandTag { return r.rows.CommandTag() }
 func (r *RowsWithCancel) FieldDescriptions() []pgconn.FieldDescription {
 	return r.rows.FieldDescriptions()
 }
-func (r *RowsWithCancel) Values() ([]any, error)  { return r.rows.Values() }
-func (r *RowsWithCancel) RawValues() [][]byte      { return r.rows.RawValues() }
-func (r *RowsWithCancel) Conn() *pgx.Conn          { return r.rows.Conn() }
+func (r *RowsWithCancel) Values() ([]any, error) { return r.rows.Values() }
+func (r *RowsWithCancel) RawValues() [][]byte    { return r.rows.RawValues() }
+func (r *RowsWithCancel) Conn() *pgx.Conn        { return r.rows.Conn() }
 func (r *RowsWithCancel) Close() {
 	r.rows.Close()
 	r.cancel()

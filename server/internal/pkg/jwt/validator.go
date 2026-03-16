@@ -23,21 +23,21 @@ var allowedAlgorithms = map[string]bool{
 
 // 常见错误
 var (
-	ErrInvalidToken       = errors.New("invalid token format")
+	ErrInvalidToken        = errors.New("invalid token format")
 	ErrAlgorithmNotAllowed = errors.New("algorithm not allowed")
-	ErrInvalidIssuer      = errors.New("invalid issuer")
-	ErrInvalidAudience    = errors.New("invalid audience")
-	ErrTokenExpired       = errors.New("token has expired")
-	ErrTokenNotYetValid   = errors.New("token not yet valid")
-	ErrInvalidSignature   = errors.New("invalid signature")
+	ErrInvalidIssuer       = errors.New("invalid issuer")
+	ErrInvalidAudience     = errors.New("invalid audience")
+	ErrTokenExpired        = errors.New("token has expired")
+	ErrTokenNotYetValid    = errors.New("token not yet valid")
+	ErrInvalidSignature    = errors.New("invalid signature")
 )
 
 // ValidatorConfig JWT 验证器配置
 type ValidatorConfig struct {
-	Issuer       string        // 期望的 issuer (Casdoor endpoint)
-	Audience     string        // 期望的 audience (client ID)
-	Certificate  string        // PEM 格式的公钥证书
-	ClockSkew    time.Duration // 允许的时钟偏移
+	Issuer      string        // 期望的 issuer (Casdoor endpoint)
+	Audience    string        // 期望的 audience (client ID)
+	Certificate string        // PEM 格式的公钥证书
+	ClockSkew   time.Duration // 允许的时钟偏移
 }
 
 // Validator JWT 验证器
@@ -70,7 +70,7 @@ func NewValidator(cfg ValidatorConfig) (*Validator, error) {
 type Claims struct {
 	jwt.RegisteredClaims
 	// Casdoor 特定字段
-	ID          string `json:"id,omitempty"`          // 不可变 Casdoor 用户 ID
+	ID          string `json:"id,omitempty"` // 不可变 Casdoor 用户 ID
 	Owner       string `json:"owner,omitempty"`
 	Name        string `json:"name,omitempty"`
 	DisplayName string `json:"displayName,omitempty"`

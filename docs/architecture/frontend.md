@@ -1,5 +1,7 @@
 # 前端架构
 
+> 当前主入口文档是 [frontend-architecture.md](frontend-architecture.md)。这份文档保留为较短摘要，方便快速浏览。涉及 StuHelper 生态边界、`sso.stuhelper.com`、航小伴应用授权时，以 [ecosystem-identity-and-authorization.md](ecosystem-identity-and-authorization.md) 和 `frontend-architecture.md` 为准。
+
 本文档描述当前已经落地的前端架构，而不是历史规划态。时间点以 2026 年 3 月的代码树为准。
 
 ## 先记住这几个结论

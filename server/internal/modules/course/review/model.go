@@ -221,17 +221,17 @@ type TeacherRatingStats struct {
 
 // TeacherRatingStatsResponse 教师评分统计响应
 type TeacherRatingStatsResponse struct {
-	TeacherID      int64              `json:"teacherID"`
-	TeacherName    string             `json:"teacherName"`
-	DepartmentName string             `json:"departmentName"`
-	AvgRating      *float64           `json:"avgRating"`
-	CourseCount    int                `json:"courseCount"`
-	ReviewCount    int                `json:"reviewCount"`
-	Courses        []TeacherCourse    `json:"courses"`
+	TeacherID      int64             `json:"teacherID"`
+	TeacherName    string            `json:"teacherName"`
+	DepartmentName string            `json:"departmentName"`
+	AvgRating      *float64          `json:"avgRating"`
+	CourseCount    int               `json:"courseCount"`
+	ReviewCount    int               `json:"reviewCount"`
+	Courses        []TeacherCourse   `json:"courses"`
 	RatingTrend    []RatingTrendItem `json:"ratingTrend"`
 	Overall        TermRatingStats   `json:"overall"`
-	ByTerm         []TermRatingStats  `json:"byTerm"`
-	RadarChart     RadarChartData     `json:"radarChart"`
+	ByTerm         []TermRatingStats `json:"byTerm"`
+	RadarChart     RadarChartData    `json:"radarChart"`
 }
 
 // CourseTeacherStats 课程详情页教师统计卡片数据
@@ -299,4 +299,3 @@ type AdminOperationLog struct {
 	UserAgent     string          `json:"userAgent,omitempty"`
 	CreatedAt     time.Time       `json:"createdAt"`
 }
-

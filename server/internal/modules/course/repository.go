@@ -132,7 +132,6 @@ func (r *Repository) ListCourses(ctx context.Context, query string, departmentID
 	return r.scanCoursesWithTotal(rows)
 }
 
-
 // SearchCourses 搜索课程，使用窗口函数一次性返回数据和总数
 func (r *Repository) SearchCourses(ctx context.Context, pattern string, limit, offset int) ([]Course, int, error) {
 	rows, err := r.db.Query(ctx, `

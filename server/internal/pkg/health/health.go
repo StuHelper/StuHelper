@@ -173,10 +173,10 @@ func (h *Handler) Readiness(c *gin.Context) {
 
 // CheckResult 单项检查结果
 type CheckResult struct {
-	Status   string `json:"status"`
-	Latency  string `json:"latency,omitempty"`
-	Error    string `json:"error,omitempty"`
-	Details  any    `json:"details,omitempty"`
+	Status  string `json:"status"`
+	Latency string `json:"latency,omitempty"`
+	Error   string `json:"error,omitempty"`
+	Details any    `json:"details,omitempty"`
 }
 
 func (h *Handler) checkPostgres(ctx context.Context) CheckResult {
@@ -199,8 +199,8 @@ func (h *Handler) checkPostgres(ctx context.Context) CheckResult {
 		Status:  "healthy",
 		Latency: latency.String(),
 		Details: map[string]any{
-			"total_conns":   stats.TotalConns(),
-			"idle_conns":    stats.IdleConns(),
+			"total_conns":    stats.TotalConns(),
+			"idle_conns":     stats.IdleConns(),
 			"acquired_conns": stats.AcquiredConns(),
 		},
 	}
@@ -236,9 +236,9 @@ func (h *Handler) checkRedis(ctx context.Context) CheckResult {
 		Status:  "healthy",
 		Latency: latency.String(),
 		Details: map[string]any{
-			"hits":       stats.Hits,
-			"misses":     stats.Misses,
-			"timeouts":   stats.Timeouts,
+			"hits":        stats.Hits,
+			"misses":      stats.Misses,
+			"timeouts":    stats.Timeouts,
 			"total_conns": stats.TotalConns,
 			"idle_conns":  stats.IdleConns,
 		},
@@ -247,11 +247,11 @@ func (h *Handler) checkRedis(ctx context.Context) CheckResult {
 
 func (h *Handler) getSystemInfo() map[string]any {
 	return map[string]any{
-		"version":     h.buildInfo.Version,
-		"git_commit":  h.buildInfo.GitCommit,
-		"build_time":  h.buildInfo.BuildTime,
-		"uptime":      time.Since(h.startTime).String(),
-		"go_version":  runtime.Version(),
-		"goroutines":  runtime.NumGoroutine(),
+		"version":    h.buildInfo.Version,
+		"git_commit": h.buildInfo.GitCommit,
+		"build_time": h.buildInfo.BuildTime,
+		"uptime":     time.Since(h.startTime).String(),
+		"go_version": runtime.Version(),
+		"goroutines": runtime.NumGoroutine(),
 	}
 }

@@ -33,11 +33,11 @@ type RateLimitConfig struct {
 // DefaultRateLimitConfig 默认限流配置
 func DefaultRateLimitConfig() RateLimitConfig {
 	return RateLimitConfig{
-		GlobalLimit:  10000,            // 全局每分钟 10000 请求
+		GlobalLimit:  10000, // 全局每分钟 10000 请求
 		GlobalWindow: time.Minute,
-		IPLimit:      100,              // 每 IP 每分钟 100 请求
+		IPLimit:      100, // 每 IP 每分钟 100 请求
 		IPWindow:     time.Minute,
-		UserLimit:    200,              // 每用户每分钟 200 请求
+		UserLimit:    200, // 每用户每分钟 200 请求
 		UserWindow:   time.Minute,
 	}
 }

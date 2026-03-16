@@ -648,7 +648,28 @@ INSERT INTO permissions (name, module, action, display_name, scope_school_ids, s
     ('admin:school_configs:manage', 'admin', 'school_configs:manage', '学校配置管理', NULL, '["super_admin"]'),
     ('admin:system_configs:manage', 'admin', 'system_configs:manage', '系统配置管理', NULL, '["super_admin"]'),
     ('admin:verification:review', 'admin', 'verification:review', '审核实名/学生认证', NULL, '["admin", "super_admin"]'),
-    ('admin:logs:view', 'admin', 'logs:view', '查看操作日志', NULL, '["admin", "super_admin"]')
+    ('admin:logs:view', 'admin', 'logs:view', '查看操作日志', NULL, '["admin", "super_admin"]'),
+    -- RBAC 细粒度权限
+    ('rbac:role:read', 'rbac', 'role:read', '查看角色', NULL, '["admin", "super_admin"]'),
+    ('rbac:role:create', 'rbac', 'role:create', '创建角色', NULL, '["super_admin"]'),
+    ('rbac:role:update', 'rbac', 'role:update', '更新角色', NULL, '["super_admin"]'),
+    ('rbac:role:delete', 'rbac', 'role:delete', '删除角色', NULL, '["super_admin"]'),
+    ('rbac:permission:read', 'rbac', 'permission:read', '查看权限', NULL, '["admin", "super_admin"]'),
+    ('rbac:user:read', 'rbac', 'user:read', '查看用户权限', NULL, '["admin", "super_admin"]'),
+    ('rbac:user:update', 'rbac', 'user:update', '更新用户权限', NULL, '["super_admin"]'),
+    ('rbac:group:read', 'rbac', 'group:read', '查看用户组', NULL, '["admin", "super_admin"]'),
+    ('rbac:group:create', 'rbac', 'group:create', '创建用户组', NULL, '["super_admin"]'),
+    ('rbac:group:update', 'rbac', 'group:update', '更新用户组', NULL, '["super_admin"]'),
+    ('rbac:group:delete', 'rbac', 'group:delete', '删除用户组', NULL, '["super_admin"]'),
+    -- 用户管理细粒度权限
+    ('user:identity:read', 'user', 'identity:read', '查看实名认证', NULL, '["admin", "super_admin"]'),
+    ('user:identity:review', 'user', 'identity:review', '审核实名认证', NULL, '["admin", "super_admin"]'),
+    ('user:student:read', 'user', 'student:read', '查看学生认证', NULL, '["admin", "super_admin"]'),
+    ('user:student:review', 'user', 'student:review', '审核学生认证', NULL, '["admin", "super_admin"]'),
+    ('user:school:read', 'user', 'school:read', '查看学校配置', NULL, '["admin", "super_admin"]'),
+    ('user:school:update', 'user', 'school:update', '更新学校配置', NULL, '["super_admin"]'),
+    ('user:system:read', 'user', 'system:read', '查看系统配置', NULL, '["admin", "super_admin"]'),
+    ('user:system:update', 'user', 'system:update', '更新系统配置', NULL, '["super_admin"]')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================
@@ -667,7 +688,10 @@ SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'admin' AND p.name IN (
     'admin:dashboard:view', 'admin:users:manage', 'admin:reviews:manage',
     'admin:reports:manage', 'admin:teachers:manage', 'admin:sensitive_words:manage',
-    'admin:verification:review', 'admin:logs:view'
+    'admin:verification:review', 'admin:logs:view',
+    'rbac:role:read', 'rbac:permission:read', 'rbac:user:read', 'rbac:group:read',
+    'user:identity:read', 'user:identity:review', 'user:student:read', 'user:student:review',
+    'user:school:read', 'user:system:read'
 ) ON CONFLICT DO NOTHING;
 
 -- super_admin 获得所有权限

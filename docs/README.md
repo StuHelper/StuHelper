@@ -15,7 +15,8 @@
 | 在现有前端上继续开发         | [guides/frontend-development.md](guides/frontend-development.md)           |
 | 在后端新增接口               | [guides/backend-quickstart.md](guides/backend-quickstart.md)               |
 | 走 OpenAPI 3 Spec-First 流程 | [guides/openapi-development-guide.md](guides/openapi-development-guide.md) |
-| 了解前端整体结构             | [architecture/frontend.md](architecture/frontend.md)                       |
+| 了解前端整体结构             | [architecture/frontend-architecture.md](architecture/frontend-architecture.md) |
+| 了解 StuHelper 生态边界与授权架构 | [architecture/ecosystem-identity-and-authorization.md](architecture/ecosystem-identity-and-authorization.md) |
 | 查询 API、数据库、错误码     | [reference/](reference/)                                                   |
 | 查看模块设计和状态           | [modules/](modules/)                                                       |
 
@@ -41,13 +42,13 @@
 
 | 模块       | 状态                                     | 文档                                           |
 | ---------- | ---------------------------------------- | ---------------------------------------------- |
-| 身份认证   | 🟢 Casdoor SSO 已实现，LDAP 仍在原型阶段 | [modules/auth/](modules/auth/)                 |
+| 身份认证   | 🟢 SSO 已实现，开放平台边界已定义        | [modules/auth/](modules/auth/)                 |
 | 评课社区   | 🟢 已实现                                | [modules/course/](modules/course/)             |
 | 通知中心   | 🟢 站内通知已实现，更多渠道待扩展        | [modules/notification/](modules/notification/) |
 | 举报与审核 | 🟢 评课域已实现                          | [modules/moderation/](modules/moderation/)     |
 | 日志系统   | 🟢 已实现并在后台使用                    | [modules/logging/](modules/logging/)           |
 | 工具箱     | 🔴 待开发                                | [modules/tools/](modules/tools/)               |
-| 策略配置   | 🔴 待开发                                | [modules/policy/](modules/policy/)             |
+| 授权与策略 | 🟡 目标架构已定义                        | [modules/policy/](modules/policy/)             |
 
 ## 开发规范
 

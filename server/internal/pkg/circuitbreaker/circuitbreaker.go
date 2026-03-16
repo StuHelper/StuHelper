@@ -80,13 +80,13 @@ func DefaultConfig() Config {
 
 // CircuitBreaker 熔断器
 type CircuitBreaker struct {
-	config           Config
-	name             string
-	state            State
-	failures         int
-	successes        int
-	lastFailureTime  time.Time
-	mu               sync.RWMutex
+	config          Config
+	name            string
+	state           State
+	failures        int
+	successes       int
+	lastFailureTime time.Time
+	mu              sync.RWMutex
 }
 
 // New 创建熔断器

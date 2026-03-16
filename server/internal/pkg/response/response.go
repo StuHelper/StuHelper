@@ -152,4 +152,3 @@ func ServiceUnavailable(c *gin.Context, message string, code ...errs.ErrorCode) 
 	}
 	Error(c, http.StatusServiceUnavailable, ec, message)
 }
-

@@ -31,14 +31,14 @@ type wordMatcher struct {
 
 // Filter 敏感词过滤器
 type Filter struct {
-	repo         *Repository
-	words        []SensitiveWord
+	repo          *Repository
+	words         []SensitiveWord
 	blockMatchers []wordMatcher
 	warnMatchers  []wordMatcher
-	mu           sync.RWMutex
-	lastRefresh  time.Time
-	refreshTTL   time.Duration
-	sf           singleflight.Group // 去重并发刷新调用
+	mu            sync.RWMutex
+	lastRefresh   time.Time
+	refreshTTL    time.Duration
+	sf            singleflight.Group // 去重并发刷新调用
 }
 
 // NewFilter 创建敏感词过滤器

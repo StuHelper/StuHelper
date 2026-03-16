@@ -1,38 +1,72 @@
-# Casdoor SSO 集成指南
+# Casdoor SSO 集成与生态边界
 
-> 状态：已实现
+> 状态：SSO 已实现；本文档定义的是 StuHelper 生态中的长期边界，不是只描述当前某一个应用的回调流程。
 
-StuHelper 当前使用 Casdoor 处理登录、注册、单点登录和 Refresh Token 续期。浏览器端已经切到 Cookie 会话模型，不再把 access token 暴露给业务代码。
+## 核心定位
 
-## 当前认证流程
+`sso.stuhelper.com` 是 StuHelper 生态的统一身份平台。
+
+它负责：
+
+- 登录、注册、单点登录
+- OAuth/OIDC 应用接入
+- token、session、consent、scope
+- 平台级管理员
+
+它不负责：
+
+- 航小伴的课程级管理员
+- 资源共享分类管理员
+- 内容 owner
+- 基于 `schoolID`、学生/老师、学生认证、实名认证的业务授权决策
+
+这些都属于应用业务域。
+
+## 生态里的应用关系
+
+StuHelper 生态中会存在多个实际应用：
+
+- 航小伴
+- 开发者平台（未来）
+- 第三方接入应用
+
+因此，Casdoor 中的 Application 应该按实际应用拆分，而不是假设存在一个“StuHelper 总应用”。
+
+推荐命名示例：
+
+- `hangxiaoban`
+- `developer-portal`
+- 未来第三方应用各自独立的 client
+
+## 当前标准登录流程
 
 ```text
-1. 前端调用 /api/v1/auth/login 或 /api/v1/auth/signup
-2. 后端生成 Casdoor 授权地址和随机 state
+1. 应用前端调用 /api/v1/auth/login 或 /api/v1/auth/signup
+2. 应用后端生成 Casdoor 授权地址和随机 state
 3. 浏览器跳转到 https://sso.stuhelper.com
-4. Casdoor 登录完成后回跳到前端 /auth/callback
-5. 前端回调页调用 /api/v1/auth/callback
-6. 后端使用授权码向 Casdoor 换取 access token / refresh token
-7. 后端把 token 写入 HttpOnly Cookie，并返回当前用户信息
-8. 前端保存最小用户信息和过期时间，用于路由预检
+4. Casdoor 登录完成后回跳到应用自己的前端 callback 页面
+5. 前端 callback 页面调用应用后端 /api/v1/auth/callback
+6. 应用后端用授权码向 Casdoor 换取 access token / refresh token
+7. 应用后端把 token 写入 HttpOnly Cookie，并返回当前应用可见的最小用户信息
+8. 应用前端保存最小登录态，用于路由预检和 UI 渲染
 ```
 
 关键点：
 
-- OAuth 回调地址现在是前端页面，如 `http://localhost:3000/auth/callback`。
-- 真正的 token 交换发生在后端 `/api/v1/auth/callback`。
-- Access Token 和 Refresh Token 都通过 Cookie 管理。
+- 回调地址属于具体应用，而不是生态统一回调页。
+- token 交换应在应用后端完成，不应把 client secret 暴露到前端。
+- access token / refresh token 默认通过安全 Cookie 管理。
 
-## 环境变量
+## 环境变量建议
 
-### 本地开发
+### 航小伴本地开发
 
 ```bash
 CASDOOR_ENDPOINT=https://sso.stuhelper.com
-CASDOOR_CLIENT_ID=<your-client-id>
-CASDOOR_CLIENT_SECRET=<your-client-secret>
+CASDOOR_CLIENT_ID=<hangxiaoban-client-id>
+CASDOOR_CLIENT_SECRET=<hangxiaoban-client-secret>
 CASDOOR_ORGANIZATION=stuhelper
-CASDOOR_APPLICATION=stuhelper
+CASDOOR_APPLICATION=hangxiaoban
 CASDOOR_REDIRECT_URI=http://localhost:3000/auth/callback
 CASDOOR_CERTIFICATE=<pem-content-or-empty>
 
@@ -41,79 +75,103 @@ TOKEN_REFRESH_TTL=604800
 TOKEN_COOKIE_SECURE=false
 ```
 
-### 生产环境
+### 其他应用
 
-```bash
-CASDOOR_REDIRECT_URI=https://stuhelper.com/auth/callback
-TOKEN_COOKIE_SECURE=true
-```
+开发者平台或第三方应用必须使用自己的 Casdoor Application，不应复用 `hangxiaoban` 的 client。
 
-## 后端接口
+## `isAdmin` 的使用限制
 
-| 方法 | 路径                      | 说明                    | 认证 |
-| ---- | ------------------------- | ----------------------- | ---- |
-| GET  | `/api/v1/auth/login`      | 获取登录 URL            | 否   |
-| GET  | `/api/v1/auth/signup`     | 获取注册 URL            | 否   |
-| GET  | `/api/v1/auth/callback`   | OAuth 回调换取本地会话  | 否   |
-| POST | `/api/v1/auth/refresh`    | 使用 Refresh Token 续期 | 否   |
-| GET  | `/api/v1/auth/me`         | 获取当前用户            | 是   |
-| POST | `/api/v1/auth/logout`     | 登出当前设备            | 是   |
-| POST | `/api/v1/auth/logout-all` | 登出所有设备            | 是   |
+Casdoor 用户对象里的 `isAdmin` 只能表达：
 
-## 前端集成方式
+- `sso.stuhelper.com` 平台管理能力
+- 组织级或平台级管理员身份
 
-### Web 端
+它不应该直接决定：
 
-Web 端 API 客户端位于 `clients/web/src/api/client.ts`，已经做了这些事情：
+- 能不能进入航小伴后台
+- 能不能审核评课
+- 能不能审核认证
+- 能不能管理课程资料
 
-1. 所有请求自动 `credentials: 'include'`
-2. 变更型请求自动附带 `X-CSRF-Token`
-3. 收到 `401` 时自动尝试调用 `/api/v1/auth/refresh`
-4. 刷新失败就清理本地会话
+也就是说：
 
-登录页与回调页还会保留 `post_login_redirect`，确保登录后能回跳到原页面。
+- `isAdmin` 可以存在
+- 但不能再作为航小伴业务后台的唯一门禁
 
-### 路由守卫
+## 航小伴应该如何消费 Casdoor
 
-需要登录的页面加：
+航小伴应该把 Casdoor 看成 **Identity Plane**：
+
+- 负责证明“用户是谁”
+- 提供基础 identity claims
+- 提供 scope / consent 结果
+
+然后由航小伴自己的后端做：
+
+- 应用级能力判断
+- 模块级管理员判断
+- 资源级授权
+- 认证状态、学校、身份类型等业务规则
+
+## 对第三方应用开放什么
+
+第三方应用可以通过 OAuth scope 获取最小必要身份事实，例如：
+
+- `identityVerified`
+- `studentVerified`
+- `actorType`
+- `schoolID`
+
+默认不返回：
+
+- 姓名
+- 学号
+- 手机号
+- 身份证号
+
+详情见 [05-open-platform-claims-and-scopes.md](05-open-platform-claims-and-scopes.md)。
+
+## 前端集成约束
+
+### 需要登录的页面
+
+仍然使用：
 
 ```typescript
 meta: {
-	requiresAuth: true;
+  requiresAuth: true
 }
 ```
 
-管理员页面再加：
+### 不能再这样做
 
 ```typescript
 meta: {
-	requiresAdmin: true;
+  requiresAdmin: true
 }
 ```
 
-## Refresh Token 与登出
+如果 `requiresAdmin` 的含义是“只有 `isAdmin=true` 才能进应用后台”，这是错误边界。
+后台菜单和路由应基于应用能力（capabilities / effective permissions），而不是平台级管理员标记。
 
-Casdoor 官方文档支持标准的 Refresh Token 流程和登出流程：
+## 官方文档
 
-- [Refresh token](https://casdoor.org/docs/basic/server-side-auth/token/#refresh-token)
-- [Logout](https://casdoor.org/docs/basic/server-side-auth/token/#logout)
+- [Casdoor Permission Overview](https://casdoor.org/docs/permission/overview)
+- [Casdoor Permission Configuration](https://casdoor.org/docs/permission/permission-configuration)
+- [Casdoor Token Overview](https://casdoor.org/docs/token/overview)
+- [Casdoor User Roles](https://casdoor.org/docs/user/roles)
+- [Casdoor User Permissions](https://casdoor.org/docs/user/permissions)
 
-StuHelper 当前实现对应关系如下：
+## 常见误区
 
-- `/api/v1/auth/refresh` 依赖浏览器中的 refresh token Cookie 完成续期。
-- `/api/v1/auth/logout` 会清理本地会话，并返回 `ssoLogoutURL`。
-- 前端访问 `ssoLogoutURL` 时使用顶级导航或弹窗，确保 Casdoor 的浏览器会话也一起失效。
+### 误区 1：把 Casdoor 当成航小伴业务权限数据库
 
-## 常见排查点
+Casdoor 很适合做身份平台和应用接入中心，但不适合直接承载高基数的课程、分类、内容资源授权关系。
 
-### 登录后回调失败
+### 误区 2：把 `isAdmin` 当作应用后台总开关
 
-- 检查 `CASDOOR_REDIRECT_URI` 是否与 Casdoor 应用配置一致。
-- 检查浏览器地址是否为 `/auth/callback?code=...&state=...`。
-- 检查前端和后端是否都连接到了同一个 Casdoor 应用。
+这会把平台身份和业务权限混为一谈。
 
-### 会话刚登录就过期
+### 误区 3：所有应用共用一个 Casdoor Application
 
-- 检查 `TOKEN_ACCESS_TTL`、`TOKEN_REFRESH_TTL`。
-- 检查浏览器是否接受了 Cookie。
-- 检查是否有反向代理错误地剥离了 Cookie 或 `Set-Cookie` 头。
+每个实际应用都应有自己的 Application、回调地址和 scope 策略。

@@ -33,10 +33,14 @@
 ### 3. 在路由元信息里声明权限
 
 - 登录态：`meta.requiresAuth`
-- 管理员：`meta.requiresAdmin`
 - 仅游客访问：`meta.guest`
 
 Web 端的路由守卫会在 access token 即将过期时尝试刷新会话；刷新失败才会跳登录。
+
+后台或受限功能不要再用 `meta.requiresAdmin` 这种“平台管理员即应用管理员”的旧做法。正确做法是：
+
+- 路由先判断 `requiresAuth`
+- 页面菜单、按钮、路由跳转再根据应用能力 `capabilities / effective permissions` 控制
 
 ## 新增一个 API 时怎么做
 

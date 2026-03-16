@@ -16,8 +16,8 @@ import (
 
 // Client Redis 客户端封装
 type Client struct {
-	rdb      *redis.Client
-	stopCh   chan struct{}
+	rdb       *redis.Client
+	stopCh    chan struct{}
 	closeOnce sync.Once
 }
 

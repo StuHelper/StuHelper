@@ -20,7 +20,7 @@ const (
 	CtxKeyUsername    = "username"
 	CtxKeyEmail       = "email"
 	CtxKeyDisplayName = "display_name"
-	CtxKeyIsAdmin = "is_admin"
+	CtxKeyIsAdmin     = "is_admin"
 )
 
 // Cookie 名称常量
@@ -158,8 +158,8 @@ func getContextString(c *gin.Context, key string) string {
 // getTokenFromRequest 从请求中获取 access token。
 //
 // Token 来源优先级：Cookie > Authorization Header
-//   1. Cookie（access_token）：浏览器端自动携带，CSRF 中间件配合防护
-//   2. Authorization Header（Bearer <token>）：供非浏览器客户端（移动端、API 调试工具）使用
+//  1. Cookie（access_token）：浏览器端自动携带，CSRF 中间件配合防护
+//  2. Authorization Header（Bearer <token>）：供非浏览器客户端（移动端、API 调试工具）使用
 //
 // Cookie 优先的原因：浏览器场景下 HttpOnly Cookie 比 localStorage 存储的 Bearer token 更安全，
 // 不受 XSS 攻击窃取；同时 Cookie 由服务端 Set-Cookie 自动管理，前端无需手动处理 token 存储。

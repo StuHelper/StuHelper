@@ -24,7 +24,7 @@ func init() {
 
 // contractResponse 用于解析统一响应格式
 type contractResponse struct {
-	Success bool             `json:"success"`
+	Success bool               `json:"success"`
 	Error   *response.APIError `json:"error,omitempty"`
 }
 
