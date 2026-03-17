@@ -2,12 +2,12 @@
 package wire
 
 import (
-	"log"
 	"time"
 
 	"github.com/google/wire"
 	"github.com/jackc/pgx/v5/pgxpool"
 	redisv9 "github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
@@ -15,6 +15,7 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
@@ -48,7 +49,7 @@ func ProvideRedisClient(cfg *config.Config) (*redis.Client, func(), error) {
 	cleanup := func() {
 		if err := client.Close(); err != nil {
 			// 关闭阶段无法恢复，仅记录
-			log.Printf("WARN: failed to close Redis client: %v", err)
+			logger.L().Warn("failed to close Redis client", zap.Error(err))
 		}
 	}
 	return client, cleanup, nil

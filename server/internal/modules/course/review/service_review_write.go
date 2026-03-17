@@ -155,8 +155,8 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 			return err
 		}
 
-		switch {
-		case existing == "":
+		switch existing {
+		case "":
 			inserted, err := s.repo.CreateVote(ctx, tx, params.ReviewID, params.UserHash, params.VoteType)
 			if err != nil {
 				return err
@@ -169,7 +169,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 			}
 			return s.repo.IncrementDislikeCount(ctx, tx, params.ReviewID)
 
-		case existing == params.VoteType:
+		case params.VoteType:
 			if err := s.repo.DeleteVote(ctx, tx, params.ReviewID, params.UserHash); err != nil {
 				return err
 			}

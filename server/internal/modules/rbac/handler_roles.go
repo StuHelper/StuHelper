@@ -69,10 +69,7 @@ func (h *Handler) handleUpdateRole(c *gin.Context) {
 		return
 	}
 
-	role, err := h.service.UpdateRole(c.Request.Context(), id, UpdateRoleInput{
-		DisplayName: req.DisplayName,
-		Description: req.Description,
-	})
+	role, err := h.service.UpdateRole(c.Request.Context(), id, UpdateRoleInput(req))
 	if err != nil {
 		if errors.Is(err, ErrRoleNotFound) {
 			response.NotFound(c, "role not found", errs.ErrRoleNotFound)

@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
 
 var (
@@ -309,7 +310,7 @@ func (c *Client) GetCachedUserByID(ctx context.Context, userID string) (*CachedU
 	}
 
 	// 尝试从缓存获取（L1 本地内存 → L2 Redis，错误降级为未命中）
-	cached, _ := c.cache.Get(ctx, userID)
+	cached, _ := c.cache.Get(ctx, userID) //nolint:errcheck // cache miss → nil, falls through to API call
 	if cached != nil {
 		return cached, nil
 	}

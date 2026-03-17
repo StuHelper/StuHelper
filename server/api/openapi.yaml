@@ -44,404 +44,400 @@ tags:
 paths:
   # ── Health ──
   /health/live:
-    $ref: 'paths/health.yaml#/~1health~1live'
+    $ref: "paths/health.yaml#/~1health~1live"
   /health/ready:
-    $ref: 'paths/health.yaml#/~1health~1ready'
+    $ref: "paths/health.yaml#/~1health~1ready"
 
   # ── Auth ──
   /api/v1/auth/login:
-    $ref: 'paths/auth.yaml#/~1api~1v1~1auth~1login'
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1login"
   /api/v1/auth/signup:
-    $ref: 'paths/auth.yaml#/~1api~1v1~1auth~1signup'
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1signup"
   /api/v1/auth/callback:
-    $ref: 'paths/auth.yaml#/~1api~1v1~1auth~1callback'
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1callback"
   /api/v1/auth/refresh:
-    $ref: 'paths/auth.yaml#/~1api~1v1~1auth~1refresh'
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1refresh"
   /api/v1/auth/me:
-    $ref: 'paths/auth.yaml#/~1api~1v1~1auth~1me'
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1me"
   /api/v1/auth/logout:
-    $ref: 'paths/auth.yaml#/~1api~1v1~1auth~1logout'
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1logout"
   /api/v1/auth/logout-all:
-    $ref: 'paths/auth.yaml#/~1api~1v1~1auth~1logout-all'
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1logout-all"
 
   # ── Course Entity ──
   /api/v1/course/departments:
-    $ref: 'paths/course.yaml#/~1api~1v1~1course~1departments'
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1departments"
   /api/v1/course/terms:
-    $ref: 'paths/course.yaml#/~1api~1v1~1course~1terms'
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1terms"
   /api/v1/course/categories:
-    $ref: 'paths/course.yaml#/~1api~1v1~1course~1categories'
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1categories"
   /api/v1/course/courses:
-    $ref: 'paths/course.yaml#/~1api~1v1~1course~1courses'
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1courses"
   /api/v1/course/courses/search:
-    $ref: 'paths/course.yaml#/~1api~1v1~1course~1courses~1search'
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1courses~1search"
   /api/v1/course/courses/{courseID}:
-    $ref: 'paths/course.yaml#/~1api~1v1~1course~1courses~1{courseID}'
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1courses~1{courseID}"
   /api/v1/course/stats:
-    $ref: 'paths/course.yaml#/~1api~1v1~1course~1stats'
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1stats"
 
   # ── Review: Rating ──
   /api/v1/course/review/rating-dimensions:
-    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1rating-dimensions'
+    $ref: "paths/review-rating.yaml#/~1api~1v1~1course~1review~1rating-dimensions"
   /api/v1/course/review/courses/{courseID}/rating-stats:
-    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1rating-stats'
+    $ref: "paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1rating-stats"
   /api/v1/course/review/courses/{courseID}/rating-trend:
-    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1rating-trend'
+    $ref: "paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1rating-trend"
   /api/v1/course/review/courses/{courseID}/teachers:
-    $ref: 'paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1teachers'
+    $ref: "paths/review-rating.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1teachers"
 
   # ── Review: CRUD ──
   /api/v1/course/review/courses/{courseID}/reviews:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1reviews'
+    $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1reviews"
   /api/v1/course/review/reviews/latest:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1latest'
+    $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1latest"
   /api/v1/course/review/reviews/batch:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1batch'
+    $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1batch"
   /api/v1/course/review/reviews:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews'
+    $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews"
   /api/v1/course/review/reviews/{reviewID}:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}'
+    $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}"
   /api/v1/course/review/reviews/{reviewID}/votes:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1votes'
+    $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1votes"
   /api/v1/course/review/reviews/{reviewID}/reports:
-    $ref: 'paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1reports'
+    $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1reports"
 
   # ── Review: Replies ──
   /api/v1/course/review/reviews/{reviewID}/replies:
-    $ref: 'paths/review-reply.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1replies'
+    $ref: "paths/review-reply.yaml#/~1api~1v1~1course~1review~1reviews~1{reviewID}~1replies"
   /api/v1/course/review/replies/{replyID}:
-    $ref: 'paths/review-reply.yaml#/~1api~1v1~1course~1review~1replies~1{replyID}'
+    $ref: "paths/review-reply.yaml#/~1api~1v1~1course~1review~1replies~1{replyID}"
 
   # ── Review: Stats & Rankings ──
   /api/v1/course/review/stats:
-    $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1stats'
+    $ref: "paths/review-stats.yaml#/~1api~1v1~1course~1review~1stats"
   /api/v1/course/review/rankings/hot:
-    $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1rankings~1hot'
+    $ref: "paths/review-stats.yaml#/~1api~1v1~1course~1review~1rankings~1hot"
   /api/v1/course/review/teachers/{teacherID}/stats:
-    $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1teachers~1{teacherID}~1stats'
+    $ref: "paths/review-stats.yaml#/~1api~1v1~1course~1review~1teachers~1{teacherID}~1stats"
   /api/v1/course/review/content/check:
-    $ref: 'paths/review-stats.yaml#/~1api~1v1~1course~1review~1content~1check'
+    $ref: "paths/review-stats.yaml#/~1api~1v1~1course~1review~1content~1check"
 
   # ── Review: User ──
   /api/v1/course/review/user/reviews:
-    $ref: 'paths/review-user.yaml#/~1api~1v1~1course~1review~1user~1reviews'
+    $ref: "paths/review-user.yaml#/~1api~1v1~1course~1review~1user~1reviews"
   /api/v1/course/review/user/votes:
-    $ref: 'paths/review-user.yaml#/~1api~1v1~1course~1review~1user~1votes'
+    $ref: "paths/review-user.yaml#/~1api~1v1~1course~1review~1user~1votes"
   /api/v1/course/review/user/favorites:
-    $ref: 'paths/review-user.yaml#/~1api~1v1~1course~1review~1user~1favorites'
+    $ref: "paths/review-user.yaml#/~1api~1v1~1course~1review~1user~1favorites"
 
   # ── Review: Notifications (under /user/) ──
   /api/v1/course/review/user/notifications:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications'
+    $ref: "paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications"
   /api/v1/course/review/user/notifications/unread-count:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1unread-count'
+    $ref: "paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1unread-count"
   /api/v1/course/review/user/notifications/{notificationID}/read:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1{notificationID}~1read'
+    $ref: "paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1{notificationID}~1read"
   /api/v1/course/review/user/notifications/read-all:
-    $ref: 'paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1read-all'
+    $ref: "paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1read-all"
 
   # ── Review: Drafts ──
   /api/v1/course/review/drafts:
-    $ref: 'paths/review-draft.yaml#/~1api~1v1~1course~1review~1drafts'
+    $ref: "paths/review-draft.yaml#/~1api~1v1~1course~1review~1drafts"
   /api/v1/course/review/drafts/{courseID}:
-    $ref: 'paths/review-draft.yaml#/~1api~1v1~1course~1review~1drafts~1{courseID}'
+    $ref: "paths/review-draft.yaml#/~1api~1v1~1course~1review~1drafts~1{courseID}"
 
   # ── Review: Favorites ──
   /api/v1/course/review/courses/{courseID}/favorites:
-    $ref: 'paths/review-favorite.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1favorites'
+    $ref: "paths/review-favorite.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1favorites"
 
   # ── Review: Admin ──
   /api/v1/course/review/admin/reports:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reports'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reports"
   /api/v1/course/review/admin/reports/{reportID}:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reports~1{reportID}'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reports~1{reportID}"
   /api/v1/course/review/admin/reviews:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews"
   /api/v1/course/review/admin/reviews/{reviewID}:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{reviewID}'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{reviewID}"
   /api/v1/course/review/admin/reviews/batch:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1batch'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1batch"
   /api/v1/course/review/admin/reviews/{reviewID}/edit:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{reviewID}~1edit'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{reviewID}~1edit"
   /api/v1/course/review/admin/stats:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1stats'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1stats"
   /api/v1/course/review/admin/logs:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1logs'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1logs"
   /api/v1/course/review/admin/export:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1export'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1export"
   /api/v1/course/review/admin/teachers:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers"
   /api/v1/course/review/admin/teachers/{teacherID}:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers~1{teacherID}'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1teachers~1{teacherID}"
   /api/v1/course/review/admin/sensitive-words:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words"
   /api/v1/course/review/admin/sensitive-words/{sensitiveWordID}:
-    $ref: 'paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words~1{sensitiveWordID}'
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words~1{sensitiveWordID}"
 
   # ── User Identity & Profile ──
   /api/v1/user/identity:
-    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1identity'
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity"
   /api/v1/user/profile:
-    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1profile'
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile"
   /api/v1/user/profile/verify:
-    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1profile~1verify'
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1verify"
   /api/v1/user/profile/bind-phone:
-    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1profile~1bind-phone'
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1bind-phone"
   /api/v1/user/profile/academic-info:
-    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1profile~1academic-info'
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1academic-info"
   /api/v1/user/schools:
-    $ref: 'paths/user-identity.yaml#/~1api~1v1~1user~1schools'
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1schools"
 
   # ── Admin: User System ──
   /api/v1/admin/identities:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1identities'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1identities"
   /api/v1/admin/identities/{userID}:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1identities~1{userID}'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1identities~1{userID}"
   /api/v1/admin/student-verifications:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications"
   /api/v1/admin/student-verifications/{userID}:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications~1{userID}'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications~1{userID}"
   /api/v1/admin/roles:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles"
   /api/v1/admin/roles/{roleID}:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles~1{roleID}'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles~1{roleID}"
   /api/v1/admin/roles/{roleID}/permissions:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles~1{roleID}~1permissions'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles~1{roleID}~1permissions"
   /api/v1/admin/permissions:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1permissions'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1permissions"
   /api/v1/admin/users/{userID}/roles:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1users~1{userID}~1roles'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1users~1{userID}~1roles"
   /api/v1/admin/users/{userID}/permissions:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1users~1{userID}~1permissions'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1users~1{userID}~1permissions"
   /api/v1/admin/groups:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups"
   /api/v1/admin/groups/{groupID}:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}"
   /api/v1/admin/groups/{groupID}/members:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}~1members'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}~1members"
   /api/v1/admin/groups/{groupID}/permissions:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}~1permissions'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}~1permissions"
   /api/v1/admin/school-configs:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs"
   /api/v1/admin/school-configs/{schoolID}:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs~1{schoolID}'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs~1{schoolID}"
   /api/v1/admin/system-configs:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs"
   /api/v1/admin/system-configs/{key}:
-    $ref: 'paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs~1{key}'
+    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs~1{key}"
 
 components:
   securitySchemes:
     cookieAuth:
-      $ref: 'components/security.yaml#/securitySchemes/cookieAuth'
+      $ref: "components/security.yaml#/securitySchemes/cookieAuth"
     bearerAuth:
-      $ref: 'components/security.yaml#/securitySchemes/bearerAuth'
+      $ref: "components/security.yaml#/securitySchemes/bearerAuth"
 
   responses:
     ErrorResponse:
-      $ref: 'components/responses/common.yaml#/ErrorResponse'
+      $ref: "components/responses/common.yaml#/ErrorResponse"
 
   schemas:
     # Common
     SuccessResponse:
-      $ref: 'components/schemas/common.yaml#/SuccessResponse'
+      $ref: "components/schemas/common.yaml#/SuccessResponse"
     ErrorResponseBody:
-      $ref: 'components/schemas/common.yaml#/ErrorResponseBody'
+      $ref: "components/schemas/common.yaml#/ErrorResponseBody"
     APIError:
-      $ref: 'components/schemas/common.yaml#/APIError'
+      $ref: "components/schemas/common.yaml#/APIError"
     MessageData:
-      $ref: 'components/schemas/common.yaml#/MessageData'
+      $ref: "components/schemas/common.yaml#/MessageData"
 
     # Auth
     LoginURLResponse:
-      $ref: 'components/schemas/auth.yaml#/LoginURLResponse'
+      $ref: "components/schemas/auth.yaml#/LoginURLResponse"
     CallbackResponse:
-      $ref: 'components/schemas/auth.yaml#/CallbackResponse'
+      $ref: "components/schemas/auth.yaml#/CallbackResponse"
     RefreshResponse:
-      $ref: 'components/schemas/auth.yaml#/RefreshResponse'
+      $ref: "components/schemas/auth.yaml#/RefreshResponse"
     UserInfo:
-      $ref: 'components/schemas/auth.yaml#/UserInfo'
+      $ref: "components/schemas/auth.yaml#/UserInfo"
 
     # Course
     Course:
-      $ref: 'components/schemas/course.yaml#/Course'
+      $ref: "components/schemas/course.yaml#/Course"
     Department:
-      $ref: 'components/schemas/course.yaml#/Department'
+      $ref: "components/schemas/course.yaml#/Department"
     Term:
-      $ref: 'components/schemas/course.yaml#/Term'
+      $ref: "components/schemas/course.yaml#/Term"
     CourseCategory:
-      $ref: 'components/schemas/course.yaml#/CourseCategory'
+      $ref: "components/schemas/course.yaml#/CourseCategory"
     FavoriteCourse:
-      $ref: 'components/schemas/course.yaml#/FavoriteCourse'
+      $ref: "components/schemas/course.yaml#/FavoriteCourse"
     CourseStats:
-      $ref: 'components/schemas/course.yaml#/CourseStats'
+      $ref: "components/schemas/course.yaml#/CourseStats"
 
     # Review
     Review:
-      $ref: 'components/schemas/review.yaml#/Review'
+      $ref: "components/schemas/review.yaml#/Review"
     ReviewRatings:
-      $ref: 'components/schemas/review.yaml#/ReviewRatings'
+      $ref: "components/schemas/review.yaml#/ReviewRatings"
     PostReviewRequest:
-      $ref: 'components/schemas/review.yaml#/PostReviewRequest'
+      $ref: "components/schemas/review.yaml#/PostReviewRequest"
     UpdateReviewRequest:
-      $ref: 'components/schemas/review.yaml#/UpdateReviewRequest'
+      $ref: "components/schemas/review.yaml#/UpdateReviewRequest"
     VoteRequest:
-      $ref: 'components/schemas/review.yaml#/VoteRequest'
+      $ref: "components/schemas/review.yaml#/VoteRequest"
     ReportReviewRequest:
-      $ref: 'components/schemas/review.yaml#/ReportReviewRequest'
+      $ref: "components/schemas/review.yaml#/ReportReviewRequest"
     Reply:
-      $ref: 'components/schemas/review.yaml#/Reply'
+      $ref: "components/schemas/review.yaml#/Reply"
     CreateReplyRequest:
-      $ref: 'components/schemas/review.yaml#/CreateReplyRequest'
+      $ref: "components/schemas/review.yaml#/CreateReplyRequest"
     ReviewDraft:
-      $ref: 'components/schemas/review.yaml#/ReviewDraft'
+      $ref: "components/schemas/review.yaml#/ReviewDraft"
     SaveDraftRequest:
-      $ref: 'components/schemas/review.yaml#/SaveDraftRequest'
+      $ref: "components/schemas/review.yaml#/SaveDraftRequest"
     ContentCheckRequest:
-      $ref: 'components/schemas/review.yaml#/ContentCheckRequest'
+      $ref: "components/schemas/review.yaml#/ContentCheckRequest"
     ContentCheckResult:
-      $ref: 'components/schemas/review.yaml#/ContentCheckResult'
-    QualityCheckResult:
-      $ref: 'components/schemas/review.yaml#/QualityCheckResult'
-    ContentCheckResponse:
-      $ref: 'components/schemas/review.yaml#/ContentCheckResponse'
+      $ref: "components/schemas/review.yaml#/ContentCheckResult"
     HotCourse:
-      $ref: 'components/schemas/review.yaml#/HotCourse'
+      $ref: "components/schemas/review.yaml#/HotCourse"
     ReviewStats:
-      $ref: 'components/schemas/review.yaml#/ReviewStats'
+      $ref: "components/schemas/review.yaml#/ReviewStats"
 
     # Rating
     RatingDimension:
-      $ref: 'components/schemas/rating.yaml#/RatingDimension'
+      $ref: "components/schemas/rating.yaml#/RatingDimension"
     DimensionStats:
-      $ref: 'components/schemas/rating.yaml#/DimensionStats'
+      $ref: "components/schemas/rating.yaml#/DimensionStats"
     TermRatingStats:
-      $ref: 'components/schemas/rating.yaml#/TermRatingStats'
+      $ref: "components/schemas/rating.yaml#/TermRatingStats"
     CourseRatingStatsResponse:
-      $ref: 'components/schemas/rating.yaml#/CourseRatingStatsResponse'
+      $ref: "components/schemas/rating.yaml#/CourseRatingStatsResponse"
     RatingTrendItem:
-      $ref: 'components/schemas/rating.yaml#/RatingTrendItem'
+      $ref: "components/schemas/rating.yaml#/RatingTrendItem"
     CourseTeacherStats:
-      $ref: 'components/schemas/rating.yaml#/CourseTeacherStats'
+      $ref: "components/schemas/rating.yaml#/CourseTeacherStats"
     TeacherCourse:
-      $ref: 'components/schemas/rating.yaml#/TeacherCourse'
+      $ref: "components/schemas/rating.yaml#/TeacherCourse"
     TeacherRatingStatsResponse:
-      $ref: 'components/schemas/rating.yaml#/TeacherRatingStatsResponse'
+      $ref: "components/schemas/rating.yaml#/TeacherRatingStatsResponse"
 
     # Notification
     Notification:
-      $ref: 'components/schemas/notification.yaml#/Notification'
+      $ref: "components/schemas/notification.yaml#/Notification"
     UnreadCountData:
-      $ref: 'components/schemas/notification.yaml#/UnreadCountData'
+      $ref: "components/schemas/notification.yaml#/UnreadCountData"
 
     # Admin
     ReviewReport:
-      $ref: 'components/schemas/admin.yaml#/ReviewReport'
+      $ref: "components/schemas/admin.yaml#/ReviewReport"
     ProcessReportRequest:
-      $ref: 'components/schemas/admin.yaml#/ProcessReportRequest'
+      $ref: "components/schemas/admin.yaml#/ProcessReportRequest"
     AdminUpdateReviewRequest:
-      $ref: 'components/schemas/admin.yaml#/AdminUpdateReviewRequest'
+      $ref: "components/schemas/admin.yaml#/AdminUpdateReviewRequest"
     BatchUpdateReviewsRequest:
-      $ref: 'components/schemas/admin.yaml#/BatchUpdateReviewsRequest'
+      $ref: "components/schemas/admin.yaml#/BatchUpdateReviewsRequest"
     BatchUpdateResult:
-      $ref: 'components/schemas/admin.yaml#/BatchUpdateResult'
+      $ref: "components/schemas/admin.yaml#/BatchUpdateResult"
     AdminStats:
-      $ref: 'components/schemas/admin.yaml#/AdminStats'
+      $ref: "components/schemas/admin.yaml#/AdminStats"
     AdminEditReviewRequest:
-      $ref: 'components/schemas/admin.yaml#/AdminEditReviewRequest'
+      $ref: "components/schemas/admin.yaml#/AdminEditReviewRequest"
     AdminOperationLog:
-      $ref: 'components/schemas/admin.yaml#/AdminOperationLog'
+      $ref: "components/schemas/admin.yaml#/AdminOperationLog"
     AdminTeacher:
-      $ref: 'components/schemas/admin.yaml#/AdminTeacher'
+      $ref: "components/schemas/admin.yaml#/AdminTeacher"
     CreateTeacherRequest:
-      $ref: 'components/schemas/admin.yaml#/CreateTeacherRequest'
+      $ref: "components/schemas/admin.yaml#/CreateTeacherRequest"
     UpdateTeacherRequest:
-      $ref: 'components/schemas/admin.yaml#/UpdateTeacherRequest'
+      $ref: "components/schemas/admin.yaml#/UpdateTeacherRequest"
     AdminSensitiveWord:
-      $ref: 'components/schemas/admin.yaml#/AdminSensitiveWord'
+      $ref: "components/schemas/admin.yaml#/AdminSensitiveWord"
     CreateSensitiveWordRequest:
-      $ref: 'components/schemas/admin.yaml#/CreateSensitiveWordRequest'
+      $ref: "components/schemas/admin.yaml#/CreateSensitiveWordRequest"
     UpdateSensitiveWordRequest:
-      $ref: 'components/schemas/admin.yaml#/UpdateSensitiveWordRequest'
+      $ref: "components/schemas/admin.yaml#/UpdateSensitiveWordRequest"
 
     # User System
     UserIdentity:
-      $ref: 'components/schemas/user-system.yaml#/UserIdentity'
+      $ref: "components/schemas/user-system.yaml#/UserIdentity"
     AdminIdentityReviewItem:
-      $ref: 'components/schemas/user-system.yaml#/AdminIdentityReviewItem'
+      $ref: "components/schemas/user-system.yaml#/AdminIdentityReviewItem"
     SubmitIdentityRequest:
-      $ref: 'components/schemas/user-system.yaml#/SubmitIdentityRequest'
+      $ref: "components/schemas/user-system.yaml#/SubmitIdentityRequest"
     UserProfile:
-      $ref: 'components/schemas/user-system.yaml#/UserProfile'
+      $ref: "components/schemas/user-system.yaml#/UserProfile"
     SubmitStudentVerificationRequest:
-      $ref: 'components/schemas/user-system.yaml#/SubmitStudentVerificationRequest'
+      $ref: "components/schemas/user-system.yaml#/SubmitStudentVerificationRequest"
     BindPhoneRequest:
-      $ref: 'components/schemas/user-system.yaml#/BindPhoneRequest'
+      $ref: "components/schemas/user-system.yaml#/BindPhoneRequest"
     SchoolConfig:
-      $ref: 'components/schemas/user-system.yaml#/SchoolConfig'
+      $ref: "components/schemas/user-system.yaml#/SchoolConfig"
     AcademicStudentInfo:
-      $ref: 'components/schemas/user-system.yaml#/AcademicStudentInfo'
+      $ref: "components/schemas/user-system.yaml#/AcademicStudentInfo"
     ReviewIdentityRequest:
-      $ref: 'components/schemas/user-system.yaml#/ReviewIdentityRequest'
+      $ref: "components/schemas/user-system.yaml#/ReviewIdentityRequest"
     ReviewStudentVerificationRequest:
-      $ref: 'components/schemas/user-system.yaml#/ReviewStudentVerificationRequest'
+      $ref: "components/schemas/user-system.yaml#/ReviewStudentVerificationRequest"
     Role:
-      $ref: 'components/schemas/user-system.yaml#/Role'
+      $ref: "components/schemas/user-system.yaml#/Role"
     Permission:
-      $ref: 'components/schemas/user-system.yaml#/Permission'
+      $ref: "components/schemas/user-system.yaml#/Permission"
     UserGroupSchema:
-      $ref: 'components/schemas/user-system.yaml#/UserGroup'
+      $ref: "components/schemas/user-system.yaml#/UserGroup"
     CreateRoleRequest:
-      $ref: 'components/schemas/user-system.yaml#/CreateRoleRequest'
+      $ref: "components/schemas/user-system.yaml#/CreateRoleRequest"
     UpdateRoleRequest:
-      $ref: 'components/schemas/user-system.yaml#/UpdateRoleRequest'
+      $ref: "components/schemas/user-system.yaml#/UpdateRoleRequest"
     CreateUserGroupRequest:
-      $ref: 'components/schemas/user-system.yaml#/CreateUserGroupRequest'
+      $ref: "components/schemas/user-system.yaml#/CreateUserGroupRequest"
     UpdateUserGroupRequest:
-      $ref: 'components/schemas/user-system.yaml#/UpdateUserGroupRequest'
+      $ref: "components/schemas/user-system.yaml#/UpdateUserGroupRequest"
     AssignRolePermissionsRequest:
-      $ref: 'components/schemas/user-system.yaml#/AssignRolePermissionsRequest'
+      $ref: "components/schemas/user-system.yaml#/AssignRolePermissionsRequest"
     AssignUserRolesRequest:
-      $ref: 'components/schemas/user-system.yaml#/AssignUserRolesRequest'
+      $ref: "components/schemas/user-system.yaml#/AssignUserRolesRequest"
     AssignGroupMembersRequest:
-      $ref: 'components/schemas/user-system.yaml#/AssignGroupMembersRequest'
+      $ref: "components/schemas/user-system.yaml#/AssignGroupMembersRequest"
     AssignGroupPermissionsRequest:
-      $ref: 'components/schemas/user-system.yaml#/AssignGroupPermissionsRequest'
+      $ref: "components/schemas/user-system.yaml#/AssignGroupPermissionsRequest"
     SetUserPermissionRequest:
-      $ref: 'components/schemas/user-system.yaml#/SetUserPermissionRequest'
+      $ref: "components/schemas/user-system.yaml#/SetUserPermissionRequest"
     SystemConfigSchema:
-      $ref: 'components/schemas/user-system.yaml#/SystemConfig'
+      $ref: "components/schemas/user-system.yaml#/SystemConfig"
     UpdateSystemConfigRequest:
-      $ref: 'components/schemas/user-system.yaml#/UpdateSystemConfigRequest'
+      $ref: "components/schemas/user-system.yaml#/UpdateSystemConfigRequest"
     UserPermissionOverride:
-      $ref: 'components/schemas/user-system.yaml#/UserPermissionOverride'
+      $ref: "components/schemas/user-system.yaml#/UserPermissionOverride"
     EffectivePermission:
-      $ref: 'components/schemas/user-system.yaml#/EffectivePermission'
+      $ref: "components/schemas/user-system.yaml#/EffectivePermission"
     GroupMember:
-      $ref: 'components/schemas/user-system.yaml#/GroupMember'
+      $ref: "components/schemas/user-system.yaml#/GroupMember"
     AdminSchoolConfig:
-      $ref: 'components/schemas/user-system.yaml#/AdminSchoolConfig'
+      $ref: "components/schemas/user-system.yaml#/AdminSchoolConfig"
     UpdateSchoolConfigRequest:
-      $ref: 'components/schemas/user-system.yaml#/UpdateSchoolConfigRequest'
+      $ref: "components/schemas/user-system.yaml#/UpdateSchoolConfigRequest"
 
   parameters:
     PageParam:
-      $ref: 'components/parameters/common.yaml#/PageParam'
+      $ref: "components/parameters/common.yaml#/PageParam"
     PageSizeParam:
-      $ref: 'components/parameters/common.yaml#/PageSizeParam'
+      $ref: "components/parameters/common.yaml#/PageSizeParam"
     CourseIDPath:
-      $ref: 'components/parameters/common.yaml#/CourseIDPath'
+      $ref: "components/parameters/common.yaml#/CourseIDPath"
     ReviewIDPath:
-      $ref: 'components/parameters/common.yaml#/ReviewIDPath'
+      $ref: "components/parameters/common.yaml#/ReviewIDPath"
     TeacherIDPath:
-      $ref: 'components/parameters/common.yaml#/TeacherIDPath'
+      $ref: "components/parameters/common.yaml#/TeacherIDPath"
     NotificationIDPath:
-      $ref: 'components/parameters/common.yaml#/NotificationIDPath'
+      $ref: "components/parameters/common.yaml#/NotificationIDPath"
     DraftCourseIDPath:
-      $ref: 'components/parameters/common.yaml#/DraftCourseIDPath'
+      $ref: "components/parameters/common.yaml#/DraftCourseIDPath"
     ReplyIDPath:
-      $ref: 'components/parameters/common.yaml#/ReplyIDPath'
+      $ref: "components/parameters/common.yaml#/ReplyIDPath"
     ReportIDPath:
-      $ref: 'components/parameters/common.yaml#/ReportIDPath'
+      $ref: "components/parameters/common.yaml#/ReportIDPath"
     SensitiveWordIDPath:
-      $ref: 'components/parameters/common.yaml#/SensitiveWordIDPath'
+      $ref: "components/parameters/common.yaml#/SensitiveWordIDPath"

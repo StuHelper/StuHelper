@@ -158,7 +158,7 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 // GetStats 获取评课统计数据
 func (h *Handler) GetStats(c *gin.Context) {
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:stats", "all")
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -191,7 +191,7 @@ func (h *Handler) GetRatingTrend(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	cacheKey := h.cache.BuildVersionedKey(ctx, "review:rating_trend", strconv.FormatInt(courseID, 10))
-	if cached, ok := h.cache.Get(ctx, cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(ctx, cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -216,13 +216,17 @@ func (h *Handler) GetHotCourses(c *gin.Context) {
 	if period != "week" && period != "month" && period != "all" {
 		period = "all"
 	}
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	limit, ok := httputil.ParseOptionalIntQuery(c, "limit")
+	if !ok {
+		response.BadRequest(c, "invalid limit parameter")
+		return
+	}
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
 
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:hot", "period="+period+":limit="+strconv.Itoa(limit))
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -250,7 +254,7 @@ func (h *Handler) GetCourseTeachers(c *gin.Context) {
 	}
 
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:course_teachers", strconv.FormatInt(courseID, 10))
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -280,7 +284,7 @@ func (h *Handler) GetTeacherRatingStats(c *gin.Context) {
 	}
 
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:teacher_stats", "id="+c.Param("id"))
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}

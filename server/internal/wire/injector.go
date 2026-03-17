@@ -4,12 +4,13 @@
 package wire
 
 import (
+	"github.com/google/wire"
+
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
-	"github.com/google/wire"
 )
 
 // App 包含应用程序的所有依赖

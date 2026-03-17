@@ -279,12 +279,6 @@ type ContentCheckResult struct {
 	MatchCount int    `json:"matchCount,omitempty"`
 }
 
-// ContentCheckResponse 内容检查综合响应（敏感词 + 质量）
-type ContentCheckResponse struct {
-	Sensitive *ContentCheckResult `json:"sensitive"`
-	Quality   *QualityCheckResult `json:"quality"`
-}
-
 // AdminOperationLog 管理操作日志
 type AdminOperationLog struct {
 	ID            string          `json:"id"`

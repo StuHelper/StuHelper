@@ -33,7 +33,7 @@ func (h *Handler) ListReports(c *gin.Context) {
 
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:admin:reports",
 		"status="+status+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -195,7 +195,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 // GetAdminStats 获取管理统计
 func (h *Handler) GetAdminStats(c *gin.Context) {
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:admin:stats", "all")
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -241,10 +241,7 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		}
 	}
 
-	result, err := h.service.BatchUpdateReviews(c.Request.Context(), BatchUpdateReviewsParams{
-		IDs:    req.IDs,
-		Action: req.Action,
-	})
+	result, err := h.service.BatchUpdateReviews(c.Request.Context(), BatchUpdateReviewsParams(req))
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrInvalidAction):

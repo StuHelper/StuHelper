@@ -48,7 +48,7 @@ const (
 // 配合 IssueTestToken 使用，可生成能通过 ValidateToken 校验的 JWT。
 func NewServiceForTest(rdb *redis.Client) *Service {
 	// 确保 HMAC key 已初始化（Blacklist 内部依赖）
-	_ = crypto.InitHMACKey("test-token-helper-secret", false)
+	_ = crypto.InitHMACKey("test-token-helper-secret", false) //nolint:errcheck // test-only init, idempotent
 
 	svc, err := NewService(ServiceConfig{
 		RedisClient:    rdb,

@@ -28,7 +28,7 @@ const (
 // 静默钳位更符合 "宽容输入、严格输出" 原则。
 func ParsePage(c *gin.Context) (page, pageSize int) {
 	// strconv.Atoi 错误被有意忽略：解析失败时 page=0，下方钳位逻辑会将其修正为 1
-	page, _ = strconv.Atoi(c.Query("page"))
+	page, _ = strconv.Atoi(c.Query("page")) //nolint:errcheck // parse fail → 0, clamped to 1 below
 	if page <= 0 {
 		page = 1
 	}
@@ -40,7 +40,7 @@ func ParsePage(c *gin.Context) (page, pageSize int) {
 		pageSizeStr = c.Query("pageSize")
 	}
 	// strconv.Atoi 错误被有意忽略：解析失败时 pageSize=0，下方钳位逻辑会将其修正为 DefaultPageSize
-	pageSize, _ = strconv.Atoi(pageSizeStr)
+	pageSize, _ = strconv.Atoi(pageSizeStr) //nolint:errcheck // parse fail → 0, clamped to DefaultPageSize below
 	if pageSize <= 0 {
 		pageSize = DefaultPageSize
 	}
@@ -104,6 +104,33 @@ func ParseUUIDParam(c *gin.Context, name string) (string, error) {
 // HashUserID 使用 HMAC-SHA256 对用户 ID 进行哈希，防止枚举和关联攻击
 func HashUserID(userID string) (string, error) {
 	return crypto.HMACHash(userID)
+}
+
+// ParseOptionalInt64Query 解析可选的 int64 查询参数。
+// 参数缺失或为空 → (0, true)；合法整数 → (value, true)；非法值 → (0, false)。
+func ParseOptionalInt64Query(c *gin.Context, key string) (int64, bool) {
+	v := c.Query(key)
+	if v == "" {
+		return 0, true
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// ParseOptionalIntQuery 解析可选的 int 查询参数，语义同 ParseOptionalInt64Query。
+func ParseOptionalIntQuery(c *gin.Context, key string) (int, bool) {
+	v := c.Query(key)
+	if v == "" {
+		return 0, true
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // EscapeLikePattern 转义 LIKE 查询中的特殊字符

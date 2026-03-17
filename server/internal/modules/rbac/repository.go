@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
@@ -40,10 +41,14 @@ func scanPermissions(rows interface {
 			return nil, err
 		}
 		if scopeSchoolIDs != nil {
-			_ = json.Unmarshal(scopeSchoolIDs, &p.ScopeSchoolIDs)
+			if err := json.Unmarshal(scopeSchoolIDs, &p.ScopeSchoolIDs); err != nil {
+				return nil, fmt.Errorf("scanPermissions: corrupt scope_school_ids for permission %d: %w", p.ID, err)
+			}
 		}
 		if scopeRoles != nil {
-			_ = json.Unmarshal(scopeRoles, &p.ScopeRoles)
+			if err := json.Unmarshal(scopeRoles, &p.ScopeRoles); err != nil {
+				return nil, fmt.Errorf("scanPermissions: corrupt scope_roles for permission %d: %w", p.ID, err)
+			}
 		}
 		perms = append(perms, p)
 	}

@@ -36,7 +36,7 @@ func normalizeCourseSort(sort string) string {
 // GetCourseCategories 获取课程分类列表
 func (h *Handler) GetCourseCategories(c *gin.Context) {
 	cacheKey := "course:categories"
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -57,7 +57,7 @@ func (h *Handler) GetCourseCategories(c *gin.Context) {
 func (h *Handler) GetDepartments(c *gin.Context) {
 	category := c.Query("category")
 	cacheKey := "course:departments:" + httputil.SanitizeCacheKey(category)
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -77,7 +77,7 @@ func (h *Handler) GetDepartments(c *gin.Context) {
 // GetTerms 获取学期列表
 func (h *Handler) GetTerms(c *gin.Context) {
 	cacheKey := "course:terms"
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -98,7 +98,11 @@ func (h *Handler) GetTerms(c *gin.Context) {
 func (h *Handler) GetCourses(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	query := strings.TrimSpace(c.Query("q"))
-	departmentID, _ := strconv.ParseInt(c.Query("departmentID"), 10, 64)
+	departmentID, ok := httputil.ParseOptionalInt64Query(c, "departmentID")
+	if !ok {
+		response.BadRequest(c, "invalid departmentID")
+		return
+	}
 	category := c.Query("category")
 	sort := normalizeCourseSort(c.DefaultQuery("sort", CourseSortName))
 
@@ -107,14 +111,8 @@ func (h *Handler) GetCourses(c *gin.Context) {
 		return
 	}
 
-	// 参数范围校验：departmentID 不能为负数，pageSize 上限由 parsePage 保证
-	if departmentID < 0 {
-		response.BadRequest(c, "invalid departmentID")
-		return
-	}
-
 	cacheKey := "course:courses:q=" + httputil.SanitizeCacheKey(query) + ":dept=" + strconv.FormatInt(departmentID, 10) + ":cat=" + httputil.SanitizeCacheKey(category) + ":sort=" + sort + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -152,7 +150,7 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 	}
 	page, pageSize := httputil.ParsePage(c)
 	cacheKey := "course:courses:search:" + httputil.SanitizeCacheKey(q) + ":page=" + strconv.Itoa(page) + ":size=" + strconv.Itoa(pageSize)
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -182,7 +180,7 @@ func (h *Handler) GetCourse(c *gin.Context) {
 		return
 	}
 	cacheKey := "course:course:" + strconv.FormatInt(courseID, 10)
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -206,7 +204,7 @@ func (h *Handler) GetCourse(c *gin.Context) {
 // GetStats 获取学习中心统计数据
 func (h *Handler) GetStats(c *gin.Context) {
 	cacheKey := "course:stats"
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}

@@ -19,57 +19,61 @@ linters:
     - misspell
     - unconvert
 
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+    gosec:
+      excludes:
+        - G104
+        - G115
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - hugeParam
+        - rangeValCopy
+        - exitAfterDefer
+        - httpNoBody
+        - unnamedResult
+        - paramTypeCombine
+        - unnecessaryBlock
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - noctx
+      - path: test/
+        linters:
+          - errcheck
+          - gosec
+          - noctx
+      - path: cmd/stuhelper/main\.go
+        linters:
+          - gocritic
+        text: "exitAfterDefer"
+
 formatters:
   enable:
     - gofmt
     - goimports
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-  gosec:
-    excludes:
-      - G104
-      - G115
-      - G101
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      - hugeParam
-      - rangeValCopy
-      - exitAfterDefer
-  goimports:
-    local-prefixes:
-      - gitea.stuhelper.com/StuHelper/StuHelper
+  settings:
+    goimports:
+      local-prefixes:
+        - gitea.stuhelper.com/StuHelper/StuHelper
 
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-    - path: test/
-      linters:
-        - errcheck
-        - gosec
-    - path: cmd/stuhelper/main\.go
-      linters:
-        - gocritic
-      text: "exitAfterDefer"
-    - linters:
-        - gosec
-      text: "G115"
-    - linters:
-        - gosec
-      text: "G101"
   max-issues-per-linter: 50
   max-same-issues: 10
 

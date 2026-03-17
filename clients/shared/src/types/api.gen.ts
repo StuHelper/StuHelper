@@ -568,7 +568,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 内容安全检查（敏感词 + 质量） */
+        /** 内容安全检查（敏感词） */
         post: operations["checkContent"];
         delete?: never;
         options?: never;
@@ -1601,14 +1601,6 @@ export interface components {
             /** @enum {string} */
             level?: "block" | "warn";
             matchCount?: number;
-        };
-        QualityCheckResult: {
-            score?: number;
-            suggestions?: string[];
-        };
-        ContentCheckResponse: {
-            sensitive?: components["schemas"]["ContentCheckResult"];
-            quality?: components["schemas"]["QualityCheckResult"];
         };
         HotCourse: {
             /** Format: int64 */

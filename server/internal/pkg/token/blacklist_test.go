@@ -22,7 +22,7 @@ func setupTestRedis(t *testing.T) (*redis.Client, func()) {
 	})
 
 	cleanup := func() {
-		client.Close()
+		_ = client.Close()
 		mr.Close()
 	}
 

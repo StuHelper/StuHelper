@@ -20,7 +20,7 @@ func (h *Handler) Logout(c *gin.Context) {
 	requestID := middleware.GetRequestID(c)
 	ctx := c.Request.Context()
 
-	accessToken, _ := c.Cookie(middleware.CookieAccessToken)
+	accessToken, _ := c.Cookie(middleware.CookieAccessToken) //nolint:errcheck // not-found → empty string, skipped below
 	if accessToken != "" {
 		if err := h.tokenService.GetBlacklist().Add(ctx, accessToken, h.tokenService.GetAccessTokenTTL()); err != nil {
 			logger.FromGin(c).Warn("failed to blacklist access token",
@@ -30,7 +30,7 @@ func (h *Handler) Logout(c *gin.Context) {
 		}
 	}
 
-	refreshToken, _ := c.Cookie(middleware.CookieRefreshToken)
+	refreshToken, _ := c.Cookie(middleware.CookieRefreshToken) //nolint:errcheck // not-found → empty string, skipped below
 	if refreshToken != "" {
 		if err := h.tokenService.GetBlacklist().Add(ctx, refreshToken, h.tokenService.GetRefreshTokenTTL()); err != nil {
 			logger.FromGin(c).Warn("failed to blacklist refresh token",
@@ -82,7 +82,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	oldAccessToken, _ := c.Cookie(middleware.CookieAccessToken)
+	oldAccessToken, _ := c.Cookie(middleware.CookieAccessToken) //nolint:errcheck // not-found → empty string, best-effort blacklist
 
 	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), refreshToken)
 	if err != nil {

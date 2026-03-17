@@ -1337,7 +1337,7 @@ paths:
       tags:
         - Review
       operationId: checkContent
-      summary: 内容安全检查（敏感词 + 质量）
+      summary: 内容安全检查（敏感词）
       security:
         - cookieAuth: []
         - bearerAuth: []
@@ -4320,24 +4320,6 @@ components:
             - warn
         matchCount:
           type: integer
-    QualityCheckResult:
-      type: object
-      properties:
-        score:
-          type: integer
-          minimum: 0
-          maximum: 100
-        suggestions:
-          type: array
-          items:
-            type: string
-    ContentCheckResponse:
-      type: object
-      properties:
-        sensitive:
-          $ref: '#/components/schemas/ContentCheckResult'
-        quality:
-          $ref: '#/components/schemas/QualityCheckResult'
     HotCourse:
       type: object
       required:

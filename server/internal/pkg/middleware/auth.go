@@ -6,12 +6,13 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/gin-gonic/gin"
+
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
-	"github.com/gin-gonic/gin"
 )
 
 // 上下文键名常量
@@ -165,8 +166,8 @@ func getContextString(c *gin.Context, key string) string {
 // 不受 XSS 攻击窃取；同时 Cookie 由服务端 Set-Cookie 自动管理，前端无需手动处理 token 存储。
 func getTokenFromRequest(c *gin.Context) string {
 	// 1. 优先从 Cookie 获取（浏览器客户端）
-	if token, err := c.Cookie(CookieAccessToken); err == nil && token != "" {
-		return token
+	if accessToken, err := c.Cookie(CookieAccessToken); err == nil && accessToken != "" {
+		return accessToken
 	}
 
 	// 2. 其次从 Authorization Header 获取（非浏览器客户端）

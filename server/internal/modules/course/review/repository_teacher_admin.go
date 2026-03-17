@@ -27,17 +27,17 @@ func (r *Repository) ListAdminTeachers(ctx context.Context, search string, depar
 	argIdx := 1
 
 	if search != "" {
-		qb.WriteString(fmt.Sprintf(` AND t.name ILIKE $%d`, argIdx))
+		fmt.Fprintf(&qb, ` AND t.name ILIKE $%d`, argIdx)
 		args = append(args, "%"+httputil.EscapeLikePattern(search)+"%")
 		argIdx++
 	}
 	if departmentID > 0 {
-		qb.WriteString(fmt.Sprintf(` AND t.department_id = $%d`, argIdx))
+		fmt.Fprintf(&qb, ` AND t.department_id = $%d`, argIdx)
 		args = append(args, departmentID)
 		argIdx++
 	}
 
-	qb.WriteString(fmt.Sprintf(` ORDER BY t.id DESC LIMIT $%d OFFSET $%d`, argIdx, argIdx+1))
+	fmt.Fprintf(&qb, ` ORDER BY t.id DESC LIMIT $%d OFFSET $%d`, argIdx, argIdx+1)
 	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, qb.String(), args...)
@@ -62,16 +62,16 @@ func (r *Repository) ListAdminTeachers(ctx context.Context, search string, depar
 func (r *Repository) CreateTeacher(ctx context.Context, name string, departmentID *int64) (*AdminTeacher, error) {
 	var t AdminTeacher
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO teachers (name, department_id) VALUES ($1, $2)
-		RETURNING id, name, department_id, created_at
-	`, name, departmentID).Scan(&t.ID, &t.Name, &t.DepartmentID, &t.CreatedAt)
+		WITH inserted AS (
+			INSERT INTO teachers (name, department_id) VALUES ($1, $2)
+			RETURNING id, name, department_id, created_at
+		)
+		SELECT i.id, i.name, i.department_id, d.name, i.created_at
+		FROM inserted i
+		LEFT JOIN departments d ON d.id = i.department_id
+	`, name, departmentID).Scan(&t.ID, &t.Name, &t.DepartmentID, &t.DepartmentName, &t.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("CreateTeacher: %w", err)
-	}
-
-	// 查询院系名
-	if t.DepartmentID != nil {
-		_ = r.db.QueryRow(ctx, `SELECT name FROM departments WHERE id = $1`, *t.DepartmentID).Scan(&t.DepartmentName)
 	}
 	return &t, nil
 }

@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -36,7 +35,7 @@ func getEnvInt(key string, defaultValue int, parseErrs *[]string) int {
 	val := os.Getenv(key)
 	if val == "" {
 		if _, exists := os.LookupEnv(key); exists {
-			log.Printf("WARNING: %s is set but empty, using default %d", key, defaultValue)
+			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %d", key, defaultValue))
 		}
 		return defaultValue
 	}
@@ -46,7 +45,6 @@ func getEnvInt(key string, defaultValue int, parseErrs *[]string) int {
 
 	errMsg := fmt.Sprintf("invalid integer value for %s: %s", key, val)
 	*parseErrs = append(*parseErrs, errMsg)
-	log.Printf("warning: %s, using default: %d", errMsg, defaultValue)
 	return defaultValue
 }
 
@@ -55,7 +53,7 @@ func getEnvBool(key string, defaultValue bool, parseErrs *[]string) bool {
 	val := os.Getenv(key)
 	if val == "" {
 		if _, exists := os.LookupEnv(key); exists {
-			log.Printf("WARNING: %s is set but empty, using default %v", key, defaultValue)
+			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %v", key, defaultValue))
 		}
 		return defaultValue
 	}
@@ -65,7 +63,6 @@ func getEnvBool(key string, defaultValue bool, parseErrs *[]string) bool {
 
 	errMsg := fmt.Sprintf("invalid boolean value for %s: %s", key, val)
 	*parseErrs = append(*parseErrs, errMsg)
-	log.Printf("warning: %s, using default: %v", errMsg, defaultValue)
 	return defaultValue
 }
 
@@ -74,7 +71,7 @@ func getEnvInt64(key string, defaultValue int64, parseErrs *[]string) int64 {
 	val := os.Getenv(key)
 	if val == "" {
 		if _, exists := os.LookupEnv(key); exists {
-			log.Printf("WARNING: %s is set but empty, using default %d", key, defaultValue)
+			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %d", key, defaultValue))
 		}
 		return defaultValue
 	}
@@ -84,6 +81,5 @@ func getEnvInt64(key string, defaultValue int64, parseErrs *[]string) int64 {
 
 	errMsg := fmt.Sprintf("invalid int64 value for %s: %s", key, val)
 	*parseErrs = append(*parseErrs, errMsg)
-	log.Printf("warning: %s, using default: %d", errMsg, defaultValue)
 	return defaultValue
 }

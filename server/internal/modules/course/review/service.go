@@ -82,7 +82,7 @@ func (s *Service) refreshDimensionCache(ctx context.Context) error {
 // getDimensionNames 获取缓存的评分维度列表
 func (s *Service) getDimensionNames() map[string]string {
 	if v := s.dimensionCache.Load(); v != nil {
-		return v.(map[string]string)
+		return v.(map[string]string) //nolint:errcheck // typed by atomic.Store
 	}
 	return nil
 }
@@ -280,11 +280,6 @@ func (s *Service) GetReviewByID(ctx context.Context, reviewID string) (*Review, 
 // CheckContent 检查内容是否包含敏感词
 func (s *Service) CheckContent(ctx context.Context, content string) *ContentCheckResult {
 	return s.filter.CheckContent(ctx, content)
-}
-
-// CheckQuality 检查内容质量
-func (s *Service) CheckQuality(content string) *QualityCheckResult {
-	return s.filter.CheckQuality(content)
 }
 
 // --- 敏感词管理 pass-through ---

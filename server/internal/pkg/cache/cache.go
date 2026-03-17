@@ -69,7 +69,7 @@ func NewHelperWithMaxVersions(client *redis.Client, maxVersions int) *Helper {
 // 在 base ± jitterFraction 范围内随机浮动
 func JitteredTTL(base time.Duration) time.Duration {
 	jitter := float64(base) * jitterFraction
-	delta := rand.Float64()*2*jitter - jitter // [-jitter, +jitter)
+	delta := rand.Float64()*2*jitter - jitter //nolint:gosec // G404: jitter for cache TTL, not cryptographic
 	return base + time.Duration(delta)
 }
 
@@ -99,6 +99,24 @@ func (h *Helper) Get(ctx context.Context, key string) (any, bool) {
 	}
 	metrics.CacheHitsTotal.WithLabelValues("redis").Inc()
 	return v, true
+}
+
+// GetRaw returns the cached value as pre-serialized JSON bytes.
+// Unlike Get, this avoids double-deserialization and the float64 precision issue.
+// The returned json.RawMessage can be passed directly to response.Success.
+func (h *Helper) GetRaw(ctx context.Context, key string) (json.RawMessage, bool) {
+	if h.client == nil {
+		return nil, false
+	}
+	start := time.Now()
+	data, err := h.client.Get(ctx, key).Bytes()
+	metrics.CacheOperationDuration.WithLabelValues("get", "redis").Observe(time.Since(start).Seconds())
+	if err != nil {
+		metrics.CacheMissesTotal.WithLabelValues("redis").Inc()
+		return nil, false
+	}
+	metrics.CacheHitsTotal.WithLabelValues("redis").Inc()
+	return json.RawMessage(data), true
 }
 
 // GetAs 获取缓存值并反序列化为指定类型（泛型版本，避免 any 类型丢失问题）
@@ -303,7 +321,7 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 		return "0"
 	}
 
-	version, _ := result.(string)
+	version, _ := result.(string) //nolint:errcheck // redis result, empty string handled below
 	if version == "" {
 		version = "0"
 	}

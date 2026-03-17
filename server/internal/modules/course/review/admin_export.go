@@ -71,7 +71,7 @@ func (h *Handler) exportNDJSONStream(c *gin.Context, status string) {
 		return
 	}
 
-	if _, err := c.Writer.Write([]byte("# EXPORT_COMPLETE\n")); err != nil {
+	if _, err := c.Writer.WriteString("# EXPORT_COMPLETE\n"); err != nil {
 		logger.FromGin(c).Warn("failed to write export completion marker", zap.Error(err))
 	}
 }
@@ -125,7 +125,7 @@ func (h *Handler) exportCSVStream(c *gin.Context, status string) {
 	}
 
 	w.Flush()
-	if _, err := c.Writer.Write([]byte("# EXPORT_COMPLETE\n")); err != nil {
+	if _, err := c.Writer.WriteString("# EXPORT_COMPLETE\n"); err != nil {
 		logger.FromGin(c).Warn("failed to write export completion marker", zap.Error(err))
 	}
 }

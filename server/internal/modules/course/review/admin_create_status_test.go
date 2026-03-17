@@ -2,13 +2,12 @@ package review
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestCreateTeacherUsesCreatedStatusCode(t *testing.T) {
-	source, err := os.ReadFile(filepath.Join("handler_teacher_admin.go"))
+	source, err := os.ReadFile("handler_teacher_admin.go")
 	if err != nil {
 		t.Fatalf("failed to read handler_teacher_admin.go: %v", err)
 	}
@@ -19,7 +18,7 @@ func TestCreateTeacherUsesCreatedStatusCode(t *testing.T) {
 }
 
 func TestCreateSensitiveWordUsesCreatedStatusCode(t *testing.T) {
-	source, err := os.ReadFile(filepath.Join("handler_sensitive_word_admin.go"))
+	source, err := os.ReadFile("handler_sensitive_word_admin.go")
 	if err != nil {
 		t.Fatalf("failed to read handler_sensitive_word_admin.go: %v", err)
 	}

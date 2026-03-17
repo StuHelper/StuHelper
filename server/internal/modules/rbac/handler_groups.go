@@ -78,10 +78,7 @@ func (h *Handler) handleUpdateGroup(c *gin.Context) {
 		return
 	}
 
-	group, err := h.service.UpdateGroup(c.Request.Context(), id, UpdateGroupInput{
-		DisplayName: req.DisplayName,
-		Description: req.Description,
-	})
+	group, err := h.service.UpdateGroup(c.Request.Context(), id, UpdateGroupInput(req))
 	if err != nil {
 		if errors.Is(err, ErrGroupNotFound) {
 			response.NotFound(c, "group not found", errs.ErrGroupNotFound)

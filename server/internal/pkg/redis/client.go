@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
-	"github.com/redis/go-redis/v9"
 )
 
 // Client Redis 客户端封装

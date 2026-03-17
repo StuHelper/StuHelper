@@ -106,7 +106,7 @@ func Init(cfg Config) {
 
 	// H-35: 替换前先 Sync 旧 logger，避免丢失缓冲日志
 	if old := globalLogger.Swap(l); old != nil {
-		_ = old.Sync() // best-effort flush，忽略 stdout/stderr 的 sync 错误
+		_ = old.Sync() //nolint:errcheck // best-effort flush
 	}
 }
 
@@ -199,7 +199,7 @@ func buildEncoderConfig() zapcore.EncoderConfig {
 
 func buildEncoder(format string) zapcore.Encoder {
 	cfg := buildEncoderConfig()
-	if strings.ToLower(format) == "console" {
+	if strings.EqualFold(format, "console") {
 		cfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
 		return zapcore.NewConsoleEncoder(cfg)
 	}

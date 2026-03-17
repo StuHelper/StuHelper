@@ -52,14 +52,7 @@ func (h *Handler) handleSubmitIdentity(c *gin.Context) {
 		return
 	}
 
-	identity, err := h.service.SubmitIdentity(c.Request.Context(), userID, SubmitIdentityRequest{
-		DocType:        req.DocType,
-		DocNumber:      req.DocNumber,
-		RealName:       req.RealName,
-		DocPhotoFront:  req.DocPhotoFront,
-		DocPhotoBack:   req.DocPhotoBack,
-		DocPhotoSelfie: req.DocPhotoSelfie,
-	})
+	identity, err := h.service.SubmitIdentity(c.Request.Context(), userID, SubmitIdentityRequest(req))
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrIdentityAlreadyVerified):
@@ -118,13 +111,7 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 		return
 	}
 
-	profile, err := h.service.VerifyStudent(c.Request.Context(), userID, VerifyStudentRequest{
-		SchoolID:       req.SchoolID,
-		StudentID:      req.StudentID,
-		Password:       req.Password,
-		ManualFormData: req.ManualFormData,
-		Consent:        req.Consent,
-	})
+	profile, err := h.service.VerifyStudent(c.Request.Context(), userID, VerifyStudentRequest(req))
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrIdentityRequired):
@@ -137,9 +124,14 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 			response.BadRequest(c, "school verification is not enabled", errs.ErrProfileSchoolDisabled)
 		case errors.Is(err, ErrConsentRequired):
 			response.BadRequest(c, "consent is required for verification", errs.ErrProfileConsentRequired)
-		case errors.Is(err, ErrStudentIDRequired), errors.Is(err, ErrPasswordRequired),
-			errors.Is(err, ErrManualFieldRequired), errors.Is(err, ErrManualFieldInvalid):
-			response.BadRequest(c, err.Error())
+		case errors.Is(err, ErrStudentIDRequired):
+			response.BadRequest(c, "student ID is required for this verification method")
+		case errors.Is(err, ErrPasswordRequired):
+			response.BadRequest(c, "password is required for this verification method")
+		case errors.Is(err, ErrManualFieldRequired):
+			response.BadRequest(c, "required form field is missing")
+		case errors.Is(err, ErrManualFieldInvalid):
+			response.BadRequest(c, "form field validation failed")
 		case errors.Is(err, ErrLDAPFailed):
 			response.BadRequest(c, "LDAP verification failed, please check your credentials", errs.ErrProfileLDAPFailed)
 		default:

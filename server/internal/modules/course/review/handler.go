@@ -88,16 +88,16 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	r.POST("/content/check", authMiddleware, h.CheckContent)
 
 	// 用户中心（需要认证）
-	user := r.Group("/user")
-	user.Use(authMiddleware)
+	userGroup := r.Group("/user")
+	userGroup.Use(authMiddleware)
 	{
-		user.GET("/reviews", h.GetUserReviews)
-		user.GET("/votes", h.GetUserVotes)
-		user.GET("/favorites", h.GetUserFavorites)
-		user.GET("/notifications", h.GetNotifications)
-		user.GET("/notifications/unread-count", h.GetUnreadCount)
-		user.PUT("/notifications/:id/read", h.MarkNotificationRead)
-		user.PUT("/notifications/read-all", h.MarkAllNotificationsRead)
+		userGroup.GET("/reviews", h.GetUserReviews)
+		userGroup.GET("/votes", h.GetUserVotes)
+		userGroup.GET("/favorites", h.GetUserFavorites)
+		userGroup.GET("/notifications", h.GetNotifications)
+		userGroup.GET("/notifications/unread-count", h.GetUnreadCount)
+		userGroup.PUT("/notifications/:id/read", h.MarkNotificationRead)
+		userGroup.PUT("/notifications/read-all", h.MarkAllNotificationsRead)
 	}
 
 	// 草稿（需要认证）

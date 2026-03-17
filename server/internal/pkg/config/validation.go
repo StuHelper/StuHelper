@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"os"
 	"strings"
 )
 
@@ -20,7 +20,7 @@ func (c *Config) validate(parseErrs []string) error {
 		if c.App.Env == "production" {
 			errs = append(errs, fmt.Sprintf("HMAC_SECRET must be at least %d characters in production (got %d)", hmacMinLen, len(c.App.HMACSecret)))
 		} else {
-			log.Printf("WARNING: HMAC_SECRET is shorter than %d characters (%d), consider using a stronger secret", hmacMinLen, len(c.App.HMACSecret))
+			fmt.Fprintf(os.Stderr, "WARNING: HMAC_SECRET is shorter than %d characters (%d), consider using a stronger secret\n", hmacMinLen, len(c.App.HMACSecret))
 		}
 	}
 
@@ -84,10 +84,10 @@ func (c *Config) validate(parseErrs []string) error {
 		case "", "disable":
 			errs = append(errs, "DB_SSL_MODE must be 'require', 'verify-ca', or 'verify-full' in production")
 		case "require":
-			log.Println("WARNING: DB_SSL_MODE=require skips certificate verification (MITM risk). Consider 'verify-ca' or 'verify-full' for production.")
+			fmt.Fprintf(os.Stderr, "WARNING: DB_SSL_MODE=require skips certificate verification (MITM risk). Consider 'verify-ca' or 'verify-full' for production.\n")
 		}
 		if !c.Redis.TLSEnabled {
-			log.Println("WARNING: Redis TLS is disabled in production. Ensure Redis is in a secure internal network.")
+			fmt.Fprintf(os.Stderr, "WARNING: Redis TLS is disabled in production. Ensure Redis is in a secure internal network.\n")
 		}
 		if c.Redis.TLSEnabled && c.Redis.TLSInsecure {
 			errs = append(errs, "REDIS_TLS_INSECURE must not be true in production (certificate verification required)")
@@ -96,7 +96,7 @@ func (c *Config) validate(parseErrs []string) error {
 			errs = append(errs, parseErrs...)
 		}
 	} else if len(parseErrs) > 0 {
-		log.Printf("WARNING: %d config parse error(s) detected (using defaults): %s",
+		fmt.Fprintf(os.Stderr, "WARNING: %d config parse error(s) detected (using defaults): %s\n",
 			len(parseErrs), strings.Join(parseErrs, "; "))
 	}
 

@@ -15,7 +15,7 @@ func loadCertificate() (string, error) {
 		return cert, nil
 	}
 	if path := os.Getenv("CASDOOR_CERTIFICATE_FILE"); path != "" {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G304: path from CASDOOR_CERTIFICATE_FILE env var, not user input
 		if err != nil {
 			return "", fmt.Errorf("failed to read CASDOOR_CERTIFICATE_FILE %s: %w", path, err)
 		}

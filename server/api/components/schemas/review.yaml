@@ -8,7 +8,20 @@ ReviewRatings:
 
 Review:
   type: object
-  required: [id, courseID, title, termID, content, ratings, likeCount, dislikeCount, replyCount, status, createdAt]
+  required:
+    [
+      id,
+      courseID,
+      title,
+      termID,
+      content,
+      ratings,
+      likeCount,
+      dislikeCount,
+      replyCount,
+      status,
+      createdAt,
+    ]
   properties:
     id:
       type: string
@@ -21,7 +34,7 @@ Review:
     teacherID:
       type:
         - integer
-        - 'null'
+        - "null"
       format: int64
     teacherName:
       type: string
@@ -36,7 +49,7 @@ Review:
     grade:
       type: string
     ratings:
-      $ref: '#/ReviewRatings'
+      $ref: "#/ReviewRatings"
     likeCount:
       type: integer
     dislikeCount:
@@ -49,7 +62,7 @@ Review:
     moderationReason:
       type:
         - string
-        - 'null'
+        - "null"
       description: 屏蔽原因（仅 hidden 状态时存在）
     createdAt:
       type: string
@@ -84,7 +97,7 @@ PostReviewRequest:
     grade:
       type: string
     ratings:
-      $ref: '#/ReviewRatings'
+      $ref: "#/ReviewRatings"
 
 UpdateReviewRequest:
   type: object
@@ -100,7 +113,7 @@ UpdateReviewRequest:
     grade:
       type: string
     ratings:
-      $ref: '#/ReviewRatings'
+      $ref: "#/ReviewRatings"
 
 VoteRequest:
   type: object
@@ -123,7 +136,8 @@ ReportReviewRequest:
 
 Reply:
   type: object
-  required: [id, reviewID, content, likeCount, status, isOwner, createdAt, updatedAt]
+  required:
+    [id, reviewID, content, likeCount, status, isOwner, createdAt, updatedAt]
   properties:
     id:
       type: string
@@ -134,7 +148,7 @@ Reply:
     parentID:
       type:
         - string
-        - 'null'
+        - "null"
       format: uuid
     content:
       type: string
@@ -176,7 +190,7 @@ ReviewDraft:
     teacherID:
       type:
         - integer
-        - 'null'
+        - "null"
       format: int64
     termID:
       type: string
@@ -187,7 +201,7 @@ ReviewDraft:
     grade:
       type: string
     ratings:
-      $ref: '#/ReviewRatings'
+      $ref: "#/ReviewRatings"
     updatedAt:
       type: string
       format: date-time
@@ -217,7 +231,7 @@ SaveDraftRequest:
     grade:
       type: string
     ratings:
-      $ref: '#/ReviewRatings'
+      $ref: "#/ReviewRatings"
 
 ContentCheckRequest:
   type: object
@@ -237,26 +251,6 @@ ContentCheckResult:
       enum: [block, warn]
     matchCount:
       type: integer
-
-QualityCheckResult:
-  type: object
-  properties:
-    score:
-      type: integer
-      minimum: 0
-      maximum: 100
-    suggestions:
-      type: array
-      items:
-        type: string
-
-ContentCheckResponse:
-  type: object
-  properties:
-    sensitive:
-      $ref: '#/ContentCheckResult'
-    quality:
-      $ref: '#/QualityCheckResult'
 
 HotCourse:
   type: object

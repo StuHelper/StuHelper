@@ -84,10 +84,10 @@ func (r *Repository) CountUnreadNotifications(ctx context.Context, userHash stri
 }
 
 // MarkNotificationRead 标记通知已读
-func (r *Repository) MarkNotificationRead(ctx context.Context, id string, userHash string) error {
+func (r *Repository) MarkNotificationRead(ctx context.Context, notifID, userHash string) error {
 	result, err := r.db.Exec(ctx, `
 		UPDATE notifications SET is_read = true WHERE id = $1 AND user_hash = $2
-	`, id, userHash)
+	`, notifID, userHash)
 	if err != nil {
 		return fmt.Errorf("MarkNotificationRead: %w", err)
 	}

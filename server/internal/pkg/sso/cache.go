@@ -123,7 +123,7 @@ func (c *UserCache) Get(ctx context.Context, identifier string) (*CachedUser, er
 	var user CachedUser
 	if err := json.Unmarshal(data, &user); err != nil {
 		// 数据损坏：删除坏条目，降级为未命中
-		_ = c.rdb.Del(ctx, key).Err()
+		_ = c.rdb.Del(ctx, key).Err() //nolint:errcheck // best-effort delete of corrupted entry
 		return nil, nil
 	}
 

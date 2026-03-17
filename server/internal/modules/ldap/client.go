@@ -108,7 +108,7 @@ func (c *Client) Login(ctx context.Context, uid, password string) (*LoginResult,
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() //nolint:errcheck // best-effort cleanup
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (c *Client) QueryUserByUID(ctx context.Context, uid string) (*UserInfo, err
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() //nolint:errcheck // best-effort cleanup
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -196,13 +196,13 @@ func (c *Client) dial() (*ldapv3.Conn, error) {
 		return nil, fmt.Errorf("dial ldap failed: %w", err)
 	}
 
-	// ldaps:// 由 go-ldap 自动处理 TLS；对 ldap:// 且启用 TLS 时执行 StartTLS 升级。
+	// go-ldap 对 ldaps:// 自动处理 TLS；对 ldap:// 且启用 TLS 时执行 StartTLS 升级。
 	if c.cfg.UseTLS && strings.HasPrefix(strings.ToLower(c.cfg.URL), "ldap://") {
 		tlsCfg := &tls.Config{
 			InsecureSkipVerify: c.cfg.InsecureSkipVerify, //nolint:gosec // 仅开发/测试环境使用
 		}
 		if err := conn.StartTLS(tlsCfg); err != nil {
-			conn.Close()
+			_ = conn.Close() //nolint:errcheck // best-effort cleanup on StartTLS failure
 			return nil, fmt.Errorf("ldap StartTLS failed: %w", err)
 		}
 	}

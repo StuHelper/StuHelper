@@ -13,6 +13,11 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
+
 	apidocs "gitea.stuhelper.com/StuHelper/StuHelper/api"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
@@ -31,10 +36,6 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/zap"
 )
 
 // 构建信息，通过 -ldflags 注入
@@ -314,7 +315,7 @@ func run() error {
 		userHandler.RegisterAdminRoutes(adminGroup, rbacService)
 
 		// 启动后台定时任务（日志清理等）
-		bgCtx, bgCancel := context.WithCancel(context.Background())
+		bgCtx, bgCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: bgCancel is appended to cleanups and called on shutdown
 		cleanups = append(cleanups, bgCancel)
 		courseHandler.StartBackgroundJobs(bgCtx)
 	}

@@ -16,11 +16,11 @@ import (
 // isASCIIWord 判断词是否仅包含 ASCII 字母（英文词需要词边界匹配）
 func isASCIIWord(s string) bool {
 	for _, r := range s {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')) {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
 			return false
 		}
 	}
-	return len(s) > 0
+	return s != ""
 }
 
 // wordMatcher 敏感词匹配器，英文词使用 \b 词边界正则，中文词使用子串匹配
@@ -105,7 +105,7 @@ func (f *Filter) ensureFresh(ctx context.Context) {
 	}
 
 	// singleflight 确保同一时刻只有一个 goroutine 执行 DB 查询
-	_, _, _ = f.sf.Do("refresh", func() (interface{}, error) {
+	_, _, _ = f.sf.Do("refresh", func() (interface{}, error) { //nolint:errcheck // result not needed, refresh is side-effect only
 		// 二次检查：进入 singleflight 后再次确认是否仍需刷新
 		f.mu.RLock()
 		if time.Since(f.lastRefresh) <= f.refreshTTL {
@@ -194,84 +194,4 @@ func matchWord(m wordMatcher, lowerContent, originalContent string) bool {
 func (f *Filter) ContainsBlockedWord(ctx context.Context, content string) bool {
 	result := f.CheckContent(ctx, content)
 	return !result.IsValid
-}
-
-// QualityCheckResult 内容质量检查结果
-type QualityCheckResult struct {
-	Score       int      `json:"score"`       // 质量分数 0-100
-	Suggestions []string `json:"suggestions"` // 改进建议
-}
-
-// CheckQuality 检查内容质量
-func (f *Filter) CheckQuality(content string) *QualityCheckResult {
-	result := &QualityCheckResult{
-		Score:       100,
-		Suggestions: []string{},
-	}
-
-	// 去除空白字符后的长度
-	trimmed := strings.TrimSpace(content)
-	length := len([]rune(trimmed))
-
-	// 检查内容长度
-	if length < 10 {
-		result.Score -= 30
-		result.Suggestions = append(result.Suggestions, "content_too_short")
-	} else if length < 50 {
-		result.Score -= 10
-		result.Suggestions = append(result.Suggestions, "content_short")
-	}
-
-	// 检查是否包含换行（段落结构）
-	if length > 100 && !strings.Contains(content, "\n") {
-		result.Score -= 10
-		result.Suggestions = append(result.Suggestions, "content_lacks_paragraphs")
-	}
-
-	// 检查是否全是标点或特殊字符
-	alphaCount := 0
-	for _, r := range trimmed {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
-			(r >= '\u4e00' && r <= '\u9fff') { // 中文字符
-			alphaCount++
-		}
-	}
-	if length > 0 && float64(alphaCount)/float64(length) < 0.5 {
-		result.Score -= 20
-		result.Suggestions = append(result.Suggestions, "low_meaningful_content_ratio")
-	}
-
-	// 检查重复字符
-	if hasExcessiveRepetition(trimmed) {
-		result.Score -= 15
-		result.Suggestions = append(result.Suggestions, "excessive_repetition")
-	}
-
-	// 确保分数不低于0
-	if result.Score < 0 {
-		result.Score = 0
-	}
-
-	return result
-}
-
-// hasExcessiveRepetition 检查是否有过多重复字符
-func hasExcessiveRepetition(s string) bool {
-	runes := []rune(s)
-	if len(runes) < 5 {
-		return false
-	}
-
-	repeatCount := 1
-	for i := 1; i < len(runes); i++ {
-		if runes[i] == runes[i-1] {
-			repeatCount++
-			if repeatCount >= 5 {
-				return true
-			}
-		} else {
-			repeatCount = 1
-		}
-	}
-	return false
 }

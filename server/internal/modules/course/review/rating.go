@@ -18,7 +18,7 @@ import (
 func (h *Handler) GetRatingDimensions(c *gin.Context) {
 	// 检查缓存
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:rating_dimensions", "all")
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}
@@ -47,7 +47,7 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 
 	// 检查缓存
 	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:rating_stats", strconv.FormatInt(courseID, 10))
-	if cached, ok := h.cache.Get(c.Request.Context(), cacheKey); ok {
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return
 	}

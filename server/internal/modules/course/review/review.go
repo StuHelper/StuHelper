@@ -46,7 +46,7 @@ func (h *Handler) PostReview(c *gin.Context) {
 	}
 
 	requestID, _ := c.Get(middleware.CtxKeyRequestID)
-	requestIDStr, _ := requestID.(string)
+	requestIDStr, _ := requestID.(string) //nolint:errcheck // gin context value, empty string is safe fallback
 
 	result, err := h.service.PostReview(c.Request.Context(), PostReviewParams{
 		CourseID:  req.CourseID,

@@ -27,7 +27,7 @@ const retryBaseDelay = 100 * time.Millisecond
 // jitteredRetryDelay 返回带随机抖动的重试延迟，防止惊群效应
 func jitteredRetryDelay() time.Duration {
 	jitter := float64(retryBaseDelay) * 0.5
-	delta := rand.Float64()*2*jitter - jitter
+	delta := rand.Float64()*2*jitter - jitter //nolint:gosec // G404: jitter for retry delay, not cryptographic
 	return retryBaseDelay + time.Duration(delta)
 }
 

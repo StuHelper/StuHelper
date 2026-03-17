@@ -29,9 +29,10 @@ type UpdateTeacherRequest struct {
 // ListAdminTeachers 获取教师列表（管理员）
 func (h *Handler) ListAdminTeachers(c *gin.Context) {
 	search := c.Query("search")
-	var departmentID int64
-	if v := c.Query("departmentID"); v != "" {
-		departmentID, _ = strconv.ParseInt(v, 10, 64)
+	departmentID, ok := httputil.ParseOptionalInt64Query(c, "departmentID")
+	if !ok {
+		response.BadRequest(c, "invalid departmentID")
+		return
 	}
 	page, pageSize := httputil.ParsePage(c)
 	offset := httputil.SafeOffset(page, pageSize)

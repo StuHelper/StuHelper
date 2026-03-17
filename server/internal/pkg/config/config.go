@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 )
 
@@ -218,7 +217,7 @@ func Load() (*Config, error) {
 			cfg.Database.Host, cfg.Database.Port,
 			cfg.Database.Name, cfg.Database.SSLMode)
 	} else if cfg.Database.URL != "" && cfg.Database.Host != "localhost" {
-		log.Println("WARNING: Both DATABASE_URL and DB_HOST are set; DATABASE_URL takes priority. Individual DB_* fields will be ignored.")
+		parseErrs = append(parseErrs, "both DATABASE_URL and DB_HOST are set; DATABASE_URL takes priority, individual DB_* fields will be ignored")
 	}
 
 	if err := cfg.validate(parseErrs); err != nil {

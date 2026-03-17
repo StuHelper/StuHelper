@@ -40,7 +40,7 @@ type PermissionService interface {
 // resolveInternalUserID 返回缓存的内部用户 ID，或解析后缓存并返回。
 func resolveInternalUserID(c *gin.Context, service PermissionService) (int64, bool) {
 	if v, ok := c.Get(ctxKeyInternalUserID); ok {
-		return v.(int64), true
+		return v.(int64), true //nolint:errcheck // type set by our middleware
 	}
 
 	externalID := middleware.GetUserID(c)
@@ -68,7 +68,7 @@ func resolveInternalUserID(c *gin.Context, service PermissionService) (int64, bo
 // resolveEffectivePermissions 返回缓存的生效权限列表，或加载后缓存并返回。
 func resolveEffectivePermissions(c *gin.Context, service PermissionService, userID int64) ([]EffectivePermission, bool) {
 	if v, ok := c.Get(ctxKeyEffectivePerms); ok {
-		return v.([]EffectivePermission), true
+		return v.([]EffectivePermission), true //nolint:errcheck // type set by our middleware
 	}
 
 	perms, err := service.GetEffectivePermissions(c.Request.Context(), userID)

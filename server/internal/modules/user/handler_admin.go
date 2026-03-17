@@ -193,21 +193,14 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateSchoolConfig(c.Request.Context(), schoolID, UpdateSchoolConfigInput{
-		SchoolName:         req.SchoolName,
-		VerificationMethod: req.VerificationMethod,
-		LDAPConfig:         req.LDAPConfig,
-		AcademicDBTable:    req.AcademicDBTable,
-		ConsentText:        req.ConsentText,
-		ManualFormFields:   req.ManualFormFields,
-		Enabled:            req.Enabled,
-	}); err != nil {
+	if err := h.service.UpdateSchoolConfig(c.Request.Context(), schoolID, UpdateSchoolConfigInput(req)); err != nil {
 		if errors.Is(err, ErrSchoolNotFound) {
 			response.NotFound(c, "school config not found", errs.ErrProfileSchoolNotFound)
 			return
 		}
 		if errors.Is(err, ErrInvalidManualFieldConfig) {
-			response.BadRequest(c, err.Error())
+			logger.FromGin(c).Warn("invalid manual field config", zap.Error(err))
+			response.BadRequest(c, "invalid manual form field configuration")
 			return
 		}
 		logger.FromGin(c).Error("failed to update school config",

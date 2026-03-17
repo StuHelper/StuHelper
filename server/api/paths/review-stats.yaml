@@ -5,22 +5,22 @@
     summary: 获取评课统计数据
     security: []
     responses:
-      '200':
+      "200":
         description: 评课统计
         content:
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - $ref: "../components/schemas/common.yaml#/SuccessResponse"
                 - type: object
                   required: [data]
                   properties:
                     data:
-                      $ref: '../components/schemas/review.yaml#/ReviewStats'
-      '400':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '500':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
+                      $ref: "../components/schemas/review.yaml#/ReviewStats"
+      "400":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
+      "500":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
 
 /api/v1/course/review/rankings/hot:
   get:
@@ -43,13 +43,13 @@
           minimum: 1
           maximum: 100
     responses:
-      '200':
+      "200":
         description: 热门课程列表
         content:
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - $ref: "../components/schemas/common.yaml#/SuccessResponse"
                 - type: object
                   required: [data]
                   properties:
@@ -60,11 +60,11 @@
                         list:
                           type: array
                           items:
-                            $ref: '../components/schemas/review.yaml#/HotCourse'
-      '400':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '500':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
+                            $ref: "../components/schemas/review.yaml#/HotCourse"
+      "400":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
+      "500":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
 
 /api/v1/course/review/teachers/{teacherID}/stats:
   get:
@@ -73,32 +73,32 @@
     summary: 获取教师评分统计
     security: []
     parameters:
-      - $ref: '../components/parameters/common.yaml#/TeacherIDPath'
+      - $ref: "../components/parameters/common.yaml#/TeacherIDPath"
     responses:
-      '200':
+      "200":
         description: 教师评分统计
         content:
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - $ref: "../components/schemas/common.yaml#/SuccessResponse"
                 - type: object
                   required: [data]
                   properties:
                     data:
-                      $ref: '../components/schemas/rating.yaml#/TeacherRatingStatsResponse'
-      '400':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '404':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '500':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
+                      $ref: "../components/schemas/rating.yaml#/TeacherRatingStatsResponse"
+      "400":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
+      "404":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
+      "500":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
 
 /api/v1/course/review/content/check:
   post:
     tags: [Review]
     operationId: checkContent
-    summary: 内容安全检查（敏感词 + 质量）
+    summary: 内容安全检查（敏感词）
     security:
       - cookieAuth: []
       - bearerAuth: []
@@ -107,25 +107,25 @@
       content:
         application/json:
           schema:
-            $ref: '../components/schemas/review.yaml#/ContentCheckRequest'
+            $ref: "../components/schemas/review.yaml#/ContentCheckRequest"
     responses:
-      '200':
+      "200":
         description: 检查结果
         content:
           application/json:
             schema:
               allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - $ref: "../components/schemas/common.yaml#/SuccessResponse"
                 - type: object
                   required: [data]
                   properties:
                     data:
-                      $ref: '../components/schemas/review.yaml#/ContentCheckResult'
-      '400':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '401':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '403':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '500':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
+                      $ref: "../components/schemas/review.yaml#/ContentCheckResult"
+      "400":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
+      "401":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
+      "403":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"
+      "500":
+        $ref: "../components/responses/common.yaml#/ErrorResponse"

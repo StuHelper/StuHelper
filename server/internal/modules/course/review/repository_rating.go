@@ -229,7 +229,7 @@ func (r *Repository) RefreshTeacherRatingStats(ctx context.Context, teacherID in
 	if err != nil {
 		return fmt.Errorf("RefreshTeacherRatingStats begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // rollback after commit is no-op
 
 	// 先聚合出统计数据
 	rows, err := tx.Query(ctx, `

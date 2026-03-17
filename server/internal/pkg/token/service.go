@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
 	"github.com/redis/go-redis/v9"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
 )
 
 // Service Token 服务

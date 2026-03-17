@@ -8,8 +8,9 @@ import (
 	"os"
 	"time"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
 
 // NewPGPool 创建 PostgreSQL 连接池
