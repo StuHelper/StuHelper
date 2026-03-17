@@ -30,9 +30,11 @@ type fakeHandlerService struct {
 	onUpdateRole           func(ctx context.Context, id int64, input UpdateRoleInput) (*Role, error)
 	onGetRolePermissionIDs func(ctx context.Context, roleID int64) ([]int64, error)
 	onSetRolePermissions   func(ctx context.Context, roleID int64, permIDs []int64, clearAll bool) error
+	onGetUserRoles         func(ctx context.Context, userID int64) ([]Role, error)
 	onSetUserRoles         func(ctx context.Context, userID int64, roleIDs []int64) error
 	onSetUserPermission    func(ctx context.Context, userID int64, permID int64, granted bool) error
 	onUpdateGroup          func(ctx context.Context, id int64, input UpdateGroupInput) (*UserGroup, error)
+	onGetGroupMembers      func(ctx context.Context, groupID int64) ([]GroupMember, error)
 	onSetGroupMembers      func(ctx context.Context, groupID int64, userIDs []int64) error
 	onSetGroupPermissions  func(ctx context.Context, groupID int64, permIDs []int64) error
 	onGetInternalUserID    func(ctx context.Context, externalID string) (int64, error)
@@ -67,7 +69,12 @@ func (f *fakeHandlerService) SetRolePermissions(ctx context.Context, roleID int6
 func (f *fakeHandlerService) ListPermissions(context.Context, string) ([]Permission, error) {
 	return nil, nil
 }
-func (f *fakeHandlerService) GetUserRoles(context.Context, int64) ([]Role, error) { return nil, nil }
+func (f *fakeHandlerService) GetUserRoles(ctx context.Context, userID int64) ([]Role, error) {
+	if f.onGetUserRoles != nil {
+		return f.onGetUserRoles(ctx, userID)
+	}
+	return nil, nil
+}
 func (f *fakeHandlerService) SetUserRoles(ctx context.Context, userID int64, roleIDs []int64) error {
 	if f.onSetUserRoles != nil {
 		return f.onSetUserRoles(ctx, userID, roleIDs)
@@ -97,7 +104,10 @@ func (f *fakeHandlerService) UpdateGroup(ctx context.Context, id int64, input Up
 	return &UserGroup{}, nil
 }
 func (f *fakeHandlerService) DeleteGroup(context.Context, int64) error { return nil }
-func (f *fakeHandlerService) GetGroupMembers(context.Context, int64) ([]GroupMember, error) {
+func (f *fakeHandlerService) GetGroupMembers(ctx context.Context, groupID int64) ([]GroupMember, error) {
+	if f.onGetGroupMembers != nil {
+		return f.onGetGroupMembers(ctx, groupID)
+	}
 	return nil, nil
 }
 func (f *fakeHandlerService) SetGroupMembers(ctx context.Context, groupID int64, userIDs []int64) error {

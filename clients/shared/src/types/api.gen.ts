@@ -1876,13 +1876,17 @@ export interface components {
         UserProfile: {
             /** Format: int64 */
             userID: number;
-            schoolID?: string;
-            studentIDs?: string[];
-            activeStudentID?: string;
+            schoolID?: string | null;
+            studentIDs?: string[] | null;
+            activeStudentID?: string | null;
             /** @enum {string} */
             verificationStatus: "unverified" | "pending" | "verified" | "rejected";
-            verificationMethod?: string;
-            phone?: string;
+            /** @enum {string|null} */
+            verificationMethod?: "ldap" | "manual" | null;
+            rejectionReason?: string | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            phone?: string | null;
             phoneVerified?: boolean;
             /** Format: date-time */
             consentGivenAt?: string | null;
@@ -1909,8 +1913,9 @@ export interface components {
         SchoolConfig: {
             schoolID: string;
             schoolName: string;
-            verificationMethod: string;
-            consentText?: string;
+            /** @enum {string} */
+            verificationMethod: "ldap" | "manual";
+            consentText?: string | null;
             manualFormFields?: components["schemas"]["ManualFieldDescriptor"][] | null;
             enabled: boolean;
         };
@@ -1942,6 +1947,7 @@ export interface components {
         };
         ReviewStudentVerificationRequest: {
             approved: boolean;
+            /** @description 驳回理由，可留空 */
             rejectionReason?: string | null;
         };
         Role: {
@@ -2045,10 +2051,8 @@ export interface components {
             schoolName: string;
             /** @enum {string} */
             verificationMethod: "ldap" | "manual";
-            /** @description LDAP 连接配置 */
-            ldapConfig?: {
-                [key: string]: unknown;
-            } | null;
+            /** @description LDAP 连接配置，不返回系统绑定密码明文 */
+            ldapConfig?: components["schemas"]["SchoolLDAPConfigView"];
             /** @description 本地学籍表名 */
             academicDbTable?: string | null;
             consentText?: string | null;
@@ -2061,9 +2065,7 @@ export interface components {
             schoolName?: string;
             /** @enum {string} */
             verificationMethod?: "ldap" | "manual";
-            ldapConfig?: {
-                [key: string]: unknown;
-            };
+            ldapConfig?: components["schemas"]["SchoolLDAPConfigInput"];
             academicDbTable?: string;
             consentText?: string;
             manualFormFields?: components["schemas"]["ManualFieldDescriptor"][];
@@ -2085,16 +2087,20 @@ export interface components {
         AdminStudentVerificationItem: {
             /** Format: int64 */
             userID: number;
-            schoolID?: string;
-            studentIDs?: string[];
-            activeStudentID?: string;
+            schoolID?: string | null;
+            studentIDs?: string[] | null;
+            activeStudentID?: string | null;
             manualFormData?: {
                 [key: string]: unknown;
             } | null;
             /** @enum {string} */
             verificationStatus: "unverified" | "pending" | "verified" | "rejected";
-            verificationMethod?: string;
-            phone?: string;
+            /** @enum {string|null} */
+            verificationMethod?: "ldap" | "manual" | null;
+            rejectionReason?: string | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            phone?: string | null;
             phoneVerified?: boolean;
             /** Format: date-time */
             consentGivenAt?: string | null;
@@ -2122,10 +2128,26 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        SchoolLDAPConfigView: {
+            url?: string | null;
+            baseDN?: string | null;
+            systemBindDN?: string | null;
+            useTLS: boolean;
+            insecureSkipVerify: boolean;
+            hasSystemBindPassword: boolean;
+        };
+        SchoolLDAPConfigInput: {
+            url?: string;
+            baseDN?: string;
+            systemBindDN?: string;
+            systemBindPassword?: string;
+            useTLS?: boolean;
+            insecureSkipVerify?: boolean;
+        };
         SystemConfig: {
             key: string;
             value: string;
-            description?: string;
+            description?: string | null;
             /** Format: date-time */
             updatedAt: string;
         };

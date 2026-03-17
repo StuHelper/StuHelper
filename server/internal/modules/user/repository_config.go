@@ -92,14 +92,19 @@ func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, 
 
 // UpdateSchoolConfig 更新学校认证配置
 func (r *Repository) UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error {
-	_, err := r.db.Exec(ctx, `
+	normalizedAcademicDBTable, err := normalizeConfiguredAcademicDBTable(config.AcademicDBTable)
+	if err != nil {
+		return fmt.Errorf("UpdateSchoolConfig invalid academic_db_table: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, `
 		UPDATE school_configs SET
 			school_name = $2, verification_method = $3, ldap_config = $4,
 			academic_db_table = $5, consent_text = $6, manual_form_fields = $7,
 			enabled = $8, updated_at = NOW()
 		WHERE school_id = $1
 	`, config.SchoolID, config.SchoolName, config.VerificationMethod, config.LDAPConfig,
-		config.AcademicDBTable, config.ConsentText, config.ManualFormFields,
+		normalizedAcademicDBTable, config.ConsentText, config.ManualFormFields,
 		config.Enabled,
 	)
 	if err != nil {
@@ -133,11 +138,14 @@ func (r *Repository) ListSystemConfigs(ctx context.Context) ([]SystemConfig, err
 
 // UpdateSystemConfig 更新系统配置项
 func (r *Repository) UpdateSystemConfig(ctx context.Context, key, value string) error {
-	_, err := r.db.Exec(ctx, `
+	tag, err := r.db.Exec(ctx, `
 		UPDATE system_configs SET value = $2, updated_at = NOW() WHERE key = $1
 	`, key, value)
 	if err != nil {
 		return fmt.Errorf("UpdateSystemConfig: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrSystemConfigNotFound
 	}
 	return nil
 }

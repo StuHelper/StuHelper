@@ -110,8 +110,19 @@ func setupUserHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engin
 	return r
 }
 
-func TestHandleAdminReviewIdentity_RejectionReasonRequiredReturns400(t *testing.T) {
-	r := setupAdminHandlerTestRouter(t)
+func TestHandleAdminReviewIdentity_AllowsBlankRejectionReason(t *testing.T) {
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 123, Verified: true}, nil
+		},
+		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, verifyMethod *string, _ *time.Time, rejectionReason *string) error {
+			assert.False(t, approved)
+			assert.Nil(t, verifyMethod)
+			assert.Nil(t, rejectionReason)
+			return nil
+		},
+	}
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
 
 	req := httptest.NewRequest(
 		http.MethodPut,
@@ -123,19 +134,27 @@ func TestHandleAdminReviewIdentity_RejectionReasonRequiredReturns400(t *testing.
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var resp handlerTestResponse
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.False(t, resp.Success)
-	require.NotNil(t, resp.Error)
-	assert.Equal(t, string(errs.ErrBadRequest), resp.Error.Code)
-	assert.Equal(t, "rejection reason is required when rejecting", resp.Error.Message)
+	assert.True(t, resp.Success)
 }
 
-func TestHandleAdminReviewStudentVerification_RejectionReasonRequiredReturns400(t *testing.T) {
-	r := setupAdminHandlerTestRouter(t)
+func TestHandleAdminReviewStudentVerification_AllowsBlankRejectionReason(t *testing.T) {
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+			return &Profile{UserID: 123, VerificationStatus: StatusPending}, nil
+		},
+		onUpdateProfile: func(_ context.Context, profile *Profile) error {
+			assert.Equal(t, StatusRejected, profile.VerificationStatus)
+			assert.Nil(t, profile.VerifiedAt)
+			assert.Nil(t, profile.RejectionReason)
+			return nil
+		},
+	}
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
 
 	req := httptest.NewRequest(
 		http.MethodPut,
@@ -147,15 +166,43 @@ func TestHandleAdminReviewStudentVerification_RejectionReasonRequiredReturns400(
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var resp handlerTestResponse
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.False(t, resp.Success)
-	require.NotNil(t, resp.Error)
-	assert.Equal(t, string(errs.ErrBadRequest), resp.Error.Code)
-	assert.Equal(t, "rejection reason is required when rejecting", resp.Error.Message)
+	assert.True(t, resp.Success)
+}
+
+func TestHandleAdminReviewStudentVerification_AllowsNullRejectionReason(t *testing.T) {
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+			return &Profile{UserID: 123, VerificationStatus: StatusPending}, nil
+		},
+		onUpdateProfile: func(_ context.Context, profile *Profile) error {
+			assert.Equal(t, StatusRejected, profile.VerificationStatus)
+			assert.Nil(t, profile.RejectionReason)
+			return nil
+		},
+	}
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/admin/student-verifications/123",
+		strings.NewReader(`{"approved":false,"rejectionReason":null}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp handlerTestResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.True(t, resp.Success)
 }
 
 func TestHandleAdminReviewIdentity_MissingApprovedReturns400(t *testing.T) {
@@ -444,7 +491,7 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 				SchoolID:           "10006",
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodLDAP,
-				LDAPConfig:         json.RawMessage(`{"host":"ldap.example","port":636}`),
+				LDAPConfig:         json.RawMessage(`{"url":"ldaps://ldap.example:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true,"insecureSkipVerify":false}`),
 				AcademicDBTable:    &academicTable,
 				ConsentText:        &consentText,
 				ManualFormFields:   json.RawMessage(`[{"key":"studentID","label":"学号","type":"text","required":true}]`),
@@ -473,12 +520,84 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	assert.NotContains(t, item, "SchoolID")
 	assert.NotContains(t, item, "LDAPConfig")
 	ldapConfig := item["ldapConfig"].(map[string]any)
-	assert.Equal(t, "ldap.example", ldapConfig["host"])
+	assert.Equal(t, "ldaps://ldap.example:636", ldapConfig["url"])
+	assert.Equal(t, true, ldapConfig["hasSystemBindPassword"])
+	assert.NotContains(t, ldapConfig, "systemBindPassword")
 	manualFormFields := item["manualFormFields"].([]any)
 	require.Len(t, manualFormFields, 1)
 	firstField := manualFormFields[0].(map[string]any)
 	assert.Equal(t, "studentID", firstField["key"])
 	assert.Equal(t, "学号", firstField["label"])
+}
+
+func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t *testing.T) {
+	existing := &SchoolConfig{
+		SchoolID:           "10006",
+		SchoolName:         "北航",
+		VerificationMethod: VerifyMethodLDAP,
+		Enabled:            true,
+	}
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
+			assert.Equal(t, "10006", schoolID)
+			copied := *existing
+			return &copied, nil
+		},
+	}
+
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/admin/school-configs/10006",
+		strings.NewReader(`{"academicDbTable":"academic.students;drop table users;"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+
+	var resp handlerTestResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Error)
+	assert.Equal(t, string(errs.ErrProfileAcademicTable), resp.Error.Code)
+}
+
+func TestHandleAdminUpdateSchoolConfig_MissingLDAPConfigReturnsBusinessCode(t *testing.T) {
+	existing := &SchoolConfig{
+		SchoolID:           "10006",
+		SchoolName:         "北航",
+		VerificationMethod: VerifyMethodManual,
+		Enabled:            false,
+	}
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
+			assert.Equal(t, "10006", schoolID)
+			copied := *existing
+			return &copied, nil
+		},
+	}
+
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/admin/school-configs/10006",
+		strings.NewReader(`{"verificationMethod":"ldap","enabled":true,"academicDbTable":"academic.buaa_students"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+
+	var resp handlerTestResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Error)
+	assert.Equal(t, string(errs.ErrSchoolLDAPConfigMissing), resp.Error.Code)
 }
 
 func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
@@ -547,4 +666,55 @@ func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {
 	assert.Equal(t, "演示配置", item["description"])
 	assert.NotContains(t, item, "Key")
 	assert.NotContains(t, item, "UpdatedAt")
+}
+
+func TestHandleAdminUpdateSystemConfig_InvalidReviewPreviewPercentReturns400(t *testing.T) {
+	r := setupAdminHandlerTestRouter(t)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/admin/system-configs/review_preview_content_percent",
+		strings.NewReader(`{"value":"120"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+
+	var resp handlerTestResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Error)
+	assert.Equal(t, string(errs.ErrInvalidParam), resp.Error.Code)
+}
+
+func TestHandleAdminUpdateSystemConfig_NotFoundReturns404(t *testing.T) {
+	repo := &mockRepo{
+		onUpdateSystemConfig: func(_ context.Context, key, value string) error {
+			assert.Equal(t, "feature.missing", key)
+			assert.Equal(t, "enabled", value)
+			return ErrSystemConfigNotFound
+		},
+	}
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/admin/system-configs/feature.missing",
+		strings.NewReader(`{"value":"enabled"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+
+	var resp handlerTestResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Error)
+	assert.Equal(t, string(errs.ErrSystemConfigNotFound), resp.Error.Code)
 }

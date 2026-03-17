@@ -5028,13 +5028,19 @@ components:
           type: integer
           format: int64
         schoolID:
-          type: string
+          type:
+            - string
+            - 'null'
         studentIDs:
-          type: array
+          type:
+            - array
+            - 'null'
           items:
             type: string
         activeStudentID:
-          type: string
+          type:
+            - string
+            - 'null'
         verificationStatus:
           type: string
           enum:
@@ -5043,9 +5049,25 @@ components:
             - verified
             - rejected
         verificationMethod:
-          type: string
+          type:
+            - string
+            - 'null'
+          enum:
+            - ldap
+            - manual
+        rejectionReason:
+          type:
+            - string
+            - 'null'
+        reviewedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
         phone:
-          type: string
+          type:
+            - string
+            - 'null'
         phoneVerified:
           type: boolean
         consentGivenAt:
@@ -5106,8 +5128,13 @@ components:
           type: string
         verificationMethod:
           type: string
+          enum:
+            - ldap
+            - manual
         consentText:
-          type: string
+          type:
+            - string
+            - 'null'
         manualFormFields:
           type:
             - array
@@ -5171,6 +5198,7 @@ components:
         approved:
           type: boolean
         rejectionReason:
+          description: 驳回理由，可留空
           type:
             - string
             - 'null'
@@ -5427,11 +5455,8 @@ components:
             - ldap
             - manual
         ldapConfig:
-          type:
-            - object
-            - 'null'
-          additionalProperties: true
-          description: LDAP 连接配置
+          $ref: '#/components/schemas/SchoolLDAPConfigView'
+          description: LDAP 连接配置，不返回系统绑定密码明文
         academicDbTable:
           type:
             - string
@@ -5464,8 +5489,7 @@ components:
             - ldap
             - manual
         ldapConfig:
-          type: object
-          additionalProperties: true
+          $ref: '#/components/schemas/SchoolLDAPConfigInput'
         academicDbTable:
           type: string
           maxLength: 100
@@ -5524,13 +5548,19 @@ components:
           type: integer
           format: int64
         schoolID:
-          type: string
+          type:
+            - string
+            - 'null'
         studentIDs:
-          type: array
+          type:
+            - array
+            - 'null'
           items:
             type: string
         activeStudentID:
-          type: string
+          type:
+            - string
+            - 'null'
         manualFormData:
           type:
             - object
@@ -5544,9 +5574,25 @@ components:
             - verified
             - rejected
         verificationMethod:
-          type: string
+          type:
+            - string
+            - 'null'
+          enum:
+            - ldap
+            - manual
+        rejectionReason:
+          type:
+            - string
+            - 'null'
+        reviewedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
         phone:
-          type: string
+          type:
+            - string
+            - 'null'
         phoneVerified:
           type: boolean
         consentGivenAt:
@@ -5605,6 +5651,46 @@ components:
         updatedAt:
           type: string
           format: date-time
+    SchoolLDAPConfigView:
+      type: object
+      required:
+        - useTLS
+        - insecureSkipVerify
+        - hasSystemBindPassword
+      properties:
+        url:
+          type:
+            - string
+            - 'null'
+        baseDN:
+          type:
+            - string
+            - 'null'
+        systemBindDN:
+          type:
+            - string
+            - 'null'
+        useTLS:
+          type: boolean
+        insecureSkipVerify:
+          type: boolean
+        hasSystemBindPassword:
+          type: boolean
+    SchoolLDAPConfigInput:
+      type: object
+      properties:
+        url:
+          type: string
+        baseDN:
+          type: string
+        systemBindDN:
+          type: string
+        systemBindPassword:
+          type: string
+        useTLS:
+          type: boolean
+        insecureSkipVerify:
+          type: boolean
     SystemConfig:
       type: object
       required:
@@ -5617,7 +5703,9 @@ components:
         value:
           type: string
         description:
-          type: string
+          type:
+            - string
+            - 'null'
         updatedAt:
           type: string
           format: date-time

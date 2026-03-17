@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
 // fakeEncryptor 实现 pii.Encryptor 接口的测试替身
@@ -41,7 +43,9 @@ type mockRepo struct {
 	onGetAcademicStudentByXH          func(ctx context.Context, xh string) (*AcademicStudent, error)
 	onListAllSchoolConfigs            func(ctx context.Context) ([]SchoolConfig, error)
 	onUpdateSchoolConfig              func(ctx context.Context, config *SchoolConfig) error
+	onValidateAcademicDBTable         func(ctx context.Context, tableName string) error
 	onListSystemConfigs               func(ctx context.Context) ([]SystemConfig, error)
+	onUpdateSystemConfig              func(ctx context.Context, key, value string) error
 	onGetInternalUserID               func(ctx context.Context, externalID string) (int64, error)
 }
 
@@ -145,6 +149,13 @@ func (m *mockRepo) UpdateSchoolConfig(ctx context.Context, config *SchoolConfig)
 	return nil
 }
 
+func (m *mockRepo) ValidateAcademicDBTable(ctx context.Context, tableName string) error {
+	if m.onValidateAcademicDBTable != nil {
+		return m.onValidateAcademicDBTable(ctx, tableName)
+	}
+	return nil
+}
+
 func (m *mockRepo) ListSystemConfigs(ctx context.Context) ([]SystemConfig, error) {
 	if m.onListSystemConfigs != nil {
 		return m.onListSystemConfigs(ctx)
@@ -152,7 +163,12 @@ func (m *mockRepo) ListSystemConfigs(ctx context.Context) ([]SystemConfig, error
 	return nil, nil
 }
 
-func (m *mockRepo) UpdateSystemConfig(_ context.Context, _, _ string) error { return nil }
+func (m *mockRepo) UpdateSystemConfig(ctx context.Context, key, value string) error {
+	if m.onUpdateSystemConfig != nil {
+		return m.onUpdateSystemConfig(ctx, key, value)
+	}
+	return nil
+}
 
 func (m *mockRepo) GetInternalUserID(ctx context.Context, externalID string) (int64, error) {
 	if m.onGetInternalUserID != nil {
@@ -297,20 +313,39 @@ func TestSubmitIdentity_AlreadyVerified(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// ReviewIdentity — 拒绝理由校验 + 完整审批流程
+// ReviewIdentity — 拒绝理由可选 + 完整审批流程
 // ---------------------------------------------------------------------------
 
-func TestReviewIdentity_RejectWithoutReasonFails(t *testing.T) {
-	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+func TestReviewIdentity_RejectionReasonIsOptional(t *testing.T) {
+	var capturedReason *string
+
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 1, Verified: false}, nil
+		},
+		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, _ *string, _ *time.Time, rejectionReason *string) error {
+			assert.False(t, approved)
+			capturedReason = rejectionReason
+			return nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	// 空理由
 	err = svc.ReviewIdentity(context.Background(), 1, false, "")
-	assert.ErrorIs(t, err, ErrRejectionReasonRequired)
+	require.NoError(t, err)
+	assert.Nil(t, capturedReason)
 
-	// 纯空白理由
-	err = svc.ReviewIdentity(context.Background(), 1, false, "   ")
-	assert.ErrorIs(t, err, ErrRejectionReasonRequired)
+	err = svc.ReviewIdentity(context.Background(), 1, false, "  ")
+	require.NoError(t, err)
+	assert.Nil(t, capturedReason)
+
+	reason := "材料不合规"
+	err = svc.ReviewIdentity(context.Background(), 1, false, reason)
+	require.NoError(t, err)
+	require.NotNil(t, capturedReason)
+	assert.Equal(t, reason, *capturedReason)
 }
 
 func TestReviewIdentity_ApproveFlow(t *testing.T) {
@@ -523,12 +558,39 @@ func TestVerifyStudent_LDAPRequiresPassword(t *testing.T) {
 // ReviewStudentVerification
 // ---------------------------------------------------------------------------
 
-func TestReviewStudentVerification_RejectWithoutReasonFails(t *testing.T) {
-	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+func TestReviewStudentVerification_RejectionReasonIsOptional(t *testing.T) {
+	var captured *Profile
+
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+			return &Profile{UserID: 1, VerificationStatus: StatusPending}, nil
+		},
+		onUpdateProfile: func(_ context.Context, profile *Profile) error {
+			captured = profile
+			return nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.ReviewStudentVerification(context.Background(), 1, false, "")
-	assert.ErrorIs(t, err, ErrRejectionReasonRequired)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, StatusRejected, captured.VerificationStatus)
+	assert.Nil(t, captured.RejectionReason)
+
+	err = svc.ReviewStudentVerification(context.Background(), 1, false, " ")
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Nil(t, captured.RejectionReason)
+
+	reason := "材料不全"
+	err = svc.ReviewStudentVerification(context.Background(), 1, false, reason)
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.NotNil(t, captured.RejectionReason)
+	assert.Equal(t, reason, *captured.RejectionReason)
 }
 
 func TestReviewStudentVerification_ApproveFlow(t *testing.T) {
@@ -570,7 +632,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 				SchoolID:           "10006",
 				SchoolName:         "旧学校名",
 				VerificationMethod: VerifyMethodLDAP,
-				LDAPConfig:         json.RawMessage(`{"host":"ldap.old","port":389}`),
+				LDAPConfig:         json.RawMessage(`{"url":"ldap://ldap.old:389","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":false,"insecureSkipVerify":false}`),
 				AcademicDBTable:    &academicTable,
 				ConsentText:        &consentText,
 				ManualFormFields:   json.RawMessage(`[{"key":"idCard","label":"身份证号","type":"text","required":true}]`),
@@ -588,15 +650,18 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 
 	schoolName := "新学校名"
 	enabled := false
-	ldapConfig := map[string]any{
-		"host": "ldap.new",
-		"ssl":  true,
-	}
+	ldapURL := "ldaps://ldap.new:636"
+	systemBindPassword := "new-secret"
+	useTLS := true
 
 	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
 		SchoolName: &schoolName,
-		LDAPConfig: &ldapConfig,
-		Enabled:    &enabled,
+		LDAPConfig: &SchoolLDAPConfigInput{
+			URL:                &ldapURL,
+			SystemBindPassword: &systemBindPassword,
+			UseTLS:             &useTLS,
+		},
+		Enabled: &enabled,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, captured)
@@ -604,13 +669,52 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 	assert.Equal(t, "10006", captured.SchoolID)
 	assert.Equal(t, "新学校名", captured.SchoolName)
 	assert.Equal(t, VerifyMethodLDAP, captured.VerificationMethod, "未提供的 verificationMethod 应保留原值")
-	assert.Equal(t, `{"host":"ldap.new","ssl":true}`, string(captured.LDAPConfig))
+	assert.JSONEq(t, `{"baseDN":"ou=users,dc=example,dc=com","insecureSkipVerify":false,"systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"new-secret","url":"ldaps://ldap.new:636","useTLS":true}`, string(captured.LDAPConfig))
 	require.NotNil(t, captured.AcademicDBTable)
 	assert.Equal(t, "academic.buaa_students", *captured.AcademicDBTable, "未提供的 academicDbTable 应保留原值")
 	require.NotNil(t, captured.ConsentText)
 	assert.Equal(t, "原始授权文本", *captured.ConsentText, "未提供的 consentText 应保留原值")
 	assert.JSONEq(t, `[{"key":"idCard","label":"身份证号","type":"text","required":true}]`, string(captured.ManualFormFields), "未提供的 manualFormFields 应保留原值")
 	assert.False(t, captured.Enabled)
+}
+
+func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.T) {
+	var captured *SchoolConfig
+
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
+			require.Equal(t, "10006", schoolID)
+			table := "academic.buaa_students"
+			return &SchoolConfig{
+				SchoolID:           "10006",
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodLDAP,
+				LDAPConfig:         json.RawMessage(`{"url":"ldap://ldap.old:389","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":false,"insecureSkipVerify":false}`),
+				AcademicDBTable:    &table,
+				Enabled:            true,
+			}, nil
+		},
+		onUpdateSchoolConfig: func(_ context.Context, config *SchoolConfig) error {
+			copied := *config
+			captured = &copied
+			return nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	ldapURL := "ldaps://ldap.new:636"
+	useTLS := true
+	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
+		LDAPConfig: &SchoolLDAPConfigInput{
+			URL:    &ldapURL,
+			UseTLS: &useTLS,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.JSONEq(t, `{"url":"ldaps://ldap.new:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true,"insecureSkipVerify":false}`, string(captured.LDAPConfig))
 }
 
 func TestUpdateSchoolConfig_SchoolNotFoundReturnsError(t *testing.T) {
@@ -641,4 +745,126 @@ func TestUpdateSchoolConfig_InvalidManualFieldConfigReturnsError(t *testing.T) {
 		ManualFormFields: &fields,
 	})
 	assert.ErrorIs(t, err, ErrInvalidManualFieldConfig)
+}
+
+func TestUpdateSchoolConfig_EnabledLDAPRequiresAcademicTable(t *testing.T) {
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           "10006",
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				Enabled:            false,
+			}, nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	method := VerifyMethodLDAP
+	enabled := true
+	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
+		VerificationMethod: &method,
+		Enabled:            &enabled,
+	})
+
+	assert.ErrorIs(t, err, ErrAcademicTableNotConfigured)
+}
+
+func TestUpdateSchoolConfig_EnabledLDAPRequiresValidLDAPConfig(t *testing.T) {
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+			table := "academic.buaa_students"
+			return &SchoolConfig{
+				SchoolID:           "10006",
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodLDAP,
+				AcademicDBTable:    &table,
+				Enabled:            true,
+			}, nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{})
+
+	assert.ErrorIs(t, err, ErrSchoolLDAPConfigMissing)
+}
+
+func TestUpdateSchoolConfig_ValidatesAcademicTableExists(t *testing.T) {
+	repo := &mockRepo{
+		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+			table := "academic.buaa_students"
+			return &SchoolConfig{
+				SchoolID:           "10006",
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				AcademicDBTable:    &table,
+				Enabled:            false,
+			}, nil
+		},
+		onValidateAcademicDBTable: func(_ context.Context, tableName string) error {
+			assert.Equal(t, "academic.buaa_students", tableName)
+			return assert.AnError
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{})
+
+	assert.ErrorIs(t, err, ErrInvalidAcademicDBTable)
+}
+
+func TestUpdateSystemConfig_RejectsInvalidReviewAccessSchoolIDs(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `{"schoolID":"10006"}`)
+	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
+}
+
+func TestUpdateSystemConfig_RejectsInvalidReviewPreviewPercent(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewPreviewContentPercentKey, "120")
+	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
+}
+
+func TestUpdateSystemConfig_RejectsUnknownReviewAccessSchoolIDs(t *testing.T) {
+	repo := &mockRepo{
+		onListAllSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{
+				{SchoolID: "10006"},
+				{SchoolID: "10007"},
+			}, nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `["10006","99999"]`)
+	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
+}
+
+func TestUpdateSystemConfig_ReturnsNotFoundWhenKeyMissing(t *testing.T) {
+	repo := &mockRepo{
+		onUpdateSystemConfig: func(_ context.Context, key, value string) error {
+			assert.Equal(t, "feature.missing", key)
+			assert.Equal(t, "enabled", value)
+			return ErrSystemConfigNotFound
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.UpdateSystemConfig(context.Background(), "feature.missing", "enabled")
+	assert.ErrorIs(t, err, ErrSystemConfigNotFound)
 }

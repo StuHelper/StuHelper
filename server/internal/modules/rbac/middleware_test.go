@@ -164,3 +164,33 @@ func TestRequirePermission_DeniesWhenPermissionNotGranted(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
+
+func TestRequirePermission_Returns500WhenScopeCheckFails(t *testing.T) {
+	svc := &fakeHandlerService{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) { return 42, nil },
+		onGetEffectivePerms: func(_ context.Context, _ int64) ([]EffectivePermission, error) {
+			return []EffectivePermission{
+				{PermissionID: 1, Name: capability.RBACRoleRead, Granted: true},
+			}, nil
+		},
+		onCheckPermissionScope: func(_ context.Context, _ EffectivePermission, _ int64, _ *string) (bool, error) {
+			return false, errors.New("repository down")
+		},
+	}
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+		c.Next()
+	})
+	r.GET("/admin/roles",
+		RequirePermission(svc, capability.RBACRoleRead),
+		func(c *gin.Context) { c.Status(http.StatusNoContent) },
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/roles", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}

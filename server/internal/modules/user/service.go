@@ -14,24 +14,29 @@ import (
 
 // 业务错误定义
 var (
-	ErrIdentityAlreadyExists    = errors.New("identity already exists")
-	ErrIdentityAlreadyVerified  = errors.New("identity already verified")
-	ErrProfileAlreadyVerified   = errors.New("profile already verified")
-	ErrSchoolNotFound           = errors.New("school not found")
-	ErrSchoolDisabled           = errors.New("school verification disabled")
-	ErrConsentRequired          = errors.New("consent is required")
-	ErrPhotoRequired            = errors.New("photo upload required for non-mainland documents")
-	ErrLDAPFailed               = errors.New("LDAP verification failed")
-	ErrIdentityRequired         = errors.New("identity verification required before student verification")
-	ErrStudentIDRequired        = errors.New("student ID is required for LDAP verification")
-	ErrPasswordRequired         = errors.New("password is required for LDAP verification")
-	ErrStudentNotFound          = errors.New("student record not found in academic database")
-	ErrProfileNotFound          = errors.New("student profile not found")
-	ErrIdentityNotFound         = errors.New("identity not found")
-	ErrRejectionReasonRequired  = errors.New("rejection reason is required when rejecting")
-	ErrManualFieldRequired      = errors.New("required manual form field is missing")
-	ErrManualFieldInvalid       = errors.New("manual form field value is invalid")
-	ErrInvalidManualFieldConfig = errors.New("manual form field config is invalid")
+	ErrIdentityAlreadyExists      = errors.New("identity already exists")
+	ErrIdentityAlreadyVerified    = errors.New("identity already verified")
+	ErrProfileAlreadyVerified     = errors.New("profile already verified")
+	ErrSchoolNotFound             = errors.New("school not found")
+	ErrSchoolDisabled             = errors.New("school verification disabled")
+	ErrConsentRequired            = errors.New("consent is required")
+	ErrPhotoRequired              = errors.New("photo upload required for non-mainland documents")
+	ErrLDAPFailed                 = errors.New("LDAP verification failed")
+	ErrIdentityRequired           = errors.New("identity verification required before student verification")
+	ErrStudentIDRequired          = errors.New("student ID is required for LDAP verification")
+	ErrPasswordRequired           = errors.New("password is required for LDAP verification")
+	ErrStudentNotFound            = errors.New("student record not found in academic database")
+	ErrProfileNotFound            = errors.New("student profile not found")
+	ErrIdentityNotFound           = errors.New("identity not found")
+	ErrManualFieldRequired        = errors.New("required manual form field is missing")
+	ErrManualFieldInvalid         = errors.New("manual form field value is invalid")
+	ErrInvalidManualFieldConfig   = errors.New("manual form field config is invalid")
+	ErrInvalidAcademicDBTable     = errors.New("academic table config is invalid")
+	ErrAcademicTableNotConfigured = errors.New("academic table is not configured for the school")
+	ErrSchoolLDAPConfigMissing    = errors.New("LDAP configuration is not provided for the school")
+	ErrLDAPConfigInvalid          = errors.New("LDAP configuration is invalid")
+	ErrSystemConfigNotFound       = errors.New("system config not found")
+	ErrInvalidSystemConfigValue   = errors.New("system config value is invalid")
 )
 
 // DocType 证件类型常量
@@ -84,12 +89,20 @@ type Repo interface {
 	GetInternalUserID(ctx context.Context, externalID string) (int64, error)
 }
 
+type ldapAuthClient interface {
+	Login(ctx context.Context, uid, password string) (*ldap.LoginResult, error)
+	QueryUserByUID(ctx context.Context, uid string) (*ldap.UserInfo, error)
+}
+
+type ldapClientFactory func(cfg ldap.Config) (ldapAuthClient, error)
+
 // Service 用户服务层
 type Service struct {
-	repo       Repo
-	ldapClient *ldap.Client
-	hmacKey    []byte
-	docCipher  pii.Encryptor
+	repo              Repo
+	ldapClient        ldapAuthClient
+	ldapClientFactory ldapClientFactory
+	hmacKey           []byte
+	docCipher         pii.Encryptor
 }
 
 // NewService 创建用户服务（构造期校验关键依赖）
@@ -104,10 +117,11 @@ func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pi
 		return nil, errors.New("user.NewService: docCipher must not be nil")
 	}
 	return &Service{
-		repo:       repo,
-		ldapClient: ldapClient,
-		hmacKey:    hmacKey,
-		docCipher:  docCipher,
+		repo:              repo,
+		ldapClient:        ldapClient,
+		ldapClientFactory: func(cfg ldap.Config) (ldapAuthClient, error) { return ldap.NewClient(cfg) },
+		hmacKey:           hmacKey,
+		docCipher:         docCipher,
 	}, nil
 }
 
@@ -130,12 +144,34 @@ type VerifyStudentRequest struct {
 	Consent        bool           `json:"consent"`
 }
 
+// SchoolLDAPConfigInput 学校 LDAP 配置更新输入。
+// 指针用于保留省略与显式传值的区别，避免部分更新时误清空未提交字段。
+type SchoolLDAPConfigInput struct {
+	URL                *string `json:"url,omitempty"`
+	BaseDN             *string `json:"baseDN,omitempty"`
+	SystemBindDN       *string `json:"systemBindDN,omitempty"`
+	SystemBindPassword *string `json:"systemBindPassword,omitempty"`
+	UseTLS             *bool   `json:"useTLS,omitempty"`
+	InsecureSkipVerify *bool   `json:"insecureSkipVerify,omitempty"`
+}
+
+// SchoolLDAPConfigView 管理端学校配置返回体。
+// 为避免泄漏密钥，仅返回是否已配置系统绑定密码。
+type SchoolLDAPConfigView struct {
+	URL                   *string `json:"url,omitempty"`
+	BaseDN                *string `json:"baseDN,omitempty"`
+	SystemBindDN          *string `json:"systemBindDN,omitempty"`
+	UseTLS                bool    `json:"useTLS"`
+	InsecureSkipVerify    bool    `json:"insecureSkipVerify"`
+	HasSystemBindPassword bool    `json:"hasSystemBindPassword"`
+}
+
 // UpdateSchoolConfigInput 学校配置更新请求（管理端）
 // 使用可选字段做合并更新，避免未提供字段被误清空。
 type UpdateSchoolConfigInput struct {
 	SchoolName         *string
 	VerificationMethod *string
-	LDAPConfig         *map[string]any
+	LDAPConfig         *SchoolLDAPConfigInput
 	AcademicDBTable    *string
 	ConsentText        *string
 	ManualFormFields   *[]ManualFieldDescriptor

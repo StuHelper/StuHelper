@@ -84,7 +84,7 @@
 - 管理端审核端点需要对应的能力字符串
 - 当前 `ldap` 验证成功后自动将 `verification_status` 设为 `verified`
 - 当前 `manual` 提交后 `verification_status` 设为 `pending`，等待管理员批准
-- 拒绝操作必须提供拒绝原因
+- 拒绝理由当前可留空，建议管理员填写，便于复审和申诉处理
 
 ## 用户端 API 端点
 

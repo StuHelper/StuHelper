@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -17,6 +18,16 @@ func (s *Service) ListPermissions(ctx context.Context, module string) ([]Permiss
 
 // GetEffectivePermissions 获取用户最终生效权限
 func (s *Service) GetEffectivePermissions(ctx context.Context, userID int64) ([]EffectivePermission, error) {
+	if validator, ok := s.repo.(userExistenceRepo); ok {
+		exists, err := validator.UserExists(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, ErrUserNotFound
+		}
+	}
+
 	return s.repo.GetEffectivePermissions(ctx, userID)
 }
 
@@ -25,6 +36,17 @@ func (s *Service) SetUserPermission(ctx context.Context, userID int64, permID in
 	if _, err := s.repo.GetPermissionByID(ctx, permID); err != nil {
 		return err
 	}
+
+	if validator, ok := s.repo.(userExistenceRepo); ok {
+		exists, err := validator.UserExists(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return ErrUserNotFound
+		}
+	}
+
 	return s.repo.SetUserPermission(ctx, userID, permID, granted)
 }
 
@@ -91,20 +113,11 @@ func (s *Service) CheckPermissionScope(ctx context.Context, ep EffectivePermissi
 			zap.Int64("permission_id", ep.PermissionID),
 			zap.Error(err),
 		)
-		return false, nil
+		return false, fmt.Errorf("CheckPermissionScope get permission detail: %w", err)
 	}
 
-	if len(perm.ScopeSchoolIDs) > 0 && schoolID != nil {
-		schoolAllowed := false
-		for _, sid := range perm.ScopeSchoolIDs {
-			if sid == *schoolID {
-				schoolAllowed = true
-				break
-			}
-		}
-		if !schoolAllowed {
-			return false, nil
-		}
+	if !isSchoolScopeAllowed(perm.ScopeSchoolIDs, schoolID) {
+		return false, nil
 	}
 
 	if len(perm.ScopeRoles) > 0 {
@@ -114,7 +127,7 @@ func (s *Service) CheckPermissionScope(ctx context.Context, ep EffectivePermissi
 				zap.Int64("user_id", userID),
 				zap.Error(err),
 			)
-			return false, nil
+			return false, fmt.Errorf("CheckPermissionScope get user roles: %w", err)
 		}
 		roleAllowed := false
 		for _, requiredRole := range perm.ScopeRoles {
@@ -134,4 +147,23 @@ func (s *Service) CheckPermissionScope(ctx context.Context, ep EffectivePermissi
 	}
 
 	return true, nil
+}
+
+func isSchoolScopeAllowed(scopeSchoolIDs []string, schoolID *string) bool {
+	if len(scopeSchoolIDs) == 0 {
+		return true
+	}
+	if schoolID == nil {
+		return false
+	}
+	requestSchoolID := strings.TrimSpace(*schoolID)
+	if requestSchoolID == "" {
+		return false
+	}
+	for _, allowedSchoolID := range scopeSchoolIDs {
+		if requestSchoolID == allowedSchoolID {
+			return true
+		}
+	}
+	return false
 }

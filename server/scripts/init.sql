@@ -452,6 +452,8 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     manual_form_data JSONB,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'unverified',
     verification_method VARCHAR(20),
+    rejection_reason TEXT,
+    reviewed_at TIMESTAMPTZ,
     phone VARCHAR(20),
     phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
     consent_given_at TIMESTAMPTZ,
@@ -467,6 +469,9 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 CREATE INDEX IF NOT EXISTS idx_user_profiles_school ON user_profiles(school_id);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_status ON user_profiles(verification_status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_school_student ON user_profiles(school_id, active_student_id) WHERE active_student_id IS NOT NULL;
+
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 
 -- ============================================
 -- 20. 创建 RBAC 角色权限表
@@ -611,8 +616,8 @@ ON CONFLICT (school_id, key) DO NOTHING;
 -- ============================================
 -- 26. 插入默认学校配置
 -- ============================================
-INSERT INTO school_configs (school_id, school_name, verification_method, consent_text) VALUES
-    ('10006', '北京航空航天大学', 'ldap', '本功能将使用您提供的学号和密码通过学校统一身份认证系统验证您的学生身份。验证成功后，系统将读取您的姓名、院系、年级、手机号等学籍信息用于平台服务。您的密码不会被存储。')
+INSERT INTO school_configs (school_id, school_name, verification_method, academic_db_table, consent_text, enabled) VALUES
+    ('10006', '北京航空航天大学', 'ldap', 'academic.buaa_students', '本功能将使用您提供的学号和密码通过学校统一身份认证系统验证您的学生身份。验证成功后，系统将读取您的姓名、院系、年级、手机号等学籍信息用于平台服务。您的密码不会被存储。', FALSE)
 ON CONFLICT (school_id) DO NOTHING;
 
 -- ============================================
@@ -698,8 +703,10 @@ ON CONFLICT DO NOTHING;
 -- 30. 插入默认系统配置
 -- ============================================
 INSERT INTO system_configs (key, value, description) VALUES
-    ('review_preview_chars', '20', '评课预览字符数（未认证用户可见的最大字符数）'),
-    ('review_preview_percent', '20', '评课预览百分比（未认证用户可见的内容比例%）')
+    ('review_access_school_ids', '["10006"]', '允许查看完整评课和发布评课的学校 ID 列表（JSON 数组；留空则回退到已启用学校）'),
+    ('review_preview_title_chars', '24', '评课标题预览最大字符数'),
+    ('review_preview_content_chars', '120', '评课正文预览最大字符数'),
+    ('review_preview_content_percent', '100', '评课正文预览最大展示比例（1-100）')
 ON CONFLICT (key) DO NOTHING;
 
 COMMIT;

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ListGroups 获取所有用户组列表（含成员计数）
@@ -152,13 +153,13 @@ func (r *Repository) GetGroupMembersDetail(ctx context.Context, groupID int64) (
 func (r *Repository) SetGroupMembers(ctx context.Context, groupID int64, userIDs []int64) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM user_group_members WHERE group_id = $1`, groupID); err != nil {
-			return fmt.Errorf("SetGroupMembers delete: %w", err)
+			return mapSetGroupMembersWriteError(err)
 		}
 		for _, uid := range userIDs {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO user_group_members (group_id, user_id) VALUES ($1, $2)
 			`, groupID, uid); err != nil {
-				return fmt.Errorf("SetGroupMembers insert: %w", err)
+				return mapSetGroupMembersWriteError(err)
 			}
 		}
 		return nil
@@ -169,17 +170,57 @@ func (r *Repository) SetGroupMembers(ctx context.Context, groupID int64, userIDs
 func (r *Repository) SetGroupPermissions(ctx context.Context, groupID int64, permIDs []int64) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM user_group_permissions WHERE group_id = $1`, groupID); err != nil {
-			return fmt.Errorf("SetGroupPermissions delete: %w", err)
+			return mapSetGroupPermissionsWriteError(err)
 		}
 		for _, pid := range permIDs {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO user_group_permissions (group_id, permission_id) VALUES ($1, $2)
 			`, groupID, pid); err != nil {
-				return fmt.Errorf("SetGroupPermissions insert: %w", err)
+				return mapSetGroupPermissionsWriteError(err)
 			}
 		}
 		return nil
 	})
+}
+
+// CountUsersByIDs 返回 userIDs 中存在的用户数量（去重后）
+func (r *Repository) CountUsersByIDs(ctx context.Context, userIDs []int64) (int, error) {
+	if len(userIDs) == 0 {
+		return 0, nil
+	}
+
+	var count int
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)::INT
+		FROM (
+			SELECT DISTINCT id
+			FROM users
+			WHERE id = ANY($1)
+		) AS matched_users
+	`, userIDs).Scan(&count); err != nil {
+		return 0, fmt.Errorf("CountUsersByIDs: %w", err)
+	}
+	return count, nil
+}
+
+// CountPermissionsByIDs 返回 permIDs 中存在的权限数量（去重后）
+func (r *Repository) CountPermissionsByIDs(ctx context.Context, permIDs []int64) (int, error) {
+	if len(permIDs) == 0 {
+		return 0, nil
+	}
+
+	var count int
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)::INT
+		FROM (
+			SELECT DISTINCT id
+			FROM permissions
+			WHERE id = ANY($1)
+		) AS matched_permissions
+	`, permIDs).Scan(&count); err != nil {
+		return 0, fmt.Errorf("CountPermissionsByIDs: %w", err)
+	}
+	return count, nil
 }
 
 // GetGroupPermissions 获取用户组拥有的权限列表
@@ -196,4 +237,42 @@ func (r *Repository) GetGroupPermissions(ctx context.Context, groupID int64) ([]
 	}
 	defer rows.Close()
 	return scanPermissions(rows)
+}
+
+func mapSetGroupMembersWriteError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23503":
+			switch pgErr.ConstraintName {
+			case "user_group_members_group_id_fkey":
+				return ErrGroupNotFound
+			case "user_group_members_user_id_fkey":
+				return ErrUserSelectionInvalid
+			}
+			return ErrUserSelectionInvalid
+		case "23505":
+			return ErrUserSelectionInvalid
+		}
+	}
+	return fmt.Errorf("SetGroupMembers: %w", err)
+}
+
+func mapSetGroupPermissionsWriteError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23503":
+			switch pgErr.ConstraintName {
+			case "user_group_permissions_group_id_fkey":
+				return ErrGroupNotFound
+			case "user_group_permissions_permission_id_fkey":
+				return ErrPermissionSelectionInvalid
+			}
+			return ErrPermissionSelectionInvalid
+		case "23505":
+			return ErrPermissionSelectionInvalid
+		}
+	}
+	return fmt.Errorf("SetGroupPermissions: %w", err)
 }

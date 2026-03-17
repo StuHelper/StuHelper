@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,16 +23,17 @@ import (
 
 // Handler 评课社区处理器
 type Handler struct {
-	db            *db.DB
-	cache         *cache.Helper
-	service       *Service
-	permissionSvc rbac.PermissionService
-	userRepo      *user.Repository
-	postLimiter   *middleware.RedisRateLimiter // 发布评论限流
-	voteLimiter   *middleware.RedisRateLimiter // 投票限流
-	reportLimiter *middleware.RedisRateLimiter // 举报限流
-	replyLimiter  *middleware.RedisRateLimiter // 回复限流
-	writeLimiter  *middleware.RedisRateLimiter // 更新/删除限流
+	db             *db.DB
+	cache          *cache.Helper
+	service        *Service
+	permissionSvc  rbac.PermissionService
+	userRepo       *user.Repository
+	postLimiter    *middleware.RedisRateLimiter // 发布评论限流
+	voteLimiter    *middleware.RedisRateLimiter // 投票限流
+	reportLimiter  *middleware.RedisRateLimiter // 举报限流
+	replyLimiter   *middleware.RedisRateLimiter // 回复限流
+	writeLimiter   *middleware.RedisRateLimiter // 更新/删除限流
+	accessPolicyMu sync.Mutex
 }
 
 // NewHandler 创建处理器

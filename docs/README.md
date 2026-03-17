@@ -33,15 +33,16 @@
 
 ## 快速导航
 
-| 目标            | 文档                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------ |
-| 本地搭建项目    | [tutorials/quick-start.md](tutorials/quick-start.md)                                                   |
-| 后端开发续接    | [guides/backend-quickstart.md](guides/backend-quickstart.md)                                           |
-| 前端开发续接    | [guides/frontend-development.md](guides/frontend-development.md)                                       |
-| OpenAPI 工作流  | [guides/openapi-development-guide.md](guides/openapi-development-guide.md)                             |
-| 查阅 API 和数据 | [reference/api-overview.md](reference/api-overview.md)、[reference/database.md](reference/database.md) |
-| 了解模块边界    | [modules/README.md](modules/README.md)                                                                 |
-| 了解系统架构    | [architecture/README.md](architecture/README.md)                                                       |
+| 目标             | 文档                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| 本地搭建项目     | [tutorials/quick-start.md](tutorials/quick-start.md)                                                   |
+| 后端开发续接     | [guides/backend-quickstart.md](guides/backend-quickstart.md)                                           |
+| 前端开发续接     | [guides/frontend-development.md](guides/frontend-development.md)                                       |
+| OpenAPI 工作流   | [guides/openapi-development-guide.md](guides/openapi-development-guide.md)                             |
+| 查阅 API 和数据  | [reference/api-overview.md](reference/api-overview.md)、[reference/database.md](reference/database.md) |
+| 了解模块边界     | [modules/README.md](modules/README.md)                                                                 |
+| 了解系统架构     | [architecture/README.md](architecture/README.md)                                                       |
+| 查看后续大项计划 | [architecture/follow-up-roadmap.md](architecture/follow-up-roadmap.md)                                 |
 
 ## 模块
 

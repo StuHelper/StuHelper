@@ -29,6 +29,8 @@
 | 通用 | `000` | 通用错误 |
 | 认证 | `001` | 登录、Token、权限 |
 | 用户 | `002` | 用户信息、账号、认证 |
+| 实名认证 | `003` | 实名认证、身份审核 |
+| 学生认证 | `004` | 学生认证、审核、学籍 |
 | RBAC | `005` | 角色、权限、用户组 |
 | 课程 | `010` | 课程、院系、教师 |
 | 评课 | `011` | 测评、投票、评分、审核 |
@@ -99,6 +101,36 @@
 | `A0020005` | 400 | `ErrPasswordWeak` | 密码强度不足 | Password too weak |
 | `A0020006` | 400 | `ErrPasswordMismatch` | 密码不匹配 | Password mismatch |
 
+### A003xxxx 实名认证错误
+
+| 错误码 | HTTP | 常量名 | 中文说明 | 英文说明 |
+| --- | --- | --- | --- | --- |
+| `A0030001` | 404 | `ErrIdentityNotFound` | 实名认证记录不存在 | Identity record not found |
+| `A0030002` | 409 | `ErrIdentityAlreadyExists` | 已提交实名认证 | Identity already submitted |
+| `A0030003` | 400 | `ErrIdentityDocInvalid` | 证件信息无效 | Invalid identity document |
+| `A0030004` | 400 | `ErrIdentityNameMismatch` | 姓名与证件不匹配 | Identity name mismatch |
+| `A0030005` | 400 | `ErrIdentityPhotoRequired` | 需要上传证件照片 | Identity photo required |
+| `A0030006` | 400 | `ErrIdentityVerifyFailed` | 实名认证验证失败 | Identity verification failed |
+| `A0030007` | 409 | `ErrIdentityAlreadyVerified` | 已通过实名认证 | Identity already verified |
+
+### A004xxxx 学生认证错误
+
+| 错误码 | HTTP | 常量名 | 中文说明 | 英文说明 |
+| --- | --- | --- | --- | --- |
+| `A0040001` | 404 | `ErrProfileNotFound` | 学生认证记录不存在 | Student profile not found |
+| `A0040002` | 409 | `ErrProfileAlreadyVerified` | 已通过学生认证 | Student profile already verified |
+| `A0040003` | 404 | `ErrProfileSchoolNotFound` | 学校配置不存在 | School configuration not found |
+| `A0040004` | 400 | `ErrProfileSchoolDisabled` | 学校认证通道未开启 | School verification channel disabled |
+| `A0040005` | 400 | `ErrProfileLDAPFailed` | LDAP 认证失败 | LDAP verification failed |
+| `A0040006` | 400 | `ErrProfileConsentRequired` | 需要同意数据使用授权 | Consent is required |
+| `A0040007` | 409 | `ErrProfilePendingReview` | 认证正在审核中 | Student verification is pending review |
+| `A0040008` | 400 | `ErrProfilePhoneRequired` | 需要绑定手机号 | Phone number is required |
+| `A0040009` | 400 | `ErrProfilePhoneMismatch` | 手机号需要验证 | Phone verification is required |
+| `A0040011` | 400 | `ErrProfileAcademicTable` | 学籍表配置无效 | Academic table configuration is invalid |
+| `A0040012` | 400 | `ErrAcademicTableNotConfigured` | 学校未配置学籍表 | School academic table is not configured |
+| `A0040013` | 400 | `ErrSchoolLDAPConfigMissing` | 学校未配置 LDAP 连接 | LDAP configuration is missing for the school |
+| `A0040014` | 400 | `ErrLDAPConfigInvalid` | 学校 LDAP 配置无效 | LDAP configuration is invalid for the school |
+
 ### A005xxxx RBAC 错误
 
 | 错误码 | HTTP | 常量名 | 中文说明 | 英文说明 |
@@ -112,6 +144,8 @@
 | `A0050007` | 409 | `ErrGroupNameTaken` | 用户组名已存在 | Group name already taken |
 | `A0050008` | 400 | `ErrPermissionSelectionInvalid` | 权限选择无效 | One or more selected permissions are invalid |
 | `A0050009` | 400 | `ErrRolePermissionClearConfirm` | 清空角色权限需要显式确认 | Clearing all role permissions requires confirmation |
+| `A0050010` | 400 | `ErrRoleSelectionInvalid` | 角色选择无效 | One or more selected roles are invalid |
+| `A0050011` | 400 | `ErrUserSelectionInvalid` | 用户选择无效 | One or more selected users are invalid |
 
 ### A010xxxx 课程错误
 

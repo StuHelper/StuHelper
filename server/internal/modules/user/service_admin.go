@@ -6,7 +6,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
+
+type academicTableValidationRepo interface {
+	ValidateAcademicDBTable(ctx context.Context, tableName string) error
+}
 
 // GetInternalUserID 根据外部ID获取内部用户ID
 func (s *Service) GetInternalUserID(ctx context.Context, externalID string) (int64, error) {
@@ -21,10 +28,6 @@ func (s *Service) ListIdentities(ctx context.Context, status string, page, pageS
 // ReviewIdentity 管理员审核实名认证（通过/驳回）
 // 使用精准更新，不读取也不回写敏感字段
 func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved bool, reason string) error {
-	if !approved && strings.TrimSpace(reason) == "" {
-		return ErrRejectionReasonRequired
-	}
-
 	identityStatus, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("ReviewIdentity get: %w", err)
@@ -39,6 +42,7 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 		rejectionReason *string
 	)
 
+	trimmedReason := strings.TrimSpace(reason)
 	if approved {
 		method := VerifyMethodManual
 		now := time.Now()
@@ -47,7 +51,11 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 		// 显式清除旧拒绝原因：批准后 rejection_reason 必须为 NULL
 		rejectionReason = nil
 	} else {
-		rejectionReason = &reason
+		if trimmedReason != "" {
+			rejectionReason = &trimmedReason
+		} else {
+			rejectionReason = nil
+		}
 		// 显式清除：拒绝时 verify_method 和 verified_at 不应保留
 		verifyMethod = nil
 		verifiedAt = nil
@@ -63,9 +71,7 @@ func (s *Service) ListProfiles(ctx context.Context, status, schoolID string, pag
 
 // ReviewStudentVerification 管理员审核学生认证（通过/驳回）
 func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, approved bool, reason string) error {
-	if !approved && strings.TrimSpace(reason) == "" {
-		return ErrRejectionReasonRequired
-	}
+	trimmedReason := strings.TrimSpace(reason)
 
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
@@ -76,11 +82,19 @@ func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, a
 	}
 
 	now := time.Now()
+	profile.ReviewedAt = &now
 	if approved {
 		profile.VerificationStatus = StatusVerified
 		profile.VerifiedAt = &now
+		profile.RejectionReason = nil
 	} else {
 		profile.VerificationStatus = StatusRejected
+		profile.VerifiedAt = nil
+		if trimmedReason != "" {
+			profile.RejectionReason = &trimmedReason
+		} else {
+			profile.RejectionReason = nil
+		}
 	}
 
 	return s.repo.UpdateProfile(ctx, profile)
@@ -109,8 +123,11 @@ func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID string, input
 		config.VerificationMethod = *input.VerificationMethod
 	}
 	if input.AcademicDBTable != nil {
-		value := *input.AcademicDBTable
-		config.AcademicDBTable = &value
+		normalizedAcademicDBTable, err := normalizeConfiguredAcademicDBTable(input.AcademicDBTable)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
+		}
+		config.AcademicDBTable = normalizedAcademicDBTable
 	}
 	if input.ConsentText != nil {
 		value := *input.ConsentText
@@ -120,9 +137,9 @@ func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID string, input
 		config.Enabled = *input.Enabled
 	}
 	if input.LDAPConfig != nil {
-		raw, err := json.Marshal(*input.LDAPConfig)
+		raw, err := mergeSchoolLDAPConfig(config.LDAPConfig, input.LDAPConfig)
 		if err != nil {
-			return fmt.Errorf("UpdateSchoolConfig marshal ldapConfig: %w", err)
+			return fmt.Errorf("UpdateSchoolConfig merge ldapConfig: %w", err)
 		}
 		config.LDAPConfig = raw
 	}
@@ -137,7 +154,98 @@ func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID string, input
 		config.ManualFormFields = raw
 	}
 
-	return s.repo.UpdateSchoolConfig(ctx, config)
+	if err := s.validateSchoolConfig(ctx, config); err != nil {
+		return err
+	}
+
+	if err := s.repo.UpdateSchoolConfig(ctx, config); err != nil {
+		return err
+	}
+
+	systemconfig.InvalidateReviewAccessPolicySnapshot()
+	return nil
+}
+
+func mergeSchoolLDAPConfig(existing json.RawMessage, input *SchoolLDAPConfigInput) (json.RawMessage, error) {
+	if input == nil {
+		return existing, nil
+	}
+
+	settings, err := decodeSchoolLDAPSettings(existing)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrLDAPConfigInvalid, err)
+	}
+
+	if input.URL != nil {
+		settings.URL = strings.TrimSpace(*input.URL)
+	}
+	if input.BaseDN != nil {
+		settings.BaseDN = strings.TrimSpace(*input.BaseDN)
+	}
+	if input.SystemBindDN != nil {
+		settings.SystemBindDN = strings.TrimSpace(*input.SystemBindDN)
+	}
+	if input.SystemBindPassword != nil {
+		settings.SystemBindPassword = strings.TrimSpace(*input.SystemBindPassword)
+	}
+	if input.UseTLS != nil {
+		settings.UseTLS = *input.UseTLS
+	}
+	if input.InsecureSkipVerify != nil {
+		settings.InsecureSkipVerify = *input.InsecureSkipVerify
+	}
+
+	settings = normalizeSchoolLDAPSettings(settings)
+	if isEmptySchoolLDAPSettings(settings) {
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(settings)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func (s *Service) validateSchoolConfig(ctx context.Context, config *SchoolConfig) error {
+	if config == nil {
+		return ErrSchoolNotFound
+	}
+
+	if config.AcademicDBTable != nil {
+		normalizedTable, err := normalizeAcademicDBTableName(config.AcademicDBTable)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
+		}
+		if validator, ok := s.repo.(academicTableValidationRepo); ok {
+			if err := validator.ValidateAcademicDBTable(ctx, normalizedTable); err != nil {
+				return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
+			}
+		}
+	}
+
+	if !config.Enabled || config.VerificationMethod != VerifyMethodLDAP {
+		return nil
+	}
+
+	if _, err := s.ensureAcademicTableConfigured(config); err != nil {
+		return err
+	}
+	if err := validateSchoolLDAPConfig(config.LDAPConfig); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateSchoolLDAPConfig(raw json.RawMessage) error {
+	ldapCfg, err := parseSchoolLDAPConfig(raw)
+	if err != nil {
+		return err
+	}
+	if _, err := ldap.NewClient(ldapCfg); err != nil {
+		return fmt.Errorf("%w: %w", ErrLDAPConfigInvalid, err)
+	}
+	return nil
 }
 
 // ListSystemConfigs 获取所有系统配置项
@@ -147,5 +255,74 @@ func (s *Service) ListSystemConfigs(ctx context.Context) ([]SystemConfig, error)
 
 // UpdateSystemConfig 更新系统配置项
 func (s *Service) UpdateSystemConfig(ctx context.Context, key, value string) error {
-	return s.repo.UpdateSystemConfig(ctx, key, value)
+	if err := s.validateSystemConfigValue(ctx, key, value); err != nil {
+		return err
+	}
+
+	if err := s.repo.UpdateSystemConfig(ctx, key, value); err != nil {
+		return err
+	}
+
+	if systemconfig.AffectsReviewAccessPolicy(key) {
+		systemconfig.InvalidateReviewAccessPolicySnapshot()
+	}
+	return nil
+}
+
+func (s *Service) validateSystemConfigValue(ctx context.Context, key, value string) error {
+	switch key {
+	case systemconfig.ReviewAccessSchoolIDsKey:
+		schoolIDs, err := systemconfig.ParseStringList(value)
+		if err != nil {
+			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
+		}
+		if err := s.validateReviewAccessSchoolIDs(ctx, schoolIDs); err != nil {
+			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
+		}
+	case systemconfig.ReviewPreviewTitleCharsKey:
+		if _, err := systemconfig.ParseBoundedInt(value, 1, 200); err != nil {
+			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
+		}
+	case systemconfig.ReviewPreviewContentCharsKey, systemconfig.LegacyReviewPreviewCharsKey:
+		if _, err := systemconfig.ParseBoundedInt(value, 1, 5000); err != nil {
+			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
+		}
+	case systemconfig.ReviewPreviewContentPercentKey, systemconfig.LegacyReviewPreviewPercentKey:
+		if _, err := systemconfig.ParseBoundedInt(value, 1, 100); err != nil {
+			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) validateReviewAccessSchoolIDs(ctx context.Context, schoolIDs []string) error {
+	if len(schoolIDs) == 0 {
+		return nil
+	}
+
+	schools, err := s.repo.ListAllSchoolConfigs(ctx)
+	if err != nil {
+		return fmt.Errorf("load school configs: %w", err)
+	}
+
+	allowed := make(map[string]struct{}, len(schools))
+	for _, school := range schools {
+		trimmed := strings.TrimSpace(school.SchoolID)
+		if trimmed == "" {
+			continue
+		}
+		allowed[trimmed] = struct{}{}
+	}
+
+	invalid := make([]string, 0)
+	for _, schoolID := range schoolIDs {
+		if _, ok := allowed[schoolID]; ok {
+			continue
+		}
+		invalid = append(invalid, schoolID)
+	}
+	if len(invalid) > 0 {
+		return fmt.Errorf("unknown school IDs: %s", strings.Join(invalid, ", "))
+	}
+	return nil
 }

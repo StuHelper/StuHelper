@@ -16,15 +16,15 @@
 
 ## 各步骤代码入口
 
-| 步骤 | 代码入口 |
-| --- | --- |
-| 会话认证 | `internal/pkg/middleware/auth.go` — `AuthMiddleware` 从 Cookie 或 Header 提取 token，校验黑名单，验证 JWT（iss/aud/alg/exp） |
-| 本地用户同步 | `internal/modules/auth/user_sync.go` — `UpsertUser` 在 `buildUserInfo` 中调用 |
-| 能力计算 | `internal/modules/rbac/service_permissions.go` — `GetUserCapabilities` 和 `GetEffectivePermissions` |
-| 管理能力校验 | `internal/modules/rbac/middleware.go` — `RequirePermission` 和 `RequireAnyPermission`，含 scope 验证 |
-| 业务访问事实解析 | `internal/modules/course/review/access.go` — `resolveReviewAccessFacts`；`internal/modules/user/service*.go` |
-| 所有权检查 | `internal/modules/course/review/review*.go` — 服务层事务内通过 `user_hash` 匹配 |
-| 响应内容裁剪 | Handler 层和 `stripReviewsForResponse` — 根据访问事实裁剪内容 |
+| 步骤             | 代码入口                                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 会话认证         | `internal/pkg/middleware/auth.go` — `AuthMiddleware` 从 Cookie 或 Header 提取 token，校验黑名单，验证 JWT（iss/aud/alg/exp） |
+| 本地用户同步     | `internal/modules/auth/user_sync.go` — `UpsertUser` 在 `buildUserInfo` 中调用                                                |
+| 能力计算         | `internal/modules/rbac/service_permissions.go` — `GetUserCapabilities` 和 `GetEffectivePermissions`                          |
+| 管理能力校验     | `internal/modules/rbac/middleware.go` — `RequirePermission` 和 `RequireAnyPermission`，含 scope 验证                         |
+| 业务访问事实解析 | `internal/modules/course/review/access.go` — `resolveReviewAccessFacts`；`internal/modules/user/service*.go`                 |
+| 所有权检查       | `internal/modules/course/review/review*.go` — 服务层事务内通过 `user_hash` 匹配                                              |
+| 响应内容裁剪     | Handler 层和 `stripReviewsForResponse` — 根据访问事实裁剪内容                                                                |
 
 ## 评论访问决策示例
 
@@ -42,6 +42,8 @@ func HandleListReviews(c *gin.Context) {
     // facts.CanManageReviews — 是否持有 admin:reviews:manage
     // facts.CanViewFull — CanManageReviews || StudentVerified
     // facts.CanPostReview — StudentVerified && IdentityVerified
+    // facts.PreviewTitleRunes / PreviewContentRunes / PreviewContentPct
+    //   来自后台评课访问策略
 
     // 6. 查询评论列表
     reviews := queryReviews(courseID, page, pageSize)
@@ -55,8 +57,8 @@ func HandleListReviews(c *gin.Context) {
             review.Title = ""
             review.Content = ""
         } else if !facts.CanViewFull {
-            review.Title = previewText(review.Title, 24)
-            review.Content = previewText(review.Content, 120)
+            review.Title = previewText(review.Title, facts.PreviewTitleRunes, 100)
+            review.Content = previewText(review.Content, facts.PreviewContentRunes, facts.PreviewContentPct)
         }
     }
 

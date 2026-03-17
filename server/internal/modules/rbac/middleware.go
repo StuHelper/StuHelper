@@ -1,7 +1,13 @@
 package rbac
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -19,6 +25,8 @@ const (
 	ctxKeyInternalUserID = "rbac.internal_user_id"
 	ctxKeyEffectivePerms = "rbac.effective_perms"
 )
+
+const maxPermissionBodyRead = 1 << 20 // 1MB，读取请求体最多 1MB 用于学校上下文提取
 
 // PermissionService 定义权限中间件和其他需要授权检查的调用方（如评课访问
 // 事实解析）所需的 RBAC 方法。
@@ -118,9 +126,16 @@ func RequirePermission(service PermissionService, permName string) gin.HandlerFu
 		}
 
 		// 验证 scope 约束（school 白名单、role 要求）
-		var schoolID *string
-		if sid := c.Query("schoolID"); sid != "" {
-			schoolID = &sid
+		schoolID, err := resolveSchoolID(c)
+		if err != nil {
+			logger.FromGin(c).Error("failed to resolve school context for permission check",
+				zap.Int64("user_id", userID),
+				zap.String("permission", permName),
+				zap.Error(err),
+			)
+			response.InternalError(c, "permission check failed")
+			c.Abort()
+			return
 		}
 
 		allowed, err := service.CheckPermissionScope(c.Request.Context(), *found, userID, schoolID)
@@ -191,4 +206,116 @@ func hasAnyGrantedPermission(perms []EffectivePermission, names []string) bool {
 		}
 	}
 	return false
+}
+
+func resolveSchoolID(c *gin.Context) (*string, error) {
+	if sid := resolveSchoolIDFromPath(c); sid != nil {
+		return sid, nil
+	}
+	if sid := resolveSchoolIDFromQuery(c); sid != nil {
+		return sid, nil
+	}
+	return resolveSchoolIDFromBody(c)
+}
+
+func resolveSchoolIDFromPath(c *gin.Context) *string {
+	for _, param := range c.Params {
+		if !isSchoolIDKey(param.Key) {
+			continue
+		}
+		if value, ok := normalizeSchoolIDValue(param.Value); ok {
+			return &value
+		}
+	}
+	return nil
+}
+
+func resolveSchoolIDFromQuery(c *gin.Context) *string {
+	keys := []string{"schoolID", "schoolId", "school_id"}
+	for _, key := range keys {
+		if value, ok := normalizeSchoolIDValue(c.Query(key)); ok {
+			return &value
+		}
+	}
+	return nil
+}
+
+func resolveSchoolIDFromBody(c *gin.Context) (*string, error) {
+	if c.Request == nil || c.Request.Body == nil {
+		return nil, nil
+	}
+	if !strings.Contains(strings.ToLower(c.ContentType()), "application/json") {
+		return nil, nil
+	}
+	if c.Request.ContentLength < 0 || c.Request.ContentLength > maxPermissionBodyRead {
+		return nil, nil
+	}
+
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(raw))
+
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil, nil
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		// 请求体解析失败交给业务 handler；这里只做 best-effort 的上下文提取。
+		return nil, nil
+	}
+
+	if value, ok := findTopLevelSchoolIDValue(payload); ok {
+		return &value, nil
+	}
+	return nil, nil
+}
+
+func findTopLevelSchoolIDValue(payload map[string]any) (string, bool) {
+	for _, key := range []string{"schoolID", "schoolId", "school_id"} {
+		raw, ok := payload[key]
+		if !ok {
+			continue
+		}
+		if normalized, ok := normalizeSchoolIDAny(raw); ok {
+			return normalized, true
+		}
+	}
+	return "", false
+}
+
+func isSchoolIDKey(key string) bool {
+	switch key {
+	case "schoolID", "schoolId", "school_id":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeSchoolIDAny(v any) (string, bool) {
+	switch value := v.(type) {
+	case string:
+		return normalizeSchoolIDValue(value)
+	case float64:
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return "", false
+		}
+		if value == math.Trunc(value) {
+			return strconv.FormatInt(int64(value), 10), true
+		}
+		return strconv.FormatFloat(value, 'f', -1, 64), true
+	default:
+		return "", false
+	}
+}
+
+func normalizeSchoolIDValue(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", false
+	}
+	return trimmed, true
 }

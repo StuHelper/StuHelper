@@ -20,6 +20,10 @@ func (h *Handler) handleGetUserRoles(c *gin.Context) {
 
 	roles, err := h.service.GetUserRoles(c.Request.Context(), userID)
 	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			response.NotFound(c, "user not found", errs.ErrUserNotFound)
+			return
+		}
 		logger.FromGin(c).Error("failed to get user roles", zap.Error(err))
 		response.InternalError(c, "failed to get user roles")
 		return
@@ -46,6 +50,14 @@ func (h *Handler) handleSetUserRoles(c *gin.Context) {
 
 	err = h.service.SetUserRoles(c.Request.Context(), userID, req.RoleIDs)
 	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			response.NotFound(c, "user not found", errs.ErrUserNotFound)
+			return
+		}
+		if errors.Is(err, ErrRoleSelectionInvalid) {
+			response.BadRequest(c, "one or more selected roles are invalid", errs.ErrRoleSelectionInvalid)
+			return
+		}
 		logger.FromGin(c).Error("failed to set user roles", zap.Error(err))
 		response.InternalError(c, "failed to set user roles")
 		return
@@ -62,6 +74,10 @@ func (h *Handler) handleGetUserPermissions(c *gin.Context) {
 
 	perms, err := h.service.GetEffectivePermissions(c.Request.Context(), userID)
 	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			response.NotFound(c, "user not found", errs.ErrUserNotFound)
+			return
+		}
 		logger.FromGin(c).Error("failed to get user permissions", zap.Error(err))
 		response.InternalError(c, "failed to get user permissions")
 		return
@@ -89,6 +105,10 @@ func (h *Handler) handleSetUserPermission(c *gin.Context) {
 
 	err = h.service.SetUserPermission(c.Request.Context(), userID, req.PermissionID, *req.Granted)
 	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			response.NotFound(c, "user not found", errs.ErrUserNotFound)
+			return
+		}
 		if errors.Is(err, ErrPermNotFound) {
 			response.NotFound(c, "permission not found", errs.ErrPermissionNotFound)
 			return

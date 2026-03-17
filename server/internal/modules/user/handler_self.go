@@ -132,6 +132,14 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 			response.BadRequest(c, "required form field is missing")
 		case errors.Is(err, ErrManualFieldInvalid):
 			response.BadRequest(c, "form field validation failed")
+		case errors.Is(err, ErrInvalidAcademicDBTable):
+			response.BadRequest(c, "school academic table configuration is invalid", errs.ErrProfileAcademicTable)
+		case errors.Is(err, ErrAcademicTableNotConfigured):
+			response.BadRequest(c, "school academic table is not configured", errs.ErrAcademicTableNotConfigured)
+		case errors.Is(err, ErrSchoolLDAPConfigMissing):
+			response.BadRequest(c, "school LDAP configuration is missing", errs.ErrSchoolLDAPConfigMissing)
+		case errors.Is(err, ErrLDAPConfigInvalid):
+			response.BadRequest(c, "school LDAP configuration is invalid", errs.ErrLDAPConfigInvalid)
 		case errors.Is(err, ErrLDAPFailed):
 			response.BadRequest(c, "LDAP verification failed, please check your credentials", errs.ErrProfileLDAPFailed)
 		default:
@@ -191,11 +199,31 @@ func (h *Handler) handleGetAcademicInfo(c *gin.Context) {
 		return
 	}
 
-	student, err := h.service.GetAcademicInfo(c.Request.Context(), *profile.ActiveStudentID)
+	schoolID := ""
+	if profile.SchoolID != nil {
+		schoolID = *profile.SchoolID
+	}
+
+	student, err := h.service.GetAcademicInfo(c.Request.Context(), schoolID, *profile.ActiveStudentID)
 	if err != nil {
-		logger.FromGin(c).Error("failed to get academic info", zap.Error(err))
-		response.InternalError(c, "failed to get academic information")
-		return
+		switch {
+		case errors.Is(err, ErrSchoolNotFound):
+			response.NotFound(c, "school configuration not found", errs.ErrProfileSchoolNotFound)
+			return
+		case errors.Is(err, ErrSchoolDisabled):
+			response.BadRequest(c, "school verification channel disabled", errs.ErrProfileSchoolDisabled)
+			return
+		case errors.Is(err, ErrAcademicTableNotConfigured):
+			response.BadRequest(c, "academic table is not configured", errs.ErrAcademicTableNotConfigured)
+			return
+		case errors.Is(err, ErrInvalidAcademicDBTable):
+			response.BadRequest(c, "academic table configuration is invalid", errs.ErrProfileAcademicTable)
+			return
+		default:
+			logger.FromGin(c).Error("failed to get academic info", zap.Error(err))
+			response.InternalError(c, "failed to get academic information")
+			return
+		}
 	}
 	if student == nil {
 		response.NotFound(c, "academic record not found")

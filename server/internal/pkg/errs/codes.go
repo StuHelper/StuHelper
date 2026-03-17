@@ -105,15 +105,20 @@ const (
 // ============================================================================
 
 const (
-	ErrProfileNotFound        ErrorCode = "A0040001" // 学生认证记录不存在
-	ErrProfileAlreadyVerified ErrorCode = "A0040002" // 已通过学生认证
-	ErrProfileSchoolNotFound  ErrorCode = "A0040003" // 学校配置不存在
-	ErrProfileSchoolDisabled  ErrorCode = "A0040004" // 学校认证通道未开启
-	ErrProfileLDAPFailed      ErrorCode = "A0040005" // LDAP 认证失败
-	ErrProfileConsentRequired ErrorCode = "A0040006" // 需要同意数据使用授权
-	ErrProfilePendingReview   ErrorCode = "A0040007" // 认证正在审核中
-	ErrProfilePhoneRequired   ErrorCode = "A0040008" // 需要绑定手机号
-	ErrProfilePhoneMismatch   ErrorCode = "A0040009" // 手机号需要验证
+	ErrProfileNotFound            ErrorCode = "A0040001" // 学生认证记录不存在
+	ErrProfileAlreadyVerified     ErrorCode = "A0040002" // 已通过学生认证
+	ErrProfileSchoolNotFound      ErrorCode = "A0040003" // 学校配置不存在
+	ErrProfileSchoolDisabled      ErrorCode = "A0040004" // 学校认证通道未开启
+	ErrProfileLDAPFailed          ErrorCode = "A0040005" // LDAP 认证失败
+	ErrProfileConsentRequired     ErrorCode = "A0040006" // 需要同意数据使用授权
+	ErrProfilePendingReview       ErrorCode = "A0040007" // 认证正在审核中
+	ErrProfilePhoneRequired       ErrorCode = "A0040008" // 需要绑定手机号
+	ErrProfilePhoneMismatch       ErrorCode = "A0040009" // 手机号需要验证
+	ErrProfileAcademicTable       ErrorCode = "A0040011" // 学籍表配置无效
+	ErrAcademicTableNotConfigured ErrorCode = "A0040012" // 学校未配置学籍表
+	ErrSchoolLDAPConfigMissing    ErrorCode = "A0040013" // 学校未配置 LDAP 连接
+	ErrLDAPConfigInvalid          ErrorCode = "A0040014" // 学校 LDAP 配置无效
+	ErrSystemConfigNotFound       ErrorCode = "A0040015" // 系统配置不存在
 )
 
 // ============================================================================
@@ -130,6 +135,8 @@ const (
 	ErrGroupNameTaken             ErrorCode = "A0050007" // 用户组名已存在
 	ErrPermissionSelectionInvalid ErrorCode = "A0050008" // 权限选择无效
 	ErrRolePermissionClearConfirm ErrorCode = "A0050009" // 清空角色权限需显式确认
+	ErrRoleSelectionInvalid       ErrorCode = "A0050010" // 角色选择无效
+	ErrUserSelectionInvalid       ErrorCode = "A0050011" // 用户选择无效
 )
 
 // ============================================================================

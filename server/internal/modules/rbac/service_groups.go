@@ -71,6 +71,10 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64) error {
 
 // GetGroupMembers 获取用户组成员
 func (s *Service) GetGroupMembers(ctx context.Context, groupID int64) ([]GroupMember, error) {
+	if _, err := s.repo.GetGroupByID(ctx, groupID); err != nil {
+		return nil, err
+	}
+
 	return s.repo.GetGroupMembersDetail(ctx, groupID)
 }
 
@@ -79,7 +83,25 @@ func (s *Service) SetGroupMembers(ctx context.Context, groupID int64, userIDs []
 	if _, err := s.repo.GetGroupByID(ctx, groupID); err != nil {
 		return err
 	}
-	return s.repo.SetGroupMembers(ctx, groupID, userIDs)
+
+	normalizedUserIDs, ok := uniquePositiveIDs(userIDs)
+	if !ok {
+		return ErrUserSelectionInvalid
+	}
+
+	if len(normalizedUserIDs) > 0 {
+		if validator, ok := s.repo.(userCountRepo); ok {
+			count, err := validator.CountUsersByIDs(ctx, normalizedUserIDs)
+			if err != nil {
+				return err
+			}
+			if count != len(normalizedUserIDs) {
+				return ErrUserSelectionInvalid
+			}
+		}
+	}
+
+	return s.repo.SetGroupMembers(ctx, groupID, normalizedUserIDs)
 }
 
 // SetGroupPermissions 设置用户组权限
@@ -87,5 +109,23 @@ func (s *Service) SetGroupPermissions(ctx context.Context, groupID int64, permID
 	if _, err := s.repo.GetGroupByID(ctx, groupID); err != nil {
 		return err
 	}
-	return s.repo.SetGroupPermissions(ctx, groupID, permIDs)
+
+	normalizedPermIDs, ok := uniquePositiveIDs(permIDs)
+	if !ok {
+		return ErrPermissionSelectionInvalid
+	}
+
+	if len(normalizedPermIDs) > 0 {
+		if validator, ok := s.repo.(permissionCountRepo); ok {
+			count, err := validator.CountPermissionsByIDs(ctx, normalizedPermIDs)
+			if err != nil {
+				return err
+			}
+			if count != len(normalizedPermIDs) {
+				return ErrPermissionSelectionInvalid
+			}
+		}
+	}
+
+	return s.repo.SetGroupPermissions(ctx, groupID, normalizedPermIDs)
 }

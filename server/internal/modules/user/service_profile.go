@@ -16,6 +16,11 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
+type academicTableRepo interface {
+	GetAcademicStudentByXHFromTable(ctx context.Context, xh string, tableName string) (*AcademicStudent, error)
+	FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh string, tableName string) ([]AcademicStudent, error)
+}
+
 // GetProfile 获取学生认证档案
 func (s *Service) GetProfile(ctx context.Context, userID int64) (*Profile, error) {
 	return s.repo.GetProfileByUserID(ctx, userID)
@@ -39,15 +44,9 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		return nil, ErrProfileAlreadyVerified
 	}
 
-	school, err := s.repo.GetSchoolConfig(ctx, req.SchoolID)
+	school, err := s.loadEnabledSchoolConfig(ctx, req.SchoolID)
 	if err != nil {
 		return nil, fmt.Errorf("VerifyStudent get school config: %w", err)
-	}
-	if school == nil {
-		return nil, ErrSchoolNotFound
-	}
-	if !school.Enabled {
-		return nil, ErrSchoolDisabled
 	}
 	if !req.Consent {
 		return nil, ErrConsentRequired
@@ -111,11 +110,17 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	}
 
 	if school.VerificationMethod == VerifyMethodLDAP {
-		if s.ldapClient == nil {
-			return nil, fmt.Errorf("VerifyStudent: LDAP client not configured")
+		academicTableName, err := s.ensureAcademicTableConfigured(school)
+		if err != nil {
+			return nil, fmt.Errorf("VerifyStudent academic table: %w", err)
 		}
 
-		loginResult, err := s.ldapClient.Login(ctx, trimmedStudentID, req.Password)
+		ldapClient, err := s.ensureLDAPClientForSchool(school)
+		if err != nil {
+			return nil, fmt.Errorf("VerifyStudent ldap client: %w", err)
+		}
+
+		loginResult, err := ldapClient.Login(ctx, trimmedStudentID, req.Password)
 		if err != nil {
 			if errors.Is(err, ldap.ErrInvalidUID) {
 				return nil, ErrLDAPFailed
@@ -126,7 +131,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 			return nil, ErrLDAPFailed
 		}
 
-		ldapInfo, err := s.ldapClient.QueryUserByUID(ctx, trimmedStudentID)
+		ldapInfo, err := ldapClient.QueryUserByUID(ctx, trimmedStudentID)
 		if err != nil {
 			logger.L().Warn("LDAP query user info failed after successful login",
 				zap.Int64("user_id", userID),
@@ -136,7 +141,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 
 		studentIDs := []string{trimmedStudentID}
-		academicStudent, err := s.repo.GetAcademicStudentByXH(ctx, trimmedStudentID)
+		academicStudent, err := s.getAcademicStudentByXH(ctx, trimmedStudentID, academicTableName)
 		if err != nil {
 			logger.L().Warn("failed to query academic student",
 				zap.String("student_id", trimmedStudentID),
@@ -145,7 +150,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 
 		if academicStudent != nil && academicStudent.SFZJH != nil && *academicStudent.SFZJH != "" {
-			allStudents, err := s.repo.FindAcademicStudentsByPersonUID(ctx, "", *academicStudent.SFZJH)
+			allStudents, err := s.findAcademicStudentsByPersonUID(ctx, "", *academicStudent.SFZJH, academicTableName)
 			if err != nil {
 				logger.L().Warn("failed to find all student records by person uid",
 					zap.Int64("user_id", userID),
@@ -245,11 +250,152 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 }
 
 // GetAcademicInfo 获取学籍信息
-func (s *Service) GetAcademicInfo(ctx context.Context, studentID string) (*AcademicStudent, error) {
-	return s.repo.GetAcademicStudentByXH(ctx, studentID)
+func (s *Service) GetAcademicInfo(ctx context.Context, schoolID string, studentID string) (*AcademicStudent, error) {
+	school, err := s.loadEnabledSchoolConfig(ctx, schoolID)
+	if err != nil {
+		return nil, fmt.Errorf("GetAcademicInfo load school config: %w", err)
+	}
+
+	tableName, err := s.ensureAcademicTableConfigured(school)
+	if err != nil {
+		return nil, fmt.Errorf("GetAcademicInfo academic table: %w", err)
+	}
+
+	return s.getAcademicStudentByXH(ctx, studentID, tableName)
 }
 
 // ListSchools 获取所有启用的学校列表
 func (s *Service) ListSchools(ctx context.Context) ([]SchoolConfig, error) {
 	return s.repo.ListSchoolConfigs(ctx)
+}
+
+func (s *Service) getAcademicStudentByXH(ctx context.Context, studentID string, tableName string) (*AcademicStudent, error) {
+	if repoWithTable, ok := s.repo.(academicTableRepo); ok {
+		return repoWithTable.GetAcademicStudentByXHFromTable(ctx, studentID, tableName)
+	}
+	return s.repo.GetAcademicStudentByXH(ctx, studentID)
+}
+
+func (s *Service) findAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm string, sfzjh string, tableName string) ([]AcademicStudent, error) {
+	if repoWithTable, ok := s.repo.(academicTableRepo); ok {
+		return repoWithTable.FindAcademicStudentsByPersonUIDFromTable(ctx, sfzjlxdm, sfzjh, tableName)
+	}
+	return s.repo.FindAcademicStudentsByPersonUID(ctx, sfzjlxdm, sfzjh)
+}
+
+func (s *Service) loadEnabledSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error) {
+	if strings.TrimSpace(schoolID) == "" {
+		return nil, ErrSchoolNotFound
+	}
+
+	school, err := s.repo.GetSchoolConfig(ctx, schoolID)
+	if err != nil {
+		return nil, fmt.Errorf("load school config: %w", err)
+	}
+	if school == nil {
+		return nil, ErrSchoolNotFound
+	}
+	if !school.Enabled {
+		return nil, ErrSchoolDisabled
+	}
+	return school, nil
+}
+
+func (s *Service) ensureAcademicTableConfigured(school *SchoolConfig) (string, error) {
+	if school == nil || school.AcademicDBTable == nil {
+		return "", ErrAcademicTableNotConfigured
+	}
+	table := strings.TrimSpace(*school.AcademicDBTable)
+	if table == "" {
+		return "", ErrAcademicTableNotConfigured
+	}
+
+	normalized, err := normalizeAcademicDBTableName(&table)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
+	}
+	return normalized, nil
+}
+
+func (s *Service) ensureLDAPClientForSchool(school *SchoolConfig) (ldapAuthClient, error) {
+	if school == nil {
+		return nil, ErrSchoolNotFound
+	}
+	if strings.TrimSpace(string(school.LDAPConfig)) == "" {
+		return nil, ErrSchoolLDAPConfigMissing
+	}
+
+	ldapCfg, err := parseSchoolLDAPConfig(school.LDAPConfig)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrLDAPConfigInvalid, err)
+	}
+	if s.ldapClientFactory == nil {
+		s.ldapClientFactory = func(cfg ldap.Config) (ldapAuthClient, error) { return ldap.NewClient(cfg) }
+	}
+	return s.ldapClientFactory(ldapCfg)
+}
+
+type schoolLDAPSettings struct {
+	URL                string `json:"url"`
+	BaseDN             string `json:"baseDN"`
+	SystemBindDN       string `json:"systemBindDN"`
+	SystemBindPassword string `json:"systemBindPassword"`
+	UseTLS             bool   `json:"useTLS"`
+	InsecureSkipVerify bool   `json:"insecureSkipVerify"`
+}
+
+func decodeSchoolLDAPSettings(raw json.RawMessage) (schoolLDAPSettings, error) {
+	if strings.TrimSpace(string(raw)) == "" {
+		return schoolLDAPSettings{}, nil
+	}
+
+	var settings schoolLDAPSettings
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return schoolLDAPSettings{}, err
+	}
+	return normalizeSchoolLDAPSettings(settings), nil
+}
+
+func normalizeSchoolLDAPSettings(settings schoolLDAPSettings) schoolLDAPSettings {
+	settings.URL = strings.TrimSpace(settings.URL)
+	settings.BaseDN = strings.TrimSpace(settings.BaseDN)
+	settings.SystemBindDN = strings.TrimSpace(settings.SystemBindDN)
+	settings.SystemBindPassword = strings.TrimSpace(settings.SystemBindPassword)
+	return settings
+}
+
+func isEmptySchoolLDAPSettings(settings schoolLDAPSettings) bool {
+	return settings.URL == "" &&
+		settings.BaseDN == "" &&
+		settings.SystemBindDN == "" &&
+		settings.SystemBindPassword == "" &&
+		!settings.UseTLS &&
+		!settings.InsecureSkipVerify
+}
+
+func optionalTrimmedString(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func parseSchoolLDAPConfig(raw json.RawMessage) (ldap.Config, error) {
+	settings, err := decodeSchoolLDAPSettings(raw)
+	if err != nil {
+		return ldap.Config{}, err
+	}
+	if isEmptySchoolLDAPSettings(settings) {
+		return ldap.Config{}, ErrSchoolLDAPConfigMissing
+	}
+
+	return ldap.Config{
+		URL:                settings.URL,
+		BaseDN:             settings.BaseDN,
+		SystemBindDN:       settings.SystemBindDN,
+		SystemBindPassword: settings.SystemBindPassword,
+		UseTLS:             settings.UseTLS,
+		InsecureSkipVerify: settings.InsecureSkipVerify,
+	}, nil
 }

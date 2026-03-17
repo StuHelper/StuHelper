@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -74,6 +75,8 @@ func profileToJSON(p *Profile) gin.H {
 		"activeStudentID":    p.ActiveStudentID,
 		"verificationStatus": p.VerificationStatus,
 		"verificationMethod": p.VerificationMethod,
+		"rejectionReason":    p.RejectionReason,
+		"reviewedAt":         p.ReviewedAt,
 		"phone":              p.Phone,
 		"phoneVerified":      p.PhoneVerified,
 		"consentGivenAt":     p.ConsentGivenAt,
@@ -103,7 +106,7 @@ func schoolConfigPublicToJSON(s *SchoolConfig) (gin.H, error) {
 }
 
 func adminSchoolConfigToJSON(s *SchoolConfig) (gin.H, error) {
-	ldapConfig, err := decodeJSONObject(s.LDAPConfig)
+	ldapConfig, err := buildAdminSchoolLDAPConfig(s.LDAPConfig)
 	if err != nil {
 		return nil, fmt.Errorf("decode ldapConfig: %w", err)
 	}
@@ -112,16 +115,39 @@ func adminSchoolConfigToJSON(s *SchoolConfig) (gin.H, error) {
 		return nil, fmt.Errorf("decode manualFormFields: %w", err)
 	}
 
-	return gin.H{
+	result := gin.H{
 		"schoolID":           s.SchoolID,
 		"schoolName":         s.SchoolName,
 		"verificationMethod": s.VerificationMethod,
-		"ldapConfig":         ldapConfig,
 		"academicDbTable":    s.AcademicDBTable,
 		"consentText":        s.ConsentText,
 		"manualFormFields":   manualFormFields,
 		"enabled":            s.Enabled,
 		"createdAt":          s.CreatedAt,
+	}
+	if ldapConfig != nil {
+		result["ldapConfig"] = ldapConfig
+	}
+
+	return result, nil
+}
+
+func buildAdminSchoolLDAPConfig(raw json.RawMessage) (*SchoolLDAPConfigView, error) {
+	settings, err := decodeSchoolLDAPSettings(raw)
+	if err != nil {
+		return nil, err
+	}
+	if isEmptySchoolLDAPSettings(settings) {
+		return nil, nil
+	}
+
+	return &SchoolLDAPConfigView{
+		URL:                   optionalTrimmedString(settings.URL),
+		BaseDN:                optionalTrimmedString(settings.BaseDN),
+		SystemBindDN:          optionalTrimmedString(settings.SystemBindDN),
+		UseTLS:                settings.UseTLS,
+		InsecureSkipVerify:    settings.InsecureSkipVerify,
+		HasSystemBindPassword: strings.TrimSpace(settings.SystemBindPassword) != "",
 	}, nil
 }
 
@@ -139,6 +165,8 @@ func adminStudentVerificationToJSON(p *Profile) (gin.H, error) {
 		"manualFormData":     manualFormData,
 		"verificationStatus": p.VerificationStatus,
 		"verificationMethod": p.VerificationMethod,
+		"rejectionReason":    p.RejectionReason,
+		"reviewedAt":         p.ReviewedAt,
 		"phone":              p.Phone,
 		"phoneVerified":      p.PhoneVerified,
 		"consentGivenAt":     p.ConsentGivenAt,

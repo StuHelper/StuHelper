@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // GetUserRoles 获取用户拥有的角色列表
@@ -40,17 +41,46 @@ func (r *Repository) GetUserRoles(ctx context.Context, userID int64) ([]Role, er
 func (r *Repository) SetUserRoles(ctx context.Context, userID int64, roleIDs []int64) error {
 	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM user_roles WHERE user_id = $1`, userID); err != nil {
-			return fmt.Errorf("SetUserRoles delete: %w", err)
+			return mapSetUserRolesWriteError(err)
 		}
 		for _, rid := range roleIDs {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)
 			`, userID, rid); err != nil {
-				return fmt.Errorf("SetUserRoles insert: %w", err)
+				return mapSetUserRolesWriteError(err)
 			}
 		}
 		return nil
 	})
+}
+
+// UserExists 检查用户是否存在
+func (r *Repository) UserExists(ctx context.Context, userID int64) (bool, error) {
+	var exists bool
+	if err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`, userID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("UserExists: %w", err)
+	}
+	return exists, nil
+}
+
+// CountRolesByIDs 返回 roleIDs 中存在的角色数量（去重后）
+func (r *Repository) CountRolesByIDs(ctx context.Context, roleIDs []int64) (int, error) {
+	if len(roleIDs) == 0 {
+		return 0, nil
+	}
+
+	var count int
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)::INT
+		FROM (
+			SELECT DISTINCT id
+			FROM roles
+			WHERE id = ANY($1)
+		) AS matched_roles
+	`, roleIDs).Scan(&count); err != nil {
+		return 0, fmt.Errorf("CountRolesByIDs: %w", err)
+	}
+	return count, nil
 }
 
 // HasRole 检查用户是否拥有指定角色
@@ -99,6 +129,15 @@ func (r *Repository) SetUserPermission(ctx context.Context, userID int64, permID
 		ON CONFLICT (user_id, permission_id) DO UPDATE SET granted = EXCLUDED.granted
 	`, userID, permID, granted)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			switch pgErr.ConstraintName {
+			case "user_permissions_user_id_fkey":
+				return ErrUserNotFound
+			case "user_permissions_permission_id_fkey":
+				return ErrPermNotFound
+			}
+		}
 		return fmt.Errorf("SetUserPermission: %w", err)
 	}
 	return nil
@@ -184,6 +223,25 @@ func (r *Repository) GetInternalUserID(ctx context.Context, externalID string) (
 		return 0, fmt.Errorf("GetInternalUserID: %w", err)
 	}
 	return id, nil
+}
+
+func mapSetUserRolesWriteError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23503":
+			switch pgErr.ConstraintName {
+			case "user_roles_user_id_fkey":
+				return ErrUserNotFound
+			case "user_roles_role_id_fkey":
+				return ErrRoleSelectionInvalid
+			}
+			return ErrRoleSelectionInvalid
+		case "23505":
+			return ErrRoleSelectionInvalid
+		}
+	}
+	return fmt.Errorf("SetUserRoles: %w", err)
 }
 
 // GetUserRoleNames 获取用户拥有的角色名列表（用于 scope 检查）

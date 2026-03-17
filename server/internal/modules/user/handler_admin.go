@@ -37,8 +37,8 @@ func (h *Handler) handleAdminListIdentities(c *gin.Context) {
 }
 
 type reviewIdentityHTTPRequest struct {
-	Approved        *bool  `json:"approved" binding:"required"`
-	RejectionReason string `json:"rejectionReason"`
+	Approved        *bool   `json:"approved" binding:"required"`
+	RejectionReason *string `json:"rejectionReason"`
 }
 
 func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
@@ -54,13 +54,11 @@ func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
 		return
 	}
 
-	err = h.service.ReviewIdentity(c.Request.Context(), userID, *req.Approved, req.RejectionReason)
+	err = h.service.ReviewIdentity(c.Request.Context(), userID, *req.Approved, derefOptionalString(req.RejectionReason))
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrIdentityNotFound):
 			response.NotFound(c, "identity not found", errs.ErrIdentityNotFound)
-		case errors.Is(err, ErrRejectionReasonRequired):
-			response.BadRequest(c, "rejection reason is required when rejecting")
 		default:
 			logger.FromGin(c).Error("failed to review identity",
 				zap.Int64("target_user_id", userID),
@@ -108,8 +106,8 @@ func (h *Handler) handleAdminListStudentVerifications(c *gin.Context) {
 }
 
 type reviewStudentVerificationHTTPRequest struct {
-	Approved        *bool  `json:"approved" binding:"required"`
-	RejectionReason string `json:"rejectionReason"`
+	Approved        *bool   `json:"approved" binding:"required"`
+	RejectionReason *string `json:"rejectionReason"`
 }
 
 func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
@@ -125,13 +123,11 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 		return
 	}
 
-	err = h.service.ReviewStudentVerification(c.Request.Context(), userID, *req.Approved, req.RejectionReason)
+	err = h.service.ReviewStudentVerification(c.Request.Context(), userID, *req.Approved, derefOptionalString(req.RejectionReason))
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrProfileNotFound):
 			response.NotFound(c, "student profile not found", errs.ErrProfileNotFound)
-		case errors.Is(err, ErrRejectionReasonRequired):
-			response.BadRequest(c, "rejection reason is required when rejecting")
 		default:
 			logger.FromGin(c).Error("failed to review student verification",
 				zap.Int64("target_user_id", userID),
@@ -173,7 +169,7 @@ func (h *Handler) handleAdminListSchoolConfigs(c *gin.Context) {
 type updateSchoolConfigHTTPRequest struct {
 	SchoolName         *string                  `json:"schoolName" binding:"omitempty,max=100"`
 	VerificationMethod *string                  `json:"verificationMethod" binding:"omitempty,oneof=ldap manual"`
-	LDAPConfig         *map[string]any          `json:"ldapConfig"`
+	LDAPConfig         *SchoolLDAPConfigInput   `json:"ldapConfig"`
 	AcademicDBTable    *string                  `json:"academicDbTable" binding:"omitempty,max=100"`
 	ConsentText        *string                  `json:"consentText"`
 	ManualFormFields   *[]ManualFieldDescriptor `json:"manualFormFields"`
@@ -203,6 +199,26 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 			response.BadRequest(c, "invalid manual form field configuration")
 			return
 		}
+		if errors.Is(err, ErrAcademicTableNotConfigured) {
+			logger.FromGin(c).Warn("academic db table not configured", zap.Error(err))
+			response.BadRequest(c, "academic db table is required for enabled LDAP schools", errs.ErrAcademicTableNotConfigured)
+			return
+		}
+		if errors.Is(err, ErrInvalidAcademicDBTable) {
+			logger.FromGin(c).Warn("invalid academic db table config", zap.Error(err))
+			response.BadRequest(c, "invalid academic db table configuration", errs.ErrProfileAcademicTable)
+			return
+		}
+		if errors.Is(err, ErrSchoolLDAPConfigMissing) {
+			logger.FromGin(c).Warn("missing school ldap config", zap.Error(err))
+			response.BadRequest(c, "school LDAP configuration is required for enabled LDAP schools", errs.ErrSchoolLDAPConfigMissing)
+			return
+		}
+		if errors.Is(err, ErrLDAPConfigInvalid) {
+			logger.FromGin(c).Warn("invalid school ldap config", zap.Error(err))
+			response.BadRequest(c, "school LDAP configuration is invalid", errs.ErrLDAPConfigInvalid)
+			return
+		}
 		logger.FromGin(c).Error("failed to update school config",
 			zap.String("school_id", schoolID),
 			zap.Error(err),
@@ -212,6 +228,13 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "school config updated"})
+}
+
+func derefOptionalString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func (h *Handler) handleAdminListSystemConfigs(c *gin.Context) {
@@ -248,6 +271,22 @@ func (h *Handler) handleAdminUpdateSystemConfig(c *gin.Context) {
 	}
 
 	if err := h.service.UpdateSystemConfig(c.Request.Context(), key, req.Value); err != nil {
+		if errors.Is(err, ErrSystemConfigNotFound) {
+			logger.FromGin(c).Warn("system config not found",
+				zap.String("config_key", key),
+				zap.Error(err),
+			)
+			response.NotFound(c, "system config not found", errs.ErrSystemConfigNotFound)
+			return
+		}
+		if errors.Is(err, ErrInvalidSystemConfigValue) {
+			logger.FromGin(c).Warn("invalid system config value",
+				zap.String("config_key", key),
+				zap.Error(err),
+			)
+			response.BadRequest(c, err.Error(), errs.ErrInvalidParam)
+			return
+		}
 		logger.FromGin(c).Error("failed to update system config",
 			zap.String("config_key", key),
 			zap.Error(err),

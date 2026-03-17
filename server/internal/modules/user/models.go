@@ -64,6 +64,8 @@ type Profile struct {
 	ManualFormData     json.RawMessage
 	VerificationStatus string
 	VerificationMethod *string
+	RejectionReason    *string
+	ReviewedAt         *time.Time
 	Phone              *string
 	PhoneVerified      bool
 	ConsentGivenAt     *time.Time

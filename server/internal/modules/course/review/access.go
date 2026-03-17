@@ -2,7 +2,10 @@ package review
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -11,30 +14,158 @@ import (
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
 const (
-	reviewAccessSchoolID    = "10006"
-	reviewPreviewTitleRunes = 24
-	reviewPreviewTextRunes  = 120
+	reviewAccessPolicyTTL = 5 * time.Minute
 )
 
 type ReviewAccessFacts struct {
-	Authenticated    bool
-	CanManageReviews bool
-	CanViewFull      bool
-	CanPostReview    bool
-	IdentityVerified bool
-	StudentVerified  bool
-	SchoolID         *string
+	Authenticated       bool
+	CanManageReviews    bool
+	CanViewFull         bool
+	CanPostReview       bool
+	IdentityVerified    bool
+	StudentVerified     bool
+	SchoolID            *string
+	PreviewTitleRunes   int
+	PreviewContentRunes int
+	PreviewContentPct   int
+}
+
+func (h *Handler) getReviewAccessPolicy(ctx context.Context) (systemconfig.ReviewAccessPolicySnapshot, error) {
+	cached := h.readReviewAccessPolicy()
+	if policyFresh(cached) {
+		return cached, nil
+	}
+
+	h.accessPolicyMu.Lock()
+	defer h.accessPolicyMu.Unlock()
+
+	cached = h.readReviewAccessPolicy()
+	if policyFresh(cached) {
+		return cached, nil
+	}
+
+	policy, err := h.loadReviewAccessPolicy(ctx)
+	if err != nil {
+		if !cached.LoadedAt.IsZero() {
+			logger.L().Warn("failed to refresh review access policy, using stale policy", zap.Error(err))
+			return cached, nil
+		}
+		return systemconfig.ReviewAccessPolicySnapshot{}, err
+	}
+
+	systemconfig.SetReviewAccessPolicySnapshot(policy)
+	return policy, nil
+}
+
+func (h *Handler) readReviewAccessPolicy() systemconfig.ReviewAccessPolicySnapshot {
+	return systemconfig.GetReviewAccessPolicySnapshot()
+}
+
+func policyFresh(policy systemconfig.ReviewAccessPolicySnapshot) bool {
+	if policy.LoadedAt.IsZero() {
+		return false
+	}
+	return time.Since(policy.LoadedAt) <= reviewAccessPolicyTTL
+}
+
+func (h *Handler) loadReviewAccessPolicy(ctx context.Context) (systemconfig.ReviewAccessPolicySnapshot, error) {
+	schools, err := h.userRepo.ListSchoolConfigs(ctx)
+	if err != nil {
+		return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("load enabled schools: %w", err)
+	}
+	configs, err := h.userRepo.ListSystemConfigs(ctx)
+	if err != nil {
+		return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("load system configs: %w", err)
+	}
+
+	policy, err := buildReviewAccessPolicy(schools, configs)
+	if err != nil {
+		return systemconfig.ReviewAccessPolicySnapshot{}, err
+	}
+	policy.LoadedAt = time.Now()
+	return policy, nil
+}
+
+func buildReviewAccessPolicy(schools []user.SchoolConfig, configs []user.SystemConfig) (systemconfig.ReviewAccessPolicySnapshot, error) {
+	policy := systemconfig.DefaultReviewAccessPolicySnapshot()
+
+	enabledSchoolIDs := make([]string, 0, len(schools))
+	for _, school := range schools {
+		if trimmed := strings.TrimSpace(school.SchoolID); trimmed != "" {
+			enabledSchoolIDs = append(enabledSchoolIDs, trimmed)
+		}
+	}
+	configMap := make(map[string]string, len(configs))
+	for _, config := range configs {
+		configMap[config.Key] = config.Value
+	}
+
+	allowedSchoolIDs, err := parseReviewAccessSchoolIDs(configMap, enabledSchoolIDs)
+	if err != nil {
+		return systemconfig.ReviewAccessPolicySnapshot{}, err
+	}
+	policy.AllowedSchoolIDs = allowedSchoolIDs
+
+	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewTitleCharsKey); ok {
+		policy.PreviewTitleRunes, err = systemconfig.ParseBoundedInt(value, 1, 200)
+		if err != nil {
+			return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("%s %w", systemconfig.ReviewPreviewTitleCharsKey, err)
+		}
+	}
+	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewContentCharsKey, systemconfig.LegacyReviewPreviewCharsKey); ok {
+		policy.PreviewContentRunes, err = systemconfig.ParseBoundedInt(value, 1, 5000)
+		if err != nil {
+			return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("%s %w", systemconfig.ReviewPreviewContentCharsKey, err)
+		}
+	}
+	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewContentPercentKey, systemconfig.LegacyReviewPreviewPercentKey); ok {
+		policy.PreviewContentPct, err = systemconfig.ParseBoundedInt(value, 1, 100)
+		if err != nil {
+			return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("%s %w", systemconfig.ReviewPreviewContentPercentKey, err)
+		}
+	}
+
+	return policy, nil
+}
+
+func parseReviewAccessSchoolIDs(configs map[string]string, enabledSchoolIDs []string) ([]string, error) {
+	if raw, ok := firstNonEmptyConfig(configs, systemconfig.ReviewAccessSchoolIDsKey); ok {
+		return systemconfig.ParseStringList(raw)
+	}
+	return systemconfig.NormalizeStringList(enabledSchoolIDs), nil
+}
+
+func firstNonEmptyConfig(configs map[string]string, keys ...string) (string, bool) {
+	for _, key := range keys {
+		value := strings.TrimSpace(configs[key])
+		if value == "" {
+			continue
+		}
+		return value, true
+	}
+	return "", false
 }
 
 func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID string) (ReviewAccessFacts, error) {
-	if externalID == "" {
-		return ReviewAccessFacts{}, nil
+	policy, err := h.getReviewAccessPolicy(ctx)
+	if err != nil {
+		return ReviewAccessFacts{}, err
 	}
 
-	facts := ReviewAccessFacts{Authenticated: true}
+	facts := ReviewAccessFacts{
+		PreviewTitleRunes:   policy.PreviewTitleRunes,
+		PreviewContentRunes: policy.PreviewContentRunes,
+		PreviewContentPct:   policy.PreviewContentPct,
+	}
+	if externalID == "" {
+		return facts, nil
+	}
+
+	facts.Authenticated = true
 
 	if h.permissionSvc == nil {
 		return facts, nil
@@ -64,7 +195,7 @@ func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID strin
 		facts.SchoolID = profile.SchoolID
 		facts.StudentVerified = profile.VerificationStatus == user.StatusVerified &&
 			profile.SchoolID != nil &&
-			*profile.SchoolID == reviewAccessSchoolID
+			policy.AllowsSchool(*profile.SchoolID)
 	}
 	facts.IdentityVerified = identity != nil && identity.Verified
 	facts.CanViewFull = facts.CanManageReviews || facts.StudentVerified
@@ -81,7 +212,13 @@ func (h *Handler) resolveReviewAccessFactsForRequest(c *gin.Context) ReviewAcces
 	}
 
 	logger.FromGin(c).Warn("failed to resolve review access facts", zap.Error(err))
-	return ReviewAccessFacts{Authenticated: externalID != ""}
+	policy := systemconfig.DefaultReviewAccessPolicySnapshot()
+	return ReviewAccessFacts{
+		Authenticated:       externalID != "",
+		PreviewTitleRunes:   policy.PreviewTitleRunes,
+		PreviewContentRunes: policy.PreviewContentRunes,
+		PreviewContentPct:   policy.PreviewContentPct,
+	}
 }
 
 func stripReviewsForResponse(reviews []Review, facts ReviewAccessFacts) []Review {
@@ -97,22 +234,32 @@ func stripReviewsForResponse(reviews []Review, facts ReviewAccessFacts) []Review
 			result[i].Content = ""
 			result[i].Title = ""
 		case !facts.CanViewFull:
-			result[i].Title = previewText(result[i].Title, reviewPreviewTitleRunes)
-			result[i].Content = previewText(result[i].Content, reviewPreviewTextRunes)
+			result[i].Title = previewText(result[i].Title, facts.PreviewTitleRunes, 100)
+			result[i].Content = previewText(result[i].Content, facts.PreviewContentRunes, facts.PreviewContentPct)
 		}
 	}
 
 	return result
 }
 
-func previewText(value string, maxRunes int) string {
+func previewText(value string, maxRunes int, percent int) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return ""
 	}
 	runes := []rune(trimmed)
-	if len(runes) <= maxRunes {
+	limit := maxRunes
+	if percent > 0 && percent < 100 {
+		percentLimit := int(math.Ceil(float64(len(runes)) * float64(percent) / 100))
+		if percentLimit < 1 {
+			percentLimit = 1
+		}
+		if percentLimit < limit {
+			limit = percentLimit
+		}
+	}
+	if limit <= 0 || len(runes) <= limit {
 		return trimmed
 	}
-	return string(runes[:maxRunes]) + "..."
+	return string(runes[:limit]) + "..."
 }

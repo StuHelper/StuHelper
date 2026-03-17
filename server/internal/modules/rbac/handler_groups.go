@@ -122,6 +122,10 @@ func (h *Handler) handleGetGroupMembers(c *gin.Context) {
 
 	members, err := h.service.GetGroupMembers(c.Request.Context(), id)
 	if err != nil {
+		if errors.Is(err, ErrGroupNotFound) {
+			response.NotFound(c, "group not found", errs.ErrGroupNotFound)
+			return
+		}
 		logger.FromGin(c).Error("failed to get group members", zap.Error(err))
 		response.InternalError(c, "failed to get group members")
 		return
@@ -153,6 +157,10 @@ func (h *Handler) handleSetGroupMembers(c *gin.Context) {
 			response.NotFound(c, "group not found", errs.ErrGroupNotFound)
 			return
 		}
+		if errors.Is(err, ErrUserSelectionInvalid) {
+			response.BadRequest(c, "one or more selected users are invalid", errs.ErrUserSelectionInvalid)
+			return
+		}
 		logger.FromGin(c).Error("failed to set group members", zap.Error(err))
 		response.InternalError(c, "failed to set group members")
 		return
@@ -182,6 +190,10 @@ func (h *Handler) handleSetGroupPermissions(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrGroupNotFound) {
 			response.NotFound(c, "group not found", errs.ErrGroupNotFound)
+			return
+		}
+		if errors.Is(err, ErrPermissionSelectionInvalid) {
+			response.BadRequest(c, "one or more selected permissions are invalid", errs.ErrPermissionSelectionInvalid)
 			return
 		}
 		logger.FromGin(c).Error("failed to set group permissions", zap.Error(err))

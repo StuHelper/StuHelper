@@ -29,7 +29,7 @@
             <el-table-column label="学号列表" min-width="160">
                 <template #default="{ row }">
                     <el-tag
-                        v-for="sid in row.studentIDs"
+                        v-for="sid in row.studentIDs || []"
                         :key="sid"
                         size="small"
                         class="mr-1 mb-1"
@@ -86,9 +86,27 @@
                     {{ formatDate(row.createdAt) }}
                 </template>
             </el-table-column>
+            <el-table-column label="审核时间" width="180">
+                <template #default="{ row }">
+                    {{ formatDate(row.reviewedAt || row.verifiedAt || "") }}
+                </template>
+            </el-table-column>
+            <el-table-column label="拒绝原因" min-width="180">
+                <template #default="{ row }">
+                    <span
+                        v-if="
+                            row.verificationStatus === 'rejected' &&
+                            row.rejectionReason
+                        "
+                    >
+                        {{ row.rejectionReason }}
+                    </span>
+                    <span v-else class="text-gray-400 text-sm">—</span>
+                </template>
+            </el-table-column>
             <el-table-column label="操作" width="160" fixed="right">
                 <template #default="{ row }">
-                    <template v-if="row.verificationStatus === 'pending'">
+                    <template v-if="row.verificationStatus !== 'unverified'">
                         <el-button
                             type="success"
                             size="small"
@@ -157,7 +175,10 @@ import { ElMessage } from "element-plus";
 import { api } from "@/api";
 
 type StudentVerification =
-    components["schemas"]["AdminStudentVerificationItem"];
+    components["schemas"]["AdminStudentVerificationItem"] & {
+        rejectionReason?: string | null;
+        reviewedAt?: string | null;
+    };
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -198,7 +219,7 @@ function statusTagType(
 
 function verificationMethodLabel(method: string): string {
     const map: Record<string, string> = {
-        ldap: "LDAP",
+        ldap: "统一身份认证",
         manual: "人工审核",
     };
     return map[method] ?? method;
@@ -208,6 +229,28 @@ function formatDate(dateStr: string): string {
     if (!dateStr) return "—";
     const d = new Date(dateStr);
     return d.toLocaleString("zh-CN", { hour12: false });
+}
+
+function getApiErrorMessage(error: unknown, fallback: string): string {
+    if (error && typeof error === "object") {
+        const err = error as {
+            response?: {
+                data?: { error?: { message?: string } };
+                error?: { message?: string };
+            };
+            error?: { message?: string };
+            message?: string;
+        };
+        const body =
+            err.response?.data?.error ?? err.response?.error ?? err.error;
+        if (body?.message) {
+            return body.message;
+        }
+        if (err.message) {
+            return err.message;
+        }
+    }
+    return fallback;
 }
 
 async function fetchList() {
@@ -222,8 +265,8 @@ async function fetchList() {
         const data = res.data?.data;
         list.value = data?.list ?? [];
         total.value = data?.total ?? 0;
-    } catch {
-        ElMessage.error("获取数据失败");
+    } catch (err) {
+        ElMessage.error(getApiErrorMessage(err, "获取数据失败"));
     } finally {
         loading.value = false;
     }
@@ -246,14 +289,14 @@ async function handleApprove(row: StudentVerification) {
         });
         ElMessage.success("审核通过");
         fetchList();
-    } catch {
-        ElMessage.error("操作失败");
+    } catch (err) {
+        ElMessage.error(getApiErrorMessage(err, "操作失败"));
     }
 }
 
 function openRejectDialog(row: StudentVerification) {
     currentRow.value = row;
-    rejectReason.value = "";
+    rejectReason.value = row.rejectionReason ?? "";
     rejectDialogVisible.value = true;
 }
 
@@ -268,8 +311,8 @@ async function handleReject() {
         ElMessage.success("已拒绝");
         rejectDialogVisible.value = false;
         fetchList();
-    } catch {
-        ElMessage.error("操作失败");
+    } catch (err) {
+        ElMessage.error(getApiErrorMessage(err, "操作失败"));
     } finally {
         submitting.value = false;
     }
