@@ -1,73 +1,74 @@
-# Authentication and Sessions
+# 认证与会话模块
 
-This documentation covers SSO integration, session management, account synchronization, LDAP validation, and security storage.
+认证与会话模块处理 SSO 集成、会话管理、账号同步、LDAP 验证和安全存储。
 
-## Code Scope
+## 代码范围
 
-| Code Location | Purpose |
+| 代码位置 | 职责 |
 | --- | --- |
-| `server/internal/modules/auth` | Login, callback, session refresh, current user info |
-| `server/internal/pkg/sso` | Casdoor OAuth/OIDC client |
-| `server/internal/pkg/token` | Token issuance, blacklist, session tracking |
-| `server/internal/modules/ldap` | LDAP login validation and user profile query |
-| `server/internal/pkg/crypto/pii` | Government ID encryption |
+| `server/internal/modules/auth` | 登录回调、会话刷新、当前用户信息 |
+| `server/internal/pkg/sso` | Casdoor OAuth 客户端（URL 生成、令牌交换、JWT 解析、用户缓存） |
+| `server/internal/pkg/token` | 令牌签发、黑名单、用户令牌追踪 |
+| `server/internal/modules/ldap` | LDAP 登录验证和用户信息查询 |
+| `server/internal/pkg/crypto/pii` | 证件号 AES-256-GCM 加密 |
 
-## Documentation Index
+## 文档索引
 
-| Document | Description |
+| 文档 | 内容 |
 | --- | --- |
-| [01-casdoor-sso.md](01-casdoor-sso.md) | Casdoor login flow, callback, current user info |
-| [02-ldap.md](02-ldap.md) | LDAP client and LDAP validation in student verification |
-| [03-account.md](03-account.md) | Local account sync and user identifiers |
-| [04-security.md](04-security.md) | Sessions, cookies, PII encryption, audit |
+| [01-casdoor-sso.md](01-casdoor-sso.md) | Casdoor 登录流程、回调、当前用户信息 |
+| [02-ldap.md](02-ldap.md) | LDAP 客户端与学生认证中的 LDAP 验证 |
+| [03-account.md](03-account.md) | 本地账号同步与用户标识符 |
+| [04-security.md](04-security.md) | 会话、Cookie、PII 加密、审计 |
 
-## Quick Reference
-
-### Login Flow
+## 登录流程
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Frontend
-    participant Backend
-    participant Casdoor
+    participant U as 用户
+    participant F as 前端
+    participant B as 后端
+    participant C as Casdoor
 
-    User->>Frontend: Click login
-    Frontend->>Backend: GET /api/v1/auth/login
-    Backend->>Frontend: Return auth URL + state
-    Frontend->>Casdoor: Redirect to sso.stuhelper.com
-    Casdoor->>User: Show login form
-    User->>Casdoor: Submit credentials
-    Casdoor->>Frontend: Redirect to /auth/callback?code=xxx
-    Frontend->>Backend: GET /api/v1/auth/callback?code=xxx
-    Backend->>Casdoor: Exchange code for tokens
-    Casdoor->>Backend: Return access + refresh tokens
-    Backend->>Frontend: Set HttpOnly cookies + return user info
-    Frontend->>User: Show logged-in state
+    U->>F: 点击登录
+    F->>B: GET /api/v1/auth/login
+    B->>B: 生成随机 state 存入 Redis
+    B->>F: 返回授权 URL + state
+    F->>C: 浏览器跳转到 sso.stuhelper.com
+    C->>U: 显示登录表单
+    U->>C: 提交凭据
+    C->>F: 重定向到前端 /auth/callback?code=xxx&state=xxx
+    F->>B: GET /api/v1/auth/callback?code=xxx&state=xxx
+    B->>B: 验证并消费 state（Lua 原子 GET+DEL）
+    B->>C: 用 code 换取 access token + refresh token
+    C->>B: 返回 OAuth 令牌
+    B->>B: 解析 JWT、校验组织、UpsertUser
+    B->>F: 写入 HttpOnly Cookie，返回 user + expiresIn
+    F->>U: 显示已登录状态
 ```
 
-### Session Management
+## 会话管理
 
-| Token Type | Storage | Lifetime | Purpose |
+| 令牌类型 | 存储方式 | 有效期 | 用途 |
 | --- | --- | --- | --- |
-| Access Token | HttpOnly Cookie | 15 minutes | API authentication |
-| Refresh Token | HttpOnly Cookie | 7 days | Token refresh |
-| CSRF Token | Regular Cookie | Session | CSRF protection |
+| Access Token | HttpOnly Cookie（`access_token`） | 默认 15 分钟（900 秒） | API 认证 |
+| Refresh Token | HttpOnly Cookie（`refresh_token`），Path 限定为 `/api/v1/auth/refresh` | 默认 7 天（604800 秒） | 令牌刷新 |
+| CSRF Token | 普通 Cookie（`csrf_token`），HttpOnly=false | 跟随 Refresh Token | CSRF 防护，前端在请求头中回传 |
 
-### API Endpoints
+## API 端点
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/v1/auth/login` | Generate login redirect URL and state |
-| `GET /api/v1/auth/signup` | Generate signup redirect URL and state |
-| `GET /api/v1/auth/callback` | Exchange code for session, return user info |
-| `POST /api/v1/auth/refresh` | Refresh access token |
-| `GET /api/v1/auth/me` | Get current user info and capabilities |
-| `POST /api/v1/auth/logout` | Logout current device |
-| `POST /api/v1/auth/logout-all` | Logout all devices |
+| 端点 | 方法 | 用途 |
+| --- | --- | --- |
+| `/api/v1/auth/login` | GET | 生成登录跳转 URL 和 state |
+| `/api/v1/auth/signup` | GET | 生成注册跳转 URL 和 state |
+| `/api/v1/auth/callback` | GET | 用授权码换取会话，返回用户信息 |
+| `/api/v1/auth/refresh` | POST | 刷新 access token（限流：每分钟 10 次） |
+| `/api/v1/auth/me` | GET | 获取当前用户信息和能力集 |
+| `/api/v1/auth/logout` | POST | 登出当前设备 |
+| `/api/v1/auth/logout-all` | POST | 登出所有设备 |
 
-## Related Documentation
+## 相关文档
 
-- [Identity and Authorization](../../architecture/ecosystem-identity-and-authorization.md)
-- [User System](../user-system/README.md)
-- [RBAC](../rbac/README.md)
+- [用户系统](../user-system/README.md)
+- [RBAC 权限控制](../rbac/README.md)
+- [授权策略](../policy/README.md)

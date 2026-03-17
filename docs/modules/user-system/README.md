@@ -1,97 +1,128 @@
-# User System
+# 用户系统模块
 
-The user system covers identity verification, student verification, school configuration, system configuration, and academic information.
+用户系统覆盖实名认证、学生认证、学校配置、系统配置和学籍信息查询。
 
-## Code Scope
+## 代码范围
 
-| Code Location | Purpose |
-| --- | --- |
-| `server/internal/modules/user` | Identity verification, student verification, school config, system config |
-| `server/internal/modules/ldap` | LDAP login validation and user info query |
-| `server/internal/pkg/crypto/pii` | Government ID encryption |
+| 代码位置                         | 职责                                             |
+| -------------------------------- | ------------------------------------------------ |
+| `server/internal/modules/user`   | 实名认证、学生认证、学校配置、系统配置、学籍查询 |
+| `server/internal/modules/ldap`   | LDAP 登录验证和用户信息查询                      |
+| `server/internal/pkg/crypto/pii` | 证件号 AES-256-GCM 加密                          |
 
-## Subdomains
+## 两级认证体系
 
-### Identity Verification
+### 1. 实名认证（Identity Verification）
 
-Users submit government ID information for real-name verification. The process:
+用户提交证件类型和证件号码进行实名认证。
 
-1. User submits ID type and ID number via `POST /api/v1/user/identity`
-2. ID number is encrypted with AES-256-GCM and stored as `doc_number_enc`
-3. A stable identifier (`person_uid`) is derived via HMAC-SHA256 for matching
-4. Admin reviews and approves/rejects via `PUT /api/v1/admin/identities/{userID}`
+- 证件类型：大陆身份证（`MAINLAND_ID`）、港澳居民来往内地通行证（`HK_MACAU`）、台湾居民来往大陆通行证（`TW`）、护照（`PASSPORT`）
+- 证件号码使用 AES-256-GCM 加密存储为 `doc_number_enc`
+- 通过 HMAC-SHA256(doc_type:doc_number) 派生 `person_uid`，用于跨记录匹配同一自然人
+- 非大陆身份证需上传证件照片（正面、背面、手持）
+- 大陆身份证提交时会尝试学籍数据库自动匹配（`tryAcademicDBMatch`）：如果证件号和姓名命中学籍记录，`verify_method` 写为 `academic_db_match`，认证状态自动设为 `verified`
+- 未自动匹配的记录需要管理员审核后批准或拒绝
 
-### Student Verification
+### 2. 学生认证（Student Verification）
 
-Students verify their enrollment status. Two methods are supported:
+学生认证依赖实名认证通过。当前学校配置只支持两种认证方式。
 
-- **LDAP verification**: Automatic validation against school LDAP directory
-- **Manual review**: Admin reviews submitted documents
+| 方式         | 说明                                                                |
+| ------------ | ------------------------------------------------------------------- |
+| 统一身份认证 | 对外口径。当前实现名为 `ldap`，用学号和密码对学校目录服务做凭据校验 |
+| 表单人工认证 | 当前实现名为 `manual`，用户填写学校配置的动态表单，管理员审核       |
 
-The verification method is configured per school in `school_configs`.
+产品、后台和面向用户的文案统一使用统一身份认证这个名称。`ldap` 只在代码、接口字段和开发文档里作为实现名出现。
 
-### School Configuration
+## 学校配置
 
-Per-school settings that control verification behavior:
+`school_configs` 表的关键字段：
 
-| Field | Description |
-| --- | --- |
-| `verificationMethod` | `ldap` or `manual` |
-| `ldapConfig` | LDAP connection settings (when method is `ldap`) |
-| `manualFormFields` | Required form fields for manual verification |
-| `consentText` | Agreement text shown to users |
+| 字段                  | 说明                                        |
+| --------------------- | ------------------------------------------- |
+| `verification_method` | 验证方式，`ldap` 或 `manual`                |
+| `ldap_config`         | LDAP 连接配置（加密存储，BYTEA）            |
+| `manual_form_fields`  | 人工审核模式的动态表单字段定义（JSONB）     |
+| `consent_text`        | 向用户展示的同意协议文本                    |
+| `academic_db_table`   | 学籍数据表名（如 `academic.buaa_students`） |
+| `enabled`             | 是否启用该学校的认证                        |
 
-### System Configuration
+动态表单字段（`ManualFieldDescriptor`）支持 `text`、`select`、`textarea` 等类型，每个字段可配置 `key`、`label`、`type`、`required`、`options`、`placeholder`。
 
-Global configuration items maintained through the admin console.
+## 当前审批行为
 
-## Business Rules
+当前认证方式和审批结果是绑定的：
 
-- Identity verification status participates in the student verification flow
-- Government ID numbers are stored as ciphertext; `person_uid` is used for stable matching
-- School configuration updates use merge-write semantics
-- Admin review endpoints require appropriate capabilities
+- `ldap` 验证成功后，学生认证直接写成 `verified`
+- `manual` 提交后，学生认证写成 `pending`
+- 管理员可以在管理端把学生认证改成 `verified` 或 `rejected`
 
-## API Endpoints
+当前学生认证记录里还没有独立的审批策略字段，也没有完整的复审元数据。
 
-### User-Facing
+## 后续目标
 
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/v1/user/identity` | GET | Check identity verification status |
-| `/api/v1/user/identity` | POST | Submit identity verification |
-| `/api/v1/user/profile` | GET | Get student verification profile |
-| `/api/v1/user/profile/verify` | POST | Submit student verification |
-| `/api/v1/user/profile/bind-phone` | POST | Bind phone number |
-| `/api/v1/user/profile/academic-info` | GET | Get academic information |
-| `/api/v1/user/schools` | GET | List schools |
+后续要把认证方式和审批策略拆开配置。
 
-### Admin
+建议补充学校级审批策略字段，例如：
 
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/v1/admin/identities` | GET | List identity verification requests |
-| `/api/v1/admin/identities/{userID}` | PUT | Review identity verification |
-| `/api/v1/admin/student-verifications` | GET | List student verification requests |
-| `/api/v1/admin/student-verifications/{userID}` | PUT | Review student verification |
-| `/api/v1/admin/school-configs` | GET | List school configurations |
-| `/api/v1/admin/school-configs/{schoolID}` | PUT | Update school configuration |
-| `/api/v1/admin/system-configs` | GET | List system configurations |
-| `/api/v1/admin/system-configs/{key}` | PUT | Update system configuration |
+- 统一身份认证提交后自动通过
+- 统一身份认证提交后进入人工复核
+- 表单人工认证提交后自动通过
+- 表单人工认证提交后进入人工复核
 
-## Database Tables
+无论是否自动通过，都要保留一条完整认证记录。管理员需要能看到自动通过记录，支持复审、撤销和打回，并保留审核人、审核时间、拒绝原因和复审轨迹。
 
-| Table | Purpose |
-| --- | --- |
-| `users` | Local user records synced from Casdoor |
-| `user_identities` | Identity verification data (encrypted ID numbers) |
-| `user_profiles` | Student verification data, school, phone |
-| `school_configs` | Per-school verification settings |
-| `system_configs` | Global system settings |
+## 系统配置
 
-## Related Documentation
+`system_configs` 表存储全局配置项，每项包含 `key`、`value`、`description`，通过管理后台维护。
 
-- [API Overview](../../reference/api-overview.md)
-- [Database Design](../../reference/database.md)
-- [Identity and Authorization](../../architecture/ecosystem-identity-and-authorization.md)
-- [LDAP Verification](../auth/02-ldap.md)
+## 业务规则
+
+- 实名认证通过是学生认证的前置条件
+- 证件号码以密文存储，`person_uid` 用于稳定匹配
+- 学校配置更新使用合并写入语义（可选字段，未提供的字段保留原值）
+- 管理端审核端点需要对应的能力字符串
+- 当前 `ldap` 验证成功后自动将 `verification_status` 设为 `verified`
+- 当前 `manual` 提交后 `verification_status` 设为 `pending`，等待管理员批准
+- 拒绝操作必须提供拒绝原因
+
+## 用户端 API 端点
+
+| 端点                                 | 方法 | 说明                           |
+| ------------------------------------ | ---- | ------------------------------ |
+| `/api/v1/user/identity`              | GET  | 查看实名认证状态               |
+| `/api/v1/user/identity`              | POST | 提交实名认证                   |
+| `/api/v1/user/profile`               | GET  | 查看学生认证档案               |
+| `/api/v1/user/profile/verify`        | POST | 提交学生认证                   |
+| `/api/v1/user/profile/bind-phone`    | POST | 绑定手机号                     |
+| `/api/v1/user/profile/academic-info` | GET  | 查看学籍信息（需学生认证通过） |
+| `/api/v1/user/schools`               | GET  | 列出学校（无需认证）           |
+
+## 管理端 API 端点
+
+| 端点                                          | 方法 | 所需能力               | 说明             |
+| --------------------------------------------- | ---- | ---------------------- | ---------------- |
+| `/api/v1/admin/identities`                    | GET  | `user:identity:read`   | 列出实名认证请求 |
+| `/api/v1/admin/identities/:userID`            | PUT  | `user:identity:review` | 审核实名认证     |
+| `/api/v1/admin/student-verifications`         | GET  | `user:student:read`    | 列出学生认证请求 |
+| `/api/v1/admin/student-verifications/:userID` | PUT  | `user:student:review`  | 审核学生认证     |
+| `/api/v1/admin/school-configs`                | GET  | `user:school:read`     | 列出学校配置     |
+| `/api/v1/admin/school-configs/:schoolID`      | PUT  | `user:school:update`   | 更新学校配置     |
+| `/api/v1/admin/system-configs`                | GET  | `user:system:read`     | 列出系统配置     |
+| `/api/v1/admin/system-configs/:key`           | PUT  | `user:system:update`   | 更新系统配置     |
+
+## 数据库表
+
+| 表                | 用途                                             |
+| ----------------- | ------------------------------------------------ |
+| `users`           | 本地用户记录（从 Casdoor 同步）                  |
+| `user_identities` | 实名认证数据（加密证件号、person_uid、审核状态） |
+| `user_profiles`   | 学生认证数据（学校、学号、认证状态、手机号）     |
+| `school_configs`  | 学校认证配置                                     |
+| `system_configs`  | 全局系统配置                                     |
+
+## 相关文档
+
+- [LDAP 验证](../auth/02-ldap.md)
+- [会话与安全](../auth/04-security.md)
+- [RBAC 权限控制](../rbac/README.md)

@@ -1,6 +1,6 @@
 # 安全设计
 
-本文档定义评课社区模块的安全策略和防护措施。
+本文档只描述当前已经落地的安全策略。尚未实现的目标单独列在文末。
 
 ## 用户隐私保护
 
@@ -20,24 +20,39 @@ userHash = HMAC-SHA256(userID, secret)
 
 ## 内容安全
 
-### 敏感词过滤 + 质量评估
+### 当前实现
 
-通过单一 `POST /content/check` 端点同时完成敏感词检测和内容质量评估：
+当前 `POST /content/check` 只返回敏感词检查结果，不返回质量评分。
+
+无命中时（`level` 和 `matchCount` 为零值，`omitempty` 省略）：
 
 ```json
 {
-	"sensitive": {
-		"hasSensitive": false,
-		"matchCount": 0
-	},
-	"quality": {
-		"score": 85,
-		"suggestions": ["quality_too_short"]
-	}
+	"isValid": true
 }
 ```
 
-- 敏感词库存储在 `sensitive_words` 表，支持 block/warn/review 三级
+命中 block 级敏感词时：
+
+```json
+{
+	"isValid": false,
+	"level": "block",
+	"matchCount": 1
+}
+```
+
+命中 warn 级敏感词时（当前写链路不阻断，仅返回检测结果）：
+
+```json
+{
+	"isValid": true,
+	"level": "warn",
+	"matchCount": 2
+}
+```
+
+- 敏感词库存储在 `sensitive_words` 表，当前只有 `block` 和 `warn` 两级
 - API 响应不返回具体匹配的敏感词（防探测），仅返回匹配数量
 - 内容检查端点需要认证，防止敏感词列表被探测
 - 内容提交前经过 HTML 清洗（解码实体 + 移除零宽字符 + 危险标签过滤）
@@ -52,13 +67,13 @@ userHash = HMAC-SHA256(userID, secret)
 
 ### 举报机制
 
-| 举报类型 | 说明     |
-| -------- | -------- |
-| spam     | 垃圾广告 |
-| abuse    | 辱骂攻击 |
-| privacy  | 隐私泄露 |
-| false    | 虚假信息 |
-| other    | 其他     |
+| 举报类型      | 说明     |
+| ------------- | -------- |
+| spam          | 垃圾广告 |
+| inappropriate | 不当内容 |
+| harassment    | 骚扰攻击 |
+| false_info    | 虚假信息 |
+| other         | 其他     |
 
 ## 防刷机制
 
@@ -137,7 +152,13 @@ userHash = HMAC-SHA256(userID, secret)
 - 批量操作
 - 数据导出
 
-### 数据备份
+## 后续目标
 
-- 每日自动备份
-- 保留 30 天历史
+以下内容是后续要实现的目标，不是当前事实：
+
+- `warn` 命中后给内容打特殊标记，并接入二次复核链路
+- 在本地敏感词检查通过后，继续接入 AI 审查、腾讯云文本安全等外部审核 Provider
+- 支持多审核节点串联执行，并返回统一的审核 verdict
+- 支持基于角色、用户组、个人授权和白名单规则的免审能力
+- 把预览标题长度、预览内容长度和展示比例改成后台可配置策略
+- 把学校访问范围从当前硬编码改成后台可配置策略

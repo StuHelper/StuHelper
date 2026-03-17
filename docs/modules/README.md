@@ -1,14 +1,15 @@
-# Module Documentation
+# 模块文档
 
-`modules/` organizes documentation by business domain. Directories directly align with code modules and API domains.
+`modules/` 按业务领域组织文档。目录与代码模块和 API 领域直接对齐。
 
-## Module Index
+## 模块索引
 
-| Module | Description |
-| --- | --- |
-| [auth/](auth/) | SSO integration, sessions, account sync, security |
-| [course/](course/) | Course entities, reviews, notifications, admin moderation |
-| [user-system/](user-system/) | Identity verification, student verification, school config, system config |
-| [rbac/](rbac/) | Roles, permissions, user groups, personal permission overrides |
-| [policy/](policy/) | Capability-based authorization and access control decision flow |
-| [logging/](logging/) | Structured logging, request logs, operation audit |
+| 模块                               | 说明                                         |
+| ---------------------------------- | -------------------------------------------- |
+| [auth/](auth/)                     | SSO 集成、会话管理、账号同步、安全存储       |
+| [course/](course/)                 | 课程实体、评课社区、互动能力、管理端审核     |
+| [user-system/](user-system/)       | 实名认证、学生认证、学校配置、系统配置       |
+| [rbac/](rbac/)                     | 角色、权限、用户组、个人权限覆盖             |
+| [policy/](policy/)                 | 基于能力的授权策略和访问控制决策流程         |
+| [notification/](notification/)     | 应用级实时通知中心（SSE 推送）— **设计目标** |
+| [logging/](logging/)               | 结构化日志、请求日志、操作审计               |

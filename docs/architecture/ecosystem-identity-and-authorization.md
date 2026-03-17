@@ -173,7 +173,7 @@ func (m *Middleware) RequireCapability(capability string) gin.HandlerFunc {
 
 ## Related Documentation
 
-- [Authorization Model](../modules/policy/01-hangxiaoban-authorization-model.md)
-- [Policy Evaluation Order](../modules/policy/02-policy-evaluation-order.md)
+- [Authorization Model](../modules/policy/01-authorization-model.md)
+- [Policy Evaluation Order](../modules/policy/02-policy-evaluation.md)
 - [RBAC Module](../modules/rbac/README.md)
 - [User System Module](../modules/user-system/README.md)

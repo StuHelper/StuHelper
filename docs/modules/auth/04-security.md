@@ -1,88 +1,95 @@
-# Sessions and Security
+# 会话与安全
 
-The security layer covers Cookie sessions, token blacklist, PII encryption, and audit logging.
+安全层覆盖 Cookie 会话、令牌黑名单、PII 加密和审计日志。
 
-## Sensitive Data Protection
+## 敏感数据保护
 
-| Data | Storage Method |
+| 数据 | 存储方式 |
 | --- | --- |
-| Government ID number | AES-256-GCM ciphertext in `user_identities.doc_number_enc` |
-| ID-derived identifier | HMAC-SHA256 in `user_identities.person_uid` |
-| Student ID | `user_profiles.student_ids`, `active_student_id` |
-| Phone number | `user_profiles.phone` |
+| 证件号码 | AES-256-GCM 加密存储在 `user_identities.doc_number_enc`（BYTEA） |
+| 证件派生标识 | HMAC-SHA256 派生后存储在 `user_identities.person_uid` |
+| 学号 | 明文存储在 `user_profiles.student_ids`（JSON 数组）和 `active_student_id` |
+| 手机号 | 明文存储在 `user_profiles.phone` |
 
-## PII Encryption Format
+## PII 加密格式
 
-Government ID numbers use a versioned envelope format:
+证件号码使用版本化信封格式加密：
 
 ```text
-version(1 byte) | keyID(1 byte) | nonce(12 bytes) | ciphertext+tag
+version(1 字节) | keyID(1 字节) | nonce(12 字节) | ciphertext + GCM tag
 ```
 
-Runtime key loading via environment variables:
+- `version`：当前固定为 `0x01`
+- `keyID`：标识使用的加密密钥（支持 key rotation）
+- `nonce`：每次加密随机生成（`crypto/rand`），同一明文多次加密结果不同
+- `ciphertext + tag`：AES-256-GCM 密文和认证标签
+
+`person_uid` 通过 `HMAC-SHA256(doc_type + ":" + doc_number)` 计算，用于跨记录匹配同一自然人，同时避免暴露原始证件号。
+
+## 环境变量配置
 
 ```bash
 DOC_AES_ACTIVE_KEY_ID=1
 DOC_AES_KEYS=1:<64-char-hex-key>
-HMAC_SECRET=<at-least-32-characters>
+HMAC_SECRET=<至少 32 个字符>
 ```
 
-## Session Architecture
+- `DOC_AES_KEYS` 支持多密钥格式（如 `1:<key1>,2:<key2>`），实现密钥轮换
+- `HMAC_SECRET` 生产环境必须配置，开发环境未配置时自动生成随机密钥
 
-| Component | Implementation |
+## 会话架构
+
+| 组件 | 实现方式 |
 | --- | --- |
-| Access Token | HttpOnly Cookie, default 15 minutes |
-| Refresh Token | HttpOnly Cookie, default 7 days |
-| CSRF Protection | `csrf_token` Cookie + request header |
-| Session Revocation | Redis blacklist and user token tracking |
+| Access Token | HttpOnly Cookie（`access_token`），默认 15 分钟，Path `/` |
+| Refresh Token | HttpOnly Cookie（`refresh_token`），默认 7 天，Path 限定 `/api/v1/auth/refresh` |
+| CSRF 防护 | `csrf_token` 普通 Cookie（HttpOnly=false），前端在请求头中回传 |
+| 会话撤销 | Redis 黑名单（`token:blacklist:` 前缀）+ 用户令牌集合追踪（`token:user:` 前缀） |
 
-## Key Endpoints
+Cookie 安全属性：`SameSite=Strict`，`Secure` 通过 `TOKEN_COOKIE_SECURE` 环境变量控制。
 
-| Endpoint | Purpose |
+黑名单服务内置熔断器（5 次失败阈值、30 秒超时）和本地缓存降级机制。熔断器打开或 Redis 不可用时，已缓存的黑名单记录仍然生效；无缓存时采用 fail-closed 策略拒绝请求。
+
+## 令牌刷新流程
+
+1. Access token 过期（15 分钟）
+2. 前端收到 401 响应
+3. 前端调用 `POST /api/v1/auth/refresh`（限流：每分钟 10 次）
+4. 后端校验 refresh token 是否在黑名单中
+5. 后端将旧 refresh token 加入黑名单
+6. 后端向 Casdoor 请求新令牌对
+7. 后端写入新的 HttpOnly Cookie
+8. 后端更新令牌追踪集合（移除旧令牌哈希，添加新令牌哈希）
+9. 前端重试原始请求
+
+刷新失败（令牌过期或被撤销）时，后端清除 Cookie，前端清除本地会话并跳转登录页。
+
+## 审计事件
+
+`server/internal/pkg/audit` 通过结构化日志记录认证和关键业务事件：
+
+| 事件 | 说明 |
 | --- | --- |
-| `POST /api/v1/auth/logout` | Clear current device cookies and add to blacklist |
-| `POST /api/v1/auth/logout-all` | Revoke all tracked tokens for the user |
-| `POST /api/v1/auth/refresh` | Rotate refresh token and refresh access token |
+| `user.login` | 登录成功 |
+| `user.login_failed` | 登录失败（无效 state、OAuth 错误、JWT 解析失败、组织不匹配） |
+| `user.logout` | 单设备登出 |
+| `user.logout_all` | 全设备登出 |
+| `token.refresh` | 令牌刷新 |
+| `token.revoked` | 令牌被撤销 |
 
-## Token Refresh Flow
+审计日志包含 `user_id`、`username`（脱敏）、`ip`（脱敏）、`user_agent`、`request_id` 等字段。
 
-```text
-1. Access token expires (15 min)
-2. Frontend receives 401
-3. Frontend calls POST /api/v1/auth/refresh
-4. Backend validates refresh token
-5. Backend issues new access token + rotates refresh token
-6. Backend writes new cookies
-7. Frontend retries original request
-```
+## 安全响应头
 
-If refresh fails (token expired or revoked), the frontend clears local session and redirects to login.
-
-## Audit Events
-
-`server/internal/pkg/audit` records authentication and critical business events:
-
-| Event | Description |
-| --- | --- |
-| `user.login` | Successful login |
-| `user.login_failed` | Failed login attempt |
-| `user.logout` | Single device logout |
-| `user.logout_all` | All device logout |
-| `token.refresh` | Token refresh |
-
-## Security Headers
-
-The `security_headers.go` middleware sets:
-
-**All environments:**
+### 所有环境
 
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `X-Permitted-Cross-Domain-Policies: none`
-- `Content-Security-Policy` (strict policy for API paths)
+- `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`（API 路径）
 
-**Production only:**
+### 生产环境额外添加
 
 - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
 - `Permissions-Policy: geolocation=(), microphone=(), camera=()`

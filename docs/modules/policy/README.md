@@ -1,18 +1,18 @@
-# Authorization and Policy
+# 授权策略模块
 
-This documentation describes the application authorization backbone, focusing on capabilities, access facts, and unified decision flow.
+授权策略模块描述应用的授权骨架，包括能力层、访问事实层和所有权层的统一决策流程。
 
-## Code Scope
+## 代码范围
 
-| Code Location | Purpose |
+| 代码位置 | 职责 |
 | --- | --- |
-| `server/internal/modules/rbac` | Capability computation and admin authorization |
-| `server/internal/modules/course/review/access.go` | Review access facts and content filtering |
-| `server/internal/pkg/capability` | Capability constants and admin entry sets |
+| `server/internal/modules/rbac` | 能力计算和管理端授权中间件 |
+| `server/internal/modules/course/review/access.go` | 评课访问事实解析和内容裁剪 |
+| `server/internal/pkg/capability` | 能力字符串常量和管理端入口能力集 |
 
-## Documentation Index
+## 文档索引
 
-| Document | Description |
+| 文档 | 内容 |
 | --- | --- |
-| [01-hangxiaoban-authorization-model.md](01-hangxiaoban-authorization-model.md) | Capability and access fact model |
-| [02-policy-evaluation-order.md](02-policy-evaluation-order.md) | Unified authorization decision flow |
+| [01-authorization-model.md](01-authorization-model.md) | 能力层、访问事实层、所有权层的授权模型 |
+| [02-policy-evaluation.md](02-policy-evaluation.md) | 授权决策链的执行顺序和各步骤代码入口 |
