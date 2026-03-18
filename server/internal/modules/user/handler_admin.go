@@ -189,7 +189,9 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateSchoolConfig(c.Request.Context(), schoolID, UpdateSchoolConfigInput(req)); err != nil {
+	input := UpdateSchoolConfigInput(req)
+
+	if err := h.service.UpdateSchoolConfig(c.Request.Context(), schoolID, input); err != nil {
 		if errors.Is(err, ErrSchoolNotFound) {
 			response.NotFound(c, "school config not found", errs.ErrProfileSchoolNotFound)
 			return
