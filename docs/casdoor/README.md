@@ -1,102 +1,109 @@
-# Casdoor SSO Login Page Customization
+# Casdoor SSO 登录页定制
 
-This directory contains custom CSS and JavaScript files for the Casdoor SSO login page, designed to match the StuHelper Glassmorphism visual style.
+这个目录存放 Casdoor SSO 登录页使用的自定义 CSS 和 JavaScript，用来把登录页视觉风格对齐到 StuHelper 当前的玻璃拟态设计。
 
-## Files
+## 文件说明
 
-| File | Purpose |
-|------|---------|
-| `custom-login.css` | Custom CSS with Glassmorphism theme (cyan/indigo gradient, glass cards, animated orbs) |
-| `custom-login.js` | Custom JS for StuHelper branding injection and entrance animations |
+| 文件               | 用途                                                    |
+| ------------------ | ------------------------------------------------------- |
+| `custom-login.css` | 登录页主题 CSS，包含青色 / 靛蓝渐变、玻璃卡片和动态光斑 |
+| `custom-login.js`  | StuHelper 品牌注入和入场动画脚本                        |
 
-## Design
+## 当前设计方向
 
-- **Background**: Dark gradient (#0f172a → #1e293b) with animated cyan/indigo gradient orbs
-- **Login Card**: Glassmorphism with `backdrop-blur(24px)`, translucent white border, soft shadow
-- **Primary Colors**: Cyan (#06b6d4) and Indigo (#4f46e5) matching stuhelper.com
-- **Button**: Gradient from cyan to indigo with hover shimmer effect
-- **Inputs**: Semi-transparent dark glass with cyan focus ring
-- **Typography**: System UI font, gradient text for the title
+- 背景使用深色渐变，带动态青色 / 靛蓝色光斑
+- 登录卡片使用玻璃拟态效果，带模糊、半透明边框和柔和阴影
+- 主色与 `stuhelper.com` 对齐，使用青色 `#06b6d4` 和靛蓝 `#4f46e5`
+- 主按钮使用渐变背景和悬浮流光效果
+- 输入框使用半透明深色玻璃效果和青色聚焦态
+- 标题采用系统字体和渐变文字
 
-## Configuration Steps
+## 配置步骤
 
-### 1. Access Casdoor Admin Console
+### 1. 进入 Casdoor 管理台
 
-Navigate to your Casdoor admin panel (e.g., `https://sso.stuhelper.com/.well-known/`).
+打开你的 Casdoor 管理后台，比如 `https://sso.stuhelper.com`。
 
-### 2. Configure Application Custom CSS
+### 2. 配置应用级 Custom CSS
 
-1. Go to **Applications** > Select your StuHelper application
-2. Find the **Custom CSS** field
-3. Copy the entire contents of `custom-login.css` and paste it into the field
-4. Click **Save**
+1. 进入 **Applications**
+2. 选择 StuHelper 对应应用
+3. 找到 **Custom CSS**
+4. 把 `custom-login.css` 的完整内容复制进去
+5. 保存
 
-### 3. Configure Application Custom JS
+### 3. 配置应用级 Custom JS
 
-1. In the same application settings page
-2. Find the **Custom JS** field (or **Header HTML** / **Custom Script** depending on Casdoor version)
-3. Copy the contents of `custom-login.js` and wrap it in a `<script>` tag if needed:
-   ```html
-   <script>
-   // Paste custom-login.js contents here
-   </script>
-   ```
-4. Click **Save**
+1. 仍然在同一个应用配置页
+2. 找到 **Custom JS**，或者版本不同情况下的 **Header HTML** / **Custom Script**
+3. 把 `custom-login.js` 的内容复制进去
+4. 如果当前版本要求手动包 `<script>`，按下面写：
 
-### 4. Configure Theme (Optional)
+```html
+<script>
+	// 在这里粘贴 custom-login.js 的内容
+</script>
+```
 
-In Casdoor's global settings or application-level theme:
+5. 保存
 
-1. Go to **Applications** > StuHelper > **Theme**
-2. Set primary color to `#06b6d4` (cyan)
-3. Set the background to dark mode if available
-4. This ensures consistency for any UI elements not covered by the custom CSS
+### 4. 配置主题
 
-### 5. Configure Login Page Logo
+如果 Casdoor 版本支持应用级主题，建议顺手一起调：
 
-1. In application settings, upload the StuHelper logo
-2. Recommended logo: White/light version for dark background
-3. Recommended size: 48px height, SVG or PNG with transparent background
+1. 进入 **Applications** > StuHelper > **Theme**
+2. 主色设成 `#06b6d4`
+3. 如果支持暗色背景，打开暗色模式
 
-### 6. Verify
+这样做的目的是让没有被自定义 CSS 覆盖到的控件也尽量保持一致。
 
-1. Open an incognito window
-2. Navigate to `https://your-app.stuhelper.com/login`
-3. You should be redirected to the Casdoor login page with StuHelper branding
-4. Verify:
-   - Dark gradient background with animated gradient orbs
-   - Glass-morphism login card
-   - Cyan/indigo gradient button
-   - StuHelper title with gradient text
-   - Smooth entrance animation
-   - Mobile responsive layout
+### 5. 配置登录页 Logo
 
-## Customization Notes
+1. 在应用设置里上传 StuHelper Logo
+2. 建议使用浅色版本，适配深色背景
+3. 建议高度 48px，格式优先 SVG，其次透明底 PNG
 
-### Modifying Colors
+### 6. 验证效果
 
-The main color variables are used throughout the CSS:
-- **Cyan**: `#06b6d4` (primary)
-- **Indigo**: `#4f46e5` (secondary)
-- **Dark BG**: `#0f172a` / `#1e293b`
+1. 开一个无痕窗口
+2. 打开你的登录入口，比如 `https://your-app.stuhelper.com/login`
+3. 跳转到 Casdoor 后，确认下面这些点：
 
-Search and replace these values to change the color scheme.
+- 深色渐变背景和动态光斑存在
+- 登录卡片是玻璃拟态效果
+- 主按钮是青色到靛蓝的渐变
+- StuHelper 标题有渐变字效果
+- 页面入场动画正常
+- 移动端布局没有坏
 
-### Casdoor Version Compatibility
+## 后续调整说明
 
-This CSS targets Casdoor's default UI built with Ant Design (antd). The selectors cover:
-- Ant Design components (`.ant-*`)
-- Casdoor's custom components (`.login-form`, `.panel-module`)
-- Generic fallback selectors
+### 改颜色
 
-If Casdoor updates its UI structure, some selectors may need adjustment.
+当前 CSS 里主要颜色值是：
 
-### Loading Transition
+- 青色：`#06b6d4`
+- 靛蓝：`#4f46e5`
+- 深色背景：`#0f172a` / `#1e293b`
 
-To achieve seamless visual transition between your app and Casdoor:
+要换主题，直接全局搜索这些值再替换。
 
-1. Add a full-screen loading overlay in your app before redirecting to Casdoor
-2. The Casdoor page entrance animation (in `custom-login.js`) provides a smooth fade-in
-3. On callback, show a loading state until the auth flow completes
+### Casdoor 版本兼容
 
-This is already implemented in the web app's `LoginPage.vue` and `AuthCallbackPage.vue`.
+这套 CSS 主要针对 Casdoor 默认的 Ant Design 界面结构，选择器覆盖了：
+
+- Ant Design 组件，比如 `.ant-*`
+- Casdoor 自带结构，比如 `.login-form`、`.panel-module`
+- 一些兜底选择器
+
+如果 Casdoor 后面升级了 DOM 结构，可能要重新调整部分选择器。
+
+### 视觉过渡
+
+如果想让主站跳转到 Casdoor 时更顺，可以这样做：
+
+1. 在主站发起跳转前先显示全屏 loading
+2. Casdoor 侧通过 `custom-login.js` 做淡入动画
+3. 回调完成后，前端继续保持 loading，直到认证流程结束
+
+这套处理当前已经在 Web 端的 `LoginPage.vue` 和 `AuthCallbackPage.vue` 里落了基础版本。

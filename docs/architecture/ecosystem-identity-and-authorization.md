@@ -1,179 +1,136 @@
-# Identity and Authorization Boundaries
+# 身份与授权边界
 
-The system separates identity, sessions, application capabilities, and content access control into four distinct layers, each with clear entry points.
+系统把身份、会话、应用能力和内容访问控制拆成四层，每层都有明确入口，不混用。
 
-## Layers
+## 四层结构
 
-| Layer | Code Entry Points | Purpose |
-| --- | --- | --- |
-| **Identity Layer** | `server/internal/pkg/sso` | Interface with Casdoor for OAuth flow, token exchange, JWT parsing |
-| **Session Layer** | `server/internal/pkg/token`, `server/internal/pkg/middleware/auth.go` | Manage access tokens, refresh tokens, cookies, and token blacklist |
-| **Application Authorization** | `server/internal/modules/rbac`, `clients/shared/src/constants/capabilities.ts` | Compute capabilities to control admin access and admin actions |
-| **Content Access Control** | `server/internal/modules/user`, `server/internal/modules/course/review/access.go` | Combine school, verification status, content ownership to determine visibility and action eligibility |
+| 层级           | 代码入口                                                                          | 用途                                                           |
+| -------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 身份层         | `server/internal/pkg/sso`                                                         | 对接 Casdoor 的 OAuth 流程、令牌交换、JWT 解析                 |
+| 会话层         | `server/internal/pkg/token`、`server/internal/pkg/middleware/auth.go`             | 管理 access token、refresh token、Cookie 和黑名单              |
+| 应用授权层     | `server/internal/modules/rbac`、`clients/shared/src/constants/capabilities.ts`    | 计算能力集，用于后台入口和后台操作控制                         |
+| 内容访问控制层 | `server/internal/modules/user`、`server/internal/modules/course/review/access.go` | 组合学校、认证状态、内容所有权等业务事实，决定可见性和操作资格 |
 
-## Key Concepts
+## 核心概念
 
-### Capabilities
+### 能力
 
-**Capabilities** are permission strings (e.g., `admin:reviews:manage`) that grant access to specific backend features. They are computed from:
+能力是权限字符串，比如 `admin:reviews:manage`。它决定某个后端能力是否可用，来源有三类：
 
-- User roles (`user_roles`)
-- User group memberships (`user_group_members`, `user_group_permissions`)
-- User-specific permission overrides (`user_permissions`)
+- `user_roles`
+- `user_group_members` 与 `user_group_permissions`
+- `user_permissions`
 
-Example capabilities:
+典型能力示例：
 
 ```typescript
 [
-  'admin:dashboard:view',
-  'admin:reviews:manage',
-  'admin:reports:manage',
-  'admin:teachers:manage',
-  'user:identities:review',
-  'rbac:roles:manage'
-]
+	"admin:dashboard:view",
+	"admin:reviews:manage",
+	"admin:reports:manage",
+	"admin:teachers:manage",
+	"user:identity:review",
+	"rbac:role:update",
+];
 ```
 
-### Access Facts
+### 访问事实
 
-**Access Facts** are business conditions used to determine content visibility and action eligibility:
+访问事实是业务条件，不等于 RBAC 能力。它们直接参与内容裁剪和资格判断。
 
-| Fact | Source | Usage |
-| --- | --- | --- |
-| `studentVerified` | `user_profiles.student_verified` | Full review content visibility |
-| `identityVerified` | `user_identities.status` / `user_profiles.identity_verified` | Publishing eligibility, verification flow |
-| `schoolID` | `user_profiles.school_id` | School-scoped content filtering |
-| `canManageReviews` | Capability check | Hidden content visibility, admin moderation view |
+| 事实               | 来源                                               | 用途                     |
+| ------------------ | -------------------------------------------------- | ------------------------ |
+| `studentVerified`  | `user_profiles.verification_status` 加学校访问策略 | 评课完整内容可见性       |
+| `identityVerified` | `user_identities.verified`                         | 发布评课资格             |
+| `schoolID`         | `user_profiles.school_id`                          | 学校范围控制             |
+| `canManageReviews` | 能力检查                                           | 隐藏内容可见性、管理视图 |
 
-### Platform Admin
+### 平台管理员
 
-`isPlatformAdmin` is a boolean flag from Casdoor indicating the user is a platform administrator. This is separate from application-level capabilities and is used for ecosystem-level operations.
+`isPlatformAdmin` 来自 Casdoor，表示平台级管理员身份。它不是航小伴业务管理员，也不能代替应用能力。
 
-## Data Flow
+## 数据流
 
 ```mermaid
 flowchart TD
-    A["Casdoor JWT"] --> B["Auth Handler"]
-    B --> C["Sync to users table"]
-    B --> D["RBAC: Compute capabilities"]
-    D --> E["/auth/me Response"]
-    E --> F["Frontend: Menu & Route Guards"]
-    E --> G["Backend: Admin API Capability Check"]
-    C --> H["User/Review: Business Access Facts"]
-    H --> I["Content Visibility & Action Eligibility"]
+    A["Casdoor JWT"] --> B["认证 Handler"]
+    B --> C["同步到 users 表"]
+    B --> D["RBAC 计算能力集"]
+    D --> E["/auth/me 响应"]
+    E --> F["前端菜单与路由守卫"]
+    E --> G["后端后台接口能力检查"]
+    C --> H["用户系统与评课模块读取业务事实"]
+    H --> I["内容可见性与操作资格决策"]
 ```
 
-## Division of Responsibilities
+## 职责边界
 
-### Casdoor (SSO Provider)
+### Casdoor 负责什么
 
-Casdoor provides:
+Casdoor 负责：
 
-- Login entry point
-- OAuth authorization code exchange
-- User basic profile
-- Platform admin flag
+- 登录入口
+- OAuth 授权码交换
+- 基础用户资料
+- 平台管理员标记
 
-The `isPlatformAdmin` field enters the application with user profile data and maintains platform administrator semantics.
+`isPlatformAdmin` 会随着用户资料进入应用，但只保留平台管理员语义。
 
-### StuHelper Backend
+### StuHelper 后端负责什么
 
-The backend:
+后端负责：
 
-- Syncs local users during login callback and `/auth/me`
-- Computes `capabilities` from local RBAC tables
-- Uses capabilities for admin routes, admin pages, and admin actions
+- 在登录回调和 `/auth/me` 时同步本地用户
+- 从本地 RBAC 表计算 `capabilities`
+- 用能力保护后台路由、后台页面和后台动作
 
-### Business Modules
+### 业务模块负责什么
 
-Course review, user system, and other modules combine access facts beyond capabilities:
+评课、用户系统等业务模块会在能力之外继续组合访问事实：
 
-- `studentVerified` - Full review content visibility
-- `identityVerified` - Publishing eligibility
-- `schoolID` - School-scoped filtering
-- Content ownership - Edit/delete permissions
-- `canManageReviews` - Admin moderation view
+- `studentVerified`
+- `identityVerified`
+- `schoolID`
+- 内容所有权
+- `canManageReviews`
 
-These facts directly determine review visibility, publishing eligibility, admin moderation view, and resource operation permissions.
+这些事实共同决定评课可见性、发帖资格、管理视图和资源操作资格。
 
-## API Behavior
+## API 行为
 
-| Endpoint | Purpose |
-| --- | --- |
-| `/api/v1/auth/login` | Generate login redirect URL and `state` |
-| `/api/v1/auth/callback` | Exchange code for Cookie session, return `UserInfo` |
-| `/api/v1/auth/me` | Return current user, `capabilities`, `canAccessAdmin`, `isPlatformAdmin` |
-| `/api/v1/admin/*` | All admin endpoints check capabilities |
-| `/api/v1/course/review/*` | Use access facts and ownership checks beyond capabilities |
+| 端点                      | 用途                                                              |
+| ------------------------- | ----------------------------------------------------------------- |
+| `/api/v1/auth/login`      | 生成登录跳转地址和 `state`                                        |
+| `/api/v1/auth/callback`   | 用授权码换取 Cookie 会话并返回 `UserInfo`                         |
+| `/api/v1/auth/me`         | 返回当前用户、`capabilities`、`canAccessAdmin`、`isPlatformAdmin` |
+| `/api/v1/admin/*`         | 所有后台接口都按能力做检查                                        |
+| `/api/v1/course/review/*` | 在能力之外继续做访问事实和所有权校验                              |
 
-## Authorization Decision Flow
+## 授权决策顺序
 
 ```text
-1. Cookie session validation
-2. Casdoor token parsing
-3. Local user sync
-4. Capability computation
-5. Business access fact evaluation
-6. Resource ownership / status check
-7. Response content shaping
+1. 校验 Cookie 会话
+2. 解析 Casdoor token
+3. 同步本地用户
+4. 计算能力集
+5. 计算业务访问事实
+6. 检查资源所有权和状态
+7. 裁剪返回内容
 ```
 
-## Example: Review Visibility
+## 例子
 
-```go
-// In review service
-func (s *Service) GetReview(ctx context.Context, reviewID string, userID *string) (*Review, error) {
-    review, err := s.repo.GetReview(ctx, reviewID)
-    if err != nil {
-        return nil, err
-    }
+### 评课可见性
 
-    // Check access facts
-    accessFacts := s.getAccessFacts(ctx, userID)
+评课模块不会只看是否登录。它会继续判断学生认证、实名认证、学校是否命中允许列表，以及是否具备管理能力，再决定返回完整内容、预览内容还是空内容。
 
-    // Apply content filtering based on access facts
-    if review.Status == "hidden" && !accessFacts.CanManageReviews {
-        return nil, ErrReviewNotFound
-    }
+### 后台动作
 
-    if !accessFacts.StudentVerified {
-        // Truncate content for non-verified students
-        review.Content = truncateContent(review.Content)
-    }
+后台动作统一从本地能力集判断，不依赖 Casdoor 的 `isAdmin`。前端菜单、路由守卫和后端中间件都围绕同一组能力常量工作。
 
-    return review, nil
-}
-```
+## 相关文档
 
-## Example: Admin Action Check
-
-```go
-// In RBAC middleware
-func (m *Middleware) RequireCapability(capability string) gin.HandlerFunc {
-    return func(c *gin.Context) {
-        userID := c.GetString("userID")
-
-        capabilities, err := m.rbacService.GetUserCapabilities(c.Request.Context(), userID)
-        if err != nil {
-            response.Error(c, err)
-            c.Abort()
-            return
-        }
-
-        if !contains(capabilities, capability) {
-            response.Error(c, ErrPermissionDenied)
-            c.Abort()
-            return
-        }
-
-        c.Next()
-    }
-}
-```
-
-## Related Documentation
-
-- [Authorization Model](../modules/policy/01-authorization-model.md)
-- [Policy Evaluation Order](../modules/policy/02-policy-evaluation.md)
-- [RBAC Module](../modules/rbac/README.md)
-- [User System Module](../modules/user-system/README.md)
+- [授权模型](../modules/policy/01-authorization-model.md)
+- [授权决策流程](../modules/policy/02-policy-evaluation.md)
+- [RBAC 模块](../modules/rbac/README.md)
+- [用户系统模块](../modules/user-system/README.md)

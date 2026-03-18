@@ -1,11 +1,11 @@
-# Reference Documentation
+# 参考资料
 
-`reference/` consolidates stable facts from the current implementation. Use these docs for quick lookups of API routes, table structures, and error codes during development.
+`reference/` 汇总当前实现里相对稳定的事实。开发时如果只是想快速查接口、表结构或错误码，先看这里。
 
-## Documentation Index
+## 文档索引
 
-| Document | Description |
-| --- | --- |
-| [api-overview.md](api-overview.md) | HTTP route quick reference |
-| [error-codes.md](error-codes.md) | API error code format and current error table |
-| [database.md](database.md) | PostgreSQL, Redis, identity boundaries, and key table domains |
+| 文档                               | 说明                                  |
+| ---------------------------------- | ------------------------------------- |
+| [api-overview.md](api-overview.md) | HTTP 路由快速索引                     |
+| [error-codes.md](error-codes.md)   | API 错误码格式和当前错误码表          |
+| [database.md](database.md)         | PostgreSQL、Redis、身份边界和关键表域 |
