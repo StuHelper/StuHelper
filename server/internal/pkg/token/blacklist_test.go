@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 )
 
 func setupTestRedis(t *testing.T) (*redis.Client, func()) {

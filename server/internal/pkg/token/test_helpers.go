@@ -12,8 +12,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	jwtpkg "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	jwtpkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
 )
 
 // testKeyPair 测试用 RSA 密钥对（进程级缓存，避免重复生成）

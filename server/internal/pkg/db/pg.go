@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
 
 // NewPGPool 创建 PostgreSQL 连接池

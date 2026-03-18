@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
 func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {

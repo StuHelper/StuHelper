@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
 
 // ReportReviewParams 举报评论参数

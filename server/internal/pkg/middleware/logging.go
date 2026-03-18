@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 const (

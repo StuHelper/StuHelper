@@ -3,8 +3,8 @@ package user
 import (
 	"github.com/gin-gonic/gin"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 )
 
 // Handler 用户模块 HTTP 处理器

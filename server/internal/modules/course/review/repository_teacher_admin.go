@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
 // ListAdminTeachers 获取教师列表（管理员，含院系名和评论数）

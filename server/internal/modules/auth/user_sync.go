@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
 
 type UserSyncInput struct {
@@ -15,7 +16,7 @@ type UserSyncInput struct {
 }
 
 type CapabilityReader interface {
-	GetUserCapabilities(ctx context.Context, externalID string) ([]string, error)
+	GetUserCapabilitySnapshot(ctx context.Context, externalID string) (capability.UserAccessSnapshot, error)
 }
 
 type UserSyncRepo interface {

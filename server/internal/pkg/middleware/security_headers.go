@@ -9,9 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // SecurityHeadersMiddleware 添加安全响应头

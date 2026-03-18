@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 )
 
 type academicAwareMockRepo struct {
@@ -86,6 +86,76 @@ func TestFindAcademicStudentsByPersonUID_UsesTableAwareRepoWhenAvailable(t *test
 	require.Len(t, students, 2)
 	assert.Equal(t, "20240001", students[0].XH)
 	assert.Equal(t, "20240002", students[1].XH)
+}
+
+func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T) {
+	const (
+		docNumber = "110101199001011234"
+		realName  = "张三"
+	)
+
+	var captured *IdentityRecord
+	repo := &academicAwareMockRepo{
+		mockRepo: &mockRepo{
+			onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+				if captured == nil {
+					return nil, nil
+				}
+				return &IdentityStatus{
+					UserID:       captured.UserID,
+					DocType:      captured.DocType,
+					RealName:     captured.RealName,
+					Verified:     captured.Verified,
+					VerifyMethod: captured.VerifyMethod,
+					ReviewedAt:   captured.ReviewedAt,
+					VerifiedAt:   captured.VerifiedAt,
+				}, nil
+			},
+			onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+				tableOne := "academic.school_a_students"
+				tableTwo := "academic.school_b_students"
+				return []SchoolConfig{
+					{SchoolID: "10001", Enabled: true, AcademicDBTable: &tableOne},
+					{SchoolID: "10002", Enabled: true, AcademicDBTable: &tableTwo},
+				}, nil
+			},
+			onCreateIdentity: func(_ context.Context, identity *IdentityRecord) error {
+				copied := *identity
+				captured = &copied
+				return nil
+			},
+		},
+		onFindAcademicStudentsByPersonUIDFromTable: func(_ context.Context, _, gotDocNumber, tableName string) ([]AcademicStudent, error) {
+			assert.Equal(t, docNumber, gotDocNumber)
+			switch tableName {
+			case "academic.school_a_students":
+				return []AcademicStudent{{XH: "20240001", XM: stringPtr("李四")}}, nil
+			case "academic.school_b_students":
+				return []AcademicStudent{{XH: "20240002", XM: stringPtr(realName)}}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+
+	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	result, err := service.SubmitIdentity(context.Background(), 7, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: docNumber,
+		RealName:  realName,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	require.NotNil(t, result)
+
+	assert.True(t, captured.Verified)
+	require.NotNil(t, captured.VerifyMethod)
+	assert.Equal(t, VerifyMethodAcademicDB, *captured.VerifyMethod)
+	assert.NotNil(t, captured.ReviewedAt)
+	assert.NotNil(t, captured.VerifiedAt)
+	assert.True(t, result.Verified)
 }
 
 func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {

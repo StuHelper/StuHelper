@@ -8,9 +8,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // PostReviewParams 发布评论参数

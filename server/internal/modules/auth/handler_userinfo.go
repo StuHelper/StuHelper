@@ -6,10 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // GetCurrentUser 获取当前用户信息
@@ -78,24 +78,30 @@ func (h *Handler) buildUserInfo(
 		}
 	}
 
-	capabilities := []string{}
+	capabilitySnapshot := capability.UserAccessSnapshot{
+		Capabilities:       []string{},
+		GlobalCapabilities: []string{},
+		CapabilityGrants:   []capability.Grant{},
+	}
 	if h.capabilityReader != nil {
-		resolvedCapabilities, err := h.capabilityReader.GetUserCapabilities(ctx, userID)
+		resolvedSnapshot, err := h.capabilityReader.GetUserCapabilitySnapshot(ctx, userID)
 		if err != nil {
 			return nil, err
 		}
-		capabilities = capability.Normalize(resolvedCapabilities)
+		capabilitySnapshot = resolvedSnapshot
 	}
 
 	return gin.H{
-		"id":              userID,
-		"name":            name,
-		"displayName":     displayName,
-		"email":           email,
-		"avatar":          fallbackAvatar,
-		"isPlatformAdmin": isPlatformAdmin,
-		"capabilities":    capabilities,
-		"canAccessAdmin":  capability.CanAccessAdmin(capabilities),
+		"id":                 userID,
+		"name":               name,
+		"displayName":        displayName,
+		"email":              email,
+		"avatar":             fallbackAvatar,
+		"isPlatformAdmin":    isPlatformAdmin,
+		"capabilities":       capabilitySnapshot.Capabilities,
+		"globalCapabilities": capabilitySnapshot.GlobalCapabilities,
+		"capabilityGrants":   capabilitySnapshot.CapabilityGrants,
+		"canAccessAdmin":     capability.CanAccessAdmin(capabilitySnapshot.GlobalCapabilities),
 	}, nil
 }
 

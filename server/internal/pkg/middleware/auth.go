@@ -8,11 +8,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 // 上下文键名常量

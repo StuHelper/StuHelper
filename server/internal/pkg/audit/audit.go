@@ -5,7 +5,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // EventType 审计事件类型

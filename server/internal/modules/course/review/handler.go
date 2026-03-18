@@ -10,15 +10,15 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
 // Handler 评课社区处理器

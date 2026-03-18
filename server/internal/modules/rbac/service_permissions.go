@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/zap"
 
-	appcapability "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	appcapability "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // ListPermissions 获取权限列表
@@ -52,25 +52,68 @@ func (s *Service) SetUserPermission(ctx context.Context, userID int64, permID in
 
 // GetUserCapabilities 返回用户在航小伴内的最终生效能力集合。
 func (s *Service) GetUserCapabilities(ctx context.Context, externalID string) ([]string, error) {
+	snapshot, err := s.GetUserCapabilitySnapshot(ctx, externalID)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot.Capabilities, nil
+}
+
+func (s *Service) GetUserCapabilitySnapshot(ctx context.Context, externalID string) (appcapability.UserAccessSnapshot, error) {
 	userID, err := s.repo.GetInternalUserID(ctx, externalID)
 	if err != nil {
-		return nil, fmt.Errorf("GetUserCapabilities resolve user: %w", err)
+		return appcapability.UserAccessSnapshot{}, fmt.Errorf("GetUserCapabilitySnapshot resolve user: %w", err)
 	}
 
 	effectivePerms, err := s.repo.GetEffectivePermissions(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("GetUserCapabilities load permissions: %w", err)
+		return appcapability.UserAccessSnapshot{}, fmt.Errorf("GetUserCapabilitySnapshot load permissions: %w", err)
 	}
 
-	names := make([]string, 0, len(effectivePerms))
+	permissionIDs := make([]int64, 0, len(effectivePerms))
 	for _, perm := range effectivePerms {
 		if !perm.Granted || perm.Name == "" {
 			continue
 		}
-		names = append(names, perm.Name)
+		permissionIDs = append(permissionIDs, perm.PermissionID)
+	}
+	if len(permissionIDs) == 0 {
+		return appcapability.UserAccessSnapshot{
+			Capabilities:       []string{},
+			GlobalCapabilities: []string{},
+			CapabilityGrants:   []appcapability.Grant{},
+		}, nil
 	}
 
-	return appcapability.Normalize(names), nil
+	permissions, err := s.repo.GetPermissionsByIDs(ctx, permissionIDs)
+	if err != nil {
+		return appcapability.UserAccessSnapshot{}, fmt.Errorf("GetUserCapabilitySnapshot load permission detail: %w", err)
+	}
+
+	permissionsByID := make(map[int64]Permission, len(permissions))
+	for _, permission := range permissions {
+		permissionsByID[permission.ID] = permission
+	}
+
+	grants := make([]appcapability.Grant, 0, len(effectivePerms))
+	for _, effectivePerm := range effectivePerms {
+		if !effectivePerm.Granted || effectivePerm.Name == "" {
+			continue
+		}
+
+		permission, ok := permissionsByID[effectivePerm.PermissionID]
+		if !ok {
+			return appcapability.UserAccessSnapshot{}, fmt.Errorf("GetUserCapabilitySnapshot missing permission detail for %d", effectivePerm.PermissionID)
+		}
+
+		grants = append(grants, appcapability.Grant{
+			Name:           effectivePerm.Name,
+			ScopeSchoolIDs: append([]string(nil), permission.ScopeSchoolIDs...),
+			ScopeRoles:     append([]string(nil), permission.ScopeRoles...),
+		})
+	}
+
+	return appcapability.BuildUserAccessSnapshot(grants), nil
 }
 
 // CheckPermission 核心授权检查

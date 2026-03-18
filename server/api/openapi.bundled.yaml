@@ -3917,6 +3917,8 @@ components:
         - name
         - displayName
         - capabilities
+        - globalCapabilities
+        - capabilityGrants
         - canAccessAdmin
         - isPlatformAdmin
       properties:
@@ -3937,10 +3939,20 @@ components:
           type: array
           items:
             type: string
-          description: 航小伴应用能力集合，作为前端菜单与后端业务授权的输入
+          description: 用户当前拥有的全部能力名称，包含全局授权与带 scope 的授权
+        globalCapabilities:
+          type: array
+          items:
+            type: string
+          description: 当前前端可直接消费的全局能力集合，不含学校或角色范围限制
+        capabilityGrants:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapabilityGrant'
+          description: 完整能力授权明细，保留学校范围和角色范围等约束信息
         canAccessAdmin:
           type: boolean
-          description: 当前用户是否拥有至少一个航小伴后台能力
+          description: 当前用户是否拥有至少一个可直接进入现有后台界面的全局能力
     Course:
       type: object
       required:
@@ -4909,11 +4921,18 @@ components:
         verified:
           type: boolean
         verifyMethod:
-          type: string
+          type:
+            - string
+            - 'null'
           enum:
             - academic_db_match
             - tencent_cloud
             - manual
+        reviewedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
         verifiedAt:
           type:
             - string
@@ -4954,11 +4973,18 @@ components:
         verified:
           type: boolean
         verifyMethod:
-          type: string
+          type:
+            - string
+            - 'null'
           enum:
             - academic_db_match
             - tencent_cloud
             - manual
+        reviewedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
         verifiedAt:
           type:
             - string
@@ -5500,6 +5526,24 @@ components:
           items:
             $ref: '#/components/schemas/ManualFieldDescriptor'
         enabled:
+          type: boolean
+    CapabilityGrant:
+      type: object
+      required:
+        - name
+        - global
+      properties:
+        name:
+          type: string
+        scopeSchoolIDs:
+          type: array
+          items:
+            type: string
+        scopeRoles:
+          type: array
+          items:
+            type: string
+        global:
           type: boolean
     ManualFieldDescriptor:
       type: object

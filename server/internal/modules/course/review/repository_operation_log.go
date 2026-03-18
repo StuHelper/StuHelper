@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
 // maxExportLimit 导出查询的最大行数上限

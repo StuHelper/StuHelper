@@ -7,16 +7,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	appcapability "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 )
 
 type fakeServiceRepo struct {
-	onGetRoleByID          func(ctx context.Context, id int64) (*Role, error)
-	onGetRolePermissionIDs func(ctx context.Context, roleID int64) ([]int64, error)
-	onGetPermissionsByIDs  func(ctx context.Context, ids []int64) ([]Permission, error)
-	onSetRolePermissions   func(ctx context.Context, roleID int64, permIDs []int64) error
-	onUpdateRole           func(ctx context.Context, role *Role) error
-	onGetGroupByID         func(ctx context.Context, id int64) (*UserGroup, error)
-	onUpdateGroup          func(ctx context.Context, group *UserGroup) error
+	onGetRoleByID             func(ctx context.Context, id int64) (*Role, error)
+	onGetRolePermissionIDs    func(ctx context.Context, roleID int64) ([]int64, error)
+	onGetPermissionsByIDs     func(ctx context.Context, ids []int64) ([]Permission, error)
+	onSetRolePermissions      func(ctx context.Context, roleID int64, permIDs []int64) error
+	onUpdateRole              func(ctx context.Context, role *Role) error
+	onGetGroupByID            func(ctx context.Context, id int64) (*UserGroup, error)
+	onUpdateGroup             func(ctx context.Context, group *UserGroup) error
+	onGetInternalUserID       func(ctx context.Context, externalID string) (int64, error)
+	onGetEffectivePermissions func(ctx context.Context, userID int64) ([]EffectivePermission, error)
 }
 
 func (f *fakeServiceRepo) ListRoles(context.Context) ([]Role, error) { return nil, nil }
@@ -63,7 +67,10 @@ func (f *fakeServiceRepo) GetPermissionsByIDs(ctx context.Context, ids []int64) 
 }
 func (f *fakeServiceRepo) GetUserRoles(context.Context, int64) ([]Role, error) { return nil, nil }
 func (f *fakeServiceRepo) SetUserRoles(context.Context, int64, []int64) error  { return nil }
-func (f *fakeServiceRepo) GetEffectivePermissions(context.Context, int64) ([]EffectivePermission, error) {
+func (f *fakeServiceRepo) GetEffectivePermissions(ctx context.Context, userID int64) ([]EffectivePermission, error) {
+	if f.onGetEffectivePermissions != nil {
+		return f.onGetEffectivePermissions(ctx, userID)
+	}
 	return nil, nil
 }
 func (f *fakeServiceRepo) SetUserPermission(context.Context, int64, int64, bool) error { return nil }
@@ -88,7 +95,45 @@ func (f *fakeServiceRepo) GetGroupMembersDetail(context.Context, int64) ([]Group
 }
 func (f *fakeServiceRepo) SetGroupMembers(context.Context, int64, []int64) error     { return nil }
 func (f *fakeServiceRepo) SetGroupPermissions(context.Context, int64, []int64) error { return nil }
-func (f *fakeServiceRepo) GetInternalUserID(context.Context, string) (int64, error)  { return 0, nil }
+func (f *fakeServiceRepo) GetInternalUserID(ctx context.Context, externalID string) (int64, error) {
+	if f.onGetInternalUserID != nil {
+		return f.onGetInternalUserID(ctx, externalID)
+	}
+	return 0, nil
+}
+
+func TestGetUserCapabilitySnapshot_IncludesScopeMetadata(t *testing.T) {
+	svc := NewService(&fakeServiceRepo{
+		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
+			assert.Equal(t, "external-1", externalID)
+			return 42, nil
+		},
+		onGetEffectivePermissions: func(_ context.Context, userID int64) ([]EffectivePermission, error) {
+			assert.Equal(t, int64(42), userID)
+			return []EffectivePermission{
+				{PermissionID: 1, Name: appcapability.AdminReviewsManage, Granted: true},
+				{PermissionID: 2, Name: appcapability.UserIdentityRead, Granted: true},
+			}, nil
+		},
+		onGetPermissionsByIDs: func(_ context.Context, ids []int64) ([]Permission, error) {
+			assert.ElementsMatch(t, []int64{1, 2}, ids)
+			return []Permission{
+				{ID: 1, Name: appcapability.AdminReviewsManage},
+				{ID: 2, Name: appcapability.UserIdentityRead, ScopeSchoolIDs: []string{"10006"}},
+			}, nil
+		},
+	})
+
+	snapshot, err := svc.GetUserCapabilitySnapshot(context.Background(), "external-1")
+	require.NoError(t, err)
+	assert.Equal(t, []string{appcapability.AdminReviewsManage, appcapability.UserIdentityRead}, snapshot.Capabilities)
+	assert.Equal(t, []string{appcapability.AdminReviewsManage}, snapshot.GlobalCapabilities)
+	require.Len(t, snapshot.CapabilityGrants, 2)
+	assert.Equal(t, appcapability.AdminReviewsManage, snapshot.CapabilityGrants[0].Name)
+	assert.True(t, snapshot.CapabilityGrants[0].Global)
+	assert.Equal(t, []string{"10006"}, snapshot.CapabilityGrants[1].ScopeSchoolIDs)
+	assert.False(t, snapshot.CapabilityGrants[1].Global)
+}
 
 func TestUpdateRole_MergesPartialFields(t *testing.T) {
 	oldDesc := "old description"

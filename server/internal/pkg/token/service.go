@@ -6,7 +6,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
 )
 
 // Service Token 服务

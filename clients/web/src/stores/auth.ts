@@ -62,6 +62,8 @@ function normalizeCurrentUser(
         avatar: _currentUser?.avatar,
         isPlatformAdmin: data.isPlatformAdmin === true,
         capabilities: data.capabilities ?? [],
+        globalCapabilities: data.globalCapabilities ?? [],
+        capabilityGrants: data.capabilityGrants ?? [],
         canAccessAdmin: data.canAccessAdmin === true,
     };
 }
@@ -78,6 +80,8 @@ function normalizeStoredUser(data: ReturnType<typeof userManager.getUser>): User
         avatar: data.avatar,
         isPlatformAdmin: data.isPlatformAdmin === true,
         capabilities: data.capabilities ?? [],
+        globalCapabilities: data.globalCapabilities ?? [],
+        capabilityGrants: data.capabilityGrants ?? [],
         canAccessAdmin: data.canAccessAdmin === true,
     };
 }
@@ -98,6 +102,7 @@ export const useAuthStore = defineStore("auth", () => {
 
     // 计算属性
     const isAuthenticated = computed(() => !!user.value);
+    const globalCapabilities = computed(() => user.value?.globalCapabilities ?? []);
 
     // 清除错误
     const clearError = () => {
@@ -357,6 +362,7 @@ export const useAuthStore = defineStore("auth", () => {
         loading,
         error,
         isAuthenticated,
+        globalCapabilities,
         login,
         signup,
         handleCallback,

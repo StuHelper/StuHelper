@@ -202,7 +202,7 @@ const navItems = computed(() => [
 
 const visibleNavItems = computed(() =>
   navItems.value.filter((item) =>
-    hasAnyCapability(authStore.user?.capabilities ?? [], item.requiredCapabilities),
+    hasAnyCapability(authStore.globalCapabilities, item.requiredCapabilities),
   ),
 )
 

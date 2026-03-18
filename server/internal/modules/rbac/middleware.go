@@ -12,11 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	appcapability "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	appcapability "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // Gin context 缓存键。RequireAnyPermission 会填充这些值，

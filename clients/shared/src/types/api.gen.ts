@@ -1436,9 +1436,13 @@ export interface components {
             email?: string;
             /** @description Casdoor 平台管理员标记，不代表航小伴业务管理员 */
             isPlatformAdmin: boolean;
-            /** @description 航小伴应用能力集合，作为前端菜单与后端业务授权的输入 */
+            /** @description 用户当前拥有的全部能力名称，包含全局授权与带 scope 的授权 */
             capabilities: string[];
-            /** @description 当前用户是否拥有至少一个航小伴后台能力 */
+            /** @description 当前前端可直接消费的全局能力集合，不含学校或角色范围限制 */
+            globalCapabilities: string[];
+            /** @description 完整能力授权明细，保留学校范围和角色范围等约束信息 */
+            capabilityGrants: components["schemas"]["CapabilityGrant"][];
+            /** @description 当前用户是否拥有至少一个可直接进入现有后台界面的全局能力 */
             canAccessAdmin: boolean;
         };
         Course: {
@@ -1834,8 +1838,10 @@ export interface components {
             docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
             realName: string;
             verified: boolean;
-            /** @enum {string} */
-            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual";
+            /** @enum {string|null} */
+            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual" | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
             /** Format: date-time */
             verifiedAt?: string | null;
             rejectionReason?: string | null;
@@ -1851,8 +1857,10 @@ export interface components {
             docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
             realName: string;
             verified: boolean;
-            /** @enum {string} */
-            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual";
+            /** @enum {string|null} */
+            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual" | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
             /** Format: date-time */
             verifiedAt?: string | null;
             docPhotoFront?: string | null;
@@ -2070,6 +2078,12 @@ export interface components {
             consentText?: string;
             manualFormFields?: components["schemas"]["ManualFieldDescriptor"][];
             enabled?: boolean;
+        };
+        CapabilityGrant: {
+            name: string;
+            scopeSchoolIDs?: string[];
+            scopeRoles?: string[];
+            global: boolean;
         };
         ManualFieldDescriptor: {
             /** @description 动态字段唯一标识 */

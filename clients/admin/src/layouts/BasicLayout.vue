@@ -146,7 +146,7 @@ const filteredMenuRoutes = computed(() =>
         if (requiredCapabilities.length === 0) {
           return true
         }
-        return hasAnyCapability(authStore.user?.capabilities ?? [], requiredCapabilities)
+        return hasAnyCapability(authStore.globalCapabilities, requiredCapabilities)
       })
       return { ...group, children }
     })

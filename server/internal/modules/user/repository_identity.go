@@ -16,12 +16,12 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecor
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO user_identities (
 			user_id, doc_type, doc_number_enc, person_uid, real_name,
-			verified, verify_method, verified_at,
+			verified, verify_method, reviewed_at, verified_at,
 			doc_photo_front, doc_photo_back, doc_photo_selfie,
 			rejection_reason, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
 	`, identity.UserID, identity.DocType, identity.DocNumberEnc, identity.PersonUID, identity.RealName,
-		identity.Verified, identity.VerifyMethod, identity.VerifiedAt,
+		identity.Verified, identity.VerifyMethod, identity.ReviewedAt, identity.VerifiedAt,
 		identity.DocPhotoFront, identity.DocPhotoBack, identity.DocPhotoSelfie,
 		identity.RejectionReason,
 	)
@@ -36,13 +36,13 @@ func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64
 	var item IdentityStatus
 	err := r.db.QueryRow(ctx, `
 		SELECT user_id, doc_type, real_name,
-		       verified, verify_method, verified_at,
+		       verified, verify_method, reviewed_at, verified_at,
 		       rejection_reason, created_at, updated_at
 		FROM user_identities
 		WHERE user_id = $1
 	`, userID).Scan(
 		&item.UserID, &item.DocType, &item.RealName,
-		&item.Verified, &item.VerifyMethod, &item.VerifiedAt,
+		&item.Verified, &item.VerifyMethod, &item.ReviewedAt, &item.VerifiedAt,
 		&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
 	)
 	if err != nil {
@@ -59,7 +59,7 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT user_id, doc_type, real_name,
-		       verified, verify_method, verified_at,
+		       verified, verify_method, reviewed_at, verified_at,
 		       doc_photo_front, doc_photo_back, doc_photo_selfie,
 		       rejection_reason, created_at, updated_at,
 		       COUNT(*) OVER() AS total
@@ -71,9 +71,9 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 
 	switch status {
 	case StatusPending:
-		qb.WriteString(` AND verified = false AND rejection_reason IS NULL`)
+		qb.WriteString(` AND verified = false AND reviewed_at IS NULL`)
 	case StatusRejected:
-		qb.WriteString(` AND verified = false AND rejection_reason IS NOT NULL`)
+		qb.WriteString(` AND verified = false AND reviewed_at IS NOT NULL`)
 	case StatusVerified:
 		qb.WriteString(` AND verified = true`)
 	}
@@ -94,7 +94,7 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 		var item IdentityReviewItem
 		if err := rows.Scan(
 			&item.UserID, &item.DocType, &item.RealName,
-			&item.Verified, &item.VerifyMethod, &item.VerifiedAt,
+			&item.Verified, &item.VerifyMethod, &item.ReviewedAt, &item.VerifiedAt,
 			&item.DocPhotoFront, &item.DocPhotoBack, &item.DocPhotoSelfie,
 			&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
 			&total,
@@ -115,6 +115,7 @@ func (r *Repository) UpdateIdentityReviewStatus(
 	userID int64,
 	approved bool,
 	verifyMethod *string,
+	reviewedAt *time.Time,
 	verifiedAt *time.Time,
 	rejectionReason *string,
 ) error {
@@ -122,11 +123,12 @@ func (r *Repository) UpdateIdentityReviewStatus(
 		UPDATE user_identities SET
 			verified = $2,
 			verify_method = $3,
-			verified_at = $4,
-			rejection_reason = $5,
+			reviewed_at = $4,
+			verified_at = $5,
+			rejection_reason = $6,
 			updated_at = NOW()
 		WHERE user_id = $1
-	`, userID, approved, verifyMethod, verifiedAt, rejectionReason)
+	`, userID, approved, verifyMethod, reviewedAt, verifiedAt, rejectionReason)
 	if err != nil {
 		return fmt.Errorf("UpdateIdentityReviewStatus: %w", err)
 	}

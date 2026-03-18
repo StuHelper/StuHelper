@@ -1,6 +1,6 @@
 package user
 
-import "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+import "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 
 // Repository 用户数据访问层
 type Repository struct {

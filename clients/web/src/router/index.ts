@@ -415,7 +415,7 @@ router.beforeEach(async (to) => {
 
     if (to.path.startsWith("/admin")) {
         const adminParentAllowed = hasAnyCapability(
-            authStore.user?.capabilities ?? [],
+            authStore.globalCapabilities,
             WEB_ADMIN_ENTRY_CAPABILITIES,
         );
         if (!adminParentAllowed) {
@@ -427,10 +427,10 @@ router.beforeEach(async (to) => {
         const matchedAdminRoute = adminChildren.find((route) => route.name === to.name);
         if (
             matchedAdminRoute &&
-            !hasAdminRouteAccess(matchedAdminRoute, authStore.user?.capabilities ?? [])
+            !hasAdminRouteAccess(matchedAdminRoute, authStore.globalCapabilities)
         ) {
             const fallbackPath = findFirstAccessibleAdminPath(
-                authStore.user?.capabilities ?? [],
+                authStore.globalCapabilities,
             );
             return fallbackPath ? { path: fallbackPath } : { name: "home" };
         }
@@ -443,7 +443,7 @@ router.beforeEach(async (to) => {
     );
     if (
         requiredCapabilities.length > 0 &&
-        !hasAnyCapability(authStore.user?.capabilities ?? [], requiredCapabilities)
+        !hasAnyCapability(authStore.globalCapabilities, requiredCapabilities)
     ) {
         return { name: "home" };
     }

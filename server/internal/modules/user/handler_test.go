@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	appmiddleware "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	appmiddleware "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 func init() {
@@ -115,7 +115,7 @@ func TestHandleAdminReviewIdentity_AllowsBlankRejectionReason(t *testing.T) {
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 123, Verified: true}, nil
 		},
-		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, verifyMethod *string, _ *time.Time, rejectionReason *string) error {
+		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, verifyMethod *string, _ *time.Time, _ *time.Time, rejectionReason *string) error {
 			assert.False(t, approved)
 			assert.Nil(t, verifyMethod)
 			assert.Nil(t, rejectionReason)

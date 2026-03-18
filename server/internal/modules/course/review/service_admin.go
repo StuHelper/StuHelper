@@ -8,8 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
 // AdminUpdateReviewParams 管理员更新评论参数

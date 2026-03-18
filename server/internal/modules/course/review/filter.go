@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // isASCIIWord 判断词是否仅包含 ASCII 字母（英文词需要词边界匹配）

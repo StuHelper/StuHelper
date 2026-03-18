@@ -13,8 +13,15 @@ UserIdentity:
     verified:
       type: boolean
     verifyMethod:
-      type: string
+      type:
+        - string
+        - "null"
       enum: [academic_db_match, tencent_cloud, manual]
+    reviewedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
     verifiedAt:
       type:
         - string
@@ -46,8 +53,15 @@ AdminIdentityReviewItem:
     verified:
       type: boolean
     verifyMethod:
-      type: string
+      type:
+        - string
+        - "null"
       enum: [academic_db_match, tencent_cloud, manual]
+    reviewedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
     verifiedAt:
       type:
         - string

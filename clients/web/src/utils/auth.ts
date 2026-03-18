@@ -14,6 +14,13 @@ export interface StoredUser {
   avatar?: string
   isPlatformAdmin?: boolean
   capabilities?: string[]
+  globalCapabilities?: string[]
+  capabilityGrants?: Array<{
+    name: string
+    scopeSchoolIDs?: string[]
+    scopeRoles?: string[]
+    global: boolean
+  }>
   canAccessAdmin?: boolean
 }
 
@@ -29,7 +36,21 @@ function isValidStoredUser(data: unknown): data is StoredUser {
     (obj.avatar === undefined || typeof obj.avatar === 'string') &&
     (obj.isPlatformAdmin === undefined || typeof obj.isPlatformAdmin === 'boolean') &&
     (obj.canAccessAdmin === undefined || typeof obj.canAccessAdmin === 'boolean') &&
-    (obj.capabilities === undefined || (Array.isArray(obj.capabilities) && obj.capabilities.every((item) => typeof item === 'string')))
+    (obj.capabilities === undefined || (Array.isArray(obj.capabilities) && obj.capabilities.every((item) => typeof item === 'string'))) &&
+    (obj.globalCapabilities === undefined || (Array.isArray(obj.globalCapabilities) && obj.globalCapabilities.every((item) => typeof item === 'string'))) &&
+    (obj.capabilityGrants === undefined || (
+      Array.isArray(obj.capabilityGrants) &&
+      obj.capabilityGrants.every((item) => {
+        if (typeof item !== 'object' || item === null) return false
+        const grant = item as Record<string, unknown>
+        return (
+          typeof grant.name === 'string' &&
+          typeof grant.global === 'boolean' &&
+          (grant.scopeSchoolIDs === undefined || (Array.isArray(grant.scopeSchoolIDs) && grant.scopeSchoolIDs.every((scope) => typeof scope === 'string'))) &&
+          (grant.scopeRoles === undefined || (Array.isArray(grant.scopeRoles) && grant.scopeRoles.every((scope) => typeof scope === 'string')))
+        )
+      })
+    ))
   )
 }
 
@@ -60,6 +81,8 @@ export const userManager = {
       ...(user.avatar !== undefined && { avatar: user.avatar }),
       ...(user.isPlatformAdmin !== undefined && { isPlatformAdmin: user.isPlatformAdmin }),
       ...(user.capabilities !== undefined && { capabilities: user.capabilities }),
+      ...(user.globalCapabilities !== undefined && { globalCapabilities: user.globalCapabilities }),
+      ...(user.capabilityGrants !== undefined && { capabilityGrants: user.capabilityGrants }),
       ...(user.canAccessAdmin !== undefined && { canAccessAdmin: user.canAccessAdmin }),
     }
     localStorage.setItem(USER_KEY, JSON.stringify(minimal))

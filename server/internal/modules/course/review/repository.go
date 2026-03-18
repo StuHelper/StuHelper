@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
 // Repository 评课数据访问层

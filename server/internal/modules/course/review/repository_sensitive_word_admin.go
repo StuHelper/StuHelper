@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
 // ListSensitiveWords 分页获取敏感词列表

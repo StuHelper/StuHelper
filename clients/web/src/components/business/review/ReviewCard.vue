@@ -252,7 +252,7 @@ const authStore = useAuthStore()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const canManageReviews = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REVIEWS_MANAGE),
+  hasCapability(authStore.globalCapabilities, ADMIN_REVIEWS_MANAGE),
 )
 const isHidden = computed(() => props.review.status === 'hidden')
 const showActions = computed(() => isAuthenticated.value && !isHidden.value)

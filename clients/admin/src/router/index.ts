@@ -211,7 +211,7 @@ router.beforeEach(async (to) => {
   // Login page: skip auth check
   if (to.name === 'login') {
     if (authStore.isAuthenticated && authStore.canAccessAdmin) {
-      return { path: findFirstAccessibleAdminPath(authStore.user?.capabilities ?? []) }
+      return { path: findFirstAccessibleAdminPath(authStore.globalCapabilities) }
     }
     return true
   }
@@ -226,8 +226,8 @@ router.beforeEach(async (to) => {
   }
 
   const matchedAdminRoute = adminChildren.find((route) => route.name === to.name)
-  if (matchedAdminRoute && !hasRouteAccess(matchedAdminRoute, authStore.user?.capabilities ?? [])) {
-    return { path: findFirstAccessibleAdminPath(authStore.user?.capabilities ?? []) }
+  if (matchedAdminRoute && !hasRouteAccess(matchedAdminRoute, authStore.globalCapabilities)) {
+    return { path: findFirstAccessibleAdminPath(authStore.globalCapabilities) }
   }
 
   // Update page title

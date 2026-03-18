@@ -10,6 +10,13 @@ interface UserInfo {
   avatar?: string
   isPlatformAdmin: boolean
   capabilities: string[]
+  globalCapabilities: string[]
+  capabilityGrants: Array<{
+    name: string
+    scopeSchoolIDs?: string[]
+    scopeRoles?: string[]
+    global: boolean
+  }>
   canAccessAdmin: boolean
 }
 
@@ -20,6 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!user.value)
   const canAccessAdmin = computed(() => user.value?.canAccessAdmin === true)
+  const globalCapabilities = computed(() => user.value?.globalCapabilities ?? [])
 
   async function bootstrap(): Promise<boolean> {
     if (initialized.value) return isAuthenticated.value
@@ -36,6 +44,8 @@ export const useAuthStore = defineStore('auth', () => {
           avatar: data.avatar,
           isPlatformAdmin: data.isPlatformAdmin === true,
           capabilities: Array.isArray(data.capabilities) ? data.capabilities : [],
+          globalCapabilities: Array.isArray(data.globalCapabilities) ? data.globalCapabilities : [],
+          capabilityGrants: Array.isArray(data.capabilityGrants) ? data.capabilityGrants : [],
           canAccessAdmin: data.canAccessAdmin === true,
         }
         return true
@@ -78,6 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
     initialized,
     isAuthenticated,
     canAccessAdmin,
+    globalCapabilities,
     bootstrap,
     getSSOLoginURL,
     logout,

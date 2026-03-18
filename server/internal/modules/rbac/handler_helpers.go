@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // resolveUserID 从路由参数解析内部用户 ID（参数值为内部 BIGINT user ID）

@@ -10,8 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	appmiddleware "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	appmiddleware "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
 // ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
 // fakeEncryptor 实现 pii.Encryptor 接口的测试替身
@@ -29,24 +29,26 @@ func (f *fakeEncryptor) Encrypt(plaintext string) ([]byte, error) {
 // ---------------------------------------------------------------------------
 
 type mockRepo struct {
-	onGetIdentityStatusByUserID       func(ctx context.Context, userID int64) (*IdentityStatus, error)
-	onCreateIdentity                  func(ctx context.Context, identity *IdentityRecord) error
-	onListIdentityReviewItems         func(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
-	onFindAcademicStudentsByPersonUID func(ctx context.Context, sfzjlxdm, sfzjh string) ([]AcademicStudent, error)
-	onUpdateIdentityReviewStatus      func(ctx context.Context, userID int64, approved bool, verifyMethod *string, verifiedAt *time.Time, rejectionReason *string) error
-	onGetProfileByUserID              func(ctx context.Context, userID int64) (*Profile, error)
-	onCreateProfile                   func(ctx context.Context, profile *Profile) error
-	onUpdateProfile                   func(ctx context.Context, profile *Profile) error
-	onListProfilesByStatus            func(ctx context.Context, status, schoolID string, page, pageSize int) ([]Profile, int, error)
-	onGetSchoolConfig                 func(ctx context.Context, schoolID string) (*SchoolConfig, error)
-	onListSchoolConfigs               func(ctx context.Context) ([]SchoolConfig, error)
-	onGetAcademicStudentByXH          func(ctx context.Context, xh string) (*AcademicStudent, error)
-	onListAllSchoolConfigs            func(ctx context.Context) ([]SchoolConfig, error)
-	onUpdateSchoolConfig              func(ctx context.Context, config *SchoolConfig) error
-	onValidateAcademicDBTable         func(ctx context.Context, tableName string) error
-	onListSystemConfigs               func(ctx context.Context) ([]SystemConfig, error)
-	onUpdateSystemConfig              func(ctx context.Context, key, value string) error
-	onGetInternalUserID               func(ctx context.Context, externalID string) (int64, error)
+	onGetIdentityStatusByUserID                func(ctx context.Context, userID int64) (*IdentityStatus, error)
+	onCreateIdentity                           func(ctx context.Context, identity *IdentityRecord) error
+	onListIdentityReviewItems                  func(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
+	onFindAcademicStudentsByPersonUID          func(ctx context.Context, sfzjlxdm, sfzjh string) ([]AcademicStudent, error)
+	onFindAcademicStudentsByPersonUIDFromTable func(ctx context.Context, sfzjlxdm, sfzjh, tableName string) ([]AcademicStudent, error)
+	onGetAcademicStudentByXHFromTable          func(ctx context.Context, xh, tableName string) (*AcademicStudent, error)
+	onUpdateIdentityReviewStatus               func(ctx context.Context, userID int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error
+	onGetProfileByUserID                       func(ctx context.Context, userID int64) (*Profile, error)
+	onCreateProfile                            func(ctx context.Context, profile *Profile) error
+	onUpdateProfile                            func(ctx context.Context, profile *Profile) error
+	onListProfilesByStatus                     func(ctx context.Context, status, schoolID string, page, pageSize int) ([]Profile, int, error)
+	onGetSchoolConfig                          func(ctx context.Context, schoolID string) (*SchoolConfig, error)
+	onListSchoolConfigs                        func(ctx context.Context) ([]SchoolConfig, error)
+	onGetAcademicStudentByXH                   func(ctx context.Context, xh string) (*AcademicStudent, error)
+	onListAllSchoolConfigs                     func(ctx context.Context) ([]SchoolConfig, error)
+	onUpdateSchoolConfig                       func(ctx context.Context, config *SchoolConfig) error
+	onValidateAcademicDBTable                  func(ctx context.Context, tableName string) error
+	onListSystemConfigs                        func(ctx context.Context) ([]SystemConfig, error)
+	onUpdateSystemConfig                       func(ctx context.Context, key, value string) error
+	onGetInternalUserID                        func(ctx context.Context, externalID string) (int64, error)
 }
 
 func (m *mockRepo) GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error) {
@@ -70,9 +72,23 @@ func (m *mockRepo) FindAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm
 	return nil, nil
 }
 
-func (m *mockRepo) UpdateIdentityReviewStatus(ctx context.Context, userID int64, approved bool, verifyMethod *string, verifiedAt *time.Time, rejectionReason *string) error {
+func (m *mockRepo) FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh, tableName string) ([]AcademicStudent, error) {
+	if m.onFindAcademicStudentsByPersonUIDFromTable != nil {
+		return m.onFindAcademicStudentsByPersonUIDFromTable(ctx, sfzjlxdm, sfzjh, tableName)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) GetAcademicStudentByXHFromTable(ctx context.Context, xh, tableName string) (*AcademicStudent, error) {
+	if m.onGetAcademicStudentByXHFromTable != nil {
+		return m.onGetAcademicStudentByXHFromTable(ctx, xh, tableName)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) UpdateIdentityReviewStatus(ctx context.Context, userID int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error {
 	if m.onUpdateIdentityReviewStatus != nil {
-		return m.onUpdateIdentityReviewStatus(ctx, userID, approved, verifyMethod, verifiedAt, rejectionReason)
+		return m.onUpdateIdentityReviewStatus(ctx, userID, approved, verifyMethod, reviewedAt, verifiedAt, rejectionReason)
 	}
 	return nil
 }
@@ -249,7 +265,10 @@ func TestSubmitIdentity_EncryptAndWriteCiphertext(t *testing.T) {
 			capturedIdentity = identity
 			return nil
 		},
-		onFindAcademicStudentsByPersonUID: func(_ context.Context, _, _ string) ([]AcademicStudent, error) {
+		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return nil, nil
+		},
+		onFindAcademicStudentsByPersonUIDFromTable: func(_ context.Context, _, _, _ string) ([]AcademicStudent, error) {
 			return nil, nil // 无学籍匹配
 		},
 	}
@@ -318,13 +337,15 @@ func TestSubmitIdentity_AlreadyVerified(t *testing.T) {
 
 func TestReviewIdentity_RejectionReasonIsOptional(t *testing.T) {
 	var capturedReason *string
+	var capturedReviewedAt *time.Time
 
 	repo := &mockRepo{
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 1, Verified: false}, nil
 		},
-		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, _ *string, _ *time.Time, rejectionReason *string) error {
+		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, _ *string, reviewedAt *time.Time, _ *time.Time, rejectionReason *string) error {
 			assert.False(t, approved)
+			capturedReviewedAt = reviewedAt
 			capturedReason = rejectionReason
 			return nil
 		},
@@ -336,6 +357,7 @@ func TestReviewIdentity_RejectionReasonIsOptional(t *testing.T) {
 	err = svc.ReviewIdentity(context.Background(), 1, false, "")
 	require.NoError(t, err)
 	assert.Nil(t, capturedReason)
+	assert.NotNil(t, capturedReviewedAt)
 
 	err = svc.ReviewIdentity(context.Background(), 1, false, "  ")
 	require.NoError(t, err)
@@ -351,14 +373,18 @@ func TestReviewIdentity_RejectionReasonIsOptional(t *testing.T) {
 func TestReviewIdentity_ApproveFlow(t *testing.T) {
 	var updatedApproved bool
 	var updatedMethod *string
+	var updatedReviewedAt *time.Time
+	var updatedVerifiedAt *time.Time
 
 	repo := &mockRepo{
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 1, Verified: false}, nil
 		},
-		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, verifyMethod *string, _ *time.Time, _ *string) error {
+		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, _ *string) error {
 			updatedApproved = approved
 			updatedMethod = verifyMethod
+			updatedReviewedAt = reviewedAt
+			updatedVerifiedAt = verifiedAt
 			return nil
 		},
 	}
@@ -371,18 +397,24 @@ func TestReviewIdentity_ApproveFlow(t *testing.T) {
 	assert.True(t, updatedApproved)
 	require.NotNil(t, updatedMethod)
 	assert.Equal(t, VerifyMethodManual, *updatedMethod)
+	assert.NotNil(t, updatedReviewedAt)
+	assert.NotNil(t, updatedVerifiedAt)
 }
 
 func TestReviewIdentity_RejectFlow(t *testing.T) {
 	var updatedApproved bool
 	var updatedReason *string
+	var updatedReviewedAt *time.Time
+	var updatedVerifiedAt *time.Time
 
 	repo := &mockRepo{
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 1, Verified: false}, nil
 		},
-		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, _ *string, _ *time.Time, rejectionReason *string) error {
+		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, _ *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error {
 			updatedApproved = approved
+			updatedReviewedAt = reviewedAt
+			updatedVerifiedAt = verifiedAt
 			updatedReason = rejectionReason
 			return nil
 		},
@@ -396,6 +428,8 @@ func TestReviewIdentity_RejectFlow(t *testing.T) {
 	assert.False(t, updatedApproved)
 	require.NotNil(t, updatedReason)
 	assert.Equal(t, "材料不清晰", *updatedReason)
+	assert.NotNil(t, updatedReviewedAt)
+	assert.Nil(t, updatedVerifiedAt)
 }
 
 func TestReviewIdentity_NotFoundReturnsError(t *testing.T) {

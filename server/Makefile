@@ -42,7 +42,7 @@ tidy:
 
 fmt:
 	gofmt -w .
-	@command -v goimports >/dev/null 2>&1 && goimports -w -local gitea.stuhelper.com/StuHelper/StuHelper . || true
+	@command -v goimports >/dev/null 2>&1 && goimports -w -local git.stuhelper.com/StuHelper/StuHelper . || true
 
 lint:
 	golangci-lint run --timeout 5m

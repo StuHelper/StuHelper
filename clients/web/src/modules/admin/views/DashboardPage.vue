@@ -138,13 +138,13 @@ const authStore = useAuthStore()
 const { isVisible, getStyle } = useStaggerAnimation(50)
 
 const canManageReviews = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REVIEWS_MANAGE),
+  hasCapability(authStore.globalCapabilities, ADMIN_REVIEWS_MANAGE),
 )
 const canManageReports = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REPORTS_MANAGE),
+  hasCapability(authStore.globalCapabilities, ADMIN_REPORTS_MANAGE),
 )
 const canViewLogs = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], ADMIN_LOGS_VIEW),
+  hasCapability(authStore.globalCapabilities, ADMIN_LOGS_VIEW),
 )
 
 const { data: dashboardData, loading, execute: fetchStats } = useAsyncData(async () => {

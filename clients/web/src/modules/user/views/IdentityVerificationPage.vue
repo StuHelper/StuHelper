@@ -79,7 +79,7 @@
             v-else-if="
                 identity &&
                 !identity.verified &&
-                !identity.rejectionReason &&
+                !identity.reviewedAt &&
                 !showForm
             "
             class="bg-bg-card border border-yellow-500/30 rounded-xl p-5 shadow-card"
@@ -115,7 +115,7 @@
 
         <!-- Rejected status card -->
         <div
-            v-else-if="identity && identity.rejectionReason && !showForm"
+            v-else-if="identity && identity.reviewedAt && !showForm"
             class="bg-bg-card border border-red-500/30 rounded-xl p-5 shadow-card"
         >
             <div class="flex items-center gap-3 mb-4">

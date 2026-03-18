@@ -15,6 +15,7 @@ type IdentityRecord struct {
 	RealName        string
 	Verified        bool
 	VerifyMethod    *string
+	ReviewedAt      *time.Time
 	VerifiedAt      *time.Time
 	DocPhotoFront   *string
 	DocPhotoBack    *string
@@ -32,6 +33,7 @@ type IdentityStatus struct {
 	RealName        string
 	Verified        bool
 	VerifyMethod    *string
+	ReviewedAt      *time.Time
 	VerifiedAt      *time.Time
 	RejectionReason *string
 	CreatedAt       time.Time
@@ -46,6 +48,7 @@ type IdentityReviewItem struct {
 	RealName        string
 	Verified        bool
 	VerifyMethod    *string
+	ReviewedAt      *time.Time
 	VerifiedAt      *time.Time
 	DocPhotoFront   *string
 	DocPhotoBack    *string

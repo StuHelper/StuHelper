@@ -145,19 +145,19 @@ const roles = ref<Role[]>([])
 const allPermissions = ref<Permission[]>([])
 
 const canReadRoles = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], RBAC_ROLE_READ),
+  hasCapability(authStore.globalCapabilities, RBAC_ROLE_READ),
 )
 const canReadPermissions = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], RBAC_PERMISSION_READ),
+  hasCapability(authStore.globalCapabilities, RBAC_PERMISSION_READ),
 )
 const canCreateRole = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], RBAC_ROLE_CREATE),
+  hasCapability(authStore.globalCapabilities, RBAC_ROLE_CREATE),
 )
 const canUpdateRole = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], RBAC_ROLE_UPDATE),
+  hasCapability(authStore.globalCapabilities, RBAC_ROLE_UPDATE),
 )
 const canDeleteRole = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], RBAC_ROLE_DELETE),
+  hasCapability(authStore.globalCapabilities, RBAC_ROLE_DELETE),
 )
 const canManageRolePermissions = computed(() =>
   canReadPermissions.value && canUpdateRole.value,

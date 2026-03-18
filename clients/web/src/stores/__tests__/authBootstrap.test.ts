@@ -70,6 +70,8 @@ describe('auth bootstrap', () => {
           email: 'alice@example.com',
           isPlatformAdmin: false,
           capabilities: ['admin:reviews:manage'],
+          globalCapabilities: ['admin:reviews:manage'],
+          capabilityGrants: [{ name: 'admin:reviews:manage', global: true }],
           canAccessAdmin: true,
         }
       }
@@ -84,6 +86,7 @@ describe('auth bootstrap', () => {
 
     expect(store.isAuthenticated).toBe(true)
     expect(store.user?.id).toBe('user_1')
+    expect(store.globalCapabilities).toEqual(['admin:reviews:manage'])
     expect(mockSetUser).toHaveBeenCalledTimes(1)
   })
 

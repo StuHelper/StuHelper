@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
 type academicTableValidationRepo interface {
@@ -38,14 +38,16 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 
 	var (
 		verifyMethod    *string
+		reviewedAt      *time.Time
 		verifiedAt      *time.Time
 		rejectionReason *string
 	)
 
 	trimmedReason := strings.TrimSpace(reason)
+	now := time.Now()
+	reviewedAt = &now
 	if approved {
 		method := VerifyMethodManual
-		now := time.Now()
 		verifyMethod = &method
 		verifiedAt = &now
 		// 显式清除旧拒绝原因：批准后 rejection_reason 必须为 NULL
@@ -61,7 +63,7 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 		verifiedAt = nil
 	}
 
-	return s.repo.UpdateIdentityReviewStatus(ctx, userID, approved, verifyMethod, verifiedAt, rejectionReason)
+	return s.repo.UpdateIdentityReviewStatus(ctx, userID, approved, verifyMethod, reviewedAt, verifiedAt, rejectionReason)
 }
 
 // ListProfiles 分页查询学生认证档案（管理端）

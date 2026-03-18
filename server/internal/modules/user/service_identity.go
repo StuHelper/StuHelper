@@ -8,7 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // GetIdentity 获取实名认证状态信息（不含敏感字段）
@@ -66,6 +66,7 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 			now := time.Now()
 			identity.Verified = true
 			identity.VerifyMethod = &method
+			identity.ReviewedAt = &now
 			identity.VerifiedAt = &now
 		}
 	}
@@ -83,14 +84,51 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 
 // tryAcademicDBMatch 尝试通过学籍数据库匹配进行自动实名验证
 func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName string) (bool, error) {
-	students, err := s.repo.FindAcademicStudentsByPersonUID(ctx, DocTypeMainlandID, docNumber)
+	repoWithTable, ok := s.repo.(academicTableRepo)
+	if !ok {
+		return false, nil
+	}
+
+	schools, err := s.repo.ListSchoolConfigs(ctx)
 	if err != nil {
 		return false, err
 	}
+	if len(schools) == 0 {
+		return false, nil
+	}
 
-	for _, stu := range students {
-		if stu.XM != nil && strings.EqualFold(strings.TrimSpace(*stu.XM), strings.TrimSpace(realName)) {
-			return true, nil
+	trimmedRealName := strings.TrimSpace(realName)
+	visitedTables := make(map[string]struct{}, len(schools))
+
+	for i := range schools {
+		school := &schools[i]
+		tableName, err := s.ensureAcademicTableConfigured(school)
+		if err != nil {
+			logger.L().Warn("skip academic DB auto-match for school with invalid table config",
+				zap.String("school_id", school.SchoolID),
+				zap.Error(err),
+			)
+			continue
+		}
+		if _, ok := visitedTables[tableName]; ok {
+			continue
+		}
+		visitedTables[tableName] = struct{}{}
+
+		students, err := repoWithTable.FindAcademicStudentsByPersonUIDFromTable(ctx, DocTypeMainlandID, docNumber, tableName)
+		if err != nil {
+			logger.L().Warn("academic DB auto-match query failed for school",
+				zap.String("school_id", school.SchoolID),
+				zap.String("academic_db_table", tableName),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		for _, stu := range students {
+			if stu.XM != nil && strings.EqualFold(strings.TrimSpace(*stu.XM), trimmedRealName) {
+				return true, nil
+			}
 		}
 	}
 	return false, nil

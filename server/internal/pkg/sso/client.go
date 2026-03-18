@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
 
 var (

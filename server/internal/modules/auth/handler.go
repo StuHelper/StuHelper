@@ -6,10 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 // Handler 认证处理器

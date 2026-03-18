@@ -1,4 +1,4 @@
-module gitea.stuhelper.com/StuHelper/StuHelper
+module git.stuhelper.com/StuHelper/StuHelper
 
 go 1.24.0
 

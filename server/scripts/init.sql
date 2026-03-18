@@ -427,6 +427,7 @@ CREATE TABLE IF NOT EXISTS user_identities (
     real_name VARCHAR(100) NOT NULL,
     verified BOOLEAN NOT NULL DEFAULT FALSE,
     verify_method VARCHAR(20),
+    reviewed_at TIMESTAMPTZ,
     verified_at TIMESTAMPTZ,
     doc_photo_front TEXT,
     doc_photo_back TEXT,
@@ -440,6 +441,10 @@ CREATE TABLE IF NOT EXISTS user_identities (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_identities_person_uid ON user_identities(person_uid);
+ALTER TABLE user_identities ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+UPDATE user_identities
+SET reviewed_at = COALESCE(reviewed_at, verified_at, updated_at)
+WHERE reviewed_at IS NULL AND (verified = true OR rejection_reason IS NOT NULL);
 
 -- ============================================
 -- 19. 创建 user_profiles 表（学生认证）

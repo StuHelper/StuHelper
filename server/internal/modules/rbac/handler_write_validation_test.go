@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 )
 
 func TestHandleSetUserRoles_Returns404WhenUserNotFound(t *testing.T) {

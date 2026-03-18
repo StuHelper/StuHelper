@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	appmiddleware "gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	appmiddleware "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
 func TestRequirePermission_UsesSchoolIDFromPathParam(t *testing.T) {

@@ -10,10 +10,10 @@ import (
 
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
 
 // maskHash 返回哈希值的前 12 个字符，用于日志脱敏，防止跨日志条目追踪用户

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
 // RatingTrendItem 评分趋势项

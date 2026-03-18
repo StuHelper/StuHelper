@@ -11,8 +11,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
 
 // Client Redis 客户端封装

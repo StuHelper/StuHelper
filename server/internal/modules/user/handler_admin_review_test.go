@@ -53,3 +53,39 @@ func TestHandleAdminListStudentVerifications_IncludesReviewMeta(t *testing.T) {
 	assert.Equal(t, rejectionReason, item["rejectionReason"])
 	assert.Equal(t, reviewedAt.Format(time.RFC3339), item["reviewedAt"])
 }
+
+func TestHandleAdminListIdentities_IncludesReviewMeta(t *testing.T) {
+	reviewedAt := time.Date(2026, 3, 17, 16, 40, 0, 0, time.UTC)
+
+	repo := &mockRepo{
+		onListIdentityReviewItems: func(_ context.Context, status string, _, _ int) ([]IdentityReviewItem, int, error) {
+			assert.Equal(t, StatusPending, status)
+			return []IdentityReviewItem{
+				{
+					UserID:     202,
+					DocType:    DocTypeMainlandID,
+					RealName:   "李四",
+					ReviewedAt: &reviewedAt,
+				},
+			}, 1, nil
+		},
+	}
+
+	router := setupAdminHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/identities", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var responseBody map[string]any
+	err := json.Unmarshal(recorder.Body.Bytes(), &responseBody)
+	require.NoError(t, err)
+
+	data := responseBody["data"].(map[string]any)
+	list := data["list"].([]any)
+	require.Len(t, list, 1)
+	item := list[0].(map[string]any)
+
+	assert.Equal(t, reviewedAt.Format(time.RFC3339), item["reviewedAt"])
+}

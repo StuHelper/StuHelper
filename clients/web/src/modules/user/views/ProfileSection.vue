@@ -124,7 +124,7 @@ type StatusVariant = 'verified' | 'pending' | 'rejected' | 'unverified'
 const identityStatus = computed((): StatusVariant => {
   if (!identity.value) return 'unverified'
   if (identity.value.verified) return 'verified'
-  if (identity.value.rejectionReason) return 'rejected'
+  if (identity.value.reviewedAt) return 'rejected'
   return 'pending'
 })
 

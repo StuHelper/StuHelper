@@ -101,13 +101,13 @@ const stats = ref<AdminStats>({
 const recentLogs = ref<AdminOperationLog[]>([])
 
 const canManageReviews = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REVIEWS_MANAGE),
+  hasCapability(authStore.globalCapabilities, ADMIN_REVIEWS_MANAGE),
 )
 const canManageReports = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], ADMIN_REPORTS_MANAGE),
+  hasCapability(authStore.globalCapabilities, ADMIN_REPORTS_MANAGE),
 )
 const canViewLogs = computed(() =>
-  hasCapability(authStore.user?.capabilities ?? [], ADMIN_LOGS_VIEW),
+  hasCapability(authStore.globalCapabilities, ADMIN_LOGS_VIEW),
 )
 
 const statCards = computed(() => [

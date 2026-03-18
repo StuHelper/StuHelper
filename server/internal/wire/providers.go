@@ -9,16 +9,16 @@ import (
 	redisv9 "github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 // ConfigSet 配置相关的 Provider

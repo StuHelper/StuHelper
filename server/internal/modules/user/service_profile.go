@@ -12,8 +12,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 type academicTableRepo interface {

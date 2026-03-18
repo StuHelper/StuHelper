@@ -9,10 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // resolveCurrentUser 从请求上下文解析当前用户内部 ID
@@ -43,6 +43,7 @@ func identityStatusToJSON(i *IdentityStatus) gin.H {
 		"realName":        i.RealName,
 		"verified":        i.Verified,
 		"verifyMethod":    i.VerifyMethod,
+		"reviewedAt":      i.ReviewedAt,
 		"verifiedAt":      i.VerifiedAt,
 		"rejectionReason": i.RejectionReason,
 		"createdAt":       i.CreatedAt,
@@ -57,6 +58,7 @@ func identityReviewItemToJSON(i *IdentityReviewItem) gin.H {
 		"realName":        i.RealName,
 		"verified":        i.Verified,
 		"verifyMethod":    i.VerifyMethod,
+		"reviewedAt":      i.ReviewedAt,
 		"verifiedAt":      i.VerifiedAt,
 		"docPhotoFront":   i.DocPhotoFront,
 		"docPhotoBack":    i.DocPhotoBack,

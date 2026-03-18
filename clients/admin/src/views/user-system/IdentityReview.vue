@@ -149,7 +149,7 @@ function formatDate(dateStr: string): string {
 
 function identityStatus(row: IdentityReviewItem): IdentityStatus {
   if (row.verified) return 'verified'
-  if (row.rejectionReason) return 'rejected'
+  if (row.reviewedAt) return 'rejected'
   return 'pending'
 }
 

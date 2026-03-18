@@ -77,3 +77,31 @@ func TestReviewStudentVerification_ApproveClearsRejectionReasonAndSetsReviewMeta
 	assert.Nil(t, capturedProfile.RejectionReason)
 	assert.NotNil(t, capturedProfile.ReviewedAt)
 }
+
+func TestReviewIdentity_RejectSetsReviewedAtEvenWithoutReason(t *testing.T) {
+	var (
+		capturedReviewedAt *time.Time
+		capturedVerifiedAt *time.Time
+	)
+
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 88, Verified: false}, nil
+		},
+		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, _ *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error {
+			assert.False(t, approved)
+			assert.Nil(t, rejectionReason)
+			capturedReviewedAt = reviewedAt
+			capturedVerifiedAt = verifiedAt
+			return nil
+		},
+	}
+
+	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = service.ReviewIdentity(context.Background(), 88, false, "")
+	require.NoError(t, err)
+	assert.NotNil(t, capturedReviewedAt)
+	assert.Nil(t, capturedVerifiedAt)
+}

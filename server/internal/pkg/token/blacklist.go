@@ -9,9 +9,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/circuitbreaker"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/circuitbreaker"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 const (

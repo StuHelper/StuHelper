@@ -8,8 +8,8 @@ import (
 	"errors"
 	"time"
 
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
-	"gitea.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 )
 
 // 业务错误定义
@@ -68,7 +68,7 @@ type Repo interface {
 	GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error)
 	CreateIdentity(ctx context.Context, identity *IdentityRecord) error
 	ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
-	UpdateIdentityReviewStatus(ctx context.Context, userID int64, approved bool, verifyMethod *string, verifiedAt *time.Time, rejectionReason *string) error
+	UpdateIdentityReviewStatus(ctx context.Context, userID int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error
 
 	GetProfileByUserID(ctx context.Context, userID int64) (*Profile, error)
 	CreateProfile(ctx context.Context, profile *Profile) error
