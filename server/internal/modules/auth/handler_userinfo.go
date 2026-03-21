@@ -40,9 +40,16 @@ func (h *Handler) buildUserInfo(
 	fallbackAvatar *string,
 	fallbackIsPlatformAdmin bool,
 ) (gin.H, error) {
+	log := logger.FromContext(ctx)
+
+	// 1. Casdoor 缓存：失败用 JWT fallback 值继续，不中断
 	cachedUser, err := h.ssoClient.GetCachedUserByID(ctx, userID)
 	if err != nil {
-		return nil, err
+		log.Warn("casdoor cache unavailable, using token fallback",
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		cachedUser = nil
 	}
 
 	name := fallbackName
@@ -67,6 +74,7 @@ func (h *Handler) buildUserInfo(
 		displayName = name
 	}
 
+	// 2. 用户同步：失败仅 warn，不影响用户体验
 	if h.userSyncRepo != nil {
 		if err := h.userSyncRepo.UpsertUser(ctx, UserSyncInput{
 			ExternalID: userID,
@@ -74,21 +82,29 @@ func (h *Handler) buildUserInfo(
 			Email:      email,
 			AvatarURL:  fallbackAvatar,
 		}); err != nil {
-			return nil, err
+			log.Warn("user sync failed, skipping",
+				zap.String("user_id", userID),
+				zap.Error(err),
+			)
 		}
 	}
 
+	// 3. 能力查询：失败返回空集（最小权限原则）
 	capabilitySnapshot := capability.UserAccessSnapshot{
 		Capabilities:       []string{},
 		GlobalCapabilities: []string{},
 		CapabilityGrants:   []capability.Grant{},
 	}
 	if h.capabilityReader != nil {
-		resolvedSnapshot, err := h.capabilityReader.GetUserCapabilitySnapshot(ctx, userID)
+		resolved, err := h.capabilityReader.GetUserCapabilitySnapshot(ctx, userID)
 		if err != nil {
-			return nil, err
+			log.Warn("capability query failed, returning empty permission set",
+				zap.String("user_id", userID),
+				zap.Error(err),
+			)
+		} else {
+			capabilitySnapshot = resolved
 		}
-		capabilitySnapshot = resolvedSnapshot
 	}
 
 	return gin.H{

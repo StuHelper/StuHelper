@@ -2595,7 +2595,7 @@ paths:
       tags:
         - User
       operationId: submitStudentVerification
-      summary: 提交学生认证（LDAP）
+      summary: 提交学生认证
       security:
         - cookieAuth: []
       requestBody:

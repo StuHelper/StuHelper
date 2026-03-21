@@ -79,7 +79,7 @@
 ### 内容审核
 
 - 举报创建（spam/inappropriate/harassment/false_info/other，同一用户同一评论只能举报一次）
-- 管理员处理举报（reject/hide_review/delete_review）
+- 管理员处理举报（reject/hide/delete）
 - 评论管理（隐藏/恢复/删除，单条和批量操作，最大批量 100 条）
 - 管理员直接编辑评论内容（保存原始内容和编辑原因）
 - 敏感词管理 CRUD（当前只有 block/warn 两级）

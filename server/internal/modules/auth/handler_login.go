@@ -65,7 +65,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	oauthToken, err := h.ssoClient.GetOAuthToken(ctx, code, h.appName)
+	oauthToken, err := h.ssoClient.GetOAuthToken(ctx, code, state)
 	if err != nil {
 		logger.FromGin(c).Error("SSO token exchange failed", zap.Error(err))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "oauth token error")
@@ -107,20 +107,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	if err := h.trackLoginTokens(ctx, claims.Id, oauthToken.AccessToken, oauthToken.RefreshToken); err != nil {
-		logger.FromGin(c).Error("failed to track login tokens",
-			zap.String("user_id", claims.Id),
-			zap.Error(err),
-		)
-		response.InternalError(c, "authentication failed")
-		return
-	}
-
-	if err := h.setTokenCookies(c, oauthToken.AccessToken, oauthToken.RefreshToken); err != nil {
-		response.InternalError(c, "authentication failed")
-		return
-	}
-
+	// 先组装 userInfo — 如果这一步降级失败，不写 token 也不写 cookie，保持纯失败
 	warmCtx, warmCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer warmCancel()
 	if _, err := h.ssoClient.GetCachedUserByID(warmCtx, claims.Id); err != nil {
@@ -134,6 +121,23 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	if err != nil {
 		logger.FromGin(c).Error("failed to build current user info after callback", zap.Error(err))
 		response.ServiceUnavailable(c, "identity service temporarily unavailable")
+		return
+	}
+
+	// userInfo 组装成功后才 track token 和写 cookie
+	if err := h.trackLoginTokens(ctx, claims.Id, oauthToken.AccessToken, oauthToken.RefreshToken); err != nil {
+		logger.FromGin(c).Error("failed to track login tokens",
+			zap.String("user_id", claims.Id),
+			zap.Error(err),
+		)
+		response.InternalError(c, "authentication failed")
+		return
+	}
+
+	if err := h.setTokenCookies(c, oauthToken.AccessToken, oauthToken.RefreshToken); err != nil {
+		// cookie 写入失败，回滚已 track 的 token，避免 Redis 中残留幽灵会话
+		h.rollbackTrackedTokens(ctx, claims.Id, oauthToken.AccessToken, oauthToken.RefreshToken)
+		response.InternalError(c, "authentication failed")
 		return
 	}
 
@@ -171,4 +175,20 @@ func (h *Handler) trackLoginTokens(ctx context.Context, userID, accessToken, ref
 	}
 
 	return nil
+}
+
+// rollbackTrackedTokens 回滚已 track 的 access + refresh token，用于后续步骤（如 cookie 写入）失败时清理
+func (h *Handler) rollbackTrackedTokens(ctx context.Context, userID, accessToken, refreshToken string) {
+	if err := h.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, accessToken); err != nil {
+		logger.L().Error("failed to rollback tracked access token",
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+	}
+	if err := h.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, refreshToken); err != nil {
+		logger.L().Error("failed to rollback tracked refresh token",
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+	}
 }

@@ -58,7 +58,7 @@ func (h *Handler) ListReports(c *gin.Context) {
 
 // ProcessReportRequest 处理举报请求
 type ProcessReportRequest struct {
-	Action string `json:"action" binding:"required,oneof=reject hide_review delete_review"`
+	Action string `json:"action" binding:"required,oneof=reject hide delete"`
 	Note   string `json:"note" binding:"max=500"`
 }
 

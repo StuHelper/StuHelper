@@ -347,6 +347,9 @@ func run() error {
 	quit := make(chan os.Signal, 2)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
+	// serverStartErr 记录启动阶段错误，shutdown 完成后返回给调用方，确保非零退出码
+	var serverStartErr error
+
 	select {
 	case sig := <-quit:
 		logger.L().Info("Received shutdown signal", zap.String("signal", sig.String()))
@@ -355,8 +358,7 @@ func run() error {
 	case err := <-serverErr:
 		// M-87: 服务器启动失败也执行 graceful shutdown，确保资源正确释放
 		logger.L().Error("Server startup error, initiating shutdown", zap.Error(err))
-		// 继续执行下方的 graceful shutdown 流程（而非直接 return）
-		_ = err // 记录错误但不直接返回，走统一的 shutdown 路径
+		serverStartErr = err
 	}
 
 	// 优雅关闭 — 按依赖关系逆序释放资源：
@@ -389,5 +391,5 @@ func run() error {
 	// Step 2-4: 按逆序关闭 PostgreSQL → Redis（cleanups 逆序执行）
 	runCleanups()
 	logger.L().Info("All resources released, server exited")
-	return nil
+	return serverStartErr
 }

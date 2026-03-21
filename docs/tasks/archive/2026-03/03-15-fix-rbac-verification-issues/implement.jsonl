@@ -1,0 +1,7 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/guides/rbac-role-permission-flow.md", "reason": "RBAC权限中间件使用规范"}
+{"file": ".trellis/spec/guides/manual-student-verification-flow.md", "reason": "学生认证流程和状态定义"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端代码质量标准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理模式"}

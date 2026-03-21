@@ -22,6 +22,8 @@ Thumbs.db
 credentials.json
 secrets.yaml
 config.local.*
+server/certs/*.key
+server/certs/*.pem
 
 # ==================== Node.js / Uni-app / Koishi ====================
 node_modules/

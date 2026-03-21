@@ -41,7 +41,7 @@ func (r *UserSyncRepository) UpsertUser(ctx context.Context, input UserSyncInput
 		VALUES ($1, $2, $3, $4, NOW(), NOW())
 		ON CONFLICT (external_id) DO UPDATE SET
 			username = EXCLUDED.username,
-			email = EXCLUDED.email,
+			email = COALESCE(EXCLUDED.email, users.email),
 			avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
 			updated_at = NOW()
 	`, input.ExternalID, input.Username, emptyToNil(input.Email), input.AvatarURL)

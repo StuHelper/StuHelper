@@ -1017,7 +1017,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 提交学生认证（LDAP） */
+        /** 提交学生认证 */
         post: operations["submitStudentVerification"];
         delete?: never;
         options?: never;

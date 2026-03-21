@@ -103,7 +103,7 @@ func (s *Service) ListReports(ctx context.Context, params ListReportsParams) (*L
 // ProcessReport 处理举报
 func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams) error {
 	switch params.Action {
-	case "reject", "hide_review", "delete_review":
+	case "reject", "hide", "delete":
 	default:
 		return ErrInvalidAction
 	}
@@ -121,7 +121,7 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 		switch params.Action {
 		case "reject":
 			reportStatus = ReportStatusRejected
-		case "hide_review":
+		case "hide":
 			reportStatus = ReportStatusResolved
 			currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, report.ReviewID)
 			if err != nil {
@@ -135,7 +135,7 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 					return err
 				}
 			}
-		case "delete_review":
+		case "delete":
 			reportStatus = ReportStatusResolved
 			currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, report.ReviewID)
 			if err != nil {

@@ -1,0 +1,38 @@
+{
+  "id": "fix-rbac-verification-issues",
+  "name": "fix-rbac-verification-issues",
+  "title": "修复 RBAC 和实名认证的关键问题",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "wztxy",
+  "assignee": "wztxy",
+  "createdAt": "2026-03-15",
+  "completedAt": "2026-03-18",
+  "branch": null,
+  "base_branch": "feature/fix-rbac-and-verification-issues",
+  "worktree_path": null,
+  "current_phase": 3,
+  "next_action": [
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "03-17-verification-academic-db-config"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -1,0 +1,44 @@
+{
+  "id": "rbac-admin-write-validation",
+  "name": "rbac-admin-write-validation",
+  "title": "brainstorm: 修复 RBAC 管理写接口错误语义",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "wztxy",
+  "assignee": "wztxy",
+  "createdAt": "2026-03-17",
+  "completedAt": "2026-03-18",
+  "branch": null,
+  "base_branch": "feature/fix-rbac-and-verification-issues",
+  "worktree_path": null,
+  "current_phase": 0,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "implement"
+    },
+    {
+      "phase": 2,
+      "action": "check"
+    },
+    {
+      "phase": 3,
+      "action": "finish"
+    },
+    {
+      "phase": 4,
+      "action": "create-pr"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "03-15-fix-rbac-verification-issues",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

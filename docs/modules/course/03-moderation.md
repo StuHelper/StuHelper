@@ -36,8 +36,8 @@
 | 操作            | 举报状态变更            | 关联评论操作                                                         |
 | --------------- | ----------------------- | -------------------------------------------------------------------- |
 | `reject`        | `pending` -> `rejected` | 无                                                                   |
-| `hide_review`   | `pending` -> `resolved` | 将评论状态改为 `hidden`，如果原状态为 `published` 则递减课程评论计数 |
-| `delete_review` | `pending` -> `resolved` | 软删除评论，如果原状态为 `published` 则递减课程评论计数              |
+| `hide`          | `pending` -> `resolved` | 将评论状态改为 `hidden`，如果原状态为 `published` 则递减课程评论计数 |
+| `delete`        | `pending` -> `resolved` | 软删除评论，如果原状态为 `published` 则递减课程评论计数              |
 
 整个处理过程在事务内完成，使用 `GetReportByIDForUpdate` 加行锁防止并发处理。处理完成后记录操作日志，失效举报列表缓存和评论缓存。
 

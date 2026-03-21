@@ -1,0 +1,5 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": "/Users/zxy/Code/StuHelper/docs/README.md", "reason": "Verify root index and truth-source wording stay aligned"}
+{"file": "/Users/zxy/Code/StuHelper/.trellis/spec/guides/index.md", "reason": "Verify docs split still matches project rules"}

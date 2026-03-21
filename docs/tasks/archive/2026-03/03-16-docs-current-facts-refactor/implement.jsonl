@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": "/Users/zxy/Code/StuHelper/.trellis/spec/guides/index.md", "reason": "Docs directory split and project-wide documentation rules"}
+{"file": "/Users/zxy/Code/StuHelper/docs/README.md", "reason": "Current docs information architecture and truth-source order"}

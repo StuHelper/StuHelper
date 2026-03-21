@@ -1,0 +1,5 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-backend.md", "reason": "Backend check spec"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/guides/rbac-role-permission-flow.md", "reason": "验证RBAC权限中间件应用"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "验证代码质量标准"}

@@ -2512,7 +2512,7 @@ type ServerInterface interface {
 	// 绑定手机号
 	// (POST /api/v1/user/profile/bind-phone)
 	BindPhone(c *gin.Context)
-	// 提交学生认证（LDAP）
+	// 提交学生认证
 	// (POST /api/v1/user/profile/verify)
 	SubmitStudentVerification(c *gin.Context)
 	// 获取可用学校列表
@@ -5473,19 +5473,19 @@ var swaggerSpec = []string{
 	"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",
-	"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",
+	"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",
+	"2sJtbX7DdezwpfgrF6/8vwAAAP//iamXvEqoAQA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
