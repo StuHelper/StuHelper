@@ -15,7 +15,7 @@
 
       <div v-if="total > votes.length" class="flex justify-center p-4">
         <button
-          class="px-6 py-2 bg-transparent border border-border rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
+          class="px-6 py-2 bg-transparent rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
           @click="loadMore"
           :disabled="loadingMore"
         >

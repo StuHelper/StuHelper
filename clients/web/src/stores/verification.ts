@@ -10,9 +10,19 @@ type IdentityInfo = components["schemas"]["UserIdentity"];
 type ProfileInfo = components["schemas"]["UserProfile"];
 type SchoolConfig = components["schemas"]["SchoolConfig"];
 type SubmitIdentityRequest = components["schemas"]["SubmitIdentityRequest"];
+type UploadIdentityPhotoRequest =
+    components["schemas"]["UploadIdentityPhotoRequest"];
 type SubmitStudentVerificationRequest =
     components["schemas"]["SubmitStudentVerificationRequest"];
 type BindPhoneRequest = components["schemas"]["BindPhoneRequest"];
+
+function getErrorStatus(error: unknown): number | undefined {
+    if (typeof error === 'object' && error !== null && 'status' in error) {
+        const status = (error as { status?: unknown }).status;
+        return typeof status === 'number' ? status : undefined;
+    }
+    return undefined;
+}
 
 export const useVerificationStore = defineStore("verification", () => {
     // 状态
@@ -40,24 +50,18 @@ export const useVerificationStore = defineStore("verification", () => {
             // 404 表示用户尚未提交，视为 null
             if (identityRes.status === "fulfilled") {
                 identity.value = identityRes.value.data?.data ?? null;
+            } else if (getErrorStatus(identityRes.reason) === 404) {
+                identity.value = null;
             } else {
-                const err = identityRes.reason as Error & { status?: number };
-                if (err.status === 404) {
-                    identity.value = null;
-                } else {
-                    throw err;
-                }
+                throw identityRes.reason;
             }
 
             if (profileRes.status === "fulfilled") {
                 profile.value = profileRes.value.data?.data ?? null;
+            } else if (getErrorStatus(profileRes.reason) === 404) {
+                profile.value = null;
             } else {
-                const err = profileRes.reason as Error & { status?: number };
-                if (err.status === 404) {
-                    profile.value = null;
-                } else {
-                    throw err;
-                }
+                throw profileRes.reason;
             }
         } finally {
             loading.value = false;
@@ -77,6 +81,11 @@ export const useVerificationStore = defineStore("verification", () => {
         return res.data?.data ?? null;
     };
 
+    const uploadIdentityPhoto = async (data: UploadIdentityPhotoRequest) => {
+        const res = await api.identity.uploadIdentityPhoto(data);
+        return res.data?.data?.key ?? "";
+    };
+
     // 学生认证
     const verifyStudent = async (data: SubmitStudentVerificationRequest) => {
         const res = await api.identity.verifyStudent(data);
@@ -84,9 +93,21 @@ export const useVerificationStore = defineStore("verification", () => {
         return res.data?.data ?? null;
     };
 
+    // 请求绑定手机验证码
+    const requestBindPhoneOTP = async (phone: string) => {
+        await api.identity.requestBindPhoneOTP(phone);
+    };
+
     // 绑定手机
     const bindPhone = async (data: BindPhoneRequest) => {
         await api.identity.bindPhone(data);
+        // 刷新 profile 以反映手机号变化
+        try {
+            const profileRes = await api.identity.getProfile();
+            profile.value = profileRes.data?.data ?? null;
+        } catch {
+            // ignore refresh errors
+        }
     };
 
     // 重置状态（setup store 不支持 $reset）
@@ -108,8 +129,10 @@ export const useVerificationStore = defineStore("verification", () => {
         fetchStatus,
         fetchSchools,
         submitIdentity,
+        uploadIdentityPhoto,
         verifyStudent,
         bindPhone,
+        requestBindPhoneOTP,
         reset,
     };
 });

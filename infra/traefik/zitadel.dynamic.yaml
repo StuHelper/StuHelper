@@ -1,0 +1,53 @@
+http:
+  middlewares:
+    zitadel-strip-api:
+      stripPrefix:
+        prefixes:
+          - /api
+    zitadel-root-rewrite:
+      replacePath:
+        path: /ui/v2/login/
+
+  routers:
+    zitadel-root-web:
+      rule: "Path(`/`)"
+      entryPoints:
+        - web
+      middlewares:
+        - zitadel-root-rewrite
+      service: zitadel-login
+      priority: 400
+
+    zitadel-login-web:
+      rule: "PathPrefix(`/ui/v2/login`)"
+      entryPoints:
+        - web
+      service: zitadel-login
+      priority: 250
+
+    zitadel-api-alias-web:
+      rule: "PathPrefix(`/api`)"
+      entryPoints:
+        - web
+      middlewares:
+        - zitadel-strip-api
+      service: zitadel-api
+      priority: 200
+
+    zitadel-canonical-web:
+      rule: "PathPrefix(`/`) && !PathPrefix(`/ui/v2/login`) && !PathPrefix(`/api`) && !Path(`/`)"
+      entryPoints:
+        - web
+      service: zitadel-api
+      priority: 100
+
+  services:
+    zitadel-api:
+      loadBalancer:
+        servers:
+          - url: h2c://zitadel-api:8080
+    zitadel-login:
+      loadBalancer:
+        servers:
+          - url: http://zitadel-login:3000
+

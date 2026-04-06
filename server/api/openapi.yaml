@@ -36,10 +36,10 @@ tags:
     description: 实名认证
   - name: Profile
     description: 学生认证
-  - name: RBAC
-    description: 角色权限管理
   - name: Admin
     description: 管理后台
+  - name: Metrics
+    description: 前端可观测性指标上报
 
 paths:
   # ── Health ──
@@ -63,6 +63,10 @@ paths:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1logout"
   /api/v1/auth/logout-all:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1logout-all"
+  /api/v1/auth/phone/request-otp:
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1request-otp"
+  /api/v1/auth/phone/verify-otp:
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1verify-otp"
 
   # ── Course Entity ──
   /api/v1/course/departments:
@@ -95,6 +99,8 @@ paths:
     $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1courses~1{courseID}~1reviews"
   /api/v1/course/review/reviews/latest:
     $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1latest"
+  /api/v1/course/review/reviews/search:
+    $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1search"
   /api/v1/course/review/reviews/batch:
     $ref: "paths/review-crud.yaml#/~1api~1v1~1course~1review~1reviews~1batch"
   /api/v1/course/review/reviews:
@@ -122,6 +128,12 @@ paths:
   /api/v1/course/review/content/check:
     $ref: "paths/review-stats.yaml#/~1api~1v1~1course~1review~1content~1check"
 
+  # ── Review: Teachers (Public) ──
+  /api/v1/course/review/teachers:
+    $ref: "paths/review-teacher.yaml#/~1api~1v1~1course~1review~1teachers"
+  /api/v1/course/review/teachers/hot:
+    $ref: "paths/review-teacher.yaml#/~1api~1v1~1course~1review~1teachers~1hot"
+
   # ── Review: User ──
   /api/v1/course/review/user/reviews:
     $ref: "paths/review-user.yaml#/~1api~1v1~1course~1review~1user~1reviews"
@@ -133,6 +145,8 @@ paths:
   # ── Review: Notifications (under /user/) ──
   /api/v1/course/review/user/notifications:
     $ref: "paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications"
+  /api/v1/course/review/user/notifications/stream:
+    $ref: "paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1stream"
   /api/v1/course/review/user/notifications/unread-count:
     $ref: "paths/review-notification.yaml#/~1api~1v1~1course~1review~1user~1notifications~1unread-count"
   /api/v1/course/review/user/notifications/{notificationID}/read:
@@ -159,6 +173,10 @@ paths:
     $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews"
   /api/v1/course/review/admin/reviews/{reviewID}:
     $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1{reviewID}"
+  /api/v1/course/review/admin/content-flags:
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1content-flags"
+  /api/v1/course/review/admin/content-flags/{reviewID}/clear:
+    $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1content-flags~1{reviewID}~1clear"
   /api/v1/course/review/admin/reviews/batch:
     $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1reviews~1batch"
   /api/v1/course/review/admin/reviews/{reviewID}/edit:
@@ -181,16 +199,22 @@ paths:
   # ── User Identity & Profile ──
   /api/v1/user/identity:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity"
+  /api/v1/user/identity/uploads:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity~1uploads"
   /api/v1/user/profile:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile"
   /api/v1/user/profile/verify:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1verify"
+  /api/v1/user/profile/bind-phone/otp:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1bind-phone~1otp"
   /api/v1/user/profile/bind-phone:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1bind-phone"
   /api/v1/user/profile/academic-info:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1academic-info"
   /api/v1/user/schools:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1schools"
+  /api/v1/user/me:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1me"
 
   # ── Admin: User System ──
   /api/v1/admin/identities:
@@ -201,26 +225,6 @@ paths:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications"
   /api/v1/admin/student-verifications/{userID}:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications~1{userID}"
-  /api/v1/admin/roles:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles"
-  /api/v1/admin/roles/{roleID}:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles~1{roleID}"
-  /api/v1/admin/roles/{roleID}/permissions:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1roles~1{roleID}~1permissions"
-  /api/v1/admin/permissions:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1permissions"
-  /api/v1/admin/users/{userID}/roles:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1users~1{userID}~1roles"
-  /api/v1/admin/users/{userID}/permissions:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1users~1{userID}~1permissions"
-  /api/v1/admin/groups:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups"
-  /api/v1/admin/groups/{groupID}:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}"
-  /api/v1/admin/groups/{groupID}/members:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}~1members"
-  /api/v1/admin/groups/{groupID}/permissions:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1groups~1{groupID}~1permissions"
   /api/v1/admin/school-configs:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs"
   /api/v1/admin/school-configs/{schoolID}:
@@ -229,6 +233,58 @@ paths:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs"
   /api/v1/admin/system-configs/{key}:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs~1{key}"
+
+  # ── Metrics ──
+  /api/v1/metrics/vitals:
+    post:
+      operationId: reportWebVitals
+      summary: Report Web Vitals metrics
+      tags: [Metrics]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, value, rating]
+              properties:
+                name:
+                  type: string
+                  enum: [CLS, FCP, INP, LCP, TTFB]
+                value:
+                  type: number
+                rating:
+                  type: string
+                  enum: [good, needs-improvement, poor]
+      responses:
+        "204":
+          description: Accepted
+        "400":
+          $ref: "components/responses/common.yaml#/ErrorResponse"
+
+  /api/v1/metrics/frontend-errors:
+    post:
+      operationId: reportFrontendError
+      summary: Report frontend errors
+      tags: [Metrics]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind:
+                  type: string
+                  enum: [error, unhandledrejection]
+      responses:
+        "204":
+          description: Accepted
+        "400":
+          $ref: "components/responses/common.yaml#/ErrorResponse"
 
 components:
   securitySchemes:
@@ -319,6 +375,8 @@ components:
       $ref: "components/schemas/rating.yaml#/RatingTrendItem"
     CourseTeacherStats:
       $ref: "components/schemas/rating.yaml#/CourseTeacherStats"
+    TeacherSummary:
+      $ref: "components/schemas/review.yaml#/TeacherSummary"
     TeacherCourse:
       $ref: "components/schemas/rating.yaml#/TeacherCourse"
     TeacherRatingStatsResponse:
@@ -381,44 +439,16 @@ components:
       $ref: "components/schemas/user-system.yaml#/ReviewIdentityRequest"
     ReviewStudentVerificationRequest:
       $ref: "components/schemas/user-system.yaml#/ReviewStudentVerificationRequest"
-    Role:
-      $ref: "components/schemas/user-system.yaml#/Role"
-    Permission:
-      $ref: "components/schemas/user-system.yaml#/Permission"
-    UserGroupSchema:
-      $ref: "components/schemas/user-system.yaml#/UserGroup"
-    CreateRoleRequest:
-      $ref: "components/schemas/user-system.yaml#/CreateRoleRequest"
-    UpdateRoleRequest:
-      $ref: "components/schemas/user-system.yaml#/UpdateRoleRequest"
-    CreateUserGroupRequest:
-      $ref: "components/schemas/user-system.yaml#/CreateUserGroupRequest"
-    UpdateUserGroupRequest:
-      $ref: "components/schemas/user-system.yaml#/UpdateUserGroupRequest"
-    AssignRolePermissionsRequest:
-      $ref: "components/schemas/user-system.yaml#/AssignRolePermissionsRequest"
-    AssignUserRolesRequest:
-      $ref: "components/schemas/user-system.yaml#/AssignUserRolesRequest"
-    AssignGroupMembersRequest:
-      $ref: "components/schemas/user-system.yaml#/AssignGroupMembersRequest"
-    AssignGroupPermissionsRequest:
-      $ref: "components/schemas/user-system.yaml#/AssignGroupPermissionsRequest"
-    SetUserPermissionRequest:
-      $ref: "components/schemas/user-system.yaml#/SetUserPermissionRequest"
     SystemConfigSchema:
       $ref: "components/schemas/user-system.yaml#/SystemConfig"
     UpdateSystemConfigRequest:
       $ref: "components/schemas/user-system.yaml#/UpdateSystemConfigRequest"
-    UserPermissionOverride:
-      $ref: "components/schemas/user-system.yaml#/UserPermissionOverride"
-    EffectivePermission:
-      $ref: "components/schemas/user-system.yaml#/EffectivePermission"
-    GroupMember:
-      $ref: "components/schemas/user-system.yaml#/GroupMember"
     AdminSchoolConfig:
       $ref: "components/schemas/user-system.yaml#/AdminSchoolConfig"
     UpdateSchoolConfigRequest:
       $ref: "components/schemas/user-system.yaml#/UpdateSchoolConfigRequest"
+    UserSurface:
+      $ref: "components/schemas/user-system.yaml#/UserSurface"
 
   parameters:
     PageParam:

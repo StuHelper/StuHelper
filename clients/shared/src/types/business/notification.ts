@@ -13,6 +13,7 @@ export interface Notification {
   content?: string
   relatedType?: string
   relatedID?: string
+  courseID?: number
   isRead: boolean
   createdAt: string
 }

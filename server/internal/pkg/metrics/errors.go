@@ -22,4 +22,12 @@ var (
 			Help: "Total number of panics recovered",
 		},
 	)
+
+	// SSEDroppedEventsTotal SSE 通道满时丢弃事件计数（监控慢客户端）
+	SSEDroppedEventsTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "sse_dropped_events_total",
+			Help: "Total number of SSE events dropped due to full channel buffer",
+		},
+	)
 )

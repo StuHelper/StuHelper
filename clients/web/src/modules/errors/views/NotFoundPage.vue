@@ -19,7 +19,7 @@
           {{ t('errors.notFound.backHome') }}
         </router-link>
         <button
-          class="inline-flex items-center gap-2 py-2 px-5 text-sm font-medium rounded-full bg-transparent border border-border text-text-secondary transition-all duration-fast hover:border-text-primary hover:text-text-primary max-sm:w-full max-sm:justify-center"
+          class="inline-flex items-center gap-2 py-2 px-5 text-sm font-medium rounded-full bg-transparent text-text-secondary transition-all duration-fast hover:border-text-primary hover:text-text-primary max-sm:w-full max-sm:justify-center"
           @click="goBack"
         >
           <ArrowLeft :size="18" />

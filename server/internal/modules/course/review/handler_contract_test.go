@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
@@ -51,7 +52,24 @@ func setupContractRouter(t *testing.T, rdb *redis.Client, tokenSvc *token.Servic
 	t.Helper()
 	r := gin.New()
 
-	authMW := middleware.AuthMiddleware(tokenSvc)
+	// 测试用 auth 中间件：只检查 Cookie 中有 token 且不在黑名单，不做 OIDC 验证
+	authMW := func(c *gin.Context) {
+		tokenString, err := c.Cookie(middleware.CookieAccessToken)
+		if err != nil || tokenString == "" {
+			response.Unauthorized(c, "missing authentication token", errs.ErrTokenMissing)
+			c.Abort()
+			return
+		}
+		isBlacklisted, blErr := tokenSvc.GetBlacklist().IsBlacklisted(c.Request.Context(), tokenString)
+		if blErr != nil || isBlacklisted {
+			response.Unauthorized(c, "token revoked", errs.ErrTokenRevoked)
+			c.Abort()
+			return
+		}
+		c.Set(middleware.CtxKeyUserID, "test-user-id")
+		c.Set(middleware.CtxKeyUsername, "testuser")
+		c.Next()
+	}
 	csrfMW := middleware.CSRFMiddleware()
 
 	limiter := middleware.NewRedisRateLimiter(rdb, 2, time.Minute) // PostLimit=2
@@ -70,7 +88,7 @@ func setupContractRouter(t *testing.T, rdb *redis.Client, tokenSvc *token.Servic
 				c.JSON(http.StatusCreated, gin.H{"success": true})
 			})
 
-		api.POST("/reviews/test-id/vote", authMW,
+		api.POST("/reviews/test-id/votes", authMW,
 			middleware.EndpointRateLimitMiddleware(limiter, "vote"),
 			func(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"success": true})
@@ -91,7 +109,7 @@ func TestContract_401_NoToken(t *testing.T) {
 		path   string
 	}{
 		{http.MethodPost, "/api/v1/course/review/reviews"},
-		{http.MethodPost, "/api/v1/course/review/reviews/test-id/vote"},
+		{http.MethodPost, "/api/v1/course/review/reviews/test-id/votes"},
 	}
 
 	for _, ep := range endpoints {
@@ -119,8 +137,8 @@ func TestContract_403_NoCSRF(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/course/review/reviews", nil)
-	// 设置有效的 Bearer token（绕过 auth 中间件）
-	req.Header.Set("Authorization", "Bearer "+tokenSvc.IssueTestToken(t))
+	// 设置有效的 Cookie token（绕过 auth 中间件的 token 检查）
+	req.AddCookie(&http.Cookie{Name: middleware.CookieAccessToken, Value: "test-valid-token"})
 	// 不设置 CSRF token → 应返回 403
 	r.ServeHTTP(w, req)
 
@@ -138,14 +156,14 @@ func TestContract_429_RateLimited(t *testing.T) {
 	tokenSvc := token.NewServiceForTest(rdb)
 	r := setupContractRouter(t, rdb, tokenSvc)
 
-	validToken := tokenSvc.IssueTestToken(t)
+	validToken := "test-valid-token"
 	csrfToken := "test-csrf-token"
 
 	// 发送请求直到触发限流（PostLimit=2）
 	for i := range 3 {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/course/review/reviews", nil)
-		req.Header.Set("Authorization", "Bearer "+validToken)
+		req.AddCookie(&http.Cookie{Name: middleware.CookieAccessToken, Value: validToken})
 		req.Header.Set("X-CSRF-Token", csrfToken)
 		req.AddCookie(&http.Cookie{Name: "csrf_token", Value: csrfToken})
 		r.ServeHTTP(w, req)

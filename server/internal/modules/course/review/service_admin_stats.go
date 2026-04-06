@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/sync/errgroup"
 )
 
 // GetAdminStats 获取管理统计
@@ -25,35 +26,66 @@ func (s *Service) GetHotCourses(ctx context.Context, period string, limit int) (
 
 // GetTeacherRatingStats 获取教师评分统计
 func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*TeacherRatingStatsResponse, error) {
-	teacherName, departmentName, err := s.repo.GetTeacherInfo(ctx, teacherID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrTeacherNotFound
+	g, gctx := errgroup.WithContext(ctx)
+
+	var (
+		teacherName    string
+		departmentName string
+		dimensions     []RatingDimension
+		stats          []TeacherRatingStats
+		courses        []TeacherCourse
+		reviewCount    int
+	)
+
+	g.Go(func() error {
+		var err error
+		teacherName, departmentName, err = s.repo.GetTeacherInfo(gctx, teacherID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrTeacherNotFound
+			}
+			return err
 		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		dimensions, err = s.repo.ListRatingDimensions(gctx)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		stats, err = s.repo.GetTeacherRatingStats(gctx, teacherID)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		courses, err = s.repo.ListTeacherCourses(gctx, teacherID)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		reviewCount, err = s.repo.GetTeacherReviewCount(gctx, teacherID)
+		return err
+	})
+
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
-	dimensions, err := s.repo.ListRatingDimensions(ctx)
-	if err != nil {
-		return nil, err
+	if len(stats) == 0 && reviewCount > 0 {
+		if err := s.repo.RefreshTeacherRatingStats(ctx, teacherID); err != nil {
+			return nil, err
+		}
+		var err error
+		stats, err = s.repo.GetTeacherRatingStats(ctx, teacherID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	stats, err := s.repo.GetTeacherRatingStats(ctx, teacherID)
-	if err != nil {
-		return nil, err
-	}
-
-	courses, err := s.repo.ListTeacherCourses(ctx, teacherID)
-	if err != nil {
-		return nil, err
-	}
 	if courses == nil {
 		courses = []TeacherCourse{}
-	}
-
-	reviewCount, err := s.repo.GetTeacherReviewCount(ctx, teacherID)
-	if err != nil {
-		return nil, err
 	}
 
 	resp := &TeacherRatingStatsResponse{
@@ -65,8 +97,8 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 		Courses:        courses,
 	}
 
-	overallStats := s.groupRatingStats(stats, dimensions, resp)
-	s.buildRatingCharts(resp, dimensions, overallStats, teacherName)
+	s.groupRatingStats(stats, dimensions, resp)
+	s.buildRatingStats(resp)
 	return resp, nil
 }
 
@@ -135,28 +167,8 @@ func (s *Service) groupRatingStats(stats []TeacherRatingStats, dimensions []Rati
 	return overallStats
 }
 
-// buildRatingCharts 构建雷达图、平均分和评分趋势
-func (s *Service) buildRatingCharts(resp *TeacherRatingStatsResponse, dimensions []RatingDimension, overallStats map[string]*DimensionStats, teacherName string) {
-	labels := make([]string, 0, len(dimensions))
-	data := make([]float64, 0, len(dimensions))
-	for _, d := range dimensions {
-		labels = append(labels, d.Name)
-		if ds, ok := overallStats[d.Key]; ok {
-			data = append(data, ds.AvgRating)
-		} else {
-			data = append(data, 0)
-		}
-	}
-	resp.RadarChart = RadarChartData{
-		Labels: labels,
-		Datasets: []RadarChartDataset{{
-			Label:           teacherName,
-			Data:            data,
-			BackgroundColor: radarBgColor,
-			BorderColor:     radarBorderColor,
-		}},
-	}
-
+// buildRatingStats 构建平均分和评分趋势
+func (s *Service) buildRatingStats(resp *TeacherRatingStatsResponse) {
 	if len(resp.Overall.Dimensions) > 0 {
 		var sum float64
 		for _, d := range resp.Overall.Dimensions {

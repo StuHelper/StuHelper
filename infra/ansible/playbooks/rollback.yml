@@ -1,0 +1,35 @@
+---
+- name: Roll back StuHelper release
+  hosts: stuhelper
+  vars:
+    deploy_app_dir: "{{ deploy_app_dir | default('/opt/stuhelper') }}"
+    registry: "{{ lookup('env', 'REGISTRY') }}"
+    registry_username: "{{ lookup('env', 'REGISTRY_USERNAME') }}"
+    registry_password: "{{ lookup('env', 'REGISTRY_PASSWORD') }}"
+    rollback_tag: "{{ lookup('env', 'ROLLBACK_TAG') }}"
+  tasks:
+    - name: Write remote rollback environment
+      ansible.builtin.copy:
+        dest: "{{ deploy_app_dir }}/deploy.remote.env"
+        mode: "0600"
+        content: |
+          REGISTRY={{ registry }}
+          REGISTRY_USERNAME={{ registry_username }}
+          REGISTRY_PASSWORD={{ registry_password }}
+          TAG={{ rollback_tag }}
+          ROLLBACK_TAG={{ rollback_tag }}
+          ENV_FILE={{ deploy_app_dir }}/.env.prod.shared
+          SECRETS_ENV_FILE={{ deploy_app_dir }}/.env.prod.secrets
+          GENERATED_ENV_FILE={{ deploy_app_dir }}/.env.prod.generated
+
+    - name: Run remote rollback
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cd "{{ deploy_app_dir }}"
+        set -a
+        . ./deploy.remote.env
+        set +a
+        ./infra/ops/remote-prod-rollback.sh
+        rm -f ./deploy.remote.env
+      args:
+        executable: /bin/bash

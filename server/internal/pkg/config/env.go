@@ -83,3 +83,21 @@ func getEnvInt64(key string, defaultValue int64, parseErrs *[]string) int64 {
 	*parseErrs = append(*parseErrs, errMsg)
 	return defaultValue
 }
+
+// getEnvFloat64 获取 float64 类型的环境变量
+func getEnvFloat64(key string, defaultValue float64, parseErrs *[]string) float64 {
+	val := os.Getenv(key)
+	if val == "" {
+		if _, exists := os.LookupEnv(key); exists {
+			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %v", key, defaultValue))
+		}
+		return defaultValue
+	}
+	if floatValue, err := strconv.ParseFloat(val, 64); err == nil {
+		return floatValue
+	}
+
+	errMsg := fmt.Sprintf("invalid float64 value for %s: %s", key, val)
+	*parseErrs = append(*parseErrs, errMsg)
+	return defaultValue
+}

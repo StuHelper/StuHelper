@@ -13,7 +13,7 @@
           v-model="title"
           type="text"
           maxlength="200"
-          class="w-full rounded-lg border border-border bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 mb-4"
+          class="w-full rounded-lg bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 mb-4"
         />
 
         <label class="block text-sm text-text-secondary mb-1.5">{{ t('review.review.contentLabel') }}</label>
@@ -21,7 +21,7 @@
           v-model="content"
           maxlength="5000"
           rows="6"
-          class="w-full rounded-lg border border-border bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none mb-4"
+          class="w-full rounded-lg bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none mb-4"
         />
 
         <label class="block text-sm text-text-secondary mb-1.5">{{ t('review.admin.editReasonLabel') }}</label>
@@ -30,7 +30,7 @@
           type="text"
           maxlength="500"
           :placeholder="t('review.admin.editReasonPlaceholder')"
-          class="w-full rounded-lg border border-border bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
+          class="w-full rounded-lg bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
         />
 
         <div class="flex justify-end gap-3 mt-5">

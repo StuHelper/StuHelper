@@ -15,5 +15,7 @@ export {
   createDraftApi,
   createAdminApi,
   createRatingApi,
-  createReplyApi
+  createReplyApi,
+  createIdentityApi,
+  createUserAdminApi
 } from './api'

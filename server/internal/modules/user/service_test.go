@@ -32,7 +32,6 @@ type mockRepo struct {
 	onGetIdentityStatusByUserID                func(ctx context.Context, userID int64) (*IdentityStatus, error)
 	onCreateIdentity                           func(ctx context.Context, identity *IdentityRecord) error
 	onListIdentityReviewItems                  func(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
-	onFindAcademicStudentsByPersonUID          func(ctx context.Context, sfzjlxdm, sfzjh string) ([]AcademicStudent, error)
 	onFindAcademicStudentsByPersonUIDFromTable func(ctx context.Context, sfzjlxdm, sfzjh, tableName string) ([]AcademicStudent, error)
 	onGetAcademicStudentByXHFromTable          func(ctx context.Context, xh, tableName string) (*AcademicStudent, error)
 	onUpdateIdentityReviewStatus               func(ctx context.Context, userID int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error
@@ -40,9 +39,9 @@ type mockRepo struct {
 	onCreateProfile                            func(ctx context.Context, profile *Profile) error
 	onUpdateProfile                            func(ctx context.Context, profile *Profile) error
 	onListProfilesByStatus                     func(ctx context.Context, status, schoolID string, page, pageSize int) ([]Profile, int, error)
+	onSetUserPhone                             func(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
 	onGetSchoolConfig                          func(ctx context.Context, schoolID string) (*SchoolConfig, error)
 	onListSchoolConfigs                        func(ctx context.Context) ([]SchoolConfig, error)
-	onGetAcademicStudentByXH                   func(ctx context.Context, xh string) (*AcademicStudent, error)
 	onListAllSchoolConfigs                     func(ctx context.Context) ([]SchoolConfig, error)
 	onUpdateSchoolConfig                       func(ctx context.Context, config *SchoolConfig) error
 	onValidateAcademicDBTable                  func(ctx context.Context, tableName string) error
@@ -63,13 +62,6 @@ func (m *mockRepo) CreateIdentity(ctx context.Context, identity *IdentityRecord)
 		return m.onCreateIdentity(ctx, identity)
 	}
 	return nil
-}
-
-func (m *mockRepo) FindAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm, sfzjh string) ([]AcademicStudent, error) {
-	if m.onFindAcademicStudentsByPersonUID != nil {
-		return m.onFindAcademicStudentsByPersonUID(ctx, sfzjlxdm, sfzjh)
-	}
-	return nil, nil
 }
 
 func (m *mockRepo) FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh, tableName string) ([]AcademicStudent, error) {
@@ -130,16 +122,16 @@ func (m *mockRepo) ListProfilesByStatus(ctx context.Context, status string, scho
 	return nil, 0, nil
 }
 
+func (m *mockRepo) SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error {
+	if m.onSetUserPhone != nil {
+		return m.onSetUserPhone(ctx, userID, phoneEnc, phoneHash)
+	}
+	return nil
+}
+
 func (m *mockRepo) GetSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error) {
 	if m.onGetSchoolConfig != nil {
 		return m.onGetSchoolConfig(ctx, schoolID)
-	}
-	return nil, nil
-}
-
-func (m *mockRepo) GetAcademicStudentByXH(ctx context.Context, xh string) (*AcademicStudent, error) {
-	if m.onGetAcademicStudentByXH != nil {
-		return m.onGetAcademicStudentByXH(ctx, xh)
 	}
 	return nil, nil
 }
@@ -193,6 +185,10 @@ func (m *mockRepo) GetInternalUserID(ctx context.Context, externalID string) (in
 	return 0, nil
 }
 
+func (m *mockRepo) GetExternalID(_ context.Context, _ int64) (string, error) {
+	return "test-external-id", nil
+}
+
 // ---------------------------------------------------------------------------
 // NewService 构造校验
 // ---------------------------------------------------------------------------
@@ -220,6 +216,63 @@ func TestNewService_ValidConstruction(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, svc)
 	assert.NotNil(t, svc.docCipher)
+}
+
+func TestBindPhone_StoresEncryptedPhoneAndMaskedProfile(t *testing.T) {
+	enc := &fakeEncryptor{}
+	var (
+		capturedPhoneHash string
+		capturedPhoneEnc  []byte
+		updatedProfile    *Profile
+	)
+
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			return &Profile{UserID: userID}, nil
+		},
+		onSetUserPhone: func(_ context.Context, userID int64, phoneEnc []byte, phoneHash string) error {
+			assert.Equal(t, int64(42), userID)
+			capturedPhoneHash = phoneHash
+			capturedPhoneEnc = append([]byte(nil), phoneEnc...)
+			return nil
+		},
+		onUpdateProfile: func(_ context.Context, profile *Profile) error {
+			cp := *profile
+			updatedProfile = &cp
+			return nil
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), enc)
+	require.NoError(t, err)
+
+	err = svc.BindPhone(context.Background(), 42, "13800138000")
+	require.NoError(t, err)
+	require.True(t, enc.called)
+	assert.Equal(t, "13800138000", enc.lastInput)
+	assert.Equal(t, []byte("encrypted:13800138000"), capturedPhoneEnc)
+	assert.Len(t, capturedPhoneHash, 64)
+	require.NotNil(t, updatedProfile)
+	require.NotNil(t, updatedProfile.Phone)
+	assert.Equal(t, "138****8000", *updatedProfile.Phone)
+	assert.True(t, updatedProfile.PhoneVerified)
+}
+
+func TestBindPhone_ReturnsConflictWhenAlreadyBound(t *testing.T) {
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			return &Profile{UserID: userID}, nil
+		},
+		onSetUserPhone: func(_ context.Context, _ int64, _ []byte, _ string) error {
+			return ErrPhoneAlreadyBound
+		},
+	}
+
+	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.BindPhone(context.Background(), 7, "13800138000")
+	require.ErrorIs(t, err, ErrPhoneAlreadyBound)
 }
 
 // ---------------------------------------------------------------------------
@@ -458,6 +511,7 @@ func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *test
 				SchoolID:           "10006",
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
+				ApprovalPolicy:     "manual",
 				ManualFormFields: json.RawMessage(`[
 					{"key":"studentID","label":"学号","type":"text","required":true},
 					{"key":"department","label":"院系","type":"text","required":false}

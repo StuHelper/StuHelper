@@ -9,13 +9,16 @@
         v-for="(review, index) in reviews"
         :key="review.id"
         :review="review"
+        :is-own-review="true"
         :style="{ animationDelay: `${index * 50}ms` }"
         class="animate-fade-in-up opacity-0"
+        @deleted="handleDeleted"
+        @updated="handleUpdated"
       />
 
       <div v-if="total > reviews.length" class="flex justify-center p-4">
         <button
-          class="px-6 py-2 bg-transparent border border-border rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
+          class="px-6 py-2 bg-transparent rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
           @click="loadMore"
           :disabled="loadingMore"
         >
@@ -78,5 +81,16 @@ const loadMore = async () => {
   } finally {
     loadingMore.value = false
   }
+}
+
+const handleDeleted = (id: string) => {
+  reviews.value = reviews.value.filter(r => r.id !== id)
+  total.value = Math.max(0, total.value - 1)
+}
+
+const handleUpdated = (id: string, content: string) => {
+  reviews.value = reviews.value.map(r =>
+    r.id === id ? { ...r, content } : r,
+  )
 }
 </script>

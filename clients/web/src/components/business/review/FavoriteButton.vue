@@ -1,10 +1,11 @@
 <template>
   <button
-    class="inline-flex items-center gap-1 py-2 px-3 bg-transparent border border-border rounded-full text-text-muted cursor-pointer transition-all duration-fast disabled:opacity-60 disabled:cursor-not-allowed"
+    v-ripple
+    class="inline-flex items-center gap-1 py-2 px-3 bg-transparent rounded-full text-text-muted cursor-pointer transition-all duration-fast press-spring disabled:opacity-60 disabled:cursor-not-allowed"
     :class="isFavorited
-      ? 'border-accent text-accent bg-accent/[0.08] [&>.heart-icon]:animate-[heartBeat_0.4s_ease]'
-      : 'hover:enabled:border-accent hover:enabled:text-accent hover:enabled:bg-accent/[0.06]'"
-    :disabled="loading"
+      ? 'border border-accent text-accent bg-accent/[0.08] [&>.heart-icon]:animate-[heartBeat_0.4s_ease]'
+      : 'border border-transparent hover:enabled:border-accent hover:enabled:text-accent hover:enabled:bg-accent/[0.06]'"
+    :disabled="isLoading"
     :aria-label="isFavorited ? t('review.favorite.favorited') : t('review.favorite.add')"
     :aria-pressed="isFavorited"
     @click="handleClick"
@@ -21,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Heart } from 'lucide-vue-next'
 import { useUserStore } from '@/stores/user'
@@ -40,9 +41,16 @@ const props = withDefaults(defineProps<{
 const userStore = useUserStore()
 const loading = ref(false)
 
-const isFavorited = computed(() => userStore.isFavorited(props.courseID))
+const favoriteState = computed(() => userStore.isFavorited(props.courseID))
+const isFavorited = computed(() => favoriteState.value === true)
+const isLoading = computed(() => loading.value || favoriteState.value === undefined)
+
+onMounted(() => {
+  void userStore.ensureFavoriteStatus(props.courseID)
+})
 
 const handleClick = async () => {
+  if (isLoading.value) return
   loading.value = true
   try {
     await userStore.toggleFavorite(props.courseID)

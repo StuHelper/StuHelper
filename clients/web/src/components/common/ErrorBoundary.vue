@@ -40,7 +40,7 @@ onErrorCaptured((err: Error) => {
   return false
 })
 
-// H-42: 先尝试组件级恢复（清除错误状态重新渲染），失败后再整页刷新
+// 先尝试组件级恢复（清除错误状态重新渲染），失败后再整页刷新
 let retryCount = 0
 const MAX_RETRY = 2
 

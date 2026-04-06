@@ -2,6 +2,12 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
+ARG VITE_API_URL=https://api.stuhelper.com
+ARG VITE_SSO_URL=https://sso.stuhelper.com
+ARG VITE_API_TIMEOUT_MS=15000
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_SSO_URL=${VITE_SSO_URL}
+ENV VITE_API_TIMEOUT_MS=${VITE_API_TIMEOUT_MS}
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json ./web/
 COPY shared/package.json ./shared/
@@ -25,4 +31,4 @@ USER nginx
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:80/ || exit 1

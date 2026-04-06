@@ -3,19 +3,11 @@ package review
 import (
 	"context"
 	"fmt"
-
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
-// CreateNotificationParams 创建通知参数
-type CreateNotificationParams struct {
-	UserHash    string
-	Type        string
-	Title       string
-	Content     string
-	RelatedType string
-	RelatedID   string
-}
+// NOTE: 通知写入能力已迁移至 internal/modules/notification.Service.Send。
+// review 模块的 CreateNotification 已删除（零调用者）。
+// reply/vote/report 通知生产者尚无法接入——详见 docs/exec-plans/active/notification-wiring.md。
 
 // ListNotificationsResult 通知列表查询结果
 type ListNotificationsResult struct {
@@ -24,33 +16,17 @@ type ListNotificationsResult struct {
 	Unread int
 }
 
-// CreateNotification 创建通知
-func (r *Repository) CreateNotification(ctx context.Context, p CreateNotificationParams) error {
-	newID, err := id.New()
-	if err != nil {
-		return fmt.Errorf("CreateNotification generate id: %w", err)
-	}
-	_, err = r.db.Exec(ctx, `
-		INSERT INTO notifications (id, user_hash, type, title, content, related_type, related_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, newID, p.UserHash, p.Type, p.Title, p.Content, p.RelatedType, p.RelatedID)
-	if err != nil {
-		return fmt.Errorf("CreateNotification: %w", err)
-	}
-	return nil
-}
-
 // ListNotifications 获取通知列表
-func (r *Repository) ListNotifications(ctx context.Context, userHash string, limit, offset int) (*ListNotificationsResult, error) {
+func (r *Repository) ListNotifications(ctx context.Context, userID int64, limit, offset int) (*ListNotificationsResult, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, type, title, content, related_type, related_id, is_read, created_at,
+		SELECT id, type, title, body, source_module, source_id, source_course_id, is_read, created_at,
 		       COUNT(*) OVER() AS total,
 		       SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) OVER() AS unread
 		FROM notifications
-		WHERE user_hash = $1
+		WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
-	`, userHash, limit, offset)
+	`, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("ListNotifications: %w", err)
 	}
@@ -61,7 +37,7 @@ func (r *Repository) ListNotifications(ctx context.Context, userHash string, lim
 		var n Notification
 		if err := rows.Scan(
 			&n.ID, &n.Type, &n.Title, &n.Content,
-			&n.RelatedType, &n.RelatedID, &n.IsRead, &n.CreatedAt,
+			&n.RelatedType, &n.RelatedID, &n.CourseID, &n.IsRead, &n.CreatedAt,
 			&result.Total, &result.Unread,
 		); err != nil {
 			return nil, fmt.Errorf("ListNotifications scan: %w", err)
@@ -72,11 +48,11 @@ func (r *Repository) ListNotifications(ctx context.Context, userHash string, lim
 }
 
 // CountUnreadNotifications 统计未读通知数量
-func (r *Repository) CountUnreadNotifications(ctx context.Context, userHash string) (int, error) {
+func (r *Repository) CountUnreadNotifications(ctx context.Context, userID int64) (int, error) {
 	var count int
 	err := r.db.QueryRow(ctx, `
-		SELECT COUNT(*) FROM notifications WHERE user_hash = $1 AND is_read = false
-	`, userHash).Scan(&count)
+		SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false
+	`, userID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("CountUnreadNotifications: %w", err)
 	}
@@ -84,10 +60,10 @@ func (r *Repository) CountUnreadNotifications(ctx context.Context, userHash stri
 }
 
 // MarkNotificationRead 标记通知已读
-func (r *Repository) MarkNotificationRead(ctx context.Context, notifID, userHash string) error {
+func (r *Repository) MarkNotificationRead(ctx context.Context, notifID string, userID int64) error {
 	result, err := r.db.Exec(ctx, `
-		UPDATE notifications SET is_read = true WHERE id = $1 AND user_hash = $2
-	`, notifID, userHash)
+		UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2
+	`, notifID, userID)
 	if err != nil {
 		return fmt.Errorf("MarkNotificationRead: %w", err)
 	}
@@ -98,10 +74,10 @@ func (r *Repository) MarkNotificationRead(ctx context.Context, notifID, userHash
 }
 
 // MarkAllNotificationsRead 标记所有通知已读
-func (r *Repository) MarkAllNotificationsRead(ctx context.Context, userHash string) error {
+func (r *Repository) MarkAllNotificationsRead(ctx context.Context, userID int64) error {
 	_, err := r.db.Exec(ctx, `
-		UPDATE notifications SET is_read = true WHERE user_hash = $1 AND is_read = false
-	`, userHash)
+		UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false
+	`, userID)
 	if err != nil {
 		return fmt.Errorf("MarkAllNotificationsRead: %w", err)
 	}

@@ -3,7 +3,7 @@
         <!-- Back button + title -->
         <header class="flex items-center gap-3 mb-6">
             <button
-                class="p-2 bg-transparent border border-border rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
+                class="p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
                 :aria-label="t('common.actions.back')"
                 @click="router.back()"
             >
@@ -143,7 +143,7 @@
         <!-- Verification form -->
         <div
             v-else
-            class="bg-bg-card border border-border rounded-xl p-5 shadow-card"
+            class="bg-bg-card rounded-xl p-5 shadow-card"
         >
             <p class="text-sm text-text-muted mb-5 m-0">
                 {{ t("user.verification.identity.desc") }}
@@ -188,7 +188,7 @@
                     id="identity-real-name"
                     v-model="form.realName"
                     type="text"
-                    class="w-full px-3 py-2.5 bg-transparent border border-border rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                    class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
                     :placeholder="t('user.verification.identity.realName')"
                 />
             </div>
@@ -205,7 +205,7 @@
                     id="identity-doc-number"
                     v-model="form.docNumber"
                     type="text"
-                    class="w-full px-3 py-2.5 bg-transparent border border-border rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                    class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
                     :placeholder="t('user.verification.identity.docNumber')"
                 />
             </div>
@@ -222,7 +222,7 @@
                     </label>
                     <div
                         v-if="previews.front"
-                        class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden border border-border"
+                        class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden"
                     >
                         <img
                             :src="previews.front"
@@ -263,7 +263,7 @@
                     </label>
                     <div
                         v-if="previews.back"
-                        class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden border border-border"
+                        class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden"
                     >
                         <img
                             :src="previews.back"
@@ -305,7 +305,7 @@
                     </label>
                     <div
                         v-if="previews.selfie"
-                        class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden border border-border"
+                        class="relative w-full max-w-[240px] aspect-[3/2] rounded-lg overflow-hidden"
                     >
                         <img
                             :src="previews.selfie"
@@ -408,9 +408,9 @@ const form = reactive({
 });
 
 const photos = reactive<{
-    front: string | null;
-    back: string | null;
-    selfie: string | null;
+    front: IdentityPhotoFile | null;
+    back: IdentityPhotoFile | null;
+    selfie: IdentityPhotoFile | null;
 }>({
     front: null,
     back: null,
@@ -441,15 +441,39 @@ const canSubmit = computed(() => {
     return true;
 });
 
+const MAX_PHOTO_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_PHOTO_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+] as const;
+type AllowedPhotoType = (typeof ALLOWED_PHOTO_TYPES)[number];
+type IdentityPhotoFile = File & { type: AllowedPhotoType };
+
+function isAllowedPhotoType(contentType: string): contentType is AllowedPhotoType {
+    return (ALLOWED_PHOTO_TYPES as readonly string[]).includes(contentType);
+}
+
 function handlePhotoChange(event: Event, key: "front" | "back" | "selfie") {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
 
+    if (file.size > MAX_PHOTO_SIZE) {
+        toast.error(t("user.identity.photoTooLarge", { max: "5MB" }));
+        input.value = "";
+        return;
+    }
+    if (!isAllowedPhotoType(file.type)) {
+        toast.error(t("user.identity.photoInvalidType"));
+        input.value = "";
+        return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
         const result = reader.result as string;
-        photos[key] = result;
+        photos[key] = file as IdentityPhotoFile;
         previews[key] = result;
     };
     reader.readAsDataURL(file);
@@ -468,14 +492,28 @@ async function handleSubmit() {
 
     submitting.value = true;
     try {
+        const uploaded = {
+            front:
+                form.docType !== "MAINLAND_ID" && photos.front
+                    ? await uploadPhoto("front", photos.front)
+                    : undefined,
+            back:
+                form.docType !== "MAINLAND_ID" && photos.back
+                    ? await uploadPhoto("back", photos.back)
+                    : undefined,
+            selfie:
+                form.docType !== "MAINLAND_ID" && photos.selfie
+                    ? await uploadPhoto("selfie", photos.selfie)
+                    : undefined,
+        };
         await store.submitIdentity({
             docType: form.docType,
             realName: form.realName.trim(),
             docNumber: form.docNumber.trim(),
             ...(form.docType !== "MAINLAND_ID" && {
-                docPhotoFront: photos.front ?? undefined,
-                docPhotoBack: photos.back ?? undefined,
-                docPhotoSelfie: photos.selfie ?? undefined,
+                docPhotoFront: uploaded.front,
+                docPhotoBack: uploaded.back,
+                docPhotoSelfie: uploaded.selfie,
             }),
         });
         await store.fetchStatus();
@@ -492,6 +530,36 @@ async function handleSubmit() {
 }
 
 onMounted(() => {
-    store.fetchStatus();
+    store.fetchStatus().catch(() => {});
 });
+
+async function uploadPhoto(
+    slot: "front" | "back" | "selfie",
+    file: IdentityPhotoFile,
+): Promise<string> {
+    const key = await store.uploadIdentityPhoto({
+        slot,
+        filename: file.name,
+        contentType: file.type,
+        dataBase64: await fileToBase64(file),
+    });
+    if (!key) {
+        throw new Error(t("user.verification.identity.uploadFailed"));
+    }
+    return key;
+}
+
+function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = String(reader.result ?? "");
+            const comma = result.indexOf(",");
+            resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = () =>
+            reject(reader.error ?? new Error("failed to read file"));
+        reader.readAsDataURL(file);
+    });
+}
 </script>

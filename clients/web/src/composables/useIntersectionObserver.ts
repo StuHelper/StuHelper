@@ -10,7 +10,7 @@ export function useIntersectionObserver(
   const isVisible = ref(false)
   const hasBeenVisible = ref(false)
   let observer: IntersectionObserver | null = null
-  // L-54: 防抖，避免条件渲染导致频繁重建观察器
+  // 防抖，避免条件渲染导致频繁重建观察器
   let rebuildTimer: ReturnType<typeof setTimeout> | null = null
 
   const defaultOptions: IntersectionObserverInit = {
@@ -60,7 +60,7 @@ export function useIntersectionObserver(
         }
         return
       }
-      // L-54: 防抖 50ms，避免频繁挂载/卸载时大量创建销毁
+      // 防抖 50ms，避免频繁挂载/卸载时大量创建销毁
       rebuildTimer = setTimeout(() => {
         if (elementRef.value) {
           setupObserver(elementRef.value)

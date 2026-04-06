@@ -6,7 +6,7 @@ import { ref } from 'vue'
 import i18n from '@/i18n'
 import { useToast } from './useToast'
 
-// H-04: 返回结果对象，调用方可区分成功与失败
+// 返回结果对象，调用方可区分成功与失败
 export interface OptimisticResult<T> {
   success: boolean
   data?: T

@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -73,6 +74,9 @@ func RequestLogger() gin.HandlerFunc {
 		// 注入带 request_id 的 logger 到 context
 		requestID := GetRequestID(c)
 		reqLogger := logger.L().With(zap.String("request_id", requestID))
+		if traceFields := logger.TraceFields(c.Request.Context()); len(traceFields) > 0 {
+			reqLogger = reqLogger.With(traceFields...)
+		}
 		logger.GinContext(c, reqLogger)
 
 		c.Next()
@@ -91,6 +95,7 @@ func RequestLogger() gin.HandlerFunc {
 			zap.String("client_ip", c.ClientIP()),
 			zap.String("user_agent", truncateString(c.Request.UserAgent(), 256)),
 		}
+		fields = append(fields, logger.TraceFields(c.Request.Context())...)
 
 		// 添加用户 ID（如果存在）
 		if userID, exists := c.Get(CtxKeyUserID); exists {
@@ -127,17 +132,20 @@ func Recovery() gin.HandlerFunc {
 
 				stack := string(debug.Stack())
 				requestID := GetRequestID(c)
+				metrics.PanicsTotal.Inc()
 
 				// 按行拆分栈追踪，便于日志聚合系统解析
 				stackLines := strings.Split(stack, "\n")
 
-				logger.L().Error("panic_recovered",
+				fields := []zap.Field{
 					zap.String("request_id", requestID),
 					zap.Any("error", err),
 					zap.String("path", c.Request.URL.Path),
 					zap.String("method", c.Request.Method),
 					zap.Strings("stack", stackLines),
-				)
+				}
+				fields = append(fields, logger.TraceFields(c.Request.Context())...)
+				logger.FromGin(c).Error("panic_recovered", fields...)
 
 				if brokenPipe {
 					c.Abort()
@@ -200,7 +208,7 @@ func maskSensitiveQueryParams(rawQuery string) string {
 	for key := range values {
 		// 检查参数名是否在敏感参数黑名单中（不区分大小写）
 		lowerKey := strings.ToLower(key)
-		// M-67: 同时匹配 token 和 token[] 形式的数组参数
+		// 同时匹配 token 和 token[] 形式的数组参数
 		baseKey := strings.TrimSuffix(lowerKey, "[]")
 		if sensitiveQueryParams[lowerKey] || sensitiveQueryParams[baseKey] {
 			// 遍历所有值（处理 ?token[]=xxx&token[]=yyy 数组形式）

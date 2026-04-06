@@ -6,51 +6,28 @@
 const USER_KEY = 'stuhelper_user'
 const TOKEN_EXPIRY_KEY = 'stuhelper_token_expiry'
 
-// 用户信息类型（仅存储 UI 必需字段，最小化 localStorage 暴露面）
+// 用户信息类型（仅持久化最小展示字段，权限信息必须来自服务端会话）
 export interface StoredUser {
   id: string
   name: string
   displayName: string
   avatar?: string
-  isPlatformAdmin?: boolean
-  capabilities?: string[]
-  globalCapabilities?: string[]
-  capabilityGrants?: Array<{
-    name: string
-    scopeSchoolIDs?: string[]
-    scopeRoles?: string[]
-    global: boolean
-  }>
-  canAccessAdmin?: boolean
 }
 
-// M-105: 校验 localStorage 中的用户数据结构，包含 ID 格式验证
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
+// 校验 localStorage 中的用户数据结构，包含 ID 格式验证
 function isValidStoredUser(data: unknown): data is StoredUser {
   if (typeof data !== 'object' || data === null) return false
   const obj = data as Record<string, unknown>
   return (
-    typeof obj.id === 'string' && obj.id.length > 0 &&
+    isNonEmptyString(obj.id) &&
     /^[a-zA-Z0-9_-]+$/.test(obj.id) &&
-    typeof obj.name === 'string' && obj.name.length > 0 &&
+    isNonEmptyString(obj.name) &&
     typeof obj.displayName === 'string' &&
-    (obj.avatar === undefined || typeof obj.avatar === 'string') &&
-    (obj.isPlatformAdmin === undefined || typeof obj.isPlatformAdmin === 'boolean') &&
-    (obj.canAccessAdmin === undefined || typeof obj.canAccessAdmin === 'boolean') &&
-    (obj.capabilities === undefined || (Array.isArray(obj.capabilities) && obj.capabilities.every((item) => typeof item === 'string'))) &&
-    (obj.globalCapabilities === undefined || (Array.isArray(obj.globalCapabilities) && obj.globalCapabilities.every((item) => typeof item === 'string'))) &&
-    (obj.capabilityGrants === undefined || (
-      Array.isArray(obj.capabilityGrants) &&
-      obj.capabilityGrants.every((item) => {
-        if (typeof item !== 'object' || item === null) return false
-        const grant = item as Record<string, unknown>
-        return (
-          typeof grant.name === 'string' &&
-          typeof grant.global === 'boolean' &&
-          (grant.scopeSchoolIDs === undefined || (Array.isArray(grant.scopeSchoolIDs) && grant.scopeSchoolIDs.every((scope) => typeof scope === 'string'))) &&
-          (grant.scopeRoles === undefined || (Array.isArray(grant.scopeRoles) && grant.scopeRoles.every((scope) => typeof scope === 'string')))
-        )
-      })
-    ))
+    (obj.avatar === undefined || typeof obj.avatar === 'string')
   )
 }
 
@@ -73,17 +50,12 @@ export const userManager = {
   },
 
   setUser(user: StoredUser): void {
-    // H5: 仅存储 UI 必需字段，不持久化 email 等敏感信息
+    // 仅存储展示必需字段，不持久化角色/能力等可影响 UI 权限面的数据
     const minimal: StoredUser = {
       id: user.id,
       name: user.name,
       displayName: user.displayName,
       ...(user.avatar !== undefined && { avatar: user.avatar }),
-      ...(user.isPlatformAdmin !== undefined && { isPlatformAdmin: user.isPlatformAdmin }),
-      ...(user.capabilities !== undefined && { capabilities: user.capabilities }),
-      ...(user.globalCapabilities !== undefined && { globalCapabilities: user.globalCapabilities }),
-      ...(user.capabilityGrants !== undefined && { capabilityGrants: user.capabilityGrants }),
-      ...(user.canAccessAdmin !== undefined && { canAccessAdmin: user.canAccessAdmin }),
     }
     localStorage.setItem(USER_KEY, JSON.stringify(minimal))
   },

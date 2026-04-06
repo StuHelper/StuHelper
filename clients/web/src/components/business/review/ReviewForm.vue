@@ -1,10 +1,10 @@
 <template>
     <div
-        class="bg-bg-card border border-border rounded-xl shadow-card p-5 flex flex-col gap-4"
+        class="bg-bg-card rounded-xl shadow-card p-5 flex flex-col gap-4"
     >
         <input
             v-model="title"
-            class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+            class="w-full p-3 bg-bg-secondary rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
             :placeholder="t('review.post.title')"
             :aria-label="t('review.post.titleLabel')"
             :maxlength="TITLE_MAX"
@@ -22,7 +22,7 @@
             <label class="block text-sm text-text-secondary mb-1.5">{{ t('review.post.termLabel') }} <span class="text-danger text-xs">*</span></label>
             <select
                 v-model="termID"
-                class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+                class="w-full p-3 bg-bg-secondary rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
             >
                 <option value="" disabled>{{ t('review.post.termPlaceholder') }}</option>
                 <option v-for="term in termOptions" :key="term.id" :value="term.id">
@@ -36,7 +36,7 @@
 
         <textarea
             v-model="content"
-            class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans resize-vertical min-h-[100px] transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+            class="w-full p-3 bg-bg-secondary rounded-lg text-sm text-text-primary font-sans resize-vertical min-h-[100px] transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
             :placeholder="t('review.post.contentPlaceholder')"
             :aria-label="t('review.post.contentLabel')"
             :aria-describedby="

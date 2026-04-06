@@ -30,7 +30,7 @@ function startTyping(text: string) {
   }, props.speed)
 }
 
-// M-4: React to text prop changes by restarting the typing animation
+// React to text prop changes by restarting the typing animation
 watch(() => props.text, (newText) => {
   if (intervalId !== undefined) {
     clearInterval(intervalId)

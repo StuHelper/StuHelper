@@ -17,7 +17,7 @@ import (
 
 // GetCourseReviews 获取课程测评列表
 func (h *Handler) GetCourseReviews(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "id")
+	courseID, err := httputil.ParseIDParam(c, "courseID")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return
@@ -61,7 +61,7 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 
 	facts := h.resolveReviewAccessFactsForRequest(c)
 	stripped := stripReviewsForResponse(result.List, facts)
-	response.Success(c, gin.H{"list": stripped, "total": result.Total, "authenticated": facts.Authenticated})
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
 }
 
 // GetLatestReviews 获取最新测评
@@ -85,7 +85,58 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 
 	facts := h.resolveReviewAccessFactsForRequest(c)
 	stripped := stripReviewsForResponse(result.List, facts)
-	response.Success(c, gin.H{"list": stripped, "total": result.Total, "authenticated": facts.Authenticated})
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
+}
+
+// SearchReviews 搜索测评（支持课程名/课号、院系、教师、学期等条件）
+func (h *Handler) SearchReviews(c *gin.Context) {
+	page, pageSize := httputil.ParsePage(c)
+	sort := c.DefaultQuery("sort", "time")
+	if !isValidSort(sort) {
+		sort = SortTime
+	}
+
+	q := strings.TrimSpace(c.Query("q"))
+	teacherName := strings.TrimSpace(c.Query("teacherName"))
+	termID := strings.TrimSpace(c.Query("termID"))
+	if termID != "" && !validTermIDFormat.MatchString(termID) {
+		response.BadRequest(c, "invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+		return
+	}
+
+	var departmentID int64
+	if dept := strings.TrimSpace(c.Query("departmentID")); dept != "" {
+		id, err := strconv.ParseInt(dept, 10, 64)
+		if err != nil || id <= 0 {
+			response.BadRequest(c, "invalid department_id parameter")
+			return
+		}
+		departmentID = id
+	}
+
+	if q == "" && teacherName == "" && termID == "" && departmentID == 0 {
+		response.BadRequest(c, "at least one search condition is required")
+		return
+	}
+
+	result, err := h.service.SearchReviews(c.Request.Context(), SearchReviewsParams{
+		Query:        q,
+		DepartmentID: departmentID,
+		TeacherName:  teacherName,
+		TermID:       termID,
+		Page:         page,
+		PageSize:     pageSize,
+		Sort:         sort,
+	})
+	if err != nil {
+		logger.FromGin(c).Error("failed to search reviews", zap.Error(err))
+		response.InternalError(c, "failed to search reviews")
+		return
+	}
+
+	facts := h.resolveReviewAccessFactsForRequest(c)
+	stripped := stripReviewsForResponse(result.List, facts)
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
 }
 
 // GetBatchCourseReviews 批量获取多个课程的测评列表
@@ -139,20 +190,7 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 	}
 
 	facts := h.resolveReviewAccessFactsForRequest(c)
-	data := make(map[string]interface{})
-	for _, cid := range courseIDs {
-		reviews := result.Reviews[cid]
-		if reviews == nil {
-			reviews = []Review{}
-		}
-		stripped := stripReviewsForResponse(reviews, facts)
-		data[strconv.FormatInt(cid, 10)] = map[string]interface{}{
-			"list":  stripped,
-			"total": result.Totals[cid],
-		}
-	}
-
-	response.Success(c, gin.H{"data": data, "authenticated": facts.Authenticated})
+	response.Success(c, buildGroupedReviewListData(courseIDs, result, facts))
 }
 
 // GetStats 获取评课统计数据
@@ -174,6 +212,7 @@ func (h *Handler) GetStats(c *gin.Context) {
 		"courseCount":     result.CourseCount,
 		"reviewCount":     result.ReviewCount,
 		"departmentCount": result.DepartmentCount,
+		"userCount":       result.UserCount,
 	}
 	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
@@ -183,7 +222,7 @@ func (h *Handler) GetStats(c *gin.Context) {
 
 // GetRatingTrend 获取课程评分趋势
 func (h *Handler) GetRatingTrend(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "id")
+	courseID, err := httputil.ParseIDParam(c, "courseID")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return
@@ -247,7 +286,7 @@ func (h *Handler) GetHotCourses(c *gin.Context) {
 
 // GetCourseTeachers 获取课程的授课教师列表
 func (h *Handler) GetCourseTeachers(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "id")
+	courseID, err := httputil.ParseIDParam(c, "courseID")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return
@@ -277,13 +316,13 @@ func (h *Handler) GetCourseTeachers(c *gin.Context) {
 
 // GetTeacherRatingStats 获取教师评分统计
 func (h *Handler) GetTeacherRatingStats(c *gin.Context) {
-	teacherID, err := httputil.ParseIDParam(c, "id")
+	teacherID, err := httputil.ParseIDParam(c, "teacherID")
 	if err != nil {
 		response.BadRequest(c, "invalid teacher id")
 		return
 	}
 
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:teacher_stats", "id="+c.Param("id"))
+	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:teacher_stats", "teacherID="+c.Param("teacherID"))
 	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
 		response.Success(c, cached)
 		return

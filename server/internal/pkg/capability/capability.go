@@ -22,19 +22,55 @@ const (
 	UserSystemRead     = "user:system:read"
 	UserSystemUpdate   = "user:system:update"
 
-	RBACRoleRead       = "rbac:role:read"
-	RBACRoleCreate     = "rbac:role:create"
-	RBACRoleUpdate     = "rbac:role:update"
-	RBACRoleDelete     = "rbac:role:delete"
-	RBACPermissionRead = "rbac:permission:read"
-	RBACUserRead       = "rbac:user:read"
-	RBACUserUpdate     = "rbac:user:update"
-	RBACGroupRead      = "rbac:group:read"
-	RBACGroupCreate    = "rbac:group:create"
-	RBACGroupUpdate    = "rbac:group:update"
-	RBACGroupDelete    = "rbac:group:delete"
+	// 评课相关能力
+	ReviewListFull  = "review:list:full"
+	ReviewCreate    = "review:create"
+	ReviewEditOwn   = "review:edit:own"
+	ReviewDeleteOwn = "review:delete:own"
+	ReviewListBrief = "review:list:brief"
 )
 
+// RoleCapabilities 角色 → 能力静态映射。
+// 这是权限模型的核心配置，修改需要 code review。
+var RoleCapabilities = map[string][]string{
+	"super_admin": {
+		AdminDashboardView, AdminReviewsManage, AdminReportsManage,
+		AdminTeachersManage, AdminSensitiveWordsManage, AdminLogsView,
+		UserIdentityRead, UserIdentityReview,
+		UserStudentRead, UserStudentReview,
+		UserSchoolRead, UserSchoolUpdate,
+		UserSystemRead, UserSystemUpdate,
+	},
+	"school_admin": {
+		AdminDashboardView, AdminReviewsManage, AdminReportsManage,
+		AdminTeachersManage, AdminSensitiveWordsManage, AdminLogsView,
+		UserIdentityRead, UserIdentityReview,
+		UserStudentRead, UserStudentReview,
+		UserSchoolRead, UserSystemRead,
+	},
+	"moderator": {
+		AdminReviewsManage, AdminReportsManage, AdminTeachersManage,
+	},
+	"verified_student": {
+		ReviewListFull, ReviewCreate, ReviewEditOwn, ReviewDeleteOwn,
+	},
+	"user": {
+		ReviewListBrief,
+	},
+}
+
+// ExpandRoles 将角色列表展开为去重排序的能力列表（纯内存操作，零 DB 查询）
+func ExpandRoles(roles []string) []string {
+	var all []string
+	for _, role := range roles {
+		if caps, ok := RoleCapabilities[role]; ok {
+			all = append(all, caps...)
+		}
+	}
+	return Normalize(all)
+}
+
+// AdminEntryCapabilities 拥有任一即可进入管理后台
 var AdminEntryCapabilities = []string{
 	AdminDashboardView,
 	AdminReviewsManage,
@@ -50,17 +86,6 @@ var AdminEntryCapabilities = []string{
 	UserSchoolUpdate,
 	UserSystemRead,
 	UserSystemUpdate,
-	RBACRoleRead,
-	RBACRoleCreate,
-	RBACRoleUpdate,
-	RBACRoleDelete,
-	RBACPermissionRead,
-	RBACUserRead,
-	RBACUserUpdate,
-	RBACGroupRead,
-	RBACGroupCreate,
-	RBACGroupUpdate,
-	RBACGroupDelete,
 }
 
 type Grant struct {

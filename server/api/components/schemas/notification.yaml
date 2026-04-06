@@ -16,6 +16,10 @@ Notification:
       type: string
     relatedID:
       type: string
+    courseID:
+      type: integer
+      format: int64
+      description: 关联课程ID，用于前端精准跳转
     isRead:
       type: boolean
     createdAt:

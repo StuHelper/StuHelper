@@ -11,9 +11,6 @@ import i18n from '@/i18n'
 
 // 缓存配置
 const CACHE_TTL = 5 * 60 * 1000 // 5 分钟
-// L-60: 定期清理间隔
-const CACHE_CLEANUP_INTERVAL = 5 * 60 * 1000
-
 // 缓存项
 interface CacheItem<T> {
   data: T
@@ -28,35 +25,29 @@ export interface StoreError {
   message: string
 }
 
-// L-60: 缓存管理（带定期清理）
+// 缓存管理（访问时惰性清理，避免额外后台定时器）
 function createCache<T>() {
   const cache = new Map<string, CacheItem<T>>()
-  let cleanupTimer: ReturnType<typeof setInterval> | null = null
 
-  // 启动定期清理
-  cleanupTimer = setInterval(() => {
-    const now = Date.now()
+  const pruneExpired = (now = Date.now()) => {
     for (const [key, item] of cache) {
       if (now - item.timestamp > CACHE_TTL) {
         cache.delete(key)
       }
     }
-  }, CACHE_CLEANUP_INTERVAL)
+  }
 
   return {
     get(key: string): T | null {
+      pruneExpired()
       const item = cache.get(key)
-      if (!item) return null
-      if (Date.now() - item.timestamp > CACHE_TTL) {
-        cache.delete(key)
-        return null
-      }
-      return item.data
+      return item ? item.data : null
     },
     set(key: string, data: T) {
+      pruneExpired()
       cache.set(key, { data, timestamp: Date.now() })
     },
-    // M-07: 支持按 key 前缀清除
+    // 支持按 key 前缀清除
     invalidate(keyPrefix?: string) {
       if (!keyPrefix) {
         cache.clear()
@@ -72,10 +63,6 @@ function createCache<T>() {
       cache.clear()
     },
     dispose() {
-      if (cleanupTimer) {
-        clearInterval(cleanupTimer)
-        cleanupTimer = null
-      }
       cache.clear()
     }
   }
@@ -96,7 +83,7 @@ export const useCourseStore = defineStore('course', () => {
   const coursesLoading = ref(false)
   const coursesError = ref<StoreError | null>(null)
 
-  // H-07: 当前请求 ID（防止并发）
+  // 当前请求 ID（防止并发）
   let deptRequestID = 0
   let courseRequestID = 0
 
@@ -133,8 +120,8 @@ export const useCourseStore = defineStore('course', () => {
     departmentsError.value = null
 
     try {
-      const res = await api.course.getDepartments()
-      // H-07: 在更新状态前检查 requestID
+      const res = await api.course.getDepartments(category ? { category } : undefined)
+      // 在更新状态前检查 requestID
       if (requestID !== deptRequestID) return departments.value
 
       const data = res.data?.data || []
@@ -168,8 +155,8 @@ export const useCourseStore = defineStore('course', () => {
     coursesError.value = null
 
     try {
-      const res = await api.course.getCourses({ page: 1, limit: 100, departmentID: deptID })
-      // H-07: 在更新状态前检查 requestID，过期响应直接丢弃
+      const res = await api.course.getCourses({ page: 1, pageSize: 100, departmentID: deptID })
+      // 在更新状态前检查 requestID，过期响应直接丢弃
       if (requestID !== courseRequestID) return courses.value
 
       const data = res.data?.data?.list || []
@@ -195,7 +182,7 @@ export const useCourseStore = defineStore('course', () => {
     courseCache.clear()
   }
 
-  // M-07: 使课程缓存失效（支持按院系 ID 精确清除）
+  // 使课程缓存失效（支持按院系 ID 精确清除）
   const invalidateCourseCache = (deptID?: number) => {
     if (deptID !== undefined) {
       courseCache.invalidate(String(deptID))
@@ -210,8 +197,7 @@ export const useCourseStore = defineStore('course', () => {
     coursesError.value = null
   }
 
-  // M-75: 重置状态（包括请求计数器和缓存定时器）
-  // I-5: 重新初始化缓存实例，确保清理定时器被重建
+  // 重置状态（包括请求计数器和缓存实例）
   const reset = () => {
     departments.value = []
     departmentsLoading.value = false

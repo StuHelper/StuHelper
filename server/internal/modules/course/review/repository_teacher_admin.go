@@ -92,20 +92,30 @@ func (r *Repository) UpdateTeacher(ctx context.Context, id int64, name string, d
 
 // DeleteTeacher 删除教师（检查是否有关联评论）
 func (r *Repository) DeleteTeacher(ctx context.Context, id int64) error {
-	var reviewCount int
-	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM reviews WHERE teacher_id = $1 AND status != 'deleted'`, id).Scan(&reviewCount); err != nil {
-		return fmt.Errorf("DeleteTeacher check: %w", err)
-	}
-	if reviewCount > 0 {
-		return fmt.Errorf("teacher has %d associated reviews, cannot delete", reviewCount)
-	}
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var lockedTeacherID int64
+		if err := tx.QueryRow(ctx, `SELECT id FROM teachers WHERE id = $1 FOR UPDATE`, id).Scan(&lockedTeacherID); err != nil {
+			if err == pgx.ErrNoRows {
+				return pgx.ErrNoRows
+			}
+			return fmt.Errorf("DeleteTeacher lock: %w", err)
+		}
 
-	result, err := r.db.Exec(ctx, `DELETE FROM teachers WHERE id = $1`, id)
-	if err != nil {
-		return fmt.Errorf("DeleteTeacher: %w", err)
-	}
-	if result.RowsAffected() == 0 {
-		return pgx.ErrNoRows
-	}
-	return nil
+		var reviewCount int
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM reviews WHERE teacher_id = $1 AND status != 'deleted'`, lockedTeacherID).Scan(&reviewCount); err != nil {
+			return fmt.Errorf("DeleteTeacher check: %w", err)
+		}
+		if reviewCount > 0 {
+			return fmt.Errorf("teacher has %d associated reviews, cannot delete", reviewCount)
+		}
+
+		result, err := tx.Exec(ctx, `DELETE FROM teachers WHERE id = $1`, lockedTeacherID)
+		if err != nil {
+			return fmt.Errorf("DeleteTeacher: %w", err)
+		}
+		if result.RowsAffected() == 0 {
+			return pgx.ErrNoRows
+		}
+		return nil
+	})
 }

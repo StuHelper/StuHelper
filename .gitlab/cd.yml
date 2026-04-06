@@ -1,46 +1,337 @@
-package_backend:
+.package_image_template:
   stage: package
-  image: docker:27.5.1-cli
-  services:
-    - name: docker:27.5.1-dind
-      command: ["--tls=false"]
+  extends: .docker_job
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "push"'
     - when: never
+
+.deploy_remote_template:
+  stage: deploy
+  image: alpine:3.21
+  script:
+    - test -n "${DEPLOY_TARGET_HOST:-}" || { echo "DEPLOY_TARGET_HOST is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
+    - apk add --no-cache openssh-client bash tar gzip
+    - export TARGET_TAG="${DEPLOY_TAG:-${CI_COMMIT_SHORT_SHA}}"
+    - export REMOTE_SHARED_ENV_FILE="${DEPLOY_SHARED_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.shared}"
+    - export REMOTE_SECRETS_ENV_FILE="${DEPLOY_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.secrets}"
+    - eval "$(ssh-agent -s)"
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
+    - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
+    - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
+    - |
+      cat > "${CI_PROJECT_DIR}/deploy.remote.env" <<EOF
+      REGISTRY=${REGISTRY}
+      REGISTRY_USERNAME=${REGISTRY_USERNAME}
+      REGISTRY_PASSWORD=${REGISTRY_PASSWORD}
+      TAG=${TARGET_TAG}
+      ENV_FILE=${REMOTE_SHARED_ENV_FILE}
+      SECRETS_ENV_FILE=${REMOTE_SECRETS_ENV_FILE}
+      GENERATED_ENV_FILE=${DEPLOY_TARGET_APP_DIR}/.env.prod.generated
+      EOF
+    - |
+      if [ -n "${DEPLOY_SHARED_ENV_FILE_CONTENT:-}" ]; then
+        printf '%s\n' "${DEPLOY_SHARED_ENV_FILE_CONTENT}" > "${CI_PROJECT_DIR}/deploy.shared.remote"
+      fi
+    - |
+      if [ -n "${DEPLOY_SECRET_ENV_FILE_CONTENT:-}" ]; then
+        printf '%s\n' "${DEPLOY_SECRET_ENV_FILE_CONTENT}" > "${CI_PROJECT_DIR}/deploy.secrets.remote"
+      fi
+    - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
+    - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
+    - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy.remote.env" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy.remote.env"
+    - |
+      if [ -f "${CI_PROJECT_DIR}/deploy.shared.remote" ]; then
+        scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy.shared.remote" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${REMOTE_SHARED_ENV_FILE}"
+      fi
+    - |
+      if [ -f "${CI_PROJECT_DIR}/deploy.secrets.remote" ]; then
+        scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy.secrets.remote" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${REMOTE_SECRETS_ENV_FILE}"
+      fi
+    - |
+      ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
+        set -euo pipefail &&
+        cd '${DEPLOY_TARGET_APP_DIR}' &&
+        tar xzf deploy-bundle.tgz &&
+        rm -f deploy-bundle.tgz &&
+        set -a && . ./deploy.remote.env && set +a &&
+        ./infra/ops/remote-preflight.sh &&
+        ./infra/ops/remote-prod-deploy.sh &&
+        rm -f ./deploy.remote.env
+      "
+
+.verify_remote_template:
+  stage: verify
+  image: alpine:3.21
+  script:
+    - test -n "${DEPLOY_TARGET_HOST:-}" || { echo "DEPLOY_TARGET_HOST is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
+    - apk add --no-cache openssh-client bash curl
+    - eval "$(ssh-agent -s)"
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
+    - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
+    - |
+      ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
+        set -euo pipefail &&
+        cd '${DEPLOY_TARGET_APP_DIR}' &&
+        ./infra/ops/smoke-check.sh &&
+        ./infra/ops/observability-smoke-check.sh
+      "
+
+package_backend:
+  extends: .package_image_template
   script:
     - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
     - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
     - docker buildx create --use --name gitlab-builder
-    - docker buildx build --push --platform linux/amd64 --tag "${BACKEND_IMAGE}:latest" --tag "${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA}" --build-arg "VERSION=${CI_COMMIT_SHORT_SHA}" --build-arg "GIT_COMMIT=${CI_COMMIT_SHA}" --build-arg "BUILD_TIME=${BUILD_TIME}" --cache-from "type=registry,ref=${BACKEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${BACKEND_IMAGE}:buildcache,mode=max" server
+    - |
+      TAG_ARGS=(--tag "${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA}")
+      if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
+        TAG_ARGS+=(--tag "${BACKEND_IMAGE}:latest")
+      else
+        TAG_ARGS+=(--tag "${BACKEND_IMAGE}:develop-latest")
+      fi
+      docker buildx build --push --platform linux/amd64 "${TAG_ARGS[@]}" \
+        --build-arg "VERSION=${CI_COMMIT_SHORT_SHA}" \
+        --build-arg "GIT_COMMIT=${CI_COMMIT_SHA}" \
+        --build-arg "BUILD_TIME=${BUILD_TIME}" \
+        --cache-from "type=registry,ref=${BACKEND_IMAGE}:buildcache" \
+        --cache-to "type=registry,ref=${BACKEND_IMAGE}:buildcache,mode=max" \
+        server
 
 package_frontend:
-  stage: package
-  image: docker:27.5.1-cli
-  services:
-    - name: docker:27.5.1-dind
-      command: ["--tls=false"]
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
-    - when: never
+  extends: .package_image_template
   script:
     - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
     - docker buildx create --use --name gitlab-builder
-    - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:latest" --tag "${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" clients
+    - |
+      TAG_ARGS=(--tag "${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA}")
+      if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
+        TAG_ARGS+=(--tag "${FRONTEND_IMAGE}:latest")
+      else
+        TAG_ARGS+=(--tag "${FRONTEND_IMAGE}:develop-latest")
+      fi
+      docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile "${TAG_ARGS[@]}" \
+        --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" \
+        --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL:-https://sso.stuhelper.com}" \
+        --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" \
+        --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" \
+        --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" \
+        clients
 
-deploy_production:
-  stage: deploy
-  image: alpine:3.21
+package_admin:
+  extends: .package_image_template
+  script:
+    - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+    - docker buildx create --use --name gitlab-builder
+    - |
+      TAG_ARGS=(--tag "${ADMIN_IMAGE}:${CI_COMMIT_SHORT_SHA}")
+      if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
+        TAG_ARGS+=(--tag "${ADMIN_IMAGE}:latest")
+      else
+        TAG_ARGS+=(--tag "${ADMIN_IMAGE}:develop-latest")
+      fi
+      docker buildx build --push --platform linux/amd64 --file clients/admin/scripts/deploy/Dockerfile "${TAG_ARGS[@]}" \
+        --build-arg "VITE_GLOB_API_URL=${ADMIN_VITE_API_URL:-/api/v1}" \
+        --build-arg "VITE_BASE=${ADMIN_VITE_BASE:-/admin/}" \
+        --cache-from "type=registry,ref=${ADMIN_IMAGE}:buildcache" \
+        --cache-to "type=registry,ref=${ADMIN_IMAGE}:buildcache,mode=max" \
+        clients/admin
+
+deploy_staging:
+  extends: .deploy_remote_template
   needs:
     - package_backend
     - package_frontend
+    - package_admin
+  variables:
+    DEPLOY_TARGET_HOST: $STAGING_DEPLOY_HOST
+    DEPLOY_TARGET_PORT: $STAGING_DEPLOY_PORT
+    DEPLOY_TARGET_USER: $STAGING_DEPLOY_USER
+    DEPLOY_TARGET_APP_DIR: $STAGING_DEPLOY_APP_DIR
+    DEPLOY_TARGET_SSH_KEY: $STAGING_DEPLOY_SSH_KEY
+    DEPLOY_SHARED_ENV_FILE_CONTENT: $STAGING_DEPLOY_SHARED_ENV_FILE_CONTENT
+    DEPLOY_SECRET_ENV_FILE_CONTENT: $STAGING_DEPLOY_SECRET_ENV_FILE_CONTENT
+  environment:
+    name: staging
+    url: $STAGING_PUBLIC_URL
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "push"'
+    - when: never
+
+deploy_production:
+  extends: .deploy_remote_template
+  needs:
+    - package_backend
+    - package_frontend
+    - package_admin
+  variables:
+    DEPLOY_TARGET_HOST: $DEPLOY_HOST
+    DEPLOY_TARGET_PORT: $DEPLOY_PORT
+    DEPLOY_TARGET_USER: $DEPLOY_USER
+    DEPLOY_TARGET_APP_DIR: $DEPLOY_APP_DIR
+    DEPLOY_TARGET_SSH_KEY: $DEPLOY_SSH_KEY
+    DEPLOY_SHARED_ENV_FILE_CONTENT: $DEPLOY_SHARED_ENV_FILE_CONTENT
+    DEPLOY_SECRET_ENV_FILE_CONTENT: $DEPLOY_SECRET_ENV_FILE_CONTENT
+  environment:
+    name: production
+    url: $WEB_PUBLIC_URL
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+      when: manual
+    - when: never
+
+verify_staging:
+  extends: .verify_remote_template
+  needs: [deploy_staging]
+  variables:
+    DEPLOY_TARGET_HOST: $STAGING_DEPLOY_HOST
+    DEPLOY_TARGET_PORT: $STAGING_DEPLOY_PORT
+    DEPLOY_TARGET_USER: $STAGING_DEPLOY_USER
+    DEPLOY_TARGET_APP_DIR: $STAGING_DEPLOY_APP_DIR
+    DEPLOY_TARGET_SSH_KEY: $STAGING_DEPLOY_SSH_KEY
+  environment:
+    name: staging
+    url: $STAGING_PUBLIC_URL
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "push"'
+    - when: never
+
+verify_production:
+  extends: .verify_remote_template
+  needs: [deploy_production]
+  variables:
+    DEPLOY_TARGET_HOST: $DEPLOY_HOST
+    DEPLOY_TARGET_PORT: $DEPLOY_PORT
+    DEPLOY_TARGET_USER: $DEPLOY_USER
+    DEPLOY_TARGET_APP_DIR: $DEPLOY_APP_DIR
+    DEPLOY_TARGET_SSH_KEY: $DEPLOY_SSH_KEY
+  environment:
+    name: production
+    url: $WEB_PUBLIC_URL
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
     - when: never
+
+rollback_staging:
+  extends: .deploy_remote_template
+  needs: []
+  variables:
+    DEPLOY_TARGET_HOST: $STAGING_DEPLOY_HOST
+    DEPLOY_TARGET_PORT: $STAGING_DEPLOY_PORT
+    DEPLOY_TARGET_USER: $STAGING_DEPLOY_USER
+    DEPLOY_TARGET_APP_DIR: $STAGING_DEPLOY_APP_DIR
+    DEPLOY_TARGET_SSH_KEY: $STAGING_DEPLOY_SSH_KEY
+    DEPLOY_TAG: $ROLLBACK_TAG
+  environment:
+    name: staging
+    url: $STAGING_PUBLIC_URL
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      when: manual
+    - when: never
+  before_script: []
   script:
-    - apk add --no-cache openssh-client
+    - test -n "${DEPLOY_TARGET_HOST:-}" || { echo "DEPLOY_TARGET_HOST is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
+    - apk add --no-cache openssh-client bash tar gzip
+    - export TARGET_TAG="${DEPLOY_TAG:-}"
+    - export REMOTE_SHARED_ENV_FILE="${DEPLOY_SHARED_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.shared}"
+    - export REMOTE_SECRETS_ENV_FILE="${DEPLOY_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.secrets}"
     - eval "$(ssh-agent -s)"
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' | ssh-add -
-    - ssh-keyscan -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
-    - ssh -p "${DEPLOY_PORT:-22}" "${DEPLOY_USER}@${DEPLOY_HOST}" "cd ${DEPLOY_APP_DIR} && docker compose --profile prod pull && docker compose --profile prod up -d --remove-orphans && sleep 5 && docker compose --profile prod ps"
+    - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
+    - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
+    - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
+    - |
+      cat > "${CI_PROJECT_DIR}/deploy.remote.env" <<EOF
+      REGISTRY=${REGISTRY}
+      REGISTRY_USERNAME=${REGISTRY_USERNAME}
+      REGISTRY_PASSWORD=${REGISTRY_PASSWORD}
+      TAG=${TARGET_TAG}
+      ENV_FILE=${REMOTE_SHARED_ENV_FILE}
+      SECRETS_ENV_FILE=${REMOTE_SECRETS_ENV_FILE}
+      GENERATED_ENV_FILE=${DEPLOY_TARGET_APP_DIR}/.env.prod.generated
+      EOF
+    - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
+    - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
+    - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy.remote.env" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy.remote.env"
+    - |
+      ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
+        set -euo pipefail &&
+        cd '${DEPLOY_TARGET_APP_DIR}' &&
+        tar xzf deploy-bundle.tgz &&
+        rm -f deploy-bundle.tgz &&
+        set -a && . ./deploy.remote.env && set +a &&
+        ./infra/ops/remote-prod-rollback.sh &&
+        rm -f ./deploy.remote.env
+      "
+
+rollback_production:
+  extends: .deploy_remote_template
+  needs: []
+  variables:
+    DEPLOY_TARGET_HOST: $DEPLOY_HOST
+    DEPLOY_TARGET_PORT: $DEPLOY_PORT
+    DEPLOY_TARGET_USER: $DEPLOY_USER
+    DEPLOY_TARGET_APP_DIR: $DEPLOY_APP_DIR
+    DEPLOY_TARGET_SSH_KEY: $DEPLOY_SSH_KEY
+    DEPLOY_TAG: $ROLLBACK_TAG
+  environment:
+    name: production
+    url: $WEB_PUBLIC_URL
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - when: never
+  before_script: []
+  script:
+    - test -n "${DEPLOY_TARGET_HOST:-}" || { echo "DEPLOY_TARGET_HOST is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
+    - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
+    - apk add --no-cache openssh-client bash tar gzip
+    - export TARGET_TAG="${DEPLOY_TAG:-}"
+    - export REMOTE_SHARED_ENV_FILE="${DEPLOY_SHARED_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.shared}"
+    - export REMOTE_SECRETS_ENV_FILE="${DEPLOY_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.secrets}"
+    - eval "$(ssh-agent -s)"
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
+    - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
+    - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
+    - |
+      cat > "${CI_PROJECT_DIR}/deploy.remote.env" <<EOF
+      REGISTRY=${REGISTRY}
+      REGISTRY_USERNAME=${REGISTRY_USERNAME}
+      REGISTRY_PASSWORD=${REGISTRY_PASSWORD}
+      TAG=${TARGET_TAG}
+      ENV_FILE=${REMOTE_SHARED_ENV_FILE}
+      SECRETS_ENV_FILE=${REMOTE_SECRETS_ENV_FILE}
+      GENERATED_ENV_FILE=${DEPLOY_TARGET_APP_DIR}/.env.prod.generated
+      EOF
+    - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
+    - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
+    - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy.remote.env" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy.remote.env"
+    - |
+      ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
+        set -euo pipefail &&
+        cd '${DEPLOY_TARGET_APP_DIR}' &&
+        tar xzf deploy-bundle.tgz &&
+        rm -f deploy-bundle.tgz &&
+        set -a && . ./deploy.remote.env && set +a &&
+        ./infra/ops/remote-prod-rollback.sh &&
+        rm -f ./deploy.remote.env
+      "

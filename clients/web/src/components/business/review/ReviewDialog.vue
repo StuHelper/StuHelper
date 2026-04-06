@@ -4,7 +4,7 @@
       <div v-if="visible" class="fixed inset-0 bg-bg-overlay z-[var(--z-modal-backdrop)] flex items-center justify-center p-4" @click.self="handleCancel">
         <div
           ref="modalRef"
-          class="relative w-full max-w-[660px] max-h-[85vh] bg-bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden animate-modal-in"
+          class="relative w-full max-w-[660px] max-h-[85vh] bg-bg-card rounded-xl shadow-xl flex flex-col overflow-hidden animate-modal-in"
           role="dialog"
           aria-modal="true"
           aria-labelledby="review-dialog-title"
@@ -12,7 +12,7 @@
           @keydown.esc="handleCancel"
           @keydown="trapFocus"
         >
-          <div class="flex items-center justify-between p-5 border-b border-border">
+          <div class="flex items-center justify-between p-5 border-b border-border-light">
             <h2 id="review-dialog-title" class="text-lg font-bold tracking-tight">{{ t('review.hub.postReview') }}</h2>
             <button class="text-2xl text-text-muted leading-none cursor-pointer w-8 h-8 flex items-center justify-center rounded-full transition-all duration-fast hover:text-text-primary hover:bg-bg-secondary" :aria-label="t('common.actions.close')" @click="$emit('close')">&times;</button>
           </div>
@@ -29,12 +29,12 @@
                 aria-autocomplete="list"
                 :aria-activedescendant="highlightedIndex >= 0 ? `course-option-${courseResults[highlightedIndex]?.id}` : undefined"
                 aria-controls="course-search-listbox"
-                class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+                class="w-full p-3 bg-bg-secondary rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                 :placeholder="t('review.post.searchCourse')"
                 :aria-label="t('review.post.searchCourseLabel')"
                 @keydown="handleSearchKeydown"
               />
-              <div v-if="courseResults.length > 0" id="course-search-listbox" role="listbox" class="border border-border rounded-lg max-h-[200px] overflow-y-auto mt-2">
+              <div v-if="courseResults.length > 0" id="course-search-listbox" role="listbox" class="border-0 rounded-lg max-h-[200px] overflow-y-auto mt-2">
                 <button
                   v-for="(c, idx) in courseResults"
                   :id="`course-option-${c.id}`"
@@ -71,13 +71,13 @@
                     id="review-teacher-input"
                     v-model="teacherQuery"
                     autocomplete="off"
-                    class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+                    class="w-full p-3 bg-bg-secondary rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                     :placeholder="t('review.post.teacherPlaceholder')"
                     @focus="teacherDropdownOpen = true"
-                    @input="selectedTeacherID = undefined"
+                    @input="selectedTeacherID = null"
                   />
                   <button v-if="teacherQuery" class="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary" @click="clearTeacher">&times;</button>
-                  <div v-if="teacherDropdownOpen && filteredTeachers.length > 0" class="absolute left-0 right-0 mt-1 border border-border rounded-lg bg-bg-card shadow-md max-h-[160px] overflow-y-auto z-10">
+                  <div v-if="teacherDropdownOpen && filteredTeachers.length > 0" class="absolute left-0 right-0 mt-1 rounded-lg bg-bg-card shadow-md max-h-[160px] overflow-y-auto z-10">
                     <button
                       v-for="teacher in filteredTeachers"
                       :key="teacher.teacherID"
@@ -152,7 +152,7 @@
                   id="review-grade-input"
                   v-model="grade"
                   autocomplete="off"
-                  class="w-full p-3 bg-bg-secondary border border-border rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
+                  class="w-full p-3 bg-bg-secondary rounded-lg text-sm text-text-primary font-sans transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card"
                   :placeholder="t('review.post.gradePlaceholder')"
                   maxlength="20"
                 />
@@ -160,8 +160,8 @@
             </template>
           </div>
 
-          <div v-if="selectedCourse" class="flex justify-end gap-3 px-5 py-4 border-t border-border">
-            <button class="py-2 px-4 text-sm text-text-secondary border border-border rounded-full cursor-pointer" @click="handleCancel">
+          <div v-if="selectedCourse" class="flex justify-end gap-3 px-5 py-4 border-t border-border-light">
+            <button class="py-2 px-4 text-sm text-text-secondary rounded-full cursor-pointer" @click="handleCancel">
               {{ t('common.actions.cancel') }}
             </button>
             <button
@@ -190,14 +190,14 @@
     <!-- 取消确认小弹窗（独立于发布弹窗） -->
     <Transition name="overlay">
       <div v-if="showCancelConfirm" class="fixed inset-0 bg-black/30 z-[var(--z-modal)] flex items-center justify-center p-4" @click.self="showCancelConfirm = false">
-        <div class="bg-bg-card border border-border rounded-xl shadow-2xl w-full max-w-[340px] p-6 flex flex-col items-center gap-4 animate-modal-in">
+        <div class="bg-bg-card rounded-xl shadow-2xl w-full max-w-[340px] p-6 flex flex-col items-center gap-4 animate-modal-in">
           <div class="w-11 h-11 rounded-full bg-warning/10 flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-warning"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>
           </div>
           <p class="text-sm font-medium text-text-primary text-center">{{ t('review.draft.confirmSave') }}</p>
           <div class="flex gap-3 w-full">
             <button
-              class="flex-1 py-2 px-3 text-sm text-text-secondary border border-border rounded-lg cursor-pointer transition-colors duration-fast hover:bg-bg-secondary"
+              class="flex-1 py-2 px-3 text-sm text-text-secondary rounded-lg cursor-pointer transition-colors duration-fast hover:bg-bg-secondary"
               @click="confirmDiscard"
             >
               {{ t('review.draft.discard') }}
@@ -234,6 +234,16 @@ import type { Course, TeacherStats, Term } from '@/types/course'
 import type { ReviewRatings } from '@/types/review'
 import { buildCreateReviewPayload } from './reviewPayload'
 import { buildTermOptions } from '@/modules/course/termOptions'
+import {
+  clearLocalReviewDraft,
+  createDraftCourse,
+  createLocalReviewDraft,
+  getLocalReviewDraftClearedAt,
+  loadLocalReviewDraft,
+  sanitizeDraftRatings,
+  saveLocalReviewDraft,
+  type ReviewDialogServerDraft,
+} from './reviewDialogDraftState'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ close: []; posted: [] }>()
@@ -250,10 +260,10 @@ const CONTENT_MAX = REVIEW_CONTENT_MAX_LENGTH
 const AUTO_SAVE_DEBOUNCE_MS = 300
 const GRADE_PATTERN = /^[A-Za-z0-9+\-./\s]*$/
 
-// H-36: 硬编码的默认评分维度，API 失败时作为 fallback
+// 硬编码的默认评分维度，API 失败时作为 fallback
 const DEFAULT_RATING_DIMENSIONS = ['recommendation', 'content_quality', 'workload', 'grading']
 
-// M-108: 合法的评分维度键名白名单（防止原型污染）
+// 合法的评分维度键名白名单
 const VALID_RATING_KEYS = new Set(DEFAULT_RATING_DIMENSIONS)
 
 const templateLabels = computed(() => [
@@ -263,7 +273,7 @@ const templateLabels = computed(() => [
 ])
 const contentTemplate = computed(() => templateLabels.value.join('\n'))
 
-// M-110: 追踪用户是否手动编辑过内容，防止语言切换时覆盖用户输入
+// 追踪用户是否手动编辑过内容，防止语言切换时覆盖用户输入
 let userHasEditedContent = false
 
 // 语言切换时，仅当用户未手动编辑且内容仍为旧模板时才更新
@@ -289,7 +299,7 @@ const redirectCountdown = ref(0)
 const showCancelConfirm = ref(false)
 const savingDraft = ref(false)
 const teacherList = ref<TeacherStats[]>([])
-const selectedTeacherID = ref<number | undefined>(undefined)
+const selectedTeacherID = ref<number | null>(null)
 const teacherQuery = ref('')
 const teacherDropdownOpen = ref(false)
 const loadingTeachers = ref(false)
@@ -300,11 +310,11 @@ const termOptions = computed(() => buildTermOptions(terms.value))
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let courseSearchController: AbortController | undefined
 let countdownTimer: ReturnType<typeof setInterval> | null = null
-// M-15: 自动保存防抖 timer
+// 自动保存防抖 timer
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
-// H-08: 草稿恢复版本追踪，防止并发恢复覆盖表单
+// 草稿恢复版本追踪，防止并发恢复覆盖表单
 let restoreVersion = 0
-// M-96: beforeunload 事件管理
+// beforeunload 事件管理
 let unloadController: AbortController | null = null
 
 // 课程搜索键盘导航
@@ -332,81 +342,18 @@ function handleSearchKeydown(e: KeyboardEvent) {
   }
 }
 
-// --- localStorage 草稿工具 ---
-const LOCAL_DRAFT_KEY = 'review_draft'
-const LOCAL_DRAFT_CLEARED_KEY = 'review_draft_cleared'
-
-interface LocalDraft {
-  courseID: number
-  courseName: string
-  title: string
-  content: string
-  grade: string
-  termID: string
-  ratings: ReviewRatings
-  updatedAt: number
-}
-
 function saveLocalDraft() {
   if (!selectedCourse.value) return
-  const draft: LocalDraft = {
-    courseID: selectedCourse.value.id,
-    courseName: selectedCourse.value.name,
+  saveLocalReviewDraft(createLocalReviewDraft({
+    course: selectedCourse.value,
+    teacherID: selectedTeacherID.value,
+    teacherName: teacherQuery.value.trim() || undefined,
     title: title.value,
     content: content.value,
     grade: grade.value,
     termID: selectedTermID.value,
     ratings: ratings.value,
-    updatedAt: Date.now()
-  }
-  try {
-    localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(draft))
-    localStorage.removeItem(LOCAL_DRAFT_CLEARED_KEY)
-  } catch (e) {
-    console.warn('[ReviewDialog] Failed to save local draft:', e)
-  }
-}
-
-// M-101 & M-108: 验证草稿结构，包括评分维度键名白名单（防止原型污染）
-function isValidLocalDraft(v: unknown): v is LocalDraft {
-  if (!v || typeof v !== 'object') return false
-  const d = v as Record<string, unknown>
-  if (
-    typeof d.courseID !== 'number' ||
-    typeof d.courseName !== 'string' ||
-    typeof d.title !== 'string' ||
-    typeof d.content !== 'string' ||
-    typeof d.grade !== 'string' ||
-    typeof d.termID !== 'string' ||
-    typeof d.updatedAt !== 'number' ||
-    !d.ratings || typeof d.ratings !== 'object'
-  ) return false
-  const ratingsObj = d.ratings as Record<string, unknown>
-  return Object.entries(ratingsObj).every(
-    ([k, val]) => VALID_RATING_KEYS.has(k) && typeof val === 'number' && val >= 1 && val <= 5
-  )
-}
-
-function loadLocalDraft(): LocalDraft | null {
-  try {
-    const raw = localStorage.getItem(LOCAL_DRAFT_KEY)
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    if (!isValidLocalDraft(parsed)) {
-      localStorage.removeItem(LOCAL_DRAFT_KEY)
-      return null
-    }
-    return parsed
-  } catch { return null }
-}
-
-function clearLocalDraft() {
-  localStorage.removeItem(LOCAL_DRAFT_KEY)
-  localStorage.setItem(LOCAL_DRAFT_CLEARED_KEY, String(Date.now()))
-}
-
-function getLocalClearedAt(): number {
-  return Number(localStorage.getItem(LOCAL_DRAFT_CLEARED_KEY)) || 0
+  }))
 }
 
 /** 判断表单是否有用户输入（排除模板文字） */
@@ -424,6 +371,7 @@ async function saveDraftAuto() {
     try {
       await api.draft.saveDraft({
         courseID: selectedCourse.value.id,
+        teacherID: selectedTeacherID.value ?? undefined,
         termID: selectedTermID.value || undefined,
         title: title.value.trim() || undefined,
         content: content.value.trim() || undefined,
@@ -523,16 +471,16 @@ function startRedirectCountdown() {
   }, 1000)
 }
 
-// M-15: 表单变更时防抖自动保存草稿
+// 表单变更时防抖自动保存草稿
 watch([title, content, grade, ratings], () => {
-  // M-110: 标记用户已手动编辑内容
+  // 标记用户已手动编辑内容
   userHasEditedContent = true
   if (!selectedCourse.value) return
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => { saveLocalDraft() }, AUTO_SAVE_DEBOUNCE_MS)
 }, { deep: true })
 
-// M-53: Grade 格式校验
+// Grade 格式校验
 const gradeInvalid = computed(() => {
   const g = grade.value.trim()
   return g.length > 0 && !GRADE_PATTERN.test(g)
@@ -542,38 +490,40 @@ const gradeInvalid = computed(() => {
 watch(() => props.visible, async (val) => {
   if (val) {
     document.body.style.overflow = 'hidden'
-    // M-96: 使用 AbortController 管理 beforeunload，防止监听器累积
+    // 使用 AbortController 管理 beforeunload，防止监听器累积
     unloadController?.abort()
     unloadController = new AbortController()
     window.addEventListener('beforeunload', onBeforeUnload, { signal: unloadController.signal })
     courseQuery.value = ''
     courseResults.value = []
     selectedCourse.value = preselectedCourse.value ?? null
-    if (selectedCourse.value) {
-      loadTeachers(selectedCourse.value.id)
-      loadTerms()
-    }
     title.value = ''
     content.value = contentTemplate.value
     grade.value = ''
     ratings.value = {}
-    teacherList.value = []
-    terms.value = []
     selectedTermID.value = ''
-    selectedTeacherID.value = undefined
+    selectedTeacherID.value = null
     teacherQuery.value = ''
     teacherDropdownOpen.value = false
     submitting.value = false
     attempted.value = false
     showCancelConfirm.value = false
     userHasEditedContent = false
-
-    // H-08: 版本追踪，防止并发恢复覆盖表单
+    if (selectedCourse.value) {
+      await Promise.all([
+        loadTeachers(selectedCourse.value.id),
+        loadTerms(),
+      ])
+    } else {
+      teacherList.value = []
+      terms.value = []
+    }
+    // 版本追踪，防止并发恢复覆盖表单
     const currentVersion = ++restoreVersion
     await nextTick()
     await tryRestoreDraft(currentVersion)
 
-    // M-12: 聚焦首个可交互输入框而非 modal div
+    // 聚焦首个可交互输入框而非 modal div
     nextTick(() => {
       const firstInput = modalRef.value?.querySelector<HTMLElement>('input, textarea')
       if (firstInput) firstInput.focus()
@@ -600,7 +550,7 @@ function selectCourse(course: Course) {
 async function loadTeachers(courseID: number) {
   loadingTeachers.value = true
   teacherList.value = []
-  selectedTeacherID.value = undefined
+  selectedTeacherID.value = null
   teacherQuery.value = ''
   try {
     const res = await api.rating.getCourseTeachers(courseID)
@@ -635,15 +585,32 @@ function selectTeacher(teacher: TeacherStats) {
 }
 
 function clearTeacher() {
-  selectedTeacherID.value = undefined
+  selectedTeacherID.value = null
   teacherQuery.value = ''
+}
+
+function applyTeacherDraftSelection(teacherID?: number | null, teacherName?: string) {
+  if (teacherID === undefined || teacherID === null) {
+    selectedTeacherID.value = null
+    teacherQuery.value = teacherName ?? ''
+    teacherDropdownOpen.value = false
+    return
+  }
+
+  selectedTeacherID.value = teacherID
+  const matched = teacherList.value.find((teacher) => teacher.teacherID === teacherID)
+  teacherQuery.value = matched?.teacherName ?? teacherName ?? ''
+  teacherDropdownOpen.value = false
 }
 
 /** 尝试恢复草稿：两端 + 清除时间戳三方比较，取最新的 */
 async function tryRestoreDraft(expectedVersion: number) {
-  const local = loadLocalDraft()
-  const clearedAt = getLocalClearedAt()
-  let serverDraft: { title?: string; content?: string; grade?: string; termID?: string; ratings?: Record<string, number>; updatedAt: string } | null = null
+  const local = loadLocalReviewDraft(
+    VALID_RATING_KEYS,
+    selectedCourse.value?.id,
+  )
+  const clearedAt = getLocalReviewDraftClearedAt(local?.courseID ?? selectedCourse.value?.id)
+  let serverDraft: ReviewDialogServerDraft | null = null
 
   // 已登录时尝试获取服务端草稿
   if (authStore.isAuthenticated && (selectedCourse.value || local)) {
@@ -656,7 +623,7 @@ async function tryRestoreDraft(expectedVersion: number) {
     }
   }
 
-  // H-08: 异步操作后检查版本，防止并发恢复覆盖表单
+  // 异步操作后检查版本，防止并发恢复覆盖表单
   if (restoreVersion !== expectedVersion) return
 
   // 收集各端时间戳，取最新事件
@@ -668,24 +635,25 @@ async function tryRestoreDraft(expectedVersion: number) {
   if (latest === 0 || latest === clearedAt) return
 
   if (latest === localTime && local) {
-    if (!selectedCourse.value) {
-      selectedCourse.value = { id: local.courseID, name: local.courseName } as Course
-      loadTeachers(local.courseID)
-      loadTerms()
+    if (!selectedCourse.value || selectedCourse.value.id !== local.courseID) {
+      selectedCourse.value = createDraftCourse(local)
+      await Promise.all([loadTeachers(local.courseID), loadTerms()])
     }
     if (local.title) title.value = local.title
     if (local.content) content.value = local.content
     if (local.grade) grade.value = local.grade
     selectedTermID.value = local.termID
     if (local.ratings && Object.keys(local.ratings).length > 0) ratings.value = local.ratings
+    applyTeacherDraftSelection(local.teacherID ?? null, local.teacherName)
   } else if (serverDraft) {
     if (serverDraft.title) title.value = serverDraft.title
     if (serverDraft.content) content.value = serverDraft.content
     if (serverDraft.grade) grade.value = serverDraft.grade
     if (serverDraft.termID) selectedTermID.value = serverDraft.termID
-    // Server guarantees rating values are 1-5; cast from API's wider number type to RatingValue
-    if (serverDraft.ratings && Object.keys(serverDraft.ratings).length > 0) {
-      ratings.value = serverDraft.ratings as ReviewRatings
+    applyTeacherDraftSelection(serverDraft.teacherID ?? null)
+    const sanitizedRatings = sanitizeDraftRatings(serverDraft.ratings)
+    if (sanitizedRatings && Object.keys(sanitizedRatings).length > 0) {
+      ratings.value = sanitizedRatings
     }
   }
 
@@ -704,7 +672,7 @@ function getUserContentLength(raw: string): number {
 const titleInvalid = computed(() => title.value.trim().length === 0)
 
 const ratingsInvalid = computed(() => {
-  // H-36: API 失败时使用硬编码默认维度作为 fallback
+  // API 失败时使用硬编码默认维度作为 fallback
   const dims = ratingGroupRef.value?.dimensions ?? []
   const keys = dims.length > 0 ? dims.map(d => d.key) : DEFAULT_RATING_DIMENSIONS
   return keys.some(k => {
@@ -753,9 +721,22 @@ async function handleSubmit() {
   // 已登录：正常发布
   submitting.value = true
   try {
+    // 内容预检
+    const checkRes = await api.review.checkContent({ content: content.value.trim() })
+    const checkResult = checkRes.data?.data
+    if (checkResult && !checkResult.isValid) {
+      if (checkResult.level === 'block') {
+        toast.error(t('review.post.contentBlocked'))
+        return
+      }
+      if (checkResult.level === 'warn') {
+        toast.warning(t('review.post.contentWarning'))
+      }
+    }
+
     await api.review.createReview(buildCreateReviewPayload({
       courseID: selectedCourse.value.id,
-      teacherID: selectedTeacherID.value,
+      teacherID: selectedTeacherID.value ?? undefined,
       termID: selectedTermID.value,
       title: title.value.trim(),
       content: content.value.trim(),
@@ -763,7 +744,7 @@ async function handleSubmit() {
       ratings: ratings.value
     }))
     // 发布成功后清除草稿
-    clearLocalDraft()
+    clearLocalReviewDraft(selectedCourse.value.id)
     try { await api.draft.deleteDraft(selectedCourse.value.id) } catch { /* 忽略 */ }
     toast.success(t('review.post.success'))
     emit('posted')
@@ -802,7 +783,11 @@ async function confirmSaveDraft() {
 
 function confirmDiscard() {
   // 丢弃时清除已有草稿，避免下次打开仍恢复
-  clearLocalDraft()
+  if (selectedCourse.value) {
+    clearLocalReviewDraft(selectedCourse.value.id)
+  } else {
+    clearLocalReviewDraft()
+  }
   if (authStore.isAuthenticated && selectedCourse.value) {
     api.draft.deleteDraft(selectedCourse.value.id).catch(() => {})
   }

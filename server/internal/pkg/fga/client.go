@@ -1,0 +1,192 @@
+// Package fga 封装 OpenFGA 关系型授权引擎客户端。
+// 提供资源关系写入和权限检查能力。
+package fga
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	openfga "github.com/openfga/go-sdk"
+	"github.com/openfga/go-sdk/client"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
+)
+
+// Client OpenFGA 授权引擎客户端
+type Client struct {
+	fga     *client.OpenFgaClient
+	storeID string
+	modelID string
+}
+
+var tracer = otel.Tracer("git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga")
+
+// DefaultWriteTimeout 是 FGA 写入/同步操作的默认超时，防止请求或后台协程无限阻塞。
+const DefaultWriteTimeout = 10 * time.Second
+
+// NewClient 创建 OpenFGA 客户端。
+// 当 StoreID 为空时返回 nil（FGA 未配置），调用方应判空处理。
+func NewClient(cfg config.OpenFGAConfig) (*Client, error) {
+	if cfg.StoreID == "" {
+		return nil, nil //nolint:nilnil // nil 表示 FGA 未配置，非错误
+	}
+	if cfg.APIUrl == "" {
+		return nil, fmt.Errorf("fga: APIUrl is required when StoreID is set")
+	}
+
+	fgaClient, err := client.NewSdkClient(&client.ClientConfiguration{
+		ApiUrl:               cfg.APIUrl,
+		StoreId:              cfg.StoreID,
+		AuthorizationModelId: cfg.AuthorizationModelID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fga: failed to create client: %w", err)
+	}
+
+	return &Client{
+		fga:     fgaClient,
+		storeID: cfg.StoreID,
+		modelID: cfg.AuthorizationModelID,
+	}, nil
+}
+
+// Tuple 表示一条授权关系
+type Tuple struct {
+	User     string // 如 "user:abc-123"
+	Relation string // 如 "author", "can_delete"
+	Object   string // 如 "review:100"
+}
+
+// Check 检查用户对资源是否具有指定关系（权限）
+func (c *Client) Check(ctx context.Context, user, relation, object string) (bool, error) {
+	start := time.Now()
+	ctx, span := c.startSpan(ctx, "check", relation, object)
+	defer span.End()
+	body := client.ClientCheckRequest{
+		User:     user,
+		Relation: relation,
+		Object:   object,
+	}
+	resp, err := c.fga.Check(ctx).Body(body).Execute()
+	metrics.ObserveExternalRequest("openfga", "check", start, err)
+	if err != nil {
+		recordSpanError(span, err)
+		return false, fmt.Errorf("fga: check failed for %s#%s@%s: %w", object, relation, user, err)
+	}
+	if resp.Allowed == nil {
+		return false, nil
+	}
+	return *resp.Allowed, nil
+}
+
+// WriteTuples 批量写入授权关系
+func (c *Client) WriteTuples(ctx context.Context, tuples []Tuple) error {
+	if len(tuples) == 0 {
+		return nil
+	}
+	start := time.Now()
+	ctx, span := c.startSpan(ctx, "write", tuples[0].Relation, tuples[0].Object)
+	defer span.End()
+	span.SetAttributes(attribute.Int("fga.tuple_count", len(tuples)))
+
+	writes := make([]openfga.TupleKey, len(tuples))
+	for i, t := range tuples {
+		writes[i] = openfga.TupleKey{
+			User:     t.User,
+			Relation: t.Relation,
+			Object:   t.Object,
+		}
+	}
+
+	body := client.ClientWriteRequest{
+		Writes: writes,
+	}
+	_, err := c.fga.Write(ctx).Body(body).Execute()
+	metrics.ObserveExternalRequest("openfga", "write_tuples", start, err)
+	if err != nil {
+		recordSpanError(span, err)
+		return fmt.Errorf("fga: write tuples failed: %w", err)
+	}
+	return nil
+}
+
+// DeleteTuples 批量删除授权关系
+func (c *Client) DeleteTuples(ctx context.Context, tuples []Tuple) error {
+	if len(tuples) == 0 {
+		return nil
+	}
+	start := time.Now()
+	ctx, span := c.startSpan(ctx, "delete", tuples[0].Relation, tuples[0].Object)
+	defer span.End()
+	span.SetAttributes(attribute.Int("fga.tuple_count", len(tuples)))
+
+	deletes := make([]openfga.TupleKeyWithoutCondition, len(tuples))
+	for i, t := range tuples {
+		deletes[i] = openfga.TupleKeyWithoutCondition{
+			User:     t.User,
+			Relation: t.Relation,
+			Object:   t.Object,
+		}
+	}
+
+	body := client.ClientWriteRequest{
+		Deletes: deletes,
+	}
+	_, err := c.fga.Write(ctx).Body(body).Execute()
+	metrics.ObserveExternalRequest("openfga", "delete_tuples", start, err)
+	if err != nil {
+		recordSpanError(span, err)
+		return fmt.Errorf("fga: delete tuples failed: %w", err)
+	}
+	return nil
+}
+
+// WriteReviewRelations 评课发布时写入完整关系链
+func (c *Client) WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error {
+	return c.WriteTuples(ctx, []Tuple{
+		{User: "user:" + authorUserID, Relation: "author", Object: "review:" + reviewID},
+		{User: "course:" + courseID, Relation: "course", Object: "review:" + reviewID},
+		{User: "school:" + schoolID, Relation: "school", Object: "review:" + reviewID},
+	})
+}
+
+// WriteReportRelations 举报创建时写入完整关系链
+func (c *Client) WriteReportRelations(ctx context.Context, reportID, reporterUserID, reviewID, schoolID string) error {
+	return c.WriteTuples(ctx, []Tuple{
+		{User: "user:" + reporterUserID, Relation: "reporter", Object: "report:" + reportID},
+		{User: "review:" + reviewID, Relation: "review", Object: "report:" + reportID},
+		{User: "school:" + schoolID, Relation: "school", Object: "report:" + reportID},
+	})
+}
+
+func (c *Client) startSpan(ctx context.Context, operation, relation, object string) (context.Context, trace.Span) {
+	objectType := object
+	if idx := strings.IndexByte(object, ':'); idx > 0 {
+		objectType = object[:idx]
+	}
+	return tracer.Start(ctx, "openfga."+operation,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("authorization.system", "openfga"),
+			attribute.String("fga.store_id", c.storeID),
+			attribute.String("fga.model_id", c.modelID),
+			attribute.String("fga.relation", relation),
+			attribute.String("fga.object_type", objectType),
+		),
+	)
+}
+
+func recordSpanError(span trace.Span, err error) {
+	if span == nil || err == nil {
+		return
+	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+}

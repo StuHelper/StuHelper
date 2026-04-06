@@ -64,7 +64,7 @@ type ProcessReportRequest struct {
 
 // ProcessReport 处理举报
 func (h *Handler) ProcessReport(c *gin.Context) {
-	reportID, err := httputil.ParseUUIDParam(c, "id")
+	reportID, err := httputil.ParseUUIDParam(c, "reportID")
 	if err != nil {
 		response.BadRequest(c, "invalid report id")
 		return
@@ -107,7 +107,7 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 	if err := h.cache.InvalidateByVersion(ctx, "review:admin:reports"); err != nil {
 		logger.FromGin(c).Warn("failed to invalidate cache", zap.Error(err))
 	}
-	h.invalidateReviewCaches(c, 0)
+	h.invalidateReviewAggregateCaches(c)
 
 	response.Success(c, gin.H{"message": "report processed successfully"})
 }
@@ -143,7 +143,7 @@ type AdminUpdateReviewRequest struct {
 
 // AdminUpdateReview 管理员更新评论
 func (h *Handler) AdminUpdateReview(c *gin.Context) {
-	reviewID, err := httputil.ParseUUIDParam(c, "id")
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review ID")
 		return
@@ -156,6 +156,20 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
+
+	// FGA 关系型授权检查（可选增强，FGA 未配置时跳过，回退到能力中间件）
+	if h.fga != nil {
+		fgaUser := "user:" + userID
+		fgaObject := "review:" + reviewID
+		relation := "can_hide"
+		if req.Action == "delete" {
+			relation = "can_delete"
+		}
+		if !h.checkFGA(c.Request.Context(), fgaUser, relation, fgaObject) {
+			response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
+			return
+		}
+	}
 
 	result, err := h.service.AdminUpdateReview(c.Request.Context(), AdminUpdateReviewParams{
 		ReviewID: reviewID,
@@ -187,7 +201,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		map[string]string{"status": result.OldStatus},
 		newValue)
 
-	h.invalidateReviewCaches(c, 0, "review:stats")
+	h.invalidateReviewAggregateCaches(c)
 
 	response.Success(c, gin.H{"message": "review updated successfully"})
 }
@@ -258,7 +272,7 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		nil,
 		map[string]interface{}{"ids": req.IDs, "action": req.Action, "affected": result.Affected})
 
-	h.invalidateReviewCaches(c, 0, "review:stats")
+	h.invalidateReviewAggregateCaches(c)
 
 	response.Success(c, gin.H{
 		"message":  "batch update completed",

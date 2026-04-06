@@ -1,148 +1,223 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import type { Course } from '@stuhelper/shared'
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { api } from '@/api'
+import type { components } from '@/api'
+import { unwrapListData } from '@/api/result'
+import { setPageTitle, translate } from '@/i18n'
 
-const courses = ref<Course[]>([])
+const t = translate
 const loading = ref(false)
-const searchQuery = ref('')
+const loadingMore = ref(false)
+const query = ref('')
+const page = ref(1)
+const pageSize = 20
+const total = ref(0)
+const courses = ref<components['schemas']['Course'][]>([])
 
-const loadCourses = async () => {
-  loading.value = true
+async function fetchCourses(reset = false) {
+  if (loading.value || loadingMore.value) return
+  if (reset) {
+    page.value = 1
+    loading.value = true
+  } else {
+    loadingMore.value = true
+  }
+
   try {
-    // TODO: 调用 API
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    courses.value = []
+    const result = await api.course.getCourses({
+      page: page.value,
+      pageSize,
+      q: query.value.trim() || undefined,
+      sort: 'reviewCount',
+    })
+    const data = unwrapListData<components['schemas']['Course']>(result)
+    total.value = data.total
+    courses.value = reset ? data.list : [...courses.value, ...data.list]
+  } catch (error) {
+    uni.showToast({
+      title: error instanceof Error ? error.message : t('course.index.loadFailed'),
+      icon: 'none',
+    })
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
 }
 
-const navigateToDetail = (id: number) => {
+function handleSearch() {
+  void fetchCourses(true)
+}
+
+function loadMore() {
+  if (courses.value.length >= total.value) return
+  page.value += 1
+  void fetchCourses(false)
+}
+
+function openCourse(id: number) {
   uni.navigateTo({ url: `/pages/course/detail?id=${id}` })
 }
 
-onMounted(() => {
-  loadCourses()
+onShow(() => {
+  setPageTitle('common.pageTitles.courseList')
+  if (courses.value.length > 0) return
+  void fetchCourses(true)
 })
 </script>
 
 <template>
-  <view class="course-page">
-    <!-- Search Bar -->
+  <scroll-view class="course-page" scroll-y>
     <view class="search-bar">
       <input
-        v-model="searchQuery"
+        v-model="query"
         class="search-input"
-        placeholder="搜索课程名称或代码"
-        placeholder-class="search-placeholder"
+        :placeholder="t('course.index.searchPlaceholder')"
+        @confirm="handleSearch"
       />
+      <button class="search-btn" @tap="handleSearch">{{ t('common.search') }}</button>
     </view>
 
-    <!-- Loading -->
-    <view v-if="loading" class="loading">
-      <text>加载中...</text>
+    <view v-if="loading" class="state-card"><text>{{ t('common.loading') }}</text></view>
+    <view v-else-if="courses.length === 0" class="state-card">
+      <text>{{ t('course.index.noResults') }}</text>
     </view>
-
-    <!-- Course List -->
-    <view v-else class="course-list">
-      <view
-        v-for="course in courses"
-        :key="course.id"
-        class="course-card"
-        @tap="navigateToDetail(course.id)"
-      >
-        <view class="course-header">
+    <view v-else class="list-wrap">
+      <view v-for="course in courses" :key="course.id" class="course-card" @tap="openCourse(course.id)">
+        <view class="course-main">
           <text class="course-name">{{ course.name }}</text>
-          <text class="course-code">{{ course.code }}</text>
+          <text class="course-code">{{ course.code || t('common.unavailableCourseCode') }}</text>
         </view>
-        <view class="course-info">
-          <text class="course-dept">{{ course.departmentName }}</text>
-          <text class="course-credits">{{ course.credits }}学分</text>
+        <view class="course-side">
+          <text class="course-count">{{ course.reviewCount }}</text>
+          <text class="course-count-label">{{ t('home.stats.reviews') }}</text>
+        </view>
+        <view class="course-meta">
+          <text>{{ course.departmentName || t('common.unclassifiedDepartment') }}</text>
+          <text>{{ t('common.creditValue', { value: course.credits }) }}</text>
         </view>
       </view>
 
-      <!-- Empty State -->
-      <view v-if="courses.length === 0" class="empty">
-        <text class="empty-text">暂无课程数据</text>
-      </view>
+      <button v-if="courses.length < total" class="more-btn" :disabled="loadingMore" @tap="loadMore">
+        {{ loadingMore ? t('common.loading') : t('common.loadMore') }}
+      </button>
     </view>
-  </view>
+  </scroll-view>
 </template>
 
 <style scoped>
 .course-page {
   min-height: 100vh;
-  background: #F8F9FA;
+  background: #f8fafc;
 }
 
 .search-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: 16rpx;
   padding: 24rpx;
-  background: #FFFFFF;
+  background: #f8fafc;
 }
 
 .search-input {
-  width: 100%;
-  height: 80rpx;
-  padding: 0 32rpx;
-  background: #F3F4F6;
-  border-radius: 40rpx;
+  flex: 1;
+  height: 84rpx;
+  border-radius: 22rpx;
+  background: #ffffff;
+  border: 2rpx solid #e2e8f0;
+  padding: 0 24rpx;
   font-size: 28rpx;
 }
 
-.search-placeholder {
-  color: #9CA3AF;
+.search-btn,
+.more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 84rpx;
+  border-radius: 22rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  background: #4f46e5;
+  color: #ffffff;
 }
 
-.loading {
-  padding: 80rpx;
+.search-btn {
+  width: 160rpx;
+}
+
+.more-btn {
+  margin: 12rpx 24rpx 36rpx;
+}
+
+.state-card {
+  margin: 24rpx;
+  padding: 40rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
   text-align: center;
-  color: #6B7280;
+  color: #64748b;
 }
 
-.course-list {
-  padding: 24rpx;
+.list-wrap {
+  padding: 0 24rpx 24rpx;
 }
 
 .course-card {
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  padding: 32rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+  margin-bottom: 18rpx;
+  padding: 28rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  box-shadow: 0 10rpx 30rpx rgba(15, 23, 42, 0.04);
 }
 
-.course-header {
+.course-main {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16rpx;
+  align-items: flex-start;
 }
 
 .course-name {
+  flex: 1;
   font-size: 32rpx;
-  font-weight: 600;
-  color: #1F2937;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .course-code {
-  font-size: 24rpx;
-  color: #6B7280;
+  margin-left: 16rpx;
+  font-size: 22rpx;
+  color: #64748b;
 }
 
-.course-info {
+.course-side {
+  margin-top: 16rpx;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14rpx 18rpx;
+  border-radius: 18rpx;
+  background: #eef2ff;
+}
+
+.course-count {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #4338ca;
+}
+
+.course-count-label {
+  font-size: 20rpx;
+  color: #6366f1;
+}
+
+.course-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 28rpx;
-  color: #6B7280;
-}
-
-.empty {
-  padding: 120rpx 0;
-  text-align: center;
-}
-
-.empty-text {
-  font-size: 28rpx;
-  color: #9CA3AF;
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  color: #475569;
 }
 </style>

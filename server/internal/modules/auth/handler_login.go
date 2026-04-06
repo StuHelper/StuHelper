@@ -2,45 +2,80 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
-// GetLoginURL 获取登录 URL
+const (
+	// stateMaxAge OIDC state 最大有效期
+	stateMaxAge = 10 * time.Minute
+
+	oidcStateCookieName  = "oidc_state"
+	oidcStateCookiePath  = "/api/v1/auth/callback"
+	oidcStateRedisPrefix = "auth:oidc:state:"
+)
+
+// oidcStatePayload 存储在 Redis 中的 OIDC state 关联数据
+type oidcStatePayload struct {
+	RedirectURL  string `json:"redirectURL"`
+	CodeVerifier string `json:"codeVerifier"`
+}
+
+// GetLoginURL 生成 OIDC 授权 URL
+// 支持 ?redirect=<前端路径> 参数，登录成功后重定向回去
 func (h *Handler) GetLoginURL(c *gin.Context) {
-	ctx := c.Request.Context()
-	url, state, err := h.ssoClient.GetSigninURL(ctx, h.redirectURI)
+	h.respondWithAuthURL(c)
+}
+
+// GetSignupURL 生成 OIDC 注册 URL。
+// 当前 Zitadel Login UI 内置注册入口，因此这里与登录 URL 复用同一授权地址。
+func (h *Handler) GetSignupURL(c *gin.Context) {
+	h.respondWithAuthURL(c)
+}
+
+func (h *Handler) respondWithAuthURL(c *gin.Context) {
+	redirect := strings.TrimSpace(c.Query("redirect"))
+
+	state, err := generateNonce()
 	if err != nil {
-		logger.FromGin(c).Error("failed to generate login URL", zap.Error(err))
+		logger.FromGin(c).Error("failed to generate state", zap.Error(err))
 		response.InternalError(c, "failed to generate login URL")
 		return
 	}
-	response.Success(c, gin.H{"url": url, "state": state})
-}
 
-// GetSignupURL 获取注册 URL
-func (h *Handler) GetSignupURL(c *gin.Context) {
-	ctx := c.Request.Context()
-	url, state, err := h.ssoClient.GetSignupURL(ctx, h.redirectURI)
-	if err != nil {
-		logger.FromGin(c).Error("failed to generate signup URL", zap.Error(err))
-		response.InternalError(c, "failed to generate signup URL")
+	authURL, verifier := h.oidcClient.GetAuthURL(state)
+
+	if err := h.storeOIDCState(c.Request.Context(), state, redirect, verifier); err != nil {
+		logger.FromGin(c).Error("failed to persist oidc state", zap.Error(err))
+		response.InternalError(c, "failed to generate login URL")
 		return
 	}
-	response.Success(c, gin.H{"url": url, "state": state})
+
+	h.setOIDCStateCookie(c, state)
+	response.Success(c, gin.H{"url": authURL, "state": state})
 }
 
-// HandleCallback 处理 OAuth 回调
+// HandleCallback 处理 OIDC 授权回调
+// Zitadel 登录后浏览器 302 到这里，Go 处理完后重定向回前端
 func (h *Handler) HandleCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
@@ -52,143 +87,216 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	valid, err := h.ssoClient.ValidateState(ctx, state)
+	// 服务端一次性 state 校验（Redis + HttpOnly cookie 绑定浏览器）
+	redirect, codeVerifier, err := h.consumeOIDCState(c, state)
 	if err != nil {
-		logger.FromGin(c).Error("failed to validate state", zap.Error(err))
+		logger.FromGin(c).Warn("OIDC state verification failed", zap.Error(err))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
+		response.BadRequest(c, "invalid or expired state parameter")
+		return
+	}
+
+	// 用授权码 + PKCE code_verifier 交换 Token
+	oauthToken, err := h.oidcClient.ExchangeCode(ctx, code, codeVerifier)
+	if err != nil {
+		logger.FromGin(c).Error("OIDC code exchange failed", zap.Error(err))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "code exchange error")
+		response.Unauthorized(c, "authentication failed", errs.ErrOAuthFailed)
+		return
+	}
+
+	// 提取并验证 ID Token
+	rawIDToken := oidc.ExtractIDToken(oauthToken)
+	if rawIDToken == "" {
+		logger.FromGin(c).Error("no id_token in OAuth response")
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "missing id_token")
 		response.InternalError(c, "authentication failed")
 		return
 	}
-	if !valid {
-		logger.FromGin(c).Warn("invalid or expired state parameter", zap.Int("state_len", len(state)))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
-		response.BadRequest(c, "invalid or expired state parameter", errs.ErrOAuthStateInvalid)
-		return
-	}
 
-	oauthToken, err := h.ssoClient.GetOAuthToken(ctx, code, state)
+	claims, err := h.oidcClient.VerifyIDToken(ctx, rawIDToken)
 	if err != nil {
-		logger.FromGin(c).Error("SSO token exchange failed", zap.Error(err))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "oauth token error")
-		response.Error(c, http.StatusUnauthorized, errs.ErrOAuthFailed, "authentication failed")
+		logger.FromGin(c).Error("ID token verification failed", zap.Error(err))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "id_token verification error")
+		response.InternalError(c, "authentication failed")
 		return
 	}
 
-	claims, err := h.ssoClient.ParseJwtToken(oauthToken.AccessToken)
-	if err != nil {
-		logger.FromGin(c).Error("failed to parse JWT token",
-			zap.Error(err),
-			zap.String("error_type", fmt.Sprintf("%T", err)),
-		)
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "jwt parse error")
-		response.InternalError(c, "failed to retrieve user information")
-		return
-	}
-
-	if expectedOrg := h.ssoClient.GetOrganization(); claims.Owner != expectedOrg {
-		logger.FromGin(c).Warn("user organization mismatch",
-			zap.String("expected", expectedOrg),
-			zap.String("actual", claims.Owner),
-			zap.String("username", claims.Name),
-		)
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "organization mismatch")
-
-		if err := h.ssoClient.DeleteUserSession(claims.Owner, claims.Name); err != nil {
-			logger.FromGin(c).Warn("failed to delete casdoor session for mismatched user",
-				zap.String("username", claims.Name),
-				zap.Error(err),
+	// 同步本地 shadow user
+	if h.userSyncRepo != nil {
+		if syncErr := h.userSyncRepo.UpsertUser(ctx, UserSyncInput{
+			ExternalID: claims.GetUserID(),
+			Username:   claims.GetUsername(),
+			Email:      claims.GetEmail(),
+			AvatarURL:  claims.GetAvatar(),
+		}); syncErr != nil {
+			logger.FromGin(c).Warn("user sync failed, skipping",
+				zap.String("user_id", claims.GetUserID()),
+				zap.Error(syncErr),
 			)
 		}
+	}
 
-		ssoLogoutURL := fmt.Sprintf("%s/api/logout", h.ssoEndpoint)
-		response.ErrorWithDetails(c, http.StatusForbidden, errs.ErrForbidden,
-			"user does not belong to this application",
-			gin.H{"ssoLogoutURL": ssoLogoutURL},
-		)
+	// 将 ID Token 作为 access_token 写入 Cookie
+	if err := h.setTokenCookies(c, rawIDToken, oauthToken.RefreshToken); err != nil {
+		response.InternalError(c, "authentication failed")
 		return
 	}
 
-	// 先组装 userInfo — 如果这一步降级失败，不写 token 也不写 cookie，保持纯失败
-	warmCtx, warmCancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
-	defer warmCancel()
-	if _, err := h.ssoClient.GetCachedUserByID(warmCtx, claims.Id); err != nil {
-		logger.FromGin(c).Warn("failed to pre-warm user cache",
-			zap.String("user_id", claims.Id),
-			zap.Error(err),
+	// 跟踪用户 Token，支持 LogoutAll 批量撤销
+	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
+		ctx, claims.GetUserID(), rawIDToken, token.TokenTypeAccess, time.Now().Add(h.tokenService.GetAccessTokenTTL()),
+	); trackErr != nil {
+		logger.FromGin(c).Warn("failed to track user token",
+			zap.String("user_id", claims.GetUserID()),
+			zap.Error(trackErr),
 		)
 	}
+	if oauthToken.RefreshToken != "" {
+		if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
+			ctx, claims.GetUserID(), oauthToken.RefreshToken, token.TokenTypeRefresh, time.Now().Add(h.tokenService.GetRefreshTokenTTL()),
+		); trackErr != nil {
+			logger.FromGin(c).Warn("failed to track refresh token",
+				zap.String("user_id", claims.GetUserID()),
+				zap.Error(trackErr),
+			)
+		}
+	}
 
-	userInfo, err := h.buildUserInfo(ctx, claims.Id, claims.Name, claims.DisplayName, claims.Email, optionalString(claims.Avatar), claims.IsAdmin)
+	audit.LogSuccess(audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), requestID)
+
+	// 302 回前端
+	redirectTarget := h.resolveRedirectTarget(redirect)
+	c.Redirect(http.StatusFound, redirectTarget)
+}
+
+func (h *Handler) storeOIDCState(ctx context.Context, state, redirect, codeVerifier string) error {
+	if state == "" {
+		return fmt.Errorf("empty state")
+	}
+	if h.redisClient == nil {
+		return fmt.Errorf("redis client not configured")
+	}
+	payload := oidcStatePayload{
+		RedirectURL:  redirect,
+		CodeVerifier: codeVerifier,
+	}
+	data, err := json.Marshal(payload)
 	if err != nil {
-		logger.FromGin(c).Error("failed to build current user info after callback", zap.Error(err))
-		response.ServiceUnavailable(c, "identity service temporarily unavailable")
-		return
+		return fmt.Errorf("failed to marshal state payload: %w", err)
+	}
+	return h.redisClient.Set(ctx, oidcStateRedisPrefix+state, data, stateMaxAge).Err()
+}
+
+func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string, error) {
+	if state == "" {
+		h.clearOIDCStateCookie(c)
+		return "", "", fmt.Errorf("empty state")
+	}
+	if h.redisClient == nil {
+		h.clearOIDCStateCookie(c)
+		return "", "", fmt.Errorf("redis client not configured")
 	}
 
-	// userInfo 组装成功后才 track token 和写 cookie
-	if err := h.trackLoginTokens(ctx, claims.Id, oauthToken.AccessToken, oauthToken.RefreshToken); err != nil {
-		logger.FromGin(c).Error("failed to track login tokens",
-			zap.String("user_id", claims.Id),
-			zap.Error(err),
-		)
-		response.InternalError(c, "authentication failed")
-		return
+	cookieState, err := c.Cookie(oidcStateCookieName)
+	if err != nil || cookieState == "" {
+		h.clearOIDCStateCookie(c)
+		return "", "", fmt.Errorf("state cookie missing")
+	}
+	if cookieState != state {
+		h.clearOIDCStateCookie(c)
+		return "", "", fmt.Errorf("state cookie mismatch")
 	}
 
-	if err := h.setTokenCookies(c, oauthToken.AccessToken, oauthToken.RefreshToken); err != nil {
-		// cookie 写入失败，回滚已 track 的 token，避免 Redis 中残留幽灵会话
-		h.rollbackTrackedTokens(ctx, claims.Id, oauthToken.AccessToken, oauthToken.RefreshToken)
-		response.InternalError(c, "authentication failed")
-		return
+	raw, err := h.redisClient.GetDel(c.Request.Context(), oidcStateRedisPrefix+state).Result()
+	if err != nil {
+		h.clearOIDCStateCookie(c)
+		if errors.Is(err, redis.Nil) {
+			return "", "", fmt.Errorf("state expired or already used")
+		}
+		return "", "", err
 	}
 
-	audit.LogSuccess(audit.EventUserLogin, claims.Id, claims.Name, c.ClientIP(), c.Request.UserAgent(), requestID)
+	h.clearOIDCStateCookie(c)
 
-	response.Success(c, gin.H{
-		"user":      userInfo,
-		"expiresIn": h.tokenConfig.AccessTokenTTL,
+	var payload oidcStatePayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		// 兼容：旧格式纯 redirect 字符串
+		return raw, "", nil
+	}
+	return payload.RedirectURL, payload.CodeVerifier, nil
+}
+
+func (h *Handler) setOIDCStateCookie(c *gin.Context, state string) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     oidcStateCookieName,
+		Value:    state,
+		MaxAge:   int(stateMaxAge.Seconds()),
+		Path:     oidcStateCookiePath,
+		Domain:   h.tokenConfig.CookieDomain,
+		Secure:   h.tokenConfig.CookieSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func (h *Handler) trackLoginTokens(ctx context.Context, userID, accessToken, refreshToken string) error {
-	if err := h.tokenService.GetBlacklist().TrackUserToken(
-		ctx,
-		userID,
-		accessToken,
-		h.tokenService.GetRefreshTokenTTL(),
-	); err != nil {
-		return err
-	}
-
-	if err := h.tokenService.GetBlacklist().TrackUserToken(
-		ctx,
-		userID,
-		refreshToken,
-		h.tokenService.GetRefreshTokenTTL(),
-	); err != nil {
-		if rollbackErr := h.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, accessToken); rollbackErr != nil {
-			logger.L().Error("CRITICAL: failed to rollback token tracking, orphan token in Redis",
-				zap.String("user_id", userID),
-				zap.Error(rollbackErr),
-			)
-		}
-		return err
-	}
-
-	return nil
+func (h *Handler) clearOIDCStateCookie(c *gin.Context) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     oidcStateCookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     oidcStateCookiePath,
+		Domain:   h.tokenConfig.CookieDomain,
+		Secure:   h.tokenConfig.CookieSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
-// rollbackTrackedTokens 回滚已 track 的 access + refresh token，用于后续步骤（如 cookie 写入）失败时清理
-func (h *Handler) rollbackTrackedTokens(ctx context.Context, userID, accessToken, refreshToken string) {
-	if err := h.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, accessToken); err != nil {
-		logger.L().Error("failed to rollback tracked access token",
-			zap.String("user_id", userID),
-			zap.Error(err),
-		)
+// resolveRedirectTarget 根据验证后的 redirect 参数决定最终跳转地址
+func (h *Handler) resolveRedirectTarget(redirect string) string {
+	defaultRedirect := h.defaultRedirectURL
+
+	if redirect == "" {
+		return defaultRedirect
 	}
-	if err := h.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, refreshToken); err != nil {
-		logger.L().Error("failed to rollback tracked refresh token",
-			zap.String("user_id", userID),
-			zap.Error(err),
-		)
+
+	// 相对路径：解析到默认前端地址，拒绝 scheme-relative 输入
+	if strings.HasPrefix(redirect, "/") {
+		if strings.HasPrefix(redirect, "//") {
+			return defaultRedirect
+		}
+		base, err := url.Parse(defaultRedirect)
+		if err != nil {
+			return defaultRedirect
+		}
+		ref, err := url.Parse(redirect)
+		if err != nil {
+			return defaultRedirect
+		}
+		return base.ResolveReference(ref).String()
 	}
+
+	// 绝对 URL：验证协议和 host 白名单
+	parsed, err := url.Parse(redirect)
+	if err != nil {
+		return defaultRedirect
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return defaultRedirect
+	}
+	if _, ok := h.allowedRedirectHosts[parsed.Host]; !ok {
+		return defaultRedirect
+	}
+
+	return parsed.String()
+}
+
+// generateNonce 生成 16 字节随机 nonce
+func generateNonce() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

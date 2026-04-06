@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -14,16 +15,112 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
+
+// phonePattern 中国大陆手机号正则（与 auth 模块保持一致）
+var phonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
 type academicTableRepo interface {
 	GetAcademicStudentByXHFromTable(ctx context.Context, xh string, tableName string) (*AcademicStudent, error)
 	FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh string, tableName string) ([]AcademicStudent, error)
 }
 
+// GetUserSurface 聚合当前用户的身份认证、学生认证、手机绑定和能力信息。
+// displayName 和 avatarURL 由 auth 中间件注入，capabilities 由角色展开得到。
+func (s *Service) GetUserSurface(ctx context.Context, userID int64, displayName, avatarURL string, capabilities []string) (*UserSurface, error) {
+	identity, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserSurface identity: %w", err)
+	}
+
+	profile, err := s.repo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetUserSurface profile: %w", err)
+	}
+
+	return &UserSurface{
+		DisplayName:        displayName,
+		AvatarURL:          avatarURL,
+		IdentityStatus:     deriveIdentityStatus(identity),
+		VerificationStatus: deriveVerificationStatus(profile),
+		PhoneBound:         profile != nil && profile.PhoneVerified,
+		Capabilities:       capabilities,
+	}, nil
+}
+
+// deriveIdentityStatus 将实名认证记录映射为 API 枚举
+func deriveIdentityStatus(identity *IdentityStatus) string {
+	if identity == nil {
+		return "none"
+	}
+	if identity.Verified {
+		return "approved"
+	}
+	if identity.RejectionReason != nil {
+		return "rejected"
+	}
+	return "pending"
+}
+
+// deriveVerificationStatus 将学生认证档案映射为 API 枚举
+func deriveVerificationStatus(profile *Profile) string {
+	if profile == nil {
+		return "none"
+	}
+	switch profile.VerificationStatus {
+	case StatusVerified:
+		return "approved"
+	case StatusPending:
+		return "pending"
+	case StatusRejected:
+		return "rejected"
+	default:
+		return "none"
+	}
+}
+
 // GetProfile 获取学生认证档案
 func (s *Service) GetProfile(ctx context.Context, userID int64) (*Profile, error) {
-	return s.repo.GetProfileByUserID(ctx, userID)
+	profile, err := s.repo.GetProfileByUserID(ctx, userID)
+	if err != nil || profile == nil {
+		return profile, err
+	}
+	profile.Phone = normalizeMaskedPhone(profile.Phone)
+	return profile, nil
+}
+
+func normalizeMaskedPhone(phone *string) *string {
+	if phone == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*phone)
+	if trimmed == "" {
+		return nil
+	}
+	if strings.Contains(trimmed, "*") {
+		return &trimmed
+	}
+	masked := phoneutil.Mask(trimmed)
+	if masked == "***" {
+		return nil
+	}
+	return &masked
+}
+
+func (s *Service) storeEncryptedPhone(ctx context.Context, userID int64, phone string) error {
+	phoneEnc, err := s.docCipher.Encrypt(phone)
+	if err != nil {
+		return fmt.Errorf("encrypt phone: %w", err)
+	}
+	phoneHash, err := phoneutil.HashLookupWithKey(phone, s.hmacKey)
+	if err != nil {
+		return fmt.Errorf("hash phone: %w", err)
+	}
+	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
+		return err
+	}
+	return nil
 }
 
 // VerifyStudent 学生认证（LDAP 方式）
@@ -42,6 +139,9 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	}
 	if existing != nil && existing.VerificationStatus == StatusVerified {
 		return nil, ErrProfileAlreadyVerified
+	}
+	if existing != nil && existing.VerificationStatus == StatusPending {
+		return nil, ErrProfilePendingReview
 	}
 
 	school, err := s.loadEnabledSchoolConfig(ctx, req.SchoolID)
@@ -101,6 +201,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	now := time.Now()
 	method := VerifyMethodLDAP
 	schoolID := req.SchoolID
+	verifiedPhoneRaw := ""
 	profile := &Profile{
 		UserID:             userID,
 		SchoolID:           &schoolID,
@@ -150,7 +251,11 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 
 		if academicStudent != nil && academicStudent.SFZJH != nil && *academicStudent.SFZJH != "" {
-			allStudents, err := s.findAcademicStudentsByPersonUID(ctx, "", *academicStudent.SFZJH, academicTableName)
+			docType := ""
+			if academicStudent.SFZJLXDM != nil {
+				docType = *academicStudent.SFZJLXDM
+			}
+			allStudents, err := s.findAcademicStudentsByPersonUID(ctx, docType, *academicStudent.SFZJH, academicTableName)
 			if err != nil {
 				logger.L().Warn("failed to find all student records by person uid",
 					zap.Int64("user_id", userID),
@@ -182,18 +287,30 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 
 		profile.StudentIDs = studentIDs
-		profile.VerificationStatus = StatusVerified
-		profile.VerifiedAt = &now
+		// 根据学校审批策略决定状态：auto → 直接通过，manual → 需人工审核
+		if school.IsAutoApprove() {
+			profile.VerificationStatus = StatusVerified
+			profile.VerifiedAt = &now
+		} else {
+			profile.VerificationStatus = StatusPending
+		}
 
 		if ldapInfo != nil && ldapInfo.Mobile != "" {
-			phone := ldapInfo.Mobile
-			profile.Phone = &phone
-			profile.PhoneVerified = true
+			phone := strings.TrimSpace(ldapInfo.Mobile)
+			if phonePattern.MatchString(phone) {
+				verifiedPhoneRaw = phone
+			}
 		}
 	} else {
 		manualMethod := VerifyMethodManual
 		profile.VerificationMethod = &manualMethod
-		profile.VerificationStatus = StatusPending
+		// 根据学校审批策略决定状态（manual 提交也可能自动批准）
+		if school.IsAutoApprove() {
+			profile.VerificationStatus = StatusVerified
+			profile.VerifiedAt = &now
+		} else {
+			profile.VerificationStatus = StatusPending
+		}
 		if trimmedStudentID != "" {
 			profile.StudentIDs = []string{trimmedStudentID}
 			profile.ActiveStudentID = &trimmedStudentID
@@ -212,6 +329,20 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 	}
 
+	if verifiedPhoneRaw != "" {
+		if err := s.storeEncryptedPhone(ctx, userID, verifiedPhoneRaw); err != nil {
+			logger.L().Warn("failed to persist LDAP phone to secure user storage",
+				zap.Int64("user_id", userID),
+				zap.Error(err),
+			)
+			verifiedPhoneRaw = ""
+		} else {
+			masked := phoneutil.Mask(verifiedPhoneRaw)
+			profile.Phone = &masked
+			profile.PhoneVerified = true
+		}
+	}
+
 	if existing != nil {
 		profile.CreatedAt = existing.CreatedAt
 		if err := s.repo.UpdateProfile(ctx, profile); err != nil {
@@ -227,11 +358,28 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	if err != nil {
 		return nil, fmt.Errorf("VerifyStudent reload: %w", err)
 	}
+	if result != nil {
+		result.Phone = normalizeMaskedPhone(result.Phone)
+	}
+
+	// auto-approve 路径：持久化成功后同步角色
+	if profile.VerificationStatus == StatusVerified {
+		s.syncRole(ctx, userID, "verified_student", true)
+	}
+
 	return result, nil
 }
 
+// ErrInvalidPhoneFormat 手机号格式无效
+var ErrInvalidPhoneFormat = errors.New("invalid phone number format")
+
 // BindPhone 绑定手机号
 func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) error {
+	trimmed := strings.TrimSpace(phone)
+	if !phonePattern.MatchString(trimmed) {
+		return ErrInvalidPhoneFormat
+	}
+
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("BindPhone get profile: %w", err)
@@ -240,8 +388,16 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return ErrProfileNotFound
 	}
 
-	profile.Phone = &phone
-	profile.PhoneVerified = false
+	if err := s.storeEncryptedPhone(ctx, userID, trimmed); err != nil {
+		if errors.Is(err, ErrPhoneAlreadyBound) {
+			return ErrPhoneAlreadyBound
+		}
+		return fmt.Errorf("BindPhone store phone: %w", err)
+	}
+
+	masked := phoneutil.Mask(trimmed)
+	profile.Phone = &masked
+	profile.PhoneVerified = true
 
 	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
 		return fmt.Errorf("BindPhone update: %w", err)
@@ -270,17 +426,23 @@ func (s *Service) ListSchools(ctx context.Context) ([]SchoolConfig, error) {
 }
 
 func (s *Service) getAcademicStudentByXH(ctx context.Context, studentID string, tableName string) (*AcademicStudent, error) {
+	if tableName == "" {
+		return nil, fmt.Errorf("academic table name is required for student lookup")
+	}
 	if repoWithTable, ok := s.repo.(academicTableRepo); ok {
 		return repoWithTable.GetAcademicStudentByXHFromTable(ctx, studentID, tableName)
 	}
-	return s.repo.GetAcademicStudentByXH(ctx, studentID)
+	return nil, fmt.Errorf("repository does not support school-scoped academic table queries")
 }
 
 func (s *Service) findAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm string, sfzjh string, tableName string) ([]AcademicStudent, error) {
+	if tableName == "" {
+		return nil, fmt.Errorf("academic table name is required for person UID lookup")
+	}
 	if repoWithTable, ok := s.repo.(academicTableRepo); ok {
 		return repoWithTable.FindAcademicStudentsByPersonUIDFromTable(ctx, sfzjlxdm, sfzjh, tableName)
 	}
-	return s.repo.FindAcademicStudentsByPersonUID(ctx, sfzjlxdm, sfzjh)
+	return nil, fmt.Errorf("repository does not support school-scoped academic table queries")
 }
 
 func (s *Service) loadEnabledSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error) {

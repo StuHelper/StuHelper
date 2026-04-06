@@ -1,0 +1,73 @@
+/api/v1/course/review/teachers:
+  get:
+    tags: [Review]
+    operationId: listTeachers
+    summary: 获取教师列表（公开，支持搜索和分页）
+    parameters:
+      - name: q
+        in: query
+        schema:
+          type: string
+        description: 教师姓名搜索
+      - name: departmentID
+        in: query
+        schema:
+          type: integer
+        description: 院系筛选
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [reviews, rating, name]
+          default: reviews
+        description: 排序方式
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      "200":
+        description: 教师列表
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                data:
+                  type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/review.yaml#/TeacherSummary'
+                    total:
+                      type: integer
+
+/api/v1/course/review/teachers/hot:
+  get:
+    tags: [Review]
+    operationId: listHotTeachers
+    summary: 获取热门教师列表
+    parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 10
+    responses:
+      "200":
+        description: 热门教师
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                data:
+                  type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/review.yaml#/TeacherSummary'

@@ -1,8 +1,7 @@
 package rbac
 
 import (
-	"context"
-	"errors"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,187 +9,199 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	appmiddleware "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
-// ---------------------------------------------------------------------------
-// RequireAnyPermission
-// ---------------------------------------------------------------------------
+func init() { gin.SetMode(gin.TestMode) }
 
-func TestRequireAnyPermission_AllowsWhenUserHasAdminCapability(t *testing.T) {
-	r := gin.New()
-	r.Use(func(c *gin.Context) {
-		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
-		c.Next()
-	})
-	r.GET("/admin", RequireAnyPermission(&fakeHandlerService{
-		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
-			assert.Equal(t, "external-user-123", externalID)
-			return 42, nil
-		},
-		onGetEffectivePerms: func(_ context.Context, userID int64) ([]EffectivePermission, error) {
-			assert.Equal(t, int64(42), userID)
-			return []EffectivePermission{
-				{Name: capability.AdminLogsView, Granted: true},
-			}, nil
-		},
-	}, capability.AdminEntryCapabilities...), func(c *gin.Context) {
-		c.Status(http.StatusNoContent)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+// setupCapabilityContext creates a gin context with capabilities pre-injected
+// (simulating what AuthMiddleware does after token verification).
+func setupCapabilityContext(capabilities []string) (*gin.Context, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 
-	assert.Equal(t, http.StatusNoContent, w.Code)
+	capSet := make(map[string]struct{}, len(capabilities))
+	for _, cap := range capabilities {
+		capSet[cap] = struct{}{}
+	}
+	c.Set(middleware.CtxKeyCapabilitySet, capSet)
+	c.Set(middleware.CtxKeyCapabilities, capabilities)
+	return c, w
 }
 
-func TestRequireAnyPermission_RejectsWhenUserHasNoAdminCapability(t *testing.T) {
-	r := gin.New()
-	r.Use(func(c *gin.Context) {
-		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+func TestRequireCapability_Allowed(t *testing.T) {
+	c, w := setupCapabilityContext([]string{"admin:reviews:manage", "admin:logs:view"})
+	called := false
+
+	handler := RequireCapability("admin:reviews:manage")
+	c.Set("_gin_handler_index", 0) // needed for c.Next()
+	// Build a simple handler chain
+	engine := gin.New()
+	engine.GET("/test", handler, func(c *gin.Context) {
+		called = true
+		c.Status(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	// inject capabilities into request context via middleware
+	engine.Use(func(c *gin.Context) {
+		capSet := make(map[string]struct{})
+		capSet["admin:reviews:manage"] = struct{}{}
+		capSet["admin:logs:view"] = struct{}{}
+		c.Set(middleware.CtxKeyCapabilitySet, capSet)
 		c.Next()
 	})
-	r.GET("/admin", RequireAnyPermission(&fakeHandlerService{
-		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) { return 42, nil },
-		onGetEffectivePerms: func(_ context.Context, _ int64) ([]EffectivePermission, error) {
-			return []EffectivePermission{
-				{Name: "review:create", Granted: true},
-			}, nil
-		},
-	}, capability.AdminEntryCapabilities...), func(c *gin.Context) {
-		c.Status(http.StatusNoContent)
+	// Rebuild with middleware first
+	engine2 := gin.New()
+	engine2.Use(func(c *gin.Context) {
+		capSet := make(map[string]struct{})
+		capSet["admin:reviews:manage"] = struct{}{}
+		capSet["admin:logs:view"] = struct{}{}
+		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Next()
+	})
+	engine2.GET("/test", handler, func(c *gin.Context) {
+		called = true
+		c.Status(http.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	w = httptest.NewRecorder()
+	engine2.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, called)
+}
+
+func TestRequireCapability_Denied(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		capSet := make(map[string]struct{})
+		capSet["admin:logs:view"] = struct{}{}
+		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Next()
+	})
+	called := false
+	engine.GET("/test", RequireCapability("admin:reviews:manage"), func(c *gin.Context) {
+		called = true
+	})
+
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.False(t, called)
+
+	var resp response.Response
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.False(t, resp.Success)
+	assert.NotNil(t, resp.Error)
 }
 
-func TestRequireAnyPermission_Returns500WhenLookupFails(t *testing.T) {
-	r := gin.New()
-	r.Use(func(c *gin.Context) {
-		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+func TestRequireCapability_EmptyCapabilities(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		// no capabilities set at all — simulates unauthenticated or minimal user
 		c.Next()
 	})
-	r.GET("/admin", RequireAnyPermission(&fakeHandlerService{
-		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) { return 42, nil },
-		onGetEffectivePerms: func(_ context.Context, _ int64) ([]EffectivePermission, error) {
-			return nil, errors.New("lookup failed")
-		},
-	}, capability.AdminEntryCapabilities...), func(c *gin.Context) {
-		c.Status(http.StatusNoContent)
+	called := false
+	engine.GET("/test", RequireCapability("admin:reviews:manage"), func(c *gin.Context) {
+		called = true
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
-// ---------------------------------------------------------------------------
-// RequirePermission — 复用 RequireAnyPermission 缓存
-// ---------------------------------------------------------------------------
-
-func TestRequirePermission_ReusesCache(t *testing.T) {
-	idCalls := 0
-	permsCalls := 0
-
-	svc := &fakeHandlerService{
-		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
-			idCalls++
-			return 42, nil
-		},
-		onGetEffectivePerms: func(_ context.Context, _ int64) ([]EffectivePermission, error) {
-			permsCalls++
-			return []EffectivePermission{
-				{PermissionID: 1, Name: capability.RBACRoleRead, Granted: true},
-			}, nil
-		},
-		onCheckPermissionScope: func(_ context.Context, ep EffectivePermission, _ int64, _ *string) (bool, error) {
-			assert.Equal(t, int64(1), ep.PermissionID)
-			return true, nil
-		},
-	}
-
-	r := gin.New()
-	r.Use(func(c *gin.Context) {
-		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
-		c.Next()
-	})
-	r.GET("/admin/roles",
-		RequireAnyPermission(svc, capability.AdminEntryCapabilities...),
-		RequirePermission(svc, capability.RBACRoleRead),
-		func(c *gin.Context) { c.Status(http.StatusNoContent) },
-	)
-
-	req := httptest.NewRequest(http.MethodGet, "/admin/roles", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusNoContent, w.Code)
-	// 关键断言：GetInternalUserID 和 GetEffectivePermissions 各只调用一次
-	assert.Equal(t, 1, idCalls, "GetInternalUserID 应只调用一次")
-	assert.Equal(t, 1, permsCalls, "GetEffectivePermissions 应只调用一次")
-}
-
-func TestRequirePermission_DeniesWhenPermissionNotGranted(t *testing.T) {
-	svc := &fakeHandlerService{
-		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) { return 42, nil },
-		onGetEffectivePerms: func(_ context.Context, _ int64) ([]EffectivePermission, error) {
-			return []EffectivePermission{
-				{Name: capability.RBACRoleRead, Granted: true},
-			}, nil
-		},
-	}
-
-	r := gin.New()
-	r.Use(func(c *gin.Context) {
-		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
-		c.Next()
-	})
-	r.DELETE("/admin/roles/1",
-		RequirePermission(svc, capability.RBACRoleDelete),
-		func(c *gin.Context) { c.Status(http.StatusNoContent) },
-	)
-
-	req := httptest.NewRequest(http.MethodDelete, "/admin/roles/1", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.False(t, called)
 }
 
-func TestRequirePermission_Returns500WhenScopeCheckFails(t *testing.T) {
-	svc := &fakeHandlerService{
-		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) { return 42, nil },
-		onGetEffectivePerms: func(_ context.Context, _ int64) ([]EffectivePermission, error) {
-			return []EffectivePermission{
-				{PermissionID: 1, Name: capability.RBACRoleRead, Granted: true},
-			}, nil
-		},
-		onCheckPermissionScope: func(_ context.Context, _ EffectivePermission, _ int64, _ *string) (bool, error) {
-			return false, errors.New("repository down")
-		},
-	}
-
-	r := gin.New()
-	r.Use(func(c *gin.Context) {
-		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+func TestRequireAnyCapability_OneMatch(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		capSet := make(map[string]struct{})
+		capSet["admin:logs:view"] = struct{}{}
+		c.Set(middleware.CtxKeyCapabilitySet, capSet)
 		c.Next()
 	})
-	r.GET("/admin/roles",
-		RequirePermission(svc, capability.RBACRoleRead),
-		func(c *gin.Context) { c.Status(http.StatusNoContent) },
+	called := false
+	engine.GET("/test",
+		RequireAnyCapability("admin:reviews:manage", "admin:logs:view"),
+		func(c *gin.Context) {
+			called = true
+			c.Status(http.StatusOK)
+		},
 	)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/roles", nil)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, called)
+}
+
+func TestRequireAnyCapability_NoMatch(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		capSet := make(map[string]struct{})
+		capSet["review:list:brief"] = struct{}{}
+		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Next()
+	})
+	called := false
+	engine.GET("/test",
+		RequireAnyCapability("admin:reviews:manage", "admin:logs:view"),
+		func(c *gin.Context) {
+			called = true
+		},
+	)
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.False(t, called)
+}
+
+func TestRequireAnyCapability_AllMatch(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		capSet := make(map[string]struct{})
+		capSet["admin:reviews:manage"] = struct{}{}
+		capSet["admin:logs:view"] = struct{}{}
+		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Next()
+	})
+	called := false
+	engine.GET("/test",
+		RequireAnyCapability("admin:reviews:manage", "admin:logs:view"),
+		func(c *gin.Context) {
+			called = true
+			c.Status(http.StatusOK)
+		},
+	)
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, called)
+}
+
+func TestRequireAnyCapability_EmptyCapabilities(t *testing.T) {
+	engine := gin.New()
+	called := false
+	engine.GET("/test",
+		RequireAnyCapability("admin:reviews:manage"),
+		func(c *gin.Context) {
+			called = true
+		},
+	)
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.False(t, called)
 }

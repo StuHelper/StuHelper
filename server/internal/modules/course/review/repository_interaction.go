@@ -34,20 +34,20 @@ func (r *Repository) CreateReport(ctx context.Context, p CreateReportParams) err
 	return nil
 }
 
-// CreateReportTx 创建举报记录（事务内）
-func (r *Repository) CreateReportTx(ctx context.Context, tx pgx.Tx, p CreateReportParams) error {
+// CreateReportTx 创建举报记录（事务内），返回生成的举报 ID
+func (r *Repository) CreateReportTx(ctx context.Context, tx pgx.Tx, p CreateReportParams) (string, error) {
 	newID, err := id.New()
 	if err != nil {
-		return fmt.Errorf("CreateReportTx generate id: %w", err)
+		return "", fmt.Errorf("CreateReportTx generate id: %w", err)
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO review_reports (id, review_id, reporter_hash, reason, description, status, created_at)
 		VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
 	`, newID, p.ReviewID, p.ReporterHash, p.Reason, p.Description)
 	if err != nil {
-		return fmt.Errorf("CreateReportTx: %w", err)
+		return "", fmt.Errorf("CreateReportTx: %w", err)
 	}
-	return nil
+	return newID, nil
 }
 
 // ReportExists 检查是否已举报
@@ -75,7 +75,7 @@ func (r *Repository) ReportExistsTx(ctx context.Context, tx pgx.Tx, reviewID, us
 }
 
 // ListReports 获取举报列表（包含评论信息，含总数）
-// L-21: 当 reviewID 为 nil（评论已被物理删除）时，跳过 Review 对象赋值，标记为已删除
+// 当 reviewID 为 nil（评论已被物理删除）时，跳过 Review 对象赋值，标记为已删除
 func (r *Repository) ListReports(ctx context.Context, status string, limit, offset int) ([]ReviewReport, int, error) {
 	baseQuery := `
 		SELECT rr.id, rr.review_id, rr.reason, rr.description, rr.status,

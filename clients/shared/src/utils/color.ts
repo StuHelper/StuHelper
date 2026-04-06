@@ -13,11 +13,18 @@ export function withAlpha(color: string, alpha: number): string {
 
   // M-03: hex 格式: #rrggbb 或 #rgb，使用严格的 hex 字符校验
   const hexMatch = trimmed.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
-  if (hexMatch) {
-    let hex = hexMatch[1]
-    // 短格式 #rgb → #rrggbb
-    if (hex.length === 3) {
-      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
+  const matchedHex = hexMatch?.[1]
+  if (matchedHex) {
+    let hex = matchedHex
+    // 短格式 #rgb → #rrggbb, #rgba → #rrggbbaa
+    if (hex.length === 3 || hex.length === 4) {
+      hex =
+        hex.charAt(0) +
+        hex.charAt(0) +
+        hex.charAt(1) +
+        hex.charAt(1) +
+        hex.charAt(2) +
+        hex.charAt(2)
     }
     // 取前 6 位（忽略已有 alpha）
     const r = parseInt(hex.substring(0, 2), 16)

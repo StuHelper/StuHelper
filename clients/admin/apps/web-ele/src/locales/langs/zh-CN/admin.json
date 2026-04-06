@@ -1,0 +1,522 @@
+{
+  "routes": {
+    "content": {
+      "title": "内容管理",
+      "reviews": "评课管理",
+      "reports": "举报管理",
+      "teachers": "教师管理",
+      "sensitiveWords": "敏感词管理",
+      "logs": "操作日志"
+    },
+    "userSystem": {
+      "title": "用户系统",
+      "identityReview": "实名审核",
+      "studentVerification": "学生认证审核",
+      "schoolConfig": "学校配置",
+      "systemConfig": "系统配置"
+    }
+  },
+  "common": {
+    "all": "全部",
+    "query": "查询",
+    "edit": "编辑",
+    "delete": "删除",
+    "confirm": "确定",
+    "cancel": "取消",
+    "save": "保存",
+    "status": "状态",
+    "actions": "操作",
+    "id": "ID",
+    "yes": "是",
+    "no": "否",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "time": "时间",
+    "title": "标题",
+    "content": "内容",
+    "description": "描述",
+    "notSet": "未设置",
+    "unavailable": "—"
+  },
+  "result": {
+    "authExpired": "登录状态已失效，请重新登录",
+    "requestFailed": "请求失败，请稍后重试"
+  },
+  "layout": {
+    "notifications": {
+      "time": {
+        "threeHoursAgo": "3小时前",
+        "justNow": "刚刚",
+        "oneDayAgo": "1天前"
+      },
+      "items": {
+        "weeklyReports": {
+          "title": "收到了 14 份新周报",
+          "message": "描述信息描述信息描述信息"
+        },
+        "reply": {
+          "title": "朱偏右 回复了你",
+          "message": "描述信息描述信息描述信息"
+        },
+        "comment": {
+          "title": "曲丽丽 评论了你",
+          "message": "描述信息描述信息描述信息"
+        },
+        "todo": {
+          "title": "代办提醒",
+          "message": "描述信息描述信息描述信息"
+        },
+        "workspace": {
+          "title": "跳转 Workspace 示例",
+          "message": "描述信息描述信息描述信息"
+        },
+        "external": {
+          "title": "跳转外部链接示例",
+          "message": "描述信息描述信息描述信息"
+        }
+      }
+    }
+  },
+  "content": {
+    "reviews": {
+      "course": "课程",
+      "teacher": "教师",
+      "teacherUnlinked": "未关联教师",
+      "rating": "评分",
+      "status": {
+        "published": "已发布",
+        "hidden": "已隐藏",
+        "deleted": "已删除"
+      },
+      "hide": "隐藏",
+      "restore": "恢复",
+      "confirmHide": "确认隐藏？",
+      "confirmDelete": "确认删除？"
+    },
+    "reports": {
+      "reviewId": "评课ID",
+      "reviewTitle": "评课标题",
+      "missingReview": "未加载到关联评课",
+      "reasonLabel": "原因",
+      "status": {
+        "pending": "待处理",
+        "resolved": "已处理",
+        "rejected": "已驳回"
+      },
+      "reason": {
+        "false_info": "虚假信息",
+        "harassment": "骚扰辱骂",
+        "inappropriate": "不当内容",
+        "other": "其他",
+        "spam": "垃圾信息"
+      },
+      "reject": "驳回",
+      "hideReview": "隐藏评课",
+      "deleteReview": "删除评课",
+      "confirmReject": "确认驳回该举报？",
+      "confirmHideReview": "确认隐藏该评课？",
+      "confirmDeleteReview": "确认删除该评课？"
+    },
+    "teachers": {
+      "searchByName": "搜索教师姓名...",
+      "filterByDepartmentId": "按院系 ID 筛选...",
+      "create": "新增教师",
+      "name": "姓名",
+      "department": "院系",
+      "departmentPrefix": "院系",
+      "departmentId": "院系ID",
+      "reviewCount": "评课数",
+      "editTitle": "编辑教师",
+      "createTitle": "新增教师",
+      "namePlaceholder": "请输入教师姓名",
+      "departmentIdPlaceholder": "请输入所属院系 ID",
+      "confirmDelete": "确认删除该教师？",
+      "updated": "更新成功",
+      "created": "创建成功",
+      "deleted": "删除成功",
+      "validation": {
+        "nameRequired": "请输入教师姓名"
+      }
+    },
+    "sensitiveWords": {
+      "filterByCategory": "按分类筛选...",
+      "level": "级别",
+      "create": "新增敏感词",
+      "word": "词语",
+      "category": "分类",
+      "active": "启用",
+      "levels": {
+        "block": "拦截",
+        "warn": "警告",
+        "review": "复核"
+      },
+      "editTitle": "编辑敏感词",
+      "createTitle": "新增敏感词",
+      "wordPlaceholder": "请输入敏感词",
+      "categoryPlaceholder": "请输入分类",
+      "levelPlaceholder": "请选择级别",
+      "confirmDelete": "确认删除该敏感词？",
+      "updated": "更新成功",
+      "created": "创建成功",
+      "deleted": "删除成功",
+      "validation": {
+        "wordRequired": "请输入敏感词"
+      }
+    },
+    "logs": {
+      "admin": "管理员",
+      "action": "操作",
+      "targetType": "目标类型",
+      "targetId": "目标ID"
+    }
+  },
+  "users": {
+    "identityReview": {
+      "statusPlaceholder": "认证状态",
+      "userId": "用户ID",
+      "realName": "真实姓名",
+      "docTypeLabel": "证件类型",
+      "verifyMethodLabel": "核验方式",
+      "statusLabel": "认证状态",
+      "finishedAt": "完成时间",
+      "approve": "通过",
+      "reject": "驳回",
+      "confirmApprove": "确认通过该实名认证？",
+      "confirmReject": "确认驳回该实名认证？",
+      "status": {
+        "pending": "待审核",
+        "verified": "已认证",
+        "rejected": "已驳回"
+      },
+      "docType": {
+        "HK_MACAU": "港澳居民来往内地通行证",
+        "MAINLAND_ID": "大陆身份证",
+        "PASSPORT": "护照",
+        "TW": "台湾居民来往大陆通行证"
+      },
+      "verifyMethod": {
+        "academic_db_match": "学籍匹配",
+        "manual": "人工审核",
+        "tencent_cloud": "腾讯云核验"
+      }
+    },
+    "studentVerification": {
+      "statusPlaceholder": "认证状态",
+      "schoolIdPlaceholder": "按学校ID筛选...",
+      "userId": "用户ID",
+      "schoolId": "学校ID",
+      "activeStudentId": "当前学号",
+      "statusLabel": "认证状态",
+      "methodLabel": "认证方式",
+      "createdAt": "提交时间",
+      "approve": "通过",
+      "reject": "驳回",
+      "confirmApprove": "确认通过该学生认证？",
+      "confirmReject": "确认驳回该学生认证？",
+      "status": {
+        "pending": "待审核",
+        "verified": "已认证",
+        "rejected": "已驳回",
+        "unverified": "未认证"
+      },
+      "method": {
+        "ldap": "LDAP",
+        "manual": "人工审核"
+      }
+    },
+    "schoolConfig": {
+      "schoolId": "学校ID",
+      "schoolName": "学校名称",
+      "verificationMethod": "认证方式",
+      "enabledStatus": "启用状态",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "ldapUrl": "LDAP 地址",
+      "dialogTitle": "编辑学校配置 - {schoolName}",
+      "schoolNamePlaceholder": "请输入学校名称",
+      "methods": {
+        "ldap": "LDAP",
+        "manual": "人工审核"
+      },
+      "enableSchool": "启用学校",
+      "ldapUrlPlaceholder": "例如 ldaps://ldap.example.edu:636",
+      "baseDn": "Base DN",
+      "baseDnPlaceholder": "例如 dc=example,dc=edu",
+      "systemBindDn": "系统 Bind DN",
+      "systemBindDnPlaceholder": "例如 cn=service,dc=example,dc=edu",
+      "systemBindPassword": "系统 Bind 密码",
+      "systemBindPasswordPlaceholder": "留空表示不更新密码",
+      "useTls": "启用 TLS",
+      "insecureSkipVerify": "跳过证书校验",
+      "academicDbTable": "学籍库表名",
+      "academicDbTablePlaceholder": "academic_records",
+      "consentText": "同意书文案",
+      "consentTextPlaceholder": "用户同意文案...",
+      "updated": "更新成功"
+    },
+    "systemConfig": {
+      "key": "配置项",
+      "value": "值",
+      "dialogTitle": "编辑配置 - {key}",
+      "valuePlaceholder": "请输入配置值",
+      "updated": "更新成功"
+    }
+  },
+  "profile": {
+    "title": "个人中心",
+    "tabs": {
+      "basic": "基本设置",
+      "security": "安全设置",
+      "password": "修改密码",
+      "notice": "新消息提醒"
+    },
+    "baseSetting": {
+      "roles": {
+        "admin": "管理员",
+        "user": "用户",
+        "test": "测试"
+      },
+      "fields": {
+        "realName": "姓名",
+        "username": "用户名",
+        "roles": "角色",
+        "introduction": "个人简介"
+      }
+    },
+    "notification": {
+      "accountPassword": {
+        "label": "账户密码",
+        "description": "其他用户的消息将以站内信的形式通知"
+      },
+      "systemMessage": {
+        "label": "系统消息",
+        "description": "系统消息将以站内信的形式通知"
+      },
+      "todoTask": {
+        "label": "待办任务",
+        "description": "待办任务将以站内信的形式通知"
+      }
+    },
+    "password": {
+      "oldPassword": "旧密码",
+      "oldPasswordPlaceholder": "请输入旧密码",
+      "newPassword": "新密码",
+      "newPasswordPlaceholder": "请输入新密码",
+      "confirmPassword": "确认密码",
+      "confirmPasswordPlaceholder": "请再次输入新密码",
+      "passwordMismatch": "两次输入的密码不一致",
+      "updated": "密码修改成功"
+    },
+    "security": {
+      "accountPassword": {
+        "label": "账户密码",
+        "description": "当前密码强度：强"
+      },
+      "securityPhone": {
+        "label": "密保手机",
+        "description": "已绑定手机：138****8293"
+      },
+      "securityQuestion": {
+        "label": "密保问题",
+        "description": "未设置密保问题，密保问题可有效保护账户安全"
+      },
+      "securityEmail": {
+        "label": "备用邮箱",
+        "description": "已绑定邮箱：ant***sign.com"
+      },
+      "securityMfa": {
+        "label": "MFA 设备",
+        "description": "未绑定 MFA 设备，绑定后，可以进行二次确认"
+      }
+    }
+  },
+  "auth": {
+    "codeLogin": {
+      "beforeSendCode": "发送验证码前校验等逻辑",
+      "phoneValidationFailed": "手机号校验失败"
+    }
+  },
+  "dashboard": {
+    "analytics": {
+      "overview": {
+        "users": {
+          "title": "今日新增评课",
+          "totalTitle": "总评课数"
+        },
+        "visits": {
+          "title": "待处理举报",
+          "totalTitle": "举报总数"
+        },
+        "downloads": {
+          "title": "隐藏评课",
+          "totalTitle": "已发布评课"
+        },
+        "usage": {
+          "title": "本周新增评课",
+          "totalTitle": "已删除评课"
+        }
+      },
+      "tabs": {
+        "trends": "流量趋势",
+        "visits": "月访问量"
+      },
+      "cards": {
+        "visitsData": "访问数量",
+        "visitsSource": "访问来源",
+        "salesShare": "商业占比"
+      },
+      "visitsData": {
+        "legend": {
+          "visits": "访问",
+          "trend": "趋势"
+        },
+        "indicators": {
+          "web": "网页",
+          "mobile": "移动端",
+          "client": "客户端",
+          "thirdParty": "第三方",
+          "other": "其它"
+        }
+      },
+      "sales": {
+        "outsourcing": "外包",
+        "custom": "定制",
+        "support": "技术支持",
+        "remote": "远程",
+        "seriesName": "商业占比"
+      },
+      "source": {
+        "search": "搜索引擎",
+        "direct": "直接访问",
+        "email": "邮件营销",
+        "ads": "联盟广告",
+        "seriesName": "访问来源"
+      },
+      "monthLabel": "{month}月"
+    },
+    "workspace": {
+      "header": {
+        "title": "早安, {name}, 开始您一天的工作吧！",
+        "description": "今日晴，20℃ - 32℃！"
+      },
+      "cards": {
+        "projects": "项目",
+        "trends": "最新动态",
+        "quickNav": "快捷导航",
+        "todo": "待办事项",
+        "visitsSource": "访问来源"
+      },
+      "quickNav": {
+        "home": "首页",
+        "dashboard": "仪表盘",
+        "components": "组件",
+        "system": "系统管理",
+        "access": "权限管理",
+        "charts": "图表"
+      },
+      "projects": {
+        "github": {
+          "content": "不要等待机会，而要创造机会。",
+          "group": "开源组"
+        },
+        "vue": {
+          "content": "现在的你决定将来的你。",
+          "group": "算法组"
+        },
+        "html": {
+          "content": "没有什么才能比努力更重要。",
+          "group": "上班摸鱼"
+        },
+        "angular": {
+          "content": "热情和欲望可以突破一切难关。"
+        },
+        "react": {
+          "content": "健康的身体是实现目标的基石。",
+          "group": "技术牛"
+        },
+        "javascript": {
+          "content": "路是走出来的，而不是空想出来的。",
+          "group": "架构组"
+        }
+      },
+      "todos": {
+        "reviewFrontend": {
+          "title": "审查前端代码提交",
+          "content": "审查最近提交到Git仓库的前端代码，确保代码质量和规范。"
+        },
+        "optimizePerformance": {
+          "title": "系统性能优化",
+          "content": "检查并优化系统性能，降低CPU使用率。"
+        },
+        "securityCheck": {
+          "title": "安全检查",
+          "content": "进行系统安全检查，确保没有安全漏洞或未授权的访问。"
+        },
+        "updateDependencies": {
+          "title": "更新项目依赖",
+          "content": "更新项目中的所有npm依赖包，确保使用最新版本。"
+        },
+        "fixUi": {
+          "title": "修复UI显示问题",
+          "content": "修复用户报告的页面UI显示问题，确保在不同浏览器中显示一致。"
+        }
+      },
+      "trends": {
+        "time": {
+          "justNow": "刚刚",
+          "oneHourAgo": "1个小时前",
+          "oneDayAgo": "1天前",
+          "twoDaysAgo": "2天前",
+          "threeDaysAgo": "3天前",
+          "oneWeekAgo": "1周前"
+        },
+        "people": {
+          "william": "威廉",
+          "ivan": "艾文",
+          "chris": "克里斯",
+          "peter": "皮特",
+          "jack": "杰克"
+        },
+        "createProject": {
+          "content": "在 <a>开源组</a> 创建了项目 <a>Vue</a>"
+        },
+        "follow": {
+          "content": "关注了 <a>威廉</a>"
+        },
+        "publishUpdate": {
+          "content": "发布了 <a>个人动态</a>"
+        },
+        "publishArticle": {
+          "content": "发表文章 <a>如何编写一个Vite插件</a>"
+        },
+        "replyQuestion": {
+          "content": "回复了 <a>杰克</a> 的问题 <a>如何进行项目优化？</a>"
+        },
+        "closeIssue": {
+          "content": "关闭了问题 <a>如何运行项目</a>"
+        },
+        "pushGithub": {
+          "content": "推送了代码到 <a>Github</a>"
+        },
+        "adminArticle": {
+          "content": "发表文章 <a>如何编写使用 Admin Vben</a>"
+        }
+      }
+    },
+    "quickActions": {
+      "title": "快捷入口",
+      "reviews": "评课管理",
+      "reports": "举报处理",
+      "teachers": "教师管理",
+      "identity": "实名审核",
+      "students": "学生认证"
+    },
+    "summary": {
+      "title": "统计概览",
+      "publishedReviews": "已发布评课",
+      "deletedReviews": "已删除评课",
+      "totalReports": "举报总数",
+      "pendingReports": "待处理举报"
+    }
+  }
+}

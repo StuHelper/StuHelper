@@ -7,9 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -30,7 +32,16 @@ func (h *Handler) handleAdminListIdentities(c *gin.Context) {
 
 	items := make([]gin.H, 0, len(list))
 	for i := range list {
-		items = append(items, identityReviewItemToJSON(&list[i]))
+		resolved, err := h.service.ResolveIdentityReviewItemAssets(c.Request.Context(), &list[i])
+		if err != nil {
+			logger.FromGin(c).Error("failed to resolve identity photo URLs",
+				zap.Int64("user_id", list[i].UserID),
+				zap.Error(err),
+			)
+			response.InternalError(c, "failed to list identities")
+			return
+		}
+		items = append(items, identityReviewItemToJSON(resolved))
 	}
 
 	response.Success(c, gin.H{"list": items, "total": total})
@@ -68,6 +79,23 @@ func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
 		}
 		return
 	}
+
+	audit.Log(audit.Event{
+		Type:      audit.EventDataUpdate,
+		UserID:    middleware.GetUserID(c),
+		Username:  middleware.GetUsername(c),
+		IP:        c.ClientIP(),
+		UserAgent: httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
+		RequestID: middleware.GetRequestID(c),
+		Resource:  "identity_review",
+		Action:    map[bool]string{true: "approve", false: "reject"}[*req.Approved],
+		Result:    "success",
+		Details: map[string]any{
+			"target_user_id":   userID,
+			"approved":         *req.Approved,
+			"rejection_reason": derefOptionalString(req.RejectionReason),
+		},
+	})
 
 	response.Success(c, gin.H{"message": "identity reviewed"})
 }
@@ -138,6 +166,26 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 		return
 	}
 
+	// 同步 FGA user_profile 关系 tuple，避免旧 school 关系残留
+	h.reconcileFGAUserProfileTuples(c, userID, *req.Approved)
+
+	audit.Log(audit.Event{
+		Type:      audit.EventDataUpdate,
+		UserID:    middleware.GetUserID(c),
+		Username:  middleware.GetUsername(c),
+		IP:        c.ClientIP(),
+		UserAgent: httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
+		RequestID: middleware.GetRequestID(c),
+		Resource:  "student_verification_review",
+		Action:    map[bool]string{true: "approve", false: "reject"}[*req.Approved],
+		Result:    "success",
+		Details: map[string]any{
+			"target_user_id":   userID,
+			"approved":         *req.Approved,
+			"rejection_reason": derefOptionalString(req.RejectionReason),
+		},
+	})
+
 	response.Success(c, gin.H{"message": "student verification reviewed"})
 }
 
@@ -169,6 +217,7 @@ func (h *Handler) handleAdminListSchoolConfigs(c *gin.Context) {
 type updateSchoolConfigHTTPRequest struct {
 	SchoolName         *string                  `json:"schoolName" binding:"omitempty,max=100"`
 	VerificationMethod *string                  `json:"verificationMethod" binding:"omitempty,oneof=ldap manual"`
+	ApprovalPolicy     *string                  `json:"approvalPolicy" binding:"omitempty,oneof=auto manual"`
 	LDAPConfig         *SchoolLDAPConfigInput   `json:"ldapConfig"`
 	AcademicDBTable    *string                  `json:"academicDbTable" binding:"omitempty,max=100"`
 	ConsentText        *string                  `json:"consentText"`
@@ -229,6 +278,31 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 		return
 	}
 
+	audit.Log(audit.Event{
+		Type:      audit.EventAdminConfigChange,
+		UserID:    middleware.GetUserID(c),
+		Username:  middleware.GetUsername(c),
+		IP:        c.ClientIP(),
+		UserAgent: httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
+		RequestID: middleware.GetRequestID(c),
+		Resource:  "school_config",
+		Action:    "update",
+		Result:    "success",
+		Details: map[string]any{
+			"school_id": schoolID,
+			"fields": map[string]bool{
+				"schoolName":         req.SchoolName != nil,
+				"verificationMethod": req.VerificationMethod != nil,
+				"approvalPolicy":     req.ApprovalPolicy != nil,
+				"ldapConfig":         req.LDAPConfig != nil,
+				"academicDbTable":    req.AcademicDBTable != nil,
+				"consentText":        req.ConsentText != nil,
+				"manualFormFields":   req.ManualFormFields != nil,
+				"enabled":            req.Enabled != nil,
+			},
+		},
+	})
+
 	response.Success(c, gin.H{"message": "school config updated"})
 }
 
@@ -286,7 +360,7 @@ func (h *Handler) handleAdminUpdateSystemConfig(c *gin.Context) {
 				zap.String("config_key", key),
 				zap.Error(err),
 			)
-			response.BadRequest(c, err.Error(), errs.ErrInvalidParam)
+			response.BadRequest(c, "invalid system config value", errs.ErrInvalidParam)
 			return
 		}
 		logger.FromGin(c).Error("failed to update system config",
@@ -296,6 +370,21 @@ func (h *Handler) handleAdminUpdateSystemConfig(c *gin.Context) {
 		response.InternalError(c, "failed to update system config")
 		return
 	}
+
+	audit.Log(audit.Event{
+		Type:      audit.EventAdminConfigChange,
+		UserID:    middleware.GetUserID(c),
+		Username:  middleware.GetUsername(c),
+		IP:        c.ClientIP(),
+		UserAgent: httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
+		RequestID: middleware.GetRequestID(c),
+		Resource:  "system_config",
+		Action:    "update",
+		Result:    "success",
+		Details: map[string]any{
+			"key": key,
+		},
+	})
 
 	response.Success(c, gin.H{"message": "system config updated"})
 }

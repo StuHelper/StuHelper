@@ -1,3 +1,5 @@
-# `/third_party`
+# third_party
 
-External helper tools, forked code and other 3rd party utilities (e.g., Swagger UI).
+预留给需随仓库保存的第三方资产和本地 patch。
+
+当前依赖通过 Go Modules、pnpm、Docker 镜像管理。

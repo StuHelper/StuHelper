@@ -34,15 +34,15 @@ func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 	assert.Equal(t, 40, policy.PreviewContentPct)
 }
 
-func TestBuildReviewAccessPolicy_FallsBackToEnabledSchoolsAndLegacyPreviewKeys(t *testing.T) {
+func TestBuildReviewAccessPolicy_UsesEnabledSchoolsAndPreviewKeys(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
 		[]user.SchoolConfig{
 			{SchoolID: "10006", Enabled: true},
 			{SchoolID: "10007", Enabled: true},
 		},
 		[]user.SystemConfig{
-			{Key: systemconfig.LegacyReviewPreviewCharsKey, Value: "96"},
-			{Key: systemconfig.LegacyReviewPreviewPercentKey, Value: "25"},
+			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: "96"},
+			{Key: systemconfig.ReviewPreviewContentPercentKey, Value: "25"},
 		},
 	)
 	require.NoError(t, err)

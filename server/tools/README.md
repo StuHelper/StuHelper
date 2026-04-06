@@ -1,9 +1,5 @@
-# `/tools`
+# tools
 
-Supporting tools for this project. Note that these tools can import code from the `/pkg` and `/internal` directories.
+预留给仓库级辅助工具（代码生成脚本、诊断工具等）。
 
-Examples:
-
-* https://github.com/istio/istio/tree/master/tools
-* https://github.com/openshift/origin/tree/master/tools
-* https://github.com/dapr/dapr/tree/master/tools
+当前工具链入口：`server/Makefile`、`server/scripts/`、`infra/ops/`。

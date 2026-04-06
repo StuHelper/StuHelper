@@ -15,21 +15,15 @@ withDefaults(defineProps<Props>(), {
 </template>
 
 <style scoped>
-.glass-card {
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-}
-
 .glass-navbar {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--color-bg-glass);
   backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .glass-modal {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--color-bg-glass-heavy);
   backdrop-filter: blur(30px) saturate(200%);
+  -webkit-backdrop-filter: blur(30px) saturate(200%);
 }
 </style>

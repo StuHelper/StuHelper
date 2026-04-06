@@ -96,14 +96,15 @@ func (r *Repository) CountAll(ctx context.Context) (int, error) {
 	return count, err
 }
 
-// GetPortalStats 获取门户统计数据（课程数、评论数、院系数）
-func (r *Repository) GetPortalStats(ctx context.Context) (courseCount, reviewCount, departmentCount int, err error) {
+// GetPortalStats 获取门户统计数据（课程数、评论数、院系数、评课用户数）
+func (r *Repository) GetPortalStats(ctx context.Context) (courseCount, reviewCount, departmentCount, userCount int, err error) {
 	err = r.db.QueryRow(ctx, `
 		SELECT
 			(SELECT COUNT(*) FROM courses),
 			(SELECT COUNT(*) FROM reviews WHERE status = 'published'),
-			(SELECT COUNT(*) FROM departments)
-	`).Scan(&courseCount, &reviewCount, &departmentCount)
+			(SELECT COUNT(*) FROM departments),
+			(SELECT COUNT(DISTINCT user_hash) FROM reviews WHERE status = 'published')
+	`).Scan(&courseCount, &reviewCount, &departmentCount, &userCount)
 	return
 }
 
@@ -118,7 +119,7 @@ func (r *Repository) ListByCourse(ctx context.Context, courseID int64, limit, of
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.course_id = $1 AND r.status IN ('published', 'hidden')
+		WHERE r.course_id = $1 AND r.status = 'published'
 		ORDER BY r.created_at DESC
 		LIMIT $2 OFFSET $3
 	`, courseID, limit, offset)
@@ -148,7 +149,7 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.status IN ('published', 'hidden')
+		WHERE r.status = 'published'
 		ORDER BY `+orderClause+`
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
@@ -161,15 +162,16 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 
 // CreateParams 创建评论参数
 type CreateParams struct {
-	ID        string
-	CourseID  int64
-	TeacherID *int64
-	TermID    string
-	Title     string
-	Content   string
-	Grade     string
-	Ratings   []byte
-	UserHash  string
+	ID          string
+	CourseID    int64
+	TeacherID   *int64
+	TermID      string
+	Title       string
+	Content     string
+	Grade       string
+	Ratings     []byte
+	UserHash    string
+	ContentFlag *string
 }
 
 // Create 创建评论（在事务中执行）
@@ -177,12 +179,12 @@ func (r *Repository) Create(ctx context.Context, tx pgx.Tx, p CreateParams) erro
 	_, err := tx.Exec(ctx, `
 		INSERT INTO reviews (
 			id, course_id, teacher_id, term_id, title, content, grade,
-			ratings, avg_rating, user_hash, status, created_at
+			ratings, avg_rating, user_hash, status, content_flag, created_at
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
 			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($8) WHERE value ~ '^\d+(\.\d+)?$'), 0),
-			$9,$10,NOW())
+			$9,$10,$11,NOW())
 	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
-		p.Content, p.Grade, p.Ratings, p.UserHash, "published")
+		p.Content, p.Grade, p.Ratings, p.UserHash, "published", p.ContentFlag)
 	return err
 }
 
@@ -192,19 +194,19 @@ func (r *Repository) CreateReturning(ctx context.Context, tx pgx.Tx, p CreatePar
 	err := tx.QueryRow(ctx, `
 		INSERT INTO reviews (
 			id, course_id, teacher_id, term_id, title, content, grade,
-			ratings, avg_rating, user_hash, status, created_at
+			ratings, avg_rating, user_hash, status, content_flag, created_at
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
 			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($8) WHERE value ~ '^\d+(\.\d+)?$'), 0),
-			$9,$10,NOW())
+			$9,$10,$11,NOW())
 		RETURNING id, course_id, teacher_id, term_id, title, content, grade,
-			ratings, like_count, dislike_count, reply_count, status, created_at, updated_at
+			ratings, like_count, dislike_count, reply_count, status, content_flag, created_at, updated_at
 	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
-		p.Content, p.Grade, p.Ratings, p.UserHash, "published",
+		p.Content, p.Grade, p.Ratings, p.UserHash, "published", p.ContentFlag,
 	).Scan(
 		&review.ID, &review.CourseID, &review.TeacherID, &review.TermID,
 		&review.Title, &review.Content, &review.Grade, &review.Ratings,
 		&review.LikeCount, &review.DislikeCount, &review.ReplyCount,
-		&review.Status, &review.CreatedAt, &review.UpdatedAt,
+		&review.Status, &review.ContentFlag, &review.CreatedAt, &review.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("CreateReturning: %w", err)

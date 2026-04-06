@@ -34,12 +34,12 @@ const sessionStorageMock = new MemoryStorage()
 
 Object.defineProperty(globalThis, 'localStorage', {
   value: localStorageMock,
-  configurable: true
+  configurable: true,
 })
 
 Object.defineProperty(globalThis, 'sessionStorage', {
   value: sessionStorageMock,
-  configurable: true
+  configurable: true,
 })
 
 describe('auth utilities', () => {
@@ -66,6 +66,24 @@ describe('auth utilities', () => {
 
     expect(userManager.getUser()).toEqual(user)
     expect(userManager.isAuthenticated()).toBe(true)
+  })
+
+  it('strips capability-like fields before persisting the cached user', () => {
+    userManager.setUser({
+      id: 'user_1',
+      name: 'alice',
+      displayName: 'Alice',
+      avatar: 'https://example.com/avatar.png',
+      globalCapabilities: ['admin:reviews:manage'],
+      canAccessAdmin: true,
+    } as StoredUser)
+
+    expect(JSON.parse(localStorage.getItem('stuhelper_user') ?? 'null')).toEqual({
+      id: 'user_1',
+      name: 'alice',
+      displayName: 'Alice',
+      avatar: 'https://example.com/avatar.png',
+    })
   })
 
   it('treats tokens inside the safety buffer as expired', () => {

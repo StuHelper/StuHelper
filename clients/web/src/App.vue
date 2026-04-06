@@ -2,9 +2,17 @@
   <el-config-provider :locale="elementLocale">
     <ErrorBoundary>
       <AppShell v-if="showShell">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" :key="route.name" />
+          </Transition>
+        </router-view>
       </AppShell>
-      <router-view v-else />
+      <router-view v-else v-slot="{ Component }">
+        <Transition name="page" mode="out-in">
+          <component :is="Component" :key="route.name" />
+        </Transition>
+      </router-view>
     </ErrorBoundary>
   </el-config-provider>
 </template>
@@ -27,7 +35,6 @@ useThemeStore()
 
 const elementLocale = computed(() => locale.value === 'zh-CN' ? zhCn : en)
 const showShell = computed(() => {
-  const layout = route.meta.layout
-  return layout !== 'none' && layout !== 'admin'
+  return route.meta.layout !== 'none'
 })
 </script>

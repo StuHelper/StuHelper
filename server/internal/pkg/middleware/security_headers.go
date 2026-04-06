@@ -17,17 +17,7 @@ import (
 // SecurityHeadersMiddleware 添加安全响应头
 func SecurityHeadersMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("X-Frame-Options", "DENY")
-		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		c.Header("X-Permitted-Cross-Domain-Policies", "none")
-		// Swagger UI 需要加载脚本和样式，使用宽松 CSP
-		if strings.HasPrefix(c.Request.URL.Path, "/docs") {
-			c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
-		} else {
-			// API 服务器的 CSP 策略：只允许 JSON 响应，禁止脚本和样式
-			c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
-		}
+		applySecurityHeaders(c, false)
 		c.Next()
 	}
 }
@@ -35,24 +25,31 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 // SecurityHeadersWithHSTS 添加安全响应头（包含 HSTS，用于生产环境）
 func SecurityHeadersWithHSTS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("X-Frame-Options", "DENY")
-		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
-		c.Header("X-Permitted-Cross-Domain-Policies", "none")
-		// Swagger UI 在生产环境不注册，但保持一致的 CSP 逻辑
-		if strings.HasPrefix(c.Request.URL.Path, "/docs") {
-			c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
-		} else {
-			c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
-		}
+		applySecurityHeaders(c, true)
+		c.Next()
+	}
+}
+
+func applySecurityHeaders(c *gin.Context, includeHSTS bool) {
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("X-Frame-Options", "DENY")
+	c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+	c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+	c.Header("X-Permitted-Cross-Domain-Policies", "none")
+	c.Header("Cross-Origin-Resource-Policy", "same-origin")
+	c.Header("Cross-Origin-Opener-Policy", "same-origin")
+
+	// Swagger UI 需要加载脚本和样式，使用宽松 CSP
+	if strings.HasPrefix(c.Request.URL.Path, "/docs") {
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
+	} else {
+		// API 服务器的 CSP 策略：只允许 JSON 响应，禁止脚本和样式
+		c.Header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+	}
+
+	if includeHSTS {
 		// HSTS: 强制 HTTPS，有效期 1 年，包含子域名
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		// CORP: 限制资源只能被同源页面加载
-		c.Header("Cross-Origin-Resource-Policy", "same-origin")
-		// COOP: 隔离浏览上下文，防止跨源攻击
-		c.Header("Cross-Origin-Opener-Policy", "same-origin")
-		c.Next()
 	}
 }
 
@@ -99,7 +96,7 @@ func MaxBodySize(maxBytes int64) gin.HandlerFunc {
 				zap.Int64("max_bytes", maxBytes),
 				zap.String("user_agent", c.Request.UserAgent()),
 			)
-			response.Error(c, http.StatusRequestEntityTooLarge, errs.ErrRequestTooLarge, "request body too large")
+			response.Error(c, http.StatusRequestEntityTooLarge, errs.ErrPayloadTooLarge, "request body too large")
 			c.Abort()
 			return
 		}

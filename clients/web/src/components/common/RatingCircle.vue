@@ -42,7 +42,7 @@ const props = defineProps<{
 
 const resolvedSize = computed(() => props.size ?? 80)
 const resolvedStrokeWidth = computed(() => props.strokeWidth ?? 6)
-// L-43: 防止 max 为 0 时除零
+// 防止 max 为 0 时除零
 const resolvedMax = computed(() => Math.max(props.max ?? 5, 0.01))
 const center = computed(() => resolvedSize.value / 2)
 const radius = computed(() => center.value - resolvedStrokeWidth.value)

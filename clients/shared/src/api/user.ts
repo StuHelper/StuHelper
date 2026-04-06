@@ -10,6 +10,9 @@ export const createUserApi = (client: ApiClient) => ({
   getMyFavorites: (page = 1, pageSize = 10) =>
     client.GET('/api/v1/course/review/user/favorites', { params: { query: { page, pageSize } } }),
 
+  getFavoriteStatus: (courseId: number) =>
+    client.GET('/api/v1/course/review/courses/{courseID}/favorites', { params: { path: { courseID: courseId } } }),
+
   addFavorite: (courseId: number) =>
     client.POST('/api/v1/course/review/courses/{courseID}/favorites', { params: { path: { courseID: courseId } } }),
 

@@ -18,9 +18,9 @@
     <transition name="dropdown">
       <div
         v-if="showPanel"
-        class="absolute top-[calc(100%+8px)] right-0 w-80 bg-bg-base border border-border rounded-sm overflow-hidden z-[100]"
+        class="absolute top-[calc(100%+8px)] right-0 w-80 bg-bg-base rounded-sm overflow-hidden z-[var(--z-dropdown)]"
       >
-        <div class="flex items-center justify-between p-3 border-b border-border font-medium text-sm">
+        <div class="flex items-center justify-between p-3 border-b border-border-light font-medium text-sm">
           <span>{{ t('user.notification.bell') }}</span>
           <button
             v-if="hasUnread"
@@ -37,7 +37,7 @@
         />
         <router-link
           to="/notifications"
-          class="block p-3 text-center text-sm text-text-muted border-t border-border no-underline hover:text-text-primary transition-colors duration-fast"
+          class="block p-3 text-center text-sm text-text-muted border-t border-border-light no-underline hover:text-text-primary transition-colors duration-fast"
           @click="showPanel = false"
         >
           {{ t('user.notification.viewAll') }}
@@ -87,7 +87,7 @@ const handleClickOutside = (e: MouseEvent) => {
 }
 
 onMounted(() => {
-  store.startPolling()
+  store.connectSSE()
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -108,14 +108,16 @@ onUnmounted(() => {
   75% { transform: rotate(-15deg); }
 }
 
-.dropdown-enter-active,
+.dropdown-enter-active {
+  transition: all var(--duration-slow) var(--ease-spring);
+}
 .dropdown-leave-active {
-  transition: all var(--duration-base) ease;
+  transition: all var(--duration-base) var(--ease-out);
 }
 
 .dropdown-enter-from,
 .dropdown-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-8px) scale(0.95);
 }
 </style>

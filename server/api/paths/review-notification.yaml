@@ -22,7 +22,7 @@
                   properties:
                     data:
                       type: object
-                      required: [list, total]
+                      required: [list, total, unread]
                       properties:
                         list:
                           type: array
@@ -30,6 +30,29 @@
                             $ref: '../components/schemas/notification.yaml#/Notification'
                         total:
                           type: integer
+                        unread:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/user/notifications/stream:
+  get:
+    tags: [Notification]
+    operationId: streamNotifications
+    summary: 通知 SSE 实时推送
+    description: 通过 Server-Sent Events 推送用户通知和未读数更新。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: SSE 事件流
+        content:
+          text/event-stream:
+            schema:
+              type: string
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':

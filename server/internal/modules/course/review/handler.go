@@ -10,14 +10,17 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
@@ -26,26 +29,26 @@ type Handler struct {
 	db             *db.DB
 	cache          *cache.Helper
 	service        *Service
-	permissionSvc  rbac.PermissionService
 	userRepo       *user.Repository
-	postLimiter    *middleware.RedisRateLimiter // 发布评论限流
-	voteLimiter    *middleware.RedisRateLimiter // 投票限流
-	reportLimiter  *middleware.RedisRateLimiter // 举报限流
-	replyLimiter   *middleware.RedisRateLimiter // 回复限流
-	writeLimiter   *middleware.RedisRateLimiter // 更新/删除限流
+	fga            *fga.Client
+	postLimiter    *middleware.RedisRateLimiter
+	voteLimiter    *middleware.RedisRateLimiter
+	reportLimiter  *middleware.RedisRateLimiter
+	replyLimiter   *middleware.RedisRateLimiter
+	writeLimiter   *middleware.RedisRateLimiter
 	accessPolicyMu sync.Mutex
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, rdb *redis.Client, permissionSvc rbac.PermissionService, rlCfg config.ReviewRateLimitConfig) *Handler {
+func NewHandler(database *db.DB, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, fgaClient *fga.Client, notifSender notification.Sender) *Handler {
 	repo := NewRepository(database)
-	svc := NewService(database, repo)
+	svc := NewService(database, repo, notifSender)
 	return &Handler{
 		db:            database,
 		cache:         cache.NewHelper(rdb),
 		service:       svc,
-		permissionSvc: permissionSvc,
 		userRepo:      user.NewRepository(database),
+		fga:           fgaClient,
 		postLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.PostLimit, time.Minute),
 		voteLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.VoteLimit, time.Minute),
 		reportLimiter: middleware.NewRedisRateLimiter(rdb, rlCfg.ReportLimit, time.Minute),
@@ -60,31 +63,37 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	r.GET("/rating-dimensions", h.GetRatingDimensions)
 
 	// 课程评分统计
-	r.GET("/courses/:id/rating-stats", h.GetCourseRatingStats)
-	r.GET("/courses/:id/rating-trend", h.GetRatingTrend)
+	r.GET("/courses/:courseID/rating-stats", h.GetCourseRatingStats)
+	r.GET("/courses/:courseID/rating-trend", h.GetRatingTrend)
 
 	// 课程教师列表
-	r.GET("/courses/:id/teachers", h.GetCourseTeachers)
+	r.GET("/courses/:courseID/teachers", h.GetCourseTeachers)
 
 	// 测评（使用 optionalAuth：已登录用户看完整内容，未登录用户看脱敏内容）
-	r.GET("/courses/:id/reviews", optionalAuthMiddleware, h.GetCourseReviews)
+	r.GET("/courses/:courseID/reviews", optionalAuthMiddleware, h.GetCourseReviews)
 	r.GET("/reviews/latest", optionalAuthMiddleware, h.GetLatestReviews)
+	r.GET("/reviews/search", optionalAuthMiddleware, h.SearchReviews)
 	r.GET("/reviews/batch", optionalAuthMiddleware, h.GetBatchCourseReviews)
 	r.POST("/reviews", authMiddleware, middleware.EndpointRateLimitMiddleware(h.postLimiter, "post-review"), h.PostReview)
-	r.PUT("/reviews/:id", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "update-review"), h.UpdateReview)
-	r.DELETE("/reviews/:id", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "delete-review"), h.DeleteReview)
-	r.POST("/reviews/:id/votes", authMiddleware, middleware.EndpointRateLimitMiddleware(h.voteLimiter, "vote"), h.VoteReview)
-	r.POST("/reviews/:id/reports", authMiddleware, middleware.EndpointRateLimitMiddleware(h.reportLimiter, "report"), h.ReportReview)
+	r.PUT("/reviews/:reviewID", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "update-review"), h.UpdateReview)
+	r.DELETE("/reviews/:reviewID", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "delete-review"), h.DeleteReview)
+	r.POST("/reviews/:reviewID/votes", authMiddleware, middleware.EndpointRateLimitMiddleware(h.voteLimiter, "vote"), h.VoteReview)
+	r.POST("/reviews/:reviewID/reports", authMiddleware, middleware.EndpointRateLimitMiddleware(h.reportLimiter, "report"), h.ReportReview)
 
 	// 回复
-	r.GET("/reviews/:id/replies", h.GetReplies)
-	r.POST("/reviews/:id/replies", authMiddleware, middleware.EndpointRateLimitMiddleware(h.replyLimiter, "reply"), h.CreateReply)
-	r.DELETE("/replies/:id", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "delete-reply"), h.DeleteReply)
+	r.GET("/reviews/:reviewID/replies", h.GetReplies)
+	r.POST("/reviews/:reviewID/replies", authMiddleware, middleware.EndpointRateLimitMiddleware(h.replyLimiter, "reply"), h.CreateReply)
+	r.DELETE("/replies/:replyID", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "delete-reply"), h.DeleteReply)
 
 	// 评课统计
 	r.GET("/stats", h.GetStats)
 	r.GET("/rankings/hot", h.GetHotCourses)
-	r.GET("/teachers/:id/stats", h.GetTeacherRatingStats)
+
+	// 教师公开列表（必须在 /teachers/:teacherID 之前注册，避免路由冲突）
+	r.GET("/teachers", h.ListTeachers)
+	r.GET("/teachers/hot", h.ListHotTeachers)
+
+	r.GET("/teachers/:teacherID/stats", h.GetTeacherRatingStats)
 
 	// 内容检查（需要认证，防止敏感词列表被探测）
 	r.POST("/content/check", authMiddleware, h.CheckContent)
@@ -98,7 +107,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 		userGroup.GET("/favorites", h.GetUserFavorites)
 		userGroup.GET("/notifications", h.GetNotifications)
 		userGroup.GET("/notifications/unread-count", h.GetUnreadCount)
-		userGroup.PUT("/notifications/:id/read", h.MarkNotificationRead)
+		userGroup.PUT("/notifications/:notificationID/read", h.MarkNotificationRead)
 		userGroup.PUT("/notifications/read-all", h.MarkAllNotificationsRead)
 	}
 
@@ -108,34 +117,36 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	r.DELETE("/drafts/:courseID", authMiddleware, h.DeleteDraft)
 
 	// 课程收藏（需要认证）
-	r.POST("/courses/:id/favorites", authMiddleware, h.AddFavorite)
-	r.DELETE("/courses/:id/favorites", authMiddleware, h.RemoveFavorite)
+	r.GET("/courses/:courseID/favorites", authMiddleware, h.GetFavoriteStatus)
+	r.POST("/courses/:courseID/favorites", authMiddleware, h.AddFavorite)
+	r.DELETE("/courses/:courseID/favorites", authMiddleware, h.RemoveFavorite)
 
 	// 管理员路由组
 	admin := r.Group("/admin")
-	admin.Use(authMiddleware, rbac.RequireAnyPermission(h.permissionSvc, capability.AdminEntryCapabilities...))
+	admin.Use(authMiddleware, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
 	{
-		admin.GET("/reports", rbac.RequirePermission(h.permissionSvc, capability.AdminReportsManage), h.ListReports)
-		admin.PUT("/reports/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminReportsManage), h.ProcessReport)
-		admin.GET("/reviews", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.ListAllReviews)
-		admin.PUT("/reviews/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.AdminUpdateReview)
-		admin.POST("/reviews/:id/edit", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.AdminEditReviewContent)
-		admin.POST("/reviews/batch", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.BatchUpdateReviews)
-		admin.GET("/stats", rbac.RequirePermission(h.permissionSvc, capability.AdminDashboardView), h.GetAdminStats)
-		admin.GET("/logs", rbac.RequirePermission(h.permissionSvc, capability.AdminLogsView), h.GetOperationLogs)
-		admin.GET("/export", rbac.RequirePermission(h.permissionSvc, capability.AdminReviewsManage), h.ExportReviews)
+		admin.GET("/reports", rbac.RequireCapability(capability.AdminReportsManage), h.ListReports)
+		admin.PUT("/reports/:reportID", rbac.RequireCapability(capability.AdminReportsManage), h.ProcessReport)
+		admin.GET("/reviews", rbac.RequireCapability(capability.AdminReviewsManage), h.ListAllReviews)
+		admin.PUT("/reviews/:reviewID", rbac.RequireCapability(capability.AdminReviewsManage), h.AdminUpdateReview)
+		admin.POST("/reviews/:reviewID/edit", rbac.RequireCapability(capability.AdminReviewsManage), h.AdminEditReviewContent)
+		admin.POST("/reviews/batch", rbac.RequireCapability(capability.AdminReviewsManage), h.BatchUpdateReviews)
+		admin.GET("/stats", rbac.RequireCapability(capability.AdminDashboardView), h.GetAdminStats)
+		admin.GET("/logs", rbac.RequireCapability(capability.AdminLogsView), h.GetOperationLogs)
+		admin.GET("/export", rbac.RequireCapability(capability.AdminReviewsManage), h.ExportReviews)
 
-		// 教师管理
-		admin.GET("/teachers", rbac.RequirePermission(h.permissionSvc, capability.AdminTeachersManage), h.ListAdminTeachers)
-		admin.POST("/teachers", rbac.RequirePermission(h.permissionSvc, capability.AdminTeachersManage), h.CreateTeacher)
-		admin.PUT("/teachers/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminTeachersManage), h.UpdateTeacher)
-		admin.DELETE("/teachers/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminTeachersManage), h.DeleteTeacher)
+		admin.GET("/teachers", rbac.RequireCapability(capability.AdminTeachersManage), h.ListAdminTeachers)
+		admin.POST("/teachers", rbac.RequireCapability(capability.AdminTeachersManage), h.CreateTeacher)
+		admin.PUT("/teachers/:teacherID", rbac.RequireCapability(capability.AdminTeachersManage), h.UpdateTeacher)
+		admin.DELETE("/teachers/:teacherID", rbac.RequireCapability(capability.AdminTeachersManage), h.DeleteTeacher)
 
-		// 敏感词管理
-		admin.GET("/sensitive-words", rbac.RequirePermission(h.permissionSvc, capability.AdminSensitiveWordsManage), h.ListSensitiveWords)
-		admin.POST("/sensitive-words", rbac.RequirePermission(h.permissionSvc, capability.AdminSensitiveWordsManage), h.CreateSensitiveWord)
-		admin.PUT("/sensitive-words/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminSensitiveWordsManage), h.UpdateSensitiveWord)
-		admin.DELETE("/sensitive-words/:id", rbac.RequirePermission(h.permissionSvc, capability.AdminSensitiveWordsManage), h.DeleteSensitiveWord)
+		admin.GET("/sensitive-words", rbac.RequireCapability(capability.AdminSensitiveWordsManage), h.ListSensitiveWords)
+		admin.POST("/sensitive-words", rbac.RequireCapability(capability.AdminSensitiveWordsManage), h.CreateSensitiveWord)
+		admin.PUT("/sensitive-words/:sensitiveWordID", rbac.RequireCapability(capability.AdminSensitiveWordsManage), h.UpdateSensitiveWord)
+		admin.DELETE("/sensitive-words/:sensitiveWordID", rbac.RequireCapability(capability.AdminSensitiveWordsManage), h.DeleteSensitiveWord)
+
+		admin.GET("/content-flags", rbac.RequireCapability(capability.AdminReviewsManage), h.ListFlaggedReviews)
+		admin.PUT("/content-flags/:reviewID/clear", rbac.RequireCapability(capability.AdminReviewsManage), h.ClearContentFlag)
 	}
 }
 
@@ -166,7 +177,7 @@ func (h *Handler) logAdminOp(c *gin.Context, action, resourceType, resourceID st
 // invalidateReviewCaches 失效评论相关缓存
 // courseID > 0 时精确失效该课程的缓存（review:course:{courseID}），否则失效全局 review:course 前缀
 // extraKeys 为额外需要失效的缓存前缀
-// M-48: 缓存失效失败时记录详细日志（包含具体 key），但不阻塞业务流程
+// 缓存失效失败时记录详细日志 + prometheus 计数器，但不阻塞业务流程
 func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKeys ...string) {
 	ctx := c.Request.Context()
 	l := logger.FromGin(c)
@@ -175,6 +186,7 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 	if courseID > 0 {
 		key := "review:course:" + strconv.FormatInt(courseID, 10)
 		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
+			metrics.CacheInvalidationFailuresTotal.WithLabelValues("review:course").Inc()
 			l.Warn("failed to invalidate course cache",
 				zap.String("cache_key", key),
 				zap.Int64("course_id", courseID),
@@ -183,6 +195,7 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 	} else {
 		// 无法确定课程 ID 时，失效全局课程缓存版本号（避免 SCAN）
 		if err := h.cache.InvalidateByVersion(ctx, "review:course"); err != nil {
+			metrics.CacheInvalidationFailuresTotal.WithLabelValues("review:course").Inc()
 			l.Warn("failed to invalidate global course cache version",
 				zap.String("cache_key", "review:course"),
 				zap.Error(err))
@@ -191,6 +204,7 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 
 	// 始终失效 latest 缓存（跨课程聚合）
 	if err := h.cache.InvalidateByVersion(ctx, "review:latest"); err != nil {
+		metrics.CacheInvalidationFailuresTotal.WithLabelValues("review:latest").Inc()
 		l.Warn("failed to invalidate cache",
 			zap.String("cache_key", "review:latest"),
 			zap.Error(err))
@@ -199,9 +213,35 @@ func (h *Handler) invalidateReviewCaches(c *gin.Context, courseID int64, extraKe
 	// 失效额外指定的缓存前缀
 	for _, key := range extraKeys {
 		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
+			metrics.CacheInvalidationFailuresTotal.WithLabelValues(key).Inc()
 			l.Warn("failed to invalidate cache",
 				zap.String("cache_key", key),
 				zap.Error(err))
 		}
 	}
+}
+
+func (h *Handler) invalidateCachePrefixes(c *gin.Context, keys ...string) {
+	ctx := c.Request.Context()
+	l := logger.FromGin(c)
+	for _, key := range keys {
+		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
+			metrics.CacheInvalidationFailuresTotal.WithLabelValues(key).Inc()
+			l.Warn("failed to invalidate cache",
+				zap.String("cache_key", key),
+				zap.Error(err))
+		}
+	}
+}
+
+func (h *Handler) invalidateReviewAggregateCaches(c *gin.Context) {
+	h.invalidateCachePrefixes(c,
+		"review:stats",
+		"review:rating_stats",
+		"review:rating_trend",
+		"review:hot",
+		"review:course_teachers",
+		"review:teacher_stats",
+		"review:admin:stats",
+	)
 }

@@ -3,7 +3,7 @@
  */
 import type { Directive } from 'vue'
 
-// M-10: 使用 WeakMap 跟踪每个元素的事件处理器，确保 unmounted 时正确清理
+// 使用 WeakMap 跟踪每个元素的事件处理器，确保 unmounted 时正确清理
 const rippleHandlers = new WeakMap<HTMLElement, (event: MouseEvent) => void>()
 
 const createRipple = (event: MouseEvent) => {
@@ -32,7 +32,7 @@ const createRipple = (event: MouseEvent) => {
   }, { once: true })
 }
 
-// M-122: 使用 WeakSet 跟踪样式注入状态，支持多 Vue 实例
+// 使用 WeakSet 跟踪样式注入状态，支持多 Vue 实例
 const injectedDocuments = new WeakSet<Document>()
 
 function injectRippleStyle() {
@@ -45,7 +45,7 @@ function injectRippleStyle() {
       border-radius: 50%;
       transform: scale(0);
       animation: ripple 0.6s linear;
-      background: rgba(255, 255, 255, 0.3);
+      background: var(--color-primary-alpha, rgba(91, 124, 247, 0.18));
       pointer-events: none;
     }
     @keyframes ripple {
@@ -64,7 +64,7 @@ export const vRipple: Directive = {
       el.style.position = 'relative'
     }
     el.style.overflow = 'hidden'
-    // M-10: 保存处理器引用，确保 unmounted 时能正确移除
+    // 保存处理器引用，确保 unmounted 时能正确移除
     rippleHandlers.set(el, createRipple)
     el.addEventListener('click', createRipple)
   },
@@ -74,7 +74,7 @@ export const vRipple: Directive = {
       el.removeEventListener('click', handler)
       rippleHandlers.delete(el)
     }
-    // M-10: 清理残留的 ripple 元素
+    // 清理残留的 ripple 元素
     el.querySelectorAll('.ripple').forEach(r => r.remove())
   }
 }

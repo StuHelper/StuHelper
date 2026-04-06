@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { onLaunch } from '@dcloudio/uni-app'
+import { onLaunch, onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '@/stores/auth'
 
+const authStore = useAuthStore()
+
 onLaunch(() => {
-  const authStore = useAuthStore()
-  authStore.initAuth()
+  void authStore.bootstrapSession()
+})
+
+onShow(() => {
+  if (!authStore.initialized) return
+  void authStore.bootstrapSession()
 })
 </script>
 
@@ -16,6 +22,7 @@ onLaunch(() => {
 
 <style>
 page {
-  background-color: #F8F9FA;
+  background-color: #f8fafc;
+  color: #0f172a;
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="mt-3 border-t border-border pt-3">
+  <div class="mt-3 border-t border-border-light pt-3">
     <div class="flex items-center justify-between">
       <button
         class="flex items-center gap-1 bg-transparent border-none text-text-muted text-sm cursor-pointer py-1 hover:text-text-secondary"
@@ -43,7 +43,7 @@
         <div v-else-if="error" class="flex items-center gap-3 p-3 text-danger text-sm">
           {{ error }}
           <button
-            class="py-1 px-3 bg-transparent border border-border rounded-sm text-text-secondary text-sm cursor-pointer shrink-0 hover:border-text-primary hover:text-text-primary"
+            class="py-1 px-3 bg-transparent rounded-sm text-text-secondary text-sm cursor-pointer shrink-0 hover:border-text-primary hover:text-text-primary"
             @click="fetchReplies"
           >
             {{ t('common.actions.retry') }}

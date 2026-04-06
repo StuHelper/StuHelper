@@ -3,7 +3,7 @@
     <div
       v-for="term in terms"
       :key="term.termName"
-      class="bg-bg-card border border-border rounded-xl p-5 shadow-card"
+      class="bg-bg-card rounded-xl p-5 shadow-card"
     >
       <div class="flex items-center justify-between mb-4">
         <h4 class="text-sm font-semibold text-text-primary m-0">{{ term.termName }}</h4>

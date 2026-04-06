@@ -1,55 +1,27 @@
-# StuHelper 前端项目
+# 前端工作区
 
-## 开发环境要求
+| 目录 | 用途 |
+|------|------|
+| `web/` | 主站 SPA |
+| `admin/` | 独立管理后台（Vben Admin + Element Plus） |
+| `shared/` | OpenAPI 生成类型、共享 API 封装 |
+| `uniappx/` | 实验性跨端入口 |
 
-- Node.js >= 18
-- pnpm >= 8
+## 环境
 
-## 安装依赖
+- Node.js 24+
+- pnpm 10+
+
+## 命令
 
 ```bash
+cd clients
 pnpm install
+
+pnpm dev:web && pnpm dev:admin
+pnpm type-check && pnpm lint
+pnpm test:web && pnpm test:e2e
+pnpm build:web && pnpm build:admin
 ```
 
-## 启动开发服务器
-
-### Web 项目 (H5)
-
-```bash
-cd clients
-pnpm dev:web
-```
-
-访问: http://localhost:3000
-
-### uni-app x 项目 (H5)
-
-```bash
-cd clients
-pnpm dev:uni
-```
-
-端口以开发服务器输出为准。
-
-## 构建
-
-### Web 项目
-
-```bash
-cd clients
-pnpm build:web
-```
-
-### uni-app x 项目 (小程序)
-
-```bash
-cd clients
-pnpm build:uni:mp
-```
-
-## 类型检查
-
-```bash
-cd clients
-pnpm type-check
-```
+连后端一起启动：`make dev-up`（仓库根目录）。

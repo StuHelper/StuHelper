@@ -116,13 +116,13 @@ func buildReviewAccessPolicy(schools []user.SchoolConfig, configs []user.SystemC
 			return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("%s %w", systemconfig.ReviewPreviewTitleCharsKey, err)
 		}
 	}
-	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewContentCharsKey, systemconfig.LegacyReviewPreviewCharsKey); ok {
+	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewContentCharsKey); ok {
 		policy.PreviewContentRunes, err = systemconfig.ParseBoundedInt(value, 1, 5000)
 		if err != nil {
 			return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("%s %w", systemconfig.ReviewPreviewContentCharsKey, err)
 		}
 	}
-	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewContentPercentKey, systemconfig.LegacyReviewPreviewPercentKey); ok {
+	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewContentPercentKey); ok {
 		policy.PreviewContentPct, err = systemconfig.ParseBoundedInt(value, 1, 100)
 		if err != nil {
 			return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("%s %w", systemconfig.ReviewPreviewContentPercentKey, err)
@@ -150,7 +150,7 @@ func firstNonEmptyConfig(configs map[string]string, keys ...string) (string, boo
 	return "", false
 }
 
-func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID string) (ReviewAccessFacts, error) {
+func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID string, capabilities []string) (ReviewAccessFacts, error) {
 	policy, err := h.getReviewAccessPolicy(ctx)
 	if err != nil {
 		return ReviewAccessFacts{}, err
@@ -167,37 +167,22 @@ func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID strin
 
 	facts.Authenticated = true
 
-	if h.permissionSvc == nil {
+	// 从 Token 角色展开的能力中检查管理权限（零 DB 查询）
+	facts.CanManageReviews = capability.Has(capabilities, capability.AdminReviewsManage)
+
+	subject, err := h.userRepo.GetReviewAccessSubjectByExternalID(ctx, externalID)
+	if err != nil {
+		return facts, err
+	}
+	if subject == nil {
 		return facts, nil
 	}
 
-	internalUserID, err := h.permissionSvc.GetInternalUserID(ctx, externalID)
-	if err != nil {
-		return facts, err
-	}
-
-	canManageReviews, err := h.permissionSvc.CheckPermission(ctx, internalUserID, capability.AdminReviewsManage, nil)
-	if err != nil {
-		return facts, err
-	}
-	facts.CanManageReviews = canManageReviews
-
-	profile, err := h.userRepo.GetProfileByUserID(ctx, internalUserID)
-	if err != nil {
-		return facts, err
-	}
-	identity, err := h.userRepo.GetIdentityStatusByUserID(ctx, internalUserID)
-	if err != nil {
-		return facts, err
-	}
-
-	if profile != nil {
-		facts.SchoolID = profile.SchoolID
-		facts.StudentVerified = profile.VerificationStatus == user.StatusVerified &&
-			profile.SchoolID != nil &&
-			policy.AllowsSchool(*profile.SchoolID)
-	}
-	facts.IdentityVerified = identity != nil && identity.Verified
+	facts.SchoolID = subject.SchoolID
+	facts.StudentVerified = subject.StudentVerified &&
+		subject.SchoolID != nil &&
+		policy.AllowsSchool(*subject.SchoolID)
+	facts.IdentityVerified = subject.IdentityVerified
 	facts.CanViewFull = facts.CanManageReviews || facts.StudentVerified
 	facts.CanPostReview = facts.StudentVerified && facts.IdentityVerified
 
@@ -206,7 +191,8 @@ func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID strin
 
 func (h *Handler) resolveReviewAccessFactsForRequest(c *gin.Context) ReviewAccessFacts {
 	externalID := middleware.GetUserID(c)
-	facts, err := h.resolveReviewAccessFacts(c.Request.Context(), externalID)
+	capabilities := middleware.GetCapabilities(c)
+	facts, err := h.resolveReviewAccessFacts(c.Request.Context(), externalID, capabilities)
 	if err == nil {
 		return facts
 	}

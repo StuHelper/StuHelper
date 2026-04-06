@@ -3,7 +3,7 @@
     class="p-3 rounded-sm mb-3 animate-fade-in"
     :class="level === 'error'
       ? 'border border-text-primary'
-      : 'border border-border'"
+      : 'border-0'"
   >
     <div class="flex items-center gap-2 mb-2">
       <AlertCircle v-if="level === 'error'" class="w-[18px] h-[18px] text-text-primary" />
@@ -22,7 +22,7 @@
     </ul>
     <button
       v-if="dismissible"
-      class="mt-2 px-2 py-1 text-xs bg-transparent border border-border rounded-sm text-text-muted cursor-pointer hover:border-text-muted"
+      class="mt-2 px-2 py-1 text-xs bg-transparent rounded-sm text-text-muted cursor-pointer hover:border-text-muted"
       @click="$emit('dismiss')"
     >
       {{ t('review.quality.dismiss') }}

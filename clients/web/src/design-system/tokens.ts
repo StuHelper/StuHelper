@@ -1,35 +1,50 @@
 // clients/web/src/design-system/tokens.ts
-export const glassEffects = {
-  card: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(10px) saturate(180%)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)'
-  },
-  navbar: {
-    background: 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(20px) saturate(180%)'
-  },
-  modal: {
-    background: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(30px) saturate(200%)'
-  }
-} as const
+// Single source of truth — mirrors CSS custom properties in tailwind.css
 
 export const colors = {
-  primary: '#ec4899',
-  secondary: '#3b82f6'
+  primary: '#5b7cf7',
+  primaryLight: '#7e9aff',
+  accent: '#e87aac',
+  accentLight: '#f09ec5',
+  secondary: '#5ab8cc',
+  success: '#52c07a',
+  warning: '#e8a840',
+  danger: '#d86060',
+} as const
+
+export const ratingColors: Record<number, string> = {
+  1: 'var(--color-rating-1)',
+  2: 'var(--color-rating-2)',
+  3: 'var(--color-rating-3)',
+  4: 'var(--color-rating-4)',
+  5: 'var(--color-rating-5)',
 } as const
 
 export const animations = {
   easing: {
     smooth: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
-    bounce: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+    bounce: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+    spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
   },
   duration: {
-    fast: 150,
-    normal: 300,
-    slow: 500,
-    page: 600
-  }
+    fast: 120,
+    base: 200,
+    slow: 300,
+    slower: 500,
+  },
+} as const
+
+export const glassEffects = {
+  card: {
+    background: 'var(--color-bg-glass)',
+    backdropFilter: 'blur(12px) saturate(180%)',
+  },
+  navbar: {
+    background: 'var(--color-bg-glass)',
+    backdropFilter: 'blur(20px) saturate(180%)',
+  },
+  modal: {
+    background: 'var(--color-bg-glass-heavy)',
+    backdropFilter: 'blur(30px) saturate(200%)',
+  },
 } as const

@@ -1,7 +1,7 @@
 <template>
   <div class="relative w-[600px] shrink-0 max-tablet:w-full">
     <div
-      class="flex items-center gap-2 px-3 py-2 rounded-full bg-bg-secondary border border-border transition-all duration-fast ease-smooth"
+      class="flex items-center gap-2 px-3 py-2 rounded-full bg-bg-secondary transition-all duration-fast ease-smooth"
       :class="isFocused && 'border-primary shadow-glow-sm'"
     >
       <Search :size="16" class="text-text-muted shrink-0" />
@@ -121,7 +121,7 @@ const showDropdown = computed(() =>
 
 // 防抖搜索
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
-// H8: AbortController 取消前一次搜索请求
+// AbortController 取消前一次搜索请求
 let searchController: AbortController | undefined
 
 watch(query, (val) => {
@@ -170,7 +170,7 @@ watch(query, (val) => {
   }, 300)
 })
 
-// M-14: blur 延迟关闭使用 undefined 初始值，统一清理
+// blur 延迟关闭使用 undefined 初始值，统一清理
 let blurTimer: ReturnType<typeof setTimeout> | undefined
 
 function handleFocus() {
@@ -254,7 +254,14 @@ function saveRecent(item: RecentItem) {
 
 // Cmd+K / Ctrl+K 全局快捷键聚焦搜索框
 function handleGlobalKeydown(e: KeyboardEvent) {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+  const target = e.target as HTMLElement | null
+  const isEditable = target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target?.isContentEditable === true
+
+  if (isEditable) return
+
+  if (!e.metaKey && !e.ctrlKey && e.key === '/') {
     e.preventDefault()
     inputRef.value?.focus()
   }

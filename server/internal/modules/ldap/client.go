@@ -187,6 +187,7 @@ func (c *Client) QueryUserByUID(ctx context.Context, uid string) (*UserInfo, err
 }
 
 // dial 建立 LDAP 连接，根据配置决定是否升级 TLS。
+// 同时设置操作超时，防止 Bind/Search 无限挂起。
 func (c *Client) dial() (*ldapv3.Conn, error) {
 	conn, err := ldapv3.DialURL(
 		c.cfg.URL,
@@ -195,6 +196,9 @@ func (c *Client) dial() (*ldapv3.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial ldap failed: %w", err)
 	}
+
+	// 设置后续 Bind/Search 等操作的超时，防止远程服务器无响应时 goroutine 泄漏
+	conn.SetTimeout(c.cfg.Timeout)
 
 	// go-ldap 对 ldaps:// 自动处理 TLS；对 ldap:// 且启用 TLS 时执行 StartTLS 升级。
 	if c.cfg.UseTLS && strings.HasPrefix(strings.ToLower(c.cfg.URL), "ldap://") {

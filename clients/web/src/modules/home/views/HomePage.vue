@@ -1,237 +1,132 @@
 <script setup lang="ts">
-import { useRouter } from "vue-router";
-import HeroSection from "@/components/business/HeroSection.vue";
-import FeatureCard from "@/components/business/FeatureCard.vue";
-import CountUp from "@/components/animated/CountUp.vue";
+import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { api } from '@/api'
+import HeroSection from '@/components/business/HeroSection.vue'
+import FeatureCard from '@/components/business/FeatureCard.vue'
+import CountUp from '@/components/animated/CountUp.vue'
+import ScrollReveal from '@/components/animated/ScrollReveal.vue'
 import {
-    AcademicCapIcon,
-    UserGroupIcon,
-    WrenchScrewdriverIcon,
-    ChatBubbleLeftRightIcon,
-} from "@heroicons/vue/24/outline";
+  AcademicCapIcon,
+  UserGroupIcon,
+} from '@heroicons/vue/24/outline'
 
-const router = useRouter();
+const router = useRouter()
+const { t } = useI18n()
 
-const features = [
-    {
-        icon: AcademicCapIcon,
-        title: "评课中心",
-        description: "查看真实的课程评价，帮助你选到心仪的课程",
-        color: "#06b6d4",
-        stats: "10000+ 条评价",
-    },
-    {
-        icon: UserGroupIcon,
-        title: "教师主页",
-        description: "了解教师的教学风格和学生评价",
-        color: "#4f46e5",
-        stats: "500+ 位教师",
-    },
-    {
-        icon: WrenchScrewdriverIcon,
-        title: "工具箱",
-        description: "实用的校园工具，让学习生活更便捷",
-        color: "#0891b2",
-        stats: "即将上线",
-    },
-    {
-        icon: ChatBubbleLeftRightIcon,
-        title: "社群",
-        description: "与同学交流分享，共同成长进步",
-        color: "#6366f1",
-        stats: "即将上线",
-    },
-];
+const courseCount = ref(0)
+const reviewCount = ref(0)
+const userCount = ref(0)
+
+onMounted(async () => {
+  const [courseStatsRes, reviewStatsRes] = await Promise.allSettled([
+    api.course.getStats(),
+    api.review.getReviewStats(),
+  ])
+  if (courseStatsRes.status === 'fulfilled') {
+    const data = courseStatsRes.value.data?.data
+    if (data) {
+      courseCount.value = data.courseCount ?? 0
+    }
+  }
+  if (reviewStatsRes.status === 'fulfilled') {
+    const data = reviewStatsRes.value.data?.data
+    if (data) {
+      reviewCount.value = data.reviewCount ?? 0
+      userCount.value =
+        'userCount' in data && typeof data.userCount === 'number'
+          ? data.userCount
+          : 0
+    }
+  }
+})
+
+const features = computed(() => [
+  {
+    icon: AcademicCapIcon,
+    title: t('home.landing.features.reviewCenter.title'),
+    description: t('home.landing.features.reviewCenter.description'),
+    color: 'var(--color-secondary)',
+    stats: reviewCount.value > 0
+      ? t('home.landing.features.reviewCenter.statsCount', { count: reviewCount.value })
+      : t('home.landing.features.reviewCenter.stats')
+  },
+  {
+    icon: UserGroupIcon,
+    title: t('home.landing.features.teacherProfile.title'),
+    description: t('home.landing.features.teacherProfile.description'),
+    color: 'var(--color-primary)',
+    stats: t('home.landing.features.teacherProfile.stats')
+  },
+])
+
+const stats = computed(() => [
+  { target: courseCount.value, label: t('home.landing.stats.courses') },
+  { target: reviewCount.value, label: t('home.landing.stats.reviews') },
+  { target: userCount.value, label: t('home.landing.stats.users') },
+])
 
 const onExplore = () => {
-    router.push("/course");
-};
+  router.push('/course')
+}
+
+const onLearnMore = () => {
+  router.push('/course/about')
+}
 </script>
 
 <template>
-    <div class="home-page">
-        <HeroSection
-            title="StuHelper 评课社区"
-            subtitle="真实的课程评价，帮助你做出更好的选择"
-            @explore="onExplore"
-        />
+  <div class="min-h-screen">
+    <HeroSection
+      :title="t('home.landing.hero.title')"
+      :subtitle="t('home.landing.hero.subtitle')"
+      @explore="onExplore"
+      @learn-more="onLearnMore"
+    />
 
-        <section class="features-section">
-            <div class="features-grid">
-                <FeatureCard
-                    v-for="feature in features"
-                    :key="feature.title"
-                    :icon="feature.icon"
-                    :title="feature.title"
-                    :description="feature.description"
-                    :color="feature.color"
-                    :stats="feature.stats"
-                />
-            </div>
-        </section>
+    <section class="py-16 px-6 max-w-[1200px] mx-auto">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-[700px] mx-auto">
+        <ScrollReveal
+          v-for="(feature, i) in features"
+          :key="feature.title"
+          :delay="i * 100"
+        >
+          <FeatureCard v-bind="feature" />
+        </ScrollReveal>
+      </div>
+    </section>
 
-        <section class="stats-section">
-            <div class="stats-container">
-                <div class="stat-item">
-                    <CountUp
-                        :target="1200"
-                        :duration="2000"
-                        class="stat-number"
-                    />
-                    <p class="stat-label">课程数</p>
-                </div>
-                <div class="stat-item">
-                    <CountUp
-                        :target="10000"
-                        :duration="2000"
-                        class="stat-number"
-                    />
-                    <p class="stat-label">评价数</p>
-                </div>
-                <div class="stat-item">
-                    <CountUp
-                        :target="5000"
-                        :duration="2000"
-                        class="stat-number"
-                    />
-                    <p class="stat-label">用户数</p>
-                </div>
+    <section class="py-12 px-6 mx-4 lg:mx-auto max-w-[1200px]">
+      <div class="glass-card rounded-2xl py-12 px-6">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+          <ScrollReveal
+            v-for="(stat, i) in stats"
+            :key="stat.label"
+            :delay="i * 150"
+          >
+            <div class="py-4">
+              <CountUp
+                :target="stat.target"
+                :duration="2000"
+                class="text-5xl font-extrabold gradient-text tabular-nums"
+              />
+              <p class="mt-3 text-base text-text-secondary">{{ stat.label }}</p>
             </div>
-        </section>
+          </ScrollReveal>
+        </div>
+      </div>
+    </section>
 
-        <footer class="footer">
-            <div class="footer-content">
-                <p>&copy; 2026 StuHelper. All rights reserved.</p>
-                <div class="footer-links">
-                    <RouterLink to="/about">关于我们</RouterLink>
-                    <RouterLink to="/privacy">隐私政策</RouterLink>
-                    <RouterLink to="/terms">服务条款</RouterLink>
-                </div>
-            </div>
-        </footer>
-    </div>
+    <footer class="py-8 px-6 border-t border-border-light mt-8">
+      <div class="max-w-[1200px] mx-auto flex justify-between items-center flex-wrap gap-4 text-sm text-text-muted max-sm:flex-col max-sm:text-center">
+        <p>{{ t('home.landing.footer.copyright') }}</p>
+        <div class="flex gap-8">
+          <RouterLink to="/about" class="text-text-muted hover:text-text-primary transition-colors duration-fast no-underline">{{ t('home.landing.footer.about') }}</RouterLink>
+          <RouterLink to="/privacy" class="text-text-muted hover:text-text-primary transition-colors duration-fast no-underline">{{ t('home.landing.footer.privacy') }}</RouterLink>
+          <RouterLink to="/terms" class="text-text-muted hover:text-text-primary transition-colors duration-fast no-underline">{{ t('home.landing.footer.terms') }}</RouterLink>
+        </div>
+      </div>
+    </footer>
+  </div>
 </template>
-
-<style scoped>
-.home-page {
-    min-height: 100vh;
-    background: linear-gradient(to bottom, #f9fafb, #ffffff);
-}
-
-.dark .home-page {
-    background: linear-gradient(to bottom, #0f172a, #1e293b);
-}
-
-.features-section {
-    padding: 4rem 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 2rem;
-}
-
-.stats-section {
-    padding: 4rem 2rem;
-    background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(12px);
-}
-
-.dark .stats-section {
-    background: rgba(30, 30, 30, 0.5);
-}
-
-.stats-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 3rem;
-    text-align: center;
-}
-
-.stat-item {
-    padding: 2rem;
-}
-
-.stat-number {
-    font-size: 3rem;
-    font-weight: 800;
-    background: linear-gradient(135deg, #06b6d4, #4f46e5);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.stat-label {
-    margin-top: 0.5rem;
-    font-size: 1rem;
-    color: #666;
-}
-
-.dark .stat-label {
-    color: #a0a0a0;
-}
-
-.footer {
-    padding: 2rem;
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(12px);
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.dark .footer {
-    background: rgba(30, 30, 30, 0.8);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.footer-content {
-    max-width: 1200px;
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-    color: #666;
-    font-size: 0.875rem;
-}
-
-.dark .footer-content {
-    color: #a0a0a0;
-}
-
-.footer-links {
-    display: flex;
-    gap: 2rem;
-}
-
-.footer-links a {
-    color: inherit;
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-.footer-links a:hover {
-    color: #06b6d4;
-}
-
-@media (max-width: 768px) {
-    .features-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .stats-container {
-        grid-template-columns: 1fr;
-        gap: 2rem;
-    }
-
-    .footer-content {
-        flex-direction: column;
-        text-align: center;
-    }
-}
-</style>

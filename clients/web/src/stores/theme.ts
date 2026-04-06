@@ -10,7 +10,7 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 const STORAGE_KEY = 'theme-mode'
 const VALID_MODES: ThemeMode[] = ['light', 'dark', 'system']
 
-// H-06: 安全读取 localStorage，隐私模式下降级
+// 安全读取 localStorage，隐私模式下降级
 function safeGetStorageItem(key: string): string | null {
   try {
     return localStorage.getItem(key)
@@ -19,7 +19,7 @@ function safeGetStorageItem(key: string): string | null {
   }
 }
 
-// M-44: 安全写入 localStorage
+// 安全写入 localStorage
 function safeSetStorageItem(key: string, value: string): void {
   try {
     localStorage.setItem(key, value)
@@ -29,7 +29,7 @@ function safeSetStorageItem(key: string, value: string): void {
 }
 
 export const useThemeStore = defineStore('theme', () => {
-  // H-06: 安全读取，校验值有效性
+  // 安全读取，校验值有效性
   const stored = safeGetStorageItem(STORAGE_KEY)
   const mode = ref<ThemeMode>(
     stored && VALID_MODES.includes(stored as ThemeMode)
@@ -53,7 +53,7 @@ export const useThemeStore = defineStore('theme', () => {
     safeSetStorageItem(STORAGE_KEY, newMode)
   }
 
-  // M-42: 合并为单一 watcher 监听 computed isDark，避免竞态
+  // 合并为单一 watcher 监听 computed isDark，避免竞态
   function applyTheme() {
     const root = document.documentElement
     if (mode.value === 'system') {
@@ -64,7 +64,7 @@ export const useThemeStore = defineStore('theme', () => {
     root.classList.toggle('dark', isDark.value)
   }
 
-  // M-32: 监听系统主题变化，使用具名函数引用确保 add/remove 一致
+  // 监听系统主题变化，使用具名函数引用确保 add/remove 一致
   const mql = window.matchMedia('(prefers-color-scheme: dark)')
   const onMqlChange = (e: MediaQueryListEvent) => {
     systemDark.value = e.matches
@@ -74,7 +74,7 @@ export const useThemeStore = defineStore('theme', () => {
     mql.removeEventListener('change', onMqlChange)
   })
 
-  // M-42: 监听 isDark 而非分别监听 mode 和 systemDark
+  // 监听 isDark 而非分别监听 mode 和 systemDark
   watch(isDark, applyTheme, { immediate: true })
   // mode 变化时也需要更新 data-theme 属性
   watch(mode, applyTheme)

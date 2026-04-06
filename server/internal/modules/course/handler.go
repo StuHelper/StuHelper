@@ -9,10 +9,11 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
@@ -25,14 +26,14 @@ type Handler struct {
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, rdb *redis.Client, permissionSvc rbac.PermissionService, cfg *config.Config) *Handler {
+func NewHandler(database *db.DB, rdb *redis.Client, cfg *config.Config, fgaClient *fga.Client, notifSender notification.Sender) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo)
 	return &Handler{
 		db:            database,
 		cache:         cache.NewHelper(rdb),
 		service:       svc,
-		reviewHandler: review.NewHandler(database, rdb, permissionSvc, cfg.RateLimit),
+		reviewHandler: review.NewHandler(database, rdb, cfg.RateLimit, fgaClient, notifSender),
 	}
 }
 
@@ -44,9 +45,9 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 		course.GET("/departments", h.GetDepartments)
 		course.GET("/terms", h.GetTerms)
 		course.GET("/categories", h.GetCourseCategories)
-		course.GET("/courses", h.GetCourses)
-		course.GET("/courses/search", h.SearchCourses)
-		course.GET("/courses/:id", h.GetCourse)
+		course.GET("/courses", optionalAuthMiddleware, h.GetCourses)
+		course.GET("/courses/search", optionalAuthMiddleware, h.SearchCourses)
+		course.GET("/courses/:courseID", optionalAuthMiddleware, h.GetCourse)
 		course.GET("/stats", h.GetStats)
 
 		// 评课社区子模块

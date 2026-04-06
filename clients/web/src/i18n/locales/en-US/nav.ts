@@ -26,5 +26,7 @@ export default {
   logoutNetworkError: 'Logout failed, please check your network and try again',
   identityVerification: 'Identity Verification',
   studentVerification: 'Student Verification',
-  verificationStatus: 'Verification Status'
+  verificationStatus: 'Verification Status',
+  adminConsole: 'Admin Console',
+  adminBadge: 'Administrator'
 }

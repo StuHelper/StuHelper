@@ -4,9 +4,17 @@
     operationId: getLoginURL
     summary: 获取 SSO 登录 URL
     security: []
+    parameters:
+      - name: redirect
+        in: query
+        required: false
+        description: 登录完成后的前端回跳地址（绝对 URL）
+        schema:
+          type: string
+          format: uri
     responses:
       '200':
-        description: 返回 Casdoor 登录 URL 和 state
+        description: 返回 Zitadel OIDC 授权 URL 和 state
         content:
           application/json:
             schema:
@@ -35,9 +43,17 @@
     operationId: getSignupURL
     summary: 获取 SSO 注册 URL
     security: []
+    parameters:
+      - name: redirect
+        in: query
+        required: false
+        description: 注册完成后的前端回跳地址（绝对 URL）
+        schema:
+          type: string
+          format: uri
     responses:
       '200':
-        description: 返回 Casdoor 注册 URL 和 state
+        description: 返回 Zitadel OIDC 授权 URL 和 state
         content:
           application/json:
             schema:
@@ -64,7 +80,7 @@
   get:
     tags: [Auth]
     operationId: handleCallback
-    summary: 处理 OAuth 回调
+    summary: 处理 OIDC 回调并重定向回前端
     security: []
     parameters:
       - name: code
@@ -78,28 +94,17 @@
         schema:
           type: string
     responses:
-      '200':
-        description: 登录成功，返回用户信息和 token 过期时间
-        content:
-          application/json:
+      '302':
+        description: 登录成功，写入 Cookie 后重定向到前端页面
+        headers:
+          Location:
+            description: 前端回跳地址
             schema:
-              allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
-                - type: object
-                  required: [data]
-                  properties:
-                    data:
-                      type: object
-                      required: [user, expiresIn]
-                      properties:
-                        user:
-                          $ref: '../components/schemas/auth.yaml#/UserInfo'
-                        expiresIn:
-                          type: integer
-                          description: Access token TTL（秒）
+              type: string
+              format: uri
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '403':
+      '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
@@ -183,14 +188,7 @@
                   required: [data]
                   properties:
                     data:
-                      type: object
-                      required: [message, ssoLogoutURL]
-                      properties:
-                        message:
-                          type: string
-                        ssoLogoutURL:
-                          type: string
-                          format: uri
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -218,4 +216,102 @@
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/phone/request-otp:
+  post:
+    tags: [Auth]
+    operationId: requestPhoneOTP
+    summary: 发送手机验证码
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [phone]
+            properties:
+              phone:
+                type: string
+                pattern: '^1[3-9]\d{9}$'
+                description: 中国大陆手机号（11 位）
+    responses:
+      '200':
+        description: 验证码发送成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [message, cooldown]
+                      properties:
+                        message:
+                          type: string
+                        cooldown:
+                          type: integer
+                          description: 冷却时间（秒）
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/phone/verify-otp:
+  post:
+    tags: [Auth]
+    operationId: verifyPhoneOTP
+    summary: 验证手机验证码并登录
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [phone, code]
+            properties:
+              phone:
+                type: string
+                pattern: '^1[3-9]\d{9}$'
+              code:
+                type: string
+                minLength: 6
+                maxLength: 6
+                description: 6 位数字验证码
+    responses:
+      '200':
+        description: 验证通过，登录成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [user, expiresIn]
+                      properties:
+                        user:
+                          $ref: '../components/schemas/auth.yaml#/UserInfo'
+                        expiresIn:
+                          type: integer
+                          description: Access Token 有效期（秒）
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

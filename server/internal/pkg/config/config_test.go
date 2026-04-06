@@ -136,3 +136,197 @@ func TestParseSecurityConfig_ValidConfig(t *testing.T) {
 	assert.Len(t, cfg.DocAESKeys, 1)
 	assert.Len(t, cfg.DocAESKeys[1], 32)
 }
+
+func TestValidate_ProductionRequiresObservability(t *testing.T) {
+	c := &Config{
+		App: AppConfig{
+			Env:             "production",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"https://stuhelper.example.com"},
+			TrustedProxies:  []string{"10.0.0.0/8"},
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{
+			DocAESActiveKeyID: 1,
+			DocAESKeys: map[uint8][]byte{
+				1: make([]byte, 32),
+			},
+		},
+		Database: DatabaseConfig{
+			URL:          "postgres://user:pass@db:5432/stuhelper?sslmode=verify-full",
+			QueryTimeout: 5,
+			MaxConns:     20,
+			MinConns:     2,
+			SSLMode:      "verify-full",
+		},
+		Token: TokenConfig{
+			AccessTokenTTL:  300,
+			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		Redis: RedisConfig{
+			Password: "redis-password",
+		},
+		Zitadel: ZitadelConfig{
+			Issuer:       "https://sso.example.com",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
+			ProjectID:    "project-id",
+		},
+		OpenFGA: OpenFGAConfig{
+			StoreID:              "store-id",
+			AuthorizationModelID: "model-id",
+			APIUrl:               "http://openfga:8080",
+		},
+		RateLimit: ReviewRateLimitConfig{
+			PostLimit:   5,
+			VoteLimit:   30,
+			ReportLimit: 10,
+			ReplyLimit:  10,
+		},
+	}
+
+	err := c.validate(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OTEL_ENABLED must be true in production")
+}
+
+func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
+	c := &Config{
+		Observability: ObservabilityConfig{
+			Enabled:          true,
+			ServiceName:      "stuhelper-backend",
+			OTLPEndpoint:     "http://alloy:4318",
+			TraceSampleRatio: 1.5,
+		},
+	}
+
+	err := c.validate(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1")
+}
+
+func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
+	c := &Config{
+		App: AppConfig{
+			Env:             "development",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{
+			DocAESActiveKeyID: 1,
+			DocAESKeys: map[uint8][]byte{
+				1: make([]byte, 32),
+			},
+		},
+		Database: DatabaseConfig{
+			QueryTimeout: 5,
+			MaxConns:     20,
+			MinConns:     2,
+		},
+		Token: TokenConfig{
+			AccessTokenTTL:  300,
+			RefreshTokenTTL: 604800,
+		},
+		Zitadel: ZitadelConfig{
+			Issuer:       "https://sso.example.com",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
+			ProjectID:    "project-id",
+		},
+		RateLimit: ReviewRateLimitConfig{
+			PostLimit:   5,
+			VoteLimit:   30,
+			ReportLimit: 10,
+			ReplyLimit:  10,
+		},
+		LDAP: LDAPConfig{
+			URL: "ldaps://ldap.example.com:636",
+		},
+	}
+
+	err := c.validate(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "LDAP_BASE_DN is required when LDAP_URL is set")
+	assert.Contains(t, err.Error(), "LDAP_SYSTEM_BIND_DN is required when LDAP_URL is set")
+	assert.Contains(t, err.Error(), "LDAP_SYSTEM_BIND_PASSWORD is required when LDAP_URL is set")
+}
+
+func TestValidate_ProductionRejectsLDAPInsecureSkipVerify(t *testing.T) {
+	c := &Config{
+		App: AppConfig{
+			Env:             "production",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"https://stuhelper.example.com"},
+			TrustedProxies:  []string{"10.0.0.0/8"},
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{
+			DocAESActiveKeyID: 1,
+			DocAESKeys: map[uint8][]byte{
+				1: make([]byte, 32),
+			},
+		},
+		Database: DatabaseConfig{
+			URL:          "postgres://user:pass@db:5432/stuhelper?sslmode=verify-full",
+			QueryTimeout: 5,
+			MaxConns:     20,
+			MinConns:     2,
+			SSLMode:      "verify-full",
+		},
+		Token: TokenConfig{
+			AccessTokenTTL:  300,
+			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		Redis: RedisConfig{
+			Password:   "redis-password",
+			TLSEnabled: true,
+		},
+		Zitadel: ZitadelConfig{
+			Issuer:       "https://sso.example.com",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
+			ProjectID:    "project-id",
+		},
+		OpenFGA: OpenFGAConfig{
+			StoreID:              "store-id",
+			AuthorizationModelID: "model-id",
+			APIUrl:               "http://openfga:8080",
+		},
+		RateLimit: ReviewRateLimitConfig{
+			PostLimit:   5,
+			VoteLimit:   30,
+			ReportLimit: 10,
+			ReplyLimit:  10,
+		},
+		ObjectStorage: ObjectStorageConfig{
+			Endpoint:        "https://s3.example.com",
+			Bucket:          "stuhelper-identity",
+			AccessKeyID:     "access-key",
+			SecretAccessKey: "secret-key",
+			PresignTTL:      600,
+		},
+		Observability: ObservabilityConfig{
+			Enabled:          true,
+			ServiceName:      "stuhelper-backend",
+			OTLPEndpoint:     "http://alloy:4318",
+			TraceSampleRatio: 0.2,
+		},
+		LDAP: LDAPConfig{
+			URL:                "ldap://ldap.example.com:389",
+			BaseDN:             "ou=people,dc=example,dc=com",
+			SystemBindDN:       "cn=svc,dc=example,dc=com",
+			SystemBindPassword: "bind-password",
+			UseTLS:             true,
+			InsecureSkipVerify: true,
+		},
+	}
+
+	err := c.validate(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "LDAP_INSECURE_SKIP_VERIFY must be false in production")
+}

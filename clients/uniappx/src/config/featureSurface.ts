@@ -1,3 +1,5 @@
+import { translate } from '../i18n'
+
 export interface UniappxFeatureLink {
   title: string
   desc?: string
@@ -5,14 +7,42 @@ export interface UniappxFeatureLink {
   path: string
 }
 
-export const UNIAPPX_EXPERIMENTAL_NOTICE = 'uniappx 当前为实验性脚手架，登录与部分业务能力尚未开放。'
+export function getUniappxAppNotice(): string {
+  return translate('feature.notice')
+}
 
-export const HOME_FEATURES: UniappxFeatureLink[] = [
-  { title: '课程查询', desc: '快速查找课程信息（实验性）', icon: '📚', path: '/pages/course/index' },
-  { title: '评课广场', desc: '查看课程评价（实验性）', icon: '⭐', path: '/pages/review/index' },
-  { title: '个人中心', desc: '查看个人相关页面（实验性）', icon: '👤', path: '/pages/user/index' }
-]
+export function getHomeFeatures(): UniappxFeatureLink[] {
+  return [
+    {
+      title: translate('feature.home.course.title'),
+      desc: translate('feature.home.course.desc'),
+      icon: '📚',
+      path: '/pages/course/index',
+    },
+    {
+      title: translate('feature.home.review.title'),
+      desc: translate('feature.home.review.desc'),
+      icon: '⭐',
+      path: '/pages/review/index',
+    },
+    {
+      title: translate('feature.home.user.title'),
+      desc: translate('feature.home.user.desc'),
+      icon: '👤',
+      path: '/pages/user/index',
+    },
+  ]
+}
 
-export const USER_MENU_ITEMS: UniappxFeatureLink[] = [
-  { title: '消息通知', icon: '🔔', path: '/pages/user/notifications' }
-]
+export function getUserMenuItems(): UniappxFeatureLink[] {
+  return [
+    { title: translate('feature.user.reviews'), icon: '📝', path: '/pages/user/reviews' },
+    { title: translate('feature.user.votes'), icon: '👍', path: '/pages/user/votes' },
+    { title: translate('feature.user.favorites'), icon: '⭐', path: '/pages/user/favorites' },
+    {
+      title: translate('feature.user.notifications'),
+      icon: '🔔',
+      path: '/pages/user/notifications',
+    },
+  ]
+}

@@ -10,7 +10,7 @@
       <div v-else-if="error" class="flex items-center gap-3 text-text-muted text-sm">
         <span>{{ errorText ?? t('common.loadFailed') }}</span>
         <button
-          class="px-3 py-1 bg-transparent border border-border rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
+          class="px-3 py-1 bg-transparent rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
           @click="$emit('retry')"
         >
           {{ t('common.actions.retry') }}
@@ -56,7 +56,7 @@ const sentinelRef = ref<HTMLElement>()
 let observer: IntersectionObserver | null = null
 
 const setupObserver = () => {
-  // M-78: disconnect 后置空，释放引用
+  // disconnect 后置空，释放引用
   if (observer) { observer.disconnect(); observer = null }
   if (!sentinelRef.value) return
 
@@ -80,7 +80,7 @@ onMounted(setupObserver)
 // threshold 变化时重建 observer（IntersectionObserver 选项创建后不可变）
 watch(() => props.threshold, setupObserver)
 
-// L-04: loading 结束后若 sentinel 仍在视口内，手动触发下一次加载
+// loading 结束后若 sentinel 仍在视口内，手动触发下一次加载
 watch(() => props.loading, (newVal, oldVal) => {
   if (oldVal && !newVal && props.hasMore && !props.error && sentinelRef.value) {
     const rect = sentinelRef.value.getBoundingClientRect()

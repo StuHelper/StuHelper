@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -52,15 +53,17 @@ type Service struct {
 	repo           *Repository
 	filter         *Filter
 	dimensionCache atomic.Value // map[string]string
+	notifSender    notification.Sender // nil-safe: skip notifications if not wired
 }
 
 // NewService 创建评课服务
-func NewService(database *db.DB, repo *Repository) *Service {
+func NewService(database *db.DB, repo *Repository, notifSender notification.Sender) *Service {
 	filter := NewFilter(repo)
 	s := &Service{
-		db:     database,
-		repo:   repo,
-		filter: filter,
+		db:          database,
+		repo:        repo,
+		filter:      filter,
+		notifSender: notifSender,
 	}
 	// 初始化时加载维度缓存
 	if err := s.refreshDimensionCache(context.Background()); err != nil {
@@ -90,19 +93,20 @@ func (s *Service) getDimensionNames() map[string]string {
 // validTermID 学期 ID 格式校验：如 "2024-1"（春季）或 "2024-2"（秋季）
 var validTermIDFormat = regexp.MustCompile(`^\d{4}-[12]$`)
 
-// validateAndSanitizeReview 校验评分、清洗标题/内容、检测危险内容和敏感词
-// 返回清洗后的 title、content，调用方应使用返回值覆盖原始参数
+// validateAndSanitizeReview 校验评分、清洗标题/内容、检测危险内容和敏感词。
+// 返回清洗后的 title、content、contentFlag（warn 级别敏感词标记，需管理员复核）。
+// block 级别的敏感词直接返回 error 拒绝发布。
 // validRatingKey 评分维度 key 仅允许小写字母、数字、下划线（对齐 DB VARCHAR(50)）
 var validRatingKey = regexp.MustCompile(`^[a-z][a-z0-9_]{0,49}$`)
 
-func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewRatings, title, content, termID string) (string, string, error) {
-	// L-20: 校验 term_id 格式
+func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewRatings, title, content, termID string) (string, string, *string, error) {
+	// 校验 term_id 格式
 	if termID != "" && !validTermIDFormat.MatchString(termID) {
-		return "", "", fmt.Errorf("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+		return "", "", nil, fmt.Errorf("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
 	}
 
 	if len(ratings) == 0 {
-		return "", "", ErrRatingRequired
+		return "", "", nil, ErrRatingRequired
 	}
 
 	// 从缓存获取有效的评分维度 key 白名单
@@ -112,20 +116,20 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 		var err error
 		validKeys, err = s.repo.GetDimensionNames(ctx)
 		if err != nil {
-			return "", "", fmt.Errorf("failed to load rating dimensions: %w", err)
+			return "", "", nil, fmt.Errorf("failed to load rating dimensions: %w", err)
 		}
 	}
 
 	for k, v := range ratings {
 		if !validRatingKey.MatchString(k) {
-			return "", "", ErrInvalidRating
+			return "", "", nil, ErrInvalidRating
 		}
-		// L-25: 校验 key 是否在 rating_dimensions 表中存在
+		// 校验 key 是否在 rating_dimensions 表中存在
 		if _, ok := validKeys[k]; !ok {
-			return "", "", fmt.Errorf("%w: unknown dimension key %q", ErrInvalidRating, k)
+			return "", "", nil, fmt.Errorf("%w: unknown dimension key %q", ErrInvalidRating, k)
 		}
 		if v < 1 || v > 5 {
-			return "", "", ErrInvalidRating
+			return "", "", nil, ErrInvalidRating
 		}
 	}
 
@@ -133,21 +137,28 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 	content = sanitizer.SanitizeText(content)
 
 	if strings.TrimSpace(title) == "" {
-		return "", "", ErrTitleEmpty
+		return "", "", nil, ErrTitleEmpty
 	}
 	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
-		return "", "", ErrDangerousContent
+		return "", "", nil, ErrDangerousContent
 	}
 	if strings.TrimSpace(content) == "" {
-		return "", "", ErrContentEmpty
+		return "", "", nil, ErrContentEmpty
 	}
 
 	checkResult := s.filter.CheckContent(ctx, title+" "+content)
-	if !checkResult.IsValid {
-		return "", "", ErrSensitiveContent
+	// block 级别：拒绝发布
+	if !checkResult.IsValid && checkResult.Level == "block" {
+		return "", "", nil, ErrSensitiveContent
+	}
+	// warn 级别：允许发布，但打上 content_flag 标记供管理员复核
+	var contentFlag *string
+	if checkResult.Level == "warn" && checkResult.MatchCount > 0 {
+		flag := "warn"
+		contentFlag = &flag
 	}
 
-	return title, content, nil
+	return title, content, contentFlag, nil
 }
 
 // GetCourseReviewsParams 获取课程评论参数
@@ -171,6 +182,7 @@ type StatsResult struct {
 	CourseCount     int
 	ReviewCount     int
 	DepartmentCount int
+	UserCount       int
 }
 
 // GetCourseReviews 获取课程评论列表
@@ -239,9 +251,40 @@ func (s *Service) GetLatestReviews(ctx context.Context, params GetLatestReviewsP
 	return &GetCourseReviewsResult{List: list, Total: total}, nil
 }
 
+// SearchReviewsParams 搜索测评参数
+type SearchReviewsParams struct {
+	Query        string
+	DepartmentID int64
+	TeacherName  string
+	TermID       string
+	Page         int
+	PageSize     int
+	Sort         string
+}
+
+// SearchReviews 搜索测评列表
+func (s *Service) SearchReviews(ctx context.Context, params SearchReviewsParams) (*GetCourseReviewsResult, error) {
+	pageSize := httputil.ClampPageSize(params.PageSize)
+	offset := httputil.SafeOffset(params.Page, pageSize)
+	list, total, err := s.repo.SearchReviews(ctx, SearchReviewsQueryParams{
+		Query:        params.Query,
+		DepartmentID: params.DepartmentID,
+		TeacherName:  params.TeacherName,
+		TermID:       params.TermID,
+		Sort:         params.Sort,
+		Limit:        pageSize,
+		Offset:       offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetCourseReviewsResult{List: list, Total: total}, nil
+}
+
 // GetStats 获取统计数据
 func (s *Service) GetStats(ctx context.Context) (*StatsResult, error) {
-	courseCount, reviewCount, departmentCount, err := s.repo.GetPortalStats(ctx)
+	courseCount, reviewCount, departmentCount, userCount, err := s.repo.GetPortalStats(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +292,7 @@ func (s *Service) GetStats(ctx context.Context) (*StatsResult, error) {
 		CourseCount:     courseCount,
 		ReviewCount:     reviewCount,
 		DepartmentCount: departmentCount,
+		UserCount:       userCount,
 	}, nil
 }
 
@@ -264,6 +308,25 @@ func (s *Service) GetDimensionNames(ctx context.Context) (map[string]string, err
 
 // GetCourseRatingStats 获取课程评分统计
 func (s *Service) GetCourseRatingStats(ctx context.Context, courseID int64) ([]RatingStatRow, error) {
+	stats, err := s.repo.ListCourseRatingStats(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+	if len(stats) > 0 {
+		return stats, nil
+	}
+
+	count, err := s.repo.CountByCourse(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+	if count == 0 {
+		return stats, nil
+	}
+
+	if err := s.repo.RefreshCourseRatingStats(ctx, courseID); err != nil {
+		return nil, err
+	}
 	return s.repo.ListCourseRatingStats(ctx, courseID)
 }
 
@@ -282,46 +345,107 @@ func (s *Service) CheckContent(ctx context.Context, content string) *ContentChec
 	return s.filter.CheckContent(ctx, content)
 }
 
+// --- 内容标记管理 pass-through ---
+
+// ListFlaggedReviews 获取待复核评课列表（content_flag = 'warn'）
+func (s *Service) ListFlaggedReviews(ctx context.Context, limit, offset int) ([]Review, int, error) {
+	reviews, total, err := s.repo.ListFlaggedReviews(ctx, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list flagged reviews: %w", err)
+	}
+	return reviews, total, nil
+}
+
+// ClearContentFlag 管理员复核通过，清除 content_flag
+func (s *Service) ClearContentFlag(ctx context.Context, reviewID, adminUserID string) error {
+	if err := s.repo.ClearContentFlag(ctx, reviewID, adminUserID); err != nil {
+		return fmt.Errorf("clear content flag %s: %w", reviewID, err)
+	}
+	return nil
+}
+
 // --- 敏感词管理 pass-through ---
 
-// ListSensitiveWords returns a paginated list of sensitive words (pass-through to Repository).
 func (s *Service) ListSensitiveWords(ctx context.Context, category, level string, limit, offset int) ([]SensitiveWord, int, error) {
-	return s.repo.ListSensitiveWords(ctx, category, level, limit, offset)
+	words, total, err := s.repo.ListSensitiveWords(ctx, category, level, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list sensitive words: %w", err)
+	}
+	return words, total, nil
 }
 
-// CreateSensitiveWord creates a new sensitive word entry (pass-through to Repository).
 func (s *Service) CreateSensitiveWord(ctx context.Context, word, category, level string) (SensitiveWord, error) {
-	return s.repo.CreateSensitiveWord(ctx, word, category, level)
+	sw, err := s.repo.CreateSensitiveWord(ctx, word, category, level)
+	if err != nil {
+		return SensitiveWord{}, fmt.Errorf("create sensitive word: %w", err)
+	}
+	return sw, nil
 }
 
-// UpdateSensitiveWord updates an existing sensitive word (pass-through to Repository).
 func (s *Service) UpdateSensitiveWord(ctx context.Context, wordID string, word, category, level *string, isActive *bool) error {
-	return s.repo.UpdateSensitiveWord(ctx, wordID, word, category, level, isActive)
+	if err := s.repo.UpdateSensitiveWord(ctx, wordID, word, category, level, isActive); err != nil {
+		return fmt.Errorf("update sensitive word %s: %w", wordID, err)
+	}
+	return nil
 }
 
-// DeleteSensitiveWord deletes a sensitive word by ID (pass-through to Repository).
 func (s *Service) DeleteSensitiveWord(ctx context.Context, wordID string) error {
-	return s.repo.DeleteSensitiveWord(ctx, wordID)
+	if err := s.repo.DeleteSensitiveWord(ctx, wordID); err != nil {
+		return fmt.Errorf("delete sensitive word %s: %w", wordID, err)
+	}
+	return nil
+}
+
+// --- 公开教师列表 ---
+
+// ListTeachers 获取公开教师列表（分页、搜索、排序）
+func (s *Service) ListTeachers(ctx context.Context, search string, departmentID *int64, sort string, page, pageSize int) ([]TeacherSummary, int, error) {
+	pageSize = httputil.ClampPageSize(pageSize)
+	offset := httputil.SafeOffset(page, pageSize)
+	teachers, total, err := s.repo.ListPublicTeachers(ctx, search, departmentID, sort, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list teachers: %w", err)
+	}
+	return teachers, total, nil
+}
+
+// ListHotTeachers 获取热门教师列表
+func (s *Service) ListHotTeachers(ctx context.Context, limit int) ([]TeacherSummary, error) {
+	teachers, err := s.repo.ListHotTeachers(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list hot teachers: %w", err)
+	}
+	return teachers, nil
 }
 
 // --- 教师管理 pass-through ---
 
-// ListAdminTeachers returns a paginated list of teachers for admin management (pass-through to Repository).
 func (s *Service) ListAdminTeachers(ctx context.Context, search string, departmentID int64, limit, offset int) ([]AdminTeacher, int, error) {
-	return s.repo.ListAdminTeachers(ctx, search, departmentID, limit, offset)
+	teachers, total, err := s.repo.ListAdminTeachers(ctx, search, departmentID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list teachers: %w", err)
+	}
+	return teachers, total, nil
 }
 
-// CreateTeacher creates a new teacher record (pass-through to Repository).
 func (s *Service) CreateTeacher(ctx context.Context, name string, departmentID *int64) (*AdminTeacher, error) {
-	return s.repo.CreateTeacher(ctx, name, departmentID)
+	t, err := s.repo.CreateTeacher(ctx, name, departmentID)
+	if err != nil {
+		return nil, fmt.Errorf("create teacher: %w", err)
+	}
+	return t, nil
 }
 
-// UpdateTeacher updates an existing teacher's information (pass-through to Repository).
 func (s *Service) UpdateTeacher(ctx context.Context, id int64, name string, departmentID *int64) error {
-	return s.repo.UpdateTeacher(ctx, id, name, departmentID)
+	if err := s.repo.UpdateTeacher(ctx, id, name, departmentID); err != nil {
+		return fmt.Errorf("update teacher %d: %w", id, err)
+	}
+	return nil
 }
 
-// DeleteTeacher deletes a teacher by ID (pass-through to Repository).
 func (s *Service) DeleteTeacher(ctx context.Context, id int64) error {
-	return s.repo.DeleteTeacher(ctx, id)
+	if err := s.repo.DeleteTeacher(ctx, id); err != nil {
+		return fmt.Errorf("delete teacher %d: %w", id, err)
+	}
+	return nil
 }

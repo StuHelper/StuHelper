@@ -8,10 +8,12 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
 // GetReviewByID 根据ID获取已发布的评论（仅返回 published 状态）
-// M-55: 包装 pgx.ErrNoRows 为业务层 sentinel error
+// 包装 pgx.ErrNoRows 为业务层 sentinel error
 func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Review, error) {
 	var item Review
 	err := r.db.QueryRow(ctx, `
@@ -23,7 +25,7 @@ func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Revie
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.id = $1 AND r.status IN ('published', 'hidden')
+		WHERE r.id = $1 AND r.status = 'published'
 	`, reviewID).Scan(
 		&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
 		&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
@@ -78,11 +80,12 @@ func (r *Repository) GetReviewOwnerAndCourseID(ctx context.Context, reviewID str
 
 // UpdateParams 更新评论参数
 type UpdateParams struct {
-	ID      string
-	Title   string
-	Content string
-	Grade   string
-	Ratings []byte
+	ID          string
+	Title       string
+	Content     string
+	Grade       string
+	Ratings     []byte
+	ContentFlag *string
 }
 
 // Update 更新评论
@@ -90,9 +93,9 @@ func (r *Repository) Update(ctx context.Context, tx pgx.Tx, p UpdateParams) erro
 	_, err := tx.Exec(ctx, `
 		UPDATE reviews SET title = $2, content = $3, grade = $4, ratings = $5,
 			avg_rating = COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($5) WHERE value ~ '^\d+(\.\d+)?$'), 0),
-			updated_at = NOW()
+			content_flag = $6, updated_at = NOW()
 		WHERE id = $1
-	`, p.ID, p.Title, p.Content, p.Grade, p.Ratings)
+	`, p.ID, p.Title, p.Content, p.Grade, p.Ratings, p.ContentFlag)
 	return err
 }
 
@@ -136,6 +139,73 @@ func (r *Repository) GetReviewStatusAndCourseIDTx(ctx context.Context, tx pgx.Tx
 	return status, courseID, err
 }
 
+// GetReviewStatusCourseTeacherTx 在事务内获取评论状态、课程ID和教师ID（带行锁）。
+func (r *Repository) GetReviewStatusCourseTeacherTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, *int64, error) {
+	var (
+		status    string
+		courseID  int64
+		teacherID int64
+	)
+	err := tx.QueryRow(ctx, `
+		SELECT status, course_id, COALESCE(teacher_id, 0)
+		FROM reviews
+		WHERE id = $1
+		FOR UPDATE
+	`, reviewID).Scan(&status, &courseID, &teacherID)
+	if err != nil {
+		return "", 0, nil, err
+	}
+	if teacherID == 0 {
+		return status, courseID, nil, nil
+	}
+	return status, courseID, &teacherID, nil
+}
+
+// GetReviewOwnerCourseTeacherStatusTx 在事务内获取评论所有者、课程ID、教师ID和状态（带行锁）。
+func (r *Repository) GetReviewOwnerCourseTeacherStatusTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, *int64, string, error) {
+	var (
+		userHash  string
+		courseID  int64
+		teacherID int64
+		status    string
+	)
+	err := tx.QueryRow(ctx, `
+		SELECT user_hash, course_id, COALESCE(teacher_id, 0), status
+		FROM reviews
+		WHERE id = $1
+		FOR UPDATE
+	`, reviewID).Scan(&userHash, &courseID, &teacherID, &status)
+	if err != nil {
+		return "", 0, nil, "", err
+	}
+	if teacherID == 0 {
+		return userHash, courseID, nil, status, nil
+	}
+	return userHash, courseID, &teacherID, status, nil
+}
+
+// ListDistinctReviewTargetIDsTx 在事务内获取一批评论关联的课程ID和教师ID集合。
+func (r *Repository) ListDistinctReviewTargetIDsTx(ctx context.Context, tx pgx.Tx, reviewIDs []string) ([]int64, []int64, error) {
+	if len(reviewIDs) == 0 {
+		return nil, nil, nil
+	}
+
+	var (
+		courseIDs  []int64
+		teacherIDs []int64
+	)
+	err := tx.QueryRow(ctx, `
+		SELECT COALESCE(array_agg(DISTINCT course_id), '{}'::bigint[]),
+		       COALESCE(array_agg(DISTINCT teacher_id) FILTER (WHERE teacher_id IS NOT NULL), '{}'::bigint[])
+		FROM reviews
+		WHERE id = ANY($1)
+	`, reviewIDs).Scan(&courseIDs, &teacherIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("ListDistinctReviewTargetIDsTx: %w", err)
+	}
+	return courseIDs, teacherIDs, nil
+}
+
 // maxBatchCourseIDs limits the number of course IDs in a batch query
 const maxBatchCourseIDs = 20
 
@@ -166,7 +236,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 		CROSS JOIN LATERAL (
 			SELECT r.*, COUNT(*) OVER() AS total
 			FROM reviews r
-			WHERE r.course_id = cid.id AND r.status IN ('published', 'hidden')
+			WHERE r.course_id = cid.id AND r.status = 'published'
 			ORDER BY `+orderBy+`
 			LIMIT $2
 		) sub
@@ -206,7 +276,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 }
 
 // allowedSortOrders 排序参数白名单（纵深防御：即使 handler 层已校验，Repository 层也独立校验）
-// L-56: 列别名约定 — 所有别名均使用 "r." 前缀引用 reviews 表列，
+// 列别名约定 — 所有别名均使用 "r." 前缀引用 reviews 表列，
 // 与 ListByCourseWithSort / ListLatest 的 SELECT 别名一致。
 // 修改此 map 时需同步检查对应查询的 SELECT 列别名。
 var allowedSortOrders = map[string]string{
@@ -226,7 +296,7 @@ type ListByCourseWithSortParams struct {
 }
 
 // ListByCourseWithSort 获取课程评论列表（支持排序和筛选，含总数）
-// L-33: 使用 strings.Builder 构建动态查询，提高可读性
+// 使用 strings.Builder 构建动态查询，提高可读性
 func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWithSortParams) ([]Review, int, error) {
 	var qb strings.Builder
 	qb.WriteString(`
@@ -239,7 +309,7 @@ func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWit
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.course_id = $1 AND r.status IN ('published', 'hidden')
+		WHERE r.course_id = $1 AND r.status = 'published'
 	`)
 	args := []interface{}{p.CourseID}
 	argIdx := 2
@@ -262,6 +332,74 @@ func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWit
 	}
 	qb.WriteString(` ORDER BY ` + orderBy)
 
+	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
+	args = append(args, p.Limit, p.Offset)
+
+	rows, err := r.db.Query(ctx, qb.String(), args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	return scanReviewsWithTotal(rows)
+}
+
+// SearchReviewsQueryParams 搜索测评查询参数
+type SearchReviewsQueryParams struct {
+	Query        string
+	DepartmentID int64
+	TeacherName  string
+	TermID       string
+	Sort         string
+	Limit        int
+	Offset       int
+}
+
+// SearchReviews 搜索测评列表（支持课程名/课号、院系、教师、学期筛选）
+func (r *Repository) SearchReviews(ctx context.Context, p SearchReviewsQueryParams) ([]Review, int, error) {
+	var qb strings.Builder
+	qb.WriteString(`
+		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
+		       r.title, r.content, r.grade, r.ratings,
+		       r.like_count, r.dislike_count,
+		       r.reply_count,
+		       r.status, r.moderation_reason, r.created_at, r.updated_at,
+		       COUNT(*) OVER() AS total
+		FROM reviews r
+		LEFT JOIN courses c ON c.id = r.course_id
+		LEFT JOIN teachers t ON t.id = r.teacher_id
+		WHERE r.status = 'published'
+	`)
+
+	args := make([]any, 0, 6)
+	argIdx := 1
+	if p.Query != "" {
+		pattern := "%" + httputil.EscapeLikePattern(p.Query) + "%"
+		qb.WriteString(` AND (c.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\' OR c.code ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\')`)
+		args = append(args, pattern)
+		argIdx++
+	}
+	if p.DepartmentID > 0 {
+		qb.WriteString(` AND c.department_id = $` + strconv.Itoa(argIdx))
+		args = append(args, p.DepartmentID)
+		argIdx++
+	}
+	if p.TeacherName != "" {
+		pattern := "%" + httputil.EscapeLikePattern(p.TeacherName) + "%"
+		qb.WriteString(` AND t.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\'`)
+		args = append(args, pattern)
+		argIdx++
+	}
+	if p.TermID != "" {
+		qb.WriteString(` AND r.term_id = $` + strconv.Itoa(argIdx))
+		args = append(args, p.TermID)
+		argIdx++
+	}
+
+	orderBy, ok := allowedSortOrders[p.Sort]
+	if !ok {
+		orderBy = allowedSortOrders[SortTime]
+	}
+	qb.WriteString(` ORDER BY ` + orderBy)
 	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
 	args = append(args, p.Limit, p.Offset)
 

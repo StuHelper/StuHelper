@@ -70,6 +70,7 @@ func identityReviewItemToJSON(i *IdentityReviewItem) gin.H {
 }
 
 func profileToJSON(p *Profile) gin.H {
+	phone := normalizeMaskedPhone(p.Phone)
 	return gin.H{
 		"userID":             p.UserID,
 		"schoolID":           p.SchoolID,
@@ -79,7 +80,7 @@ func profileToJSON(p *Profile) gin.H {
 		"verificationMethod": p.VerificationMethod,
 		"rejectionReason":    p.RejectionReason,
 		"reviewedAt":         p.ReviewedAt,
-		"phone":              p.Phone,
+		"phone":              phone,
 		"phoneVerified":      p.PhoneVerified,
 		"consentGivenAt":     p.ConsentGivenAt,
 		"verifiedAt":         p.VerifiedAt,
@@ -121,6 +122,7 @@ func adminSchoolConfigToJSON(s *SchoolConfig) (gin.H, error) {
 		"schoolID":           s.SchoolID,
 		"schoolName":         s.SchoolName,
 		"verificationMethod": s.VerificationMethod,
+		"approvalPolicy":     s.ApprovalPolicy,
 		"academicDbTable":    s.AcademicDBTable,
 		"consentText":        s.ConsentText,
 		"manualFormFields":   manualFormFields,
@@ -158,6 +160,7 @@ func adminStudentVerificationToJSON(p *Profile) (gin.H, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode manualFormData: %w", err)
 	}
+	phone := normalizeMaskedPhone(p.Phone)
 
 	return gin.H{
 		"userID":             p.UserID,
@@ -169,7 +172,7 @@ func adminStudentVerificationToJSON(p *Profile) (gin.H, error) {
 		"verificationMethod": p.VerificationMethod,
 		"rejectionReason":    p.RejectionReason,
 		"reviewedAt":         p.ReviewedAt,
-		"phone":              p.Phone,
+		"phone":              phone,
 		"phoneVerified":      p.PhoneVerified,
 		"consentGivenAt":     p.ConsentGivenAt,
 		"verifiedAt":         p.VerifiedAt,

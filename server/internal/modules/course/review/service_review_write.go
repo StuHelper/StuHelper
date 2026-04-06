@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -58,7 +59,8 @@ type DeleteReviewParams struct {
 // PostReview 发布评论
 func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*PostReviewResult, error) {
 	var err error
-	params.Title, params.Content, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
+	var contentFlag *string
+	params.Title, params.Content, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
 	if err != nil {
 		return nil, err
 	}
@@ -103,21 +105,25 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		}
 
 		created, err := s.repo.CreateReturning(ctx, tx, CreateParams{
-			ID:        reviewID,
-			CourseID:  params.CourseID,
-			TeacherID: params.TeacherID,
-			TermID:    params.TermID,
-			Title:     params.Title,
-			Content:   params.Content,
-			Grade:     params.Grade,
-			Ratings:   ratingsData,
-			UserHash:  params.UserHash,
+			ID:          reviewID,
+			CourseID:    params.CourseID,
+			TeacherID:   params.TeacherID,
+			TermID:      params.TermID,
+			Title:       params.Title,
+			Content:     params.Content,
+			Grade:       params.Grade,
+			Ratings:     ratingsData,
+			UserHash:    params.UserHash,
+			ContentFlag: contentFlag,
 		})
 		if err != nil {
 			return err
 		}
 		review = *created
-		return s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID)
+		if err := s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID); err != nil {
+			return err
+		}
+		return s.refreshReviewTargetTx(ctx, tx, params.CourseID, params.TeacherID)
 	}); err != nil {
 		return nil, err
 	}
@@ -141,7 +147,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 
 // VoteReview 投票
 func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error {
-	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			return err
@@ -194,12 +200,21 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 			return s.repo.IncrementDislikeCount(ctx, tx, params.ReviewID)
 		}
 	})
+	if err != nil {
+		return err
+	}
+	// 仅在新增 upvote 时通知评价作者
+	if s.notifSender != nil && params.VoteType == "like" {
+		go s.sendVoteNotification(context.Background(), params.ReviewID, params.UserHash)
+	}
+	return nil
 }
 
 // UpdateReview 更新评论
 func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) error {
 	var err error
-	params.Title, params.Content, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, "")
+	var contentFlag *string
+	params.Title, params.Content, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, "")
 	if err != nil {
 		return err
 	}
@@ -210,7 +225,7 @@ func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) e
 	}
 
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		ownerHash, status, err := s.repo.GetReviewOwnerAndStatusTx(ctx, tx, params.ReviewID)
+		ownerHash, courseID, teacherID, status, err := s.repo.GetReviewOwnerCourseTeacherStatusTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrReviewNotFound
@@ -224,20 +239,24 @@ func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) e
 			return ErrNotReviewOwner
 		}
 
-		return s.repo.Update(ctx, tx, UpdateParams{
-			ID:      params.ReviewID,
-			Title:   params.Title,
-			Content: params.Content,
-			Grade:   params.Grade,
-			Ratings: ratingsData,
-		})
+		if err := s.repo.Update(ctx, tx, UpdateParams{
+			ID:          params.ReviewID,
+			Title:       params.Title,
+			Content:     params.Content,
+			Grade:       params.Grade,
+			Ratings:     ratingsData,
+			ContentFlag: contentFlag,
+		}); err != nil {
+			return err
+		}
+		return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
 	})
 }
 
 // DeleteReview 删除评论
 func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) error {
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		ownerHash, courseID, status, err := s.repo.GetReviewOwnerCourseIDAndStatusTx(ctx, tx, params.ReviewID)
+		ownerHash, courseID, teacherID, status, err := s.repo.GetReviewOwnerCourseTeacherStatusTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrReviewNotFound
@@ -258,8 +277,38 @@ func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) e
 			if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
 				return err
 			}
-			return s.repo.RefreshCourseRatingStatsTx(ctx, tx, courseID)
+			return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
 		}
 		return nil
 	})
+}
+
+// sendVoteNotification 异步发送点赞通知给评价作者
+func (s *Service) sendVoteNotification(ctx context.Context, reviewID, voterHash string) {
+	review, err := s.repo.GetReviewByID(ctx, reviewID)
+	if err != nil || review == nil {
+		return
+	}
+	if review.UserHash == voterHash {
+		return
+	}
+	authorID, err := s.repo.GetUserIDByUserHash(ctx, review.UserHash)
+	if err != nil || authorID == 0 {
+		return
+	}
+	if err := s.notifSender.Send(ctx, notification.SendParams{
+		UserID:       authorID,
+		Type:         "like",
+		Title:        "你的评价获得了一个赞",
+		Body:         "有人赞了你的评价",
+		SourceModule: "review",
+		SourceID:     reviewID,
+		CourseID:     review.CourseID,
+	}); err != nil {
+		logger.L().Warn("failed to send vote notification",
+			zap.String("review_id", reviewID),
+			zap.Int64("author_id", authorID),
+			zap.Error(err),
+		)
+	}
 }

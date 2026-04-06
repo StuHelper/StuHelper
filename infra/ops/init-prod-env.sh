@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
+
+require_cmd python3
+
+if [[ "${ENV_FILE:-}" == "${REPO_ROOT}/.env" || "${ENV_FILE:-.env}" == ".env" ]]; then
+  ENV_FILE="${REPO_ROOT}/.env.prod.shared"
+fi
+if [[ -z "${SECRETS_ENV_FILE:-}" ]]; then
+  SECRETS_ENV_FILE="${REPO_ROOT}/.env.prod.secrets.local"
+fi
+if [[ "${GENERATED_ENV_FILE:-}" == "${REPO_ROOT}/.env.generated" || "${GENERATED_ENV_FILE:-.env.generated}" == ".env.generated" ]]; then
+  GENERATED_ENV_FILE="${REPO_ROOT}/.env.prod.generated"
+fi
+
+ensure_env_file
+ensure_secrets_env_file
+ensure_generated_files
+
+ensure_value() {
+  local key="$1"
+  local current="${2:-}"
+  local desired="$3"
+  if [[ -z "${current}" ]]; then
+    upsert_env_file "${ENV_FILE}" "${key}" "${desired}"
+  fi
+}
+
+ensure_secret_value() {
+  local key="$1"
+  local current="${2:-}"
+  local desired="$3"
+  if [[ -z "${current}" ]]; then
+    upsert_env_file "${SECRETS_ENV_FILE}" "${key}" "${desired}"
+  fi
+}
+
+ensure_prod_default() {
+  local key="$1"
+  local current="${2:-}"
+  local desired="$3"
+  shift 3 || true
+
+  if [[ -z "${current}" ]]; then
+    upsert_env_file "${ENV_FILE}" "${key}" "${desired}"
+    return
+  fi
+
+  local legacy
+  for legacy in "$@"; do
+    if [[ "${current}" == "${legacy}" ]]; then
+      upsert_env_file "${ENV_FILE}" "${key}" "${desired}"
+      return
+    fi
+  done
+}
+
+placeholder_or_empty() {
+  local value="${1:-}"
+  [[ -z "${value}" || "${value}" == *"REPLACE_WITH_"* || "${value}" == "ChangeMeBeforeProduction" ]]
+}
+
+future_iso_timestamp() {
+  python3 - <<'PY'
+from datetime import datetime, timedelta, timezone
+print((datetime.now(timezone.utc) + timedelta(days=180)).replace(microsecond=0).isoformat().replace("+00:00", "Z"))
+PY
+}
+
+load_env
+
+if placeholder_or_empty "${POSTGRES_PASSWORD:-}" || [[ "${POSTGRES_PASSWORD:-}" == "dev123" ]]; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "POSTGRES_PASSWORD" "prod-pg-$(random_hex 16)"
+fi
+if placeholder_or_empty "${REDIS_PASSWORD:-}" || [[ "${REDIS_PASSWORD:-}" == "dev123" ]]; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "REDIS_PASSWORD" "prod-redis-$(random_hex 16)"
+fi
+if placeholder_or_empty "${HMAC_SECRET:-}" || [[ "${HMAC_SECRET:-}" == "dev_hmac_secret_change_in_production_32ch" ]]; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "HMAC_SECRET" "$(random_hex 32)"
+fi
+if placeholder_or_empty "${DOC_AES_KEYS:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "DOC_AES_ACTIVE_KEY_ID" "1"
+  upsert_env_file "${SECRETS_ENV_FILE}" "DOC_AES_KEYS" "1:$(random_hex 32)"
+fi
+if placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "SMS_INTERNAL_KEY" "$(random_hex 16)"
+fi
+if placeholder_or_empty "${METRICS_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "METRICS_PASSWORD" "prod-metrics-$(random_hex 12)"
+fi
+if placeholder_or_empty "${GRAFANA_ADMIN_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-grafana-$(random_hex 12)"
+fi
+if placeholder_or_empty "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-minio-$(random_hex 16)"
+fi
+if [[ -z "${ZITADEL_MASTERKEY:-}" || "${ZITADEL_MASTERKEY:-}" == "StuHelperDevMasterKey123456789AB" ]]; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "ZITADEL_MASTERKEY" "$(random_hex 16)"
+fi
+if [[ -z "${ZITADEL_ADMIN_PASSWORD:-}" || "${ZITADEL_ADMIN_PASSWORD:-}" == "Admin1234!" ]]; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "ZITADEL_ADMIN_PASSWORD" "ProdAdmin!$(random_hex 6)"
+fi
+if placeholder_or_empty "${LOGIN_CLIENT_PAT_EXPIRATION:-}" || [[ "${LOGIN_CLIENT_PAT_EXPIRATION:-}" == "2040-01-01T00:00:00Z" ]]; then
+  upsert_env_file "${ENV_FILE}" "LOGIN_CLIENT_PAT_EXPIRATION" "$(future_iso_timestamp)"
+fi
+
+load_env
+
+ensure_prod_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-prod" "stuhelper-dev" "stuhelper"
+ensure_prod_default "APP_ENV" "${APP_ENV:-}" "production" "development"
+ensure_value "LOG_LEVEL" "${LOG_LEVEL:-}" "info"
+ensure_prod_default "LOG_FORMAT" "${LOG_FORMAT:-}" "json" "console"
+ensure_value "LOG_OUTPUT" "${LOG_OUTPUT:-}" "stdout"
+ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper:${POSTGRES_PASSWORD:-}@localhost:5432/stuhelper?sslmode=require" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable"
+ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "require" "disable"
+ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
+ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "require" "disable"
+ensure_value "REDIS_HOST" "${REDIS_HOST:-}" "localhost"
+ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
+ensure_value "CORS_ORIGINS" "${CORS_ORIGINS:-}" "http://localhost:3000,http://localhost:3001"
+ensure_value "TRUSTED_PROXIES" "${TRUSTED_PROXIES:-}" "127.0.0.1/32,172.16.0.0/12,192.168.0.0/16"
+ensure_prod_default "OTEL_ENABLED" "${OTEL_ENABLED:-}" "true" "false"
+ensure_value "OTEL_SERVICE_NAME" "${OTEL_SERVICE_NAME:-}" "stuhelper-backend"
+ensure_value "OTEL_SERVICE_NAMESPACE" "${OTEL_SERVICE_NAMESPACE:-}" "stuhelper"
+ensure_prod_default "OTEL_EXPORTER_OTLP_ENDPOINT" "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" "http://alloy:4318" "http://localhost:4318"
+ensure_value "OTEL_EXPORTER_OTLP_INSECURE" "${OTEL_EXPORTER_OTLP_INSECURE:-}" "true"
+ensure_prod_default "TOKEN_COOKIE_SECURE" "${TOKEN_COOKIE_SECURE:-}" "true" "false"
+ensure_value "ZITADEL_EXTERNALPORT" "${ZITADEL_EXTERNALPORT:-}" "8085"
+ensure_value "ZITADEL_DOMAIN" "${ZITADEL_DOMAIN:-}" "localhost"
+ensure_value "ZITADEL_PUBLIC_SCHEME" "${ZITADEL_PUBLIC_SCHEME:-}" "http"
+ensure_value "ZITADEL_EXTERNALSECURE" "${ZITADEL_EXTERNALSECURE:-}" "false"
+ensure_value "ZITADEL_ISSUER" "${ZITADEL_ISSUER:-}" "http://localhost:8085"
+ensure_value "ZITADEL_REDIRECT_URI" "${ZITADEL_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback"
+ensure_value "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "http://localhost:3000"
+ensure_value "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "http://localhost:3001"
+ensure_value "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" ""
+ensure_value "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "http://localhost:8085"
+ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
+ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"
+ensure_value "ADMIN_VITE_BASE" "${ADMIN_VITE_BASE:-}" "/admin/"
+ensure_value "OPENFGA_API_URL" "${OPENFGA_API_URL:-}" "http://localhost:8081"
+ensure_prod_default "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "http://minio:9000" "http://localhost:9000"
+ensure_value "OBJECT_STORAGE_REGION" "${OBJECT_STORAGE_REGION:-}" "us-east-1"
+ensure_value "OBJECT_STORAGE_BUCKET" "${OBJECT_STORAGE_BUCKET:-}" "stuhelper-identity"
+ensure_value "OBJECT_STORAGE_ACCESS_KEY_ID" "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "stuhelper"
+ensure_value "OBJECT_STORAGE_USE_SSL" "${OBJECT_STORAGE_USE_SSL:-}" "false"
+ensure_value "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PATH_STYLE:-}" "true"
+ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
+ensure_value "PROMETHEUS_RETENTION_TIME" "${PROMETHEUS_RETENTION_TIME:-}" "15d"
+ensure_value "PROMETHEUS_RETENTION_SIZE" "${PROMETHEUS_RETENTION_SIZE:-}" "20GB"
+ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "7"
+ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "14"
+ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "7"
+ensure_value "GRAFANA_ROOT_URL" "${GRAFANA_ROOT_URL:-}" "http://localhost:3003"
+ensure_prod_default "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" "true" "false"
+ensure_value "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "http://alert-webhook-sink:8080/alerts"
+
+"${SCRIPT_DIR}/render-postgres-tls.sh"
+
+log "production environment file is ready: ${ENV_FILE}"
+log "generated runtime file path: ${GENERATED_ENV_FILE}"

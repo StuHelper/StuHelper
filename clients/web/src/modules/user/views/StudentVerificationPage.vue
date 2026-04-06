@@ -3,7 +3,7 @@
         <!-- Back button + title -->
         <header class="flex items-center gap-3 mb-6">
             <button
-                class="p-2 bg-transparent border border-border rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
+                class="p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
                 :aria-label="t('common.actions.back')"
                 @click="router.back()"
             >
@@ -130,7 +130,7 @@
         <!-- Verification form -->
         <div
             v-else
-            class="bg-bg-card border border-border rounded-xl p-5 shadow-card"
+            class="bg-bg-card rounded-xl p-5 shadow-card"
         >
             <p class="text-sm text-text-muted mb-5 m-0">
                 {{ t("user.verification.student.desc") }}
@@ -147,7 +147,7 @@
                 <select
                     id="student-school"
                     v-model="form.schoolID"
-                    class="w-full px-3 py-2.5 bg-transparent border border-border rounded-lg text-sm text-text-primary outline-none transition-all duration-fast focus:border-primary appearance-none cursor-pointer"
+                    class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary outline-none transition-all duration-fast focus:border-primary appearance-none cursor-pointer"
                 >
                     <option value="" disabled>
                         {{ t("user.verification.student.selectSchool") }}
@@ -190,7 +190,7 @@
                             id="student-id"
                             v-model="form.studentID"
                             type="text"
-                            class="w-full px-3 py-2.5 bg-transparent border border-border rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                            class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
                             :placeholder="
                                 t('user.verification.student.studentId')
                             "
@@ -208,7 +208,7 @@
                             id="student-password"
                             v-model="form.password"
                             type="password"
-                            class="w-full px-3 py-2.5 bg-transparent border border-border rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                            class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
                             :placeholder="
                                 t('user.verification.student.password')
                             "
@@ -237,7 +237,7 @@
                                 :id="`manual-${field.key}`"
                                 v-model="form.manualFormData[field.key]"
                                 rows="3"
-                                class="w-full px-3 py-2.5 bg-transparent border border-border rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary resize-y"
+                                class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary resize-y"
                                 :placeholder="field.placeholder || field.label"
                             />
 
@@ -245,7 +245,7 @@
                                 v-else-if="field.type === 'select'"
                                 :id="`manual-${field.key}`"
                                 v-model="form.manualFormData[field.key]"
-                                class="w-full px-3 py-2.5 bg-transparent border border-border rounded-lg text-sm text-text-primary outline-none transition-all duration-fast focus:border-primary appearance-none cursor-pointer"
+                                class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary outline-none transition-all duration-fast focus:border-primary appearance-none cursor-pointer"
                             >
                                 <option value="" disabled>
                                     {{ field.placeholder || field.label }}
@@ -264,7 +264,7 @@
                                 :id="`manual-${field.key}`"
                                 v-model="form.manualFormData[field.key]"
                                 :type="field.type === 'date' ? 'date' : 'text'"
-                                class="w-full px-3 py-2.5 bg-transparent border border-border rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
+                                class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
                                 :placeholder="field.placeholder || field.label"
                             />
                         </div>
@@ -272,7 +272,7 @@
 
                     <div
                         v-else
-                        class="mb-5 p-4 bg-bg-card border border-border rounded-lg"
+                        class="mb-5 p-4 bg-bg-card rounded-lg"
                     >
                         <div
                             class="flex items-center gap-2 text-sm text-text-muted"
@@ -427,7 +427,7 @@ watch(
 );
 
 onMounted(() => {
-    store.fetchStatus();
-    store.fetchSchools();
+    store.fetchStatus().catch(() => {});
+    store.fetchSchools().catch(() => {});
 });
 </script>

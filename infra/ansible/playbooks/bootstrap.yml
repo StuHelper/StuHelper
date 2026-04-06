@@ -1,0 +1,23 @@
+---
+- name: Bootstrap StuHelper Ubuntu host
+  hosts: stuhelper
+  become: true
+  vars:
+    deploy_user: "{{ ansible_user | default('stuhelper') }}"
+    deploy_group: "{{ deploy_user }}"
+    deploy_app_dir: "{{ deploy_app_dir | default('/opt/stuhelper') }}"
+    configure_ufw: "{{ configure_ufw | default(true) }}"
+    allow_http_ports: "{{ allow_http_ports | default('80,443') }}"
+    deploy_ssh_pubkey: "{{ deploy_ssh_pubkey | default('') }}"
+  tasks:
+    - name: Run bootstrap script
+      ansible.builtin.script: >-
+        ../../ops/bootstrap-ubuntu2404.sh
+      environment:
+        DEPLOY_USER: "{{ deploy_user }}"
+        DEPLOY_GROUP: "{{ deploy_group }}"
+        DEPLOY_APP_DIR: "{{ deploy_app_dir }}"
+        CONFIGURE_UFW: "{{ configure_ufw | ternary('true', 'false') }}"
+        ALLOW_HTTP_PORTS: "{{ allow_http_ports }}"
+        DEPLOY_SSH_PUBKEY: "{{ deploy_ssh_pubkey }}"
+

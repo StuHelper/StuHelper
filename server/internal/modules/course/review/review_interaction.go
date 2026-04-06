@@ -15,7 +15,7 @@ import (
 
 // AddFavorite 添加收藏
 func (h *Handler) AddFavorite(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "id")
+	courseID, err := httputil.ParseIDParam(c, "courseID")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return
@@ -45,9 +45,34 @@ func (h *Handler) AddFavorite(c *gin.Context) {
 	response.Success(c, gin.H{"message": "course favorited successfully"})
 }
 
+// GetFavoriteStatus 获取当前用户对课程的收藏状态
+func (h *Handler) GetFavoriteStatus(c *gin.Context) {
+	courseID, err := httputil.ParseIDParam(c, "courseID")
+	if err != nil {
+		response.BadRequest(c, "invalid course id")
+		return
+	}
+
+	userID := middleware.GetUserID(c)
+	userHash, err := httputil.HashUserID(userID)
+	if err != nil {
+		response.InternalError(c, "failed to hash user identity")
+		return
+	}
+
+	favorited, err := h.service.GetFavoriteStatus(c.Request.Context(), userHash, courseID)
+	if err != nil {
+		logger.FromGin(c).Error("failed to get favorite status", zap.Error(err))
+		response.InternalError(c, "failed to get favorite status")
+		return
+	}
+
+	response.Success(c, gin.H{"favorited": favorited})
+}
+
 // RemoveFavorite 取消收藏
 func (h *Handler) RemoveFavorite(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "id")
+	courseID, err := httputil.ParseIDParam(c, "courseID")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return

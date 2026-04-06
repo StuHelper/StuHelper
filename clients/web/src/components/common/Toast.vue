@@ -10,7 +10,7 @@
         :key="item.id"
         role="alert"
         aria-live="assertive"
-        class="flex items-center gap-2 py-3 px-4 bg-bg-card border border-border rounded-lg shadow-lg text-sm text-text-primary pointer-events-auto max-w-[360px]"
+        class="flex items-center gap-2 py-3 px-4 bg-bg-card rounded-lg shadow-lg text-sm text-text-primary pointer-events-auto max-w-[360px]"
       >
         <Check
           v-if="item.type === 'success'"

@@ -35,7 +35,7 @@ export const createAdminApi = (client: ApiClient) => ({
   getLogs: (params?: { page?: number; pageSize?: number }) =>
     client.GET('/api/v1/course/review/admin/logs', { params: { query: params } }),
 
-  exportReviews: (params?: { format?: 'json' | 'ndjson' | 'csv' }) =>
+  exportReviews: (params?: { format?: 'json' | 'ndjson' | 'csv'; status?: 'all' | 'published' | 'hidden' | 'deleted' }) =>
     client.GET('/api/v1/course/review/admin/export', { params: { query: params } }),
 
   getTeachers: (params?: { page?: number; pageSize?: number; search?: string; departmentID?: number }) =>
@@ -52,6 +52,12 @@ export const createAdminApi = (client: ApiClient) => ({
 
   getSensitiveWords: (params?: { page?: number; pageSize?: number; category?: string; level?: 'block' | 'warn' | 'review' }) =>
     client.GET('/api/v1/course/review/admin/sensitive-words', { params: { query: params } }),
+
+  getContentFlags: (params?: { page?: number; pageSize?: number }) =>
+    client.GET('/api/v1/course/review/admin/content-flags', { params: { query: params } }),
+
+  clearContentFlag: (id: string) =>
+    client.PUT('/api/v1/course/review/admin/content-flags/{reviewID}/clear', { params: { path: { reviewID: id } } }),
 
   createSensitiveWord: (data: CreateSensitiveWordRequest) =>
     client.POST('/api/v1/course/review/admin/sensitive-words', { body: data }),

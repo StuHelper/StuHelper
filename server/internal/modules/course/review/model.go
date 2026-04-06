@@ -24,29 +24,32 @@ func (r *ReviewRatings) Scan(value interface{}) error {
 
 // Review 测评
 type Review struct {
-	ID               string        `json:"id"`
-	CourseID         int64         `json:"courseID"`
-	CourseName       string        `json:"courseName,omitempty"`
-	TeacherID        *int64        `json:"teacherID,omitempty"`
-	TeacherName      string        `json:"teacherName,omitempty"`
-	TermID           string        `json:"termID"`
-	TermName         string        `json:"termName,omitempty"`
-	UserHash         string        `json:"-"`
-	Title            string        `json:"title"`
-	Content          string        `json:"content"`
-	Grade            string        `json:"grade,omitempty"`
-	Ratings          ReviewRatings `json:"ratings"`
-	LikeCount        int           `json:"likeCount"`
-	DislikeCount     int           `json:"dislikeCount"`
-	ReplyCount       int           `json:"replyCount"`
-	Status           string        `json:"status"`
-	ModerationReason *string       `json:"moderationReason,omitempty"`
-	OriginalContent  *string       `json:"-"`
-	OriginalTitle    *string       `json:"-"`
-	ModeratedBy      *string       `json:"-"`
-	ModeratedAt      *time.Time    `json:"-"`
-	CreatedAt        time.Time     `json:"createdAt"`
-	UpdatedAt        time.Time     `json:"updatedAt"`
+	ID                   string        `json:"id"`
+	CourseID             int64         `json:"courseID"`
+	CourseName           string        `json:"courseName,omitempty"`
+	TeacherID            *int64        `json:"teacherID,omitempty"`
+	TeacherName          string        `json:"teacherName,omitempty"`
+	TermID               string        `json:"termID"`
+	TermName             string        `json:"termName,omitempty"`
+	UserHash             string        `json:"-"`
+	Title                string        `json:"title"`
+	Content              string        `json:"content"`
+	Grade                string        `json:"grade,omitempty"`
+	Ratings              ReviewRatings `json:"ratings"`
+	LikeCount            int           `json:"likeCount"`
+	DislikeCount         int           `json:"dislikeCount"`
+	ReplyCount           int           `json:"replyCount"`
+	Status               string        `json:"status"`
+	ContentFlag          *string       `json:"contentFlag,omitempty"` // warn / cleared / nil
+	ContentFlagClearedAt *time.Time    `json:"contentFlagClearedAt,omitempty"`
+	ContentFlagClearedBy *string       `json:"-"`
+	ModerationReason     *string       `json:"moderationReason,omitempty"`
+	OriginalContent      *string       `json:"-"`
+	OriginalTitle        *string       `json:"-"`
+	ModeratedBy          *string       `json:"-"`
+	ModeratedAt          *time.Time    `json:"-"`
+	CreatedAt            time.Time     `json:"createdAt"`
+	UpdatedAt            time.Time     `json:"updatedAt"`
 }
 
 // RatingDimension 评分维度配置
@@ -90,33 +93,12 @@ type TermRatingStats struct {
 	Dimensions []DimensionStats `json:"dimensions"`
 }
 
-// 雷达图默认配色（统一使用同一蓝色系）
-const (
-	radarBgColor     = "rgba(64, 158, 255, 0.2)"
-	radarBorderColor = "rgba(64, 158, 255, 1)"
-)
-
-// RadarChartDataset 雷达图数据集
-type RadarChartDataset struct {
-	Label           string    `json:"label"`
-	Data            []float64 `json:"data"`
-	BackgroundColor string    `json:"backgroundColor"`
-	BorderColor     string    `json:"borderColor"`
-}
-
-// RadarChartData 雷达图数据
-type RadarChartData struct {
-	Labels   []string            `json:"labels"`
-	Datasets []RadarChartDataset `json:"datasets"`
-}
-
 // CourseRatingStatsResponse 课程评分统计响应
 type CourseRatingStatsResponse struct {
 	CourseID         int64             `json:"courseID"`
 	Overall          TermRatingStats   `json:"overall"`
 	ByTerm           []TermRatingStats `json:"byTerm"`
 	AllDimensionKeys []string          `json:"allDimensionKeys"`
-	RadarChart       RadarChartData    `json:"radarChart"`
 }
 
 // ReviewReport 举报记录
@@ -203,6 +185,7 @@ type Notification struct {
 	Content     string    `json:"content,omitempty"`
 	RelatedType string    `json:"relatedType,omitempty"`
 	RelatedID   string    `json:"relatedID,omitempty"`
+	CourseID    *int64    `json:"courseID,omitempty"`
 	IsRead      bool      `json:"isRead"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
@@ -231,11 +214,20 @@ type TeacherRatingStatsResponse struct {
 	RatingTrend    []RatingTrendItem `json:"ratingTrend"`
 	Overall        TermRatingStats   `json:"overall"`
 	ByTerm         []TermRatingStats `json:"byTerm"`
-	RadarChart     RadarChartData    `json:"radarChart"`
 }
 
 // CourseTeacherStats 课程详情页教师统计卡片数据
 type CourseTeacherStats struct {
+	TeacherID      int64    `json:"teacherID"`
+	TeacherName    string   `json:"teacherName"`
+	DepartmentName string   `json:"departmentName"`
+	AvgRating      *float64 `json:"avgRating"`
+	CourseCount    int      `json:"courseCount"`
+	ReviewCount    int      `json:"reviewCount"`
+}
+
+// TeacherSummary 教师摘要（公开列表/热门教师）
+type TeacherSummary struct {
 	TeacherID      int64    `json:"teacherID"`
 	TeacherName    string   `json:"teacherName"`
 	DepartmentName string   `json:"departmentName"`

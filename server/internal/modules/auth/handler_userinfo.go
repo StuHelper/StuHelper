@@ -1,128 +1,86 @@
 package auth
 
 import (
-	"context"
+	"strings"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
-// GetCurrentUser 获取当前用户信息
+type currentUserPayload struct {
+	ID                 string             `json:"id"`
+	Name               string             `json:"name"`
+	DisplayName        string             `json:"displayName"`
+	Avatar             *string            `json:"avatar,omitempty"`
+	Email              string             `json:"email,omitempty"`
+	Roles              []string           `json:"roles"`
+	Capabilities       []string           `json:"capabilities"`
+	GlobalCapabilities []string           `json:"globalCapabilities"`
+	CapabilityGrants   []capability.Grant `json:"capabilityGrants"`
+	IsPlatformAdmin    bool               `json:"isPlatformAdmin"`
+	CanAccessAdmin     bool               `json:"canAccessAdmin"`
+}
+
+// GetCurrentUser 获取当前用户信息（从 AuthMiddleware 注入的 context 读取）
 func (h *Handler) GetCurrentUser(c *gin.Context) {
-	userInfo, err := h.buildUserInfo(
-		c.Request.Context(),
+	roles := middleware.GetRoles(c)
+	capabilities := middleware.GetCapabilities(c)
+	avatar := middleware.GetAvatar(c)
+	response.Success(c, h.buildUserPayload(
 		middleware.GetUserID(c),
 		middleware.GetUsername(c),
 		middleware.GetDisplayName(c),
 		middleware.GetEmail(c),
-		nil,
-		middleware.GetIsAdmin(c),
-	)
-	if err != nil {
-		logger.FromGin(c).Error("failed to build current user info", zap.Error(err))
-		response.ServiceUnavailable(c, "identity service temporarily unavailable")
-		return
-	}
-	response.Success(c, userInfo)
+		nullableString(avatar),
+		roles,
+		capabilities,
+	))
 }
 
-func (h *Handler) buildUserInfo(
-	ctx context.Context,
-	userID string,
-	fallbackName string,
-	fallbackDisplayName string,
-	fallbackEmail string,
-	fallbackAvatar *string,
-	fallbackIsPlatformAdmin bool,
-) (gin.H, error) {
-	log := logger.FromContext(ctx)
+func (h *Handler) buildUserPayload(
+	userID, username, displayName, email string,
+	avatar *string,
+	roles, capabilities []string,
+) currentUserPayload {
+	snapshot := buildAccessSnapshot(capabilities)
 
-	// 1. Casdoor 缓存：失败用 JWT fallback 值继续，不中断
-	cachedUser, err := h.ssoClient.GetCachedUserByID(ctx, userID)
-	if err != nil {
-		log.Warn("casdoor cache unavailable, using token fallback",
-			zap.String("user_id", userID),
-			zap.Error(err),
-		)
-		cachedUser = nil
+	return currentUserPayload{
+		ID:                 userID,
+		Name:               username,
+		DisplayName:        displayName,
+		Avatar:             avatar,
+		Email:              email,
+		Roles:              roles,
+		Capabilities:       snapshot.Capabilities,
+		GlobalCapabilities: snapshot.GlobalCapabilities,
+		CapabilityGrants:   snapshot.CapabilityGrants,
+		IsPlatformAdmin:    hasRole(roles, "super_admin"),
+		CanAccessAdmin:     capability.CanAccessAdmin(snapshot.Capabilities),
 	}
-
-	name := fallbackName
-	displayName := fallbackDisplayName
-	email := fallbackEmail
-	isPlatformAdmin := fallbackIsPlatformAdmin
-
-	if cachedUser != nil {
-		if cachedUser.Name != "" {
-			name = cachedUser.Name
-		}
-		if cachedUser.DisplayName != "" {
-			displayName = cachedUser.DisplayName
-		}
-		if cachedUser.Email != "" {
-			email = cachedUser.Email
-		}
-		isPlatformAdmin = cachedUser.IsAdmin
-	}
-
-	if displayName == "" {
-		displayName = name
-	}
-
-	// 2. 用户同步：失败仅 warn，不影响用户体验
-	if h.userSyncRepo != nil {
-		if err := h.userSyncRepo.UpsertUser(ctx, UserSyncInput{
-			ExternalID: userID,
-			Username:   name,
-			Email:      email,
-			AvatarURL:  fallbackAvatar,
-		}); err != nil {
-			log.Warn("user sync failed, skipping",
-				zap.String("user_id", userID),
-				zap.Error(err),
-			)
-		}
-	}
-
-	// 3. 能力查询：失败返回空集（最小权限原则）
-	capabilitySnapshot := capability.UserAccessSnapshot{
-		Capabilities:       []string{},
-		GlobalCapabilities: []string{},
-		CapabilityGrants:   []capability.Grant{},
-	}
-	if h.capabilityReader != nil {
-		resolved, err := h.capabilityReader.GetUserCapabilitySnapshot(ctx, userID)
-		if err != nil {
-			log.Warn("capability query failed, returning empty permission set",
-				zap.String("user_id", userID),
-				zap.Error(err),
-			)
-		} else {
-			capabilitySnapshot = resolved
-		}
-	}
-
-	return gin.H{
-		"id":                 userID,
-		"name":               name,
-		"displayName":        displayName,
-		"email":              email,
-		"avatar":             fallbackAvatar,
-		"isPlatformAdmin":    isPlatformAdmin,
-		"capabilities":       capabilitySnapshot.Capabilities,
-		"globalCapabilities": capabilitySnapshot.GlobalCapabilities,
-		"capabilityGrants":   capabilitySnapshot.CapabilityGrants,
-		"canAccessAdmin":     capability.CanAccessAdmin(capabilitySnapshot.GlobalCapabilities),
-	}, nil
 }
 
-func optionalString(value string) *string {
-	if value == "" {
+func buildAccessSnapshot(capabilities []string) capability.UserAccessSnapshot {
+	grants := make([]capability.Grant, 0, len(capabilities))
+	for _, capName := range capabilities {
+		grants = append(grants, capability.Grant{Name: capName})
+	}
+	return capability.BuildUserAccessSnapshot(grants)
+}
+
+func hasRole(roles []string, expected string) bool {
+	for _, role := range roles {
+		if role == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func nullableString(value string) *string {
+	if strings.TrimSpace(value) == "" {
 		return nil
 	}
 	return &value

@@ -15,7 +15,7 @@
     <!-- Content -->
     <template v-else-if="teacher">
       <!-- Teacher Header -->
-      <header class="flex items-center gap-5 p-6 bg-bg-card border border-border rounded-xl mb-6 max-sm:flex-col max-sm:text-center">
+      <header class="flex items-center gap-5 p-6 bg-bg-card rounded-xl mb-6 max-sm:flex-col max-sm:text-center">
         <div class="p-[3px] bg-gradient-to-br from-primary to-accent rounded-full shrink-0">
           <div class="w-16 h-16 bg-bg-card rounded-full flex items-center justify-center text-text-muted">
             <User :size="32" :stroke-width="1.5" />
@@ -36,7 +36,7 @@
       </header>
 
       <!-- Stats Cards -->
-      <section class="flex items-center justify-center gap-8 mb-6 py-5 border-b border-border max-sm:gap-4">
+      <section class="flex items-center justify-center gap-8 mb-6 py-5 border-b border-border-light max-sm:gap-4">
         <div class="flex flex-col items-center text-center">
           <span class="w-9 h-9 flex items-center justify-center mb-2 text-primary">
             <BookOpen :size="20" />
@@ -61,20 +61,20 @@
       </section>
 
       <!-- Rating Trend Chart -->
-      <section class="bg-bg-card border border-border rounded-lg p-5 mb-6">
+      <section class="bg-bg-card rounded-lg p-5 mb-6">
         <h2 class="text-base font-semibold text-text-primary m-0 mb-4">{{ t('teaching.profile.ratingTrend') }}</h2>
         <div ref="chartRef" class="h-[250px]" role="img" :aria-label="t('teaching.profile.ratingTrendChartAria')"></div>
       </section>
 
       <!-- Courses List -->
-      <section class="bg-bg-card border border-border rounded-lg p-5">
+      <section class="bg-bg-card rounded-lg p-5">
         <h2 class="text-base font-semibold text-text-primary m-0 mb-4">{{ t('teaching.profile.courseList') }}</h2>
         <div class="flex flex-col gap-2">
           <router-link
             v-for="course in teacher.courses"
             :key="course.id"
             :to="`/courses/${course.id}`"
-            class="flex items-center justify-between py-3 px-4 border-b border-border no-underline transition-all duration-fast last:border-b-0 hover:bg-bg-hover hover:pl-6"
+            class="flex items-center justify-between py-3 px-4 border-b border-border-light no-underline transition-all duration-fast last:border-b-0 hover:bg-bg-hover hover:pl-6"
           >
             <div class="flex flex-col gap-1">
               <span class="font-medium text-text-primary">{{ course.name }}</span>

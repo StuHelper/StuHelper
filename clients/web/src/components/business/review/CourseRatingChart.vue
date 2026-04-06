@@ -27,7 +27,7 @@
         <!-- Custom Multi-Select -->
         <div class="relative" ref="selectorRef">
           <button
-            class="flex items-center gap-2 py-2 px-3 bg-transparent border border-border rounded-sm text-text-primary text-sm cursor-pointer transition-all duration-fast min-w-[140px] hover:border-text-primary max-sm:w-full"
+            class="flex items-center gap-2 py-2 px-3 bg-transparent rounded-sm text-text-primary text-sm cursor-pointer transition-all duration-fast min-w-[140px] hover:border-text-primary max-sm:w-full"
             @click="toggleDropdown"
           >
             <span class="flex items-center gap-1 flex-1 flex-wrap">
@@ -48,7 +48,7 @@
           </button>
 
           <Transition name="dropdown">
-            <div v-if="dropdownOpen" class="absolute top-full mt-1 right-0 min-w-[160px] bg-bg-card border border-border rounded-sm shadow-lg z-40 overflow-hidden max-sm:left-0">
+            <div v-if="dropdownOpen" class="absolute top-full mt-1 right-0 min-w-[160px] bg-bg-card rounded-sm shadow-lg z-40 overflow-hidden max-sm:left-0">
               <label
                 class="dropdown-item"
                 :class="{ selected: selectedTerms.includes('overall') }"
@@ -86,7 +86,7 @@
       </div>
 
       <!-- Dimension List -->
-      <div class="flex flex-col gap-3 pt-4 border-t border-border">
+      <div class="flex flex-col gap-3 pt-4 border-t border-border-light">
         <div
           v-for="dim in ratingStats.overall.dimensions"
           :key="dim.key"

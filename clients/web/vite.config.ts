@@ -5,6 +5,8 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { fileURLToPath, URL } from 'node:url'
 
+const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -26,7 +28,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: devProxyTarget,
         changeOrigin: true
       }
     }

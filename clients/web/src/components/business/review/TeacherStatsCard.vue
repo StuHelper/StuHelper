@@ -1,7 +1,7 @@
 <template>
-  <div class="border border-border rounded-md p-5 transition-all duration-base ease-out hover:shadow-md hover:-translate-y-0.5">
+  <div class="border-0 rounded-md p-5 transition-all duration-base ease-out hover:shadow-md hover:-translate-y-0.5">
     <div class="flex items-center gap-3 mb-4">
-      <div class="w-11 h-11 bg-bg-secondary border border-border rounded-sm flex items-center justify-center text-text-muted">
+      <div class="w-11 h-11 bg-bg-secondary rounded-sm flex items-center justify-center text-text-muted">
         <User :size="28" :stroke-width="1.5" aria-hidden="true" />
       </div>
       <div class="flex-1">
@@ -10,7 +10,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-3 gap-3 py-4 border-t border-b border-border">
+    <div class="grid grid-cols-3 gap-3 py-4 border-t border-b border-border-light">
       <div class="flex flex-col items-center text-center">
         <span class="font-display text-xl font-bold text-accent tabular-nums">{{ stats.avgRating?.toFixed(1) || '-' }}</span>
         <span class="text-xs text-text-muted mt-1">{{ t('teaching.profile.avgRating') }}</span>

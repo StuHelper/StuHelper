@@ -17,6 +17,7 @@ var (
 	ErrIdentityAlreadyExists      = errors.New("identity already exists")
 	ErrIdentityAlreadyVerified    = errors.New("identity already verified")
 	ErrProfileAlreadyVerified     = errors.New("profile already verified")
+	ErrProfilePendingReview       = errors.New("profile is pending review, please wait for admin approval")
 	ErrSchoolNotFound             = errors.New("school not found")
 	ErrSchoolDisabled             = errors.New("school verification disabled")
 	ErrConsentRequired            = errors.New("consent is required")
@@ -25,6 +26,7 @@ var (
 	ErrIdentityRequired           = errors.New("identity verification required before student verification")
 	ErrStudentIDRequired          = errors.New("student ID is required for LDAP verification")
 	ErrPasswordRequired           = errors.New("password is required for LDAP verification")
+	ErrPhoneAlreadyBound          = errors.New("phone already bound to another user")
 	ErrStudentNotFound            = errors.New("student record not found in academic database")
 	ErrProfileNotFound            = errors.New("student profile not found")
 	ErrIdentityNotFound           = errors.New("identity not found")
@@ -37,6 +39,11 @@ var (
 	ErrLDAPConfigInvalid          = errors.New("LDAP configuration is invalid")
 	ErrSystemConfigNotFound       = errors.New("system config not found")
 	ErrInvalidSystemConfigValue   = errors.New("system config value is invalid")
+	ErrIdentityPhotoStoreDisabled = errors.New("identity photo storage is not configured")
+	ErrIdentityPhotoTooLarge      = errors.New("identity photo too large")
+	ErrIdentityPhotoInvalidType   = errors.New("identity photo content type is invalid")
+	ErrIdentityPhotoInvalidData   = errors.New("identity photo data is invalid")
+	ErrIdentityPhotoInvalidRef    = errors.New("identity photo reference is invalid")
 )
 
 // DocType 证件类型常量
@@ -63,6 +70,12 @@ const (
 	VerifyMethodLDAP       = "ldap"
 )
 
+const (
+	IdentityPhotoSlotFront  = "front"
+	IdentityPhotoSlotBack   = "back"
+	IdentityPhotoSlotSelfie = "selfie"
+)
+
 // Repo defines the data access methods required by Service.
 type Repo interface {
 	GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error)
@@ -74,19 +87,18 @@ type Repo interface {
 	CreateProfile(ctx context.Context, profile *Profile) error
 	UpdateProfile(ctx context.Context, profile *Profile) error
 	ListProfilesByStatus(ctx context.Context, status string, schoolID string, page, pageSize int) ([]Profile, int, error)
+	SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
 
 	GetSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error)
 	ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
 	ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
 	UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error
 
-	GetAcademicStudentByXH(ctx context.Context, xh string) (*AcademicStudent, error)
-	FindAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm, sfzjh string) ([]AcademicStudent, error)
-
 	ListSystemConfigs(ctx context.Context) ([]SystemConfig, error)
 	UpdateSystemConfig(ctx context.Context, key, value string) error
 
 	GetInternalUserID(ctx context.Context, externalID string) (int64, error)
+	GetExternalID(ctx context.Context, userID int64) (string, error)
 }
 
 type ldapAuthClient interface {
@@ -96,6 +108,16 @@ type ldapAuthClient interface {
 
 type ldapClientFactory func(cfg ldap.Config) (ldapAuthClient, error)
 
+type identityPhotoStore interface {
+	Upload(ctx context.Context, key string, content []byte, contentType string) error
+	PresignGetURL(ctx context.Context, key string) (string, error)
+}
+
+// RoleSyncFunc 角色同步回调。
+// 当用户认证状态变化时调用：approved=true 添加角色，approved=false 移除角色。
+// userID 是内部用户 ID（用于查询 external_id），role 是 Zitadel Project Role 名称。
+type RoleSyncFunc func(ctx context.Context, userID int64, role string, approved bool) error
+
 // Service 用户服务层
 type Service struct {
 	repo              Repo
@@ -103,6 +125,8 @@ type Service struct {
 	ldapClientFactory ldapClientFactory
 	hmacKey           []byte
 	docCipher         pii.Encryptor
+	onRoleSync        RoleSyncFunc
+	photoStore        identityPhotoStore
 }
 
 // NewService 创建用户服务（构造期校验关键依赖）
@@ -125,6 +149,16 @@ func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pi
 	}, nil
 }
 
+// SetRoleSyncFunc 注册角色同步回调（认证状态变化时异步通知 Zitadel）
+func (s *Service) SetRoleSyncFunc(fn RoleSyncFunc) {
+	s.onRoleSync = fn
+}
+
+// SetIdentityPhotoStore 注册实名认证照片对象存储。
+func (s *Service) SetIdentityPhotoStore(store identityPhotoStore) {
+	s.photoStore = store
+}
+
 // SubmitIdentityRequest 提交实名认证请求
 type SubmitIdentityRequest struct {
 	DocType        string  `json:"docType"`
@@ -133,6 +167,14 @@ type SubmitIdentityRequest struct {
 	DocPhotoFront  *string `json:"docPhotoFront"`
 	DocPhotoBack   *string `json:"docPhotoBack"`
 	DocPhotoSelfie *string `json:"docPhotoSelfie"`
+}
+
+// UploadIdentityPhotoRequest 上传实名认证照片请求。
+type UploadIdentityPhotoRequest struct {
+	Slot        string `json:"slot"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	DataBase64  string `json:"dataBase64"`
 }
 
 // VerifyStudentRequest 学生认证请求
@@ -171,6 +213,7 @@ type SchoolLDAPConfigView struct {
 type UpdateSchoolConfigInput struct {
 	SchoolName         *string
 	VerificationMethod *string
+	ApprovalPolicy     *string
 	LDAPConfig         *SchoolLDAPConfigInput
 	AcademicDBTable    *string
 	ConsentText        *string

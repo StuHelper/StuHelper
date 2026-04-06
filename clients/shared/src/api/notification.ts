@@ -1,5 +1,7 @@
 import type { ApiClient } from './client'
 
+export const NOTIFICATION_STREAM_PATH = '/api/v1/course/review/user/notifications/stream' as const
+
 export const createNotificationApi = (client: ApiClient) => ({
   getNotifications: (page = 1, pageSize = 10) =>
     client.GET('/api/v1/course/review/user/notifications', { params: { query: { page, pageSize } } }),
@@ -9,6 +11,8 @@ export const createNotificationApi = (client: ApiClient) => ({
 
   markAllAsRead: () =>
     client.PUT('/api/v1/course/review/user/notifications/read-all'),
+
+  getStreamPath: () => NOTIFICATION_STREAM_PATH,
 
   getUnreadCount: () =>
     client.GET('/api/v1/course/review/user/notifications/unread-count')

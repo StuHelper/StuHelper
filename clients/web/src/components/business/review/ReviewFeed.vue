@@ -36,9 +36,11 @@
     <template v-else>
       <div class="flex flex-col gap-4">
         <ReviewCard
-          v-for="review in reviews"
+          v-for="(review, index) in reviews"
           :key="review.id"
           :review="review"
+          class="stagger-item"
+          :style="{ animationDelay: `${Math.min(index, 8) * 60}ms` }"
           @moderated="() => loadReviews(true)"
         />
       </div>
@@ -89,9 +91,9 @@ const pageSize = 10
 const activeSort = ref('time')
 const isFirstLoad = ref(true)
 
-// H-46: 用于取消进行中的请求，防止组件卸载后状态更新
+// 用于取消进行中的请求，防止组件卸载后状态更新
 let abortController: AbortController | null = null
-// M-109: 请求版本号，防止排序切换后旧请求覆盖新结果
+// 请求版本号，防止排序切换后旧请求覆盖新结果
 let requestVersion = 0
 
 const sortTabs = computed(() => [
@@ -103,13 +105,13 @@ const sortTabs = computed(() => [
 async function loadReviews(reset = false) {
   if (loading.value && !reset) return
 
-  // H-46: 取消上一次进行中的请求
+  // 取消上一次进行中的请求
   if (abortController) {
     abortController.abort()
   }
   abortController = new AbortController()
   const signal = abortController.signal
-  // M-109: 版本号递增，防止排序切换后旧请求覆盖新结果
+  // 版本号递增，防止排序切换后旧请求覆盖新结果
   const currentVersion = ++requestVersion
 
   if (reset) {
@@ -128,7 +130,7 @@ async function loadReviews(reset = false) {
     if (reset) {
       reviews.value = list
     } else {
-      // M-61: 去重：分页间隙可能导致重复条目
+      // 去重：分页间隙可能导致重复条目
       const existingIDs = new Set(reviews.value.map((r: Review) => r.id))
       reviews.value.push(...list.filter((r: Review) => !existingIDs.has(r.id)))
     }
@@ -154,7 +156,7 @@ function handleSortChange(sort: string) {
   loadReviews(true)
 }
 
-// M-11 & L-06: 重试时清除错误状态，不重置 hasMore，直接重试当前页
+// 重试时清除错误状态，不重置 hasMore，直接重试当前页
 function handleRetry() {
   error.value = null
   loadReviews()

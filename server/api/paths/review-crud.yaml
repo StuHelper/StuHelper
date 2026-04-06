@@ -98,6 +98,71 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/course/review/reviews/search:
+  get:
+    tags: [Review]
+    operationId: searchReviews
+    summary: 搜索测评（支持课程、院系、教师、学期筛选）
+    security:
+      - {}
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: q
+        in: query
+        schema:
+          type: string
+        description: 课程名或课号关键字
+      - name: departmentID
+        in: query
+        schema:
+          type: integer
+          format: int64
+        description: 院系 ID
+      - name: teacherName
+        in: query
+        schema:
+          type: string
+        description: 教师姓名模糊匹配
+      - name: termID
+        in: query
+        schema:
+          type: string
+        description: 按学期筛选（YYYY-S）
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [time, likes, rating]
+          default: time
+    responses:
+      '200':
+        description: 搜索测评分页列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/Review'
+                        total:
+                          type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/course/review/reviews/batch:
   get:
     tags: [Review]

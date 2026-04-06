@@ -8,12 +8,12 @@
       >
         <div
           ref="modalRef"
-          class="w-full max-w-[640px] bg-bg-card border border-border rounded-xl shadow-xl overflow-hidden animate-modal-in max-md:rounded-lg"
+          class="w-full max-w-[640px] bg-bg-card rounded-xl shadow-xl overflow-hidden animate-modal-in max-md:rounded-lg glow-border"
           role="dialog"
           aria-modal="true"
           @keydown="trapFocus"
         >
-          <div class="flex items-center gap-3 px-5 py-4 border-b border-border">
+          <div class="flex items-center gap-3 px-5 py-4 border-b border-border-light">
             <Search class="text-text-muted shrink-0" :size="20" />
             <input
               ref="inputRef"
@@ -109,11 +109,11 @@ const results = ref<Course[]>([])
 const loading = ref(false)
 const activeIndex = ref(0)
 
-// M-19: 保存打开前的 body overflow 原始值，关闭时恢复而非无条件置空
+// 保存打开前的 body overflow 原始值，关闭时恢复而非无条件置空
 let savedBodyOverflow = ''
 
 const RECENT_KEY = 'recent-searches'
-// M-104: 最大搜索历史条数常量化
+// 最大搜索历史条数常量化
 const MAX_RECENT = 5
 const recentSearches = ref<string[]>((() => {
   try {
@@ -133,7 +133,7 @@ function saveRecent(term: string) {
   try {
     localStorage.setItem(RECENT_KEY, JSON.stringify(recentSearches.value))
   } catch {
-    // M-31: localStorage 不可用时静默忽略
+    // localStorage 不可用时静默忽略
   }
 }
 
@@ -177,7 +177,7 @@ watch(searchQuery, (val) => {
     try {
       const res = await api.course.searchCourses(q, 10, { signal: controller.signal })
       if (controller.signal.aborted) return
-      // M-93: 按 ID 去重，防止后端返回重复课程
+      // 按 ID 去重，防止后端返回重复课程
       const list = res.data?.data?.list || []
       const seen = new Set<number>()
       results.value = list.filter((c: Course) => {
@@ -199,7 +199,7 @@ watch(searchQuery, (val) => {
 })
 
 onUnmounted(() => {
-  // L-50: 清理 timer 后置空
+  // 清理 timer 后置空
   if (searchTimer) { clearTimeout(searchTimer); searchTimer = null }
   if (searchController) { searchController.abort(); searchController = undefined }
   // 组件卸载时恢复 body overflow，防止路由切换后滚动被锁定
@@ -211,13 +211,13 @@ onUnmounted(() => {
 
 watch(isOpen, (val) => {
   if (val) {
-    // M-19: 保存当前 overflow 值，避免关闭时覆盖其他模态框的滚动锁定
+    // 保存当前 overflow 值，避免关闭时覆盖其他模态框的滚动锁定
     savedBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     nextTick(() => inputRef.value?.focus())
   } else {
     document.body.style.overflow = savedBodyOverflow
-    // M-119: 关闭时清理搜索 timer 和 inflight 请求
+    // 关闭时清理搜索 timer 和 inflight 请求
     if (searchTimer) { clearTimeout(searchTimer); searchTimer = null }
     if (searchController) { searchController.abort(); searchController = undefined }
     searchQuery.value = ''

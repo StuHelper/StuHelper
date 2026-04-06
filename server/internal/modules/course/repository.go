@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
 // ErrNotFound 表示数据库查询未找到记录的哨兵错误
@@ -112,13 +113,13 @@ func (r *Repository) ListCourses(ctx context.Context, query string, departmentID
 		orderBy = "c.review_count DESC, c.name ASC"
 	}
 
-	pattern := "%" + query + "%"
+	pattern := "%" + httputil.EscapeLikePattern(query) + "%"
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.category, c.review_count,
 			COUNT(*) OVER() AS total
 		FROM courses c
 		LEFT JOIN departments d ON d.id = c.department_id
-		WHERE ($1 = '' OR c.name ILIKE $1 ESCAPE '\\' OR c.code ILIKE $1 ESCAPE '\\')
+		WHERE ($1 = '%%' OR c.name ILIKE $1 ESCAPE '\\' OR c.code ILIKE $1 ESCAPE '\\')
 		  AND ($2::bigint = 0 OR c.department_id = $2)
 		  AND ($5 = '' OR c.category = $5)
 		ORDER BY `+orderBy+`
@@ -134,6 +135,7 @@ func (r *Repository) ListCourses(ctx context.Context, query string, departmentID
 
 // SearchCourses 搜索课程，使用窗口函数一次性返回数据和总数
 func (r *Repository) SearchCourses(ctx context.Context, pattern string, limit, offset int) ([]Course, int, error) {
+	escapedPattern := "%" + httputil.EscapeLikePattern(pattern) + "%"
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.category, c.review_count,
 			COUNT(*) OVER() AS total
@@ -142,7 +144,7 @@ func (r *Repository) SearchCourses(ctx context.Context, pattern string, limit, o
 		WHERE c.name ILIKE $1 ESCAPE '\' OR c.code ILIKE $1 ESCAPE '\'
 		ORDER BY c.name ASC
 		LIMIT $2 OFFSET $3
-	`, pattern, limit, offset)
+	`, escapedPattern, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -217,4 +219,41 @@ func (r *Repository) ListCourseCategories(ctx context.Context) ([]CourseCategory
 		return nil, err
 	}
 	return list, nil
+}
+
+// FavoriteExists 检查单个课程是否被用户收藏
+func (r *Repository) FavoriteExists(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM course_favorites WHERE user_hash = $1 AND course_id = $2)
+	`, userHash, courseID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("FavoriteExists: %w", err)
+	}
+	return exists, nil
+}
+
+// BatchFavoritedCourseIDs 批量查询用户已收藏的课程 ID 集合
+func (r *Repository) BatchFavoritedCourseIDs(ctx context.Context, userHash string, courseIDs []int64) (map[int64]bool, error) {
+	if len(courseIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT course_id FROM course_favorites
+		WHERE user_hash = $1 AND course_id = ANY($2)
+	`, userHash, courseIDs)
+	if err != nil {
+		return nil, fmt.Errorf("BatchFavoritedCourseIDs: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[int64]bool, len(courseIDs))
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("BatchFavoritedCourseIDs scan: %w", err)
+		}
+		result[id] = true
+	}
+	return result, rows.Err()
 }

@@ -8,9 +8,11 @@ workflow:
 stages:
   - lint
   - test
+  - security
   - build
   - package
   - deploy
+  - verify
 
 default:
   interruptible: true
@@ -19,12 +21,34 @@ variables:
   REGISTRY: registry.stuhelper.com
   BACKEND_IMAGE: registry.stuhelper.com/stuhelper/backend
   FRONTEND_IMAGE: registry.stuhelper.com/stuhelper/frontend
-  DOCKER_HOST: tcp://docker:2375
-  DOCKER_TLS_CERTDIR: ""
+  ADMIN_IMAGE: registry.stuhelper.com/stuhelper/admin
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: /certs
+  DOCKER_TLS_VERIFY: "1"
+  DOCKER_CERT_PATH: /certs/client
 
 include:
   - local: ".gitlab/server-ci.yml"
   - local: ".gitlab/cd.yml"
+
+.playwright_job:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.58.2-noble
+  variables:
+    CI: "true"
+
+.docker_job:
+  image: docker:27.5.1-cli
+  services:
+    - name: docker:27.5.1-dind
+
+.trivy_scan_job:
+  extends: .docker_job
+  stage: security
+  before_script:
+    - apk add --no-cache curl tar
+    - export TRIVY_VERSION=0.58.2
+    - curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy
 
 frontend_lint:
   stage: lint
@@ -35,8 +59,17 @@ frontend_lint:
     - cd clients
     - pnpm install --frozen-lockfile
     - pnpm --filter @stuhelper/web lint
-    - pnpm --filter @stuhelper/admin lint
     - pnpm --filter @stuhelper/web exec prettier --check .
+
+admin_lint:
+  stage: lint
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients/admin
+    - pnpm install --frozen-lockfile
+    - pnpm lint
 
 frontend_typecheck:
   stage: test
@@ -48,6 +81,16 @@ frontend_typecheck:
     - pnpm install --frozen-lockfile
     - pnpm run type-check
 
+admin_typecheck:
+  stage: test
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients/admin
+    - pnpm install --frozen-lockfile
+    - pnpm --filter @vben/web-ele typecheck
+
 frontend_test:
   stage: test
   image: node:24-bookworm
@@ -58,6 +101,72 @@ frontend_test:
     - pnpm install --frozen-lockfile
     - pnpm --filter @stuhelper/web test
 
+frontend_e2e:
+  extends: .playwright_job
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients
+    - pnpm install --frozen-lockfile
+    - pnpm --filter @stuhelper/web test:e2e
+  artifacts:
+    when: always
+    paths:
+      - clients/web/playwright-report
+      - clients/web/test-results
+
+admin_e2e:
+  extends: .playwright_job
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients/admin
+    - pnpm install --frozen-lockfile
+    - pnpm --filter @vben/web-ele test:e2e
+  artifacts:
+    when: always
+    paths:
+      - clients/admin/apps/web-ele/playwright-report
+      - clients/admin/apps/web-ele/test-results
+
+frontend_dependency_scan:
+  stage: security
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients
+    - pnpm install --frozen-lockfile
+    - pnpm audit --audit-level=high --prod
+
+admin_dependency_scan:
+  stage: security
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients/admin
+    - pnpm install --frozen-lockfile
+    - pnpm audit --audit-level=high --prod
+
+container_scan_backend:
+  extends: .trivy_scan_job
+  script:
+    - docker build --pull -t "stuhelper/backend:scan-${CI_COMMIT_SHORT_SHA}" server
+    - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "stuhelper/backend:scan-${CI_COMMIT_SHORT_SHA}"
+
+container_scan_frontend:
+  extends: .trivy_scan_job
+  script:
+    - docker build --pull -f clients/web/Dockerfile -t "stuhelper/frontend:scan-${CI_COMMIT_SHORT_SHA}" clients
+    - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "stuhelper/frontend:scan-${CI_COMMIT_SHORT_SHA}"
+
+container_scan_admin:
+  extends: .trivy_scan_job
+  script:
+    - docker build --pull -f clients/admin/scripts/deploy/Dockerfile -t "stuhelper/admin:scan-${CI_COMMIT_SHORT_SHA}" clients/admin
+    - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "stuhelper/admin:scan-${CI_COMMIT_SHORT_SHA}"
+
 frontend_build:
   stage: build
   image: node:24-bookworm
@@ -67,22 +176,31 @@ frontend_build:
     - cd clients
     - pnpm install --frozen-lockfile
     - pnpm --filter @stuhelper/web build
-    - pnpm --filter @stuhelper/admin build
+
+admin_build:
+  stage: build
+  image: node:24-bookworm
+  script:
+    - corepack enable
+    - corepack prepare pnpm@10 --activate
+    - cd clients/admin
+    - pnpm install --frozen-lockfile
+    - pnpm build:ele
 
 docker_build_backend:
+  extends: .docker_job
   stage: build
-  image: docker:27.5.1-cli
-  services:
-    - name: docker:27.5.1-dind
-      command: ["--tls=false"]
   script:
     - docker build --pull -t "stuhelper/backend:ci-${CI_COMMIT_SHORT_SHA}" server
 
 docker_build_frontend:
+  extends: .docker_job
   stage: build
-  image: docker:27.5.1-cli
-  services:
-    - name: docker:27.5.1-dind
-      command: ["--tls=false"]
   script:
     - docker build --pull -f clients/web/Dockerfile -t "stuhelper/frontend:ci-${CI_COMMIT_SHORT_SHA}" clients
+
+docker_build_admin:
+  extends: .docker_job
+  stage: build
+  script:
+    - docker build --pull -f clients/admin/scripts/deploy/Dockerfile -t "stuhelper/admin:ci-${CI_COMMIT_SHORT_SHA}" clients/admin

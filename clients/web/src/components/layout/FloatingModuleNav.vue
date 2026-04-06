@@ -114,7 +114,7 @@ const STORAGE_KEY = "floating-nav-position";
 const DRAG_THRESHOLD = 5;
 const position = ref({ x: 16, y: Math.round(window.innerHeight / 2 - 20) });
 
-// M-123: 验证位置值是否合法
+// 验证位置值是否合法
 function isValidPosition(v: unknown): v is { x: number; y: number } {
     if (!v || typeof v !== "object") return false;
     const p = v as Record<string, unknown>;
@@ -126,7 +126,7 @@ function isValidPosition(v: unknown): v is { x: number; y: number } {
     );
 }
 
-// H-31: 将位置约束到当前视口范围内
+// 将位置约束到当前视口范围内
 function clampPosition(x: number, y: number): { x: number; y: number } {
     return {
         x: Math.max(8, Math.min(window.innerWidth - 56, x)),
@@ -147,7 +147,7 @@ function loadPosition() {
     }
 }
 
-// M-34: 保存位置防抖
+// 保存位置防抖
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 function savePosition() {
     if (saveTimer) clearTimeout(saveTimer);
@@ -207,11 +207,11 @@ function onDrag(e: MouseEvent | TouchEvent) {
     const dx = dragStartX - point.clientX;
     const dy = point.clientY - dragStartY;
 
-    // L-03: 使用常量化的拖拽阈值
+    // 使用常量化的拖拽阈值
     if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)
         hasMoved = true;
 
-    // H-31: 使用 clampPosition 约束到视口范围
+    // 使用 clampPosition 约束到视口范围
     const clamped = clampPosition(startPosX + dx, startPosY + dy);
     position.value = clamped;
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,12 +17,15 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 
 	apidocs "git.stuhelper.com/StuHelper/StuHelper/api"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
@@ -29,12 +33,16 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/objectstorage"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/observability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/redis"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sso"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
@@ -82,6 +90,9 @@ func run() error {
 		FileMaxBackups:  cfg.Log.FileMaxBackups,
 		FileMaxAge:      cfg.Log.FileMaxAge,
 		FileCompress:    cfg.Log.FileCompress,
+		ServiceName:     cfg.Log.ServiceName,
+		Environment:     cfg.Log.Environment,
+		ServiceVersion:  version,
 	}
 	logger.Init(logCfg)
 	defer func() {
@@ -90,7 +101,7 @@ func run() error {
 		}
 	}()
 
-	// cleanups 累积已初始化资源的清理函数，初始化失败时按逆序释放，防止资源泄漏
+	// cleanups 累积已初始化资源的清理函数，初始化失败时按逆序释放
 	var cleanups []func()
 	runCleanups := func() {
 		for i := len(cleanups) - 1; i >= 0; i-- {
@@ -103,6 +114,22 @@ func run() error {
 	if err := crypto.InitHMACKey(cfg.App.HMACSecret, isProduction); err != nil {
 		return fmt.Errorf("failed to initialize HMAC key: %w", err)
 	}
+
+	obsShutdown, err := observability.Setup(context.Background(), cfg.Observability, cfg.App.Env, observability.BuildInfo{
+		Version:   version,
+		GitCommit: gitCommit,
+		BuildTime: buildTime,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize observability: %w", err)
+	}
+	cleanups = append(cleanups, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if shutdownErr := obsShutdown(ctx); shutdownErr != nil {
+			logger.L().Warn("observability shutdown error", zap.Error(shutdownErr))
+		}
+	})
 
 	// 初始化 Redis 客户端
 	redisClient, err := redis.NewClient(cfg.Redis)
@@ -121,39 +148,31 @@ func run() error {
 		runCleanups()
 		return fmt.Errorf("failed to connect to Postgres: %w", err)
 	}
-	cleanups = append(cleanups, func() {
-		pgPool.Close()
-	})
 
 	// 创建带超时的数据库封装
 	database := db.NewDB(pgPool, time.Duration(cfg.Database.QueryTimeout)*time.Second)
+	cleanups = append(cleanups, func() {
+		database.Close()
+	})
 
-	// 初始化 Token 服务（包含增强的 JWT 验证器）
+	// 初始化 Token 管理服务
 	tokenService, err := token.NewService(token.ServiceConfig{
-		RedisClient:    redisClient.GetClient(),
-		AccessTTL:      cfg.Token.AccessTokenTTL,
-		RefreshTTL:     cfg.Token.RefreshTokenTTL,
-		JWTIssuer:      cfg.Casdoor.Endpoint,
-		JWTAudience:    cfg.Casdoor.ClientID,
-		JWTCertificate: cfg.Casdoor.Certificate,
+		RedisClient: redisClient.GetClient(),
+		AccessTTL:   cfg.Token.AccessTokenTTL,
+		RefreshTTL:  cfg.Token.RefreshTokenTTL,
 	})
 	if err != nil {
 		runCleanups()
 		return fmt.Errorf("failed to initialize token service: %w", err)
 	}
+	cleanups = append(cleanups, tokenService.Close)
 
-	// 初始化 SSO 客户端
-	ssoClient, err := sso.NewClientWithCache(cfg.Casdoor, redisClient.GetClient())
+	// 初始化 Zitadel OIDC 客户端
+	oidcClient, err := oidc.NewClient(context.Background(), cfg.Zitadel)
 	if err != nil {
 		runCleanups()
-		return fmt.Errorf("failed to initialize SSO client: %w", err)
+		return fmt.Errorf("failed to initialize OIDC client: %w", err)
 	}
-	cleanups = append(cleanups, func() {
-		ssoClient.Close()
-	})
-
-	rbacRepo := rbac.NewRepository(database)
-	rbacService := rbac.NewService(rbacRepo)
 
 	// 根据环境设置 Gin 模式
 	if cfg.App.Env == "production" {
@@ -163,7 +182,7 @@ func run() error {
 	// 创建 Gin 路由
 	r := gin.New()
 
-	// 配置可信代理列表，防止 IP 欺骗
+	// 配置可信代理列表
 	if len(cfg.App.TrustedProxies) > 0 {
 		if err := r.SetTrustedProxies(cfg.App.TrustedProxies); err != nil {
 			return fmt.Errorf("failed to set trusted proxies: %w", err)
@@ -175,9 +194,10 @@ func run() error {
 		}
 	}
 
+	r.Use(middleware.RequestIDMiddleware())
+	r.Use(otelgin.Middleware(cfg.Observability.ServiceName))
 	r.Use(middleware.Recovery())
 	r.Use(metrics.Middleware())
-	r.Use(middleware.RequestIDMiddleware())
 	r.Use(middleware.RequestLogger())
 	// 根据环境选择安全头中间件
 	if cfg.App.Env == "production" {
@@ -187,7 +207,7 @@ func run() error {
 	}
 	r.Use(middleware.MaxBodySize(cfg.App.MaxBodySize)) // 限制请求体大小
 
-	// 配置 CORS — 先校验配置合法性，再注册中间件（H-25: 校验必须在 cors.New() 之前）
+	// 配置 CORS — 先校验配置合法性，再注册中间件
 	corsOrigins := cfg.App.CORSOrigins
 	for _, origin := range corsOrigins {
 		trimmed := strings.TrimSpace(origin)
@@ -205,7 +225,7 @@ func run() error {
 		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-CSRF-Token", "X-Request-ID"},
-		ExposeHeaders:    []string{"Content-Length"},
+		ExposeHeaders:    []string{"Content-Length", "X-CSRF-Token"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}
@@ -238,7 +258,7 @@ func run() error {
 	// 注册 API 路由（带版本控制）
 	api := r.Group("/api/v1")
 	{
-		// 全局限流：防止单 IP 或整体流量过载（覆盖所有公开和认证端点）
+		// 全局限流（覆盖所有公开和认证端点）
 		globalLimiter := middleware.NewRedisRateLimiter(redisClient.GetClient(), cfg.App.APIGlobalLimit, time.Minute)
 		ipLimiter := middleware.NewRedisRateLimiter(redisClient.GetClient(), cfg.App.APIIPRateLimit, time.Minute)
 		api.Use(middleware.GlobalRateLimitMiddleware(globalLimiter))
@@ -246,36 +266,123 @@ func run() error {
 
 		// Web Vitals 上报：注册在限流之后、CSRF 之前（sendBeacon 无法携带自定义 header）
 		api.POST("/metrics/vitals", metrics.VitalsHandler())
+		api.POST("/metrics/frontend-errors", metrics.FrontendErrorHandler())
 
-		api.Use(middleware.CSRFMiddleware())
+		openapiValidationMW, err := middleware.NewOpenAPIRequestValidationMiddleware()
+		if err != nil {
+			runCleanups()
+			return fmt.Errorf("failed to initialize OpenAPI request validator: %w", err)
+		}
+		api.Use(openapiValidationMW)
 
-		// 注册认证模块路由
+		// 初始化 SMS 服务（可选，配置了腾讯云密钥时启用手机验证码登录）
+		var smsSvc *sms.Service
+		if cfg.SMS.SecretID != "" && cfg.SMS.SecretKey != "" {
+			smsSvc = sms.NewService(sms.Config{
+				SecretID:    cfg.SMS.SecretID,
+				SecretKey:   cfg.SMS.SecretKey,
+				AppID:       cfg.SMS.AppID,
+				SignName:    cfg.SMS.SignName,
+				TemplateID:  cfg.SMS.TemplateID,
+				Region:      cfg.SMS.Region,
+				InternalKey: cfg.SMS.InternalKey,
+			}, logger.L())
+
+			// 启动内部 SMS 转发服务（Zitadel Action 调用）
+			smsMux := http.NewServeMux()
+			smsSvc.RegisterInternalHandler(smsMux)
+			smsSrv := &http.Server{
+				Addr:              "127.0.0.1:" + cfg.SMS.InternalPort,
+				Handler:           otelhttp.NewHandler(smsMux, "sms_internal"),
+				ReadHeaderTimeout: 5 * time.Second,
+				ReadTimeout:       10 * time.Second,
+				WriteTimeout:      10 * time.Second,
+			}
+			listener, listenErr := net.Listen("tcp", smsSrv.Addr)
+			if listenErr != nil {
+				runCleanups()
+				return fmt.Errorf("failed to start SMS internal server: %w", listenErr)
+			}
+			go func() {
+				logger.L().Info("SMS internal server starting", zap.String("addr", smsSrv.Addr))
+				if smsErr := smsSrv.Serve(listener); smsErr != nil && !errors.Is(smsErr, http.ErrServerClosed) {
+					logger.L().Error("SMS internal server error", zap.Error(smsErr))
+				}
+			}()
+			cleanups = append(cleanups, func() {
+				smsCtx, smsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer smsCancel()
+				if smsErr := smsSrv.Shutdown(smsCtx); smsErr != nil {
+					logger.L().Warn("SMS server shutdown error", zap.Error(smsErr))
+				}
+			})
+		} else {
+			logger.L().Info("SMS service not configured (SMS_SECRET_ID/SMS_SECRET_KEY missing), phone login and Zitadel SMS callback unavailable")
+		}
+
+		// 构造 PII 加密器（密钥已在 config.Load() 阶段完成解码和校验）
+		piiCipher, err := pii.NewCipher(cfg.Security.DocAESActiveKeyID, cfg.Security.DocAESKeys)
+		if err != nil {
+			runCleanups()
+			return fmt.Errorf("failed to initialize PII cipher: %w", err)
+		}
+
+		userSyncRepo := auth.NewUserSyncRepository(database, piiCipher, crypto.GetHMACKey())
+
+		// 启动时回填缺失的 user_hash（幂等，增量执行）
+		if backfilled, backfillErr := userSyncRepo.BackfillUserHashes(context.Background()); backfillErr != nil {
+			fmt.Fprintf(os.Stderr, "WARN: user_hash backfill failed (non-fatal): %v\n", backfillErr)
+		} else if backfilled > 0 {
+			fmt.Printf("INFO: backfilled user_hash for %d existing users\n", backfilled)
+		}
+
 		authHandler := auth.NewHandler(
 			cfg,
 			tokenService,
 			redisClient.GetClient(),
-			ssoClient,
-			auth.NewUserSyncRepository(database),
-			rbacService,
+			oidcClient,
+			userSyncRepo,
+			smsSvc,
 		)
-		authHandler.RegisterRoutes(api)
+
+		// OTP 路由注册在 CSRF 之前（匿名用户无 CSRF cookie，已有独立限流保护）
+		authHandler.RegisterPublicRoutes(api)
+
+		api.Use(middleware.CSRFMiddleware())
+
+		// 注册认证模块路由（CSRF 保护下）
+		authHandler.RegisterRoutes(api, oidcClient, tokenService)
 
 		// 注册课程模块路由
-		authMW := middleware.AuthMiddleware(tokenService)
-		optionalAuthMW := middleware.OptionalAuthMiddleware(tokenService)
-		courseHandler := course.NewHandler(database, redisClient.GetClient(), rbacService, cfg)
+		authMW := middleware.AuthMiddleware(oidcClient, tokenService)
+		optionalAuthMW := middleware.OptionalAuthMiddleware(oidcClient, tokenService)
+		fgaClient, err := fga.NewClient(cfg.OpenFGA)
+		if err != nil {
+			runCleanups()
+			return fmt.Errorf("failed to create FGA client: %w", err)
+		}
+		if fgaClient == nil {
+			logger.L().Info("OpenFGA not configured, relational authorization disabled")
+		}
+
+		// 初始化通知模块（SSE + Redis Pub/Sub）— 在 courseHandler 之前，因为 review 模块需要 notification.Sender
+		notifHub := notification.NewHub(redisClient.GetClient())
+		notifRepo := notification.NewRepository(database)
+		notifService := notification.NewService(notifRepo, notifHub, redisClient.GetClient())
+
+		courseHandler := course.NewHandler(database, redisClient.GetClient(), cfg, fgaClient, notifService)
 		courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 
 		// 初始化 LDAP 客户端（可选，仅在配置了 LDAP_URL 时启用）
 		var ldapClient *ldap.Client
-		if ldapURL := os.Getenv("LDAP_URL"); ldapURL != "" {
+		if cfg.LDAP.URL != "" {
 			ldapCfg := ldap.Config{
-				URL:                ldapURL,
-				BaseDN:             os.Getenv("LDAP_BASE_DN"),
-				SystemBindDN:       os.Getenv("LDAP_SYSTEM_BIND_DN"),
-				SystemBindPassword: os.Getenv("LDAP_SYSTEM_BIND_PASSWORD"),
-				UseTLS:             os.Getenv("LDAP_USE_TLS") == "true",
-				InsecureSkipVerify: os.Getenv("LDAP_INSECURE_SKIP_VERIFY") == "true",
+				URL:                cfg.LDAP.URL,
+				BaseDN:             cfg.LDAP.BaseDN,
+				SystemBindDN:       cfg.LDAP.SystemBindDN,
+				SystemBindPassword: cfg.LDAP.SystemBindPassword,
+				UseTLS:             cfg.LDAP.UseTLS,
+				InsecureSkipVerify: cfg.LDAP.InsecureSkipVerify,
 			}
 			var ldapErr error
 			ldapClient, ldapErr = ldap.NewClient(ldapCfg)
@@ -285,39 +392,70 @@ func run() error {
 				)
 				ldapClient = nil
 			} else {
-				logger.L().Info("LDAP client initialized", zap.String("url", ldapURL))
+				logger.L().Info("LDAP client initialized", zap.String("url", cfg.LDAP.URL))
 			}
 		}
 
 		// 注册用户中心模块路由
 		userRepo := user.NewRepository(database)
 
-		// 构造 PII 加密器（密钥已在 config.Load() 阶段完成解码和校验）
-		piiCipher, err := pii.NewCipher(cfg.Security.DocAESActiveKeyID, cfg.Security.DocAESKeys)
-		if err != nil {
-			runCleanups()
-			return fmt.Errorf("failed to initialize PII cipher: %w", err)
-		}
-
 		userService, err := user.NewService(userRepo, ldapClient, crypto.GetHMACKey(), piiCipher)
 		if err != nil {
 			runCleanups()
 			return fmt.Errorf("failed to initialize user service: %w", err)
 		}
-		userHandler := user.NewHandler(userService)
-		rbacHandler := rbac.NewHandler(rbacService)
+		if cfg.ObjectStorage.Endpoint != "" {
+			photoStore, err := objectstorage.New(context.Background(), objectstorage.Config{
+				Endpoint:        cfg.ObjectStorage.Endpoint,
+				Region:          cfg.ObjectStorage.Region,
+				Bucket:          cfg.ObjectStorage.Bucket,
+				AccessKeyID:     cfg.ObjectStorage.AccessKeyID,
+				SecretAccessKey: cfg.ObjectStorage.SecretAccessKey,
+				UseSSL:          cfg.ObjectStorage.UseSSL,
+				ForcePathStyle:  cfg.ObjectStorage.ForcePathStyle,
+				PresignTTL:      time.Duration(cfg.ObjectStorage.PresignTTL) * time.Second,
+			})
+			if err != nil {
+				runCleanups()
+				return fmt.Errorf("failed to initialize object storage: %w", err)
+			}
+			if err := photoStore.EnsureBucket(context.Background()); err != nil {
+				runCleanups()
+				return fmt.Errorf("failed to ensure identity photo bucket: %w", err)
+			}
+			userService.SetIdentityPhotoStore(photoStore)
+		}
+		// 注册角色同步回调：认证状态变化时异步同步 Zitadel Project Role
+		mgmtClient := oidc.NewManagementClient(cfg.Zitadel)
+		roleSyncFn := oidc.BuildRoleSyncFunc(mgmtClient, func(ctx context.Context, userID int64) (string, error) {
+			return userRepo.GetExternalID(ctx, userID)
+		})
+		userService.SetRoleSyncFunc(roleSyncFn)
+		// 构建绑定手机 OTP 依赖（复用 SMS 服务与 OTP 服务）
+		var bindPhoneOTP user.OTPGenerator
+		var bindPhoneSMS user.SMSSender
+		if smsSvc != nil {
+			bindPhoneOTP = auth.NewOTPService(redisClient.GetClient())
+			bindPhoneSMS = smsSvc
+		}
+		userHandler := user.NewHandler(userService, fgaClient, redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
 		userHandler.RegisterRoutes(api, authMW)
 
-		// 管理后台路由组先做认证和管理入口能力校验，具体路由继续做细粒度授权。
+		// 管理后台路由组：认证 + 管理入口能力校验
 		adminGroup := api.Group("/admin")
-		adminGroup.Use(authMW, rbac.RequireAnyPermission(rbacService, capability.AdminEntryCapabilities...))
-		rbacHandler.RegisterAdminRoutes(adminGroup, rbacService)
-		userHandler.RegisterAdminRoutes(adminGroup, rbacService)
+		adminGroup.Use(authMW, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
+		userHandler.RegisterAdminRoutes(adminGroup)
 
 		// 启动后台定时任务（日志清理等）
 		bgCtx, bgCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: bgCancel is appended to cleanups and called on shutdown
 		cleanups = append(cleanups, bgCancel)
 		courseHandler.StartBackgroundJobs(bgCtx)
+
+		// 注册通知模块路由 + 启动 Redis 订阅
+		notifHandler := notification.NewHandler(notifService, notifHub)
+		notifHandler.RegisterRoutes(api, authMW)
+		notifHub.StartRedisSubscriber(bgCtx)
+		cleanups = append(cleanups, notifHub.Stop)
 	}
 
 	// 启动服务器
@@ -328,7 +466,7 @@ func run() error {
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
-		MaxHeaderBytes:    1 << 20, // 1MB，防止超大请求头消耗内存
+		MaxHeaderBytes:    1 << 20, // 1MB
 	}
 
 	// 用于接收服务器错误的 channel
@@ -343,7 +481,7 @@ func run() error {
 	}()
 
 	// 等待中断信号或服务器错误
-	// H-32: 缓冲区设为 2，防止第二个信号丢失；收到首个信号后恢复默认行为
+	// 信号 channel 缓冲区设为 2，收到首个信号后恢复默认行为
 	quit := make(chan os.Signal, 2)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -356,7 +494,7 @@ func run() error {
 		// 收到第一个信号后恢复默认行为，第二个信号将直接终止进程
 		signal.Stop(quit)
 	case err := <-serverErr:
-		// M-87: 服务器启动失败也执行 graceful shutdown，确保资源正确释放
+		// 启动失败时也走 graceful shutdown
 		logger.L().Error("Server startup error, initiating shutdown", zap.Error(err))
 		serverStartErr = err
 	}
@@ -373,7 +511,7 @@ func run() error {
 
 	// Step 1: 关闭 HTTP server，排空连接
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		// L-57: 强制关闭时记录活跃连接数等指标
+		// 强制关闭时记录活跃连接数等指标
 		logger.L().Error("Server forced to shutdown",
 			zap.Error(err),
 			zap.Duration("timeout", shutdownTimeout),
@@ -381,12 +519,6 @@ func run() error {
 	} else {
 		logger.L().Info("HTTP server stopped gracefully")
 	}
-
-	// H-26: 在 shutdown 完成后显式调用 cleanups（使用 fresh context），
-	// 而非 defer，避免 shutdown 超时后 cleanups 使用已过期的 context
-	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cleanupCancel()
-	_ = cleanupCtx // cleanups 当前不需要 context，预留给未来需要 context 的清理操作
 
 	// Step 2-4: 按逆序关闭 PostgreSQL → Redis（cleanups 逆序执行）
 	runCleanups()

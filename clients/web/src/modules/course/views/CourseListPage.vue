@@ -1,221 +1,255 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
-import CourseCard from "@/components/business/CourseCard.vue";
-import FadeIn from "@/components/animated/FadeIn.vue";
-import SearchBar from "@/components/ui/SearchBar.vue";
-import Loading from "@/components/ui/Loading.vue";
-import Empty from "@/components/ui/Empty.vue";
-import Pagination from "@/components/ui/Pagination.vue";
-import { api } from "@/api";
-import type { components } from "@stuhelper/shared/types";
-import { buildCourseListQuery } from "../courseListQuery";
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { ChevronDown, ChevronUp } from 'lucide-vue-next'
+import CourseThemeProvider from '@/modules/course/theme/CourseThemeProvider.vue'
+import SkeletonCard from '@/components/common/SkeletonCard.vue'
+import { api } from '@/api'
+import type { components } from '@stuhelper/shared/types'
 
-type CourseWithExtras = components["schemas"]["Course"] & {
-    averageRating?: number;
-    teacherName?: string;
-    hours?: number;
-    isRequired?: boolean;
-};
+type Course = components['schemas']['Course']
 
-type DepartmentOption = components["schemas"]["Department"];
-type CourseSortKey = "name" | "credits" | "reviewCount";
+interface DepartmentGroup {
+  name: string
+  courses: Course[]
+  expanded: boolean
+}
 
-const departments = ref<DepartmentOption[]>([]);
-const courses = ref<CourseWithExtras[]>([]);
-const totalCount = ref(0);
-const loading = ref(true);
+const { t } = useI18n()
+const router = useRouter()
 
-const searchQuery = ref("");
-const selectedDepartment = ref<number | "">("");
-const sortBy = ref<CourseSortKey>("name");
-const currentPage = ref(1);
-const pageSize = ref(12);
+const loading = ref(true)
+const error = ref<string | null>(null)
+const departmentGroups = ref<DepartmentGroup[]>([])
 
-const totalPages = computed(() =>
-    totalCount.value === 0 ? 0 : Math.ceil(totalCount.value / pageSize.value),
-);
+const allExpanded = computed(() =>
+  departmentGroups.value.length > 0 &&
+  departmentGroups.value.every((g) => g.expanded),
+)
 
-const paginatedCourses = computed(() => courses.value);
+const allCollapsed = computed(() =>
+  departmentGroups.value.length > 0 &&
+  departmentGroups.value.every((g) => !g.expanded),
+)
 
-async function fetchCourses() {
-    loading.value = true;
-    try {
-        const response = await api.course.getCourses(
-            buildCourseListQuery({
-                page: currentPage.value,
-                pageSize: pageSize.value,
-                searchQuery: searchQuery.value,
-                selectedDepartment: selectedDepartment.value,
-                sortBy: sortBy.value,
+function expandAll(): void {
+  departmentGroups.value = departmentGroups.value.map((g) => ({
+    ...g,
+    expanded: true,
+  }))
+}
+
+function collapseAll(): void {
+  departmentGroups.value = departmentGroups.value.map((g) => ({
+    ...g,
+    expanded: false,
+  }))
+}
+
+function toggleDepartment(index: number): void {
+  departmentGroups.value = departmentGroups.value.map((g, i) =>
+    i === index ? { ...g, expanded: !g.expanded } : g,
+  )
+}
+
+function navigateToCourse(courseId: number): void {
+  void router.push(`/courses/${courseId}/reviews`)
+}
+
+function groupByDepartment(courses: readonly Course[]): DepartmentGroup[] {
+  const map = new Map<string, Course[]>()
+
+  for (const course of courses) {
+    const dept = course.departmentName ?? t('review.filters.all')
+    const existing = map.get(dept)
+    if (existing) {
+      existing.push(course)
+    } else {
+      map.set(dept, [course])
+    }
+  }
+
+  const groups: DepartmentGroup[] = []
+  for (const [name, items] of map) {
+    groups.push({ name, courses: items, expanded: true })
+  }
+
+  groups.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+
+  return groups
+}
+
+async function fetchCourses(): Promise<void> {
+  loading.value = true
+  error.value = null
+  try {
+    const pageSize = 100
+    const firstPageResponse = await api.course.getCourses({
+      page: 1,
+      pageSize,
+      sort: 'name',
+    })
+    const firstPageData = firstPageResponse.data?.data
+    const firstPageItems: Course[] = firstPageData?.list ?? []
+    const total = firstPageData?.total ?? firstPageItems.length
+    const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+    const remainingResponses = totalPages > 1
+      ? await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            api.course.getCourses({
+              page: index + 2,
+              pageSize,
+              sort: 'name',
             }),
-        );
-        courses.value = response.data?.data?.list || [];
-        totalCount.value = response.data?.data?.total || 0;
-    } catch {
-        courses.value = [];
-        totalCount.value = 0;
-    } finally {
-        loading.value = false;
-    }
+          ),
+        )
+      : []
+
+    const courses: Course[] = [
+      ...firstPageItems,
+      ...remainingResponses.flatMap((response) => response.data?.data?.list ?? []),
+    ]
+
+    departmentGroups.value = groupByDepartment(courses)
+  } catch {
+    error.value = t('review.courseList.loadFailed')
+    departmentGroups.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
-async function fetchDepartments() {
-    try {
-        const response = await api.course.getDepartments();
-        departments.value = response.data?.data || [];
-    } catch {
-        const fallbackDepartments = new Map<number, DepartmentOption>();
-        courses.value.forEach((course) => {
-            if (!fallbackDepartments.has(course.departmentID)) {
-                fallbackDepartments.set(course.departmentID, {
-                    id: course.departmentID,
-                    name:
-                        course.departmentName || `院系 ${course.departmentID}`,
-                    category: "",
-                });
-            }
-        });
-        departments.value = Array.from(fallbackDepartments.values()).sort(
-            (a, b) => a.name.localeCompare(b.name, "zh-CN"),
-        );
-    }
-}
-
-function resetFilters() {
-    searchQuery.value = "";
-    selectedDepartment.value = "";
-    sortBy.value = "name";
-}
-
-watch([searchQuery, selectedDepartment, sortBy, pageSize], () => {
-    if (currentPage.value !== 1) {
-        currentPage.value = 1;
-        return;
-    }
-    void fetchCourses();
-});
-
-watch(currentPage, () => {
-    void fetchCourses();
-});
-
-watch(totalPages, (value) => {
-    if (value === 0) {
-        currentPage.value = 1;
-        return;
-    }
-
-    if (currentPage.value > value) {
-        currentPage.value = value;
-    }
-});
-
-onMounted(async () => {
-    await fetchCourses();
-    await fetchDepartments();
-});
+onMounted(() => {
+  void fetchCourses()
+})
 </script>
 
 <template>
-    <div
-        class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
-    >
-        <div
-            class="relative overflow-hidden bg-gradient-to-r from-cyan-600 via-indigo-600 to-indigo-700 py-20 text-white"
+  <CourseThemeProvider>
+    <div class="min-h-screen w-full bg-bg-base">
+      <!-- Top toolbar -->
+      <div class="flex items-center justify-between bg-bg-card border-b border-border-light px-6 py-4">
+        <h1 class="text-xl font-bold text-text-primary">
+          {{ t('review.courseList.title') }}
+        </h1>
+        <div class="flex gap-2">
+          <button
+            :disabled="allExpanded"
+            :title="t('review.courseList.expandAll')"
+            class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
+            :class="
+              allExpanded
+                ? 'bg-bg-elevated text-text-tertiary cursor-not-allowed'
+                : 'bg-primary text-white hover:bg-primary/90 cursor-pointer'
+            "
+            @click="expandAll"
+          >
+            <ChevronDown :size="18" />
+          </button>
+          <button
+            :disabled="allCollapsed"
+            :title="t('review.courseList.collapseAll')"
+            class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
+            :class="
+              allCollapsed
+                ? 'bg-bg-elevated text-text-tertiary cursor-not-allowed'
+                : 'bg-primary text-white hover:bg-primary/90 cursor-pointer'
+            "
+            @click="collapseAll"
+          >
+            <ChevronUp :size="18" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading state -->
+      <div
+        v-if="loading"
+        class="flex flex-col gap-3 px-4 py-4"
+        role="status"
+        aria-busy="true"
+      >
+        <SkeletonCard v-for="i in 5" :key="i" variant="course" />
+      </div>
+
+      <!-- Error state -->
+      <div
+        v-else-if="error"
+        class="px-6 py-16 text-center text-destructive"
+      >
+        <p class="text-lg font-medium">{{ error }}</p>
+        <button
+          class="mt-4 rounded-lg bg-primary px-6 py-2 text-white transition-colors hover:bg-primary/90"
+          @click="fetchCourses"
         >
-            <div
-                class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"
-            ></div>
-            <div class="container relative z-10 mx-auto px-8">
-                <h1 class="mb-4 text-6xl font-bold tracking-tight">课程列表</h1>
-                <p class="text-xl text-cyan-100">
-                    探索所有课程，找到更适合你的学习内容
-                </p>
+          {{ t('review.hub.retry') }}
+        </button>
+      </div>
+
+      <!-- Empty state -->
+      <div
+        v-else-if="departmentGroups.length === 0"
+        class="px-6 py-16 text-center text-text-secondary"
+      >
+        <p class="text-lg">{{ t('review.courseList.noCourses') }}</p>
+      </div>
+
+      <!-- Department list -->
+      <div v-else class="space-y-3 px-4 py-4">
+        <div
+          v-for="(group, index) in departmentGroups"
+          :key="group.name"
+          class="bg-bg-card rounded-xl shadow-card overflow-hidden stagger-item"
+          :style="{ animationDelay: `${Math.min(index, 10) * 60}ms` }"
+        >
+          <!-- Department header -->
+          <div
+            class="flex items-center justify-between bg-bg-elevated px-4 py-3 cursor-pointer select-none transition-colors hover:bg-bg-hover"
+            role="button"
+            tabindex="0"
+            @click="toggleDepartment(index)"
+            @keydown.enter="toggleDepartment(index)"
+            @keydown.space.prevent="toggleDepartment(index)"
+          >
+            <div class="flex items-center gap-3">
+              <span class="text-base font-semibold text-text-primary">
+                {{ group.name }}
+              </span>
+              <span class="text-xs text-text-tertiary">
+                {{ t('review.courseList.courseCount', { count: group.courses.length }) }}
+              </span>
             </div>
-        </div>
-
-        <div class="container mx-auto px-8 py-12">
-            <div
-                class="mb-10 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl"
-            >
-                <SearchBar
-                    v-model="searchQuery"
-                    placeholder="搜索课程名称或课程代码..."
-                />
-
-                <div class="flex flex-wrap gap-4">
-                    <select
-                        v-model.number="selectedDepartment"
-                        class="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-white backdrop-blur-sm transition-all hover:bg-white/10 focus:border-transparent focus:ring-2 focus:ring-cyan-500"
-                    >
-                        <option value="" class="bg-slate-800">全部院系</option>
-                        <option
-                            v-for="dept in departments"
-                            :key="dept.id"
-                            :value="dept.id"
-                            class="bg-slate-800"
-                        >
-                            {{ dept.name }}
-                        </option>
-                    </select>
-
-                    <select
-                        v-model="sortBy"
-                        class="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-white backdrop-blur-sm transition-all hover:bg-white/10 focus:border-transparent focus:ring-2 focus:ring-cyan-500"
-                    >
-                        <option value="name" class="bg-slate-800">
-                            按名称排序
-                        </option>
-                        <option value="credits" class="bg-slate-800">
-                            按学分排序
-                        </option>
-                        <option value="reviewCount" class="bg-slate-800">
-                            按评价数排序
-                        </option>
-                    </select>
-                </div>
-            </div>
-
-            <Loading v-if="loading" type="card" :count="6" />
-
-            <Empty
-                v-else-if="paginatedCourses.length === 0"
-                title="暂无课程"
-                description="没有找到符合条件的课程"
-                action-text="清除筛选"
-                @action="resetFilters"
+            <component
+              :is="group.expanded ? ChevronUp : ChevronDown"
+              :size="18"
+              class="text-text-secondary transition-colors"
             />
+          </div>
 
+          <!-- Course items -->
+          <div v-if="group.expanded" class="px-2 pb-2 pt-1">
             <div
-                v-else
-                class="mb-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3"
+              v-for="course in group.courses"
+              :key="course.id"
+              class="flex items-center justify-between rounded-lg bg-bg-elevated/50 px-4 py-2.5 my-1 cursor-pointer transition-all hover:bg-bg-hover hover:translate-x-0.5"
+              role="button"
+              tabindex="0"
+              @click="navigateToCourse(course.id)"
+              @keydown.enter="navigateToCourse(course.id)"
+              @keydown.space.prevent="navigateToCourse(course.id)"
             >
-                <FadeIn
-                    v-for="(course, index) in paginatedCourses"
-                    :key="course.id"
-                    :delay="index * 50"
-                >
-                    <RouterLink
-                        :to="`/courses/${course.id}`"
-                        class="block no-underline"
-                    >
-                        <CourseCard
-                            :course="course"
-                            class="transition-transform duration-300 hover:scale-105"
-                        />
-                    </RouterLink>
-                </FadeIn>
+              <span class="text-sm text-text-primary">
+                {{ course.name }}
+              </span>
+              <span class="whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                {{ t('review.courseList.reviewCount', { count: course.reviewCount }) }}
+              </span>
             </div>
-
-            <Pagination
-                v-if="!loading && paginatedCourses.length > 0"
-                :current-page="currentPage"
-                :page-size="pageSize"
-                :total-pages="totalPages"
-                :total-count="totalCount"
-                @update:current-page="currentPage = $event"
-                @update:page-size="pageSize = $event"
-            />
+          </div>
         </div>
+      </div>
     </div>
+  </CourseThemeProvider>
 </template>

@@ -15,9 +15,6 @@ const (
 	ReviewPreviewContentCharsKey   = "review_preview_content_chars"
 	ReviewPreviewContentPercentKey = "review_preview_content_percent"
 
-	LegacyReviewPreviewCharsKey   = "review_preview_chars"
-	LegacyReviewPreviewPercentKey = "review_preview_percent"
-
 	defaultReviewPreviewTitleRunes   = 24
 	defaultReviewPreviewContentRunes = 120
 	defaultReviewPreviewContentPct   = 100
@@ -51,8 +48,8 @@ func (s ReviewAccessPolicySnapshot) AllowsSchool(schoolID string) bool {
 	if trimmed == "" || len(s.AllowedSchoolIDs) == 0 {
 		return false
 	}
-	for _, allowedSchoolID := range s.AllowedSchoolIDs {
-		if trimmed == allowedSchoolID {
+	for _, id := range s.AllowedSchoolIDs {
+		if trimmed == id {
 			return true
 		}
 	}
@@ -84,9 +81,7 @@ func AffectsReviewAccessPolicy(key string) bool {
 	case ReviewAccessSchoolIDsKey,
 		ReviewPreviewTitleCharsKey,
 		ReviewPreviewContentCharsKey,
-		ReviewPreviewContentPercentKey,
-		LegacyReviewPreviewCharsKey,
-		LegacyReviewPreviewPercentKey:
+		ReviewPreviewContentPercentKey:
 		return true
 	default:
 		return false

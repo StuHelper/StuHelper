@@ -45,7 +45,7 @@ CapabilityGrant:
 
 UserInfo:
   type: object
-  required: [id, name, displayName, capabilities, globalCapabilities, capabilityGrants, canAccessAdmin, isPlatformAdmin]
+  required: [id, name, displayName, roles, capabilities, globalCapabilities, capabilityGrants, canAccessAdmin, isPlatformAdmin]
   properties:
     id:
       type: string
@@ -57,14 +57,19 @@ UserInfo:
       type: string
     email:
       type: string
+    roles:
+      type: array
+      items:
+        type: string
+      description: OIDC Token 中解析出的粗粒度角色列表
     isPlatformAdmin:
       type: boolean
-      description: Casdoor 平台管理员标记，不代表航小伴业务管理员
+      description: 是否持有平台级 super_admin 角色，不直接等于业务资源授权
     capabilities:
       type: array
       items:
         type: string
-      description: 用户当前拥有的全部能力名称，包含全局授权与带 scope 的授权
+      description: 当前用户拥有的能力集合（由 roles 在应用侧静态展开）
     globalCapabilities:
       type: array
       items:

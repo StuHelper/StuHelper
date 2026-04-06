@@ -7,6 +7,7 @@ import (
 	"fmt"
 	mrand "math/rand/v2"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -143,6 +144,7 @@ func RateLimitMiddleware(limiter *RedisRateLimiter) gin.HandlerFunc {
 			return
 		}
 		if !allowed {
+			setRetryAfterHeader(c, limiter.window)
 			response.RateLimitExceeded(c, "rate limit exceeded")
 			c.Abort()
 			return
@@ -195,6 +197,7 @@ func UserRateLimitMiddleware(limiter *RedisRateLimiter) gin.HandlerFunc {
 			return
 		}
 		if !allowed {
+			setRetryAfterHeader(c, limiter.window)
 			response.RateLimitExceeded(c, "rate limit exceeded")
 			c.Abort()
 			return
@@ -224,10 +227,19 @@ func EndpointRateLimitMiddleware(limiter *RedisRateLimiter, endpoint string) gin
 			return
 		}
 		if !allowed {
+			setRetryAfterHeader(c, limiter.window)
 			response.RateLimitExceeded(c, "rate limit exceeded")
 			c.Abort()
 			return
 		}
 		c.Next()
 	}
+}
+
+func setRetryAfterHeader(c *gin.Context, window time.Duration) {
+	seconds := int(window.Seconds())
+	if seconds <= 0 {
+		seconds = 1
+	}
+	c.Header("Retry-After", strconv.Itoa(seconds))
 }

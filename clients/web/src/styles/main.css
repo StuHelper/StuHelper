@@ -1,11 +1,2 @@
-@import "tailwindcss";
-
-@theme {
-  --color-primary: #06b6d4;
-  --color-secondary: #4f46e5;
-  --color-accent: #06b6d4;
-  --color-background-dark: #1e293b;
-  --color-slate-dark: #0f172a;
-
-  --font-family-sans: system-ui, -apple-system, sans-serif;
-}
+/* main.css — redirects to tailwind.css which contains the full design system */
+@import './tailwind.css';

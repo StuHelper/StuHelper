@@ -1,0 +1,14 @@
+ARG ZITADEL_IMAGE=ghcr.io/zitadel/zitadel:v4.13.0
+
+FROM ${ZITADEL_IMAGE} AS zitadel
+
+FROM alpine:3.22
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=zitadel /app/zitadel /app/zitadel
+COPY infra/zitadel/init.sh /zitadel/init.sh
+
+RUN chmod +x /app/zitadel /zitadel/init.sh
+
+ENTRYPOINT ["/bin/sh", "/zitadel/init.sh"]

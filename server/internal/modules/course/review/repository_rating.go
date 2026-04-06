@@ -3,6 +3,9 @@ package review
 import (
 	"context"
 	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
@@ -52,7 +55,7 @@ type HotCourse struct {
 }
 
 // ListHotCourses 获取热门课程排行
-// M-97: timeFilter 的值仅来自下方 switch 硬编码的 INTERVAL 字面量，不包含任何用户输入，无 SQL 注入风险
+// timeFilter 的值仅来自下方 switch 硬编码的 INTERVAL 字面量，不包含任何用户输入，无 SQL 注入风险
 func (r *Repository) ListHotCourses(ctx context.Context, period string, limit int) ([]HotCourse, error) {
 	// 安全保证：timeFilter 仅从 switch 硬编码值中选取，period 参数不直接拼入 SQL
 	var timeFilter string
@@ -223,15 +226,15 @@ func (r *Repository) GetTeacherRatingStats(ctx context.Context, teacherID int64)
 	return list, rows.Err()
 }
 
-// RefreshTeacherRatingStats 刷新教师评分统计（从 reviews 表聚合）
+// RefreshTeacherRatingStats 刷新教师评分统计（从 reviews 表聚合）。
 func (r *Repository) RefreshTeacherRatingStats(ctx context.Context, teacherID int64) error {
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("RefreshTeacherRatingStats begin tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // rollback after commit is no-op
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		return r.RefreshTeacherRatingStatsTx(ctx, tx, teacherID)
+	})
+}
 
-	// 先聚合出统计数据
+// RefreshTeacherRatingStatsTx 在事务内刷新教师评分统计。
+func (r *Repository) RefreshTeacherRatingStatsTx(ctx context.Context, tx pgx.Tx, teacherID int64) error {
 	rows, err := tx.Query(ctx, `
 		WITH base AS (
 			SELECT r.term_id, d.key AS dimension_key,
@@ -265,7 +268,7 @@ func (r *Repository) RefreshTeacherRatingStats(ctx context.Context, teacherID in
 		LEFT JOIN dist d ON s.term_id IS NOT DISTINCT FROM d.term_id AND s.dimension_key = d.dimension_key
 	`, teacherID)
 	if err != nil {
-		return fmt.Errorf("RefreshTeacherRatingStats query: %w", err)
+		return fmt.Errorf("RefreshTeacherRatingStatsTx query: %w", err)
 	}
 	defer rows.Close()
 
@@ -276,58 +279,50 @@ func (r *Repository) RefreshTeacherRatingStats(ctx context.Context, teacherID in
 		ratingCount  int
 		ratingDist   []byte
 	}
+
 	statRows := make([]statRow, 0, 20)
 	for rows.Next() {
 		var s statRow
 		if err := rows.Scan(&s.termID, &s.dimensionKey, &s.avgRating, &s.ratingCount, &s.ratingDist); err != nil {
-			return fmt.Errorf("RefreshTeacherRatingStats scan: %w", err)
+			return fmt.Errorf("RefreshTeacherRatingStatsTx scan: %w", err)
 		}
 		statRows = append(statRows, s)
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("RefreshTeacherRatingStats rows iteration: %w", err)
+		return fmt.Errorf("RefreshTeacherRatingStatsTx rows iteration: %w", err)
 	}
 
-	// 批量 upsert：构建数组参数，单次 INSERT ... ON CONFLICT 完成全部写入
+	if _, err := tx.Exec(ctx, `DELETE FROM teacher_rating_stats WHERE teacher_id = $1`, teacherID); err != nil {
+		return fmt.Errorf("RefreshTeacherRatingStatsTx cleanup existing: %w", err)
+	}
 	if len(statRows) == 0 {
-		return tx.Commit(ctx)
+		return nil
 	}
 
-	ids := make([]string, 0, len(statRows))
-	termIDs := make([]*string, 0, len(statRows))
-	dimKeys := make([]string, 0, len(statRows))
-	avgRatings := make([]float64, 0, len(statRows))
-	ratingCounts := make([]int, 0, len(statRows))
-	ratingDists := make([][]byte, 0, len(statRows))
-
-	for _, s := range statRows {
+	args := make([]any, 0, len(statRows)*7)
+	var query strings.Builder
+	query.WriteString(`
+		INSERT INTO teacher_rating_stats (
+			id, teacher_id, term_id, dimension_key, avg_rating, rating_count, rating_dist, updated_at
+		) VALUES
+	`)
+	for i, s := range statRows {
 		newID, err := id.New()
 		if err != nil {
-			return fmt.Errorf("RefreshTeacherRatingStats generate id: %w", err)
+			return fmt.Errorf("RefreshTeacherRatingStatsTx generate id: %w", err)
 		}
-		ids = append(ids, newID)
-		termIDs = append(termIDs, s.termID)
-		dimKeys = append(dimKeys, s.dimensionKey)
-		avgRatings = append(avgRatings, s.avgRating)
-		ratingCounts = append(ratingCounts, s.ratingCount)
-		ratingDists = append(ratingDists, s.ratingDist)
+		if i > 0 {
+			query.WriteString(",")
+		}
+		base := i * 7
+		fmt.Fprintf(&query, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,NOW())", base+1, base+2, base+3, base+4, base+5, base+6, base+7)
+		args = append(args, newID, teacherID, s.termID, s.dimensionKey, s.avgRating, s.ratingCount, s.ratingDist)
 	}
 
-	_, err = tx.Exec(ctx, `
-		INSERT INTO teacher_rating_stats (id, teacher_id, term_id, dimension_key, avg_rating, rating_count, rating_dist, updated_at)
-		SELECT unnest($1::text[]), $2, unnest($3::text[]), unnest($4::text[]),
-			unnest($5::decimal[]), unnest($6::int[]), unnest($7::jsonb[]), NOW()
-		ON CONFLICT (teacher_id, term_id, dimension_key)
-		DO UPDATE SET
-			avg_rating = EXCLUDED.avg_rating,
-			rating_count = EXCLUDED.rating_count,
-			rating_dist = EXCLUDED.rating_dist,
-			updated_at = NOW()
-	`, ids, teacherID, termIDs, dimKeys, avgRatings, ratingCounts, ratingDists)
-	if err != nil {
-		return fmt.Errorf("RefreshTeacherRatingStats batch upsert: %w", err)
+	if _, err := tx.Exec(ctx, query.String(), args...); err != nil {
+		return fmt.Errorf("RefreshTeacherRatingStatsTx insert: %w", err)
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 // ListActiveSensitiveWords 获取所有启用的敏感词

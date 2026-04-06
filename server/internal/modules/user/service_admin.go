@@ -99,7 +99,14 @@ func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, a
 		}
 	}
 
-	return s.repo.UpdateProfile(ctx, profile)
+	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
+		return err
+	}
+
+	// 同步 Zitadel 角色：通过 → 添加 verified_student，驳回 → 移除
+	s.syncRole(ctx, userID, "verified_student", approved)
+
+	return nil
 }
 
 // ListAllSchoolConfigs 获取所有学校配置（含禁用，管理端用）
@@ -123,6 +130,9 @@ func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID string, input
 	}
 	if input.VerificationMethod != nil {
 		config.VerificationMethod = *input.VerificationMethod
+	}
+	if input.ApprovalPolicy != nil {
+		config.ApprovalPolicy = *input.ApprovalPolicy
 	}
 	if input.AcademicDBTable != nil {
 		normalizedAcademicDBTable, err := normalizeConfiguredAcademicDBTable(input.AcademicDBTable)
@@ -285,11 +295,11 @@ func (s *Service) validateSystemConfigValue(ctx context.Context, key, value stri
 		if _, err := systemconfig.ParseBoundedInt(value, 1, 200); err != nil {
 			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
 		}
-	case systemconfig.ReviewPreviewContentCharsKey, systemconfig.LegacyReviewPreviewCharsKey:
+	case systemconfig.ReviewPreviewContentCharsKey:
 		if _, err := systemconfig.ParseBoundedInt(value, 1, 5000); err != nil {
 			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
 		}
-	case systemconfig.ReviewPreviewContentPercentKey, systemconfig.LegacyReviewPreviewPercentKey:
+	case systemconfig.ReviewPreviewContentPercentKey:
 		if _, err := systemconfig.ParseBoundedInt(value, 1, 100); err != nil {
 			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
 		}

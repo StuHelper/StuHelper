@@ -61,8 +61,6 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		health.GET("/live", h.Liveness)
 		health.GET("/ready", h.Readiness)
 	}
-	// 保留旧的 /health 端点以兼容
-	r.GET("/health", h.Readiness)
 }
 
 // Liveness 存活探针 - 检查应用是否运行
@@ -95,7 +93,7 @@ func (h *Handler) Readiness(c *gin.Context) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		// H-33: panic recovery
+		// panic recovery
 		defer func() {
 			if r := recover(); r != nil {
 				logger.L().Error("health check: postgres goroutine panicked", zap.Any("panic", r))
@@ -111,7 +109,7 @@ func (h *Handler) Readiness(c *gin.Context) {
 	}()
 	go func() {
 		defer wg.Done()
-		// H-33: panic recovery
+		// panic recovery
 		defer func() {
 			if r := recover(); r != nil {
 				logger.L().Error("health check: redis goroutine panicked", zap.Any("panic", r))
@@ -138,7 +136,7 @@ func (h *Handler) Readiness(c *gin.Context) {
 		}
 	}
 
-	// L-47: goroutine 数量超过阈值时标记为 degraded
+	// goroutine 数量超过阈值时标记为 degraded
 	if numGoroutines := runtime.NumGoroutine(); numGoroutines > maxHealthyGoroutines {
 		logger.L().Warn("health check: goroutine count exceeds threshold",
 			zap.Int("goroutines", numGoroutines),
@@ -221,7 +219,7 @@ func (h *Handler) checkRedis(ctx context.Context) CheckResult {
 		}
 	}
 
-	// L-40: 验证 PING 响应确实是 "PONG"
+	// 验证 PING 响应确实是 "PONG"
 	if pong != "PONG" {
 		logger.L().Warn("health check: redis ping returned unexpected response", zap.String("response", pong))
 		return CheckResult{

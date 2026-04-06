@@ -8,9 +8,13 @@ import {
 import { useAuthStore } from "@/stores/auth";
 import { tokenExpiry } from "@/utils/auth";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+const RAW_API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || "";
 const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
 const AUTH_REFRESH_TIMEOUT_MS = 10_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = (() => {
+    const raw = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 15_000);
+    return Number.isFinite(raw) && raw > 0 ? raw : 15_000;
+})();
 const CSRF_COOKIE_NAME = "csrf_token";
 const CSRF_HEADER_NAME = "X-CSRF-Token";
 
@@ -20,6 +24,25 @@ type RefreshResult =
     | { ok: false; reason: "error"; error: ApiError };
 
 let refreshPromise: Promise<RefreshResult> | null = null;
+
+function stripSchemaPrefix(baseUrl: string): string {
+    const trimmed = baseUrl.trim().replace(/\/$/, "");
+    return trimmed.replace(/\/api(?:\/v1)?$/, "");
+}
+
+export function resolveApiBaseUrl(rawBaseUrl: string = RAW_API_BASE_URL): string {
+    const normalizedBaseUrl = stripSchemaPrefix(rawBaseUrl);
+
+    if (/^https?:\/\//.test(normalizedBaseUrl)) {
+        return normalizedBaseUrl;
+    }
+
+    if (typeof window !== "undefined" && window.location?.origin) {
+        return window.location.origin;
+    }
+
+    return normalizedBaseUrl;
+}
 
 function readCookie(name: string): string | null {
     if (typeof document === "undefined") return null;
@@ -43,14 +66,9 @@ function needsCSRF(method: string): boolean {
 
 /**
  * 将 API 路径解析为绝对 URL。
- * 注意：此函数仅用于从已含 /api/v1/ 前缀的绝对路径构造 URL 对象，
- * 因此当 API_BASE_URL 为相对路径时，base 仅提供 origin 部分，
- * path 参数的绝对路径会覆盖 base 中的路径部分，这是预期行为。
  */
-function resolveApiURL(path: string): URL {
-    const base = /^https?:\/\//.test(API_BASE_URL)
-        ? API_BASE_URL
-        : window.location.origin;
+export function resolveApiURL(path: string): URL {
+    const base = resolveApiBaseUrl();
     return new URL(path, base);
 }
 
@@ -118,7 +136,19 @@ async function fetchWithTimeout(
     timeoutMs: number,
 ): Promise<Response> {
     const controller = new AbortController();
+    const upstreamSignal = request.signal;
     const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    const abortFromUpstream = () => controller.abort();
+
+    if (upstreamSignal) {
+        if (upstreamSignal.aborted) {
+            controller.abort();
+        } else {
+            upstreamSignal.addEventListener("abort", abortFromUpstream, {
+                once: true,
+            });
+        }
+    }
 
     try {
         return await window.fetch(
@@ -126,15 +156,15 @@ async function fetchWithTimeout(
         );
     } finally {
         window.clearTimeout(timeoutId);
+        upstreamSignal?.removeEventListener("abort", abortFromUpstream);
     }
 }
 
 async function performBrowserFetch(request: Request): Promise<Response> {
-    if (isRefreshRequest(request)) {
-        return fetchWithTimeout(request, AUTH_REFRESH_TIMEOUT_MS);
-    }
-
-    return window.fetch(request);
+    const timeoutMs = isRefreshRequest(request)
+        ? AUTH_REFRESH_TIMEOUT_MS
+        : DEFAULT_REQUEST_TIMEOUT_MS;
+    return fetchWithTimeout(request, timeoutMs);
 }
 
 function createRefreshRequest(): Request {
@@ -264,11 +294,19 @@ function buildApiError(response: Response, payload: unknown): ApiError {
     });
 }
 
-export const apiClient = createApiClient({
-    baseUrl: API_BASE_URL,
-    credentials: "include",
-    fetch: authenticatedFetch,
-});
+export const apiClientOptions = {
+    baseUrl: resolveApiBaseUrl(),
+    credentials: "include" as const,
+    fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+        const request =
+            input instanceof Request
+                ? new Request(input, init)
+                : new Request(input, init);
+        return authenticatedFetch(request);
+    }) as typeof fetch,
+};
+
+export const apiClient = createApiClient(apiClientOptions);
 
 apiClient.use({
     async onResponse({ response }) {
@@ -284,3 +322,17 @@ apiClient.use({
         throw normalizeClientError(error);
     },
 });
+
+export const __testing__ = {
+    DEFAULT_REQUEST_TIMEOUT_MS,
+    AUTH_REFRESH_TIMEOUT_MS,
+    readCookie,
+    withBrowserSecurity,
+    fetchWithTimeout,
+    performBrowserFetch,
+    authenticatedFetch,
+    buildApiError,
+    resolveApiBaseUrl,
+    normalizeClientError,
+    resolveApiURL,
+};

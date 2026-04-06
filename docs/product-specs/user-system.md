@@ -1,0 +1,86 @@
+# 用户系统
+
+> 状态：现行
+
+## 两级认证
+
+### 实名认证
+
+确认"这个人是谁"。
+
+**大陆身份证**：提交姓名 + 证件号 → 后端调用腾讯云二要素核验 → 加密后存入数据库。命中学籍表则自动通过，否则转人工。
+
+**非大陆证件**：上传证件照片 → 人工审核。
+
+提交流程分两步：
+1. `POST /api/v1/user/identity/uploads` — 上传照片
+2. `POST /api/v1/user/identity` — 提交证件信息 + 已上传照片 key
+
+支持证件类型：`MAINLAND_ID` / `HK_MACAU` / `TW` / `PASSPORT`
+
+### 学生认证
+
+确认"这个人是否在校学生"。
+
+**LDAP**：学号 + 密码 → 后端 LDAP bind → 成功自动通过 → 同步 `verified_student` 角色。
+
+**手工表单**：学校配置动态表单 → 提交 → `pending` → 管理员审核。
+
+## 状态机
+
+实名：`pending` → `verified` / `rejected`
+
+学生：`unverified` → `pending` → `verified` / `rejected`（rejected 可重新提交）
+
+规则：`verified` 不重复提交，`pending` 不允许覆盖。
+
+## 手机号绑定
+
+`POST /api/v1/user/profile/bind-phone`，仅限中国大陆手机号。绑定手机号不授予学生身份。
+
+## 学校配置
+
+`school_configs` 每校一条：
+- `verification_method`：`ldap` 或 `manual`
+- `ldap_config` / `manual_form_fields` / `consent_text`
+- `academic_db_table` / `enabled`
+
+## 系统配置
+
+`system_configs` 全局 key-value：文案、预览长度、业务开关。
+
+## PII 保护
+
+- `doc_number_enc`：AES-256-GCM 密文
+- `person_uid`：HMAC 稳定标识
+- `doc_photo_*`：对象存储 key，审核时签发短时 URL
+
+## 后台审核
+
+实名认证审核、学生认证审核、学校配置管理、系统配置管理。
+
+审核通过后更新应用数据库，必要时同步 Zitadel 角色。
+
+## 端点
+
+| 路径 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/user/identity` | GET / POST | 实名认证 |
+| `/api/v1/user/identity/uploads` | POST | 上传证件照片 |
+| `/api/v1/user/profile` | GET | 学生认证档案 |
+| `/api/v1/user/profile/verify` | POST | 发起学生认证 |
+| `/api/v1/user/profile/bind-phone` | POST | 绑定手机号 |
+| `/api/v1/user/profile/academic-info` | GET | 学籍信息 |
+| `/api/v1/user/schools` | GET | 学校列表 |
+| `/api/v1/admin/identities` | GET / PUT | 实名审核 |
+| `/api/v1/admin/student-verifications` | GET / PUT | 学生审核 |
+| `/api/v1/admin/school-configs` | GET / PUT | 学校配置 |
+| `/api/v1/admin/system-configs` | GET / PUT | 系统配置 |
+
+## 代码入口
+
+| 组件 | 位置 |
+|------|------|
+| 用户模块 | `server/internal/modules/user/` |
+| LDAP 客户端 | `server/internal/modules/ldap/` |
+| PII 加密 | `server/internal/pkg/crypto/pii/` |

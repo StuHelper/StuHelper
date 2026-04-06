@@ -71,3 +71,35 @@ func TestBlacklist_IsBlacklisted(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, isBlacklisted)
 }
+
+func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	client, cleanup := setupTestRedis(t)
+	defer cleanup()
+
+	bl := NewBlacklist(client)
+	ctx := context.Background()
+
+	consumed, err := bl.TryConsumeRefreshToken(ctx, "refresh-token", time.Hour)
+	require.NoError(t, err)
+	assert.True(t, consumed)
+
+	consumed, err = bl.TryConsumeRefreshToken(ctx, "refresh-token", time.Hour)
+	require.NoError(t, err)
+	assert.False(t, consumed)
+
+	isBlacklisted, err := bl.IsBlacklisted(ctx, "refresh-token")
+	require.NoError(t, err)
+	assert.True(t, isBlacklisted)
+
+	require.NoError(t, bl.ReleaseConsumedRefreshToken(ctx, "refresh-token"))
+
+	isBlacklisted, err = bl.IsBlacklisted(ctx, "refresh-token")
+	require.NoError(t, err)
+	assert.False(t, isBlacklisted)
+
+	consumed, err = bl.TryConsumeRefreshToken(ctx, "refresh-token", time.Hour)
+	require.NoError(t, err)
+	assert.True(t, consumed)
+}

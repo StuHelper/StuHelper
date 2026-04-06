@@ -78,29 +78,6 @@ func (h *Helper) Client() *redis.Client {
 	return h.client
 }
 
-// Get 获取缓存值
-//
-// Deprecated: 返回 any 类型会导致数字反序列化为 float64 丢失整数精度。
-// 请优先使用泛型版本 GetAs[T] 以获得类型安全的反序列化。
-func (h *Helper) Get(ctx context.Context, key string) (any, bool) {
-	if h.client == nil {
-		return nil, false
-	}
-	start := time.Now()
-	data, err := h.client.Get(ctx, key).Bytes()
-	metrics.CacheOperationDuration.WithLabelValues("get", "redis").Observe(time.Since(start).Seconds())
-	if err != nil {
-		metrics.CacheMissesTotal.WithLabelValues("redis").Inc()
-		return nil, false
-	}
-	var v any
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, false
-	}
-	metrics.CacheHitsTotal.WithLabelValues("redis").Inc()
-	return v, true
-}
-
 // GetRaw returns the cached value as pre-serialized JSON bytes.
 // Unlike Get, this avoids double-deserialization and the float64 precision issue.
 // The returned json.RawMessage can be passed directly to response.Success.

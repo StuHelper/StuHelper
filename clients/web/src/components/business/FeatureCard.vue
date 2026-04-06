@@ -12,13 +12,19 @@ interface Props {
 
 defineProps<Props>()
 
+const prefersReducedMotion = typeof window !== 'undefined'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const hasHover = typeof window !== 'undefined'
+  && window.matchMedia('(hover: hover)').matches
+const tiltDisabled = prefersReducedMotion || !hasHover
+
 const cardRef = ref<HTMLElement>()
 const cardStyle = ref<Record<string, string>>({
   transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)'
 })
 
 const onHover = (e: MouseEvent) => {
-  if (!cardRef.value) return
+  if (tiltDisabled || !cardRef.value) return
   const rect = cardRef.value.getBoundingClientRect()
   const x = e.clientX - rect.left
   const y = e.clientY - rect.top
@@ -61,8 +67,9 @@ const onLeave = () => {
 .feature-card {
   position: relative;
   padding: 2rem;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
+  background: var(--color-bg-glass);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
   border-radius: 1rem;
   border: 1px solid transparent;
   background-clip: padding-box;
@@ -78,9 +85,10 @@ const onLeave = () => {
   border-radius: 1rem;
   padding: 1px;
   background: linear-gradient(135deg, var(--gradient-color), transparent);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
-  mask-composite: exclude;
   pointer-events: none;
 }
 
@@ -96,13 +104,13 @@ const onLeave = () => {
 .feature-card__title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--color-text-primary);
   margin-bottom: 0.5rem;
 }
 
 .feature-card__description {
   font-size: 0.875rem;
-  color: #666;
+  color: var(--color-text-secondary);
   line-height: 1.6;
 }
 
@@ -111,20 +119,5 @@ const onLeave = () => {
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--gradient-color);
-}
-
-/* 暗色模式 */
-@media (prefers-color-scheme: dark) {
-  .feature-card {
-    background: rgba(30, 30, 30, 0.7);
-  }
-
-  .feature-card__title {
-    color: #f0f0f0;
-  }
-
-  .feature-card__description {
-    color: #a0a0a0;
-  }
 }
 </style>

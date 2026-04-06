@@ -60,7 +60,12 @@ var ErrEmptyInput = errors.New("crypto: HMACHash input must not be empty")
 
 // GetHMACKey 返回已初始化的 HMAC 密钥（需在 InitHMACKey 之后调用）
 func GetHMACKey() []byte {
-	return hmacKey
+	if len(hmacKey) == 0 {
+		return nil
+	}
+	keyCopy := make([]byte, len(hmacKey))
+	copy(keyCopy, hmacKey)
+	return keyCopy
 }
 
 // HMACHash 使用 HMAC-SHA256 对数据进行哈希
@@ -72,6 +77,19 @@ func HMACHash(data string) (string, error) {
 		return "", ErrHMACNotInitialized
 	}
 	h := hmac.New(sha256.New, hmacKey)
+	h.Write([]byte(data))
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// HMACHashWithKey 使用指定密钥对数据进行 HMAC-SHA256 哈希
+func HMACHashWithKey(data string, key []byte) (string, error) {
+	if data == "" {
+		return "", ErrEmptyInput
+	}
+	if len(key) == 0 {
+		return "", ErrHMACNotInitialized
+	}
+	h := hmac.New(sha256.New, key)
 	h.Write([]byte(data))
 	return hex.EncodeToString(h.Sum(nil)), nil
 }

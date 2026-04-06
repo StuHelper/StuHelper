@@ -45,5 +45,33 @@ export default {
       up: '上升',
       down: '下降'
     }
+  },
+  hub: {
+    title: '教师主页',
+    description: '搜索教师、查看评分和评价',
+    searchPlaceholder: '输入教师姓名搜索...',
+    popular: '热门教师',
+    searchResults: '搜索结果',
+    reviewUnit: ' 条评价',
+    noResults: '未找到匹配的教师，换个名字试试。',
+    noTeachers: '暂无教师数据。',
+    actions: {
+      browseCourses: '先去看课程列表',
+      backToReview: '返回评课中心'
+    },
+    highlights: {
+      entry: {
+        title: '教师资料入口',
+        description: '教师详情页已经接入路由，后续会补完整的教师列表、搜索与筛选入口。'
+      },
+      capabilities: {
+        title: '教学相关能力',
+        description: '该模块会逐步承接教师画像、课程关联、评分维度和统计展示。'
+      },
+      status: {
+        title: '当前状态',
+        description: '教师模块主页仍在实现中，因此这里先提供占位说明，而不再错误跳转到课程列表。'
+      }
+    }
   }
 }

@@ -15,7 +15,7 @@ import (
 
 // GetReplies 获取回复列表
 func (h *Handler) GetReplies(c *gin.Context) {
-	reviewID, err := httputil.ParseUUIDParam(c, "id")
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
 		return
@@ -55,7 +55,7 @@ type CreateReplyRequest struct {
 
 // CreateReply 创建回复
 func (h *Handler) CreateReply(c *gin.Context) {
-	reviewID, err := httputil.ParseUUIDParam(c, "id")
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
 		return
@@ -101,7 +101,7 @@ func (h *Handler) CreateReply(c *gin.Context) {
 
 // DeleteReply 删除回复
 func (h *Handler) DeleteReply(c *gin.Context) {
-	replyID, err := httputil.ParseUUIDParam(c, "id")
+	replyID, err := httputil.ParseUUIDParam(c, "replyID")
 	if err != nil {
 		response.BadRequest(c, "invalid reply id")
 		return

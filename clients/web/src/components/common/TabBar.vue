@@ -1,11 +1,11 @@
 <template>
-  <div class="flex items-center gap-1 p-1 bg-bg-card border border-border rounded-full shadow-sm" role="tablist" @keydown="onKeydown">
+  <div class="flex items-center gap-1 p-1 bg-bg-card rounded-full shadow-sm" role="tablist" @keydown="onKeydown">
     <button
       v-for="(tab, index) in tabs"
       :key="tab.value"
       :ref="el => { if (el) tabRefs[index] = el as HTMLButtonElement }"
-      class="px-4 py-1.5 text-sm font-medium text-text-muted rounded-full transition-all duration-base ease-smooth cursor-pointer whitespace-nowrap hover:text-text-primary"
-      :class="modelValue === tab.value && 'bg-gradient-to-br from-primary to-accent text-text-inverse shadow-[0_2px_8px_rgba(var(--brand-primary-rgb),0.2)]'"
+      class="px-4 py-1.5 text-sm font-medium text-text-muted rounded-full transition-all duration-base ease-spring cursor-pointer whitespace-nowrap hover:text-text-primary press-spring"
+      :class="modelValue === tab.value && 'bg-gradient-to-br from-primary to-accent text-text-inverse shadow-glow-sm'"
       role="tab"
       :aria-selected="modelValue === tab.value"
       :aria-label="tab.label"
@@ -31,7 +31,7 @@ const emit = defineEmits<{
 
 const tabRefs = ref<HTMLButtonElement[]>([])
 
-// M-121: 每次更新前重置 ref 数组，防止旧引用残留
+// 每次更新前重置 ref 数组，防止旧引用残留
 onBeforeUpdate(() => {
   tabRefs.value = []
 })

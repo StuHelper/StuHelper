@@ -13,18 +13,11 @@ export const USER_SCHOOL_READ = 'user:school:read'
 export const USER_SCHOOL_UPDATE = 'user:school:update'
 export const USER_SYSTEM_READ = 'user:system:read'
 export const USER_SYSTEM_UPDATE = 'user:system:update'
-
-export const RBAC_ROLE_READ = 'rbac:role:read'
-export const RBAC_ROLE_CREATE = 'rbac:role:create'
-export const RBAC_ROLE_UPDATE = 'rbac:role:update'
-export const RBAC_ROLE_DELETE = 'rbac:role:delete'
-export const RBAC_PERMISSION_READ = 'rbac:permission:read'
-export const RBAC_USER_READ = 'rbac:user:read'
-export const RBAC_USER_UPDATE = 'rbac:user:update'
-export const RBAC_GROUP_READ = 'rbac:group:read'
-export const RBAC_GROUP_CREATE = 'rbac:group:create'
-export const RBAC_GROUP_UPDATE = 'rbac:group:update'
-export const RBAC_GROUP_DELETE = 'rbac:group:delete'
+export const REVIEW_LIST_FULL = 'review:list:full'
+export const REVIEW_CREATE = 'review:create'
+export const REVIEW_EDIT_OWN = 'review:edit:own'
+export const REVIEW_DELETE_OWN = 'review:delete:own'
+export const REVIEW_LIST_BRIEF = 'review:list:brief'
 
 export const ADMIN_ENTRY_CAPABILITIES = [
   ADMIN_DASHBOARD_VIEW,
@@ -41,17 +34,6 @@ export const ADMIN_ENTRY_CAPABILITIES = [
   USER_SCHOOL_UPDATE,
   USER_SYSTEM_READ,
   USER_SYSTEM_UPDATE,
-  RBAC_ROLE_READ,
-  RBAC_ROLE_CREATE,
-  RBAC_ROLE_UPDATE,
-  RBAC_ROLE_DELETE,
-  RBAC_PERMISSION_READ,
-  RBAC_USER_READ,
-  RBAC_USER_UPDATE,
-  RBAC_GROUP_READ,
-  RBAC_GROUP_CREATE,
-  RBAC_GROUP_UPDATE,
-  RBAC_GROUP_DELETE,
 ] as const
 
 export const WEB_ADMIN_ENTRY_CAPABILITIES = [

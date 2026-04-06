@@ -9,16 +9,9 @@ import { isTokenExpired } from "@/utils/auth";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
 import {
-    ADMIN_DASHBOARD_VIEW,
-    ADMIN_LOGS_VIEW,
-    ADMIN_REPORTS_MANAGE,
-    ADMIN_REVIEWS_MANAGE,
-    ADMIN_SENSITIVE_WORDS_MANAGE,
-    ADMIN_TEACHERS_MANAGE,
-    WEB_ADMIN_ENTRY_CAPABILITIES,
     hasAnyCapability,
 } from "@stuhelper/shared/constants";
-// H3: 静态导入，确保 chunk load 失败时仍可渲染
+// 静态导入，确保 chunk load 失败时仍可渲染
 import ChunkErrorPage from "@/modules/errors/views/ChunkErrorPage.vue";
 import NotFoundPage from "@/modules/errors/views/NotFoundPage.vue";
 
@@ -29,7 +22,7 @@ declare module "vue-router" {
         requiredCapabilities?: string[];
         guest?: boolean;
         titleKey?: string;
-        layout?: "shell" | "none" | "admin";
+        layout?: "shell" | "none";
     }
 }
 
@@ -44,8 +37,8 @@ function isChunkLoadError(error: unknown): boolean {
     );
 }
 
-// H3: chunk load 失败时自动重载一次，防止部署更新导致白屏
-const CHUNK_RELOAD_KEY = "chunk_reload_attempted";
+// chunk load 失败时自动重载一次
+const CHUNK_RELOAD_KEY = "stuhelper_chunk_reload_attempted";
 
 function lazyLoad(loader: () => Promise<unknown>) {
     return () =>
@@ -169,6 +162,26 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.postReview", requiresAuth: true },
     },
 
+    // Advanced search
+    {
+        path: "/search",
+        name: "search",
+        component: lazyLoad(
+            () => import("@/modules/review/views/SearchPage.vue"),
+        ),
+        meta: { titleKey: "routes.search" },
+    },
+
+    // Course review about page
+    {
+        path: "/course/about",
+        name: "course-about",
+        component: lazyLoad(
+            () => import("@/modules/review/views/AboutPage.vue"),
+        ),
+        meta: { titleKey: "routes.courseAbout" },
+    },
+
     // Teacher profile
     {
         path: "/teachers",
@@ -239,6 +252,22 @@ const routes: RouteRecordRaw[] = [
         ),
         meta: { titleKey: "routes.studentVerification", requiresAuth: true },
     },
+    {
+        path: "/user/phone-binding",
+        name: "phone-binding",
+        component: lazyLoad(
+            () => import("@/modules/user/views/PhoneBindingPage.vue"),
+        ),
+        meta: { titleKey: "routes.phoneBinding", requiresAuth: true },
+    },
+    {
+        path: "/user/academic-info",
+        name: "academic-info",
+        component: lazyLoad(
+            () => import("@/modules/user/views/AcademicInfoPage.vue"),
+        ),
+        meta: { titleKey: "routes.academicInfo", requiresAuth: true },
+    },
 
     // Notifications
     {
@@ -248,72 +277,6 @@ const routes: RouteRecordRaw[] = [
             () => import("@/modules/user/views/NotificationsPage.vue"),
         ),
         meta: { titleKey: "routes.notifications", requiresAuth: true },
-    },
-
-    // Admin panel
-    {
-        path: "/admin",
-        component: lazyLoad(
-            () => import("@/modules/admin/views/AdminLayout.vue"),
-        ),
-        meta: {
-            titleKey: "routes.admin",
-            requiresAuth: true,
-            requiredCapabilities: [...WEB_ADMIN_ENTRY_CAPABILITIES],
-            layout: "admin",
-        },
-        children: [
-            {
-                path: "",
-                name: "admin-dashboard",
-                component: lazyLoad(
-                    () => import("@/modules/admin/views/DashboardPage.vue"),
-                ),
-                meta: { requiredCapabilities: [ADMIN_DASHBOARD_VIEW] },
-            },
-            {
-                path: "reports",
-                name: "admin-reports",
-                component: lazyLoad(
-                    () => import("@/modules/admin/views/ReportsPage.vue"),
-                ),
-                meta: { requiredCapabilities: [ADMIN_REPORTS_MANAGE] },
-            },
-            {
-                path: "reviews",
-                name: "admin-reviews",
-                component: lazyLoad(
-                    () => import("@/modules/admin/views/ReviewsManagePage.vue"),
-                ),
-                meta: { requiredCapabilities: [ADMIN_REVIEWS_MANAGE] },
-            },
-            {
-                path: "teachers",
-                name: "admin-teachers",
-                component: lazyLoad(
-                    () =>
-                        import("@/modules/admin/views/TeachersManagePage.vue"),
-                ),
-                meta: { requiredCapabilities: [ADMIN_TEACHERS_MANAGE] },
-            },
-            {
-                path: "sensitive-words",
-                name: "admin-sensitive-words",
-                component: lazyLoad(
-                    () =>
-                        import("@/modules/admin/views/SensitiveWordsPage.vue"),
-                ),
-                meta: { requiredCapabilities: [ADMIN_SENSITIVE_WORDS_MANAGE] },
-            },
-            {
-                path: "logs",
-                name: "admin-logs",
-                component: lazyLoad(
-                    () => import("@/modules/admin/views/LogsPage.vue"),
-                ),
-                meta: { requiredCapabilities: [ADMIN_LOGS_VIEW] },
-            },
-        ],
     },
 
     // Redirects
@@ -347,33 +310,6 @@ const router = createRouter({
     },
 });
 
-function hasAdminRouteAccess(
-    route: RouteRecordRaw,
-    capabilities: readonly string[],
-): boolean {
-    const requiredCapabilities = Array.isArray(route.meta?.requiredCapabilities)
-        ? route.meta.requiredCapabilities
-        : [];
-    if (requiredCapabilities.length === 0) {
-        return true;
-    }
-    return hasAnyCapability(capabilities, requiredCapabilities);
-}
-
-function findFirstAccessibleAdminPath(
-    capabilities: readonly string[],
-): string | null {
-    const adminParent = routes.find((route) => route.path === "/admin");
-    const adminChildren = adminParent?.children ?? [];
-    const firstAccessible = adminChildren.find((route) =>
-        hasAdminRouteAccess(route, capabilities),
-    );
-    if (!firstAccessible) {
-        return null;
-    }
-    return firstAccessible.path ? `/admin/${firstAccessible.path}` : "/admin";
-}
-
 router.beforeEach(async (to) => {
     if (to.path === "/auth/callback") {
         const code = typeof to.query.code === "string" ? to.query.code : "";
@@ -398,42 +334,37 @@ router.beforeEach(async (to) => {
         : matchedTitleRoute?.meta.title;
     updatePageMeta({ title: resolvedTitle });
 
+    let refreshFailed = false;
     if (authStore.isAuthenticated && isTokenExpired()) {
         try {
             await authStore.refreshSession();
-        } catch {
-            return undefined;
+        } catch (err) {
+            refreshFailed = true;
+            console.warn("[Router] session refresh failed during navigation:", err);
         }
     }
 
     const isAuthenticated = authStore.isAuthenticated;
+    const requiresAuthRoute =
+        to.meta.requiresAuth ||
+        to.matched.some((route) => {
+            const requiredCapabilities = Array.isArray(route.meta.requiredCapabilities)
+                ? route.meta.requiredCapabilities
+                : [];
+            return requiredCapabilities.length > 0;
+        });
+
+    if (refreshFailed && requiresAuthRoute) {
+        return {
+            name: "login",
+            query: { redirect: to.fullPath },
+            replace: true,
+        };
+    }
 
     // Auth guards
     if (to.meta.requiresAuth && !isAuthenticated) {
         return { name: "login", query: { redirect: to.fullPath } };
-    }
-
-    if (to.path.startsWith("/admin")) {
-        const adminParentAllowed = hasAnyCapability(
-            authStore.globalCapabilities,
-            WEB_ADMIN_ENTRY_CAPABILITIES,
-        );
-        if (!adminParentAllowed) {
-            return { name: "home" };
-        }
-
-        const adminParent = routes.find((route) => route.path === "/admin");
-        const adminChildren = adminParent?.children ?? [];
-        const matchedAdminRoute = adminChildren.find((route) => route.name === to.name);
-        if (
-            matchedAdminRoute &&
-            !hasAdminRouteAccess(matchedAdminRoute, authStore.globalCapabilities)
-        ) {
-            const fallbackPath = findFirstAccessibleAdminPath(
-                authStore.globalCapabilities,
-            );
-            return fallbackPath ? { path: fallbackPath } : { name: "home" };
-        }
     }
 
     const requiredCapabilities = to.matched.flatMap((route) =>
@@ -466,11 +397,11 @@ router.beforeEach(async (to) => {
 router.afterEach(() => {
     const { showPostModal, closePostModal } = useReviewPost();
     if (showPostModal.value) closePostModal();
-    // H3: 导航成功说明 chunk 加载正常，清除重试标记
+    // 导航成功说明 chunk 加载正常，清除重试标记
     sessionStorage.removeItem(CHUNK_RELOAD_KEY);
 });
 
-// H3: chunk load 首次失败时，用目标路由 fullPath 重载（而非 reload 当前页）
+// chunk load 首次失败时，用目标路由 fullPath 重载（而非 reload 当前页）
 router.onError((err, to) => {
     if (!isChunkLoadError(err)) return;
     const hasAttempted = sessionStorage.getItem(CHUNK_RELOAD_KEY);

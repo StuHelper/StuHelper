@@ -269,7 +269,7 @@ HotCourse:
 
 ReviewStats:
   type: object
-  required: [courseCount, reviewCount, departmentCount]
+  required: [courseCount, reviewCount, departmentCount, userCount]
   properties:
     courseCount:
       type: integer
@@ -277,3 +277,24 @@ ReviewStats:
       type: integer
     departmentCount:
       type: integer
+    userCount:
+      type: integer
+
+TeacherSummary:
+  type: object
+  required: [teacherID, teacherName, reviewCount, courseCount]
+  properties:
+    teacherID:
+      type: integer
+      format: int64
+    teacherName:
+      type: string
+    departmentName:
+      type: string
+    reviewCount:
+      type: integer
+    courseCount:
+      type: integer
+    avgRating:
+      type: number
+      format: double

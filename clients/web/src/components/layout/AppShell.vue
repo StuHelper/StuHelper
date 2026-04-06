@@ -17,7 +17,8 @@
 
         <button
           v-if="isReviewRoute"
-          class="flex items-center gap-1.5 bg-gradient-to-r from-accent to-primary text-white rounded-full px-4 py-1.5 text-sm font-semibold whitespace-nowrap cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-px transition-all duration-fast shrink-0"
+          v-ripple
+          class="flex items-center gap-1.5 bg-gradient-to-r from-accent to-primary text-white rounded-full px-4 py-1.5 text-sm font-semibold whitespace-nowrap cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-px transition-all duration-fast shrink-0 press-spring"
           @click="handleWriteReview"
         >
           <PenLine :size="14" />
@@ -51,9 +52,16 @@
               {{ avatarInitial }}
             </div>
           </button>
+          <span
+            v-if="showAdminEntry"
+            class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-accent rounded-full border-2 border-bg-card flex items-center justify-center"
+            :title="t('nav.adminBadge')"
+          >
+            <Settings class="size-2 text-white" />
+          </span>
           <div
             v-if="userMenuOpen"
-            class="absolute right-0 top-full mt-1.5 w-48 bg-bg-card border border-border rounded-lg shadow-md py-1 z-[var(--z-dropdown)] animate-fade-in"
+            class="absolute right-0 top-full mt-1.5 w-48 bg-bg-card rounded-lg shadow-md py-1 z-[var(--z-dropdown)] animate-fade-in"
           >
             <button
               class="flex items-center gap-2 w-full px-3 py-2 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
@@ -80,6 +88,16 @@
               {{ t('nav.studentVerification') }}
               <span v-if="verificationStore.studentVerified" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.student.verified') }}</span>
             </button>
+            <template v-if="showAdminEntry">
+              <div class="h-px bg-border mx-2 my-0.5" />
+              <a
+                href="/admin/"
+                class="flex items-center gap-2 w-full px-3 py-2 text-sm text-accent font-medium transition-colors duration-fast hover:bg-accent/10 no-underline"
+              >
+                <Settings class="size-4" />
+                {{ t('nav.adminConsole') }}
+              </a>
+            </template>
             <div class="h-px bg-border mx-2 my-0.5" />
             <button
               class="flex items-center gap-2 w-full px-3 py-2 text-sm text-danger transition-colors duration-fast hover:bg-danger/10"
@@ -94,7 +112,7 @@
         <router-link
           v-else
           to="/login"
-          class="py-1.5 px-4 bg-gradient-to-br from-primary to-accent text-white rounded-full text-sm font-medium no-underline whitespace-nowrap hover:opacity-90 transition-opacity duration-fast"
+          class="py-1.5 px-4 bg-gradient-to-br from-primary to-accent text-white rounded-full text-sm font-medium no-underline whitespace-nowrap hover:opacity-90 transition-all duration-fast press-spring hover:shadow-glow-primary"
         >
           {{ t('nav.login') }}
         </router-link>
@@ -120,11 +138,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { PenLine, LogOut, User, ShieldCheck, GraduationCap } from 'lucide-vue-next'
+import { PenLine, LogOut, User, ShieldCheck, GraduationCap, Settings } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { useToast } from '@/composables/useToast'
+import { canAccessAdmin } from '@stuhelper/shared/constants'
 import FloatingModuleNav from './FloatingModuleNav.vue'
 import InlineSearch from '@/components/common/InlineSearch.vue'
 import NotificationBell from '@/components/common/NotificationBell.vue'
@@ -149,13 +168,17 @@ const isReviewRoute = computed(() =>
 const isScrolled = ref(false)
 const userMenuOpen = ref(false)
 const userMenuRef = ref<HTMLElement | null>(null)
-// M-43: 滚动节流，避免高频触发
+// 滚动节流，避免高频触发
 let scrollTicking = false
 
 const avatarInitial = computed(() => {
   const name = authStore.user?.displayName || authStore.user?.name || '?'
   return name.charAt(0).toUpperCase()
 })
+
+const showAdminEntry = computed(() =>
+  canAccessAdmin(authStore.globalCapabilities)
+)
 
 function goToUser() {
   userMenuOpen.value = false
@@ -180,11 +203,7 @@ async function handleLogout() {
   userMenuOpen.value = false
   const result = await authStore.logout()
   if (result.ok) {
-    if (result.ssoLogoutURL) {
-      window.location.href = result.ssoLogoutURL
-    } else {
-      router.push('/')
-    }
+    router.push('/')
   } else {
     toast.error(result.reason === 'server'
       ? t('nav.logoutServerError')
@@ -208,14 +227,18 @@ function handleScroll() {
 }
 
 onMounted(() => {
-  // L-44: 初始化时同步滚动状态，防止页面刷新后状态不一致
+  // 初始化时同步滚动状态，防止页面刷新后状态不一致
   isScrolled.value = window.scrollY > 10
-  // L-16: passive 已设置
+  // passive 已设置
   window.addEventListener('scroll', handleScroll, { passive: true })
   document.addEventListener('click', onClickOutside, true)
   // Bootstrap verification status for authenticated users
   if (authStore.isAuthenticated) {
-    verificationStore.fetchStatus().catch(() => {})
+    void verificationStore.fetchStatus().catch((error) => {
+      if (import.meta.env.DEV) {
+        console.warn('[AppShell] failed to bootstrap verification status', error)
+      }
+    })
   }
 })
 

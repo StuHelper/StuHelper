@@ -71,6 +71,9 @@ const (
 	ErrOAuthFailed       ErrorCode = "A0010300" // OAuth 认证失败
 	ErrOAuthStateInvalid ErrorCode = "A0010301" // OAuth State 无效
 	ErrOAuthCodeInvalid  ErrorCode = "A0010302" // OAuth 授权码无效
+	ErrPhoneOTPFailed    ErrorCode = "A0010400" // 手机验证码验证失败
+	ErrPhoneOTPExpired   ErrorCode = "A0010401" // 手机验证码已过期
+	ErrPhoneOTPCooldown  ErrorCode = "A0010402" // 手机验证码发送冷却中
 )
 
 // ============================================================================
@@ -218,14 +221,4 @@ const (
 	ErrSSOError       ErrorCode = "C0010001" // SSO 服务错误
 	ErrSSOTimeout     ErrorCode = "C0010002" // SSO 服务超时
 	ErrSSOUnavailable ErrorCode = "C0010003" // SSO 服务不可用
-)
-
-// ============================================================================
-// 中间件错误码别名（向后兼容，指向对应的 8 位码）
-// Deprecated: 直接使用上方的 8 位码常量
-// ============================================================================
-
-const (
-	ErrCSRFTokenBad    = ErrCSRFTokenInvalid // → A0010202
-	ErrRequestTooLarge = ErrPayloadTooLarge  // → A0000413
 )

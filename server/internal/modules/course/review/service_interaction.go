@@ -7,8 +7,11 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
 
@@ -40,6 +43,11 @@ func (s *Service) AddFavorite(ctx context.Context, params AddFavoriteParams) err
 // RemoveFavorite 移除收藏
 func (s *Service) RemoveFavorite(ctx context.Context, userHash string, courseID int64) error {
 	return s.repo.DeleteFavorite(ctx, userHash, courseID)
+}
+
+// GetFavoriteStatus 获取当前用户对课程的收藏状态
+func (s *Service) GetFavoriteStatus(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	return s.repo.FavoriteExists(ctx, userHash, courseID)
 }
 
 // GetUserFavoritesParams 获取用户收藏参数
@@ -214,9 +222,14 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 		return nil, err
 	}
 
-	// M-116: 防御性 nil 检查，RETURNING 正常情况下不会返回 nil
+	// 防御性 nil 检查，RETURNING 正常情况下不会返回 nil
 	if replyTS == nil {
 		return nil, fmt.Errorf("CreateReply: unexpected nil timestamps from RETURNING clause")
+	}
+
+	// 发送回复通知给评价作者
+	if s.notifSender != nil {
+		go s.sendReplyNotification(context.Background(), params.ReviewID, params.UserHash)
 	}
 
 	return &CreateReplyResult{
@@ -305,7 +318,7 @@ func (s *Service) DeleteReply(ctx context.Context, params DeleteReplyParams) err
 
 // GetNotificationsParams 获取通知列表参数
 type GetNotificationsParams struct {
-	UserHash string
+	UserID   int64
 	Page     int
 	PageSize int
 }
@@ -321,7 +334,7 @@ type GetNotificationsResult struct {
 func (s *Service) GetNotifications(ctx context.Context, params GetNotificationsParams) (*GetNotificationsResult, error) {
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
-	result, err := s.repo.ListNotifications(ctx, params.UserHash, pageSize, offset)
+	result, err := s.repo.ListNotifications(ctx, params.UserID, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -330,16 +343,52 @@ func (s *Service) GetNotifications(ctx context.Context, params GetNotificationsP
 }
 
 // GetUnreadNotificationCount 获取未读通知数量
-func (s *Service) GetUnreadNotificationCount(ctx context.Context, userHash string) (int, error) {
-	return s.repo.CountUnreadNotifications(ctx, userHash)
+func (s *Service) GetUnreadNotificationCount(ctx context.Context, userID int64) (int, error) {
+	return s.repo.CountUnreadNotifications(ctx, userID)
 }
 
 // MarkNotificationRead 标记通知已读
-func (s *Service) MarkNotificationRead(ctx context.Context, id string, userHash string) error {
-	return s.repo.MarkNotificationRead(ctx, id, userHash)
+func (s *Service) MarkNotificationRead(ctx context.Context, id string, userID int64) error {
+	return s.repo.MarkNotificationRead(ctx, id, userID)
 }
 
 // MarkAllNotificationsRead 标记所有通知已读
-func (s *Service) MarkAllNotificationsRead(ctx context.Context, userHash string) error {
-	return s.repo.MarkAllNotificationsRead(ctx, userHash)
+func (s *Service) MarkAllNotificationsRead(ctx context.Context, userID int64) error {
+	return s.repo.MarkAllNotificationsRead(ctx, userID)
+}
+
+// ResolveInternalUserID 根据认证上下文中的 external_id 解析内部用户 ID。
+func (s *Service) ResolveInternalUserID(ctx context.Context, externalID string) (int64, error) {
+	return s.repo.GetInternalUserIDByExternalID(ctx, externalID)
+}
+
+// sendReplyNotification 异步发送回复通知给评价作者
+func (s *Service) sendReplyNotification(ctx context.Context, reviewID, replierHash string) {
+	review, err := s.repo.GetReviewByID(ctx, reviewID)
+	if err != nil || review == nil {
+		return
+	}
+	// Don't notify self
+	if review.UserHash == replierHash {
+		return
+	}
+	authorID, err := s.repo.GetUserIDByUserHash(ctx, review.UserHash)
+	if err != nil || authorID == 0 {
+		return
+	}
+	if err := s.notifSender.Send(ctx, notification.SendParams{
+		UserID:       authorID,
+		Type:         "reply",
+		Title:        "你的评价收到了新回复",
+		Body:         "有人回复了你对课程的评价",
+		SourceModule: "review",
+		SourceID:     reviewID,
+		CourseID:     review.CourseID,
+	}); err != nil {
+		logger.L().Warn("failed to send reply notification",
+			zap.String("review_id", reviewID),
+			zap.Int64("author_id", authorID),
+			zap.Error(err),
+		)
+	}
 }

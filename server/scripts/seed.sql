@@ -1,7 +1,9 @@
+-- DEV-ONLY SEED: apply only after migrations have been applied to a non-production database.
+-- Docker Compose production profile must never execute this file.
 -- StuHelper 种子数据（开发环境）
 -- 使用方法: psql -U stuhelper -d stuhelper -f seed.sql
 -- 包含: 院系、教师、课程、用户、测评、回复、投票
--- 注意: 需要先执行 init.sql 创建表结构
+-- 注意: 需要先执行 server/migrations/*.sql（或等价 schema 快照）创建表结构
 
 BEGIN;
 
@@ -88,11 +90,11 @@ SELECT setval('courses_id_seq', 23, true);
 -- 4. 用户数据
 -- ============================================
 INSERT INTO users (id, external_id, username, email) VALUES
-    (1, 'casdoor_user_001', '匿名用户A', 'user_a@example.com'),
-    (2, 'casdoor_user_002', '匿名用户B', 'user_b@example.com'),
-    (3, 'casdoor_user_003', '匿名用户C', 'user_c@example.com'),
-    (4, 'casdoor_user_004', '匿名用户D', 'user_d@example.com'),
-    (5, 'casdoor_user_005', '匿名用户E', 'user_e@example.com')
+    (1, 'oidc_user_001', '匿名用户A', 'user_a@example.com'),
+    (2, 'oidc_user_002', '匿名用户B', 'user_b@example.com'),
+    (3, 'oidc_user_003', '匿名用户C', 'user_c@example.com'),
+    (4, 'oidc_user_004', '匿名用户D', 'user_d@example.com'),
+    (5, 'oidc_user_005', '匿名用户E', 'user_e@example.com')
 ON CONFLICT (id) DO NOTHING;
 
 SELECT setval('users_id_seq', 5, true);
@@ -428,14 +430,10 @@ FROM users WHERE username = 'test_admin'
 ON CONFLICT (user_id) DO NOTHING;
 
 INSERT INTO user_profiles (user_id, school_id, student_ids, active_student_id, verification_status, verification_method, phone, phone_verified, consent_given_at, verified_at)
-SELECT id, '10006', '["20211001"]'::jsonb, '20211001', 'verified', 'ldap', '13800138001', TRUE, NOW(), NOW()
+SELECT id, '10006', '["20211001"]'::jsonb, '20211001', 'verified', 'ldap', '138****8001', TRUE, NOW(), NOW()
 FROM users WHERE username = 'test_admin'
 ON CONFLICT (user_id) DO NOTHING;
 
--- 为测试用户分配 super_admin 角色
-INSERT INTO user_roles (user_id, role_id)
-SELECT u.id, r.id FROM users u, roles r
-WHERE u.username = 'test_admin' AND r.name = 'super_admin'
-ON CONFLICT DO NOTHING;
+-- 角色现由 Zitadel Project Roles + Go RoleCapabilities 管理，无需 DB 分配
 
 COMMIT;

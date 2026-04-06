@@ -168,6 +168,79 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/course/review/admin/content-flags:
+  get:
+    tags: [Admin]
+    operationId: listFlaggedReviews
+    summary: 获取待复核内容标记列表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 内容标记分页列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/Review'
+                        total:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/course/review/admin/content-flags/{reviewID}/clear:
+  put:
+    tags: [Admin]
+    operationId: clearContentFlag
+    summary: 清除测评内容标记
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ReviewIDPath'
+    responses:
+      '200':
+        description: 标记清除成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/course/review/admin/reviews/batch:
   post:
     tags: [Admin]

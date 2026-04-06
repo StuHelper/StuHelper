@@ -3,6 +3,7 @@ package token
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,8 +18,18 @@ import (
 const (
 	// 黑名单 key 前缀
 	blacklistPrefix = "token:blacklist:"
-	// 用户 token 集合前缀
+	// 已消费的一次性 refresh token 标记前缀
+	refreshConsumedPrefix = "token:refresh:consumed:"
+	// 用户 token 集合前缀（ZSET: member = type:hash, score = expiry unix timestamp）
 	userTokensPrefix = "token:user:"
+)
+
+// TokenType 标识 token 类型（用于 ZSET member 前缀）
+type TokenType string
+
+const (
+	TokenTypeAccess  TokenType = "access"
+	TokenTypeRefresh TokenType = "refresh"
 )
 
 // localCacheEntry 本地缓存条目
@@ -35,6 +46,9 @@ const (
 	minBlacklistTTL = 1 * time.Second
 	// maxBlacklistTTL 黑名单 TTL 最大值（30 天）
 	maxBlacklistTTL = 30 * 24 * time.Hour
+	// maxTrackingKeyTTL ZSET key 的安全网 TTL，防止孤立 key 永不过期。
+	// 实际过期成员由 ZREMRANGEBYSCORE 清理。
+	maxTrackingKeyTTL = 30 * 24 * time.Hour
 )
 
 // Blacklist Token 黑名单服务
@@ -124,6 +138,60 @@ func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration)
 	return nil
 }
 
+// TryConsumeRefreshToken 原子标记 refresh token 已被使用（一次性使用）。
+// 返回 true 表示本次成功占用；false 表示该 token 已被并发请求或历史请求消费。
+func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, expiry time.Duration) (bool, error) {
+	if expiry < minBlacklistTTL || expiry > maxBlacklistTTL {
+		return false, fmt.Errorf("refresh consume TTL %v out of valid range [%v, %v]", expiry, minBlacklistTTL, maxBlacklistTTL)
+	}
+
+	hash, err := hashToken(token)
+	if err != nil {
+		return false, fmt.Errorf("failed to hash token: %w", err)
+	}
+
+	b.localCache.Store(hash, localCacheEntry{
+		blacklisted: true,
+		expiresAt:   time.Now().Add(localCacheTTL),
+	})
+
+	if !b.cb.Allow() {
+		return false, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
+	}
+
+	ok, err := b.rdb.SetNX(ctx, refreshConsumedPrefix+hash, "1", expiry).Result()
+	if err != nil {
+		b.cb.RecordFailure()
+		return false, fmt.Errorf("failed to mark refresh token consumed: %w", err)
+	}
+	b.cb.RecordSuccess()
+	if !ok {
+		return false, nil
+	}
+	return true, nil
+}
+
+// ReleaseConsumedRefreshToken 释放已占用但未真正完成轮换的 refresh token 标记，允许客户端重试。
+func (b *Blacklist) ReleaseConsumedRefreshToken(ctx context.Context, token string) error {
+	hash, err := hashToken(token)
+	if err != nil {
+		return fmt.Errorf("failed to hash token: %w", err)
+	}
+
+	b.localCache.Delete(hash)
+
+	if !b.cb.Allow() {
+		return fmt.Errorf("blacklist service unavailable (circuit breaker open)")
+	}
+
+	if err := b.rdb.Del(ctx, refreshConsumedPrefix+hash).Err(); err != nil {
+		b.cb.RecordFailure()
+		return fmt.Errorf("failed to release refresh token consume mark: %w", err)
+	}
+	b.cb.RecordSuccess()
+	return nil
+}
+
 // IsBlacklisted 检查 token 是否在黑名单中
 // 使用熔断器模式：Redis 持续故障时降级到本地缓存，避免服务完全不可用
 func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, error) {
@@ -158,8 +226,7 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 		return true, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
 	}
 
-	key := blacklistPrefix + hash
-	exists, err := b.rdb.Exists(ctx, key).Result()
+	exists, err := b.rdb.Exists(ctx, blacklistPrefix+hash, refreshConsumedPrefix+hash).Result()
 	if err != nil {
 		b.cb.RecordFailure()
 		logger.L().Warn("redis unavailable for blacklist check",
@@ -196,27 +263,40 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 	return blacklisted, nil
 }
 
-// RevokeAllUserTokens 撤销用户的所有 token
-func (b *Blacklist) RevokeAllUserTokens(ctx context.Context, userID string, expiry time.Duration) error {
+// RevokeAllUserTokens 撤销用户的所有活跃 token。
+// 先 prune 已过期成员，再将剩余活跃 token 加入黑名单。
+func (b *Blacklist) RevokeAllUserTokens(ctx context.Context, userID string, blacklistExpiry time.Duration) error {
 	if !b.cb.Allow() {
 		return fmt.Errorf("RevokeAllUserTokens: blacklist service unavailable (circuit breaker open)")
 	}
 
 	key := userTokensPrefix + userID
-	tokenHashes, err := b.rdb.SMembers(ctx, key).Result()
+
+	// 先清理已过期成员
+	nowStr := fmt.Sprintf("%d", time.Now().Unix())
+	if err := b.rdb.ZRemRangeByScore(ctx, key, "-inf", nowStr).Err(); err != nil {
+		logger.L().Warn("RevokeAllUserTokens: failed to prune expired members",
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+	}
+
+	// 获取剩余活跃成员
+	members, err := b.rdb.ZRange(ctx, key, 0, -1).Result()
 	if err != nil {
 		b.cb.RecordFailure()
 		return fmt.Errorf("RevokeAllUserTokens: failed to get user tokens: %w", err)
 	}
 
-	if len(tokenHashes) == 0 {
+	if len(members) == 0 {
 		b.cb.RecordSuccess()
 		return nil
 	}
 
 	pipe := b.rdb.Pipeline()
-	for _, tokenHash := range tokenHashes {
-		pipe.Set(ctx, blacklistPrefix+tokenHash, "1", expiry)
+	for _, member := range members {
+		tokenHash := extractHash(member)
+		pipe.Set(ctx, blacklistPrefix+tokenHash, "1", blacklistExpiry)
 	}
 	pipe.Del(ctx, key)
 
@@ -228,7 +308,8 @@ func (b *Blacklist) RevokeAllUserTokens(ctx context.Context, userID string, expi
 	b.cb.RecordSuccess()
 
 	// 同步更新本地缓存，避免 IsBlacklisted 在 TTL 窗口内返回旧的 false
-	for _, tokenHash := range tokenHashes {
+	for _, member := range members {
+		tokenHash := extractHash(member)
 		b.localCache.Store(tokenHash, localCacheEntry{
 			blacklisted: true,
 			expiresAt:   time.Now().Add(localCacheTTL),
@@ -238,49 +319,45 @@ func (b *Blacklist) RevokeAllUserTokens(ctx context.Context, userID string, expi
 	return nil
 }
 
-// TrackUserToken 记录用户的 token（用于批量撤销）
-func (b *Blacklist) TrackUserToken(ctx context.Context, userID, token string, expiry time.Duration) error {
+// TrackUserToken 记录用户 token 到 ZSET（按过期时间戳排序）。
+// member 格式: "access:<hash>" 或 "refresh:<hash>"
+// score: token 过期的 Unix 时间戳
+// 每次写入时顺带清理已过期成员，防止集合无限增长。
+func (b *Blacklist) TrackUserToken(ctx context.Context, userID, token string, tokenType TokenType, expiresAt time.Time) error {
 	if !b.cb.Allow() {
 		return fmt.Errorf("TrackUserToken: blacklist service unavailable (circuit breaker open)")
 	}
 
-	key := userTokensPrefix + userID
 	tokenHash, err := hashToken(token)
 	if err != nil {
 		return fmt.Errorf("failed to hash token: %w", err)
 	}
+
+	key := userTokensPrefix + userID
+	member := string(tokenType) + ":" + tokenHash
+	score := float64(expiresAt.Unix())
+
 	pipe := b.rdb.Pipeline()
-	saddCmd := pipe.SAdd(ctx, key, tokenHash)
-	expireCmd := pipe.Expire(ctx, key, expiry)
+	// 清理已过期成员
+	nowStr := fmt.Sprintf("%d", time.Now().Unix())
+	pipe.ZRemRangeByScore(ctx, key, "-inf", nowStr)
+	// 添加新成员
+	pipe.ZAdd(ctx, key, redis.Z{Score: score, Member: member})
+	// 设置安全网 TTL，防止 key 孤立
+	pipe.Expire(ctx, key, maxTrackingKeyTTL)
+
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		b.cb.RecordFailure()
 		return fmt.Errorf("TrackUserToken: pipeline exec failed: %w", err)
 	}
 
-	// 检查各命令是否成功
-	if saddErr := saddCmd.Err(); saddErr != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("TrackUserToken: SAdd failed: %w", saddErr)
-	}
-	if expireErr := expireCmd.Err(); expireErr != nil {
-		logger.L().Warn("TrackUserToken: Expire failed, token set may not expire",
-			zap.String("user_id", userID),
-			zap.Error(expireErr),
-		)
-	}
-
 	b.cb.RecordSuccess()
 	return nil
 }
 
-// CircuitBreakerMetrics 获取熔断器指标（用于监控）
-func (b *Blacklist) CircuitBreakerMetrics() map[string]any {
-	return b.cb.Metrics()
-}
-
-// UntrackUserToken 从用户 token 集合中移除指定 token，防止集合无限增长
-func (b *Blacklist) UntrackUserToken(ctx context.Context, userID, token string) error {
+// UntrackUserToken 从用户 token 集合中移除指定 token
+func (b *Blacklist) UntrackUserToken(ctx context.Context, userID, token string, tokenType TokenType) error {
 	if !b.cb.Allow() {
 		return fmt.Errorf("UntrackUserToken: blacklist service unavailable (circuit breaker open)")
 	}
@@ -290,10 +367,25 @@ func (b *Blacklist) UntrackUserToken(ctx context.Context, userID, token string) 
 		return fmt.Errorf("failed to hash token: %w", err)
 	}
 
-	if err := b.rdb.SRem(ctx, userTokensPrefix+userID, tokenHash).Err(); err != nil {
+	member := string(tokenType) + ":" + tokenHash
+	if err := b.rdb.ZRem(ctx, userTokensPrefix+userID, member).Err(); err != nil {
 		b.cb.RecordFailure()
-		return fmt.Errorf("UntrackUserToken: SRem failed: %w", err)
+		return fmt.Errorf("UntrackUserToken: ZRem failed: %w", err)
 	}
 	b.cb.RecordSuccess()
 	return nil
+}
+
+// CircuitBreakerMetrics 获取熔断器指标（用于监控）
+func (b *Blacklist) CircuitBreakerMetrics() map[string]any {
+	return b.cb.Metrics()
+}
+
+// extractHash 从 ZSET member 中提取 token hash。
+// member 格式: "type:hash"。如果没有前缀（兼容旧数据），直接返回原值。
+func extractHash(member string) string {
+	if idx := strings.IndexByte(member, ':'); idx >= 0 {
+		return member[idx+1:]
+	}
+	return member
 }

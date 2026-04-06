@@ -13,15 +13,15 @@ import (
 // GetNotifications 获取通知列表
 func (h *Handler) GetNotifications(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
+	userID, err := h.service.ResolveInternalUserID(c.Request.Context(), middleware.GetUserID(c))
 	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+		logger.FromGin(c).Error("failed to resolve user identity", zap.Error(err))
+		response.InternalError(c, "failed to resolve user identity")
 		return
 	}
 
 	result, err := h.service.GetNotifications(c.Request.Context(), GetNotificationsParams{
-		UserHash: userHash,
+		UserID:   userID,
 		Page:     page,
 		PageSize: pageSize,
 	})
@@ -40,14 +40,14 @@ func (h *Handler) GetNotifications(c *gin.Context) {
 
 // GetUnreadCount 获取未读通知数量
 func (h *Handler) GetUnreadCount(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
+	userID, err := h.service.ResolveInternalUserID(c.Request.Context(), middleware.GetUserID(c))
 	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+		logger.FromGin(c).Error("failed to resolve user identity", zap.Error(err))
+		response.InternalError(c, "failed to resolve user identity")
 		return
 	}
 
-	count, err := h.service.GetUnreadNotificationCount(c.Request.Context(), userHash)
+	count, err := h.service.GetUnreadNotificationCount(c.Request.Context(), userID)
 	if err != nil {
 		logger.FromGin(c).Error("failed to get unread count", zap.Error(err))
 		response.InternalError(c, "failed to get unread count")
@@ -59,20 +59,20 @@ func (h *Handler) GetUnreadCount(c *gin.Context) {
 
 // MarkNotificationRead 标记通知已读
 func (h *Handler) MarkNotificationRead(c *gin.Context) {
-	notifID, err := httputil.ParseUUIDParam(c, "id")
+	notifID, err := httputil.ParseUUIDParam(c, "notificationID")
 	if err != nil {
 		response.BadRequest(c, "invalid notification id")
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
+	userID, err := h.service.ResolveInternalUserID(c.Request.Context(), middleware.GetUserID(c))
 	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+		logger.FromGin(c).Error("failed to resolve user identity", zap.Error(err))
+		response.InternalError(c, "failed to resolve user identity")
 		return
 	}
 
-	err = h.service.MarkNotificationRead(c.Request.Context(), notifID, userHash)
+	err = h.service.MarkNotificationRead(c.Request.Context(), notifID, userID)
 	if err != nil {
 		logger.FromGin(c).Error("failed to mark notification as read", zap.Error(err))
 		response.InternalError(c, "failed to mark notification as read")
@@ -84,14 +84,14 @@ func (h *Handler) MarkNotificationRead(c *gin.Context) {
 
 // MarkAllNotificationsRead 标记所有通知已读
 func (h *Handler) MarkAllNotificationsRead(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
+	userID, err := h.service.ResolveInternalUserID(c.Request.Context(), middleware.GetUserID(c))
 	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+		logger.FromGin(c).Error("failed to resolve user identity", zap.Error(err))
+		response.InternalError(c, "failed to resolve user identity")
 		return
 	}
 
-	err = h.service.MarkAllNotificationsRead(c.Request.Context(), userHash)
+	err = h.service.MarkAllNotificationsRead(c.Request.Context(), userID)
 	if err != nil {
 		logger.FromGin(c).Error("failed to mark all notifications as read", zap.Error(err))
 		response.InternalError(c, "failed to mark all notifications as read")

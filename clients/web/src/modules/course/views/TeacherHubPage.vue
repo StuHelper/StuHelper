@@ -1,89 +1,201 @@
 <script setup lang="ts">
-import { RouterLink } from "vue-router";
-import { GraduationCap, Search, Sparkles } from "lucide-vue-next";
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { Search, X, User, Star, BookOpen } from 'lucide-vue-next'
+import { api } from '@/api'
 
-const highlights = [
-    {
-        icon: Search,
-        title: "教师资料入口",
-        description:
-            "教师详情页已经接入路由，后续会补完整的教师列表、搜索与筛选入口。",
-    },
-    {
-        icon: GraduationCap,
-        title: "教学相关能力",
-        description: "该模块会逐步承接教师画像、课程关联、评分维度和统计展示。",
-    },
-    {
-        icon: Sparkles,
-        title: "当前状态",
-        description:
-            "教师模块主页仍在实现中，因此这里先提供占位说明，而不再错误跳转到课程列表。",
-    },
-];
+interface TeacherEntry {
+  teacherID: number
+  teacherName: string
+  departmentName?: string
+  avgRating: number | null
+  reviewCount: number
+  courseCount: number
+}
+
+const { t } = useI18n()
+const router = useRouter()
+
+const searchQuery = ref('')
+const searchResults = ref<TeacherEntry[]>([])
+const searchTotal = ref(0)
+const searching = ref(false)
+const loading = ref(true)
+const popularTeachers = ref<TeacherEntry[]>([])
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+
+async function loadPopularTeachers() {
+  loading.value = true
+  try {
+    const res = await api.rating.listHotTeachers(20)
+    const list = res.data?.data?.list
+    popularTeachers.value = (list ?? []).map(mapTeacher)
+  } finally {
+    loading.value = false
+  }
+}
+
+function mapTeacher(raw: { teacherID: number; teacherName: string; departmentName?: string; avgRating?: number | null; reviewCount: number; courseCount: number }): TeacherEntry {
+  return {
+    teacherID: raw.teacherID,
+    teacherName: raw.teacherName,
+    departmentName: raw.departmentName || undefined,
+    avgRating: raw.avgRating ?? null,
+    reviewCount: raw.reviewCount,
+    courseCount: raw.courseCount,
+  }
+}
+
+function handleSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  if (!searchQuery.value.trim()) {
+    searchResults.value = []
+    searchTotal.value = 0
+    return
+  }
+  searchTimer = setTimeout(() => doSearch(), 350)
+}
+
+async function doSearch() {
+  const q = searchQuery.value.trim()
+  if (!q) return
+
+  searching.value = true
+  try {
+    const res = await api.rating.listTeachers({ q, sort: 'reviews', pageSize: 30 })
+    const data = res.data?.data
+    searchResults.value = (data?.list ?? []).map(mapTeacher)
+    searchTotal.value = data?.total ?? 0
+  } catch {
+    searchResults.value = []
+    searchTotal.value = 0
+  } finally {
+    searching.value = false
+  }
+}
+
+function clearSearch() {
+  searchQuery.value = ''
+  searchResults.value = []
+  searchTotal.value = 0
+}
+
+function navigateToTeacher(id: number) {
+  router.push(`/teachers/${id}`)
+}
+
+onMounted(loadPopularTeachers)
+
+onBeforeUnmount(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+})
+
+const displayTeachers = computed(() =>
+  searchQuery.value.trim() ? searchResults.value : popularTeachers.value,
+)
+
+const showEmpty = computed(
+  () => !loading.value && !searching.value && displayTeachers.value.length === 0,
+)
 </script>
 
 <template>
-    <main
-        class="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.18),_transparent_34%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-6 py-16"
-    >
-        <section
-            class="mx-auto max-w-5xl rounded-[36px] border border-indigo-100 bg-white/90 p-8 shadow-[0_32px_120px_rgba(79,70,229,0.12)] backdrop-blur"
+  <div class="min-h-screen bg-bg-base">
+    <div class="animate-fade-in max-w-4xl mx-auto py-10 px-4 sm:px-6">
+      <!-- Header -->
+      <header class="text-center mb-10">
+        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight gradient-text">
+          {{ t('teaching.title') }}
+        </h1>
+        <p class="mt-2 text-base text-text-secondary">
+          {{ t('teaching.hub.description') }}
+        </p>
+      </header>
+
+      <!-- Search -->
+      <div class="relative mb-10 max-w-2xl mx-auto">
+        <Search
+          class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted"
+          :size="20"
+        />
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="w-full pl-12 pr-12 py-4 text-base rounded-xl outline-none
+                 bg-bg-glass-heavy backdrop-blur-sm shadow-card
+                 text-text-primary placeholder:text-text-muted
+                 transition-all duration-base ease-smooth
+                 focus:shadow-glow-primary focus:ring-1 focus:ring-primary/30"
+          :placeholder="t('teaching.hub.searchPlaceholder')"
+          @input="handleSearchInput"
+        />
+        <button
+          v-if="searchQuery"
+          class="absolute right-4 top-1/2 -translate-y-1/2 p-0 text-text-muted hover:text-text-primary transition-colors duration-fast"
+          @click="clearSearch"
         >
-            <div class="grid gap-10 lg:grid-cols-[1.2fr_0.8fr]">
-                <div>
-                    <p
-                        class="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-indigo-600"
-                    >
-                        Teacher Hub
-                    </p>
-                    <h1
-                        class="m-0 text-4xl font-black tracking-tight text-slate-900"
-                    >
-                        教师主页正在建设中
-                    </h1>
-                    <p
-                        class="mt-4 max-w-2xl text-base leading-7 text-slate-600"
-                    >
-                        当前已经保留了教师详情页路由，但聚合入口还没有最终完成。这里先提供稳定占位页，避免用户被带到无关页面。
-                    </p>
+          <X :size="18" />
+        </button>
+      </div>
 
-                    <div class="mt-8 flex flex-wrap gap-3">
-                        <RouterLink
-                            to="/courses"
-                            class="rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white no-underline transition-opacity hover:opacity-90"
-                        >
-                            先去看课程列表
-                        </RouterLink>
-                        <RouterLink
-                            to="/review"
-                            class="rounded-full border border-indigo-200 px-5 py-2.5 text-sm font-medium text-indigo-700 no-underline transition-colors hover:border-indigo-500 hover:text-indigo-600"
-                        >
-                            返回评课中心
-                        </RouterLink>
-                    </div>
-                </div>
+      <!-- Section title -->
+      <h2 v-if="!searchQuery.trim()" class="text-xl font-bold mb-6 gradient-text inline-block">
+        {{ t('teaching.hub.popular') }}
+      </h2>
+      <h2 v-else class="text-xl font-bold mb-6 text-text-primary">
+        {{ t('teaching.hub.searchResults') }}
+      </h2>
 
-                <div class="space-y-4">
-                    <article
-                        v-for="item in highlights"
-                        :key="item.title"
-                        class="rounded-2xl border border-slate-200 bg-slate-50/80 p-5"
-                    >
-                        <component
-                            :is="item.icon"
-                            :size="20"
-                            class="text-indigo-600"
-                        />
-                        <h2 class="mt-4 mb-1 text-lg font-bold text-slate-900">
-                            {{ item.title }}
-                        </h2>
-                        <p class="m-0 text-sm leading-7 text-slate-600">
-                            {{ item.description }}
-                        </p>
-                    </article>
-                </div>
+      <!-- Loading -->
+      <div v-if="loading || searching" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          v-for="i in 6"
+          :key="i"
+          class="h-[140px] rounded-xl bg-[length:200%_100%] animate-shimmer"
+          :style="{ backgroundImage: 'linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%)' }"
+        />
+      </div>
+
+      <!-- Teacher cards -->
+      <div v-else-if="displayTeachers.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          v-for="(teacher, idx) in displayTeachers"
+          :key="teacher.teacherID"
+          class="glass-card shadow-card rounded-xl p-5 cursor-pointer hover-lift stagger-item"
+          :style="{ animationDelay: `${idx * 60}ms` }"
+          @click="navigateToTeacher(teacher.teacherID)"
+        >
+          <div class="flex items-center gap-3 mb-3">
+            <div class="p-[3px] bg-gradient-to-br from-primary to-accent rounded-full shrink-0">
+              <div class="w-10 h-10 bg-bg-card rounded-full flex items-center justify-center">
+                <User :size="18" class="text-text-muted" />
+              </div>
             </div>
-        </section>
-    </main>
+            <div class="min-w-0">
+              <h3 class="text-sm font-bold text-text-primary m-0 truncate">{{ teacher.teacherName }}</h3>
+              <span v-if="teacher.departmentName" class="text-xs text-text-muted">{{ teacher.departmentName }}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-text-secondary">
+            <span v-if="teacher.avgRating" class="flex items-center gap-1 font-semibold text-primary">
+              <Star :size="12" fill="currentColor" />
+              {{ teacher.avgRating.toFixed(1) }}
+            </span>
+            <span class="flex items-center gap-1">
+              <BookOpen :size="12" />
+              {{ teacher.reviewCount }} {{ t('teaching.hub.reviewUnit') }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty -->
+      <div v-else-if="showEmpty" class="text-center py-12 text-text-muted">
+        <User :size="48" class="mx-auto mb-4 opacity-30" />
+        <p>{{ searchQuery.trim() ? t('teaching.hub.noResults') : t('teaching.hub.noTeachers') }}</p>
+      </div>
+    </div>
+  </div>
 </template>

@@ -92,6 +92,7 @@ type SchoolConfig struct {
 	SchoolID           string
 	SchoolName         string
 	VerificationMethod string
+	ApprovalPolicy     string // auto: 认证通过即批准; manual: 需人工审核
 	LDAPConfig         json.RawMessage
 	AcademicDBTable    *string
 	ConsentText        *string
@@ -99,6 +100,11 @@ type SchoolConfig struct {
 	Enabled            bool
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+// IsAutoApprove 是否自动批准（不需要人工审核）
+func (sc SchoolConfig) IsAutoApprove() bool {
+	return sc.ApprovalPolicy == "auto" || sc.ApprovalPolicy == ""
 }
 
 // AcademicStudent 教务系统学生记录
@@ -128,4 +134,14 @@ type SystemConfig struct {
 	Value       string
 	Description *string
 	UpdatedAt   time.Time
+}
+
+// UserSurface 用户聚合信息（供前端单次请求获取全部状态）
+type UserSurface struct {
+	DisplayName        string   `json:"displayName"`
+	AvatarURL          string   `json:"avatarURL,omitempty"`
+	IdentityStatus     string   `json:"identityStatus"`
+	VerificationStatus string   `json:"verificationStatus"`
+	PhoneBound         bool     `json:"phoneBound"`
+	Capabilities       []string `json:"capabilities"`
 }

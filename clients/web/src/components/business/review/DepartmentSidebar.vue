@@ -1,7 +1,7 @@
 <template>
   <aside class="flex flex-col gap-1 overflow-y-auto">
     <!-- 分类标签 -->
-    <div class="flex gap-1.5 overflow-x-auto pb-2 mb-2 border-b border-border scrollbar-none">
+    <div class="flex gap-1.5 overflow-x-auto pb-2 mb-2 border-b border-border-light scrollbar-none">
       <button
         v-for="cat in allCategories"
         :key="cat.id"
@@ -154,7 +154,7 @@ async function toggleDept(id: number) {
 
   // 已有缓存则不重新请求
   if (deptCourses.value.has(id)) return
-  // H-20 & M-13: 正在加载时不重复请求
+  // 正在加载时不重复请求
   if (loadingDepts.value.has(id)) return
 
   const version = categoryVersion

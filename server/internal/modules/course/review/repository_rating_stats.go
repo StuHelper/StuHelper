@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -88,7 +89,14 @@ func (r *Repository) ListCourseRatingStats(ctx context.Context, courseID int64) 
 	return stats, rows.Err()
 }
 
-// RefreshCourseRatingStatsTx 在事务内刷新课程评分统计
+// RefreshCourseRatingStats 在独立事务中刷新课程评分统计。
+func (r *Repository) RefreshCourseRatingStats(ctx context.Context, courseID int64) error {
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		return r.RefreshCourseRatingStatsTx(ctx, tx, courseID)
+	})
+}
+
+// RefreshCourseRatingStatsTx 在事务内刷新课程评分统计。
 func (r *Repository) RefreshCourseRatingStatsTx(ctx context.Context, tx pgx.Tx, courseID int64) error {
 	rows, err := tx.Query(ctx, `
 		WITH base AS (
@@ -135,7 +143,7 @@ func (r *Repository) RefreshCourseRatingStatsTx(ctx context.Context, tx pgx.Tx, 
 		ratingDist   []byte
 	}
 
-	var statRows []statRow
+	statRows := make([]statRow, 0, 20)
 	for rows.Next() {
 		var s statRow
 		if err := rows.Scan(&s.termID, &s.dimensionKey, &s.avgRating, &s.ratingCount, &s.ratingDist); err != nil {
@@ -147,41 +155,35 @@ func (r *Repository) RefreshCourseRatingStatsTx(ctx context.Context, tx pgx.Tx, 
 		return fmt.Errorf("RefreshCourseRatingStatsTx rows iteration: %w", err)
 	}
 
-	for _, s := range statRows {
+	if _, err := tx.Exec(ctx, `DELETE FROM course_rating_stats WHERE course_id = $1`, courseID); err != nil {
+		return fmt.Errorf("RefreshCourseRatingStatsTx cleanup existing: %w", err)
+	}
+	if len(statRows) == 0 {
+		return nil
+	}
+
+	args := make([]any, 0, len(statRows)*7)
+	var query strings.Builder
+	query.WriteString(`
+		INSERT INTO course_rating_stats (
+			id, course_id, term_id, dimension_key, avg_rating, rating_count, rating_dist, updated_at
+		) VALUES
+	`)
+	for i, s := range statRows {
 		newID, err := id.New()
 		if err != nil {
 			return fmt.Errorf("RefreshCourseRatingStatsTx generate id: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO course_rating_stats (id, course_id, term_id, dimension_key, avg_rating, rating_count, rating_dist, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-			ON CONFLICT (course_id, term_id, dimension_key)
-			DO UPDATE SET
-				avg_rating = EXCLUDED.avg_rating,
-				rating_count = EXCLUDED.rating_count,
-				rating_dist = EXCLUDED.rating_dist,
-				updated_at = NOW()
-		`, newID, courseID, s.termID, s.dimensionKey, s.avgRating, s.ratingCount, s.ratingDist); err != nil {
-			return fmt.Errorf("RefreshCourseRatingStatsTx upsert: %w", err)
+		if i > 0 {
+			query.WriteString(",")
 		}
+		base := i * 7
+		fmt.Fprintf(&query, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,NOW())", base+1, base+2, base+3, base+4, base+5, base+6, base+7)
+		args = append(args, newID, courseID, s.termID, s.dimensionKey, s.avgRating, s.ratingCount, s.ratingDist)
 	}
 
-	if len(statRows) > 0 {
-		keepKeys := make([]string, 0, len(statRows))
-		for _, s := range statRows {
-			keepKeys = append(keepKeys, s.dimensionKey)
-		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM course_rating_stats
-			WHERE course_id = $1 AND dimension_key != ALL($2::text[])
-		`, courseID, keepKeys); err != nil {
-			return fmt.Errorf("RefreshCourseRatingStatsTx cleanup: %w", err)
-		}
-		return nil
-	}
-
-	if _, err := tx.Exec(ctx, `DELETE FROM course_rating_stats WHERE course_id = $1`, courseID); err != nil {
-		return fmt.Errorf("RefreshCourseRatingStatsTx cleanup all: %w", err)
+	if _, err := tx.Exec(ctx, query.String(), args...); err != nil {
+		return fmt.Errorf("RefreshCourseRatingStatsTx insert: %w", err)
 	}
 	return nil
 }

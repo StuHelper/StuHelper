@@ -23,7 +23,7 @@ export function useAsyncData<T>(
   const loading = ref(false)
   const error = ref<Error | null>(null)
 
-  // S-3: 组件/scope 销毁后不再写入 refs，防止异步操作写入已卸载组件的响应式状态
+  // scope 销毁后标记为非活跃，异步回调中跳过状态写入
   let isActive = true
   onScopeDispose(() => {
     isActive = false

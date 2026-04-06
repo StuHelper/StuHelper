@@ -43,7 +43,7 @@ export function useCountUp(
     rafId = requestAnimationFrame(step)
   }
 
-  // L-15: watch 移入 onMounted 内，确保仅在组件挂载后才监听变化
+  // watch 移入 onMounted 内，确保仅在组件挂载后才监听变化
   onMounted(() => {
     const targetValue = typeof target === 'function' ? target() : target
     animate(0, targetValue)

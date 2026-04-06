@@ -1,77 +1,92 @@
-# OpenAPI 类型安全 API 客户端使用指南
+# 主站 API 使用指南
 
-## 生成类型
+## 调用链
 
-当后端 OpenAPI 规范更新后，运行：
-
-```bash
-pnpm api:generate
+```
+@/api/index.ts → @stuhelper/shared/api → openapi-fetch
 ```
 
-## 使用示例
+## 入口
 
-### 1. 课程 API
-
-```typescript
-import { courseApi } from '@/api'
-
-// 获取课程列表
-const { data, error } = await courseApi.getCourses({ page: 1, limit: 20 })
-if (data) {
-  console.log(data) // 完整类型提示
-}
-
-// 搜索课程
-const result = await courseApi.searchCourses('数据结构')
-
-// 获取单个课程
-const course = await courseApi.getCourse('course-id')
+```ts
+import { api } from "@/api";
 ```
 
-### 2. 评课 API
+按域拆分：`api.auth` / `api.course` / `api.review` / `api.user` / `api.identity` / `api.notification` / `api.admin` / `api.draft` / `api.reply` / `api.rating`
 
-```typescript
-import { reviewApi } from '@/api'
+## 示例
 
-// 获取课程评价
-const reviews = await reviewApi.getReviews('course-id', { page: 1 })
+### 登录
 
-// 创建评价
-const newReview = await reviewApi.createReview({
-  courseId: 'course-id',
-  rating: 5,
-  content: '很好的课程'
-})
-
-// 更新评价
-await reviewApi.updateReview('review-id', { rating: 4 })
-
-// 删除评价
-await reviewApi.deleteReview('review-id')
+```ts
+const { data } = await api.auth.login(redirect);
+if (data?.url) window.location.href = data.url;
 ```
 
-### 3. 认证 API
+### 当前用户
 
-```typescript
-import { authApi } from '@/api'
-
-// 登录
-const { data } = await authApi.login({
-  email: 'user@example.com',
-  password: 'password'
-})
-
-// 获取当前用户
-const user = await authApi.me()
-
-// 登出
-await authApi.logout()
+```ts
+const { data } = await api.auth.me();
 ```
 
-## 优势
+### 手机验证码
 
-✅ **类型安全**：所有请求和响应都有完整的 TypeScript 类型
-✅ **自动补全**：IDE 自动提示所有可用的 API 端点和参数
-✅ **编译时检查**：路径拼写错误在编译时就能发现
-✅ **零维护**：API 变更时只需重新生成类型
-✅ **统一管理**：所有 API 调用都通过类型安全的客户端
+```ts
+await api.auth.requestPhoneOTP("13800138000");
+await api.auth.verifyPhoneOTP("13800138000", "123456");
+```
+
+### 搜索课程
+
+```ts
+const { data } = await api.course.searchCourses("数据结构", { pageSize: 20 });
+```
+
+### 评课列表
+
+```ts
+const { data } = await api.review.getReviews(1001, { page: 1, pageSize: 20, sort: "time" });
+```
+
+### 发评课
+
+```ts
+await api.review.createReview({
+  courseID: 1001,
+  termID: "2025-2",
+  title: "课程体验",
+  content: "整体节奏不错，作业量适中。",
+  ratings: { teaching: 4, grading: 4, workload: 3 },
+});
+```
+
+### 实名认证
+
+```ts
+await api.identity.submitIdentity({
+  realName: "张三",
+  docType: "MAINLAND_ID",
+  docNumber: "110101199001011234",
+});
+```
+
+### 学生认证
+
+```ts
+await api.identity.verifyStudent({
+  schoolID: "buaa",
+  verificationMethod: "manual",
+  consentAccepted: true,
+  manualFormData: { studentId: "23373333" },
+});
+```
+
+## 错误处理
+
+`authenticatedFetch` 已处理 Cookie 携带、CSRF 注入、401 自动 refresh、统一 `ApiError`。页面只需处理业务错误。
+
+## 规则
+
+1. 先改 OpenAPI，再改代码
+2. 页面只从 `api` 对象调接口
+3. 不手写重复类型

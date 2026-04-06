@@ -11,6 +11,7 @@ import {
     createAdminApi,
     createRatingApi,
     createReplyApi,
+    NOTIFICATION_STREAM_PATH,
 } from "@stuhelper/shared/api";
 
 // 导出统一的 API 对象
@@ -30,3 +31,4 @@ export const api = {
 
 // 导出类型
 export type { components } from "@stuhelper/shared";
+export { NOTIFICATION_STREAM_PATH };

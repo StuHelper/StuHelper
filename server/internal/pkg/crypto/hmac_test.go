@@ -93,3 +93,15 @@ func TestHMACHashShort(t *testing.T) {
 		})
 	}
 }
+
+func TestGetHMACKeyReturnsCopy(t *testing.T) {
+	require.NoError(t, InitHMACKey("test-secret-key", false))
+
+	key := GetHMACKey()
+	require.NotNil(t, key)
+	original := append([]byte(nil), key...)
+
+	key[0] ^= 0xFF
+
+	assert.Equal(t, original, GetHMACKey())
+}

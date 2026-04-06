@@ -16,43 +16,67 @@
     {
       "path": "pages/course/index",
       "style": {
-        "navigationBarTitleText": "课程列表"
+        "navigationBarTitleText": "Courses"
       }
     },
     {
       "path": "pages/course/detail",
       "style": {
-        "navigationBarTitleText": "课程详情"
+        "navigationBarTitleText": "Course Details"
       }
     },
     {
       "path": "pages/review/index",
       "style": {
-        "navigationBarTitleText": "评课广场"
+        "navigationBarTitleText": "Review Square"
+      }
+    },
+    {
+      "path": "pages/review/post",
+      "style": {
+        "navigationBarTitleText": "Post Review"
       }
     },
     {
       "path": "pages/teacher/profile",
       "style": {
-        "navigationBarTitleText": "教师主页"
+        "navigationBarTitleText": "Teacher Profile"
       }
     },
     {
       "path": "pages/user/index",
       "style": {
-        "navigationBarTitleText": "个人中心"
+        "navigationBarTitleText": "Profile"
       }
     },
     {
       "path": "pages/user/notifications",
       "style": {
-        "navigationBarTitleText": "消息通知"
+        "navigationBarTitleText": "Notifications"
+      }
+    },
+    {
+      "path": "pages/user/reviews",
+      "style": {
+        "navigationBarTitleText": "My Reviews"
+      }
+    },
+    {
+      "path": "pages/user/votes",
+      "style": {
+        "navigationBarTitleText": "My Votes"
+      }
+    },
+    {
+      "path": "pages/user/favorites",
+      "style": {
+        "navigationBarTitleText": "My Favorites"
       }
     },
     {
       "path": "pages/auth/login",
       "style": {
-        "navigationBarTitleText": "登录",
+        "navigationBarTitleText": "Sign In",
         "navigationStyle": "custom"
       }
     }
@@ -65,25 +89,25 @@
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "首页",
+        "text": "Home",
         "iconPath": "static/tabbar/home.png",
         "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/course/index",
-        "text": "课程",
+        "text": "Courses",
         "iconPath": "static/tabbar/course.png",
         "selectedIconPath": "static/tabbar/course-active.png"
       },
       {
         "pagePath": "pages/review/index",
-        "text": "评课",
+        "text": "Reviews",
         "iconPath": "static/tabbar/review.png",
         "selectedIconPath": "static/tabbar/review-active.png"
       },
       {
         "pagePath": "pages/user/index",
-        "text": "我的",
+        "text": "Profile",
         "iconPath": "static/tabbar/user.png",
         "selectedIconPath": "static/tabbar/user-active.png"
       }

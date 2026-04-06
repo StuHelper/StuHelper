@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	appmiddleware "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -32,33 +32,6 @@ func ptr[T any](value T) *T {
 	return &value
 }
 
-type allowAllPermissionService struct{}
-
-func (allowAllPermissionService) GetInternalUserID(context.Context, string) (int64, error) {
-	return 1, nil
-}
-
-func (allowAllPermissionService) GetEffectivePermissions(context.Context, int64) ([]rbac.EffectivePermission, error) {
-	return []rbac.EffectivePermission{
-		{PermissionID: 1, Name: "user:identity:read", Granted: true},
-		{PermissionID: 2, Name: "user:identity:review", Granted: true},
-		{PermissionID: 3, Name: "user:student:read", Granted: true},
-		{PermissionID: 4, Name: "user:student:review", Granted: true},
-		{PermissionID: 5, Name: "user:school:read", Granted: true},
-		{PermissionID: 6, Name: "user:school:update", Granted: true},
-		{PermissionID: 7, Name: "user:system:read", Granted: true},
-		{PermissionID: 8, Name: "user:system:update", Granted: true},
-	}, nil
-}
-
-func (allowAllPermissionService) CheckPermission(context.Context, int64, string, *string) (bool, error) {
-	return true, nil
-}
-
-func (allowAllPermissionService) CheckPermissionScope(context.Context, rbac.EffectivePermission, int64, *string) (bool, error) {
-	return true, nil
-}
-
 func setupAdminHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engine {
 	t.Helper()
 
@@ -69,16 +42,24 @@ func setupAdminHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engi
 	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	h := NewHandler(svc)
+	h := NewHandler(svc, nil, nil, nil, nil)
 	r := gin.New()
 	api := r.Group("/api/v1")
 	admin := api.Group("/admin")
+	// 模拟 AuthMiddleware 注入用户信息和全部能力
 	admin.Use(func(c *gin.Context) {
 		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+		caps := capability.ExpandRoles([]string{"super_admin"})
+		c.Set(appmiddleware.CtxKeyCapabilities, caps)
+		// HasCapability 从 CtxKeyCapabilitySet (map) 做 O(1) 查找
+		capSet := make(map[string]struct{}, len(caps))
+		for _, cap := range caps {
+			capSet[cap] = struct{}{}
+		}
+		c.Set(appmiddleware.CtxKeyCapabilitySet, capSet)
 		c.Next()
 	})
-	var permissionService rbac.PermissionService = allowAllPermissionService{}
-	h.RegisterAdminRoutes(admin, permissionService)
+	h.RegisterAdminRoutes(admin)
 
 	return r
 }
@@ -98,7 +79,7 @@ func setupUserHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engin
 	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	h := NewHandler(svc)
+	h := NewHandler(svc, nil, nil, nil, nil)
 	r := gin.New()
 	api := r.Group("/api/v1")
 	authMW := func(c *gin.Context) {
@@ -390,6 +371,7 @@ func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T
 }
 
 func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
+	getProfileCalls := 0
 	repo := &mockRepo{
 		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
 			assert.Equal(t, "external-user-123", externalID)
@@ -405,6 +387,7 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 				SchoolID:           "10006",
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
+				ApprovalPolicy:     "manual",
 				ManualFormFields:   json.RawMessage(`[{"key":"studentID","label":"学号","type":"text","required":true}]`),
 				Enabled:            true,
 			}, nil
@@ -415,6 +398,10 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 			return nil
 		},
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
+			getProfileCalls++
+			if getProfileCalls == 1 {
+				return nil, nil
+			}
 			schoolID := "10006"
 			method := VerifyMethodManual
 			activeStudentID := "20240001"

@@ -4,9 +4,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose } from 'vue'
 import type { Notification as AppNotification } from '@/types/notification'
-import { api } from '@/api'
+import { api, NOTIFICATION_STREAM_PATH } from '@/api'
 
-// L-31: 提取魔法数字为命名常量
+// 提取魔法数字为命名常量
 const POLL_INTERVAL_MS = 30_000
 const MAX_POLL_FAILURES = 5
 
@@ -16,7 +16,7 @@ export const useNotificationStore = defineStore('notification', () => {
   const total = ref(0)
   const loading = ref(false)
   const hasMore = ref(true)
-  // S-6: 通知加载错误状态
+  // 通知加载错误状态
   const fetchError = ref<Error | null>(null)
 
   // 未读数量
@@ -26,13 +26,15 @@ export const useNotificationStore = defineStore('notification', () => {
   let pollTimer: ReturnType<typeof setInterval> | null = null
   // 连续失败计数器
   let consecutiveFailures = 0
-  // M-76: 轮询是否应继续的标志
+  // 轮询是否应继续的标志
   let pollingActive = false
+  // SSE 连接
+  let eventSource: EventSource | null = null
 
   // 是否有未读通知
   const hasUnread = computed(() => unreadCount.value > 0)
 
-  // L-55: 参数验证
+  // 参数验证
   const fetchNotifications = async (page = 1, pageSize = 20) => {
     if (page < 1) page = 1
     if (pageSize < 1) pageSize = 20
@@ -70,7 +72,7 @@ export const useNotificationStore = defineStore('notification', () => {
       consecutiveFailures = 0
     } catch {
       consecutiveFailures++
-      // M-76: 仅在轮询仍活跃时才因失败停止
+      // 仅在轮询仍活跃时才因失败停止
       if (consecutiveFailures >= MAX_POLL_FAILURES && pollingActive) {
         if (import.meta.env.DEV) {
           console.warn(`[Notification] ${MAX_POLL_FAILURES} consecutive poll failures, stopping`)
@@ -80,7 +82,7 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
-  // M-01: 标记单条已读 - API 失败时异常自然上抛，不更新本地状态，保持前后端一致
+  // 标记单条已读 - API 失败时异常自然上抛，不更新本地状态，保持前后端一致
   const markAsRead = async (id: string) => {
     await api.notification.markAsRead(id)
     const notification = notifications.value.find(n => n.id === id)
@@ -99,7 +101,7 @@ export const useNotificationStore = defineStore('notification', () => {
     unreadCount.value = 0
   }
 
-  // M-09: 开始轮询，支持最大轮询次数
+  // 开始轮询，支持最大轮询次数
   const startPolling = (interval = POLL_INTERVAL_MS) => {
     stopPolling()
     pollingActive = true
@@ -120,6 +122,51 @@ export const useNotificationStore = defineStore('notification', () => {
     if (pollTimer) {
       clearInterval(pollTimer)
       pollTimer = null
+    }
+    if (eventSource) {
+      eventSource.close()
+      eventSource = null
+    }
+  }
+
+  // SSE 连接：尝试 EventSource，失败回退轮询
+  const connectSSE = () => {
+    if (typeof EventSource === 'undefined') {
+      startPolling()
+      return
+    }
+
+    stopPolling()
+    pollingActive = true
+    fetchUnreadCount()
+
+    const url = NOTIFICATION_STREAM_PATH
+    eventSource = new EventSource(url, { withCredentials: true })
+
+    eventSource.addEventListener('unread_count', (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (typeof data.count === 'number') {
+          unreadCount.value = data.count
+          consecutiveFailures = 0
+        }
+      } catch { /* ignore malformed SSE data */ }
+    })
+
+    eventSource.addEventListener('notification', () => {
+      // 收到新通知事件，刷新未读数
+      fetchUnreadCount()
+    })
+
+    eventSource.onerror = () => {
+      // SSE 连接失败，回退到轮询
+      if (eventSource) {
+        eventSource.close()
+        eventSource = null
+      }
+      if (pollingActive) {
+        startPolling()
+      }
     }
   }
 
@@ -151,6 +198,7 @@ export const useNotificationStore = defineStore('notification', () => {
     markAllAsRead,
     startPolling,
     stopPolling,
+    connectSSE,
     reset
   }
 })

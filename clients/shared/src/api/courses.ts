@@ -1,53 +1,33 @@
-import type { ApiClient } from "./client";
+import type { ApiClient } from './client';
+import type { operations } from '../types/api.gen';
 
-export interface CourseListParams {
-    page?: number;
-    pageSize?: number;
-    limit?: number;
-    q?: string;
-    departmentID?: number;
-    category?: string;
-    sort?: 'name' | 'credits' | 'reviewCount';
-}
-
-export interface CourseSearchParams {
-    page?: number;
-    pageSize?: number;
-    limit?: number;
-}
+export type CourseListParams = operations['getCourses']['parameters']['query'];
+export type CourseSearchParams = operations['searchCourses']['parameters']['query'];
 
 export const createCourseApi = (client: ApiClient) => ({
     getDepartments: (params?: { category?: string }) =>
-        client.GET("/api/v1/course/departments", {
+        client.GET('/api/v1/course/departments', {
             params: { query: params },
         }),
 
-    getTerms: () => client.GET("/api/v1/course/terms"),
+    getTerms: () => client.GET('/api/v1/course/terms'),
 
-    getCategories: () => client.GET("/api/v1/course/categories"),
+    getCategories: () => client.GET('/api/v1/course/categories'),
 
-    getCourses: (params?: CourseListParams) => {
-        const { limit, pageSize, ...rest } = params ?? {};
-        return client.GET("/api/v1/course/courses", {
+    getCourses: (params?: CourseListParams) =>
+        client.GET('/api/v1/course/courses', {
             params: {
-                query: {
-                    ...rest,
-                    pageSize: pageSize ?? limit,
-                },
+                query: params,
             },
-        });
-    },
+        }),
 
-    searchCourses: (query: string, params?: number | CourseSearchParams, options?: { signal?: AbortSignal }) => {
+    searchCourses: (query: string, params?: number | Omit<CourseSearchParams, 'q'>, options?: { signal?: AbortSignal }) => {
         const normalized =
-            typeof params === "number"
+            typeof params === 'number'
                 ? { pageSize: params }
-                : {
-                      page: params?.page,
-                      pageSize: params?.pageSize ?? params?.limit,
-                  };
+                : params;
 
-        return client.GET("/api/v1/course/courses/search", {
+        return client.GET('/api/v1/course/courses/search', {
             params: {
                 query: {
                     q: query,
@@ -59,7 +39,7 @@ export const createCourseApi = (client: ApiClient) => ({
     },
 
     getCourse: (id: number) =>
-        client.GET("/api/v1/course/courses/{courseID}", { params: { path: { courseID: id } } }),
+        client.GET('/api/v1/course/courses/{courseID}', { params: { path: { courseID: id } } }),
 
-    getStats: () => client.GET("/api/v1/course/stats"),
+    getStats: () => client.GET('/api/v1/course/stats'),
 });

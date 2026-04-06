@@ -1,7 +1,8 @@
 # StuHelper Server Makefile
 
 .PHONY: help tidy fmt lint test test-coverage build run clean security ci \
-       bundle-spec lint-spec generate generate-go generate-ts check-drift
+       bundle-spec lint-spec generate generate-go generate-ts check-drift \
+       migrate-up migrate-down-one migrate-status migrate-verify seed-dev
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -11,7 +12,13 @@ BINARY_NAME := stuhelper
 BUILD_DIR := bin
 COVERAGE_FILE := coverage.out
 REDOCLY_VERSION := 2.21.1
-REDOCLY := npx --yes @redocly/cli@$(REDOCLY_VERSION)
+REDOCLY := pnpm --package=@redocly/cli@$(REDOCLY_VERSION) dlx redocly
+MIGRATE_VERSION := v4.18.3
+MIGRATE := go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+
+define require_database_url
+	@test -n "$(DATABASE_URL)" || (echo "ERROR: DATABASE_URL is required" && exit 1)
+endef
 
 help:
 	@echo "Usage: make [target]"
@@ -36,6 +43,13 @@ help:
 	@echo "  ci            - run all CI checks (lint, test, build, drift check)"
 	@echo "  security      - run security scan with gosec"
 	@echo "  clean         - remove build artifacts"
+	@echo ""
+	@echo "Database:"
+		@echo "  migrate-up       - apply all pending SQL migrations (requires DATABASE_URL)"
+		@echo "  migrate-down-one - rollback exactly one migration (requires DATABASE_URL; local only)"
+		@echo "  migrate-status   - show current migration version (requires DATABASE_URL)"
+		@echo "  migrate-verify   - apply -> rollback one -> re-apply migrations (requires DATABASE_URL)"
+		@echo "  seed-dev         - load development-only seed data (requires DATABASE_URL + psql)"
 
 tidy:
 	go mod tidy
@@ -45,6 +59,7 @@ fmt:
 	@command -v goimports >/dev/null 2>&1 && goimports -w -local git.stuhelper.com/StuHelper/StuHelper . || true
 
 lint:
+	@command -v golangci-lint >/dev/null 2>&1 || { echo "ERROR: golangci-lint not found. Install: https://golangci-lint.run/welcome/install/"; exit 1; }
 	golangci-lint run --timeout 5m
 
 test:
@@ -62,8 +77,7 @@ run:
 	go run ./cmd/stuhelper
 
 security:
-	@command -v gosec >/dev/null 2>&1 || go install github.com/securego/gosec/v2/cmd/gosec@latest
-	gosec -exclude-generated ./...
+	go run github.com/securego/gosec/v2/cmd/gosec@latest -exclude-generated ./...
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -93,3 +107,28 @@ generate: generate-go generate-ts
 
 check-drift: generate
 	@git diff --exit-code -- internal/api/gen/ ../clients/shared/src/types/api.gen.ts || (echo "ERROR: Generated code is out of sync with OpenAPI spec. Run 'make generate' and commit." && exit 1)
+
+# ── Database Migrations ──
+
+migrate-up:
+	$(call require_database_url)
+	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+
+migrate-down-one:
+	$(call require_database_url)
+	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" down 1
+
+migrate-status:
+	$(call require_database_url)
+	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" version
+
+migrate-verify:
+	$(call require_database_url)
+	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" down 1
+	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+
+seed-dev:
+	$(call require_database_url)
+	@command -v psql >/dev/null 2>&1 || (echo "ERROR: psql is required for seed-dev" && exit 1)
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f scripts/seed.sql

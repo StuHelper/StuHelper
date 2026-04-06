@@ -72,7 +72,7 @@ func (h *Handler) CreateTeacher(c *gin.Context) {
 
 // UpdateTeacher 更新教师
 func (h *Handler) UpdateTeacher(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("teacherID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid teacher ID")
 		return
@@ -103,7 +103,7 @@ func (h *Handler) UpdateTeacher(c *gin.Context) {
 
 // DeleteTeacher 删除教师
 func (h *Handler) DeleteTeacher(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := strconv.ParseInt(c.Param("teacherID"), 10, 64)
 	if err != nil || id <= 0 {
 		response.BadRequest(c, "invalid teacher ID")
 		return

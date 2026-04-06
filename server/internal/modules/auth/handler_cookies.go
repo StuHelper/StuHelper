@@ -10,10 +10,12 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
-// setTokenCookies 设置 Token Cookie
+const tokenCookieSameSite = http.SameSiteLaxMode
+
+// setTokenCookies 设置 Token Cookie（OIDC 登录，含 access + refresh）
 // 返回 error 而非直接写响应，由调用方统一处理错误响应，避免双重 HTTP 写入
 func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken string) error {
-	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetSameSite(tokenCookieSameSite)
 
 	csrfToken, err := middleware.GenerateCSRFToken()
 	if err != nil {
@@ -44,9 +46,33 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 	return nil
 }
 
+// setAccessTokenCookie 仅设置 access_token Cookie（手机验证码登录，不走 Zitadel 刷新）
+func (h *Handler) setAccessTokenCookie(c *gin.Context, accessToken string) error {
+	c.SetSameSite(tokenCookieSameSite)
+
+	csrfToken, err := middleware.GenerateCSRFToken()
+	if err != nil {
+		logger.FromGin(c).Error("failed to generate CSRF token", zap.Error(err))
+		return err
+	}
+	h.setCSRFCookie(c, csrfToken)
+
+	c.SetCookie(
+		middleware.CookieAccessToken,
+		accessToken,
+		h.tokenConfig.AccessTokenTTL,
+		"/",
+		h.tokenConfig.CookieDomain,
+		h.tokenConfig.CookieSecure,
+		true,
+	)
+
+	return nil
+}
+
 // clearTokenCookies 清除 Token Cookie
 func (h *Handler) clearTokenCookies(c *gin.Context) {
-	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetSameSite(tokenCookieSameSite)
 	c.SetCookie(
 		middleware.CookieAccessToken,
 		"",
@@ -69,6 +95,7 @@ func (h *Handler) clearTokenCookies(c *gin.Context) {
 }
 
 func (h *Handler) setCSRFCookie(c *gin.Context, token string) {
+	c.Header(middleware.HeaderCSRFToken, token)
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     middleware.CookieCSRFToken,
 		Value:    token,
@@ -77,11 +104,12 @@ func (h *Handler) setCSRFCookie(c *gin.Context, token string) {
 		Domain:   h.tokenConfig.CookieDomain,
 		Secure:   h.tokenConfig.CookieSecure,
 		HttpOnly: false,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: tokenCookieSameSite,
 	})
 }
 
 func (h *Handler) clearCSRFCookie(c *gin.Context) {
+	c.Header(middleware.HeaderCSRFToken, "")
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     middleware.CookieCSRFToken,
 		Value:    "",
@@ -90,6 +118,6 @@ func (h *Handler) clearCSRFCookie(c *gin.Context) {
 		Domain:   h.tokenConfig.CookieDomain,
 		Secure:   h.tokenConfig.CookieSecure,
 		HttpOnly: false,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: tokenCookieSameSite,
 	})
 }

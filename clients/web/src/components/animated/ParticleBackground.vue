@@ -12,10 +12,22 @@ const props = withDefaults(defineProps<Props>(), {
   color: '#60a5fa'
 })
 
+const prefersReducedMotion = typeof window !== 'undefined'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 const canvas = ref<HTMLCanvasElement>()
 let ctx: CanvasRenderingContext2D | null = null
 let particles: Particle[] = []
 let animationId: number
+let resizeFrame: number | null = null
+const CONNECTION_DISTANCE = 120
+const NEIGHBOR_OFFSETS = [
+  [0, 0],
+  [1, 0],
+  [0, 1],
+  [1, 1],
+  [1, -1],
+] as const
 
 interface Particle {
   x: number
@@ -33,7 +45,12 @@ const initCanvas = () => {
 
   resizeCanvas()
   createParticles()
-  animate()
+  if (!prefersReducedMotion) {
+    animate()
+  } else {
+    // Reduced motion: draw static particles once
+    drawFrame()
+  }
 }
 
 const resizeCanvas = () => {
@@ -53,25 +70,26 @@ const createParticles = () => {
       radius: Math.random() * 2 + 1
     }
 
-    gsap.to(particle, {
-      x: `+=${Math.random() * 200 - 100}`,
-      y: `+=${Math.random() * 200 - 100}`,
-      duration: Math.random() * 3 + 2,
-      repeat: -1,
-      yoyo: true,
-      ease: 'sine.inOut'
-    })
+    if (!prefersReducedMotion) {
+      gsap.to(particle, {
+        x: `+=${Math.random() * 200 - 100}`,
+        y: `+=${Math.random() * 200 - 100}`,
+        duration: Math.random() * 3 + 2,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut'
+      })
+    }
 
     particles.push(particle)
   }
 }
 
-const animate = () => {
+const drawFrame = () => {
   if (!ctx || !canvas.value) return
 
   ctx.clearRect(0, 0, canvas.value.width, canvas.value.height)
 
-  // 绘制粒子
   particles.forEach(p => {
     ctx!.beginPath()
     ctx!.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
@@ -79,30 +97,61 @@ const animate = () => {
     ctx!.fill()
   })
 
-  // 绘制连接线
-  for (let i = 0; i < particles.length; i++) {
-    for (let j = i + 1; j < particles.length; j++) {
-      const dx = particles[i].x - particles[j].x
-      const dy = particles[i].y - particles[j].y
-      const distance = Math.sqrt(dx * dx + dy * dy)
+  const grid = new Map<string, Particle[]>()
+  const cellSize = CONNECTION_DISTANCE
+  for (const particle of particles) {
+    const cellX = Math.floor(particle.x / cellSize)
+    const cellY = Math.floor(particle.y / cellSize)
+    const key = `${cellX}:${cellY}`
+    const bucket = grid.get(key)
+    if (bucket) bucket.push(particle)
+    else grid.set(key, [particle])
+  }
 
-      if (distance < 120) {
-        ctx!.beginPath()
-        ctx!.moveTo(particles[i].x, particles[i].y)
-        ctx!.lineTo(particles[j].x, particles[j].y)
-        ctx!.strokeStyle = `${props.color}${Math.floor((1 - distance / 120) * 50).toString(16).padStart(2, '0')}`
-        ctx!.lineWidth = 0.5
-        ctx!.stroke()
+  for (const [key, bucket] of grid) {
+    const [cellXRaw, cellYRaw] = key.split(':')
+    const cellX = Number(cellXRaw)
+    const cellY = Number(cellYRaw)
+
+    for (const [offsetX, offsetY] of NEIGHBOR_OFFSETS) {
+      const neighborBucket = grid.get(`${cellX + offsetX}:${cellY + offsetY}`)
+      if (!neighborBucket) continue
+
+      for (let i = 0; i < bucket.length; i++) {
+        const startIndex = offsetX === 0 && offsetY === 0 ? i + 1 : 0
+        for (let j = startIndex; j < neighborBucket.length; j++) {
+          const left = bucket[i]
+          const right = neighborBucket[j]
+          const dx = left.x - right.x
+          const dy = left.y - right.y
+          const distance = Math.hypot(dx, dy)
+
+          if (distance >= CONNECTION_DISTANCE) continue
+
+          ctx!.beginPath()
+          ctx!.moveTo(left.x, left.y)
+          ctx!.lineTo(right.x, right.y)
+          ctx!.strokeStyle = `${props.color}${Math.floor((1 - distance / CONNECTION_DISTANCE) * 50).toString(16).padStart(2, '0')}`
+          ctx!.lineWidth = 0.5
+          ctx!.stroke()
+        }
       }
     }
   }
+}
 
+const animate = () => {
+  drawFrame()
   animationId = requestAnimationFrame(animate)
 }
 
 const handleResize = () => {
-  resizeCanvas()
-  createParticles()
+  if (resizeFrame !== null) return
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = null
+    resizeCanvas()
+    createParticles()
+  })
 }
 
 onMounted(() => {
@@ -112,7 +161,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
-  cancelAnimationFrame(animationId)
+  if (animationId) cancelAnimationFrame(animationId)
+  if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
   gsap.killTweensOf(particles)
 })
 </script>

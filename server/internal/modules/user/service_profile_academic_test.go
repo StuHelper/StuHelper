@@ -326,7 +326,7 @@ func TestEnsureLDAPClientForSchool_UsesSchoolConfig(t *testing.T) {
 	assert.Equal(t, "ou=users,dc=example,dc=com", captured.BaseDN)
 }
 
-func TestEnsureLDAPClientForSchool_MissingConfigFailsEvenWhenLegacyClientExists(t *testing.T) {
+func TestEnsureLDAPClientForSchool_MissingConfigFailsEvenWhenDefaultClientExists(t *testing.T) {
 	service, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 	service.ldapClient = &fakeLDAPAuthClient{}

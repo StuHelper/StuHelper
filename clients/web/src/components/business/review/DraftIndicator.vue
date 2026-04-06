@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex items-center justify-between px-3 py-2 border border-border rounded-sm text-sm"
+    class="flex items-center justify-between px-3 py-2 rounded-sm text-sm"
     :class="{ 'opacity-70': saving }"
   >
     <div class="flex items-center">
@@ -21,7 +21,7 @@
         {{ t('review.draft.restore') }}
       </button>
       <button
-        class="px-2 py-1 text-xs rounded-sm cursor-pointer bg-transparent border border-border text-text-muted transition-all duration-fast ease-out hover:border-text-primary hover:text-text-primary"
+        class="px-2 py-1 text-xs rounded-sm cursor-pointer bg-transparent text-text-muted transition-all duration-fast ease-out hover:border-text-primary hover:text-text-primary"
         @click="$emit('delete')"
       >
         {{ t('common.actions.delete') }}

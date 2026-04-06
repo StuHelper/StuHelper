@@ -5,29 +5,25 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/jwt"
 )
 
-// Service Token 服务
+// Service Token 管理服务
+// Zitadel 架构下不再自行验证 JWT，验证由 OIDC 客户端的 VerifyIDToken 处理。
+// 本服务仅管理 Token 黑名单（紧急吊销）和 TTL 配置。
 type Service struct {
 	blacklist       *Blacklist
-	jwtValidator    *jwt.Validator
 	accessTokenTTL  time.Duration
 	refreshTokenTTL time.Duration
 }
 
 // ServiceConfig Token 服务配置
 type ServiceConfig struct {
-	RedisClient    *redis.Client
-	AccessTTL      int    // 秒
-	RefreshTTL     int    // 秒
-	JWTIssuer      string // Casdoor endpoint
-	JWTAudience    string // Client ID
-	JWTCertificate string // PEM 格式公钥
+	RedisClient *redis.Client
+	AccessTTL   int // 秒
+	RefreshTTL  int // 秒
 }
 
-// NewService 创建 Token 服务
+// NewService 创建 Token 管理服务
 func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.RedisClient == nil {
 		return nil, fmt.Errorf("token service: RedisClient is required")
@@ -38,32 +34,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.RefreshTTL <= 0 {
 		return nil, fmt.Errorf("token service: RefreshTTL must be > 0 (got %d)", cfg.RefreshTTL)
 	}
-	if cfg.JWTCertificate == "" {
-		return nil, fmt.Errorf("token service: JWTCertificate is required")
-	}
-
-	// 创建 JWT 验证器
-	jwtValidator, err := jwt.NewValidator(jwt.ValidatorConfig{
-		Issuer:      cfg.JWTIssuer,
-		Audience:    cfg.JWTAudience,
-		Certificate: cfg.JWTCertificate,
-		ClockSkew:   30 * time.Second,
-	})
-	if err != nil {
-		return nil, err
-	}
 
 	return &Service{
 		blacklist:       NewBlacklist(cfg.RedisClient),
-		jwtValidator:    jwtValidator,
 		accessTokenTTL:  time.Duration(cfg.AccessTTL) * time.Second,
 		refreshTokenTTL: time.Duration(cfg.RefreshTTL) * time.Second,
 	}, nil
-}
-
-// ValidateToken 验证 JWT Token
-func (s *Service) ValidateToken(tokenString string) (*jwt.Claims, error) {
-	return s.jwtValidator.Validate(tokenString)
 }
 
 // GetBlacklist 获取黑名单服务
@@ -79,4 +55,12 @@ func (s *Service) GetAccessTokenTTL() time.Duration {
 // GetRefreshTokenTTL 获取 Refresh Token TTL
 func (s *Service) GetRefreshTokenTTL() time.Duration {
 	return s.refreshTokenTTL
+}
+
+// Close 优雅关闭 token 服务的后台资源。
+func (s *Service) Close() {
+	if s == nil || s.blacklist == nil {
+		return
+	}
+	s.blacklist.Close()
 }

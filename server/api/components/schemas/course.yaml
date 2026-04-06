@@ -24,6 +24,9 @@ Course:
       type: string
     reviewCount:
       type: integer
+    isFavorited:
+      type: boolean
+      description: 当前登录用户是否已收藏（未登录时不返回此字段）
 
 Department:
   type: object
@@ -82,6 +85,13 @@ FavoriteCourse:
         favoritedAt:
           type: string
           format: date-time
+
+FavoriteStatusData:
+  type: object
+  required: [favorited]
+  properties:
+    favorited:
+      type: boolean
 
 CourseStats:
   type: object

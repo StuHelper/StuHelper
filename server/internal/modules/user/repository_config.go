@@ -12,13 +12,13 @@ import (
 func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error) {
 	var item SchoolConfig
 	err := r.db.QueryRow(ctx, `
-		SELECT school_id, school_name, verification_method, ldap_config,
+		SELECT school_id, school_name, verification_method, approval_policy, ldap_config,
 		       academic_db_table, consent_text, manual_form_fields,
 		       enabled, created_at, updated_at
 		FROM school_configs
 		WHERE school_id = $1
 	`, schoolID).Scan(
-		&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.LDAPConfig,
+		&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.ApprovalPolicy, &item.LDAPConfig,
 		&item.AcademicDBTable, &item.ConsentText, &item.ManualFormFields,
 		&item.Enabled, &item.CreatedAt, &item.UpdatedAt,
 	)
@@ -34,7 +34,7 @@ func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID string) (*Sch
 // ListSchoolConfigs 获取所有启用的学校认证配置
 func (r *Repository) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT school_id, school_name, verification_method, ldap_config,
+		SELECT school_id, school_name, verification_method, approval_policy, ldap_config,
 		       academic_db_table, consent_text, manual_form_fields,
 		       enabled, created_at, updated_at
 		FROM school_configs
@@ -50,7 +50,7 @@ func (r *Repository) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, err
 	for rows.Next() {
 		var item SchoolConfig
 		if err := rows.Scan(
-			&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.LDAPConfig,
+			&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.ApprovalPolicy, &item.LDAPConfig,
 			&item.AcademicDBTable, &item.ConsentText, &item.ManualFormFields,
 			&item.Enabled, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
@@ -64,7 +64,7 @@ func (r *Repository) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, err
 // ListAllSchoolConfigs 获取所有学校认证配置（含禁用，管理端用）
 func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT school_id, school_name, verification_method, ldap_config,
+		SELECT school_id, school_name, verification_method, approval_policy, ldap_config,
 		       academic_db_table, consent_text, manual_form_fields,
 		       enabled, created_at, updated_at
 		FROM school_configs
@@ -79,7 +79,7 @@ func (r *Repository) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, 
 	for rows.Next() {
 		var item SchoolConfig
 		if err := rows.Scan(
-			&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.LDAPConfig,
+			&item.SchoolID, &item.SchoolName, &item.VerificationMethod, &item.ApprovalPolicy, &item.LDAPConfig,
 			&item.AcademicDBTable, &item.ConsentText, &item.ManualFormFields,
 			&item.Enabled, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
@@ -99,11 +99,11 @@ func (r *Repository) UpdateSchoolConfig(ctx context.Context, config *SchoolConfi
 
 	_, err = r.db.Exec(ctx, `
 		UPDATE school_configs SET
-			school_name = $2, verification_method = $3, ldap_config = $4,
-			academic_db_table = $5, consent_text = $6, manual_form_fields = $7,
-			enabled = $8, updated_at = NOW()
+			school_name = $2, verification_method = $3, approval_policy = $4, ldap_config = $5,
+			academic_db_table = $6, consent_text = $7, manual_form_fields = $8,
+			enabled = $9, updated_at = NOW()
 		WHERE school_id = $1
-	`, config.SchoolID, config.SchoolName, config.VerificationMethod, config.LDAPConfig,
+	`, config.SchoolID, config.SchoolName, config.VerificationMethod, config.ApprovalPolicy, config.LDAPConfig,
 		normalizedAcademicDBTable, config.ConsentText, config.ManualFormFields,
 		config.Enabled,
 	)

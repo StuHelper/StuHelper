@@ -23,6 +23,7 @@ type Course struct {
 	Credits        float64 `json:"credits,omitempty"`
 	Category       string  `json:"category"`
 	ReviewCount    int     `json:"reviewCount"`
+	IsFavorited    *bool   `json:"isFavorited,omitempty"`
 }
 
 // CourseCategory 课程分类（后台可配置）

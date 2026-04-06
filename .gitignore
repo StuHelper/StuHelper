@@ -7,6 +7,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+.run/
+.tools/
 
 # ==================== IDE ====================
 .idea/
@@ -35,6 +37,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .pnpm-store/
+auto-imports.d.ts
+components.d.ts
 
 # ==================== Python / FastAPI ====================
 __pycache__/
@@ -73,6 +77,19 @@ server/tmp/
 # ==================== Docker ====================
 docker-compose.override.yml
 .docker/
+infra/zitadel/bootstrap/*.pat
+infra/generated/*
+!infra/generated/.gitkeep
+!infra/generated/observability/
+!infra/generated/observability/.gitkeep
+!infra/generated/observability/prometheus/
+!infra/generated/observability/prometheus/.gitkeep
+!infra/generated/observability/alertmanager/
+!infra/generated/observability/alertmanager/.gitkeep
+!infra/generated/postgres/
+!infra/generated/postgres/.gitkeep
+!infra/generated/postgres/wal-archive/
+!infra/generated/postgres/wal-archive/.gitkeep
 
 # ==================== 数据库与缓存 ====================
 *.db
@@ -80,6 +97,8 @@ docker-compose.override.yml
 *.sqlite3
 dump.rdb
 *.rdb
+backups/
+!backups/.gitkeep
 
 # ==================== 腾讯云 COS ====================
 cos-credentials.json
@@ -91,3 +110,4 @@ bin/
 storybook-static/
 test-results/
 playwright-report/
+*.zip

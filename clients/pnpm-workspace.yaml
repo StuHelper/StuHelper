@@ -1,5 +1,4 @@
 packages:
   - 'web'
-  - 'admin'
   - 'uniappx'
   - 'shared'

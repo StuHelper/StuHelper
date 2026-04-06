@@ -7,7 +7,7 @@ import i18n, { SUPPORTED_LOCALES, DEFAULT_LOCALE, LOCALE_STORAGE_KEY, type Suppo
 import { updateLocaleMeta } from '@/composables/usePageMeta'
 
 export const useLocaleStore = defineStore('locale', () => {
-  // M-44: 安全读取 localStorage，隐私模式下降级
+  // 安全读取 localStorage，隐私模式下降级
   let stored: string | null = null
   try {
     stored = localStorage.getItem(LOCALE_STORAGE_KEY)
@@ -15,7 +15,7 @@ export const useLocaleStore = defineStore('locale', () => {
     stored = null
   }
 
-  // L-18: 无效 locale 降级时输出警告
+  // 无效 locale 降级时输出警告
   if (stored && !SUPPORTED_LOCALES.includes(stored as SupportedLocale)) {
     if (import.meta.env.DEV) {
       console.warn(`[Locale] Invalid stored locale "${stored}", falling back to "${DEFAULT_LOCALE}"`)
@@ -52,7 +52,7 @@ export const useLocaleStore = defineStore('locale', () => {
     try {
       localStorage.setItem(LOCALE_STORAGE_KEY, newLocale)
     } catch {
-      // M-44: 隐私模式或存储已满，降级为内存存储
+      // 隐私模式或存储已满，降级为内存存储
     }
     i18n.global.locale.value = newLocale
     updateMetaTags(newLocale)

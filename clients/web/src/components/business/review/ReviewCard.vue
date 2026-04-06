@@ -1,6 +1,8 @@
 <template>
   <div
-    class="relative bg-bg-card border border-border rounded-xl p-5 transition-all duration-200 ease-smooth shadow-card hover:shadow-md hover:-translate-y-px"
+    ref="cardRef"
+    class="relative rounded-xl p-5 glass-card hover-lift"
+    :style="tiltStyle"
     :class="{
       'border-primary/30 shadow-glow-sm': isExpanded,
       'animate-shake': shaking,
@@ -86,7 +88,7 @@
     <div v-else-if="isPreviewMode" class="relative">
       <div class="text-sm text-text-secondary leading-relaxed break-words" v-text="previewContent" />
       <div class="relative mt-1 h-16 overflow-hidden select-none" aria-hidden="true">
-        <div class="absolute inset-0 bg-bg-card/60 backdrop-blur-md flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border/50">
+        <div class="absolute inset-0 bg-bg-card/60 backdrop-blur-md flex flex-col items-center justify-center gap-1.5 rounded-lg">
           <Lock :size="16" class="text-text-muted" />
           <span class="text-xs text-text-muted">{{ t('review.card.verifyToView') }}</span>
           <button
@@ -101,7 +103,7 @@
 
     <!-- 状态3: 正常显示（已登录 + published，或管理员查看 hidden） -->
     <template v-else>
-      <!-- H-10: 使用 v-text 防御 XSS，确保用户内容不被解析为 HTML -->
+      <!-- 使用 v-text 渲染用户内容，不解析 HTML -->
       <div
         class="text-sm text-text-secondary leading-relaxed cursor-pointer break-words"
         :class="{ 'line-clamp-3': !isExpanded && shouldTruncate }"
@@ -117,7 +119,7 @@
     </template>
 
     <!-- 表情评分指标 -->
-    <div v-if="displayRatings.length > 0" class="flex flex-wrap gap-3 mt-4 pt-3 border-t border-border">
+    <div v-if="displayRatings.length > 0" class="flex flex-wrap gap-3 mt-4 pt-3 border-t border-border-light">
       <span
         v-for="dim in displayRatings"
         :key="dim.key"
@@ -133,10 +135,11 @@
     <div
       v-if="showActions"
       class="flex items-center gap-1 mt-3"
-      :class="{ 'pt-3 border-t border-border': displayRatings.length === 0 }"
+      :class="{ 'pt-3 border-t border-border-light': displayRatings.length === 0 }"
     >
       <button
-        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover"
+        v-ripple
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover press-spring"
         :class="{ '!text-primary bg-primary/[0.08]': userVote === 'like' }"
         :aria-label="t('review.vote.like')"
         :aria-pressed="userVote === 'like'"
@@ -149,7 +152,8 @@
       </button>
 
       <button
-        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover"
+        v-ripple
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover press-spring"
         :class="{ '!text-primary bg-primary/[0.08]': userVote === 'dislike' }"
         :aria-label="t('review.vote.dislike')"
         :aria-pressed="userVote === 'dislike'"
@@ -160,17 +164,96 @@
       </button>
 
       <button
-        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover"
+        v-ripple
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-text-primary hover:bg-bg-hover press-spring"
         :aria-label="t('review.review.commentBtn')"
         @click="toggleExpand"
       >
         <MessageCircle :size="16" />
         <span class="text-xs font-mono">{{ replyCount }}</span>
       </button>
+
+      <!-- 举报按钮（非自己的评价） -->
+      <button
+        v-if="!props.isOwnReview"
+        v-ripple
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-warning hover:bg-warning/10 press-spring ml-auto"
+        :aria-label="t('review.review.reportBtn')"
+        @click="showReportMenu = !showReportMenu"
+      >
+        <Flag :size="16" />
+      </button>
+
+      <!-- 编辑按钮（自己的评价） -->
+      <button
+        v-if="props.isOwnReview && !editing"
+        v-ripple
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-primary hover:bg-primary/10 press-spring ml-auto"
+        :aria-label="t('review.review.editBtn')"
+        @click="startEditing"
+      >
+        <Pencil :size="16" />
+      </button>
+
+      <!-- 删除按钮（自己的评价） -->
+      <button
+        v-if="props.isOwnReview"
+        v-ripple
+        class="flex items-center gap-1.5 text-text-muted text-sm py-1.5 px-3 rounded-full transition-all duration-fast ease-smooth cursor-pointer hover:text-danger hover:bg-danger/10 press-spring"
+        :class="{ 'ml-auto': editing }"
+        :aria-label="t('review.review.deleteBtn')"
+        :disabled="deleting"
+        @click="handleDeleteOwn"
+      >
+        <Trash2 :size="16" />
+      </button>
+    </div>
+
+    <!-- 举报下拉菜单 -->
+    <div
+      v-if="showReportMenu"
+      class="mt-2 p-3 bg-bg-card rounded-lg border border-border-light shadow-card animate-fade-in"
+    >
+      <p class="text-xs font-medium text-text-primary m-0 mb-2">{{ t('review.review.reportReason') }}</p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          v-for="reason in reportReasons"
+          :key="reason"
+          class="text-xs px-3 py-1.5 rounded-full bg-bg-hover text-text-secondary cursor-pointer transition-colors hover:bg-warning/10 hover:text-warning"
+          :disabled="reporting"
+          @click="handleReport(reason)"
+        >
+          {{ t(`review.review.reportReasons.${reason}`) }}
+        </button>
+      </div>
+    </div>
+
+    <!-- 内联编辑表单 -->
+    <div v-if="editing" class="mt-3 p-3 bg-bg-base rounded-lg border border-border-light animate-fade-in">
+      <textarea
+        v-model="editContent"
+        class="w-full px-3 py-2 bg-transparent rounded-lg text-sm text-text-primary outline-none border border-border-light focus:border-primary resize-y min-h-[100px]"
+        :placeholder="t('review.review.editPlaceholder')"
+      />
+      <div class="flex justify-end gap-2 mt-2">
+        <button
+          class="px-4 py-1.5 text-xs rounded-full bg-transparent text-text-muted cursor-pointer transition-colors hover:text-text-primary"
+          @click="cancelEditing"
+        >
+          {{ t('common.actions.cancel') }}
+        </button>
+        <button
+          class="px-4 py-1.5 text-xs rounded-full bg-primary text-white cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
+          :disabled="saving || !editContent.trim()"
+          @click="handleSaveEdit"
+        >
+          {{ saving ? t('common.actions.saving') : t('common.actions.save') }}
+        </button>
+      </div>
     </div>
 
     <!-- 展开区域：回复列表 + 回复输入 -->
-    <div v-if="isExpanded" class="mt-4 pt-4 border-t border-border animate-fade-in-up">
+    <div v-if="isExpanded" class="mt-4 pt-4 border-t border-border-light animate-fade-in-up">
       <div v-if="repliesLoading" class="flex justify-center py-4">
         <div class="w-5 h-5 border-2 border-border border-t-primary rounded-full animate-spin" />
       </div>
@@ -221,34 +304,45 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, Lock, ShieldAlert } from 'lucide-vue-next'
+import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, Lock, ShieldAlert, Flag, Trash2 } from 'lucide-vue-next'
 import type { Review } from '@/types/review'
 import type { Reply } from '@/types/reply'
 import { api } from '@/api'
-import type { components } from '@stuhelper/shared'
 import { ADMIN_REVIEWS_MANAGE, hasCapability } from '@stuhelper/shared/constants'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
+import { use3DTilt } from '@/composables/use3DTilt'
 import ReplyCard from './ReplyCard.vue'
 import ReplyForm from './ReplyForm.vue'
 import ModerationDialog from './ModerationDialog.vue'
 import AdminEditDialog from './AdminEditDialog.vue'
-
-type VoteType = components['schemas']['VoteRequest']['voteType']
+import {
+  applyOptimisticVote,
+  createReviewVoteState,
+  getDisplayVoteCount,
+  type VoteType,
+} from './reviewVoteState'
 
 const props = defineProps<{
   review: Review
+  isOwnReview?: boolean
 }>()
 
 const emit = defineEmits<{
   moderated: []
+  deleted: [id: string]
+  updated: [id: string, content: string]
 }>()
 
 const { t, locale } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
+
+// 3D tilt effect
+const cardRef = ref<HTMLElement>()
+const { style: tiltStyle } = use3DTilt(cardRef, { maxTilt: 4, scale: 1.01, speed: 500 })
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const canManageReviews = computed(() =>
@@ -257,7 +351,7 @@ const canManageReviews = computed(() =>
 const isHidden = computed(() => props.review.status === 'hidden')
 const showActions = computed(() => isAuthenticated.value && !isHidden.value)
 
-// D8: Graded display - preview mode for logged-in but unverified users
+// Graded display - preview mode for logged-in but unverified users
 const verificationStore = useVerificationStore()
 const canViewFull = computed(() => canManageReviews.value || verificationStore.canViewFullReviews)
 const isPreviewMode = computed(() => isAuthenticated.value && !isHidden.value && !canViewFull.value)
@@ -280,6 +374,28 @@ const shouldTruncate = computed(() => (props.review.content?.length ?? 0) > 200)
 const showModerationDialog = ref(false)
 const showEditDialog = ref(false)
 
+// 举报 & 删除状态
+const showReportMenu = ref(false)
+const reporting = ref(false)
+const deleting = ref(false)
+const reportReasons = ['spam', 'inappropriate', 'harassment', 'false_info', 'other'] as const
+type ReportReason = typeof reportReasons[number]
+
+// 编辑状态
+const editing = ref(false)
+const editContent = ref('')
+const saving = ref(false)
+
+function startEditing() {
+  editContent.value = props.review.content
+  editing.value = true
+}
+
+function cancelEditing() {
+  editing.value = false
+  editContent.value = ''
+}
+
 // 投票状态
 const userVote = ref<VoteType | null>(null)
 const isVoting = ref(false)
@@ -288,18 +404,18 @@ const dislikeOffset = ref(0)
 const likeBounce = ref(false)
 const shaking = ref(false)
 
-// M-69: 评分值钳位，防止负值导致进度条异常
-const displayLikes = computed(() => Math.max(0, props.review.likeCount + likeOffset.value))
-const displayDislikes = computed(() => Math.max(0, props.review.dislikeCount + dislikeOffset.value))
+// 评分值钳位，防止负值导致进度条异常
+const displayLikes = computed(() => getDisplayVoteCount(props.review.likeCount, likeOffset.value))
+const displayDislikes = computed(() => getDisplayVoteCount(props.review.dislikeCount, dislikeOffset.value))
 
-// M-102: 表情评分指标映射，通过 i18n 获取 emoji（支持本地化）
+// 表情评分指标映射，通过 i18n 获取 emoji（支持本地化）
 const displayRatings = computed(() => {
   const ratings = props.review.ratings
   if (!ratings || Object.keys(ratings).length === 0) return []
   return Object.entries(ratings).map(([key, value]) => {
     const emoji = t(`review.ratingEmoji.icon.${key}`, '⭐')
     const label = t(`review.ratingEmoji.${key}`, t('review.ratingEmoji.fallback'))
-    // M-69: 钳位评分值，防止负值或超范围值
+    // 钳位评分值，防止负值或超范围值
     const clampedValue = Math.max(0, Math.min(5, value))
     return { key, emoji, label, value: clampedValue }
   })
@@ -341,7 +457,7 @@ watch(() => props.review, () => {
   replyCountDirty = false
 })
 
-// L-32: 定时器清理后置空，释放闭包引用
+// 定时器清理后置空，释放闭包引用
 let bounceTimer: ReturnType<typeof setTimeout> | null = null
 let shakeTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -358,40 +474,31 @@ async function handleVote(type: VoteType) {
   if (isVoting.value) return
   isVoting.value = true
 
-  const prevVote = userVote.value
-  const prevLikeOffset = likeOffset.value
-  const prevDislikeOffset = dislikeOffset.value
-  // M-103: 使用 review.id 判断是否应回滚，而非 voteVersion
+  const previousState = createReviewVoteState({
+    userVote: userVote.value,
+    likeOffset: likeOffset.value,
+    dislikeOffset: dislikeOffset.value,
+  })
+  const nextState = applyOptimisticVote(previousState, type)
+  const shouldBounceLike = previousState.userVote !== 'like' && nextState.userVote === 'like'
   const targetReviewId = props.review.id
 
-  // 乐观更新
-  if (userVote.value === type) {
-    userVote.value = null
-    if (type === 'like') likeOffset.value--
-    else dislikeOffset.value--
-  } else {
-    if (userVote.value) {
-      if (userVote.value === 'like') likeOffset.value--
-      else dislikeOffset.value--
-    }
-    userVote.value = type
-    if (type === 'like') {
-      likeOffset.value++
-      likeBounce.value = true
-      bounceTimer = setTimeout(() => { likeBounce.value = false; bounceTimer = null }, 300)
-    } else {
-      dislikeOffset.value++
-    }
+  userVote.value = nextState.userVote
+  likeOffset.value = nextState.likeOffset
+  dislikeOffset.value = nextState.dislikeOffset
+
+  if (shouldBounceLike) {
+    likeBounce.value = true
+    bounceTimer = setTimeout(() => { likeBounce.value = false; bounceTimer = null }, 300)
   }
 
   try {
     await api.review.voteReview(props.review.id, { voteType: type })
   } catch {
-    // M-103: review.id 变化后跳过回滚，确保只回滚同一条评论的投票
     if (props.review.id === targetReviewId) {
-      userVote.value = prevVote
-      likeOffset.value = prevLikeOffset
-      dislikeOffset.value = prevDislikeOffset
+      userVote.value = previousState.userVote
+      likeOffset.value = previousState.likeOffset
+      dislikeOffset.value = previousState.dislikeOffset
       shaking.value = true
       shakeTimer = setTimeout(() => { shaking.value = false; shakeTimer = null }, 300)
       toast.error(t('review.review.voteFailed'))
@@ -457,6 +564,54 @@ async function handleDeleteReply(id: string) {
 // 登录跳转
 function handleLogin() {
   authStore.login()
+}
+
+// 举报评价
+async function handleReport(reason: ReportReason) {
+  reporting.value = true
+  try {
+    await api.review.reportReview(props.review.id, { reason })
+    toast.success(t('review.review.reportSuccess'))
+    showReportMenu.value = false
+  } catch {
+    toast.error(t('review.review.reportFailed'))
+  } finally {
+    reporting.value = false
+  }
+}
+
+// 删除自己的评价
+async function handleDeleteOwn() {
+  deleting.value = true
+  try {
+    await api.review.deleteReview(props.review.id)
+    toast.success(t('review.review.deleteSuccess'))
+    emit('deleted', props.review.id)
+  } catch {
+    toast.error(t('review.review.deleteFailed'))
+  } finally {
+    deleting.value = false
+  }
+}
+
+// 保存编辑
+async function handleSaveEdit() {
+  const trimmed = editContent.value.trim()
+  if (!trimmed) return
+  saving.value = true
+  try {
+    await api.review.updateReview(props.review.id, {
+      content: trimmed,
+      ratings: props.review.ratings,
+    })
+    toast.success(t('review.review.editSuccess'))
+    editing.value = false
+    emit('updated', props.review.id, trimmed)
+  } catch {
+    toast.error(t('review.review.editFailed'))
+  } finally {
+    saving.value = false
+  }
 }
 
 // 管理员屏蔽

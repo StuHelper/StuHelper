@@ -1,0 +1,63 @@
+groups:
+  - name: stuhelper-infrastructure
+    interval: 30s
+    rules:
+      - alert: StuHelperNodeHighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: Host CPU usage is high
+          description: Host CPU usage has exceeded 85% for 15 minutes.
+
+      - alert: StuHelperNodeHighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: Host memory usage is high
+          description: Host memory usage has exceeded 90% for 15 minutes.
+
+      - alert: StuHelperNodeDiskPressure
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) * 100 > 85
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: Host disk usage is high
+          description: Filesystem usage has exceeded 85% for 15 minutes.
+
+      - alert: StuHelperPostgresExporterDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: PostgreSQL exporter is down
+          description: Prometheus cannot scrape postgres-exporter.
+
+      - alert: StuHelperRedisExporterDown
+        expr: up{job="redis-exporter"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: Redis exporter is down
+          description: Prometheus cannot scrape redis-exporter.
+
+      - alert: StuHelperBlackboxProbeFailed
+        expr: probe_success{job="blackbox-http"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: HTTP blackbox probe failed
+          description: '{{ $labels.instance }} has been failing the blackbox probe for 5 minutes.'

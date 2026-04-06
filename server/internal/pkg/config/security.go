@@ -2,51 +2,11 @@ package config
 
 import (
 	"encoding/hex"
-	"encoding/pem"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 )
-
-// loadCertificate 加载 Casdoor 证书，优先从环境变量读取，其次从文件读取
-func loadCertificate() (string, error) {
-	if cert := os.Getenv("CASDOOR_CERTIFICATE"); cert != "" {
-		return cert, nil
-	}
-	if path := os.Getenv("CASDOOR_CERTIFICATE_FILE"); path != "" {
-		data, err := os.ReadFile(path) //nolint:gosec // G304: path from CASDOOR_CERTIFICATE_FILE env var, not user input
-		if err != nil {
-			return "", fmt.Errorf("failed to read CASDOOR_CERTIFICATE_FILE %s: %w", path, err)
-		}
-		return strings.TrimSpace(string(data)), nil
-	}
-	return "", nil
-}
-
-// validatePEMCertificate 验证 PEM 格式的证书
-func validatePEMCertificate(cert string) error {
-	if !strings.Contains(cert, "-----BEGIN") {
-		return fmt.Errorf("missing PEM header (-----BEGIN)")
-	}
-	if !strings.Contains(cert, "-----END") {
-		return fmt.Errorf("missing PEM footer (-----END)")
-	}
-
-	block, _ := pem.Decode([]byte(cert))
-	if block == nil {
-		return fmt.Errorf("failed to decode PEM block")
-	}
-
-	validTypes := []string{"CERTIFICATE", "PUBLIC KEY", "RSA PUBLIC KEY"}
-	for _, t := range validTypes {
-		if block.Type == t {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("unexpected PEM block type: %s (expected CERTIFICATE or PUBLIC KEY)", block.Type)
-}
 
 // parseSecurityConfig 解析 PII 加密相关环境变量，返回强类型配置和解析错误列表
 func parseSecurityConfig() (SecurityConfig, []string) {

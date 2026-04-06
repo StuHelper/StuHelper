@@ -6,12 +6,17 @@ import (
 	"io"
 	"math/rand/v2"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -50,11 +55,6 @@ func NewDB(pool *pgxpool.Pool, timeout time.Duration) *DB {
 	return d
 }
 
-// Pool 返回底层连接池
-func (d *DB) Pool() *pgxpool.Pool {
-	return d.pool
-}
-
 // withTimeout 创建带超时的 context
 func (d *DB) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, d.timeout)
@@ -65,6 +65,7 @@ func (d *DB) withTimeout(ctx context.Context) (context.Context, context.CancelFu
 // 对瞬时连接错误自动重试一次
 func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCancel, error) {
 	ctx, cancel := d.withTimeout(ctx)
+	ctx, span := d.startSpan(ctx, "query", sql)
 	start := time.Now()
 	rows, err := d.pool.Query(ctx, sql, args...)
 	duration := time.Since(start).Seconds()
@@ -82,12 +83,14 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCance
 	status := "ok"
 	if err != nil {
 		status = "error"
+		recordSpanError(span, err)
+		span.End()
 		cancel()
 		metrics.DBQueryTotal.WithLabelValues("query", "", status).Inc()
 		return nil, err
 	}
 	metrics.DBQueryTotal.WithLabelValues("query", "", status).Inc()
-	return &RowsWithCancel{rows: rows, cancel: cancel}, nil
+	return &RowsWithCancel{rows: rows, cancel: cancel, span: span}, nil
 }
 
 // QueryRow 执行带超时的单行查询
@@ -95,9 +98,10 @@ func (d *DB) Query(ctx context.Context, sql string, args ...any) (*RowsWithCance
 // 对瞬时连接错误自动重试一次（与 Query 保持一致）
 func (d *DB) QueryRow(ctx context.Context, sql string, args ...any) *RowWithCancel {
 	ctx, cancel := d.withTimeout(ctx)
+	ctx, span := d.startSpan(ctx, "query_row", sql)
 	start := time.Now()
 	row := d.pool.QueryRow(ctx, sql, args...)
-	return &RowWithCancel{row: row, cancel: cancel, start: start, db: d, ctx: ctx, sql: sql, args: args}
+	return &RowWithCancel{row: row, cancel: cancel, start: start, db: d, ctx: ctx, sql: sql, args: args, span: span}
 }
 
 // RowWithCancel 包装 pgx.Row，确保 Scan 完成后才取消 context
@@ -109,6 +113,7 @@ type RowWithCancel struct {
 	ctx    context.Context
 	sql    string
 	args   []any
+	span   trace.Span
 }
 
 // Scan 扫描行数据，完成后自动取消 context
@@ -132,6 +137,10 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 	status := "ok"
 	if err != nil {
 		status = "error"
+		recordSpanError(r.span, err)
+	}
+	if r.span != nil {
+		r.span.End()
 	}
 	metrics.DBQueryTotal.WithLabelValues("query_row", "", status).Inc()
 	return err
@@ -140,10 +149,13 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 // 编译时断言：RowsWithCancel 实现 pgx.Rows 接口
 var _ pgx.Rows = (*RowsWithCancel)(nil)
 
+var tracer = otel.Tracer("git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db")
+
 // RowsWithCancel 包装 pgx.Rows，确保 Close 后才取消 context
 type RowsWithCancel struct {
 	rows   pgx.Rows
 	cancel context.CancelFunc
+	span   trace.Span
 }
 
 func (r *RowsWithCancel) Next() bool                    { return r.rows.Next() }
@@ -159,30 +171,30 @@ func (r *RowsWithCancel) Conn() *pgx.Conn        { return r.rows.Conn() }
 func (r *RowsWithCancel) Close() {
 	r.rows.Close()
 	r.cancel()
+	if r.span != nil {
+		if err := r.rows.Err(); err != nil {
+			recordSpanError(r.span, err)
+		}
+		r.span.End()
+	}
 }
 
-// Exec 执行带超时的命令
-// 对瞬时连接错误自动重试一次（与 Query 保持一致）
+// Exec 执行带超时的命令。
+// 与 Query 不同，Exec 可能承载非幂等写操作，因此禁止自动重试，避免重复写入。
 func (d *DB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	ctx, cancel := d.withTimeout(ctx)
 	defer cancel()
+	ctx, span := d.startSpan(ctx, "exec", sql)
+	defer span.End()
 	start := time.Now()
 	tag, err := d.pool.Exec(ctx, sql, args...)
 	duration := time.Since(start).Seconds()
 	metrics.DBQueryDuration.WithLabelValues("exec", "").Observe(duration)
 
-	// 瞬时连接错误：退避后重试一次（仅在 context 未超时时）
-	if err != nil && isConnectionError(err) && ctx.Err() == nil {
-		logger.L().Warn("exec connection error, retrying once", zap.Error(err))
-		time.Sleep(jitteredRetryDelay())
-		tag, err = d.pool.Exec(ctx, sql, args...)
-		duration = time.Since(start).Seconds()
-		metrics.DBQueryDuration.WithLabelValues("exec", "retry").Observe(duration)
-	}
-
 	status := "ok"
 	if err != nil {
 		status = "error"
+		recordSpanError(span, err)
 	}
 	metrics.DBQueryTotal.WithLabelValues("exec", "", status).Inc()
 	return tag, err
@@ -225,6 +237,32 @@ func (d *DB) collectPoolMetrics() {
 			metrics.DBConnectionsActive.Set(float64(stat.AcquiredConns()))
 		}
 	}
+}
+
+func (d *DB) startSpan(ctx context.Context, operation, sql string) (context.Context, trace.Span) {
+	return tracer.Start(ctx, "postgres."+operation,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation.name", extractSQLOperation(sql)),
+		),
+	)
+}
+
+func extractSQLOperation(sql string) string {
+	fields := strings.Fields(strings.TrimSpace(sql))
+	if len(fields) == 0 {
+		return "UNKNOWN"
+	}
+	return strings.ToUpper(fields[0])
+}
+
+func recordSpanError(span trace.Span, err error) {
+	if span == nil || err == nil {
+		return
+	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }
 
 // Begin 开始事务（事务内的操作由调用者控制超时）

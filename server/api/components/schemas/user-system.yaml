@@ -71,14 +71,52 @@ AdminIdentityReviewItem:
       type:
         - string
         - "null"
+      description: 已上传到对象存储的正面照片 key
     docPhotoBack:
       type:
         - string
         - "null"
+      description: 已上传到对象存储的背面照片 key
     docPhotoSelfie:
       type:
         - string
         - "null"
+      description: 已上传到对象存储的手持证件照 key
+    rejectionReason:
+      type:
+        - string
+        - "null"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+UploadIdentityPhotoRequest:
+  type: object
+  required: [slot, filename, contentType, dataBase64]
+  properties:
+    slot:
+      type: string
+      enum: [front, back, selfie]
+    filename:
+      type: string
+      maxLength: 255
+    contentType:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    dataBase64:
+      type: string
+      description: "不含 data: 前缀的 Base64 内容"
+
+IdentityPhotoUploadResult:
+  type: object
+  required: [key]
+  properties:
+    key:
+      type: string
+      description: 后续提交实名认证时使用的对象存储 key
     rejectionReason:
       type:
         - string
@@ -156,6 +194,7 @@ UserProfile:
       type:
         - string
         - "null"
+      description: 掩码手机号（如 138****5678）
     phoneVerified:
       type: boolean
     consentGivenAt:
@@ -222,6 +261,7 @@ AdminStudentVerificationItem:
       type:
         - string
         - "null"
+      description: 掩码手机号（如 138****5678）
     phoneVerified:
       type: boolean
     consentGivenAt:
@@ -291,10 +331,13 @@ ManualFieldDescriptor:
 
 BindPhoneRequest:
   type: object
-  required: [phone]
+  required: [phone, otpCode]
   properties:
     phone:
       type: string
+    otpCode:
+      type: string
+      description: 短信验证码（6位）
 
 SchoolConfig:
   type: object
@@ -662,7 +705,7 @@ GroupMember:
 
 AdminSchoolConfig:
   type: object
-  required: [schoolID, schoolName, verificationMethod, enabled, createdAt]
+  required: [schoolID, schoolName, verificationMethod, approvalPolicy, enabled, createdAt]
   properties:
     schoolID:
       type: string
@@ -671,6 +714,9 @@ AdminSchoolConfig:
     verificationMethod:
       type: string
       enum: [ldap, manual]
+    approvalPolicy:
+      type: string
+      enum: [auto, manual]
     ldapConfig:
       $ref: "#/SchoolLDAPConfigView"
       description: LDAP 连接配置，不返回系统绑定密码明文
@@ -732,3 +778,24 @@ UserPermissionOverride:
       type: string
     granted:
       type: boolean
+
+UserSurface:
+  type: object
+  required: [displayName, identityStatus, verificationStatus, phoneBound, capabilities]
+  properties:
+    displayName:
+      type: string
+    avatarURL:
+      type: string
+    identityStatus:
+      type: string
+      enum: [none, pending, approved, rejected]
+    verificationStatus:
+      type: string
+      enum: [none, pending, approved, rejected]
+    phoneBound:
+      type: boolean
+    capabilities:
+      type: array
+      items:
+        type: string

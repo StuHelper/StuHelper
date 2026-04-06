@@ -2,6 +2,8 @@ package review
 
 import (
 	"errors"
+	"regexp"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
@@ -11,6 +13,11 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+)
+
+var (
+	sensitiveWordCategoryPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,49}$`)
+	allowedSensitiveWordLevels   = map[string]struct{}{"block": {}, "warn": {}, "review": {}}
 )
 
 // CreateSensitiveWordRequest 创建敏感词请求
@@ -52,6 +59,14 @@ func (h *Handler) CreateSensitiveWord(c *gin.Context) {
 		response.BadRequest(c, "invalid request parameters")
 		return
 	}
+	if err := validateSensitiveWordCategory(req.Category); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if err := validateSensitiveWordLevel(req.Level); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 
 	w, err := h.service.CreateSensitiveWord(c.Request.Context(), req.Word, req.Category, req.Level)
 	if err != nil {
@@ -69,7 +84,7 @@ func (h *Handler) CreateSensitiveWord(c *gin.Context) {
 
 // UpdateSensitiveWord 更新敏感词
 func (h *Handler) UpdateSensitiveWord(c *gin.Context) {
-	wordID := c.Param("id")
+	wordID := c.Param("sensitiveWordID")
 	if wordID == "" {
 		response.BadRequest(c, "invalid ID")
 		return
@@ -79,6 +94,18 @@ func (h *Handler) UpdateSensitiveWord(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request parameters")
 		return
+	}
+	if req.Category != nil {
+		if err := validateSensitiveWordCategory(*req.Category); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+	}
+	if req.Level != nil {
+		if err := validateSensitiveWordLevel(*req.Level); err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
 	}
 
 	if err := h.service.UpdateSensitiveWord(c.Request.Context(), wordID, req.Word, req.Category, req.Level, req.IsActive); err != nil {
@@ -98,7 +125,7 @@ func (h *Handler) UpdateSensitiveWord(c *gin.Context) {
 
 // DeleteSensitiveWord 删除敏感词
 func (h *Handler) DeleteSensitiveWord(c *gin.Context) {
-	wordID := c.Param("id")
+	wordID := c.Param("sensitiveWordID")
 	if wordID == "" {
 		response.BadRequest(c, "invalid ID")
 		return
@@ -117,4 +144,26 @@ func (h *Handler) DeleteSensitiveWord(c *gin.Context) {
 	h.logAdminOp(c, "delete_sensitive_word", "sensitive_word", wordID, nil, nil)
 
 	response.Success(c, gin.H{"message": "sensitive word deleted"})
+}
+
+func validateSensitiveWordCategory(category string) error {
+	trimmed := strings.TrimSpace(category)
+	if trimmed == "" {
+		return nil
+	}
+	if !sensitiveWordCategoryPattern.MatchString(trimmed) {
+		return errors.New("category must match ^[a-z][a-z0-9_-]{0,49}$")
+	}
+	return nil
+}
+
+func validateSensitiveWordLevel(level string) error {
+	trimmed := strings.TrimSpace(level)
+	if trimmed == "" {
+		return nil
+	}
+	if _, ok := allowedSensitiveWordLevels[trimmed]; !ok {
+		return errors.New("level must be one of: block, warn, review")
+	}
+	return nil
 }

@@ -70,6 +70,24 @@ func (e AdminIdentityReviewItemVerifyMethod) Valid() bool {
 	}
 }
 
+// Defines values for AdminSchoolConfigApprovalPolicy.
+const (
+	AdminSchoolConfigApprovalPolicyAuto   AdminSchoolConfigApprovalPolicy = "auto"
+	AdminSchoolConfigApprovalPolicyManual AdminSchoolConfigApprovalPolicy = "manual"
+)
+
+// Valid indicates whether the value is a known member of the AdminSchoolConfigApprovalPolicy enum.
+func (e AdminSchoolConfigApprovalPolicy) Valid() bool {
+	switch e {
+	case AdminSchoolConfigApprovalPolicyAuto:
+		return true
+	case AdminSchoolConfigApprovalPolicyManual:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminSchoolConfigVerificationMethod.
 const (
 	AdminSchoolConfigVerificationMethodLdap   AdminSchoolConfigVerificationMethod = "ldap"
@@ -226,27 +244,6 @@ func (e CreateSensitiveWordRequestLevel) Valid() bool {
 	case CreateSensitiveWordRequestLevelReview:
 		return true
 	case CreateSensitiveWordRequestLevelWarn:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for EffectivePermissionSource.
-const (
-	EffectivePermissionSourceGroup    EffectivePermissionSource = "group"
-	EffectivePermissionSourceOverride EffectivePermissionSource = "override"
-	EffectivePermissionSourceRole     EffectivePermissionSource = "role"
-)
-
-// Valid indicates whether the value is a known member of the EffectivePermissionSource enum.
-func (e EffectivePermissionSource) Valid() bool {
-	switch e {
-	case EffectivePermissionSourceGroup:
-		return true
-	case EffectivePermissionSourceOverride:
-		return true
-	case EffectivePermissionSourceRole:
 		return true
 	default:
 		return false
@@ -526,6 +523,48 @@ func (e UpdateSensitiveWordRequestLevel) Valid() bool {
 	}
 }
 
+// Defines values for UploadIdentityPhotoRequestContentType.
+const (
+	Imagejpeg UploadIdentityPhotoRequestContentType = "image/jpeg"
+	Imagepng  UploadIdentityPhotoRequestContentType = "image/png"
+	Imagewebp UploadIdentityPhotoRequestContentType = "image/webp"
+)
+
+// Valid indicates whether the value is a known member of the UploadIdentityPhotoRequestContentType enum.
+func (e UploadIdentityPhotoRequestContentType) Valid() bool {
+	switch e {
+	case Imagejpeg:
+		return true
+	case Imagepng:
+		return true
+	case Imagewebp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadIdentityPhotoRequestSlot.
+const (
+	Back   UploadIdentityPhotoRequestSlot = "back"
+	Front  UploadIdentityPhotoRequestSlot = "front"
+	Selfie UploadIdentityPhotoRequestSlot = "selfie"
+)
+
+// Valid indicates whether the value is a known member of the UploadIdentityPhotoRequestSlot enum.
+func (e UploadIdentityPhotoRequestSlot) Valid() bool {
+	switch e {
+	case Back:
+		return true
+	case Front:
+		return true
+	case Selfie:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserIdentityDocType.
 const (
 	HKMACAU    UserIdentityDocType = "HK_MACAU"
@@ -573,16 +612,16 @@ func (e UserIdentityVerifyMethod) Valid() bool {
 
 // Defines values for UserProfileVerificationMethod.
 const (
-	Ldap   UserProfileVerificationMethod = "ldap"
-	Manual UserProfileVerificationMethod = "manual"
+	UserProfileVerificationMethodLdap   UserProfileVerificationMethod = "ldap"
+	UserProfileVerificationMethodManual UserProfileVerificationMethod = "manual"
 )
 
 // Valid indicates whether the value is a known member of the UserProfileVerificationMethod enum.
 func (e UserProfileVerificationMethod) Valid() bool {
 	switch e {
-	case Ldap:
+	case UserProfileVerificationMethodLdap:
 		return true
-	case Manual:
+	case UserProfileVerificationMethodManual:
 		return true
 	default:
 		return false
@@ -607,6 +646,54 @@ func (e UserProfileVerificationStatus) Valid() bool {
 	case UserProfileVerificationStatusUnverified:
 		return true
 	case UserProfileVerificationStatusVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserSurfaceIdentityStatus.
+const (
+	UserSurfaceIdentityStatusApproved UserSurfaceIdentityStatus = "approved"
+	UserSurfaceIdentityStatusNone     UserSurfaceIdentityStatus = "none"
+	UserSurfaceIdentityStatusPending  UserSurfaceIdentityStatus = "pending"
+	UserSurfaceIdentityStatusRejected UserSurfaceIdentityStatus = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the UserSurfaceIdentityStatus enum.
+func (e UserSurfaceIdentityStatus) Valid() bool {
+	switch e {
+	case UserSurfaceIdentityStatusApproved:
+		return true
+	case UserSurfaceIdentityStatusNone:
+		return true
+	case UserSurfaceIdentityStatusPending:
+		return true
+	case UserSurfaceIdentityStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserSurfaceVerificationStatus.
+const (
+	UserSurfaceVerificationStatusApproved UserSurfaceVerificationStatus = "approved"
+	UserSurfaceVerificationStatusNone     UserSurfaceVerificationStatus = "none"
+	UserSurfaceVerificationStatusPending  UserSurfaceVerificationStatus = "pending"
+	UserSurfaceVerificationStatusRejected UserSurfaceVerificationStatus = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the UserSurfaceVerificationStatus enum.
+func (e UserSurfaceVerificationStatus) Valid() bool {
+	switch e {
+	case UserSurfaceVerificationStatusApproved:
+		return true
+	case UserSurfaceVerificationStatusNone:
+		return true
+	case UserSurfaceVerificationStatusPending:
+		return true
+	case UserSurfaceVerificationStatusRejected:
 		return true
 	default:
 		return false
@@ -681,19 +768,19 @@ func (e ListStudentVerificationsParamsStatus) Valid() bool {
 
 // Defines values for GetCoursesParamsSort.
 const (
-	Credits     GetCoursesParamsSort = "credits"
-	Name        GetCoursesParamsSort = "name"
-	ReviewCount GetCoursesParamsSort = "reviewCount"
+	GetCoursesParamsSortCredits     GetCoursesParamsSort = "credits"
+	GetCoursesParamsSortName        GetCoursesParamsSort = "name"
+	GetCoursesParamsSortReviewCount GetCoursesParamsSort = "reviewCount"
 )
 
 // Valid indicates whether the value is a known member of the GetCoursesParamsSort enum.
 func (e GetCoursesParamsSort) Valid() bool {
 	switch e {
-	case Credits:
+	case GetCoursesParamsSortCredits:
 		return true
-	case Name:
+	case GetCoursesParamsSortName:
 		return true
-	case ReviewCount:
+	case GetCoursesParamsSortReviewCount:
 		return true
 	default:
 		return false
@@ -879,19 +966,61 @@ func (e GetBatchCourseReviewsParamsSort) Valid() bool {
 
 // Defines values for GetLatestReviewsParamsSort.
 const (
-	Likes  GetLatestReviewsParamsSort = "likes"
-	Rating GetLatestReviewsParamsSort = "rating"
-	Time   GetLatestReviewsParamsSort = "time"
+	GetLatestReviewsParamsSortLikes  GetLatestReviewsParamsSort = "likes"
+	GetLatestReviewsParamsSortRating GetLatestReviewsParamsSort = "rating"
+	GetLatestReviewsParamsSortTime   GetLatestReviewsParamsSort = "time"
 )
 
 // Valid indicates whether the value is a known member of the GetLatestReviewsParamsSort enum.
 func (e GetLatestReviewsParamsSort) Valid() bool {
 	switch e {
-	case Likes:
+	case GetLatestReviewsParamsSortLikes:
 		return true
-	case Rating:
+	case GetLatestReviewsParamsSortRating:
 		return true
-	case Time:
+	case GetLatestReviewsParamsSortTime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SearchReviewsParamsSort.
+const (
+	SearchReviewsParamsSortLikes  SearchReviewsParamsSort = "likes"
+	SearchReviewsParamsSortRating SearchReviewsParamsSort = "rating"
+	SearchReviewsParamsSortTime   SearchReviewsParamsSort = "time"
+)
+
+// Valid indicates whether the value is a known member of the SearchReviewsParamsSort enum.
+func (e SearchReviewsParamsSort) Valid() bool {
+	switch e {
+	case SearchReviewsParamsSortLikes:
+		return true
+	case SearchReviewsParamsSortRating:
+		return true
+	case SearchReviewsParamsSortTime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListTeachersParamsSort.
+const (
+	ListTeachersParamsSortName    ListTeachersParamsSort = "name"
+	ListTeachersParamsSortRating  ListTeachersParamsSort = "rating"
+	ListTeachersParamsSortReviews ListTeachersParamsSort = "reviews"
+)
+
+// Valid indicates whether the value is a known member of the ListTeachersParamsSort enum.
+func (e ListTeachersParamsSort) Valid() bool {
+	switch e {
+	case ListTeachersParamsSortName:
+		return true
+	case ListTeachersParamsSortRating:
+		return true
+	case ListTeachersParamsSortReviews:
 		return true
 	default:
 		return false
@@ -910,6 +1039,72 @@ func (e GetUserVotesParamsVoteType) Valid() bool {
 	case GetUserVotesParamsVoteTypeDislike:
 		return true
 	case GetUserVotesParamsVoteTypeLike:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReportFrontendErrorJSONBodyKind.
+const (
+	Error              ReportFrontendErrorJSONBodyKind = "error"
+	Unhandledrejection ReportFrontendErrorJSONBodyKind = "unhandledrejection"
+)
+
+// Valid indicates whether the value is a known member of the ReportFrontendErrorJSONBodyKind enum.
+func (e ReportFrontendErrorJSONBodyKind) Valid() bool {
+	switch e {
+	case Error:
+		return true
+	case Unhandledrejection:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReportWebVitalsJSONBodyName.
+const (
+	CLS  ReportWebVitalsJSONBodyName = "CLS"
+	FCP  ReportWebVitalsJSONBodyName = "FCP"
+	INP  ReportWebVitalsJSONBodyName = "INP"
+	LCP  ReportWebVitalsJSONBodyName = "LCP"
+	TTFB ReportWebVitalsJSONBodyName = "TTFB"
+)
+
+// Valid indicates whether the value is a known member of the ReportWebVitalsJSONBodyName enum.
+func (e ReportWebVitalsJSONBodyName) Valid() bool {
+	switch e {
+	case CLS:
+		return true
+	case FCP:
+		return true
+	case INP:
+		return true
+	case LCP:
+		return true
+	case TTFB:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReportWebVitalsJSONBodyRating.
+const (
+	Good             ReportWebVitalsJSONBodyRating = "good"
+	NeedsImprovement ReportWebVitalsJSONBodyRating = "needs-improvement"
+	Poor             ReportWebVitalsJSONBodyRating = "poor"
+)
+
+// Valid indicates whether the value is a known member of the ReportWebVitalsJSONBodyRating enum.
+func (e ReportWebVitalsJSONBodyRating) Valid() bool {
+	switch e {
+	case Good:
+		return true
+	case NeedsImprovement:
+		return true
+	case Poor:
 		return true
 	default:
 		return false
@@ -965,9 +1160,15 @@ type AdminEditReviewRequest struct {
 
 // AdminIdentityReviewItem defines model for AdminIdentityReviewItem.
 type AdminIdentityReviewItem struct {
-	CreatedAt       time.Time                            `json:"createdAt"`
-	DocPhotoBack    *string                              `json:"docPhotoBack,omitempty"`
-	DocPhotoFront   *string                              `json:"docPhotoFront,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DocPhotoBack 已上传到对象存储的背面照片 key
+	DocPhotoBack *string `json:"docPhotoBack,omitempty"`
+
+	// DocPhotoFront 已上传到对象存储的正面照片 key
+	DocPhotoFront *string `json:"docPhotoFront,omitempty"`
+
+	// DocPhotoSelfie 已上传到对象存储的手持证件照 key
 	DocPhotoSelfie  *string                              `json:"docPhotoSelfie,omitempty"`
 	DocType         AdminIdentityReviewItemDocType       `json:"docType"`
 	RealName        string                               `json:"realName"`
@@ -1005,6 +1206,7 @@ type AdminOperationLog struct {
 type AdminSchoolConfig struct {
 	// AcademicDbTable 本地学籍表名
 	AcademicDbTable    *string                             `json:"academicDbTable,omitempty"`
+	ApprovalPolicy     AdminSchoolConfigApprovalPolicy     `json:"approvalPolicy"`
 	ConsentText        *string                             `json:"consentText,omitempty"`
 	CreatedAt          time.Time                           `json:"createdAt"`
 	Enabled            bool                                `json:"enabled"`
@@ -1014,6 +1216,9 @@ type AdminSchoolConfig struct {
 	SchoolName         string                              `json:"schoolName"`
 	VerificationMethod AdminSchoolConfigVerificationMethod `json:"verificationMethod"`
 }
+
+// AdminSchoolConfigApprovalPolicy defines model for AdminSchoolConfig.ApprovalPolicy.
+type AdminSchoolConfigApprovalPolicy string
 
 // AdminSchoolConfigVerificationMethod defines model for AdminSchoolConfig.VerificationMethod.
 type AdminSchoolConfigVerificationMethod string
@@ -1045,10 +1250,12 @@ type AdminStats struct {
 
 // AdminStudentVerificationItem defines model for AdminStudentVerificationItem.
 type AdminStudentVerificationItem struct {
-	ActiveStudentID    *string                                         `json:"activeStudentID,omitempty"`
-	ConsentGivenAt     *time.Time                                      `json:"consentGivenAt,omitempty"`
-	CreatedAt          time.Time                                       `json:"createdAt"`
-	ManualFormData     *map[string]interface{}                         `json:"manualFormData,omitempty"`
+	ActiveStudentID *string                 `json:"activeStudentID,omitempty"`
+	ConsentGivenAt  *time.Time              `json:"consentGivenAt,omitempty"`
+	CreatedAt       time.Time               `json:"createdAt"`
+	ManualFormData  *map[string]interface{} `json:"manualFormData,omitempty"`
+
+	// Phone 掩码手机号（如 138****5678）
 	Phone              *string                                         `json:"phone,omitempty"`
 	PhoneVerified      *bool                                           `json:"phoneVerified,omitempty"`
 	RejectionReason    *string                                         `json:"rejectionReason,omitempty"`
@@ -1087,28 +1294,6 @@ type AdminUpdateReviewRequest struct {
 // AdminUpdateReviewRequestAction defines model for AdminUpdateReviewRequest.Action.
 type AdminUpdateReviewRequestAction string
 
-// AssignGroupMembersRequest defines model for AssignGroupMembersRequest.
-type AssignGroupMembersRequest struct {
-	UserIDs []int64 `json:"userIDs"`
-}
-
-// AssignGroupPermissionsRequest defines model for AssignGroupPermissionsRequest.
-type AssignGroupPermissionsRequest struct {
-	PermissionIDs []int64 `json:"permissionIDs"`
-}
-
-// AssignRolePermissionsRequest defines model for AssignRolePermissionsRequest.
-type AssignRolePermissionsRequest struct {
-	// ClearAll 显式确认清空角色全部权限；仅当 permissionIDs 为空时生效
-	ClearAll      *bool   `json:"clearAll,omitempty"`
-	PermissionIDs []int64 `json:"permissionIDs"`
-}
-
-// AssignUserRolesRequest defines model for AssignUserRolesRequest.
-type AssignUserRolesRequest struct {
-	RoleIDs []int64 `json:"roleIDs"`
-}
-
 // BatchUpdateResult defines model for BatchUpdateResult.
 type BatchUpdateResult struct {
 	Affected int64  `json:"affected"`
@@ -1126,7 +1311,9 @@ type BatchUpdateReviewsRequestAction string
 
 // BindPhoneRequest defines model for BindPhoneRequest.
 type BindPhoneRequest struct {
-	Phone string `json:"phone"`
+	// OtpCode 短信验证码（6位）
+	OtpCode string `json:"otpCode"`
+	Phone   string `json:"phone"`
 }
 
 // CallbackResponse defines model for CallbackResponse.
@@ -1167,9 +1354,12 @@ type Course struct {
 	DepartmentID   int64   `json:"departmentID"`
 	DepartmentName *string `json:"departmentName,omitempty"`
 	Id             int64   `json:"id"`
-	Name           string  `json:"name"`
-	ReviewCount    int     `json:"reviewCount"`
-	SchoolID       *int64  `json:"schoolID,omitempty"`
+
+	// IsFavorited 当前登录用户是否已收藏（未登录时不返回此字段）
+	IsFavorited *bool  `json:"isFavorited,omitempty"`
+	Name        string `json:"name"`
+	ReviewCount int    `json:"reviewCount"`
+	SchoolID    *int64 `json:"schoolID,omitempty"`
 }
 
 // CourseCategory defines model for CourseCategory.
@@ -1210,13 +1400,6 @@ type CreateReplyRequest struct {
 	ParentID *openapi_types.UUID `json:"parentID,omitempty"`
 }
 
-// CreateRoleRequest defines model for CreateRoleRequest.
-type CreateRoleRequest struct {
-	Description *string `json:"description,omitempty"`
-	DisplayName string  `json:"displayName"`
-	Name        string  `json:"name"`
-}
-
 // CreateSensitiveWordRequest defines model for CreateSensitiveWordRequest.
 type CreateSensitiveWordRequest struct {
 	Category *string                          `json:"category,omitempty"`
@@ -1231,13 +1414,6 @@ type CreateSensitiveWordRequestLevel string
 type CreateTeacherRequest struct {
 	DepartmentID *int64 `json:"departmentID,omitempty"`
 	Name         string `json:"name"`
-}
-
-// CreateUserGroupRequest defines model for CreateUserGroupRequest.
-type CreateUserGroupRequest struct {
-	Description *string `json:"description,omitempty"`
-	DisplayName string  `json:"displayName"`
-	Name        string  `json:"name"`
 }
 
 // Department defines model for Department.
@@ -1259,21 +1435,6 @@ type DimensionStats struct {
 	RatingCount  int             `json:"ratingCount"`
 }
 
-// EffectivePermission defines model for EffectivePermission.
-type EffectivePermission struct {
-	Action       string `json:"action"`
-	Granted      bool   `json:"granted"`
-	Module       string `json:"module"`
-	Name         string `json:"name"`
-	PermissionID int64  `json:"permissionID"`
-
-	// Source 权限来源
-	Source EffectivePermissionSource `json:"source"`
-}
-
-// EffectivePermissionSource 权限来源
-type EffectivePermissionSource string
-
 // ErrorResponseBody defines model for ErrorResponseBody.
 type ErrorResponseBody struct {
 	Error   APIError                 `json:"error"`
@@ -1292,18 +1453,17 @@ type FavoriteCourse struct {
 	DepartmentName *string   `json:"departmentName,omitempty"`
 	FavoritedAt    time.Time `json:"favoritedAt"`
 	Id             int64     `json:"id"`
-	Name           string    `json:"name"`
-	ReviewCount    int       `json:"reviewCount"`
-	SchoolID       *int64    `json:"schoolID,omitempty"`
+
+	// IsFavorited 当前登录用户是否已收藏（未登录时不返回此字段）
+	IsFavorited *bool  `json:"isFavorited,omitempty"`
+	Name        string `json:"name"`
+	ReviewCount int    `json:"reviewCount"`
+	SchoolID    *int64 `json:"schoolID,omitempty"`
 }
 
-// GroupMember defines model for GroupMember.
-type GroupMember struct {
-	AvatarURL *string    `json:"avatarURL,omitempty"`
-	Email     *string    `json:"email,omitempty"`
-	JoinedAt  *time.Time `json:"joinedAt,omitempty"`
-	UserID    int64      `json:"userID"`
-	Username  string     `json:"username"`
+// FavoriteStatusData defines model for FavoriteStatusData.
+type FavoriteStatusData struct {
+	Favorited bool `json:"favorited"`
 }
 
 // HotCourse defines model for HotCourse.
@@ -1312,6 +1472,16 @@ type HotCourse struct {
 	CourseID    int64   `json:"courseID"`
 	CourseName  string  `json:"courseName"`
 	ReviewCount int     `json:"reviewCount"`
+}
+
+// IdentityPhotoUploadResult defines model for IdentityPhotoUploadResult.
+type IdentityPhotoUploadResult struct {
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// Key 后续提交实名认证时使用的对象存储 key
+	Key             string     `json:"key"`
+	RejectionReason *string    `json:"rejectionReason,omitempty"`
+	UpdatedAt       *time.Time `json:"updatedAt,omitempty"`
 }
 
 // LoginURLResponse defines model for LoginURLResponse.
@@ -1348,7 +1518,10 @@ type MessageData struct {
 
 // Notification defines model for Notification.
 type Notification struct {
-	Content     *string            `json:"content,omitempty"`
+	Content *string `json:"content,omitempty"`
+
+	// CourseID 关联课程ID，用于前端精准跳转
+	CourseID    *int64             `json:"courseID,omitempty"`
 	CreatedAt   time.Time          `json:"createdAt"`
 	Id          openapi_types.UUID `json:"id"`
 	IsRead      bool               `json:"isRead"`
@@ -1360,18 +1533,6 @@ type Notification struct {
 
 // NotificationType defines model for Notification.Type.
 type NotificationType string
-
-// Permission defines model for Permission.
-type Permission struct {
-	Action         string    `json:"action"`
-	CreatedAt      time.Time `json:"createdAt"`
-	DisplayName    string    `json:"displayName"`
-	Id             int64     `json:"id"`
-	Module         string    `json:"module"`
-	Name           string    `json:"name"`
-	ScopeRoles     *[]string `json:"scopeRoles,omitempty"`
-	ScopeSchoolIDs *[]string `json:"scopeSchoolIDs,omitempty"`
-}
 
 // PostReviewRequest defines model for PostReviewRequest.
 type PostReviewRequest struct {
@@ -1520,6 +1681,7 @@ type ReviewStats struct {
 	CourseCount     int `json:"courseCount"`
 	DepartmentCount int `json:"departmentCount"`
 	ReviewCount     int `json:"reviewCount"`
+	UserCount       int `json:"userCount"`
 }
 
 // ReviewStudentVerificationRequest defines model for ReviewStudentVerificationRequest.
@@ -1528,22 +1690,6 @@ type ReviewStudentVerificationRequest struct {
 
 	// RejectionReason 驳回理由，可留空
 	RejectionReason *string `json:"rejectionReason,omitempty"`
-}
-
-// Role defines model for Role.
-type Role struct {
-	CreatedAt   time.Time `json:"createdAt"`
-	Description *string   `json:"description,omitempty"`
-	DisplayName string    `json:"displayName"`
-	Id          int64     `json:"id"`
-	IsSystem    bool      `json:"isSystem"`
-	Name        string    `json:"name"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-}
-
-// RolePermissionIDsResponse defines model for RolePermissionIDsResponse.
-type RolePermissionIDsResponse struct {
-	PermissionIDs []int64 `json:"permissionIDs"`
 }
 
 // SaveDraftRequest defines model for SaveDraftRequest.
@@ -1590,12 +1736,6 @@ type SchoolLDAPConfigView struct {
 	SystemBindDN          *string `json:"systemBindDN,omitempty"`
 	Url                   *string `json:"url,omitempty"`
 	UseTLS                bool    `json:"useTLS"`
-}
-
-// SetUserPermissionRequest defines model for SetUserPermissionRequest.
-type SetUserPermissionRequest struct {
-	Granted      bool  `json:"granted"`
-	PermissionID int64 `json:"permissionID"`
 }
 
 // SubmitIdentityRequest defines model for SubmitIdentityRequest.
@@ -1663,6 +1803,16 @@ type TeacherRatingStatsResponse struct {
 	TeacherName    string            `json:"teacherName"`
 }
 
+// TeacherSummary defines model for TeacherSummary.
+type TeacherSummary struct {
+	AvgRating      *float64 `json:"avgRating,omitempty"`
+	CourseCount    int      `json:"courseCount"`
+	DepartmentName *string  `json:"departmentName,omitempty"`
+	ReviewCount    int      `json:"reviewCount"`
+	TeacherID      int64    `json:"teacherID"`
+	TeacherName    string   `json:"teacherName"`
+}
+
 // Term defines model for Term.
 type Term struct {
 	Id        string `json:"id"`
@@ -1691,12 +1841,6 @@ type UpdateReviewRequest struct {
 	// Ratings Map of dimension key to rating value (1-5)
 	Ratings ReviewRatings `json:"ratings"`
 	Title   *string       `json:"title,omitempty"`
-}
-
-// UpdateRoleRequest defines model for UpdateRoleRequest.
-type UpdateRoleRequest struct {
-	Description *string `json:"description,omitempty"`
-	DisplayName *string `json:"displayName,omitempty"`
 }
 
 // UpdateSchoolConfigRequest defines model for UpdateSchoolConfigRequest.
@@ -1735,26 +1879,21 @@ type UpdateTeacherRequest struct {
 	Name         string `json:"name"`
 }
 
-// UpdateUserGroupRequest defines model for UpdateUserGroupRequest.
-type UpdateUserGroupRequest struct {
-	Description *string `json:"description,omitempty"`
-	DisplayName *string `json:"displayName,omitempty"`
+// UploadIdentityPhotoRequest defines model for UploadIdentityPhotoRequest.
+type UploadIdentityPhotoRequest struct {
+	ContentType UploadIdentityPhotoRequestContentType `json:"contentType"`
+
+	// DataBase64 不含 data: 前缀的 Base64 内容
+	DataBase64 string                         `json:"dataBase64"`
+	Filename   string                         `json:"filename"`
+	Slot       UploadIdentityPhotoRequestSlot `json:"slot"`
 }
 
-// UserGroup defines model for UserGroup.
-type UserGroup struct {
-	CreatedAt   time.Time `json:"createdAt"`
-	CreatedBy   *int64    `json:"createdBy,omitempty"`
-	Description *string   `json:"description,omitempty"`
-	DisplayName string    `json:"displayName"`
-	Id          int64     `json:"id"`
-	MemberCount int       `json:"memberCount"`
-	Name        string    `json:"name"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-}
+// UploadIdentityPhotoRequestContentType defines model for UploadIdentityPhotoRequest.ContentType.
+type UploadIdentityPhotoRequestContentType string
 
-// UserGroupSchema defines model for UserGroupSchema.
-type UserGroupSchema = UserGroup
+// UploadIdentityPhotoRequestSlot defines model for UploadIdentityPhotoRequest.Slot.
+type UploadIdentityPhotoRequestSlot string
 
 // UserIdentity defines model for UserIdentity.
 type UserIdentity struct {
@@ -1783,7 +1922,7 @@ type UserInfo struct {
 	// CanAccessAdmin 当前用户是否拥有至少一个可直接进入现有后台界面的全局能力
 	CanAccessAdmin bool `json:"canAccessAdmin"`
 
-	// Capabilities 用户当前拥有的全部能力名称，包含全局授权与带 scope 的授权
+	// Capabilities 当前用户拥有的能力集合（由 roles 在应用侧静态展开）
 	Capabilities []string `json:"capabilities"`
 
 	// CapabilityGrants 完整能力授权明细，保留学校范围和角色范围等约束信息
@@ -1795,24 +1934,21 @@ type UserInfo struct {
 	GlobalCapabilities []string `json:"globalCapabilities"`
 	Id                 string   `json:"id"`
 
-	// IsPlatformAdmin Casdoor 平台管理员标记，不代表航小伴业务管理员
+	// IsPlatformAdmin 是否持有平台级 super_admin 角色，不直接等于业务资源授权
 	IsPlatformAdmin bool   `json:"isPlatformAdmin"`
 	Name            string `json:"name"`
-}
 
-// UserPermissionOverride defines model for UserPermissionOverride.
-type UserPermissionOverride struct {
-	Granted        bool   `json:"granted"`
-	PermissionID   int64  `json:"permissionID"`
-	PermissionName string `json:"permissionName"`
-	UserID         int64  `json:"userID"`
+	// Roles OIDC Token 中解析出的粗粒度角色列表
+	Roles []string `json:"roles"`
 }
 
 // UserProfile defines model for UserProfile.
 type UserProfile struct {
-	ActiveStudentID    *string                        `json:"activeStudentID,omitempty"`
-	ConsentGivenAt     *time.Time                     `json:"consentGivenAt,omitempty"`
-	CreatedAt          time.Time                      `json:"createdAt"`
+	ActiveStudentID *string    `json:"activeStudentID,omitempty"`
+	ConsentGivenAt  *time.Time `json:"consentGivenAt,omitempty"`
+	CreatedAt       time.Time  `json:"createdAt"`
+
+	// Phone 掩码手机号（如 138****5678）
 	Phone              *string                        `json:"phone,omitempty"`
 	PhoneVerified      *bool                          `json:"phoneVerified,omitempty"`
 	RejectionReason    *string                        `json:"rejectionReason,omitempty"`
@@ -1831,6 +1967,22 @@ type UserProfileVerificationMethod string
 
 // UserProfileVerificationStatus defines model for UserProfile.VerificationStatus.
 type UserProfileVerificationStatus string
+
+// UserSurface defines model for UserSurface.
+type UserSurface struct {
+	AvatarURL          *string                       `json:"avatarURL,omitempty"`
+	Capabilities       []string                      `json:"capabilities"`
+	DisplayName        string                        `json:"displayName"`
+	IdentityStatus     UserSurfaceIdentityStatus     `json:"identityStatus"`
+	PhoneBound         bool                          `json:"phoneBound"`
+	VerificationStatus UserSurfaceVerificationStatus `json:"verificationStatus"`
+}
+
+// UserSurfaceIdentityStatus defines model for UserSurface.IdentityStatus.
+type UserSurfaceIdentityStatus string
+
+// UserSurfaceVerificationStatus defines model for UserSurface.VerificationStatus.
+type UserSurfaceVerificationStatus string
 
 // VoteRequest defines model for VoteRequest.
 type VoteRequest struct {
@@ -1887,12 +2039,6 @@ type ListIdentityVerificationsParams struct {
 // ListIdentityVerificationsParamsStatus defines parameters for ListIdentityVerifications.
 type ListIdentityVerificationsParamsStatus string
 
-// ListPermissionsParams defines parameters for ListPermissions.
-type ListPermissionsParams struct {
-	// Module 按模块筛选
-	Module *string `form:"module,omitempty" json:"module,omitempty"`
-}
-
 // ListStudentVerificationsParams defines parameters for ListStudentVerifications.
 type ListStudentVerificationsParams struct {
 	Status *ListStudentVerificationsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
@@ -1914,6 +2060,31 @@ type ListStudentVerificationsParamsStatus string
 type HandleCallbackParams struct {
 	Code  string `form:"code" json:"code"`
 	State string `form:"state" json:"state"`
+}
+
+// GetLoginURLParams defines parameters for GetLoginURL.
+type GetLoginURLParams struct {
+	// Redirect 登录完成后的前端回跳地址（绝对 URL）
+	Redirect *string `form:"redirect,omitempty" json:"redirect,omitempty"`
+}
+
+// RequestPhoneOTPJSONBody defines parameters for RequestPhoneOTP.
+type RequestPhoneOTPJSONBody struct {
+	// Phone 中国大陆手机号（11 位）
+	Phone string `json:"phone"`
+}
+
+// VerifyPhoneOTPJSONBody defines parameters for VerifyPhoneOTP.
+type VerifyPhoneOTPJSONBody struct {
+	// Code 6 位数字验证码
+	Code  string `json:"code"`
+	Phone string `json:"phone"`
+}
+
+// GetSignupURLParams defines parameters for GetSignupURL.
+type GetSignupURLParams struct {
+	// Redirect 注册完成后的前端回跳地址（绝对 URL）
+	Redirect *string `form:"redirect,omitempty" json:"redirect,omitempty"`
 }
 
 // GetCoursesParams defines parameters for GetCourses.
@@ -1956,6 +2127,15 @@ type SearchCoursesParams struct {
 type GetDepartmentsParams struct {
 	// Category 按分类筛选
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
+}
+
+// ListFlaggedReviewsParams defines parameters for ListFlaggedReviews.
+type ListFlaggedReviewsParams struct {
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // ExportReviewsParams defines parameters for ExportReviews.
@@ -2089,6 +2269,31 @@ type GetLatestReviewsParams struct {
 // GetLatestReviewsParamsSort defines parameters for GetLatestReviews.
 type GetLatestReviewsParamsSort string
 
+// SearchReviewsParams defines parameters for SearchReviews.
+type SearchReviewsParams struct {
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+
+	// Q 课程名或课号关键字
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// DepartmentID 院系 ID
+	DepartmentID *int64 `form:"departmentID,omitempty" json:"departmentID,omitempty"`
+
+	// TeacherName 教师姓名模糊匹配
+	TeacherName *string `form:"teacherName,omitempty" json:"teacherName,omitempty"`
+
+	// TermID 按学期筛选（YYYY-S）
+	TermID *string                  `form:"termID,omitempty" json:"termID,omitempty"`
+	Sort   *SearchReviewsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// SearchReviewsParamsSort defines parameters for SearchReviews.
+type SearchReviewsParamsSort string
+
 // GetRepliesParams defines parameters for GetReplies.
 type GetRepliesParams struct {
 	// Page 页码
@@ -2096,6 +2301,32 @@ type GetRepliesParams struct {
 
 	// PageSize 每页数量
 	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListTeachersParams defines parameters for ListTeachers.
+type ListTeachersParams struct {
+	// Q 教师姓名搜索
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// DepartmentID 院系筛选
+	DepartmentID *int `form:"departmentID,omitempty" json:"departmentID,omitempty"`
+
+	// Sort 排序方式
+	Sort *ListTeachersParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListTeachersParamsSort defines parameters for ListTeachers.
+type ListTeachersParamsSort string
+
+// ListHotTeachersParams defines parameters for ListHotTeachers.
+type ListHotTeachersParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // GetUserFavoritesParams defines parameters for GetUserFavorites.
@@ -2138,29 +2369,34 @@ type GetUserVotesParams struct {
 // GetUserVotesParamsVoteType defines parameters for GetUserVotes.
 type GetUserVotesParamsVoteType string
 
-// CreateUserGroupJSONRequestBody defines body for CreateUserGroup for application/json ContentType.
-type CreateUserGroupJSONRequestBody = CreateUserGroupRequest
+// ReportFrontendErrorJSONBody defines parameters for ReportFrontendError.
+type ReportFrontendErrorJSONBody struct {
+	Kind ReportFrontendErrorJSONBodyKind `json:"kind"`
+}
 
-// UpdateUserGroupJSONRequestBody defines body for UpdateUserGroup for application/json ContentType.
-type UpdateUserGroupJSONRequestBody = UpdateUserGroupRequest
+// ReportFrontendErrorJSONBodyKind defines parameters for ReportFrontendError.
+type ReportFrontendErrorJSONBodyKind string
 
-// AssignGroupMembersJSONRequestBody defines body for AssignGroupMembers for application/json ContentType.
-type AssignGroupMembersJSONRequestBody = AssignGroupMembersRequest
+// ReportWebVitalsJSONBody defines parameters for ReportWebVitals.
+type ReportWebVitalsJSONBody struct {
+	Name   ReportWebVitalsJSONBodyName   `json:"name"`
+	Rating ReportWebVitalsJSONBodyRating `json:"rating"`
+	Value  float32                       `json:"value"`
+}
 
-// AssignGroupPermissionsJSONRequestBody defines body for AssignGroupPermissions for application/json ContentType.
-type AssignGroupPermissionsJSONRequestBody = AssignGroupPermissionsRequest
+// ReportWebVitalsJSONBodyName defines parameters for ReportWebVitals.
+type ReportWebVitalsJSONBodyName string
+
+// ReportWebVitalsJSONBodyRating defines parameters for ReportWebVitals.
+type ReportWebVitalsJSONBodyRating string
+
+// RequestBindPhoneOTPJSONBody defines parameters for RequestBindPhoneOTP.
+type RequestBindPhoneOTPJSONBody struct {
+	Phone string `json:"phone"`
+}
 
 // ReviewIdentityVerificationJSONRequestBody defines body for ReviewIdentityVerification for application/json ContentType.
 type ReviewIdentityVerificationJSONRequestBody = ReviewIdentityRequest
-
-// CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
-type CreateRoleJSONRequestBody = CreateRoleRequest
-
-// UpdateRoleJSONRequestBody defines body for UpdateRole for application/json ContentType.
-type UpdateRoleJSONRequestBody = UpdateRoleRequest
-
-// AssignRolePermissionsJSONRequestBody defines body for AssignRolePermissions for application/json ContentType.
-type AssignRolePermissionsJSONRequestBody = AssignRolePermissionsRequest
 
 // UpdateSchoolConfigJSONRequestBody defines body for UpdateSchoolConfig for application/json ContentType.
 type UpdateSchoolConfigJSONRequestBody = UpdateSchoolConfigRequest
@@ -2171,11 +2407,11 @@ type ReviewStudentVerificationJSONRequestBody = ReviewStudentVerificationRequest
 // UpdateSystemConfigJSONRequestBody defines body for UpdateSystemConfig for application/json ContentType.
 type UpdateSystemConfigJSONRequestBody = UpdateSystemConfigRequest
 
-// SetUserPermissionOverrideJSONRequestBody defines body for SetUserPermissionOverride for application/json ContentType.
-type SetUserPermissionOverrideJSONRequestBody = SetUserPermissionRequest
+// RequestPhoneOTPJSONRequestBody defines body for RequestPhoneOTP for application/json ContentType.
+type RequestPhoneOTPJSONRequestBody RequestPhoneOTPJSONBody
 
-// AssignUserRolesJSONRequestBody defines body for AssignUserRoles for application/json ContentType.
-type AssignUserRolesJSONRequestBody = AssignUserRolesRequest
+// VerifyPhoneOTPJSONRequestBody defines body for VerifyPhoneOTP for application/json ContentType.
+type VerifyPhoneOTPJSONRequestBody VerifyPhoneOTPJSONBody
 
 // ProcessReportJSONRequestBody defines body for ProcessReport for application/json ContentType.
 type ProcessReportJSONRequestBody = ProcessReportRequest
@@ -2222,65 +2458,35 @@ type ReportReviewJSONRequestBody = ReportReviewRequest
 // VoteReviewJSONRequestBody defines body for VoteReview for application/json ContentType.
 type VoteReviewJSONRequestBody = VoteRequest
 
+// ReportFrontendErrorJSONRequestBody defines body for ReportFrontendError for application/json ContentType.
+type ReportFrontendErrorJSONRequestBody ReportFrontendErrorJSONBody
+
+// ReportWebVitalsJSONRequestBody defines body for ReportWebVitals for application/json ContentType.
+type ReportWebVitalsJSONRequestBody ReportWebVitalsJSONBody
+
 // SubmitIdentityJSONRequestBody defines body for SubmitIdentity for application/json ContentType.
 type SubmitIdentityJSONRequestBody = SubmitIdentityRequest
 
+// UploadIdentityPhotoJSONRequestBody defines body for UploadIdentityPhoto for application/json ContentType.
+type UploadIdentityPhotoJSONRequestBody = UploadIdentityPhotoRequest
+
 // BindPhoneJSONRequestBody defines body for BindPhone for application/json ContentType.
 type BindPhoneJSONRequestBody = BindPhoneRequest
+
+// RequestBindPhoneOTPJSONRequestBody defines body for RequestBindPhoneOTP for application/json ContentType.
+type RequestBindPhoneOTPJSONRequestBody RequestBindPhoneOTPJSONBody
 
 // SubmitStudentVerificationJSONRequestBody defines body for SubmitStudentVerification for application/json ContentType.
 type SubmitStudentVerificationJSONRequestBody = SubmitStudentVerificationRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// 获取用户组列表
-	// (GET /api/v1/admin/groups)
-	ListUserGroups(c *gin.Context)
-	// 创建用户组
-	// (POST /api/v1/admin/groups)
-	CreateUserGroup(c *gin.Context)
-	// 删除用户组
-	// (DELETE /api/v1/admin/groups/{groupID})
-	DeleteUserGroup(c *gin.Context, groupID int64)
-	// 更新用户组
-	// (PUT /api/v1/admin/groups/{groupID})
-	UpdateUserGroup(c *gin.Context, groupID int64)
-	// 获取用户组成员
-	// (GET /api/v1/admin/groups/{groupID}/members)
-	ListGroupMembers(c *gin.Context, groupID int64)
-	// 设置用户组成员
-	// (PUT /api/v1/admin/groups/{groupID}/members)
-	AssignGroupMembers(c *gin.Context, groupID int64)
-	// 设置用户组权限
-	// (PUT /api/v1/admin/groups/{groupID}/permissions)
-	AssignGroupPermissions(c *gin.Context, groupID int64)
 	// 获取实名认证审核列表
 	// (GET /api/v1/admin/identities)
 	ListIdentityVerifications(c *gin.Context, params ListIdentityVerificationsParams)
 	// 审核实名认证
 	// (PUT /api/v1/admin/identities/{userID})
 	ReviewIdentityVerification(c *gin.Context, userID int64)
-	// 获取权限列表
-	// (GET /api/v1/admin/permissions)
-	ListPermissions(c *gin.Context, params ListPermissionsParams)
-	// 获取角色列表
-	// (GET /api/v1/admin/roles)
-	ListRoles(c *gin.Context)
-	// 创建角色
-	// (POST /api/v1/admin/roles)
-	CreateRole(c *gin.Context)
-	// 删除角色
-	// (DELETE /api/v1/admin/roles/{roleID})
-	DeleteRole(c *gin.Context, roleID int64)
-	// 更新角色
-	// (PUT /api/v1/admin/roles/{roleID})
-	UpdateRole(c *gin.Context, roleID int64)
-	// 获取角色已分配权限
-	// (GET /api/v1/admin/roles/{roleID}/permissions)
-	GetRolePermissions(c *gin.Context, roleID int64)
-	// 设置角色权限
-	// (PUT /api/v1/admin/roles/{roleID}/permissions)
-	AssignRolePermissions(c *gin.Context, roleID int64)
 	// 获取学校配置列表
 	// (GET /api/v1/admin/school-configs)
 	ListSchoolConfigs(c *gin.Context)
@@ -2299,24 +2505,12 @@ type ServerInterface interface {
 	// 更新系统配置
 	// (PUT /api/v1/admin/system-configs/{key})
 	UpdateSystemConfig(c *gin.Context, key string)
-	// 获取用户有效权限（合并角色+用户组+个人覆盖）
-	// (GET /api/v1/admin/users/{userID}/permissions)
-	GetUserEffectivePermissions(c *gin.Context, userID int64)
-	// 设置用户个人权限覆盖
-	// (PUT /api/v1/admin/users/{userID}/permissions)
-	SetUserPermissionOverride(c *gin.Context, userID int64)
-	// 获取用户角色
-	// (GET /api/v1/admin/users/{userID}/roles)
-	GetUserRoles(c *gin.Context, userID int64)
-	// 设置用户角色
-	// (PUT /api/v1/admin/users/{userID}/roles)
-	AssignUserRoles(c *gin.Context, userID int64)
-	// 处理 OAuth 回调
+	// 处理 OIDC 回调并重定向回前端
 	// (GET /api/v1/auth/callback)
 	HandleCallback(c *gin.Context, params HandleCallbackParams)
 	// 获取 SSO 登录 URL
 	// (GET /api/v1/auth/login)
-	GetLoginURL(c *gin.Context)
+	GetLoginURL(c *gin.Context, params GetLoginURLParams)
 	// 登出当前设备
 	// (POST /api/v1/auth/logout)
 	Logout(c *gin.Context)
@@ -2326,12 +2520,18 @@ type ServerInterface interface {
 	// 获取当前用户信息
 	// (GET /api/v1/auth/me)
 	GetCurrentUser(c *gin.Context)
+	// 发送手机验证码
+	// (POST /api/v1/auth/phone/request-otp)
+	RequestPhoneOTP(c *gin.Context)
+	// 验证手机验证码并登录
+	// (POST /api/v1/auth/phone/verify-otp)
+	VerifyPhoneOTP(c *gin.Context)
 	// 刷新 Access Token
 	// (POST /api/v1/auth/refresh)
 	RefreshToken(c *gin.Context)
 	// 获取 SSO 注册 URL
 	// (GET /api/v1/auth/signup)
-	GetSignupURL(c *gin.Context)
+	GetSignupURL(c *gin.Context, params GetSignupURLParams)
 	// 获取课程分类列表
 	// (GET /api/v1/course/categories)
 	GetCourseCategories(c *gin.Context)
@@ -2347,6 +2547,12 @@ type ServerInterface interface {
 	// 获取院系列表
 	// (GET /api/v1/course/departments)
 	GetDepartments(c *gin.Context, params GetDepartmentsParams)
+	// 获取待复核内容标记列表
+	// (GET /api/v1/course/review/admin/content-flags)
+	ListFlaggedReviews(c *gin.Context, params ListFlaggedReviewsParams)
+	// 清除测评内容标记
+	// (PUT /api/v1/course/review/admin/content-flags/{reviewID}/clear)
+	ClearContentFlag(c *gin.Context, reviewID ReviewIDPath)
 	// 导出评论数据
 	// (GET /api/v1/course/review/admin/export)
 	ExportReviews(c *gin.Context, params ExportReviewsParams)
@@ -2404,6 +2610,9 @@ type ServerInterface interface {
 	// 取消课程收藏
 	// (DELETE /api/v1/course/review/courses/{courseID}/favorites)
 	RemoveFavorite(c *gin.Context, courseID CourseIDPath)
+	// 获取当前用户对课程的收藏状态
+	// (GET /api/v1/course/review/courses/{courseID}/favorites)
+	GetFavoriteStatus(c *gin.Context, courseID CourseIDPath)
 	// 添加课程收藏
 	// (POST /api/v1/course/review/courses/{courseID}/favorites)
 	AddFavorite(c *gin.Context, courseID CourseIDPath)
@@ -2446,6 +2655,9 @@ type ServerInterface interface {
 	// 获取最新测评（支持可选认证）
 	// (GET /api/v1/course/review/reviews/latest)
 	GetLatestReviews(c *gin.Context, params GetLatestReviewsParams)
+	// 搜索测评（支持课程、院系、教师、学期筛选）
+	// (GET /api/v1/course/review/reviews/search)
+	SearchReviews(c *gin.Context, params SearchReviewsParams)
 	// 删除测评
 	// (DELETE /api/v1/course/review/reviews/{reviewID})
 	DeleteReview(c *gin.Context, reviewID ReviewIDPath)
@@ -2467,6 +2679,12 @@ type ServerInterface interface {
 	// 获取评课统计数据
 	// (GET /api/v1/course/review/stats)
 	GetReviewStats(c *gin.Context)
+	// 获取教师列表（公开，支持搜索和分页）
+	// (GET /api/v1/course/review/teachers)
+	ListTeachers(c *gin.Context, params ListTeachersParams)
+	// 获取热门教师列表
+	// (GET /api/v1/course/review/teachers/hot)
+	ListHotTeachers(c *gin.Context, params ListHotTeachersParams)
 	// 获取教师评分统计
 	// (GET /api/v1/course/review/teachers/{teacherID}/stats)
 	GetTeacherRatingStats(c *gin.Context, teacherID TeacherIDPath)
@@ -2479,6 +2697,9 @@ type ServerInterface interface {
 	// 标记所有通知已读
 	// (PUT /api/v1/course/review/user/notifications/read-all)
 	MarkAllNotificationsRead(c *gin.Context)
+	// 通知 SSE 实时推送
+	// (GET /api/v1/course/review/user/notifications/stream)
+	StreamNotifications(c *gin.Context)
 	// 获取未读通知数量
 	// (GET /api/v1/course/review/user/notifications/unread-count)
 	GetUnreadCount(c *gin.Context)
@@ -2497,12 +2718,24 @@ type ServerInterface interface {
 	// 获取学期列表
 	// (GET /api/v1/course/terms)
 	GetTerms(c *gin.Context)
+	// Report frontend errors
+	// (POST /api/v1/metrics/frontend-errors)
+	ReportFrontendError(c *gin.Context)
+	// Report Web Vitals metrics
+	// (POST /api/v1/metrics/vitals)
+	ReportWebVitals(c *gin.Context)
 	// 获取当前用户实名认证状态
 	// (GET /api/v1/user/identity)
 	GetUserIdentity(c *gin.Context)
 	// 提交实名认证
 	// (POST /api/v1/user/identity)
 	SubmitIdentity(c *gin.Context)
+	// 上传实名认证证件照片
+	// (POST /api/v1/user/identity/uploads)
+	UploadIdentityPhoto(c *gin.Context)
+	// 获取当前用户聚合信息
+	// (GET /api/v1/user/me)
+	GetUserSurface(c *gin.Context)
 	// 获取当前用户学生认证状态
 	// (GET /api/v1/user/profile)
 	GetUserProfile(c *gin.Context)
@@ -2512,6 +2745,9 @@ type ServerInterface interface {
 	// 绑定手机号
 	// (POST /api/v1/user/profile/bind-phone)
 	BindPhone(c *gin.Context)
+	// 请求绑定手机验证码
+	// (POST /api/v1/user/profile/bind-phone/otp)
+	RequestBindPhoneOTP(c *gin.Context)
 	// 提交学生认证
 	// (POST /api/v1/user/profile/verify)
 	SubmitStudentVerification(c *gin.Context)
@@ -2534,180 +2770,6 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
-
-// ListUserGroups operation middleware
-func (siw *ServerInterfaceWrapper) ListUserGroups(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListUserGroups(c)
-}
-
-// CreateUserGroup operation middleware
-func (siw *ServerInterfaceWrapper) CreateUserGroup(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CreateUserGroup(c)
-}
-
-// DeleteUserGroup operation middleware
-func (siw *ServerInterfaceWrapper) DeleteUserGroup(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "groupID" -------------
-	var groupID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupID", c.Param("groupID"), &groupID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter groupID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteUserGroup(c, groupID)
-}
-
-// UpdateUserGroup operation middleware
-func (siw *ServerInterfaceWrapper) UpdateUserGroup(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "groupID" -------------
-	var groupID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupID", c.Param("groupID"), &groupID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter groupID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateUserGroup(c, groupID)
-}
-
-// ListGroupMembers operation middleware
-func (siw *ServerInterfaceWrapper) ListGroupMembers(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "groupID" -------------
-	var groupID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupID", c.Param("groupID"), &groupID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter groupID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListGroupMembers(c, groupID)
-}
-
-// AssignGroupMembers operation middleware
-func (siw *ServerInterfaceWrapper) AssignGroupMembers(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "groupID" -------------
-	var groupID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupID", c.Param("groupID"), &groupID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter groupID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.AssignGroupMembers(c, groupID)
-}
-
-// AssignGroupPermissions operation middleware
-func (siw *ServerInterfaceWrapper) AssignGroupPermissions(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "groupID" -------------
-	var groupID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupID", c.Param("groupID"), &groupID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter groupID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.AssignGroupPermissions(c, groupID)
-}
 
 // ListIdentityVerifications operation middleware
 func (siw *ServerInterfaceWrapper) ListIdentityVerifications(c *gin.Context) {
@@ -2781,182 +2843,6 @@ func (siw *ServerInterfaceWrapper) ReviewIdentityVerification(c *gin.Context) {
 	}
 
 	siw.Handler.ReviewIdentityVerification(c, userID)
-}
-
-// ListPermissions operation middleware
-func (siw *ServerInterfaceWrapper) ListPermissions(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListPermissionsParams
-
-	// ------------- Optional query parameter "module" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "module", c.Request.URL.Query(), &params.Module, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter module: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListPermissions(c, params)
-}
-
-// ListRoles operation middleware
-func (siw *ServerInterfaceWrapper) ListRoles(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListRoles(c)
-}
-
-// CreateRole operation middleware
-func (siw *ServerInterfaceWrapper) CreateRole(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CreateRole(c)
-}
-
-// DeleteRole operation middleware
-func (siw *ServerInterfaceWrapper) DeleteRole(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "roleID" -------------
-	var roleID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "roleID", c.Param("roleID"), &roleID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter roleID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteRole(c, roleID)
-}
-
-// UpdateRole operation middleware
-func (siw *ServerInterfaceWrapper) UpdateRole(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "roleID" -------------
-	var roleID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "roleID", c.Param("roleID"), &roleID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter roleID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateRole(c, roleID)
-}
-
-// GetRolePermissions operation middleware
-func (siw *ServerInterfaceWrapper) GetRolePermissions(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "roleID" -------------
-	var roleID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "roleID", c.Param("roleID"), &roleID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter roleID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetRolePermissions(c, roleID)
-}
-
-// AssignRolePermissions operation middleware
-func (siw *ServerInterfaceWrapper) AssignRolePermissions(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "roleID" -------------
-	var roleID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "roleID", c.Param("roleID"), &roleID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter roleID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.AssignRolePermissions(c, roleID)
 }
 
 // ListSchoolConfigs operation middleware
@@ -3131,118 +3017,6 @@ func (siw *ServerInterfaceWrapper) UpdateSystemConfig(c *gin.Context) {
 	siw.Handler.UpdateSystemConfig(c, key)
 }
 
-// GetUserEffectivePermissions operation middleware
-func (siw *ServerInterfaceWrapper) GetUserEffectivePermissions(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "userID" -------------
-	var userID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userID", c.Param("userID"), &userID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUserEffectivePermissions(c, userID)
-}
-
-// SetUserPermissionOverride operation middleware
-func (siw *ServerInterfaceWrapper) SetUserPermissionOverride(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "userID" -------------
-	var userID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userID", c.Param("userID"), &userID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.SetUserPermissionOverride(c, userID)
-}
-
-// GetUserRoles operation middleware
-func (siw *ServerInterfaceWrapper) GetUserRoles(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "userID" -------------
-	var userID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userID", c.Param("userID"), &userID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUserRoles(c, userID)
-}
-
-// AssignUserRoles operation middleware
-func (siw *ServerInterfaceWrapper) AssignUserRoles(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "userID" -------------
-	var userID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userID", c.Param("userID"), &userID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.AssignUserRoles(c, userID)
-}
-
 // HandleCallback operation middleware
 func (siw *ServerInterfaceWrapper) HandleCallback(c *gin.Context) {
 
@@ -3294,6 +3068,19 @@ func (siw *ServerInterfaceWrapper) HandleCallback(c *gin.Context) {
 // GetLoginURL operation middleware
 func (siw *ServerInterfaceWrapper) GetLoginURL(c *gin.Context) {
 
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetLoginURLParams
+
+	// ------------- Optional query parameter "redirect" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "redirect", c.Request.URL.Query(), &params.Redirect, runtime.BindQueryParameterOptions{Type: "string", Format: "uri"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter redirect: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3301,7 +3088,7 @@ func (siw *ServerInterfaceWrapper) GetLoginURL(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetLoginURL(c)
+	siw.Handler.GetLoginURL(c, params)
 }
 
 // Logout operation middleware
@@ -3355,6 +3142,32 @@ func (siw *ServerInterfaceWrapper) GetCurrentUser(c *gin.Context) {
 	siw.Handler.GetCurrentUser(c)
 }
 
+// RequestPhoneOTP operation middleware
+func (siw *ServerInterfaceWrapper) RequestPhoneOTP(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RequestPhoneOTP(c)
+}
+
+// VerifyPhoneOTP operation middleware
+func (siw *ServerInterfaceWrapper) VerifyPhoneOTP(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VerifyPhoneOTP(c)
+}
+
 // RefreshToken operation middleware
 func (siw *ServerInterfaceWrapper) RefreshToken(c *gin.Context) {
 
@@ -3373,6 +3186,19 @@ func (siw *ServerInterfaceWrapper) RefreshToken(c *gin.Context) {
 // GetSignupURL operation middleware
 func (siw *ServerInterfaceWrapper) GetSignupURL(c *gin.Context) {
 
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSignupURLParams
+
+	// ------------- Optional query parameter "redirect" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "redirect", c.Request.URL.Query(), &params.Redirect, runtime.BindQueryParameterOptions{Type: "string", Format: "uri"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter redirect: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3380,7 +3206,7 @@ func (siw *ServerInterfaceWrapper) GetSignupURL(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetSignupURL(c)
+	siw.Handler.GetSignupURL(c, params)
 }
 
 // GetCourseCategories operation middleware
@@ -3559,6 +3385,72 @@ func (siw *ServerInterfaceWrapper) GetDepartments(c *gin.Context) {
 	}
 
 	siw.Handler.GetDepartments(c, params)
+}
+
+// ListFlaggedReviews operation middleware
+func (siw *ServerInterfaceWrapper) ListFlaggedReviews(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListFlaggedReviewsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListFlaggedReviews(c, params)
+}
+
+// ClearContentFlag operation middleware
+func (siw *ServerInterfaceWrapper) ClearContentFlag(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "reviewID" -------------
+	var reviewID ReviewIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ClearContentFlag(c, reviewID)
 }
 
 // ExportReviews operation middleware
@@ -4146,6 +4038,34 @@ func (siw *ServerInterfaceWrapper) RemoveFavorite(c *gin.Context) {
 	siw.Handler.RemoveFavorite(c, courseID)
 }
 
+// GetFavoriteStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetFavoriteStatus(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "courseID" -------------
+	var courseID CourseIDPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFavoriteStatus(c, courseID)
+}
+
 // AddFavorite operation middleware
 func (siw *ServerInterfaceWrapper) AddFavorite(c *gin.Context) {
 
@@ -4581,6 +4501,84 @@ func (siw *ServerInterfaceWrapper) GetLatestReviews(c *gin.Context) {
 	siw.Handler.GetLatestReviews(c, params)
 }
 
+// SearchReviews operation middleware
+func (siw *ServerInterfaceWrapper) SearchReviews(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchReviewsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "departmentID" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "departmentID", c.Request.URL.Query(), &params.DepartmentID, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentID: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "teacherName" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "teacherName", c.Request.URL.Query(), &params.TeacherName, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teacherName: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "termID" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "termID", c.Request.URL.Query(), &params.TermID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter termID: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SearchReviews(c, params)
+}
+
 // DeleteReview operation middleware
 func (siw *ServerInterfaceWrapper) DeleteReview(c *gin.Context) {
 
@@ -4777,6 +4775,90 @@ func (siw *ServerInterfaceWrapper) GetReviewStats(c *gin.Context) {
 	siw.Handler.GetReviewStats(c)
 }
 
+// ListTeachers operation middleware
+func (siw *ServerInterfaceWrapper) ListTeachers(c *gin.Context) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTeachersParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "departmentID" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "departmentID", c.Request.URL.Query(), &params.DepartmentID, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentID: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListTeachers(c, params)
+}
+
+// ListHotTeachers operation middleware
+func (siw *ServerInterfaceWrapper) ListHotTeachers(c *gin.Context) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHotTeachersParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListHotTeachers(c, params)
+}
+
 // GetTeacherRatingStats operation middleware
 func (siw *ServerInterfaceWrapper) GetTeacherRatingStats(c *gin.Context) {
 
@@ -4892,6 +4974,23 @@ func (siw *ServerInterfaceWrapper) MarkAllNotificationsRead(c *gin.Context) {
 	}
 
 	siw.Handler.MarkAllNotificationsRead(c)
+}
+
+// StreamNotifications operation middleware
+func (siw *ServerInterfaceWrapper) StreamNotifications(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StreamNotifications(c)
 }
 
 // GetUnreadCount operation middleware
@@ -5049,10 +5148,38 @@ func (siw *ServerInterfaceWrapper) GetTerms(c *gin.Context) {
 	siw.Handler.GetTerms(c)
 }
 
+// ReportFrontendError operation middleware
+func (siw *ServerInterfaceWrapper) ReportFrontendError(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReportFrontendError(c)
+}
+
+// ReportWebVitals operation middleware
+func (siw *ServerInterfaceWrapper) ReportWebVitals(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReportWebVitals(c)
+}
+
 // GetUserIdentity operation middleware
 func (siw *ServerInterfaceWrapper) GetUserIdentity(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -5069,6 +5196,8 @@ func (siw *ServerInterfaceWrapper) SubmitIdentity(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -5079,10 +5208,46 @@ func (siw *ServerInterfaceWrapper) SubmitIdentity(c *gin.Context) {
 	siw.Handler.SubmitIdentity(c)
 }
 
+// UploadIdentityPhoto operation middleware
+func (siw *ServerInterfaceWrapper) UploadIdentityPhoto(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadIdentityPhoto(c)
+}
+
+// GetUserSurface operation middleware
+func (siw *ServerInterfaceWrapper) GetUserSurface(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUserSurface(c)
+}
+
 // GetUserProfile operation middleware
 func (siw *ServerInterfaceWrapper) GetUserProfile(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -5099,6 +5264,8 @@ func (siw *ServerInterfaceWrapper) GetAcademicInfo(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -5114,6 +5281,8 @@ func (siw *ServerInterfaceWrapper) BindPhone(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
 
+	c.Set(BearerAuthScopes, []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -5124,10 +5293,29 @@ func (siw *ServerInterfaceWrapper) BindPhone(c *gin.Context) {
 	siw.Handler.BindPhone(c)
 }
 
+// RequestBindPhoneOTP operation middleware
+func (siw *ServerInterfaceWrapper) RequestBindPhoneOTP(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RequestBindPhoneOTP(c)
+}
+
 // SubmitStudentVerification operation middleware
 func (siw *ServerInterfaceWrapper) SubmitStudentVerification(c *gin.Context) {
 
 	c.Set(CookieAuthScopes, []string{})
+
+	c.Set(BearerAuthScopes, []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -5205,37 +5393,21 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
-	router.GET(options.BaseURL+"/api/v1/admin/groups", wrapper.ListUserGroups)
-	router.POST(options.BaseURL+"/api/v1/admin/groups", wrapper.CreateUserGroup)
-	router.DELETE(options.BaseURL+"/api/v1/admin/groups/:groupID", wrapper.DeleteUserGroup)
-	router.PUT(options.BaseURL+"/api/v1/admin/groups/:groupID", wrapper.UpdateUserGroup)
-	router.GET(options.BaseURL+"/api/v1/admin/groups/:groupID/members", wrapper.ListGroupMembers)
-	router.PUT(options.BaseURL+"/api/v1/admin/groups/:groupID/members", wrapper.AssignGroupMembers)
-	router.PUT(options.BaseURL+"/api/v1/admin/groups/:groupID/permissions", wrapper.AssignGroupPermissions)
 	router.GET(options.BaseURL+"/api/v1/admin/identities", wrapper.ListIdentityVerifications)
 	router.PUT(options.BaseURL+"/api/v1/admin/identities/:userID", wrapper.ReviewIdentityVerification)
-	router.GET(options.BaseURL+"/api/v1/admin/permissions", wrapper.ListPermissions)
-	router.GET(options.BaseURL+"/api/v1/admin/roles", wrapper.ListRoles)
-	router.POST(options.BaseURL+"/api/v1/admin/roles", wrapper.CreateRole)
-	router.DELETE(options.BaseURL+"/api/v1/admin/roles/:roleID", wrapper.DeleteRole)
-	router.PUT(options.BaseURL+"/api/v1/admin/roles/:roleID", wrapper.UpdateRole)
-	router.GET(options.BaseURL+"/api/v1/admin/roles/:roleID/permissions", wrapper.GetRolePermissions)
-	router.PUT(options.BaseURL+"/api/v1/admin/roles/:roleID/permissions", wrapper.AssignRolePermissions)
 	router.GET(options.BaseURL+"/api/v1/admin/school-configs", wrapper.ListSchoolConfigs)
 	router.PUT(options.BaseURL+"/api/v1/admin/school-configs/:schoolID", wrapper.UpdateSchoolConfig)
 	router.GET(options.BaseURL+"/api/v1/admin/student-verifications", wrapper.ListStudentVerifications)
 	router.PUT(options.BaseURL+"/api/v1/admin/student-verifications/:userID", wrapper.ReviewStudentVerification)
 	router.GET(options.BaseURL+"/api/v1/admin/system-configs", wrapper.ListSystemConfigs)
 	router.PUT(options.BaseURL+"/api/v1/admin/system-configs/:key", wrapper.UpdateSystemConfig)
-	router.GET(options.BaseURL+"/api/v1/admin/users/:userID/permissions", wrapper.GetUserEffectivePermissions)
-	router.PUT(options.BaseURL+"/api/v1/admin/users/:userID/permissions", wrapper.SetUserPermissionOverride)
-	router.GET(options.BaseURL+"/api/v1/admin/users/:userID/roles", wrapper.GetUserRoles)
-	router.PUT(options.BaseURL+"/api/v1/admin/users/:userID/roles", wrapper.AssignUserRoles)
 	router.GET(options.BaseURL+"/api/v1/auth/callback", wrapper.HandleCallback)
 	router.GET(options.BaseURL+"/api/v1/auth/login", wrapper.GetLoginURL)
 	router.POST(options.BaseURL+"/api/v1/auth/logout", wrapper.Logout)
 	router.POST(options.BaseURL+"/api/v1/auth/logout-all", wrapper.LogoutAll)
 	router.GET(options.BaseURL+"/api/v1/auth/me", wrapper.GetCurrentUser)
+	router.POST(options.BaseURL+"/api/v1/auth/phone/request-otp", wrapper.RequestPhoneOTP)
+	router.POST(options.BaseURL+"/api/v1/auth/phone/verify-otp", wrapper.VerifyPhoneOTP)
 	router.POST(options.BaseURL+"/api/v1/auth/refresh", wrapper.RefreshToken)
 	router.GET(options.BaseURL+"/api/v1/auth/signup", wrapper.GetSignupURL)
 	router.GET(options.BaseURL+"/api/v1/course/categories", wrapper.GetCourseCategories)
@@ -5243,6 +5415,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api/v1/course/courses/search", wrapper.SearchCourses)
 	router.GET(options.BaseURL+"/api/v1/course/courses/:courseID", wrapper.GetCourse)
 	router.GET(options.BaseURL+"/api/v1/course/departments", wrapper.GetDepartments)
+	router.GET(options.BaseURL+"/api/v1/course/review/admin/content-flags", wrapper.ListFlaggedReviews)
+	router.PUT(options.BaseURL+"/api/v1/course/review/admin/content-flags/:reviewID/clear", wrapper.ClearContentFlag)
 	router.GET(options.BaseURL+"/api/v1/course/review/admin/export", wrapper.ExportReviews)
 	router.GET(options.BaseURL+"/api/v1/course/review/admin/logs", wrapper.GetOperationLogs)
 	router.GET(options.BaseURL+"/api/v1/course/review/admin/reports", wrapper.ListReports)
@@ -5262,6 +5436,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/api/v1/course/review/admin/teachers/:teacherID", wrapper.UpdateTeacher)
 	router.POST(options.BaseURL+"/api/v1/course/review/content/check", wrapper.CheckContent)
 	router.DELETE(options.BaseURL+"/api/v1/course/review/courses/:courseID/favorites", wrapper.RemoveFavorite)
+	router.GET(options.BaseURL+"/api/v1/course/review/courses/:courseID/favorites", wrapper.GetFavoriteStatus)
 	router.POST(options.BaseURL+"/api/v1/course/review/courses/:courseID/favorites", wrapper.AddFavorite)
 	router.GET(options.BaseURL+"/api/v1/course/review/courses/:courseID/rating-stats", wrapper.GetCourseRatingStats)
 	router.GET(options.BaseURL+"/api/v1/course/review/courses/:courseID/rating-trend", wrapper.GetRatingTrend)
@@ -5276,6 +5451,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/api/v1/course/review/reviews", wrapper.PostReview)
 	router.GET(options.BaseURL+"/api/v1/course/review/reviews/batch", wrapper.GetBatchCourseReviews)
 	router.GET(options.BaseURL+"/api/v1/course/review/reviews/latest", wrapper.GetLatestReviews)
+	router.GET(options.BaseURL+"/api/v1/course/review/reviews/search", wrapper.SearchReviews)
 	router.DELETE(options.BaseURL+"/api/v1/course/review/reviews/:reviewID", wrapper.DeleteReview)
 	router.PUT(options.BaseURL+"/api/v1/course/review/reviews/:reviewID", wrapper.UpdateReview)
 	router.GET(options.BaseURL+"/api/v1/course/review/reviews/:reviewID/replies", wrapper.GetReplies)
@@ -5283,21 +5459,29 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:reviewID/reports", wrapper.ReportReview)
 	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:reviewID/votes", wrapper.VoteReview)
 	router.GET(options.BaseURL+"/api/v1/course/review/stats", wrapper.GetReviewStats)
+	router.GET(options.BaseURL+"/api/v1/course/review/teachers", wrapper.ListTeachers)
+	router.GET(options.BaseURL+"/api/v1/course/review/teachers/hot", wrapper.ListHotTeachers)
 	router.GET(options.BaseURL+"/api/v1/course/review/teachers/:teacherID/stats", wrapper.GetTeacherRatingStats)
 	router.GET(options.BaseURL+"/api/v1/course/review/user/favorites", wrapper.GetUserFavorites)
 	router.GET(options.BaseURL+"/api/v1/course/review/user/notifications", wrapper.GetNotifications)
 	router.PUT(options.BaseURL+"/api/v1/course/review/user/notifications/read-all", wrapper.MarkAllNotificationsRead)
+	router.GET(options.BaseURL+"/api/v1/course/review/user/notifications/stream", wrapper.StreamNotifications)
 	router.GET(options.BaseURL+"/api/v1/course/review/user/notifications/unread-count", wrapper.GetUnreadCount)
 	router.PUT(options.BaseURL+"/api/v1/course/review/user/notifications/:notificationID/read", wrapper.MarkNotificationRead)
 	router.GET(options.BaseURL+"/api/v1/course/review/user/reviews", wrapper.GetUserReviews)
 	router.GET(options.BaseURL+"/api/v1/course/review/user/votes", wrapper.GetUserVotes)
 	router.GET(options.BaseURL+"/api/v1/course/stats", wrapper.GetCourseStats)
 	router.GET(options.BaseURL+"/api/v1/course/terms", wrapper.GetTerms)
+	router.POST(options.BaseURL+"/api/v1/metrics/frontend-errors", wrapper.ReportFrontendError)
+	router.POST(options.BaseURL+"/api/v1/metrics/vitals", wrapper.ReportWebVitals)
 	router.GET(options.BaseURL+"/api/v1/user/identity", wrapper.GetUserIdentity)
 	router.POST(options.BaseURL+"/api/v1/user/identity", wrapper.SubmitIdentity)
+	router.POST(options.BaseURL+"/api/v1/user/identity/uploads", wrapper.UploadIdentityPhoto)
+	router.GET(options.BaseURL+"/api/v1/user/me", wrapper.GetUserSurface)
 	router.GET(options.BaseURL+"/api/v1/user/profile", wrapper.GetUserProfile)
 	router.GET(options.BaseURL+"/api/v1/user/profile/academic-info", wrapper.GetAcademicInfo)
 	router.POST(options.BaseURL+"/api/v1/user/profile/bind-phone", wrapper.BindPhone)
+	router.POST(options.BaseURL+"/api/v1/user/profile/bind-phone/otp", wrapper.RequestBindPhoneOTP)
 	router.POST(options.BaseURL+"/api/v1/user/profile/verify", wrapper.SubmitStudentVerification)
 	router.GET(options.BaseURL+"/api/v1/user/schools", wrapper.ListSchools)
 	router.GET(options.BaseURL+"/health/live", wrapper.HealthLive)
@@ -5307,185 +5491,196 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"2sJtbX7DdezwpfgrF6/8vwAAAP//iamXvEqoAQA=",
+	"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",
+	"AA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

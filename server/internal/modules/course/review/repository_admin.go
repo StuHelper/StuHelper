@@ -28,7 +28,7 @@ func validateStatus(status, fallback string) string {
 }
 
 // ListAllReviews 获取所有评论（管理员，含总数）
-// M-86: 使用 strings.Builder 重构 SQL 构建逻辑，参数绑定更清晰
+// 使用 strings.Builder 重构 SQL 构建逻辑，参数绑定更清晰
 func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, offset int) ([]Review, int, error) {
 	status = validateStatus(status, "all")
 
@@ -66,7 +66,7 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 }
 
 // GetAdminStats 获取管理统计（条件聚合，reviews 单次扫描 + reports 单次扫描）
-// M-52: 性能优化依赖以下索引（应在 init.sql 中创建）：
+// 性能优化依赖以下索引（应在 init.sql 中创建）：
 //   - reviews: idx_reviews_status (status) — 加速 FILTER 条件聚合
 //   - reviews: idx_reviews_created_at (created_at) — 加速 today/week 过滤
 //   - review_reports: idx_review_reports_status (status) — 加速 pending 计数
@@ -112,20 +112,15 @@ func (r *Repository) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 // maxBatchDBSize 数据库层批量操作的最大数量上限（L-36: 纵深防御，防止绕过 handler 直接调用）
 const maxBatchDBSize = 1000
 
-// BatchUpdateReviewStatusTx 批量更新评论状态（事务内执行）
-// L-29: 使用 FOR UPDATE 行锁防止并发修改
-// L-36: 校验批量上限
+// BatchUpdateReviewStatusTx 批量更新评论状态（事务内执行）。
+// 调用方需先通过 LockReviewsTx 获取行锁，这里只执行 UPDATE。
+// 校验批量上限。
 func (r *Repository) BatchUpdateReviewStatusTx(ctx context.Context, tx pgx.Tx, ids []string, status string) (int64, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
 	if len(ids) > maxBatchDBSize {
 		return 0, fmt.Errorf("batch size %d exceeds db limit of %d", len(ids), maxBatchDBSize)
-	}
-
-	// L-29: 先 SELECT FOR UPDATE 锁定行，再执行 UPDATE
-	if _, err := tx.Exec(ctx, `SELECT id FROM reviews WHERE id = ANY($1) FOR UPDATE`, ids); err != nil {
-		return 0, fmt.Errorf("BatchUpdateReviewStatusTx lock: %w", err)
 	}
 
 	result, err := tx.Exec(ctx, `
@@ -152,7 +147,7 @@ func (r *Repository) LockReviewsTx(ctx context.Context, tx pgx.Tx, ids []string)
 
 // AdjustCourseCountsForBatchDelete 批量删除时减少相关课程的评论计数
 // 仅对当前状态非 deleted 的评论所属课程进行计数调整
-// H-49: 此子查询依赖索引 idx_reviews_id_status (id, status) 或主键索引 + status 过滤，
+// 此子查询依赖索引 idx_reviews_id_status (id, status) 或主键索引 + status 过滤，
 // 确保 WHERE id = ANY($1) 走索引扫描而非全表扫描
 func (r *Repository) AdjustCourseCountsForBatchDelete(ctx context.Context, tx pgx.Tx, ids []string) error {
 	_, err := tx.Exec(ctx, `
@@ -238,16 +233,16 @@ func (r *Repository) ClearModerationTx(ctx context.Context, tx pgx.Tx, reviewID 
 }
 
 // AdminEditReviewContentTx 管理员编辑内容（首次编辑保存原始内容，事务内执行）
-func (r *Repository) AdminEditReviewContentTx(ctx context.Context, tx pgx.Tx, reviewID, title, content, reason, moderatedBy string) error {
+func (r *Repository) AdminEditReviewContentTx(ctx context.Context, tx pgx.Tx, reviewID, title, content, reason, moderatedBy string, contentFlag *string) error {
 	_, err := tx.Exec(ctx, `
 		UPDATE reviews SET
 			original_title = CASE WHEN original_title IS NULL THEN title ELSE original_title END,
 			original_content = CASE WHEN original_content IS NULL THEN content ELSE original_content END,
-			title = $2, content = $3,
+			title = $2, content = $3, content_flag = $6,
 			moderation_reason = $4, moderated_by = $5, moderated_at = NOW(),
 			updated_at = NOW()
 		WHERE id = $1
-	`, reviewID, title, content, reason, moderatedBy)
+	`, reviewID, title, content, reason, moderatedBy, contentFlag)
 	if err != nil {
 		return fmt.Errorf("AdminEditReviewContentTx: %w", err)
 	}

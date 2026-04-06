@@ -60,6 +60,34 @@ func (c *Config) validate(parseErrs []string) error {
 		errs = append(errs, fmt.Sprintf("TOKEN_REFRESH_TTL must be between 3600 and 2592000 seconds (got %d)", c.Token.RefreshTokenTTL))
 	}
 
+	if c.Observability.TraceSampleRatio < 0 || c.Observability.TraceSampleRatio > 1 {
+		errs = append(errs, fmt.Sprintf("OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1 (got %.4f)", c.Observability.TraceSampleRatio))
+	}
+	if c.ObjectStorage.PresignTTL < 60 || c.ObjectStorage.PresignTTL > 86400 {
+		errs = append(errs, fmt.Sprintf("OBJECT_STORAGE_PRESIGN_TTL must be between 60 and 86400 seconds (got %d)", c.ObjectStorage.PresignTTL))
+	}
+	if c.Observability.Enabled && c.Observability.ServiceName == "" {
+		errs = append(errs, "OTEL_SERVICE_NAME is required when OTEL_ENABLED=true")
+	}
+	if c.Observability.Enabled && c.Observability.OTLPEndpoint == "" {
+		errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_ENABLED=true")
+	}
+
+	if c.LDAP.URL != "" {
+		if c.LDAP.BaseDN == "" {
+			errs = append(errs, "LDAP_BASE_DN is required when LDAP_URL is set")
+		}
+		if c.LDAP.SystemBindDN == "" {
+			errs = append(errs, "LDAP_SYSTEM_BIND_DN is required when LDAP_URL is set")
+		}
+		if c.LDAP.SystemBindPassword == "" {
+			errs = append(errs, "LDAP_SYSTEM_BIND_PASSWORD is required when LDAP_URL is set")
+		}
+		if c.App.Env == "production" && c.LDAP.InsecureSkipVerify {
+			errs = append(errs, "LDAP_INSECURE_SKIP_VERIFY must be false in production")
+		}
+	}
+
 	if c.App.Env == "production" {
 		if c.Database.URL == "" {
 			errs = append(errs, "DATABASE_URL is required in production")
@@ -78,6 +106,24 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 		if c.Redis.Password == "" {
 			errs = append(errs, "REDIS_PASSWORD is required in production")
+		}
+		if c.ObjectStorage.Endpoint == "" {
+			errs = append(errs, "OBJECT_STORAGE_ENDPOINT is required in production")
+		}
+		if c.ObjectStorage.Bucket == "" {
+			errs = append(errs, "OBJECT_STORAGE_BUCKET is required in production")
+		}
+		if c.ObjectStorage.AccessKeyID == "" {
+			errs = append(errs, "OBJECT_STORAGE_ACCESS_KEY_ID is required in production")
+		}
+		if c.ObjectStorage.SecretAccessKey == "" {
+			errs = append(errs, "OBJECT_STORAGE_SECRET_ACCESS_KEY is required in production")
+		}
+		if !c.Observability.Enabled {
+			errs = append(errs, "OTEL_ENABLED must be true in production")
+		}
+		if c.Observability.OTLPEndpoint == "" {
+			errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required in production")
 		}
 
 		switch c.Database.SSLMode {
@@ -100,28 +146,34 @@ func (c *Config) validate(parseErrs []string) error {
 			len(parseErrs), strings.Join(parseErrs, "; "))
 	}
 
-	if c.Casdoor.Endpoint == "" {
-		errs = append(errs, "CASDOOR_ENDPOINT is required")
+	// Zitadel OIDC 配置校验
+	if c.Zitadel.Issuer == "" {
+		errs = append(errs, "ZITADEL_ISSUER is required")
 	}
-	if c.Casdoor.ClientID == "" {
-		errs = append(errs, "CASDOOR_CLIENT_ID is required")
+	if c.Zitadel.ClientID == "" {
+		errs = append(errs, "ZITADEL_CLIENT_ID is required")
 	}
-	if c.Casdoor.ClientSecret == "" {
-		errs = append(errs, "CASDOOR_CLIENT_SECRET is required")
+	if c.Zitadel.ClientSecret == "" {
+		errs = append(errs, "ZITADEL_CLIENT_SECRET is required")
 	}
-	if c.Casdoor.Certificate == "" {
-		errs = append(errs, "CASDOOR_CERTIFICATE is required (set CASDOOR_CERTIFICATE or CASDOOR_CERTIFICATE_FILE)")
-	} else if err := validatePEMCertificate(c.Casdoor.Certificate); err != nil {
-		errs = append(errs, fmt.Sprintf("CASDOOR_CERTIFICATE format invalid: %v", err))
+	if c.Zitadel.RedirectURI == "" {
+		errs = append(errs, "ZITADEL_REDIRECT_URI is required")
 	}
-	if c.Casdoor.Organization == "" {
-		errs = append(errs, "CASDOOR_ORGANIZATION is required")
+	if c.Zitadel.ProjectID == "" {
+		errs = append(errs, "ZITADEL_PROJECT_ID is required")
 	}
-	if c.Casdoor.Application == "" {
-		errs = append(errs, "CASDOOR_APPLICATION is required")
+
+	// OpenFGA 配置校验（生产环境必须完整配置，防止授权结果随模型发布漂移）
+	if c.App.Env == "production" && c.OpenFGA.StoreID != "" {
+		if c.OpenFGA.AuthorizationModelID == "" {
+			errs = append(errs, "OPENFGA_MODEL_ID is required in production when FGA is enabled")
+		}
+		if c.OpenFGA.APIUrl == "" {
+			errs = append(errs, "OPENFGA_API_URL is required in production when FGA is enabled")
+		}
 	}
-	if c.Casdoor.RedirectURI == "" {
-		errs = append(errs, "CASDOOR_REDIRECT_URI is required")
+	if c.App.Env == "production" && c.OpenFGA.StoreID == "" {
+		errs = append(errs, "OPENFGA_STORE_ID is required in production")
 	}
 
 	const maxRateLimit = 100000

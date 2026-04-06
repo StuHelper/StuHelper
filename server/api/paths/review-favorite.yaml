@@ -1,4 +1,32 @@
 /api/v1/course/review/courses/{courseID}/favorites:
+  get:
+    tags: [Favorite]
+    operationId: getFavoriteStatus
+    summary: 获取当前用户对课程的收藏状态
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/CourseIDPath'
+    responses:
+      '200':
+        description: 收藏状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/course.yaml#/FavoriteStatusData'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
   post:
     tags: [Favorite]
     operationId: addFavorite

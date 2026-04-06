@@ -24,6 +24,15 @@ var (
 		[]string{"cache"},
 	)
 
+	// CacheInvalidationFailuresTotal 缓存失效失败总数（用于监控告警）
+	CacheInvalidationFailuresTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_invalidation_failures_total",
+			Help: "Total number of cache invalidation failures",
+		},
+		[]string{"cache_key"},
+	)
+
 	// CacheOperationDuration 缓存操作延迟
 	CacheOperationDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{

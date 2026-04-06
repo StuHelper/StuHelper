@@ -4,14 +4,15 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Draft, SaveDraftParams } from '@/types/draft'
+import { isValidRating } from '@/types/course'
 import { api } from '@/api'
 
-// M-120: 草稿缓存最大条目数
+// 草稿缓存最大条目数
 const MAX_DRAFT_ENTRIES = 100
 
 export const useDraftStore = defineStore('draft', () => {
-  // L-49: 使用 Record 替代 Map，确保完整的 Pinia 响应式支持
-  // H-20: reactive Record 的属性变更能正确触发响应式更新
+  // 使用 Record 替代 Map，确保完整的 Pinia 响应式支持
+  // reactive Record 的属性变更能正确触发响应式更新
   const drafts = ref<Record<number, Draft>>({})
   // 缓存时间戳（毫秒）
   const cacheTimestamps = new Map<number, number>()
@@ -28,7 +29,7 @@ export const useDraftStore = defineStore('draft', () => {
     return Date.now() - ts > CACHE_TTL_MS
   }
 
-  // M-120: 超过上限时清除最旧条目
+  // 超过上限时清除最旧条目
   function evictIfNeeded() {
     const keys = Object.keys(drafts.value).map(Number)
     if (keys.length <= MAX_DRAFT_ENTRIES) return
@@ -41,12 +42,48 @@ export const useDraftStore = defineStore('draft', () => {
     }
   }
 
-  // M-06: 校验草稿字段
+  // 校验草稿字段
   function validateDraftParams(data: SaveDraftParams): boolean {
     if (!data.courseID || !Number.isFinite(data.courseID)) return false
     if (data.title !== undefined && typeof data.title !== 'string') return false
     if (data.content !== undefined && typeof data.content !== 'string') return false
     return true
+  }
+
+  function normalizeDraft(draft: {
+    id: string
+    courseID: number
+    teacherID?: number | null
+    termID?: string
+    title?: string
+    content?: string
+    grade?: string
+    ratings?: Record<string, number>
+    updatedAt: string
+  } | undefined): Draft | undefined {
+    if (!draft) return undefined
+
+    let ratings: Draft['ratings'] = undefined
+    if (draft.ratings) {
+      const normalizedRatings: Record<string, 1 | 2 | 3 | 4 | 5> = {}
+      for (const [key, value] of Object.entries(draft.ratings)) {
+        if (!isValidRating(value)) return undefined
+        normalizedRatings[key] = value
+      }
+      ratings = normalizedRatings
+    }
+
+    return {
+      id: draft.id,
+      courseID: draft.courseID,
+      ...(draft.teacherID !== undefined && { teacherID: draft.teacherID }),
+      ...(draft.termID !== undefined && { termID: draft.termID }),
+      ...(draft.title !== undefined && { title: draft.title }),
+      ...(draft.content !== undefined && { content: draft.content }),
+      ...(draft.grade !== undefined && { grade: draft.grade }),
+      ...(ratings !== undefined && { ratings }),
+      updatedAt: draft.updatedAt,
+    }
   }
 
   // 保存草稿
@@ -55,7 +92,7 @@ export const useDraftStore = defineStore('draft', () => {
     saving.value = true
     try {
       const res = await api.draft.saveDraft(data)
-      const draft = res.data?.data as Draft | undefined
+      const draft = normalizeDraft(res.data?.data ?? undefined)
       if (draft) {
         drafts.value[data.courseID] = draft
         cacheTimestamps.set(data.courseID, Date.now())
@@ -78,15 +115,19 @@ export const useDraftStore = defineStore('draft', () => {
 
     try {
       const res = await api.draft.getDraft(courseID)
-      const draft = res.data?.data as Draft | undefined
+      const draft = normalizeDraft(res.data?.data ?? undefined)
       if (draft) {
         drafts.value[courseID] = draft
         cacheTimestamps.set(courseID, Date.now())
         evictIfNeeded()
       }
       return draft
-    } catch {
-      return null
+    } catch (err: unknown) {
+      // 404 = no draft exists, return null silently
+      if (typeof err === 'object' && err !== null && 'status' in err && (err as { status: number }).status === 404) {
+        return null
+      }
+      throw err
     }
   }
 
@@ -107,7 +148,7 @@ export const useDraftStore = defineStore('draft', () => {
     return drafts.value[courseID] ?? undefined
   }
 
-  // M-39: 重置状态（登出时调用，防止用户数据泄漏）
+  // 重置状态（登出时调用，防止用户数据泄漏）
   const reset = () => {
     drafts.value = {}
     cacheTimestamps.clear()

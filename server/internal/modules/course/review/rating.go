@@ -39,7 +39,7 @@ func (h *Handler) GetRatingDimensions(c *gin.Context) {
 
 // GetCourseRatingStats 获取课程评分统计（雷达图数据）
 func (h *Handler) GetCourseRatingStats(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "id")
+	courseID, err := httputil.ParseIDParam(c, "courseID")
 	if err != nil {
 		response.BadRequest(c, "invalid course id")
 		return
@@ -122,36 +122,10 @@ func (h *Handler) GetCourseRatingStats(c *gin.Context) {
 		Overall:          overall,
 		ByTerm:           byTermList,
 		AllDimensionKeys: allKeys,
-		RadarChart:       buildRadarChart(allKeys, dimensionNames, overall),
 	}
 
 	if err := h.cache.Set(ctx, cacheKey, resp, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
 		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
 	}
 	response.Success(c, resp)
-}
-
-func buildRadarChart(keys []string, names map[string]string, overall TermRatingStats) RadarChartData {
-	labels := make([]string, 0, len(keys))
-	data := make([]float64, 0, len(keys))
-	statMap := make(map[string]DimensionStats)
-	for _, d := range overall.Dimensions {
-		statMap[d.Key] = d
-	}
-	for _, k := range keys {
-		labels = append(labels, names[k])
-		data = append(data, statMap[k].AvgRating)
-	}
-
-	return RadarChartData{
-		Labels: labels,
-		Datasets: []RadarChartDataset{
-			{
-				Label:           "overall",
-				Data:            data,
-				BackgroundColor: radarBgColor,
-				BorderColor:     radarBorderColor,
-			},
-		},
-	}
 }

@@ -85,7 +85,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 处理 OAuth 回调 */
+        /** 处理 OIDC 回调并重定向回前端 */
         get: operations["handleCallback"];
         put?: never;
         post?: never;
@@ -157,6 +157,40 @@ export interface paths {
         put?: never;
         /** 全设备登出 */
         post: operations["logoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/request-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 发送手机验证码 */
+        post: operations["requestPhoneOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/verify-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 验证手机验证码并登录 */
+        post: operations["verifyPhoneOTP"];
         delete?: never;
         options?: never;
         head?: never;
@@ -384,6 +418,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course/review/reviews/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 搜索测评（支持课程、院系、教师、学期筛选） */
+        get: operations["searchReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/course/review/reviews/batch": {
         parameters: {
             query?: never;
@@ -576,6 +627,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course/review/teachers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取教师列表（公开，支持搜索和分页） */
+        get: operations["listTeachers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/review/teachers/hot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取热门教师列表 */
+        get: operations["listHotTeachers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/course/review/user/reviews": {
         parameters: {
             query?: never;
@@ -636,6 +721,26 @@ export interface paths {
         };
         /** 获取通知列表 */
         get: operations["getNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/review/user/notifications/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 通知 SSE 实时推送
+         * @description 通过 Server-Sent Events 推送用户通知和未读数更新。
+         */
+        get: operations["streamNotifications"];
         put?: never;
         post?: never;
         delete?: never;
@@ -737,7 +842,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** 获取当前用户对课程的收藏状态 */
+        get: operations["getFavoriteStatus"];
         put?: never;
         /** 添加课程收藏 */
         post: operations["addFavorite"];
@@ -809,6 +915,40 @@ export interface paths {
         get?: never;
         /** 管理员更新评论状态 */
         put: operations["adminUpdateReview"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/review/admin/content-flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取待复核内容标记列表 */
+        get: operations["listFlaggedReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/review/admin/content-flags/{reviewID}/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 清除测评内容标记 */
+        put: operations["clearContentFlag"];
         post?: never;
         delete?: never;
         options?: never;
@@ -991,6 +1131,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user/identity/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 上传实名认证证件照片 */
+        post: operations["uploadIdentityPhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/profile": {
         parameters: {
             query?: never;
@@ -1019,6 +1176,23 @@ export interface paths {
         put?: never;
         /** 提交学生认证 */
         post: operations["submitStudentVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/profile/bind-phone/otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 请求绑定手机验证码 */
+        post: operations["requestBindPhoneOTP"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1068,6 +1242,23 @@ export interface paths {
         };
         /** 获取可用学校列表 */
         get: operations["listSchools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前用户聚合信息 */
+        get: operations["getUserSurface"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1144,184 +1335,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取角色列表 */
-        get: operations["listRoles"];
-        put?: never;
-        /** 创建角色 */
-        post: operations["createRole"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/roles/{roleID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 更新角色 */
-        put: operations["updateRole"];
-        post?: never;
-        /** 删除角色 */
-        delete: operations["deleteRole"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/roles/{roleID}/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取角色已分配权限 */
-        get: operations["getRolePermissions"];
-        /** 设置角色权限 */
-        put: operations["assignRolePermissions"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取权限列表 */
-        get: operations["listPermissions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/users/{userID}/roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取用户角色 */
-        get: operations["getUserRoles"];
-        /** 设置用户角色 */
-        put: operations["assignUserRoles"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/users/{userID}/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取用户有效权限（合并角色+用户组+个人覆盖） */
-        get: operations["getUserEffectivePermissions"];
-        /** 设置用户个人权限覆盖 */
-        put: operations["setUserPermissionOverride"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/groups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取用户组列表 */
-        get: operations["listUserGroups"];
-        put?: never;
-        /** 创建用户组 */
-        post: operations["createUserGroup"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/groups/{groupID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 更新用户组 */
-        put: operations["updateUserGroup"];
-        post?: never;
-        /** 删除用户组 */
-        delete: operations["deleteUserGroup"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/groups/{groupID}/members": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取用户组成员 */
-        get: operations["listGroupMembers"];
-        /** 设置用户组成员 */
-        put: operations["assignGroupMembers"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/groups/{groupID}/permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 设置用户组权限 */
-        put: operations["assignGroupPermissions"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/school-configs": {
         parameters: {
             query?: never;
@@ -1390,6 +1403,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/metrics/vitals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report Web Vitals metrics */
+        post: operations["reportWebVitals"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics/frontend-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report frontend errors */
+        post: operations["reportFrontendError"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1434,9 +1481,11 @@ export interface components {
             displayName: string;
             avatar?: string;
             email?: string;
-            /** @description Casdoor 平台管理员标记，不代表航小伴业务管理员 */
+            /** @description OIDC Token 中解析出的粗粒度角色列表 */
+            roles: string[];
+            /** @description 是否持有平台级 super_admin 角色，不直接等于业务资源授权 */
             isPlatformAdmin: boolean;
-            /** @description 用户当前拥有的全部能力名称，包含全局授权与带 scope 的授权 */
+            /** @description 当前用户拥有的能力集合（由 roles 在应用侧静态展开） */
             capabilities: string[];
             /** @description 当前前端可直接消费的全局能力集合，不含学校或角色范围限制 */
             globalCapabilities: string[];
@@ -1459,6 +1508,8 @@ export interface components {
             credits: number;
             category?: string;
             reviewCount: number;
+            /** @description 当前登录用户是否已收藏（未登录时不返回此字段） */
+            isFavorited?: boolean;
         };
         Department: {
             /** Format: int64 */
@@ -1618,6 +1669,7 @@ export interface components {
             courseCount: number;
             reviewCount: number;
             departmentCount: number;
+            userCount: number;
         };
         RatingDimension: {
             id: string;
@@ -1671,6 +1723,16 @@ export interface components {
             courseCount: number;
             reviewCount: number;
         };
+        TeacherSummary: {
+            /** Format: int64 */
+            teacherID: number;
+            teacherName: string;
+            departmentName?: string;
+            reviewCount: number;
+            courseCount: number;
+            /** Format: double */
+            avgRating?: number;
+        };
         TeacherCourse: {
             /** Format: int64 */
             id: number;
@@ -1702,6 +1764,11 @@ export interface components {
             content?: string;
             relatedType?: string;
             relatedID?: string;
+            /**
+             * Format: int64
+             * @description 关联课程ID，用于前端精准跳转
+             */
+            courseID?: number;
             isRead: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -1863,8 +1930,11 @@ export interface components {
             reviewedAt?: string | null;
             /** Format: date-time */
             verifiedAt?: string | null;
+            /** @description 已上传到对象存储的正面照片 key */
             docPhotoFront?: string | null;
+            /** @description 已上传到对象存储的背面照片 key */
             docPhotoBack?: string | null;
+            /** @description 已上传到对象存储的手持证件照 key */
             docPhotoSelfie?: string | null;
             rejectionReason?: string | null;
             /** Format: date-time */
@@ -1894,6 +1964,7 @@ export interface components {
             rejectionReason?: string | null;
             /** Format: date-time */
             reviewedAt?: string | null;
+            /** @description 掩码手机号（如 138****5678） */
             phone?: string | null;
             phoneVerified?: boolean;
             /** Format: date-time */
@@ -1917,6 +1988,8 @@ export interface components {
         };
         BindPhoneRequest: {
             phone: string;
+            /** @description 短信验证码（6位） */
+            otpCode: string;
         };
         SchoolConfig: {
             schoolID: string;
@@ -1958,107 +2031,17 @@ export interface components {
             /** @description 驳回理由，可留空 */
             rejectionReason?: string | null;
         };
-        Role: {
-            /** Format: int64 */
-            id: number;
-            name: string;
-            displayName: string;
-            description?: string;
-            isSystem: boolean;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        Permission: {
-            /** Format: int64 */
-            id: number;
-            name: string;
-            module: string;
-            action: string;
-            displayName: string;
-            scopeSchoolIDs?: string[] | null;
-            scopeRoles?: string[] | null;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        UserGroupSchema: components["schemas"]["UserGroup"];
-        CreateRoleRequest: {
-            name: string;
-            displayName: string;
-            description?: string;
-        };
-        UpdateRoleRequest: {
-            displayName?: string;
-            description?: string;
-        };
-        CreateUserGroupRequest: {
-            name: string;
-            displayName: string;
-            description?: string;
-        };
-        UpdateUserGroupRequest: {
-            displayName?: string;
-            description?: string;
-        };
-        AssignRolePermissionsRequest: {
-            permissionIDs: number[];
-            /** @description 显式确认清空角色全部权限；仅当 permissionIDs 为空时生效 */
-            clearAll?: boolean;
-        };
-        AssignUserRolesRequest: {
-            roleIDs: number[];
-        };
-        AssignGroupMembersRequest: {
-            userIDs: number[];
-        };
-        AssignGroupPermissionsRequest: {
-            permissionIDs: number[];
-        };
-        SetUserPermissionRequest: {
-            /** Format: int64 */
-            permissionID: number;
-            granted: boolean;
-        };
         SystemConfigSchema: components["schemas"]["SystemConfig"];
         UpdateSystemConfigRequest: {
             value: string;
-        };
-        UserPermissionOverride: {
-            /** Format: int64 */
-            userID: number;
-            /** Format: int64 */
-            permissionID: number;
-            permissionName: string;
-            granted: boolean;
-        };
-        EffectivePermission: {
-            /** Format: int64 */
-            permissionID: number;
-            name: string;
-            module: string;
-            action: string;
-            granted: boolean;
-            /**
-             * @description 权限来源
-             * @enum {string}
-             */
-            source: "role" | "group" | "override";
-        };
-        GroupMember: {
-            /** Format: int64 */
-            userID: number;
-            username: string;
-            email?: string | null;
-            avatarURL?: string | null;
-            /** Format: date-time */
-            joinedAt?: string;
         };
         AdminSchoolConfig: {
             schoolID: string;
             schoolName: string;
             /** @enum {string} */
             verificationMethod: "ldap" | "manual";
+            /** @enum {string} */
+            approvalPolicy: "auto" | "manual";
             /** @description LDAP 连接配置，不返回系统绑定密码明文 */
             ldapConfig?: components["schemas"]["SchoolLDAPConfigView"];
             /** @description 本地学籍表名 */
@@ -2079,11 +2062,42 @@ export interface components {
             manualFormFields?: components["schemas"]["ManualFieldDescriptor"][];
             enabled?: boolean;
         };
+        UserSurface: {
+            displayName: string;
+            avatarURL?: string;
+            /** @enum {string} */
+            identityStatus: "none" | "pending" | "approved" | "rejected";
+            /** @enum {string} */
+            verificationStatus: "none" | "pending" | "approved" | "rejected";
+            phoneBound: boolean;
+            capabilities: string[];
+        };
         CapabilityGrant: {
             name: string;
             scopeSchoolIDs?: string[];
             scopeRoles?: string[];
             global: boolean;
+        };
+        FavoriteStatusData: {
+            favorited: boolean;
+        };
+        UploadIdentityPhotoRequest: {
+            /** @enum {string} */
+            slot: "front" | "back" | "selfie";
+            filename: string;
+            /** @enum {string} */
+            contentType: "image/jpeg" | "image/png" | "image/webp";
+            /** @description 不含 data: 前缀的 Base64 内容 */
+            dataBase64: string;
+        };
+        IdentityPhotoUploadResult: {
+            /** @description 后续提交实名认证时使用的对象存储 key */
+            key: string;
+            rejectionReason?: string | null;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         ManualFieldDescriptor: {
             /** @description 动态字段唯一标识 */
@@ -2114,29 +2128,13 @@ export interface components {
             rejectionReason?: string | null;
             /** Format: date-time */
             reviewedAt?: string | null;
+            /** @description 掩码手机号（如 138****5678） */
             phone?: string | null;
             phoneVerified?: boolean;
             /** Format: date-time */
             consentGivenAt?: string | null;
             /** Format: date-time */
             verifiedAt?: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        RolePermissionIDsResponse: {
-            permissionIDs: number[];
-        };
-        UserGroup: {
-            /** Format: int64 */
-            id: number;
-            name: string;
-            displayName: string;
-            description?: string;
-            memberCount: number;
-            /** Format: int64 */
-            createdBy?: number;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -2297,14 +2295,17 @@ export interface operations {
     };
     getLoginURL: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 登录完成后的前端回跳地址（绝对 URL） */
+                redirect?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description 返回 Casdoor 登录 URL 和 state */
+            /** @description 返回 Zitadel OIDC 授权 URL 和 state */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2325,14 +2326,17 @@ export interface operations {
     };
     getSignupURL: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 注册完成后的前端回跳地址（绝对 URL） */
+                redirect?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description 返回 Casdoor 注册 URL 和 state */
+            /** @description 返回 Zitadel OIDC 授权 URL 和 state */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2363,23 +2367,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 登录成功，返回用户信息和 token 过期时间 */
-            200: {
+            /** @description 登录成功，写入 Cookie 后重定向到前端页面 */
+            302: {
                 headers: {
+                    /** @description 前端回跳地址 */
+                    Location?: string;
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            user: components["schemas"]["UserInfo"];
-                            /** @description Access token TTL（秒） */
-                            expiresIn: number;
-                        };
-                    };
-                };
+                content?: never;
             };
             400: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -2451,11 +2449,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            message: string;
-                            /** Format: uri */
-                            ssoLogoutURL: string;
-                        };
+                        data: components["schemas"]["MessageData"];
                     };
                 };
             };
@@ -2484,6 +2478,81 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+        };
+    };
+    requestPhoneOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description 中国大陆手机号（11 位） */
+                    phone: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 验证码发送成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            message: string;
+                            /** @description 冷却时间（秒） */
+                            cooldown: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    verifyPhoneOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    /** @description 6 位数字验证码 */
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 验证通过，登录成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            user: components["schemas"]["UserInfo"];
+                            /** @description Access Token 有效期（秒） */
+                            expiresIn: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getDepartments: {
@@ -2850,6 +2919,47 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 最新测评分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            list: components["schemas"]["Review"][];
+                            total: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    searchReviews: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+                /** @description 课程名或课号关键字 */
+                q?: string;
+                /** @description 院系 ID */
+                departmentID?: number;
+                /** @description 教师姓名模糊匹配 */
+                teacherName?: string;
+                /** @description 按学期筛选（YYYY-S） */
+                termID?: string;
+                sort?: "time" | "likes" | "rating";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 搜索测评分页列表 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3280,6 +3390,70 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    listTeachers: {
+        parameters: {
+            query?: {
+                /** @description 教师姓名搜索 */
+                q?: string;
+                /** @description 院系筛选 */
+                departmentID?: number;
+                /** @description 排序方式 */
+                sort?: "reviews" | "rating" | "name";
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 教师列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code?: string;
+                        data?: {
+                            list?: components["schemas"]["TeacherSummary"][];
+                            total?: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    listHotTeachers: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 热门教师 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code?: string;
+                        data?: {
+                            list?: components["schemas"]["TeacherSummary"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
     getUserReviews: {
         parameters: {
             query?: {
@@ -3402,8 +3576,31 @@ export interface operations {
                         data: {
                             list: components["schemas"]["Notification"][];
                             total: number;
+                            unread: number;
                         };
                     };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    streamNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE 事件流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
                 };
             };
             401: components["responses"]["ErrorResponse"];
@@ -3566,6 +3763,34 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
                         data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getFavoriteStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 课程 ID */
+                courseID: components["parameters"]["CourseIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 收藏状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FavoriteStatusData"];
                     };
                 };
             };
@@ -3750,6 +3975,69 @@ export interface operations {
         };
         responses: {
             /** @description 更新成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listFlaggedReviews: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 内容标记分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            list: components["schemas"]["Review"][];
+                            total: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    clearContentFlag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 测评 ID */
+                reviewID: components["parameters"]["ReviewIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 标记清除成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4232,6 +4520,35 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    uploadIdentityPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadIdentityPhotoRequest"];
+            };
+        };
+        responses: {
+            /** @description 上传成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["IdentityPhotoUploadResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
     getUserProfile: {
         parameters: {
             query?: never;
@@ -4285,6 +4602,41 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    requestBindPhoneOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 验证码已发送 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            message: string;
+                            cooldown: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -4366,6 +4718,29 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getUserSurface: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 用户聚合信息 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["UserSurface"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
         };
     };
     listIdentityVerifications: {
@@ -4506,560 +4881,6 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
-    listRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 角色列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["Role"][];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    createRole: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateRoleRequest"];
-            };
-        };
-        responses: {
-            /** @description 创建成功 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["Role"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    updateRole: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 角色 ID */
-                roleID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateRoleRequest"];
-            };
-        };
-        responses: {
-            /** @description 更新成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["Role"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    deleteRole: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 角色 ID */
-                roleID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 删除成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    getRolePermissions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 角色 ID */
-                roleID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 角色权限 ID 列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["RolePermissionIDsResponse"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    assignRolePermissions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 角色 ID */
-                roleID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignRolePermissionsRequest"];
-            };
-        };
-        responses: {
-            /** @description 设置成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    listPermissions: {
-        parameters: {
-            query?: {
-                /** @description 按模块筛选 */
-                module?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 权限列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["Permission"][];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    getUserRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户 ID */
-                userID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 用户角色列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["Role"][];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    assignUserRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户 ID */
-                userID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignUserRolesRequest"];
-            };
-        };
-        responses: {
-            /** @description 设置成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    getUserEffectivePermissions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户 ID */
-                userID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 用户有效权限列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["EffectivePermission"][];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    setUserPermissionOverride: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户 ID */
-                userID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetUserPermissionRequest"];
-            };
-        };
-        responses: {
-            /** @description 设置成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    listUserGroups: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 用户组列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserGroup"][];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    createUserGroup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateUserGroupRequest"];
-            };
-        };
-        responses: {
-            /** @description 创建成功 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserGroup"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    updateUserGroup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户组 ID */
-                groupID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateUserGroupRequest"];
-            };
-        };
-        responses: {
-            /** @description 更新成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserGroup"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    deleteUserGroup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户组 ID */
-                groupID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 删除成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    listGroupMembers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户组 ID */
-                groupID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 用户组成员列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["GroupMember"][];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    assignGroupMembers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户组 ID */
-                groupID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignGroupMembersRequest"];
-            };
-        };
-        responses: {
-            /** @description 设置成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    assignGroupPermissions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户组 ID */
-                groupID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignGroupPermissionsRequest"];
-            };
-        };
-        responses: {
-            /** @description 设置成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
     listSchoolConfigs: {
         parameters: {
             query?: never;
@@ -5176,6 +4997,61 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+        };
+    };
+    reportWebVitals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    name: "CLS" | "FCP" | "INP" | "LCP" | "TTFB";
+                    value: number;
+                    /** @enum {string} */
+                    rating: "good" | "needs-improvement" | "poor";
+                };
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
+    reportFrontendError: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "error" | "unhandledrejection";
+                };
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ErrorResponse"];
         };
     };
 }

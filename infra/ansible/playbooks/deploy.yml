@@ -1,0 +1,70 @@
+---
+- name: Deploy StuHelper release
+  hosts: stuhelper
+  vars:
+    deploy_app_dir: "{{ deploy_app_dir | default('/opt/stuhelper') }}"
+    registry: "{{ lookup('env', 'REGISTRY') }}"
+    registry_username: "{{ lookup('env', 'REGISTRY_USERNAME') }}"
+    registry_password: "{{ lookup('env', 'REGISTRY_PASSWORD') }}"
+    deploy_tag: "{{ lookup('env', 'DEPLOY_TAG') | default(lookup('pipe', 'git -C ../.. rev-parse --short HEAD'), true) }}"
+    deploy_shared_env_content: "{{ lookup('env', 'DEPLOY_SHARED_ENV_FILE_CONTENT') }}"
+    deploy_secret_env_content: "{{ lookup('env', 'DEPLOY_SECRET_ENV_FILE_CONTENT') }}"
+  tasks:
+    - name: Build deploy bundle on control node
+      delegate_to: localhost
+      ansible.builtin.command:
+        cmd: ../../ops/build-deploy-bundle.sh ../../generated/deploy/stuhelper-deploy-bundle.tar.gz
+
+    - name: Ensure deploy directory exists
+      ansible.builtin.file:
+        path: "{{ deploy_app_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Upload deploy bundle
+      ansible.builtin.copy:
+        src: ../../generated/deploy/stuhelper-deploy-bundle.tar.gz
+        dest: "{{ deploy_app_dir }}/deploy-bundle.tgz"
+        mode: "0644"
+
+    - name: Write shared production env
+      when: deploy_shared_env_content | length > 0
+      ansible.builtin.copy:
+        content: "{{ deploy_shared_env_content }}\n"
+        dest: "{{ deploy_app_dir }}/.env.prod.shared"
+        mode: "0644"
+
+    - name: Write production secrets env
+      when: deploy_secret_env_content | length > 0
+      ansible.builtin.copy:
+        content: "{{ deploy_secret_env_content }}\n"
+        dest: "{{ deploy_app_dir }}/.env.prod.secrets"
+        mode: "0600"
+
+    - name: Write remote deploy environment
+      ansible.builtin.copy:
+        dest: "{{ deploy_app_dir }}/deploy.remote.env"
+        mode: "0600"
+        content: |
+          REGISTRY={{ registry }}
+          REGISTRY_USERNAME={{ registry_username }}
+          REGISTRY_PASSWORD={{ registry_password }}
+          TAG={{ deploy_tag }}
+          ENV_FILE={{ deploy_app_dir }}/.env.prod.shared
+          SECRETS_ENV_FILE={{ deploy_app_dir }}/.env.prod.secrets
+          GENERATED_ENV_FILE={{ deploy_app_dir }}/.env.prod.generated
+
+    - name: Run remote deploy
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cd "{{ deploy_app_dir }}"
+        tar xzf deploy-bundle.tgz
+        rm -f deploy-bundle.tgz
+        set -a
+        . ./deploy.remote.env
+        set +a
+        ./infra/ops/remote-prod-deploy.sh
+        rm -f ./deploy.remote.env
+      args:
+        executable: /bin/bash
+

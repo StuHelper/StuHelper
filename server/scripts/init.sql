@@ -1,9 +1,13 @@
+-- BASELINE SNAPSHOT: authoritative schema history lives in server/migrations/*.sql.
+-- This file is a readable baseline snapshot and is not mounted into Docker Compose.
 -- StuHelper 数据库初始化脚本（全量）
 -- 使用方法: psql -U stuhelper -d stuhelper -f init.sql
 -- 包含: 用户表、课程表、评课社区全部业务表
 -- ID 策略: 用户可见实体 (courses/teachers/departments) 使用 BIGSERIAL，内部业务表使用 UUIDv7 (VARCHAR(36))
 
 BEGIN;
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- ============================================
 -- 1. 创建 users 表（用户）
@@ -13,13 +17,26 @@ CREATE TABLE IF NOT EXISTS users (
     external_id VARCHAR(255) NOT NULL UNIQUE,
     username VARCHAR(100) NOT NULL,
     email VARCHAR(255),
+    phone_enc BYTEA,
+    phone_hash VARCHAR(64),
     avatar_url TEXT,
+    user_hash VARCHAR(64),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_users_phone_secure_pair CHECK (
+        (phone_enc IS NULL AND phone_hash IS NULL) OR
+        (phone_enc IS NOT NULL AND phone_hash IS NOT NULL)
+    ),
+    CONSTRAINT chk_users_phone_hash_format CHECK (
+        phone_hash IS NULL OR phone_hash ~ '^[0-9a-f]{64}$'
+    )
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_external_id ON users(external_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash ON users(phone_hash) WHERE phone_hash IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_user_hash ON users(user_hash) WHERE user_hash IS NOT NULL;
 
 -- ============================================
 -- 2. 创建 departments 表（院系）
@@ -53,6 +70,7 @@ CREATE TABLE IF NOT EXISTS teachers (
 CREATE INDEX IF NOT EXISTS idx_teachers_school_id ON teachers(school_id);
 CREATE INDEX IF NOT EXISTS idx_teachers_department_id ON teachers(department_id);
 CREATE INDEX IF NOT EXISTS idx_teachers_name ON teachers(name);
+CREATE INDEX IF NOT EXISTS idx_teachers_name_trgm ON teachers USING gin (name gin_trgm_ops);
 
 -- ============================================
 -- 3b. 创建 terms 表（学期）
@@ -90,8 +108,11 @@ CREATE TABLE IF NOT EXISTS courses (
 );
 
 CREATE INDEX IF NOT EXISTS idx_courses_name ON courses(name);
+CREATE INDEX IF NOT EXISTS idx_courses_code ON courses(code);
 CREATE INDEX IF NOT EXISTS idx_courses_department_id ON courses(department_id);
 CREATE INDEX IF NOT EXISTS idx_courses_category ON courses(category);
+CREATE INDEX IF NOT EXISTS idx_courses_name_trgm ON courses USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_courses_code_trgm ON courses USING gin (code gin_trgm_ops);
 
 -- ============================================
 -- 4b. 创建 course_categories 表（课程分类配置）
@@ -319,22 +340,21 @@ CREATE INDEX IF NOT EXISTS idx_review_replies_created_at ON review_replies(revie
 -- ============================================
 CREATE TABLE IF NOT EXISTS notifications (
     id VARCHAR(36) PRIMARY KEY,
-    user_hash VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
     type VARCHAR(50) NOT NULL,
     title VARCHAR(200) NOT NULL,
-    content TEXT,
-    related_type VARCHAR(50),
-    related_id VARCHAR(64),
+    body TEXT NOT NULL DEFAULT '',
+    source_module VARCHAR(50) NOT NULL DEFAULT '',
+    source_id VARCHAR(100) NOT NULL DEFAULT '',
+    source_url TEXT,
+    source_course_id BIGINT,
     is_read BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_notifications_user_hash ON notifications(user_hash);
-CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(user_hash, is_read);
-CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_hash, created_at DESC);
--- M-38: 支持「未读通知列表」查询 WHERE user_hash=? AND is_read=false ORDER BY created_at DESC
-CREATE INDEX IF NOT EXISTS idx_notifications_user_read_created ON notifications(user_hash, is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id_created ON notifications (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id_unread ON notifications (user_id) WHERE is_read = false;
+CREATE INDEX IF NOT EXISTS idx_notifications_source_course_id ON notifications (source_course_id) WHERE source_course_id IS NOT NULL;
 
 -- ============================================
 -- 14. 创建 teacher_rating_stats 表（教师评分统计）
@@ -441,10 +461,6 @@ CREATE TABLE IF NOT EXISTS user_identities (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_identities_person_uid ON user_identities(person_uid);
-ALTER TABLE user_identities ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
-UPDATE user_identities
-SET reviewed_at = COALESCE(reviewed_at, verified_at, updated_at)
-WHERE reviewed_at IS NULL AND (verified = true OR rejection_reason IS NOT NULL);
 
 -- ============================================
 -- 19. 创建 user_profiles 表（学生认证）
@@ -479,97 +495,7 @@ ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 
 -- ============================================
--- 20. 创建 RBAC 角色权限表
--- ============================================
-
--- 20a. 角色表
-CREATE TABLE IF NOT EXISTS roles (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
-    display_name VARCHAR(100) NOT NULL,
-    description TEXT,
-    is_system BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 20b. 权限表
-CREATE TABLE IF NOT EXISTS permissions (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    module VARCHAR(50) NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    display_name VARCHAR(200) NOT NULL,
-    scope_school_ids JSONB DEFAULT NULL,
-    scope_roles JSONB DEFAULT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_permissions_module ON permissions(module);
-CREATE INDEX IF NOT EXISTS idx_permissions_module_action ON permissions(module, action);
-
--- 20c. 角色-权限关联
-CREATE TABLE IF NOT EXISTS role_permissions (
-    role_id BIGINT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    permission_id BIGINT NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-    PRIMARY KEY (role_id, permission_id)
-);
-
--- 20d. 用户-角色关联
-CREATE TABLE IF NOT EXISTS user_roles (
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role_id BIGINT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id, role_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_roles_role ON user_roles(role_id);
-
--- ============================================
--- 21. 创建用户组表
--- ============================================
-
--- 21a. 用户组
-CREATE TABLE IF NOT EXISTS user_groups (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    display_name VARCHAR(200) NOT NULL,
-    description TEXT,
-    created_by BIGINT REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 21b. 用户组成员
-CREATE TABLE IF NOT EXISTS user_group_members (
-    group_id BIGINT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    PRIMARY KEY (group_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_group_members_user ON user_group_members(user_id);
-
--- 21c. 用户组-权限关联
-CREATE TABLE IF NOT EXISTS user_group_permissions (
-    group_id BIGINT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
-    permission_id BIGINT NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-    PRIMARY KEY (group_id, permission_id)
-);
-
--- ============================================
--- 22. 创建个人权限覆盖表
--- ============================================
-CREATE TABLE IF NOT EXISTS user_permissions (
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    permission_id BIGINT NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-    granted BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (user_id, permission_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_permissions_user ON user_permissions(user_id);
-
--- ============================================
--- 23. 创建系统配置表
+-- 20. 创建系统配置表（角色→能力映射已迁移到 Go 常量 capability.RoleCapabilities）
 -- ============================================
 CREATE TABLE IF NOT EXISTS system_configs (
     key VARCHAR(100) PRIMARY KEY,
@@ -626,86 +552,7 @@ INSERT INTO school_configs (school_id, school_name, verification_method, academi
 ON CONFLICT (school_id) DO NOTHING;
 
 -- ============================================
--- 27. 插入默认角色
--- ============================================
-INSERT INTO roles (name, display_name, description, is_system) VALUES
-    ('guest', '游客', '未登录用户', TRUE),
-    ('user', '普通用户', '已注册但未认证的用户', TRUE),
-    ('verified_student', '认证学生', '已完成学生认证的用户', TRUE),
-    ('moderator', '版主', '内容审核人员', TRUE),
-    ('admin', '管理员', '系统管理员', TRUE),
-    ('super_admin', '超级管理员', '拥有所有权限的管理员', TRUE)
-ON CONFLICT (name) DO NOTHING;
-
--- ============================================
--- 28. 插入默认权限
--- ============================================
-INSERT INTO permissions (name, module, action, display_name, scope_school_ids, scope_roles) VALUES
-    -- 评课模块
-    ('review:list:brief', 'review', 'list:brief', '查看评课简略信息', NULL, NULL),
-    ('review:list:full', 'review', 'list:full', '查看评课完整信息', '["10006"]', '["verified_student"]'),
-    ('review:create', 'review', 'create', '发布评课', '["10006"]', '["verified_student"]'),
-    ('review:edit:own', 'review', 'edit:own', '编辑自己的评课', NULL, '["verified_student"]'),
-    ('review:delete:own', 'review', 'delete:own', '删除自己的评课', NULL, '["verified_student"]'),
-    -- 管理后台
-    ('admin:dashboard:view', 'admin', 'dashboard:view', '查看管理后台仪表盘', NULL, '["admin", "super_admin"]'),
-    ('admin:reviews:manage', 'admin', 'reviews:manage', '评课管理', NULL, '["admin", "super_admin", "moderator"]'),
-    ('admin:reports:manage', 'admin', 'reports:manage', '举报管理', NULL, '["admin", "super_admin", "moderator"]'),
-    ('admin:teachers:manage', 'admin', 'teachers:manage', '教师管理', NULL, '["admin", "super_admin"]'),
-    ('admin:sensitive_words:manage', 'admin', 'sensitive_words:manage', '敏感词管理', NULL, '["admin", "super_admin"]'),
-    ('admin:logs:view', 'admin', 'logs:view', '查看操作日志', NULL, '["admin", "super_admin"]'),
-    -- RBAC 细粒度权限
-    ('rbac:role:read', 'rbac', 'role:read', '查看角色', NULL, '["admin", "super_admin"]'),
-    ('rbac:role:create', 'rbac', 'role:create', '创建角色', NULL, '["super_admin"]'),
-    ('rbac:role:update', 'rbac', 'role:update', '更新角色', NULL, '["super_admin"]'),
-    ('rbac:role:delete', 'rbac', 'role:delete', '删除角色', NULL, '["super_admin"]'),
-    ('rbac:permission:read', 'rbac', 'permission:read', '查看权限', NULL, '["admin", "super_admin"]'),
-    ('rbac:user:read', 'rbac', 'user:read', '查看用户权限', NULL, '["admin", "super_admin"]'),
-    ('rbac:user:update', 'rbac', 'user:update', '更新用户权限', NULL, '["super_admin"]'),
-    ('rbac:group:read', 'rbac', 'group:read', '查看用户组', NULL, '["admin", "super_admin"]'),
-    ('rbac:group:create', 'rbac', 'group:create', '创建用户组', NULL, '["super_admin"]'),
-    ('rbac:group:update', 'rbac', 'group:update', '更新用户组', NULL, '["super_admin"]'),
-    ('rbac:group:delete', 'rbac', 'group:delete', '删除用户组', NULL, '["super_admin"]'),
-    -- 用户管理细粒度权限
-    ('user:identity:read', 'user', 'identity:read', '查看实名认证', NULL, '["admin", "super_admin"]'),
-    ('user:identity:review', 'user', 'identity:review', '审核实名认证', NULL, '["admin", "super_admin"]'),
-    ('user:student:read', 'user', 'student:read', '查看学生认证', NULL, '["admin", "super_admin"]'),
-    ('user:student:review', 'user', 'student:review', '审核学生认证', NULL, '["admin", "super_admin"]'),
-    ('user:school:read', 'user', 'school:read', '查看学校配置', NULL, '["admin", "super_admin"]'),
-    ('user:school:update', 'user', 'school:update', '更新学校配置', NULL, '["super_admin"]'),
-    ('user:system:read', 'user', 'system:read', '查看系统配置', NULL, '["admin", "super_admin"]'),
-    ('user:system:update', 'user', 'system:update', '更新系统配置', NULL, '["super_admin"]')
-ON CONFLICT (name) DO NOTHING;
-
--- ============================================
--- 29. 插入默认角色权限关联
--- ============================================
--- verified_student 角色权限
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'verified_student' AND p.name IN (
-    'review:list:full', 'review:create', 'review:edit:own', 'review:delete:own'
-) ON CONFLICT DO NOTHING;
-
--- admin 角色权限
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'admin' AND p.name IN (
-    'admin:dashboard:view', 'admin:reviews:manage', 'admin:reports:manage',
-    'admin:teachers:manage', 'admin:sensitive_words:manage', 'admin:logs:view',
-    'rbac:role:read', 'rbac:permission:read', 'rbac:user:read', 'rbac:group:read',
-    'user:identity:read', 'user:identity:review', 'user:student:read', 'user:student:review',
-    'user:school:read', 'user:system:read'
-) ON CONFLICT DO NOTHING;
-
--- super_admin 获得所有权限
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p
-WHERE r.name = 'super_admin'
-ON CONFLICT DO NOTHING;
-
--- ============================================
--- 30. 插入默认系统配置
+-- 27. 插入默认系统配置
 -- ============================================
 INSERT INTO system_configs (key, value, description) VALUES
     ('review_access_school_ids', '["10006"]', '允许查看完整评课和发布评课的学校 ID 列表（JSON 数组；留空则回退到已启用学校）'),

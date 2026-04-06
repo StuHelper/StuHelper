@@ -44,7 +44,24 @@ func TestCSRFMiddleware_AllowsSafeMethod(t *testing.T) {
 	}
 }
 
-func TestCSRFMiddleware_BlocksWithoutToken(t *testing.T) {
+func TestCSRFMiddleware_EchoesCSRFCookieOnSafeRequests(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+
+	r.Use(CSRFMiddleware())
+	r.GET("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: CookieCSRFToken, Value: "safe-csrf-token"})
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "safe-csrf-token", w.Header().Get(HeaderCSRFToken))
+}
+
+func TestCSRFMiddleware_AllowsAnonymousRequestWithoutCookies(t *testing.T) {
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
 
@@ -54,6 +71,38 @@ func TestCSRFMiddleware_BlocksWithoutToken(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestCSRFMiddleware_AllowsBearerRequestWithoutCookies(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+
+	r.Use(CSRFMiddleware())
+	r.POST("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestCSRFMiddleware_BlocksCookieSessionWithoutCSRFToken(t *testing.T) {
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+
+	r.Use(CSRFMiddleware())
+	r.POST("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: "access.jwt.token"})
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)

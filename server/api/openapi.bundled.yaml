@@ -34,10 +34,10 @@ tags:
     description: 实名认证
   - name: Profile
     description: 学生认证
-  - name: RBAC
-    description: 角色权限管理
   - name: Admin
     description: 管理后台
+  - name: Metrics
+    description: 前端可观测性指标上报
 paths:
   /health/live:
     get:
@@ -134,9 +134,17 @@ paths:
       operationId: getLoginURL
       summary: 获取 SSO 登录 URL
       security: []
+      parameters:
+        - name: redirect
+          in: query
+          required: false
+          description: 登录完成后的前端回跳地址（绝对 URL）
+          schema:
+            type: string
+            format: uri
       responses:
         '200':
-          description: 返回 Casdoor 登录 URL 和 state
+          description: 返回 Zitadel OIDC 授权 URL 和 state
           content:
             application/json:
               schema:
@@ -168,9 +176,17 @@ paths:
       operationId: getSignupURL
       summary: 获取 SSO 注册 URL
       security: []
+      parameters:
+        - name: redirect
+          in: query
+          required: false
+          description: 注册完成后的前端回跳地址（绝对 URL）
+          schema:
+            type: string
+            format: uri
       responses:
         '200':
-          description: 返回 Casdoor 注册 URL 和 state
+          description: 返回 Zitadel OIDC 授权 URL 和 state
           content:
             application/json:
               schema:
@@ -200,7 +216,7 @@ paths:
       tags:
         - Auth
       operationId: handleCallback
-      summary: 处理 OAuth 回调
+      summary: 处理 OIDC 回调并重定向回前端
       security: []
       parameters:
         - name: code
@@ -214,31 +230,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: 登录成功，返回用户信息和 token 过期时间
-          content:
-            application/json:
+        '302':
+          description: 登录成功，写入 Cookie 后重定向到前端页面
+          headers:
+            Location:
+              description: 前端回跳地址
               schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: object
-                        required:
-                          - user
-                          - expiresIn
-                        properties:
-                          user:
-                            $ref: '#/components/schemas/UserInfo'
-                          expiresIn:
-                            type: integer
-                            description: Access token TTL（秒）
+                type: string
+                format: uri
         '400':
           $ref: '#/components/responses/ErrorResponse'
-        '403':
+        '401':
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
@@ -327,16 +329,7 @@ paths:
                       - data
                     properties:
                       data:
-                        type: object
-                        required:
-                          - message
-                          - ssoLogoutURL
-                        properties:
-                          message:
-                            type: string
-                          ssoLogoutURL:
-                            type: string
-                            format: uri
+                        $ref: '#/components/schemas/MessageData'
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/auth/logout-all:
@@ -365,6 +358,113 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/phone/request-otp:
+    post:
+      tags:
+        - Auth
+      operationId: requestPhoneOTP
+      summary: 发送手机验证码
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  pattern: ^1[3-9]\d{9}$
+                  description: 中国大陆手机号（11 位）
+      responses:
+        '200':
+          description: 验证码发送成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - message
+                          - cooldown
+                        properties:
+                          message:
+                            type: string
+                          cooldown:
+                            type: integer
+                            description: 冷却时间（秒）
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/phone/verify-otp:
+    post:
+      tags:
+        - Auth
+      operationId: verifyPhoneOTP
+      summary: 验证手机验证码并登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - code
+              properties:
+                phone:
+                  type: string
+                  pattern: ^1[3-9]\d{9}$
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  description: 6 位数字验证码
+      responses:
+        '200':
+          description: 验证通过，登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - user
+                          - expiresIn
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/UserInfo'
+                          expiresIn:
+                            type: integer
+                            description: Access Token 有效期（秒）
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/departments:
     get:
@@ -820,6 +920,77 @@ paths:
       responses:
         '200':
           description: 最新测评分页列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Review'
+                          total:
+                            type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/reviews/search:
+    get:
+      tags:
+        - Review
+      operationId: searchReviews
+      summary: 搜索测评（支持课程、院系、教师、学期筛选）
+      security:
+        - {}
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 课程名或课号关键字
+        - name: departmentID
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: 院系 ID
+        - name: teacherName
+          in: query
+          schema:
+            type: string
+          description: 教师姓名模糊匹配
+        - name: termID
+          in: query
+          schema:
+            type: string
+          description: 按学期筛选（YYYY-S）
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - time
+              - likes
+              - rating
+            default: time
+      responses:
+        '200':
+          description: 搜索测评分页列表
           content:
             application/json:
               schema:
@@ -1369,6 +1540,83 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/teachers:
+    get:
+      tags:
+        - Review
+      operationId: listTeachers
+      summary: 获取教师列表（公开，支持搜索和分页）
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 教师姓名搜索
+        - name: departmentID
+          in: query
+          schema:
+            type: integer
+          description: 院系筛选
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - reviews
+              - rating
+              - name
+            default: reviews
+          description: 排序方式
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 教师列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TeacherSummary'
+                      total:
+                        type: integer
+  /api/v1/course/review/teachers/hot:
+    get:
+      tags:
+        - Review
+      operationId: listHotTeachers
+      summary: 获取热门教师列表
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: 热门教师
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TeacherSummary'
   /api/v1/course/review/user/reviews:
     get:
       tags:
@@ -1528,6 +1776,7 @@ paths:
                         required:
                           - list
                           - total
+                          - unread
                         properties:
                           list:
                             type: array
@@ -1535,6 +1784,29 @@ paths:
                               $ref: '#/components/schemas/Notification'
                           total:
                             type: integer
+                          unread:
+                            type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/user/notifications/stream:
+    get:
+      tags:
+        - Notification
+      operationId: streamNotifications
+      summary: 通知 SSE 实时推送
+      description: 通过 Server-Sent Events 推送用户通知和未读数更新。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: SSE 事件流
+          content:
+            text/event-stream:
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -1727,6 +1999,36 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/review/courses/{courseID}/favorites:
+    get:
+      tags:
+        - Favorite
+      operationId: getFavoriteStatus
+      summary: 获取当前用户对课程的收藏状态
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseIDPath'
+      responses:
+        '200':
+          description: 收藏状态
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FavoriteStatusData'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
     post:
       tags:
         - Favorite
@@ -1954,6 +2256,83 @@ paths:
       responses:
         '200':
           description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/content-flags:
+    get:
+      tags:
+        - Admin
+      operationId: listFlaggedReviews
+      summary: 获取待复核内容标记列表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 内容标记分页列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Review'
+                          total:
+                            type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/course/review/admin/content-flags/{reviewID}/clear:
+    put:
+      tags:
+        - Admin
+      operationId: clearContentFlag
+      summary: 清除测评内容标记
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewIDPath'
+      responses:
+        '200':
+          description: 标记清除成功
           content:
             application/json:
               schema:
@@ -2507,6 +2886,7 @@ paths:
       summary: 获取当前用户实名认证状态
       security:
         - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: 用户实名认证信息
@@ -2534,6 +2914,7 @@ paths:
       summary: 提交实名认证
       security:
         - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -2562,6 +2943,41 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/user/identity/uploads:
+    post:
+      tags:
+        - Identity
+      operationId: uploadIdentityPhoto
+      summary: 上传实名认证证件照片
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadIdentityPhotoRequest'
+      responses:
+        '201':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/IdentityPhotoUploadResult'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/user/profile:
     get:
       tags:
@@ -2570,6 +2986,7 @@ paths:
       summary: 获取当前用户学生认证状态
       security:
         - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: 用户学生认证信息
@@ -2598,6 +3015,7 @@ paths:
       summary: 提交学生认证
       security:
         - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -2628,6 +3046,56 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/user/profile/bind-phone/otp:
+    post:
+      tags:
+        - User
+      operationId: requestBindPhoneOTP
+      summary: 请求绑定手机验证码
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+      responses:
+        '200':
+          description: 验证码已发送
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - message
+                          - cooldown
+                        properties:
+                          message:
+                            type: string
+                          cooldown:
+                            type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/user/profile/bind-phone:
     post:
       tags:
@@ -2636,6 +3104,7 @@ paths:
       summary: 绑定手机号
       security:
         - cookieAuth: []
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -2672,6 +3141,7 @@ paths:
       summary: 获取已认证用户的学籍信息
       security:
         - cookieAuth: []
+        - bearerAuth: []
       responses:
         '200':
           description: 本地学籍数据库中的学生信息
@@ -2720,6 +3190,31 @@ paths:
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/user/me:
+    get:
+      tags:
+        - User
+      operationId: getUserSurface
+      summary: 获取当前用户聚合信息
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 用户聚合信息
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserSurface'
+        '401':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/identities:
     get:
@@ -2924,748 +3419,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/roles:
-    get:
-      tags:
-        - Admin
-      operationId: listRoles
-      summary: 获取角色列表
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      responses:
-        '200':
-          description: 角色列表
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Role'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-    post:
-      tags:
-        - Admin
-      operationId: createRole
-      summary: 创建角色
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateRoleRequest'
-      responses:
-        '201':
-          description: 创建成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/Role'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '409':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/roles/{roleID}:
-    put:
-      tags:
-        - Admin
-      operationId: updateRole
-      summary: 更新角色
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: roleID
-          in: path
-          required: true
-          description: 角色 ID
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateRoleRequest'
-      responses:
-        '200':
-          description: 更新成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/Role'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-    delete:
-      tags:
-        - Admin
-      operationId: deleteRole
-      summary: 删除角色
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: roleID
-          in: path
-          required: true
-          description: 角色 ID
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: 删除成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MessageData'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/roles/{roleID}/permissions:
-    get:
-      tags:
-        - Admin
-      operationId: getRolePermissions
-      summary: 获取角色已分配权限
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: roleID
-          in: path
-          required: true
-          description: 角色 ID
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: 角色权限 ID 列表
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/RolePermissionIDsResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-    put:
-      tags:
-        - Admin
-      operationId: assignRolePermissions
-      summary: 设置角色权限
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: roleID
-          in: path
-          required: true
-          description: 角色 ID
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AssignRolePermissionsRequest'
-      responses:
-        '200':
-          description: 设置成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MessageData'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/permissions:
-    get:
-      tags:
-        - Admin
-      operationId: listPermissions
-      summary: 获取权限列表
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: module
-          in: query
-          description: 按模块筛选
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 权限列表
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Permission'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/users/{userID}/roles:
-    get:
-      tags:
-        - Admin
-      operationId: getUserRoles
-      summary: 获取用户角色
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: userID
-          in: path
-          required: true
-          description: 用户 ID
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: 用户角色列表
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Role'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-    put:
-      tags:
-        - Admin
-      operationId: assignUserRoles
-      summary: 设置用户角色
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: userID
-          in: path
-          required: true
-          description: 用户 ID
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AssignUserRolesRequest'
-      responses:
-        '200':
-          description: 设置成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MessageData'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/users/{userID}/permissions:
-    get:
-      tags:
-        - Admin
-      operationId: getUserEffectivePermissions
-      summary: 获取用户有效权限（合并角色+用户组+个人覆盖）
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: userID
-          in: path
-          required: true
-          description: 用户 ID
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: 用户有效权限列表
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/EffectivePermission'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-    put:
-      tags:
-        - Admin
-      operationId: setUserPermissionOverride
-      summary: 设置用户个人权限覆盖
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: userID
-          in: path
-          required: true
-          description: 用户 ID
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SetUserPermissionRequest'
-      responses:
-        '200':
-          description: 设置成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MessageData'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/groups:
-    get:
-      tags:
-        - Admin
-      operationId: listUserGroups
-      summary: 获取用户组列表
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      responses:
-        '200':
-          description: 用户组列表
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/UserGroup'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-    post:
-      tags:
-        - Admin
-      operationId: createUserGroup
-      summary: 创建用户组
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateUserGroupRequest'
-      responses:
-        '201':
-          description: 创建成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/UserGroup'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '409':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/groups/{groupID}:
-    put:
-      tags:
-        - Admin
-      operationId: updateUserGroup
-      summary: 更新用户组
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: groupID
-          in: path
-          required: true
-          description: 用户组 ID
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateUserGroupRequest'
-      responses:
-        '200':
-          description: 更新成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/UserGroup'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-    delete:
-      tags:
-        - Admin
-      operationId: deleteUserGroup
-      summary: 删除用户组
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: groupID
-          in: path
-          required: true
-          description: 用户组 ID
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: 删除成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MessageData'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/groups/{groupID}/members:
-    get:
-      tags:
-        - Admin
-      operationId: listGroupMembers
-      summary: 获取用户组成员
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: groupID
-          in: path
-          required: true
-          description: 用户组 ID
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: 用户组成员列表
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/GroupMember'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-    put:
-      tags:
-        - Admin
-      operationId: assignGroupMembers
-      summary: 设置用户组成员
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: groupID
-          in: path
-          required: true
-          description: 用户组 ID
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AssignGroupMembersRequest'
-      responses:
-        '200':
-          description: 设置成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MessageData'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/groups/{groupID}/permissions:
-    put:
-      tags:
-        - Admin
-      operationId: assignGroupPermissions
-      summary: 设置用户组权限
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - name: groupID
-          in: path
-          required: true
-          description: 用户组 ID
-          schema:
-            type: integer
-            format: int64
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AssignGroupPermissionsRequest'
-      responses:
-        '200':
-          description: 设置成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/MessageData'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/school-configs:
     get:
       tags:
@@ -3820,6 +3573,71 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/metrics/vitals:
+    post:
+      operationId: reportWebVitals
+      summary: Report Web Vitals metrics
+      tags:
+        - Metrics
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - value
+                - rating
+              properties:
+                name:
+                  type: string
+                  enum:
+                    - CLS
+                    - FCP
+                    - INP
+                    - LCP
+                    - TTFB
+                value:
+                  type: number
+                rating:
+                  type: string
+                  enum:
+                    - good
+                    - needs-improvement
+                    - poor
+      responses:
+        '204':
+          description: Accepted
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/metrics/frontend-errors:
+    post:
+      operationId: reportFrontendError
+      summary: Report frontend errors
+      tags:
+        - Metrics
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - kind
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - error
+                    - unhandledrejection
+      responses:
+        '204':
+          description: Accepted
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
 components:
   securitySchemes:
     cookieAuth:
@@ -3916,6 +3734,7 @@ components:
         - id
         - name
         - displayName
+        - roles
         - capabilities
         - globalCapabilities
         - capabilityGrants
@@ -3932,14 +3751,19 @@ components:
           type: string
         email:
           type: string
+        roles:
+          type: array
+          items:
+            type: string
+          description: OIDC Token 中解析出的粗粒度角色列表
         isPlatformAdmin:
           type: boolean
-          description: Casdoor 平台管理员标记，不代表航小伴业务管理员
+          description: 是否持有平台级 super_admin 角色，不直接等于业务资源授权
         capabilities:
           type: array
           items:
             type: string
-          description: 用户当前拥有的全部能力名称，包含全局授权与带 scope 的授权
+          description: 当前用户拥有的能力集合（由 roles 在应用侧静态展开）
         globalCapabilities:
           type: array
           items:
@@ -3984,6 +3808,9 @@ components:
           type: string
         reviewCount:
           type: integer
+        isFavorited:
+          type: boolean
+          description: 当前登录用户是否已收藏（未登录时不返回此字段）
     Department:
       type: object
       required:
@@ -4356,12 +4183,15 @@ components:
         - courseCount
         - reviewCount
         - departmentCount
+        - userCount
       properties:
         courseCount:
           type: integer
         reviewCount:
           type: integer
         departmentCount:
+          type: integer
+        userCount:
           type: integer
     RatingDimension:
       type: object
@@ -4490,6 +4320,28 @@ components:
           type: integer
         reviewCount:
           type: integer
+    TeacherSummary:
+      type: object
+      required:
+        - teacherID
+        - teacherName
+        - reviewCount
+        - courseCount
+      properties:
+        teacherID:
+          type: integer
+          format: int64
+        teacherName:
+          type: string
+        departmentName:
+          type: string
+        reviewCount:
+          type: integer
+        courseCount:
+          type: integer
+        avgRating:
+          type: number
+          format: double
     TeacherCourse:
       type: object
       required:
@@ -4578,6 +4430,10 @@ components:
           type: string
         relatedID:
           type: string
+        courseID:
+          type: integer
+          format: int64
+          description: 关联课程ID，用于前端精准跳转
         isRead:
           type: boolean
         createdAt:
@@ -4994,14 +4850,17 @@ components:
           type:
             - string
             - 'null'
+          description: 已上传到对象存储的正面照片 key
         docPhotoBack:
           type:
             - string
             - 'null'
+          description: 已上传到对象存储的背面照片 key
         docPhotoSelfie:
           type:
             - string
             - 'null'
+          description: 已上传到对象存储的手持证件照 key
         rejectionReason:
           type:
             - string
@@ -5094,6 +4953,7 @@ components:
           type:
             - string
             - 'null'
+          description: 掩码手机号（如 138****5678）
         phoneVerified:
           type: boolean
         consentGivenAt:
@@ -5137,9 +4997,13 @@ components:
       type: object
       required:
         - phone
+        - otpCode
       properties:
         phone:
           type: string
+        otpCode:
+          type: string
+          description: 短信验证码（6位）
     SchoolConfig:
       type: object
       required:
@@ -5228,163 +5092,6 @@ components:
           type:
             - string
             - 'null'
-    Role:
-      type: object
-      required:
-        - id
-        - name
-        - displayName
-        - isSystem
-        - createdAt
-        - updatedAt
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-        displayName:
-          type: string
-        description:
-          type: string
-        isSystem:
-          type: boolean
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    Permission:
-      type: object
-      required:
-        - id
-        - name
-        - module
-        - action
-        - displayName
-        - createdAt
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-        module:
-          type: string
-        action:
-          type: string
-        displayName:
-          type: string
-        scopeSchoolIDs:
-          type:
-            - array
-            - 'null'
-          items:
-            type: string
-        scopeRoles:
-          type:
-            - array
-            - 'null'
-          items:
-            type: string
-        createdAt:
-          type: string
-          format: date-time
-    UserGroupSchema:
-      $ref: '#/components/schemas/UserGroup'
-    CreateRoleRequest:
-      type: object
-      required:
-        - name
-        - displayName
-      properties:
-        name:
-          type: string
-        displayName:
-          type: string
-        description:
-          type: string
-    UpdateRoleRequest:
-      type: object
-      properties:
-        displayName:
-          type: string
-        description:
-          type: string
-    CreateUserGroupRequest:
-      type: object
-      required:
-        - name
-        - displayName
-      properties:
-        name:
-          type: string
-        displayName:
-          type: string
-        description:
-          type: string
-    UpdateUserGroupRequest:
-      type: object
-      properties:
-        displayName:
-          type: string
-        description:
-          type: string
-    AssignRolePermissionsRequest:
-      type: object
-      required:
-        - permissionIDs
-      properties:
-        permissionIDs:
-          type: array
-          items:
-            type: integer
-            format: int64
-        clearAll:
-          type: boolean
-          description: 显式确认清空角色全部权限；仅当 permissionIDs 为空时生效
-    AssignUserRolesRequest:
-      type: object
-      required:
-        - roleIDs
-      properties:
-        roleIDs:
-          type: array
-          items:
-            type: integer
-            format: int64
-    AssignGroupMembersRequest:
-      type: object
-      required:
-        - userIDs
-      properties:
-        userIDs:
-          type: array
-          items:
-            type: integer
-            format: int64
-    AssignGroupPermissionsRequest:
-      type: object
-      required:
-        - permissionIDs
-      properties:
-        permissionIDs:
-          type: array
-          items:
-            type: integer
-            format: int64
-    SetUserPermissionRequest:
-      type: object
-      required:
-        - permissionID
-        - granted
-      properties:
-        permissionID:
-          type: integer
-          format: int64
-        granted:
-          type: boolean
     SystemConfigSchema:
       $ref: '#/components/schemas/SystemConfig'
     UpdateSystemConfigRequest:
@@ -5394,80 +5101,13 @@ components:
       properties:
         value:
           type: string
-    UserPermissionOverride:
-      type: object
-      required:
-        - userID
-        - permissionID
-        - permissionName
-        - granted
-      properties:
-        userID:
-          type: integer
-          format: int64
-        permissionID:
-          type: integer
-          format: int64
-        permissionName:
-          type: string
-        granted:
-          type: boolean
-    EffectivePermission:
-      type: object
-      required:
-        - permissionID
-        - name
-        - module
-        - action
-        - granted
-        - source
-      properties:
-        permissionID:
-          type: integer
-          format: int64
-        name:
-          type: string
-        module:
-          type: string
-        action:
-          type: string
-        granted:
-          type: boolean
-        source:
-          type: string
-          enum:
-            - role
-            - group
-            - override
-          description: 权限来源
-    GroupMember:
-      type: object
-      required:
-        - userID
-        - username
-      properties:
-        userID:
-          type: integer
-          format: int64
-        username:
-          type: string
-        email:
-          type:
-            - string
-            - 'null'
-        avatarURL:
-          type:
-            - string
-            - 'null'
-        joinedAt:
-          type: string
-          format: date-time
     AdminSchoolConfig:
       type: object
       required:
         - schoolID
         - schoolName
         - verificationMethod
+        - approvalPolicy
         - enabled
         - createdAt
       properties:
@@ -5479,6 +5119,11 @@ components:
           type: string
           enum:
             - ldap
+            - manual
+        approvalPolicy:
+          type: string
+          enum:
+            - auto
             - manual
         ldapConfig:
           $ref: '#/components/schemas/SchoolLDAPConfigView'
@@ -5527,6 +5172,39 @@ components:
             $ref: '#/components/schemas/ManualFieldDescriptor'
         enabled:
           type: boolean
+    UserSurface:
+      type: object
+      required:
+        - displayName
+        - identityStatus
+        - verificationStatus
+        - phoneBound
+        - capabilities
+      properties:
+        displayName:
+          type: string
+        avatarURL:
+          type: string
+        identityStatus:
+          type: string
+          enum:
+            - none
+            - pending
+            - approved
+            - rejected
+        verificationStatus:
+          type: string
+          enum:
+            - none
+            - pending
+            - approved
+            - rejected
+        phoneBound:
+          type: boolean
+        capabilities:
+          type: array
+          items:
+            type: string
     CapabilityGrant:
       type: object
       required:
@@ -5545,6 +5223,57 @@ components:
             type: string
         global:
           type: boolean
+    FavoriteStatusData:
+      type: object
+      required:
+        - favorited
+      properties:
+        favorited:
+          type: boolean
+    UploadIdentityPhotoRequest:
+      type: object
+      required:
+        - slot
+        - filename
+        - contentType
+        - dataBase64
+      properties:
+        slot:
+          type: string
+          enum:
+            - front
+            - back
+            - selfie
+        filename:
+          type: string
+          maxLength: 255
+        contentType:
+          type: string
+          enum:
+            - image/jpeg
+            - image/png
+            - image/webp
+        dataBase64:
+          type: string
+          description: '不含 data: 前缀的 Base64 内容'
+    IdentityPhotoUploadResult:
+      type: object
+      required:
+        - key
+      properties:
+        key:
+          type: string
+          description: 后续提交实名认证时使用的对象存储 key
+        rejectionReason:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     ManualFieldDescriptor:
       type: object
       required:
@@ -5637,6 +5366,7 @@ components:
           type:
             - string
             - 'null'
+          description: 掩码手机号（如 138****5678）
         phoneVerified:
           type: boolean
         consentGivenAt:
@@ -5649,46 +5379,6 @@ components:
             - string
             - 'null'
           format: date-time
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-    RolePermissionIDsResponse:
-      type: object
-      required:
-        - permissionIDs
-      properties:
-        permissionIDs:
-          type: array
-          items:
-            type: integer
-            format: int64
-    UserGroup:
-      type: object
-      required:
-        - id
-        - name
-        - displayName
-        - memberCount
-        - createdAt
-        - updatedAt
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-        displayName:
-          type: string
-        description:
-          type: string
-        memberCount:
-          type: integer
-        createdBy:
-          type: integer
-          format: int64
         createdAt:
           type: string
           format: date-time

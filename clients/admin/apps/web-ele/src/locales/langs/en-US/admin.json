@@ -1,0 +1,522 @@
+{
+  "routes": {
+    "content": {
+      "title": "Content",
+      "reviews": "Reviews",
+      "reports": "Reports",
+      "teachers": "Teachers",
+      "sensitiveWords": "Sensitive Words",
+      "logs": "Logs"
+    },
+    "userSystem": {
+      "title": "User System",
+      "identityReview": "Identity Review",
+      "studentVerification": "Student Verification",
+      "schoolConfig": "School Config",
+      "systemConfig": "System Config"
+    }
+  },
+  "common": {
+    "all": "All",
+    "query": "Search",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "status": "Status",
+    "actions": "Actions",
+    "id": "ID",
+    "yes": "Yes",
+    "no": "No",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "time": "Time",
+    "title": "Title",
+    "content": "Content",
+    "description": "Description",
+    "notSet": "Not set",
+    "unavailable": "—"
+  },
+  "result": {
+    "authExpired": "Session expired. Please sign in again.",
+    "requestFailed": "Request failed. Please try again later."
+  },
+  "layout": {
+    "notifications": {
+      "time": {
+        "threeHoursAgo": "3h ago",
+        "justNow": "Just now",
+        "oneDayAgo": "1 day ago"
+      },
+      "items": {
+        "weeklyReports": {
+          "title": "14 new weekly reports received",
+          "message": "Example notification description"
+        },
+        "reply": {
+          "title": "Zhu Pianyou replied to you",
+          "message": "Example notification description"
+        },
+        "comment": {
+          "title": "Qu Lili commented on you",
+          "message": "Example notification description"
+        },
+        "todo": {
+          "title": "Todo reminder",
+          "message": "Example notification description"
+        },
+        "workspace": {
+          "title": "Workspace navigation example",
+          "message": "Example notification description"
+        },
+        "external": {
+          "title": "External link example",
+          "message": "Example notification description"
+        }
+      }
+    }
+  },
+  "content": {
+    "reviews": {
+      "course": "Course",
+      "teacher": "Teacher",
+      "teacherUnlinked": "Unassigned",
+      "rating": "Rating",
+      "status": {
+        "published": "Published",
+        "hidden": "Hidden",
+        "deleted": "Deleted"
+      },
+      "hide": "Hide",
+      "restore": "Restore",
+      "confirmHide": "Hide this review?",
+      "confirmDelete": "Delete this review?"
+    },
+    "reports": {
+      "reviewId": "Review ID",
+      "reviewTitle": "Review Title",
+      "missingReview": "Related review not loaded",
+      "reasonLabel": "Reason",
+      "status": {
+        "pending": "Pending",
+        "resolved": "Resolved",
+        "rejected": "Rejected"
+      },
+      "reason": {
+        "false_info": "False information",
+        "harassment": "Harassment",
+        "inappropriate": "Inappropriate content",
+        "other": "Other",
+        "spam": "Spam"
+      },
+      "reject": "Reject",
+      "hideReview": "Hide Review",
+      "deleteReview": "Delete Review",
+      "confirmReject": "Reject this report?",
+      "confirmHideReview": "Hide the reported review?",
+      "confirmDeleteReview": "Delete the reported review?"
+    },
+    "teachers": {
+      "searchByName": "Search teacher name...",
+      "filterByDepartmentId": "Filter by department ID...",
+      "create": "Create Teacher",
+      "name": "Name",
+      "department": "Department",
+      "departmentPrefix": "Department",
+      "departmentId": "Department ID",
+      "reviewCount": "Review Count",
+      "editTitle": "Edit Teacher",
+      "createTitle": "Create Teacher",
+      "namePlaceholder": "Enter teacher name",
+      "departmentIdPlaceholder": "Enter department ID",
+      "confirmDelete": "Delete this teacher?",
+      "updated": "Updated successfully",
+      "created": "Created successfully",
+      "deleted": "Deleted successfully",
+      "validation": {
+        "nameRequired": "Please enter a teacher name"
+      }
+    },
+    "sensitiveWords": {
+      "filterByCategory": "Filter by category...",
+      "level": "Level",
+      "create": "Create Sensitive Word",
+      "word": "Word",
+      "category": "Category",
+      "active": "Active",
+      "levels": {
+        "block": "Block",
+        "warn": "Warn",
+        "review": "Review"
+      },
+      "editTitle": "Edit Sensitive Word",
+      "createTitle": "Create Sensitive Word",
+      "wordPlaceholder": "Enter sensitive word",
+      "categoryPlaceholder": "Enter category",
+      "levelPlaceholder": "Select level",
+      "confirmDelete": "Delete this sensitive word?",
+      "updated": "Updated successfully",
+      "created": "Created successfully",
+      "deleted": "Deleted successfully",
+      "validation": {
+        "wordRequired": "Please enter a sensitive word"
+      }
+    },
+    "logs": {
+      "admin": "Admin",
+      "action": "Action",
+      "targetType": "Target Type",
+      "targetId": "Target ID"
+    }
+  },
+  "users": {
+    "identityReview": {
+      "statusPlaceholder": "Identity status",
+      "userId": "User ID",
+      "realName": "Real Name",
+      "docTypeLabel": "Document Type",
+      "verifyMethodLabel": "Verification Method",
+      "statusLabel": "Status",
+      "finishedAt": "Finished At",
+      "approve": "Approve",
+      "reject": "Reject",
+      "confirmApprove": "Approve this identity verification?",
+      "confirmReject": "Reject this identity verification?",
+      "status": {
+        "pending": "Pending",
+        "verified": "Verified",
+        "rejected": "Rejected"
+      },
+      "docType": {
+        "HK_MACAU": "Hong Kong/Macau Permit",
+        "MAINLAND_ID": "Mainland ID Card",
+        "PASSPORT": "Passport",
+        "TW": "Taiwan Compatriot Permit"
+      },
+      "verifyMethod": {
+        "academic_db_match": "Academic DB Match",
+        "manual": "Manual Review",
+        "tencent_cloud": "Tencent Cloud Verification"
+      }
+    },
+    "studentVerification": {
+      "statusPlaceholder": "Verification status",
+      "schoolIdPlaceholder": "Filter by school ID...",
+      "userId": "User ID",
+      "schoolId": "School ID",
+      "activeStudentId": "Current Student ID",
+      "statusLabel": "Status",
+      "methodLabel": "Method",
+      "createdAt": "Submitted At",
+      "approve": "Approve",
+      "reject": "Reject",
+      "confirmApprove": "Approve this student verification?",
+      "confirmReject": "Reject this student verification?",
+      "status": {
+        "pending": "Pending",
+        "verified": "Verified",
+        "rejected": "Rejected",
+        "unverified": "Unverified"
+      },
+      "method": {
+        "ldap": "LDAP",
+        "manual": "Manual Review"
+      }
+    },
+    "schoolConfig": {
+      "schoolId": "School ID",
+      "schoolName": "School Name",
+      "verificationMethod": "Verification Method",
+      "enabledStatus": "Enabled",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "ldapUrl": "LDAP URL",
+      "dialogTitle": "Edit school config - {schoolName}",
+      "schoolNamePlaceholder": "Enter school name",
+      "methods": {
+        "ldap": "LDAP",
+        "manual": "Manual Review"
+      },
+      "enableSchool": "Enable School",
+      "ldapUrlPlaceholder": "e.g. ldaps://ldap.example.edu:636",
+      "baseDn": "Base DN",
+      "baseDnPlaceholder": "e.g. dc=example,dc=edu",
+      "systemBindDn": "System Bind DN",
+      "systemBindDnPlaceholder": "e.g. cn=service,dc=example,dc=edu",
+      "systemBindPassword": "System Bind Password",
+      "systemBindPasswordPlaceholder": "Leave blank to keep current password",
+      "useTls": "Use TLS",
+      "insecureSkipVerify": "Skip certificate verification",
+      "academicDbTable": "Academic DB Table",
+      "academicDbTablePlaceholder": "academic_records",
+      "consentText": "Consent Text",
+      "consentTextPlaceholder": "User consent copy...",
+      "updated": "Updated successfully"
+    },
+    "systemConfig": {
+      "key": "Config Key",
+      "value": "Value",
+      "dialogTitle": "Edit config - {key}",
+      "valuePlaceholder": "Enter config value",
+      "updated": "Updated successfully"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "tabs": {
+      "basic": "Basic Settings",
+      "security": "Security",
+      "password": "Change Password",
+      "notice": "Notifications"
+    },
+    "baseSetting": {
+      "roles": {
+        "admin": "Admin",
+        "user": "User",
+        "test": "Test"
+      },
+      "fields": {
+        "realName": "Name",
+        "username": "Username",
+        "roles": "Roles",
+        "introduction": "Bio"
+      }
+    },
+    "notification": {
+      "accountPassword": {
+        "label": "Account Password",
+        "description": "Messages from other users will be delivered via inbox"
+      },
+      "systemMessage": {
+        "label": "System Message",
+        "description": "System notifications will be delivered via inbox"
+      },
+      "todoTask": {
+        "label": "Todo Tasks",
+        "description": "Todo reminders will be delivered via inbox"
+      }
+    },
+    "password": {
+      "oldPassword": "Current Password",
+      "oldPasswordPlaceholder": "Enter current password",
+      "newPassword": "New Password",
+      "newPasswordPlaceholder": "Enter new password",
+      "confirmPassword": "Confirm Password",
+      "confirmPasswordPlaceholder": "Re-enter new password",
+      "passwordMismatch": "The two passwords do not match",
+      "updated": "Password updated successfully"
+    },
+    "security": {
+      "accountPassword": {
+        "label": "Account Password",
+        "description": "Current strength: strong"
+      },
+      "securityPhone": {
+        "label": "Security Phone",
+        "description": "Bound phone: 138****8293"
+      },
+      "securityQuestion": {
+        "label": "Security Question",
+        "description": "No security question configured yet"
+      },
+      "securityEmail": {
+        "label": "Backup Email",
+        "description": "Bound email: ant***sign.com"
+      },
+      "securityMfa": {
+        "label": "MFA Device",
+        "description": "No MFA device bound yet"
+      }
+    }
+  },
+  "auth": {
+    "codeLogin": {
+      "beforeSendCode": "Validate before sending the code",
+      "phoneValidationFailed": "Phone validation failed"
+    }
+  },
+  "dashboard": {
+    "analytics": {
+      "overview": {
+        "users": {
+          "title": "Reviews Today",
+          "totalTitle": "Total Reviews"
+        },
+        "visits": {
+          "title": "Pending Reports",
+          "totalTitle": "Total Reports"
+        },
+        "downloads": {
+          "title": "Hidden Reviews",
+          "totalTitle": "Published Reviews"
+        },
+        "usage": {
+          "title": "Reviews This Week",
+          "totalTitle": "Deleted Reviews"
+        }
+      },
+      "tabs": {
+        "trends": "Traffic Trends",
+        "visits": "Monthly Visits"
+      },
+      "cards": {
+        "visitsData": "Visit Breakdown",
+        "visitsSource": "Visit Sources",
+        "salesShare": "Business Share"
+      },
+      "visitsData": {
+        "legend": {
+          "visits": "Visits",
+          "trend": "Trend"
+        },
+        "indicators": {
+          "web": "Web",
+          "mobile": "Mobile",
+          "client": "Client",
+          "thirdParty": "Third Party",
+          "other": "Other"
+        }
+      },
+      "sales": {
+        "outsourcing": "Outsourcing",
+        "custom": "Custom",
+        "support": "Support",
+        "remote": "Remote",
+        "seriesName": "Business Share"
+      },
+      "source": {
+        "search": "Search Engine",
+        "direct": "Direct",
+        "email": "Email",
+        "ads": "Ads",
+        "seriesName": "Visit Sources"
+      },
+      "monthLabel": "{month}"
+    },
+    "workspace": {
+      "header": {
+        "title": "Good morning, {name}. Let's start the day!",
+        "description": "Sunny today, 20℃ - 32℃!"
+      },
+      "cards": {
+        "projects": "Projects",
+        "trends": "Latest Activity",
+        "quickNav": "Quick Navigation",
+        "todo": "Todo",
+        "visitsSource": "Visit Sources"
+      },
+      "quickNav": {
+        "home": "Home",
+        "dashboard": "Dashboard",
+        "components": "Components",
+        "system": "System",
+        "access": "Access Control",
+        "charts": "Charts"
+      },
+      "projects": {
+        "github": {
+          "content": "Do not wait for opportunities. Create them.",
+          "group": "Open Source"
+        },
+        "vue": {
+          "content": "Who you are now shapes who you will become.",
+          "group": "Algorithms"
+        },
+        "html": {
+          "content": "Nothing matters more than effort.",
+          "group": "Relax"
+        },
+        "angular": {
+          "content": "Passion and desire can break every barrier."
+        },
+        "react": {
+          "content": "A healthy body is the foundation for any goal.",
+          "group": "Tech"
+        },
+        "javascript": {
+          "content": "The road is made by walking, not by imagining.",
+          "group": "Architecture"
+        }
+      },
+      "todos": {
+        "reviewFrontend": {
+          "title": "Review frontend commits",
+          "content": "Review recent frontend commits in Git and ensure code quality and conventions."
+        },
+        "optimizePerformance": {
+          "title": "Optimize system performance",
+          "content": "Check and optimize system performance to reduce CPU usage."
+        },
+        "securityCheck": {
+          "title": "Security audit",
+          "content": "Run a system security audit to ensure there are no vulnerabilities or unauthorized access."
+        },
+        "updateDependencies": {
+          "title": "Update dependencies",
+          "content": "Update all npm dependencies in the project to the latest versions."
+        },
+        "fixUi": {
+          "title": "Fix UI issues",
+          "content": "Fix reported UI rendering issues across browsers."
+        }
+      },
+      "trends": {
+        "time": {
+          "justNow": "Just now",
+          "oneHourAgo": "1 hour ago",
+          "oneDayAgo": "1 day ago",
+          "twoDaysAgo": "2 days ago",
+          "threeDaysAgo": "3 days ago",
+          "oneWeekAgo": "1 week ago"
+        },
+        "people": {
+          "william": "William",
+          "ivan": "Ivan",
+          "chris": "Chris",
+          "peter": "Peter",
+          "jack": "Jack"
+        },
+        "createProject": {
+          "content": "Created project <a>Vue</a> in <a>Open Source</a>"
+        },
+        "follow": {
+          "content": "Followed <a>William</a>"
+        },
+        "publishUpdate": {
+          "content": "Published a <a>status update</a>"
+        },
+        "publishArticle": {
+          "content": "Published article <a>How to write a Vite plugin</a>"
+        },
+        "replyQuestion": {
+          "content": "Replied to <a>Jack</a> on <a>How to optimize a project?</a>"
+        },
+        "closeIssue": {
+          "content": "Closed issue <a>How to run the project</a>"
+        },
+        "pushGithub": {
+          "content": "Pushed code to <a>GitHub</a>"
+        },
+        "adminArticle": {
+          "content": "Published article <a>How to use Admin Vben</a>"
+        }
+      }
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "reviews": "Reviews",
+      "reports": "Reports",
+      "teachers": "Teachers",
+      "identity": "Identity Review",
+      "students": "Student Verification"
+    },
+    "summary": {
+      "title": "Summary",
+      "publishedReviews": "Published Reviews",
+      "deletedReviews": "Deleted Reviews",
+      "totalReports": "Total Reports",
+      "pendingReports": "Pending Reports"
+    }
+  }
+}

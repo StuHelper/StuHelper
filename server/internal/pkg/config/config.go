@@ -7,14 +7,19 @@ import (
 
 // Config 应用配置
 type Config struct {
-	App       AppConfig
-	Database  DatabaseConfig
-	Redis     RedisConfig
-	Casdoor   CasdoorConfig
-	Token     TokenConfig
-	Log       LogConfig
-	RateLimit ReviewRateLimitConfig
-	Security  SecurityConfig
+	App           AppConfig
+	Database      DatabaseConfig
+	Redis         RedisConfig
+	Zitadel       ZitadelConfig
+	OpenFGA       OpenFGAConfig
+	LDAP          LDAPConfig
+	ObjectStorage ObjectStorageConfig
+	Token         TokenConfig
+	Log           LogConfig
+	RateLimit     ReviewRateLimitConfig
+	Security      SecurityConfig
+	SMS           SMSConfig
+	Observability ObservabilityConfig
 }
 
 // SecurityConfig PII 加密安全配置（已验证、可直接消费的强类型结果）
@@ -46,6 +51,31 @@ type LogConfig struct {
 	FileMaxBackups  int
 	FileMaxAge      int
 	FileCompress    bool
+	ServiceName     string
+	Environment     string
+	ServiceVersion  string
+}
+
+// ObservabilityConfig OpenTelemetry / tracing 配置
+type ObservabilityConfig struct {
+	Enabled          bool
+	ServiceName      string
+	ServiceNamespace string
+	OTLPEndpoint     string
+	OTLPInsecure     bool
+	TraceSampleRatio float64
+}
+
+// ObjectStorageConfig 对象存储配置。
+type ObjectStorageConfig struct {
+	Endpoint        string
+	Region          string
+	Bucket          string
+	AccessKeyID     string
+	SecretAccessKey string
+	UseSSL          bool
+	ForcePathStyle  bool
+	PresignTTL      int
 }
 
 // AppConfig 应用配置
@@ -82,15 +112,45 @@ type DatabaseConfig struct {
 	SSLKey          string
 }
 
-// CasdoorConfig Casdoor SSO 配置
-type CasdoorConfig struct {
-	Endpoint     string
-	ClientID     string
-	ClientSecret string
-	Certificate  string
-	Organization string
-	Application  string
-	RedirectURI  string
+// ZitadelConfig Zitadel OIDC 认证配置
+type ZitadelConfig struct {
+	Issuer          string // OIDC 对外签发者地址，如 https://sso.stuhelper.com
+	InternalAddress string // 可选：容器内访问 Zitadel 的拨号地址，如 host.docker.internal:8085
+	ClientID        string
+	ClientSecret    string
+	RedirectURI     string
+	ProjectID       string // 用于解析 Token 中的角色 claim
+	OrgID           string // 默认组织 ID
+	ManagementPAT   string // Service Account PAT，用于 Management API（角色同步等）
+}
+
+// OpenFGAConfig OpenFGA 关系型授权引擎配置
+type OpenFGAConfig struct {
+	APIUrl               string // OpenFGA HTTP API 地址
+	StoreID              string // 授权 Store ID
+	AuthorizationModelID string // 授权模型版本 ID
+}
+
+// SMSConfig 腾讯云短信配置
+type SMSConfig struct {
+	SecretID     string
+	SecretKey    string
+	AppID        string
+	SignName     string
+	TemplateID   string
+	Region       string
+	InternalKey  string // 内部调用鉴权密钥
+	InternalPort string // 内部 HTTP 端口（SMS 转发服务）
+}
+
+// LDAPConfig LDAP 学生认证配置。
+type LDAPConfig struct {
+	URL                string
+	BaseDN             string
+	SystemBindDN       string
+	SystemBindPassword string
+	UseTLS             bool
+	InsecureSkipVerify bool
 }
 
 // RedisConfig Redis 配置
@@ -119,11 +179,6 @@ type TokenConfig struct {
 // Load 从环境变量加载配置
 func Load() (*Config, error) {
 	var parseErrs []string
-
-	cert, certErr := loadCertificate()
-	if certErr != nil {
-		return nil, fmt.Errorf("failed to load certificate: %w", certErr)
-	}
 
 	cfg := &Config{
 		App: AppConfig{
@@ -156,14 +211,38 @@ func Load() (*Config, error) {
 			SSLCert:         getEnv("DB_SSL_CERT", ""),
 			SSLKey:          getEnv("DB_SSL_KEY", ""),
 		},
-		Casdoor: CasdoorConfig{
-			Endpoint:     getEnv("CASDOOR_ENDPOINT", ""),
-			ClientID:     getEnv("CASDOOR_CLIENT_ID", ""),
-			ClientSecret: getEnv("CASDOOR_CLIENT_SECRET", ""),
-			Certificate:  cert,
-			Organization: getEnv("CASDOOR_ORGANIZATION", ""),
-			Application:  getEnv("CASDOOR_APPLICATION", ""),
-			RedirectURI:  getEnv("CASDOOR_REDIRECT_URI", ""),
+		Zitadel: ZitadelConfig{
+			Issuer:          getEnv("ZITADEL_ISSUER", ""),
+			InternalAddress: getEnv("ZITADEL_INTERNAL_ADDRESS", ""),
+			ClientID:        getEnv("ZITADEL_CLIENT_ID", ""),
+			ClientSecret:    getEnv("ZITADEL_CLIENT_SECRET", ""),
+			RedirectURI:     getEnv("ZITADEL_REDIRECT_URI", ""),
+			ProjectID:       getEnv("ZITADEL_PROJECT_ID", ""),
+			OrgID:           getEnv("ZITADEL_ORG_ID", ""),
+			ManagementPAT:   getEnv("ZITADEL_MANAGEMENT_PAT", ""),
+		},
+		OpenFGA: OpenFGAConfig{
+			APIUrl:               getEnv("OPENFGA_API_URL", "http://localhost:8081"),
+			StoreID:              getEnv("OPENFGA_STORE_ID", ""),
+			AuthorizationModelID: getEnv("OPENFGA_MODEL_ID", ""),
+		},
+		LDAP: LDAPConfig{
+			URL:                getEnv("LDAP_URL", ""),
+			BaseDN:             getEnv("LDAP_BASE_DN", ""),
+			SystemBindDN:       getEnv("LDAP_SYSTEM_BIND_DN", ""),
+			SystemBindPassword: getEnv("LDAP_SYSTEM_BIND_PASSWORD", ""),
+			UseTLS:             getEnvBool("LDAP_USE_TLS", false, &parseErrs),
+			InsecureSkipVerify: getEnvBool("LDAP_INSECURE_SKIP_VERIFY", false, &parseErrs),
+		},
+		ObjectStorage: ObjectStorageConfig{
+			Endpoint:        getEnv("OBJECT_STORAGE_ENDPOINT", ""),
+			Region:          getEnv("OBJECT_STORAGE_REGION", "us-east-1"),
+			Bucket:          getEnv("OBJECT_STORAGE_BUCKET", ""),
+			AccessKeyID:     getEnv("OBJECT_STORAGE_ACCESS_KEY_ID", ""),
+			SecretAccessKey: getEnv("OBJECT_STORAGE_SECRET_ACCESS_KEY", ""),
+			UseSSL:          getEnvBool("OBJECT_STORAGE_USE_SSL", false, &parseErrs),
+			ForcePathStyle:  getEnvBool("OBJECT_STORAGE_FORCE_PATH_STYLE", true, &parseErrs),
+			PresignTTL:      getEnvInt("OBJECT_STORAGE_PRESIGN_TTL", 600, &parseErrs),
 		},
 		Redis: RedisConfig{
 			Host:         getEnv("REDIS_HOST", "localhost"),
@@ -197,6 +276,9 @@ func Load() (*Config, error) {
 			FileMaxBackups:  getEnvInt("LOG_FILE_MAX_BACKUPS", 3, &parseErrs),
 			FileMaxAge:      getEnvInt("LOG_FILE_MAX_AGE", 7, &parseErrs),
 			FileCompress:    getEnvBool("LOG_FILE_COMPRESS", true, &parseErrs),
+			ServiceName:     getEnv("LOG_SERVICE_NAME", getEnv("OTEL_SERVICE_NAME", "stuhelper-backend")),
+			Environment:     getEnv("LOG_ENVIRONMENT", getEnv("APP_ENV", "development")),
+			ServiceVersion:  getEnv("LOG_SERVICE_VERSION", ""),
 		},
 		RateLimit: ReviewRateLimitConfig{
 			PostLimit:   getEnvInt("REVIEW_RATE_POST_LIMIT", 5, &parseErrs),
@@ -204,6 +286,24 @@ func Load() (*Config, error) {
 			ReportLimit: getEnvInt("REVIEW_RATE_REPORT_LIMIT", 10, &parseErrs),
 			ReplyLimit:  getEnvInt("REVIEW_RATE_REPLY_LIMIT", 10, &parseErrs),
 			WriteLimit:  getEnvInt("REVIEW_RATE_WRITE_LIMIT", 10, &parseErrs),
+		},
+		SMS: SMSConfig{
+			SecretID:     getEnv("SMS_SECRET_ID", ""),
+			SecretKey:    getEnv("SMS_SECRET_KEY", ""),
+			AppID:        getEnv("SMS_APP_ID", ""),
+			SignName:     getEnv("SMS_SIGN_NAME", ""),
+			TemplateID:   getEnv("SMS_TEMPLATE_ID", ""),
+			Region:       getEnv("SMS_REGION", "ap-beijing"),
+			InternalKey:  getEnv("SMS_INTERNAL_KEY", ""),
+			InternalPort: getEnv("SMS_INTERNAL_PORT", "9090"),
+		},
+		Observability: ObservabilityConfig{
+			Enabled:          getEnvBool("OTEL_ENABLED", false, &parseErrs),
+			ServiceName:      getEnv("OTEL_SERVICE_NAME", "stuhelper-backend"),
+			ServiceNamespace: getEnv("OTEL_SERVICE_NAMESPACE", "stuhelper"),
+			OTLPEndpoint:     getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+			OTLPInsecure:     getEnvBool("OTEL_EXPORTER_OTLP_INSECURE", true, &parseErrs),
+			TraceSampleRatio: getEnvFloat64("OTEL_TRACE_SAMPLE_RATIO", 0.2, &parseErrs),
 		},
 	}
 

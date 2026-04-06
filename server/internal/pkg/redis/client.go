@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	redisotel "github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
@@ -20,6 +21,7 @@ type Client struct {
 	rdb       *redis.Client
 	stopCh    chan struct{}
 	closeOnce sync.Once
+	lastStats redis.PoolStats
 }
 
 // NewClient 创建 Redis 客户端
@@ -48,6 +50,9 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 	}
 
 	rdb := redis.NewClient(opts)
+	if err := redisotel.InstrumentTracing(rdb); err != nil {
+		return nil, fmt.Errorf("failed to instrument redis tracing: %w", err)
+	}
 
 	// 测试连接（带超时，3s 足够检测连通性）
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -78,7 +83,7 @@ func (c *Client) Close() error {
 
 // collectPoolMetrics 定期采集 Redis 连接池指标
 func (c *Client) collectPoolMetrics() {
-	// H-34: panic recovery，防止后台 goroutine panic 导致进程崩溃
+	// panic recovery，防止后台 goroutine panic 导致进程崩溃
 	defer func() {
 		if r := recover(); r != nil {
 			// 使用 fmt 而非 logger，因为 logger 可能依赖 Redis
@@ -94,14 +99,27 @@ func (c *Client) collectPoolMetrics() {
 			return
 		case <-ticker.C:
 			stats := c.rdb.PoolStats()
-			metrics.RedisPoolHits.Set(float64(stats.Hits))
-			metrics.RedisPoolMisses.Set(float64(stats.Misses))
-			metrics.RedisPoolTimeouts.Set(float64(stats.Timeouts))
+			c.observeCumulativePoolStats(stats)
 			metrics.RedisPoolTotalConns.Set(float64(stats.TotalConns))
 			metrics.RedisPoolIdleConns.Set(float64(stats.IdleConns))
-			metrics.RedisPoolStaleConns.Set(float64(stats.StaleConns))
+			c.lastStats = *stats
 		}
 	}
+}
+
+func (c *Client) observeCumulativePoolStats(stats *redis.PoolStats) {
+	addCounterDelta(metrics.RedisPoolHitsTotal, stats.Hits, c.lastStats.Hits)
+	addCounterDelta(metrics.RedisPoolMissesTotal, stats.Misses, c.lastStats.Misses)
+	addCounterDelta(metrics.RedisPoolTimeoutsTotal, stats.Timeouts, c.lastStats.Timeouts)
+	addCounterDelta(metrics.RedisPoolStaleConnsTotal, stats.StaleConns, c.lastStats.StaleConns)
+}
+
+func addCounterDelta(counter interface{ Add(float64) }, current, previous uint32) {
+	if current < previous {
+		counter.Add(float64(current))
+		return
+	}
+	counter.Add(float64(current - previous))
 }
 
 // configureRedisTLS 配置 Redis TLS

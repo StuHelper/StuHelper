@@ -7,7 +7,7 @@ import { ref, onUnmounted } from 'vue'
 const isOpen = ref(false)
 const searchQuery = ref('')
 
-// H-05: 单例 + 引用计数，确保全局监听器不泄漏
+// 单例 + 引用计数，确保全局监听器不泄漏
 let listenerCount = 0
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null
 
@@ -27,7 +27,15 @@ function toggle() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  if (e.defaultPrevented) return
+
+  const target = e.target as HTMLElement | null
+  const isEditable = target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target?.isContentEditable === true
+
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    if (isEditable) return
     e.preventDefault()
     toggle()
   }

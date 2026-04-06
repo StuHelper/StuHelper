@@ -47,18 +47,19 @@ var validReportStatuses = map[string]bool{
 	StatusAll:            true,
 }
 
-// ReportReview 举报评论
-func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) error {
+// ReportReview 举报评论，返回生成的举报 ID
+func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (string, error) {
 	if strings.TrimSpace(params.Reason) == "" {
-		return ErrInvalidAction
+		return "", ErrInvalidAction
 	}
 
 	if sanitizer.ContainsDangerousContent(params.Description) {
-		return ErrDangerousContent
+		return "", ErrDangerousContent
 	}
 	params.Description = sanitizer.SanitizeText(params.Description)
 
-	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	var reportID string
+	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			return err
@@ -75,13 +76,15 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) e
 			return ErrAlreadyReported
 		}
 
-		return s.repo.CreateReportTx(ctx, tx, CreateReportParams{
+		reportID, err = s.repo.CreateReportTx(ctx, tx, CreateReportParams{
 			ReviewID:     params.ReviewID,
 			ReporterHash: params.UserHash,
 			Reason:       params.Reason,
 			Description:  params.Description,
 		})
+		return err
 	})
+	return reportID, err
 }
 
 // ListReports 获取举报列表
@@ -117,13 +120,18 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 			return err
 		}
 
-		var reportStatus string
+		var (
+			reportStatus string
+			refresh      bool
+			courseID     int64
+			teacherID    *int64
+		)
 		switch params.Action {
 		case "reject":
 			reportStatus = ReportStatusRejected
 		case "hide":
 			reportStatus = ReportStatusResolved
-			currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, report.ReviewID)
+			currentStatus, currentCourseID, currentTeacherID, err := s.repo.GetReviewStatusCourseTeacherTx(ctx, tx, report.ReviewID)
 			if err != nil {
 				return err
 			}
@@ -131,13 +139,16 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 				return err
 			}
 			if currentStatus == StatusPublished {
-				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+				if err := s.repo.DecrementCourseReviewCount(ctx, tx, currentCourseID); err != nil {
 					return err
 				}
+				refresh = true
+				courseID = currentCourseID
+				teacherID = currentTeacherID
 			}
 		case "delete":
 			reportStatus = ReportStatusResolved
-			currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, report.ReviewID)
+			currentStatus, currentCourseID, currentTeacherID, err := s.repo.GetReviewStatusCourseTeacherTx(ctx, tx, report.ReviewID)
 			if err != nil {
 				return err
 			}
@@ -145,9 +156,17 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 				return err
 			}
 			if currentStatus == StatusPublished {
-				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+				if err := s.repo.DecrementCourseReviewCount(ctx, tx, currentCourseID); err != nil {
 					return err
 				}
+				refresh = true
+				courseID = currentCourseID
+				teacherID = currentTeacherID
+			}
+		}
+		if refresh {
+			if err := s.refreshReviewTargetTx(ctx, tx, courseID, teacherID); err != nil {
+				return err
 			}
 		}
 

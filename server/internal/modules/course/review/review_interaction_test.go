@@ -30,7 +30,7 @@ func TestGetUserVotesRejectsInvalidVoteTypeFromVoteTypeQuery(t *testing.T) {
 	}
 }
 
-func TestGetUserVotesRejectsLegacyVoteTypeQueryName(t *testing.T) {
+func TestGetUserVotesRejectsVoteTypeQueryName(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -41,7 +41,7 @@ func TestGetUserVotesRejectsLegacyVoteTypeQueryName(t *testing.T) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			t.Fatalf("GetUserVotes should reject legacy vote_type before reaching service call, got panic: %v", r)
+			t.Fatalf("GetUserVotes should reject vote_type before reaching service call, got panic: %v", r)
 		}
 	}()
 

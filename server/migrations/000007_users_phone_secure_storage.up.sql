@@ -1,0 +1,3 @@
+-- Intentionally left blank.
+-- Secure phone storage is part of the canonical schema in 000005_users_phone.
+-- No transitional data migration is kept because the project has not been deployed.

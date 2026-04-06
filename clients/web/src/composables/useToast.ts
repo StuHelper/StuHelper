@@ -15,7 +15,7 @@ export interface ToastItem {
 
 const toasts = ref<ToastItem[]>([])
 const timers = new Map<number, ReturnType<typeof setTimeout>>()
-// H-51: 使用安全的自增 ID，避免全局变量在多实例场景下冲突
+// 使用安全的自增 ID，避免全局变量在多实例场景下冲突
 let nextID = 0
 
 export interface UseToastReturn {
@@ -30,7 +30,7 @@ export interface UseToastReturn {
 }
 
 export function useToast(): UseToastReturn {
-  // M-73: 跟踪当前实例创建的 toast ID，unmount 时清理
+  // 跟踪当前实例创建的 toast ID，unmount 时清理
   const instanceTimerIDs: number[] = []
 
   function show(message: string, type: ToastType = 'info', duration = 3000) {
@@ -50,7 +50,7 @@ export function useToast(): UseToastReturn {
   }
 
   function remove(id: number) {
-    // H-51: 移除 toast 时同步清理 timer 条目
+    // 移除 toast 时同步清理 timer 条目
     const timer = timers.get(id)
     if (timer) {
       clearTimeout(timer)
@@ -60,7 +60,7 @@ export function useToast(): UseToastReturn {
     if (idx !== -1) toasts.value.splice(idx, 1)
   }
 
-  // M-73: 清理所有活跃 timer
+  // 清理所有活跃 timer
   function clearAll() {
     for (const [id, timer] of timers) {
       clearTimeout(timer)
@@ -85,7 +85,7 @@ export function useToast(): UseToastReturn {
     return show(message, 'warning', duration)
   }
 
-  // M-73: scope 销毁时清理当前实例创建的 timer
+  // scope 销毁时清理当前实例创建的 timer
   onScopeDispose(() => {
     for (const id of instanceTimerIDs) {
       const timer = timers.get(id)

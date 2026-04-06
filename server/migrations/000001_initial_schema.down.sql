@@ -1,0 +1,27 @@
+-- StuHelper baseline schema rollback
+-- WARNING: destructive. For local reset or controlled rollback only.
+BEGIN;
+DROP TABLE IF EXISTS academic CASCADE;
+DROP TABLE IF EXISTS system_configs CASCADE;
+DROP TABLE IF EXISTS user_profiles CASCADE;
+DROP TABLE IF EXISTS user_identities CASCADE;
+DROP TABLE IF EXISTS school_configs CASCADE;
+DROP TABLE IF EXISTS admin_operation_logs CASCADE;
+DROP TABLE IF EXISTS sensitive_words CASCADE;
+DROP TABLE IF EXISTS teacher_rating_stats CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS review_replies CASCADE;
+DROP TABLE IF EXISTS review_drafts CASCADE;
+DROP TABLE IF EXISTS course_favorites CASCADE;
+DROP TABLE IF EXISTS review_reports CASCADE;
+DROP TABLE IF EXISTS course_rating_stats CASCADE;
+DROP TABLE IF EXISTS rating_dimensions CASCADE;
+DROP TABLE IF EXISTS review_votes CASCADE;
+DROP TABLE IF EXISTS reviews CASCADE;
+DROP TABLE IF EXISTS course_categories CASCADE;
+DROP TABLE IF EXISTS courses CASCADE;
+DROP TABLE IF EXISTS terms CASCADE;
+DROP TABLE IF EXISTS teachers CASCADE;
+DROP TABLE IF EXISTS departments CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+COMMIT;

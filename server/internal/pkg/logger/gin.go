@@ -10,6 +10,9 @@ const ctxLoggerKey = "zap_logger"
 // GinContext 将 Logger 注入到 Gin Context
 func GinContext(c *gin.Context, l *zap.Logger) {
 	c.Set(ctxLoggerKey, l)
+	if c.Request != nil {
+		c.Request = c.Request.WithContext(WithContext(c.Request.Context(), l))
+	}
 }
 
 // FromGin 从 Gin Context 提取 Logger

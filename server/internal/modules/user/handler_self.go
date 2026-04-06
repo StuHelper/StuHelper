@@ -2,12 +2,14 @@ package user
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -29,6 +31,33 @@ func (h *Handler) handleGetIdentity(c *gin.Context) {
 	}
 
 	response.Success(c, identityStatusToJSON(identity))
+}
+
+func (h *Handler) handleGetUserSurface(c *gin.Context) {
+	userID, ok := h.resolveCurrentUser(c)
+	if !ok {
+		return
+	}
+
+	displayName := middleware.GetDisplayName(c)
+	avatarURL := middleware.GetAvatar(c)
+	capabilities := middleware.GetCapabilities(c)
+
+	surface, err := h.service.GetUserSurface(c.Request.Context(), userID, displayName, avatarURL, capabilities)
+	if err != nil {
+		logger.FromGin(c).Error("failed to get user surface", zap.Error(err))
+		response.InternalError(c, "failed to get user information")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"displayName":        surface.DisplayName,
+		"avatarURL":          surface.AvatarURL,
+		"identityStatus":     surface.IdentityStatus,
+		"verificationStatus": surface.VerificationStatus,
+		"phoneBound":         surface.PhoneBound,
+		"capabilities":       surface.Capabilities,
+	})
 }
 
 type submitIdentityHTTPRequest struct {
@@ -61,6 +90,8 @@ func (h *Handler) handleSubmitIdentity(c *gin.Context) {
 			response.Conflict(c, "identity already submitted", errs.ErrIdentityAlreadyExists)
 		case errors.Is(err, ErrPhotoRequired):
 			response.BadRequest(c, "photo upload required for non-mainland documents", errs.ErrIdentityPhotoRequired)
+		case errors.Is(err, ErrIdentityPhotoInvalidRef):
+			response.BadRequest(c, "invalid identity photo reference")
 		default:
 			logger.FromGin(c).Error("failed to submit identity", zap.Error(err))
 			response.InternalError(c, "failed to submit identity")
@@ -69,6 +100,47 @@ func (h *Handler) handleSubmitIdentity(c *gin.Context) {
 	}
 
 	response.Created(c, identityStatusToJSON(identity))
+}
+
+type uploadIdentityPhotoHTTPRequest struct {
+	Slot        string `json:"slot" binding:"required,oneof=front back selfie"`
+	Filename    string `json:"filename" binding:"required,max=255"`
+	ContentType string `json:"contentType" binding:"required,oneof=image/jpeg image/png image/webp"`
+	DataBase64  string `json:"dataBase64" binding:"required"`
+}
+
+func (h *Handler) handleUploadIdentityPhoto(c *gin.Context) {
+	userID, ok := h.resolveCurrentUser(c)
+	if !ok {
+		return
+	}
+
+	var req uploadIdentityPhotoHTTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+
+	key, err := h.service.UploadIdentityPhoto(c.Request.Context(), userID, UploadIdentityPhotoRequest(req))
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrIdentityPhotoStoreDisabled):
+			logger.FromGin(c).Error("identity photo storage is not configured", zap.Error(err))
+			response.InternalError(c, "identity photo upload is not available")
+		case errors.Is(err, ErrIdentityPhotoTooLarge):
+			response.BadRequest(c, "identity photo is too large")
+		case errors.Is(err, ErrIdentityPhotoInvalidType):
+			response.BadRequest(c, "identity photo content type is invalid")
+		case errors.Is(err, ErrIdentityPhotoInvalidData), errors.Is(err, ErrIdentityPhotoInvalidRef):
+			response.BadRequest(c, "identity photo data is invalid")
+		default:
+			logger.FromGin(c).Error("failed to upload identity photo", zap.Error(err))
+			response.InternalError(c, "failed to upload identity photo")
+		}
+		return
+	}
+
+	response.Created(c, gin.H{"key": key})
 }
 
 func (h *Handler) handleGetProfile(c *gin.Context) {
@@ -118,6 +190,8 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 			response.Forbidden(c, "identity verification required before student verification", errs.ErrForbidden)
 		case errors.Is(err, ErrProfileAlreadyVerified):
 			response.Conflict(c, "student profile already verified", errs.ErrProfileAlreadyVerified)
+		case errors.Is(err, ErrProfilePendingReview):
+			response.Conflict(c, "student profile is pending review", errs.ErrProfilePendingReview)
 		case errors.Is(err, ErrSchoolNotFound):
 			response.NotFound(c, "school not found", errs.ErrProfileSchoolNotFound)
 		case errors.Is(err, ErrSchoolDisabled):
@@ -153,7 +227,60 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 }
 
 type bindPhoneHTTPRequest struct {
-	Phone string `json:"phone" binding:"required,max=20"`
+	Phone   string `json:"phone" binding:"required,max=20"`
+	OTPCode string `json:"otpCode" binding:"required,len=6"`
+}
+
+type requestBindPhoneOTPRequest struct {
+	Phone string `json:"phone" binding:"required"`
+}
+
+func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
+	if _, ok := h.resolveCurrentUser(c); !ok {
+		return
+	}
+	if h.otpService == nil || h.smsService == nil {
+		response.ServiceUnavailable(c, "phone binding is not configured")
+		return
+	}
+
+	var req requestBindPhoneOTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	phone := strings.TrimSpace(req.Phone)
+	if !phonePattern.MatchString(phone) {
+		response.BadRequest(c, "invalid phone number format")
+		return
+	}
+
+	code, err := h.otpService.Generate(c.Request.Context(), phone)
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "cooldown") || strings.Contains(msg, "wait") {
+			response.RateLimitExceeded(c, "please wait before requesting a new code")
+			return
+		}
+		logger.FromGin(c).Error("failed to generate OTP for bind phone", zap.Error(err))
+		response.InternalError(c, "failed to send verification code")
+		return
+	}
+
+	internationalPhone := "+86" + phone
+	if err := h.smsService.Send(c.Request.Context(), internationalPhone, code); err != nil {
+		if cleanupErr := h.otpService.Cleanup(c.Request.Context(), phone); cleanupErr != nil {
+			logger.FromGin(c).Warn("failed to cleanup OTP after SMS send failure", zap.Error(cleanupErr))
+		}
+		logger.FromGin(c).Error("failed to send SMS for bind phone", zap.Error(err))
+		response.InternalError(c, "failed to send verification code")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"message":  "verification code sent",
+		"cooldown": 60,
+	})
 }
 
 func (h *Handler) handleBindPhone(c *gin.Context) {
@@ -168,8 +295,45 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 		return
 	}
 
-	err := h.service.BindPhone(c.Request.Context(), userID, req.Phone)
+	phone := strings.TrimSpace(req.Phone)
+	if !phonePattern.MatchString(phone) {
+		response.BadRequest(c, "invalid phone number format")
+		return
+	}
+
+	if h.otpService == nil {
+		response.ServiceUnavailable(c, "phone binding is not configured")
+		return
+	}
+
+	if err := h.otpService.Verify(c.Request.Context(), phone, req.OTPCode); err != nil {
+		msg := err.Error()
+		switch {
+		case strings.Contains(msg, "expired"):
+			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
+			return
+		case strings.Contains(msg, "too many"), strings.Contains(msg, "attempts"):
+			response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
+			return
+		case strings.Contains(msg, "invalid"):
+			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
+			return
+		}
+		logger.FromGin(c).Error("failed to verify bind phone OTP", zap.Error(err))
+		response.InternalError(c, "verification failed")
+		return
+	}
+
+	err := h.service.BindPhone(c.Request.Context(), userID, phone)
 	if err != nil {
+		if errors.Is(err, ErrInvalidPhoneFormat) {
+			response.BadRequest(c, "invalid phone number format")
+			return
+		}
+		if errors.Is(err, ErrPhoneAlreadyBound) {
+			response.Conflict(c, "phone number already bound")
+			return
+		}
 		if errors.Is(err, ErrProfileNotFound) {
 			response.NotFound(c, "student profile not found", errs.ErrProfileNotFound)
 			return

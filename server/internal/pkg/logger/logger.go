@@ -33,6 +33,9 @@ type Config struct {
 	FileMaxBackups  int
 	FileMaxAge      int // days
 	FileCompress    bool
+	ServiceName     string
+	Environment     string
+	ServiceVersion  string
 }
 
 // DefaultConfig 返回默认配置
@@ -50,6 +53,9 @@ func DefaultConfig() Config {
 		FileMaxBackups:  3,
 		FileMaxAge:      7,
 		FileCompress:    true,
+		ServiceName:     "stuhelper-backend",
+		Environment:     "development",
+		ServiceVersion:  "dev",
 	}
 }
 
@@ -103,8 +109,21 @@ func Init(cfg Config) {
 		zap.AddCaller(),
 		zap.AddStacktrace(zapcore.ErrorLevel),
 	)
+	if cfg.ServiceName != "" || cfg.Environment != "" || cfg.ServiceVersion != "" {
+		fields := make([]zap.Field, 0, 3)
+		if cfg.ServiceName != "" {
+			fields = append(fields, zap.String("service.name", cfg.ServiceName))
+		}
+		if cfg.Environment != "" {
+			fields = append(fields, zap.String("deployment.environment", cfg.Environment))
+		}
+		if cfg.ServiceVersion != "" {
+			fields = append(fields, zap.String("service.version", cfg.ServiceVersion))
+		}
+		l = l.With(fields...)
+	}
 
-	// H-35: 替换前先 Sync 旧 logger，避免丢失缓冲日志
+	// 替换前先 Sync 旧 logger，避免丢失缓冲日志
 	if old := globalLogger.Swap(l); old != nil {
 		_ = old.Sync() //nolint:errcheck // best-effort flush
 	}
@@ -146,7 +165,7 @@ func Sync() error {
 // Close 刷新日志缓冲并关闭文件写入器
 func Close() error {
 	err := Sync()
-	// L-28: Sync 失败时重试一次，尽量保证缓冲数据落盘
+	// Sync 失败时重试一次，尽量保证缓冲数据落盘
 	if err != nil {
 		if retryErr := Sync(); retryErr == nil {
 			err = nil

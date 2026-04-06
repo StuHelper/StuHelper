@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const defaultAcademicDBTable = "academic.buaa_students"
+const defaultAcademicDBTable = "academic.buaa_students" // kept only for migration reference
 
 var sqlIdentifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
@@ -33,11 +33,6 @@ var requiredAcademicColumns = []string{
 	"sfzx",
 	"sfzj",
 	"synced_at",
-}
-
-// GetAcademicStudentByXH 根据学号查询教务系统学生记录
-func (r *Repository) GetAcademicStudentByXH(ctx context.Context, xh string) (*AcademicStudent, error) {
-	return r.GetAcademicStudentByXHFromTable(ctx, xh, defaultAcademicDBTable)
 }
 
 // GetAcademicStudentByXHFromTable 根据学号查询教务系统学生记录（指定学籍表）
@@ -73,11 +68,6 @@ func (r *Repository) GetAcademicStudentByXHFromTable(ctx context.Context, xh str
 	return &item, nil
 }
 
-// FindAcademicStudentsByPersonUID 根据证件号查询教务系统学生记录
-func (r *Repository) FindAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm, sfzjh string) ([]AcademicStudent, error) {
-	return r.FindAcademicStudentsByPersonUIDFromTable(ctx, sfzjlxdm, sfzjh, defaultAcademicDBTable)
-}
-
 // FindAcademicStudentsByPersonUIDFromTable 根据证件号查询教务系统学生记录（指定学籍表）
 func (r *Repository) FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh string, tableName string) ([]AcademicStudent, error) {
 	normalizedTable, err := normalizeAcademicDBTableName(&tableName)
@@ -95,8 +85,9 @@ func (r *Repository) FindAcademicStudentsByPersonUIDFromTable(ctx context.Contex
 		       xjztdm, sfzx, sfzj, synced_at
 		FROM %s
 		WHERE sfzjh = $1
+		  AND ($2 = '' OR sfzjlxdm = $2)
 	`, quotedTable)
-	rows, err := r.db.Query(ctx, query, sfzjh)
+	rows, err := r.db.Query(ctx, query, sfzjh, strings.TrimSpace(sfzjlxdm))
 	if err != nil {
 		return nil, fmt.Errorf("FindAcademicStudentsByPersonUID: %w", err)
 	}
@@ -125,6 +116,16 @@ func (r *Repository) GetInternalUserID(ctx context.Context, externalID string) (
 		return 0, fmt.Errorf("GetInternalUserID: %w", err)
 	}
 	return id, nil
+}
+
+// GetExternalID 根据内部用户 ID 获取 Zitadel 外部 ID（OIDC sub）
+func (r *Repository) GetExternalID(ctx context.Context, userID int64) (string, error) {
+	var externalID string
+	err := r.db.QueryRow(ctx, `SELECT external_id FROM users WHERE id = $1`, userID).Scan(&externalID)
+	if err != nil {
+		return "", fmt.Errorf("GetExternalID: %w", err)
+	}
+	return externalID, nil
 }
 
 func normalizeAcademicDBTableName(raw *string) (string, error) {

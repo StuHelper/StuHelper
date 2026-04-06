@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
 
 // AdminUpdateReviewParams 管理员更新评论参数
@@ -38,7 +40,7 @@ type AdminUpdateReviewResult struct {
 func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) (*AdminUpdateReviewResult, error) {
 	var oldStatus string
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		currentStatus, courseID, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, params.ReviewID)
+		currentStatus, courseID, teacherID, err := s.repo.GetReviewStatusCourseTeacherTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrReviewNotFound
@@ -55,9 +57,11 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			return fmt.Errorf("%w: cannot %s from %s", ErrInvalidTransition, params.Action, currentStatus)
 		}
 
+		newStatus := currentStatus
 		switch params.Action {
 		case "hide":
-			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, StatusHidden); err != nil {
+			newStatus = StatusHidden
+			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, newStatus); err != nil {
 				return err
 			}
 			if params.AdminID != "" {
@@ -65,26 +69,38 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 					return err
 				}
 			}
-			return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
+			if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+				return err
+			}
 		case "restore":
-			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, StatusPublished); err != nil {
+			newStatus = StatusPublished
+			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, newStatus); err != nil {
 				return err
 			}
 			if err := s.repo.ClearModerationTx(ctx, tx, params.ReviewID); err != nil {
 				return err
 			}
-			return s.repo.IncrementCourseReviewCount(ctx, tx, courseID)
+			if err := s.repo.IncrementCourseReviewCount(ctx, tx, courseID); err != nil {
+				return err
+			}
 		case "delete":
+			newStatus = StatusDeleted
 			if err := s.repo.SoftDeleteReview(ctx, tx, params.ReviewID); err != nil {
 				return err
 			}
 			if currentStatus == StatusPublished {
-				return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
+				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+					return err
+				}
 			}
-			return nil
 		default:
 			return ErrInvalidAction
 		}
+
+		if currentStatus == StatusPublished || newStatus == StatusPublished {
+			return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -103,6 +119,28 @@ type AdminEditReviewParams struct {
 
 // AdminEditReview 管理员编辑评论内容
 func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewParams) error {
+	title := sanitizer.SanitizeTitle(params.Title)
+	content := sanitizer.SanitizeText(params.Content)
+	if strings.TrimSpace(title) == "" {
+		return ErrTitleEmpty
+	}
+	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
+		return ErrDangerousContent
+	}
+	if strings.TrimSpace(content) == "" {
+		return ErrContentEmpty
+	}
+
+	checkResult := s.filter.CheckContent(ctx, title+" "+content)
+	if !checkResult.IsValid && checkResult.Level == "block" {
+		return ErrSensitiveContent
+	}
+	var contentFlag *string
+	if checkResult.Level == "warn" && checkResult.MatchCount > 0 {
+		flag := "warn"
+		contentFlag = &flag
+	}
+
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		// 确认评论存在
 		_, _, err := s.repo.GetReviewStatusAndCourseIDTx(ctx, tx, params.ReviewID)
@@ -112,7 +150,7 @@ func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewPar
 			}
 			return err
 		}
-		return s.repo.AdminEditReviewContentTx(ctx, tx, params.ReviewID, params.Title, params.Content, params.Reason, params.AdminID)
+		return s.repo.AdminEditReviewContentTx(ctx, tx, params.ReviewID, title, content, params.Reason, params.AdminID, contentFlag)
 	})
 }
 
@@ -172,6 +210,11 @@ func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateRevi
 			return err
 		}
 
+		courseIDs, teacherIDs, err := s.repo.ListDistinctReviewTargetIDsTx(ctx, tx, params.IDs)
+		if err != nil {
+			return err
+		}
+
 		// 先调整课程评论计数（在状态变更前，基于当前状态判断）
 		switch params.Action {
 		case "hide":
@@ -188,9 +231,11 @@ func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateRevi
 			}
 		}
 
-		var err error
 		affected, err = s.repo.BatchUpdateReviewStatusTx(ctx, tx, params.IDs, status)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.refreshReviewTargetsTx(ctx, tx, courseIDs, teacherIDs)
 	}); err != nil {
 		return nil, err
 	}
@@ -199,14 +244,14 @@ func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateRevi
 }
 
 // BatchUpdateReviewsWithAudit 批量更新评论状态并记录审计日志（管理员）
-// M-49: 封装审计日志记录，供 handler 层调用
+// 封装审计日志记录，供 handler 层调用
 func (s *Service) BatchUpdateReviewsWithAudit(ctx context.Context, params BatchUpdateReviewsParams, adminUserID, adminUsername string) (*BatchUpdateReviewsResult, error) {
 	result, err := s.BatchUpdateReviews(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 
-	// M-49: 记录批量操作审计日志
+	// 记录批量操作审计日志
 	audit.Log(audit.Event{
 		Type:     audit.EventAdminBatchOp,
 		UserID:   adminUserID,

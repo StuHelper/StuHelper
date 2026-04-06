@@ -85,7 +85,11 @@ func (h *Handler) PostReview(c *gin.Context) {
 		return
 	}
 
-	h.invalidateReviewCaches(c, req.CourseID, "review:stats")
+	h.invalidateReviewAggregateCaches(c)
+
+	// 异步写入 OpenFGA 关系 tuple（非阻塞，失败仅记日志）
+	h.writeFGAReviewTuples(c, result.Review.ID, userID, req.CourseID)
+
 	response.Created(c, result.Review)
 }
 
@@ -99,7 +103,7 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		return
 	}
 
-	reviewID, err := httputil.ParseUUIDParam(c, "id")
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
 		return
@@ -141,7 +145,7 @@ type UpdateReviewRequest struct {
 
 // UpdateReview 更新评论
 func (h *Handler) UpdateReview(c *gin.Context) {
-	reviewID, err := httputil.ParseUUIDParam(c, "id")
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
 		return
@@ -182,6 +186,8 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 			response.BadRequest(c, "title cannot be empty")
 		case errors.Is(err, ErrDangerousContent):
 			response.BadRequest(c, "content contains potentially dangerous elements")
+		case errors.Is(err, ErrSensitiveContent):
+			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
 		case errors.Is(err, ErrContentEmpty):
 			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
 		default:
@@ -191,13 +197,13 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 		return
 	}
 
-	h.invalidateReviewCaches(c, 0)
+	h.invalidateReviewAggregateCaches(c)
 	response.Success(c, gin.H{"message": "review updated successfully"})
 }
 
 // DeleteReview 删除评论
 func (h *Handler) DeleteReview(c *gin.Context) {
-	reviewID, err := httputil.ParseUUIDParam(c, "id")
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
 		return
@@ -226,7 +232,7 @@ func (h *Handler) DeleteReview(c *gin.Context) {
 		return
 	}
 
-	h.invalidateReviewCaches(c, 0, "review:stats", "review:votes")
+	h.invalidateReviewAggregateCaches(c)
 	response.Success(c, gin.H{"message": "review deleted successfully"})
 }
 
@@ -238,7 +244,7 @@ type ReportReviewRequest struct {
 
 // ReportReview 举报评论
 func (h *Handler) ReportReview(c *gin.Context) {
-	reviewID, err := httputil.ParseUUIDParam(c, "id")
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
 		return
@@ -257,7 +263,7 @@ func (h *Handler) ReportReview(c *gin.Context) {
 		return
 	}
 
-	err = h.service.ReportReview(c.Request.Context(), ReportReviewParams{
+	reportID, err := h.service.ReportReview(c.Request.Context(), ReportReviewParams{
 		ReviewID:    reviewID,
 		UserHash:    userHash,
 		Reason:      req.Reason,
@@ -275,6 +281,9 @@ func (h *Handler) ReportReview(c *gin.Context) {
 		}
 		return
 	}
+
+	// 异步写入 FGA 举报关系 tuple
+	h.writeFGAReportTuplesForReview(c, reportID, userID, reviewID)
 
 	response.Success(c, gin.H{"message": "report submitted successfully"})
 }
