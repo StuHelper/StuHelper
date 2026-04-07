@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	openfga "github.com/openfga/go-sdk"
 	"github.com/openfga/go-sdk/client"
@@ -73,7 +72,7 @@ func main() {
 
 	modelJSON, err := dslToJSON(string(modelContent))
 	if err != nil {
-		log.Fatalf("Failed to convert DSL to JSON: %v\nNote: if this fails, use the OpenFGA CLI instead:\n  openfga model write --store-id %s --file %s", storeID, modelPath, err)
+		log.Fatalf("Failed to convert DSL to JSON: %v\nNote: if this fails, use the OpenFGA CLI instead:\n  openfga model write --store-id %s --file %s", err, storeID, modelPath)
 	}
 
 	writeResp, err := fgaClient.WriteAuthorizationModel(ctx).Body(modelJSON).Execute()
@@ -251,8 +250,3 @@ func buildModelFromCode() client.ClientWriteAuthorizationModelRequest {
 	return req
 }
 
-// Helper to print JSON for debugging
-func init() {
-	_ = strings.TrimSpace
-	_ = json.Marshal
-}

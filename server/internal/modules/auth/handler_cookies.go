@@ -46,30 +46,6 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 	return nil
 }
 
-// setAccessTokenCookie 仅设置 access_token Cookie（手机验证码登录，不走 Zitadel 刷新）
-func (h *Handler) setAccessTokenCookie(c *gin.Context, accessToken string) error {
-	c.SetSameSite(tokenCookieSameSite)
-
-	csrfToken, err := middleware.GenerateCSRFToken()
-	if err != nil {
-		logger.FromGin(c).Error("failed to generate CSRF token", zap.Error(err))
-		return err
-	}
-	h.setCSRFCookie(c, csrfToken)
-
-	c.SetCookie(
-		middleware.CookieAccessToken,
-		accessToken,
-		h.tokenConfig.AccessTokenTTL,
-		"/",
-		h.tokenConfig.CookieDomain,
-		h.tokenConfig.CookieSecure,
-		true,
-	)
-
-	return nil
-}
-
 // clearTokenCookies 清除 Token Cookie
 func (h *Handler) clearTokenCookies(c *gin.Context) {
 	c.SetSameSite(tokenCookieSameSite)

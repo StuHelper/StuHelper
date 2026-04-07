@@ -340,7 +340,9 @@ router.beforeEach(async (to) => {
             await authStore.refreshSession();
         } catch (err) {
             refreshFailed = true;
-            console.warn("[Router] session refresh failed during navigation:", err);
+            if (import.meta.env.DEV) {
+                console.warn("[Router] session refresh failed during navigation:", err);
+            }
         }
     }
 

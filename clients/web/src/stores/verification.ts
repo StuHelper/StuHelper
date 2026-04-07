@@ -5,6 +5,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import type { components } from "@stuhelper/shared";
 import { api } from "@/api";
+import { getErrorStatus } from "@/api/errors";
 
 type IdentityInfo = components["schemas"]["UserIdentity"];
 type ProfileInfo = components["schemas"]["UserProfile"];
@@ -15,14 +16,6 @@ type UploadIdentityPhotoRequest =
 type SubmitStudentVerificationRequest =
     components["schemas"]["SubmitStudentVerificationRequest"];
 type BindPhoneRequest = components["schemas"]["BindPhoneRequest"];
-
-function getErrorStatus(error: unknown): number | undefined {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-        const status = (error as { status?: unknown }).status;
-        return typeof status === 'number' ? status : undefined;
-    }
-    return undefined;
-}
 
 export const useVerificationStore = defineStore("verification", () => {
     // 状态

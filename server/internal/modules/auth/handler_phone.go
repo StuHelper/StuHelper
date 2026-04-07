@@ -3,7 +3,6 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -16,12 +15,10 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
-
-// phonePattern 中国大陆手机号正则
-var phonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
 // RequestPhoneOTP 发送手机验证码
 func (h *Handler) RequestPhoneOTP(c *gin.Context) {
@@ -34,7 +31,7 @@ func (h *Handler) RequestPhoneOTP(c *gin.Context) {
 	}
 
 	phone := strings.TrimSpace(req.Phone)
-	if !phonePattern.MatchString(phone) {
+	if !phoneutil.IsValidMainlandPhone(phone) {
 		response.BadRequest(c, "invalid phone number format")
 		return
 	}
@@ -87,7 +84,7 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	code := strings.TrimSpace(req.Code)
 	requestID := middleware.GetRequestID(c)
 
-	if !phonePattern.MatchString(phone) {
+	if !phoneutil.IsValidMainlandPhone(phone) {
 		response.BadRequest(c, "invalid phone number format")
 		return
 	}
@@ -160,10 +157,12 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	}
 
 	// 签发自签名 refresh token（更长有效期，用于刷新 access token）
+	// Roles 必须写入 refresh token，refreshSelfSignedToken 刷新时从中复制到新 access token
 	refreshClaims := token.JWTClaims{
-		Sub:  user.ExternalID,
-		Name: user.Username,
-		Typ:  token.JWTTokenTypeRefresh,
+		Sub:   user.ExternalID,
+		Name:  user.Username,
+		Roles: roles,
+		Typ:   token.JWTTokenTypeRefresh,
 	}
 	refreshToken, err := token.SignJWT(hmacKey, refreshClaims, refreshTTL)
 	if err != nil {

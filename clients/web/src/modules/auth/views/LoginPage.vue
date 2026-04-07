@@ -27,7 +27,6 @@
       <div v-if="activeTab === 'phone'" class="flex flex-col gap-3">
         <div class="relative">
           <input
-            ref="phoneInput"
             v-model="phone"
             type="tel"
             maxlength="11"
@@ -122,7 +121,6 @@ const tabs = computed(() => [
 const phone = ref("");
 const otpCode = ref("");
 const cooldown = ref(0);
-const phoneInput = ref<HTMLInputElement>();
 
 let cooldownTimer: ReturnType<typeof setInterval> | null = null;
 

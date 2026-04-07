@@ -64,7 +64,7 @@ type Blacklist struct {
 func NewBlacklist(rdb *redis.Client) *Blacklist {
 	b := &Blacklist{
 		rdb: rdb,
-		cb: circuitbreaker.New(circuitbreaker.Config{
+		cb: circuitbreaker.NewNamed("token_blacklist", circuitbreaker.Config{
 			FailureThreshold: 5,
 			SuccessThreshold: 2,
 			Timeout:          30 * time.Second,

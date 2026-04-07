@@ -134,8 +134,8 @@ func (r *Repository) ListCourses(ctx context.Context, query string, departmentID
 }
 
 // SearchCourses 搜索课程，使用窗口函数一次性返回数据和总数
-func (r *Repository) SearchCourses(ctx context.Context, pattern string, limit, offset int) ([]Course, int, error) {
-	escapedPattern := "%" + httputil.EscapeLikePattern(pattern) + "%"
+func (r *Repository) SearchCourses(ctx context.Context, query string, limit, offset int) ([]Course, int, error) {
+	pattern := "%" + httputil.EscapeLikePattern(query) + "%"
 	rows, err := r.db.Query(ctx, `
 		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.category, c.review_count,
 			COUNT(*) OVER() AS total
@@ -144,7 +144,7 @@ func (r *Repository) SearchCourses(ctx context.Context, pattern string, limit, o
 		WHERE c.name ILIKE $1 ESCAPE '\' OR c.code ILIKE $1 ESCAPE '\'
 		ORDER BY c.name ASC
 		LIMIT $2 OFFSET $3
-	`, escapedPattern, limit, offset)
+	`, pattern, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}

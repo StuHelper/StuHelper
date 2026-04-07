@@ -10,6 +10,8 @@ const t = translate
 const teacherID = ref(0)
 const loading = ref(false)
 const teacher = ref<components['schemas']['TeacherRatingStatsResponse'] | null>(null)
+const lastLoadedAt = ref(0)
+const STALE_MS = 30_000
 
 async function loadTeacher() {
   if (!teacherID.value) return
@@ -17,6 +19,7 @@ async function loadTeacher() {
   try {
     const result = await api.rating.getTeacherStats(teacherID.value)
     teacher.value = unwrapOptionalData<components['schemas']['TeacherRatingStatsResponse']>(result)
+    lastLoadedAt.value = Date.now()
   } catch (error) {
     uni.showToast({
       title: error instanceof Error ? error.message : t('teacher.profile.loadFailed'),
@@ -40,6 +43,7 @@ onLoad((options) => {
 onShow(() => {
   setPageTitle('common.pageTitles.teacherProfile')
   if (!teacherID.value) return
+  if (Date.now() - lastLoadedAt.value < STALE_MS) return
   void loadTeacher()
 })
 </script>

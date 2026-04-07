@@ -182,6 +182,9 @@ func toString(v interface{}) string {
 
 // truncateString 按 rune 截断字符串，避免切断多字节 UTF-8 字符
 func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
 	runes := []rune(s)
 	if len(runes) <= maxLen {
 		return s

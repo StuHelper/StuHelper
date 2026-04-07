@@ -7,9 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -250,15 +252,14 @@ func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
 		return
 	}
 	phone := strings.TrimSpace(req.Phone)
-	if !phonePattern.MatchString(phone) {
+	if !phoneutil.IsValidMainlandPhone(phone) {
 		response.BadRequest(c, "invalid phone number format")
 		return
 	}
 
 	code, err := h.otpService.Generate(c.Request.Context(), phone)
 	if err != nil {
-		msg := err.Error()
-		if strings.Contains(msg, "cooldown") || strings.Contains(msg, "wait") {
+		if errors.Is(err, auth.ErrOTPCooldown) {
 			response.RateLimitExceeded(c, "please wait before requesting a new code")
 			return
 		}
@@ -279,7 +280,7 @@ func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"message":  "verification code sent",
-		"cooldown": 60,
+		"cooldown": int(auth.OTPCooldownSeconds()),
 	})
 }
 
@@ -296,7 +297,7 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 	}
 
 	phone := strings.TrimSpace(req.Phone)
-	if !phonePattern.MatchString(phone) {
+	if !phoneutil.IsValidMainlandPhone(phone) {
 		response.BadRequest(c, "invalid phone number format")
 		return
 	}
@@ -307,15 +308,14 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 	}
 
 	if err := h.otpService.Verify(c.Request.Context(), phone, req.OTPCode); err != nil {
-		msg := err.Error()
 		switch {
-		case strings.Contains(msg, "expired"):
+		case errors.Is(err, auth.ErrOTPExpired):
 			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
 			return
-		case strings.Contains(msg, "too many"), strings.Contains(msg, "attempts"):
+		case errors.Is(err, auth.ErrOTPMaxAttempts):
 			response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
 			return
-		case strings.Contains(msg, "invalid"):
+		case errors.Is(err, auth.ErrOTPInvalidCode):
 			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
 			return
 		}

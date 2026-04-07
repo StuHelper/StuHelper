@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { components } from '@/api'
 import { api } from '@/api'
-import { assertMutationSuccess, extractErrorMessage, unwrapData, unwrapOptionalData } from '@/api/result'
+import { assertMutationSuccess, unwrapData, unwrapOptionalData } from '@/api/result'
 import { translate } from '@/i18n'
 
 type CurrentUser = components['schemas']['UserInfo']
@@ -67,8 +67,13 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const result = await api.auth.me()
       user.value = unwrapOptionalData<CurrentUser>(result)
-    } catch {
-      user.value = null
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status
+        ?? (error as { response?: { status?: number } })?.response?.status
+      if (status === 401 || status === 403) {
+        user.value = null
+      }
+      // For network errors, timeouts, or 5xx — leave user.value unchanged
     } finally {
       lastBootstrapAt.value = Date.now()
       initialized.value = true
@@ -84,9 +89,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function verifyPhoneOTP(phone: string, code: string): Promise<VerifyPhoneOTPResult> {
     const result = await api.auth.verifyPhoneOTP(phone, code)
     const data = unwrapData<VerifyPhoneOTPResult>(result)
-    user.value = data.user
+    setUser(data.user)
     initialized.value = true
-    lastBootstrapAt.value = Date.now()
     return data
   }
 
@@ -117,6 +121,5 @@ export const useAuthStore = defineStore('auth', () => {
     verifyPhoneOTP,
     logout,
     requireAuth,
-    errorMessage: extractErrorMessage,
   }
 })

@@ -64,8 +64,28 @@ type Tuple struct {
 	Object   string // 如 "review:100"
 }
 
+// validateTupleField 验证 FGA tuple 字段格式（type:id）
+func validateTupleField(field, name string) error {
+	if field == "" {
+		return fmt.Errorf("fga: %s must not be empty", name)
+	}
+	if strings.ContainsAny(field, "\x00\n\r") {
+		return fmt.Errorf("fga: %s contains invalid characters", name)
+	}
+	return nil
+}
+
 // Check 检查用户对资源是否具有指定关系（权限）
 func (c *Client) Check(ctx context.Context, user, relation, object string) (bool, error) {
+	if err := validateTupleField(user, "user"); err != nil {
+		return false, err
+	}
+	if err := validateTupleField(relation, "relation"); err != nil {
+		return false, err
+	}
+	if err := validateTupleField(object, "object"); err != nil {
+		return false, err
+	}
 	start := time.Now()
 	ctx, span := c.startSpan(ctx, "check", relation, object)
 	defer span.End()
@@ -98,6 +118,15 @@ func (c *Client) WriteTuples(ctx context.Context, tuples []Tuple) error {
 
 	writes := make([]openfga.TupleKey, len(tuples))
 	for i, t := range tuples {
+		if err := validateTupleField(t.User, "user"); err != nil {
+			return err
+		}
+		if err := validateTupleField(t.Relation, "relation"); err != nil {
+			return err
+		}
+		if err := validateTupleField(t.Object, "object"); err != nil {
+			return err
+		}
 		writes[i] = openfga.TupleKey{
 			User:     t.User,
 			Relation: t.Relation,

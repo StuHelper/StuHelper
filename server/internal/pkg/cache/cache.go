@@ -29,6 +29,13 @@ const (
 	jitterFraction = 0.15
 )
 
+// incrExpireScript 原子执行 INCR + EXPIRE，避免 Expire 失败导致 key 永不过期
+var incrExpireScript = redis.NewScript(`
+	local v = redis.call('INCR', KEYS[1])
+	redis.call('EXPIRE', KEYS[1], ARGV[1])
+	return v
+`)
+
 // versionEntry 版本号本地缓存条目
 type versionEntry struct {
 	version   string
@@ -353,11 +360,6 @@ func (h *Helper) InvalidateByVersion(ctx context.Context, prefix string) error {
 	versionKey := VersionKey(prefix)
 
 	// 使用 Lua 脚本原子执行 INCR + EXPIRE，避免 Expire 失败导致 key 永不过期
-	incrExpireScript := redis.NewScript(`
-		local v = redis.call('INCR', KEYS[1])
-		redis.call('EXPIRE', KEYS[1], ARGV[1])
-		return v
-	`)
 	newVersion, err := incrExpireScript.Run(ctx, h.client, []string{versionKey}, int(VersionKeyTTL.Seconds())).Int64()
 	if err != nil {
 		logger.L().Warn("failed to increment cache version",

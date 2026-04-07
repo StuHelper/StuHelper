@@ -125,7 +125,7 @@ async function loadDepartments() {
     )
     departments.value = res.data?.data || []
     // 清空展开状态
-    expandedDepts.value.clear()
+    expandedDepts.value = new Set()
   } catch {
     departments.value = []
   } finally {
@@ -146,11 +146,13 @@ function selectCategory(catId: string) {
 
 async function toggleDept(id: number) {
   if (expandedDepts.value.has(id)) {
-    expandedDepts.value.delete(id)
+    const next = new Set(expandedDepts.value)
+    next.delete(id)
+    expandedDepts.value = next
     return
   }
 
-  expandedDepts.value.add(id)
+  expandedDepts.value = new Set([...expandedDepts.value, id])
 
   // 已有缓存则不重新请求
   if (deptCourses.value.has(id)) return

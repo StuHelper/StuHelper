@@ -118,8 +118,8 @@ async function submitReview() {
       grade: form.value.grade.trim() || undefined,
       ratings: form.value.ratings,
     }))
-    assertMutationSuccess(await api.draft.deleteDraft(course.value.id))
     uni.showToast({ title: t('review.post.submitSuccess'), icon: 'success' })
+    try { await api.draft.deleteDraft(course.value.id) } catch { /* draft cleanup is best-effort */ }
     setTimeout(() => {
       uni.redirectTo({ url: `/pages/course/detail?id=${course.value?.id}` })
     }, 300)

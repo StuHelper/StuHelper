@@ -276,7 +276,9 @@ export const useAuthStore = defineStore('auth', () => {
         i18n.global.t('common.login.fetchUserFailed'),
       )
       setError(authErr.type, authErr.message)
-      console.error('[Auth] bootstrapSession failed:', err)
+      if (import.meta.env.DEV) {
+        console.error('[Auth] bootstrapSession failed:', err)
+      }
       return false
     }
   }

@@ -25,7 +25,6 @@ type UpsertDraftParams struct {
 // UpsertDraft 保存或更新草稿
 func (r *Repository) UpsertDraft(ctx context.Context, p UpsertDraftParams) (*ReviewDraft, error) {
 	var d ReviewDraft
-	var xmax int64
 
 	newID, err := id.New()
 	if err != nil {
@@ -43,15 +42,14 @@ func (r *Repository) UpsertDraft(ctx context.Context, p UpsertDraftParams) (*Rev
 			grade = EXCLUDED.grade,
 			ratings = EXCLUDED.ratings,
 			updated_at = NOW()
-		RETURNING id, course_id, teacher_id, term_id, title, content, grade, ratings, updated_at, xmax
+		RETURNING id, course_id, teacher_id, term_id, title, content, grade, ratings, updated_at
 	`, newID, p.UserHash, p.CourseID, p.TeacherID, p.TermID, p.Title, p.Content, p.Grade, p.Ratings).Scan(
-		&d.ID, &d.CourseID, &d.TeacherID, &d.TermID, &d.Title, &d.Content, &d.Grade, &d.Ratings, &d.UpdatedAt, &xmax,
+		&d.ID, &d.CourseID, &d.TeacherID, &d.TermID, &d.Title, &d.Content, &d.Grade, &d.Ratings, &d.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("UpsertDraft: %w", err)
 	}
 
-	_ = xmax
 	return &d, nil
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 
 interface Props {
   text: string
@@ -10,11 +11,19 @@ const props = withDefaults(defineProps<Props>(), {
   speed: 100
 })
 
+const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+
 const displayedText = ref('')
 let intervalId: number | undefined
 let currentIndex = 0
 
 function startTyping(text: string) {
+  // Skip animation when user prefers reduced motion
+  if (prefersReducedMotion.value) {
+    displayedText.value = text
+    return
+  }
+
   currentIndex = 0
   displayedText.value = ''
   intervalId = window.setInterval(() => {
@@ -37,6 +46,17 @@ watch(() => props.text, (newText) => {
     intervalId = undefined
   }
   startTyping(newText)
+})
+
+// React to reduced motion preference changes
+watch(prefersReducedMotion, (reduced) => {
+  if (reduced) {
+    if (intervalId !== undefined) {
+      clearInterval(intervalId)
+      intervalId = undefined
+    }
+    displayedText.value = props.text
+  }
 })
 
 onMounted(() => {

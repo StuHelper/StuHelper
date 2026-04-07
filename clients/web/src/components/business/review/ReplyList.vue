@@ -124,7 +124,7 @@ const handleSubmit = async (content: string) => {
   try {
     const res = await api.reply.createReply(props.reviewID, { content })
     if (res.data?.data) {
-      replies.value.unshift(res.data.data)
+      replies.value = [res.data.data, ...replies.value]
     }
     showForm.value = false
   } catch {

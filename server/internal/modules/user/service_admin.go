@@ -282,6 +282,9 @@ func (s *Service) UpdateSystemConfig(ctx context.Context, key, value string) err
 }
 
 func (s *Service) validateSystemConfigValue(ctx context.Context, key, value string) error {
+	if len(value) > 10240 {
+		return fmt.Errorf("%w: %s value exceeds maximum length of 10KB", ErrInvalidSystemConfigValue, key)
+	}
 	switch key {
 	case systemconfig.ReviewAccessSchoolIDsKey:
 		schoolIDs, err := systemconfig.ParseStringList(value)

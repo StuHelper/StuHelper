@@ -229,30 +229,49 @@ func (r *UserSyncRepository) UpsertByPhone(ctx context.Context, phone string) (*
 }
 
 // BackfillUserHashes 回填所有 user_hash 为空的用户。启动时调用一次。
+// 使用分批处理避免一次性加载全量用户数据。
 func (r *UserSyncRepository) BackfillUserHashes(ctx context.Context) (int64, error) {
-	rows, err := r.db.Query(ctx, `SELECT id, external_id FROM users WHERE user_hash IS NULL`)
-	if err != nil {
-		return 0, fmt.Errorf("BackfillUserHashes query: %w", err)
-	}
-	defer rows.Close()
+	const batchSize = 500
+	var totalCount int64
 
-	var count int64
-	for rows.Next() {
-		var id int64
-		var externalID string
-		if err := rows.Scan(&id, &externalID); err != nil {
-			return count, fmt.Errorf("BackfillUserHashes scan: %w", err)
-		}
-		hash, err := crypto.HMACHashWithKey(externalID, r.hmacKey)
+	for {
+		rows, err := r.db.Query(ctx, `SELECT id, external_id FROM users WHERE user_hash IS NULL LIMIT $1`, batchSize)
 		if err != nil {
-			return count, fmt.Errorf("BackfillUserHashes hash user %d: %w", id, err)
+			return totalCount, fmt.Errorf("BackfillUserHashes query: %w", err)
 		}
-		if _, err := r.db.Exec(ctx, `UPDATE users SET user_hash = $1 WHERE id = $2 AND user_hash IS NULL`, hash, id); err != nil {
-			return count, fmt.Errorf("BackfillUserHashes update user %d: %w", id, err)
+
+		var batchCount int64
+		for rows.Next() {
+			var id int64
+			var externalID string
+			if err := rows.Scan(&id, &externalID); err != nil {
+				rows.Close()
+				return totalCount, fmt.Errorf("BackfillUserHashes scan: %w", err)
+			}
+			hash, err := crypto.HMACHashWithKey(externalID, r.hmacKey)
+			if err != nil {
+				rows.Close()
+				return totalCount, fmt.Errorf("BackfillUserHashes hash user %d: %w", id, err)
+			}
+			if _, err := r.db.Exec(ctx, `UPDATE users SET user_hash = $1 WHERE id = $2 AND user_hash IS NULL`, hash, id); err != nil {
+				rows.Close()
+				return totalCount, fmt.Errorf("BackfillUserHashes update user %d: %w", id, err)
+			}
+			batchCount++
+			totalCount++
 		}
-		count++
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return totalCount, err
+		}
+
+		// 本批次不足 batchSize，说明已处理完所有记录
+		if batchCount < batchSize {
+			break
+		}
 	}
-	return count, rows.Err()
+
+	return totalCount, nil
 }
 
 func emptyToNil(value string) *string {

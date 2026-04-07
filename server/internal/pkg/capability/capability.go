@@ -32,7 +32,7 @@ const (
 
 // RoleCapabilities 角色 → 能力静态映射。
 // 这是权限模型的核心配置，修改需要 code review。
-var RoleCapabilities = map[string][]string{
+var roleCapabilities = map[string][]string{
 	"super_admin": {
 		AdminDashboardView, AdminReviewsManage, AdminReportsManage,
 		AdminTeachersManage, AdminSensitiveWordsManage, AdminLogsView,
@@ -59,11 +59,22 @@ var RoleCapabilities = map[string][]string{
 	},
 }
 
+// GetRoleCapabilities returns a defensive copy of the role-to-capabilities mapping.
+func GetRoleCapabilities() map[string][]string {
+	out := make(map[string][]string, len(roleCapabilities))
+	for role, caps := range roleCapabilities {
+		cp := make([]string, len(caps))
+		copy(cp, caps)
+		out[role] = cp
+	}
+	return out
+}
+
 // ExpandRoles 将角色列表展开为去重排序的能力列表（纯内存操作，零 DB 查询）
 func ExpandRoles(roles []string) []string {
 	var all []string
 	for _, role := range roles {
-		if caps, ok := RoleCapabilities[role]; ok {
+		if caps, ok := roleCapabilities[role]; ok {
 			all = append(all, caps...)
 		}
 	}

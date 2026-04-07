@@ -7,6 +7,7 @@ import { assertMutationSuccess, unwrapListData } from '@/api/result'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/format'
+import { DEFAULT_PAGE_SIZE } from '@/config/pagination'
 
 const authStore = useAuthStore()
 const t = translate
@@ -15,6 +16,8 @@ const loadingMore = ref(false)
 const notifications = ref<components['schemas']['Notification'][]>([])
 const page = ref(1)
 const hasMore = ref(true)
+const lastLoadedAt = ref(0)
+const STALE_MS = 30_000
 
 async function loadNotifications() {
   if (!(await authStore.requireAuth(t('user.notifications.requireAuth')))) return
@@ -22,10 +25,11 @@ async function loadNotifications() {
   page.value = 1
   hasMore.value = true
   try {
-    const result = await api.notification.getNotifications(1, 20)
+    const result = await api.notification.getNotifications(1, DEFAULT_PAGE_SIZE)
     const data = unwrapListData<components['schemas']['Notification']>(result)
     notifications.value = data.list
-    hasMore.value = data.list.length >= 20
+    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
+    lastLoadedAt.value = Date.now()
   } catch (error) {
     uni.showToast({
       title: error instanceof Error ? error.message : t('user.notifications.loadFailed'),
@@ -41,10 +45,10 @@ async function loadMore() {
   loadingMore.value = true
   try {
     page.value++
-    const result = await api.notification.getNotifications(page.value, 20)
+    const result = await api.notification.getNotifications(page.value, DEFAULT_PAGE_SIZE)
     const data = unwrapListData<components['schemas']['Notification']>(result)
     notifications.value = [...notifications.value, ...data.list]
-    hasMore.value = data.list.length >= 20
+    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
   } catch {
     page.value = Math.max(1, page.value - 1)
   } finally {
@@ -79,6 +83,7 @@ async function markAllRead() {
 
 onShow(() => {
   setPageTitle('common.pageTitles.notifications')
+  if (Date.now() - lastLoadedAt.value < STALE_MS) return
   void loadNotifications()
 })
 </script>

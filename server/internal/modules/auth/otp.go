@@ -37,6 +37,11 @@ var (
 	ErrOTPMaxAttempts = errors.New("otp: too many failed attempts")
 )
 
+// OTPCooldownSeconds 返回 OTP 冷却期秒数，供外部模块在响应中使用。
+func OTPCooldownSeconds() int {
+	return int(otpCooldown.Seconds())
+}
+
 // OTPService 短信验证码管理服务
 type OTPService struct {
 	rdb *redis.Client
@@ -72,12 +77,12 @@ func (s *OTPService) Generate(ctx context.Context, phone string) (string, error)
 	}
 	cooldownKey := otpCooldownPrefix + phoneKey
 
-	// 检查冷却期
-	exists, err := s.rdb.Exists(ctx, cooldownKey).Result()
+	// 原子性冷却期检查：SetNX 仅在 key 不存在时设置成功，消除 TOCTOU 竞态
+	set, err := s.rdb.SetNX(ctx, cooldownKey, "1", otpCooldown).Result()
 	if err != nil {
 		return "", fmt.Errorf("otp: check cooldown: %w", err)
 	}
-	if exists > 0 {
+	if !set {
 		return "", ErrOTPCooldown
 	}
 
@@ -90,10 +95,9 @@ func (s *OTPService) Generate(ctx context.Context, phone string) (string, error)
 	codeKey := otpCodePrefix + phoneKey
 	attemptsKey := otpAttemptsPrefix + phoneKey
 
-	// 使用 pipeline 原子性地设置验证码、冷却期、重置尝试次数
+	// 使用 pipeline 原子性地设置验证码和重置尝试次数（冷却期已由 SetNX 设置）
 	pipe := s.rdb.Pipeline()
 	pipe.Set(ctx, codeKey, code, otpTTL)
-	pipe.Set(ctx, cooldownKey, "1", otpCooldown)
 	pipe.Del(ctx, attemptsKey)
 	if _, err := pipe.Exec(ctx); err != nil {
 		return "", fmt.Errorf("otp: store code: %w", err)

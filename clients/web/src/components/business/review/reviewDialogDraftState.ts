@@ -130,7 +130,7 @@ export function saveLocalReviewDraft(draft: LocalReviewDraft): void {
     localStorage.removeItem(LEGACY_LOCAL_DRAFT_KEY)
     localStorage.removeItem(LEGACY_LOCAL_DRAFT_CLEARED_KEY)
   } catch (error) {
-    console.warn('[ReviewDialog] Failed to save local draft:', error)
+    if (import.meta.env.DEV) { console.warn('[ReviewDialog] Failed to save local draft:', error) }
   }
 }
 

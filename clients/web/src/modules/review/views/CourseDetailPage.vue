@@ -379,8 +379,9 @@
 
       <!-- Admin Edit Dialog -->
       <AdminEditDialog
+        v-if="editingReview"
         :visible="showEditDialog"
-        :review="editingReview!"
+        :review="editingReview"
         @confirm="handleAdminEdit"
         @close="showEditDialog = false"
       />

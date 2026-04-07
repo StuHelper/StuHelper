@@ -5,13 +5,14 @@ import { api } from '@/api'
 import type { components } from '@/api'
 import { unwrapListData } from '@/api/result'
 import { setPageTitle, translate } from '@/i18n'
+import { DEFAULT_PAGE_SIZE } from '@/config/pagination'
 
 const t = translate
 const loading = ref(false)
 const loadingMore = ref(false)
 const query = ref('')
 const page = ref(1)
-const pageSize = 20
+const pageSize = DEFAULT_PAGE_SIZE
 const total = ref(0)
 const courses = ref<components['schemas']['Course'][]>([])
 

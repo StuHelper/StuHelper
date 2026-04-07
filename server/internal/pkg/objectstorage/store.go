@@ -94,10 +94,10 @@ func (s *Store) EnsureBucket(ctx context.Context) error {
 		return nil
 	}
 
-	lower := strings.ToLower(err.Error())
-	if !strings.Contains(lower, "not found") && !strings.Contains(lower, "no such bucket") {
-		var apiErr *types.NotFound
-		if !errors.As(err, &apiErr) {
+	var apiErr *types.NotFound
+	if !errors.As(err, &apiErr) {
+		lower := strings.ToLower(err.Error())
+		if !strings.Contains(lower, "not found") && !strings.Contains(lower, "no such bucket") {
 			return fmt.Errorf("head bucket %q: %w", s.bucket, err)
 		}
 	}

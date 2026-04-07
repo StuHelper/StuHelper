@@ -36,10 +36,13 @@ export const useDraftStore = defineStore('draft', () => {
     // 按缓存时间戳排序，清除最旧的
     keys.sort((a, b) => (cacheTimestamps.get(a) ?? 0) - (cacheTimestamps.get(b) ?? 0))
     const toRemove = keys.slice(0, keys.length - MAX_DRAFT_ENTRIES)
+    let next = { ...drafts.value }
     for (const key of toRemove) {
-      delete drafts.value[key]
+      const { [key]: _, ...rest } = next
+      next = rest
       cacheTimestamps.delete(key)
     }
+    drafts.value = next
   }
 
   // 校验草稿字段
@@ -94,7 +97,7 @@ export const useDraftStore = defineStore('draft', () => {
       const res = await api.draft.saveDraft(data)
       const draft = normalizeDraft(res.data?.data ?? undefined)
       if (draft) {
-        drafts.value[data.courseID] = draft
+        drafts.value = { ...drafts.value, [data.courseID]: draft }
         cacheTimestamps.set(data.courseID, Date.now())
         evictIfNeeded()
         lastSavedAt.value = new Date()
@@ -117,7 +120,7 @@ export const useDraftStore = defineStore('draft', () => {
       const res = await api.draft.getDraft(courseID)
       const draft = normalizeDraft(res.data?.data ?? undefined)
       if (draft) {
-        drafts.value[courseID] = draft
+        drafts.value = { ...drafts.value, [courseID]: draft }
         cacheTimestamps.set(courseID, Date.now())
         evictIfNeeded()
       }
@@ -134,7 +137,8 @@ export const useDraftStore = defineStore('draft', () => {
   // 删除草稿
   const deleteDraft = async (courseID: number) => {
     await api.draft.deleteDraft(courseID)
-    delete drafts.value[courseID]
+    const { [courseID]: _, ...rest } = drafts.value
+    drafts.value = rest
     cacheTimestamps.delete(courseID)
   }
 

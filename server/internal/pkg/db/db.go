@@ -3,9 +3,11 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -222,6 +224,11 @@ func (d *DB) Close() {
 
 // collectPoolMetrics 定期采集连接池指标
 func (d *DB) collectPoolMetrics() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "db: collectPoolMetrics goroutine panicked: %v\n", r)
+		}
+	}()
 	// 启动时立即采集一次，避免前 15 秒无指标
 	stat := d.pool.Stat()
 	metrics.DBConnectionsActive.Set(float64(stat.AcquiredConns()))

@@ -115,7 +115,7 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		return
 	}
 
-	err = h.service.VoteReview(c.Request.Context(), VoteReviewParams{
+	courseID, err := h.service.VoteReview(c.Request.Context(), VoteReviewParams{
 		ReviewID: reviewID,
 		UserHash: userHash,
 		VoteType: req.VoteType,
@@ -131,7 +131,7 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		return
 	}
 
-	h.invalidateReviewCaches(c, 0)
+	h.invalidateReviewCaches(c, courseID)
 	response.Success(c, gin.H{"message": "vote submitted successfully"})
 }
 

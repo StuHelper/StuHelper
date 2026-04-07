@@ -27,8 +27,8 @@ func (h *Handler) ListFlaggedReviews(c *gin.Context) {
 
 // ClearContentFlag 管理员复核通过，标记 content_flag = cleared
 func (h *Handler) ClearContentFlag(c *gin.Context) {
-	reviewID := c.Param("reviewID")
-	if reviewID == "" {
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
+	if err != nil {
 		response.BadRequest(c, "invalid review id")
 		return
 	}

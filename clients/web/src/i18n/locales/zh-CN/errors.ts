@@ -7,6 +7,7 @@ export default {
   NETWORK_ERROR: '网络连接失败，请检查网络设置',
   OFFLINE: '当前无网络连接，请检查网络后重试',
   TIMEOUT: '请求超时，请稍后重试',
+  UNKNOWN: '发生未知错误',
 
   // A000xxxx - 通用客户端错误
   A0000400: '请求参数错误',

@@ -29,7 +29,6 @@
                 class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted"
               />
               <input
-                ref="searchInputRef"
                 v-model="courseSearch.query.value"
                 type="text"
                 class="w-full pl-10 pr-10 px-4 py-3 bg-bg-elevated rounded-lg text-text-primary placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors"
@@ -415,7 +414,6 @@ const courses = ref<Course[]>([])
 const courseSearchLoading = ref(false)
 const showDropdown = ref(false)
 const searchContainerRef = ref<HTMLDivElement | null>(null)
-const searchInputRef = ref<HTMLInputElement | null>(null)
 
 const courseItems = computed<PinyinSearchItem[]>(() =>
   courses.value.map((c) => ({

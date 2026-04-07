@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"time"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -229,7 +230,11 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 
 	// 发送回复通知给评价作者
 	if s.notifSender != nil {
-		go s.sendReplyNotification(context.Background(), params.ReviewID, params.UserHash)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			s.sendReplyNotification(ctx, params.ReviewID, params.UserHash)
+		}()
 	}
 
 	return &CreateReplyResult{

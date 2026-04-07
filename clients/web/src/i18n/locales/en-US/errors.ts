@@ -7,6 +7,7 @@ export default {
   NETWORK_ERROR: 'Network connection failed, please check your network',
   OFFLINE: 'You are offline. Please check your connection and try again',
   TIMEOUT: 'Request timed out, please try again',
+  UNKNOWN: 'An unknown error occurred',
 
   // A000xxxx - General client errors
   A0000400: 'Invalid request parameters',

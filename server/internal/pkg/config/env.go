@@ -7,9 +7,10 @@ import (
 	"strings"
 )
 
-// getEnv 获取环境变量，如果不存在则返回默认值
+// getEnv 获取环境变量，如果未设置则返回默认值。
+// 使用 LookupEnv 区分"未设置"和"显式设为空字符串"。
 func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
+	if value, exists := os.LookupEnv(key); exists {
 		return value
 	}
 	return defaultValue

@@ -94,6 +94,16 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError
 }
 
+// 从未知错误对象中提取 HTTP 状态码
+export function getErrorStatus(error: unknown): number | undefined {
+  if (error instanceof ApiError) return error.status
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const status = (error as { status?: unknown }).status
+    return typeof status === 'number' ? status : undefined
+  }
+  return undefined
+}
+
 // 后端未返回 code 时的 HTTP 状态码兜底映射
 export function httpStatusToDefaultCode(status: number): string {
   const map: Record<number, string> = {

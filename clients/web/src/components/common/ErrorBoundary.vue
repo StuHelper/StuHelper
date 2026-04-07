@@ -34,7 +34,9 @@ watch(() => route.fullPath, () => {
 })
 
 onErrorCaptured((err: Error) => {
-  console.error('[ErrorBoundary] Captured error:', err)
+  if (import.meta.env.DEV) {
+    console.error('[ErrorBoundary] Captured error:', err)
+  }
   error.value = err
   // 返回 false 阻止错误继续向上传播
   return false

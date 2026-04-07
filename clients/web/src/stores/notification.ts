@@ -51,7 +51,7 @@ export const useNotificationStore = defineStore('notification', () => {
         // 按 ID 去重，防止两次请求间有新通知导致重复
         const existingIDs = new Set(notifications.value.map((n: AppNotification) => n.id))
         const newItems = list.filter((n: AppNotification) => !existingIDs.has(n.id))
-        notifications.value.push(...newItems)
+        notifications.value = [...notifications.value, ...newItems]
       }
 
       total.value = res.data?.data?.total || 0
@@ -85,9 +85,9 @@ export const useNotificationStore = defineStore('notification', () => {
   // 标记单条已读 - API 失败时异常自然上抛，不更新本地状态，保持前后端一致
   const markAsRead = async (id: string) => {
     await api.notification.markAsRead(id)
-    const notification = notifications.value.find(n => n.id === id)
-    if (notification && !notification.isRead) {
-      notification.isRead = true
+    const target = notifications.value.find(n => n.id === id)
+    if (target && !target.isRead) {
+      notifications.value = notifications.value.map(n => n.id === id ? { ...n, isRead: true } : n)
       unreadCount.value = Math.max(0, unreadCount.value - 1)
     }
   }
@@ -95,9 +95,7 @@ export const useNotificationStore = defineStore('notification', () => {
   // 全部标记已读
   const markAllAsRead = async () => {
     await api.notification.markAllAsRead()
-    notifications.value.forEach(n => {
-      n.isRead = true
-    })
+    notifications.value = notifications.value.map(n => ({ ...n, isRead: true }))
     unreadCount.value = 0
   }
 

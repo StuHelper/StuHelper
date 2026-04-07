@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
@@ -52,17 +54,29 @@ func (s *Service) Send(ctx context.Context, params SendParams) error {
 }
 
 // SendBatch 批量发送通知（实现 Sender 接口）
+// 使用 errgroup 并发发送，限制并发数避免打爆 DB
 func (s *Service) SendBatch(ctx context.Context, params []SendParams) error {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(10)
+
+	var mu sync.Mutex
 	var errs []error
+
 	for _, p := range params {
-		if err := s.Send(ctx, p); err != nil {
-			logger.L().Warn("batch notification send failed",
-				zap.Int64("user_id", p.UserID),
-				zap.Error(err),
-			)
-			errs = append(errs, fmt.Errorf("user %d: %w", p.UserID, err))
-		}
+		g.Go(func() error {
+			if err := s.Send(ctx, p); err != nil {
+				logger.L().Warn("batch notification send failed",
+					zap.Int64("user_id", p.UserID),
+					zap.Error(err),
+				)
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("user %d: %w", p.UserID, err))
+				mu.Unlock()
+			}
+			return nil // 不中断其他发送
+		})
 	}
+	_ = g.Wait()
 	return errors.Join(errs...)
 }
 

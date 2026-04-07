@@ -537,7 +537,7 @@ async function handleReplySubmit(content: string) {
   try {
     const res = await api.reply.createReply(props.review.id, { content })
     if (res.data?.data) {
-      replies.value.push(res.data.data)
+      replies.value = [...replies.value, res.data.data]
       replyCount.value++
       replyCountDirty = true
       replyFormRef.value?.clear()

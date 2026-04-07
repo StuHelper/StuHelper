@@ -94,10 +94,10 @@ type SearchCoursesParams struct {
 
 // SearchCourses 搜索课程
 func (s *Service) SearchCourses(ctx context.Context, params SearchCoursesParams) (*ListCoursesResult, error) {
-	pattern := "%" + httputil.EscapeLikePattern(params.Query) + "%"
+	query := params.Query
 
 	offset := httputil.SafeOffset(params.Page, params.PageSize)
-	list, total, err := s.repo.SearchCourses(ctx, pattern, params.PageSize, offset)
+	list, total, err := s.repo.SearchCourses(ctx, query, params.PageSize, offset)
 	if err != nil {
 		s.log.Error("failed to search courses", zap.String("query", params.Query), zap.Error(err))
 		return nil, err

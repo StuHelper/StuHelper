@@ -1,6 +1,7 @@
 package review
 
 import (
+	"time"
 	"context"
 	"encoding/json"
 	"errors"
@@ -146,7 +147,8 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 }
 
 // VoteReview 投票
-func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error {
+func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int64, error) {
+	var courseID int64
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
 		if err != nil {
@@ -154,6 +156,11 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 		}
 		if !exists {
 			return ErrReviewNotFound
+		}
+
+		courseID, err = s.repo.GetReviewCourseIDTx(ctx, tx, params.ReviewID)
+		if err != nil {
+			return err
 		}
 
 		existing, err := s.repo.GetVoteType(ctx, tx, params.ReviewID, params.UserHash)
@@ -201,13 +208,17 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 		}
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// 仅在新增 upvote 时通知评价作者
 	if s.notifSender != nil && params.VoteType == "like" {
-		go s.sendVoteNotification(context.Background(), params.ReviewID, params.UserHash)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			s.sendVoteNotification(ctx, params.ReviewID, params.UserHash)
+		}()
 	}
-	return nil
+	return courseID, nil
 }
 
 // UpdateReview 更新评论

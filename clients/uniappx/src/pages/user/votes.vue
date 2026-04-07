@@ -6,7 +6,8 @@ import type { components } from '@/api'
 import { unwrapListData } from '@/api/result'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
-import { averageRating, formatDateTime } from '@/utils/format'
+import { averageRating, formatDateTime, truncateText } from '@/utils/format'
+import { DEFAULT_PAGE_SIZE } from '@/config/pagination'
 
 const authStore = useAuthStore()
 const t = translate
@@ -15,6 +16,8 @@ const loadingMore = ref(false)
 const votes = ref<components['schemas']['Review'][]>([])
 const page = ref(1)
 const hasMore = ref(true)
+const lastLoadedAt = ref(0)
+const STALE_MS = 30_000
 
 async function loadVotes() {
   if (!(await authStore.requireAuth(t('user.votes.requireAuth')))) return
@@ -22,10 +25,11 @@ async function loadVotes() {
   page.value = 1
   hasMore.value = true
   try {
-    const result = await api.user.getMyVotes(1, 20, 'like')
+    const result = await api.user.getMyVotes(1, DEFAULT_PAGE_SIZE, 'like')
     const data = unwrapListData<components['schemas']['Review']>(result)
     votes.value = data.list
-    hasMore.value = data.list.length >= 20
+    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
+    lastLoadedAt.value = Date.now()
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : t('user.votes.loadFailed'), icon: 'none' })
   } finally {
@@ -38,10 +42,10 @@ async function loadMore() {
   loadingMore.value = true
   try {
     page.value++
-    const result = await api.user.getMyVotes(page.value, 20, 'like')
+    const result = await api.user.getMyVotes(page.value, DEFAULT_PAGE_SIZE, 'like')
     const data = unwrapListData<components['schemas']['Review']>(result)
     votes.value = [...votes.value, ...data.list]
-    hasMore.value = data.list.length >= 20
+    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
   } catch {
     page.value = Math.max(1, page.value - 1)
   } finally {
@@ -55,6 +59,7 @@ function openCourse(id: number) {
 
 onShow(() => {
   setPageTitle('common.pageTitles.myVotes')
+  if (Date.now() - lastLoadedAt.value < STALE_MS) return
   void loadVotes()
 })
 </script>
@@ -70,7 +75,7 @@ onShow(() => {
           {{ review.courseName || t('common.courseFallback', { id: review.courseID }) }} ·
           {{ formatDateTime(review.createdAt) }}
         </text>
-        <text class="content">{{ review.content }}</text>
+        <text class="content">{{ truncateText(review.content, 180) }}</text>
         <text class="score">{{ t('common.scorePrefix', { value: averageRating(review.ratings) }) }}</text>
       </view>
       <view v-if="hasMore" class="load-more" @tap="loadMore">

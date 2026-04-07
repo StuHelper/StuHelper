@@ -119,7 +119,7 @@ func (r *Repository) UpdateIdentityReviewStatus(
 	verifiedAt *time.Time,
 	rejectionReason *string,
 ) error {
-	_, err := r.db.Exec(ctx, `
+	tag, err := r.db.Exec(ctx, `
 		UPDATE user_identities SET
 			verified = $2,
 			verify_method = $3,
@@ -131,6 +131,9 @@ func (r *Repository) UpdateIdentityReviewStatus(
 	`, userID, approved, verifyMethod, reviewedAt, verifiedAt, rejectionReason)
 	if err != nil {
 		return fmt.Errorf("UpdateIdentityReviewStatus: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrIdentityNotFound
 	}
 	return nil
 }

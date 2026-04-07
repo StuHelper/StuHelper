@@ -114,7 +114,7 @@ func (c *Client) Login(ctx context.Context, uid, password string) (*LoginResult,
 		return nil, err
 	}
 
-	userDN := fmt.Sprintf("uid=%s,%s", uid, c.cfg.BaseDN)
+	userDN := fmt.Sprintf("uid=%s,%s", ldapv3.EscapeDN(uid), c.cfg.BaseDN)
 	if err := conn.Bind(userDN, password); err != nil {
 		if ldapErr, ok := err.(*ldapv3.Error); ok {
 			if ldapErr.ResultCode == ldapv3.LDAPResultInvalidCredentials {

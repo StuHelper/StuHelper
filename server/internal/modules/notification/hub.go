@@ -60,6 +60,10 @@ type SSEEvent struct {
 	Data  any    `json:"data"`
 }
 
+// maxConnsPerUser 每个用户允许的最大 SSE 并发连接数。
+// 超出限制时关闭最早建立的连接，防止资源耗尽。
+const maxConnsPerUser = 5
+
 // NewHub 创建通知 Hub
 func NewHub(rdb *redis.Client) *Hub {
 	return &Hub{
@@ -69,12 +73,21 @@ func NewHub(rdb *redis.Client) *Hub {
 	}
 }
 
-// Subscribe 注册 SSE 连接
+// Subscribe 注册 SSE 连接。
+// 当同一用户的连接数达到 maxConnsPerUser 时，驱逐一个现有连接以腾出名额。
 func (h *Hub) Subscribe(userID int64) chan SSEEvent {
 	ch := make(chan SSEEvent, 32)
 	h.mu.Lock()
 	if h.connections[userID] == nil {
 		h.connections[userID] = make(map[chan SSEEvent]struct{})
+	}
+	if len(h.connections[userID]) >= maxConnsPerUser {
+		// 驱逐一个现有连接（map 迭代顺序不确定，等效于随机驱逐）
+		for victim := range h.connections[userID] {
+			delete(h.connections[userID], victim)
+			close(victim)
+			break
+		}
 	}
 	h.connections[userID][ch] = struct{}{}
 	h.mu.Unlock()

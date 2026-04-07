@@ -4,8 +4,14 @@
       v-if="visible"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       @click.self="emit('close')"
+      @keydown.escape="emit('close')"
     >
-      <div class="bg-bg-card rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 animate-fade-in-up">
+      <div
+        role="dialog"
+        aria-modal="true"
+        :aria-label="t('review.admin.editTitle')"
+        class="bg-bg-card rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 animate-fade-in-up"
+      >
         <h3 class="text-lg font-bold text-text-primary mb-4">{{ t('review.admin.editTitle') }}</h3>
 
         <label class="block text-sm text-text-secondary mb-1.5">{{ t('review.review.titleLabel') }}</label>
@@ -74,12 +80,15 @@ const content = ref('')
 const reason = ref('')
 const submitting = ref(false)
 
-// 弹窗打开时预填当前内容
+// 弹窗打开时预填当前内容 + body scroll lock
 watch(() => props.visible, (val) => {
   if (val) {
     title.value = props.review.title || ''
     content.value = props.review.content || ''
     reason.value = ''
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
   }
 })
 

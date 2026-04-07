@@ -158,7 +158,7 @@ watch(query, (val) => {
     } catch (err) {
       // 被取消的请求不更新状态（API 客户端会将 AbortError 包装为 ApiError）
       if (controller.signal.aborted) return
-      console.warn('[InlineSearch] Search failed:', err)
+      if (import.meta.env.DEV) { console.warn('[InlineSearch] Search failed:', err) }
       if (query.value.trim() === trimmed) {
         results.value = []
       }
@@ -254,6 +254,13 @@ function saveRecent(item: RecentItem) {
 
 // Cmd+K / Ctrl+K 全局快捷键聚焦搜索框
 function handleGlobalKeydown(e: KeyboardEvent) {
+  // Cmd+K / Ctrl+K works from any context (including editable fields)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault()
+    inputRef.value?.focus()
+    return
+  }
+
   const target = e.target as HTMLElement | null
   const isEditable = target instanceof HTMLInputElement
     || target instanceof HTMLTextAreaElement

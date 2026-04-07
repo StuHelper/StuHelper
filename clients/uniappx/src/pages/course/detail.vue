@@ -35,6 +35,7 @@ async function toggleReplies(reviewId: string) {
     return
   }
   expandedReview.value = reviewId
+  replyText.value = ''
   repliesLoading.value = true
   replies.value = []
   try {

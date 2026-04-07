@@ -309,13 +309,9 @@ function performRequest<T>(
 
   if (needsCSRF(method)) {
     const csrfToken = resolveCSRFToken()
-    if (!csrfToken) {
-      return Promise.resolve({
-        error: new Error('CSRF token unavailable'),
-        response: createResponse(0),
-      })
+    if (csrfToken) {
+      headers[CSRF_HEADER_NAME] = csrfToken
     }
-    headers[CSRF_HEADER_NAME] = csrfToken
   }
 
   return new Promise((resolve) => {

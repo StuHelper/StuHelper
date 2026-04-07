@@ -431,7 +431,7 @@ watch(courseQuery, (val) => {
       highlightedIndex.value = -1
     } catch (err) {
       if (controller.signal.aborted) return
-      console.warn('[ReviewDialog] Course search failed:', err)
+      if (import.meta.env.DEV) { console.warn('[ReviewDialog] Course search failed:', err) }
       courseResults.value = []
     }
   }, 300)

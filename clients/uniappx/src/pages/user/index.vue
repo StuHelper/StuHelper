@@ -56,7 +56,7 @@ function goVerify(type: 'identity' | 'student') {
     cancelText: t('common.cancel'),
     success: (res) => {
       if (res.confirm) {
-        // @ts-ignore plus is a global from uni-app runtime on native
+        // @ts-expect-error plus is a global from uni-app runtime on native
         if (typeof plus !== 'undefined' && plus.runtime) {
           plus.runtime.openURL(targetURL)
         } else {

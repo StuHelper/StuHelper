@@ -44,8 +44,8 @@ function reportVital(metric: Metric) {
     });
 }
 
-function reportFrontendError(kind: FrontendErrorKind) {
-    sendBeaconJSON(FRONTEND_ERRORS_PATH, { kind });
+function reportFrontendError(kind: FrontendErrorKind, message?: string, source?: string, lineno?: number) {
+    sendBeaconJSON(FRONTEND_ERRORS_PATH, { kind, message, source, lineno });
 }
 
 export function initObservability() {
@@ -57,11 +57,12 @@ export function initObservability() {
     onFCP(reportVital);
     onTTFB(reportVital);
 
-    window.addEventListener("error", () => {
-        reportFrontendError("error");
+    window.addEventListener("error", (event) => {
+        reportFrontendError("error", event.message, event.filename, event.lineno);
     });
 
-    window.addEventListener("unhandledrejection", () => {
-        reportFrontendError("unhandledrejection");
+    window.addEventListener("unhandledrejection", (event) => {
+        const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+        reportFrontendError("unhandledrejection", reason);
     });
 }

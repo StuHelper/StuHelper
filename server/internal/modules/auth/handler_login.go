@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -203,7 +204,7 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 		h.clearOIDCStateCookie(c)
 		return "", "", fmt.Errorf("state cookie missing")
 	}
-	if cookieState != state {
+	if subtle.ConstantTimeCompare([]byte(cookieState), []byte(state)) != 1 {
 		h.clearOIDCStateCookie(c)
 		return "", "", fmt.Errorf("state cookie mismatch")
 	}

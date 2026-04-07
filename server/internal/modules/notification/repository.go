@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
@@ -62,7 +63,7 @@ func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error)
 
 // List 获取通知列表
 func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error) {
-	offset := (p.Page - 1) * p.PageSize
+	offset := httputil.SafeOffset(p.Page, p.PageSize)
 	rows, err := r.db.Query(ctx, `
 		SELECT id, type, title, body, source_module, source_id, source_url, source_course_id, is_read, created_at,
 		       COUNT(*) OVER() AS total,

@@ -4,6 +4,7 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -188,7 +189,7 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 	}
 
 	var rawJSON json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&rawJSON); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rawJSON); err != nil {
 		return nil, fmt.Errorf("oidc: introspect decode failed: %w", err)
 	}
 

@@ -19,6 +19,10 @@ export function withAlpha(color: string, alpha: number): string {
     if (hex.length === 3) {
       hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
     }
+    // 短格式 #rgba → #rrggbb（丢弃短格式 alpha，使用传入的 alpha）
+    if (hex.length === 4) {
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2]
+    }
     // 取前 6 位（忽略已有 alpha）
     const r = parseInt(hex.substring(0, 2), 16)
     const g = parseInt(hex.substring(2, 4), 16)

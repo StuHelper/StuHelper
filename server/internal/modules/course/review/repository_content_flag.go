@@ -53,6 +53,7 @@ func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int) 
 		); err != nil {
 			return nil, 0, fmt.Errorf("ListFlaggedReviews scan: %w", err)
 		}
+		review.UserHash = "" // 防御性清除，避免 user_hash 泄露到响应
 		list = append(list, review)
 	}
 	return list, total, rows.Err()

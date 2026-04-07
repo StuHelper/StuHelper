@@ -70,12 +70,20 @@ const togglePanel = () => {
   }
 }
 
-const handleMarkAllRead = () => {
-  store.markAllAsRead()
+const handleMarkAllRead = async () => {
+  try {
+    await store.markAllAsRead()
+  } catch {
+    // markAllAsRead 失败时 store 已在 API 成功后才更新本地状态，无需回滚
+  }
 }
 
-const handleNotificationClick = (id: string) => {
-  store.markAsRead(id)
+const handleNotificationClick = async (id: string) => {
+  try {
+    await store.markAsRead(id)
+  } catch {
+    // API 失败时不更新本地状态（store 先调 API 再更新）
+  }
 }
 
 // 点击外部关闭

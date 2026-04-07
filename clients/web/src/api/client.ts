@@ -298,10 +298,7 @@ export const apiClientOptions = {
     baseUrl: resolveApiBaseUrl(),
     credentials: "include" as const,
     fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
-        const request =
-            input instanceof Request
-                ? new Request(input, init)
-                : new Request(input, init);
+        const request = new Request(input, init);
         return authenticatedFetch(request);
     }) as typeof fetch,
 };

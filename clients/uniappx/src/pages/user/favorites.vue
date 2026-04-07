@@ -7,6 +7,7 @@ import { unwrapListData } from '@/api/result'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/format'
+import { DEFAULT_PAGE_SIZE } from '@/config/pagination'
 
 const authStore = useAuthStore()
 const t = translate
@@ -15,6 +16,8 @@ const loadingMore = ref(false)
 const favorites = ref<components['schemas']['FavoriteCourse'][]>([])
 const page = ref(1)
 const hasMore = ref(true)
+const lastLoadedAt = ref(0)
+const STALE_MS = 30_000
 
 async function loadFavorites() {
   if (!(await authStore.requireAuth(t('user.favorites.requireAuth')))) return
@@ -22,10 +25,11 @@ async function loadFavorites() {
   page.value = 1
   hasMore.value = true
   try {
-    const result = await api.user.getMyFavorites(1, 20)
+    const result = await api.user.getMyFavorites(1, DEFAULT_PAGE_SIZE)
     const data = unwrapListData<components['schemas']['FavoriteCourse']>(result)
     favorites.value = data.list
-    hasMore.value = data.list.length >= 20
+    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
+    lastLoadedAt.value = Date.now()
   } catch (error) {
     uni.showToast({
       title: error instanceof Error ? error.message : t('user.favorites.loadFailed'),
@@ -41,10 +45,10 @@ async function loadMore() {
   loadingMore.value = true
   try {
     page.value++
-    const result = await api.user.getMyFavorites(page.value, 20)
+    const result = await api.user.getMyFavorites(page.value, DEFAULT_PAGE_SIZE)
     const data = unwrapListData<components['schemas']['FavoriteCourse']>(result)
     favorites.value = [...favorites.value, ...data.list]
-    hasMore.value = data.list.length >= 20
+    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
   } catch {
     page.value = Math.max(1, page.value - 1)
   } finally {
@@ -58,6 +62,7 @@ function openCourse(id: number) {
 
 onShow(() => {
   setPageTitle('common.pageTitles.myFavorites')
+  if (Date.now() - lastLoadedAt.value < STALE_MS) return
   void loadFavorites()
 })
 </script>

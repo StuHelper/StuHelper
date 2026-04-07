@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -17,9 +16,6 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
-
-// phonePattern 中国大陆手机号正则（与 auth 模块保持一致）
-var phonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
 type academicTableRepo interface {
 	GetAcademicStudentByXHFromTable(ctx context.Context, xh string, tableName string) (*AcademicStudent, error)
@@ -297,7 +293,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 
 		if ldapInfo != nil && ldapInfo.Mobile != "" {
 			phone := strings.TrimSpace(ldapInfo.Mobile)
-			if phonePattern.MatchString(phone) {
+			if phoneutil.IsValidMainlandPhone(phone) {
 				verifiedPhoneRaw = phone
 			}
 		}
@@ -376,7 +372,7 @@ var ErrInvalidPhoneFormat = errors.New("invalid phone number format")
 // BindPhone 绑定手机号
 func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) error {
 	trimmed := strings.TrimSpace(phone)
-	if !phonePattern.MatchString(trimmed) {
+	if !phoneutil.IsValidMainlandPhone(trimmed) {
 		return ErrInvalidPhoneFormat
 	}
 
