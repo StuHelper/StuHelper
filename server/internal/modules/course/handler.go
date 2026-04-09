@@ -28,7 +28,7 @@ type Handler struct {
 // NewHandler 创建处理器
 func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, cfg *config.Config, fgaClient *fga.Client, notifSender notification.Sender) *Handler {
 	repo := NewRepository(database)
-	svc := NewService(repo)
+	svc := NewService(repo, logger.L().Named("course_service"))
 	return &Handler{
 		db:            database,
 		cache:         cacheHelper,

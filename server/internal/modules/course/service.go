@@ -8,7 +8,6 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // 业务错误定义
@@ -23,10 +22,13 @@ type Service struct {
 }
 
 // NewService 创建课程服务
-func NewService(repo *Repository) *Service {
+func NewService(repo *Repository, log *zap.Logger) *Service {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	return &Service{
 		repo: repo,
-		log:  logger.L(),
+		log:  log,
 	}
 }
 
