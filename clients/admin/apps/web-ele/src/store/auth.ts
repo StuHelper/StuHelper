@@ -138,6 +138,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchUserInfo() {
     const { userInfo, me } = await getUserInfoApi();
     userStore.setUserInfo(userInfo);
+    accessStore.setAccessCodes(
+      me.globalCapabilities?.length ? me.globalCapabilities : me.capabilities,
+    );
     accountSettingsUrl.value = me.accountSettingsUrl ?? '';
     return userInfo;
   }

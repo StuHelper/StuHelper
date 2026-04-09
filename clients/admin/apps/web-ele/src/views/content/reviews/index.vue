@@ -14,10 +14,11 @@ import {
   ElTag,
 } from 'element-plus';
 
-import { $t } from '#/locales';
 import { getReviewList, updateReview } from '#/api/admin';
+import { $t } from '#/locales';
 
 const loading = ref(false);
+const actionLoading = ref(false);
 const reviews = ref<Review[]>([]);
 const total = ref(0);
 const query = reactive({
@@ -48,8 +49,19 @@ async function handleAction(
   reviewId: string,
   action: 'delete' | 'hide' | 'restore',
 ) {
-  await updateReview(reviewId, { action });
-  await fetchData();
+  if (actionLoading.value) {
+    return;
+  }
+
+  actionLoading.value = true;
+  try {
+    await updateReview(reviewId, { action });
+    await fetchData();
+  } catch {
+    // unwrapData already displays a toast for failed mutations.
+  } finally {
+    actionLoading.value = false;
+  }
 }
 
 const statusTag = (status: string): 'danger' | 'success' | 'warning' => {
@@ -123,7 +135,9 @@ onMounted(fetchData);
               @confirm="handleAction(row.id, 'hide')"
             >
               <template #reference>
-                <ElButton link size="small" type="warning">{{ $t('admin.content.reviews.hide') }}</ElButton>
+                <ElButton link size="small" type="warning" :disabled="actionLoading">
+                  {{ $t('admin.content.reviews.hide') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
           </template>
@@ -132,6 +146,7 @@ onMounted(fetchData);
               link
               size="small"
               type="success"
+              :disabled="actionLoading"
               @click="handleAction(row.id, 'restore')"
             >
               {{ $t('admin.content.reviews.restore') }}
@@ -143,7 +158,9 @@ onMounted(fetchData);
             @confirm="handleAction(row.id, 'delete')"
           >
             <template #reference>
-              <ElButton link size="small" type="danger">{{ $t('admin.common.delete') }}</ElButton>
+              <ElButton link size="small" type="danger" :disabled="actionLoading">
+                {{ $t('admin.common.delete') }}
+              </ElButton>
             </template>
           </ElPopconfirm>
         </template>

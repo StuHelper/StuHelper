@@ -1,10 +1,13 @@
 import type { RouteRecordStringComponent } from '@vben/types';
 
-import { requestClient } from '#/api/request';
+import { requestApi } from '#/api/shared-client';
+import { unwrapData } from '#/api/shared-result';
 
 /**
  * 获取用户所有菜单
  */
 export async function getAllMenusApi() {
-  return requestClient.get<RouteRecordStringComponent[]>('/menu/all');
+  return unwrapData<RouteRecordStringComponent[]>(
+    await requestApi<RouteRecordStringComponent[]>('GET', '/menu/all'),
+  );
 }

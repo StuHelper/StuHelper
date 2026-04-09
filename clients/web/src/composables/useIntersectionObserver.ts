@@ -1,7 +1,7 @@
 /**
  * 滚动触发动画 composable
  */
-import { ref, watch, onUnmounted, type Ref } from 'vue'
+import { onScopeDispose, ref, watch, type Ref } from 'vue'
 
 export function useIntersectionObserver(
   elementRef: Ref<HTMLElement | null>,
@@ -70,7 +70,7 @@ export function useIntersectionObserver(
     { immediate: true }
   )
 
-  onUnmounted(cleanup)
+  onScopeDispose(cleanup)
 
   return {
     isVisible,

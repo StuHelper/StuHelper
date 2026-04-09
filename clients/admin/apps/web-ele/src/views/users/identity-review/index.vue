@@ -14,10 +14,11 @@ import {
   ElTag,
 } from 'element-plus';
 
-import { $t } from '#/locales';
 import { getIdentityList, reviewIdentity } from '#/api/admin';
+import { $t } from '#/locales';
 
 const loading = ref(false);
+const actionLoading = ref(false);
 const items = ref<IdentityVerification[]>([]);
 const total = ref(0);
 const query = reactive({
@@ -37,19 +38,24 @@ async function fetchData() {
   }
 }
 
-async function handleApprove(userId: number) {
-  await reviewIdentity(userId, { approved: true });
-  await fetchData();
-}
+async function handleReview(userId: number, approved: boolean) {
+  if (actionLoading.value) {
+    return;
+  }
 
-async function handleReject(userId: number) {
-  await reviewIdentity(userId, { approved: false });
-  await fetchData();
+  actionLoading.value = true;
+  try {
+    await reviewIdentity(userId, { approved });
+    await fetchData();
+  } catch {
+    // unwrapData already displays a toast for failed mutations.
+  } finally {
+    actionLoading.value = false;
+  }
 }
 
 const statusTag = (row: IdentityVerification) => {
   if (row.verified) return 'success';
-  // Use the status param convention: pending / rejected
   return 'warning';
 };
 
@@ -64,7 +70,9 @@ const docTypeLabel = (docType: IdentityVerification['docType']) => {
 };
 
 const verifyMethodLabel = (method: IdentityVerification['verifyMethod']) => {
-  return method ? $t(`admin.users.identityReview.verifyMethod.${method}`) : $t('admin.users.identityReview.status.pending');
+  return method
+    ? $t(`admin.users.identityReview.verifyMethod.${method}`)
+    : $t('admin.users.identityReview.status.pending');
 };
 
 onMounted(fetchData);
@@ -117,18 +125,22 @@ onMounted(fetchData);
           <template v-if="!row.verified">
             <ElPopconfirm
               :title="$t('admin.users.identityReview.confirmApprove')"
-              @confirm="handleApprove(row.userID)"
+              @confirm="handleReview(row.userID, true)"
             >
               <template #reference>
-                <ElButton link size="small" type="success">{{ $t('admin.users.identityReview.approve') }}</ElButton>
+                <ElButton link size="small" type="success" :disabled="actionLoading">
+                  {{ $t('admin.users.identityReview.approve') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
             <ElPopconfirm
               :title="$t('admin.users.identityReview.confirmReject')"
-              @confirm="handleReject(row.userID)"
+              @confirm="handleReview(row.userID, false)"
             >
               <template #reference>
-                <ElButton link size="small" type="danger">{{ $t('admin.users.identityReview.reject') }}</ElButton>
+                <ElButton link size="small" type="danger" :disabled="actionLoading">
+                  {{ $t('admin.users.identityReview.reject') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
           </template>

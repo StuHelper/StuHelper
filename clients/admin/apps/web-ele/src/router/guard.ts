@@ -6,6 +6,7 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 import { startProgress, stopProgress } from '@vben/utils';
 
 import { accessRoutes, coreRouteNames } from '#/router/routes';
+import { getAccessCodesApi } from '#/api/core/user';
 import { useAuthStore } from '#/store';
 
 import { generateAccess } from './access';
@@ -88,7 +89,11 @@ function setupAccessGuard(router: Router) {
     const accessCodes =
       accessStore.accessCodes.length > 0
         ? accessStore.accessCodes
-        : (userInfo.roles ?? []);
+        : await getAccessCodesApi();
+
+    if (accessStore.accessCodes.length === 0) {
+      accessStore.setAccessCodes(accessCodes);
+    }
 
     const { accessibleMenus, accessibleRoutes } = await generateAccess({
       roles: accessCodes,

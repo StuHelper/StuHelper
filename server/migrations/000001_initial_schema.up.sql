@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_external_id ON users(external_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
 -- ============================================
@@ -310,7 +309,7 @@ CREATE TABLE IF NOT EXISTS review_replies (
     CONSTRAINT fk_review_replies_parent FOREIGN KEY (parent_id)
         REFERENCES review_replies(id) ON DELETE CASCADE,
     CONSTRAINT chk_review_replies_status CHECK (status IN ('published', 'hidden', 'deleted')),
-    CONSTRAINT chk_review_replies_content_length CHECK (LENGTH(TRIM(content)) >= 1 AND char_length(content) <= 5000)
+    CONSTRAINT chk_review_replies_content_length CHECK (char_length(btrim(content)) >= 1 AND char_length(content) <= 5000)
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_replies_review_id ON review_replies(review_id);
@@ -520,6 +519,23 @@ CREATE TABLE IF NOT EXISTS academic.buaa_students (
 CREATE INDEX IF NOT EXISTS idx_buaa_students_sfzjh ON academic.buaa_students(sfzjh);
 CREATE INDEX IF NOT EXISTS idx_buaa_students_yxdm ON academic.buaa_students(yxdm);
 CREATE INDEX IF NOT EXISTS idx_buaa_students_rxnj ON academic.buaa_students(rxnj);
+
+COMMENT ON COLUMN academic.buaa_students.xh IS '学号 (student number)';
+COMMENT ON COLUMN academic.buaa_students.xm IS '姓名 (full name)';
+COMMENT ON COLUMN academic.buaa_students.sfzjlxdm IS '身份证件类型代码 (ID document type code)';
+COMMENT ON COLUMN academic.buaa_students.sfzjh IS '身份证件号 (ID document number)';
+COMMENT ON COLUMN academic.buaa_students.yxdm IS '院系代码 (department code)';
+COMMENT ON COLUMN academic.buaa_students.zydm IS '专业代码 (major code)';
+COMMENT ON COLUMN academic.buaa_students.bjdm IS '班级代码 (class code)';
+COMMENT ON COLUMN academic.buaa_students.xznj IS '学制年限/学制年级 (program duration / grade system code)';
+COMMENT ON COLUMN academic.buaa_students.rxnj IS '入学年级 (enrollment grade)';
+COMMENT ON COLUMN academic.buaa_students.pyccdm IS '培养层次代码 (education level code)';
+COMMENT ON COLUMN academic.buaa_students.xslbdm IS '学生类别代码 (student category code)';
+COMMENT ON COLUMN academic.buaa_students.sjh IS '手机号 (mobile phone number)';
+COMMENT ON COLUMN academic.buaa_students.dzxx IS '电子邮箱 (email address)';
+COMMENT ON COLUMN academic.buaa_students.xjztdm IS '学籍状态代码 (student status code)';
+COMMENT ON COLUMN academic.buaa_students.sfzx IS '是否在校 (on-campus status flag)';
+COMMENT ON COLUMN academic.buaa_students.sfzj IS '是否在籍 (registered status flag)';
 
 -- ============================================
 -- 25. 插入默认评分维度数据

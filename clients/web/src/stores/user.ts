@@ -1,13 +1,11 @@
 /**
  * 用户中心状态管理
  */
-import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
+import { defineStore } from 'pinia'
 import type { FavoriteCourse } from '@/types/course'
 import { api } from '@/api'
 
-
-// 通用分页获取辅助函数
 async function fetchPaginated<T>(
   apiFn: (page: number, pageSize: number) => Promise<{ data?: { data?: { list: T[]; total: number } } }>,
   listRef: Ref<T[]>,
@@ -15,7 +13,8 @@ async function fetchPaginated<T>(
   loadingRef: Ref<boolean>,
   errorRef: Ref<string | null>,
   page: number,
-  pageSize: number
+  pageSize: number,
+  keySelector?: (item: T) => number | string | undefined,
 ) {
   loadingRef.value = true
   errorRef.value = null
@@ -24,8 +23,19 @@ async function fetchPaginated<T>(
     const items = res.data?.data?.list || []
     if (page === 1) {
       listRef.value = items
-    } else {
+    } else if (!keySelector) {
       listRef.value = [...listRef.value, ...items]
+    } else {
+      const existingKeys = new Set(
+        listRef.value
+          .map((item) => keySelector(item))
+          .filter((key): key is number | string => key !== undefined),
+      )
+      const newItems = items.filter((item) => {
+        const key = keySelector(item)
+        return key === undefined || !existingKeys.has(key)
+      })
+      listRef.value = [...listRef.value, ...newItems]
     }
     totalRef.value = res.data?.data?.total || 0
   } catch (err) {
@@ -37,31 +47,35 @@ async function fetchPaginated<T>(
 }
 
 export const useUserStore = defineStore('user', () => {
-  // 我的收藏
   const myFavorites = ref<FavoriteCourse[]>([])
   const myFavoritesTotal = ref(0)
   const myFavoritesLoading = ref(false)
   const myFavoritesError = ref<string | null>(null)
 
-  // 收藏状态缓存：true=已收藏, false=未收藏, undefined=未知（未加载）
   const favoriteStatus = ref<Partial<Record<number, boolean>>>({})
 
-  // 获取我的收藏
   const fetchMyFavorites = async (page = 1, pageSize = 10) => {
-    await fetchPaginated(api.user.getMyFavorites, myFavorites, myFavoritesTotal, myFavoritesLoading, myFavoritesError, page, pageSize)
-    // 更新收藏状态缓存
+    await fetchPaginated(
+      api.user.getMyFavorites,
+      myFavorites,
+      myFavoritesTotal,
+      myFavoritesLoading,
+      myFavoritesError,
+      page,
+      pageSize,
+      (course) => course.id,
+    )
+
     const updated = { ...favoriteStatus.value }
-    for (const c of myFavorites.value) {
-      updated[c.id] = true
+    for (const course of myFavorites.value) {
+      updated[course.id] = true
     }
     favoriteStatus.value = updated
   }
 
-  // 切换收藏状态
   const toggleFavorite = async (courseID: number) => {
     const current = favoriteStatus.value[courseID] ?? false
 
-    // 乐观更新
     favoriteStatus.value = { ...favoriteStatus.value, [courseID]: !current }
 
     try {
@@ -71,23 +85,19 @@ export const useUserStore = defineStore('user', () => {
         await api.user.addFavorite(courseID)
       }
     } catch (err) {
-      // 回滚
       favoriteStatus.value = { ...favoriteStatus.value, [courseID]: current }
       throw err
     }
   }
 
-  // 返回值：true=已收藏, false=未收藏, undefined=未知
   const isFavorited = (courseID: number): boolean | undefined => {
     return favoriteStatus.value[courseID]
   }
 
-  // 设置服务端已知的收藏状态（由 course detail / list 响应推送）
   const setFavoriteStatus = (courseID: number, status: boolean) => {
     favoriteStatus.value = { ...favoriteStatus.value, [courseID]: status }
   }
 
-  // 按需加载未知的收藏状态
   const ensureFavoriteStatus = async (courseID: number) => {
     if (favoriteStatus.value[courseID] !== undefined) return
     try {
@@ -99,7 +109,6 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  // 重置状态（setup store 不支持 $reset）
   const reset = () => {
     myFavorites.value = []
     myFavoritesTotal.value = 0
@@ -119,6 +128,6 @@ export const useUserStore = defineStore('user', () => {
     isFavorited,
     setFavoriteStatus,
     ensureFavoriteStatus,
-    reset
+    reset,
   }
 })

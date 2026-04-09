@@ -3,13 +3,12 @@ import type { ApiClient } from '@stuhelper/shared/api';
 import { preferences } from '@vben/preferences';
 
 import { baseRequestClient } from '#/api/request';
+import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, readCookie } from '#/api/utils/csrf';
 
 import type { ApiCallResult, ApiEnvelope } from './shared-result';
 
 type HttpMethod = 'DELETE' | 'GET' | 'POST' | 'PUT';
 
-const CSRF_COOKIE_NAME = 'csrf_token';
-const CSRF_HEADER_NAME = 'X-CSRF-Token';
 const SAFE_METHODS = new Set<HttpMethod | 'HEAD' | 'OPTIONS'>([
   'GET',
   'HEAD',
@@ -30,29 +29,6 @@ const API_VERSION_PREFIX = '/api/v1';
 
 let refreshPromise: null | Promise<boolean> = null;
 let redirectPromise: null | Promise<void> = null;
-
-function readCookie(name: string): string | null {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-
-  const target = `${encodeURIComponent(name)}=`;
-  const cookies = document.cookie ? document.cookie.split(';') : [];
-  for (const rawCookie of cookies) {
-    const cookie = rawCookie.trim();
-    if (!cookie.startsWith(target)) {
-      continue;
-    }
-
-    try {
-      return decodeURIComponent(cookie.slice(target.length));
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
 
 function withSecurityHeaders(
   method: HttpMethod,
@@ -224,6 +200,12 @@ async function performRequest<T>(
 
       if (shouldReAuthenticate) {
         await redirectToOIDCLogin();
+        return {
+          error: responseError.response?.data ?? error,
+          response: {
+            status,
+          },
+        };
       }
     }
 
@@ -244,40 +226,47 @@ async function performRequest<T>(
   }
 }
 
+export async function requestApi<T>(
+  method: HttpMethod,
+  schemaPath: string,
+  init?: RequestInitShape,
+  options?: {
+    enableRefresh?: boolean;
+    shouldReAuthenticate?: boolean;
+  },
+): Promise<ApiCallResult<T>> {
+  const enableRefresh = options?.enableRefresh ?? true;
+  return performRequest<T>(
+    method,
+    schemaPath,
+    init,
+    enableRefresh,
+    options?.shouldReAuthenticate ?? enableRefresh,
+  );
+}
+
 function buildApiClient(enableRefresh: boolean): ApiClient {
   return {
     DELETE: ((schemaPath: string, init?: RequestInitShape) =>
-      performRequest(
-        'DELETE',
-        schemaPath,
-        init,
+      requestApi('DELETE', schemaPath, init, {
         enableRefresh,
-        enableRefresh,
-      )) as ApiClient['DELETE'],
+        shouldReAuthenticate: enableRefresh,
+      })) as ApiClient['DELETE'],
     GET: ((schemaPath: string, init?: RequestInitShape) =>
-      performRequest(
-        'GET',
-        schemaPath,
-        init,
+      requestApi('GET', schemaPath, init, {
         enableRefresh,
-        enableRefresh,
-      )) as ApiClient['GET'],
+        shouldReAuthenticate: enableRefresh,
+      })) as ApiClient['GET'],
     POST: ((schemaPath: string, init?: RequestInitShape) =>
-      performRequest(
-        'POST',
-        schemaPath,
-        init,
+      requestApi('POST', schemaPath, init, {
         enableRefresh,
-        enableRefresh,
-      )) as ApiClient['POST'],
+        shouldReAuthenticate: enableRefresh,
+      })) as ApiClient['POST'],
     PUT: ((schemaPath: string, init?: RequestInitShape) =>
-      performRequest(
-        'PUT',
-        schemaPath,
-        init,
+      requestApi('PUT', schemaPath, init, {
         enableRefresh,
-        enableRefresh,
-      )) as ApiClient['PUT'],
+        shouldReAuthenticate: enableRefresh,
+      })) as ApiClient['PUT'],
   };
 }
 

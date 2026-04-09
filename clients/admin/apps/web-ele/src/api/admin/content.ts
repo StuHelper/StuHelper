@@ -17,7 +17,6 @@ export interface ReviewListParams {
   page?: number;
   pageSize?: number;
   status?: 'all' | 'deleted' | 'hidden' | 'published';
-  keyword?: string;
 }
 
 export async function getReviewList(params: ReviewListParams) {

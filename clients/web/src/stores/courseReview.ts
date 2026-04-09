@@ -142,6 +142,7 @@ export const useCourseStore = defineStore('course', () => {
   }
 
   // 获取课程列表
+  // 仅供按院系快速选择课程的 UI 使用；完整课程页自行走分页 API。
   const fetchCourses = async (deptID: number) => {
     const cacheKey = String(deptID)
     const cached = courseCache.get(cacheKey)

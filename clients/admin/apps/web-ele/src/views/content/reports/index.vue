@@ -14,10 +14,11 @@ import {
   ElTag,
 } from 'element-plus';
 
-import { $t } from '#/locales';
 import { getReportList, processReport } from '#/api/admin';
+import { $t } from '#/locales';
 
 const loading = ref(false);
+const actionLoading = ref(false);
 const reports = ref<Report[]>([]);
 const total = ref(0);
 const query = reactive({
@@ -41,8 +42,19 @@ async function handleAction(
   reportId: string,
   action: 'delete' | 'hide' | 'reject',
 ) {
-  await processReport(reportId, { action });
-  await fetchData();
+  if (actionLoading.value) {
+    return;
+  }
+
+  actionLoading.value = true;
+  try {
+    await processReport(reportId, { action });
+    await fetchData();
+  } catch {
+    // unwrapData already displays a toast for failed mutations.
+  } finally {
+    actionLoading.value = false;
+  }
 }
 
 type TagType = 'danger' | 'info' | 'success' | 'warning';
@@ -118,7 +130,9 @@ onMounted(fetchData);
               @confirm="handleAction(row.id, 'reject')"
             >
               <template #reference>
-                <ElButton link size="small" type="info">{{ $t('admin.content.reports.reject') }}</ElButton>
+                <ElButton link size="small" type="info" :disabled="actionLoading">
+                  {{ $t('admin.content.reports.reject') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
             <ElPopconfirm
@@ -126,7 +140,9 @@ onMounted(fetchData);
               @confirm="handleAction(row.id, 'hide')"
             >
               <template #reference>
-                <ElButton link size="small" type="warning">{{ $t('admin.content.reports.hideReview') }}</ElButton>
+                <ElButton link size="small" type="warning" :disabled="actionLoading">
+                  {{ $t('admin.content.reports.hideReview') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
             <ElPopconfirm
@@ -134,7 +150,9 @@ onMounted(fetchData);
               @confirm="handleAction(row.id, 'delete')"
             >
               <template #reference>
-                <ElButton link size="small" type="danger">{{ $t('admin.content.reports.deleteReview') }}</ElButton>
+                <ElButton link size="small" type="danger" :disabled="actionLoading">
+                  {{ $t('admin.content.reports.deleteReview') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
           </template>

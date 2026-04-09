@@ -108,28 +108,6 @@ func (r *Repository) GetPortalStats(ctx context.Context) (courseCount, reviewCou
 	return
 }
 
-// ListByCourse 获取课程评论列表
-func (r *Repository) ListByCourse(ctx context.Context, courseID int64, limit, offset int) ([]Review, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
-		       r.title, r.content, r.grade, r.ratings,
-		       r.like_count, r.dislike_count,
-		       r.reply_count,
-		       r.status, r.moderation_reason, r.created_at, r.updated_at
-		FROM reviews r
-		LEFT JOIN courses c ON c.id = r.course_id
-		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.course_id = $1 AND r.status = 'published'
-		ORDER BY r.created_at DESC
-		LIMIT $2 OFFSET $3
-	`, courseID, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanReviews(rows)
-}
-
 // ListLatest 获取最新评论列表（含总数）
 func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort string) ([]Review, int, error) {
 	// SQL 注入安全保证：orderClause 的值 **仅** 来自 allowedSortOrders 硬编码 map，

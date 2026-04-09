@@ -35,7 +35,7 @@ export async function reviewIdentity(
 export async function getStudentVerificationList(params: {
   page?: number;
   pageSize?: number;
-  schoolId?: number;
+  schoolId?: string;
   status?: 'all' | 'pending' | 'rejected' | 'verified';
 }) {
   return unwrapListData<StudentVerification>(
@@ -62,7 +62,7 @@ export async function getSchoolConfigList() {
 }
 
 export async function updateSchoolConfig(
-  schoolId: number,
+  schoolId: string,
   data: UpdateSchoolConfigPayload,
 ) {
   return unwrapData(await userAdminApi.updateSchoolConfig(schoolId, data));
