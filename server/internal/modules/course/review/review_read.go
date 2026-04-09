@@ -61,7 +61,7 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 
 	facts := h.resolveReviewAccessFactsForRequest(c)
 	stripped := stripReviewsForResponse(result.List, facts)
-	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total, page, pageSize))
 }
 
 // GetLatestReviews 获取最新测评
@@ -85,7 +85,7 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 
 	facts := h.resolveReviewAccessFactsForRequest(c)
 	stripped := stripReviewsForResponse(result.List, facts)
-	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total, page, pageSize))
 }
 
 // SearchReviews 搜索测评（支持课程名/课号、院系、教师、学期等条件）
@@ -136,7 +136,7 @@ func (h *Handler) SearchReviews(c *gin.Context) {
 
 	facts := h.resolveReviewAccessFactsForRequest(c)
 	stripped := stripReviewsForResponse(result.List, facts)
-	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total, page, pageSize))
 }
 
 // GetBatchCourseReviews 批量获取多个课程的测评列表
@@ -190,7 +190,7 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 	}
 
 	facts := h.resolveReviewAccessFactsForRequest(c)
-	response.Success(c, buildGroupedReviewListData(courseIDs, result, facts))
+	response.Success(c, buildGroupedReviewListData(courseIDs, result, facts, pageSize))
 }
 
 // GetStats 获取评课统计数据

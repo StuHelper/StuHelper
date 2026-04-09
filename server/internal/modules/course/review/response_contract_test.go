@@ -9,10 +9,12 @@ import (
 )
 
 func TestBuildPaginatedReviewListData_NormalizesNilList(t *testing.T) {
-	data := buildPaginatedReviewListData(nil, 0)
+	data := buildPaginatedReviewListData(nil, 0, 2, 20)
 	assert.NotNil(t, data.List)
 	assert.Empty(t, data.List)
 	assert.Equal(t, 0, data.Total)
+	assert.Equal(t, 2, data.Page)
+	assert.Equal(t, 20, data.PageSize)
 }
 
 func TestBuildGroupedReviewListData_UsesSpecShape(t *testing.T) {
@@ -35,7 +37,7 @@ func TestBuildGroupedReviewListData_UsesSpecShape(t *testing.T) {
 	grouped := buildGroupedReviewListData([]int64{1, 2}, result, ReviewAccessFacts{
 		Authenticated: true,
 		CanViewFull:   true,
-	})
+	}, 10)
 
 	raw, err := json.Marshal(grouped)
 	require.NoError(t, err)
@@ -46,6 +48,8 @@ func TestBuildGroupedReviewListData_UsesSpecShape(t *testing.T) {
 	assert.Contains(t, decoded, "2")
 	assert.Contains(t, decoded["1"], "list")
 	assert.Contains(t, decoded["1"], "total")
+	assert.Contains(t, decoded["1"], "page")
+	assert.Contains(t, decoded["1"], "pageSize")
 	assert.NotContains(t, decoded["1"], "authenticated")
 	assert.NotContains(t, decoded, "data")
 }
