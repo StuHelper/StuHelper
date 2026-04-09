@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 )
 
@@ -86,10 +87,10 @@ type Repo interface {
 	GetProfileByUserID(ctx context.Context, userID int64) (*Profile, error)
 	CreateProfile(ctx context.Context, profile *Profile) error
 	UpdateProfile(ctx context.Context, profile *Profile) error
-	ListProfilesByStatus(ctx context.Context, status string, schoolID string, page, pageSize int) ([]Profile, int, error)
+	ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error)
 	SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
 
-	GetSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error)
+	GetSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error)
 	ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
 	ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
 	UpdateSchoolConfig(ctx context.Context, config *SchoolConfig) error
@@ -127,6 +128,8 @@ type Service struct {
 	docCipher         pii.Encryptor
 	onRoleSync        RoleSyncFunc
 	photoStore        identityPhotoStore
+	identityVerifier  mainlandIdentityVerifier
+	notifSender       notification.Sender
 }
 
 // NewService 创建用户服务（构造期校验关键依赖）
@@ -179,7 +182,7 @@ type UploadIdentityPhotoRequest struct {
 
 // VerifyStudentRequest 学生认证请求
 type VerifyStudentRequest struct {
-	SchoolID       string         `json:"schoolID"`
+	SchoolID       int64          `json:"schoolID"`
 	StudentID      string         `json:"studentID"`
 	Password       string         `json:"password"`
 	ManualFormData map[string]any `json:"manualFormData"`
@@ -226,4 +229,18 @@ func (s *Service) computePersonUID(docType, docNumber string) string {
 	mac := hmac.New(sha256.New, s.hmacKey)
 	mac.Write([]byte(docType + ":" + docNumber))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+type mainlandIdentityVerifier interface {
+	VerifyMainlandID(ctx context.Context, idCard, name string) (matched bool, code, description string, err error)
+}
+
+// SetNotificationSender 注册用户模块通知发送器。
+func (s *Service) SetNotificationSender(sender notification.Sender) {
+	s.notifSender = sender
+}
+
+// SetMainlandIdentityVerifier 注册大陆身份证二要素核验器。
+func (s *Service) SetMainlandIdentityVerifier(verifier mainlandIdentityVerifier) {
+	s.identityVerifier = verifier
 }

@@ -31,14 +31,15 @@ type wordMatcher struct {
 
 // Filter 敏感词过滤器
 type Filter struct {
-	repo          *Repository
-	words         []SensitiveWord
-	blockMatchers []wordMatcher
-	warnMatchers  []wordMatcher
-	mu            sync.RWMutex
-	lastRefresh   time.Time
-	refreshTTL    time.Duration
-	sf            singleflight.Group // 去重并发刷新调用
+	repo           *Repository
+	words          []SensitiveWord
+	blockMatchers  []wordMatcher
+	warnMatchers   []wordMatcher
+	reviewMatchers []wordMatcher
+	mu             sync.RWMutex
+	lastRefresh    time.Time
+	refreshTTL     time.Duration
+	sf             singleflight.Group // 去重并发刷新调用
 }
 
 // NewFilter 创建敏感词过滤器
@@ -72,13 +73,22 @@ func (f *Filter) Refresh(ctx context.Context) error {
 		return err
 	}
 
+	f.applyWords(words)
+	return nil
+}
+
+func (f *Filter) applyWords(words []SensitiveWord) {
 	blockMatchers := make([]wordMatcher, 0, len(words))
 	warnMatchers := make([]wordMatcher, 0, len(words))
+	reviewMatchers := make([]wordMatcher, 0, len(words))
 	for _, w := range words {
 		m := buildMatcher(w.Word)
-		if w.Level == "block" {
+		switch w.Level {
+		case "block":
 			blockMatchers = append(blockMatchers, m)
-		} else {
+		case "review":
+			reviewMatchers = append(reviewMatchers, m)
+		default:
 			warnMatchers = append(warnMatchers, m)
 		}
 	}
@@ -89,8 +99,8 @@ func (f *Filter) Refresh(ctx context.Context) error {
 	f.words = words
 	f.blockMatchers = blockMatchers
 	f.warnMatchers = warnMatchers
+	f.reviewMatchers = reviewMatchers
 	f.lastRefresh = time.Now()
-	return nil
 }
 
 // ensureFresh 确保敏感词列表是最新的
@@ -126,25 +136,7 @@ func (f *Filter) ensureFresh(ctx context.Context) {
 			return nil, err
 		}
 
-		// 预构建新的匹配器列表，减少写锁持有时间
-		newBlock := make([]wordMatcher, 0, len(words))
-		newWarn := make([]wordMatcher, 0, len(words))
-		for _, w := range words {
-			m := buildMatcher(w.Word)
-			if w.Level == "block" {
-				newBlock = append(newBlock, m)
-			} else {
-				newWarn = append(newWarn, m)
-			}
-		}
-
-		f.mu.Lock()
-		f.words = words
-		f.blockMatchers = newBlock
-		f.warnMatchers = newWarn
-		f.lastRefresh = time.Now()
-		f.mu.Unlock()
-
+		f.applyWords(words)
 		return nil, nil
 	})
 }
@@ -180,6 +172,17 @@ func (f *Filter) CheckContent(ctx context.Context, content string) *ContentCheck
 	for _, m := range f.warnMatchers {
 		if matchWord(m, lowerContent, content) {
 			result.Level = "warn"
+			result.MatchCount++
+		}
+	}
+
+	if result.Level == "warn" {
+		return result
+	}
+
+	for _, m := range f.reviewMatchers {
+		if matchWord(m, lowerContent, content) {
+			result.Level = "review"
 			result.MatchCount++
 		}
 	}

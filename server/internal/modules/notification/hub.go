@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -24,6 +25,8 @@ type SendParams struct {
 	Type         string
 	Title        string
 	Body         string
+	Content      string
+	Payload      json.RawMessage
 	SourceModule string
 	SourceID     string
 	SourceURL    string
@@ -32,17 +35,19 @@ type SendParams struct {
 
 // Notification 通知实体
 type Notification struct {
-	ID           string  `json:"id"`
-	UserID       int64   `json:"userId"`
-	Type         string  `json:"type"`
-	Title        string  `json:"title"`
-	Body         string  `json:"body"`
-	SourceModule string  `json:"sourceModule"`
-	SourceID     string  `json:"sourceId"`
-	SourceURL    *string `json:"sourceUrl,omitempty"`
-	CourseID     *int64  `json:"courseID,omitempty"`
-	IsRead       bool    `json:"isRead"`
-	CreatedAt    string  `json:"createdAt"`
+	ID           string          `json:"id"`
+	UserID       int64           `json:"userId"`
+	Type         string          `json:"type"`
+	Title        string          `json:"title"`
+	Body         string          `json:"body,omitempty"`
+	Content      string          `json:"content,omitempty"`
+	Payload      json.RawMessage `json:"payload,omitempty"`
+	SourceModule string          `json:"sourceModule"`
+	SourceID     string          `json:"sourceId"`
+	SourceURL    *string         `json:"sourceUrl,omitempty"`
+	CourseID     *int64          `json:"courseID,omitempty"`
+	IsRead       bool            `json:"isRead"`
+	CreatedAt    string          `json:"createdAt"`
 }
 
 // Hub 管理 SSE 连接和 Redis Pub/Sub

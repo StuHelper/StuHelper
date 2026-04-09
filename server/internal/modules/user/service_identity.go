@@ -166,7 +166,7 @@ func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName st
 		tableName, err := s.ensureAcademicTableConfigured(school)
 		if err != nil {
 			logger.L().Warn("skip academic DB auto-match for school with invalid table config",
-				zap.String("school_id", school.SchoolID),
+				zap.Int64("school_id", school.SchoolID),
 				zap.Error(err),
 			)
 			continue
@@ -179,7 +179,7 @@ func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName st
 		students, err := repoWithTable.FindAcademicStudentsByPersonUIDFromTable(ctx, DocTypeMainlandID, docNumber, tableName)
 		if err != nil {
 			logger.L().Warn("academic DB auto-match query failed for school",
-				zap.String("school_id", school.SchoolID),
+				zap.Int64("school_id", school.SchoolID),
 				zap.String("academic_db_table", tableName),
 				zap.Error(err),
 			)

@@ -35,16 +35,14 @@ export async function reviewIdentity(
 export async function getStudentVerificationList(params: {
   page?: number;
   pageSize?: number;
-  schoolId?: string;
+  schoolId?: number;
   status?: 'all' | 'pending' | 'rejected' | 'verified';
 }) {
-  const schoolID = params.schoolId?.trim();
-
   return unwrapListData<StudentVerification>(
     await userAdminApi.listStudentVerifications({
       page: params.page,
       pageSize: params.pageSize,
-      ...(schoolID ? { schoolID } : {}),
+      ...(params.schoolId ? { schoolID: params.schoolId } : {}),
       status: params.status,
     }),
   );
@@ -64,7 +62,7 @@ export async function getSchoolConfigList() {
 }
 
 export async function updateSchoolConfig(
-  schoolId: string,
+  schoolId: number,
   data: UpdateSchoolConfigPayload,
 ) {
   return unwrapData(await userAdminApi.updateSchoolConfig(schoolId, data));

@@ -167,13 +167,27 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	accessTTL := time.Duration(h.tokenConfig.AccessTokenTTL) * time.Second
 	refreshTTL := time.Duration(h.tokenConfig.RefreshTokenTTL) * time.Second
 
+	exists, err := h.userSyncRepo.ExistsByExternalID(c.Request.Context(), oldClaims.Sub)
+	if err != nil {
+		logger.FromGin(c).Error("failed to verify phone-login user during refresh", zap.Error(err))
+		h.clearTokenCookies(c)
+		response.InternalError(c, "failed to refresh token")
+		return false
+	}
+	if !exists {
+		logger.FromGin(c).Warn("phone-login refresh rejected for missing user", zap.String("user_id", oldClaims.Sub))
+		h.clearTokenCookies(c)
+		response.Unauthorized(c, "failed to refresh token", errs.ErrRefreshTokenInvalid)
+		return false
+	}
+
 	newAccessClaims := token.JWTClaims{
 		Sub:         oldClaims.Sub,
 		Name:        oldClaims.Name,
 		Email:       oldClaims.Email,
 		DisplayName: oldClaims.DisplayName,
 		Avatar:      oldClaims.Avatar,
-		Roles:       oldClaims.Roles,
+		Roles:       []string{"user"},
 		Typ:         token.JWTTokenTypeAccess,
 	}
 
@@ -186,9 +200,10 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	}
 
 	newRefreshClaims := token.JWTClaims{
-		Sub:  oldClaims.Sub,
-		Name: oldClaims.Name,
-		Typ:  token.JWTTokenTypeRefresh,
+		Sub:   oldClaims.Sub,
+		Name:  oldClaims.Name,
+		Roles: []string{"user"},
+		Typ:   token.JWTTokenTypeRefresh,
 	}
 	newRefreshToken, err := token.SignJWT(hmacKey, newRefreshClaims, refreshTTL)
 	if err != nil {

@@ -36,7 +36,7 @@ func TestReconcileFGAUserProfileTuples_ApproveWritesOwnerAndSchool(t *testing.T)
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
 			require.Equal(t, int64(123), userID)
-			schoolID := "10006"
+			schoolID := int64(10006)
 			return &Profile{UserID: userID, SchoolID: &schoolID}, nil
 		},
 	}
@@ -76,7 +76,7 @@ func TestReconcileFGAUserProfileTuples_RejectDeletesSchoolAndKeepsOwner(t *testi
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
 			require.Equal(t, int64(123), userID)
-			schoolID := "10006"
+			schoolID := int64(10006)
 			return &Profile{UserID: userID, SchoolID: &schoolID}, nil
 		},
 	}

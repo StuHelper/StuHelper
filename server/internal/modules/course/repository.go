@@ -119,7 +119,7 @@ func (r *Repository) ListCourses(ctx context.Context, query string, departmentID
 			COUNT(*) OVER() AS total
 		FROM courses c
 		LEFT JOIN departments d ON d.id = c.department_id
-		WHERE ($1 = '%%' OR c.name ILIKE $1 ESCAPE '\\' OR c.code ILIKE $1 ESCAPE '\\')
+		WHERE ($1 = '%%' OR c.name ILIKE $1 ESCAPE '\' OR c.code ILIKE $1 ESCAPE '\')
 		  AND ($2::bigint = 0 OR c.department_id = $2)
 		  AND ($5 = '' OR c.category = $5)
 		ORDER BY `+orderBy+`

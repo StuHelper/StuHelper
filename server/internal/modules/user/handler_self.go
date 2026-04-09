@@ -166,7 +166,7 @@ func (h *Handler) handleGetProfile(c *gin.Context) {
 }
 
 type verifyStudentHTTPRequest struct {
-	SchoolID       string         `json:"schoolID" binding:"required,max=10"`
+	SchoolID       int64          `json:"schoolID" binding:"required,min=1"`
 	StudentID      string         `json:"studentID" binding:"omitempty,max=50"`
 	Password       string         `json:"password" binding:"omitempty,max=200"`
 	ManualFormData map[string]any `json:"manualFormData"`
@@ -363,7 +363,7 @@ func (h *Handler) handleGetAcademicInfo(c *gin.Context) {
 		return
 	}
 
-	schoolID := ""
+	var schoolID int64
 	if profile.SchoolID != nil {
 		schoolID = *profile.SchoolID
 	}
@@ -421,7 +421,7 @@ func (h *Handler) handleListSchools(c *gin.Context) {
 		item, err := schoolConfigPublicToJSON(&schools[i])
 		if err != nil {
 			logger.FromGin(c).Error("failed to serialize school config",
-				zap.String("school_id", schools[i].SchoolID),
+				zap.Int64("school_id", schools[i].SchoolID),
 				zap.Error(err),
 			)
 			response.InternalError(c, "failed to list schools")

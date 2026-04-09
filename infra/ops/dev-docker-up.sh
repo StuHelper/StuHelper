@@ -28,7 +28,7 @@ base_services=(
 )
 
 log "starting development base services"
-compose up -d "${base_services[@]}"
+compose up -d --wait "${base_services[@]}"
 compose up --no-deps minio-init
 
 log "bootstrapping platform identities and authorization model"
@@ -40,7 +40,7 @@ if [[ "${WITH_OBSERVABILITY:-false}" == "true" ]]; then
 fi
 
 log "starting full dockerized development stack"
-compose --profile dev-full up -d app-dev frontend-dev admin-dev
+compose --profile dev-full up -d --wait app-dev frontend-dev admin-dev
 
 wait_for_http "backend" "http://127.0.0.1:8080/health/ready" 120 2
 wait_for_http "frontend" "http://127.0.0.1:3000/" 180 2

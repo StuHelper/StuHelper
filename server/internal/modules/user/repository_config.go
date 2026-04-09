@@ -9,7 +9,7 @@ import (
 )
 
 // GetSchoolConfig 获取学校认证配置
-func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error) {
+func (r *Repository) GetSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error) {
 	var item SchoolConfig
 	err := r.db.QueryRow(ctx, `
 		SELECT school_id, school_name, verification_method, approval_policy, ldap_config,

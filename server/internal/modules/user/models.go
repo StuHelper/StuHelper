@@ -61,7 +61,7 @@ type IdentityReviewItem struct {
 // Profile 学生认证档案
 type Profile struct {
 	UserID             int64
-	SchoolID           *string
+	SchoolID           *int64
 	StudentIDs         []string // JSON array
 	ActiveStudentID    *string
 	ManualFormData     json.RawMessage
@@ -89,7 +89,7 @@ type ManualFieldDescriptor struct {
 
 // SchoolConfig 学校认证配置
 type SchoolConfig struct {
-	SchoolID           string
+	SchoolID           int64
 	SchoolName         string
 	VerificationMethod string
 	ApprovalPolicy     string // auto: 认证通过即批准; manual: 需人工审核

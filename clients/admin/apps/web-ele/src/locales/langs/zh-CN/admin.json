@@ -305,7 +305,10 @@
       "confirmPassword": "确认密码",
       "confirmPasswordPlaceholder": "请再次输入新密码",
       "passwordMismatch": "两次输入的密码不一致",
-      "updated": "密码修改成功"
+      "updated": "密码修改成功",
+      "managedExternally": "由身份提供商管理",
+      "managedExternallyDesc": "密码修改由外部身份提供商处理，请使用下方链接打开账户设置页面。",
+      "goToAccountSettings": "打开账户设置"
     },
     "security": {
       "accountPassword": {

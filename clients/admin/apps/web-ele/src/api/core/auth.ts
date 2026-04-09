@@ -9,7 +9,9 @@ const baseAuthApi = createAuthApi(sharedBaseApiClient);
 
 export namespace AuthApi {
   export type LoginUrlResult = components['schemas']['LoginURLResponse'];
-  export type MeResult = components['schemas']['UserInfo'];
+  export type MeResult = components['schemas']['UserInfo'] & {
+    accountSettingsUrl?: string;
+  };
 }
 
 /**

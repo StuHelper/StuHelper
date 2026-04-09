@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	apidocs "git.stuhelper.com/StuHelper/StuHelper/api"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
@@ -101,9 +103,18 @@ func run() error {
 		}
 	}()
 
+	// bgWg 跟踪后台 goroutine（如 backfill），确保清理资源前已退出。
+	// bgCancelFn 在 bgCtx 创建后赋值；早期失败路径中可能保持 nil。
+	var bgWg sync.WaitGroup
+	var bgCancelFn context.CancelFunc
+
 	// cleanups 累积已初始化资源的清理函数，初始化失败时按逆序释放
 	var cleanups []func()
 	runCleanups := func() {
+		if bgCancelFn != nil {
+			bgCancelFn()
+		}
+		bgWg.Wait()
 		for i := len(cleanups) - 1; i >= 0; i-- {
 			cleanups[i]()
 		}
@@ -255,6 +266,11 @@ func run() error {
 	}
 	metricsGroup.GET("", gin.WrapH(promhttp.Handler()))
 
+	// bgCtx/bgCancel 管理后台任务生命周期。
+	// runCleanups 会执行 cancel -> wait -> close，初始化失败和正常 shutdown 共用同一清理顺序。
+	bgCtx, bgCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: managed by runCleanups and explicit shutdown cancel
+	bgCancelFn = bgCancel
+
 	// 注册 API 路由（带版本控制）
 	api := r.Group("/api/v1")
 	{
@@ -329,12 +345,17 @@ func run() error {
 
 		userSyncRepo := auth.NewUserSyncRepository(database, piiCipher, crypto.GetHMACKey())
 
-		// 启动时回填缺失的 user_hash（幂等，增量执行）
-		if backfilled, backfillErr := userSyncRepo.BackfillUserHashes(context.Background()); backfillErr != nil {
-			fmt.Fprintf(os.Stderr, "WARN: user_hash backfill failed (non-fatal): %v\n", backfillErr)
-		} else if backfilled > 0 {
-			fmt.Printf("INFO: backfilled user_hash for %d existing users\n", backfilled)
-		}
+		// 异步回填缺失的 user_hash（幂等，增量执行），不阻塞启动。
+		// goroutine 受 bgCtx 管理，并在 runCleanups 中等待退出后再关闭 DB。
+		bgWg.Add(1)
+		go func() {
+			defer bgWg.Done()
+			if backfilled, backfillErr := userSyncRepo.BackfillUserHashes(bgCtx); backfillErr != nil {
+				logger.L().Warn("user_hash backfill failed (non-fatal)", zap.Error(backfillErr))
+			} else if backfilled > 0 {
+				logger.L().Info("backfilled user_hash for existing users", zap.Int64("count", backfilled))
+			}
+		}()
 
 		authHandler := auth.NewHandler(
 			cfg,
@@ -447,8 +468,6 @@ func run() error {
 		userHandler.RegisterAdminRoutes(adminGroup)
 
 		// 启动后台定时任务（日志清理等）
-		bgCtx, bgCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: bgCancel is appended to cleanups and called on shutdown
-		cleanups = append(cleanups, bgCancel)
 		courseHandler.StartBackgroundJobs(bgCtx)
 
 		// 注册通知模块路由 + 启动 Redis 订阅
@@ -520,7 +539,15 @@ func run() error {
 		logger.L().Info("HTTP server stopped gracefully")
 	}
 
-	// Step 2-4: 按逆序关闭 PostgreSQL → Redis（cleanups 逆序执行）
+	// Step 1.5: 先取消后台任务，通知 backfill / 定时任务尽快退出。
+	if bgCancelFn != nil {
+		bgCancelFn()
+	}
+
+	// Step 1.6: 等待所有 in-flight FGA 异步写入完成，避免 DB 关闭后 goroutine 仍访问数据库。
+	review.WaitFGAWrites()
+
+	// Step 2-4: 按逆序关闭 PostgreSQL → Redis（runCleanups 内部执行 cancel -> wait -> close）
 	runCleanups()
 	logger.L().Info("All resources released, server exited")
 	return serverStartErr

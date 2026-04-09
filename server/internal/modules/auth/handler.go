@@ -28,6 +28,7 @@ type Handler struct {
 	defaultRedirectURL   string
 	otpService           *OTPService
 	smsService           *sms.Service
+	oidcIssuer           string
 }
 
 // NewHandler 创建认证处理器
@@ -60,6 +61,7 @@ func NewHandler(
 		defaultRedirectURL:   defaultRedirect,
 		otpService:           otpSvc,
 		smsService:           smsService,
+		oidcIssuer:           cfg.Zitadel.Issuer,
 	}
 }
 
@@ -76,7 +78,10 @@ func buildAllowedRedirectHosts(corsOrigins []string) map[string]struct{} {
 	return hosts
 }
 
-// buildDefaultRedirectURL 从 CORS_ORIGINS 取第一个作为默认重定向地址
+// buildDefaultRedirectURL 从 CORS_ORIGINS 取第一个作为默认重定向地址。
+// 如果 CORS_ORIGINS 未配置或为空，回退到 http://localhost:3000。
+// 此回退仅适用于本地开发；生产环境 CORS_ORIGINS 由 validate() 强制要求配置，
+// 同时 NewHandler 会在配置缺失时输出 WARNING 日志以便运维排查。
 func buildDefaultRedirectURL(corsOrigins []string) string {
 	if len(corsOrigins) > 0 {
 		origin := strings.TrimRight(strings.TrimSpace(corsOrigins[0]), "/")

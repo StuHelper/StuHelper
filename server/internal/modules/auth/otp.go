@@ -20,21 +20,25 @@ const (
 	otpTTL         = 5 * time.Minute  // 验证码有效期
 	otpCooldown    = 60 * time.Second // 发送冷却期
 	otpMaxAttempts = 5                // 最大验证尝试次数
+	otpPhoneLimit  = 5                // 单个手机号每小时最大请求次数
+	otpPhoneTTL    = 1 * time.Hour    // 单个手机号限流窗口
 )
 
 // OTP Redis key 前缀
 const (
-	otpCodePrefix     = "otp:code:"     // otp:code:{phone_hash} → code
-	otpCooldownPrefix = "otp:cd:"       // otp:cd:{phone_hash} → 1
-	otpAttemptsPrefix = "otp:attempts:" // otp:attempts:{phone_hash} → count
+	otpCodePrefix       = "otp:code:"        // otp:code:{phone_hash} → code
+	otpCooldownPrefix   = "otp:cd:"          // otp:cd:{phone_hash} → 1
+	otpAttemptsPrefix   = "otp:attempts:"    // otp:attempts:{phone_hash} → count
+	otpPhoneLimitPrefix = "otp:phone_limit:" // otp:phone_limit:{phone_hash} → count
 )
 
 // OTP 错误
 var (
-	ErrOTPCooldown    = errors.New("otp: please wait before requesting a new code")
-	ErrOTPInvalidCode = errors.New("otp: invalid verification code")
-	ErrOTPExpired     = errors.New("otp: verification code expired")
-	ErrOTPMaxAttempts = errors.New("otp: too many failed attempts")
+	ErrOTPCooldown         = errors.New("otp: please wait before requesting a new code")
+	ErrOTPInvalidCode      = errors.New("otp: invalid verification code")
+	ErrOTPExpired          = errors.New("otp: verification code expired")
+	ErrOTPMaxAttempts      = errors.New("otp: too many failed attempts")
+	ErrOTPPhoneRateLimited = errors.New("otp: too many requests for this phone number")
 )
 
 // OTPCooldownSeconds 返回 OTP 冷却期秒数，供外部模块在响应中使用。
@@ -55,6 +59,14 @@ end
 return attempts
 `)
 
+var otpPhoneLimitScript = redis.NewScript(`
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+  redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+return count
+`)
+
 // NewOTPService 创建 OTP 服务
 func NewOTPService(rdb *redis.Client) *OTPService {
 	return &OTPService{rdb: rdb}
@@ -66,6 +78,24 @@ func otpPhoneKey(phone string) (string, error) {
 		return "", fmt.Errorf("otp: hash phone: %w", err)
 	}
 	return hash, nil
+}
+
+// CheckPhoneRateLimit 对单个手机号执行每小时限流，防止分布式来源对同一手机号刷 OTP。
+func (s *OTPService) CheckPhoneRateLimit(ctx context.Context, phone string) error {
+	phoneKey, err := otpPhoneKey(phone)
+	if err != nil {
+		return err
+	}
+
+	limitKey := otpPhoneLimitPrefix + phoneKey
+	count, err := otpPhoneLimitScript.Run(ctx, s.rdb, []string{limitKey}, otpPhoneTTL.Milliseconds()).Int64()
+	if err != nil {
+		return fmt.Errorf("otp: check phone rate limit: %w", err)
+	}
+	if count > int64(otpPhoneLimit) {
+		return ErrOTPPhoneRateLimited
+	}
+	return nil
 }
 
 // Generate 生成并存储验证码，返回明文验证码（用于 SMS 发送）。
@@ -107,7 +137,7 @@ func (s *OTPService) Generate(ctx context.Context, phone string) (string, error)
 }
 
 // Cleanup 删除指定手机号的验证码、冷却期和尝试计数。
-// 用于短信发送失败后的补偿回滚，避免“未收到短信却被冷却”的情况。
+// 用于验证码过期或完全重置场景。
 func (s *OTPService) Cleanup(ctx context.Context, phone string) error {
 	phoneKey, err := otpPhoneKey(phone)
 	if err != nil {
@@ -121,6 +151,21 @@ func (s *OTPService) Cleanup(ctx context.Context, phone string) error {
 		return fmt.Errorf("otp: cleanup code: %w", err)
 	}
 
+	return nil
+}
+
+// CleanupCodeOnly 仅删除验证码，保留冷却期和尝试计数。
+// 用于短信发送失败后的补偿，避免攻击者借由发送失败绕过冷却窗口。
+func (s *OTPService) CleanupCodeOnly(ctx context.Context, phone string) error {
+	phoneKey, err := otpPhoneKey(phone)
+	if err != nil {
+		return err
+	}
+
+	codeKey := otpCodePrefix + phoneKey
+	if err := s.rdb.Del(ctx, codeKey).Err(); err != nil {
+		return fmt.Errorf("otp: cleanup code only: %w", err)
+	}
 	return nil
 }
 

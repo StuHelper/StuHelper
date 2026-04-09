@@ -33,6 +33,12 @@ type Encryptor interface {
 	Encrypt(plaintext string) ([]byte, error)
 }
 
+// EncryptDecryptor 加解密接口，适用于需要同时加密和解密的场景（如学籍数据 PII 字段）
+type EncryptDecryptor interface {
+	Encryptor
+	Decrypt(ciphertext []byte) (string, error)
+}
+
 // Cipher 实现版本化信封格式的 AES-256-GCM 加密
 type Cipher struct {
 	activeKeyID uint8
@@ -108,6 +114,15 @@ func (c *Cipher) Encrypt(plaintext string) ([]byte, error) {
 	copy(envelope[envelopeHeaderSize:], sealed)
 
 	return envelope, nil
+}
+
+// Decrypt 解密版本化信封格式密文，返回明文字符串
+func (c *Cipher) Decrypt(ciphertext []byte) (string, error) {
+	plaintext, err := c.decrypt(ciphertext)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
 }
 
 // decrypt 仅供同包测试使用，解密版本化信封格式密文

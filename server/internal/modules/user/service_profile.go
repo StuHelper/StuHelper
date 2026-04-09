@@ -402,7 +402,7 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 }
 
 // GetAcademicInfo 获取学籍信息
-func (s *Service) GetAcademicInfo(ctx context.Context, schoolID string, studentID string) (*AcademicStudent, error) {
+func (s *Service) GetAcademicInfo(ctx context.Context, schoolID int64, studentID string) (*AcademicStudent, error) {
 	school, err := s.loadEnabledSchoolConfig(ctx, schoolID)
 	if err != nil {
 		return nil, fmt.Errorf("GetAcademicInfo load school config: %w", err)
@@ -441,8 +441,8 @@ func (s *Service) findAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm 
 	return nil, fmt.Errorf("repository does not support school-scoped academic table queries")
 }
 
-func (s *Service) loadEnabledSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error) {
-	if strings.TrimSpace(schoolID) == "" {
+func (s *Service) loadEnabledSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error) {
+	if schoolID == 0 {
 		return nil, ErrSchoolNotFound
 	}
 
