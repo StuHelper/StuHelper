@@ -24,6 +24,10 @@ func (f *fakeEncryptor) Encrypt(plaintext string) ([]byte, error) {
 	return []byte("encrypted:" + plaintext), nil
 }
 
+func (f *fakeEncryptor) Decrypt(ciphertext []byte) (string, error) {
+	return string(ciphertext), nil
+}
+
 // ---------------------------------------------------------------------------
 // mockRepo — 实现 Repo 接口的测试替身，可通过函数字段定制行为
 // ---------------------------------------------------------------------------

@@ -70,6 +70,9 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 //   - reviews: idx_reviews_status (status) — 加速 FILTER 条件聚合
 //   - reviews: idx_reviews_created_at (created_at) — 加速 today/week 过滤
 //   - review_reports: idx_review_reports_status (status) — 加速 pending 计数
+//
+// NOTE(DB-M7): Handler 层通过 review:admin:stats 版本化缓存键对结果进行缓存，
+// 典型 TTL 约 30s (JitteredTTL)。写操作后通过 invalidateReviewAggregateCaches 失效。
 func (r *Repository) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 	var stats AdminStats
 	// reviews 表：6 个计数合并为单次全表扫描 + FILTER 条件聚合

@@ -487,47 +487,6 @@ AcademicStudentInfo:
       type: string
       description: Email address
 
-EffectivePermission:
-  type: object
-  required: [permissionID, name, module, action, granted, source]
-  properties:
-    permissionID:
-      type: integer
-      format: int64
-    name:
-      type: string
-    module:
-      type: string
-    action:
-      type: string
-    granted:
-      type: boolean
-    source:
-      type: string
-      enum: [role, group, override]
-      description: 权限来源
-
-GroupMember:
-  type: object
-  required: [userID, username]
-  properties:
-    userID:
-      type: integer
-      format: int64
-    username:
-      type: string
-    email:
-      type:
-        - string
-        - "null"
-    avatarURL:
-      type:
-        - string
-        - "null"
-    joinedAt:
-      type: string
-      format: date-time
-
 AdminSchoolConfig:
   type: object
   required: [schoolID, schoolName, verificationMethod, approvalPolicy, enabled, createdAt]
@@ -588,21 +547,6 @@ UpdateSchoolConfigRequest:
       items:
         $ref: "#/ManualFieldDescriptor"
     enabled:
-      type: boolean
-
-UserPermissionOverride:
-  type: object
-  required: [userID, permissionID, permissionName, granted]
-  properties:
-    userID:
-      type: integer
-      format: int64
-    permissionID:
-      type: integer
-      format: int64
-    permissionName:
-      type: string
-    granted:
       type: boolean
 
 UserSurface:

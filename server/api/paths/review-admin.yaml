@@ -242,7 +242,7 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/course/review/admin/reviews/batch:
-  post:
+  patch:
     tags: [Admin]
     operationId: batchUpdateReviews
     summary: 批量更新评论状态
@@ -558,20 +558,8 @@
     parameters:
       - $ref: '../components/parameters/common.yaml#/TeacherIDPath'
     responses:
-      '200':
+      '204':
         description: 删除成功
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
-                - type: object
-                  required: [data]
-                  properties:
-                    data:
-                      $ref: '../components/schemas/common.yaml#/MessageData'
-      '400':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -712,18 +700,8 @@
     parameters:
       - $ref: '../components/parameters/common.yaml#/SensitiveWordIDPath'
     responses:
-      '200':
+      '204':
         description: 删除成功
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
-                - type: object
-                  required: [data]
-                  properties:
-                    data:
-                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

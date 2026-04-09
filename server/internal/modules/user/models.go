@@ -109,23 +109,25 @@ func (sc SchoolConfig) IsAutoApprove() bool {
 
 // AcademicStudent 教务系统学生记录
 type AcademicStudent struct {
-	XH       string
-	XM       *string
-	SFZJLXDM *string
-	SFZJH    *string
-	YXDM     *string
-	ZYDM     *string
-	BJDM     *string
-	XZNJ     *string
-	RXNJ     *string
-	PYCCDM   *string
-	XSLBDM   *string
-	SJH      *string
-	DZXX     *string
-	XJZTDM   *string
-	SFZX     *string
-	SFZJ     *string
-	SyncedAt time.Time
+	XH        string
+	XM        *string
+	SFZJLXDM  *string
+	SFZJH     *string
+	SFZJHEnc  []byte  // sfzjh_enc: 加密存储的证件号
+	SFZJHHash *string // sfzjh_hash: 证件号哈希，用于查询
+	YXDM      *string
+	ZYDM      *string
+	BJDM      *string
+	XZNJ      *string
+	RXNJ      *string
+	PYCCDM    *string
+	XSLBDM    *string
+	SJH       *string
+	DZXX      *string
+	XJZTDM    *string
+	SFZX      *string
+	SFZJ      *string
+	SyncedAt  time.Time
 }
 
 // SystemConfig 系统配置项
