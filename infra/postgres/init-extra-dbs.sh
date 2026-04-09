@@ -1,11 +1,21 @@
 #!/bin/bash
-# 为 Zitadel 和 OpenFGA 创建独立数据库
-# 共享 PostgreSQL 模式：stuhelper(主库) + zitadel + openfga
+# 为应用、Zitadel 和 OpenFGA 创建独立数据库/用户
 set -e
 
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
+    CREATE ROLE stuhelper_app LOGIN PASSWORD '${STUHELPER_APP_DB_PASSWORD}';
+    CREATE ROLE zitadel LOGIN PASSWORD '${ZITADEL_DB_PASSWORD}';
+    CREATE ROLE openfga LOGIN PASSWORD '${OPENFGA_DB_PASSWORD}';
+
+    CREATE DATABASE zitadel OWNER zitadel;
+    CREATE DATABASE openfga OWNER openfga;
+EOSQL
+
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    CREATE DATABASE zitadel;
-    GRANT ALL PRIVILEGES ON DATABASE zitadel TO "$POSTGRES_USER";
-    CREATE DATABASE openfga;
-    GRANT ALL PRIVILEGES ON DATABASE openfga TO "$POSTGRES_USER";
+    GRANT CONNECT ON DATABASE "$POSTGRES_DB" TO stuhelper_app;
+    GRANT USAGE, CREATE ON SCHEMA public TO stuhelper_app;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO stuhelper_app;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO stuhelper_app;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO stuhelper_app;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO stuhelper_app;
 EOSQL

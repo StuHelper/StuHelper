@@ -115,8 +115,8 @@ func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T)
 				tableOne := "academic.school_a_students"
 				tableTwo := "academic.school_b_students"
 				return []SchoolConfig{
-					{SchoolID: "10001", Enabled: true, AcademicDBTable: &tableOne},
-					{SchoolID: "10002", Enabled: true, AcademicDBTable: &tableTwo},
+					{SchoolID: 10001, Enabled: true, AcademicDBTable: &tableOne},
+					{SchoolID: 10002, Enabled: true, AcademicDBTable: &tableTwo},
 				}, nil
 			},
 			onCreateIdentity: func(_ context.Context, identity *IdentityRecord) error {
@@ -160,15 +160,15 @@ func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T)
 
 func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {
 	existingConfig := &SchoolConfig{
-		SchoolID:           "10006",
+		SchoolID:           10006,
 		SchoolName:         "BUAA",
 		VerificationMethod: VerifyMethodManual,
 		Enabled:            true,
 	}
 	updatedCalled := false
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			assert.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			assert.Equal(t, int64(10006), schoolID)
 			configCopy := *existingConfig
 			return &configCopy, nil
 		},
@@ -182,7 +182,7 @@ func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {
 	require.NoError(t, err)
 
 	invalidTable := "academic.students;drop table users;"
-	err = service.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
+	err = service.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
 		AcademicDBTable: &invalidTable,
 	})
 
@@ -193,14 +193,14 @@ func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {
 
 func TestGetAcademicInfo_UsesSchoolConfiguredAcademicTable(t *testing.T) {
 	const (
-		schoolID        = "10006"
+		schoolID        = int64(10006)
 		expectedTable   = "academic.custom_students"
 		expectedStudent = "20240001"
 	)
 
 	repo := &academicAwareMockRepo{
 		mockRepo: &mockRepo{
-			onGetSchoolConfig: func(_ context.Context, gotSchoolID string) (*SchoolConfig, error) {
+			onGetSchoolConfig: func(_ context.Context, gotSchoolID int64) (*SchoolConfig, error) {
 				assert.Equal(t, schoolID, gotSchoolID)
 				return &SchoolConfig{
 					SchoolID:        schoolID,
@@ -227,12 +227,12 @@ func TestGetAcademicInfo_UsesSchoolConfiguredAcademicTable(t *testing.T) {
 
 func TestGetAcademicInfo_FailsWhenAcademicTableMissing(t *testing.T) {
 	const (
-		schoolID        = "10006"
+		schoolID        = int64(10006)
 		expectedStudent = "20240001"
 	)
 
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
 				SchoolID: schoolID,
 				Enabled:  true,
@@ -249,12 +249,12 @@ func TestGetAcademicInfo_FailsWhenAcademicTableMissing(t *testing.T) {
 
 func TestGetAcademicInfo_FailsWhenSchoolDisabled(t *testing.T) {
 	const (
-		schoolID        = "10006"
+		schoolID        = int64(10006)
 		expectedStudent = "20240001"
 	)
 
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			table := "academic.custom_students"
 			return &SchoolConfig{
 				SchoolID:        schoolID,

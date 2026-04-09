@@ -17,13 +17,13 @@ func TestHandleAdminListStudentVerifications_IncludesReviewMeta(t *testing.T) {
 	rejectionReason := "学籍材料不完整"
 
 	repo := &mockRepo{
-		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
 			assert.Equal(t, StatusPending, status)
-			assert.Empty(t, schoolID)
+			assert.Nil(t, schoolID)
 			return []Profile{
 				{
 					UserID:             101,
-					SchoolID:           ptr("10006"),
+					SchoolID:           ptr(int64(10006)),
 					VerificationStatus: StatusRejected,
 					VerificationMethod: ptr(VerifyMethodManual),
 					ManualFormData:     json.RawMessage(`{"studentID":"20240001"}`),

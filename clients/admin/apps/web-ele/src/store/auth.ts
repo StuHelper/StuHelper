@@ -10,7 +10,7 @@ import { ElNotification } from 'element-plus';
 import { defineStore } from 'pinia';
 
 import { logoutApi, redirectToOIDCLogin, tryGetMe } from '#/api/core/auth';
-import { getUserInfoApi } from '#/api/core/user';
+import { getUserInfoApi, mapMeToUserInfo } from '#/api/core/user';
 import { $t } from '#/locales';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -20,6 +20,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginLoading = ref(false);
   const sessionForbidden = ref(false);
+  /** Backend-provided URL for the identity provider's account settings page. */
+  const accountSettingsUrl = ref('');
 
   /**
    * OIDC 登录：调用后端获取授权 URL，然后浏览器跳转到 Zitadel
@@ -60,23 +62,18 @@ export const useAuthStore = defineStore('auth', () => {
         return null;
       }
 
-      // session 存在，构造 UserInfo
-      const userInfo: UserInfo = {
-        userId: String(me.id),
-        username: me.name,
-        realName: me.displayName,
-        avatar: me.avatar ?? '',
-        desc: '',
-        token: '',
-        roles: me.roles,
-        homePath: preferences.app.defaultHomePath,
-      };
+      // StuHelper uses cookie-based auth via Zitadel OIDC. There is no Bearer
+      // token -- `token` is vestigial from Vben's default auth pattern and kept
+      // empty. `accessStore.accessToken` is set to 'cookie-session' solely to
+      // satisfy Vben's "is logged in?" guards that check for a truthy token.
+      const userInfo = mapMeToUserInfo(me);
 
       userStore.setUserInfo(userInfo);
       accessStore.setAccessToken('cookie-session');
       accessStore.setAccessCodes(
         me.globalCapabilities?.length ? me.globalCapabilities : me.capabilities,
       );
+      accountSettingsUrl.value = me.accountSettingsUrl ?? '';
 
       if (accessStore.loginExpired) {
         accessStore.setLoginExpired(false);
@@ -139,17 +136,21 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function fetchUserInfo() {
-    const userInfo = await getUserInfoApi();
+    const { userInfo, me } = await getUserInfoApi();
     userStore.setUserInfo(userInfo);
+    accountSettingsUrl.value = me.accountSettingsUrl ?? '';
     return userInfo;
   }
 
   function $reset() {
     loginLoading.value = false;
+    sessionForbidden.value = false;
+    accountSettingsUrl.value = '';
   }
 
   return {
     $reset,
+    accountSettingsUrl,
     authLogin,
     fetchUserInfo,
     initSession,

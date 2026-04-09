@@ -13,7 +13,7 @@ export const createUserAdminApi = (client: ApiClient) => ({
   reviewIdentity: (userID: number, data: ReviewIdentityRequest) =>
     client.PUT('/api/v1/admin/identities/{userID}', { params: { path: { userID } }, body: data }),
 
-  listStudentVerifications: (params?: { status?: 'pending' | 'verified' | 'rejected' | 'all'; schoolID?: string; page?: number; pageSize?: number }) =>
+  listStudentVerifications: (params?: { status?: 'pending' | 'verified' | 'rejected' | 'all'; schoolID?: number; page?: number; pageSize?: number }) =>
     client.GET('/api/v1/admin/student-verifications', { params: { query: params } }),
 
   reviewStudentVerification: (userID: number, data: ReviewStudentVerificationRequest) =>
@@ -22,7 +22,7 @@ export const createUserAdminApi = (client: ApiClient) => ({
   listSchoolConfigs: () =>
     client.GET('/api/v1/admin/school-configs'),
 
-  updateSchoolConfig: (schoolID: string, data: UpdateSchoolConfigRequest) =>
+  updateSchoolConfig: (schoolID: number, data: UpdateSchoolConfigRequest) =>
     client.PUT('/api/v1/admin/school-configs/{schoolID}', { params: { path: { schoolID } }, body: data }),
 
   listSystemConfigs: () =>

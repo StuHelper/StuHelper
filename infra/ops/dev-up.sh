@@ -72,7 +72,7 @@ backend_cmd="
   cd '${REPO_ROOT}/server' && \
   set -a && source '${ENV_FILE}' && source '${GENERATED_ENV_FILE}' && set +a && \
   export APP_ENV=development && \
-  export DATABASE_URL='postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB:-stuhelper}?sslmode=disable' && \
+  export DATABASE_URL='postgresql://${STUHELPER_APP_DB_USER:-stuhelper_app}:${STUHELPER_APP_DB_PASSWORD}@localhost:5432/${POSTGRES_DB:-stuhelper}?sslmode=disable' && \
   export REDIS_HOST='localhost' && \
   export REDIS_PORT='6379' && \
   export REDIS_PASSWORD='${REDIS_PASSWORD}' && \

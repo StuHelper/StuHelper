@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,7 +68,7 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 }
 
 // ListProfiles 分页查询学生认证档案（管理端）
-func (s *Service) ListProfiles(ctx context.Context, status, schoolID string, page, pageSize int) ([]Profile, int, error) {
+func (s *Service) ListProfiles(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
 	return s.repo.ListProfilesByStatus(ctx, status, schoolID, page, pageSize)
 }
 
@@ -116,7 +117,7 @@ func (s *Service) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, err
 
 // UpdateSchoolConfig 更新学校认证配置
 // 使用合并更新语义，保持未提供字段的现有值。
-func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID string, input UpdateSchoolConfigInput) error {
+func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID int64, input UpdateSchoolConfigInput) error {
 	config, err := s.repo.GetSchoolConfig(ctx, schoolID)
 	if err != nil {
 		return fmt.Errorf("UpdateSchoolConfig get existing: %w", err)
@@ -322,11 +323,7 @@ func (s *Service) validateReviewAccessSchoolIDs(ctx context.Context, schoolIDs [
 
 	allowed := make(map[string]struct{}, len(schools))
 	for _, school := range schools {
-		trimmed := strings.TrimSpace(school.SchoolID)
-		if trimmed == "" {
-			continue
-		}
-		allowed[trimmed] = struct{}{}
+		allowed[strconv.FormatInt(school.SchoolID, 10)] = struct{}{}
 	}
 
 	invalid := make([]string, 0)

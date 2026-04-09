@@ -1,72 +1,21 @@
 <script lang="ts" setup>
-import type { VbenFormSchema } from '@vben/common-ui';
-import type { Recordable } from '@vben/types';
+import { onMounted } from 'vue';
 
-import { computed, ref } from 'vue';
-
-import { AuthenticationCodeLogin, z } from '@vben/common-ui';
-import { $t } from '#/locales';
+import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'CodeLogin' });
 
-const loading = ref(false);
-const CODE_LENGTH = 6;
+const authStore = useAuthStore();
 
-const formSchema = computed((): VbenFormSchema[] => {
-  return [
-    {
-      component: 'VbenInput',
-      componentProps: {
-        placeholder: $t('authentication.mobile'),
-      },
-      fieldName: 'phoneNumber',
-      label: $t('authentication.mobile'),
-      rules: z
-        .string()
-        .min(1, { message: $t('authentication.mobileTip') })
-        .refine((v) => /^\d{11}$/.test(v), {
-          message: $t('authentication.mobileErrortip'),
-        }),
-    },
-    {
-      component: 'VbenPinInput',
-      componentProps: {
-        codeLength: CODE_LENGTH,
-        createText: (countdown: number) => {
-          const text =
-            countdown > 0
-              ? $t('authentication.sendText', [countdown])
-              : $t('authentication.sendCode');
-          return text;
-        },
-        placeholder: $t('authentication.code'),
-        handleSendCode: async () => {
-          console.warn($t('admin.auth.codeLogin.beforeSendCode'));
-          throw new Error($t('admin.auth.codeLogin.phoneValidationFailed'));
-        },
-      },
-      fieldName: 'code',
-      label: $t('authentication.code'),
-      rules: z.string().length(CODE_LENGTH, {
-        message: $t('authentication.codeTip', [CODE_LENGTH]),
-      }),
-    },
-  ];
+onMounted(async () => {
+  await authStore.redirectToLogin();
 });
-/**
- * 异步处理登录操作
- * Asynchronously handle the login process
- * @param values 登录表单数据
- */
-async function handleLogin(values: Recordable<any>) {
-  void values;
-}
 </script>
 
 <template>
-  <AuthenticationCodeLogin
-    :form-schema="formSchema"
-    :loading="loading"
-    @submit="handleLogin"
-  />
+  <div class="flex h-full items-center justify-center">
+    <p class="text-muted-foreground animate-pulse text-lg">
+      Redirecting to login...
+    </p>
+  </div>
 </template>

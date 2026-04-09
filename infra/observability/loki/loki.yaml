@@ -1,3 +1,4 @@
+# 单机 Compose 开发默认关闭认证；生产环境请在 Loki 前置认证网关或启用多租户认证。
 auth_enabled: false
 
 server:

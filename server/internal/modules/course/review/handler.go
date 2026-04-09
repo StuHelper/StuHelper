@@ -3,12 +3,12 @@ package review
 import (
 	"context"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
@@ -36,7 +36,7 @@ type Handler struct {
 	reportLimiter  *middleware.RedisRateLimiter
 	replyLimiter   *middleware.RedisRateLimiter
 	writeLimiter   *middleware.RedisRateLimiter
-	accessPolicyMu sync.Mutex
+	accessPolicySF singleflight.Group
 }
 
 // NewHandler 创建处理器

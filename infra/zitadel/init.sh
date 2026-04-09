@@ -3,14 +3,14 @@ set -eu
 
 ADMIN_PAT_FILE="/zitadel/bootstrap/admin.pat"
 LOGIN_PAT_FILE="/zitadel/bootstrap/login-client.pat"
-MASTERKEY="${ZITADEL_MASTERKEY:?ZITADEL_MASTERKEY is required}"
+: "${ZITADEL_MASTERKEY:?ZITADEL_MASTERKEY is required}"
 
 if [ -s "${ADMIN_PAT_FILE}" ] && [ -s "${LOGIN_PAT_FILE}" ]; then
   echo "[zitadel-init] bootstrap PAT files already exist, skipping init"
   exit 0
 fi
 
-/app/zitadel start-from-init --masterkey "${MASTERKEY}" &
+/app/zitadel start-from-init &
 pid="$!"
 
 cleanup() {

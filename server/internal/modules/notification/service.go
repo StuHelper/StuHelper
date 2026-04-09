@@ -33,11 +33,16 @@ func NewService(repo *Repository, hub *Hub, rdb *redis.Client) *Service {
 
 // Send 发送通知（实现 Sender 接口）
 func (s *Service) Send(ctx context.Context, params SendParams) error {
+	body := params.Body
+	if body == "" {
+		body = params.Content
+	}
 	notifID, err := s.repo.Create(ctx, CreateParams{
 		UserID:       params.UserID,
 		Type:         params.Type,
 		Title:        params.Title,
-		Body:         params.Body,
+		Body:         body,
+		Payload:      params.Payload,
 		SourceModule: params.SourceModule,
 		SourceID:     params.SourceID,
 		SourceURL:    nilIfEmpty(params.SourceURL),
@@ -117,13 +122,22 @@ func (s *Service) ResolveInternalUserID(ctx context.Context, externalID string) 
 
 // publishToRedis 通过 Redis Pub/Sub 广播通知
 func (s *Service) publishToRedis(ctx context.Context, userID int64, notifID string, params SendParams) {
+	body := params.Body
+	if body == "" {
+		body = params.Content
+	}
 	payload := map[string]any{
 		"id":           notifID,
 		"type":         params.Type,
 		"title":        params.Title,
-		"body":         params.Body,
+		"body":         body,
+		"content":      body,
+		"payload":      json.RawMessage(payloadOrEmptyJSON(params.Payload)),
 		"sourceModule": params.SourceModule,
 		"sourceId":     params.SourceID,
+	}
+	if params.SourceURL != "" {
+		payload["sourceUrl"] = params.SourceURL
 	}
 	if params.CourseID != 0 {
 		payload["courseID"] = params.CourseID

@@ -3,7 +3,20 @@
  */
 
 // 通知类型
-export type NotificationType = 'reply' | 'vote' | 'system'
+export type NotificationType =
+  | 'reply'
+  | 'like'
+  | 'vote'
+  | 'review_hidden'
+  | 'review_restored'
+  | 'report_resolved'
+  | 'identity_approved'
+  | 'identity_rejected'
+  | 'student_approved'
+  | 'student_rejected'
+  | 'system'
+
+export type NotificationPayload = Record<string, unknown>
 
 // 通知
 export interface Notification {
@@ -11,6 +24,10 @@ export interface Notification {
   type: NotificationType
   title: string
   content?: string
+  payload?: NotificationPayload
+  sourceModule?: string
+  sourceId?: string
+  sourceUrl?: string
   relatedType?: string
   relatedID?: string
   courseID?: number

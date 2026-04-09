@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
@@ -25,6 +26,7 @@ type CreateParams struct {
 	Type         string
 	Title        string
 	Body         string
+	Payload      json.RawMessage
 	SourceModule string
 	SourceID     string
 	SourceURL    *string
@@ -52,9 +54,9 @@ func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error)
 		return "", fmt.Errorf("notification create generate id: %w", err)
 	}
 	_, err = r.db.Exec(ctx, `
-		INSERT INTO notifications (id, user_id, type, title, body, source_module, source_id, source_url, source_course_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, newID, p.UserID, p.Type, p.Title, p.Body, p.SourceModule, p.SourceID, p.SourceURL, p.CourseID)
+		INSERT INTO notifications (id, user_id, type, title, body, payload, source_module, source_id, source_url, source_course_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, newID, p.UserID, p.Type, p.Title, p.Body, payloadOrEmptyJSON(p.Payload), p.SourceModule, p.SourceID, p.SourceURL, p.CourseID)
 	if err != nil {
 		return "", fmt.Errorf("notification create: %w", err)
 	}
@@ -65,7 +67,7 @@ func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error)
 func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error) {
 	offset := httputil.SafeOffset(p.Page, p.PageSize)
 	rows, err := r.db.Query(ctx, `
-		SELECT id, type, title, body, source_module, source_id, source_url, source_course_id, is_read, created_at,
+		SELECT id, type, title, body, payload, source_module, source_id, source_url, source_course_id, is_read, created_at,
 		       COUNT(*) OVER() AS total,
 		       SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) OVER() AS unread
 		FROM notifications
@@ -82,16 +84,24 @@ func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error
 	for rows.Next() {
 		var n Notification
 		if err := rows.Scan(
-			&n.ID, &n.Type, &n.Title, &n.Body,
+			&n.ID, &n.Type, &n.Title, &n.Body, &n.Payload,
 			&n.SourceModule, &n.SourceID, &n.SourceURL, &n.CourseID,
 			&n.IsRead, &n.CreatedAt,
 			&result.Total, &result.Unread,
 		); err != nil {
 			return nil, fmt.Errorf("notification list scan: %w", err)
 		}
+		n.Content = n.Body
 		result.List = append(result.List, n)
 	}
 	return result, rows.Err()
+}
+
+func payloadOrEmptyJSON(payload json.RawMessage) json.RawMessage {
+	if len(payload) == 0 {
+		return json.RawMessage(`{}`)
+	}
+	return payload
 }
 
 // CountUnread 统计未读通知数量

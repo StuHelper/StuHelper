@@ -3,6 +3,7 @@ package user
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -106,7 +107,15 @@ func (h *Handler) handleAdminListStudentVerifications(c *gin.Context) {
 		response.BadRequest(c, "invalid status")
 		return
 	}
-	schoolID := c.Query("schoolID")
+	var schoolID *int64
+	if raw := strings.TrimSpace(c.Query("schoolID")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed <= 0 {
+			response.BadRequest(c, "invalid school ID")
+			return
+		}
+		schoolID = &parsed
+	}
 	page, pageSize := httputil.ParsePage(c)
 
 	list, total, err := h.service.ListProfiles(c.Request.Context(), status, schoolID, page, pageSize)
@@ -202,7 +211,7 @@ func (h *Handler) handleAdminListSchoolConfigs(c *gin.Context) {
 		item, err := adminSchoolConfigToJSON(&configs[i])
 		if err != nil {
 			logger.FromGin(c).Error("failed to serialize school config",
-				zap.String("school_id", configs[i].SchoolID),
+				zap.Int64("school_id", configs[i].SchoolID),
 				zap.Error(err),
 			)
 			response.InternalError(c, "failed to list school configs")
@@ -226,8 +235,8 @@ type updateSchoolConfigHTTPRequest struct {
 }
 
 func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
-	schoolID := c.Param("schoolID")
-	if schoolID == "" {
+	schoolID, parseErr := strconv.ParseInt(c.Param("schoolID"), 10, 64)
+	if parseErr != nil || schoolID <= 0 {
 		response.BadRequest(c, "invalid school ID")
 		return
 	}
@@ -271,7 +280,7 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 			return
 		}
 		logger.FromGin(c).Error("failed to update school config",
-			zap.String("school_id", schoolID),
+			zap.Int64("school_id", schoolID),
 			zap.Error(err),
 		)
 		response.InternalError(c, "failed to update school config")
