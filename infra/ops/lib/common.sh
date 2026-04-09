@@ -7,6 +7,7 @@ ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
 SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-}"
 GENERATED_ENV_FILE="${GENERATED_ENV_FILE:-${REPO_ROOT}/.env.generated}"
 GENERATED_OBS_DIR="${GENERATED_OBS_DIR:-${REPO_ROOT}/infra/generated/observability}"
+GENERATED_ZITADEL_DIR="${GENERATED_ZITADEL_DIR:-${REPO_ROOT}/infra/generated/zitadel}"
 DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${REPO_ROOT}/.deploy}"
 
 log() {
@@ -34,7 +35,7 @@ ensure_env_file() {
 }
 
 ensure_generated_files() {
-  mkdir -p "${GENERATED_OBS_DIR}/prometheus" "${GENERATED_OBS_DIR}/alertmanager"
+  mkdir -p "${GENERATED_OBS_DIR}/prometheus" "${GENERATED_OBS_DIR}/alertmanager" "${GENERATED_ZITADEL_DIR}"
   touch "${GENERATED_ENV_FILE}"
 }
 

@@ -3,7 +3,18 @@ set -eu
 
 ADMIN_PAT_FILE="/zitadel/bootstrap/admin.pat"
 LOGIN_PAT_FILE="/zitadel/bootstrap/login-client.pat"
-: "${ZITADEL_MASTERKEY:?ZITADEL_MASTERKEY is required}"
+MASTERKEY_FILE="${ZITADEL_MASTERKEY_FILE:-/run/secrets/zitadel_masterkey}"
+
+if [[ ! -r "${MASTERKEY_FILE}" ]]; then
+  echo "[zitadel-init] masterkey file is missing: ${MASTERKEY_FILE}" >&2
+  exit 1
+fi
+
+export ZITADEL_MASTERKEY="$(tr -d '\r\n' < "${MASTERKEY_FILE}")"
+if [ -z "${ZITADEL_MASTERKEY}" ]; then
+  echo "[zitadel-init] masterkey file is empty: ${MASTERKEY_FILE}" >&2
+  exit 1
+fi
 
 if [ -s "${ADMIN_PAT_FILE}" ] && [ -s "${LOGIN_PAT_FILE}" ]; then
   echo "[zitadel-init] bootstrap PAT files already exist, skipping init"

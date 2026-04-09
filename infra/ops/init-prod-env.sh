@@ -169,6 +169,7 @@ ensure_prod_default "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" "true
 ensure_value "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "http://alert-webhook-sink:8080/alerts"
 
 "${SCRIPT_DIR}/render-postgres-tls.sh"
+"${SCRIPT_DIR}/render-zitadel-secrets.sh"
 
 log "production environment file is ready: ${ENV_FILE}"
 log "generated runtime file path: ${GENERATED_ENV_FILE}"
