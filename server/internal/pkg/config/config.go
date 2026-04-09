@@ -260,7 +260,7 @@ func Load() (*Config, error) {
 		Token: TokenConfig{
 			AccessTokenTTL:  getEnvInt("TOKEN_ACCESS_TTL", 900, &parseErrs),
 			RefreshTokenTTL: getEnvInt("TOKEN_REFRESH_TTL", 604800, &parseErrs),
-			CookieSecure:    getEnvBool("TOKEN_COOKIE_SECURE", false, &parseErrs),
+			CookieSecure:    getEnvBool("TOKEN_COOKIE_SECURE", true, &parseErrs),
 			CookieDomain:    getEnv("TOKEN_COOKIE_DOMAIN", ""),
 		},
 		Log: LogConfig{

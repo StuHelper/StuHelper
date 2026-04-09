@@ -28,14 +28,16 @@ type PhoneUser struct {
 	ExternalID string
 	Username   string
 	Email      string
-	Phone      string
-	AvatarURL  *string
+	// MaskedPhone stores the masked phone number (for display only), not the raw number.
+	MaskedPhone string
+	AvatarURL   *string
 }
 
 type UserSyncRepo interface {
 	UpsertUser(ctx context.Context, input UserSyncInput) error
 	FindByPhone(ctx context.Context, phone string) (*PhoneUser, error)
 	UpsertByPhone(ctx context.Context, phone string) (*PhoneUser, error)
+	ExistsByExternalID(ctx context.Context, externalID string) (bool, error)
 }
 
 type UserSyncRepository struct {
@@ -115,7 +117,7 @@ func (r *UserSyncRepository) FindByPhone(ctx context.Context, phone string) (*Ph
 	if err != nil {
 		return nil, fmt.Errorf("FindByPhone: %w", err)
 	}
-	u.Phone = phoneutil.Mask(phone)
+	u.MaskedPhone = phoneutil.Mask(phone)
 	return &u, nil
 }
 
@@ -163,7 +165,7 @@ func (r *UserSyncRepository) upsertPhoneUserTx(ctx context.Context, tx pgx.Tx, p
 		`, existing.ID, phoneEnc, phoneHash, userHash); err != nil {
 			return nil, fmt.Errorf("update phone user: %w", err)
 		}
-		existing.Phone = phoneutil.Mask(phone)
+		existing.MaskedPhone = phoneutil.Mask(phone)
 		return existing, nil
 	}
 
@@ -173,7 +175,7 @@ func (r *UserSyncRepository) upsertPhoneUserTx(ctx context.Context, tx pgx.Tx, p
 		return nil, fmt.Errorf("compute user_hash for new phone user: %w", hashErr)
 	}
 	username := "user_" + phone[len(phone)-4:]
-	created := &PhoneUser{Phone: phoneutil.Mask(phone)}
+	created := &PhoneUser{MaskedPhone: phoneutil.Mask(phone)}
 	insertErr := tx.QueryRow(ctx, `
 		INSERT INTO users (external_id, username, phone_enc, phone_hash, user_hash, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
@@ -200,7 +202,7 @@ func (r *UserSyncRepository) upsertPhoneUserTx(ctx context.Context, tx pgx.Tx, p
 	if existing == nil {
 		return nil, fmt.Errorf("insert phone user conflict without row")
 	}
-	existing.Phone = phoneutil.Mask(phone)
+	existing.MaskedPhone = phoneutil.Mask(phone)
 	return existing, nil
 }
 
@@ -226,6 +228,15 @@ func (r *UserSyncRepository) UpsertByPhone(ctx context.Context, phone string) (*
 		return nil, fmt.Errorf("UpsertByPhone: %w", err)
 	}
 	return u, nil
+}
+
+// ExistsByExternalID 检查 external_id 对应的用户是否仍然存在。
+func (r *UserSyncRepository) ExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
+	var exists bool
+	if err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE external_id = $1)`, externalID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("ExistsByExternalID: %w", err)
+	}
+	return exists, nil
 }
 
 // BackfillUserHashes 回填所有 user_hash 为空的用户。启动时调用一次。

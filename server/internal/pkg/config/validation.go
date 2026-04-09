@@ -146,6 +146,10 @@ func (c *Config) validate(parseErrs []string) error {
 			len(parseErrs), strings.Join(parseErrs, "; "))
 	}
 
+	if c.App.Env != "production" && c.App.Env != "development" && !c.Token.CookieSecure {
+		errs = append(errs, "TOKEN_COOKIE_SECURE can only be false in development")
+	}
+
 	// Zitadel OIDC 配置校验
 	if c.Zitadel.Issuer == "" {
 		errs = append(errs, "ZITADEL_ISSUER is required")
