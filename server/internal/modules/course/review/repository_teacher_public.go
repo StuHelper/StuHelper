@@ -8,18 +8,15 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
-// ListPublicTeachers 获取公开教师列表（支持搜索、院系过滤、多排序）
+// ListPublicTeachers 获取公开教师列表（支持搜索、院系过滤、多排序）。
+// 查询 mv_teacher_public_stats 物化视图，避免 live JOIN 全表聚合。
 func (r *Repository) ListPublicTeachers(ctx context.Context, search string, departmentID *int64, sort string, limit, offset int) ([]TeacherSummary, int, error) {
 	var qb strings.Builder
 	qb.WriteString(`
-		SELECT t.id, t.name, COALESCE(d.name, '') AS department_name,
-			AVG(r.avg_rating) AS avg_rating,
-			COUNT(DISTINCT r.course_id) AS course_count,
-			COUNT(r.id) AS review_count,
+		SELECT teacher_id, teacher_name, department_name,
+			avg_rating, course_count, review_count,
 			COUNT(*) OVER() AS total
-		FROM teachers t
-		LEFT JOIN departments d ON d.id = t.department_id
-		LEFT JOIN reviews r ON r.teacher_id = t.id AND r.status = 'published'
+		FROM mv_teacher_public_stats
 		WHERE 1=1
 	`)
 
@@ -27,24 +24,22 @@ func (r *Repository) ListPublicTeachers(ctx context.Context, search string, depa
 	argIdx := 1
 
 	if search != "" {
-		fmt.Fprintf(&qb, ` AND t.name ILIKE $%d`, argIdx)
+		fmt.Fprintf(&qb, ` AND teacher_name ILIKE $%d`, argIdx)
 		args = append(args, "%"+httputil.EscapeLikePattern(search)+"%")
 		argIdx++
 	}
 	if departmentID != nil && *departmentID > 0 {
-		fmt.Fprintf(&qb, ` AND t.department_id = $%d`, argIdx)
+		fmt.Fprintf(&qb, ` AND department_id = $%d`, argIdx)
 		args = append(args, *departmentID)
 		argIdx++
 	}
-
-	qb.WriteString(` GROUP BY t.id, t.name, d.name`)
 
 	// 排序：仅使用硬编码的 ORDER BY 子句，sort 参数不直接拼入 SQL
 	switch sort {
 	case "rating":
 		qb.WriteString(` ORDER BY avg_rating DESC NULLS LAST, review_count DESC`)
 	case "name":
-		qb.WriteString(` ORDER BY t.name ASC`)
+		qb.WriteString(` ORDER BY teacher_name ASC`)
 	default: // "reviews" 或其他
 		qb.WriteString(` ORDER BY review_count DESC, avg_rating DESC NULLS LAST`)
 	}
@@ -71,18 +66,14 @@ func (r *Repository) ListPublicTeachers(ctx context.Context, search string, depa
 	return list, total, rows.Err()
 }
 
-// ListHotTeachers 获取热门教师列表（按评论数+评分排序）
+// ListHotTeachers 获取热门教师列表（按评论数+评分排序）。
+// 查询 mv_teacher_public_stats 物化视图，避免 live JOIN 全表聚合。
 func (r *Repository) ListHotTeachers(ctx context.Context, limit int) ([]TeacherSummary, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT t.id, t.name, COALESCE(d.name, '') AS department_name,
-			AVG(r.avg_rating) AS avg_rating,
-			COUNT(DISTINCT r.course_id) AS course_count,
-			COUNT(r.id) AS review_count
-		FROM teachers t
-		LEFT JOIN departments d ON d.id = t.department_id
-		JOIN reviews r ON r.teacher_id = t.id AND r.status = 'published'
-		GROUP BY t.id, t.name, d.name
-		HAVING COUNT(r.id) > 0
+		SELECT teacher_id, teacher_name, department_name,
+			avg_rating, course_count, review_count
+		FROM mv_teacher_public_stats
+		WHERE review_count > 0
 		ORDER BY review_count DESC, avg_rating DESC NULLS LAST
 		LIMIT $1
 	`, limit)
@@ -101,4 +92,14 @@ func (r *Repository) ListHotTeachers(ctx context.Context, limit int) ([]TeacherS
 		list = append(list, t)
 	}
 	return list, rows.Err()
+}
+
+// RefreshTeacherPublicStats 刷新 mv_teacher_public_stats 物化视图。
+// 使用 CONCURRENTLY 避免阻塞读操作（需要 UNIQUE INDEX）。
+func (r *Repository) RefreshTeacherPublicStats(ctx context.Context) error {
+	_, err := r.db.Exec(ctx, `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_teacher_public_stats`)
+	if err != nil {
+		return fmt.Errorf("RefreshTeacherPublicStats: %w", err)
+	}
+	return nil
 }

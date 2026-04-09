@@ -85,18 +85,8 @@
     parameters:
       - $ref: '../components/parameters/common.yaml#/ReplyIDPath'
     responses:
-      '200':
+      '204':
         description: 删除成功
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
-                - type: object
-                  required: [data]
-                  properties:
-                    data:
-                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

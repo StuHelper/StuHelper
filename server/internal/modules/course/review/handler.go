@@ -40,12 +40,12 @@ type Handler struct {
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, fgaClient *fga.Client, notifSender notification.Sender) *Handler {
+func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, fgaClient *fga.Client, notifSender notification.Sender) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo, notifSender)
 	return &Handler{
 		db:            database,
-		cache:         cache.NewHelper(rdb),
+		cache:         cacheHelper,
 		service:       svc,
 		userRepo:      user.NewRepository(database),
 		fga:           fgaClient,

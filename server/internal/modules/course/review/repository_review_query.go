@@ -295,35 +295,48 @@ type ListByCourseWithSortParams struct {
 	Offset    int
 }
 
-// ListByCourseWithSort 获取课程评论列表（支持排序和筛选，含总数）
-// 使用 strings.Builder 构建动态查询，提高可读性
+// ListByCourseWithSort 获取课程评论列表（支持排序和筛选，含总数）。
+// 公开查询使用分离的 COUNT + 数据查询，避免 COUNT(*) OVER() 的全量窗口扫描开销。
 func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWithSortParams) ([]Review, int, error) {
+	// 构建公共 WHERE 子句
+	baseWhere := ` WHERE r.course_id = $1 AND r.status = 'published'`
+	args := []interface{}{p.CourseID}
+	argIdx := 2
+
+	if p.TermID != "" {
+		baseWhere += ` AND r.term_id = $` + strconv.Itoa(argIdx)
+		args = append(args, p.TermID)
+		argIdx++
+	}
+	if p.TeacherID != nil {
+		baseWhere += ` AND r.teacher_id = $` + strconv.Itoa(argIdx)
+		args = append(args, *p.TeacherID)
+		argIdx++
+	}
+
+	// 1) COUNT 查询
+	countQuery := `SELECT COUNT(*) FROM reviews r` + baseWhere
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args[:argIdx-1]...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("ListByCourseWithSort count: %w", err)
+	}
+	if total == 0 {
+		return []Review{}, 0, nil
+	}
+
+	// 2) 数据查询
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.moderation_reason, r.created_at, r.updated_at,
-		       COUNT(*) OVER() AS total
+		       r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.course_id = $1 AND r.status = 'published'
 	`)
-	args := []interface{}{p.CourseID}
-	argIdx := 2
-
-	if p.TermID != "" {
-		qb.WriteString(` AND r.term_id = $` + strconv.Itoa(argIdx))
-		args = append(args, p.TermID)
-		argIdx++
-	}
-	if p.TeacherID != nil {
-		qb.WriteString(` AND r.teacher_id = $` + strconv.Itoa(argIdx))
-		args = append(args, *p.TeacherID)
-		argIdx++
-	}
+	qb.WriteString(baseWhere)
 
 	// SQL 注入安全保证：orderBy 仅来自 allowedSortOrders 硬编码 map，不含用户输入
 	orderBy, ok := allowedSortOrders[p.Sort]
@@ -333,14 +346,19 @@ func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWit
 	qb.WriteString(` ORDER BY ` + orderBy)
 
 	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
-	args = append(args, p.Limit, p.Offset)
+	dataArgs := append(args, p.Limit, p.Offset) //nolint:gocritic // intentional append to new slice
 
-	rows, err := r.db.Query(ctx, qb.String(), args...)
+	rows, err := r.db.Query(ctx, qb.String(), dataArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("ListByCourseWithSort data: %w", err)
+	}
+	defer rows.Close()
+
+	list, err := scanReviews(rows)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-	return scanReviewsWithTotal(rows)
+	return list, total, nil
 }
 
 // SearchReviewsQueryParams 搜索测评查询参数
@@ -354,46 +372,64 @@ type SearchReviewsQueryParams struct {
 	Offset       int
 }
 
-// SearchReviews 搜索测评列表（支持课程名/课号、院系、教师、学期筛选）
+// SearchReviews 搜索测评列表（支持课程名/课号、院系、教师、学期筛选）。
+// 公开查询使用分离的 COUNT + 数据查询，避免 COUNT(*) OVER() 的全量窗口扫描开销。
 func (r *Repository) SearchReviews(ctx context.Context, p SearchReviewsQueryParams) ([]Review, int, error) {
+	// 构建公共 WHERE 子句片段和参数
+	var whereParts strings.Builder
+	args := make([]any, 0, 6)
+	argIdx := 1
+	if p.Query != "" {
+		pattern := "%" + httputil.EscapeLikePattern(p.Query) + "%"
+		whereParts.WriteString(` AND (c.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\' OR c.code ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\')`)
+		args = append(args, pattern)
+		argIdx++
+	}
+	if p.DepartmentID > 0 {
+		whereParts.WriteString(` AND c.department_id = $` + strconv.Itoa(argIdx))
+		args = append(args, p.DepartmentID)
+		argIdx++
+	}
+	if p.TeacherName != "" {
+		pattern := "%" + httputil.EscapeLikePattern(p.TeacherName) + "%"
+		whereParts.WriteString(` AND t.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\'`)
+		args = append(args, pattern)
+		argIdx++
+	}
+	if p.TermID != "" {
+		whereParts.WriteString(` AND r.term_id = $` + strconv.Itoa(argIdx))
+		args = append(args, p.TermID)
+		argIdx++
+	}
+
+	whereClause := whereParts.String()
+	countArgs := make([]any, len(args))
+	copy(countArgs, args)
+
+	// 1) COUNT 查询
+	countQuery := `SELECT COUNT(*) FROM reviews r LEFT JOIN courses c ON c.id = r.course_id LEFT JOIN teachers t ON t.id = r.teacher_id WHERE r.status = 'published'` + whereClause
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("SearchReviews count: %w", err)
+	}
+	if total == 0 {
+		return []Review{}, 0, nil
+	}
+
+	// 2) 数据查询
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.moderation_reason, r.created_at, r.updated_at,
-		       COUNT(*) OVER() AS total
+		       r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
 		WHERE r.status = 'published'
 	`)
-
-	args := make([]any, 0, 6)
-	argIdx := 1
-	if p.Query != "" {
-		pattern := "%" + httputil.EscapeLikePattern(p.Query) + "%"
-		qb.WriteString(` AND (c.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\' OR c.code ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\')`)
-		args = append(args, pattern)
-		argIdx++
-	}
-	if p.DepartmentID > 0 {
-		qb.WriteString(` AND c.department_id = $` + strconv.Itoa(argIdx))
-		args = append(args, p.DepartmentID)
-		argIdx++
-	}
-	if p.TeacherName != "" {
-		pattern := "%" + httputil.EscapeLikePattern(p.TeacherName) + "%"
-		qb.WriteString(` AND t.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\'`)
-		args = append(args, pattern)
-		argIdx++
-	}
-	if p.TermID != "" {
-		qb.WriteString(` AND r.term_id = $` + strconv.Itoa(argIdx))
-		args = append(args, p.TermID)
-		argIdx++
-	}
+	qb.WriteString(whereClause)
 
 	orderBy, ok := allowedSortOrders[p.Sort]
 	if !ok {
@@ -405,10 +441,15 @@ func (r *Repository) SearchReviews(ctx context.Context, p SearchReviewsQueryPara
 
 	rows, err := r.db.Query(ctx, qb.String(), args...)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("SearchReviews data: %w", err)
 	}
 	defer rows.Close()
-	return scanReviewsWithTotal(rows)
+
+	list, err := scanReviews(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }
 
 // ListByUserHash 获取用户的评论列表（含总数）

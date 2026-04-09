@@ -69,6 +69,8 @@ type Profile struct {
 	VerificationMethod *string
 	RejectionReason    *string
 	ReviewedAt         *time.Time
+	Phone              *string
+	PhoneVerified      bool
 	ConsentGivenAt     *time.Time
 	VerifiedAt         *time.Time
 	CreatedAt          time.Time
@@ -110,6 +112,7 @@ type AcademicStudent struct {
 	XH        string
 	XM        *string
 	SFZJLXDM  *string
+	SFZJH     *string
 	SFZJHEnc  []byte  // sfzjh_enc: 加密存储的证件号
 	SFZJHHash *string // sfzjh_hash: 证件号哈希，用于查询
 	YXDM      *string

@@ -125,7 +125,7 @@ type Service struct {
 	ldapClient        ldapAuthClient
 	ldapClientFactory ldapClientFactory
 	hmacKey           []byte
-	docCipher         pii.Encryptor
+	docCipher         pii.EncryptDecryptor
 	onRoleSync        RoleSyncFunc
 	photoStore        identityPhotoStore
 	identityVerifier  mainlandIdentityVerifier
@@ -133,7 +133,7 @@ type Service struct {
 }
 
 // NewService 创建用户服务（构造期校验关键依赖）
-func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pii.Encryptor) (*Service, error) {
+func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pii.EncryptDecryptor) (*Service, error) {
 	if repo == nil {
 		return nil, errors.New("user.NewService: repo must not be nil")
 	}

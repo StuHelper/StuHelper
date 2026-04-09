@@ -30,6 +30,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
@@ -220,6 +221,15 @@ func run() error {
 
 	// 配置 CORS — 先校验配置合法性，再注册中间件
 	corsOrigins := cfg.App.CORSOrigins
+	if len(corsOrigins) == 0 && !isProduction {
+		corsOrigins = []string{
+			"http://localhost:3000",
+			"http://localhost:5173",
+			"http://localhost:4173",
+		}
+		logger.L().Warn("CORS_ORIGINS not configured, using default dev origins",
+			zap.Strings("origins", corsOrigins))
+	}
 	for _, origin := range corsOrigins {
 		trimmed := strings.TrimSpace(origin)
 		if trimmed == "*" {
@@ -391,7 +401,8 @@ func run() error {
 		notifRepo := notification.NewRepository(database)
 		notifService := notification.NewService(notifRepo, notifHub, redisClient.GetClient())
 
-		courseHandler := course.NewHandler(database, redisClient.GetClient(), cfg, fgaClient, notifService)
+		courseCache := cache.NewHelper(redisClient.GetClient())
+		courseHandler := course.NewHandler(database, courseCache, redisClient.GetClient(), cfg, fgaClient, notifService)
 		courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 
 		// 初始化 LDAP 客户端（可选，仅在配置了 LDAP_URL 时启用）

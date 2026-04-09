@@ -19,14 +19,14 @@ func (r *Repository) GetProfileByUserID(ctx context.Context, userID int64) (*Pro
 	err := r.db.QueryRow(ctx, `
 			SELECT user_id, school_id, student_ids, active_student_id, manual_form_data,
 			       verification_status, verification_method, rejection_reason, reviewed_at,
-			       phone, phone_verified, consent_given_at, verified_at,
+			       consent_given_at, verified_at,
 			       created_at, updated_at
 			FROM user_profiles
 			WHERE user_id = $1
 		`, userID).Scan(
 		&item.UserID, &item.SchoolID, &studentIDsJSON, &item.ActiveStudentID, &manualFormDataJSON,
 		&item.VerificationStatus, &item.VerificationMethod, &item.RejectionReason, &item.ReviewedAt,
-		&item.Phone, &item.PhoneVerified, &item.ConsentGivenAt, &item.VerifiedAt,
+		&item.ConsentGivenAt, &item.VerifiedAt,
 		&item.CreatedAt, &item.UpdatedAt,
 	)
 	if err != nil {
@@ -54,12 +54,12 @@ func (r *Repository) CreateProfile(ctx context.Context, profile *Profile) error 
 			INSERT INTO user_profiles (
 				user_id, school_id, student_ids, active_student_id, manual_form_data,
 				verification_status, verification_method, rejection_reason, reviewed_at,
-				phone, phone_verified, consent_given_at, verified_at,
+				consent_given_at, verified_at,
 				created_at, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
 		`, profile.UserID, profile.SchoolID, studentIDsJSON, profile.ActiveStudentID, profile.ManualFormData,
 		profile.VerificationStatus, profile.VerificationMethod, profile.RejectionReason, profile.ReviewedAt,
-		profile.Phone, profile.PhoneVerified, profile.ConsentGivenAt, profile.VerifiedAt,
+		profile.ConsentGivenAt, profile.VerifiedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("CreateProfile: %w", err)
@@ -77,12 +77,12 @@ func (r *Repository) UpdateProfile(ctx context.Context, profile *Profile) error 
 			UPDATE user_profiles SET
 				school_id = $2, student_ids = $3, active_student_id = $4, manual_form_data = $5,
 				verification_status = $6, verification_method = $7, rejection_reason = $8, reviewed_at = $9,
-				phone = $10, phone_verified = $11, consent_given_at = $12, verified_at = $13,
+				consent_given_at = $10, verified_at = $11,
 				updated_at = NOW()
 			WHERE user_id = $1
 		`, profile.UserID, profile.SchoolID, studentIDsJSON, profile.ActiveStudentID, profile.ManualFormData,
 		profile.VerificationStatus, profile.VerificationMethod, profile.RejectionReason, profile.ReviewedAt,
-		profile.Phone, profile.PhoneVerified, profile.ConsentGivenAt, profile.VerifiedAt,
+		profile.ConsentGivenAt, profile.VerifiedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("UpdateProfile: %w", err)
@@ -96,7 +96,7 @@ func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, sc
 	qb.WriteString(`
 			SELECT user_id, school_id, student_ids, active_student_id, manual_form_data,
 			       verification_status, verification_method, rejection_reason, reviewed_at,
-			       phone, phone_verified, consent_given_at, verified_at,
+			       consent_given_at, verified_at,
 			       created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM user_profiles
