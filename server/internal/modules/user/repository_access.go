@@ -11,7 +11,7 @@ import (
 // ReviewAccessSubject 是评课访问控制所需的最小用户事实集合。
 type ReviewAccessSubject struct {
 	InternalUserID   int64
-	SchoolID         *string
+	SchoolID         *int64
 	StudentVerified  bool
 	IdentityVerified bool
 }

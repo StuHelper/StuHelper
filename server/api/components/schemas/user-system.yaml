@@ -161,8 +161,9 @@ UserProfile:
       format: int64
     schoolID:
       type:
-        - string
+        - integer
         - "null"
+      format: int64
     studentIDs:
       type:
         - array
@@ -223,8 +224,9 @@ AdminStudentVerificationItem:
       format: int64
     schoolID:
       type:
-        - string
+        - integer
         - "null"
+      format: int64
     studentIDs:
       type:
         - array
@@ -286,7 +288,8 @@ SubmitStudentVerificationRequest:
   required: [schoolID, consent]
   properties:
     schoolID:
-      type: string
+      type: integer
+      format: int64
     studentID:
       type: string
     password:
@@ -344,7 +347,8 @@ SchoolConfig:
   required: [schoolID, schoolName, verificationMethod, enabled]
   properties:
     schoolID:
-      type: string
+      type: integer
+      format: int64
     schoolName:
       type: string
     verificationMethod:
@@ -400,185 +404,6 @@ SchoolLDAPConfigInput:
     useTLS:
       type: boolean
     insecureSkipVerify:
-      type: boolean
-
-Role:
-  type: object
-  required: [id, name, displayName, isSystem, createdAt, updatedAt]
-  properties:
-    id:
-      type: integer
-      format: int64
-    name:
-      type: string
-    displayName:
-      type: string
-    description:
-      type: string
-    isSystem:
-      type: boolean
-    createdAt:
-      type: string
-      format: date-time
-    updatedAt:
-      type: string
-      format: date-time
-
-Permission:
-  type: object
-  required: [id, name, module, action, displayName, createdAt]
-  properties:
-    id:
-      type: integer
-      format: int64
-    name:
-      type: string
-    module:
-      type: string
-    action:
-      type: string
-    displayName:
-      type: string
-    scopeSchoolIDs:
-      type:
-        - array
-        - "null"
-      items:
-        type: string
-    scopeRoles:
-      type:
-        - array
-        - "null"
-      items:
-        type: string
-    createdAt:
-      type: string
-      format: date-time
-
-UserGroup:
-  type: object
-  required: [id, name, displayName, memberCount, createdAt, updatedAt]
-  properties:
-    id:
-      type: integer
-      format: int64
-    name:
-      type: string
-    displayName:
-      type: string
-    description:
-      type: string
-    memberCount:
-      type: integer
-    createdBy:
-      type: integer
-      format: int64
-    createdAt:
-      type: string
-      format: date-time
-    updatedAt:
-      type: string
-      format: date-time
-
-CreateRoleRequest:
-  type: object
-  required: [name, displayName]
-  properties:
-    name:
-      type: string
-    displayName:
-      type: string
-    description:
-      type: string
-
-UpdateRoleRequest:
-  type: object
-  properties:
-    displayName:
-      type: string
-    description:
-      type: string
-
-CreateUserGroupRequest:
-  type: object
-  required: [name, displayName]
-  properties:
-    name:
-      type: string
-    displayName:
-      type: string
-    description:
-      type: string
-
-UpdateUserGroupRequest:
-  type: object
-  properties:
-    displayName:
-      type: string
-    description:
-      type: string
-
-AssignRolePermissionsRequest:
-  type: object
-  required: [permissionIDs]
-  properties:
-    permissionIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-    clearAll:
-      type: boolean
-      description: 显式确认清空角色全部权限；仅当 permissionIDs 为空时生效
-
-RolePermissionIDsResponse:
-  type: object
-  required: [permissionIDs]
-  properties:
-    permissionIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-
-AssignUserRolesRequest:
-  type: object
-  required: [roleIDs]
-  properties:
-    roleIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-
-AssignGroupMembersRequest:
-  type: object
-  required: [userIDs]
-  properties:
-    userIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-
-AssignGroupPermissionsRequest:
-  type: object
-  required: [permissionIDs]
-  properties:
-    permissionIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-
-SetUserPermissionRequest:
-  type: object
-  required: [permissionID, granted]
-  properties:
-    permissionID:
-      type: integer
-      format: int64
-    granted:
       type: boolean
 
 ReviewIdentityRequest:
@@ -662,53 +487,13 @@ AcademicStudentInfo:
       type: string
       description: Email address
 
-EffectivePermission:
-  type: object
-  required: [permissionID, name, module, action, granted, source]
-  properties:
-    permissionID:
-      type: integer
-      format: int64
-    name:
-      type: string
-    module:
-      type: string
-    action:
-      type: string
-    granted:
-      type: boolean
-    source:
-      type: string
-      enum: [role, group, override]
-      description: 权限来源
-
-GroupMember:
-  type: object
-  required: [userID, username]
-  properties:
-    userID:
-      type: integer
-      format: int64
-    username:
-      type: string
-    email:
-      type:
-        - string
-        - "null"
-    avatarURL:
-      type:
-        - string
-        - "null"
-    joinedAt:
-      type: string
-      format: date-time
-
 AdminSchoolConfig:
   type: object
   required: [schoolID, schoolName, verificationMethod, approvalPolicy, enabled, createdAt]
   properties:
     schoolID:
-      type: string
+      type: integer
+      format: int64
     schoolName:
       type: string
     verificationMethod:
@@ -762,21 +547,6 @@ UpdateSchoolConfigRequest:
       items:
         $ref: "#/ManualFieldDescriptor"
     enabled:
-      type: boolean
-
-UserPermissionOverride:
-  type: object
-  required: [userID, permissionID, permissionName, granted]
-  properties:
-    userID:
-      type: integer
-      format: int64
-    permissionID:
-      type: integer
-      format: int64
-    permissionName:
-      type: string
-    granted:
       type: boolean
 
 UserSurface:

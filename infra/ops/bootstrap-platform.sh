@@ -17,7 +17,7 @@ require_cmd python3
 load_env
 STACK_NAME_VALUE="${STACK_NAME:-${COMPOSE_PROJECT_NAME:-stuhelper}}"
 BOOTSTRAP_VOLUME="${BOOTSTRAP_VOLUME:-${STACK_NAME_VALUE}-zitadel-bootstrap}"
-DOCKER_NETWORK_NAME="${DOCKER_NETWORK_NAME:-${STACK_NAME_VALUE}}"
+DOCKER_NETWORK_NAME="${DOCKER_NETWORK_NAME:-${STACK_NAME_VALUE}-backend}"
 
 wait_for_zitadel_proxy() {
   local url="http://127.0.0.1:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/healthy"

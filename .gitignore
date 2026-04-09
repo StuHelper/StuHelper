@@ -80,16 +80,19 @@ docker-compose.override.yml
 infra/zitadel/bootstrap/*.pat
 infra/generated/*
 !infra/generated/.gitkeep
-!infra/generated/observability/
+infra/generated/observability/*
 !infra/generated/observability/.gitkeep
-!infra/generated/observability/prometheus/
+infra/generated/observability/prometheus/*
 !infra/generated/observability/prometheus/.gitkeep
-!infra/generated/observability/alertmanager/
+infra/generated/observability/alertmanager/*
 !infra/generated/observability/alertmanager/.gitkeep
-!infra/generated/postgres/
+infra/generated/postgres/*
 !infra/generated/postgres/.gitkeep
-!infra/generated/postgres/wal-archive/
+infra/generated/postgres/wal-archive/*
 !infra/generated/postgres/wal-archive/.gitkeep
+infra/ansible/inventory/*.ini
+!infra/ansible/inventory/*.example.ini
+go.work.sum
 
 # ==================== 数据库与缓存 ====================
 *.db

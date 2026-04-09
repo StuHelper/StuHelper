@@ -14,8 +14,8 @@ import (
 func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
 		[]user.SchoolConfig{
-			{SchoolID: "10006", Enabled: true},
-			{SchoolID: "10007", Enabled: true},
+			{SchoolID: 10006, Enabled: true},
+			{SchoolID: 10007, Enabled: true},
 		},
 		[]user.SystemConfig{
 			{Key: systemconfig.ReviewAccessSchoolIDsKey, Value: `["10007","10008"]`},
@@ -37,8 +37,8 @@ func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 func TestBuildReviewAccessPolicy_UsesEnabledSchoolsAndPreviewKeys(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
 		[]user.SchoolConfig{
-			{SchoolID: "10006", Enabled: true},
-			{SchoolID: "10007", Enabled: true},
+			{SchoolID: 10006, Enabled: true},
+			{SchoolID: 10007, Enabled: true},
 		},
 		[]user.SystemConfig{
 			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: "96"},

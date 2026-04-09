@@ -61,7 +61,7 @@ type IdentityReviewItem struct {
 // Profile 学生认证档案
 type Profile struct {
 	UserID             int64
-	SchoolID           *string
+	SchoolID           *int64
 	StudentIDs         []string // JSON array
 	ActiveStudentID    *string
 	ManualFormData     json.RawMessage
@@ -69,8 +69,6 @@ type Profile struct {
 	VerificationMethod *string
 	RejectionReason    *string
 	ReviewedAt         *time.Time
-	Phone              *string
-	PhoneVerified      bool
 	ConsentGivenAt     *time.Time
 	VerifiedAt         *time.Time
 	CreatedAt          time.Time
@@ -89,7 +87,7 @@ type ManualFieldDescriptor struct {
 
 // SchoolConfig 学校认证配置
 type SchoolConfig struct {
-	SchoolID           string
+	SchoolID           int64
 	SchoolName         string
 	VerificationMethod string
 	ApprovalPolicy     string // auto: 认证通过即批准; manual: 需人工审核
@@ -109,23 +107,24 @@ func (sc SchoolConfig) IsAutoApprove() bool {
 
 // AcademicStudent 教务系统学生记录
 type AcademicStudent struct {
-	XH       string
-	XM       *string
-	SFZJLXDM *string
-	SFZJH    *string
-	YXDM     *string
-	ZYDM     *string
-	BJDM     *string
-	XZNJ     *string
-	RXNJ     *string
-	PYCCDM   *string
-	XSLBDM   *string
-	SJH      *string
-	DZXX     *string
-	XJZTDM   *string
-	SFZX     *string
-	SFZJ     *string
-	SyncedAt time.Time
+	XH        string
+	XM        *string
+	SFZJLXDM  *string
+	SFZJHEnc  []byte  // sfzjh_enc: 加密存储的证件号
+	SFZJHHash *string // sfzjh_hash: 证件号哈希，用于查询
+	YXDM      *string
+	ZYDM      *string
+	BJDM      *string
+	XZNJ      *string
+	RXNJ      *string
+	PYCCDM    *string
+	XSLBDM    *string
+	SJH       *string
+	DZXX      *string
+	XJZTDM    *string
+	SFZX      *string
+	SFZJ      *string
+	SyncedAt  time.Time
 }
 
 // SystemConfig 系统配置项

@@ -305,7 +305,10 @@
       "confirmPassword": "Confirm Password",
       "confirmPasswordPlaceholder": "Re-enter new password",
       "passwordMismatch": "The two passwords do not match",
-      "updated": "Password updated successfully"
+      "updated": "Password updated successfully",
+      "managedExternally": "Managed by identity provider",
+      "managedExternallyDesc": "Password changes are handled by the external identity provider. Use the link below to open the account settings page.",
+      "goToAccountSettings": "Open account settings"
     },
     "security": {
       "accountPassword": {

@@ -30,4 +30,12 @@ var (
 			Help: "Total number of SSE events dropped due to full channel buffer",
 		},
 	)
+
+	// CryptoRandFailuresTotal crypto/rand 失败并降级为 math/rand 的次数
+	CryptoRandFailuresTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "crypto_rand_failures_total",
+			Help: "Number of crypto/rand failures fallen back to math/rand",
+		},
+	)
 )

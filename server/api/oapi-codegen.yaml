@@ -1,14 +1,14 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/v2.6.0/configuration-schema.json
 # oapi-codegen 配置
-# 从 bundled OpenAPI spec 生成 Gin server + models
+# 从 bundled OpenAPI spec 生成 models only（路由手工绑定 Gin handler）
 package: gen
 generate:
   models: true
-  gin-server: true
+  gin-server: false
   strict-server: false
   embedded-spec: true
 output: internal/api/gen/server.gen.go
 output-options:
-  skip-prune: true
+  skip-prune: false
   overlay:
     path: api/oapi-codegen-overlay.yaml

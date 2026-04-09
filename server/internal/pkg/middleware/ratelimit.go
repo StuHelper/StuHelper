@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,25 +41,31 @@ func (h *Handler) getReviewAccessPolicy(ctx context.Context) (systemconfig.Revie
 		return cached, nil
 	}
 
-	h.accessPolicyMu.Lock()
-	defer h.accessPolicyMu.Unlock()
-
-	cached = h.readReviewAccessPolicy()
-	if policyFresh(cached) {
-		return cached, nil
-	}
-
-	policy, err := h.loadReviewAccessPolicy(ctx)
-	if err != nil {
-		if !cached.LoadedAt.IsZero() {
-			logger.L().Warn("failed to refresh review access policy, using stale policy", zap.Error(err))
+	result, err, _ := h.accessPolicySF.Do("access-policy", func() (interface{}, error) {
+		cached := h.readReviewAccessPolicy()
+		if policyFresh(cached) {
 			return cached, nil
 		}
+
+		refreshCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		policy, err := h.loadReviewAccessPolicy(refreshCtx)
+		if err != nil {
+			if !cached.LoadedAt.IsZero() {
+				logger.L().Warn("failed to refresh review access policy, using stale policy", zap.Error(err))
+				return cached, nil
+			}
+			return systemconfig.ReviewAccessPolicySnapshot{}, err
+		}
+
+		systemconfig.SetReviewAccessPolicySnapshot(policy)
+		return policy, nil
+	})
+	if err != nil {
 		return systemconfig.ReviewAccessPolicySnapshot{}, err
 	}
-
-	systemconfig.SetReviewAccessPolicySnapshot(policy)
-	return policy, nil
+	return result.(systemconfig.ReviewAccessPolicySnapshot), nil
 }
 
 func (h *Handler) readReviewAccessPolicy() systemconfig.ReviewAccessPolicySnapshot {
@@ -95,8 +102,8 @@ func buildReviewAccessPolicy(schools []user.SchoolConfig, configs []user.SystemC
 
 	enabledSchoolIDs := make([]string, 0, len(schools))
 	for _, school := range schools {
-		if trimmed := strings.TrimSpace(school.SchoolID); trimmed != "" {
-			enabledSchoolIDs = append(enabledSchoolIDs, trimmed)
+		if school.SchoolID != 0 {
+			enabledSchoolIDs = append(enabledSchoolIDs, strconv.FormatInt(school.SchoolID, 10))
 		}
 	}
 	configMap := make(map[string]string, len(configs))
@@ -178,10 +185,10 @@ func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID strin
 		return facts, nil
 	}
 
-	facts.SchoolID = subject.SchoolID
+	facts.SchoolID = int64PtrToStringPtr(subject.SchoolID)
 	facts.StudentVerified = subject.StudentVerified &&
 		subject.SchoolID != nil &&
-		policy.AllowsSchool(*subject.SchoolID)
+		policy.AllowsSchool(strconv.FormatInt(*subject.SchoolID, 10))
 	facts.IdentityVerified = subject.IdentityVerified
 	facts.CanViewFull = facts.CanManageReviews || facts.StudentVerified
 	facts.CanPostReview = facts.StudentVerified && facts.IdentityVerified
@@ -248,4 +255,12 @@ func previewText(value string, maxRunes int, percent int) string {
 		return trimmed
 	}
 	return string(runes[:limit]) + "..."
+}
+
+func int64PtrToStringPtr(v *int64) *string {
+	if v == nil {
+		return nil
+	}
+	s := strconv.FormatInt(*v, 10)
+	return &s
 }

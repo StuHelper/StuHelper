@@ -44,7 +44,7 @@ func (h *Handler) reconcileFGAUserProfileTuples(c *gin.Context, userID int64, ap
 
 	profileObj := "user_profile:" + strconv.FormatInt(userID, 10)
 	schoolTuple := fga.Tuple{
-		User:     "school:" + *profile.SchoolID,
+		User:     "school:" + strconv.FormatInt(*profile.SchoolID, 10),
 		Relation: "school",
 		Object:   profileObj,
 	}
@@ -72,7 +72,7 @@ func (h *Handler) reconcileFGAUserProfileTuples(c *gin.Context, userID int64, ap
 
 	logger.L().Info("FGA user_profile tuples reconciled",
 		zap.Int64("user_id", userID),
-		zap.String("school_id", *profile.SchoolID),
+		zap.Int64("school_id", *profile.SchoolID),
 		zap.Bool("approved", approved),
 	)
 }

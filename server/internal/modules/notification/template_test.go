@@ -1,0 +1,43 @@
+package notification
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestNewReviewHiddenNotification_IncludesReasonPayload(t *testing.T) {
+	params := NewReviewHiddenNotification(7, "review-1", 42, "含有违规内容")
+
+	assert.Equal(t, TypeReviewHidden, params.Type)
+	assert.Equal(t, "/courses/42/reviews", params.SourceURL)
+	assert.Equal(t, int64(42), params.CourseID)
+	assert.Equal(t, "评价已隐藏", params.Title)
+	assert.Equal(t, "你的评价已被隐藏：含有违规内容", params.Content)
+
+	var payload map[string]string
+	require.NoError(t, json.Unmarshal(params.Payload, &payload))
+	assert.Equal(t, "含有违规内容", payload["reason"])
+}
+
+func TestNewReportResolvedNotification_EncodesAction(t *testing.T) {
+	params := NewReportResolvedNotification(7, "report-1", 42, ReportActionHide)
+
+	assert.Equal(t, TypeReportResolved, params.Type)
+	assert.Equal(t, "举报处理结果", params.Title)
+	assert.Equal(t, "你提交的举报已处理：相关评价已被隐藏。", params.Content)
+
+	var payload map[string]string
+	require.NoError(t, json.Unmarshal(params.Payload, &payload))
+	assert.Equal(t, ReportActionHide, payload["action"])
+}
+
+func TestNewIdentityRejectedNotification_UsesVerificationPage(t *testing.T) {
+	params := NewIdentityRejectedNotification(9, "实名信息不匹配")
+
+	assert.Equal(t, TypeIdentityRejected, params.Type)
+	assert.Equal(t, "/user/identity-verification", params.SourceURL)
+	assert.Equal(t, "你的实名认证未通过审核：实名信息不匹配", params.Content)
+}

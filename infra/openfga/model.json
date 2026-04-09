@@ -1,0 +1,423 @@
+{
+  "schema_version": "1.1",
+  "type_definitions": [
+    {
+      "type": "user"
+    },
+    {
+      "type": "ecosystem",
+      "relations": {
+        "super_admin": {
+          "this": {}
+        }
+      },
+      "metadata": {
+        "relations": {
+          "super_admin": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "school",
+      "relations": {
+        "parent": {
+          "this": {}
+        },
+        "admin": {
+          "this": {}
+        },
+        "reviewer": {
+          "this": {}
+        },
+        "volunteer": {
+          "this": {}
+        },
+        "effective_admin": {
+          "union": {
+            "child": [
+              {
+                "this": {}
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "parent"
+                  },
+                  "computedUserset": {
+                    "relation": "super_admin"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "parent": {
+            "directly_related_user_types": [
+              {
+                "type": "ecosystem"
+              }
+            ]
+          },
+          "admin": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          },
+          "reviewer": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          },
+          "volunteer": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          },
+          "effective_admin": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "course",
+      "relations": {
+        "school": {
+          "this": {}
+        },
+        "owner": {
+          "this": {}
+        },
+        "teaching_assistant": {
+          "this": {}
+        },
+        "can_edit": {
+          "union": {
+            "child": [
+              {
+                "computedUserset": {
+                  "relation": "owner"
+                }
+              },
+              {
+                "computedUserset": {
+                  "relation": "teaching_assistant"
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "school"
+                  },
+                  "computedUserset": {
+                    "relation": "effective_admin"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "can_view": {
+          "union": {
+            "child": [
+              {
+                "computedUserset": {
+                  "relation": "owner"
+                }
+              },
+              {
+                "computedUserset": {
+                  "relation": "teaching_assistant"
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "school"
+                  },
+                  "computedUserset": {
+                    "relation": "effective_admin"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "school": {
+            "directly_related_user_types": [
+              {
+                "type": "school"
+              }
+            ]
+          },
+          "owner": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          },
+          "teaching_assistant": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "review",
+      "relations": {
+        "course": {
+          "this": {}
+        },
+        "school": {
+          "this": {}
+        },
+        "author": {
+          "this": {}
+        },
+        "can_edit": {
+          "computedUserset": {
+            "relation": "author"
+          }
+        },
+        "can_delete": {
+          "union": {
+            "child": [
+              {
+                "computedUserset": {
+                  "relation": "author"
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "school"
+                  },
+                  "computedUserset": {
+                    "relation": "volunteer"
+                  }
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "school"
+                  },
+                  "computedUserset": {
+                    "relation": "effective_admin"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "can_hide": {
+          "union": {
+            "child": [
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "school"
+                  },
+                  "computedUserset": {
+                    "relation": "volunteer"
+                  }
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "school"
+                  },
+                  "computedUserset": {
+                    "relation": "effective_admin"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "can_view_author_identity": {
+          "tupleToUserset": {
+            "tupleset": {
+              "relation": "school"
+            },
+            "computedUserset": {
+              "relation": "effective_admin"
+            }
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "course": {
+            "directly_related_user_types": [
+              {
+                "type": "course"
+              }
+            ]
+          },
+          "school": {
+            "directly_related_user_types": [
+              {
+                "type": "school"
+              }
+            ]
+          },
+          "author": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "report",
+      "relations": {
+        "review": {
+          "this": {}
+        },
+        "school": {
+          "this": {}
+        },
+        "reporter": {
+          "this": {}
+        },
+        "can_process": {
+          "union": {
+            "child": [
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "school"
+                  },
+                  "computedUserset": {
+                    "relation": "volunteer"
+                  }
+                }
+              },
+              {
+                "tupleToUserset": {
+                  "tupleset": {
+                    "relation": "school"
+                  },
+                  "computedUserset": {
+                    "relation": "effective_admin"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "review": {
+            "directly_related_user_types": [
+              {
+                "type": "review"
+              }
+            ]
+          },
+          "school": {
+            "directly_related_user_types": [
+              {
+                "type": "school"
+              }
+            ]
+          },
+          "reporter": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "user_profile",
+      "relations": {
+        "owner": {
+          "this": {}
+        },
+        "school": {
+          "this": {}
+        },
+        "can_view_own": {
+          "computedUserset": {
+            "relation": "owner"
+          }
+        },
+        "can_view_identity": {
+          "tupleToUserset": {
+            "tupleset": {
+              "relation": "school"
+            },
+            "computedUserset": {
+              "relation": "effective_admin"
+            }
+          }
+        },
+        "can_review_verification": {
+          "tupleToUserset": {
+            "tupleset": {
+              "relation": "school"
+            },
+            "computedUserset": {
+              "relation": "effective_admin"
+            }
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "owner": {
+            "directly_related_user_types": [
+              {
+                "type": "user"
+              }
+            ]
+          },
+          "school": {
+            "directly_related_user_types": [
+              {
+                "type": "school"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

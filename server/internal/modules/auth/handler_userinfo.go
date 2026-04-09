@@ -22,6 +22,7 @@ type currentUserPayload struct {
 	CapabilityGrants   []capability.Grant `json:"capabilityGrants"`
 	IsPlatformAdmin    bool               `json:"isPlatformAdmin"`
 	CanAccessAdmin     bool               `json:"canAccessAdmin"`
+	AccountSettingsURL string             `json:"accountSettingsUrl,omitempty"`
 }
 
 // GetCurrentUser 获取当前用户信息（从 AuthMiddleware 注入的 context 读取）
@@ -46,6 +47,10 @@ func (h *Handler) buildUserPayload(
 	roles, capabilities []string,
 ) currentUserPayload {
 	snapshot := buildAccessSnapshot(capabilities)
+	var accountURL string
+	if h.oidcIssuer != "" {
+		accountURL = strings.TrimRight(h.oidcIssuer, "/") + "/ui/v2/login/password/change"
+	}
 
 	return currentUserPayload{
 		ID:                 userID,
@@ -59,6 +64,7 @@ func (h *Handler) buildUserPayload(
 		CapabilityGrants:   snapshot.CapabilityGrants,
 		IsPlatformAdmin:    hasRole(roles, "super_admin"),
 		CanAccessAdmin:     capability.CanAccessAdmin(snapshot.Capabilities),
+		AccountSettingsURL: accountURL,
 	}
 }
 

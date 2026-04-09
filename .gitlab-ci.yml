@@ -1,18 +1,18 @@
 workflow:
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - when: never
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  - if: '$CI_COMMIT_BRANCH == "develop"'
+  - if: '$CI_COMMIT_BRANCH == "main"'
+  - when: never
 
 stages:
-  - lint
-  - test
-  - security
-  - build
-  - package
-  - deploy
-  - verify
+- lint
+- test
+- security
+- build
+- package
+- deploy
+- verify
 
 default:
   interruptible: true
@@ -28,8 +28,8 @@ variables:
   DOCKER_CERT_PATH: /certs/client
 
 include:
-  - local: ".gitlab/server-ci.yml"
-  - local: ".gitlab/cd.yml"
+- local: ".gitlab/server-ci.yml"
+- local: ".gitlab/cd.yml"
 
 .playwright_job:
   stage: test
@@ -40,167 +40,177 @@ include:
 .docker_job:
   image: docker:27.5.1-cli
   services:
-    - name: docker:27.5.1-dind
+  - name: docker:27.5.1-dind
 
 .trivy_scan_job:
   extends: .docker_job
   stage: security
   before_script:
-    - apk add --no-cache curl tar
-    - export TRIVY_VERSION=0.58.2
-    - curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy
+  - apk add --no-cache curl tar
+  - export TRIVY_VERSION=0.58.2
+  - curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy
 
 frontend_lint:
   stage: lint
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients
-    - pnpm install --frozen-lockfile
-    - pnpm --filter @stuhelper/web lint
-    - pnpm --filter @stuhelper/web exec prettier --check .
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients
+  - pnpm install --frozen-lockfile
+  - pnpm --filter @stuhelper/web lint
+  - pnpm --filter @stuhelper/web exec prettier --check .
 
 admin_lint:
   stage: lint
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients/admin
-    - pnpm install --frozen-lockfile
-    - pnpm lint
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients/admin
+  - pnpm install --frozen-lockfile
+  - pnpm lint
 
 frontend_typecheck:
   stage: test
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients
-    - pnpm install --frozen-lockfile
-    - pnpm run type-check
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients
+  - pnpm install --frozen-lockfile
+  - pnpm run type-check
 
 admin_typecheck:
   stage: test
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients/admin
-    - pnpm install --frozen-lockfile
-    - pnpm --filter @vben/web-ele typecheck
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients/admin
+  - pnpm install --frozen-lockfile
+  - pnpm --filter @vben/web-ele typecheck
 
 frontend_test:
   stage: test
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients
-    - pnpm install --frozen-lockfile
-    - pnpm --filter @stuhelper/web test
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients
+  - pnpm install --frozen-lockfile
+  - pnpm --filter @stuhelper/web test
 
 frontend_e2e:
   extends: .playwright_job
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients
-    - pnpm install --frozen-lockfile
-    - pnpm --filter @stuhelper/web test:e2e
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients
+  - pnpm install --frozen-lockfile
+  - pnpm --filter @stuhelper/web test:e2e
   artifacts:
     when: always
     paths:
-      - clients/web/playwright-report
-      - clients/web/test-results
+    - clients/web/playwright-report
+    - clients/web/test-results
 
 admin_e2e:
   extends: .playwright_job
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients/admin
-    - pnpm install --frozen-lockfile
-    - pnpm --filter @vben/web-ele test:e2e
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients/admin
+  - pnpm install --frozen-lockfile
+  - pnpm --filter @vben/web-ele test:e2e
   artifacts:
     when: always
     paths:
-      - clients/admin/apps/web-ele/playwright-report
-      - clients/admin/apps/web-ele/test-results
+    - clients/admin/apps/web-ele/playwright-report
+    - clients/admin/apps/web-ele/test-results
 
 frontend_dependency_scan:
   stage: security
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients
-    - pnpm install --frozen-lockfile
-    - pnpm audit --audit-level=high --prod
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients
+  - pnpm install --frozen-lockfile
+  - pnpm audit --audit-level=high --prod
 
 admin_dependency_scan:
   stage: security
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients/admin
-    - pnpm install --frozen-lockfile
-    - pnpm audit --audit-level=high --prod
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients/admin
+  - pnpm install --frozen-lockfile
+  - pnpm audit --audit-level=high --prod
 
 container_scan_backend:
   extends: .trivy_scan_job
   script:
-    - docker build --pull -t "stuhelper/backend:scan-${CI_COMMIT_SHORT_SHA}" server
-    - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "stuhelper/backend:scan-${CI_COMMIT_SHORT_SHA}"
-
+  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+  - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
+  needs:
+  - docker_build_backend
 container_scan_frontend:
   extends: .trivy_scan_job
   script:
-    - docker build --pull -f clients/web/Dockerfile -t "stuhelper/frontend:scan-${CI_COMMIT_SHORT_SHA}" clients
-    - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "stuhelper/frontend:scan-${CI_COMMIT_SHORT_SHA}"
-
+  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+  - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
+  needs:
+  - docker_build_frontend
 container_scan_admin:
   extends: .trivy_scan_job
   script:
-    - docker build --pull -f clients/admin/scripts/deploy/Dockerfile -t "stuhelper/admin:scan-${CI_COMMIT_SHORT_SHA}" clients/admin
-    - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "stuhelper/admin:scan-${CI_COMMIT_SHORT_SHA}"
-
+  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+  - trivy image --severity HIGH,CRITICAL --exit-code 1 --no-progress "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}"
+  needs:
+  - docker_build_admin
 frontend_build:
   stage: build
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients
-    - pnpm install --frozen-lockfile
-    - pnpm --filter @stuhelper/web build
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients
+  - pnpm install --frozen-lockfile
+  - pnpm --filter @stuhelper/web build
 
 admin_build:
   stage: build
   image: node:24-bookworm
   script:
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd clients/admin
-    - pnpm install --frozen-lockfile
-    - pnpm build:ele
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+  - cd clients/admin
+  - pnpm install --frozen-lockfile
+  - pnpm build:ele
 
 docker_build_backend:
   extends: .docker_job
   stage: build
   script:
-    - docker build --pull -t "stuhelper/backend:ci-${CI_COMMIT_SHORT_SHA}" server
-
+  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+  - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
+  - docker buildx build --push --platform linux/amd64 --tag "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VERSION=${CI_COMMIT_SHORT_SHA}" --build-arg "GIT_COMMIT=${CI_COMMIT_SHA}" --build-arg "BUILD_TIME=${BUILD_TIME}" --cache-from "type=registry,ref=${BACKEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${BACKEND_IMAGE}:buildcache,mode=max" server
 docker_build_frontend:
   extends: .docker_job
   stage: build
   script:
-    - docker build --pull -f clients/web/Dockerfile -t "stuhelper/frontend:ci-${CI_COMMIT_SHORT_SHA}" clients
-
+  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+  - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
+  - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL:-https://sso.stuhelper.com}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" clients
 docker_build_admin:
   extends: .docker_job
   stage: build
   script:
-    - docker build --pull -f clients/admin/scripts/deploy/Dockerfile -t "stuhelper/admin:ci-${CI_COMMIT_SHORT_SHA}" clients/admin
+  - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
+  - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
+  - docker buildx build --push --platform linux/amd64 --file clients/admin/scripts/deploy/Dockerfile --tag "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_GLOB_API_URL=${ADMIN_VITE_API_URL:-/api/v1}" --build-arg "VITE_BASE=${ADMIN_VITE_BASE:-/admin/}" --cache-from "type=registry,ref=${ADMIN_IMAGE}:buildcache" --cache-to "type=registry,ref=${ADMIN_IMAGE}:buildcache,mode=max" clients/admin

@@ -38,9 +38,9 @@ type mockRepo struct {
 	onGetProfileByUserID                       func(ctx context.Context, userID int64) (*Profile, error)
 	onCreateProfile                            func(ctx context.Context, profile *Profile) error
 	onUpdateProfile                            func(ctx context.Context, profile *Profile) error
-	onListProfilesByStatus                     func(ctx context.Context, status, schoolID string, page, pageSize int) ([]Profile, int, error)
+	onListProfilesByStatus                     func(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error)
 	onSetUserPhone                             func(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
-	onGetSchoolConfig                          func(ctx context.Context, schoolID string) (*SchoolConfig, error)
+	onGetSchoolConfig                          func(ctx context.Context, schoolID int64) (*SchoolConfig, error)
 	onListSchoolConfigs                        func(ctx context.Context) ([]SchoolConfig, error)
 	onListAllSchoolConfigs                     func(ctx context.Context) ([]SchoolConfig, error)
 	onUpdateSchoolConfig                       func(ctx context.Context, config *SchoolConfig) error
@@ -115,7 +115,7 @@ func (m *mockRepo) CreateProfile(ctx context.Context, profile *Profile) error {
 	return nil
 }
 
-func (m *mockRepo) ListProfilesByStatus(ctx context.Context, status string, schoolID string, page, pageSize int) ([]Profile, int, error) {
+func (m *mockRepo) ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
 	if m.onListProfilesByStatus != nil {
 		return m.onListProfilesByStatus(ctx, status, schoolID, page, pageSize)
 	}
@@ -129,7 +129,7 @@ func (m *mockRepo) SetUserPhone(ctx context.Context, userID int64, phoneEnc []by
 	return nil
 }
 
-func (m *mockRepo) GetSchoolConfig(ctx context.Context, schoolID string) (*SchoolConfig, error) {
+func (m *mockRepo) GetSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error) {
 	if m.onGetSchoolConfig != nil {
 		return m.onGetSchoolConfig(ctx, schoolID)
 	}
@@ -505,10 +505,10 @@ func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *test
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 1, Verified: true}, nil
 		},
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			require.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			require.Equal(t, int64(10006), schoolID)
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				ApprovalPolicy:     "manual",
@@ -535,7 +535,7 @@ func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *test
 	require.NoError(t, err)
 
 	profile, err := svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID: "10006",
+		SchoolID: 10006,
 		ManualFormData: map[string]any{
 			"studentID":  "20240001",
 			"department": "计算机学院",
@@ -562,9 +562,9 @@ func TestVerifyStudent_ManualWithoutStudentIDDoesNotPersistBlankIdentifiers(t *t
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 1, Verified: true}, nil
 		},
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           "manual",
+				SchoolID:           30001,
 				SchoolName:         "人工审核学校",
 				VerificationMethod: VerifyMethodManual,
 				Enabled:            true,
@@ -580,7 +580,7 @@ func TestVerifyStudent_ManualWithoutStudentIDDoesNotPersistBlankIdentifiers(t *t
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID: "manual",
+		SchoolID: 30001,
 		Consent:  true,
 	})
 	require.NoError(t, err)
@@ -595,9 +595,9 @@ func TestVerifyStudent_LDAPRequiresStudentID(t *testing.T) {
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 1, Verified: true}, nil
 		},
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           "ldap",
+				SchoolID:           30002,
 				SchoolName:         "LDAP 学校",
 				VerificationMethod: VerifyMethodLDAP,
 				Enabled:            true,
@@ -609,7 +609,7 @@ func TestVerifyStudent_LDAPRequiresStudentID(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID: "ldap",
+		SchoolID: 30002,
 		Password: "secret",
 		Consent:  true,
 	})
@@ -621,9 +621,9 @@ func TestVerifyStudent_LDAPRequiresPassword(t *testing.T) {
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 1, Verified: true}, nil
 		},
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           "ldap",
+				SchoolID:           30002,
 				SchoolName:         "LDAP 学校",
 				VerificationMethod: VerifyMethodLDAP,
 				Enabled:            true,
@@ -635,7 +635,7 @@ func TestVerifyStudent_LDAPRequiresPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
-		SchoolID:  "ldap",
+		SchoolID:  30002,
 		StudentID: "20240001",
 		Consent:   true,
 	})
@@ -712,12 +712,12 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 	var captured *SchoolConfig
 
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			require.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			require.Equal(t, int64(10006), schoolID)
 			academicTable := "academic.buaa_students"
 			consentText := "原始授权文本"
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "旧学校名",
 				VerificationMethod: VerifyMethodLDAP,
 				LDAPConfig:         json.RawMessage(`{"url":"ldap://ldap.old:389","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":false,"insecureSkipVerify":false}`),
@@ -742,7 +742,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 	systemBindPassword := "new-secret"
 	useTLS := true
 
-	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
+	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
 		SchoolName: &schoolName,
 		LDAPConfig: &SchoolLDAPConfigInput{
 			URL:                &ldapURL,
@@ -754,7 +754,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 
-	assert.Equal(t, "10006", captured.SchoolID)
+	assert.Equal(t, int64(10006), captured.SchoolID)
 	assert.Equal(t, "新学校名", captured.SchoolName)
 	assert.Equal(t, VerifyMethodLDAP, captured.VerificationMethod, "未提供的 verificationMethod 应保留原值")
 	assert.JSONEq(t, `{"baseDN":"ou=users,dc=example,dc=com","insecureSkipVerify":false,"systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"new-secret","url":"ldaps://ldap.new:636","useTLS":true}`, string(captured.LDAPConfig))
@@ -770,11 +770,11 @@ func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.
 	var captured *SchoolConfig
 
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			require.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			require.Equal(t, int64(10006), schoolID)
 			table := "academic.buaa_students"
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodLDAP,
 				LDAPConfig:         json.RawMessage(`{"url":"ldap://ldap.old:389","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":false,"insecureSkipVerify":false}`),
@@ -794,7 +794,7 @@ func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.
 
 	ldapURL := "ldaps://ldap.new:636"
 	useTLS := true
-	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
+	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
 		LDAPConfig: &SchoolLDAPConfigInput{
 			URL:    &ldapURL,
 			UseTLS: &useTLS,
@@ -809,15 +809,15 @@ func TestUpdateSchoolConfig_SchoolNotFoundReturnsError(t *testing.T) {
 	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSchoolConfig(context.Background(), "missing", UpdateSchoolConfigInput{})
+	err = svc.UpdateSchoolConfig(context.Background(), 99999, UpdateSchoolConfigInput{})
 	assert.ErrorIs(t, err, ErrSchoolNotFound)
 }
 
 func TestUpdateSchoolConfig_InvalidManualFieldConfigReturnsError(t *testing.T) {
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				Enabled:            true,
@@ -829,7 +829,7 @@ func TestUpdateSchoolConfig_InvalidManualFieldConfigReturnsError(t *testing.T) {
 	require.NoError(t, err)
 
 	fields := []ManualFieldDescriptor{{Key: "", Label: "空 key", Type: "text", Required: true}}
-	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
+	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
 		ManualFormFields: &fields,
 	})
 	assert.ErrorIs(t, err, ErrInvalidManualFieldConfig)
@@ -837,9 +837,9 @@ func TestUpdateSchoolConfig_InvalidManualFieldConfigReturnsError(t *testing.T) {
 
 func TestUpdateSchoolConfig_EnabledLDAPRequiresAcademicTable(t *testing.T) {
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				Enabled:            false,
@@ -852,7 +852,7 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresAcademicTable(t *testing.T) {
 
 	method := VerifyMethodLDAP
 	enabled := true
-	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{
+	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{
 		VerificationMethod: &method,
 		Enabled:            &enabled,
 	})
@@ -862,10 +862,10 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresAcademicTable(t *testing.T) {
 
 func TestUpdateSchoolConfig_EnabledLDAPRequiresValidLDAPConfig(t *testing.T) {
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			table := "academic.buaa_students"
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodLDAP,
 				AcademicDBTable:    &table,
@@ -877,17 +877,17 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresValidLDAPConfig(t *testing.T) {
 	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{})
+	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{})
 
 	assert.ErrorIs(t, err, ErrSchoolLDAPConfigMissing)
 }
 
 func TestUpdateSchoolConfig_ValidatesAcademicTableExists(t *testing.T) {
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			table := "academic.buaa_students"
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				AcademicDBTable:    &table,
@@ -903,7 +903,7 @@ func TestUpdateSchoolConfig_ValidatesAcademicTableExists(t *testing.T) {
 	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.UpdateSchoolConfig(context.Background(), "10006", UpdateSchoolConfigInput{})
+	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{})
 
 	assert.ErrorIs(t, err, ErrInvalidAcademicDBTable)
 }
@@ -928,8 +928,8 @@ func TestUpdateSystemConfig_RejectsUnknownReviewAccessSchoolIDs(t *testing.T) {
 	repo := &mockRepo{
 		onListAllSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{
-				{SchoolID: "10006"},
-				{SchoolID: "10007"},
+				{SchoolID: 10006},
+				{SchoolID: 10007},
 			}, nil
 		},
 	}

@@ -59,6 +59,15 @@ fi
 if placeholder_or_empty "${REDIS_PASSWORD:-}"; then
   upsert_env_file "${ENV_FILE}" "REDIS_PASSWORD" "dev123"
 fi
+if placeholder_or_empty "${STUHELPER_APP_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "dev-app-$(random_hex 12)"
+fi
+if placeholder_or_empty "${ZITADEL_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "ZITADEL_DB_PASSWORD" "dev-zitadel-$(random_hex 12)"
+fi
+if placeholder_or_empty "${OPENFGA_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "OPENFGA_DB_PASSWORD" "dev-openfga-$(random_hex 12)"
+fi
 if placeholder_or_empty "${HMAC_SECRET:-}"; then
   upsert_env_file "${ENV_FILE}" "HMAC_SECRET" "$(random_hex 32)"
 fi
@@ -90,7 +99,9 @@ fi
 
 ensure_value "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev"
 ensure_value "APP_ENV" "${APP_ENV:-}" "development"
-ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable"
+load_env
+
+ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable"
 ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"
 ensure_value "REDIS_HOST" "${REDIS_HOST:-}" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"

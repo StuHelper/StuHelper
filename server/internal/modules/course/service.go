@@ -7,7 +7,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
@@ -19,18 +18,26 @@ var (
 
 // Service 课程服务层
 type Service struct {
-	db   *db.DB
 	repo *Repository
 	log  *zap.Logger
 }
 
 // NewService 创建课程服务
-func NewService(database *db.DB, repo *Repository) *Service {
+func NewService(repo *Repository) *Service {
 	return &Service{
-		db:   database,
 		repo: repo,
 		log:  logger.L(),
 	}
+}
+
+// FavoriteExists 检查单个课程是否被用户收藏
+func (s *Service) FavoriteExists(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	return s.repo.FavoriteExists(ctx, userHash, courseID)
+}
+
+// BatchFavoritedCourseIDs 批量查询用户已收藏的课程 ID 集合
+func (s *Service) BatchFavoritedCourseIDs(ctx context.Context, userHash string, courseIDs []int64) (map[int64]bool, error) {
+	return s.repo.BatchFavoritedCourseIDs(ctx, userHash, courseIDs)
 }
 
 // GetDepartments 获取院系列表

@@ -43,6 +43,7 @@ http:
 
   services:
     zitadel-api:
+      # 单机 Docker Compose 内网使用 h2c；跨主机或零信任网络请改为 TLS 上游。
       loadBalancer:
         servers:
           - url: h2c://zitadel-api:8080

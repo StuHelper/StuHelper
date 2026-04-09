@@ -79,6 +79,15 @@ fi
 if placeholder_or_empty "${REDIS_PASSWORD:-}" || [[ "${REDIS_PASSWORD:-}" == "dev123" ]]; then
   upsert_env_file "${SECRETS_ENV_FILE}" "REDIS_PASSWORD" "prod-redis-$(random_hex 16)"
 fi
+if placeholder_or_empty "${STUHELPER_APP_DB_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "prod-app-$(random_hex 16)"
+fi
+if placeholder_or_empty "${ZITADEL_DB_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "ZITADEL_DB_PASSWORD" "prod-zitadel-$(random_hex 16)"
+fi
+if placeholder_or_empty "${OPENFGA_DB_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-openfga-$(random_hex 16)"
+fi
 if placeholder_or_empty "${HMAC_SECRET:-}" || [[ "${HMAC_SECRET:-}" == "dev_hmac_secret_change_in_production_32ch" ]]; then
   upsert_env_file "${SECRETS_ENV_FILE}" "HMAC_SECRET" "$(random_hex 32)"
 fi
@@ -115,11 +124,11 @@ ensure_prod_default "APP_ENV" "${APP_ENV:-}" "production" "development"
 ensure_value "LOG_LEVEL" "${LOG_LEVEL:-}" "info"
 ensure_prod_default "LOG_FORMAT" "${LOG_FORMAT:-}" "json" "console"
 ensure_value "LOG_OUTPUT" "${LOG_OUTPUT:-}" "stdout"
-ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper:${POSTGRES_PASSWORD:-}@localhost:5432/stuhelper?sslmode=require" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable"
+ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@postgres:5432/stuhelper?sslmode=require" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable"
 ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "require" "disable"
 ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
 ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "require" "disable"
-ensure_value "REDIS_HOST" "${REDIS_HOST:-}" "localhost"
+ensure_prod_default "REDIS_HOST" "${REDIS_HOST:-}" "redis" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
 ensure_value "CORS_ORIGINS" "${CORS_ORIGINS:-}" "http://localhost:3000,http://localhost:3001"
 ensure_value "TRUSTED_PROXIES" "${TRUSTED_PROXIES:-}" "127.0.0.1/32,172.16.0.0/12,192.168.0.0/16"

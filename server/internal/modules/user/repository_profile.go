@@ -91,7 +91,7 @@ func (r *Repository) UpdateProfile(ctx context.Context, profile *Profile) error 
 }
 
 // ListProfilesByStatus 分页查询学生认证档案（按状态和学校筛选）
-func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, schoolID string, page, pageSize int) ([]Profile, int, error) {
+func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
 	var qb strings.Builder
 	qb.WriteString(`
 			SELECT user_id, school_id, student_ids, active_student_id, manual_form_data,
@@ -110,9 +110,9 @@ func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, sc
 		args = append(args, status)
 		argIdx++
 	}
-	if schoolID != "" {
+	if schoolID != nil {
 		qb.WriteString(` AND school_id = $` + strconv.Itoa(argIdx))
-		args = append(args, schoolID)
+		args = append(args, *schoolID)
 		argIdx++
 	}
 

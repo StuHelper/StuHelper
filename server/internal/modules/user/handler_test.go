@@ -274,9 +274,9 @@ func TestHandleAdminListIdentities_DefaultsStatusToPending(t *testing.T) {
 func TestHandleAdminListStudentVerifications_DefaultsStatusToPending(t *testing.T) {
 	var capturedStatus string
 	repo := &mockRepo{
-		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
 			capturedStatus = status
-			assert.Empty(t, schoolID)
+			assert.Nil(t, schoolID)
 			return []Profile{}, 0, nil
 		},
 	}
@@ -311,9 +311,9 @@ func TestHandleAdminListIdentities_AllStatusClearsRepositoryFilter(t *testing.T)
 func TestHandleAdminListStudentVerifications_AllStatusClearsRepositoryFilter(t *testing.T) {
 	var capturedStatus string
 	repo := &mockRepo{
-		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
 			capturedStatus = status
-			assert.Empty(t, schoolID)
+			assert.Nil(t, schoolID)
 			return []Profile{}, 0, nil
 		},
 	}
@@ -338,11 +338,11 @@ func TestHandleAdminListIdentities_RejectsUnverifiedStatus(t *testing.T) {
 
 func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T) {
 	repo := &mockRepo{
-		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
 			assert.Equal(t, StatusPending, status)
 			return []Profile{{
 				UserID:             7,
-				SchoolID:           ptr("10006"),
+				SchoolID:           ptr(int64(10006)),
 				VerificationStatus: StatusPending,
 				VerificationMethod: ptr(VerifyMethodManual),
 				ManualFormData:     json.RawMessage(`{"studentID":"20240001","department":"计算机学院"}`),
@@ -381,10 +381,10 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 			assert.Equal(t, int64(42), userID)
 			return &IdentityStatus{UserID: userID, Verified: true}, nil
 		},
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			assert.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			assert.Equal(t, int64(10006), schoolID)
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				ApprovalPolicy:     "manual",
@@ -402,7 +402,7 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 			if getProfileCalls == 1 {
 				return nil, nil
 			}
-			schoolID := "10006"
+			schoolID := int64(10006)
 			method := VerifyMethodManual
 			activeStudentID := "20240001"
 			return &Profile{
@@ -420,7 +420,7 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/user/profile/verify",
-		strings.NewReader(`{"schoolID":"10006","manualFormData":{"studentID":"20240001"},"consent":true}`),
+		strings.NewReader(`{"schoolID":10006,"manualFormData":{"studentID":"20240001"},"consent":true}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -444,9 +444,9 @@ func TestHandleVerifyStudent_LDAPMissingStudentIDReturns400(t *testing.T) {
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 42, Verified: true}, nil
 		},
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           "ldap",
+				SchoolID:           20001,
 				SchoolName:         "LDAP 学校",
 				VerificationMethod: VerifyMethodLDAP,
 				Enabled:            true,
@@ -475,7 +475,7 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 			academicTable := "academic.buaa_students"
 			consentText := "授权说明"
 			return []SchoolConfig{{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodLDAP,
 				LDAPConfig:         json.RawMessage(`{"url":"ldaps://ldap.example:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true,"insecureSkipVerify":false}`),
@@ -502,7 +502,7 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	items := resp["data"].([]any)
 	require.Len(t, items, 1)
 	item := items[0].(map[string]any)
-	assert.Equal(t, "10006", item["schoolID"])
+	assert.Equal(t, float64(10006), item["schoolID"])
 	assert.Equal(t, "北航", item["schoolName"])
 	assert.NotContains(t, item, "SchoolID")
 	assert.NotContains(t, item, "LDAPConfig")
@@ -519,14 +519,14 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 
 func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t *testing.T) {
 	existing := &SchoolConfig{
-		SchoolID:           "10006",
+		SchoolID:           10006,
 		SchoolName:         "北航",
 		VerificationMethod: VerifyMethodLDAP,
 		Enabled:            true,
 	}
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			assert.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			assert.Equal(t, int64(10006), schoolID)
 			copied := *existing
 			return &copied, nil
 		},
@@ -554,14 +554,14 @@ func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t
 
 func TestHandleAdminUpdateSchoolConfig_MissingLDAPConfigReturnsBusinessCode(t *testing.T) {
 	existing := &SchoolConfig{
-		SchoolID:           "10006",
+		SchoolID:           10006,
 		SchoolName:         "北航",
 		VerificationMethod: VerifyMethodManual,
 		Enabled:            false,
 	}
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			assert.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			assert.Equal(t, int64(10006), schoolID)
 			copied := *existing
 			return &copied, nil
 		},
@@ -591,7 +591,7 @@ func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
 	repo := &mockRepo{
 		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{{
-				SchoolID:           "manual",
+				SchoolID:           20002,
 				SchoolName:         "人工审核学校",
 				VerificationMethod: VerifyMethodManual,
 				ManualFormFields:   json.RawMessage(`[{"key":"studentID","label":"学号","type":"text","required":true}]`),

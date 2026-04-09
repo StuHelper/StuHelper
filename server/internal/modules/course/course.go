@@ -242,7 +242,7 @@ func (h *Handler) GetCourse(c *gin.Context) {
 	}
 
 	if userHash != "" {
-		favorited, favErr := h.service.repo.FavoriteExists(ctx, userHash, courseID)
+		favorited, favErr := h.service.FavoriteExists(ctx, userHash, courseID)
 		if favErr != nil {
 			logger.FromGin(c).Warn("failed to check favorite status", zap.Error(favErr))
 		} else {
@@ -299,7 +299,7 @@ func (h *Handler) annotateFavorites(c *gin.Context, userHash string, courses []C
 	for i := range courses {
 		ids[i] = courses[i].ID
 	}
-	favSet, err := h.service.repo.BatchFavoritedCourseIDs(c.Request.Context(), userHash, ids)
+	favSet, err := h.service.BatchFavoritedCourseIDs(c.Request.Context(), userHash, ids)
 	if err != nil {
 		logger.FromGin(c).Warn("failed to batch check favorites", zap.Error(err))
 		return

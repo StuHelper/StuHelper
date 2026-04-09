@@ -1,65 +1,44 @@
 <script setup lang="ts">
-import type { VbenFormSchema } from '#/adapter/form';
-
 import { computed } from 'vue';
 
-import { ProfilePasswordSetting, z } from '@vben/common-ui';
-
-import { ElMessage } from 'element-plus';
+import { ElAlert } from 'element-plus';
 
 import { $t } from '#/locales';
+import { useAuthStore } from '#/store';
 
-const formSchema = computed((): VbenFormSchema[] => {
-  return [
-    {
-      fieldName: 'oldPassword',
-      label: $t('admin.profile.password.oldPassword'),
-      component: 'VbenInputPassword',
-      componentProps: {
-        placeholder: $t('admin.profile.password.oldPasswordPlaceholder'),
-      },
-    },
-    {
-      fieldName: 'newPassword',
-      label: $t('admin.profile.password.newPassword'),
-      component: 'VbenInputPassword',
-      componentProps: {
-        passwordStrength: true,
-        placeholder: $t('admin.profile.password.newPasswordPlaceholder'),
-      },
-    },
-    {
-      fieldName: 'confirmPassword',
-      label: $t('admin.profile.password.confirmPassword'),
-      component: 'VbenInputPassword',
-      componentProps: {
-        passwordStrength: true,
-        placeholder: $t('admin.profile.password.confirmPasswordPlaceholder'),
-      },
-      dependencies: {
-        rules(values) {
-          const { newPassword } = values;
-          return z
-            .string({ required_error: $t('admin.profile.password.confirmPasswordPlaceholder') })
-            .min(1, { message: $t('admin.profile.password.confirmPasswordPlaceholder') })
-            .refine((value) => value === newPassword, {
-              message: $t('admin.profile.password.passwordMismatch'),
-            });
-        },
-        triggerFields: ['newPassword'],
-      },
-    },
-  ];
-});
+const authStore = useAuthStore();
 
-function handleSubmit() {
-  ElMessage.success($t('admin.profile.password.updated'));
+// URL comes from the backend /auth/me response — the backend derives it
+// from the Zitadel issuer config, so the frontend never needs to know
+// where the identity provider lives.
+const zitadelAccountUrl = computed(() => authStore.accountSettingsUrl);
+
+function handleGoToZitadel() {
+  if (zitadelAccountUrl.value) {
+    window.open(zitadelAccountUrl.value, '_blank');
+  }
 }
 </script>
 <template>
-  <ProfilePasswordSetting
-    class="w-1/3"
-    :form-schema="formSchema"
-    @submit="handleSubmit"
-  />
+  <div class="w-1/3">
+    <ElAlert
+      :title="$t('admin.profile.password.managedExternally')"
+      type="info"
+      :closable="false"
+      show-icon
+    >
+      <template #default>
+        <p class="mb-3">
+          {{ $t('admin.profile.password.managedExternallyDesc') }}
+        </p>
+        <a
+          v-if="zitadelAccountUrl"
+          class="text-primary cursor-pointer underline"
+          @click="handleGoToZitadel"
+        >
+          {{ $t('admin.profile.password.goToAccountSettings') }}
+        </a>
+      </template>
+    </ElAlert>
+  </div>
 </template>

@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"strconv"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -10,6 +11,15 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
+
+// fgaWg 跟踪所有 in-flight FGA goroutine，支持优雅关闭时等待完成
+var fgaWg sync.WaitGroup
+
+// WaitFGAWrites 等待所有 in-flight FGA 异步写入完成。
+// 应在优雅关闭流程中（HTTP server 关闭后、数据库连接关闭前）调用。
+func WaitFGAWrites() {
+	fgaWg.Wait()
+}
 
 // writeFGAReviewTuples 异步写入评课的 OpenFGA 关系 tuple。
 // 非阻塞：FGA 未配置或写入失败仅记日志，不影响主流程。
@@ -19,7 +29,9 @@ func (h *Handler) writeFGAReviewTuples(c *gin.Context, reviewID, externalUserID 
 		return
 	}
 
+	fgaWg.Add(1)
 	go func() {
+		defer fgaWg.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), fga.DefaultWriteTimeout)
 		defer cancel()
 
@@ -43,7 +55,9 @@ func (h *Handler) writeFGAReportTuples(c *gin.Context, reportID, externalUserID,
 		return
 	}
 
+	fgaWg.Add(1)
 	go func() {
+		defer fgaWg.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), fga.DefaultWriteTimeout)
 		defer cancel()
 
@@ -67,7 +81,9 @@ func (h *Handler) writeFGAReportTuplesForReview(c *gin.Context, reportID, extern
 		return
 	}
 
+	fgaWg.Add(1)
 	go func() {
+		defer fgaWg.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), fga.DefaultWriteTimeout)
 		defer cancel()
 
