@@ -257,6 +257,16 @@ func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
 		return
 	}
 
+	if err := h.otpService.CheckPhoneRateLimit(c.Request.Context(), phone); err != nil {
+		if errors.Is(err, auth.ErrOTPPhoneRateLimited) {
+			response.RateLimitExceeded(c, "too many verification code requests for this phone number")
+			return
+		}
+		logger.FromGin(c).Error("failed to check bind phone OTP rate limit", zap.Error(err))
+		response.InternalError(c, "failed to send verification code")
+		return
+	}
+
 	code, err := h.otpService.Generate(c.Request.Context(), phone)
 	if err != nil {
 		if errors.Is(err, auth.ErrOTPCooldown) {
@@ -270,7 +280,7 @@ func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
 
 	internationalPhone := "+86" + phone
 	if err := h.smsService.Send(c.Request.Context(), internationalPhone, code); err != nil {
-		if cleanupErr := h.otpService.Cleanup(c.Request.Context(), phone); cleanupErr != nil {
+		if cleanupErr := h.otpService.CleanupCodeOnly(c.Request.Context(), phone); cleanupErr != nil {
 			logger.FromGin(c).Warn("failed to cleanup OTP after SMS send failure", zap.Error(cleanupErr))
 		}
 		logger.FromGin(c).Error("failed to send SMS for bind phone", zap.Error(err))

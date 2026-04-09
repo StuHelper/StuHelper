@@ -56,9 +56,9 @@ function goVerify(type: 'identity' | 'student') {
     cancelText: t('common.cancel'),
     success: (res) => {
       if (res.confirm) {
-        // @ts-expect-error plus is a global from uni-app runtime on native
-        if (typeof plus !== 'undefined' && plus.runtime) {
-          plus.runtime.openURL(targetURL)
+        const nativePlus = (globalThis as { plus?: { runtime?: { openURL: (url: string) => void } } }).plus
+        if (nativePlus?.runtime) {
+          nativePlus.runtime.openURL(targetURL)
         } else {
           uni.showToast({ title: t('user.index.verifyOnWeb'), icon: 'none' })
         }

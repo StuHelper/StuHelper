@@ -77,6 +77,23 @@ func (h *Handler) StartBackgroundJobs(ctx context.Context) {
 			}
 		}
 	}()
+
+	go func() {
+		const refreshInterval = 10 * time.Minute
+		ticker := time.NewTicker(refreshInterval)
+		defer ticker.Stop()
+
+		h.runTeacherPublicStatsRefresh(ctx)
+
+		for {
+			select {
+			case <-ticker.C:
+				h.runTeacherPublicStatsRefresh(ctx)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 // runLogCleanup 执行操作日志清理
@@ -91,4 +108,12 @@ func (h *Handler) runLogCleanup(ctx context.Context) {
 	logger.L().Info("Operation logs cleanup completed",
 		zap.Int64("deleted_count", deleted),
 	)
+}
+
+func (h *Handler) runTeacherPublicStatsRefresh(ctx context.Context) {
+	if err := h.reviewHandler.RefreshTeacherPublicStats(ctx); err != nil {
+		logger.L().Warn("Failed to refresh teacher public stats materialized view", zap.Error(err))
+		return
+	}
+	logger.L().Debug("Teacher public stats materialized view refreshed")
 }

@@ -1,7 +1,7 @@
 import type { ApiClient } from '@stuhelper/shared/api'
 import type { ApiCallResult } from './result'
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 type RequestBody = UniNamespace.RequestOptions['data']
 
 type RequestInitShape = {
@@ -329,7 +329,7 @@ function performRequest<T>(
 
     const requestTask = uni.request({
       url,
-      method,
+      method: method as unknown as UniNamespace.RequestOptions['method'],
       data: normalizeRequestBody(requestInit.body),
       header: headers,
       timeout: 15000,
@@ -360,7 +360,7 @@ function performRequest<T>(
             void performRequest<T>(method, schemaPath, init, { skipRefresh: true })
               .then(finish)
               .catch((error) => finish(toTransportErrorResult<T>(error)))
-          })
+    }) as unknown as UniNamespace.RequestTask
           return
         }
         finish(errorResult)
@@ -396,11 +396,13 @@ function performRequest<T>(
 const GET = ((schemaPath: string, init?: unknown) => performRequest('GET', schemaPath, init)) as ApiClient['GET']
 const POST = ((schemaPath: string, init?: unknown) => performRequest('POST', schemaPath, init)) as ApiClient['POST']
 const PUT = ((schemaPath: string, init?: unknown) => performRequest('PUT', schemaPath, init)) as ApiClient['PUT']
+const PATCH = ((schemaPath: string, init?: unknown) => performRequest('PATCH', schemaPath, init)) as ApiClient['PATCH']
 const DELETE = ((schemaPath: string, init?: unknown) => performRequest('DELETE', schemaPath, init)) as ApiClient['DELETE']
 
 export const apiClient: ApiClient = {
   GET,
   POST,
   PUT,
+  PATCH,
   DELETE,
 }

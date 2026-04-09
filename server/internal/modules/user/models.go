@@ -71,6 +71,7 @@ type Profile struct {
 	ReviewedAt         *time.Time
 	Phone              *string
 	PhoneVerified      bool
+	PhoneEnc           []byte // internal-only: users.phone_enc，用于在 Service 层派生掩码手机号
 	ConsentGivenAt     *time.Time
 	VerifiedAt         *time.Time
 	CreatedAt          time.Time

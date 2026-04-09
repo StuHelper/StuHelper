@@ -142,7 +142,7 @@ export function useCourseDetail() {
 
       course.value = courseRes?.data?.data ?? null
       if (course.value) {
-        userStore.setFavoriteStatus(id, course.value.isFavorited === true)
+        userStore.setFavoriteStatus(id, (course.value as { isFavorited?: boolean }).isFavorited === true)
       }
       error.value = !courseRes
       ratingStats.value = statsRes?.data?.data ?? null

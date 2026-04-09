@@ -965,12 +965,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 批量更新评论状态 */
-        post: operations["batchUpdateReviews"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** 批量更新评论状态 */
+        patch: operations["batchUpdateReviews"];
         trace?: never;
     };
     "/api/v1/course/review/admin/reviews/{reviewID}/edit": {
@@ -1557,7 +1557,8 @@ export interface components {
             termName?: string;
             title: string;
             content: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings: components["schemas"]["ReviewRatings"];
             likeCount: number;
             dislikeCount: number;
@@ -1583,13 +1584,15 @@ export interface components {
             termID: string;
             title: string;
             content: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings: components["schemas"]["ReviewRatings"];
         };
         UpdateReviewRequest: {
             title?: string;
             content: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings: components["schemas"]["ReviewRatings"];
         };
         VoteRequest: {
@@ -1632,7 +1635,8 @@ export interface components {
             termID?: string;
             title?: string;
             content?: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings?: components["schemas"]["ReviewRatings"];
             /** Format: date-time */
             updatedAt: string;
@@ -1645,7 +1649,8 @@ export interface components {
             termID?: string;
             title?: string;
             content?: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings?: components["schemas"]["ReviewRatings"];
         };
         ContentCheckRequest: {
@@ -1954,7 +1959,8 @@ export interface components {
         UserProfile: {
             /** Format: int64 */
             userID: number;
-            schoolID?: string | null;
+            /** Format: int64 */
+            schoolID?: number | null;
             studentIDs?: string[] | null;
             activeStudentID?: string | null;
             /** @enum {string} */
@@ -1977,7 +1983,8 @@ export interface components {
             updatedAt: string;
         };
         SubmitStudentVerificationRequest: {
-            schoolID: string;
+            /** Format: int64 */
+            schoolID: number;
             studentID?: string;
             password?: string;
             /** @description manual 模式动态表单提交数据 */
@@ -1992,7 +1999,8 @@ export interface components {
             otpCode: string;
         };
         SchoolConfig: {
-            schoolID: string;
+            /** Format: int64 */
+            schoolID: number;
             schoolName: string;
             /** @enum {string} */
             verificationMethod: "ldap" | "manual";
@@ -2036,7 +2044,8 @@ export interface components {
             value: string;
         };
         AdminSchoolConfig: {
-            schoolID: string;
+            /** Format: int64 */
+            schoolID: number;
             schoolName: string;
             /** @enum {string} */
             verificationMethod: "ldap" | "manual";
@@ -2115,7 +2124,8 @@ export interface components {
         AdminStudentVerificationItem: {
             /** Format: int64 */
             userID: number;
-            schoolID?: string | null;
+            /** Format: int64 */
+            schoolID?: number | null;
             studentIDs?: string[] | null;
             activeStudentID?: string | null;
             manualFormData?: {
@@ -3093,15 +3103,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -3262,15 +3268,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -3416,15 +3418,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        code?: string;
-                        data?: {
-                            list?: components["schemas"]["TeacherSummary"][];
-                            total?: number;
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            list: components["schemas"]["TeacherSummary"][];
+                            total: number;
                         };
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
         };
     };
     listHotTeachers: {
@@ -3444,14 +3447,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        code?: string;
-                        data?: {
-                            list?: components["schemas"]["TeacherSummary"][];
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            list: components["schemas"]["TeacherSummary"][];
                         };
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
         };
     };
     getUserReviews: {
@@ -3756,15 +3760,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -3841,15 +3841,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 取消收藏成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -4320,17 +4316,12 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
-            400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
@@ -4449,15 +4440,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -4816,7 +4803,7 @@ export interface operations {
             query?: {
                 status?: "pending" | "verified" | "rejected" | "all";
                 /** @description 按学校筛选 */
-                schoolID?: string;
+                schoolID?: number;
                 /** @description 页码 */
                 page?: components["parameters"]["PageParam"];
                 /** @description 每页数量 */
@@ -4912,7 +4899,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description 学校 ID */
-                schoolID: string;
+                schoolID: number;
             };
             cookie?: never;
         };

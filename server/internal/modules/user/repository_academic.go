@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
 
 const defaultAcademicDBTable = "academic.buaa_students" // kept only for migration reference
@@ -19,7 +21,8 @@ var requiredAcademicColumns = []string{
 	"xh",
 	"xm",
 	"sfzjlxdm",
-	"sfzjh",
+	"sfzjh_enc",
+	"sfzjh_hash",
 	"yxdm",
 	"zydm",
 	"bjdm",
@@ -48,14 +51,14 @@ func (r *Repository) GetAcademicStudentByXHFromTable(ctx context.Context, xh str
 
 	var item AcademicStudent
 	query := fmt.Sprintf(`
-		SELECT xh, xm, sfzjlxdm, sfzjh, yxdm, zydm, bjdm,
+		SELECT xh, xm, sfzjlxdm, sfzjh_enc, sfzjh_hash, yxdm, zydm, bjdm,
 		       xznj, rxnj, pyccdm, xslbdm, sjh, dzxx,
 		       xjztdm, sfzx, sfzj, synced_at
 		FROM %s
 		WHERE xh = $1
 	`, quotedTable)
 	err = r.db.QueryRow(ctx, query, xh).Scan(
-		&item.XH, &item.XM, &item.SFZJLXDM, &item.SFZJH, &item.YXDM, &item.ZYDM, &item.BJDM,
+		&item.XH, &item.XM, &item.SFZJLXDM, &item.SFZJHEnc, &item.SFZJHHash, &item.YXDM, &item.ZYDM, &item.BJDM,
 		&item.XZNJ, &item.RXNJ, &item.PYCCDM, &item.XSLBDM, &item.SJH, &item.DZXX,
 		&item.XJZTDM, &item.SFZX, &item.SFZJ, &item.SyncedAt,
 	)
@@ -78,16 +81,23 @@ func (r *Repository) FindAcademicStudentsByPersonUIDFromTable(ctx context.Contex
 	if err != nil {
 		return nil, fmt.Errorf("FindAcademicStudentsByPersonUIDFromTable: %w", err)
 	}
+	docHash, err := r.hashDocumentLookup(sfzjh)
+	if err != nil {
+		return nil, fmt.Errorf("FindAcademicStudentsByPersonUIDFromTable: %w", err)
+	}
 
 	query := fmt.Sprintf(`
-		SELECT xh, xm, sfzjlxdm, sfzjh, yxdm, zydm, bjdm,
+		SELECT xh, xm, sfzjlxdm, sfzjh_enc, sfzjh_hash, yxdm, zydm, bjdm,
 		       xznj, rxnj, pyccdm, xslbdm, sjh, dzxx,
 		       xjztdm, sfzx, sfzj, synced_at
 		FROM %s
-		WHERE sfzjh = $1
-		  AND ($2 = '' OR sfzjlxdm = $2)
+		WHERE (
+		       ($1 <> '' AND sfzjh_hash = $1)
+		    OR (sfzjh_hash IS NULL AND sfzjh_enc = convert_to($2, 'UTF8'))
+		)
+		  AND ($3 = '' OR sfzjlxdm = $3)
 	`, quotedTable)
-	rows, err := r.db.Query(ctx, query, sfzjh, strings.TrimSpace(sfzjlxdm))
+	rows, err := r.db.Query(ctx, query, docHash, sfzjh, strings.TrimSpace(sfzjlxdm))
 	if err != nil {
 		return nil, fmt.Errorf("FindAcademicStudentsByPersonUID: %w", err)
 	}
@@ -97,7 +107,7 @@ func (r *Repository) FindAcademicStudentsByPersonUIDFromTable(ctx context.Contex
 	for rows.Next() {
 		var item AcademicStudent
 		if err := rows.Scan(
-			&item.XH, &item.XM, &item.SFZJLXDM, &item.SFZJH, &item.YXDM, &item.ZYDM, &item.BJDM,
+			&item.XH, &item.XM, &item.SFZJLXDM, &item.SFZJHEnc, &item.SFZJHHash, &item.YXDM, &item.ZYDM, &item.BJDM,
 			&item.XZNJ, &item.RXNJ, &item.PYCCDM, &item.XSLBDM, &item.SJH, &item.DZXX,
 			&item.XJZTDM, &item.SFZX, &item.SFZJ, &item.SyncedAt,
 		); err != nil {
@@ -106,6 +116,18 @@ func (r *Repository) FindAcademicStudentsByPersonUIDFromTable(ctx context.Contex
 		list = append(list, item)
 	}
 	return list, rows.Err()
+}
+
+func (r *Repository) hashDocumentLookup(docNumber string) (string, error) {
+	trimmed := strings.TrimSpace(docNumber)
+	if trimmed == "" || len(r.hmacKey) == 0 {
+		return "", nil
+	}
+	hash, err := phoneutil.HashLookupWithKey(trimmed, r.hmacKey)
+	if err != nil {
+		return "", fmt.Errorf("hash document lookup: %w", err)
+	}
+	return hash, nil
 }
 
 // GetInternalUserID 根据外部ID获取内部用户ID

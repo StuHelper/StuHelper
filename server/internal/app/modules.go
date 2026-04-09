@@ -101,7 +101,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		ldapClient = nil
 	}
 
-	userRepo := user.NewRepository(rt.database)
+	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
 	userService, err := user.NewService(userRepo, ldapClient, crypto.GetHMACKey(), piiCipher)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user service: %w", err)

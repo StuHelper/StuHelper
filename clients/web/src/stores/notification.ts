@@ -11,6 +11,12 @@ const MAX_POLL_FAILURES = 5
 const SSE_INITIAL_RECONNECT_MS = 1_000
 const SSE_MAX_RECONNECT_MS = 30_000
 
+export interface SSENotificationEvent {
+  seq: number
+  type: 'notification' | 'notification_read' | 'notification_read_all' | 'notification_deleted' | 'unread_count'
+  data: unknown
+}
+
 export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref<AppNotification[]>([])
   const total = ref(0)
@@ -18,6 +24,11 @@ export const useNotificationStore = defineStore('notification', () => {
   const hasMore = ref(true)
   const fetchError = ref<Error | null>(null)
   const unreadCount = ref(0)
+  const lastSSEEvent = ref<SSENotificationEvent>({
+    seq: 0,
+    type: 'notification',
+    data: null,
+  })
 
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -26,6 +37,7 @@ export const useNotificationStore = defineStore('notification', () => {
   let monitoringActive = false
   let pollingFallbackActive = false
   let reconnectDelay = SSE_INITIAL_RECONNECT_MS
+  let sseSequence = 0
 
   const hasUnread = computed(() => unreadCount.value > 0)
 
@@ -58,6 +70,11 @@ export const useNotificationStore = defineStore('notification', () => {
   const stopPollingFallback = () => {
     pollingFallbackActive = false
     clearPollTimer()
+  }
+
+  const publishSSEEvent = (type: SSENotificationEvent['type'], data: unknown) => {
+    sseSequence += 1
+    lastSSEEvent.value = { seq: sseSequence, type, data }
   }
 
   const fetchNotifications = async (page = 1, pageSize = 20) => {
@@ -213,6 +230,41 @@ export const useNotificationStore = defineStore('notification', () => {
       void fetchUnreadCount()
     })
 
+    source.addEventListener('notification', (event) => {
+      try {
+        publishSSEEvent('notification', JSON.parse(event.data))
+      } catch {
+        publishSSEEvent('notification', {})
+      }
+    })
+
+    source.addEventListener('notification_read', (event) => {
+      try {
+        publishSSEEvent('notification_read', JSON.parse(event.data))
+      } catch {
+        publishSSEEvent('notification_read', {})
+      }
+      void fetchUnreadCount()
+    })
+
+    source.addEventListener('notification_read_all', (event) => {
+      try {
+        publishSSEEvent('notification_read_all', JSON.parse(event.data))
+      } catch {
+        publishSSEEvent('notification_read_all', {})
+      }
+      void fetchUnreadCount()
+    })
+
+    source.addEventListener('notification_deleted', (event) => {
+      try {
+        publishSSEEvent('notification_deleted', JSON.parse(event.data))
+      } catch {
+        publishSSEEvent('notification_deleted', {})
+      }
+      void fetchUnreadCount()
+    })
+
     source.onerror = () => {
       closeEventSource(source)
       if (!monitoringActive) {
@@ -242,6 +294,7 @@ export const useNotificationStore = defineStore('notification', () => {
     hasMore,
     unreadCount,
     hasUnread,
+    lastSSEEvent,
     fetchError,
     fetchNotifications,
     fetchUnreadCount,

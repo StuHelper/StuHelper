@@ -20,6 +20,7 @@ export interface ApiClientOptions {
 export interface ApiClient {
   GET: OpenApiClient['GET']
   PUT: OpenApiClient['PUT']
+  PATCH: OpenApiClient['PATCH']
   POST: OpenApiClient['POST']
   DELETE: OpenApiClient['DELETE']
 }

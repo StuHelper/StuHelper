@@ -16,6 +16,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
@@ -47,7 +48,7 @@ func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, r
 		db:            database,
 		cache:         cacheHelper,
 		service:       svc,
-		userRepo:      user.NewRepository(database),
+		userRepo:      user.NewRepository(database, crypto.GetHMACKey()),
 		fga:           fgaClient,
 		postLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.PostLimit, time.Minute),
 		voteLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.VoteLimit, time.Minute),
@@ -55,6 +56,11 @@ func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, r
 		replyLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.ReplyLimit, time.Minute),
 		writeLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.WriteLimit, time.Minute),
 	}
+}
+
+// RefreshTeacherPublicStats 刷新公开教师统计物化视图。
+func (h *Handler) RefreshTeacherPublicStats(ctx context.Context) error {
+	return h.service.RefreshTeacherPublicStats(ctx)
 }
 
 // RegisterRoutes 注册评课社区路由

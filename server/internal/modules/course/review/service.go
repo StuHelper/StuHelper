@@ -52,7 +52,7 @@ type Service struct {
 	db             *db.DB
 	repo           *Repository
 	filter         *Filter
-	dimensionCache atomic.Value // map[string]string
+	dimensionCache atomic.Value        // map[string]string
 	notifSender    notification.Sender // nil-safe: skip notifications if not wired
 }
 
@@ -88,6 +88,11 @@ func (s *Service) getDimensionNames() map[string]string {
 		return v.(map[string]string) //nolint:errcheck // typed by atomic.Store
 	}
 	return nil
+}
+
+// RefreshTeacherPublicStats 刷新公开教师统计物化视图。
+func (s *Service) RefreshTeacherPublicStats(ctx context.Context) error {
+	return s.repo.RefreshTeacherPublicStats(ctx)
 }
 
 // validTermID 学期 ID 格式校验：如 "2024-1"（春季）或 "2024-2"（秋季）

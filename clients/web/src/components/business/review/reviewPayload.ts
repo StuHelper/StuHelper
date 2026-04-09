@@ -1,3 +1,5 @@
+import type { ReviewRatings } from '@/types/review'
+
 export interface CreateReviewPayloadInput {
   courseID: number
   teacherID?: number
@@ -5,7 +7,7 @@ export interface CreateReviewPayloadInput {
   title: string
   content: string
   grade?: string
-  ratings: Record<string, number>
+  ratings: ReviewRatings
 }
 
 export function buildCreateReviewPayload(input: CreateReviewPayloadInput): CreateReviewPayloadInput {

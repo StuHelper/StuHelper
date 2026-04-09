@@ -1,6 +1,7 @@
 package user
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"go.uber.org/zap"
 
@@ -33,6 +35,9 @@ func (s *Service) GetUserSurface(ctx context.Context, userID int64, displayName,
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("GetUserSurface profile: %w", err)
+	}
+	if err := s.hydrateProfilePhone(profile); err != nil {
+		return nil, fmt.Errorf("GetUserSurface hydrate profile phone: %w", err)
 	}
 
 	return &UserSurface{
@@ -82,7 +87,9 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*Profile, error
 	if err != nil || profile == nil {
 		return profile, err
 	}
-	profile.Phone = normalizeMaskedPhone(profile.Phone)
+	if err := s.hydrateProfilePhone(profile); err != nil {
+		return nil, fmt.Errorf("GetProfile hydrate profile phone: %w", err)
+	}
 	return profile, nil
 }
 
@@ -117,6 +124,61 @@ func (s *Service) storeEncryptedPhone(ctx context.Context, userID int64, phone s
 		return err
 	}
 	return nil
+}
+
+func (s *Service) hydrateProfilePhone(profile *Profile) error {
+	if profile == nil {
+		return nil
+	}
+
+	profile.Phone = normalizeMaskedPhone(profile.Phone)
+	if len(profile.PhoneEnc) == 0 {
+		profile.PhoneVerified = profile.Phone != nil
+		return nil
+	}
+
+	plaintext, err := s.decryptPIIBytes(profile.PhoneEnc)
+	if err != nil {
+		return fmt.Errorf("decrypt phone_enc: %w", err)
+	}
+
+	profile.Phone = normalizeMaskedPhone(&plaintext)
+	profile.PhoneVerified = profile.Phone != nil
+	return nil
+}
+
+func (s *Service) hydrateAcademicStudent(student *AcademicStudent) error {
+	if student == nil || student.SFZJH != nil || len(student.SFZJHEnc) == 0 {
+		return nil
+	}
+
+	plaintext, err := s.decryptPIIBytes(student.SFZJHEnc)
+	if err != nil {
+		return fmt.Errorf("decrypt sfzjh_enc: %w", err)
+	}
+	plaintext = strings.TrimSpace(plaintext)
+	if plaintext == "" {
+		return nil
+	}
+	student.SFZJH = &plaintext
+	return nil
+}
+
+func (s *Service) decryptPIIBytes(ciphertext []byte) (string, error) {
+	if len(ciphertext) == 0 {
+		return "", nil
+	}
+
+	plaintext, err := s.docCipher.Decrypt(ciphertext)
+	if err == nil {
+		return plaintext, nil
+	}
+
+	trimmed := bytes.TrimSpace(ciphertext)
+	if len(trimmed) > 0 && utf8.Valid(trimmed) {
+		return string(trimmed), nil
+	}
+	return "", err
 }
 
 // VerifyStudent 学生认证（LDAP 方式）
@@ -355,7 +417,9 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		return nil, fmt.Errorf("VerifyStudent reload: %w", err)
 	}
 	if result != nil {
-		result.Phone = normalizeMaskedPhone(result.Phone)
+		if err := s.hydrateProfilePhone(result); err != nil {
+			return nil, fmt.Errorf("VerifyStudent hydrate profile phone: %w", err)
+		}
 	}
 
 	// auto-approve 路径：持久化成功后同步角色
@@ -426,7 +490,14 @@ func (s *Service) getAcademicStudentByXH(ctx context.Context, studentID string, 
 		return nil, fmt.Errorf("academic table name is required for student lookup")
 	}
 	if repoWithTable, ok := s.repo.(academicTableRepo); ok {
-		return repoWithTable.GetAcademicStudentByXHFromTable(ctx, studentID, tableName)
+		student, err := repoWithTable.GetAcademicStudentByXHFromTable(ctx, studentID, tableName)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.hydrateAcademicStudent(student); err != nil {
+			return nil, fmt.Errorf("getAcademicStudentByXH hydrate academic student: %w", err)
+		}
+		return student, nil
 	}
 	return nil, fmt.Errorf("repository does not support school-scoped academic table queries")
 }
@@ -436,7 +507,16 @@ func (s *Service) findAcademicStudentsByPersonUID(ctx context.Context, sfzjlxdm 
 		return nil, fmt.Errorf("academic table name is required for person UID lookup")
 	}
 	if repoWithTable, ok := s.repo.(academicTableRepo); ok {
-		return repoWithTable.FindAcademicStudentsByPersonUIDFromTable(ctx, sfzjlxdm, sfzjh, tableName)
+		list, err := repoWithTable.FindAcademicStudentsByPersonUIDFromTable(ctx, sfzjlxdm, sfzjh, tableName)
+		if err != nil {
+			return nil, err
+		}
+		for i := range list {
+			if err := s.hydrateAcademicStudent(&list[i]); err != nil {
+				return nil, fmt.Errorf("findAcademicStudentsByPersonUID hydrate academic student: %w", err)
+			}
+		}
+		return list, nil
 	}
 	return nil, fmt.Errorf("repository does not support school-scoped academic table queries")
 }

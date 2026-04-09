@@ -290,7 +290,7 @@ func (h *Handler) ReportReview(c *gin.Context) {
 
 // CheckContentRequest 内容检查请求
 type CheckContentRequest struct {
-	Content string `json:"content" binding:"required"`
+	Content string `json:"content" binding:"required,min=1,max=5000"`
 }
 
 // CheckContent 检查内容是否包含敏感词

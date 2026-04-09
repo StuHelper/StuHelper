@@ -145,8 +145,7 @@ func (s *Service) ResolveIdentityReviewItemAssets(ctx context.Context, item *Ide
 
 // tryAcademicDBMatch 尝试通过学籍数据库匹配进行自动实名验证
 func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName string) (bool, error) {
-	repoWithTable, ok := s.repo.(academicTableRepo)
-	if !ok {
+	if _, ok := s.repo.(academicTableRepo); !ok {
 		return false, nil
 	}
 
@@ -176,7 +175,7 @@ func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName st
 		}
 		visitedTables[tableName] = struct{}{}
 
-		students, err := repoWithTable.FindAcademicStudentsByPersonUIDFromTable(ctx, DocTypeMainlandID, docNumber, tableName)
+		students, err := s.findAcademicStudentsByPersonUID(ctx, DocTypeMainlandID, docNumber, tableName)
 		if err != nil {
 			logger.L().Warn("academic DB auto-match query failed for school",
 				zap.Int64("school_id", school.SchoolID),

@@ -146,10 +146,10 @@
                 </label>
                 <select
                     id="student-school"
-                    v-model="form.schoolID"
+                    v-model.number="form.schoolID"
                     class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary outline-none transition-all duration-fast focus:border-primary appearance-none cursor-pointer"
                 >
-                    <option value="" disabled>
+                    <option :value="0" disabled>
                         {{ t("user.verification.student.selectSchool") }}
                     </option>
                     <option
@@ -354,7 +354,7 @@ const showForm = ref(false);
 const submitting = ref(false);
 
 const form = reactive({
-    schoolID: "",
+    schoolID: 0,
     studentID: "",
     password: "",
     manualFormData: {} as Record<string, string>,
@@ -366,9 +366,9 @@ const selectedSchool = computed(() => {
     return schools.value.find((s) => s.schoolID === form.schoolID) ?? null;
 });
 
-function schoolName(schoolID: string): string {
+function schoolName(schoolID: number): string {
     const school = schools.value.find((s) => s.schoolID === schoolID);
-    return school ? school.schoolName : schoolID;
+    return school ? school.schoolName : String(schoolID);
 }
 
 const manualFields = computed(() =>

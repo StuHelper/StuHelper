@@ -24,7 +24,7 @@ export const createAdminApi = (client: ApiClient) => ({
     client.POST('/api/v1/course/review/admin/reviews/{reviewID}/edit', { params: { path: { reviewID: id } }, body: data }),
 
   batchUpdateReviews: (data: BatchUpdateReviewsRequest) =>
-    client.POST('/api/v1/course/review/admin/reviews/batch', { body: data }),
+    client.PATCH('/api/v1/course/review/admin/reviews/batch', { body: data }),
 
   getReports: (params?: { status?: 'pending' | 'resolved' | 'rejected' | 'all'; page?: number; pageSize?: number }) =>
     client.GET('/api/v1/course/review/admin/reports', { params: { query: params } }),

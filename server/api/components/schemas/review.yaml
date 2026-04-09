@@ -48,6 +48,7 @@ Review:
       type: string
     grade:
       type: string
+      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: "#/ReviewRatings"
     likeCount:
@@ -89,6 +90,7 @@ PostReviewRequest:
       pattern: '^\d{4}-[12]$'
     title:
       type: string
+      minLength: 1
       maxLength: 200
     content:
       type: string
@@ -96,6 +98,7 @@ PostReviewRequest:
       maxLength: 5000
     grade:
       type: string
+      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: "#/ReviewRatings"
 
@@ -105,6 +108,7 @@ UpdateReviewRequest:
   properties:
     title:
       type: string
+      minLength: 1
       maxLength: 200
     content:
       type: string
@@ -112,6 +116,7 @@ UpdateReviewRequest:
       maxLength: 5000
     grade:
       type: string
+      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: "#/ReviewRatings"
 
@@ -200,6 +205,7 @@ ReviewDraft:
       type: string
     grade:
       type: string
+      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: "#/ReviewRatings"
     updatedAt:
@@ -224,12 +230,14 @@ SaveDraftRequest:
       pattern: '^\d{4}-[12]$'
     title:
       type: string
+      minLength: 1
       maxLength: 200
     content:
       type: string
       maxLength: 5000
     grade:
       type: string
+      enum: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]
     ratings:
       $ref: "#/ReviewRatings"
 
@@ -239,6 +247,8 @@ ContentCheckRequest:
   properties:
     content:
       type: string
+      minLength: 1
+      maxLength: 5000
 
 ContentCheckResult:
   type: object

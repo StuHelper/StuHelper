@@ -69,7 +69,16 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 
 // ListProfiles 分页查询学生认证档案（管理端）
 func (s *Service) ListProfiles(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
-	return s.repo.ListProfilesByStatus(ctx, status, schoolID, page, pageSize)
+	list, total, err := s.repo.ListProfilesByStatus(ctx, status, schoolID, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range list {
+		if err := s.hydrateProfilePhone(&list[i]); err != nil {
+			return nil, 0, fmt.Errorf("ListProfiles hydrate profile phone: %w", err)
+		}
+	}
+	return list, total, nil
 }
 
 // ReviewStudentVerification 管理员审核学生认证（通过/驳回）

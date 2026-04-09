@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { api } from '@/api'
 import type { components } from '@/api'
+import type { ReviewRatings } from '@stuhelper/shared'
 import { assertMutationSuccess, unwrapData, unwrapOptionalData } from '@/api/result'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -16,14 +17,28 @@ const course = ref<components['schemas']['Course'] | null>(null)
 const terms = ref<components['schemas']['Term'][]>([])
 const teachers = ref<components['schemas']['CourseTeacherStats'][]>([])
 const dimensions = ref<components['schemas']['RatingDimension'][]>([])
-const form = ref({
+type ReviewGrade = NonNullable<components['schemas']['PostReviewRequest']['grade']>
+const ratingValues = [1, 2, 3, 4, 5] as const
+
+const form = ref<{
+  teacherID: number
+  termID: string
+  title: string
+  content: string
+  grade: '' | ReviewGrade
+  ratings: ReviewRatings
+}>({
   teacherID: 0,
   termID: '',
   title: '',
   content: '',
   grade: '',
-  ratings: {} as Record<string, number>,
+  ratings: {} as ReviewRatings,
 })
+
+function normalizedGrade(): ReviewGrade | undefined {
+  return form.value.grade === '' ? undefined : form.value.grade
+}
 
 const canSubmit = computed(() =>
   !!course.value && !!form.value.termID && form.value.content.trim().length >= 20 && Object.keys(form.value.ratings).length === dimensions.value.length
@@ -57,7 +72,7 @@ async function loadPage() {
       form.value.title = draft.title || ''
       form.value.content = draft.content || ''
       form.value.grade = draft.grade || ''
-      form.value.ratings = draft.ratings || {}
+      form.value.ratings = (draft.ratings ?? {}) as ReviewRatings
     }
   } catch (error) {
     uni.showToast({
@@ -79,7 +94,7 @@ function updateTeacher(event: { detail: { value: number } }) {
   form.value.teacherID = selected?.teacherID || 0
 }
 
-function setRating(key: string, value: number) {
+function setRating(key: string, value: 1 | 2 | 3 | 4 | 5) {
   form.value.ratings = { ...form.value.ratings, [key]: value }
 }
 
@@ -92,8 +107,8 @@ async function saveDraft() {
       termID: form.value.termID || undefined,
       title: form.value.title || undefined,
       content: form.value.content || undefined,
-      grade: form.value.grade || undefined,
-      ratings: Object.keys(form.value.ratings).length > 0 ? form.value.ratings : undefined,
+      grade: normalizedGrade(),
+      ratings: (Object.keys(form.value.ratings).length > 0 ? form.value.ratings : undefined) as ReviewRatings | undefined,
     }))
     uni.showToast({ title: t('review.post.draftSaved'), icon: 'success' })
   } catch (error) {
@@ -115,8 +130,8 @@ async function submitReview() {
       termID: form.value.termID,
       title: form.value.title.trim() || t('review.post.defaultTitle'),
       content: form.value.content.trim(),
-      grade: form.value.grade.trim() || undefined,
-      ratings: form.value.ratings,
+      grade: normalizedGrade(),
+      ratings: form.value.ratings as ReviewRatings,
     }))
     uni.showToast({ title: t('review.post.submitSuccess'), icon: 'success' })
     try { await api.draft.deleteDraft(course.value.id) } catch { /* draft cleanup is best-effort */ }
@@ -195,7 +210,7 @@ onLoad((options) => {
           <text class="rating-label">{{ dimension.name }}</text>
           <view class="rating-options">
             <text
-              v-for="value in [1, 2, 3, 4, 5]"
+              v-for="value in ratingValues"
               :key="value"
               class="rating-pill"
               :class="{ active: form.ratings[dimension.key] === value }"

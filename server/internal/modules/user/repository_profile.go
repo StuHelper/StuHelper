@@ -17,16 +17,17 @@ func (r *Repository) GetProfileByUserID(ctx context.Context, userID int64) (*Pro
 	var studentIDsJSON []byte
 	var manualFormDataJSON []byte
 	err := r.db.QueryRow(ctx, `
-			SELECT user_id, school_id, student_ids, active_student_id, manual_form_data,
-			       verification_status, verification_method, rejection_reason, reviewed_at,
-			       consent_given_at, verified_at,
-			       created_at, updated_at
-			FROM user_profiles
-			WHERE user_id = $1
+			SELECT p.user_id, p.school_id, p.student_ids, p.active_student_id, p.manual_form_data,
+			       p.verification_status, p.verification_method, p.rejection_reason, p.reviewed_at,
+			       u.phone_enc, p.consent_given_at, p.verified_at,
+			       p.created_at, p.updated_at
+			FROM user_profiles p
+			LEFT JOIN users u ON u.id = p.user_id
+			WHERE p.user_id = $1
 		`, userID).Scan(
 		&item.UserID, &item.SchoolID, &studentIDsJSON, &item.ActiveStudentID, &manualFormDataJSON,
 		&item.VerificationStatus, &item.VerificationMethod, &item.RejectionReason, &item.ReviewedAt,
-		&item.ConsentGivenAt, &item.VerifiedAt,
+		&item.PhoneEnc, &item.ConsentGivenAt, &item.VerifiedAt,
 		&item.CreatedAt, &item.UpdatedAt,
 	)
 	if err != nil {
@@ -41,6 +42,7 @@ func (r *Repository) GetProfileByUserID(ctx context.Context, userID int64) (*Pro
 		}
 	}
 	item.ManualFormData = manualFormDataJSON
+	item.PhoneVerified = len(item.PhoneEnc) > 0
 	return &item, nil
 }
 
@@ -94,29 +96,30 @@ func (r *Repository) UpdateProfile(ctx context.Context, profile *Profile) error 
 func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
 	var qb strings.Builder
 	qb.WriteString(`
-			SELECT user_id, school_id, student_ids, active_student_id, manual_form_data,
-			       verification_status, verification_method, rejection_reason, reviewed_at,
-			       consent_given_at, verified_at,
-			       created_at, updated_at,
-		       COUNT(*) OVER() AS total
-		FROM user_profiles
+			SELECT p.user_id, p.school_id, p.student_ids, p.active_student_id, p.manual_form_data,
+			       p.verification_status, p.verification_method, p.rejection_reason, p.reviewed_at,
+			       u.phone_enc, p.consent_given_at, p.verified_at,
+			       p.created_at, p.updated_at,
+			       COUNT(*) OVER() AS total
+		FROM user_profiles p
+		LEFT JOIN users u ON u.id = p.user_id
 		WHERE 1=1
 	`)
 	args := make([]any, 0, 4)
 	argIdx := 1
 
 	if status != "" {
-		qb.WriteString(` AND verification_status = $` + strconv.Itoa(argIdx))
+		qb.WriteString(` AND p.verification_status = $` + strconv.Itoa(argIdx))
 		args = append(args, status)
 		argIdx++
 	}
 	if schoolID != nil {
-		qb.WriteString(` AND school_id = $` + strconv.Itoa(argIdx))
+		qb.WriteString(` AND p.school_id = $` + strconv.Itoa(argIdx))
 		args = append(args, *schoolID)
 		argIdx++
 	}
 
-	qb.WriteString(` ORDER BY created_at DESC`)
+	qb.WriteString(` ORDER BY p.created_at DESC`)
 	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
 	args = append(args, pageSize, (page-1)*pageSize)
 
@@ -135,7 +138,7 @@ func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, sc
 		if err := rows.Scan(
 			&item.UserID, &item.SchoolID, &studentIDsJSON, &item.ActiveStudentID, &manualFormDataJSON,
 			&item.VerificationStatus, &item.VerificationMethod, &item.RejectionReason, &item.ReviewedAt,
-			&item.Phone, &item.PhoneVerified, &item.ConsentGivenAt, &item.VerifiedAt,
+			&item.PhoneEnc, &item.ConsentGivenAt, &item.VerifiedAt,
 			&item.CreatedAt, &item.UpdatedAt,
 			&total,
 		); err != nil {
@@ -147,6 +150,7 @@ func (r *Repository) ListProfilesByStatus(ctx context.Context, status string, sc
 			}
 		}
 		item.ManualFormData = manualFormDataJSON
+		item.PhoneVerified = len(item.PhoneEnc) > 0
 		list = append(list, item)
 	}
 	if err := rows.Err(); err != nil {

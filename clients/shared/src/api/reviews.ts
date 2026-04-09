@@ -1,11 +1,42 @@
 import type { ApiClient } from './client'
 import type { components } from '../types/api.gen'
+import type { PostReviewParams, ReviewRatings } from '../types/business/review'
 
 type PostReviewRequest = components['schemas']['PostReviewRequest']
 type UpdateReviewRequest = components['schemas']['UpdateReviewRequest']
 type VoteRequest = components['schemas']['VoteRequest']
 type ReportReviewRequest = components['schemas']['ReportReviewRequest']
 type ContentCheckRequest = components['schemas']['ContentCheckRequest']
+type ReviewGrade = NonNullable<PostReviewRequest['grade']>
+
+const REVIEW_GRADES: readonly ReviewGrade[] = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'] as const
+
+function normalizeReviewGrade(grade?: string): ReviewGrade | undefined {
+  if (!grade) return undefined
+  const trimmed = grade.trim()
+  return REVIEW_GRADES.includes(trimmed as ReviewGrade) ? (trimmed as ReviewGrade) : undefined
+}
+
+function toPostReviewRequest(data: PostReviewParams): PostReviewRequest {
+  return {
+    courseID: data.courseID,
+    content: data.content,
+    ratings: data.ratings,
+    termID: data.termID ?? '',
+    title: data.title ?? '',
+    ...(data.teacherID !== undefined && { teacherID: data.teacherID }),
+    ...(normalizeReviewGrade(data.grade) !== undefined && { grade: normalizeReviewGrade(data.grade) }),
+  }
+}
+
+function toUpdateReviewRequest(data: { title?: string; content: string; grade?: string; ratings: ReviewRatings }): UpdateReviewRequest {
+  return {
+    content: data.content,
+    ratings: data.ratings,
+    ...(data.title !== undefined && { title: data.title }),
+    ...(normalizeReviewGrade(data.grade) !== undefined && { grade: normalizeReviewGrade(data.grade) }),
+  }
+}
 
 export const createReviewApi = (client: ApiClient) => ({
   getReviewStats: () =>
@@ -41,13 +72,13 @@ export const createReviewApi = (client: ApiClient) => ({
       signal: options?.signal,
     }),
 
-  createReview: (data: PostReviewRequest) =>
-    client.POST('/api/v1/course/review/reviews', { body: data }),
+  createReview: (data: PostReviewParams) =>
+    client.POST('/api/v1/course/review/reviews', { body: toPostReviewRequest(data) }),
 
-  updateReview: (id: string, data: UpdateReviewRequest) =>
+  updateReview: (id: string, data: { title?: string; content: string; grade?: string; ratings: ReviewRatings }) =>
     client.PUT('/api/v1/course/review/reviews/{reviewID}', {
       params: { path: { reviewID: id } },
-      body: data
+      body: toUpdateReviewRequest(data)
     }),
 
   deleteReview: (id: string) =>

@@ -121,3 +121,13 @@ export function httpStatusToDefaultCode(status: number): string {
   }
   return map[status] || 'B0000001'
 }
+
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    return error.getUserMessage()
+  }
+  if (error instanceof Error && error.message.trim() !== '') {
+    return error.message
+  }
+  return fallback
+}
