@@ -132,4 +132,6 @@ ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}
 ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "14"
 ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "7"
 
+"${SCRIPT_DIR}/render-zitadel-secrets.sh"
+
 log "development environment file is ready: ${ENV_FILE}"

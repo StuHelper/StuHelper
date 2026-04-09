@@ -69,7 +69,7 @@ coverage.xml
 *.dylib
 *.test
 *.out
-# go.work  # 注释掉：项目使用 go.work 管理 workspace
+# Go workspace files are local-only for this repository.
 vendor/
 server/stuhelper
 server/tmp/
@@ -90,8 +90,12 @@ infra/generated/postgres/*
 !infra/generated/postgres/.gitkeep
 infra/generated/postgres/wal-archive/*
 !infra/generated/postgres/wal-archive/.gitkeep
+!infra/generated/zitadel/
+infra/generated/zitadel/*
+!infra/generated/zitadel/.gitkeep
 infra/ansible/inventory/*.ini
 !infra/ansible/inventory/*.example.ini
+go.work
 go.work.sum
 
 # ==================== 数据库与缓存 ====================

@@ -73,6 +73,7 @@ export TAG="${TAG:-$(git_tag_default)}"
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 "${SCRIPT_DIR}/render-postgres-tls.sh"
+"${SCRIPT_DIR}/render-zitadel-secrets.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 
 if [[ "${SKIP_BUILD:-false}" == "true" ]]; then

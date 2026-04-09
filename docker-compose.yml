@@ -259,7 +259,6 @@ services:
       ZITADEL_OIDC_DEFAULTLOGOUTURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/logout?post_logout_redirect="
       ZITADEL_SAML_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?samlRequest="
       ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED: ${ZITADEL_ACCESS_LOG_STDOUT_ENABLED:-true}
-      ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?ZITADEL_MASTERKEY is required}
     volumes:
     - zitadel_bootstrap:/zitadel/bootstrap:rw
     depends_on:
@@ -274,8 +273,9 @@ services:
         limits:
           cpus: '1.0'
           memory: 512M
+    secrets:
+    - zitadel_masterkey
   zitadel-api:
-    image: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION:-v4.13.0}
     container_name: ${STACK_NAME:-stuhelper}-zitadel-api
     restart: unless-stopped
     security_opt:
@@ -286,7 +286,7 @@ services:
       ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8085}
       ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
       ZITADEL_TLS_ENABLED: "false"
-      # DSN 模式连接共享 PostgreSQL（stuhelper 超级用户，Zitadel 自动建库）
+      # DSN 模式连接共享 PostgreSQL（使用独立 zitadel 用户）
       ZITADEL_DATABASE_POSTGRES_DSN: postgresql://zitadel:${ZITADEL_DB_PASSWORD}@postgres:5432/zitadel?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
       # 首次初始化配置
       ZITADEL_FIRSTINSTANCE_ORG_NAME: stuhelper-platform
@@ -333,6 +333,14 @@ services:
         limits:
           cpus: '1.0'
           memory: 1G
+    build:
+      context: .
+      dockerfile: infra/zitadel/Dockerfile.runtime
+      args:
+        ZITADEL_IMAGE: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION:-v4.13.0}
+    image: stuhelper/zitadel-api:${ZITADEL_VERSION:-v4.13.0}
+    secrets:
+    - zitadel_masterkey
   zitadel-login:
     image: ghcr.io/zitadel/zitadel-login:${ZITADEL_VERSION:-v4.13.0}
     container_name: ${STACK_NAME:-stuhelper}-zitadel-login
@@ -575,6 +583,9 @@ services:
         limits:
           cpus: '1.0'
           memory: 512M
+    read_only: true
+    tmpfs:
+    - /tmp
   prometheus:
     profiles: [observability, prod]
     image: prom/prometheus:${PROMETHEUS_VERSION:-v3.5.0}
@@ -1059,3 +1070,6 @@ networks:
   zitadel-internal:
     name: ${STACK_NAME:-stuhelper}-zitadel-internal
     driver: bridge
+secrets:
+  zitadel_masterkey:
+    file: ./infra/generated/zitadel/masterkey
