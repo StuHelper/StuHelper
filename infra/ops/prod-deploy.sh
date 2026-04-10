@@ -143,6 +143,9 @@ export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 "${SCRIPT_DIR}/render-zitadel-secrets.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 
+log "building Zitadel runtime images"
+build_zitadel_runtime_images
+
 log "pulling immutable production images for release ${TAG}"
 compose --profile prod pull app frontend admin
 

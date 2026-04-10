@@ -14,6 +14,9 @@ require_cmd python3
 load_env
 "${SCRIPT_DIR}/render-observability.sh" dev
 
+log "building Zitadel runtime images"
+build_zitadel_runtime_images
+
 base_services=(
   postgres
   redis

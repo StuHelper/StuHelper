@@ -62,10 +62,11 @@ ZITADEL_MANAGEMENT_PAT_VALUE="$(docker run --rm -v "${BOOTSTRAP_VOLUME}:/bootstr
 log "bootstrapping OpenFGA store and model"
 if command -v go >/dev/null 2>&1; then
   FGA_OUTPUT="$(
-    cd "${REPO_ROOT}" && \
+    cd "${REPO_ROOT}/server" && \
     OPENFGA_API_URL="${OPENFGA_API_URL:-http://localhost:8081}" \
     OPENFGA_STORE_ID="${OPENFGA_STORE_ID:-}" \
-    go run ./server/cmd/fga-setup
+    FGA_MODEL_PATH="${FGA_MODEL_PATH:-${REPO_ROOT}/infra/openfga/model.fga}" \
+    go run ./cmd/fga-setup
   )"
 else
   FGA_OUTPUT="$(
@@ -75,6 +76,7 @@ else
       -w /workspace/server \
       -e OPENFGA_API_URL="http://openfga:8080" \
       -e OPENFGA_STORE_ID="${OPENFGA_STORE_ID:-}" \
+      -e FGA_MODEL_PATH="${FGA_MODEL_PATH:-/workspace/infra/openfga/model.fga}" \
       golang:1.26-bookworm \
       go run ./cmd/fga-setup
   )"

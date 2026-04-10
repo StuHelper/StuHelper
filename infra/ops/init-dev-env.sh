@@ -134,6 +134,9 @@ ensure_value "PROMETHEUS_RETENTION_SIZE" "${PROMETHEUS_RETENTION_SIZE:-}" "20GB"
 ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "7"
 ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "14"
 ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "7"
+ensure_value "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "stuhelper/backend:dev-placeholder"
+ensure_value "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "stuhelper/frontend:dev-placeholder"
+ensure_value "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "stuhelper/admin:dev-placeholder"
 
 "${SCRIPT_DIR}/render-zitadel-secrets.sh"
 

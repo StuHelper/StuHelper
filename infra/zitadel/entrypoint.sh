@@ -14,4 +14,4 @@ export ZITADEL_MASTERKEY="$(tr -d '\r\n' < "${MASTERKEY_FILE}")"
   exit 1
 }
 
-exec /app/zitadel start "$@"
+exec /app/zitadel start --masterkeyFile "${MASTERKEY_FILE}" "$@"

@@ -92,8 +92,28 @@ compose() {
     set +a && \
     ENV_FILE_PATH="${ENV_FILE}" \
     GENERATED_ENV_FILE_PATH="${GENERATED_ENV_FILE}" \
+    BACKEND_IMAGE_REF="${BACKEND_IMAGE_REF:-}" \
+    FRONTEND_IMAGE_REF="${FRONTEND_IMAGE_REF:-}" \
+    ADMIN_IMAGE_REF="${ADMIN_IMAGE_REF:-}" \
     docker compose --env-file "${ENV_FILE}" "$@"
   )
+}
+
+build_zitadel_runtime_images() {
+  local version="${ZITADEL_VERSION:-v4.13.0}"
+  local base_image="ghcr.io/zitadel/zitadel:${version}"
+
+  docker build \
+    --build-arg "ZITADEL_IMAGE=${base_image}" \
+    -f "${REPO_ROOT}/infra/zitadel/Dockerfile.init" \
+    -t "stuhelper/zitadel-init:${version}" \
+    "${REPO_ROOT}"
+
+  docker build \
+    --build-arg "ZITADEL_IMAGE=${base_image}" \
+    -f "${REPO_ROOT}/infra/zitadel/Dockerfile.runtime" \
+    -t "stuhelper/zitadel-api:${version}" \
+    "${REPO_ROOT}"
 }
 
 wait_for_http() {
