@@ -2180,6 +2180,7 @@ paths:
             type: string
             enum:
               - published
+              - pending_review
               - hidden
               - deleted
               - all
@@ -2510,6 +2511,7 @@ paths:
             enum:
               - all
               - published
+              - pending_review
               - hidden
               - deleted
             default: all
@@ -3735,6 +3737,10 @@ components:
         canAccessAdmin:
           type: boolean
           description: 当前用户是否拥有至少一个可直接进入现有后台界面的全局能力
+        accountSettingsUrl:
+          type: string
+          format: uri
+          description: 身份提供方账户设置页，用于修改密码等账号安全设置
     Course:
       type: object
       required:
@@ -3906,8 +3912,16 @@ components:
           type: string
           enum:
             - published
+            - pending_review
             - hidden
             - deleted
+        contentFlag:
+          type: string
+          enum:
+            - warn
+            - review
+            - cleared
+          description: 内容审核标记；review 表示待人工复核，warn 表示已发布但需关注
         moderationReason:
           type:
             - string
@@ -4543,6 +4557,7 @@ components:
             - hide
             - restore
             - delete
+          description: restore 对 pending_review 状态表示审核通过并发布
         reason:
           type: string
           maxLength: 500
@@ -4565,6 +4580,7 @@ components:
             - hide
             - restore
             - delete
+          description: restore 对 pending_review 状态表示审核通过并发布
     BatchUpdateResult:
       type: object
       required:

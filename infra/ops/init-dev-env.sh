@@ -103,6 +103,9 @@ load_env
 
 ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable"
 ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"
+ensure_dev_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
+ensure_dev_default "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off" "on"
+ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "60s"
 ensure_value "REDIS_HOST" "${REDIS_HOST:-}" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
 ensure_value "ZITADEL_EXTERNALPORT" "${ZITADEL_EXTERNALPORT:-}" "8085"

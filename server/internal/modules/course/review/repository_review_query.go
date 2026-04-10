@@ -85,6 +85,7 @@ type UpdateParams struct {
 	Content     string
 	Grade       string
 	Ratings     []byte
+	Status      string
 	ContentFlag *string
 }
 
@@ -93,9 +94,9 @@ func (r *Repository) Update(ctx context.Context, tx pgx.Tx, p UpdateParams) erro
 	_, err := tx.Exec(ctx, `
 		UPDATE reviews SET title = $2, content = $3, grade = $4, ratings = $5,
 			avg_rating = COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($5) WHERE value ~ '^\d+(\.\d+)?$'), 0),
-			content_flag = $6, updated_at = NOW()
+			status = $6, content_flag = $7, updated_at = NOW()
 		WHERE id = $1
-	`, p.ID, p.Title, p.Content, p.Grade, p.Ratings, p.ContentFlag)
+	`, p.ID, p.Title, p.Content, p.Grade, p.Ratings, p.Status, p.ContentFlag)
 	return err
 }
 

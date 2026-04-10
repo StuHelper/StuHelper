@@ -14,6 +14,9 @@
   - test -n "${DEPLOY_TARGET_USER:-}" || { echo "DEPLOY_TARGET_USER is required"; exit 1; }
   - test -n "${DEPLOY_TARGET_APP_DIR:-}" || { echo "DEPLOY_TARGET_APP_DIR is required"; exit 1; }
   - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
+  - test -n "${BACKEND_IMAGE_REF:-}" || { echo "BACKEND_IMAGE_REF is required"; exit 1; }
+  - test -n "${FRONTEND_IMAGE_REF:-}" || { echo "FRONTEND_IMAGE_REF is required"; exit 1; }
+  - test -n "${ADMIN_IMAGE_REF:-}" || { echo "ADMIN_IMAGE_REF is required"; exit 1; }
   - apk add --no-cache openssh-client bash tar gzip
   - export TARGET_TAG="${DEPLOY_TAG:-${CI_COMMIT_SHORT_SHA}}"
   - export REMOTE_SHARED_ENV_FILE="${DEPLOY_SHARED_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.shared}"
@@ -30,6 +33,9 @@
     REGISTRY_USERNAME=${REGISTRY_USERNAME}
     REGISTRY_PASSWORD=${REGISTRY_PASSWORD}
     TAG=${TARGET_TAG}
+    BACKEND_IMAGE_REF=${BACKEND_IMAGE_REF}
+    FRONTEND_IMAGE_REF=${FRONTEND_IMAGE_REF}
+    ADMIN_IMAGE_REF=${ADMIN_IMAGE_REF}
     ENV_FILE=${REMOTE_SHARED_ENV_FILE}
     SECRETS_ENV_FILE=${REMOTE_SECRETS_ENV_FILE}
     GENERATED_ENV_FILE=${DEPLOY_TARGET_APP_DIR}/.env.prod.generated
@@ -100,12 +106,16 @@ package_backend:
       docker tag "${BACKEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${BACKEND_IMAGE}:develop-latest"
     fi
   - docker push "${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+  - printf 'BACKEND_IMAGE_REF=%s\n' "${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA}" > backend-image.env
   - |-
     if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
       docker push "${BACKEND_IMAGE}:latest"
     else
       docker push "${BACKEND_IMAGE}:develop-latest"
     fi
+  artifacts:
+    reports:
+      dotenv: backend-image.env
   needs:
   - openapi_contract
   - backend_lint
@@ -129,12 +139,16 @@ package_frontend:
       docker tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${FRONTEND_IMAGE}:develop-latest"
     fi
   - docker push "${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+  - printf 'FRONTEND_IMAGE_REF=%s\n' "${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA}" > frontend-image.env
   - |-
     if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
       docker push "${FRONTEND_IMAGE}:latest"
     else
       docker push "${FRONTEND_IMAGE}:develop-latest"
     fi
+  artifacts:
+    reports:
+      dotenv: frontend-image.env
   needs:
   - openapi_contract
   - frontend_lint
@@ -158,12 +172,16 @@ package_admin:
       docker tag "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" "${ADMIN_IMAGE}:develop-latest"
     fi
   - docker push "${ADMIN_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+  - printf 'ADMIN_IMAGE_REF=%s\n' "${ADMIN_IMAGE}:${CI_COMMIT_SHORT_SHA}" > admin-image.env
   - |-
     if [ "${CI_COMMIT_BRANCH}" = "main" ]; then
       docker push "${ADMIN_IMAGE}:latest"
     else
       docker push "${ADMIN_IMAGE}:develop-latest"
     fi
+  artifacts:
+    reports:
+      dotenv: admin-image.env
   needs:
   - openapi_contract
   - admin_lint

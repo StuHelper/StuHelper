@@ -42,12 +42,12 @@ describe('useNotificationStore', () => {
       })
 
       const store = useNotificationStore()
-      await store.fetchNotifications(1, 20)
+      await store.fetchPageNotifications(1, 20)
 
-      expect(store.notifications).toEqual(list)
-      expect(store.total).toBe(2)
-      expect(store.loading).toBe(false)
-      expect(store.hasMore).toBe(false)
+      expect(store.pageNotifications).toEqual(list)
+      expect(store.pageTotal).toBe(2)
+      expect(store.pageLoading).toBe(false)
+      expect(store.pageHasMore).toBe(false)
     })
 
     it('appends deduplicated items on subsequent pages', async () => {
@@ -56,7 +56,7 @@ describe('useNotificationStore', () => {
       mockGetNotifications.mockResolvedValue({
         data: { data: { list: [{ id: '1', message: 'a', isRead: false }], total: 3 } },
       })
-      await store.fetchNotifications(1, 1)
+      await store.fetchPageNotifications(1, 1)
 
       // Page 2 with overlap
       mockGetNotifications.mockResolvedValue({
@@ -70,21 +70,21 @@ describe('useNotificationStore', () => {
           },
         },
       })
-      await store.fetchNotifications(2, 2)
+      await store.fetchPageNotifications(2, 2)
 
-      expect(store.notifications).toHaveLength(2) // no duplicate
-      expect(store.hasMore).toBe(true)
+      expect(store.pageNotifications).toHaveLength(2) // no duplicate
+      expect(store.pageHasMore).toBe(true)
     })
 
     it('sets fetchError on failure', async () => {
       mockGetNotifications.mockRejectedValue(new Error('network error'))
 
       const store = useNotificationStore()
-      await expect(store.fetchNotifications()).rejects.toThrow('network error')
+      await expect(store.fetchPageNotifications()).rejects.toThrow('network error')
 
-      expect(store.fetchError).toBeTruthy()
-      expect(store.fetchError?.message).toBe('network error')
-      expect(store.loading).toBe(false)
+      expect(store.pageFetchError).toBeTruthy()
+      expect(store.pageFetchError?.message).toBe('network error')
+      expect(store.pageLoading).toBe(false)
     })
 
     it('normalizes invalid page params', async () => {
@@ -93,9 +93,32 @@ describe('useNotificationStore', () => {
       })
 
       const store = useNotificationStore()
-      await store.fetchNotifications(-1, 0)
+      await store.fetchPageNotifications(-1, 0)
 
       expect(mockGetNotifications).toHaveBeenCalledWith(1, 20)
+    })
+  })
+
+  describe('fetchBellNotifications', () => {
+    it('loads a bell preview without polluting page state', async () => {
+      mockGetNotifications.mockResolvedValue({
+        data: {
+          data: {
+            list: [
+              { id: '1', message: 'bell-1', isRead: false },
+              { id: '2', message: 'bell-2', isRead: false },
+            ],
+            total: 2,
+          },
+        },
+      })
+
+      const store = useNotificationStore()
+      await store.fetchBellNotifications(1, 5)
+
+      expect(store.bellNotifications).toHaveLength(2)
+      expect(store.pageNotifications).toHaveLength(0)
+      expect(store.bellLoading).toBe(false)
     })
   })
 
@@ -138,12 +161,12 @@ describe('useNotificationStore', () => {
       })
 
       const store = useNotificationStore()
-      await store.fetchNotifications()
+      await store.fetchPageNotifications()
       store.unreadCount = 3
 
       await store.markAsRead('1')
 
-      expect(store.notifications[0].isRead).toBe(true)
+      expect(store.pageNotifications[0].isRead).toBe(true)
       expect(store.unreadCount).toBe(2)
     })
 
@@ -159,7 +182,7 @@ describe('useNotificationStore', () => {
       })
 
       const store = useNotificationStore()
-      await store.fetchNotifications()
+      await store.fetchPageNotifications()
       store.unreadCount = 0
 
       await store.markAsRead('1')
@@ -184,12 +207,12 @@ describe('useNotificationStore', () => {
       })
 
       const store = useNotificationStore()
-      await store.fetchNotifications()
+      await store.fetchPageNotifications()
       store.unreadCount = 2
 
       await store.markAllAsRead()
 
-      expect(store.notifications.every(n => n.isRead)).toBe(true)
+      expect(store.pageNotifications.every(n => n.isRead)).toBe(true)
       expect(store.unreadCount).toBe(0)
     })
   })
@@ -206,17 +229,17 @@ describe('useNotificationStore', () => {
       })
 
       const store = useNotificationStore()
-      await store.fetchNotifications()
+      await store.fetchPageNotifications()
       store.unreadCount = 5
 
       store.reset()
 
-      expect(store.notifications).toEqual([])
-      expect(store.total).toBe(0)
+      expect(store.pageNotifications).toEqual([])
+      expect(store.pageTotal).toBe(0)
       expect(store.unreadCount).toBe(0)
-      expect(store.loading).toBe(false)
-      expect(store.hasMore).toBe(true)
-      expect(store.fetchError).toBeNull()
+      expect(store.pageLoading).toBe(false)
+      expect(store.pageHasMore).toBe(true)
+      expect(store.pageFetchError).toBeNull()
     })
   })
 })

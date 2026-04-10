@@ -1,15 +1,33 @@
 <template>
   <div class="max-w-[600px] mx-auto p-6 animate-fade-in">
-    <div class="flex items-center justify-between mb-6 pb-4 border-b border-border-light">
-      <h1 class="font-sans text-xl font-extrabold tracking-tight text-text-primary m-0">
-        {{ t('user.notification.title') }}
-        <!-- L-42: 未读数量变化时屏幕阅读器播报 -->
-        <span v-if="hasUnread" class="sr-only" aria-live="polite" role="status">
-          {{ t('user.notification.unreadCount', { count: store.unreadCount }) }}
-        </span>
-      </h1>
+    <div class="flex items-start justify-between gap-4 mb-4 pb-4 border-b border-border-light">
+      <div>
+        <h1 class="font-sans text-xl font-extrabold tracking-tight text-text-primary m-0">
+          {{ t('user.notification.title') }}
+          <!-- L-42: 未读数量变化时屏幕阅读器播报 -->
+          <span v-if="hasUnread" class="sr-only" aria-live="polite" role="status">
+            {{ t('user.notification.unreadCount', { count: unreadCount }) }}
+          </span>
+        </h1>
+        <div class="mt-3 flex items-center gap-2">
+          <button
+            v-for="option in filterOptions"
+            :key="option.value"
+            type="button"
+            class="rounded-full px-3 py-1 text-sm border transition-colors duration-fast"
+            :class="activeFilter === option.value
+              ? 'border-text-primary text-text-primary'
+              : 'border-border-light text-text-muted hover:text-text-primary hover:border-text-primary'"
+            @click="activeFilter = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+
       <button
         v-if="hasUnread"
+        type="button"
         class="py-1 px-3 bg-transparent rounded-full text-text-muted text-sm cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
         @click="handleMarkAllRead"
       >
@@ -22,9 +40,9 @@
       :has-more="hasMore"
       @load-more="loadMore"
     >
-      <div v-if="notifications.length > 0" class="border-0 rounded-md overflow-hidden">
+      <div v-if="visibleNotifications.length > 0" class="border-0 rounded-md overflow-hidden">
         <NotificationItem
-          v-for="(n, index) in notifications"
+          v-for="(n, index) in visibleNotifications"
           :key="n.id"
           :notification="n"
           class="stagger-item"
@@ -42,7 +60,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
@@ -50,28 +69,55 @@ import type { Notification } from '@/types/notification'
 import NotificationItem from '@/components/common/NotificationItem.vue'
 import InfiniteScroll from '@/components/common/InfiniteScroll.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { useNotificationSSESync, type NotificationFilter } from '@/composables/useNotificationSSESync'
 
 const router = useRouter()
 const { t } = useI18n()
 const store = useNotificationStore()
+const {
+  pageNotifications,
+  pageTotal,
+  pageLoading,
+  pageHasMore,
+  unreadCount,
+  hasUnread,
+  lastSSEEvent,
+} = storeToRefs(store)
 
-const notifications = computed(() => store.notifications)
-const loading = computed(() => store.loading)
-const hasMore = computed(() => store.hasMore)
-const hasUnread = computed(() => store.hasUnread)
+const activeFilter = ref<NotificationFilter>('all')
 
+useNotificationSSESync(pageNotifications, pageTotal, activeFilter, lastSSEEvent)
+
+const filterOptions = [
+  { value: 'all' as const, label: t('user.notification.filterAll') },
+  { value: 'unread' as const, label: t('user.notification.filterUnread') },
+  { value: 'read' as const, label: t('user.notification.filterRead') },
+]
+
+const visibleNotifications = computed(() => {
+  switch (activeFilter.value) {
+    case 'unread':
+      return pageNotifications.value.filter(notification => !notification.isRead)
+    case 'read':
+      return pageNotifications.value.filter(notification => notification.isRead)
+    default:
+      return pageNotifications.value
+  }
+})
+
+const loading = computed(() => pageLoading.value)
+const hasMore = computed(() => activeFilter.value === 'all' && pageHasMore.value)
 const page = ref(1)
 
 onMounted(() => {
-  void store.fetchNotifications(1).catch(() => {})
+  void store.fetchPageNotifications(1).catch(() => {})
 })
 
 const loadMore = async () => {
-  // 防止上一请求未完成时重复翻页
   if (loading.value || !hasMore.value) return
   page.value++
   try {
-    await store.fetchNotifications(page.value)
+    await store.fetchPageNotifications(page.value)
   } catch {
     page.value = Math.max(1, page.value - 1)
   }
@@ -84,7 +130,6 @@ const handleMarkAllRead = () => {
 const handleClick = async (n: Notification) => {
   store.markAsRead(n.id).catch(() => {})
 
-  // 优先使用后端提供的 courseID 精准跳转
   if (n.courseID) {
     router.push(`/courses/${n.courseID}/reviews`)
     return
@@ -98,7 +143,6 @@ const handleClick = async (n: Notification) => {
   }
 
   if (n.relatedType === 'review') {
-    // courseID 不可用时的 fallback：跳转到用户评价列表
     router.push({ name: 'user-reviews' })
   }
 }

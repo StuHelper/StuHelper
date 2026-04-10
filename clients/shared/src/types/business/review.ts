@@ -22,7 +22,8 @@ export interface Review {
   likeCount: number
   dislikeCount: number
   replyCount: number
-  status: 'published' | 'hidden' | 'deleted'
+  status: 'published' | 'pending_review' | 'hidden' | 'deleted'
+  contentFlag?: 'warn' | 'review' | 'cleared' | null
   moderationReason?: string | null
   createdAt: string
   updatedAt?: string

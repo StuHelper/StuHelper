@@ -124,10 +124,18 @@ export function httpStatusToDefaultCode(status: number): string {
 
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
-    return error.getUserMessage()
-  }
-  if (error instanceof Error && error.message.trim() !== '') {
-    return error.message
+    if (isNetworkError(error.code)) {
+      const localized = error.getUserMessage().trim()
+      return localized || fallback
+    }
+
+    const sanitizedMessage = error.message.trim()
+    if (sanitizedMessage !== '') {
+      return sanitizedMessage
+    }
+
+    const localized = error.getUserMessage().trim()
+    return localized || fallback
   }
   return fallback
 }

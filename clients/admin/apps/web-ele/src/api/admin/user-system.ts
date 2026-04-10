@@ -38,11 +38,18 @@ export async function getStudentVerificationList(params: {
   schoolId?: string;
   status?: 'all' | 'pending' | 'rejected' | 'verified';
 }) {
+  const schoolID =
+    params.schoolId && params.schoolId.trim() !== ''
+      ? Number(params.schoolId)
+      : undefined;
+
   return unwrapListData<StudentVerification>(
     await userAdminApi.listStudentVerifications({
       page: params.page,
       pageSize: params.pageSize,
-      ...(params.schoolId ? { schoolID: params.schoolId } : {}),
+      ...(schoolID === undefined || Number.isNaN(schoolID)
+        ? {}
+        : { schoolID }),
       status: params.status,
     }),
   );
@@ -62,7 +69,7 @@ export async function getSchoolConfigList() {
 }
 
 export async function updateSchoolConfig(
-  schoolId: string,
+  schoolId: number,
   data: UpdateSchoolConfigPayload,
 ) {
   return unwrapData(await userAdminApi.updateSchoolConfig(schoolId, data));

@@ -2,10 +2,10 @@ package review
 
 import (
 	"context"
-	"time"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -192,9 +192,9 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 	params.Content = sanitizer.SanitizeText(params.Content)
 
 	// 敏感词检查
-	checkResult := s.filter.CheckContent(ctx, params.Content)
-	if !checkResult.IsValid {
-		return nil, ErrSensitiveContent
+	replyStatus, err := buildReplyModerationStatus(s.filter.CheckContent(ctx, params.Content))
+	if err != nil {
+		return nil, err
 	}
 
 	var replyID string
@@ -214,9 +214,13 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 			ParentID: params.ParentID,
 			UserHash: params.UserHash,
 			Content:  params.Content,
+			Status:   replyStatus,
 		})
 		if err != nil {
 			return err
+		}
+		if !isPublicReviewStatus(replyStatus) {
+			return nil
 		}
 		return s.repo.IncrementReplyCount(ctx, tx, params.ReviewID)
 	}); err != nil {
@@ -229,7 +233,7 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 	}
 
 	// 发送回复通知给评价作者
-	if s.notifSender != nil {
+	if s.notifSender != nil && isPublicReviewStatus(replyStatus) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -244,7 +248,7 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 			ParentID:  params.ParentID,
 			Content:   params.Content,
 			LikeCount: 0,
-			Status:    StatusPublished,
+			Status:    replyStatus,
 			IsOwner:   true,
 			CreatedAt: replyTS.CreatedAt,
 			UpdatedAt: replyTS.UpdatedAt,
@@ -317,7 +321,10 @@ func (s *Service) DeleteReply(ctx context.Context, params DeleteReplyParams) err
 		if err := s.repo.SoftDeleteReply(ctx, tx, params.ReplyID); err != nil {
 			return err
 		}
-		return s.repo.DecrementReplyCount(ctx, tx, reviewID)
+		if isPublicReviewStatus(status) {
+			return s.repo.DecrementReplyCount(ctx, tx, reviewID)
+		}
+		return nil
 	})
 }
 

@@ -142,6 +142,8 @@ async function mountHost() {
   // Avoid real SSE/polling side effects in jsdom; tests drive store state directly.
   store.connectSSE = vi.fn()
   store.stopPolling = vi.fn()
+  store.fetchPageNotifications = vi.fn().mockResolvedValue(undefined)
+  store.fetchBellNotifications = vi.fn().mockResolvedValue(undefined)
 
   const router = createRouter({
     history: createMemoryHistory(),
@@ -192,25 +194,18 @@ describe('NotificationBell + NotificationsPage shared-store integration', () => 
     const unread = makeNotification('1')
     const read = makeNotification('2', { isRead: true })
 
-    mockGetNotifications
-      .mockResolvedValueOnce({
-        data: { data: { list: [unread, read], total: 2, unread: 1 } },
-      })
-      .mockResolvedValueOnce({
-        data: { data: { list: [read], total: 1, unread: 1 } },
-      })
-
     const { wrapper, store } = await mountHost()
-    store.notifications = [unread, read]
+    store.pageNotifications = [unread, read]
+    store.bellNotifications = [unread, read]
     store.unreadCount = 1
-    store.fetchNotifications = vi.fn().mockResolvedValue(undefined)
+    await nextTick()
 
     const readFilter = findButtonByText(wrapper, 'Read')
     expect(readFilter).toBeTruthy()
     await readFilter!.trigger('click')
     await flushPromises()
 
-    let pageItems = wrapper.findAll('.page-item')
+    const pageItems = wrapper.findAll('.page-item')
     expect(pageItems).toHaveLength(1)
     expect(pageItems[0].attributes('data-id')).toBe('2')
 
@@ -219,7 +214,7 @@ describe('NotificationBell + NotificationsPage shared-store integration', () => 
     await flushPromises()
 
     const bellItems = wrapper.findAll('.bell-item')
-    expect(store.fetchNotifications).toHaveBeenCalledWith(1, 5)
+    expect(store.fetchBellNotifications).toHaveBeenCalledWith(1, 5)
     expect(bellItems).toHaveLength(2)
     expect(bellItems.map(item => item.attributes('data-id'))).toEqual(['1', '2'])
   })
@@ -228,14 +223,11 @@ describe('NotificationBell + NotificationsPage shared-store integration', () => 
     const existing = makeNotification('2')
     const incoming = makeNotification('1')
 
-    mockGetNotifications.mockResolvedValueOnce({
-      data: { data: { list: [existing], total: 1, unread: 1 } },
-    })
-
     const { wrapper, store } = await mountHost()
-    store.notifications = [existing]
+    store.pageNotifications = [existing]
+    store.bellNotifications = [existing]
     store.unreadCount = 1
-    store.fetchNotifications = vi.fn().mockResolvedValue(undefined)
+    await nextTick()
 
     const bellButton = wrapper.get('button[aria-label="Notifications Bell"]')
     await bellButton.trigger('click')
@@ -244,7 +236,6 @@ describe('NotificationBell + NotificationsPage shared-store integration', () => 
     expect(wrapper.findAll('.page-item').map(item => item.attributes('data-id'))).toEqual(['2'])
     expect(wrapper.findAll('.bell-item').map(item => item.attributes('data-id'))).toEqual(['2'])
 
-    store.notifications = [incoming, ...store.notifications]
     store.lastSSEEvent = { type: 'notification', data: incoming, seq: 1 }
     await nextTick()
 
@@ -256,19 +247,11 @@ describe('NotificationBell + NotificationsPage shared-store integration', () => 
     const n1 = makeNotification('1')
     const n2 = makeNotification('2')
 
-    mockGetNotifications
-      .mockResolvedValueOnce({
-        data: { data: { list: [n1, n2], total: 2, unread: 2 } },
-      })
-      .mockResolvedValueOnce({
-        data: { data: { list: [n1, n2], total: 2, unread: 2 } },
-      })
-    mockMarkAsRead.mockResolvedValue({})
-
     const { wrapper, store } = await mountHost()
-    store.notifications = [n1, n2]
+    store.pageNotifications = [n1, n2]
+    store.bellNotifications = [n1, n2]
     store.unreadCount = 2
-    store.fetchNotifications = vi.fn().mockResolvedValue(undefined)
+    await nextTick()
 
     const bellButton = wrapper.get('button[aria-label="Notifications Bell"]')
     await bellButton.trigger('click')

@@ -1,10 +1,10 @@
 package review
 
 import (
-	"time"
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -61,7 +61,8 @@ type DeleteReviewParams struct {
 func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*PostReviewResult, error) {
 	var err error
 	var contentFlag *string
-	params.Title, params.Content, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
+	var status string
+	params.Title, params.Content, status, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,12 +116,16 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 			Grade:       params.Grade,
 			Ratings:     ratingsData,
 			UserHash:    params.UserHash,
+			Status:      status,
 			ContentFlag: contentFlag,
 		})
 		if err != nil {
 			return err
 		}
 		review = *created
+		if !isPublicReviewStatus(review.Status) {
+			return nil
+		}
 		if err := s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID); err != nil {
 			return err
 		}
@@ -140,6 +145,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		Details: map[string]interface{}{
 			"review_id": reviewID,
 			"course_id": params.CourseID,
+			"status":    review.Status,
 		},
 	})
 
@@ -225,7 +231,8 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) error {
 	var err error
 	var contentFlag *string
-	params.Title, params.Content, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, "")
+	var nextStatus string
+	params.Title, params.Content, nextStatus, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, "")
 	if err != nil {
 		return err
 	}
@@ -236,14 +243,14 @@ func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) e
 	}
 
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		ownerHash, courseID, teacherID, status, err := s.repo.GetReviewOwnerCourseTeacherStatusTx(ctx, tx, params.ReviewID)
+		ownerHash, courseID, teacherID, currentStatus, err := s.repo.GetReviewOwnerCourseTeacherStatusTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrReviewNotFound
 			}
 			return err
 		}
-		if status != StatusPublished {
+		if currentStatus != StatusPublished && currentStatus != StatusPendingReview {
 			return ErrReviewNotFound
 		}
 		if ownerHash != params.UserHash {
@@ -256,11 +263,29 @@ func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) e
 			Content:     params.Content,
 			Grade:       params.Grade,
 			Ratings:     ratingsData,
+			Status:      nextStatus,
 			ContentFlag: contentFlag,
 		}); err != nil {
 			return err
 		}
-		return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
+
+		wasPublic := isPublicReviewStatus(currentStatus)
+		isPublic := isPublicReviewStatus(nextStatus)
+		switch {
+		case wasPublic && !isPublic:
+			if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+				return err
+			}
+		case !wasPublic && isPublic:
+			if err := s.repo.IncrementCourseReviewCount(ctx, tx, courseID); err != nil {
+				return err
+			}
+		}
+
+		if wasPublic || isPublic {
+			return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
+		}
+		return nil
 	})
 }
 

@@ -36,10 +36,9 @@ export const useDraftStore = defineStore('draft', () => {
     // 按缓存时间戳排序，清除最旧的
     keys.sort((a, b) => (cacheTimestamps.get(a) ?? 0) - (cacheTimestamps.get(b) ?? 0))
     const toRemove = keys.slice(0, keys.length - MAX_DRAFT_ENTRIES)
-    let next = { ...drafts.value }
+    const next = { ...drafts.value }
     for (const key of toRemove) {
-      const { [key]: _, ...rest } = next
-      next = rest
+      delete next[key]
       cacheTimestamps.delete(key)
     }
     drafts.value = next
@@ -137,8 +136,9 @@ export const useDraftStore = defineStore('draft', () => {
   // 删除草稿
   const deleteDraft = async (courseID: number) => {
     await api.draft.deleteDraft(courseID)
-    const { [courseID]: _, ...rest } = drafts.value
-    drafts.value = rest
+    const next = { ...drafts.value }
+    delete next[courseID]
+    drafts.value = next
     cacheTimestamps.delete(courseID)
   }
 

@@ -123,19 +123,26 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	// 同步本地 shadow user
-	if h.userSyncRepo != nil {
-		if syncErr := h.userSyncRepo.UpsertUser(ctx, UserSyncInput{
-			ExternalID: claims.GetUserID(),
-			Username:   claims.GetUsername(),
-			Email:      claims.GetEmail(),
-			AvatarURL:  claims.GetAvatar(),
-		}); syncErr != nil {
-			logger.FromGin(c).Warn("user sync failed, skipping",
-				zap.String("user_id", claims.GetUserID()),
-				zap.Error(syncErr),
-			)
-		}
+	// 同步本地 shadow user；登录成功必须意味着内部主体已经就绪。
+	if h.userSyncRepo == nil {
+		logger.FromGin(c).Error("user sync repository is not configured")
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "user sync repository not configured")
+		response.InternalError(c, "authentication failed")
+		return
+	}
+	if syncErr := h.userSyncRepo.UpsertUser(ctx, UserSyncInput{
+		ExternalID: claims.GetUserID(),
+		Username:   claims.GetUsername(),
+		Email:      claims.GetEmail(),
+		AvatarURL:  claims.GetAvatar(),
+	}); syncErr != nil {
+		logger.FromGin(c).Error("user sync failed",
+			zap.String("user_id", claims.GetUserID()),
+			zap.Error(syncErr),
+		)
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "user sync failed")
+		response.InternalError(c, "authentication failed")
+		return
 	}
 
 	// 将 ID Token 作为 access_token 写入 Cookie

@@ -47,7 +47,7 @@ const form = reactive({
   insecureSkipVerify: false,
   ldapBaseDN: '',
   ldapURL: '',
-  schoolID: '',
+  schoolID: 0,
   schoolName: '',
   systemBindDN: '',
   systemBindPassword: '',

@@ -264,6 +264,7 @@ type CreateReplyParams struct {
 	ParentID *string
 	UserHash string
 	Content  string
+	Status   string
 }
 
 // ReplyTimestamps holds the DB-generated timestamps for a newly created reply.
@@ -280,10 +281,10 @@ func (r *Repository) CreateReply(ctx context.Context, tx pgx.Tx, p CreateReplyPa
 	}
 	var ts ReplyTimestamps
 	err = tx.QueryRow(ctx, `
-		INSERT INTO review_replies (id, review_id, parent_id, user_hash, content)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO review_replies (id, review_id, parent_id, user_hash, content, status)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING created_at, updated_at
-	`, replyID, p.ReviewID, p.ParentID, p.UserHash, p.Content).Scan(&ts.CreatedAt, &ts.UpdatedAt)
+	`, replyID, p.ReviewID, p.ParentID, p.UserHash, p.Content, p.Status).Scan(&ts.CreatedAt, &ts.UpdatedAt)
 	if err != nil {
 		return "", nil, fmt.Errorf("CreateReply: %w", err)
 	}

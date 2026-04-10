@@ -16,7 +16,7 @@ export type AdminStats = components['schemas']['AdminStats'];
 export interface ReviewListParams {
   page?: number;
   pageSize?: number;
-  status?: 'all' | 'deleted' | 'hidden' | 'published';
+  status?: 'all' | 'deleted' | 'hidden' | 'pending_review' | 'published';
 }
 
 export async function getReviewList(params: ReviewListParams) {

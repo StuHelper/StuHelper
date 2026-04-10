@@ -86,9 +86,10 @@ const messages = {
 function makeNotification(id: string, isRead: boolean) {
   return {
     id,
-    type: 'reply',
+    type: 'reply' as const,
     title: `notification-${id}`,
     isRead,
+    createdAt: '2026-04-08T00:00:00Z',
   }
 }
 
@@ -191,16 +192,9 @@ describe('NotificationsPage.vue integration', () => {
     const n1 = makeNotification('1', false)
     const n2 = makeNotification('2', false)
 
-    mockGetNotifications
-      .mockResolvedValueOnce({
-        data: { data: { list: [n1, n2], total: 2, unread: 2 } },
-      })
-      .mockResolvedValueOnce({
-        data: { data: { list: [n1, n2], total: 2, unread: 2 } },
-      })
-    mockMarkAsRead.mockResolvedValue({})
-
     const { wrapper, store } = await mountPage()
+    store.pageNotifications = [n1, n2]
+    await nextTick()
 
     const buttons = wrapper.findAll('button')
     const unreadButton = buttons.find(button => button.text() === 'Unread')

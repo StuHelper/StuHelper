@@ -9,9 +9,12 @@ const baseAuthApi = createAuthApi(sharedBaseApiClient);
 
 export namespace AuthApi {
   export type LoginUrlResult = components['schemas']['LoginURLResponse'];
-  export type MeResult = components['schemas']['UserInfo'] & {
-    accountSettingsUrl?: string;
-  };
+  export type MeResult = components['schemas']['UserInfo'];
+}
+
+export function getAccountSettingsUrl(me: AuthApi.MeResult): string {
+  const value = (me as Record<string, unknown>).accountSettingsUrl;
+  return typeof value === 'string' ? value : '';
 }
 
 /**

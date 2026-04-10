@@ -85,11 +85,14 @@
       "rating": "评分",
       "status": {
         "published": "已发布",
+        "pendingReview": "待审核",
         "hidden": "已隐藏",
         "deleted": "已删除"
       },
       "hide": "隐藏",
+      "approve": "通过",
       "restore": "恢复",
+      "confirmApprove": "确认通过并发布？",
       "confirmHide": "确认隐藏？",
       "confirmDelete": "确认删除？"
     },

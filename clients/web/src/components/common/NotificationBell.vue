@@ -51,22 +51,26 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bell } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
 import NotificationList from './NotificationList.vue'
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useNotificationStore()
 const showPanel = ref(false)
+const hasLoadedHistory = ref(false)
 
-const notifications = computed(() => store.notifications.slice(0, 5))
+const notifications = computed(() => store.bellNotifications.slice(0, 5))
 const unreadCount = computed(() => store.unreadCount)
 const hasUnread = computed(() => store.hasUnread)
-const loading = computed(() => store.loading)
+const loading = computed(() => store.bellLoading)
 
-const togglePanel = () => {
+const togglePanel = async () => {
   showPanel.value = !showPanel.value
-  if (showPanel.value && notifications.value.length === 0) {
-    store.fetchNotifications(1, 5)
+  if (showPanel.value && !hasLoadedHistory.value) {
+    hasLoadedHistory.value = true
+    await store.fetchBellNotifications(1, 5).catch(() => {})
   }
 }
 
@@ -78,9 +82,22 @@ const handleMarkAllRead = async () => {
   }
 }
 
-const handleNotificationClick = async (id: string) => {
+const handleNotificationClick = async (payload: string | { id: string; sourceUrl?: string; relatedType?: string; relatedID?: string }) => {
+  const notification = typeof payload === 'string' ? { id: payload } : payload
   try {
-    await store.markAsRead(id)
+    await store.markAsRead(notification.id)
+    showPanel.value = false
+    if (notification.sourceUrl) {
+      await router.push(notification.sourceUrl)
+      return
+    }
+    if (notification.relatedType === 'course' && notification.relatedID) {
+      await router.push(`/courses/${notification.relatedID}/reviews`)
+      return
+    }
+    if (notification.relatedType === 'review') {
+      await router.push({ name: 'user-reviews' })
+    }
   } catch {
     // API 失败时不更新本地状态（store 先调 API 再更新）
   }

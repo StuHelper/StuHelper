@@ -96,7 +96,7 @@
         in: query
         schema:
           type: string
-          enum: [published, hidden, deleted, all]
+          enum: [published, pending_review, hidden, deleted, all]
           default: all
       - $ref: '../components/parameters/common.yaml#/PageParam'
       - $ref: '../components/parameters/common.yaml#/PageSizeParam'
@@ -404,7 +404,7 @@
         in: query
         schema:
           type: string
-          enum: [all, published, hidden, deleted]
+          enum: [all, published, pending_review, hidden, deleted]
           default: all
     responses:
       '200':

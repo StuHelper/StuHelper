@@ -4,20 +4,43 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
-// ClearContentFlag 管理员复核通过，清除 content_flag
-func (r *Repository) ClearContentFlag(ctx context.Context, reviewID, adminUserID string) error {
-	tag, err := r.db.Exec(ctx, `
+// GetReviewContentFlagStateTx 在事务内读取评论审核状态和内容标记。
+func (r *Repository) GetReviewContentFlagStateTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, *string, int64, *int64, error) {
+	var (
+		status      string
+		contentFlag *string
+		courseID    int64
+		teacherID   *int64
+	)
+
+	err := tx.QueryRow(ctx, `
+		SELECT status, content_flag, course_id, teacher_id
+		FROM reviews
+		WHERE id = $1
+		FOR UPDATE
+	`, reviewID).Scan(&status, &contentFlag, &courseID, &teacherID)
+	if err != nil {
+		return "", nil, 0, nil, fmt.Errorf("GetReviewContentFlagStateTx: %w", err)
+	}
+	return status, contentFlag, courseID, teacherID, nil
+}
+
+// ClearContentFlagTx 管理员复核通过，清除 warn/review 内容标记。
+func (r *Repository) ClearContentFlagTx(ctx context.Context, tx pgx.Tx, reviewID, adminUserID string) error {
+	tag, err := tx.Exec(ctx, `
 		UPDATE reviews
 		SET content_flag = 'cleared',
 		    content_flag_cleared_at = $2,
 		    content_flag_cleared_by = $3,
 		    updated_at = NOW()
-		WHERE id = $1 AND content_flag = 'warn'
+		WHERE id = $1 AND content_flag IN ('warn', 'review')
 	`, reviewID, time.Now().UTC(), adminUserID)
 	if err != nil {
-		return fmt.Errorf("ClearContentFlag: %w", err)
+		return fmt.Errorf("ClearContentFlagTx: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrReviewNotFound
@@ -25,15 +48,15 @@ func (r *Repository) ClearContentFlag(ctx context.Context, reviewID, adminUserID
 	return nil
 }
 
-// ListFlaggedReviews 获取待复核评课列表（content_flag = 'warn'）
+// ListFlaggedReviews 获取待复核评课列表（content_flag in warn/review）。
 func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int) ([]Review, int, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.course_id, r.title, r.content, r.status, r.content_flag,
 		       r.user_hash, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
-		WHERE r.content_flag = 'warn'
-		ORDER BY r.created_at DESC
+		WHERE r.content_flag IN ('warn', 'review')
+		ORDER BY CASE WHEN r.content_flag = 'review' THEN 0 ELSE 1 END, r.created_at DESC
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
 	if err != nil {

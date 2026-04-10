@@ -25,9 +25,9 @@ type AdminUpdateReviewParams struct {
 // validTransitions 定义合法的状态转移白名单
 // key: action, value: 允许的源状态集合
 var validTransitions = map[string]map[string]bool{
-	"hide":    {StatusPublished: true},
-	"restore": {StatusHidden: true},
-	"delete":  {StatusPublished: true, StatusHidden: true},
+	"hide":    {StatusPublished: true, StatusPendingReview: true},
+	"restore": {StatusHidden: true, StatusPendingReview: true},
+	"delete":  {StatusPublished: true, StatusHidden: true, StatusPendingReview: true},
 }
 
 // AdminUpdateReviewResult 管理员更新评论结果
@@ -35,8 +35,8 @@ type AdminUpdateReviewResult struct {
 	OldStatus string // 事务内读取的旧状态，用于审计日志
 }
 
-// AdminUpdateReview 管理员更新评论，返回事务内读取的旧状态
-// hide 时如果提供了 Reason/AdminID，同时记录屏蔽原因；restore 时自动清除屏蔽信息
+// AdminUpdateReview 管理员更新评论，返回事务内读取的旧状态。
+// restore 对 pending_review 表示审核通过并发布。
 func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) (*AdminUpdateReviewResult, error) {
 	var oldStatus string
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
@@ -69,26 +69,36 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 					return err
 				}
 			}
-			if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
-				return err
+			if isPublicReviewStatus(currentStatus) {
+				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+					return err
+				}
 			}
 		case "restore":
 			newStatus = StatusPublished
 			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, newStatus); err != nil {
 				return err
 			}
-			if err := s.repo.ClearModerationTx(ctx, tx, params.ReviewID); err != nil {
-				return err
+			if currentStatus == StatusPendingReview {
+				if err := s.repo.ClearContentFlagTx(ctx, tx, params.ReviewID, params.AdminID); err != nil {
+					return err
+				}
+			} else {
+				if err := s.repo.ClearModerationTx(ctx, tx, params.ReviewID); err != nil {
+					return err
+				}
 			}
-			if err := s.repo.IncrementCourseReviewCount(ctx, tx, courseID); err != nil {
-				return err
+			if !isPublicReviewStatus(currentStatus) {
+				if err := s.repo.IncrementCourseReviewCount(ctx, tx, courseID); err != nil {
+					return err
+				}
 			}
 		case "delete":
 			newStatus = StatusDeleted
 			if err := s.repo.SoftDeleteReview(ctx, tx, params.ReviewID); err != nil {
 				return err
 			}
-			if currentStatus == StatusPublished {
+			if isPublicReviewStatus(currentStatus) {
 				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
 					return err
 				}
@@ -97,7 +107,7 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			return ErrInvalidAction
 		}
 
-		if currentStatus == StatusPublished || newStatus == StatusPublished {
+		if isPublicReviewStatus(currentStatus) || isPublicReviewStatus(newStatus) {
 			return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
 		}
 		return nil
@@ -131,14 +141,9 @@ func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewPar
 		return ErrContentEmpty
 	}
 
-	checkResult := s.filter.CheckContent(ctx, title+" "+content)
-	if !checkResult.IsValid && checkResult.Level == "block" {
-		return ErrSensitiveContent
-	}
-	var contentFlag *string
-	if checkResult.Level == "warn" && checkResult.MatchCount > 0 {
-		flag := "warn"
-		contentFlag = &flag
+	decision, err := buildReviewModerationDecision(s.filter.CheckContent(ctx, title+" "+content))
+	if err != nil {
+		return err
 	}
 
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
@@ -150,7 +155,7 @@ func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewPar
 			}
 			return err
 		}
-		return s.repo.AdminEditReviewContentTx(ctx, tx, params.ReviewID, title, content, params.Reason, params.AdminID, contentFlag)
+		return s.repo.AdminEditReviewContentTx(ctx, tx, params.ReviewID, title, content, params.Reason, params.AdminID, decision.ContentFlag)
 	})
 }
 

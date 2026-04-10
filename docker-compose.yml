@@ -67,22 +67,23 @@ services:
     - -c
     - wal_level=replica
     - -c
-    - archive_mode=on
+    - archive_mode=${POSTGRES_ARCHIVE_MODE:-on}
     - -c
-    - archive_timeout=60s
+    - archive_timeout=${POSTGRES_ARCHIVE_TIMEOUT:-60s}
     - -c
     - archive_command=sh -c 'test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f'
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-stuhelper}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-stuhelper}
+      PGDATA: ${POSTGRES_PGDATA:-/var/lib/postgresql/data}
       STUHELPER_APP_DB_PASSWORD: ${STUHELPER_APP_DB_PASSWORD:?STUHELPER_APP_DB_PASSWORD is required}
       ZITADEL_DB_PASSWORD: ${ZITADEL_DB_PASSWORD:?ZITADEL_DB_PASSWORD is required}
       OPENFGA_DB_PASSWORD: ${OPENFGA_DB_PASSWORD:?OPENFGA_DB_PASSWORD is required}
     ports:
     - "127.0.0.1:5432:5432"
     volumes:
-    - postgres_data:/var/lib/postgresql/data
+    - postgres_data:/var/lib/postgresql
     - ./infra/postgres/init-extra-dbs.sh:/docker-entrypoint-initdb.d/00-init-extra-dbs.sh:ro
     - ./infra/generated/postgres:/tls:ro
     - ./infra/generated/postgres/wal-archive:/var/lib/postgresql/wal-archive
@@ -906,14 +907,7 @@ services:
     - /tmp
   app:
     profiles: [prod]
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-      args:
-        VERSION: ${TAG:-local}
-        GIT_COMMIT: ${TAG:-local}
-        BUILD_TIME: ${BUILD_TIME:-unknown}
-    image: registry.stuhelper.com/stuhelper/backend:${TAG:-latest}
+    image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
     container_name: ${STACK_NAME:-stuhelper}-app
     env_file:
     - ${ENV_FILE_PATH:-.env}
@@ -962,14 +956,7 @@ services:
     - observability
   frontend:
     profiles: [prod]
-    build:
-      context: ./clients
-      dockerfile: web/Dockerfile
-      args:
-        VITE_API_URL: ${WEB_VITE_API_URL:-}
-        VITE_SSO_URL: ${WEB_VITE_SSO_URL:-http://localhost:8085}
-        VITE_API_TIMEOUT_MS: ${WEB_VITE_API_TIMEOUT_MS:-15000}
-    image: registry.stuhelper.com/stuhelper/frontend:${TAG:-latest}
+    image: ${FRONTEND_IMAGE_REF:?FRONTEND_IMAGE_REF is required}
     container_name: ${STACK_NAME:-stuhelper}-frontend
     ports:
     - "127.0.0.1:3000:80"
@@ -997,13 +984,7 @@ services:
     - /var/run
   admin:
     profiles: [prod]
-    build:
-      context: ./clients/admin
-      dockerfile: scripts/deploy/Dockerfile
-      args:
-        VITE_GLOB_API_URL: ${ADMIN_VITE_API_URL:-/api/v1}
-        VITE_BASE: ${ADMIN_VITE_BASE:-/}
-    image: registry.stuhelper.com/stuhelper/admin:${TAG:-latest}
+    image: ${ADMIN_IMAGE_REF:?ADMIN_IMAGE_REF is required}
     container_name: ${STACK_NAME:-stuhelper}-admin
     ports:
     - "127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}:8080"

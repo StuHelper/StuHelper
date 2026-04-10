@@ -1,11 +1,13 @@
 /**
  * 通知状态管理
  */
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { Notification as AppNotification } from '@/types/notification'
 import { api, NOTIFICATION_STREAM_PATH } from '@/api'
 
+const PAGE_DEFAULT_SIZE = 20
+const BELL_PREVIEW_SIZE = 5
 const POLL_INTERVAL_MS = 30_000
 const MAX_POLL_FAILURES = 5
 const SSE_INITIAL_RECONNECT_MS = 1_000
@@ -17,12 +19,41 @@ export interface SSENotificationEvent {
   data: unknown
 }
 
+function mergeUnique<T extends { id: string }>(primary: T[], secondary: T[]) {
+  const seen = new Set(primary.map(item => item.id))
+  return [...primary, ...secondary.filter(item => !seen.has(item.id))]
+}
+
+function applyItemUpdate<T extends { id: string }>(
+  items: T[],
+  id: string,
+  update: (item: T) => T,
+) {
+  let changed = false
+  const next = items.map((item) => {
+    if (item.id !== id) {
+      return item
+    }
+    changed = true
+    return update(item)
+  })
+  return { changed, next }
+}
+
+function extractUnreadCount(notification: AppNotification | undefined) {
+  return notification && !notification.isRead
+}
+
 export const useNotificationStore = defineStore('notification', () => {
-  const notifications = ref<AppNotification[]>([])
-  const total = ref(0)
-  const loading = ref(false)
-  const hasMore = ref(true)
-  const fetchError = ref<Error | null>(null)
+  const pageNotifications = ref<AppNotification[]>([])
+  const pageTotal = ref(0)
+  const pageLoading = ref(false)
+  const pageHasMore = ref(true)
+  const pageFetchError = ref<Error | null>(null)
+
+  const bellNotifications = ref<AppNotification[]>([])
+  const bellLoading = ref(false)
+
   const unreadCount = ref(0)
   const lastSSEEvent = ref<SSENotificationEvent>({
     seq: 0,
@@ -77,31 +108,125 @@ export const useNotificationStore = defineStore('notification', () => {
     lastSSEEvent.value = { seq: sseSequence, type, data }
   }
 
-  const fetchNotifications = async (page = 1, pageSize = 20) => {
-    if (page < 1) page = 1
-    if (pageSize < 1) pageSize = 20
+  const syncUnreadFromNotification = (notification: AppNotification | undefined, delta: number) => {
+    if (!extractUnreadCount(notification)) {
+      return
+    }
+    unreadCount.value = Math.max(0, unreadCount.value + delta)
+  }
 
-    loading.value = true
-    fetchError.value = null
-    try {
-      const res = await api.notification.getNotifications(page, pageSize)
-      const list = res.data?.data?.list || []
+  const upsertBellNotification = (notification: AppNotification) => {
+    const existingIndex = bellNotifications.value.findIndex(item => item.id === notification.id)
+    if (existingIndex >= 0) {
+      bellNotifications.value = [
+        notification,
+        ...bellNotifications.value.filter(item => item.id !== notification.id),
+      ].slice(0, BELL_PREVIEW_SIZE)
+      return true
+    }
 
-      if (page === 1) {
-        notifications.value = list
-      } else {
-        const existingIDs = new Set(notifications.value.map((n: AppNotification) => n.id))
-        const newItems = list.filter((n: AppNotification) => !existingIDs.has(n.id))
-        notifications.value = [...notifications.value, ...newItems]
+    bellNotifications.value = [notification, ...bellNotifications.value].slice(0, BELL_PREVIEW_SIZE)
+    return true
+  }
+
+  watch(lastSSEEvent, (event) => {
+    if (!event || event.seq === 0) {
+      return
+    }
+
+    switch (event.type) {
+      case 'notification': {
+        const notification = event.data as AppNotification
+        const existing = bellNotifications.value.find(item => item.id === notification.id)
+        upsertBellNotification(notification)
+        if (!existing) {
+          syncUnreadFromNotification(notification, 1)
+        }
+        break
       }
+      case 'notification_read': {
+        const { id } = event.data as { id: string }
+        const previous = bellNotifications.value.find(item => item.id === id)
+        const { changed, next } = applyItemUpdate(bellNotifications.value, id, item => ({ ...item, isRead: true }))
+        if (changed) {
+          bellNotifications.value = next
+        }
+        if (changed && extractUnreadCount(previous)) {
+          unreadCount.value = Math.max(0, unreadCount.value - 1)
+        }
+        break
+      }
+      case 'notification_read_all': {
+        const hadUnread = bellNotifications.value.some(item => !item.isRead)
+        if (bellNotifications.value.length > 0) {
+          bellNotifications.value = bellNotifications.value.map(item => ({ ...item, isRead: true }))
+        }
+        if (hadUnread) {
+          unreadCount.value = 0
+        }
+        break
+      }
+      case 'notification_deleted': {
+        const { id } = event.data as { id: string }
+        const previous = bellNotifications.value.find(item => item.id === id)
+        const next = bellNotifications.value.filter(item => item.id !== id)
+        if (next.length !== bellNotifications.value.length) {
+          bellNotifications.value = next
+          if (extractUnreadCount(previous)) {
+            unreadCount.value = Math.max(0, unreadCount.value - 1)
+          }
+        }
+        break
+      }
+      case 'unread_count': {
+        const data = event.data as { count?: number }
+        if (typeof data?.count === 'number') {
+          unreadCount.value = Math.max(0, data.count)
+        }
+        break
+      }
+    }
+  })
 
-      total.value = res.data?.data?.total || 0
-      hasMore.value = notifications.value.length < total.value
+  const fetchPageNotifications = async (page = 1, pageSize = PAGE_DEFAULT_SIZE) => {
+    const normalizedPage = page < 1 ? 1 : page
+    const normalizedPageSize = pageSize < 1 ? PAGE_DEFAULT_SIZE : pageSize
+
+    pageLoading.value = true
+    pageFetchError.value = null
+    try {
+      const res = await api.notification.getNotifications(normalizedPage, normalizedPageSize)
+      const list = (res.data?.data?.list || []) as AppNotification[]
+      const total = res.data?.data?.total || 0
+
+      pageNotifications.value = normalizedPage === 1
+        ? list
+        : mergeUnique(pageNotifications.value, list)
+
+      pageTotal.value = total
+      pageHasMore.value = pageNotifications.value.length < total
     } catch (err) {
-      fetchError.value = err instanceof Error ? err : new Error(String(err))
+      pageFetchError.value = err instanceof Error ? err : new Error(String(err))
       throw err
     } finally {
-      loading.value = false
+      pageLoading.value = false
+    }
+  }
+
+  const fetchBellNotifications = async (page = 1, pageSize = BELL_PREVIEW_SIZE) => {
+    const normalizedPage = page < 1 ? 1 : page
+    const normalizedPageSize = pageSize < 1 ? BELL_PREVIEW_SIZE : pageSize
+
+    bellLoading.value = true
+    try {
+      const res = await api.notification.getNotifications(normalizedPage, normalizedPageSize)
+      const list = (res.data?.data?.list || []) as AppNotification[]
+
+      bellNotifications.value = normalizedPage === 1
+        ? mergeUnique(list, bellNotifications.value)
+        : mergeUnique(bellNotifications.value, list)
+    } finally {
+      bellLoading.value = false
     }
   }
 
@@ -122,19 +247,30 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   const markAsRead = async (id: string) => {
+    const previous = pageNotifications.value.find(notification => notification.id === id)
+      ?? bellNotifications.value.find(notification => notification.id === id)
+
     await api.notification.markAsRead(id)
-    const target = notifications.value.find((notification) => notification.id === id)
-    if (target && !target.isRead) {
-      notifications.value = notifications.value.map((notification) => (
-        notification.id === id ? { ...notification, isRead: true } : notification
-      ))
+
+    const pageUpdate = applyItemUpdate(pageNotifications.value, id, notification => ({ ...notification, isRead: true }))
+    if (pageUpdate.changed) {
+      pageNotifications.value = pageUpdate.next
+    }
+
+    const bellUpdate = applyItemUpdate(bellNotifications.value, id, notification => ({ ...notification, isRead: true }))
+    if (bellUpdate.changed) {
+      bellNotifications.value = bellUpdate.next
+    }
+
+    if (extractUnreadCount(previous)) {
       unreadCount.value = Math.max(0, unreadCount.value - 1)
     }
   }
 
   const markAllAsRead = async () => {
     await api.notification.markAllAsRead()
-    notifications.value = notifications.value.map((notification) => ({ ...notification, isRead: true }))
+    pageNotifications.value = pageNotifications.value.map(notification => ({ ...notification, isRead: true }))
+    bellNotifications.value = bellNotifications.value.map(notification => ({ ...notification, isRead: true }))
     unreadCount.value = 0
   }
 
@@ -226,16 +362,13 @@ export const useNotificationStore = defineStore('notification', () => {
       }
     })
 
-    source.addEventListener('notification', () => {
-      void fetchUnreadCount()
-    })
-
     source.addEventListener('notification', (event) => {
       try {
         publishSSEEvent('notification', JSON.parse(event.data))
       } catch {
         publishSSEEvent('notification', {})
       }
+      void fetchUnreadCount()
     })
 
     source.addEventListener('notification_read', (event) => {
@@ -279,24 +412,30 @@ export const useNotificationStore = defineStore('notification', () => {
 
   const reset = () => {
     stopPolling()
-    notifications.value = []
-    total.value = 0
-    loading.value = false
-    hasMore.value = true
+    pageNotifications.value = []
+    pageTotal.value = 0
+    pageLoading.value = false
+    pageHasMore.value = true
+    pageFetchError.value = null
+    bellNotifications.value = []
+    bellLoading.value = false
     unreadCount.value = 0
-    fetchError.value = null
+    lastSSEEvent.value = { seq: 0, type: 'notification', data: null }
   }
 
   return {
-    notifications,
-    total,
-    loading,
-    hasMore,
+    pageNotifications,
+    pageTotal,
+    pageLoading,
+    pageHasMore,
+    pageFetchError,
+    bellNotifications,
+    bellLoading,
     unreadCount,
     hasUnread,
     lastSSEEvent,
-    fetchError,
-    fetchNotifications,
+    fetchPageNotifications,
+    fetchBellNotifications,
     fetchUnreadCount,
     markAsRead,
     markAllAsRead,

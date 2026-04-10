@@ -136,7 +136,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 		admin.GET("/reviews", rbac.RequireCapability(capability.AdminReviewsManage), h.ListAllReviews)
 		admin.PUT("/reviews/:reviewID", rbac.RequireCapability(capability.AdminReviewsManage), h.AdminUpdateReview)
 		admin.POST("/reviews/:reviewID/edit", rbac.RequireCapability(capability.AdminReviewsManage), h.AdminEditReviewContent)
-		admin.POST("/reviews/batch", rbac.RequireCapability(capability.AdminReviewsManage), h.BatchUpdateReviews)
+		admin.PATCH("/reviews/batch", rbac.RequireCapability(capability.AdminReviewsManage), h.BatchUpdateReviews)
 		admin.GET("/stats", rbac.RequireCapability(capability.AdminDashboardView), h.GetAdminStats)
 		admin.GET("/logs", rbac.RequireCapability(capability.AdminLogsView), h.GetOperationLogs)
 		admin.GET("/export", rbac.RequireCapability(capability.AdminReviewsManage), h.ExportReviews)

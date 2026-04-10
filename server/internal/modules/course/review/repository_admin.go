@@ -10,13 +10,14 @@ import (
 
 // allowedStatuses 允许的 status 参数白名单
 var allowedStatuses = map[string]bool{
-	"all":       true,
-	"published": true,
-	"hidden":    true,
-	"deleted":   true,
-	"pending":   true,
-	"resolved":  true,
-	"rejected":  true,
+	"all":            true,
+	"published":      true,
+	"pending_review": true,
+	"hidden":         true,
+	"deleted":        true,
+	"pending":        true,
+	"resolved":       true,
+	"rejected":       true,
 }
 
 // validateStatus 校验 status 参数是否在白名单内，不合法时回退为 fallback

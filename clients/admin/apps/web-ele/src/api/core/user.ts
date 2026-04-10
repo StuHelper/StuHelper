@@ -6,11 +6,6 @@ import { preferences } from '@vben/preferences';
 
 import { getMeApi } from './auth';
 
-/**
- * Raw /auth/me response enriched with Vben-compatible UserInfo.
- * Preserves backend-only fields (e.g. accountSettingsUrl) alongside
- * the Vben-shaped userInfo for the route guard and auth store.
- */
 export interface MeWithUserInfo {
   userInfo: UserInfo;
   me: AuthApi.MeResult;

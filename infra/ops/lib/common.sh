@@ -50,6 +50,11 @@ load_env() {
   ensure_env_file
   ensure_secrets_env_file
   ensure_generated_files
+  local preserved_tag="${TAG-__STUHELPER_UNSET__}"
+  local preserved_rollback_tag="${ROLLBACK_TAG-__STUHELPER_UNSET__}"
+  local preserved_backend_image_ref="${BACKEND_IMAGE_REF-__STUHELPER_UNSET__}"
+  local preserved_frontend_image_ref="${FRONTEND_IMAGE_REF-__STUHELPER_UNSET__}"
+  local preserved_admin_image_ref="${ADMIN_IMAGE_REF-__STUHELPER_UNSET__}"
   set -a
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
@@ -59,16 +64,31 @@ load_env() {
   fi
   # shellcheck disable=SC1090
   source "${GENERATED_ENV_FILE}"
+  if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi
+  if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi
+  if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi
+  if [[ "${preserved_frontend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export FRONTEND_IMAGE_REF="${preserved_frontend_image_ref}"; fi
+  if [[ "${preserved_admin_image_ref}" != "__STUHELPER_UNSET__" ]]; then export ADMIN_IMAGE_REF="${preserved_admin_image_ref}"; fi
   set +a
 }
 
 compose() {
   (
     cd "${REPO_ROOT}" && \
+    preserved_tag="${TAG-__STUHELPER_UNSET__}" && \
+    preserved_rollback_tag="${ROLLBACK_TAG-__STUHELPER_UNSET__}" && \
+    preserved_backend_image_ref="${BACKEND_IMAGE_REF-__STUHELPER_UNSET__}" && \
+    preserved_frontend_image_ref="${FRONTEND_IMAGE_REF-__STUHELPER_UNSET__}" && \
+    preserved_admin_image_ref="${ADMIN_IMAGE_REF-__STUHELPER_UNSET__}" && \
     set -a && \
     source "${ENV_FILE}" && \
     if [[ -n "${SECRETS_ENV_FILE}" && -f "${SECRETS_ENV_FILE}" ]]; then source "${SECRETS_ENV_FILE}"; fi && \
     if [[ -f "${GENERATED_ENV_FILE}" ]]; then source "${GENERATED_ENV_FILE}"; fi && \
+    if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi && \
+    if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi && \
+    if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi && \
+    if [[ "${preserved_frontend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export FRONTEND_IMAGE_REF="${preserved_frontend_image_ref}"; fi && \
+    if [[ "${preserved_admin_image_ref}" != "__STUHELPER_UNSET__" ]]; then export ADMIN_IMAGE_REF="${preserved_admin_image_ref}"; fi && \
     set +a && \
     ENV_FILE_PATH="${ENV_FILE}" \
     GENERATED_ENV_FILE_PATH="${GENERATED_ENV_FILE}" \
@@ -133,13 +153,48 @@ git_tag_default() {
   git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo "local"
 }
 
+derive_release_id_from_image_ref() {
+  local image_ref="${1:-}"
+  python3 - "${image_ref}" <<'PY'
+import sys
+
+ref = sys.argv[1].strip()
+if not ref:
+    raise SystemExit(1)
+
+if "@sha256:" in ref:
+    print(ref.split("@sha256:", 1)[1][:12])
+    raise SystemExit(0)
+
+image, sep, tag = ref.rpartition(":")
+if not sep or "/" not in image:
+    raise SystemExit(1)
+
+print(tag)
+PY
+}
+
 record_release() {
   local tag="$1"
   mkdir -p "${DEPLOY_STATE_DIR}"
+  mkdir -p "${DEPLOY_STATE_DIR}/releases"
   local now
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf '%s\t%s\n' "${now}" "${tag}" >> "${DEPLOY_STATE_DIR}/releases.log"
-  printf 'TAG=%s\nDEPLOYED_AT=%s\n' "${tag}" "${now}" > "${DEPLOY_STATE_DIR}/current-release.env"
+  cat > "${DEPLOY_STATE_DIR}/current-release.env" <<EOF
+TAG=${tag}
+DEPLOYED_AT=${now}
+BACKEND_IMAGE_REF=${BACKEND_IMAGE_REF:-}
+FRONTEND_IMAGE_REF=${FRONTEND_IMAGE_REF:-}
+ADMIN_IMAGE_REF=${ADMIN_IMAGE_REF:-}
+EOF
+  cat > "${DEPLOY_STATE_DIR}/releases/${tag}.env" <<EOF
+TAG=${tag}
+DEPLOYED_AT=${now}
+BACKEND_IMAGE_REF=${BACKEND_IMAGE_REF:-}
+FRONTEND_IMAGE_REF=${FRONTEND_IMAGE_REF:-}
+ADMIN_IMAGE_REF=${ADMIN_IMAGE_REF:-}
+EOF
 }
 
 resolve_previous_release_tag() {

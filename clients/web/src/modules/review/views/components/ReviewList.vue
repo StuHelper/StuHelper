@@ -62,7 +62,6 @@ import { useReviewVoting } from '@/modules/review/useReviewVoting'
 import { useReviewReplies } from '@/modules/review/useReviewReplies'
 
 import type { Review } from '@/types/review'
-import type { VoteType } from '@/components/business/review/reviewVoteState'
 
 defineProps<{
   reviews: Review[]

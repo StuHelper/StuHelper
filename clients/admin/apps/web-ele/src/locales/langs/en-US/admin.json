@@ -85,11 +85,14 @@
       "rating": "Rating",
       "status": {
         "published": "Published",
+        "pendingReview": "Pending Review",
         "hidden": "Hidden",
         "deleted": "Deleted"
       },
       "hide": "Hide",
+      "approve": "Approve",
       "restore": "Restore",
+      "confirmApprove": "Approve and publish this review?",
       "confirmHide": "Hide this review?",
       "confirmDelete": "Delete this review?"
     },

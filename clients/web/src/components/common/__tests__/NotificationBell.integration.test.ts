@@ -62,6 +62,9 @@ async function mountBell() {
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useNotificationStore(pinia)
+  store.connectSSE = vi.fn()
+  store.stopPolling = vi.fn()
+  store.fetchBellNotifications = vi.fn().mockResolvedValue(undefined)
 
   const router = createRouter({
     history: createMemoryHistory(),
@@ -140,26 +143,28 @@ describe('NotificationBell.vue integration', () => {
 
   it('fetches history on first open even if store already has SSE-inserted items, and only once', async () => {
     const { wrapper, store } = await mountBell()
-    const fetchNotifications = vi.fn().mockResolvedValue(undefined)
-    store.fetchNotifications = fetchNotifications
-    store.notifications = [makeNotification('sse-1')]
+    const fetchBellNotifications = vi.fn().mockResolvedValue(undefined)
+    store.fetchBellNotifications = fetchBellNotifications
+    store.bellNotifications = [makeNotification('sse-1')]
+    await flushPromises()
 
     const bellButton = wrapper.get('button[aria-label="Notifications"]')
 
     await bellButton.trigger('click')
-    expect(fetchNotifications).toHaveBeenCalledTimes(1)
-    expect(fetchNotifications).toHaveBeenCalledWith(1, 5)
+    expect(fetchBellNotifications).toHaveBeenCalledTimes(1)
+    expect(fetchBellNotifications).toHaveBeenCalledWith(1, 5)
 
     await bellButton.trigger('click') // close
     await bellButton.trigger('click') // reopen
-    expect(fetchNotifications).toHaveBeenCalledTimes(1)
+    expect(fetchBellNotifications).toHaveBeenCalledTimes(1)
   })
 
   it('clicking a notification marks it read, closes panel, and routes to its href', async () => {
     const { wrapper, store, router } = await mountBell()
     const markAsRead = vi.fn().mockResolvedValue(undefined)
     store.markAsRead = markAsRead
-    store.notifications = [makeNotification('1', { sourceUrl: '/target' })]
+    store.bellNotifications = [makeNotification('1', { sourceUrl: '/target' })]
+    await flushPromises()
 
     const bellButton = wrapper.get('button[aria-label="Notifications"]')
     await bellButton.trigger('click')
@@ -180,7 +185,8 @@ describe('NotificationBell.vue integration', () => {
     const markAllAsRead = vi.fn().mockResolvedValue(undefined)
     store.markAllAsRead = markAllAsRead
     store.unreadCount = 2
-    store.notifications = [makeNotification('1'), makeNotification('2')]
+    store.bellNotifications = [makeNotification('1'), makeNotification('2')]
+    await flushPromises()
 
     const bellButton = wrapper.get('button[aria-label="Notifications"]')
     await bellButton.trigger('click')

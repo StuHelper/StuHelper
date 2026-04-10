@@ -20,7 +20,7 @@ export function isValidSortType(value: unknown): value is SortType {
 }
 
 // 评论状态
-export const REVIEW_STATUSES = ['published', 'hidden', 'deleted', 'all'] as const
+export const REVIEW_STATUSES = ['published', 'pending_review', 'hidden', 'deleted', 'all'] as const
 export type ReviewStatus = typeof REVIEW_STATUSES[number]
 
 export function isValidReviewStatus(value: unknown): value is ReviewStatus {

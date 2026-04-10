@@ -149,6 +149,7 @@ type CreateParams struct {
 	Grade       string
 	Ratings     []byte
 	UserHash    string
+	Status      string
 	ContentFlag *string
 }
 
@@ -162,7 +163,7 @@ func (r *Repository) Create(ctx context.Context, tx pgx.Tx, p CreateParams) erro
 			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($8) WHERE value ~ '^\d+(\.\d+)?$'), 0),
 			$9,$10,$11,NOW())
 	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
-		p.Content, p.Grade, p.Ratings, p.UserHash, "published", p.ContentFlag)
+		p.Content, p.Grade, p.Ratings, p.UserHash, p.Status, p.ContentFlag)
 	return err
 }
 
@@ -179,7 +180,7 @@ func (r *Repository) CreateReturning(ctx context.Context, tx pgx.Tx, p CreatePar
 		RETURNING id, course_id, teacher_id, term_id, title, content, grade,
 			ratings, like_count, dislike_count, reply_count, status, content_flag, created_at, updated_at
 	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
-		p.Content, p.Grade, p.Ratings, p.UserHash, "published", p.ContentFlag,
+		p.Content, p.Grade, p.Ratings, p.UserHash, p.Status, p.ContentFlag,
 	).Scan(
 		&review.ID, &review.CourseID, &review.TeacherID, &review.TermID,
 		&review.Title, &review.Content, &review.Grade, &review.Ratings,

@@ -59,7 +59,11 @@ Review:
       type: integer
     status:
       type: string
-      enum: [published, hidden, deleted]
+      enum: [published, pending_review, hidden, deleted]
+    contentFlag:
+      type: string
+      enum: [warn, review, cleared]
+      description: 内容审核标记；review 表示待人工复核，warn 表示已发布但需关注
     moderationReason:
       type:
         - string

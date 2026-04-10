@@ -7,7 +7,7 @@ import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, readCookie } from '#/api/utils/csrf
 
 import type { ApiCallResult, ApiEnvelope } from './shared-result';
 
-type HttpMethod = 'DELETE' | 'GET' | 'POST' | 'PUT';
+type HttpMethod = 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
 
 const SAFE_METHODS = new Set<HttpMethod | 'HEAD' | 'OPTIONS'>([
   'GET',
@@ -257,6 +257,11 @@ function buildApiClient(enableRefresh: boolean): ApiClient {
         enableRefresh,
         shouldReAuthenticate: enableRefresh,
       })) as ApiClient['GET'],
+    PATCH: ((schemaPath: string, init?: RequestInitShape) =>
+      requestApi('PATCH', schemaPath, init, {
+        enableRefresh,
+        shouldReAuthenticate: enableRefresh,
+      })) as ApiClient['PATCH'],
     POST: ((schemaPath: string, init?: RequestInitShape) =>
       requestApi('POST', schemaPath, init, {
         enableRefresh,

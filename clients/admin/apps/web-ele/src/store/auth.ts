@@ -9,7 +9,12 @@ import { resetAllStores, useAccessStore, useUserStore } from '@vben/stores';
 import { ElNotification } from 'element-plus';
 import { defineStore } from 'pinia';
 
-import { logoutApi, redirectToOIDCLogin, tryGetMe } from '#/api/core/auth';
+import {
+  getAccountSettingsUrl,
+  logoutApi,
+  redirectToOIDCLogin,
+  tryGetMe,
+} from '#/api/core/auth';
 import { getUserInfoApi, mapMeToUserInfo } from '#/api/core/user';
 import { $t } from '#/locales';
 
@@ -73,7 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
       accessStore.setAccessCodes(
         me.globalCapabilities?.length ? me.globalCapabilities : me.capabilities,
       );
-      accountSettingsUrl.value = me.accountSettingsUrl ?? '';
+      accountSettingsUrl.value = getAccountSettingsUrl(me);
 
       if (accessStore.loginExpired) {
         accessStore.setLoginExpired(false);
@@ -141,7 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessStore.setAccessCodes(
       me.globalCapabilities?.length ? me.globalCapabilities : me.capabilities,
     );
-    accountSettingsUrl.value = me.accountSettingsUrl ?? '';
+    accountSettingsUrl.value = getAccountSettingsUrl(me);
     return userInfo;
   }
 

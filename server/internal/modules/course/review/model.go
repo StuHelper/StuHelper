@@ -40,7 +40,7 @@ type Review struct {
 	DislikeCount         int           `json:"dislikeCount"`
 	ReplyCount           int           `json:"replyCount"`
 	Status               string        `json:"status"`
-	ContentFlag          *string       `json:"contentFlag,omitempty"` // warn / cleared / nil
+	ContentFlag          *string       `json:"contentFlag,omitempty"` // warn / review / cleared / nil
 	ContentFlagClearedAt *time.Time    `json:"contentFlagClearedAt,omitempty"`
 	ContentFlagClearedBy *string       `json:"-"`
 	ModerationReason     *string       `json:"moderationReason,omitempty"`
@@ -259,7 +259,7 @@ type SensitiveWord struct {
 	ID        string    `json:"id"`
 	Word      string    `json:"word"`
 	Category  string    `json:"category"`
-	Level     string    `json:"level"` // block, warn
+	Level     string    `json:"level"` // block, warn, review
 	IsActive  bool      `json:"isActive"`
 	CreatedAt time.Time `json:"createdAt"`
 }

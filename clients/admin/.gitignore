@@ -16,6 +16,9 @@ coverage
 .cache
 .turbo
 .temp
+.pnpm-store
+playwright-report
+test-results
 dev-dist
 .stylelintcache
 yarn.lock

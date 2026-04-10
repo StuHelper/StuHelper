@@ -1493,6 +1493,11 @@ export interface components {
             capabilityGrants: components["schemas"]["CapabilityGrant"][];
             /** @description 当前用户是否拥有至少一个可直接进入现有后台界面的全局能力 */
             canAccessAdmin: boolean;
+            /**
+             * Format: uri
+             * @description 身份提供方账户设置页，用于修改密码等账号安全设置
+             */
+            accountSettingsUrl?: string;
         };
         Course: {
             /** Format: int64 */
@@ -1564,7 +1569,12 @@ export interface components {
             dislikeCount: number;
             replyCount: number;
             /** @enum {string} */
-            status: "published" | "hidden" | "deleted";
+            status: "published" | "pending_review" | "hidden" | "deleted";
+            /**
+             * @description 内容审核标记；review 表示待人工复核，warn 表示已发布但需关注
+             * @enum {string}
+             */
+            contentFlag?: "warn" | "review" | "cleared";
             /** @description 屏蔽原因（仅 hidden 状态时存在） */
             moderationReason?: string | null;
             /** Format: date-time */
@@ -1805,13 +1815,19 @@ export interface components {
             note?: string;
         };
         AdminUpdateReviewRequest: {
-            /** @enum {string} */
+            /**
+             * @description restore 对 pending_review 状态表示审核通过并发布
+             * @enum {string}
+             */
             action: "hide" | "restore" | "delete";
             reason?: string;
         };
         BatchUpdateReviewsRequest: {
             ids: string[];
-            /** @enum {string} */
+            /**
+             * @description restore 对 pending_review 状态表示审核通过并发布
+             * @enum {string}
+             */
             action: "hide" | "restore" | "delete";
         };
         BatchUpdateResult: {
@@ -3923,7 +3939,7 @@ export interface operations {
     listAllReviews: {
         parameters: {
             query?: {
-                status?: "published" | "hidden" | "deleted" | "all";
+                status?: "published" | "pending_review" | "hidden" | "deleted" | "all";
                 /** @description 页码 */
                 page?: components["parameters"]["PageParam"];
                 /** @description 每页数量 */
@@ -4178,7 +4194,7 @@ export interface operations {
             query?: {
                 /** @description 导出格式。json 和 ndjson 均返回 NDJSON 流（每行一个 JSON 对象） */
                 format?: "json" | "ndjson" | "csv";
-                status?: "all" | "published" | "hidden" | "deleted";
+                status?: "all" | "published" | "pending_review" | "hidden" | "deleted";
             };
             header?: never;
             path?: never;

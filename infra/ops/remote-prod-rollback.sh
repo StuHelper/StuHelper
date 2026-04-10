@@ -13,7 +13,6 @@ require_cmd docker
 
 echo "${REGISTRY_PASSWORD}" | docker login "${REGISTRY}" --username "${REGISTRY_USERNAME}" --password-stdin >/dev/null
 
-export SKIP_BUILD=true
 "${SCRIPT_DIR}/prod-rollback.sh"
 
 docker image prune -f >/dev/null 2>&1 || true
