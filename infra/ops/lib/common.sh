@@ -4,6 +4,7 @@ set -euo pipefail
 COMMON_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${COMMON_LIB_DIR}/../../.." && pwd)"
 ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
+ENV_TEMPLATE_FILE="${ENV_TEMPLATE_FILE:-${REPO_ROOT}/.env.example}"
 SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-}"
 GENERATED_ENV_FILE="${GENERATED_ENV_FILE:-${REPO_ROOT}/.env.generated}"
 GENERATED_OBS_DIR="${GENERATED_OBS_DIR:-${REPO_ROOT}/infra/generated/observability}"
@@ -28,9 +29,12 @@ require_cmd() {
 }
 
 ensure_env_file() {
+  local template_file="${1:-${ENV_TEMPLATE_FILE}}"
+  [[ -n "${template_file}" ]] || die "ENV_TEMPLATE_FILE must not be empty"
+  [[ -f "${template_file}" ]] || die "missing env template: ${template_file}"
   if [[ ! -f "${ENV_FILE}" ]]; then
-    cp "${REPO_ROOT}/.env.example" "${ENV_FILE}"
-    log "created ${ENV_FILE} from .env.example"
+    cp "${template_file}" "${ENV_FILE}"
+    log "created ${ENV_FILE} from $(basename "${template_file}")"
   fi
 }
 

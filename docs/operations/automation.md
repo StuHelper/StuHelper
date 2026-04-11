@@ -76,6 +76,8 @@ make prod-deploy
 - `.env.prod.secrets.local`
 - `.env.prod.generated`
 
+生成 `.env.prod.shared` 时会直接以 `.env.prod.example` 为模板，并把旧版由开发模板带入的 `localhost` / `http` / 本地对象存储 / 本地告警 sink 默认值重写回生产占位符或正式生产默认值。
+
 其中：
 
 - `.env.prod.shared`：共享配置，适合放到仓库外的部署目录

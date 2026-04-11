@@ -96,6 +96,8 @@ make prod-down     # 停止
 - `.env.prod.secrets.local`
 - `.env.prod.generated`
 
+并且会以 `.env.prod.example` 为唯一基线生成生产 skeleton，保留生产占位符，不再从开发 `.env.example` 派生 `localhost` / `http` / 本地告警接收器等默认值。
+
 ## GitLab 发布
 
 - `develop` → staging 自动部署 + `verify_staging`

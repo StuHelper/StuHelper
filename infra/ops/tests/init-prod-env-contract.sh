@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+INIT_SCRIPT="${REPO_ROOT}/infra/ops/init-prod-env.sh"
+
+fail() {
+  echo "[init-prod-env-contract][error] $*" >&2
+  exit 1
+}
+
+assert_file_contains() {
+  local file="$1"
+  local pattern="$2"
+  if ! grep -Eq "${pattern}" "${file}"; then
+    fail "expected ${file} to contain pattern: ${pattern}"
+  fi
+}
+
+assert_file_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -Eq "${pattern}" "${file}"; then
+    fail "expected ${file} to not contain pattern: ${pattern}"
+  fi
+}
+
+env_value() {
+  local file="$1"
+  local key="$2"
+  python3 - "$file" "$key" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+key = sys.argv[2]
+
+for line in path.read_text().splitlines():
+    if line.startswith(f"{key}="):
+        print(line.split("=", 1)[1])
+        raise SystemExit(0)
+
+raise SystemExit(f"missing env key: {key}")
+PY
+}
+
+assert_env_value() {
+  local file="$1"
+  local key="$2"
+  local expected="$3"
+  local actual
+  actual="$(env_value "${file}" "${key}")"
+  if [[ "${actual}" != "${expected}" ]]; then
+    fail "expected ${key}=${expected}, got ${actual} in ${file}"
+  fi
+}
+
+run_init_prod_env() {
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  ENV_FILE="${tmpdir}/.env.prod.shared" \
+  SECRETS_ENV_FILE="${tmpdir}/.env.prod.secrets.local" \
+  GENERATED_ENV_FILE="${tmpdir}/.env.prod.generated" \
+  GENERATED_OBS_DIR="${tmpdir}/generated/observability" \
+  GENERATED_ZITADEL_DIR="${tmpdir}/generated/zitadel" \
+  DEPLOY_STATE_DIR="${tmpdir}/.deploy" \
+  bash "${INIT_SCRIPT}" >"${tmpdir}/stdout.log" 2>"${tmpdir}/stderr.log"
+  printf '%s\n' "${tmpdir}"
+}
+
+cleanup_dirs=()
+cleanup() {
+  local dir
+  for dir in "${cleanup_dirs[@]:-}"; do
+    rm -rf "${dir}"
+  done
+}
+trap cleanup EXIT
+
+fresh_dir="$(run_init_prod_env)"
+cleanup_dirs+=("${fresh_dir}")
+fresh_env="${fresh_dir}/.env.prod.shared"
+
+assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
+assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置模板$'
+assert_env_value "${fresh_env}" "CORS_ORIGINS" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
+assert_env_value "${fresh_env}" "ZITADEL_DOMAIN" "REPLACE_WITH_ZITADEL_DOMAIN"
+assert_env_value "${fresh_env}" "ZITADEL_PUBLIC_SCHEME" "https"
+assert_env_value "${fresh_env}" "ZITADEL_EXTERNALSECURE" "true"
+assert_env_value "${fresh_env}" "ZITADEL_ISSUER" "REPLACE_WITH_ZITADEL_ISSUER"
+assert_env_value "${fresh_env}" "ZITADEL_REDIRECT_URI" "REPLACE_WITH_ZITADEL_REDIRECT_URI"
+assert_env_value "${fresh_env}" "WEB_PUBLIC_URL" "REPLACE_WITH_WEB_PUBLIC_URL"
+assert_env_value "${fresh_env}" "ADMIN_PUBLIC_URL" "REPLACE_WITH_ADMIN_PUBLIC_URL"
+assert_env_value "${fresh_env}" "WEB_VITE_API_URL" "/api"
+assert_env_value "${fresh_env}" "WEB_VITE_SSO_URL" "REPLACE_WITH_WEB_VITE_SSO_URL"
+assert_env_value "${fresh_env}" "OBJECT_STORAGE_ENDPOINT" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
+assert_env_value "${fresh_env}" "OBJECT_STORAGE_USE_SSL" "true"
+assert_env_value "${fresh_env}" "OBJECT_STORAGE_FORCE_PATH_STYLE" "false"
+assert_env_value "${fresh_env}" "GRAFANA_ROOT_URL" "REPLACE_WITH_GRAFANA_ROOT_URL"
+assert_env_value "${fresh_env}" "ALERTMANAGER_WEBHOOK_URL" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL"
+assert_env_value "${fresh_env}" "ALLOW_LOCAL_ALERT_SINK" "false"
+assert_env_value "${fresh_env}" "TAG" ""
+assert_env_value "${fresh_env}" "BACKEND_IMAGE_REF" "REPLACE_WITH_BACKEND_IMAGE_REF"
+assert_env_value "${fresh_env}" "FRONTEND_IMAGE_REF" "REPLACE_WITH_FRONTEND_IMAGE_REF"
+assert_env_value "${fresh_env}" "ADMIN_IMAGE_REF" "REPLACE_WITH_ADMIN_IMAGE_REF"
+assert_file_not_contains "${fresh_env}" '^DATABASE_URL=.*@localhost:5432/.*sslmode=disable$'
+assert_file_not_contains "${fresh_env}" '^ZITADEL_INTERNAL_ADDRESS=host\.docker\.internal:8085$'
+assert_file_not_contains "${fresh_env}" '^ALERTMANAGER_WEBHOOK_URL=http://alert-webhook-sink:8080/alerts$'
+assert_file_not_contains "${fresh_env}" '^BACKEND_IMAGE_REF=stuhelper/backend:dev-placeholder$'
+assert_file_not_contains "${fresh_env}" '^FRONTEND_IMAGE_REF=stuhelper/frontend:dev-placeholder$'
+assert_file_not_contains "${fresh_env}" '^ADMIN_IMAGE_REF=stuhelper/admin:dev-placeholder$'
+
+legacy_dir="$(mktemp -d)"
+cleanup_dirs+=("${legacy_dir}")
+cp "${REPO_ROOT}/.env.example" "${legacy_dir}/.env.prod.shared"
+ENV_FILE="${legacy_dir}/.env.prod.shared" \
+SECRETS_ENV_FILE="${legacy_dir}/.env.prod.secrets.local" \
+GENERATED_ENV_FILE="${legacy_dir}/.env.prod.generated" \
+GENERATED_OBS_DIR="${legacy_dir}/generated/observability" \
+GENERATED_ZITADEL_DIR="${legacy_dir}/generated/zitadel" \
+DEPLOY_STATE_DIR="${legacy_dir}/.deploy" \
+bash "${INIT_SCRIPT}" >"${legacy_dir}/stdout.log" 2>"${legacy_dir}/stderr.log"
+
+legacy_env="${legacy_dir}/.env.prod.shared"
+assert_env_value "${legacy_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=require"
+assert_env_value "${legacy_env}" "CORS_ORIGINS" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
+assert_env_value "${legacy_env}" "ZITADEL_DOMAIN" "REPLACE_WITH_ZITADEL_DOMAIN"
+assert_env_value "${legacy_env}" "ZITADEL_PUBLIC_SCHEME" "https"
+assert_env_value "${legacy_env}" "ZITADEL_EXTERNALSECURE" "true"
+assert_env_value "${legacy_env}" "ZITADEL_ISSUER" "REPLACE_WITH_ZITADEL_ISSUER"
+assert_env_value "${legacy_env}" "ZITADEL_INTERNAL_ADDRESS" ""
+assert_env_value "${legacy_env}" "ZITADEL_REDIRECT_URI" "REPLACE_WITH_ZITADEL_REDIRECT_URI"
+assert_env_value "${legacy_env}" "WEB_PUBLIC_URL" "REPLACE_WITH_WEB_PUBLIC_URL"
+assert_env_value "${legacy_env}" "ADMIN_PUBLIC_URL" "REPLACE_WITH_ADMIN_PUBLIC_URL"
+assert_env_value "${legacy_env}" "WEB_VITE_API_URL" "/api"
+assert_env_value "${legacy_env}" "WEB_VITE_SSO_URL" "REPLACE_WITH_WEB_VITE_SSO_URL"
+assert_env_value "${legacy_env}" "OPENFGA_API_URL" "http://openfga:8081"
+assert_env_value "${legacy_env}" "OBJECT_STORAGE_ENDPOINT" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
+assert_env_value "${legacy_env}" "OBJECT_STORAGE_USE_SSL" "true"
+assert_env_value "${legacy_env}" "OBJECT_STORAGE_FORCE_PATH_STYLE" "false"
+assert_env_value "${legacy_env}" "GRAFANA_ROOT_URL" "REPLACE_WITH_GRAFANA_ROOT_URL"
+assert_env_value "${legacy_env}" "ALERTMANAGER_WEBHOOK_URL" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL"
+assert_env_value "${legacy_env}" "ALLOW_LOCAL_ALERT_SINK" "false"
+assert_env_value "${legacy_env}" "TAG" ""
+assert_env_value "${legacy_env}" "BACKEND_IMAGE_REF" "REPLACE_WITH_BACKEND_IMAGE_REF"
+assert_env_value "${legacy_env}" "FRONTEND_IMAGE_REF" "REPLACE_WITH_FRONTEND_IMAGE_REF"
+assert_env_value "${legacy_env}" "ADMIN_IMAGE_REF" "REPLACE_WITH_ADMIN_IMAGE_REF"
+
+echo "[init-prod-env-contract] all assertions passed"

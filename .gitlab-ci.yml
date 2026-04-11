@@ -91,6 +91,15 @@ admin_typecheck:
   - pnpm install --frozen-lockfile
   - pnpm --filter @vben/web-ele typecheck
 
+prod_init_contract:
+  stage: test
+  image: python:3.13-bookworm
+  before_script:
+  - apt-get update
+  - apt-get install -y openssl
+  script:
+  - bash infra/ops/tests/init-prod-env-contract.sh
+
 frontend_test:
   stage: test
   image: node:24-bookworm

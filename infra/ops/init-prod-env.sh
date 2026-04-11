@@ -7,6 +7,10 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 require_cmd python3
 
+if [[ -z "${ENV_TEMPLATE_FILE:-}" || "${ENV_TEMPLATE_FILE}" == "${REPO_ROOT}/.env.example" ]]; then
+  export ENV_TEMPLATE_FILE="${REPO_ROOT}/.env.prod.example"
+fi
+
 if [[ "${ENV_FILE:-}" == "${REPO_ROOT}/.env" || "${ENV_FILE:-.env}" == ".env" ]]; then
   ENV_FILE="${REPO_ROOT}/.env.prod.shared"
 fi
@@ -124,7 +128,7 @@ ensure_prod_default "APP_ENV" "${APP_ENV:-}" "production" "development"
 ensure_value "LOG_LEVEL" "${LOG_LEVEL:-}" "info"
 ensure_prod_default "LOG_FORMAT" "${LOG_FORMAT:-}" "json" "console"
 ensure_value "LOG_OUTPUT" "${LOG_OUTPUT:-}" "stdout"
-ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@postgres:5432/stuhelper?sslmode=require" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable"
+ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=require" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@localhost:5432/stuhelper?sslmode=disable"
 ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "require" "disable"
 ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
 ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "require" "disable"
@@ -146,10 +150,11 @@ ensure_prod_default "ZITADEL_DOMAIN" "${ZITADEL_DOMAIN:-}" "REPLACE_WITH_ZITADEL
 ensure_prod_default "ZITADEL_PUBLIC_SCHEME" "${ZITADEL_PUBLIC_SCHEME:-}" "https" "http"
 ensure_prod_default "ZITADEL_EXTERNALSECURE" "${ZITADEL_EXTERNALSECURE:-}" "true" "false"
 ensure_prod_default "ZITADEL_ISSUER" "${ZITADEL_ISSUER:-}" "REPLACE_WITH_ZITADEL_ISSUER" "http://localhost:8085"
+ensure_prod_default "ZITADEL_INTERNAL_ADDRESS" "${ZITADEL_INTERNAL_ADDRESS:-}" "" "host.docker.internal:8085"
 ensure_prod_default "ZITADEL_REDIRECT_URI" "${ZITADEL_REDIRECT_URI:-}" "REPLACE_WITH_ZITADEL_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
 ensure_prod_default "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL" "http://localhost:3000"
 ensure_prod_default "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL" "http://localhost:3001"
-ensure_value "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" ""
+ensure_prod_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
 ensure_prod_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB_VITE_SSO_URL" "http://localhost:8085"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
 ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"
@@ -170,9 +175,10 @@ ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "7"
 ensure_prod_default "GRAFANA_ROOT_URL" "${GRAFANA_ROOT_URL:-}" "REPLACE_WITH_GRAFANA_ROOT_URL" "http://localhost:3003"
 ensure_prod_default "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" "false" "true"
 ensure_prod_default "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL" "http://alert-webhook-sink:8080/alerts"
-ensure_prod_default "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "REPLACE_WITH_BACKEND_IMAGE_REF" "registry.stuhelper.com/stuhelper/backend:latest"
-ensure_prod_default "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "REPLACE_WITH_FRONTEND_IMAGE_REF" "registry.stuhelper.com/stuhelper/frontend:latest"
-ensure_prod_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN_IMAGE_REF" "registry.stuhelper.com/stuhelper/admin:latest"
+ensure_prod_default "TAG" "${TAG:-}" "" "latest"
+ensure_prod_default "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "REPLACE_WITH_BACKEND_IMAGE_REF" "registry.stuhelper.com/stuhelper/backend:latest" "stuhelper/backend:dev-placeholder"
+ensure_prod_default "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "REPLACE_WITH_FRONTEND_IMAGE_REF" "registry.stuhelper.com/stuhelper/frontend:latest" "stuhelper/frontend:dev-placeholder"
+ensure_prod_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN_IMAGE_REF" "registry.stuhelper.com/stuhelper/admin:latest" "stuhelper/admin:dev-placeholder"
 
 "${SCRIPT_DIR}/render-postgres-tls.sh"
 "${SCRIPT_DIR}/render-zitadel-secrets.sh"
