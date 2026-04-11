@@ -31,7 +31,7 @@
 - 生产环境不执行 `seed.sql`
 - 上线先备份，再迁移，再发布
 - 生产主机要先装好逻辑备份 / base backup 定时任务，`remote-preflight.sh` 必须通过
-- 数据库权威来源是 `migrations/`，不是 `init.sql`
+- 数据库权威来源是 `server/migrations/`；仓库内不再维护并执行独立 schema 快照
 - Smoke Check 全绿才算发布完成
 - 发布后确认 Grafana / Prometheus / Loki / Tempo / Alertmanager 全绿
 - 手动回滚记录触发原因、执行人、时间和结果

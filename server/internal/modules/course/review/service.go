@@ -54,7 +54,8 @@ type Service struct {
 	db             *db.DB
 	repo           *Repository
 	filter         *Filter
-	dimensionCache atomic.Value        // map[string]string
+	dimensionCache atomic.Value // map[string]string
+	fgaWriter      reviewFGAWriter
 	notifSender    notification.Sender // nil-safe: skip notifications if not wired
 }
 

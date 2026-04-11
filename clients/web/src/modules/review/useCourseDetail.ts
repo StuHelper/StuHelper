@@ -10,7 +10,6 @@ import { useReviewPost } from '@/composables/useReviewPost'
 
 import type { Course, CourseRatingStatsResponse, TeacherStats } from '@/types/course'
 import type { Review } from '@/types/review'
-import { toReviews } from '@/types/review'
 
 const PAGE_SIZE = 20
 
@@ -69,15 +68,14 @@ export function useCourseDetail() {
   const fetchReviews = async (append = false, expectedVersion?: number) => {
     reviewsLoading.value = true
     try {
-      const res = await api.review.getReviews(courseID.value, {
+      const pageData = await api.review.getReviewsPage(courseID.value, {
         page: page.value,
         pageSize: PAGE_SIZE,
         sort: 'time',
       })
       if (expectedVersion !== undefined && expectedVersion !== loadVersion) return
-      const list = toReviews(res.data?.data?.list || [])
-      reviews.value = append ? [...reviews.value, ...list] : list
-      total.value = res.data?.data?.total || 0
+      reviews.value = append ? [...reviews.value, ...pageData.list] : pageData.list
+      total.value = pageData.total
     } catch (fetchErr) {
       if (expectedVersion === undefined || expectedVersion === loadVersion) {
         toast.error(getErrorMessage(fetchErr, t('review.course.loadFailed')))
@@ -133,7 +131,7 @@ export function useCourseDetail() {
       const [courseRes, statsRes, reviewsRes, teachersRes, trendRes] = await Promise.all([
         api.course.getCourse(id).catch(() => null),
         api.rating.getCourseStats(id).catch(() => null),
-        api.review.getReviews(id, { page: 1, pageSize: PAGE_SIZE, sort: 'time' }).catch(() => null),
+        api.review.getReviewsPage(id, { page: 1, pageSize: PAGE_SIZE, sort: 'time' }).catch(() => null),
         api.rating.getCourseTeachers(id).catch(() => null),
         api.rating.getRatingTrend(id).catch(() => null),
       ])
@@ -146,8 +144,8 @@ export function useCourseDetail() {
       }
       error.value = !courseRes
       ratingStats.value = statsRes?.data?.data ?? null
-      reviews.value = toReviews(reviewsRes?.data?.data?.list || [])
-      total.value = reviewsRes?.data?.data?.total || 0
+      reviews.value = reviewsRes?.list ?? []
+      total.value = reviewsRes?.total ?? 0
       courseTeachers.value = teachersRes?.data?.data || []
       ratingTrend.value = trendRes?.data?.data?.trend || []
     } finally {

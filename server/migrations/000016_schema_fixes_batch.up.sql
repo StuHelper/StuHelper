@@ -170,9 +170,7 @@ ALTER TABLE course_categories
     REFERENCES schools(id) ON DELETE RESTRICT;
 
 -- ============================================
--- DB-M2: init.sql has idx_courses_code but migration 000001 doesn't
--- courses.code is queried via ILIKE in repository.go, so the index IS useful.
--- Add the index here to align migrations with init.sql.
+-- DB-M2: courses.code is queried via ILIKE in repository.go, so the index is required in the authoritative migration history.
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_courses_code ON courses(code);
 
@@ -192,12 +190,9 @@ ALTER TABLE rating_dimensions RENAME CONSTRAINT uq_rating_dimensions_key_global 
 -- DB-M5: academic.buaa_students.sfzjh stores plaintext ID number
 -- Add sfzjh_hash for lookup, rename sfzjh to sfzjh_enc and change type to BYTEA.
 --
--- WARNING: convert_to() preserves plaintext as BYTEA encoding, NOT encryption.
--- Run `go run ./server/cmd/migrate-sfzjh` after this migration to properly encrypt
--- existing data and populate sfzjh_hash values.
---
--- Until that tool is run, sfzjh_enc contains raw UTF-8 bytes (not AES-GCM ciphertext)
--- and sfzjh_hash will be NULL for existing rows.
+-- NOTE: this migration is phase 1 only. Existing rows are rewritten to BYTEA so the
+-- closure step can encrypt them with the application PII cipher and backfill sfzjh_hash.
+-- The repository migration runner performs that closure before 000018 tightens invariants.
 -- ============================================
 ALTER TABLE academic.buaa_students ADD COLUMN IF NOT EXISTS sfzjh_hash VARCHAR(64);
 ALTER TABLE academic.buaa_students RENAME COLUMN sfzjh TO sfzjh_enc;

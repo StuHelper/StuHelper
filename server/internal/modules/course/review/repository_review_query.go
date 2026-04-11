@@ -132,6 +132,25 @@ func (r *Repository) GetReviewCourseIDTx(ctx context.Context, tx pgx.Tx, reviewI
 	return courseID, err
 }
 
+// GetCourseSchoolIDTx 在事务内获取课程所属学校 ID。
+func (r *Repository) GetCourseSchoolIDTx(ctx context.Context, tx pgx.Tx, courseID int64) (int64, error) {
+	var schoolID int64
+	err := tx.QueryRow(ctx, `SELECT school_id FROM courses WHERE id = $1`, courseID).Scan(&schoolID)
+	return schoolID, err
+}
+
+// GetReviewSchoolIDTx 在事务内获取评论所属学校 ID。
+func (r *Repository) GetReviewSchoolIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (int64, error) {
+	var schoolID int64
+	err := tx.QueryRow(ctx, `
+		SELECT c.school_id
+		FROM reviews r
+		JOIN courses c ON c.id = r.course_id
+		WHERE r.id = $1
+	`, reviewID).Scan(&schoolID)
+	return schoolID, err
+}
+
 // GetReviewStatusAndCourseIDTx 在事务内获取评论状态和课程ID
 func (r *Repository) GetReviewStatusAndCourseIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, error) {
 	var status string

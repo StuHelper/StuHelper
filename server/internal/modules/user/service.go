@@ -127,6 +127,7 @@ type Service struct {
 	hmacKey           []byte
 	docCipher         pii.EncryptDecryptor
 	onRoleSync        RoleSyncFunc
+	profileFGA        profileFGAClient
 	photoStore        identityPhotoStore
 	identityVerifier  mainlandIdentityVerifier
 	notifSender       notification.Sender
@@ -155,6 +156,11 @@ func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pi
 // SetRoleSyncFunc 注册角色同步回调（认证状态变化时异步通知 Zitadel）
 func (s *Service) SetRoleSyncFunc(fn RoleSyncFunc) {
 	s.onRoleSync = fn
+}
+
+// SetProfileFGAClient 注册 user_profile 关系投影客户端。
+func (s *Service) SetProfileFGAClient(client profileFGAClient) {
+	s.profileFGA = client
 }
 
 // SetIdentityPhotoStore 注册实名认证照片对象存储。

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
@@ -109,12 +111,21 @@ func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, a
 		}
 	}
 
-	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
+	txRepo, err := requireProfileTxRepo(s.repo)
+	if err != nil {
 		return err
 	}
-
-	// 同步 Zitadel 角色：通过 → 添加 verified_student，驳回 → 移除
-	s.syncRole(ctx, userID, "verified_student", approved)
+	if err := txRepo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if err := txRepo.UpdateProfileTx(ctx, tx, profile); err != nil {
+			return fmt.Errorf("ReviewStudentVerification update profile tx: %w", err)
+		}
+		if err := s.enqueueVerificationProjectionTx(ctx, tx, userID, profile.VerificationStatus); err != nil {
+			return fmt.Errorf("ReviewStudentVerification enqueue projections: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }

@@ -118,6 +118,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 	userHandler := user.NewHandler(userService, fgaClient, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
 	userHandler.RegisterRoutes(api, authMW)
+	userService.StartBackgroundJobs(bgCtx)
 
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(authMW, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
@@ -158,7 +159,8 @@ func (rt *Runtime) initSMSService() (*sms.Service, error) {
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 	}
-	listener, err := net.Listen("tcp", smsSrv.Addr)
+	listenCfg := net.ListenConfig{}
+	listener, err := listenCfg.Listen(context.Background(), "tcp", smsSrv.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start SMS internal server: %w", err)
 	}

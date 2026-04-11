@@ -175,9 +175,6 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 		return
 	}
 
-	// 同步 FGA user_profile 关系 tuple，避免旧 school 关系残留
-	h.reconcileFGAUserProfileTuples(c, userID, *req.Approved)
-
 	audit.Log(audit.Event{
 		Type:      audit.EventDataUpdate,
 		UserID:    middleware.GetUserID(c),

@@ -13,7 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 	gozap "go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
@@ -66,7 +65,6 @@ func (rt *Runtime) serve(router *gin.Engine) error {
 	if rt.bgCancel != nil {
 		rt.bgCancel()
 	}
-	review.WaitFGAWrites()
 	rt.runCleanups()
 	logger.L().Info("All resources released, server exited")
 	return serverStartErr

@@ -13,10 +13,11 @@ import (
 
 // ReportReviewParams 举报评论参数
 type ReportReviewParams struct {
-	ReviewID    string
-	UserHash    string
-	Reason      string
-	Description string
+	ReviewID               string
+	UserHash               string
+	ReporterExternalUserID string
+	Reason                 string
+	Description            string
 }
 
 // ListReportsParams 获取举报列表参数
@@ -82,7 +83,17 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 			Reason:       params.Reason,
 			Description:  params.Description,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		if s.fgaWriter == nil {
+			return nil
+		}
+		schoolID, err := s.repo.GetReviewSchoolIDTx(ctx, tx, params.ReviewID)
+		if err != nil {
+			return err
+		}
+		return s.enqueueReportFGASyncTx(ctx, tx, reportID, params.ReporterExternalUserID, params.ReviewID, schoolID)
 	})
 	return reportID, err
 }

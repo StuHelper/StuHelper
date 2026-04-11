@@ -44,6 +44,7 @@ type Handler struct {
 func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, fgaClient *fga.Client, notifSender notification.Sender) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo, notifSender)
+	svc.SetFGAWriter(fgaClient)
 	return &Handler{
 		db:            database,
 		cache:         cacheHelper,
@@ -56,6 +57,11 @@ func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, r
 		replyLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.ReplyLimit, time.Minute),
 		writeLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.WriteLimit, time.Minute),
 	}
+}
+
+// StartBackgroundJobs 启动评课后台任务（如 FGA 同步队列）。
+func (h *Handler) StartBackgroundJobs(ctx context.Context) {
+	h.service.StartBackgroundJobs(ctx)
 }
 
 // RefreshTeacherPublicStats 刷新公开教师统计物化视图。

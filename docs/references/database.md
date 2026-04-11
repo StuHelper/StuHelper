@@ -13,8 +13,7 @@
 ## 权威来源
 
 1. `server/migrations/*.sql` — 唯一权威 schema
-2. `server/scripts/init.sql` — 可读快照
-3. `server/internal/modules/**/repository*.go` — 查询和事务
+2. `server/internal/modules/**/repository*.go` — 查询和事务
 
 ## 身份平面
 

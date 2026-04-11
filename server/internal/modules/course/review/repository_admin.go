@@ -67,7 +67,7 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 }
 
 // GetAdminStats 获取管理统计（条件聚合，reviews 单次扫描 + reports 单次扫描）
-// 性能优化依赖以下索引（应在 init.sql 中创建）：
+// 性能优化依赖以下索引（应在权威 migrations 中创建）：
 //   - reviews: idx_reviews_status (status) — 加速 FILTER 条件聚合
 //   - reviews: idx_reviews_created_at (created_at) — 加速 today/week 过滤
 //   - review_reports: idx_review_reports_status (status) — 加速 pending 计数

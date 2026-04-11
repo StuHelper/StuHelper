@@ -26,7 +26,7 @@ base_services=(
   postgres
   redis
   minio
-  migrate
+  migrate-dev
   seed-dev
   zitadel-api
   zitadel-login
@@ -79,6 +79,9 @@ backend_cmd="
   export REDIS_HOST='localhost' && \
   export REDIS_PORT='6379' && \
   export REDIS_PASSWORD='${REDIS_PASSWORD}' && \
+  export REDIS_TLS_ENABLED='true' && \
+  export REDIS_TLS_CA='${REPO_ROOT}/infra/generated/redis/ca.crt' && \
+  export REDIS_TLS_INSECURE='false' && \
   export ZITADEL_INTERNAL_ADDRESS='' && \
   export OPENFGA_API_URL='http://localhost:8081' && \
   exec '${AIR_BIN}' -c .air.toml

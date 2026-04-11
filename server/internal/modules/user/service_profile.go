@@ -31,6 +31,14 @@ type profileTxRepo interface {
 	SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error
 }
 
+func requireProfileTxRepo(repo Repo) (profileTxRepo, error) {
+	txRepo, ok := repo.(profileTxRepo)
+	if !ok {
+		return nil, fmt.Errorf("repository does not support transactional profile operations")
+	}
+	return txRepo, nil
+}
+
 // GetUserSurface 聚合当前用户的身份认证、学生认证、手机绑定和能力信息。
 // displayName 和 avatarURL 由 auth 中间件注入，capabilities 由角色展开得到。
 func (s *Service) GetUserSurface(ctx context.Context, userID int64, displayName, avatarURL string, capabilities []string) (*UserSurface, error) {
@@ -128,14 +136,6 @@ func (s *Service) encryptPhone(phone string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("hash phone: %w", err)
 	}
 	return phoneEnc, phoneHash, nil
-}
-
-func (s *Service) storeEncryptedPhone(ctx context.Context, userID int64, phone string) error {
-	phoneEnc, phoneHash, err := s.encryptPhone(phone)
-	if err != nil {
-		return err
-	}
-	return s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash)
 }
 
 func (s *Service) hydrateProfilePhone(profile *Profile) error {
@@ -401,7 +401,6 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 				zap.Int64("user_id", userID),
 				zap.Error(err),
 			)
-			verifiedPhoneRaw = ""
 			verifiedPhoneEnc = nil
 			verifiedPhoneHash = ""
 		} else {
@@ -411,59 +410,45 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 	}
 
-	if txRepo, ok := s.repo.(profileTxRepo); ok {
-		if err := txRepo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-			txExisting, err := txRepo.GetProfileByUserIDTx(ctx, tx, userID)
-			if err != nil {
-				return fmt.Errorf("VerifyStudent check existing tx: %w", err)
-			}
-			if txExisting != nil && txExisting.VerificationStatus == StatusVerified {
-				return ErrProfileAlreadyVerified
-			}
-			if txExisting != nil && txExisting.VerificationStatus == StatusPending {
-				return ErrProfilePendingReview
-			}
+	txRepo, err := requireProfileTxRepo(s.repo)
+	if err != nil {
+		return nil, err
+	}
+	if err := txRepo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		txExisting, err := txRepo.GetProfileByUserIDTx(ctx, tx, userID)
+		if err != nil {
+			return fmt.Errorf("VerifyStudent check existing tx: %w", err)
+		}
+		if txExisting != nil && txExisting.VerificationStatus == StatusVerified {
+			return ErrProfileAlreadyVerified
+		}
+		if txExisting != nil && txExisting.VerificationStatus == StatusPending {
+			return ErrProfilePendingReview
+		}
 
-			if len(verifiedPhoneEnc) > 0 {
-				if err := txRepo.SetUserPhoneTx(ctx, tx, userID, verifiedPhoneEnc, verifiedPhoneHash); err != nil {
-					return fmt.Errorf("VerifyStudent set phone tx: %w", err)
-				}
+		if len(verifiedPhoneEnc) > 0 {
+			if err := txRepo.SetUserPhoneTx(ctx, tx, userID, verifiedPhoneEnc, verifiedPhoneHash); err != nil {
+				return fmt.Errorf("VerifyStudent set phone tx: %w", err)
 			}
+		}
 
-			if txExisting != nil {
-				profile.CreatedAt = txExisting.CreatedAt
-				if err := txRepo.UpdateProfileTx(ctx, tx, profile); err != nil {
-					return fmt.Errorf("VerifyStudent update profile tx: %w", err)
-				}
-				return nil
+		if txExisting != nil {
+			profile.CreatedAt = txExisting.CreatedAt
+			if err := txRepo.UpdateProfileTx(ctx, tx, profile); err != nil {
+				return fmt.Errorf("VerifyStudent update profile tx: %w", err)
 			}
-
+		} else {
 			if err := txRepo.CreateProfileTx(ctx, tx, profile); err != nil {
 				return fmt.Errorf("VerifyStudent create profile tx: %w", err)
 			}
-			return nil
-		}); err != nil {
-			return nil, err
 		}
-	} else if existing != nil {
-		profile.CreatedAt = existing.CreatedAt
-		if err := s.repo.UpdateProfile(ctx, profile); err != nil {
-			return nil, fmt.Errorf("VerifyStudent update profile: %w", err)
+
+		if err := s.enqueueVerificationProjectionTx(ctx, tx, userID, profile.VerificationStatus); err != nil {
+			return fmt.Errorf("VerifyStudent enqueue projections: %w", err)
 		}
-		if verifiedPhoneRaw != "" {
-			if err := s.storeEncryptedPhone(ctx, userID, verifiedPhoneRaw); err != nil {
-				return nil, fmt.Errorf("VerifyStudent store phone: %w", err)
-			}
-		}
-	} else {
-		if err := s.repo.CreateProfile(ctx, profile); err != nil {
-			return nil, fmt.Errorf("VerifyStudent create profile: %w", err)
-		}
-		if verifiedPhoneRaw != "" {
-			if err := s.storeEncryptedPhone(ctx, userID, verifiedPhoneRaw); err != nil {
-				return nil, fmt.Errorf("VerifyStudent store phone: %w", err)
-			}
-		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	result, err := s.repo.GetProfileByUserID(ctx, userID)
@@ -474,11 +459,6 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		if err := s.hydrateProfilePhone(result); err != nil {
 			return nil, fmt.Errorf("VerifyStudent hydrate profile phone: %w", err)
 		}
-	}
-
-	// auto-approve 路径：持久化成功后同步角色
-	if profile.VerificationStatus == StatusVerified {
-		s.syncRole(ctx, userID, "verified_student", true)
 	}
 
 	return result, nil
@@ -507,47 +487,33 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return err
 	}
 
-	if txRepo, ok := s.repo.(profileTxRepo); ok {
-		if err := txRepo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-			txProfile, err := txRepo.GetProfileByUserIDTx(ctx, tx, userID)
-			if err != nil {
-				return fmt.Errorf("BindPhone get profile tx: %w", err)
-			}
-			if txProfile == nil {
-				return ErrProfileNotFound
-			}
-			masked := phoneutil.Mask(trimmed)
-			txProfile.Phone = &masked
-			txProfile.PhoneVerified = true
-			if err := txRepo.SetUserPhoneTx(ctx, tx, userID, phoneEnc, phoneHash); err != nil {
-				return fmt.Errorf("BindPhone set phone tx: %w", err)
-			}
-			if err := txRepo.UpdateProfileTx(ctx, tx, txProfile); err != nil {
-				return fmt.Errorf("BindPhone update profile tx: %w", err)
-			}
-			return nil
-		}); err != nil {
-			if errors.Is(err, ErrPhoneAlreadyBound) {
-				return ErrPhoneAlreadyBound
-			}
-			return err
+	txRepo, err := requireProfileTxRepo(s.repo)
+	if err != nil {
+		return err
+	}
+	if err := txRepo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		txProfile, err := txRepo.GetProfileByUserIDTx(ctx, tx, userID)
+		if err != nil {
+			return fmt.Errorf("BindPhone get profile tx: %w", err)
+		}
+		if txProfile == nil {
+			return ErrProfileNotFound
+		}
+		masked := phoneutil.Mask(trimmed)
+		txProfile.Phone = &masked
+		txProfile.PhoneVerified = true
+		if err := txRepo.SetUserPhoneTx(ctx, tx, userID, phoneEnc, phoneHash); err != nil {
+			return fmt.Errorf("BindPhone set phone tx: %w", err)
+		}
+		if err := txRepo.UpdateProfileTx(ctx, tx, txProfile); err != nil {
+			return fmt.Errorf("BindPhone update profile tx: %w", err)
 		}
 		return nil
-	}
-
-	masked := phoneutil.Mask(trimmed)
-	profile.Phone = &masked
-	profile.PhoneVerified = true
-
-	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
+	}); err != nil {
 		if errors.Is(err, ErrPhoneAlreadyBound) {
 			return ErrPhoneAlreadyBound
 		}
-		return fmt.Errorf("BindPhone store phone: %w", err)
-	}
-
-	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
-		return fmt.Errorf("BindPhone update profile: %w", err)
+		return err
 	}
 	return nil
 }

@@ -1,6 +1,16 @@
 import type { ApiClient } from './client'
 import type { components } from '../types/api.gen'
-import type { PostReviewParams, ReviewRatings } from '../types/business/review'
+import type {
+  PaginatedResult,
+  PostReviewParams,
+  Review,
+  ReviewContentCheck,
+  ReviewRatings,
+} from '../types/business/review'
+import {
+  normalizeContentCheck,
+  normalizeReviewList,
+} from '../types/business/review'
 
 type PostReviewRequest = components['schemas']['PostReviewRequest']
 type UpdateReviewRequest = components['schemas']['UpdateReviewRequest']
@@ -50,8 +60,20 @@ export const createReviewApi = (client: ApiClient) => ({
       params: { path: { courseID: courseId }, query: params }
     }),
 
+  getReviewsPage: async (courseId: number, params?: { page?: number; pageSize?: number; sort?: 'time' | 'likes' | 'rating'; termID?: string; teacherID?: number }): Promise<PaginatedResult<Review>> => {
+    const res = await client.GET('/api/v1/course/review/courses/{courseID}/reviews', {
+      params: { path: { courseID: courseId }, query: params }
+    })
+    return normalizeReviewList(res.data?.data)
+  },
+
   getLatestReviews: (params?: { page?: number; pageSize?: number; sort?: 'time' | 'likes' | 'rating' }) =>
     client.GET('/api/v1/course/review/reviews/latest', { params: { query: params } }),
+
+  getLatestReviewsPage: async (params?: { page?: number; pageSize?: number; sort?: 'time' | 'likes' | 'rating' }): Promise<PaginatedResult<Review>> => {
+    const res = await client.GET('/api/v1/course/review/reviews/latest', { params: { query: params } })
+    return normalizeReviewList(res.data?.data)
+  },
 
   getBatchCourseReviews: (courseIDs: number[], params?: { pageSize?: number; sort?: 'time' | 'likes' | 'rating' }) =>
     client.GET('/api/v1/course/review/reviews/batch', {
@@ -63,6 +85,18 @@ export const createReviewApi = (client: ApiClient) => ({
       },
     }),
 
+  getBatchCourseReviewsPage: async (courseIDs: number[], params?: { pageSize?: number; sort?: 'time' | 'likes' | 'rating' }): Promise<PaginatedResult<Review>> => {
+    const res = await client.GET('/api/v1/course/review/reviews/batch', {
+      params: {
+        query: {
+          courseIDs,
+          ...params,
+        },
+      },
+    })
+    return normalizeReviewList(res.data?.data)
+  },
+
   searchReviews: (
     params?: { q?: string; departmentID?: number; teacherName?: string; termID?: string; page?: number; pageSize?: number; sort?: 'time' | 'likes' | 'rating' },
     options?: { signal?: AbortSignal }
@@ -71,6 +105,17 @@ export const createReviewApi = (client: ApiClient) => ({
       params: { query: params },
       signal: options?.signal,
     }),
+
+  searchReviewsPage: async (
+    params?: { q?: string; departmentID?: number; teacherName?: string; termID?: string; page?: number; pageSize?: number; sort?: 'time' | 'likes' | 'rating' },
+    options?: { signal?: AbortSignal }
+  ): Promise<PaginatedResult<Review>> => {
+    const res = await client.GET('/api/v1/course/review/reviews/search', {
+      params: { query: params },
+      signal: options?.signal,
+    })
+    return normalizeReviewList(res.data?.data)
+  },
 
   createReview: (data: PostReviewParams) =>
     client.POST('/api/v1/course/review/reviews', { body: toPostReviewRequest(data) }),
@@ -99,5 +144,10 @@ export const createReviewApi = (client: ApiClient) => ({
     }),
 
   checkContent: (data: ContentCheckRequest) =>
-    client.POST('/api/v1/course/review/content/check', { body: data })
+    client.POST('/api/v1/course/review/content/check', { body: data }),
+
+  checkContentResult: async (data: ContentCheckRequest): Promise<ReviewContentCheck> => {
+    const res = await client.POST('/api/v1/course/review/content/check', { body: data })
+    return normalizeContentCheck(res.data?.data)
+  }
 })

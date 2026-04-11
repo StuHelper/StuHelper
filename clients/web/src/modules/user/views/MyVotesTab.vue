@@ -37,7 +37,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import type { Review } from '@/types/review'
-import { toReviews } from '@/types/review'
+import { normalizeReviews } from '@/types/review'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -53,7 +53,7 @@ const page = ref(1)
 onMounted(async () => {
   try {
     const res = await api.user.getMyVotes(1, 10)
-    votes.value = toReviews(res.data?.data?.list || [])
+    votes.value = normalizeReviews(res.data?.data?.list)
     total.value = res.data?.data?.total || 0
   } finally {
     loading.value = false
@@ -65,7 +65,7 @@ const loadMore = async () => {
   try {
     page.value++
     const res = await api.user.getMyVotes(page.value, 10)
-    votes.value = [...votes.value, ...toReviews(res.data?.data?.list || [])]
+    votes.value = [...votes.value, ...normalizeReviews(res.data?.data?.list)]
   } finally {
     loadingMore.value = false
   }

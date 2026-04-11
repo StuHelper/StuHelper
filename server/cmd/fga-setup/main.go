@@ -57,7 +57,7 @@ func main() {
 		storeID = resp.Id
 		log.Printf("Store created: %s", storeID)
 	} else {
-		log.Printf("Using existing store: %s", storeID)
+		log.Println("Using existing OpenFGA store from environment")
 	}
 
 	// Re-create client with store ID
@@ -79,7 +79,7 @@ func main() {
 
 	modelJSON, err := dslToJSON(string(modelContent))
 	if err != nil {
-		log.Fatalf("Failed to convert DSL to JSON: %v\nNote: if this fails, use the OpenFGA CLI instead:\n  openfga model write --store-id %s --file %s", err, storeID, resolvedModelPath)
+		log.Fatalf("Failed to convert DSL to JSON: %v", err)
 	}
 
 	writeResp, err := fgaClient.WriteAuthorizationModel(ctx).Body(modelJSON).Execute()

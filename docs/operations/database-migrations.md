@@ -3,7 +3,7 @@
 ## 权威文件
 
 - `server/migrations/*.up.sql` / `*.down.sql`：权威迁移历史
-- `server/scripts/init.sql`：可读快照，**不再由 Docker Compose 挂载执行**
+- 仓库内不再维护 `init.sql` 快照，避免形成第二份 schema 真相
 - `server/scripts/seed.sql`：仅开发环境示例数据
 
 ## 命名规则

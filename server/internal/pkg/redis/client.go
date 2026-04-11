@@ -127,6 +127,7 @@ func configureRedisTLS(cfg config.RedisConfig) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: cfg.TLSInsecure, //nolint:gosec // configurable for testing
+		ServerName:         cfg.Host,
 	}
 
 	// 加载 CA 证书

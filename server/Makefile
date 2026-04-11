@@ -15,6 +15,7 @@ REDOCLY_VERSION := 2.21.1
 REDOCLY := pnpm --package=@redocly/cli@$(REDOCLY_VERSION) dlx redocly
 MIGRATE_VERSION := v4.18.3
 MIGRATE := go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+MIGRATE_RUNTIME := go run ./cmd/migrate-runtime
 
 define require_database_url
 	@test -n "$(DATABASE_URL)" || (echo "ERROR: DATABASE_URL is required" && exit 1)
@@ -112,7 +113,7 @@ check-drift: generate
 
 migrate-up:
 	$(call require_database_url)
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+	$(MIGRATE_RUNTIME)
 
 migrate-down-one:
 	$(call require_database_url)
@@ -124,9 +125,9 @@ migrate-status:
 
 migrate-verify:
 	$(call require_database_url)
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+	$(MIGRATE_RUNTIME)
 	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" down 1
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+	$(MIGRATE_RUNTIME)
 
 seed-dev:
 	$(call require_database_url)

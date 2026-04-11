@@ -334,6 +334,18 @@ router.beforeEach(async (to) => {
         : matchedTitleRoute?.meta.title;
     updatePageMeta({ title: resolvedTitle });
 
+    const needsResolvedSession =
+        Boolean(to.meta.requiresAuth) ||
+        Boolean(to.meta.guest) ||
+        to.matched.some((route) =>
+            Array.isArray(route.meta.requiredCapabilities) &&
+            route.meta.requiredCapabilities.length > 0,
+        );
+
+    if (needsResolvedSession && !authStore.bootstrapCompleted) {
+        await authStore.bootstrapSession();
+    }
+
     let refreshFailed = false;
     if (authStore.isAuthenticated && isTokenExpired()) {
         try {

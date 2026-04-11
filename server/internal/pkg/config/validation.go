@@ -126,17 +126,23 @@ func (c *Config) validate(parseErrs []string) error {
 			errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required in production")
 		}
 
-		switch c.Database.SSLMode {
-		case "", "disable":
-			errs = append(errs, "DB_SSL_MODE must be 'require', 'verify-ca', or 'verify-full' in production")
-		case "require":
-			fmt.Fprintf(os.Stderr, "WARNING: DB_SSL_MODE=require skips certificate verification (MITM risk). Consider 'verify-ca' or 'verify-full' for production.\n")
+		if c.Database.SSLMode != "verify-full" {
+			errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
+		}
+		if c.Database.SSLRootCert == "" {
+			errs = append(errs, "DB_SSL_ROOT_CERT is required in production")
 		}
 		if !c.Redis.TLSEnabled {
-			fmt.Fprintf(os.Stderr, "WARNING: Redis TLS is disabled in production. Ensure Redis is in a secure internal network.\n")
+			errs = append(errs, "REDIS_TLS_ENABLED must be true in production")
 		}
-		if c.Redis.TLSEnabled && c.Redis.TLSInsecure {
+		if c.Redis.TLSCAFile == "" {
+			errs = append(errs, "REDIS_TLS_CA is required in production")
+		}
+		if c.Redis.TLSInsecure {
 			errs = append(errs, "REDIS_TLS_INSECURE must not be true in production (certificate verification required)")
+		}
+		if !c.ObjectStorage.UseSSL {
+			errs = append(errs, "OBJECT_STORAGE_USE_SSL must be true in production")
 		}
 		if len(parseErrs) > 0 {
 			errs = append(errs, parseErrs...)

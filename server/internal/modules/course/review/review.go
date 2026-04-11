@@ -49,16 +49,17 @@ func (h *Handler) PostReview(c *gin.Context) {
 	requestIDStr, _ := requestID.(string) //nolint:errcheck // gin context value, empty string is safe fallback
 
 	result, err := h.service.PostReview(c.Request.Context(), PostReviewParams{
-		CourseID:  req.CourseID,
-		TeacherID: req.TeacherID,
-		TermID:    req.TermID,
-		Title:     req.Title,
-		Content:   req.Content,
-		Grade:     req.Grade,
-		Ratings:   req.Ratings,
-		UserHash:  userHash,
-		IPAddress: c.ClientIP(),
-		RequestID: requestIDStr,
+		CourseID:             req.CourseID,
+		TeacherID:            req.TeacherID,
+		TermID:               req.TermID,
+		Title:                req.Title,
+		Content:              req.Content,
+		Grade:                req.Grade,
+		Ratings:              req.Ratings,
+		UserHash:             userHash,
+		AuthorExternalUserID: userID,
+		IPAddress:            c.ClientIP(),
+		RequestID:            requestIDStr,
 	})
 	if err != nil {
 		switch {
@@ -88,9 +89,6 @@ func (h *Handler) PostReview(c *gin.Context) {
 	}
 
 	h.invalidateReviewAggregateCaches(c)
-
-	// 异步写入 OpenFGA 关系 tuple（非阻塞，失败仅记日志）
-	h.writeFGAReviewTuples(c, result.Review.ID, userID, req.CourseID)
 
 	response.Created(c, result.Review)
 }
@@ -267,11 +265,12 @@ func (h *Handler) ReportReview(c *gin.Context) {
 		return
 	}
 
-	reportID, err := h.service.ReportReview(c.Request.Context(), ReportReviewParams{
-		ReviewID:    reviewID,
-		UserHash:    userHash,
-		Reason:      req.Reason,
-		Description: req.Description,
+	_, err = h.service.ReportReview(c.Request.Context(), ReportReviewParams{
+		ReviewID:               reviewID,
+		UserHash:               userHash,
+		ReporterExternalUserID: userID,
+		Reason:                 req.Reason,
+		Description:            req.Description,
 	})
 	if err != nil {
 		switch {
@@ -285,9 +284,6 @@ func (h *Handler) ReportReview(c *gin.Context) {
 		}
 		return
 	}
-
-	// 异步写入 FGA 举报关系 tuple
-	h.writeFGAReportTuplesForReview(c, reportID, userID, reviewID)
 
 	response.Success(c, gin.H{"message": "report submitted successfully"})
 }

@@ -59,6 +59,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 // StartBackgroundJobs 启动后台定时任务（日志清理等）
 // 调用方需传入可取消的 context，用于优雅关闭时停止后台任务
 func (h *Handler) StartBackgroundJobs(ctx context.Context) {
+	h.reviewHandler.StartBackgroundJobs(ctx)
+
 	go func() {
 		const cleanupInterval = 24 * time.Hour
 		ticker := time.NewTicker(cleanupInterval)

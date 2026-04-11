@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createUserApi } from '../../../../shared/src/api/user'
+import { createUserApi } from '@stuhelper/shared/api'
 
 describe('createUserApi.getMyVotes', () => {
   it('sends voteType as the query parameter name', async () => {

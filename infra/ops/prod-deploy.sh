@@ -11,12 +11,21 @@ require_cmd jq
 require_cmd python3
 require_cmd openssl
 
-[[ -f "${ENV_FILE}" ]] || die "missing ${ENV_FILE}; production deploy requires a prepared .env"
-if [[ -n "${SECRETS_ENV_FILE:-}" ]]; then
-  [[ -f "${SECRETS_ENV_FILE}" ]] || die "missing ${SECRETS_ENV_FILE}; production deploy requires a prepared secrets env file"
-fi
 ensure_generated_files
+if [[ -n "${SHARED_ENV_SECRET_REF:-}" ]]; then
+  mkdir -p "$(dirname "${ENV_FILE}")"
+  touch "${ENV_FILE}"
+fi
+if [[ -n "${SECRETS_ENV_SECRET_REF:-}" && -n "${SECRETS_ENV_FILE:-}" ]]; then
+  mkdir -p "$(dirname "${SECRETS_ENV_FILE}")"
+  touch "${SECRETS_ENV_FILE}"
+fi
+pending_generated_secret_ref="${GENERATED_ENV_SECRET_REF:-}"
+unset GENERATED_ENV_SECRET_REF
 load_env
+if [[ -n "${pending_generated_secret_ref}" ]]; then
+  export GENERATED_ENV_SECRET_REF="${pending_generated_secret_ref}"
+fi
 
 require_nonempty() {
   local key="$1"
@@ -89,6 +98,8 @@ require_nonempty WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
 require_nonempty OPENFGA_API_URL "${OPENFGA_API_URL:-}"
 require_nonempty OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}"
 require_nonempty OBJECT_STORAGE_BUCKET "${OBJECT_STORAGE_BUCKET:-}"
+require_nonempty MINIO_ROOT_USER "${MINIO_ROOT_USER:-}"
+require_nonempty MINIO_ROOT_PASSWORD "${MINIO_ROOT_PASSWORD:-}"
 require_nonempty OBJECT_STORAGE_ACCESS_KEY_ID "${OBJECT_STORAGE_ACCESS_KEY_ID:-}"
 require_nonempty OBJECT_STORAGE_SECRET_ACCESS_KEY "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"
 require_nonempty GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
@@ -134,7 +145,9 @@ reject_local_value GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
 
 [[ "${TOKEN_COOKIE_SECURE:-false}" == "true" ]] || die "TOKEN_COOKIE_SECURE must be true for production deploy"
 [[ "${OTEL_ENABLED:-false}" == "true" ]] || die "OTEL_ENABLED must be true for production deploy"
-[[ "${DB_SSL_MODE:-disable}" != "disable" ]] || die "DB_SSL_MODE must not be disable for production deploy"
+[[ "${DB_SSL_MODE:-disable}" == "verify-full" ]] || die "DB_SSL_MODE must be verify-full for production deploy"
+[[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
+[[ "${REDIS_TLS_INSECURE:-false}" != "true" ]] || die "REDIS_TLS_INSECURE must be false for production deploy"
 
 export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"

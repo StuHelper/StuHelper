@@ -7,7 +7,7 @@
 | 事实 | 权威来源 | 不要从这里读 |
 |------|----------|-------------|
 | API 契约 | `server/api/openapi.yaml` | 代码注释、前端类型文件 |
-| 数据库 schema | `server/migrations/` | 文档描述、`init.sql` 快照 |
+| 数据库 schema | `server/migrations/` | 文档描述、历史快照文件 |
 | 能力常量 | `server/internal/pkg/capability/` | 前端硬编码 |
 | 运行时行为 | 源代码和测试 | 设计文档中的"应该" |
 

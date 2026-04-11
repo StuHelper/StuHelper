@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,6 +53,15 @@ type mockRepo struct {
 	onListSystemConfigs                        func(ctx context.Context) ([]SystemConfig, error)
 	onUpdateSystemConfig                       func(ctx context.Context, key, value string) error
 	onGetInternalUserID                        func(ctx context.Context, externalID string) (int64, error)
+	onWithTx                                   func(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
+	onGetProfileByUserIDTx                     func(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
+	onCreateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
+	onUpdateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
+	onSetUserPhoneTx                           func(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error
+	onUpsertExternalSyncJobTx                  func(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
+	onClaimExternalSyncJobs                    func(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
+	onMarkExternalSyncJobDone                  func(ctx context.Context, jobID int64) error
+	onMarkExternalSyncJobRetry                 func(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
 }
 
 func (m *mockRepo) GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error) {
@@ -191,6 +201,69 @@ func (m *mockRepo) GetInternalUserID(ctx context.Context, externalID string) (in
 
 func (m *mockRepo) GetExternalID(_ context.Context, _ int64) (string, error) {
 	return "test-external-id", nil
+}
+
+func (m *mockRepo) WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error {
+	if m.onWithTx != nil {
+		return m.onWithTx(ctx, fn)
+	}
+	return fn(ctx, nil)
+}
+
+func (m *mockRepo) GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error) {
+	if m.onGetProfileByUserIDTx != nil {
+		return m.onGetProfileByUserIDTx(ctx, tx, userID)
+	}
+	return m.GetProfileByUserID(ctx, userID)
+}
+
+func (m *mockRepo) CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error {
+	if m.onCreateProfileTx != nil {
+		return m.onCreateProfileTx(ctx, tx, profile)
+	}
+	return m.CreateProfile(ctx, profile)
+}
+
+func (m *mockRepo) UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error {
+	if m.onUpdateProfileTx != nil {
+		return m.onUpdateProfileTx(ctx, tx, profile)
+	}
+	return m.UpdateProfile(ctx, profile)
+}
+
+func (m *mockRepo) SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error {
+	if m.onSetUserPhoneTx != nil {
+		return m.onSetUserPhoneTx(ctx, tx, userID, phoneEnc, phoneHash)
+	}
+	return m.SetUserPhone(ctx, userID, phoneEnc, phoneHash)
+}
+
+func (m *mockRepo) UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error {
+	if m.onUpsertExternalSyncJobTx != nil {
+		return m.onUpsertExternalSyncJobTx(ctx, tx, jobType, dedupeKey, payload)
+	}
+	return nil
+}
+
+func (m *mockRepo) ClaimExternalSyncJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error) {
+	if m.onClaimExternalSyncJobs != nil {
+		return m.onClaimExternalSyncJobs(ctx, limit, staleAfter)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) MarkExternalSyncJobDone(ctx context.Context, jobID int64) error {
+	if m.onMarkExternalSyncJobDone != nil {
+		return m.onMarkExternalSyncJobDone(ctx, jobID)
+	}
+	return nil
+}
+
+func (m *mockRepo) MarkExternalSyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error {
+	if m.onMarkExternalSyncJobRetry != nil {
+		return m.onMarkExternalSyncJobRetry(ctx, jobID, nextAttemptAt, lastError)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------

@@ -17,16 +17,17 @@ import (
 
 // PostReviewParams 发布评论参数
 type PostReviewParams struct {
-	CourseID  int64
-	TeacherID *int64
-	TermID    string
-	Title     string
-	Content   string
-	Grade     string
-	Ratings   ReviewRatings
-	UserHash  string
-	IPAddress string
-	RequestID string
+	CourseID             int64
+	TeacherID            *int64
+	TermID               string
+	Title                string
+	Content              string
+	Grade                string
+	Ratings              ReviewRatings
+	UserHash             string
+	AuthorExternalUserID string
+	IPAddress            string
+	RequestID            string
 }
 
 // PostReviewResult 发布评论结果
@@ -124,12 +125,29 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		}
 		review = *created
 		if !isPublicReviewStatus(review.Status) {
-			return nil
+			if s.fgaWriter == nil {
+				return nil
+			}
+			schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
+			if err != nil {
+				return err
+			}
+			return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, params.AuthorExternalUserID, params.CourseID, schoolID)
 		}
 		if err := s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID); err != nil {
 			return err
 		}
-		return s.refreshReviewTargetTx(ctx, tx, params.CourseID, params.TeacherID)
+		if err := s.refreshReviewTargetTx(ctx, tx, params.CourseID, params.TeacherID); err != nil {
+			return err
+		}
+		if s.fgaWriter == nil {
+			return nil
+		}
+		schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
+		if err != nil {
+			return err
+		}
+		return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, params.AuthorExternalUserID, params.CourseID, schoolID)
 	}); err != nil {
 		return nil, err
 	}
@@ -221,11 +239,11 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 	}
 	// 仅在新增 upvote 时通知评价作者
 	if s.notifSender != nil && shouldNotifyLike {
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		go func(parent context.Context) {
+			notifCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
 			defer cancel()
-			s.sendVoteNotification(ctx, params.ReviewID, params.UserHash)
-		}()
+			s.sendVoteNotification(notifCtx, params.ReviewID, params.UserHash)
+		}(ctx)
 	}
 	return courseID, nil
 }

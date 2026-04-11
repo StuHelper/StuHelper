@@ -127,6 +127,9 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserInfo | null>(initialUser)
   const loading = ref(false)
   const error = ref<AuthError | null>(null)
+  const bootstrapPending = ref(false)
+  const bootstrapCompleted = ref(false)
+  let bootstrapPromise: Promise<boolean> | null = null
 
   // 计算属性
   const isAuthenticated = computed(() => !!user.value)
@@ -224,6 +227,7 @@ export const useAuthStore = defineStore('auth', () => {
       const normalizedUser = normalizeCurrentUser(data, user.value)
       user.value = normalizedUser
       userManager.setUser(normalizedUser)
+      bootstrapCompleted.value = true
       return normalizedUser
     } catch (err) {
       // 区分网络错误和认证错误
@@ -242,45 +246,63 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const bootstrapSession = async () => {
-    clearError()
+  const bootstrapSession = async (options?: { force?: boolean }) => {
+    if (!options?.force) {
+      if (bootstrapCompleted.value && !bootstrapPending.value) {
+        return isAuthenticated.value
+      }
+      if (bootstrapPromise) {
+        return bootstrapPromise
+      }
+    }
 
-    try {
-      const res = await api.auth.me()
-      const data = res.data?.data
-      if (!data) {
-        if (user.value) {
+    clearError()
+    bootstrapPending.value = true
+
+    bootstrapPromise = (async () => {
+      try {
+        const res = await api.auth.me()
+        const data = res.data?.data
+        if (!data) {
+          if (user.value) {
+            clearAuth()
+            user.value = null
+          }
+          return false
+        }
+        const normalizedUser = normalizeCurrentUser(data, user.value)
+        user.value = normalizedUser
+        userManager.setUser(normalizedUser)
+        return true
+      } catch (err) {
+        if (
+          isApiError(err) &&
+          !isNetworkError(err.code) &&
+          !isCsrfError(err.code) &&
+          (err.status === 401 || err.status === 403 || isAuthError(err.code))
+        ) {
           clearAuth()
           user.value = null
+          return false
+        }
+
+        const authErr = handleError(
+          err,
+          i18n.global.t('common.login.fetchUserFailed'),
+        )
+        setError(authErr.type, authErr.message)
+        if (import.meta.env.DEV) {
+          console.error('[Auth] bootstrapSession failed:', err)
         }
         return false
+      } finally {
+        bootstrapPending.value = false
+        bootstrapCompleted.value = true
+        bootstrapPromise = null
       }
-      const normalizedUser = normalizeCurrentUser(data, user.value)
-      user.value = normalizedUser
-      userManager.setUser(normalizedUser)
-      return true
-    } catch (err) {
-      if (
-        isApiError(err) &&
-        !isNetworkError(err.code) &&
-        !isCsrfError(err.code) &&
-        (err.status === 401 || err.status === 403 || isAuthError(err.code))
-      ) {
-        clearAuth()
-        user.value = null
-        return false
-      }
+    })()
 
-      const authErr = handleError(
-        err,
-        i18n.global.t('common.login.fetchUserFailed'),
-      )
-      setError(authErr.type, authErr.message)
-      if (import.meta.env.DEV) {
-        console.error('[Auth] bootstrapSession failed:', err)
-      }
-      return false
-    }
+    return bootstrapPromise
   }
 
   // 刷新会话（依赖 HttpOnly refresh token Cookie）
@@ -340,6 +362,8 @@ export const useAuthStore = defineStore('auth', () => {
   function resetAllStores() {
     clearAuth()
     user.value = null
+    bootstrapPending.value = false
+    bootstrapCompleted.value = true
     useUserStore().reset()
     useCourseStore().reset()
     useDraftStore().reset()
@@ -384,6 +408,7 @@ export const useAuthStore = defineStore('auth', () => {
         const normalizedUser = normalizeCurrentUser(data.user, null)
         user.value = normalizedUser
         userManager.setUser(normalizedUser)
+        bootstrapCompleted.value = true
         if (typeof data.expiresIn === 'number') {
           tokenExpiry.set(data.expiresIn)
         }
@@ -405,6 +430,8 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     loading,
     error,
+    bootstrapPending,
+    bootstrapCompleted,
     isAuthenticated,
     globalCapabilities,
     login,

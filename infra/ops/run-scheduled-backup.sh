@@ -9,7 +9,8 @@ MODE="${1:-dump}"
 
 load_env
 
-[[ -n "${DATABASE_URL:-}" ]] || die "DATABASE_URL is required"
+[[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL is required"
+[[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL is required"
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 wal_archive_dir="${POSTGRES_WAL_ARCHIVE_DIR:-${REPO_ROOT}/infra/generated/postgres/wal-archive}"
@@ -42,5 +43,7 @@ esac
 if [[ -d "${wal_archive_dir}" ]]; then
   prune_old_backups "${wal_archive_dir}" "${WAL_ARCHIVE_RETENTION_DAYS:-7}"
 fi
+
+./infra/ops/sync-postgres-backups.sh
 
 log "scheduled PostgreSQL ${MODE} backup completed"

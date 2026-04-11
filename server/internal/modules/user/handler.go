@@ -16,12 +16,12 @@ import (
 type profileFGAClient interface {
 	WriteTuples(ctx context.Context, tuples []fga.Tuple) error
 	DeleteTuples(ctx context.Context, tuples []fga.Tuple) error
+	ReadTuples(ctx context.Context, object, relation string) ([]fga.Tuple, error)
 }
 
 // Handler 用户模块 HTTP 处理器
 type Handler struct {
 	service       *Service
-	fga           profileFGAClient
 	verifyLimiter *middleware.RedisRateLimiter
 	otpService    OTPGenerator
 	smsService    SMSSender
@@ -33,9 +33,11 @@ func NewHandler(service *Service, fgaClient profileFGAClient, rdb *redis.Client,
 	if rdb != nil {
 		verifyLimiter = middleware.NewRedisRateLimiter(rdb, 5, time.Minute)
 	}
+	if service != nil {
+		service.SetProfileFGAClient(fgaClient)
+	}
 	return &Handler{
 		service:       service,
-		fga:           fgaClient,
 		verifyLimiter: verifyLimiter,
 		otpService:    otpService,
 		smsService:    smsService,

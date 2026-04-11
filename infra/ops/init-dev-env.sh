@@ -68,6 +68,12 @@ fi
 if placeholder_or_empty "${OPENFGA_DB_PASSWORD:-}"; then
   upsert_env_file "${ENV_FILE}" "OPENFGA_DB_PASSWORD" "dev-openfga-$(random_hex 12)"
 fi
+if placeholder_or_empty "${STUHELPER_BACKUP_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "STUHELPER_BACKUP_DB_PASSWORD" "dev-backup-$(random_hex 12)"
+fi
+if placeholder_or_empty "${STUHELPER_REPLICATION_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "STUHELPER_REPLICATION_DB_PASSWORD" "dev-repl-$(random_hex 12)"
+fi
 if placeholder_or_empty "${HMAC_SECRET:-}"; then
   upsert_env_file "${ENV_FILE}" "HMAC_SECRET" "$(random_hex 32)"
 fi
@@ -84,8 +90,17 @@ fi
 if placeholder_or_empty "${GRAFANA_ADMIN_PASSWORD:-}"; then
   upsert_env_file "${ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "dev-grafana-$(random_hex 8)"
 fi
+if placeholder_or_empty "${MINIO_ROOT_USER:-}"; then
+  upsert_env_file "${ENV_FILE}" "MINIO_ROOT_USER" "dev-minio-root"
+fi
+if placeholder_or_empty "${MINIO_ROOT_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "MINIO_ROOT_PASSWORD" "dev-minio-root-$(random_hex 12)"
+fi
 if placeholder_or_empty "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
   upsert_env_file "${ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "dev-minio-$(random_hex 12)"
+fi
+if placeholder_or_empty "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
+  upsert_env_file "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "dev-backup-store-$(random_hex 12)"
 fi
 if placeholder_or_empty "${ZITADEL_MASTERKEY:-}" || [[ "${ZITADEL_MASTERKEY:-}" == "StuHelperDevMasterKey123456789AB" ]]; then
   upsert_env_file "${ENV_FILE}" "ZITADEL_MASTERKEY" "$(random_hex 16)"
@@ -108,6 +123,9 @@ ensure_dev_default "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off" "o
 ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "60s"
 ensure_value "REDIS_HOST" "${REDIS_HOST:-}" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
+ensure_value "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true"
+ensure_value "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
+ensure_value "REDIS_TLS_INSECURE" "${REDIS_TLS_INSECURE:-}" "false"
 ensure_value "ZITADEL_EXTERNALPORT" "${ZITADEL_EXTERNALPORT:-}" "8085"
 ensure_dev_default "ZITADEL_DOMAIN" "${ZITADEL_DOMAIN:-}" "localhost" "host.docker.internal"
 ensure_value "ZITADEL_PUBLIC_SCHEME" "${ZITADEL_PUBLIC_SCHEME:-}" "http"
@@ -126,6 +144,11 @@ ensure_value "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "http://lo
 ensure_value "OBJECT_STORAGE_REGION" "${OBJECT_STORAGE_REGION:-}" "us-east-1"
 ensure_value "OBJECT_STORAGE_BUCKET" "${OBJECT_STORAGE_BUCKET:-}" "stuhelper-identity"
 ensure_value "OBJECT_STORAGE_ACCESS_KEY_ID" "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "stuhelper"
+ensure_value "BACKUP_OBJECT_STORAGE_ENDPOINT" "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" "http://localhost:9000"
+ensure_value "BACKUP_OBJECT_STORAGE_BUCKET" "${BACKUP_OBJECT_STORAGE_BUCKET:-}" "stuhelper-postgres-backup"
+ensure_value "BACKUP_OBJECT_STORAGE_PREFIX" "${BACKUP_OBJECT_STORAGE_PREFIX:-}" "postgres"
+ensure_value "BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID" "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" "stuhelper-backup"
+ensure_value "BACKUP_OBJECT_STORAGE_TLS_INSECURE" "${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-}" "true"
 ensure_value "OBJECT_STORAGE_USE_SSL" "${OBJECT_STORAGE_USE_SSL:-}" "false"
 ensure_value "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PATH_STYLE:-}" "true"
 ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
@@ -138,6 +161,8 @@ ensure_value "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "stuhelper/backend:dev
 ensure_value "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "stuhelper/frontend:dev-placeholder"
 ensure_value "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "stuhelper/admin:dev-placeholder"
 
+"${SCRIPT_DIR}/render-redis-tls.sh"
+"${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/render-zitadel-secrets.sh"
 
 log "development environment file is ready: ${ENV_FILE}"

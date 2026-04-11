@@ -371,7 +371,7 @@ func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T
 }
 
 func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
-	getProfileCalls := 0
+	var createdProfile *Profile
 	repo := &mockRepo{
 		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
 			assert.Equal(t, "external-user-123", externalID)
@@ -395,11 +395,12 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 		onCreateProfile: func(_ context.Context, profile *Profile) error {
 			assert.Equal(t, StatusPending, profile.VerificationStatus)
 			assert.Equal(t, []string{"20240001"}, profile.StudentIDs)
+			copied := *profile
+			createdProfile = &copied
 			return nil
 		},
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
-			getProfileCalls++
-			if getProfileCalls == 1 {
+			if createdProfile == nil {
 				return nil, nil
 			}
 			schoolID := int64(10006)

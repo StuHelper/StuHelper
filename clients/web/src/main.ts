@@ -60,10 +60,10 @@ initObservability()
 
 async function bootstrapApp() {
   const authStore = useAuthStore(pinia)
-  await authStore.bootstrapSession()
   app.use(router)
   await router.isReady()
   app.mount('#app')
+  void authStore.bootstrapSession()
 }
 
 bootstrapApp().catch(renderBootstrapFallback)

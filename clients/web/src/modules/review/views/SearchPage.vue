@@ -340,7 +340,6 @@ import ControversialBadge from '@/components/business/review/ControversialBadge.
 import { api } from '@/api'
 import type { Department, Term, Course } from '@/types/course'
 import type { Review } from '@/types/review'
-import { toReviews } from '@/types/review'
 import { getRatingColor } from '@/modules/course/theme'
 
 const { t } = useI18n()
@@ -490,7 +489,7 @@ async function handleSearch() {
         ? api.course.getCourses({ departmentID: form.departmentID, pageSize: 50 })
         : Promise.resolve(null)
 
-    const reviewPromise = api.review.searchReviews(
+    const reviewPromise = api.review.searchReviewsPage(
       {
         q: courseQuery || undefined,
         departmentID: form.departmentID > 0 ? form.departmentID : undefined,
@@ -518,7 +517,7 @@ async function handleSearch() {
 
     // Process review results
     if (reviewRes) {
-      resultReviews.value = toReviews(reviewRes.data?.data?.list || [])
+      resultReviews.value = reviewRes.list
     }
   } catch {
     if (!signal.aborted) {

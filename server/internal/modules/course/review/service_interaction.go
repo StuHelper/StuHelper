@@ -239,11 +239,11 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 
 	// 发送回复通知给评价作者
 	if s.notifSender != nil && isPublicReviewStatus(replyStatus) {
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		go func(parent context.Context) {
+			notifCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
 			defer cancel()
-			s.sendReplyNotification(ctx, params.ReviewID, params.UserHash)
-		}()
+			s.sendReplyNotification(notifCtx, params.ReviewID, params.UserHash)
+		}(ctx)
 	}
 
 	return &CreateReplyResult{

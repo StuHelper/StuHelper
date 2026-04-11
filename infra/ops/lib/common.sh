@@ -7,9 +7,15 @@ ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
 ENV_TEMPLATE_FILE="${ENV_TEMPLATE_FILE:-${REPO_ROOT}/.env.example}"
 SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-}"
 GENERATED_ENV_FILE="${GENERATED_ENV_FILE:-${REPO_ROOT}/.env.generated}"
+GENERATED_SECRET_ENV_FILE="${GENERATED_SECRET_ENV_FILE:-${REPO_ROOT}/.env.generated.secrets}"
+SHARED_ENV_SECRET_REF="${SHARED_ENV_SECRET_REF:-}"
+SECRETS_ENV_SECRET_REF="${SECRETS_ENV_SECRET_REF:-}"
+GENERATED_ENV_SECRET_REF="${GENERATED_ENV_SECRET_REF:-}"
 GENERATED_OBS_DIR="${GENERATED_OBS_DIR:-${REPO_ROOT}/infra/generated/observability}"
 GENERATED_ZITADEL_DIR="${GENERATED_ZITADEL_DIR:-${REPO_ROOT}/infra/generated/zitadel}"
 DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${REPO_ROOT}/.deploy}"
+# shellcheck source=secrets.sh
+source "${COMMON_LIB_DIR}/secrets.sh"
 
 log() {
   echo "[stuhelper] $*"
@@ -41,6 +47,19 @@ ensure_env_file() {
 ensure_generated_files() {
   mkdir -p "${GENERATED_OBS_DIR}/prometheus" "${GENERATED_OBS_DIR}/alertmanager" "${GENERATED_ZITADEL_DIR}"
   touch "${GENERATED_ENV_FILE}"
+  touch "${GENERATED_SECRET_ENV_FILE}"
+}
+
+materialize_secret_env_inputs() {
+  if [[ -n "${SHARED_ENV_SECRET_REF}" ]]; then
+    materialize_secret_env_file "${SHARED_ENV_SECRET_REF}" "${ENV_FILE}"
+  fi
+  if [[ -n "${SECRETS_ENV_SECRET_REF}" && -n "${SECRETS_ENV_FILE}" ]]; then
+    materialize_secret_env_file "${SECRETS_ENV_SECRET_REF}" "${SECRETS_ENV_FILE}"
+  fi
+  if [[ -n "${GENERATED_ENV_SECRET_REF}" ]]; then
+    materialize_secret_env_file "${GENERATED_ENV_SECRET_REF}" "${GENERATED_SECRET_ENV_FILE}"
+  fi
 }
 
 ensure_secrets_env_file() {
@@ -54,6 +73,7 @@ load_env() {
   ensure_env_file
   ensure_secrets_env_file
   ensure_generated_files
+  materialize_secret_env_inputs
   local preserved_tag="${TAG-__STUHELPER_UNSET__}"
   local preserved_rollback_tag="${ROLLBACK_TAG-__STUHELPER_UNSET__}"
   local preserved_backend_image_ref="${BACKEND_IMAGE_REF-__STUHELPER_UNSET__}"
@@ -68,6 +88,10 @@ load_env() {
   fi
   # shellcheck disable=SC1090
   source "${GENERATED_ENV_FILE}"
+  if [[ -f "${GENERATED_SECRET_ENV_FILE}" ]]; then
+    # shellcheck disable=SC1090
+    source "${GENERATED_SECRET_ENV_FILE}"
+  fi
   if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi
   if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi
   if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi
@@ -88,6 +112,7 @@ compose() {
     source "${ENV_FILE}" && \
     if [[ -n "${SECRETS_ENV_FILE}" && -f "${SECRETS_ENV_FILE}" ]]; then source "${SECRETS_ENV_FILE}"; fi && \
     if [[ -f "${GENERATED_ENV_FILE}" ]]; then source "${GENERATED_ENV_FILE}"; fi && \
+    if [[ -f "${GENERATED_SECRET_ENV_FILE}" ]]; then source "${GENERATED_SECRET_ENV_FILE}"; fi && \
     if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi && \
     if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi && \
     if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi && \

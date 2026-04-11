@@ -92,6 +92,12 @@ fi
 if placeholder_or_empty "${OPENFGA_DB_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-openfga-$(random_hex 16)"
 fi
+if placeholder_or_empty "${STUHELPER_BACKUP_DB_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "STUHELPER_BACKUP_DB_PASSWORD" "prod-backup-$(random_hex 16)"
+fi
+if placeholder_or_empty "${STUHELPER_REPLICATION_DB_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "STUHELPER_REPLICATION_DB_PASSWORD" "prod-repl-$(random_hex 16)"
+fi
 if placeholder_or_empty "${HMAC_SECRET:-}" || [[ "${HMAC_SECRET:-}" == "dev_hmac_secret_change_in_production_32ch" ]]; then
   upsert_env_file "${SECRETS_ENV_FILE}" "HMAC_SECRET" "$(random_hex 32)"
 fi
@@ -108,8 +114,17 @@ fi
 if placeholder_or_empty "${GRAFANA_ADMIN_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-grafana-$(random_hex 12)"
 fi
+if placeholder_or_empty "${MINIO_ROOT_USER:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "MINIO_ROOT_USER" "minio-root-$(random_hex 8)"
+fi
+if placeholder_or_empty "${MINIO_ROOT_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "MINIO_ROOT_PASSWORD" "prod-minio-root-$(random_hex 24)"
+fi
 if placeholder_or_empty "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-minio-$(random_hex 16)"
+  upsert_env_file "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-minio-app-$(random_hex 16)"
+fi
+if placeholder_or_empty "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-minio-backup-$(random_hex 16)"
 fi
 if [[ -z "${ZITADEL_MASTERKEY:-}" || "${ZITADEL_MASTERKEY:-}" == "StuHelperDevMasterKey123456789AB" ]]; then
   upsert_env_file "${SECRETS_ENV_FILE}" "ZITADEL_MASTERKEY" "$(random_hex 16)"
@@ -128,15 +143,21 @@ ensure_prod_default "APP_ENV" "${APP_ENV:-}" "production" "development"
 ensure_value "LOG_LEVEL" "${LOG_LEVEL:-}" "info"
 ensure_prod_default "LOG_FORMAT" "${LOG_FORMAT:-}" "json" "console"
 ensure_value "LOG_OUTPUT" "${LOG_OUTPUT:-}" "stdout"
-ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=require" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@localhost:5432/stuhelper?sslmode=disable"
-ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "require" "disable"
+ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@localhost:5432/stuhelper?sslmode=disable"
+ensure_prod_default "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
+ensure_prod_default "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
+ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "verify-full" "require" "disable"
+ensure_prod_default "DB_SSL_ROOT_CERT" "${DB_SSL_ROOT_CERT:-}" "/tls/ca.crt"
 ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
-ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "require" "disable"
+ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "verify-full" "require" "disable"
 ensure_prod_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
 ensure_prod_default "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "on" "off"
 ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "60s"
 ensure_prod_default "REDIS_HOST" "${REDIS_HOST:-}" "redis" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
+ensure_prod_default "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true" "false"
+ensure_prod_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
+ensure_prod_default "REDIS_TLS_INSECURE" "${REDIS_TLS_INSECURE:-}" "false" "true"
 ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS" "http://localhost:3000,http://localhost:3001"
 ensure_value "TRUSTED_PROXIES" "${TRUSTED_PROXIES:-}" "127.0.0.1/32,172.16.0.0/12,192.168.0.0/16"
 ensure_prod_default "OTEL_ENABLED" "${OTEL_ENABLED:-}" "true" "false"
@@ -163,7 +184,13 @@ ensure_prod_default "OPENFGA_API_URL" "${OPENFGA_API_URL:-}" "http://openfga:808
 ensure_prod_default "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT" "http://localhost:9000" "http://minio:9000"
 ensure_value "OBJECT_STORAGE_REGION" "${OBJECT_STORAGE_REGION:-}" "us-east-1"
 ensure_value "OBJECT_STORAGE_BUCKET" "${OBJECT_STORAGE_BUCKET:-}" "stuhelper-identity"
+ensure_prod_default "MINIO_ROOT_USER" "${MINIO_ROOT_USER:-}" "REPLACE_WITH_MINIO_ROOT_USER" "stuhelper"
 ensure_prod_default "OBJECT_STORAGE_ACCESS_KEY_ID" "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "REPLACE_WITH_OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper"
+ensure_prod_default "BACKUP_OBJECT_STORAGE_ENDPOINT" "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_ENDPOINT" "http://localhost:9000" "http://minio:9000"
+ensure_value "BACKUP_OBJECT_STORAGE_BUCKET" "${BACKUP_OBJECT_STORAGE_BUCKET:-}" "stuhelper-postgres-backup"
+ensure_value "BACKUP_OBJECT_STORAGE_PREFIX" "${BACKUP_OBJECT_STORAGE_PREFIX:-}" "postgres"
+ensure_prod_default "BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID" "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper-backup"
+ensure_prod_default "BACKUP_OBJECT_STORAGE_TLS_INSECURE" "${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-}" "false" "true"
 ensure_prod_default "OBJECT_STORAGE_USE_SSL" "${OBJECT_STORAGE_USE_SSL:-}" "true" "false"
 ensure_prod_default "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PATH_STYLE:-}" "false" "true"
 ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
@@ -181,6 +208,8 @@ ensure_prod_default "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "REPLACE_WITH
 ensure_prod_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN_IMAGE_REF" "registry.stuhelper.com/stuhelper/admin:latest" "stuhelper/admin:dev-placeholder"
 
 "${SCRIPT_DIR}/render-postgres-tls.sh"
+"${SCRIPT_DIR}/render-redis-tls.sh"
+"${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/render-zitadel-secrets.sh"
 
 log "production environment file is ready: ${ENV_FILE}"

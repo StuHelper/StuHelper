@@ -177,6 +177,41 @@ func (c *Client) DeleteTuples(ctx context.Context, tuples []Tuple) error {
 	return nil
 }
 
+// ReadTuples 读取指定对象/关系的现有 tuples，用于幂等重建投影。
+func (c *Client) ReadTuples(ctx context.Context, object, relation string) ([]Tuple, error) {
+	if err := validateTupleField(object, "object"); err != nil {
+		return nil, err
+	}
+	if err := validateTupleField(relation, "relation"); err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+	ctx, span := c.startSpan(ctx, "read", relation, object)
+	defer span.End()
+
+	body := client.ClientReadRequest{
+		Object:   openfga.PtrString(object),
+		Relation: openfga.PtrString(relation),
+	}
+	resp, err := c.fga.Read(ctx).Body(body).Execute()
+	metrics.ObserveExternalRequest("openfga", "read_tuples", start, err)
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, fmt.Errorf("fga: read tuples failed for %s#%s: %w", object, relation, err)
+	}
+
+	result := make([]Tuple, 0, len(resp.Tuples))
+	for _, tuple := range resp.Tuples {
+		result = append(result, Tuple{
+			User:     tuple.Key.GetUser(),
+			Relation: tuple.Key.GetRelation(),
+			Object:   tuple.Key.GetObject(),
+		})
+	}
+	return result, nil
+}
+
 // WriteReviewRelations 评课发布时写入完整关系链
 func (c *Client) WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error {
 	return c.WriteTuples(ctx, []Tuple{

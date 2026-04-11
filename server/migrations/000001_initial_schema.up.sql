@@ -1,9 +1,8 @@
 -- StuHelper baseline schema migration
--- Source snapshot: server/scripts/init.sql
+-- Historical baseline extracted into migration 000001; numbered migrations are the only schema authority.
 -- Note: Production schema evolution must go through numbered migrations in this directory.
 
 -- StuHelper 数据库初始化脚本（全量）
--- 使用方法: psql -U stuhelper -d stuhelper -f init.sql
 -- 包含: 用户表、课程表、评课社区全部业务表
 -- ID 策略: 用户可见实体 (courses/teachers/departments) 使用 BIGSERIAL，内部业务表使用 UUIDv7 (VARCHAR(36))
 
