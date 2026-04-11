@@ -4,8 +4,8 @@ package oidc
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -69,8 +69,8 @@ func NewClient(ctx context.Context, cfg config.ZitadelConfig) (*Client, error) {
 // 在 callback 时传给 ExchangeCode。
 func (c *Client) GetAuthURL(state string) (string, string) {
 	verifier := oauth2.GenerateVerifier()
-	url := c.oauth2Cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
-	return url, verifier
+	authURL := c.oauth2Cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
+	return authURL, verifier
 }
 
 // ExchangeCode 用授权码 + PKCE code_verifier 交换 Token。
@@ -182,7 +182,11 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 	if err != nil {
 		return nil, fmt.Errorf("oidc: introspect request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("oidc: close introspection response body: %w", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("oidc: introspect returned status %d", resp.StatusCode)

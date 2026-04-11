@@ -1,5 +1,6 @@
-import { createAdminApi } from '@stuhelper/shared/api';
 import type { components } from '@stuhelper/shared';
+
+import { createAdminApi } from '@stuhelper/shared/api';
 
 import { sharedApiClient } from '#/api/shared-client';
 import { unwrapData, unwrapListData } from '#/api/shared-result';
@@ -44,7 +45,7 @@ export async function batchUpdateReviews(data: {
   return unwrapData(
     await adminApi.batchUpdateReviews({
       action: data.action,
-      ids: data.ids.map((id) => String(id)),
+      ids: data.ids.map(String),
     }),
   );
 }
@@ -148,10 +149,11 @@ export async function deleteSensitiveWord(id: string) {
   return unwrapData(await adminApi.deleteSensitiveWord(id));
 }
 
-export async function getOperationLogs(params: { page?: number; pageSize?: number }) {
-  return unwrapListData<OperationLog>(
-    await adminApi.getLogs(params),
-  );
+export async function getOperationLogs(params: {
+  page?: number;
+  pageSize?: number;
+}) {
+  return unwrapListData<OperationLog>(await adminApi.getLogs(params));
 }
 
 export async function getAdminStats() {

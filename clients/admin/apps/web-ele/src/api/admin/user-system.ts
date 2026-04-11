@@ -1,5 +1,6 @@
-import { createUserAdminApi } from '@stuhelper/shared/api';
 import type { components } from '@stuhelper/shared';
+
+import { createUserAdminApi } from '@stuhelper/shared/api';
 
 import { sharedApiClient } from '#/api/shared-client';
 import { unwrapData, unwrapListData } from '#/api/shared-result';
@@ -47,9 +48,7 @@ export async function getStudentVerificationList(params: {
     await userAdminApi.listStudentVerifications({
       page: params.page,
       pageSize: params.pageSize,
-      ...(schoolID === undefined || Number.isNaN(schoolID)
-        ? {}
-        : { schoolID }),
+      ...(schoolID === undefined || Number.isNaN(schoolID) ? {} : { schoolID }),
       status: params.status,
     }),
   );
@@ -59,9 +58,7 @@ export async function reviewStudentVerification(
   userId: number,
   data: { approved: boolean; rejectionReason?: string },
 ) {
-  return unwrapData(
-    await userAdminApi.reviewStudentVerification(userId, data),
-  );
+  return unwrapData(await userAdminApi.reviewStudentVerification(userId, data));
 }
 
 export async function getSchoolConfigList() {

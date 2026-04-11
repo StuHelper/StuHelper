@@ -78,7 +78,7 @@ function isClearedKey(key: string): boolean {
 
 function parseDraftRecord(
   raw: string,
-  validRatingKeys: ReadonlySet<string>,
+  validRatingKeys?: ReadonlySet<string>,
 ): LocalReviewDraft | null {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
@@ -151,7 +151,7 @@ export function sanitizeDraftRatings(
 }
 
 export function loadLocalReviewDraft(
-  validRatingKeys: ReadonlySet<string>,
+  validRatingKeys?: ReadonlySet<string>,
   courseID?: number,
 ): LocalReviewDraft | null {
   try {

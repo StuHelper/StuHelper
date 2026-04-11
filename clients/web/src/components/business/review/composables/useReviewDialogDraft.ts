@@ -89,7 +89,7 @@ export function useReviewDialogDraft() {
   }
 
   async function tryRestoreDraft(
-    validRatingKeys: ReadonlySet<string>,
+    validRatingKeys: ReadonlySet<string> | undefined,
     currentCourse: Course | null,
     callbacks: DraftRestoreCallbacks,
   ): Promise<void> {

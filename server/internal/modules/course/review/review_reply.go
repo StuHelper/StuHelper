@@ -88,6 +88,8 @@ func (h *Handler) CreateReply(c *gin.Context) {
 			response.BadRequest(c, "content contains dangerous elements")
 		case errors.Is(err, ErrSensitiveContent):
 			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
+		case errors.Is(err, ErrModerationUnavailable):
+			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
 		default:
 			logger.FromGin(c).Error("failed to create reply", zap.Error(err))
 			response.InternalError(c, "failed to create reply")

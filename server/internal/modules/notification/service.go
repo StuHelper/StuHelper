@@ -81,8 +81,8 @@ func (s *Service) SendBatch(ctx context.Context, params []SendParams) error {
 			return nil // 不中断其他发送
 		})
 	}
-	_ = g.Wait()
-	return errors.Join(errs...)
+	waitErr := g.Wait()
+	return errors.Join(waitErr, errors.Join(errs...))
 }
 
 // List 获取通知列表
@@ -132,7 +132,7 @@ func (s *Service) publishToRedis(ctx context.Context, userID int64, notifID stri
 		"title":        params.Title,
 		"body":         body,
 		"content":      body,
-		"payload":      json.RawMessage(payloadOrEmptyJSON(params.Payload)),
+		"payload":      payloadOrEmptyJSON(params.Payload),
 		"sourceModule": params.SourceModule,
 		"sourceId":     params.SourceID,
 	}

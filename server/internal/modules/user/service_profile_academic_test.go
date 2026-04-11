@@ -281,8 +281,7 @@ func TestParseSchoolLDAPConfig(t *testing.T) {
 		"baseDN": "cn=users,dc=example,dc=com",
 		"systemBindDN": "cn=system,dc=example,dc=com",
 		"systemBindPassword": "secret",
-		"useTLS": true,
-		"insecureSkipVerify": true
+		"useTLS": true
 	}`)
 	cfg, err := parseSchoolLDAPConfig(raw)
 	require.NoError(t, err)
@@ -291,7 +290,7 @@ func TestParseSchoolLDAPConfig(t *testing.T) {
 	assert.Equal(t, "cn=system,dc=example,dc=com", cfg.SystemBindDN)
 	assert.Equal(t, "secret", cfg.SystemBindPassword)
 	assert.True(t, cfg.UseTLS)
-	assert.True(t, cfg.InsecureSkipVerify)
+	assert.False(t, cfg.InsecureSkipVerify)
 }
 
 func TestParseSchoolLDAPConfig_EmptyFails(t *testing.T) {

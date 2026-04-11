@@ -57,7 +57,7 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 			return fmt.Errorf("%w: cannot %s from %s", ErrInvalidTransition, params.Action, currentStatus)
 		}
 
-		newStatus := currentStatus
+		var newStatus string
 		switch params.Action {
 		case "hide":
 			newStatus = StatusHidden
@@ -141,7 +141,12 @@ func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewPar
 		return ErrContentEmpty
 	}
 
-	decision, err := buildReviewModerationDecision(s.filter.CheckContent(ctx, title+" "+content))
+	checkResult, err := s.filter.CheckContent(ctx, title+" "+content)
+	if err != nil {
+		return err
+	}
+
+	decision, err := buildReviewModerationDecision(checkResult)
 	if err != nil {
 		return err
 	}

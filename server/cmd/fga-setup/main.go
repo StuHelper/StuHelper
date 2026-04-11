@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	openfga "github.com/openfga/go-sdk"
 	"github.com/openfga/go-sdk/client"
@@ -28,6 +30,10 @@ func main() {
 	apiURL := envOrDefault("OPENFGA_API_URL", "http://localhost:8081")
 	storeID := os.Getenv("OPENFGA_STORE_ID")
 	modelPath := envOrDefault("FGA_MODEL_PATH", "infra/openfga/model.fga")
+	resolvedModelPath, err := resolveModelPath(modelPath)
+	if err != nil {
+		log.Fatalf("Invalid model path: %v", err)
+	}
 
 	ctx := context.Background()
 
@@ -64,15 +70,16 @@ func main() {
 	}
 
 	// 3. Read and import model
-	log.Printf("Importing model from %s...", modelPath)
-	modelContent, err := os.ReadFile(modelPath)
+	log.Printf("Importing model from %s...", resolvedModelPath)
+	// #nosec G304 -- resolveModelPath constrains the file to the current workspace.
+	modelContent, err := os.ReadFile(resolvedModelPath)
 	if err != nil {
 		log.Fatalf("Failed to read model file: %v", err)
 	}
 
 	modelJSON, err := dslToJSON(string(modelContent))
 	if err != nil {
-		log.Fatalf("Failed to convert DSL to JSON: %v\nNote: if this fails, use the OpenFGA CLI instead:\n  openfga model write --store-id %s --file %s", err, storeID, modelPath)
+		log.Fatalf("Failed to convert DSL to JSON: %v\nNote: if this fails, use the OpenFGA CLI instead:\n  openfga model write --store-id %s --file %s", err, storeID, resolvedModelPath)
 	}
 
 	writeResp, err := fgaClient.WriteAuthorizationModel(ctx).Body(modelJSON).Execute()
@@ -122,6 +129,32 @@ func envOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func resolveModelPath(raw string) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return "", fmt.Errorf("model path is empty")
+	}
+
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("resolve working directory: %w", err)
+	}
+
+	absolutePath, err := filepath.Abs(filepath.Clean(raw))
+	if err != nil {
+		return "", fmt.Errorf("resolve absolute path: %w", err)
+	}
+
+	relativePath, err := filepath.Rel(workingDir, absolutePath)
+	if err != nil {
+		return "", fmt.Errorf("resolve relative path: %w", err)
+	}
+	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("model path %q escapes working directory %q", raw, workingDir)
+	}
+
+	return absolutePath, nil
 }
 
 // dslToJSON is a simplified DSL-to-JSON converter for the OpenFGA model.
@@ -249,4 +282,3 @@ func buildModelFromCode() client.ClientWriteAuthorizationModelRequest {
 	}
 	return req
 }
-

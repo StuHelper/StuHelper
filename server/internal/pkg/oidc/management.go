@@ -48,12 +48,12 @@ func NewManagementClient(cfg config.ZitadelConfig) *ManagementClient {
 // userID 是 Zitadel 用户 ID（即 OIDC sub claim）。
 func (m *ManagementClient) GrantProjectRole(ctx context.Context, userID, role string) error {
 	// Zitadel v2 API: POST /management/v1/users/{userId}/grants
-	url := fmt.Sprintf("%s/management/v1/users/%s/grants", m.baseURL, url.PathEscape(userID))
+	endpoint := fmt.Sprintf("%s/management/v1/users/%s/grants", m.baseURL, url.PathEscape(userID))
 	body := map[string]any{
 		"projectId": m.projectID,
 		"roleKeys":  []string{role},
 	}
-	return m.doRequest(ctx, http.MethodPost, url, body)
+	return m.doRequest(ctx, http.MethodPost, endpoint, body)
 }
 
 // RevokeProjectRole 移除用户的 Project Role Grant。
@@ -69,8 +69,8 @@ func (m *ManagementClient) RevokeProjectRole(ctx context.Context, userID, role s
 	}
 
 	// 2. 删除 grant
-	url := fmt.Sprintf("%s/management/v1/users/%s/grants/%s", m.baseURL, url.PathEscape(userID), url.PathEscape(grantID))
-	return m.doRequest(ctx, http.MethodDelete, url, nil)
+	endpoint := fmt.Sprintf("%s/management/v1/users/%s/grants/%s", m.baseURL, url.PathEscape(userID), url.PathEscape(grantID))
+	return m.doRequest(ctx, http.MethodDelete, endpoint, nil)
 }
 
 // findUserGrant 查找用户在当前 project 中指定 role 的 grant ID
@@ -79,7 +79,7 @@ func (m *ManagementClient) findUserGrant(ctx context.Context, userID, role strin
 	defer func() {
 		metrics.ObserveExternalRequest("zitadel_management", "find_user_grant", start, err)
 	}()
-	url := fmt.Sprintf("%s/management/v1/users/%s/grants/_search", m.baseURL, url.PathEscape(userID))
+	endpoint := fmt.Sprintf("%s/management/v1/users/%s/grants/_search", m.baseURL, url.PathEscape(userID))
 	body := map[string]any{
 		"queries": []map[string]any{
 			{"projectIdQuery": map[string]string{"projectId": m.projectID}},
@@ -91,7 +91,7 @@ func (m *ManagementClient) findUserGrant(ctx context.Context, userID, role strin
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return "", err
 	}
@@ -101,10 +101,17 @@ func (m *ManagementClient) findUserGrant(ctx context.Context, userID, role strin
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close grant search response body: %w", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if readErr != nil {
+			return "", fmt.Errorf("search grants: read error response: %w", readErr)
+		}
 		return "", fmt.Errorf("search grants: HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -128,7 +135,7 @@ func (m *ManagementClient) findUserGrant(ctx context.Context, userID, role strin
 	return "", nil
 }
 
-func (m *ManagementClient) doRequest(ctx context.Context, method, url string, body any) (err error) {
+func (m *ManagementClient) doRequest(ctx context.Context, method, endpoint string, body any) (err error) {
 	start := time.Now()
 	defer func() {
 		metrics.ObserveExternalRequest("zitadel_management", strings.ToLower(method), start, err)
@@ -142,7 +149,7 @@ func (m *ManagementClient) doRequest(ctx context.Context, method, url string, bo
 		reqBody = bytes.NewReader(payload)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, reqBody)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -152,10 +159,17 @@ func (m *ManagementClient) doRequest(ctx context.Context, method, url string, bo
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close response body: %w", closeErr)
+		}
+	}()
 
 	if resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if readErr != nil {
+			return fmt.Errorf("read error response: %w", readErr)
+		}
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 	return nil

@@ -1,5 +1,6 @@
-import { createAuthApi } from '@stuhelper/shared/api';
 import type { components } from '@stuhelper/shared';
+
+import { createAuthApi } from '@stuhelper/shared/api';
 
 import { sharedApiClient, sharedBaseApiClient } from '#/api/shared-client';
 import { unwrapData, unwrapOptionalData } from '#/api/shared-result';

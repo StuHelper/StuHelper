@@ -11,12 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// GetProfileByUserID 根据用户ID获取学生认证档案
-func (r *Repository) GetProfileByUserID(ctx context.Context, userID int64) (*Profile, error) {
-	var item Profile
-	var studentIDsJSON []byte
-	var manualFormDataJSON []byte
-	err := r.db.QueryRow(ctx, `
+const selectProfileByUserIDSQL = `
 			SELECT p.user_id, p.school_id, p.student_ids, p.active_student_id, p.manual_form_data,
 			       p.verification_status, p.verification_method, p.rejection_reason, p.reviewed_at,
 			       u.phone_enc, p.consent_given_at, p.verified_at,
@@ -24,7 +19,13 @@ func (r *Repository) GetProfileByUserID(ctx context.Context, userID int64) (*Pro
 			FROM user_profiles p
 			LEFT JOIN users u ON u.id = p.user_id
 			WHERE p.user_id = $1
-		`, userID).Scan(
+		`
+
+func scanProfileRow(row pgx.Row) (*Profile, error) {
+	var item Profile
+	var studentIDsJSON []byte
+	var manualFormDataJSON []byte
+	err := row.Scan(
 		&item.UserID, &item.SchoolID, &studentIDsJSON, &item.ActiveStudentID, &manualFormDataJSON,
 		&item.VerificationStatus, &item.VerificationMethod, &item.RejectionReason, &item.ReviewedAt,
 		&item.PhoneEnc, &item.ConsentGivenAt, &item.VerifiedAt,
@@ -34,16 +35,33 @@ func (r *Repository) GetProfileByUserID(ctx context.Context, userID int64) (*Pro
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("GetProfileByUserID: %w", err)
+		return nil, err
 	}
 	if studentIDsJSON != nil {
 		if err := json.Unmarshal(studentIDsJSON, &item.StudentIDs); err != nil {
-			return nil, fmt.Errorf("GetProfileByUserID unmarshal student_ids: %w", err)
+			return nil, fmt.Errorf("unmarshal student_ids: %w", err)
 		}
 	}
 	item.ManualFormData = manualFormDataJSON
 	item.PhoneVerified = len(item.PhoneEnc) > 0
 	return &item, nil
+}
+
+// GetProfileByUserID 根据用户ID获取学生认证档案
+func (r *Repository) GetProfileByUserID(ctx context.Context, userID int64) (*Profile, error) {
+	item, err := scanProfileRow(r.db.QueryRow(ctx, selectProfileByUserIDSQL, userID))
+	if err != nil {
+		return nil, fmt.Errorf("GetProfileByUserID: %w", err)
+	}
+	return item, nil
+}
+
+func (r *Repository) GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error) {
+	item, err := scanProfileRow(tx.QueryRow(ctx, selectProfileByUserIDSQL, userID))
+	if err != nil {
+		return nil, fmt.Errorf("GetProfileByUserIDTx: %w", err)
+	}
+	return item, nil
 }
 
 // CreateProfile 创建学生认证档案
@@ -69,6 +87,28 @@ func (r *Repository) CreateProfile(ctx context.Context, profile *Profile) error 
 	return nil
 }
 
+func (r *Repository) CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error {
+	studentIDsJSON, err := json.Marshal(profile.StudentIDs)
+	if err != nil {
+		return fmt.Errorf("CreateProfileTx marshal student_ids: %w", err)
+	}
+	_, err = tx.Exec(ctx, `
+			INSERT INTO user_profiles (
+				user_id, school_id, student_ids, active_student_id, manual_form_data,
+				verification_status, verification_method, rejection_reason, reviewed_at,
+				consent_given_at, verified_at,
+				created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+		`, profile.UserID, profile.SchoolID, studentIDsJSON, profile.ActiveStudentID, profile.ManualFormData,
+		profile.VerificationStatus, profile.VerificationMethod, profile.RejectionReason, profile.ReviewedAt,
+		profile.ConsentGivenAt, profile.VerifiedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("CreateProfileTx: %w", err)
+	}
+	return nil
+}
+
 // UpdateProfile 更新学生认证档案
 func (r *Repository) UpdateProfile(ctx context.Context, profile *Profile) error {
 	studentIDsJSON, err := json.Marshal(profile.StudentIDs)
@@ -88,6 +128,28 @@ func (r *Repository) UpdateProfile(ctx context.Context, profile *Profile) error 
 	)
 	if err != nil {
 		return fmt.Errorf("UpdateProfile: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error {
+	studentIDsJSON, err := json.Marshal(profile.StudentIDs)
+	if err != nil {
+		return fmt.Errorf("UpdateProfileTx marshal student_ids: %w", err)
+	}
+	_, err = tx.Exec(ctx, `
+			UPDATE user_profiles SET
+				school_id = $2, student_ids = $3, active_student_id = $4, manual_form_data = $5,
+				verification_status = $6, verification_method = $7, rejection_reason = $8, reviewed_at = $9,
+				consent_given_at = $10, verified_at = $11,
+				updated_at = NOW()
+			WHERE user_id = $1
+		`, profile.UserID, profile.SchoolID, studentIDsJSON, profile.ActiveStudentID, profile.ManualFormData,
+		profile.VerificationStatus, profile.VerificationMethod, profile.RejectionReason, profile.ReviewedAt,
+		profile.ConsentGivenAt, profile.VerifiedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("UpdateProfileTx: %w", err)
 	}
 	return nil
 }

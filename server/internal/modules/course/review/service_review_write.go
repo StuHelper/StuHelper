@@ -155,6 +155,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 // VoteReview 投票
 func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int64, error) {
 	var courseID int64
+	var shouldNotifyLike bool
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
 		if err != nil {
@@ -184,6 +185,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 				return nil
 			}
 			if params.VoteType == "like" {
+				shouldNotifyLike = true
 				return s.repo.IncrementLikeCount(ctx, tx, params.ReviewID)
 			}
 			return s.repo.IncrementDislikeCount(ctx, tx, params.ReviewID)
@@ -202,6 +204,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 				return err
 			}
 			if params.VoteType == "like" {
+				shouldNotifyLike = true
 				if err := s.repo.DecrementDislikeCount(ctx, tx, params.ReviewID); err != nil {
 					return err
 				}
@@ -217,7 +220,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 		return 0, err
 	}
 	// 仅在新增 upvote 时通知评价作者
-	if s.notifSender != nil && params.VoteType == "like" {
+	if s.notifSender != nil && shouldNotifyLike {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()

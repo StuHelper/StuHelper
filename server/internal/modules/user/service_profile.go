@@ -1,7 +1,6 @@
 package user
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,8 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
@@ -22,6 +21,14 @@ import (
 type academicTableRepo interface {
 	GetAcademicStudentByXHFromTable(ctx context.Context, xh string, tableName string) (*AcademicStudent, error)
 	FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh string, tableName string) ([]AcademicStudent, error)
+}
+
+type profileTxRepo interface {
+	WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
+	GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
+	CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
+	UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
+	SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error
 }
 
 // GetUserSurface 聚合当前用户的身份认证、学生认证、手机绑定和能力信息。
@@ -111,19 +118,24 @@ func normalizeMaskedPhone(phone *string) *string {
 	return &masked
 }
 
-func (s *Service) storeEncryptedPhone(ctx context.Context, userID int64, phone string) error {
+func (s *Service) encryptPhone(phone string) ([]byte, string, error) {
 	phoneEnc, err := s.docCipher.Encrypt(phone)
 	if err != nil {
-		return fmt.Errorf("encrypt phone: %w", err)
+		return nil, "", fmt.Errorf("encrypt phone: %w", err)
 	}
 	phoneHash, err := phoneutil.HashLookupWithKey(phone, s.hmacKey)
 	if err != nil {
-		return fmt.Errorf("hash phone: %w", err)
+		return nil, "", fmt.Errorf("hash phone: %w", err)
 	}
-	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
+	return phoneEnc, phoneHash, nil
+}
+
+func (s *Service) storeEncryptedPhone(ctx context.Context, userID int64, phone string) error {
+	phoneEnc, phoneHash, err := s.encryptPhone(phone)
+	if err != nil {
 		return err
 	}
-	return nil
+	return s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash)
 }
 
 func (s *Service) hydrateProfilePhone(profile *Profile) error {
@@ -169,16 +181,7 @@ func (s *Service) decryptPIIBytes(ciphertext []byte) (string, error) {
 		return "", nil
 	}
 
-	plaintext, err := s.docCipher.Decrypt(ciphertext)
-	if err == nil {
-		return plaintext, nil
-	}
-
-	trimmed := bytes.TrimSpace(ciphertext)
-	if len(trimmed) > 0 && utf8.Valid(trimmed) {
-		return string(trimmed), nil
-	}
-	return "", err
+	return s.docCipher.Decrypt(ciphertext)
 }
 
 // VerifyStudent 学生认证（LDAP 方式）
@@ -387,13 +390,20 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 	}
 
+	var (
+		verifiedPhoneEnc  []byte
+		verifiedPhoneHash string
+	)
 	if verifiedPhoneRaw != "" {
-		if err := s.storeEncryptedPhone(ctx, userID, verifiedPhoneRaw); err != nil {
-			logger.L().Warn("failed to persist LDAP phone to secure user storage",
+		verifiedPhoneEnc, verifiedPhoneHash, err = s.encryptPhone(verifiedPhoneRaw)
+		if err != nil {
+			logger.L().Warn("failed to prepare LDAP phone for secure storage",
 				zap.Int64("user_id", userID),
 				zap.Error(err),
 			)
 			verifiedPhoneRaw = ""
+			verifiedPhoneEnc = nil
+			verifiedPhoneHash = ""
 		} else {
 			masked := phoneutil.Mask(verifiedPhoneRaw)
 			profile.Phone = &masked
@@ -401,14 +411,58 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 	}
 
-	if existing != nil {
+	if txRepo, ok := s.repo.(profileTxRepo); ok {
+		if err := txRepo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			txExisting, err := txRepo.GetProfileByUserIDTx(ctx, tx, userID)
+			if err != nil {
+				return fmt.Errorf("VerifyStudent check existing tx: %w", err)
+			}
+			if txExisting != nil && txExisting.VerificationStatus == StatusVerified {
+				return ErrProfileAlreadyVerified
+			}
+			if txExisting != nil && txExisting.VerificationStatus == StatusPending {
+				return ErrProfilePendingReview
+			}
+
+			if len(verifiedPhoneEnc) > 0 {
+				if err := txRepo.SetUserPhoneTx(ctx, tx, userID, verifiedPhoneEnc, verifiedPhoneHash); err != nil {
+					return fmt.Errorf("VerifyStudent set phone tx: %w", err)
+				}
+			}
+
+			if txExisting != nil {
+				profile.CreatedAt = txExisting.CreatedAt
+				if err := txRepo.UpdateProfileTx(ctx, tx, profile); err != nil {
+					return fmt.Errorf("VerifyStudent update profile tx: %w", err)
+				}
+				return nil
+			}
+
+			if err := txRepo.CreateProfileTx(ctx, tx, profile); err != nil {
+				return fmt.Errorf("VerifyStudent create profile tx: %w", err)
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	} else if existing != nil {
 		profile.CreatedAt = existing.CreatedAt
 		if err := s.repo.UpdateProfile(ctx, profile); err != nil {
 			return nil, fmt.Errorf("VerifyStudent update profile: %w", err)
 		}
+		if verifiedPhoneRaw != "" {
+			if err := s.storeEncryptedPhone(ctx, userID, verifiedPhoneRaw); err != nil {
+				return nil, fmt.Errorf("VerifyStudent store phone: %w", err)
+			}
+		}
 	} else {
 		if err := s.repo.CreateProfile(ctx, profile); err != nil {
 			return nil, fmt.Errorf("VerifyStudent create profile: %w", err)
+		}
+		if verifiedPhoneRaw != "" {
+			if err := s.storeEncryptedPhone(ctx, userID, verifiedPhoneRaw); err != nil {
+				return nil, fmt.Errorf("VerifyStudent store phone: %w", err)
+			}
 		}
 	}
 
@@ -448,19 +502,52 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return ErrProfileNotFound
 	}
 
-	if err := s.storeEncryptedPhone(ctx, userID, trimmed); err != nil {
-		if errors.Is(err, ErrPhoneAlreadyBound) {
-			return ErrPhoneAlreadyBound
+	phoneEnc, phoneHash, err := s.encryptPhone(trimmed)
+	if err != nil {
+		return err
+	}
+
+	if txRepo, ok := s.repo.(profileTxRepo); ok {
+		if err := txRepo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			txProfile, err := txRepo.GetProfileByUserIDTx(ctx, tx, userID)
+			if err != nil {
+				return fmt.Errorf("BindPhone get profile tx: %w", err)
+			}
+			if txProfile == nil {
+				return ErrProfileNotFound
+			}
+			masked := phoneutil.Mask(trimmed)
+			txProfile.Phone = &masked
+			txProfile.PhoneVerified = true
+			if err := txRepo.SetUserPhoneTx(ctx, tx, userID, phoneEnc, phoneHash); err != nil {
+				return fmt.Errorf("BindPhone set phone tx: %w", err)
+			}
+			if err := txRepo.UpdateProfileTx(ctx, tx, txProfile); err != nil {
+				return fmt.Errorf("BindPhone update profile tx: %w", err)
+			}
+			return nil
+		}); err != nil {
+			if errors.Is(err, ErrPhoneAlreadyBound) {
+				return ErrPhoneAlreadyBound
+			}
+			return err
 		}
-		return fmt.Errorf("BindPhone store phone: %w", err)
+		return nil
 	}
 
 	masked := phoneutil.Mask(trimmed)
 	profile.Phone = &masked
 	profile.PhoneVerified = true
 
+	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
+		if errors.Is(err, ErrPhoneAlreadyBound) {
+			return ErrPhoneAlreadyBound
+		}
+		return fmt.Errorf("BindPhone store phone: %w", err)
+	}
+
 	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
-		return fmt.Errorf("BindPhone update: %w", err)
+		return fmt.Errorf("BindPhone update profile: %w", err)
 	}
 	return nil
 }
@@ -579,7 +666,6 @@ type schoolLDAPSettings struct {
 	SystemBindDN       string `json:"systemBindDN"`
 	SystemBindPassword string `json:"systemBindPassword"`
 	UseTLS             bool   `json:"useTLS"`
-	InsecureSkipVerify bool   `json:"insecureSkipVerify"`
 }
 
 func decodeSchoolLDAPSettings(raw json.RawMessage) (schoolLDAPSettings, error) {
@@ -607,8 +693,7 @@ func isEmptySchoolLDAPSettings(settings schoolLDAPSettings) bool {
 		settings.BaseDN == "" &&
 		settings.SystemBindDN == "" &&
 		settings.SystemBindPassword == "" &&
-		!settings.UseTLS &&
-		!settings.InsecureSkipVerify
+		!settings.UseTLS
 }
 
 func optionalTrimmedString(value string) *string {
@@ -634,6 +719,5 @@ func parseSchoolLDAPConfig(raw json.RawMessage) (ldap.Config, error) {
 		SystemBindDN:       settings.SystemBindDN,
 		SystemBindPassword: settings.SystemBindPassword,
 		UseTLS:             settings.UseTLS,
-		InsecureSkipVerify: settings.InsecureSkipVerify,
 	}, nil
 }

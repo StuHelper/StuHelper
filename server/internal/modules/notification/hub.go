@@ -136,7 +136,11 @@ func (h *Hub) StartRedisSubscriber(ctx context.Context) {
 	pubsub := h.rdb.PSubscribe(ctx, "notify:*")
 
 	go func() {
-		defer pubsub.Close()
+		defer func() {
+			if err := pubsub.Close(); err != nil {
+				logger.L().Warn("failed to close notification pubsub", zap.Error(err))
+			}
+		}()
 		ch := pubsub.Channel()
 		for {
 			select {
@@ -148,7 +152,6 @@ func (h *Hub) StartRedisSubscriber(ctx context.Context) {
 				if !ok {
 					return
 				}
-				// 频道格式: notify:{userID}
 				var userID int64
 				if _, err := fmt.Sscanf(msg.Channel, "notify:%d", &userID); err != nil {
 					continue

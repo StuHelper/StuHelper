@@ -46,3 +46,35 @@ func (r *Repository) SetUserPhone(ctx context.Context, userID int64, phoneEnc []
 	}
 	return nil
 }
+
+func (r *Repository) SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error {
+	var conflictID int64
+	err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM users
+		WHERE id != $1
+		  AND phone_hash = $2
+		LIMIT 1
+	`, userID, phoneHash).Scan(&conflictID)
+	if err == nil {
+		return ErrPhoneAlreadyBound
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("SetUserPhoneTx check conflict: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE users
+		SET phone_enc = $2,
+		    phone_hash = $3,
+		    updated_at = NOW()
+		WHERE id = $1
+	`, userID, phoneEnc, phoneHash)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return ErrPhoneAlreadyBound
+		}
+		return fmt.Errorf("SetUserPhoneTx: %w", err)
+	}
+	return nil
+}

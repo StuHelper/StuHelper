@@ -761,7 +761,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 	assert.Equal(t, int64(10006), captured.SchoolID)
 	assert.Equal(t, "新学校名", captured.SchoolName)
 	assert.Equal(t, VerifyMethodLDAP, captured.VerificationMethod, "未提供的 verificationMethod 应保留原值")
-	assert.JSONEq(t, `{"baseDN":"ou=users,dc=example,dc=com","insecureSkipVerify":false,"systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"new-secret","url":"ldaps://ldap.new:636","useTLS":true}`, string(captured.LDAPConfig))
+	assert.JSONEq(t, `{"baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"new-secret","url":"ldaps://ldap.new:636","useTLS":true}`, string(captured.LDAPConfig))
 	require.NotNil(t, captured.AcademicDBTable)
 	assert.Equal(t, "academic.buaa_students", *captured.AcademicDBTable, "未提供的 academicDbTable 应保留原值")
 	require.NotNil(t, captured.ConsentText)
@@ -806,7 +806,7 @@ func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.
 	})
 	require.NoError(t, err)
 	require.NotNil(t, captured)
-	assert.JSONEq(t, `{"url":"ldaps://ldap.new:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true,"insecureSkipVerify":false}`, string(captured.LDAPConfig))
+	assert.JSONEq(t, `{"url":"ldaps://ldap.new:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true}`, string(captured.LDAPConfig))
 }
 
 func TestUpdateSchoolConfig_SchoolNotFoundReturnsError(t *testing.T) {

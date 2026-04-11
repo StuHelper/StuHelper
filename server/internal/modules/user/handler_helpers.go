@@ -150,7 +150,6 @@ func buildAdminSchoolLDAPConfig(raw json.RawMessage) (*SchoolLDAPConfigView, err
 		BaseDN:                optionalTrimmedString(settings.BaseDN),
 		SystemBindDN:          optionalTrimmedString(settings.SystemBindDN),
 		UseTLS:                settings.UseTLS,
-		InsecureSkipVerify:    settings.InsecureSkipVerify,
 		HasSystemBindPassword: strings.TrimSpace(settings.SystemBindPassword) != "",
 	}, nil
 }

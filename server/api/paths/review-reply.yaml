@@ -71,6 +71,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '429':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -85,8 +87,18 @@
     parameters:
       - $ref: '../components/parameters/common.yaml#/ReplyIDPath'
     responses:
-      '204':
+      '200':
         description: 删除成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

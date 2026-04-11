@@ -1,27 +1,31 @@
 import type { ApiClient } from '@stuhelper/shared/api';
 
+import type { ApiCallResult, ApiEnvelope } from './shared-result';
+
 import { preferences } from '@vben/preferences';
 
 import { baseRequestClient } from '#/api/request';
-import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, readCookie } from '#/api/utils/csrf';
-
-import type { ApiCallResult, ApiEnvelope } from './shared-result';
+import {
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+  readCookie,
+} from '#/api/utils/csrf';
 
 type HttpMethod = 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
 
-const SAFE_METHODS = new Set<HttpMethod | 'HEAD' | 'OPTIONS'>([
+const SAFE_METHODS = new Set<'HEAD' | 'OPTIONS' | HttpMethod>([
   'GET',
   'HEAD',
   'OPTIONS',
 ]);
 
 type RequestInitShape = {
+  body?: unknown;
   params?: {
     header?: Record<string, unknown>;
     path?: Record<string, unknown>;
     query?: Record<string, unknown>;
   };
-  body?: unknown;
   signal?: AbortSignal;
 };
 
@@ -65,9 +69,11 @@ function serializePath(
   schemaPath: string,
   pathParams?: Record<string, unknown>,
 ): string {
-  return schemaPath.replace(/\{([^}]+)\}/g, (_match, key) => {
+  return schemaPath.replaceAll(/\{([^}]+)\}/g, (_match, key) => {
     const value = pathParams?.[key];
-    return encodeURIComponent(value == null ? '' : String(value));
+    return encodeURIComponent(
+      value === null || value === undefined ? '' : String(value),
+    );
   });
 }
 

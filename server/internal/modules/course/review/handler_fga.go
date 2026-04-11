@@ -49,32 +49,6 @@ func (h *Handler) writeFGAReviewTuples(c *gin.Context, reviewID, externalUserID 
 	}()
 }
 
-// writeFGAReportTuples 异步写入举报的 OpenFGA 关系 tuple。
-func (h *Handler) writeFGAReportTuples(c *gin.Context, reportID, externalUserID, reviewID string, courseID int64) {
-	if h.fga == nil {
-		return
-	}
-
-	fgaWg.Add(1)
-	go func() {
-		defer fgaWg.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), fga.DefaultWriteTimeout)
-		defer cancel()
-
-		schoolID, ok := h.lookupCourseSchoolID(ctx, courseID)
-		if !ok {
-			return
-		}
-
-		if err := h.fga.WriteReportRelations(ctx, reportID, externalUserID, reviewID, schoolID); err != nil {
-			logger.L().Warn("failed to write FGA report tuples",
-				zap.String("report_id", reportID),
-				zap.Error(err),
-			)
-		}
-	}()
-}
-
 // writeFGAReportTuplesForReview 异步写入举报 FGA tuple（从 reviewID 查询 courseID）。
 func (h *Handler) writeFGAReportTuplesForReview(c *gin.Context, reportID, externalUserID, reviewID string) {
 	if h.fga == nil {

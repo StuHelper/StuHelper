@@ -2171,7 +2171,6 @@ export interface components {
             baseDN?: string | null;
             systemBindDN?: string | null;
             useTLS: boolean;
-            insecureSkipVerify: boolean;
             hasSystemBindPassword: boolean;
         };
         SchoolLDAPConfigInput: {
@@ -2180,7 +2179,6 @@ export interface components {
             systemBindDN?: string;
             systemBindPassword?: string;
             useTLS?: boolean;
-            insecureSkipVerify?: boolean;
         };
         SystemConfig: {
             key: string;
@@ -2244,11 +2242,13 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @example ok */
-                        status: string;
-                        /** Format: date-time */
-                        timestamp: string;
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            /** @example ok */
+                            status: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
                     };
                 };
             };
@@ -2276,23 +2276,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        status: "ok" | "degraded";
-                        /** @description 各依赖检查结果（仅开发环境返回） */
-                        checks?: {
-                            [key: string]: {
-                                status?: string;
-                                latency?: string;
-                                error?: string;
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            /** @enum {string} */
+                            status: "ok" | "degraded";
+                            /** @description 各依赖检查结果（仅开发环境返回） */
+                            checks?: {
+                                [key: string]: {
+                                    status?: string;
+                                    latency?: string;
+                                    error?: string;
+                                };
                             };
+                            /** @description 系统信息（仅开发环境返回） */
+                            info?: {
+                                [key: string]: unknown;
+                            };
+                            /** Format: date-time */
+                            timestamp: string;
                         };
-                        /** @description 系统信息（仅开发环境返回） */
-                        info?: {
-                            [key: string]: unknown;
-                        };
-                        /** Format: date-time */
-                        timestamp: string;
                     };
                 };
             };
@@ -2309,12 +2311,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @example degraded */
-                        status: string;
-                        /** Format: date-time */
-                        timestamp: string;
-                    };
+                    "application/json": components["schemas"]["ErrorResponseBody"];
                 };
             };
         };
@@ -3069,6 +3066,7 @@ export interface operations {
             409: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     updateReview: {
@@ -3104,6 +3102,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     deleteReview: {
@@ -3119,11 +3118,15 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -3164,6 +3167,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     reportReview: {
@@ -3269,6 +3273,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     deleteReply: {
@@ -3284,11 +3289,15 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -3406,6 +3415,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     listTeachers: {
@@ -3504,6 +3514,7 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getUserVotes: {
@@ -3538,6 +3549,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getUserFavorites: {
@@ -3570,6 +3582,7 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getNotifications: {
@@ -3934,6 +3947,7 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     listAllReviews: {

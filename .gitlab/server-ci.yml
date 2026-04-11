@@ -65,10 +65,8 @@ backend_test:
     REDIS_PASSWORD: ""
     PGPASSWORD: test
   script:
-  - apt-get update
-  - apt-get install -y postgresql-client
   - cd server
-  - psql -h postgres -U test -d test -f scripts/init.sql
+  - make migrate-up
   - go test -v -race -timeout=10m -coverprofile=coverage.out ./...
   artifacts:
     when: always

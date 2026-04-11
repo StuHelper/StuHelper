@@ -1,6 +1,7 @@
 package sms
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func TestMaskPhone_FullPhone(t *testing.T) {
 
 func TestSend_ReturnsErrorWhenCredentialsMissing(t *testing.T) {
 	svc := NewService(Config{}, zap.NewNop())
-	err := svc.Send(nil, "+8613800138000", "123456")
+	err := svc.Send(context.TODO(), "+8613800138000", "123456")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "credentials not configured")
 }

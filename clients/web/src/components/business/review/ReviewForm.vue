@@ -32,7 +32,12 @@
             <span v-if="submitting && !termID.trim()" class="block text-xs text-danger mt-1">{{ t('review.post.termMissing') }}</span>
         </div>
 
-        <RatingGroup v-model="ratings" />
+        <RatingGroup
+            v-model="ratings"
+            :dimensions="ratingDimensions"
+            :loading="ratingDimensionsLoading"
+            :load-failed="ratingDimensionsLoadFailed"
+        />
 
         <textarea
             v-model="content"
@@ -97,6 +102,7 @@ import type { ReviewRatings } from "@/types/review";
 import type { Term } from "@/types/course";
 import { buildCreateReviewPayload } from "./reviewPayload";
 import { buildTermOptions } from "@/modules/course/termOptions";
+import { areRatingsComplete, useRatingDimensions } from "./composables/useRatingDimensions";
 
 const props = defineProps<{
     courseID: number;
@@ -110,6 +116,11 @@ const toast = useToast();
 const TITLE_MAX = REVIEW_TITLE_MAX_LENGTH;
 const CONTENT_MIN = REVIEW_CONTENT_MIN_LENGTH;
 const CONTENT_MAX = REVIEW_CONTENT_MAX_LENGTH;
+const {
+    dimensions: ratingDimensions,
+    loading: ratingDimensionsLoading,
+    loadFailed: ratingDimensionsLoadFailed,
+} = useRatingDimensions();
 
 const title = ref("");
 const content = ref("");
@@ -135,8 +146,9 @@ const canSubmit = computed(
         content.value.trim().length >= CONTENT_MIN &&
         content.value.length <= CONTENT_MAX &&
         trimmedTitleLength.value <= TITLE_MAX &&
-        Object.keys(ratings.value).length > 0 &&
-        Object.values(ratings.value).every((v) => v >= 1 && v <= 5),
+        !ratingDimensionsLoading.value &&
+        !ratingDimensionsLoadFailed.value &&
+        areRatingsComplete(ratings.value, ratingDimensions.value),
 );
 
 async function fetchTerms() {
@@ -164,6 +176,10 @@ onMounted(() => {
 });
 
 async function handleSubmit() {
+    if (ratingDimensionsLoadFailed.value) {
+        toast.error(t("review.post.ratingLoadFailed"));
+        return;
+    }
     if (!canSubmit.value) return;
     submitting.value = true;
     try {

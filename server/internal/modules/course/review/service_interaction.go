@@ -192,7 +192,12 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 	params.Content = sanitizer.SanitizeText(params.Content)
 
 	// 敏感词检查
-	replyStatus, err := buildReplyModerationStatus(s.filter.CheckContent(ctx, params.Content))
+	checkResult, err := s.filter.CheckContent(ctx, params.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	replyStatus, err := buildReplyModerationStatus(checkResult)
 	if err != nil {
 		return nil, err
 	}

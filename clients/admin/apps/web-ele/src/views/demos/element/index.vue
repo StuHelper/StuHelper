@@ -88,8 +88,12 @@ const segmentedOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         <ElSpace>
           <ElButton type="info" @click="notify('info')"> Info </ElButton>
           <ElButton type="danger" @click="notify('error')"> Error </ElButton>
-          <ElButton type="warning" @click="notify('warning')"> Warning </ElButton>
-          <ElButton type="success" @click="notify('success')"> Success </ElButton>
+          <ElButton type="warning" @click="notify('warning')">
+            Warning
+          </ElButton>
+          <ElButton type="success" @click="notify('success')">
+            Success
+          </ElButton>
         </ElSpace>
       </ElCard>
       <ElCard class="mb-5 w-auto">
@@ -102,7 +106,9 @@ const segmentedOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       </ElCard>
       <ElCard class="mb-5 w-80">
         <template #header> V-Loading </template>
-        <div class="flex-center size-72" v-loading="true">Loading demo content</div>
+        <div class="flex-center size-72" v-loading="true">
+          Loading demo content
+        </div>
       </ElCard>
       <ElCard class="mb-5 w-80">
         <ElTable :data="tableData" stripe>

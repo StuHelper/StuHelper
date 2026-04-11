@@ -22,7 +22,10 @@ onMounted(() => {
         center: ['50%', '50%'],
         color: ['#5ab1ef', '#b6a2de', '#67e0e3', '#2ec7c9'],
         data: [
-          { name: $t('admin.dashboard.analytics.sales.outsourcing'), value: 500 },
+          {
+            name: $t('admin.dashboard.analytics.sales.outsourcing'),
+            value: 500,
+          },
           { name: $t('admin.dashboard.analytics.sales.custom'), value: 310 },
           { name: $t('admin.dashboard.analytics.sales.support'), value: 274 },
           { name: $t('admin.dashboard.analytics.sales.remote'), value: 400 },

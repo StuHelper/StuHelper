@@ -197,7 +197,6 @@ type SchoolLDAPConfigInput struct {
 	SystemBindDN       *string `json:"systemBindDN,omitempty"`
 	SystemBindPassword *string `json:"systemBindPassword,omitempty"`
 	UseTLS             *bool   `json:"useTLS,omitempty"`
-	InsecureSkipVerify *bool   `json:"insecureSkipVerify,omitempty"`
 }
 
 // SchoolLDAPConfigView 管理端学校配置返回体。
@@ -207,7 +206,6 @@ type SchoolLDAPConfigView struct {
 	BaseDN                *string `json:"baseDN,omitempty"`
 	SystemBindDN          *string `json:"systemBindDN,omitempty"`
 	UseTLS                bool    `json:"useTLS"`
-	InsecureSkipVerify    bool    `json:"insecureSkipVerify"`
 	HasSystemBindPassword bool    `json:"hasSystemBindPassword"`
 }
 

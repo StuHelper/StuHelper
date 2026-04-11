@@ -379,7 +379,7 @@ SchoolConfig:
 
 SchoolLDAPConfigView:
   type: object
-  required: [useTLS, insecureSkipVerify, hasSystemBindPassword]
+  required: [useTLS, hasSystemBindPassword]
   properties:
     url:
       type:
@@ -394,8 +394,6 @@ SchoolLDAPConfigView:
         - string
         - "null"
     useTLS:
-      type: boolean
-    insecureSkipVerify:
       type: boolean
     hasSystemBindPassword:
       type: boolean
@@ -412,8 +410,6 @@ SchoolLDAPConfigInput:
     systemBindPassword:
       type: string
     useTLS:
-      type: boolean
-    insecureSkipVerify:
       type: boolean
 
 ReviewIdentityRequest:

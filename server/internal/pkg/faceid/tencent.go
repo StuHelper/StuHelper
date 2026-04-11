@@ -76,7 +76,11 @@ func (c *Client) VerifyMainlandID(ctx context.Context, idCard, name string) (mat
 	if err != nil {
 		return false, "", "", fmt.Errorf("faceid: send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("faceid: close response body: %w", closeErr)
+		}
+	}()
 
 	var result struct {
 		Response struct {

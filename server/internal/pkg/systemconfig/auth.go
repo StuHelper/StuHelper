@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	// #nosec G101 -- this is a configuration key name, not a secret.
 	AuthAccessTokenTTLSecondsKey = "auth_access_token_ttl_seconds"
 )
 

@@ -28,24 +28,25 @@ func maskHash(hash string) string {
 
 // 业务错误定义
 var (
-	ErrCourseNotFound       = errors.New("course not found")
-	ErrReviewNotFound       = errors.New("review not found")
-	ErrTeacherNotFound      = errors.New("teacher not found")
-	ErrAlreadyVoted         = errors.New("already voted")
-	ErrAlreadyReviewed      = errors.New("already reviewed this course")
-	ErrDangerousContent     = errors.New("content contains dangerous elements")
-	ErrSensitiveContent     = errors.New("content contains sensitive words")
-	ErrTitleEmpty           = errors.New("title cannot be empty after sanitization")
-	ErrContentEmpty         = errors.New("content cannot be empty after sanitization")
-	ErrInvalidRating        = errors.New("invalid rating value")
-	ErrRatingRequired       = errors.New("at least one rating dimension is required")
-	ErrNotReviewOwner       = errors.New("not the review owner")
-	ErrAlreadyReported      = errors.New("already reported this review")
-	ErrReportNotFound       = errors.New("report not found")
-	ErrDraftNotFound        = errors.New("draft not found")
-	ErrNotificationNotFound = errors.New("notification not found")
-	ErrInvalidAction        = errors.New("invalid action")
-	ErrInvalidTransition    = errors.New("invalid status transition")
+	ErrCourseNotFound        = errors.New("course not found")
+	ErrReviewNotFound        = errors.New("review not found")
+	ErrTeacherNotFound       = errors.New("teacher not found")
+	ErrAlreadyVoted          = errors.New("already voted")
+	ErrAlreadyReviewed       = errors.New("already reviewed this course")
+	ErrDangerousContent      = errors.New("content contains dangerous elements")
+	ErrSensitiveContent      = errors.New("content contains sensitive words")
+	ErrModerationUnavailable = errors.New("content moderation unavailable")
+	ErrTitleEmpty            = errors.New("title cannot be empty after sanitization")
+	ErrContentEmpty          = errors.New("content cannot be empty after sanitization")
+	ErrInvalidRating         = errors.New("invalid rating value")
+	ErrRatingRequired        = errors.New("at least one rating dimension is required")
+	ErrNotReviewOwner        = errors.New("not the review owner")
+	ErrAlreadyReported       = errors.New("already reported this review")
+	ErrReportNotFound        = errors.New("report not found")
+	ErrDraftNotFound         = errors.New("draft not found")
+	ErrNotificationNotFound  = errors.New("notification not found")
+	ErrInvalidAction         = errors.New("invalid action")
+	ErrInvalidTransition     = errors.New("invalid status transition")
 )
 
 // Service 评课服务层
@@ -152,7 +153,12 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 		return "", "", "", nil, ErrContentEmpty
 	}
 
-	decision, err := buildReviewModerationDecision(s.filter.CheckContent(ctx, title+" "+content))
+	checkResult, err := s.filter.CheckContent(ctx, title+" "+content)
+	if err != nil {
+		return "", "", "", nil, err
+	}
+
+	decision, err := buildReviewModerationDecision(checkResult)
 	if err != nil {
 		return "", "", "", nil, err
 	}
@@ -340,7 +346,7 @@ func (s *Service) GetReviewByID(ctx context.Context, reviewID string) (*Review, 
 }
 
 // CheckContent 检查内容是否包含敏感词
-func (s *Service) CheckContent(ctx context.Context, content string) *ContentCheckResult {
+func (s *Service) CheckContent(ctx context.Context, content string) (*ContentCheckResult, error) {
 	return s.filter.CheckContent(ctx, content)
 }
 

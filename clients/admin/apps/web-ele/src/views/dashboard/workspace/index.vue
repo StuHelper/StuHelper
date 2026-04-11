@@ -23,9 +23,15 @@ async function goTo(path: string) {
       :avatar="userStore.userInfo?.avatar || preferences.app.defaultAvatar"
     >
       <template #title>
-        {{ $t('admin.dashboard.workspace.header.title', { name: userStore.userInfo?.realName ?? '' }) }}
+        {{
+          $t('admin.dashboard.workspace.header.title', {
+            name: userStore.userInfo?.realName ?? '',
+          })
+        }}
       </template>
-      <template #description>{{ $t('admin.dashboard.workspace.header.description') }}</template>
+      <template #description>
+        {{ $t('admin.dashboard.workspace.header.description') }}
+      </template>
     </WorkbenchHeader>
 
     <AnalysisChartCard class="mt-5" :title="$t('page.dashboard.workspace')">

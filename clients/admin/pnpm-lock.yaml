@@ -760,6 +760,9 @@ importers:
 
   apps/web-ele:
     dependencies:
+      '@stuhelper/shared':
+        specifier: link:../../../shared
+        version: link:../../../shared
       '@vben/access':
         specifier: workspace:*
         version: link:../../packages/effects/access

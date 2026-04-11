@@ -213,9 +213,6 @@ func mergeSchoolLDAPConfig(existing json.RawMessage, input *SchoolLDAPConfigInpu
 	if input.UseTLS != nil {
 		settings.UseTLS = *input.UseTLS
 	}
-	if input.InsecureSkipVerify != nil {
-		settings.InsecureSkipVerify = *input.InsecureSkipVerify
-	}
 
 	settings = normalizeSchoolLDAPSettings(settings)
 	if isEmptySchoolLDAPSettings(settings) {

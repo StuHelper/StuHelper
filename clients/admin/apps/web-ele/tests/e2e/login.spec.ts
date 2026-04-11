@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+
 import { expect, test } from '@playwright/test';
 
 async function mockAnonymousSession(page: Page) {
@@ -15,7 +16,10 @@ async function mockAnonymousSession(page: Page) {
   });
 
   await page.route('**/api/v1/auth/login**', async (route) => {
-    const loginUrl = new URL('/admin/auth/login', page.url() || 'http://127.0.0.1:4174');
+    const loginUrl = new URL(
+      '/admin/auth/login',
+      page.url() || 'http://127.0.0.1:4174',
+    );
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -40,7 +44,9 @@ test('admin login shell renders correctly', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^login$/i })).toBeVisible();
 });
 
-test('root route initiates OIDC login when unauthenticated', async ({ page }) => {
+test('root route initiates OIDC login when unauthenticated', async ({
+  page,
+}) => {
   await mockAnonymousSession(page);
   const loginRequest = page.waitForRequest('**/api/v1/auth/login**');
   await page.goto('/');

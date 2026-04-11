@@ -27,6 +27,7 @@
     "#/*": "./src/*"
   },
   "dependencies": {
+    "@stuhelper/shared": "link:../../../shared",
     "@vben/access": "workspace:*",
     "@vben/common-ui": "workspace:*",
     "@vben/constants": "workspace:*",

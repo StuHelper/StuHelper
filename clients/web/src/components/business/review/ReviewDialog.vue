@@ -125,9 +125,16 @@
               </div>
 
               <div :class="{ 'ring-1 ring-danger rounded-lg': attempted && ratingsInvalid }">
-                <RatingGroup ref="ratingGroupRef" v-model="ratings" />
+                <RatingGroup
+                  v-model="ratings"
+                  :dimensions="ratingDimensions"
+                  :loading="ratingDimensionsLoading"
+                  :load-failed="ratingDimensionsLoadFailed"
+                />
               </div>
-              <span v-if="attempted && ratingsInvalid" class="block text-xs text-danger -mt-2">{{ t('review.post.ratingMissing') }}</span>
+              <span v-if="attempted && ratingsInvalid" class="block text-xs text-danger -mt-2">
+                {{ ratingDimensionsLoadFailed ? t('review.post.ratingLoadFailed') : t('review.post.ratingMissing') }}
+              </span>
 
               <div class="relative">
                 <label for="review-content-input" class="font-medium text-text-primary text-sm mb-1.5 block">{{ t('review.post.detailedReview') }} <span class="text-danger text-xs">*</span></label>
@@ -234,6 +241,7 @@ import type { Course, TeacherStats, Term } from '@/types/course'
 import type { ReviewRatings } from '@/types/review'
 import { buildCreateReviewPayload } from './reviewPayload'
 import { buildTermOptions } from '@/modules/course/termOptions'
+import { areRatingsComplete, filterRatingsByDimensions, useRatingDimensions } from './composables/useRatingDimensions'
 import {
   clearLocalReviewDraft,
   createDraftCourse,
@@ -259,12 +267,12 @@ const CONTENT_MIN = REVIEW_CONTENT_MIN_LENGTH
 const CONTENT_MAX = REVIEW_CONTENT_MAX_LENGTH
 const AUTO_SAVE_DEBOUNCE_MS = 300
 const GRADE_PATTERN = /^[A-Za-z0-9+\-./\s]*$/
-
-// 硬编码的默认评分维度，API 失败时作为 fallback
-const DEFAULT_RATING_DIMENSIONS = ['recommendation', 'content_quality', 'workload', 'grading']
-
-// 合法的评分维度键名白名单
-const VALID_RATING_KEYS = new Set(DEFAULT_RATING_DIMENSIONS)
+const {
+  dimensions: ratingDimensions,
+  ratingKeySet,
+  loading: ratingDimensionsLoading,
+  loadFailed: ratingDimensionsLoadFailed,
+} = useRatingDimensions()
 
 const templateLabels = computed(() => [
   t('review.post.templateListening'),
@@ -283,8 +291,14 @@ watch(contentTemplate, (newTpl, oldTpl) => {
   }
 })
 
+watch(ratingKeySet, (keys) => {
+  if (keys.size === 0) {
+    return
+  }
+  ratings.value = filterRatingsByDimensions(ratings.value, keys)
+})
+
 const modalRef = ref<HTMLElement | null>(null)
-const ratingGroupRef = ref<InstanceType<typeof RatingGroup> | null>(null)
 
 const courseQuery = ref('')
 const courseResults = ref<Course[]>([])
@@ -606,7 +620,7 @@ function applyTeacherDraftSelection(teacherID?: number | null, teacherName?: str
 /** 尝试恢复草稿：两端 + 清除时间戳三方比较，取最新的 */
 async function tryRestoreDraft(expectedVersion: number) {
   const local = loadLocalReviewDraft(
-    VALID_RATING_KEYS,
+    ratingKeySet.value.size > 0 ? ratingKeySet.value : undefined,
     selectedCourse.value?.id,
   )
   const clearedAt = getLocalReviewDraftClearedAt(local?.courseID ?? selectedCourse.value?.id)
@@ -651,7 +665,10 @@ async function tryRestoreDraft(expectedVersion: number) {
     if (serverDraft.grade) grade.value = serverDraft.grade
     if (serverDraft.termID) selectedTermID.value = serverDraft.termID
     applyTeacherDraftSelection(serverDraft.teacherID ?? null)
-    const sanitizedRatings = sanitizeDraftRatings(serverDraft.ratings)
+    const sanitizedRatings = sanitizeDraftRatings(
+      serverDraft.ratings,
+      ratingKeySet.value.size > 0 ? ratingKeySet.value : undefined,
+    )
     if (sanitizedRatings && Object.keys(sanitizedRatings).length > 0) {
       ratings.value = sanitizedRatings
     }
@@ -672,13 +689,10 @@ function getUserContentLength(raw: string): number {
 const titleInvalid = computed(() => title.value.trim().length === 0)
 
 const ratingsInvalid = computed(() => {
-  // API 失败时使用硬编码默认维度作为 fallback
-  const dims = ratingGroupRef.value?.dimensions ?? []
-  const keys = dims.length > 0 ? dims.map(d => d.key) : DEFAULT_RATING_DIMENSIONS
-  return keys.some(k => {
-    const v = ratings.value[k]
-    return !v || v < 1 || v > 5
-  })
+  if (ratingDimensionsLoading.value || ratingDimensionsLoadFailed.value) {
+    return true
+  }
+  return !areRatingsComplete(ratings.value, ratingDimensions.value)
 })
 
 const contentInvalid = computed(() =>
@@ -698,6 +712,8 @@ const canSubmit = computed(() => {
     !titleInvalid.value &&
     !contentInvalid.value &&
     !gradeInvalid.value &&
+    !ratingDimensionsLoading.value &&
+    !ratingDimensionsLoadFailed.value &&
     content.value.length <= CONTENT_MAX &&
     title.value.length <= TITLE_MAX &&
     !ratingsInvalid.value
@@ -707,6 +723,10 @@ async function handleSubmit() {
   // 防重复提交：即使按钮 disabled 未渲染，也阻止快速双击或 Enter 键触发
   if (submitting.value) return
   attempted.value = true
+  if (ratingDimensionsLoadFailed.value) {
+    toast.error(t('review.post.ratingLoadFailed'))
+    return
+  }
   if (!canSubmit.value || !selectedCourse.value) return
 
   // 未登录：暂存草稿到 localStorage，倒计时后跳转 SSO 登录

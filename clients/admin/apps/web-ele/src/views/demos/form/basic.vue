@@ -104,7 +104,10 @@ const [Form, formApi] = useVbenForm({
       fieldName: 'checkbox',
       label: 'Checkbox',
       componentProps: {
-        options: ['A', 'B', 'C'].map((v) => ({ value: v, label: `Option ${v}` })),
+        options: ['A', 'B', 'C'].map((v) => ({
+          value: v,
+          label: `Option ${v}`,
+        })),
       },
     },
     {
@@ -182,7 +185,9 @@ function setFormValues() {
       <template #header>
         <div class="flex items-center">
           <span class="flex-auto">Basic Form Demo</span>
-          <ElButton type="primary" @click="setFormValues">Set form values</ElButton>
+          <ElButton type="primary" @click="setFormValues">
+            Set form values
+          </ElButton>
         </div>
       </template>
       <ElButton type="primary" @click="drawerApi.open"> Open drawer </ElButton>

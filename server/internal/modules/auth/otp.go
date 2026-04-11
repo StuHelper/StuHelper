@@ -108,11 +108,17 @@ func (s *OTPService) Generate(ctx context.Context, phone string) (string, error)
 	cooldownKey := otpCooldownPrefix + phoneKey
 
 	// 原子性冷却期检查：SetNX 仅在 key 不存在时设置成功，消除 TOCTOU 竞态
-	set, err := s.rdb.SetNX(ctx, cooldownKey, "1", otpCooldown).Result()
+	setResult, err := s.rdb.SetArgs(ctx, cooldownKey, "1", redis.SetArgs{
+		Mode: "NX",
+		TTL:  otpCooldown,
+	}).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", ErrOTPCooldown
+	}
 	if err != nil {
 		return "", fmt.Errorf("otp: check cooldown: %w", err)
 	}
-	if !set {
+	if setResult != "OK" {
 		return "", ErrOTPCooldown
 	}
 
@@ -213,9 +219,9 @@ func (s *OTPService) Verify(ctx context.Context, phone, code string) error {
 
 // generateNumericCode 生成指定位数的随机数字验证码
 func generateNumericCode(length int) (string, error) {
-	max := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(length)), nil)
+	maxValue := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(length)), nil)
 
-	n, err := rand.Int(rand.Reader, max)
+	n, err := rand.Int(rand.Reader, maxValue)
 	if err != nil {
 		return "", fmt.Errorf("generate random: %w", err)
 	}

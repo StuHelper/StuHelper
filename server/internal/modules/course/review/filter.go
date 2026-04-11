@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 	"sync"
@@ -105,18 +106,18 @@ func (f *Filter) applyWords(words []SensitiveWord) {
 
 // ensureFresh 确保敏感词列表是最新的
 // 使用 singleflight 去重并发刷新，避免多个 goroutine 同时查询 DB
-func (f *Filter) ensureFresh(ctx context.Context) {
+func (f *Filter) ensureFresh(_ context.Context) error {
 	f.mu.RLock()
 	needRefresh := time.Since(f.lastRefresh) > f.refreshTTL
 	f.mu.RUnlock()
 
 	if !needRefresh {
-		return
+		return nil
 	}
 
 	// singleflight 确保同一时刻只有一个 goroutine 执行 DB 查询
 	// 使用独立 context 避免单个请求取消导致所有并发等待者的刷新失败
-	_, _, _ = f.sf.Do("refresh", func() (interface{}, error) { //nolint:errcheck // result not needed, refresh is side-effect only
+	_, err, _ := f.sf.Do("refresh", func() (interface{}, error) {
 		// 二次检查：进入 singleflight 后再次确认是否仍需刷新
 		f.mu.RLock()
 		if time.Since(f.lastRefresh) <= f.refreshTTL {
@@ -139,11 +140,17 @@ func (f *Filter) ensureFresh(ctx context.Context) {
 		f.applyWords(words)
 		return nil, nil
 	})
+	if err != nil {
+		return errors.Join(ErrModerationUnavailable, err)
+	}
+	return nil
 }
 
 // CheckContent 检查内容是否包含敏感词
-func (f *Filter) CheckContent(ctx context.Context, content string) *ContentCheckResult {
-	f.ensureFresh(ctx)
+func (f *Filter) CheckContent(ctx context.Context, content string) (*ContentCheckResult, error) {
+	if err := f.ensureFresh(ctx); err != nil {
+		return nil, err
+	}
 
 	result := &ContentCheckResult{
 		IsValid: true,
@@ -165,7 +172,7 @@ func (f *Filter) CheckContent(ctx context.Context, content string) *ContentCheck
 
 	// 如果已经被阻止，直接返回
 	if !result.IsValid {
-		return result
+		return result, nil
 	}
 
 	// 检查警告级别的敏感词
@@ -177,7 +184,7 @@ func (f *Filter) CheckContent(ctx context.Context, content string) *ContentCheck
 	}
 
 	if result.Level == "warn" {
-		return result
+		return result, nil
 	}
 
 	for _, m := range f.reviewMatchers {
@@ -187,7 +194,7 @@ func (f *Filter) CheckContent(ctx context.Context, content string) *ContentCheck
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // matchWord 根据匹配器类型执行匹配：正则（英文词边界）或子串（中文等）
@@ -199,7 +206,10 @@ func matchWord(m wordMatcher, lowerContent, originalContent string) bool {
 }
 
 // ContainsBlockedWord 检查是否包含阻止级别的敏感词
-func (f *Filter) ContainsBlockedWord(ctx context.Context, content string) bool {
-	result := f.CheckContent(ctx, content)
-	return !result.IsValid
+func (f *Filter) ContainsBlockedWord(ctx context.Context, content string) (bool, error) {
+	result, err := f.CheckContent(ctx, content)
+	if err != nil {
+		return false, err
+	}
+	return !result.IsValid, nil
 }

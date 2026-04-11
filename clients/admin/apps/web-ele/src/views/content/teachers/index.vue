@@ -16,13 +16,13 @@ import {
   ElTableColumn,
 } from 'element-plus';
 
-import { $t } from '#/locales';
 import {
   createTeacher,
   deleteTeacher,
   getTeacherList,
   updateTeacher,
 } from '#/api/admin';
+import { $t } from '#/locales';
 
 const loading = ref(false);
 const teachers = ref<Teacher[]>([]);
@@ -128,21 +128,49 @@ onMounted(fetchData);
         @clear="fetchData"
         @keyup.enter="fetchData"
       />
-      <ElButton type="primary" @click="fetchData">{{ $t('admin.common.query') }}</ElButton>
-      <ElButton type="success" @click="openCreate">{{ $t('admin.content.teachers.create') }}</ElButton>
+      <ElButton type="primary" @click="fetchData">
+        {{ $t('admin.common.query') }}
+      </ElButton>
+      <ElButton type="success" @click="openCreate">
+        {{ $t('admin.content.teachers.create') }}
+      </ElButton>
     </div>
 
     <ElTable v-loading="loading" :data="teachers" stripe>
       <ElTableColumn :label="$t('admin.common.id')" prop="id" width="70" />
-      <ElTableColumn :label="$t('admin.content.teachers.name')" prop="name" width="120" />
-      <ElTableColumn :label="$t('admin.content.teachers.department')" min-width="150">
+      <ElTableColumn
+        :label="$t('admin.content.teachers.name')"
+        prop="name"
+        width="120"
+      />
+      <ElTableColumn
+        :label="$t('admin.content.teachers.department')"
+        min-width="150"
+      >
         <template #default="{ row }">
-          {{ row.departmentName || (row.departmentID ? `${$t('admin.content.teachers.departmentPrefix')} #${row.departmentID}` : $t('admin.common.notSet')) }}
+          {{
+            row.departmentName ||
+            (row.departmentID
+              ? `${$t('admin.content.teachers.departmentPrefix')} #${row.departmentID}`
+              : $t('admin.common.notSet'))
+          }}
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.content.teachers.reviewCount')" prop="reviewCount" width="90" />
-      <ElTableColumn :label="$t('admin.common.createdAt')" prop="createdAt" width="170" />
-      <ElTableColumn fixed="right" :label="$t('admin.common.actions')" width="140">
+      <ElTableColumn
+        :label="$t('admin.content.teachers.reviewCount')"
+        prop="reviewCount"
+        width="90"
+      />
+      <ElTableColumn
+        :label="$t('admin.common.createdAt')"
+        prop="createdAt"
+        width="170"
+      />
+      <ElTableColumn
+        fixed="right"
+        :label="$t('admin.common.actions')"
+        width="140"
+      >
         <template #default="{ row }">
           <ElButton link size="small" type="primary" @click="openEdit(row)">
             {{ $t('admin.common.edit') }}
@@ -152,7 +180,9 @@ onMounted(fetchData);
             @confirm="handleDelete(row.id)"
           >
             <template #reference>
-              <ElButton link size="small" type="danger">{{ $t('admin.common.delete') }}</ElButton>
+              <ElButton link size="small" type="danger">
+                {{ $t('admin.common.delete') }}
+              </ElButton>
             </template>
           </ElPopconfirm>
         </template>
@@ -172,12 +202,19 @@ onMounted(fetchData);
     <!-- 新增/编辑弹窗 -->
     <ElDialog
       v-model="dialogVisible"
-      :title="isEdit ? $t('admin.content.teachers.editTitle') : $t('admin.content.teachers.createTitle')"
+      :title="
+        isEdit
+          ? $t('admin.content.teachers.editTitle')
+          : $t('admin.content.teachers.createTitle')
+      "
       width="480px"
     >
       <ElForm label-width="80px">
         <ElFormItem :label="$t('admin.content.teachers.name')">
-          <ElInput v-model="form.name" :placeholder="$t('admin.content.teachers.namePlaceholder')" />
+          <ElInput
+            v-model="form.name"
+            :placeholder="$t('admin.content.teachers.namePlaceholder')"
+          />
         </ElFormItem>
         <ElFormItem :label="$t('admin.content.teachers.departmentId')">
           <ElInput
@@ -188,8 +225,12 @@ onMounted(fetchData);
         </ElFormItem>
       </ElForm>
       <template #footer>
-        <ElButton @click="dialogVisible = false">{{ $t('admin.common.cancel') }}</ElButton>
-        <ElButton type="primary" @click="handleSubmit">{{ $t('admin.common.confirm') }}</ElButton>
+        <ElButton @click="dialogVisible = false">
+          {{ $t('admin.common.cancel') }}
+        </ElButton>
+        <ElButton type="primary" @click="handleSubmit">
+          {{ $t('admin.common.confirm') }}
+        </ElButton>
       </template>
     </ElDialog>
   </div>

@@ -107,7 +107,11 @@ func (s *Service) Send(ctx context.Context, phone, content string) (err error) {
 	if err != nil {
 		return fmt.Errorf("sms: send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("sms: close response body: %w", closeErr)
+		}
+	}()
 
 	var result struct {
 		Response struct {

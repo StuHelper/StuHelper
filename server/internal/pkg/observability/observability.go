@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -52,20 +53,23 @@ func Setup(ctx context.Context, cfg config.ObservabilityConfig, appEnv string, b
 		return nil, fmt.Errorf("observability: create OTLP exporter: %w", err)
 	}
 
-	hostname, _ := os.Hostname()
+	attrs := []attribute.KeyValue{
+		semconv.ServiceName(cfg.ServiceName),
+		semconv.ServiceNamespace(cfg.ServiceNamespace),
+		semconv.ServiceVersion(build.Version),
+		semconv.DeploymentEnvironmentName(appEnv),
+	}
+	if hostname, hostnameErr := os.Hostname(); hostnameErr == nil && strings.TrimSpace(hostname) != "" {
+		attrs = append(attrs, semconv.HostName(hostname))
+	}
+
 	res, err := resource.New(ctx,
 		resource.WithFromEnv(),
 		resource.WithHost(),
 		resource.WithOS(),
 		resource.WithProcess(),
 		resource.WithTelemetrySDK(),
-		resource.WithAttributes(
-			semconv.ServiceName(cfg.ServiceName),
-			semconv.ServiceNamespace(cfg.ServiceNamespace),
-			semconv.ServiceVersion(build.Version),
-			semconv.DeploymentEnvironmentName(appEnv),
-			semconv.HostName(hostname),
-		),
+		resource.WithAttributes(attrs...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("observability: create resource: %w", err)

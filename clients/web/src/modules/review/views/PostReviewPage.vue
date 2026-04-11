@@ -177,21 +177,35 @@
 
           <!-- Rating dimension rows -->
           <div class="flex flex-col gap-3">
-            <div
-              v-for="dim in ratingDimensions"
-              :key="dim.key"
-              class="flex items-center justify-between"
-            >
-              <span class="text-sm text-text-secondary shrink-0">
-                {{ dim.label }}
-              </span>
-              <EmojiRatingInput
-                :model-value="ratings[dim.key] ?? 0"
-                :error="showErrors && !ratings[dim.key] ? dim.errorMsg : undefined"
-                :test-id-prefix="`rating-${dim.key}`"
-                @update:model-value="(val: number) => updateRating(dim.key, val)"
-              />
-            </div>
+            <template v-if="ratingDimensionsLoading">
+              <div v-for="i in 4" :key="i" class="flex items-center justify-between animate-pulse">
+                <div class="h-4 w-24 rounded bg-bg-secondary"></div>
+                <div class="h-8 w-36 rounded bg-bg-secondary"></div>
+              </div>
+            </template>
+            <p v-else-if="ratingDimensionsLoadFailed" class="text-sm text-danger">
+              {{ t('review.post.ratingLoadFailed') }}
+            </p>
+            <p v-else-if="ratingDimensions.length === 0" class="text-sm text-text-muted">
+              {{ t('review.post.ratingUnavailable') }}
+            </p>
+            <template v-else>
+              <div
+                v-for="dim in ratingDimensions"
+                :key="dim.key"
+                class="flex items-center justify-between"
+              >
+                <span class="text-sm text-text-secondary shrink-0">
+                  {{ dim.name }}
+                </span>
+                <EmojiRatingInput
+                  :model-value="ratings[dim.key] ?? 0"
+                  :error="showErrors && !ratings[dim.key] ? t('review.post.ratingMissing') : undefined"
+                  :test-id-prefix="`rating-${dim.key}`"
+                  @update:model-value="(val: number) => updateRating(dim.key, val)"
+                />
+              </div>
+            </template>
           </div>
         </div>
 
@@ -308,6 +322,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Search, X } from 'lucide-vue-next'
 import EmojiRatingInput from '@/components/business/review/EmojiRatingInput.vue'
+import { areRatingsComplete, useRatingDimensions } from '@/components/business/review/composables/useRatingDimensions'
 import { api } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinSearch'
@@ -341,29 +356,11 @@ const selectArrowStyle = computed(() => ({
   paddingRight: '36px',
 }))
 
-// ── Rating dimensions (fixed 4, matching old React design) ──
-const ratingDimensions = computed(() => [
-  {
-    key: 'recommendation',
-    label: t('review.postForm.overall'),
-    errorMsg: t('review.postForm.errors.overall'),
-  },
-  {
-    key: 'content_quality',
-    label: t('review.postForm.contentQuality'),
-    errorMsg: t('review.postForm.errors.content'),
-  },
-  {
-    key: 'workload',
-    label: t('review.postForm.workload'),
-    errorMsg: t('review.postForm.errors.workload'),
-  },
-  {
-    key: 'grading',
-    label: t('review.postForm.exam'),
-    errorMsg: t('review.postForm.errors.exam'),
-  },
-])
+const {
+  dimensions: ratingDimensions,
+  loading: ratingDimensionsLoading,
+  loadFailed: ratingDimensionsLoadFailed,
+} = useRatingDimensions()
 
 // ── Form state ───────────────────────────────────────────
 const selectedCourse = ref<Course | null>(null)
@@ -558,10 +555,9 @@ const contentError = computed(() => {
 })
 
 const allRatingsProvided = computed(() =>
-  ratingDimensions.value.every((dim) => {
-    const v = ratings.value[dim.key]
-    return v !== undefined && v >= 1 && v <= 5
-  }),
+  !ratingDimensionsLoading.value &&
+  !ratingDimensionsLoadFailed.value &&
+  areRatingsComplete(ratings.value, ratingDimensions.value),
 )
 
 const canSubmit = computed(() =>
@@ -576,6 +572,10 @@ const canSubmit = computed(() =>
 // ── Submission ───────────────────────────────────────────
 async function handleSubmit() {
   showErrors.value = true
+  if (ratingDimensionsLoadFailed.value) {
+    toast.error(t('review.post.ratingLoadFailed'))
+    return
+  }
 
   if (!canSubmit.value) return
 

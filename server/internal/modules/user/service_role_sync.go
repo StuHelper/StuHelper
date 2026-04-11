@@ -16,7 +16,7 @@ func (s *Service) syncRole(ctx context.Context, userID int64, role string, appro
 		return
 	}
 
-	roleCtx, cancel := context.WithTimeout(ctx, roleSyncTimeout)
+	roleCtx, cancel := context.WithTimeout(context.Background(), roleSyncTimeout)
 	defer cancel()
 
 	if err := s.onRoleSync(roleCtx, userID, role, approved); err != nil {

@@ -243,10 +243,10 @@ func GetCapabilities(c *gin.Context) []string {
 }
 
 // HasCapability 检查当前用户是否具有指定能力（O(1) map 查找）
-func HasCapability(c *gin.Context, cap string) bool {
+func HasCapability(c *gin.Context, capabilityName string) bool {
 	if val, exists := c.Get(CtxKeyCapabilitySet); exists {
 		if set, ok := val.(map[string]struct{}); ok {
-			_, found := set[cap]
+			_, found := set[capabilityName]
 			return found
 		}
 	}
@@ -277,9 +277,9 @@ func getTokenWithSource(c *gin.Context) (string, tokenSource) {
 	if authHeader != "" {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-			token := strings.TrimSpace(parts[1])
-			if token != "" {
-				return token, tokenSourceBearer
+			accessToken := strings.TrimSpace(parts[1])
+			if accessToken != "" {
+				return accessToken, tokenSourceBearer
 			}
 		}
 	}

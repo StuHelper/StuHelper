@@ -142,7 +142,7 @@ func TestErrorWithDetails(t *testing.T) {
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
 
-	details := map[string]string{"field": "email", "reason": "required"}
+	details := map[string]any{"field": "email", "reason": "required"}
 	r.POST("/err-detail", func(c *gin.Context) {
 		ErrorWithDetails(c, http.StatusBadRequest, errs.ErrValidation, "validation failed", details)
 	})
@@ -194,7 +194,7 @@ func TestValidationError(t *testing.T) {
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
 	r.POST("/t", func(c *gin.Context) {
-		ValidationError(c, "invalid", []string{"field1"})
+		ValidationError(c, "invalid", map[string]any{"field": "field1"})
 	})
 
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/t", nil))

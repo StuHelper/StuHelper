@@ -1,16 +1,19 @@
 <script lang="ts" setup>
 import type { NotificationItem } from '@vben/layouts';
 
-import { computed, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
-import { BasicLayout, LockScreen, Notification, UserDropdown } from '@vben/layouts';
+import { useWatermark } from '@vben/hooks';
+import {
+  BasicLayout,
+  LockScreen,
+  Notification,
+  UserDropdown,
+} from '@vben/layouts';
 import { preferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
-
-import { useWatermark } from '@vben/hooks';
-import { defineAsyncComponent } from 'vue';
 
 import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
@@ -58,7 +61,9 @@ function handleNoticeClear() {
 }
 
 function markRead(id: number | string) {
-  const item = notifications.value.find((notification) => notification.id === id);
+  const item = notifications.value.find(
+    (notification) => notification.id === id,
+  );
   if (item) {
     item.isRead = true;
   }

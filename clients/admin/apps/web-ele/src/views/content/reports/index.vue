@@ -89,29 +89,58 @@ onMounted(fetchData);
         @change="fetchData"
       >
         <ElOption :label="$t('admin.common.all')" value="all" />
-        <ElOption :label="$t('admin.content.reports.status.pending')" value="pending" />
-        <ElOption :label="$t('admin.content.reports.status.resolved')" value="resolved" />
-        <ElOption :label="$t('admin.content.reports.status.rejected')" value="rejected" />
+        <ElOption
+          :label="$t('admin.content.reports.status.pending')"
+          value="pending"
+        />
+        <ElOption
+          :label="$t('admin.content.reports.status.resolved')"
+          value="resolved"
+        />
+        <ElOption
+          :label="$t('admin.content.reports.status.rejected')"
+          value="rejected"
+        />
       </ElSelect>
-      <ElButton type="primary" @click="fetchData">{{ $t('admin.common.query') }}</ElButton>
+      <ElButton type="primary" @click="fetchData">
+        {{ $t('admin.common.query') }}
+      </ElButton>
     </div>
 
     <ElTable v-loading="loading" :data="reports" stripe>
       <ElTableColumn :label="$t('admin.common.id')" prop="id" width="70" />
-      <ElTableColumn :label="$t('admin.content.reports.reviewId')" prop="reviewID" min-width="140" />
-      <ElTableColumn :label="$t('admin.content.reports.reviewTitle')" min-width="160">
+      <ElTableColumn
+        :label="$t('admin.content.reports.reviewId')"
+        prop="reviewID"
+        min-width="140"
+      />
+      <ElTableColumn
+        :label="$t('admin.content.reports.reviewTitle')"
+        min-width="160"
+      >
         <template #default="{ row }">
           {{ row.review?.title || $t('admin.content.reports.missingReview') }}
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.content.reports.reasonLabel')" min-width="140">
+      <ElTableColumn
+        :label="$t('admin.content.reports.reasonLabel')"
+        min-width="140"
+      >
         <template #default="{ row }">
           {{ reasonLabel(row.reason) }}
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.common.description')" min-width="200" show-overflow-tooltip>
+      <ElTableColumn
+        :label="$t('admin.common.description')"
+        min-width="200"
+        show-overflow-tooltip
+      >
         <template #default="{ row }">
-          {{ row.description || row.resolutionNote || $t('admin.common.unavailable') }}
+          {{
+            row.description ||
+            row.resolutionNote ||
+            $t('admin.common.unavailable')
+          }}
         </template>
       </ElTableColumn>
       <ElTableColumn :label="$t('admin.common.status')" width="90">
@@ -121,8 +150,16 @@ onMounted(fetchData);
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.common.time')" prop="createdAt" width="170" />
-      <ElTableColumn fixed="right" :label="$t('admin.common.actions')" width="220">
+      <ElTableColumn
+        :label="$t('admin.common.time')"
+        prop="createdAt"
+        width="170"
+      />
+      <ElTableColumn
+        fixed="right"
+        :label="$t('admin.common.actions')"
+        width="220"
+      >
         <template #default="{ row }">
           <template v-if="row.status === 'pending'">
             <ElPopconfirm
@@ -130,7 +167,12 @@ onMounted(fetchData);
               @confirm="handleAction(row.id, 'reject')"
             >
               <template #reference>
-                <ElButton link size="small" type="info" :disabled="actionLoading">
+                <ElButton
+                  link
+                  size="small"
+                  type="info"
+                  :disabled="actionLoading"
+                >
                   {{ $t('admin.content.reports.reject') }}
                 </ElButton>
               </template>
@@ -140,7 +182,12 @@ onMounted(fetchData);
               @confirm="handleAction(row.id, 'hide')"
             >
               <template #reference>
-                <ElButton link size="small" type="warning" :disabled="actionLoading">
+                <ElButton
+                  link
+                  size="small"
+                  type="warning"
+                  :disabled="actionLoading"
+                >
                   {{ $t('admin.content.reports.hideReview') }}
                 </ElButton>
               </template>
@@ -150,7 +197,12 @@ onMounted(fetchData);
               @confirm="handleAction(row.id, 'delete')"
             >
               <template #reference>
-                <ElButton link size="small" type="danger" :disabled="actionLoading">
+                <ElButton
+                  link
+                  size="small"
+                  type="danger"
+                  :disabled="actionLoading"
+                >
                   {{ $t('admin.content.reports.deleteReview') }}
                 </ElButton>
               </template>

@@ -290,7 +290,7 @@ func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"message":  "verification code sent",
-		"cooldown": int(auth.OTPCooldownSeconds()),
+		"cooldown": auth.OTPCooldownSeconds(),
 	})
 }
 

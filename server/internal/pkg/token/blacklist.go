@@ -2,6 +2,7 @@ package token
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -159,13 +160,20 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 		return false, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
 	}
 
-	ok, err := b.rdb.SetNX(ctx, refreshConsumedPrefix+hash, "1", expiry).Result()
+	status, err := b.rdb.SetArgs(ctx, refreshConsumedPrefix+hash, "1", redis.SetArgs{
+		Mode: "NX",
+		TTL:  expiry,
+	}).Result()
+	if errors.Is(err, redis.Nil) {
+		b.cb.RecordSuccess()
+		return false, nil
+	}
 	if err != nil {
 		b.cb.RecordFailure()
 		return false, fmt.Errorf("failed to mark refresh token consumed: %w", err)
 	}
 	b.cb.RecordSuccess()
-	if !ok {
+	if status != "OK" {
 		return false, nil
 	}
 	return true, nil

@@ -313,14 +313,18 @@ func (d *DB) WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx)
 	}()
 
 	if err := fn(ctx, tx); err != nil {
-		if rbErr := tx.Rollback(ctx); rbErr != nil {
+		rbCtx, rbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer rbCancel()
+		if rbErr := tx.Rollback(rbCtx); rbErr != nil {
 			logger.L().Warn("tx rollback failed",
 				zap.Error(rbErr))
 		}
 		return err
 	}
 
-	return tx.Commit(ctx)
+	commitCtx, commitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer commitCancel()
+	return tx.Commit(commitCtx)
 }
 
 // isConnectionError 判断是否为瞬时连接错误（网络断开、连接重置等），

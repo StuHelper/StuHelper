@@ -65,7 +65,11 @@ func (h *Handler) getReviewAccessPolicy(ctx context.Context) (systemconfig.Revie
 	if err != nil {
 		return systemconfig.ReviewAccessPolicySnapshot{}, err
 	}
-	return result.(systemconfig.ReviewAccessPolicySnapshot), nil
+	policy, ok := result.(systemconfig.ReviewAccessPolicySnapshot)
+	if !ok {
+		return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("unexpected access policy result type %T", result)
+	}
+	return policy, nil
 }
 
 func (h *Handler) readReviewAccessPolicy() systemconfig.ReviewAccessPolicySnapshot {

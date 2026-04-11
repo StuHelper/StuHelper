@@ -18,7 +18,7 @@ export interface ApiCallResult<T = unknown> {
   };
 }
 
-function readErrorMessage(value: unknown): string | null {
+function readErrorMessage(value: unknown): null | string {
   if (typeof value === 'string') {
     return value.trim() || null;
   }

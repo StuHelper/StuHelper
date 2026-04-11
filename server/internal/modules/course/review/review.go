@@ -72,6 +72,8 @@ func (h *Handler) PostReview(c *gin.Context) {
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		case errors.Is(err, ErrSensitiveContent):
 			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
+		case errors.Is(err, ErrModerationUnavailable):
+			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
 		case errors.Is(err, ErrContentEmpty):
 			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
 		case errors.Is(err, ErrAlreadyReviewed):
@@ -188,6 +190,8 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		case errors.Is(err, ErrSensitiveContent):
 			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
+		case errors.Is(err, ErrModerationUnavailable):
+			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
 		case errors.Is(err, ErrContentEmpty):
 			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
 		default:
@@ -301,6 +305,16 @@ func (h *Handler) CheckContent(c *gin.Context) {
 		return
 	}
 
-	result := h.service.CheckContent(c.Request.Context(), req.Content)
+	result, err := h.service.CheckContent(c.Request.Context(), req.Content)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrModerationUnavailable):
+			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
+		default:
+			logger.FromGin(c).Error("failed to check content", zap.Error(err))
+			response.InternalError(c, "failed to check content")
+		}
+		return
+	}
 	response.Success(c, result)
 }

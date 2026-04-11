@@ -13,8 +13,6 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
 
-const defaultAcademicDBTable = "academic.buaa_students" // kept only for migration reference
-
 var sqlIdentifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 var requiredAcademicColumns = []string{

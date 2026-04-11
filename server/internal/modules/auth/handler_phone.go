@@ -110,13 +110,14 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 
 	// 验证 OTP
 	if err := h.otpService.Verify(c.Request.Context(), phone, code); err != nil {
-		if errors.Is(err, ErrOTPInvalidCode) {
+		switch {
+		case errors.Is(err, ErrOTPInvalidCode):
 			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
-		} else if errors.Is(err, ErrOTPExpired) {
+		case errors.Is(err, ErrOTPExpired):
 			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
-		} else if errors.Is(err, ErrOTPMaxAttempts) {
+		case errors.Is(err, ErrOTPMaxAttempts):
 			response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
-		} else {
+		default:
 			logger.FromGin(c).Error("OTP verification error", zap.Error(err))
 			response.InternalError(c, "verification failed")
 		}

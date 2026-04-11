@@ -52,6 +52,8 @@ func (h *Handler) AdminEditReviewContent(c *gin.Context) {
 			response.BadRequest(c, "content contains potentially dangerous elements")
 		case errors.Is(err, ErrSensitiveContent):
 			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
+		case errors.Is(err, ErrModerationUnavailable):
+			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
 		case errors.Is(err, ErrContentEmpty):
 			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
 		default:
