@@ -3,22 +3,10 @@
   hosts: stuhelper
   vars:
     deploy_app_dir: "{{ deploy_app_dir | default('/opt/stuhelper') }}"
-    registry: "{{ lookup('env', 'REGISTRY') }}"
-    registry_username_secret_ref: "{{ lookup('env', 'DEPLOY_REGISTRY_USERNAME_SECRET_REF') }}"
-    registry_password_secret_ref: "{{ lookup('env', 'DEPLOY_REGISTRY_PASSWORD_SECRET_REF') }}"
     deploy_tag: "{{ lookup('env', 'DEPLOY_TAG') | default(lookup('pipe', 'git -C ../.. rev-parse --short HEAD'), true) }}"
     backend_image_ref: "{{ lookup('env', 'BACKEND_IMAGE_REF') }}"
     frontend_image_ref: "{{ lookup('env', 'FRONTEND_IMAGE_REF') }}"
     admin_image_ref: "{{ lookup('env', 'ADMIN_IMAGE_REF') }}"
-    deploy_secret_backend: "{{ lookup('env', 'DEPLOY_SECRET_BACKEND') }}"
-    deploy_shared_env_secret_ref: "{{ lookup('env', 'DEPLOY_SHARED_ENV_SECRET_REF') }}"
-    deploy_secret_env_secret_ref: "{{ lookup('env', 'DEPLOY_SECRET_ENV_SECRET_REF') }}"
-    deploy_generated_env_secret_ref: "{{ lookup('env', 'DEPLOY_GENERATED_ENV_SECRET_REF') }}"
-    deploy_secret_file_root: "{{ lookup('env', 'DEPLOY_SECRET_FILE_ROOT') }}"
-    deploy_vault_addr: "{{ lookup('env', 'DEPLOY_VAULT_ADDR') }}"
-    deploy_vault_namespace: "{{ lookup('env', 'DEPLOY_VAULT_NAMESPACE') }}"
-    deploy_vault_token_file: "{{ lookup('env', 'DEPLOY_VAULT_TOKEN_FILE') }}"
-    deploy_vault_kv_mount: "{{ lookup('env', 'DEPLOY_VAULT_KV_MOUNT') | default('secret', true) }}"
   tasks:
     - name: Require immutable image refs for remote deploy
       ansible.builtin.assert:
@@ -45,42 +33,18 @@
         dest: "{{ deploy_app_dir }}/deploy-bundle.tgz"
         mode: "0644"
 
-    - name: Write remote deploy environment
-      ansible.builtin.copy:
-        dest: "{{ deploy_app_dir }}/deploy.remote.env"
-        mode: "0600"
-        content: |
-          REGISTRY={{ registry }}
-          REGISTRY_USERNAME_SECRET_REF={{ registry_username_secret_ref }}
-          REGISTRY_PASSWORD_SECRET_REF={{ registry_password_secret_ref }}
-          TAG={{ deploy_tag }}
-          BACKEND_IMAGE_REF={{ backend_image_ref }}
-          FRONTEND_IMAGE_REF={{ frontend_image_ref }}
-          ADMIN_IMAGE_REF={{ admin_image_ref }}
-          ENV_FILE={{ deploy_app_dir }}/.env.prod.shared
-          SECRETS_ENV_FILE={{ deploy_app_dir }}/.env.prod.secrets
-          GENERATED_ENV_FILE={{ deploy_app_dir }}/.env.prod.generated
-          GENERATED_SECRET_ENV_FILE={{ deploy_app_dir }}/.env.prod.generated.secrets
-          SECRET_BACKEND={{ deploy_secret_backend }}
-          SHARED_ENV_SECRET_REF={{ deploy_shared_env_secret_ref }}
-          SECRETS_ENV_SECRET_REF={{ deploy_secret_env_secret_ref }}
-          GENERATED_ENV_SECRET_REF={{ deploy_generated_env_secret_ref }}
-          SECRET_FILE_ROOT={{ deploy_secret_file_root | default(deploy_app_dir + '/.secrets', true) }}
-          VAULT_ADDR={{ deploy_vault_addr }}
-          VAULT_NAMESPACE={{ deploy_vault_namespace }}
-          VAULT_TOKEN_FILE={{ deploy_vault_token_file }}
-          VAULT_KV_MOUNT={{ deploy_vault_kv_mount }}
-
     - name: Run remote deploy
       ansible.builtin.shell: |
         set -euo pipefail
         cd "{{ deploy_app_dir }}"
         tar xzf deploy-bundle.tgz
         rm -f deploy-bundle.tgz
-        set -a
-        . ./deploy.remote.env
-        set +a
+        ./infra/ops/remote-preflight.sh
         ./infra/ops/remote-prod-deploy.sh
-        rm -f ./deploy.remote.env
       args:
         executable: /bin/bash
+      environment:
+        TAG: "{{ deploy_tag }}"
+        BACKEND_IMAGE_REF: "{{ backend_image_ref }}"
+        FRONTEND_IMAGE_REF: "{{ frontend_image_ref }}"
+        ADMIN_IMAGE_REF: "{{ admin_image_ref }}"

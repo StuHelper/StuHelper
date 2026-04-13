@@ -36,7 +36,7 @@ make dev-docker-up
 ## 本地生产验证
 
 ```bash
-make prod-init    # 准备 .env.prod.* 三份文件
+make prod-init    # 准备本地生产演练用 .env.prod.* 文件
 make prod-deploy  # 配置校验 → 镜像构建 → 启动 → Smoke Check
 ```
 
@@ -57,7 +57,7 @@ make ansible-deploy-staging     # Ansible 发布
 make ansible-rollback-prod      # Ansible 回滚
 ```
 
-生产主机首次 bootstrap 会安装 PostgreSQL 逻辑备份 / base backup 定时任务，并配好 WAL 归档目录。
+生产主机首次 bootstrap 会安装 PostgreSQL 逻辑备份 / base backup / backup sync 定时任务，并配好 WAL 归档目录、`.deploy/remote.env` 与远端 registry 凭据占位文件。
 
 ## 技术栈
 

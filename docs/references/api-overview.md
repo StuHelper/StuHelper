@@ -75,6 +75,7 @@
 | `/api/v1/course/review/user/votes` | GET | 我的投票 |
 | `/api/v1/course/review/user/favorites` | GET | 我的收藏 |
 | `/api/v1/course/review/user/notifications` | GET | 通知列表 |
+| `/api/v1/course/review/user/notifications/stream` | GET | SSE 实时推送 |
 | `/api/v1/course/review/user/notifications/unread-count` | GET | 未读数 |
 | `/api/v1/course/review/user/notifications/{notificationID}/read` | PUT | 标记已读 |
 | `/api/v1/course/review/user/notifications/read-all` | PUT | 全部已读 |
@@ -87,7 +88,7 @@
 | `/api/v1/course/review/admin/reports/{reportID}` | PUT | 处理举报 |
 | `/api/v1/course/review/admin/reviews` | GET | 评课列表 |
 | `/api/v1/course/review/admin/reviews/{reviewID}` | PUT | 更新状态 |
-| `/api/v1/course/review/admin/reviews/batch` | POST | 批量操作 |
+| `/api/v1/course/review/admin/reviews/batch` | PATCH | 批量操作 |
 | `/api/v1/course/review/admin/reviews/{reviewID}/edit` | POST | 编辑内容 |
 | `/api/v1/course/review/admin/stats` | GET | 统计 |
 | `/api/v1/course/review/admin/logs` | GET | 操作日志 |
@@ -107,8 +108,10 @@
 | `/api/v1/user/identity/uploads` | POST | 上传证件照 |
 | `/api/v1/user/profile` | GET | 学生认证档案 |
 | `/api/v1/user/profile/verify` | POST | 发起学生认证 |
+| `/api/v1/user/profile/bind-phone/otp` | POST | 请求绑定手机验证码 |
 | `/api/v1/user/profile/bind-phone` | POST | 绑定手机号 |
 | `/api/v1/user/profile/academic-info` | GET | 学籍信息 |
+| `/api/v1/user/me` | GET | 用户聚合视图 |
 | `/api/v1/user/schools` | GET | 学校列表 |
 
 ## 用户系统后台
@@ -123,18 +126,6 @@
 | `/api/v1/admin/school-configs/{schoolID}` | PUT | 更新学校配置 |
 | `/api/v1/admin/system-configs` | GET | 系统配置列表 |
 | `/api/v1/admin/system-configs/{key}` | PUT | 更新系统配置 |
-
-## 独立通知（双轨 B）
-
-后端运行时路由，尚未纳入 OpenAPI 主要链路：
-
-| 路径 | 方法 | 说明 |
-|------|------|------|
-| `/api/v1/notifications` | GET | 通知列表 |
-| `/api/v1/notifications/unread-count` | GET | 未读数 |
-| `/api/v1/notifications/:id/read` | PUT | 标记已读 |
-| `/api/v1/notifications/read-all` | PUT | 全部已读 |
-| `/api/v1/notifications/stream` | GET | SSE |
 
 ## 认证说明
 

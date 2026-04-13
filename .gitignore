@@ -21,6 +21,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+.deploy/
 credentials.json
 secrets.yaml
 config.local.*

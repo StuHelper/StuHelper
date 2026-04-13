@@ -11,7 +11,9 @@
 
 ```
 clients/
-├── shared/src/             # 共享 API / 类型 / 常量
+├── shared/
+│   ├── src/                # 共享 API / 类型 / 常量源码
+│   └── dist/               # 包导出产物（应用只消费这里的导出面）
 ├── web/src/                # 主站 SPA
 │   ├── api/
 │   ├── components/
@@ -20,7 +22,7 @@ clients/
 │   ├── stores/
 │   └── router/
 ├── admin/apps/web-ele/src/ # 独立管理后台
-└── uniappx/                # 实验性跨端
+└── uniappx/src/            # 实验性跨端
 ```
 
 ## Web 模块
@@ -51,9 +53,9 @@ server/api/openapi.yaml
   ↓
 clients/shared/src/types/api.gen.ts
   ↓
-clients/shared/src/api/*
+clients/shared/dist/*
   ↓
-web / admin 封装
+web / admin / uniappx 封装
 ```
 
 改接口流程：改 OpenAPI → 重新生成 → 改 shared → 改页面和 store。
@@ -83,10 +85,13 @@ Pinia store 当前用于：认证会话、通知、课程评课聚合、草稿�
 ```bash
 cd clients
 pnpm install
+pnpm dev:web
+pnpm dev:admin
+pnpm dev:uni
 pnpm type-check && pnpm lint
 pnpm test:web
 pnpm test:e2e:web && pnpm test:e2e:admin
-pnpm build:web && pnpm build:admin
+pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
 ## 提交前检查

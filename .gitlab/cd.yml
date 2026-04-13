@@ -19,54 +19,24 @@
   - test -n "${ADMIN_IMAGE_REF:-}" || { echo "ADMIN_IMAGE_REF is required"; exit 1; }
   - apk add --no-cache openssh-client bash tar gzip
   - export TARGET_TAG="${DEPLOY_TAG:-${CI_COMMIT_SHORT_SHA}}"
-  - export REMOTE_SHARED_ENV_FILE="${DEPLOY_SHARED_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.shared}"
-  - export REMOTE_SECRETS_ENV_FILE="${DEPLOY_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.secrets}"
-  - export REMOTE_GENERATED_SECRETS_ENV_FILE="${DEPLOY_GENERATED_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.generated.secrets}"
-  - test -n "${DEPLOY_SECRET_BACKEND:-}" || { echo "DEPLOY_SECRET_BACKEND is required"; exit 1; }
-  - test -n "${DEPLOY_SHARED_ENV_SECRET_REF:-}" || { echo "DEPLOY_SHARED_ENV_SECRET_REF is required"; exit 1; }
-  - test -n "${DEPLOY_SECRET_ENV_SECRET_REF:-}" || { echo "DEPLOY_SECRET_ENV_SECRET_REF is required"; exit 1; }
   - eval "$(ssh-agent -s)"
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
   - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
   - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
   - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
-  - |
-    cat > "${CI_PROJECT_DIR}/deploy.remote.env" <<EOF
-    REGISTRY=${REGISTRY}
-    REGISTRY_USERNAME_SECRET_REF=${DEPLOY_REGISTRY_USERNAME_SECRET_REF}
-    REGISTRY_PASSWORD_SECRET_REF=${DEPLOY_REGISTRY_PASSWORD_SECRET_REF}
-    TAG=${TARGET_TAG}
-    BACKEND_IMAGE_REF=${BACKEND_IMAGE_REF}
-    FRONTEND_IMAGE_REF=${FRONTEND_IMAGE_REF}
-    ADMIN_IMAGE_REF=${ADMIN_IMAGE_REF}
-    ENV_FILE=${REMOTE_SHARED_ENV_FILE}
-    SECRETS_ENV_FILE=${REMOTE_SECRETS_ENV_FILE}
-    GENERATED_ENV_FILE=${DEPLOY_TARGET_APP_DIR}/.env.prod.generated
-    GENERATED_SECRET_ENV_FILE=${REMOTE_GENERATED_SECRETS_ENV_FILE}
-    SECRET_BACKEND=${DEPLOY_SECRET_BACKEND}
-    SHARED_ENV_SECRET_REF=${DEPLOY_SHARED_ENV_SECRET_REF}
-    SECRETS_ENV_SECRET_REF=${DEPLOY_SECRET_ENV_SECRET_REF}
-    GENERATED_ENV_SECRET_REF=${DEPLOY_GENERATED_ENV_SECRET_REF}
-    SECRET_FILE_ROOT=${DEPLOY_SECRET_FILE_ROOT:-${DEPLOY_TARGET_APP_DIR}/.secrets}
-    VAULT_ADDR=${DEPLOY_VAULT_ADDR:-}
-    VAULT_NAMESPACE=${DEPLOY_VAULT_NAMESPACE:-}
-    VAULT_TOKEN_FILE=${DEPLOY_VAULT_TOKEN_FILE:-}
-    VAULT_KV_MOUNT=${DEPLOY_VAULT_KV_MOUNT:-secret}
-    EOF
   - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
   - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
-  - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy.remote.env" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy.remote.env"
   - |
     ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
       set -euo pipefail &&
       cd '${DEPLOY_TARGET_APP_DIR}' &&
       tar xzf deploy-bundle.tgz &&
       rm -f deploy-bundle.tgz &&
-      set -a && . ./deploy.remote.env && set +a &&
+      TAG='${TARGET_TAG}' BACKEND_IMAGE_REF='${BACKEND_IMAGE_REF}' FRONTEND_IMAGE_REF='${FRONTEND_IMAGE_REF}' ADMIN_IMAGE_REF='${ADMIN_IMAGE_REF}' \
       ./infra/ops/remote-preflight.sh &&
-      ./infra/ops/remote-prod-deploy.sh &&
-      rm -f ./deploy.remote.env
+      TAG='${TARGET_TAG}' BACKEND_IMAGE_REF='${BACKEND_IMAGE_REF}' FRONTEND_IMAGE_REF='${FRONTEND_IMAGE_REF}' ADMIN_IMAGE_REF='${ADMIN_IMAGE_REF}' \
+      ./infra/ops/remote-prod-deploy.sh
     "
 
 .verify_remote_template:
@@ -201,17 +171,6 @@ deploy_staging:
     DEPLOY_TARGET_USER: $STAGING_DEPLOY_USER
     DEPLOY_TARGET_APP_DIR: $STAGING_DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $STAGING_DEPLOY_SSH_KEY
-    DEPLOY_SECRET_BACKEND: $STAGING_DEPLOY_SECRET_BACKEND
-    DEPLOY_SHARED_ENV_SECRET_REF: $STAGING_DEPLOY_SHARED_ENV_SECRET_REF
-    DEPLOY_SECRET_ENV_SECRET_REF: $STAGING_DEPLOY_SECRET_ENV_SECRET_REF
-    DEPLOY_GENERATED_ENV_SECRET_REF: $STAGING_DEPLOY_GENERATED_ENV_SECRET_REF
-    DEPLOY_SECRET_FILE_ROOT: $STAGING_DEPLOY_SECRET_FILE_ROOT
-    DEPLOY_VAULT_ADDR: $STAGING_DEPLOY_VAULT_ADDR
-    DEPLOY_VAULT_NAMESPACE: $STAGING_DEPLOY_VAULT_NAMESPACE
-    DEPLOY_VAULT_TOKEN_FILE: $STAGING_DEPLOY_VAULT_TOKEN_FILE
-    DEPLOY_VAULT_KV_MOUNT: $STAGING_DEPLOY_VAULT_KV_MOUNT
-    DEPLOY_REGISTRY_USERNAME_SECRET_REF: $STAGING_DEPLOY_REGISTRY_USERNAME_SECRET_REF
-    DEPLOY_REGISTRY_PASSWORD_SECRET_REF: $STAGING_DEPLOY_REGISTRY_PASSWORD_SECRET_REF
   environment:
     name: staging
     url: $STAGING_PUBLIC_URL
@@ -231,17 +190,6 @@ deploy_production:
     DEPLOY_TARGET_USER: $DEPLOY_USER
     DEPLOY_TARGET_APP_DIR: $DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $DEPLOY_SSH_KEY
-    DEPLOY_SECRET_BACKEND: $DEPLOY_SECRET_BACKEND
-    DEPLOY_SHARED_ENV_SECRET_REF: $DEPLOY_SHARED_ENV_SECRET_REF
-    DEPLOY_SECRET_ENV_SECRET_REF: $DEPLOY_SECRET_ENV_SECRET_REF
-    DEPLOY_GENERATED_ENV_SECRET_REF: $DEPLOY_GENERATED_ENV_SECRET_REF
-    DEPLOY_SECRET_FILE_ROOT: $DEPLOY_SECRET_FILE_ROOT
-    DEPLOY_VAULT_ADDR: $DEPLOY_VAULT_ADDR
-    DEPLOY_VAULT_NAMESPACE: $DEPLOY_VAULT_NAMESPACE
-    DEPLOY_VAULT_TOKEN_FILE: $DEPLOY_VAULT_TOKEN_FILE
-    DEPLOY_VAULT_KV_MOUNT: $DEPLOY_VAULT_KV_MOUNT
-    DEPLOY_REGISTRY_USERNAME_SECRET_REF: $DEPLOY_REGISTRY_USERNAME_SECRET_REF
-    DEPLOY_REGISTRY_PASSWORD_SECRET_REF: $DEPLOY_REGISTRY_PASSWORD_SECRET_REF
   environment:
     name: production
     url: $WEB_PUBLIC_URL
@@ -307,40 +255,21 @@ rollback_staging:
   - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
   - apk add --no-cache openssh-client bash tar gzip
   - export TARGET_TAG="${DEPLOY_TAG:-}"
-  - export REMOTE_SHARED_ENV_FILE="${DEPLOY_SHARED_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.shared}"
-  - export REMOTE_SECRETS_ENV_FILE="${DEPLOY_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.secrets}"
-  - export REMOTE_GENERATED_SECRETS_ENV_FILE="${DEPLOY_GENERATED_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.generated.secrets}"
-  - test -n "${DEPLOY_SECRET_BACKEND:-}" || { echo "DEPLOY_SECRET_BACKEND is required"; exit 1; }
-  - test -n "${DEPLOY_SHARED_ENV_SECRET_REF:-}" || { echo "DEPLOY_SHARED_ENV_SECRET_REF is required"; exit 1; }
-  - test -n "${DEPLOY_SECRET_ENV_SECRET_REF:-}" || { echo "DEPLOY_SECRET_ENV_SECRET_REF is required"; exit 1; }
   - eval "$(ssh-agent -s)"
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
   - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
   - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
   - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
-  - |
-    cat > "${CI_PROJECT_DIR}/deploy.remote.env" <<EOF
-    REGISTRY=${REGISTRY}
-    REGISTRY_USERNAME_SECRET_REF=${DEPLOY_REGISTRY_USERNAME_SECRET_REF}
-    REGISTRY_PASSWORD_SECRET_REF=${DEPLOY_REGISTRY_PASSWORD_SECRET_REF}
-    TAG=${TARGET_TAG}
-    ENV_FILE=${REMOTE_SHARED_ENV_FILE}
-    SECRETS_ENV_FILE=${REMOTE_SECRETS_ENV_FILE}
-    GENERATED_ENV_FILE=${DEPLOY_TARGET_APP_DIR}/.env.prod.generated
-    EOF
   - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
   - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
-  - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy.remote.env" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy.remote.env"
   - |
     ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
       set -euo pipefail &&
       cd '${DEPLOY_TARGET_APP_DIR}' &&
       tar xzf deploy-bundle.tgz &&
       rm -f deploy-bundle.tgz &&
-      set -a && . ./deploy.remote.env && set +a &&
-      ./infra/ops/remote-prod-rollback.sh &&
-      rm -f ./deploy.remote.env
+      TAG='${TARGET_TAG}' ROLLBACK_TAG='${TARGET_TAG}' ./infra/ops/remote-prod-rollback.sh
     "
 
 rollback_production:
@@ -368,38 +297,19 @@ rollback_production:
   - test -n "${DEPLOY_TARGET_SSH_KEY:-}" || { echo "DEPLOY_TARGET_SSH_KEY is required"; exit 1; }
   - apk add --no-cache openssh-client bash tar gzip
   - export TARGET_TAG="${DEPLOY_TAG:-}"
-  - export REMOTE_SHARED_ENV_FILE="${DEPLOY_SHARED_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.shared}"
-  - export REMOTE_SECRETS_ENV_FILE="${DEPLOY_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.secrets}"
-  - export REMOTE_GENERATED_SECRETS_ENV_FILE="${DEPLOY_GENERATED_SECRETS_ENV_REMOTE_PATH:-${DEPLOY_TARGET_APP_DIR}/.env.prod.generated.secrets}"
-  - test -n "${DEPLOY_SECRET_BACKEND:-}" || { echo "DEPLOY_SECRET_BACKEND is required"; exit 1; }
-  - test -n "${DEPLOY_SHARED_ENV_SECRET_REF:-}" || { echo "DEPLOY_SHARED_ENV_SECRET_REF is required"; exit 1; }
-  - test -n "${DEPLOY_SECRET_ENV_SECRET_REF:-}" || { echo "DEPLOY_SECRET_ENV_SECRET_REF is required"; exit 1; }
   - eval "$(ssh-agent -s)"
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
   - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
   - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
   - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
-  - |
-    cat > "${CI_PROJECT_DIR}/deploy.remote.env" <<EOF
-    REGISTRY=${REGISTRY}
-    REGISTRY_USERNAME_SECRET_REF=${DEPLOY_REGISTRY_USERNAME_SECRET_REF}
-    REGISTRY_PASSWORD_SECRET_REF=${DEPLOY_REGISTRY_PASSWORD_SECRET_REF}
-    TAG=${TARGET_TAG}
-    ENV_FILE=${REMOTE_SHARED_ENV_FILE}
-    SECRETS_ENV_FILE=${REMOTE_SECRETS_ENV_FILE}
-    GENERATED_ENV_FILE=${DEPLOY_TARGET_APP_DIR}/.env.prod.generated
-    EOF
   - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
   - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
-  - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy.remote.env" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy.remote.env"
   - |
     ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
       set -euo pipefail &&
       cd '${DEPLOY_TARGET_APP_DIR}' &&
       tar xzf deploy-bundle.tgz &&
       rm -f deploy-bundle.tgz &&
-      set -a && . ./deploy.remote.env && set +a &&
-      ./infra/ops/remote-prod-rollback.sh &&
-      rm -f ./deploy.remote.env
+      TAG='${TARGET_TAG}' ROLLBACK_TAG='${TARGET_TAG}' ./infra/ops/remote-prod-rollback.sh
     "

@@ -40,9 +40,11 @@ server/api/openapi.yaml
   ├── server/internal/api/gen/              # Go 类型
   └── clients/shared/src/types/api.gen.ts   # TS 类型
         ↓
-      clients/shared/src/api/*.ts           # API 封装
+      clients/shared/dist/*                 # 包导出面（应用只消费导出）
         ↓
       clients/web/src/api/index.ts          # 主站 api 对象
+      clients/admin/apps/web-ele/src/api/*  # 管理后台 API
+      clients/uniappx/src/api/index.ts      # UniApp X API
 ```
 
 先改 OpenAPI → 生成类型 → 改实现。
@@ -81,8 +83,10 @@ Pinia store：`auth` / `notification` / `draft` / `courseReview` / `user`
 
 ```bash
 cd clients
-pnpm install && pnpm dev:web && pnpm dev:admin
+pnpm install
+pnpm dev:web && pnpm dev:admin && pnpm dev:uni
 pnpm type-check && pnpm lint && pnpm test:web && pnpm test:e2e
+pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
 或在仓库根目录执行 `make dev-up` 连基础设施一起启动。

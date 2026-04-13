@@ -60,9 +60,10 @@ cd clients
 pnpm install
 pnpm dev:web        # 主站
 pnpm dev:admin      # 管理后台
+pnpm dev:uni        # UniApp X H5
 pnpm type-check && pnpm lint
 pnpm test:web && pnpm test:e2e
-pnpm build:web && pnpm build:admin
+pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
 ## 手动拆分启动
@@ -109,7 +110,7 @@ make prod-down     # 停止
 sudo bash infra/ops/bootstrap-ubuntu2404.sh
 ```
 
-这个脚本会一起装好 Docker / Compose、部署目录、备份目录和 PostgreSQL 逻辑备份 / base backup timer。
+这个脚本会一起装好 Docker / Compose、部署目录、备份目录、`.deploy/remote.env`、registry 凭据占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。
 
 Ansible 入口：
 

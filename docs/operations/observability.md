@@ -64,6 +64,10 @@ make prod-deploy
 - `${DEPLOY_APP_DIR}/.env.prod.shared`
 - `${DEPLOY_APP_DIR}/.env.prod.secrets`
 
+另外还要确认远端部署控制面：
+
+- `${DEPLOY_APP_DIR}/.deploy/remote.env`
+
 至少要保证下面这些值已经配好：
 
 - `METRICS_PASSWORD`

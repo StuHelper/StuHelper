@@ -10,9 +10,11 @@
 - [ ] 本次变更已通过 CI（web / admin / backend）
 - [ ] production 发布已由发布人手工审批（`deploy_production`）
 - [ ] 如果包含数据库变更，已完成备份
-- [ ] 生产机上的逻辑备份 / base backup timer 已启用
+- [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用
+- [ ] 远端部署控制面已核对：`.deploy/remote.env`
 - [ ] 共享配置已核对：`.env.prod.shared`
-- [ ] secrets 已核对：`.env.prod.secrets` 或 `.env.prod.secrets.local`
+- [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）
+- [ ] registry 凭据已核对：`.secrets/registry/username`、`.secrets/registry/password` 或等价 secret ref
 - [ ] 关键变量已核对：`POSTGRES_PASSWORD`、`REDIS_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`
 - [ ] 观测配置已核对：`METRICS_PASSWORD`、`GRAFANA_ADMIN_PASSWORD`、`OTEL_ENABLED=true`
 - [ ] staging 已验证通过（如有 staging）
@@ -29,7 +31,8 @@
 6. `deploy_staging`
 7. `verify_staging`
 8. 远端实际执行：
-   - `make prod-deploy`
+   - `./infra/ops/remote-preflight.sh`
+   - `./infra/ops/remote-prod-deploy.sh`
 
 ### production（main）
 
@@ -45,7 +48,7 @@
 10. `verify_production`
 11. 远端实际执行：
     - `./infra/ops/remote-preflight.sh`
-    - `make prod-deploy`
+    - `./infra/ops/remote-prod-deploy.sh`
 
 只要 Smoke Check 失败，本次发布就视为失败，需要立刻进入回滚判断。
 
@@ -57,11 +60,17 @@ cd /path/to/StuHelper
 git fetch --all --prune
 git checkout <target-ref>
 
-# 可选：指定要回滚/发布的镜像标签
-export TAG=<git-sha-or-release-tag>
-
-# 首次或配置变更后，先准备共享配置 / secrets
+# 首次或控制面变更后，准备共享配置 / 本地 secrets skeleton
 make prod-init
+
+# 远端机器需要自持部署控制面
+./infra/ops/init-remote-deploy-config.sh
+
+# 可选：指定要发布的不可变镜像
+export BACKEND_IMAGE_REF=<registry/backend:sha-or-tag>
+export FRONTEND_IMAGE_REF=<registry/frontend:sha-or-tag>
+export ADMIN_IMAGE_REF=<registry/admin:sha-or-tag>
+export TAG=<release-id>
 
 # 远端机器建议先做预检
 ./infra/ops/remote-preflight.sh
@@ -119,7 +128,7 @@ ROLLBACK_TAG=<previous-stable-tag-or-sha>
 回滚 Job 会：
 
 1. SSH 到远端部署机
-2. 重新生成 `deploy.remote.env`
+2. 读取目标机 `.deploy/remote.env`
 3. 如果传了 `ROLLBACK_TAG`，按它执行；否则自动回滚到上一条成功发布记录
 4. 自动再次运行 smoke checks
 

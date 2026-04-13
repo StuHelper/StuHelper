@@ -43,11 +43,8 @@ StuHelper（航小伴）是面向校园的信息与社区平台。
 
 ## 通知现状
 
-双轨并存：
-1. 前端主要链路使用 `/api/v1/course/review/user/notifications/*`
-2. 独立通知模块 `/api/v1/notifications/*` + SSE 已实现
-
-接口正在逐步统一。
+通知入口已经统一到 `/api/v1/course/review/user/notifications/*`。
+其中 SSE 推送由独立通知模块实现，但仍挂在同一路径前缀下。
 
 ## 技术栈
 

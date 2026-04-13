@@ -4,6 +4,8 @@
 
 - `infra/ops/backup-postgres.sh`
 - `infra/ops/run-scheduled-backup.sh`
+- `infra/ops/sync-postgres-backups.sh`
+- `infra/ops/fetch-postgres-backups.sh`
 - `infra/ops/restore-postgres.sh`
 - `infra/ops/restore-postgres-basebackup.sh`
 - `infra/ops/install-backup-timers.sh`
@@ -11,7 +13,7 @@
 ## 逻辑备份（pg_dump）
 
 ```bash
-export DATABASE_URL='postgres://...'
+export BACKUP_DATABASE_URL='postgres://...'
 ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +%F-%H%M%S).dump
 ```
 
@@ -23,7 +25,7 @@ export DATABASE_URL='postgres://...'
 ## Base Backup（pg_basebackup）
 
 ```bash
-export DATABASE_URL='postgres://...'
+export REPLICATION_DATABASE_URL='postgres://...'
 BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +%F-%H%M%S).tar.gz
 ```
 
@@ -41,6 +43,12 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 ./infra/ops/run-scheduled-backup.sh basebackup
 ```
 
+说明：
+
+- `run-scheduled-backup.sh` 会在本地生成备份文件
+- 它会清理超出保留期的 logical / base / WAL 文件
+- 最后会自动调用 `./infra/ops/sync-postgres-backups.sh`，把逻辑备份、base backup、WAL 归档镜像到对象存储
+
 生产机建议直接安装 systemd timer：
 
 ```bash
@@ -51,7 +59,30 @@ sudo ./infra/ops/install-backup-timers.sh
 
 - 每天 `03:15` 做逻辑备份
 - 每周日 `03:45` 做 base backup
+- 每 15 分钟执行一次 backup artifact sync
 - WAL 归档目录按 `WAL_ARCHIVE_RETENTION_DAYS` 清理
+
+## 从对象存储取回恢复工件
+
+恢复前如果目标机本地没有备份文件，先从对象存储同步回来：
+
+```bash
+./infra/ops/fetch-postgres-backups.sh all
+```
+
+也可以只拉某一类：
+
+```bash
+./infra/ops/fetch-postgres-backups.sh logical
+./infra/ops/fetch-postgres-backups.sh base
+./infra/ops/fetch-postgres-backups.sh wal
+```
+
+默认会把对象存储中的内容拉回：
+
+- `backups/postgres/logical`
+- `backups/postgres/base`
+- `infra/generated/postgres/wal-archive`
 
 ## 逻辑备份恢复
 
@@ -87,8 +118,9 @@ WAL_ARCHIVE_DIR=/opt/stuhelper/infra/generated/postgres/wal-archive \
 ## 生产规则
 
 - 每次 production 发布前至少做一次人工备份
-- 生产机必须启用逻辑备份 / base backup timer
+- 生产机必须启用逻辑备份 / base backup / backup sync timer
 - 任何包含破坏性迁移的发布，必须先做恢复演练
+- 恢复前先用 `fetch-postgres-backups.sh` 验证对象存储工件能拉回
 - 恢复后必须跑 `./infra/ops/smoke-check.sh`
 - 远端发布前必须通过 `./infra/ops/remote-preflight.sh`
 
@@ -103,6 +135,8 @@ WAL_ARCHIVE_DIR=/opt/stuhelper/infra/generated/postgres/wal-archive \
 
 - [ ] 备份文件能正常生成
 - [ ] `.sha256` 校验通过
+- [ ] 逻辑备份 / base backup / WAL 均能同步到对象存储
+- [ ] 对象存储中的工件能重新拉回目标机
 - [ ] staging 库可完整恢复（逻辑备份）
 - [ ] base backup + WAL 归档可恢复到目标时间点
 - [ ] 恢复后应用健康检查通过

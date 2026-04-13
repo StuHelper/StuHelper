@@ -14,6 +14,7 @@ GENERATED_ENV_SECRET_REF="${GENERATED_ENV_SECRET_REF:-}"
 GENERATED_OBS_DIR="${GENERATED_OBS_DIR:-${REPO_ROOT}/infra/generated/observability}"
 GENERATED_ZITADEL_DIR="${GENERATED_ZITADEL_DIR:-${REPO_ROOT}/infra/generated/zitadel}"
 DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${REPO_ROOT}/.deploy}"
+REMOTE_DEPLOY_CONFIG_FILE="${REMOTE_DEPLOY_CONFIG_FILE:-${DEPLOY_STATE_DIR}/remote.env}"
 # shellcheck source=secrets.sh
 source "${COMMON_LIB_DIR}/secrets.sh"
 
@@ -97,6 +98,32 @@ load_env() {
   if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi
   if [[ "${preserved_frontend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export FRONTEND_IMAGE_REF="${preserved_frontend_image_ref}"; fi
   if [[ "${preserved_admin_image_ref}" != "__STUHELPER_UNSET__" ]]; then export ADMIN_IMAGE_REF="${preserved_admin_image_ref}"; fi
+  set +a
+}
+
+load_remote_deploy_config() {
+  local config_file="${1:-${REMOTE_DEPLOY_CONFIG_FILE}}"
+  [[ -n "${config_file}" ]] || die "REMOTE_DEPLOY_CONFIG_FILE must not be empty"
+  [[ -f "${config_file}" ]] || die "missing remote deploy config: ${config_file} (run ./infra/ops/init-remote-deploy-config.sh on the target host first)"
+
+  local preserved_tag="${TAG-__STUHELPER_UNSET__}"
+  local preserved_rollback_tag="${ROLLBACK_TAG-__STUHELPER_UNSET__}"
+  local preserved_backend_image_ref="${BACKEND_IMAGE_REF-__STUHELPER_UNSET__}"
+  local preserved_frontend_image_ref="${FRONTEND_IMAGE_REF-__STUHELPER_UNSET__}"
+  local preserved_admin_image_ref="${ADMIN_IMAGE_REF-__STUHELPER_UNSET__}"
+  local preserved_registry_username="${REGISTRY_USERNAME-__STUHELPER_UNSET__}"
+  local preserved_registry_password="${REGISTRY_PASSWORD-__STUHELPER_UNSET__}"
+
+  set -a
+  # shellcheck disable=SC1090
+  source "${config_file}"
+  if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi
+  if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi
+  if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi
+  if [[ "${preserved_frontend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export FRONTEND_IMAGE_REF="${preserved_frontend_image_ref}"; fi
+  if [[ "${preserved_admin_image_ref}" != "__STUHELPER_UNSET__" ]]; then export ADMIN_IMAGE_REF="${preserved_admin_image_ref}"; fi
+  if [[ "${preserved_registry_username}" != "__STUHELPER_UNSET__" ]]; then export REGISTRY_USERNAME="${preserved_registry_username}"; fi
+  if [[ "${preserved_registry_password}" != "__STUHELPER_UNSET__" ]]; then export REGISTRY_PASSWORD="${preserved_registry_password}"; fi
   set +a
 }
 
@@ -221,6 +248,26 @@ if not sep or "/" not in image:
 
 print(tag)
 PY
+}
+
+resolve_registry_credentials() {
+  if [[ -z "${REGISTRY_USERNAME:-}" && -n "${REGISTRY_USERNAME_SECRET_REF:-}" ]]; then
+    REGISTRY_USERNAME="$(materialize_secret_value "${REGISTRY_USERNAME_SECRET_REF}")"
+    export REGISTRY_USERNAME
+  fi
+  if [[ -z "${REGISTRY_PASSWORD:-}" && -n "${REGISTRY_PASSWORD_SECRET_REF:-}" ]]; then
+    REGISTRY_PASSWORD="$(materialize_secret_value "${REGISTRY_PASSWORD_SECRET_REF}")"
+    export REGISTRY_PASSWORD
+  fi
+}
+
+docker_registry_login() {
+  [[ -n "${REGISTRY:-}" ]] || die "REGISTRY is required"
+  resolve_registry_credentials
+  [[ -n "${REGISTRY_USERNAME:-}" ]] || die "REGISTRY_USERNAME or REGISTRY_USERNAME_SECRET_REF is required"
+  [[ -n "${REGISTRY_PASSWORD:-}" ]] || die "REGISTRY_PASSWORD or REGISTRY_PASSWORD_SECRET_REF is required"
+
+  echo "${REGISTRY_PASSWORD}" | docker login "${REGISTRY}" --username "${REGISTRY_USERNAME}" --password-stdin >/dev/null
 }
 
 record_release() {

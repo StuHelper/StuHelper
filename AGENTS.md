@@ -23,7 +23,7 @@ make check-drift       # 生成代码是否过期
 pnpm install
 pnpm type-check && pnpm lint
 pnpm test:web && pnpm test:e2e
-pnpm build:web && pnpm build:admin
+pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
 ## 技术栈
@@ -91,11 +91,11 @@ SQL 只写在 Repository，业务判断只放在 Service，响应统一通过 `r
 ```
 server/api/openapi.yaml
   ├── server/internal/api/gen/        (Go)
-  └── clients/shared/src/types/api.gen.ts (TS)
+  └── clients/shared/src/types/api.gen.ts (TS source)
         ↓
-      clients/shared/src/api/*
+      clients/shared/dist/*           (package exports)
         ↓
-      web / admin 各自封装
+      web / admin / uniappx 各自封装
 ```
 
 改接口：先改 OpenAPI → `make generate` → 再改实现。
