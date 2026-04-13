@@ -11,6 +11,7 @@
 ## 活跃计划
 
 - [active/iam-architecture-migration.md](active/iam-architecture-migration.md)
+- [active/2026-04-13-full-repo-audit.md](active/2026-04-13-full-repo-audit.md)
 
 ## 归档
 
