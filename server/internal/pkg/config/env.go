@@ -49,6 +49,25 @@ func getEnvInt(key string, defaultValue int, parseErrs *[]string) int {
 	return defaultValue
 }
 
+// getEnvInt32 获取 int32 类型的环境变量
+func getEnvInt32(key string, defaultValue int32, parseErrs *[]string) int32 {
+	val := os.Getenv(key)
+	if val == "" {
+		if _, exists := os.LookupEnv(key); exists {
+			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %d", key, defaultValue))
+		}
+		return defaultValue
+	}
+	intValue, err := strconv.ParseInt(val, 10, 32)
+	if err == nil {
+		return int32(intValue)
+	}
+
+	errMsg := fmt.Sprintf("invalid integer value for %s: %s", key, val)
+	*parseErrs = append(*parseErrs, errMsg)
+	return defaultValue
+}
+
 // getEnvBool 获取布尔类型的环境变量
 func getEnvBool(key string, defaultValue bool, parseErrs *[]string) bool {
 	val := os.Getenv(key)

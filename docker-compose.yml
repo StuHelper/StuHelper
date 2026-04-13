@@ -122,7 +122,6 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
       REDIS_TLS_CA: /redis-tls/ca.crt
-      REDIS_TLS_INSECURE: ${REDIS_TLS_INSECURE:-false}
     ports:
     - "127.0.0.1:6379:6379"
     volumes:
@@ -522,7 +521,6 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
       REDIS_TLS_CA: /redis-tls/ca.crt
-      REDIS_TLS_INSECURE: ${REDIS_TLS_INSECURE:-false}
     extra_hosts:
     - "host.docker.internal:host-gateway"
     volumes:
@@ -1010,7 +1008,6 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
       REDIS_TLS_CA: /redis-tls/ca.crt
-      REDIS_TLS_INSECURE: ${REDIS_TLS_INSECURE:-false}
       OTEL_ENABLED: "true"
       OTEL_SERVICE_NAME: stuhelper-backend
       OTEL_SERVICE_NAMESPACE: stuhelper

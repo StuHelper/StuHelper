@@ -21,39 +21,15 @@ func (h *Handler) Logout(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	username := middleware.GetUsername(c)
 	requestID := middleware.GetRequestID(c)
-	ctx := c.Request.Context()
 
-	// 将当前 access token 加入黑名单并从跟踪集合移除
-	if accessToken, err := c.Cookie(middleware.CookieAccessToken); err == nil && accessToken != "" {
-		if blErr := h.tokenService.GetBlacklist().Add(ctx, accessToken, h.tokenService.GetAccessTokenTTL()); blErr != nil {
-			logger.FromGin(c).Warn("failed to blacklist access token",
-				zap.String("user_id", userID),
-				zap.Error(blErr),
-			)
-		}
-		if untrackErr := h.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, accessToken, token.TokenTypeAccess); untrackErr != nil {
-			logger.FromGin(c).Warn("failed to untrack access token",
-				zap.String("user_id", userID),
-				zap.Error(untrackErr),
-			)
-		}
+	var accessToken, refreshToken string
+	if v, err := c.Cookie(middleware.CookieAccessToken); err == nil {
+		accessToken = v
 	}
-
-	// 将当前 refresh token 加入黑名单并从跟踪集合移除
-	if refreshToken, err := c.Cookie(middleware.CookieRefreshToken); err == nil && refreshToken != "" {
-		if blErr := h.tokenService.GetBlacklist().Add(ctx, refreshToken, h.tokenService.GetRefreshTokenTTL()); blErr != nil {
-			logger.FromGin(c).Warn("failed to blacklist refresh token",
-				zap.String("user_id", userID),
-				zap.Error(blErr),
-			)
-		}
-		if untrackErr := h.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, refreshToken, token.TokenTypeRefresh); untrackErr != nil {
-			logger.FromGin(c).Warn("failed to untrack refresh token",
-				zap.String("user_id", userID),
-				zap.Error(untrackErr),
-			)
-		}
+	if v, err := c.Cookie(middleware.CookieRefreshToken); err == nil {
+		refreshToken = v
 	}
+	h.svc.RevokeCurrentSession(c.Request.Context(), userID, accessToken, refreshToken)
 
 	h.clearTokenCookies(c)
 	audit.LogSuccess(audit.EventUserLogout, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
@@ -66,13 +42,8 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	username := middleware.GetUsername(c)
 	requestID := middleware.GetRequestID(c)
-	ctx := c.Request.Context()
 
-	if err := h.tokenService.GetBlacklist().RevokeAllUserTokens(
-		ctx,
-		userID,
-		h.tokenService.GetRefreshTokenTTL(),
-	); err != nil {
+	if err := h.svc.RevokeAllSessions(c.Request.Context(), userID); err != nil {
 		logger.FromGin(c).Error("failed to revoke all tokens",
 			zap.String("user_id", userID),
 			zap.Error(err),
@@ -218,34 +189,8 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 		return false
 	}
 
-	// 新 token 签发成功后，将旧 refresh token 加入黑名单（一次性使用）
-	if blErr := h.tokenService.GetBlacklist().Add(c.Request.Context(), refreshTokenStr, h.tokenService.GetRefreshTokenTTL()); blErr != nil {
-		logger.FromGin(c).Warn("failed to blacklist old refresh token", zap.Error(blErr))
-	}
-	if untrackErr := h.tokenService.GetBlacklist().UntrackUserToken(c.Request.Context(), oldClaims.Sub, refreshTokenStr, token.TokenTypeRefresh); untrackErr != nil {
-		logger.FromGin(c).Warn("failed to untrack old refresh token",
-			zap.String("user_id", oldClaims.Sub),
-			zap.Error(untrackErr),
-		)
-	}
-
-	// 跟踪新 token
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		c.Request.Context(), oldClaims.Sub, newAccessToken, token.TokenTypeAccess, time.Now().Add(h.tokenService.GetAccessTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track refreshed phone token",
-			zap.String("user_id", oldClaims.Sub),
-			zap.Error(trackErr),
-		)
-	}
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		c.Request.Context(), oldClaims.Sub, newRefreshToken, token.TokenTypeRefresh, time.Now().Add(h.tokenService.GetRefreshTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track refreshed phone refresh token",
-			zap.String("user_id", oldClaims.Sub),
-			zap.Error(trackErr),
-		)
-	}
+	// 新 token 签发成功后，旋转 token 对（黑名单旧 + 跟踪新）
+	h.svc.RotateTokenPair(c.Request.Context(), oldClaims.Sub, refreshTokenStr, newAccessToken, newRefreshToken)
 
 	response.Success(c, gin.H{
 		"message":   "token refreshed successfully",
@@ -287,36 +232,8 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 		return false
 	}
 
-	// 新 token 签发成功后，将旧 refresh token 加入黑名单（一次性使用）
-	if blErr := h.tokenService.GetBlacklist().Add(c.Request.Context(), refreshTokenStr, h.tokenService.GetRefreshTokenTTL()); blErr != nil {
-		logger.FromGin(c).Warn("failed to blacklist old refresh token", zap.Error(blErr))
-	}
-	if untrackErr := h.tokenService.GetBlacklist().UntrackUserToken(c.Request.Context(), newClaims.GetUserID(), refreshTokenStr, token.TokenTypeRefresh); untrackErr != nil {
-		logger.FromGin(c).Warn("failed to untrack old refresh token",
-			zap.String("user_id", newClaims.GetUserID()),
-			zap.Error(untrackErr),
-		)
-	}
-
-	// 跟踪新 Token，支持 LogoutAll 批量撤销
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		c.Request.Context(), newClaims.GetUserID(), rawIDToken, token.TokenTypeAccess, time.Now().Add(h.tokenService.GetAccessTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track refreshed token",
-			zap.String("user_id", newClaims.GetUserID()),
-			zap.Error(trackErr),
-		)
-	}
-	if newToken.RefreshToken != "" {
-		if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-			c.Request.Context(), newClaims.GetUserID(), newToken.RefreshToken, token.TokenTypeRefresh, time.Now().Add(h.tokenService.GetRefreshTokenTTL()),
-		); trackErr != nil {
-			logger.FromGin(c).Warn("failed to track refreshed refresh token",
-				zap.String("user_id", newClaims.GetUserID()),
-				zap.Error(trackErr),
-			)
-		}
-	}
+	// 新 token 签发成功后，旋转 token 对（黑名单旧 + 跟踪新）
+	h.svc.RotateTokenPair(c.Request.Context(), newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken)
 
 	response.Success(c, gin.H{
 		"message":   "token refreshed successfully",

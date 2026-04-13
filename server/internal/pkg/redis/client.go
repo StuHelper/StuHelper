@@ -125,9 +125,8 @@ func addCounterDelta(counter interface{ Add(float64) }, current, previous uint32
 // configureRedisTLS 配置 Redis TLS
 func configureRedisTLS(cfg config.RedisConfig) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: cfg.TLSInsecure, //nolint:gosec // configurable for testing
-		ServerName:         cfg.Host,
+		MinVersion: tls.VersionTLS12,
+		ServerName: cfg.Host,
 	}
 
 	// 加载 CA 证书

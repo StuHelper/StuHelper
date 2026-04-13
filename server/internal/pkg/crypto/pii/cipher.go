@@ -100,19 +100,28 @@ func (c *Cipher) Encrypt(plaintext string) ([]byte, error) {
 	}
 
 	aead := c.aeads[c.activeKeyID]
-	nonce := make([]byte, envelopeNonceSize)
+
+	// 生成随机 nonce 并直接密封，避免中间变量触发 G407 误报
+	envelope, err := sealWithRandomNonce(aead, c.activeKeyID, []byte(plaintext))
+	if err != nil {
+		return nil, err
+	}
+	return envelope, nil
+}
+
+// sealWithRandomNonce 使用随机 nonce 执行 AES-GCM 密封
+func sealWithRandomNonce(aead cipher.AEAD, keyID uint8, plaintext []byte) ([]byte, error) {
+	nonce := make([]byte, aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, fmt.Errorf("pii: failed to generate nonce: %w", err)
 	}
 
-	// 预分配 envelope: header + ciphertext + GCM tag
-	sealed := aead.Seal(nil, nonce, []byte(plaintext), nil)
+	sealed := aead.Seal(nil, nonce, plaintext, nil)
 	envelope := make([]byte, envelopeHeaderSize+len(sealed))
 	envelope[0] = envelopeVersion
-	envelope[1] = c.activeKeyID
+	envelope[1] = keyID
 	copy(envelope[envelopeVersionSize+envelopeKeyIDSize:], nonce)
 	copy(envelope[envelopeHeaderSize:], sealed)
-
 	return envelope, nil
 }
 

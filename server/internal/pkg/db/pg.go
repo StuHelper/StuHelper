@@ -25,8 +25,8 @@ func NewPGPool(cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
 	}
 
 	// 使用配置值设置连接池参数
-	poolCfg.MaxConns = int32(cfg.MaxConns)                                     //nolint:gosec // G115: config values are validated
-	poolCfg.MinConns = int32(cfg.MinConns)                                     //nolint:gosec // G115: config values are validated
+	poolCfg.MaxConns = cfg.MaxConns
+	poolCfg.MinConns = cfg.MinConns
 	poolCfg.MaxConnLifetime = time.Duration(cfg.MaxConnLifetime) * time.Minute // cfg 单位：分钟
 	poolCfg.MaxConnIdleTime = time.Duration(cfg.MaxConnIdleTime) * time.Minute // cfg 单位：分钟
 	poolCfg.HealthCheckPeriod = 1 * time.Minute
@@ -58,11 +58,6 @@ func configurePGTLS(poolCfg *pgxpool.Config, cfg config.DatabaseConfig) error {
 	case "", "disable":
 		// 不使用 TLS
 		return nil
-	case "require":
-		// 要求 TLS，但不验证证书
-		poolCfg.ConnConfig.TLSConfig = &tls.Config{
-			InsecureSkipVerify: true, //nolint:gosec // require mode skips verification
-		}
 	case "verify-ca", "verify-full":
 		tlsConfig := &tls.Config{
 			MinVersion: tls.VersionTLS12,

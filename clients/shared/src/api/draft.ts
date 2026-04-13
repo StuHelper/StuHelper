@@ -1,26 +1,26 @@
 import type { ApiClient } from './client'
 import type { components } from '../types'
 import type { SaveDraftParams } from '../types/business/draft'
+import { isReviewGrade, type ReviewGrade } from '../constants/review'
 
 type SaveDraftRequest = components['schemas']['SaveDraftRequest']
-type ReviewGrade = NonNullable<SaveDraftRequest['grade']>
-
-const REVIEW_GRADES: readonly ReviewGrade[] = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'] as const
 
 function normalizeReviewGrade(grade?: string): ReviewGrade | undefined {
   if (!grade) return undefined
   const trimmed = grade.trim()
-  return REVIEW_GRADES.includes(trimmed as ReviewGrade) ? (trimmed as ReviewGrade) : undefined
+  return isReviewGrade(trimmed) ? trimmed : undefined
 }
 
 function toSaveDraftRequest(data: SaveDraftParams): SaveDraftRequest {
+  const grade = normalizeReviewGrade(data.grade)
+
   return {
     courseID: data.courseID,
     ...(data.teacherID !== undefined && { teacherID: data.teacherID }),
     ...(data.termID !== undefined && { termID: data.termID }),
     ...(data.title !== undefined && { title: data.title }),
     ...(data.content !== undefined && { content: data.content }),
-    ...(normalizeReviewGrade(data.grade) !== undefined && { grade: normalizeReviewGrade(data.grade) }),
+    ...(grade !== undefined && { grade }),
     ...(data.ratings !== undefined && { ratings: data.ratings }),
   }
 }

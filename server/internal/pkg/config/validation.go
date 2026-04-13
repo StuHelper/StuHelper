@@ -83,9 +83,6 @@ func (c *Config) validate(parseErrs []string) error {
 		if c.LDAP.SystemBindPassword == "" {
 			errs = append(errs, "LDAP_SYSTEM_BIND_PASSWORD is required when LDAP_URL is set")
 		}
-		if c.App.Env == "production" && c.LDAP.InsecureSkipVerify {
-			errs = append(errs, "LDAP_INSECURE_SKIP_VERIFY must be false in production")
-		}
 	}
 
 	if c.App.Env == "production" {
@@ -137,9 +134,6 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 		if c.Redis.TLSCAFile == "" {
 			errs = append(errs, "REDIS_TLS_CA is required in production")
-		}
-		if c.Redis.TLSInsecure {
-			errs = append(errs, "REDIS_TLS_INSECURE must not be true in production (certificate verification required)")
 		}
 		if !c.ObjectStorage.UseSSL {
 			errs = append(errs, "OBJECT_STORAGE_USE_SSL must be true in production")

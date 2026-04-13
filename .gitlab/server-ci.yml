@@ -22,7 +22,7 @@ backend_security:
   stage: lint
   script:
   - cd server
-  - go install github.com/securego/gosec/v2/cmd/gosec@v2.22.0
+  - go install github.com/securego/gosec/v2/cmd/gosec@v2.22.4
   - make security
 
   extends: .go_job
@@ -45,7 +45,10 @@ openapi_contract:
   - corepack prepare pnpm@10 --activate
   - cd server
   - make lint-spec
-  - make check-drift
+  - make check-drift-go
+  - cd ../clients
+  - pnpm install --frozen-lockfile
+  - pnpm run check:api-drift
 
   extends: .go_job
 backend_test:

@@ -290,7 +290,6 @@ func TestParseSchoolLDAPConfig(t *testing.T) {
 	assert.Equal(t, "cn=system,dc=example,dc=com", cfg.SystemBindDN)
 	assert.Equal(t, "secret", cfg.SystemBindPassword)
 	assert.True(t, cfg.UseTLS)
-	assert.False(t, cfg.InsecureSkipVerify)
 }
 
 func TestParseSchoolLDAPConfig_EmptyFails(t *testing.T) {

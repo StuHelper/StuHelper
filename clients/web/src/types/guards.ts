@@ -2,13 +2,14 @@
  * 类型守卫函数
  * 用于运行时类型验证，替代类型断言
  */
+import { REVIEW_GRADES, isReviewGrade, type ReviewGrade } from '@stuhelper/shared/constants'
 
 // 成绩等级
-export const GRADES = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'] as const
-export type Grade = typeof GRADES[number]
+export const GRADES = REVIEW_GRADES
+export type Grade = ReviewGrade
 
 export function isValidGrade(value: unknown): value is Grade {
-  return typeof value === 'string' && GRADES.includes(value as Grade)
+  return isReviewGrade(value)
 }
 
 // 排序类型

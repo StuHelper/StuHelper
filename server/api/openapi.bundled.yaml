@@ -4498,23 +4498,34 @@ components:
           type: string
           format: uuid
         type:
-          type: string
-          enum:
-            - reply
-            - vote
-            - system
+          $ref: '#/components/schemas/NotificationType'
         title:
           type: string
         content:
           type: string
+        payload:
+          $ref: '#/components/schemas/NotificationPayload'
+        sourceModule:
+          type: string
+          description: 触发通知的业务模块（canonical wire field）
+        sourceId:
+          type: string
+          description: 触发通知的资源 ID（canonical wire field）
+        sourceUrl:
+          type: string
+          description: 前端可直接跳转的目标地址（canonical wire field）
         relatedType:
           type: string
+          deprecated: true
+          description: 兼容旧前端的 sourceModule 别名；新代码请使用 sourceModule
         relatedID:
           type: string
+          deprecated: true
+          description: 兼容旧前端的 sourceId 别名；新代码请使用 sourceId
         courseID:
           type: integer
           format: int64
-          description: 关联课程ID，用于前端精准跳转
+          description: 关联课程 ID，用于前端精准跳转
         isRead:
           type: boolean
         createdAt:
@@ -5320,6 +5331,23 @@ components:
             type: string
         global:
           type: boolean
+    NotificationType:
+      type: string
+      enum:
+        - reply
+        - like
+        - vote
+        - review_hidden
+        - review_restored
+        - report_resolved
+        - identity_approved
+        - identity_rejected
+        - student_approved
+        - student_rejected
+        - system
+    NotificationPayload:
+      type: object
+      additionalProperties: true
     FavoriteStatusData:
       type: object
       required:

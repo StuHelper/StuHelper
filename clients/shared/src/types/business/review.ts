@@ -41,16 +41,8 @@ export interface Review {
   updatedAt?: string
 }
 
-// 发布测评参数
-export interface PostReviewParams {
-  courseID: number
-  teacherID?: number
-  termID?: string
-  title?: string
-  content: string
-  grade?: string
-  ratings: ReviewRatings
-}
+// 发布测评请求（严格对齐 OpenAPI）
+export type PostReviewRequest = components['schemas']['PostReviewRequest']
 
 // 类型守卫：检查是否为有效的评分对象
 export function isValidRatings(

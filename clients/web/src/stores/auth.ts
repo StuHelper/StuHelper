@@ -268,11 +268,13 @@ export const useAuthStore = defineStore('auth', () => {
             clearAuth()
             user.value = null
           }
+          bootstrapCompleted.value = true
           return false
         }
         const normalizedUser = normalizeCurrentUser(data, user.value)
         user.value = normalizedUser
         userManager.setUser(normalizedUser)
+        bootstrapCompleted.value = true
         return true
       } catch (err) {
         if (
@@ -283,9 +285,11 @@ export const useAuthStore = defineStore('auth', () => {
         ) {
           clearAuth()
           user.value = null
+          bootstrapCompleted.value = true
           return false
         }
 
+        // 网络错误 / 超时 / 5xx：不设置 bootstrapCompleted，允许后续导航重试
         const authErr = handleError(
           err,
           i18n.global.t('common.login.fetchUserFailed'),
@@ -297,7 +301,6 @@ export const useAuthStore = defineStore('auth', () => {
         return false
       } finally {
         bootstrapPending.value = false
-        bootstrapCompleted.value = true
         bootstrapPromise = null
       }
     })()

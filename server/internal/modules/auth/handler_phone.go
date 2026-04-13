@@ -4,20 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 // RequestPhoneOTP 发送手机验证码
@@ -132,52 +129,26 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 		return
 	}
 
-	// 签发自签名 JWT
-	hmacKey := crypto.GetHMACKey()
-	if len(hmacKey) == 0 {
-		logger.FromGin(c).Error("HMAC key not initialized")
-		response.InternalError(c, "login failed")
-		return
-	}
-
 	// 手机登录只授予基础 "user" 角色。
 	// 设计决策：手机验证码登录用于快速访问，不授予管理权限。
 	// 需要 admin/moderator 等高级角色的用户应使用 Zitadel SSO 登录，
 	// 角色由 Zitadel ID Token claims 提供。
 	roles := []string{"user"}
-	accessTTL := time.Duration(h.tokenConfig.AccessTokenTTL) * time.Second
-	refreshTTL := time.Duration(h.tokenConfig.RefreshTokenTTL) * time.Second
 
-	claims := token.JWTClaims{
-		Sub:         user.ExternalID,
-		Name:        user.Username,
-		Email:       user.Email,
-		DisplayName: user.Username,
-		Roles:       roles,
-		Typ:         token.JWTTokenTypeAccess,
-	}
-	if user.AvatarURL != nil {
-		claims.Avatar = *user.AvatarURL
-	}
-
-	accessToken, err := token.SignJWT(hmacKey, claims, accessTTL)
+	// 签发自签名 JWT 对
+	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(user, roles)
 	if err != nil {
-		logger.FromGin(c).Error("failed to sign JWT", zap.Error(err))
+		logger.FromGin(c).Error("failed to sign phone JWT pair", zap.Error(err))
 		response.InternalError(c, "login failed")
 		return
 	}
 
-	// 签发自签名 refresh token（更长有效期，用于刷新 access token）
-	// Roles 必须写入 refresh token，refreshSelfSignedToken 刷新时从中复制到新 access token
-	refreshClaims := token.JWTClaims{
-		Sub:   user.ExternalID,
-		Name:  user.Username,
-		Roles: roles,
-		Typ:   token.JWTTokenTypeRefresh,
-	}
-	refreshToken, err := token.SignJWT(hmacKey, refreshClaims, refreshTTL)
-	if err != nil {
-		logger.FromGin(c).Error("failed to sign refresh JWT", zap.Error(err))
+	// Token 跟踪（支持 LogoutAll）— 必须在写入 Cookie 之前完成
+	if err := h.svc.TrackTokenPair(c.Request.Context(), user.ExternalID, accessToken, refreshToken); err != nil {
+		logger.FromGin(c).Error("failed to track phone login tokens",
+			zap.String("user_id", user.ExternalID),
+			zap.Error(err),
+		)
 		response.InternalError(c, "login failed")
 		return
 	}
@@ -186,24 +157,6 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	if err := h.setTokenCookies(c, accessToken, refreshToken); err != nil {
 		response.InternalError(c, "login failed")
 		return
-	}
-
-	// Token 跟踪（支持 LogoutAll）
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		c.Request.Context(), user.ExternalID, accessToken, token.TokenTypeAccess, time.Now().Add(h.tokenService.GetAccessTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track phone login token",
-			zap.String("user_id", user.ExternalID),
-			zap.Error(trackErr),
-		)
-	}
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		c.Request.Context(), user.ExternalID, refreshToken, token.TokenTypeRefresh, time.Now().Add(h.tokenService.GetRefreshTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track phone login refresh token",
-			zap.String("user_id", user.ExternalID),
-			zap.Error(trackErr),
-		)
 	}
 
 	// 审计日志中使用脱敏的手机号，避免泄露完整号码

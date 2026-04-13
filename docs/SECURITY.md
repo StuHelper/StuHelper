@@ -96,14 +96,16 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 - SQL 全部参数化
 - 动态排序使用白名单
 - LDAP 配置纳入统一 `config.Load()` / `validation` 体系
-- 生产环境禁止 `LDAP_INSECURE_SKIP_VERIFY=true`
+- TLS 证书验证在所有环境强制启用（已移除 `LDAP_INSECURE_SKIP_VERIFY`、`REDIS_TLS_INSECURE`、`sslmode=require` 选项）
 - 外部依赖统一通过受控 client 调用，接入指标和 trace
 
 ## CI 安全门禁
 
-- Go：`gosec` + `govulncheck`
+- Go：`gosec`（版本固定 v2.22.4，零 issue 零 nolint 注释）+ `govulncheck`
 - Node：`pnpm audit`
 - 镜像：`Trivy`
+- CI SSH 部署使用固定 host key（`DEPLOY_TARGET_SSH_KNOWN_HOSTS` CI 变量），禁止 TOFU
+- 部署前自动执行数据库备份（`backup-postgres.sh`），失败阻断发布
 - 这些门禁在 GitLab CI 中会阻塞后续构建 / 发布
 
 ## 日志脱敏

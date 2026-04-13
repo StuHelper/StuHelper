@@ -9,13 +9,13 @@
 
 - [ ] 本次变更已通过 CI（web / admin / backend）
 - [ ] production 发布已由发布人手工审批（`deploy_production`）
-- [ ] 如果包含数据库变更，已完成备份
+- [ ] 如果包含数据库变更，已完成备份（注：`prod-deploy.sh` 现已自动在迁移前执行 `backup-postgres.sh`）
 - [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用
 - [ ] 远端部署控制面已核对：`.deploy/remote.env`
 - [ ] 共享配置已核对：`.env.prod.shared`
-- [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）
+- [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 由 `.env.prod.generated.secrets` 管理
 - [ ] registry 凭据已核对：`.secrets/registry/username`、`.secrets/registry/password` 或等价 secret ref
-- [ ] 关键变量已核对：`POSTGRES_PASSWORD`、`REDIS_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`
+- [ ] 关键变量已核对：`POSTGRES_PASSWORD`、`REDIS_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`、`WEB_VITE_SSO_URL`
 - [ ] 观测配置已核对：`METRICS_PASSWORD`、`GRAFANA_ADMIN_PASSWORD`、`OTEL_ENABLED=true`
 - [ ] staging 已验证通过（如有 staging）
 
@@ -60,7 +60,7 @@ cd /path/to/StuHelper
 git fetch --all --prune
 git checkout <target-ref>
 
-# 首次或控制面变更后，准备共享配置 / 本地 secrets skeleton
+# 首次或控制面变更后，准备共享配置 / 本地 secrets / 运行时派生 secrets skeleton
 make prod-init
 
 # 远端机器需要自持部署控制面

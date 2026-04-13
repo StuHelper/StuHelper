@@ -80,6 +80,8 @@ if tag in {"latest", "develop-latest", "stable", "main", "master"} or tag.starts
 PY
 }
 
+require_backup_object_storage_config
+
 require_nonempty POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}"
 require_nonempty REDIS_PASSWORD "${REDIS_PASSWORD:-}"
 require_nonempty METRICS_PASSWORD "${METRICS_PASSWORD:-}"
@@ -147,7 +149,6 @@ reject_local_value GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
 [[ "${OTEL_ENABLED:-false}" == "true" ]] || die "OTEL_ENABLED must be true for production deploy"
 [[ "${DB_SSL_MODE:-disable}" == "verify-full" ]] || die "DB_SSL_MODE must be verify-full for production deploy"
 [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
-[[ "${REDIS_TLS_INSECURE:-false}" != "true" ]] || die "REDIS_TLS_INSECURE must be false for production deploy"
 
 export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
@@ -190,6 +191,12 @@ authz_services=(
 log "starting production infrastructure services"
 compose --profile prod up -d --wait "${infra_services[@]}"
 compose --profile prod up --no-deps minio-init
+
+log "creating pre-deploy database backup"
+predeploy_backup_dir="${REPO_ROOT}/backups/postgres/logical"
+predeploy_backup_path="${predeploy_backup_dir}/predeploy-${TAG}.dump"
+mkdir -p "${predeploy_backup_dir}"
+"${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_backup_path}" || die "pre-deploy backup failed; aborting deployment"
 
 log "running production database migrations"
 compose --profile prod up --no-deps migrate

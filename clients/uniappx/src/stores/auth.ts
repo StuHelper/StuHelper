@@ -67,16 +67,18 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const result = await api.auth.me()
       user.value = unwrapOptionalData<CurrentUser>(result)
+      lastBootstrapAt.value = Date.now()
+      initialized.value = true
     } catch (error: unknown) {
       const status = (error as { status?: number })?.status
         ?? (error as { response?: { status?: number } })?.response?.status
       if (status === 401 || status === 403) {
         user.value = null
+        lastBootstrapAt.value = Date.now()
+        initialized.value = true
       }
-      // For network errors, timeouts, or 5xx — leave user.value unchanged
+      // 网络错误 / 超时 / 5xx：不更新 lastBootstrapAt 和 initialized，允许后续重试
     } finally {
-      lastBootstrapAt.value = Date.now()
-      initialized.value = true
       loading.value = false
     }
   }

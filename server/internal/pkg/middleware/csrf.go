@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	CookieCSRFToken = "csrf_token"
-	HeaderCSRFToken = "X-CSRF-Token" //nolint:gosec // G101: this is a header name, not a credential
+	// CSRFCookieName CSRF cookie 名称
+	CSRFCookieName = "csrf_token"
+	// CSRFHeaderName CSRF 请求头名称
+	CSRFHeaderName = "X-CSRF-Token"
 )
 
 // GenerateCSRFToken 生成 CSRF token
@@ -35,8 +37,8 @@ func GenerateCSRFToken() (string, error) {
 // CSRFMiddleware 双重提交 CSRF 校验
 func CSRFMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if cookieToken, err := c.Cookie(CookieCSRFToken); err == nil && cookieToken != "" {
-			c.Header(HeaderCSRFToken, cookieToken)
+		if cookieToken, err := c.Cookie(CSRFCookieName); err == nil && cookieToken != "" {
+			c.Header(CSRFHeaderName, cookieToken)
 		}
 
 		switch c.Request.Method {
@@ -53,14 +55,14 @@ func CSRFMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		cookieToken, err := c.Cookie(CookieCSRFToken)
+		cookieToken, err := c.Cookie(CSRFCookieName)
 		if err != nil || cookieToken == "" {
 			response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenMissing, "csrf token missing")
 			c.Abort()
 			return
 		}
 
-		headerToken := c.GetHeader(HeaderCSRFToken)
+		headerToken := c.GetHeader(CSRFHeaderName)
 		// 使用常量时间比较防止时序攻击
 		if headerToken == "" || subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookieToken)) != 1 {
 			response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenInvalid, "csrf token invalid")

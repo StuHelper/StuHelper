@@ -11,6 +11,7 @@ import (
 )
 
 const tokenCookieSameSite = http.SameSiteLaxMode
+const refreshTokenCookiePath = "/"
 
 // setTokenCookies 设置 Token Cookie（OIDC 登录，含 access + refresh）
 // 返回 error 而非直接写响应，由调用方统一处理错误响应，避免双重 HTTP 写入
@@ -37,7 +38,7 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 		middleware.CookieRefreshToken,
 		refreshToken,
 		h.tokenConfig.RefreshTokenTTL,
-		"/api/v1/auth/refresh",
+		refreshTokenCookiePath,
 		h.tokenConfig.CookieDomain,
 		h.tokenConfig.CookieSecure,
 		true,
@@ -62,7 +63,7 @@ func (h *Handler) clearTokenCookies(c *gin.Context) {
 		middleware.CookieRefreshToken,
 		"",
 		-1,
-		"/api/v1/auth/refresh",
+		refreshTokenCookiePath,
 		h.tokenConfig.CookieDomain,
 		h.tokenConfig.CookieSecure,
 		true,
@@ -71,9 +72,9 @@ func (h *Handler) clearTokenCookies(c *gin.Context) {
 }
 
 func (h *Handler) setCSRFCookie(c *gin.Context, token string) {
-	c.Header(middleware.HeaderCSRFToken, token)
+	c.Header(middleware.CSRFHeaderName, token)
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     middleware.CookieCSRFToken,
+		Name:     middleware.CSRFCookieName,
 		Value:    token,
 		MaxAge:   h.tokenConfig.RefreshTokenTTL,
 		Path:     "/",
@@ -85,9 +86,9 @@ func (h *Handler) setCSRFCookie(c *gin.Context, token string) {
 }
 
 func (h *Handler) clearCSRFCookie(c *gin.Context) {
-	c.Header(middleware.HeaderCSRFToken, "")
+	c.Header(middleware.CSRFHeaderName, "")
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     middleware.CookieCSRFToken,
+		Name:     middleware.CSRFCookieName,
 		Value:    "",
 		MaxAge:   -1,
 		Path:     "/",

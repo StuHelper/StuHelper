@@ -54,9 +54,13 @@ type Notification struct {
 type Hub struct {
 	rdb         *redis.Client
 	mu          sync.RWMutex
-	connections map[int64]map[chan SSEEvent]struct{} // userID -> set of channels
+	connections map[int64]*userConnections // userID -> ordered connections
 	stopCh      chan struct{}
 	stopOnce    sync.Once
+}
+
+type userConnections struct {
+	order []chan SSEEvent
 }
 
 // SSEEvent SSE 推送事件
@@ -73,28 +77,26 @@ const maxConnsPerUser = 5
 func NewHub(rdb *redis.Client) *Hub {
 	return &Hub{
 		rdb:         rdb,
-		connections: make(map[int64]map[chan SSEEvent]struct{}),
+		connections: make(map[int64]*userConnections),
 		stopCh:      make(chan struct{}),
 	}
 }
 
 // Subscribe 注册 SSE 连接。
-// 当同一用户的连接数达到 maxConnsPerUser 时，驱逐一个现有连接以腾出名额。
+// 当同一用户的连接数达到 maxConnsPerUser 时，按订阅顺序驱逐最老的现有连接。
 func (h *Hub) Subscribe(userID int64) chan SSEEvent {
 	ch := make(chan SSEEvent, 32)
 	h.mu.Lock()
 	if h.connections[userID] == nil {
-		h.connections[userID] = make(map[chan SSEEvent]struct{})
+		h.connections[userID] = &userConnections{}
 	}
-	if len(h.connections[userID]) >= maxConnsPerUser {
-		// 驱逐一个现有连接（map 迭代顺序不确定，等效于随机驱逐）
-		for victim := range h.connections[userID] {
-			delete(h.connections[userID], victim)
-			close(victim)
-			break
-		}
+	uc := h.connections[userID]
+	if len(uc.order) >= maxConnsPerUser {
+		victim := uc.order[0]
+		uc.order = uc.order[1:]
+		close(victim)
 	}
-	h.connections[userID][ch] = struct{}{}
+	uc.order = append(uc.order, ch)
 	h.mu.Unlock()
 	return ch
 }
@@ -103,13 +105,15 @@ func (h *Hub) Subscribe(userID int64) chan SSEEvent {
 func (h *Hub) Unsubscribe(userID int64, ch chan SSEEvent) {
 	h.mu.Lock()
 	if conns, ok := h.connections[userID]; ok {
-		delete(conns, ch)
-		if len(conns) == 0 {
+		removed := conns.remove(ch)
+		if len(conns.order) == 0 {
 			delete(h.connections, userID)
+		}
+		if removed {
+			close(ch)
 		}
 	}
 	h.mu.Unlock()
-	close(ch)
 }
 
 // Broadcast 向用户的所有连接推送事件
@@ -117,7 +121,11 @@ func (h *Hub) Broadcast(userID int64, event SSEEvent) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for ch := range h.connections[userID] {
+	conns := h.connections[userID]
+	if conns == nil {
+		return
+	}
+	for _, ch := range conns.order {
 		select {
 		case ch <- event:
 		default:
@@ -170,4 +178,15 @@ func (h *Hub) Stop() {
 	h.stopOnce.Do(func() {
 		close(h.stopCh)
 	})
+}
+
+func (u *userConnections) remove(ch chan SSEEvent) bool {
+	for i, existing := range u.order {
+		if existing != ch {
+			continue
+		}
+		u.order = append(u.order[:i], u.order[i+1:]...)
+		return true
+	}
+	return false
 }

@@ -101,8 +101,8 @@ type DatabaseConfig struct {
 	Name            string
 	User            string
 	Password        string
-	MaxConns        int
-	MinConns        int
+	MaxConns        int32
+	MinConns        int32
 	MaxConnLifetime int
 	MaxConnIdleTime int
 	QueryTimeout    int
@@ -150,7 +150,6 @@ type LDAPConfig struct {
 	SystemBindDN       string
 	SystemBindPassword string
 	UseTLS             bool
-	InsecureSkipVerify bool
 }
 
 // RedisConfig Redis 配置
@@ -165,7 +164,6 @@ type RedisConfig struct {
 	TLSCertFile  string
 	TLSKeyFile   string
 	TLSCAFile    string
-	TLSInsecure  bool
 }
 
 // TokenConfig Token 配置
@@ -201,8 +199,8 @@ func Load() (*Config, error) {
 			Name:            getEnv("DB_NAME", "stuhelper"),
 			User:            getEnv("DB_USER", "stuhelper"),
 			Password:        getEnv("DB_PASSWORD", ""),
-			MaxConns:        getEnvInt("DB_MAX_CONNS", 20, &parseErrs),
-			MinConns:        getEnvInt("DB_MIN_CONNS", 2, &parseErrs),
+			MaxConns:        getEnvInt32("DB_MAX_CONNS", 20, &parseErrs),
+			MinConns:        getEnvInt32("DB_MIN_CONNS", 2, &parseErrs),
 			MaxConnLifetime: getEnvInt("DB_MAX_CONN_LIFETIME", 30, &parseErrs),
 			MaxConnIdleTime: getEnvInt("DB_MAX_CONN_IDLE_TIME", 5, &parseErrs),
 			QueryTimeout:    getEnvInt("DB_QUERY_TIMEOUT", 5, &parseErrs),
@@ -232,7 +230,6 @@ func Load() (*Config, error) {
 			SystemBindDN:       getEnv("LDAP_SYSTEM_BIND_DN", ""),
 			SystemBindPassword: getEnv("LDAP_SYSTEM_BIND_PASSWORD", ""),
 			UseTLS:             getEnvBool("LDAP_USE_TLS", false, &parseErrs),
-			InsecureSkipVerify: getEnvBool("LDAP_INSECURE_SKIP_VERIFY", false, &parseErrs),
 		},
 		ObjectStorage: ObjectStorageConfig{
 			Endpoint:        getEnv("OBJECT_STORAGE_ENDPOINT", ""),
@@ -255,7 +252,6 @@ func Load() (*Config, error) {
 			TLSCertFile:  getEnv("REDIS_TLS_CERT", ""),
 			TLSKeyFile:   getEnv("REDIS_TLS_KEY", ""),
 			TLSCAFile:    getEnv("REDIS_TLS_CA", ""),
-			TLSInsecure:  getEnvBool("REDIS_TLS_INSECURE", false, &parseErrs),
 		},
 		Token: TokenConfig{
 			AccessTokenTTL:  getEnvInt("TOKEN_ACCESS_TTL", 900, &parseErrs),

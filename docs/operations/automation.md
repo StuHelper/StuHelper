@@ -70,11 +70,12 @@ make prod-init
 make prod-deploy
 ```
 
-`make prod-init` 会准备三份**本地生产演练**文件：
+`make prod-init` 会准备四份**本地生产演练**文件：
 
 - `.env.prod.shared`
 - `.env.prod.secrets.local`
 - `.env.prod.generated`
+- `.env.prod.generated.secrets`
 
 生成 `.env.prod.shared` 时会直接以 `.env.prod.example` 为模板，并把旧版由开发模板带入的 `localhost` / `http` / 本地对象存储 / 本地告警 sink 默认值重写回生产占位符或正式生产默认值。
 
@@ -83,10 +84,11 @@ make prod-deploy
 - `.env.prod.shared`：共享配置
 - `.env.prod.secrets.local`：本机或临时环境使用的 secrets 文件
 - `.env.prod.generated`：运行时派生配置
+- `.env.prod.generated.secrets`：运行时派生 secrets（生产链路使用，避免与开发 `.env.generated.secrets` 混用）
 
 `make prod-deploy` 会自动完成：
 
-1. 校验生产共享配置 + 本机 secrets
+1. 校验生产共享配置 + 本机 secrets + 运行时派生 secrets 文件
 2. 渲染 Prometheus / Alertmanager 生成配置
 3. 拉取 / 启动 backend / frontend / admin 生产镜像
 4. 启动基础设施、认证、授权、对象存储、可观测性组件
@@ -101,6 +103,7 @@ make prod-deploy
 
 - 目标机自持 `${DEPLOY_APP_DIR}/.deploy/remote.env`
 - 目标机自持 `${DEPLOY_APP_DIR}/.env.prod.shared` / `${DEPLOY_APP_DIR}/.env.prod.secrets`
+- 运行时派生 secrets：`${DEPLOY_APP_DIR}/.env.prod.generated.secrets`（由 bootstrap/runtime 维护，不手工编辑）
 - 目标机自持 registry 凭据文件（默认 file backend）：
   - `${DEPLOY_APP_DIR}/.secrets/registry/username`
   - `${DEPLOY_APP_DIR}/.secrets/registry/password`
@@ -119,7 +122,7 @@ cd /opt/stuhelper
 - 共享配置 / secrets 文件是否就位
 - 备份目录是否存在
 - PostgreSQL 逻辑备份 / base backup / backup sync timer 是否已启用
-- `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` / 备份对象存储变量是否齐备
+- `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` / `BACKUP_OBJECT_STORAGE_ENDPOINT` / `BACKUP_OBJECT_STORAGE_BUCKET` / `BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID` / `BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY`
 
 停止生产环境：
 
@@ -139,6 +142,7 @@ make prod-reset
 
 - `.env.generated`
 - `.env.prod.generated`
+- `.env.prod.generated.secrets`
 - `infra/generated/observability/prometheus/prometheus.yml`
 - `infra/generated/observability/alertmanager/alertmanager.yml`
 - `.deploy/releases.log`
@@ -158,6 +162,7 @@ make prod-reset
    - `pnpm audit`
    - `Trivy`
    - Web / Admin unit test + Playwright
+   - 前端构建要求显式提供 `WEB_VITE_SSO_URL`；缺失即失败，不再使用构建期 fallback
 2. 构建 backend / frontend / admin 镜像
 3. 推送到自建镜像仓库
 4. 打包部署 bundle（脚本、compose、配置模板、文档）
@@ -193,24 +198,28 @@ GitLab CI 至少需要以下变量：
   - `REGISTRY`
   - `REGISTRY_USERNAME`
   - `REGISTRY_PASSWORD`
+  - `WEB_VITE_SSO_URL`（前端构建单一来源；缺失即失败，不再回落到默认 SSO 域名）
 - **SSH 发布阶段（staging）**
   - `STAGING_DEPLOY_HOST`
   - `STAGING_DEPLOY_PORT`
   - `STAGING_DEPLOY_USER`
   - `STAGING_DEPLOY_APP_DIR`
   - `STAGING_DEPLOY_SSH_KEY`
+  - `STAGING_DEPLOY_SSH_KNOWN_HOSTS`（目标机 SSH host public key，禁止 TOFU）
 - **SSH 发布阶段（production）**
   - `DEPLOY_HOST`
   - `DEPLOY_PORT`
   - `DEPLOY_USER`
   - `DEPLOY_APP_DIR`
   - `DEPLOY_SSH_KEY`
+  - `DEPLOY_SSH_KNOWN_HOSTS`（目标机 SSH host public key，禁止 TOFU）
 
 远端主机自身还必须提前准备：
 
 - `${DEPLOY_APP_DIR}/.deploy/remote.env`
 - `${DEPLOY_APP_DIR}/.env.prod.shared`
 - `${DEPLOY_APP_DIR}/.env.prod.secrets`
+- `${DEPLOY_APP_DIR}/.env.prod.generated.secrets`
 - `${DEPLOY_APP_DIR}/.secrets/registry/username`
 - `${DEPLOY_APP_DIR}/.secrets/registry/password`
 

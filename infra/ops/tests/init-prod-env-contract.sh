@@ -26,6 +26,13 @@ assert_file_not_contains() {
   fi
 }
 
+assert_file_exists() {
+  local file="$1"
+  if [[ ! -f "${file}" ]]; then
+    fail "expected file to exist: ${file}"
+  fi
+}
+
 env_value() {
   local file="$1"
   local key="$2"
@@ -62,6 +69,7 @@ run_init_prod_env() {
   ENV_FILE="${tmpdir}/.env.prod.shared" \
   SECRETS_ENV_FILE="${tmpdir}/.env.prod.secrets.local" \
   GENERATED_ENV_FILE="${tmpdir}/.env.prod.generated" \
+  GENERATED_SECRET_ENV_FILE="${tmpdir}/.env.prod.generated.secrets" \
   GENERATED_OBS_DIR="${tmpdir}/generated/observability" \
   GENERATED_ZITADEL_DIR="${tmpdir}/generated/zitadel" \
   DEPLOY_STATE_DIR="${tmpdir}/.deploy" \
@@ -104,6 +112,7 @@ assert_env_value "${fresh_env}" "TAG" ""
 assert_env_value "${fresh_env}" "BACKEND_IMAGE_REF" "REPLACE_WITH_BACKEND_IMAGE_REF"
 assert_env_value "${fresh_env}" "FRONTEND_IMAGE_REF" "REPLACE_WITH_FRONTEND_IMAGE_REF"
 assert_env_value "${fresh_env}" "ADMIN_IMAGE_REF" "REPLACE_WITH_ADMIN_IMAGE_REF"
+assert_file_exists "${fresh_dir}/.env.prod.generated.secrets"
 assert_file_not_contains "${fresh_env}" '^DATABASE_URL=.*@localhost:5432/.*sslmode=disable$'
 assert_file_not_contains "${fresh_env}" '^ZITADEL_INTERNAL_ADDRESS=host\.docker\.internal:8085$'
 assert_file_not_contains "${fresh_env}" '^ALERTMANAGER_WEBHOOK_URL=http://alert-webhook-sink:8080/alerts$'
@@ -117,13 +126,14 @@ cp "${REPO_ROOT}/.env.example" "${legacy_dir}/.env.prod.shared"
 ENV_FILE="${legacy_dir}/.env.prod.shared" \
 SECRETS_ENV_FILE="${legacy_dir}/.env.prod.secrets.local" \
 GENERATED_ENV_FILE="${legacy_dir}/.env.prod.generated" \
+GENERATED_SECRET_ENV_FILE="${legacy_dir}/.env.prod.generated.secrets" \
 GENERATED_OBS_DIR="${legacy_dir}/generated/observability" \
 GENERATED_ZITADEL_DIR="${legacy_dir}/generated/zitadel" \
 DEPLOY_STATE_DIR="${legacy_dir}/.deploy" \
 bash "${INIT_SCRIPT}" >"${legacy_dir}/stdout.log" 2>"${legacy_dir}/stderr.log"
 
 legacy_env="${legacy_dir}/.env.prod.shared"
-assert_env_value "${legacy_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=require"
+assert_env_value "${legacy_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
 assert_env_value "${legacy_env}" "CORS_ORIGINS" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
 assert_env_value "${legacy_env}" "ZITADEL_DOMAIN" "REPLACE_WITH_ZITADEL_DOMAIN"
 assert_env_value "${legacy_env}" "ZITADEL_PUBLIC_SCHEME" "https"
@@ -146,5 +156,6 @@ assert_env_value "${legacy_env}" "TAG" ""
 assert_env_value "${legacy_env}" "BACKEND_IMAGE_REF" "REPLACE_WITH_BACKEND_IMAGE_REF"
 assert_env_value "${legacy_env}" "FRONTEND_IMAGE_REF" "REPLACE_WITH_FRONTEND_IMAGE_REF"
 assert_env_value "${legacy_env}" "ADMIN_IMAGE_REF" "REPLACE_WITH_ADMIN_IMAGE_REF"
+assert_file_exists "${legacy_dir}/.env.prod.generated.secrets"
 
 echo "[init-prod-env-contract] all assertions passed"

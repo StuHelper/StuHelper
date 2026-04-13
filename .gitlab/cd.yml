@@ -23,7 +23,15 @@
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
   - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
-  - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
+  - |
+    if [ -n "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:-}" ]; then
+      printf '%s\n' "$DEPLOY_TARGET_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    else
+      echo "ERROR: DEPLOY_TARGET_SSH_KNOWN_HOSTS is not set. Set this CI variable to the deploy host's SSH public key." >&2
+      echo "Generate with: ssh-keyscan -p PORT HOST" >&2
+      exit 1
+    fi
+  - chmod 644 ~/.ssh/known_hosts
   - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
   - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
   - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
@@ -52,7 +60,14 @@
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
   - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
-  - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
+  - |
+    if [ -n "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:-}" ]; then
+      printf '%s\n' "$DEPLOY_TARGET_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    else
+      echo "ERROR: DEPLOY_TARGET_SSH_KNOWN_HOSTS is not set." >&2
+      exit 1
+    fi
+  - chmod 644 ~/.ssh/known_hosts
   - |
     ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "
       set -euo pipefail &&
@@ -171,6 +186,7 @@ deploy_staging:
     DEPLOY_TARGET_USER: $STAGING_DEPLOY_USER
     DEPLOY_TARGET_APP_DIR: $STAGING_DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $STAGING_DEPLOY_SSH_KEY
+    DEPLOY_TARGET_SSH_KNOWN_HOSTS: $STAGING_DEPLOY_SSH_KNOWN_HOSTS
   environment:
     name: staging
     url: $STAGING_PUBLIC_URL
@@ -190,6 +206,7 @@ deploy_production:
     DEPLOY_TARGET_USER: $DEPLOY_USER
     DEPLOY_TARGET_APP_DIR: $DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $DEPLOY_SSH_KEY
+    DEPLOY_TARGET_SSH_KNOWN_HOSTS: $DEPLOY_SSH_KNOWN_HOSTS
   environment:
     name: production
     url: $WEB_PUBLIC_URL
@@ -207,6 +224,7 @@ verify_staging:
     DEPLOY_TARGET_USER: $STAGING_DEPLOY_USER
     DEPLOY_TARGET_APP_DIR: $STAGING_DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $STAGING_DEPLOY_SSH_KEY
+    DEPLOY_TARGET_SSH_KNOWN_HOSTS: $STAGING_DEPLOY_SSH_KNOWN_HOSTS
   environment:
     name: staging
     url: $STAGING_PUBLIC_URL
@@ -223,6 +241,7 @@ verify_production:
     DEPLOY_TARGET_USER: $DEPLOY_USER
     DEPLOY_TARGET_APP_DIR: $DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $DEPLOY_SSH_KEY
+    DEPLOY_TARGET_SSH_KNOWN_HOSTS: $DEPLOY_SSH_KNOWN_HOSTS
   environment:
     name: production
     url: $WEB_PUBLIC_URL
@@ -239,6 +258,7 @@ rollback_staging:
     DEPLOY_TARGET_USER: $STAGING_DEPLOY_USER
     DEPLOY_TARGET_APP_DIR: $STAGING_DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $STAGING_DEPLOY_SSH_KEY
+    DEPLOY_TARGET_SSH_KNOWN_HOSTS: $STAGING_DEPLOY_SSH_KNOWN_HOSTS
     DEPLOY_TAG: $ROLLBACK_TAG
   environment:
     name: staging
@@ -259,7 +279,14 @@ rollback_staging:
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
   - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
-  - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
+  - |
+    if [ -n "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:-}" ]; then
+      printf '%s\n' "$DEPLOY_TARGET_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    else
+      echo "ERROR: DEPLOY_TARGET_SSH_KNOWN_HOSTS is not set." >&2
+      exit 1
+    fi
+  - chmod 644 ~/.ssh/known_hosts
   - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
   - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
   - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
@@ -281,6 +308,7 @@ rollback_production:
     DEPLOY_TARGET_USER: $DEPLOY_USER
     DEPLOY_TARGET_APP_DIR: $DEPLOY_APP_DIR
     DEPLOY_TARGET_SSH_KEY: $DEPLOY_SSH_KEY
+    DEPLOY_TARGET_SSH_KNOWN_HOSTS: $DEPLOY_SSH_KNOWN_HOSTS
     DEPLOY_TAG: $ROLLBACK_TAG
   environment:
     name: production
@@ -301,7 +329,14 @@ rollback_production:
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
   - printf '%s\n' "$DEPLOY_TARGET_SSH_KEY" | tr -d '\r' | ssh-add -
-  - ssh-keyscan -p "${DEPLOY_TARGET_PORT:-22}" "$DEPLOY_TARGET_HOST" >> ~/.ssh/known_hosts
+  - |
+    if [ -n "${DEPLOY_TARGET_SSH_KNOWN_HOSTS:-}" ]; then
+      printf '%s\n' "$DEPLOY_TARGET_SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    else
+      echo "ERROR: DEPLOY_TARGET_SSH_KNOWN_HOSTS is not set." >&2
+      exit 1
+    fi
+  - chmod 644 ~/.ssh/known_hosts
   - ./infra/ops/build-deploy-bundle.sh "${CI_PROJECT_DIR}/deploy-bundle.tgz"
   - ssh -p "${DEPLOY_TARGET_PORT:-22}" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
   - scp -P "${DEPLOY_TARGET_PORT:-22}" "${CI_PROJECT_DIR}/deploy-bundle.tgz" "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"

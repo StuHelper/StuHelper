@@ -43,8 +43,6 @@ type Config struct {
 	Timeout time.Duration
 	// UseTLS 启用 StartTLS 升级（仅对 ldap:// 连接生效，ldaps:// 自动处理）。
 	UseTLS bool
-	// InsecureSkipVerify 跳过 TLS 证书验证（仅用于开发/测试环境）。
-	InsecureSkipVerify bool
 }
 
 // Client LDAP 客户端。
@@ -203,7 +201,7 @@ func (c *Client) dial() (*ldapv3.Conn, error) {
 	// go-ldap 对 ldaps:// 自动处理 TLS；对 ldap:// 且启用 TLS 时执行 StartTLS 升级。
 	if c.cfg.UseTLS && strings.HasPrefix(strings.ToLower(c.cfg.URL), "ldap://") {
 		tlsCfg := &tls.Config{
-			InsecureSkipVerify: c.cfg.InsecureSkipVerify, //nolint:gosec // 仅开发/测试环境使用
+			MinVersion: tls.VersionTLS12,
 		}
 		if err := conn.StartTLS(tlsCfg); err != nil {
 			_ = conn.Close() //nolint:errcheck // best-effort cleanup on StartTLS failure

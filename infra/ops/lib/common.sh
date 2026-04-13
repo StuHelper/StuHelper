@@ -7,7 +7,16 @@ ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
 ENV_TEMPLATE_FILE="${ENV_TEMPLATE_FILE:-${REPO_ROOT}/.env.example}"
 SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-}"
 GENERATED_ENV_FILE="${GENERATED_ENV_FILE:-${REPO_ROOT}/.env.generated}"
-GENERATED_SECRET_ENV_FILE="${GENERATED_SECRET_ENV_FILE:-${REPO_ROOT}/.env.generated.secrets}"
+if [[ -z "${GENERATED_SECRET_ENV_FILE:-}" ]]; then
+  case "${ENV_FILE}" in
+    *.env.prod.shared|*.env.prod.example|*/.env.prod.shared|*/.env.prod.example)
+      GENERATED_SECRET_ENV_FILE="${REPO_ROOT}/.env.prod.generated.secrets"
+      ;;
+    *)
+      GENERATED_SECRET_ENV_FILE="${REPO_ROOT}/.env.generated.secrets"
+      ;;
+  esac
+fi
 SHARED_ENV_SECRET_REF="${SHARED_ENV_SECRET_REF:-}"
 SECRETS_ENV_SECRET_REF="${SECRETS_ENV_SECRET_REF:-}"
 GENERATED_ENV_SECRET_REF="${GENERATED_ENV_SECRET_REF:-}"
@@ -33,6 +42,25 @@ die() {
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+require_backup_object_storage_config() {
+  local missing=()
+  local key
+
+  for key in \
+    BACKUP_OBJECT_STORAGE_ENDPOINT \
+    BACKUP_OBJECT_STORAGE_BUCKET \
+    BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID \
+    BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY; do
+    if [[ -z "${!key:-}" ]]; then
+      missing+=("${key}")
+    fi
+  done
+
+  if (( ${#missing[@]} > 0 )); then
+    die "backup object storage configuration is incomplete; missing: ${missing[*]}"
+  fi
 }
 
 ensure_env_file() {

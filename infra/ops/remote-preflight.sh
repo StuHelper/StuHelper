@@ -39,6 +39,8 @@ fi
 docker info >/dev/null
 docker compose version >/dev/null
 
+require_backup_object_storage_config
+
 mkdir -p \
   "${REPO_ROOT}/backups/postgres/logical" \
   "${REPO_ROOT}/backups/postgres/base" \
@@ -55,9 +57,7 @@ if command -v systemctl >/dev/null 2>&1; then
     fi
   done
 fi
-
 [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL must be configured"
 [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL must be configured"
-[[ -n "${BACKUP_OBJECT_STORAGE_BUCKET:-}" ]] || die "BACKUP_OBJECT_STORAGE_BUCKET must be configured"
 
 log "remote preflight checks passed"

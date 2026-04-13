@@ -14,6 +14,9 @@ fi
 if [[ "${ENV_FILE:-}" == "${REPO_ROOT}/.env" || "${ENV_FILE:-.env}" == ".env" ]]; then
   ENV_FILE="${REPO_ROOT}/.env.prod.shared"
 fi
+if [[ -z "${GENERATED_SECRET_ENV_FILE:-}" || "${GENERATED_SECRET_ENV_FILE:-}" == "${REPO_ROOT}/.env.generated.secrets" ]]; then
+  GENERATED_SECRET_ENV_FILE="${REPO_ROOT}/.env.prod.generated.secrets"
+fi
 if [[ -z "${SECRETS_ENV_FILE:-}" ]]; then
   SECRETS_ENV_FILE="${REPO_ROOT}/.env.prod.secrets.local"
 fi
@@ -157,7 +160,6 @@ ensure_prod_default "REDIS_HOST" "${REDIS_HOST:-}" "redis" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
 ensure_prod_default "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true" "false"
 ensure_prod_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
-ensure_prod_default "REDIS_TLS_INSECURE" "${REDIS_TLS_INSECURE:-}" "false" "true"
 ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS" "http://localhost:3000,http://localhost:3001"
 ensure_value "TRUSTED_PROXIES" "${TRUSTED_PROXIES:-}" "127.0.0.1/32,172.16.0.0/12,192.168.0.0/16"
 ensure_prod_default "OTEL_ENABLED" "${OTEL_ENABLED:-}" "true" "false"

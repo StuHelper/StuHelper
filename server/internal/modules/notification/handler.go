@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -35,45 +34,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMW gin.HandlerFunc) {
 	{
 		notif.GET("/stream", h.Stream)
 	}
-}
-
-// List 获取通知列表
-func (h *Handler) List(c *gin.Context) {
-	page, pageSize := httputil.ParsePage(c)
-	userID := h.mustResolveUserID(c)
-	if userID == 0 {
-		return
-	}
-
-	result, err := h.service.List(c.Request.Context(), userID, page, pageSize)
-	if err != nil {
-		logger.FromGin(c).Error("failed to list notifications", zap.Error(err))
-		response.InternalError(c, "failed to list notifications")
-		return
-	}
-
-	response.Success(c, gin.H{
-		"list":   result.List,
-		"total":  result.Total,
-		"unread": result.Unread,
-	})
-}
-
-// UnreadCount 获取未读通知数量
-func (h *Handler) UnreadCount(c *gin.Context) {
-	userID := h.mustResolveUserID(c)
-	if userID == 0 {
-		return
-	}
-
-	count, err := h.service.CountUnread(c.Request.Context(), userID)
-	if err != nil {
-		logger.FromGin(c).Error("failed to get unread count", zap.Error(err))
-		response.InternalError(c, "failed to get unread count")
-		return
-	}
-
-	response.Success(c, gin.H{"count": count})
 }
 
 // Stream SSE 实时推送端点
@@ -129,44 +89,6 @@ func (h *Handler) Stream(c *gin.Context) {
 			c.Writer.Flush()
 		}
 	}
-}
-
-// MarkRead 标记通知已读
-func (h *Handler) MarkRead(c *gin.Context) {
-	notifID, err := httputil.ParseUUIDParam(c, "id")
-	if err != nil {
-		response.BadRequest(c, "invalid notification id")
-		return
-	}
-
-	userID := h.mustResolveUserID(c)
-	if userID == 0 {
-		return
-	}
-
-	if err := h.service.MarkRead(c.Request.Context(), notifID, userID); err != nil {
-		logger.FromGin(c).Error("failed to mark notification as read", zap.Error(err))
-		response.InternalError(c, "failed to mark notification as read")
-		return
-	}
-
-	response.Success(c, gin.H{"message": "notification marked as read"})
-}
-
-// MarkAllRead 标记所有通知已读
-func (h *Handler) MarkAllRead(c *gin.Context) {
-	userID := h.mustResolveUserID(c)
-	if userID == 0 {
-		return
-	}
-
-	if err := h.service.MarkAllRead(c.Request.Context(), userID); err != nil {
-		logger.FromGin(c).Error("failed to mark all notifications as read", zap.Error(err))
-		response.InternalError(c, "failed to mark all notifications as read")
-		return
-	}
-
-	response.Success(c, gin.H{"message": "all notifications marked as read"})
 }
 
 // writeSSE 向 SSE 流写入事件

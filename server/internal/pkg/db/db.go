@@ -2,10 +2,11 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
-	"math/rand/v2"
 	"net"
 	"os"
 	"strings"
@@ -34,8 +35,15 @@ const retryBaseDelay = 100 * time.Millisecond
 // jitteredRetryDelay 返回带随机抖动的重试延迟，防止惊群效应
 func jitteredRetryDelay() time.Duration {
 	jitter := float64(retryBaseDelay) * 0.5
-	delta := rand.Float64()*2*jitter - jitter //nolint:gosec // G404: jitter for retry delay, not cryptographic
+	delta := cryptoRandFloat64()*2*jitter - jitter
 	return retryBaseDelay + time.Duration(delta)
+}
+
+// cryptoRandFloat64 使用 crypto/rand 生成 [0, 1) 范围的 float64
+func cryptoRandFloat64() float64 {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return float64(binary.LittleEndian.Uint64(b[:])>>11) / (1 << 53)
 }
 
 // DB 封装 pgxpool.Pool，提供带超时的查询方法

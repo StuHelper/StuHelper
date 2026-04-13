@@ -54,11 +54,11 @@ func TestCSRFMiddleware_EchoesCSRFCookieOnSafeRequests(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.AddCookie(&http.Cookie{Name: CookieCSRFToken, Value: "safe-csrf-token"})
+	req.AddCookie(&http.Cookie{Name: CSRFCookieName, Value: "safe-csrf-token"})
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "safe-csrf-token", w.Header().Get(HeaderCSRFToken))
+	assert.Equal(t, "safe-csrf-token", w.Header().Get(CSRFHeaderName))
 }
 
 func TestCSRFMiddleware_AllowsAnonymousRequestWithoutCookies(t *testing.T) {

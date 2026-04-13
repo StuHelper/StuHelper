@@ -187,7 +187,9 @@ frontend_build:
   - corepack prepare pnpm@10 --activate
   - cd clients
   - pnpm install --frozen-lockfile
-  - pnpm --filter @stuhelper/web build
+  - ': "${WEB_VITE_SSO_URL:?WEB_VITE_SSO_URL must be set for frontend builds}"'
+  - export VITE_SSO_URL="${WEB_VITE_SSO_URL}"
+  - pnpm run build:web
 
 admin_build:
   stage: build
@@ -214,7 +216,8 @@ docker_build_frontend:
   - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
   - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
-  - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL:-https://sso.stuhelper.com}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" clients
+  - ': "${WEB_VITE_SSO_URL:?WEB_VITE_SSO_URL must be set for frontend builds}"'
+  - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" clients
 docker_build_admin:
   extends: .docker_job
   stage: build

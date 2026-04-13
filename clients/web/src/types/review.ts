@@ -7,7 +7,7 @@ export type {
   ReviewRatings,
   Review,
   ReviewContentCheck,
-  PostReviewParams,
+  PostReviewRequest,
 } from '@stuhelper/shared'
 
 export {

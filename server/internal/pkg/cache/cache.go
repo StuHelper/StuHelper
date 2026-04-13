@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
+	mrand "math/rand"
 	"sync"
 	"time"
 
@@ -28,6 +28,9 @@ const (
 	// jitterFraction TTL 抖动比例（±15%）
 	jitterFraction = 0.15
 )
+
+var ttlRand = mrand.New(mrand.NewSource(time.Now().UnixNano()))
+var ttlRandMu sync.Mutex
 
 // incrExpireScript 原子执行 INCR + EXPIRE，避免 Expire 失败导致 key 永不过期
 var incrExpireScript = redis.NewScript(`
@@ -76,8 +79,15 @@ func NewHelperWithMaxVersions(client *redis.Client, maxVersions int) *Helper {
 // 在 base ± jitterFraction 范围内随机浮动
 func JitteredTTL(base time.Duration) time.Duration {
 	jitter := float64(base) * jitterFraction
-	delta := rand.Float64()*2*jitter - jitter //nolint:gosec // G404: jitter for cache TTL, not cryptographic
+	delta := randFloat64()*2*jitter - jitter
 	return base + time.Duration(delta)
+}
+
+// randFloat64 使用非安全随机源生成 [0, 1) 范围的 float64。
+func randFloat64() float64 {
+	ttlRandMu.Lock()
+	defer ttlRandMu.Unlock()
+	return ttlRand.Float64()
 }
 
 // Client 返回底层 Redis 客户端（用于需要直接访问的场景）

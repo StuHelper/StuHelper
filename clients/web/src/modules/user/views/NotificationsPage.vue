@@ -64,6 +64,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { resolveNotificationHref } from '@stuhelper/shared'
 import { useNotificationStore } from '@/stores/notification'
 import type { Notification } from '@/types/notification'
 import NotificationItem from '@/components/common/NotificationItem.vue'
@@ -129,21 +130,9 @@ const handleMarkAllRead = () => {
 
 const handleClick = async (n: Notification) => {
   store.markAsRead(n.id).catch(() => {})
-
-  if (n.courseID) {
-    router.push(`/courses/${n.courseID}/reviews`)
-    return
-  }
-
-  if (!n.relatedType || !n.relatedID) return
-
-  if (n.relatedType === 'course') {
-    router.push(`/courses/${n.relatedID}/reviews`)
-    return
-  }
-
-  if (n.relatedType === 'review') {
-    router.push({ name: 'user-reviews' })
+  const href = resolveNotificationHref(n)
+  if (href) {
+    await router.push(href)
   }
 }
 </script>

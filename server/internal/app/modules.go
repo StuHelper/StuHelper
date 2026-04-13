@@ -203,7 +203,6 @@ func (rt *Runtime) initLDAPClient() (*ldap.Client, error) {
 		SystemBindDN:       rt.cfg.LDAP.SystemBindDN,
 		SystemBindPassword: rt.cfg.LDAP.SystemBindPassword,
 		UseTLS:             rt.cfg.LDAP.UseTLS,
-		InsecureSkipVerify: rt.cfg.LDAP.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, err

@@ -17,6 +17,7 @@ import (
 
 // Handler 认证处理器
 type Handler struct {
+	svc                  *Service
 	oidcClient           *oidc.Client
 	tokenService         *token.Service
 	tokenConfig          config.TokenConfig
@@ -40,6 +41,8 @@ func NewHandler(
 	userSyncRepo UserSyncRepo,
 	smsService *sms.Service,
 ) *Handler {
+	svc := NewService(cfg, tokenService)
+
 	// 从 CORS_ORIGINS 构建允许的重定向地址白名单
 	redirectHosts := buildAllowedRedirectHosts(cfg.App.CORSOrigins)
 	defaultRedirect := buildDefaultRedirectURL(cfg.App.CORSOrigins)
@@ -50,6 +53,7 @@ func NewHandler(
 	}
 
 	return &Handler{
+		svc:                  svc,
 		oidcClient:           oidcClient,
 		tokenService:         tokenService,
 		tokenConfig:          cfg.Token,

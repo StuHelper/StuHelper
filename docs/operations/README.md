@@ -46,6 +46,7 @@ cd /opt/stuhelper
 - 生产环境不执行 `seed.sql`
 - 上线先备份，再迁移，再发布
 - 远端部署前必须保证 `.deploy/remote.env` 已就位并通过 `remote-preflight.sh`
+- 远端发布前必须同时具备 `BACKUP_OBJECT_STORAGE_ENDPOINT` / `BACKUP_OBJECT_STORAGE_BUCKET` / `BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID` / `BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY`
 - 生产主机要先装好逻辑备份 / base backup / backup sync 定时任务
 - 数据库权威来源是 `server/migrations/`；仓库内不再维护并执行独立 schema 快照
 - Smoke Check 全绿才算发布完成

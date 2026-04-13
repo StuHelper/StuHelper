@@ -11,7 +11,9 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@stuhelper/shared": ["../shared/src/index.ts"],
+      "@stuhelper/shared/*": ["../shared/src/*"]
     }
   },
   "include": ["src/**/*"],

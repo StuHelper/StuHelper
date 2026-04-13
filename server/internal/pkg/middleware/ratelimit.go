@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	mrand "math/rand/v2"
 	"net"
 	"strconv"
 	"time"
@@ -113,13 +112,12 @@ func (rl *RedisRateLimiter) Allow(ctx context.Context, key string) (bool, error)
 }
 
 // generateUniqueID 生成唯一标识符
-// crypto/rand 失败时降级为 math/rand，避免 panic 导致服务中断
 func generateUniqueID() string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
 		metrics.CryptoRandFailuresTotal.Inc()
-		logger.L().Warn("crypto/rand.Read failed, falling back to math/rand", zap.Error(err))
-		return fmt.Sprintf("%d", mrand.Int64()) //nolint:gosec // G404: fallback ID when crypto/rand fails, not security-sensitive
+		logger.L().Warn("crypto/rand.Read failed, using timestamp fallback", zap.Error(err))
+		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(b)
 }

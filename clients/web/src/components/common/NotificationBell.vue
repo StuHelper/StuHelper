@@ -52,7 +52,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bell } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
+import { resolveNotificationHref } from '@stuhelper/shared'
 import { useNotificationStore } from '@/stores/notification'
+import type { Notification } from '@/types/notification'
 import NotificationList from './NotificationList.vue'
 
 const { t } = useI18n()
@@ -82,21 +84,19 @@ const handleMarkAllRead = async () => {
   }
 }
 
-const handleNotificationClick = async (payload: string | { id: string; sourceUrl?: string; relatedType?: string; relatedID?: string }) => {
-  const notification = typeof payload === 'string' ? { id: payload } : payload
+const handleNotificationClick = async (payload: string | Notification) => {
+  const notification = typeof payload === 'string'
+    ? notifications.value.find(item => item.id === payload)
+    : payload
+
+  if (!notification) return
+
   try {
     await store.markAsRead(notification.id)
     showPanel.value = false
-    if (notification.sourceUrl) {
-      await router.push(notification.sourceUrl)
-      return
-    }
-    if (notification.relatedType === 'course' && notification.relatedID) {
-      await router.push(`/courses/${notification.relatedID}/reviews`)
-      return
-    }
-    if (notification.relatedType === 'review') {
-      await router.push({ name: 'user-reviews' })
+    const href = resolveNotificationHref(notification)
+    if (href) {
+      await router.push(href)
     }
   } catch {
     // API 失败时不更新本地状态（store 先调 API 再更新）

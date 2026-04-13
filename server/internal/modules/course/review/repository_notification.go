@@ -19,7 +19,7 @@ type ListNotificationsResult struct {
 // ListNotifications 获取通知列表
 func (r *Repository) ListNotifications(ctx context.Context, userID int64, limit, offset int) (*ListNotificationsResult, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, type, title, body, source_module, source_id, source_course_id, is_read, created_at,
+		SELECT id, type, title, body, payload, source_module, source_id, source_url, source_course_id, is_read, created_at,
 		       COUNT(*) OVER() AS total,
 		       SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) OVER() AS unread
 		FROM notifications
@@ -37,11 +37,13 @@ func (r *Repository) ListNotifications(ctx context.Context, userID int64, limit,
 		var n Notification
 		if err := rows.Scan(
 			&n.ID, &n.Type, &n.Title, &n.Content,
-			&n.RelatedType, &n.RelatedID, &n.CourseID, &n.IsRead, &n.CreatedAt,
+			&n.Payload, &n.SourceModule, &n.SourceID, &n.SourceURL, &n.CourseID, &n.IsRead, &n.CreatedAt,
 			&result.Total, &result.Unread,
 		); err != nil {
 			return nil, fmt.Errorf("ListNotifications scan: %w", err)
 		}
+		n.RelatedType = n.SourceModule
+		n.RelatedID = n.SourceID
 		result.List = append(result.List, n)
 	}
 	return result, rows.Err()

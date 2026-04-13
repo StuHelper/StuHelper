@@ -1,50 +1,37 @@
 import type { ApiClient } from './client'
 import type { components } from '../types/api.gen'
+import type { PostReviewRequest } from '../types/business/review'
 import type {
   PaginatedResult,
-  PostReviewParams,
   Review,
   ReviewContentCheck,
   ReviewRatings,
 } from '../types/business/review'
+import { isReviewGrade, type ReviewGrade } from '../constants/review'
 import {
   normalizeContentCheck,
   normalizeReviewList,
 } from '../types/business/review'
 
-type PostReviewRequest = components['schemas']['PostReviewRequest']
 type UpdateReviewRequest = components['schemas']['UpdateReviewRequest']
 type VoteRequest = components['schemas']['VoteRequest']
 type ReportReviewRequest = components['schemas']['ReportReviewRequest']
 type ContentCheckRequest = components['schemas']['ContentCheckRequest']
-type ReviewGrade = NonNullable<PostReviewRequest['grade']>
-
-const REVIEW_GRADES: readonly ReviewGrade[] = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'] as const
 
 function normalizeReviewGrade(grade?: string): ReviewGrade | undefined {
   if (!grade) return undefined
   const trimmed = grade.trim()
-  return REVIEW_GRADES.includes(trimmed as ReviewGrade) ? (trimmed as ReviewGrade) : undefined
-}
-
-function toPostReviewRequest(data: PostReviewParams): PostReviewRequest {
-  return {
-    courseID: data.courseID,
-    content: data.content,
-    ratings: data.ratings,
-    termID: data.termID ?? '',
-    title: data.title ?? '',
-    ...(data.teacherID !== undefined && { teacherID: data.teacherID }),
-    ...(normalizeReviewGrade(data.grade) !== undefined && { grade: normalizeReviewGrade(data.grade) }),
-  }
+  return isReviewGrade(trimmed) ? trimmed : undefined
 }
 
 function toUpdateReviewRequest(data: { title?: string; content: string; grade?: string; ratings: ReviewRatings }): UpdateReviewRequest {
+  const grade = normalizeReviewGrade(data.grade)
+
   return {
     content: data.content,
     ratings: data.ratings,
     ...(data.title !== undefined && { title: data.title }),
-    ...(normalizeReviewGrade(data.grade) !== undefined && { grade: normalizeReviewGrade(data.grade) }),
+    ...(grade !== undefined && { grade }),
   }
 }
 
@@ -117,8 +104,8 @@ export const createReviewApi = (client: ApiClient) => ({
     return normalizeReviewList(res.data?.data)
   },
 
-  createReview: (data: PostReviewParams) =>
-    client.POST('/api/v1/course/review/reviews', { body: toPostReviewRequest(data) }),
+  createReview: (data: PostReviewRequest) =>
+    client.POST('/api/v1/course/review/reviews', { body: data }),
 
   updateReview: (id: string, data: { title?: string; content: string; grade?: string; ratings: ReviewRatings }) =>
     client.PUT('/api/v1/course/review/reviews/{reviewID}', {

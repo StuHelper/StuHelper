@@ -1,7 +1,7 @@
 # StuHelper Server Makefile
 
 .PHONY: help tidy fmt lint test test-coverage build run clean security ci \
-       bundle-spec lint-spec generate generate-go generate-ts check-drift \
+       bundle-spec lint-spec generate generate-go generate-ts check-drift check-drift-go check-drift-ts check-drift-all \
        migrate-up migrate-down-one migrate-status migrate-verify seed-dev
 
 # 默认目标
@@ -12,7 +12,7 @@ BINARY_NAME := stuhelper
 BUILD_DIR := bin
 COVERAGE_FILE := coverage.out
 REDOCLY_VERSION := 2.21.1
-REDOCLY := pnpm --package=@redocly/cli@$(REDOCLY_VERSION) dlx redocly
+REDOCLY := npx --yes @redocly/cli@$(REDOCLY_VERSION)
 MIGRATE_VERSION := v4.18.3
 MIGRATE := go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
 MIGRATE_RUNTIME := go run ./cmd/migrate-runtime
@@ -78,7 +78,7 @@ run:
 	go run ./cmd/stuhelper
 
 security:
-	go run github.com/securego/gosec/v2/cmd/gosec@latest -exclude-generated ./...
+	go run github.com/securego/gosec/v2/cmd/gosec@v2.22.4 -exclude-generated ./...
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -99,15 +99,22 @@ generate-go: bundle-spec
 	go generate ./internal/api/gen/...
 
 generate-ts: bundle-spec
-	cd ../clients && pnpm run api:generate
+	cd ../clients && npx --yes pnpm@10.32.1 run api:generate
 
 generate: generate-go generate-ts
 	@echo "All code generation complete."
 
 # ── CI Drift Detection ──
 
-check-drift: generate
-	@git diff --exit-code -- internal/api/gen/ ../clients/shared/src/types/api.gen.ts || (echo "ERROR: Generated code is out of sync with OpenAPI spec. Run 'make generate' and commit." && exit 1)
+check-drift: check-drift-go
+
+check-drift-go: generate-go
+	@git diff --exit-code -- internal/api/gen/ || (echo "ERROR: Generated Go code is out of sync with OpenAPI spec. Run 'make generate-go' and commit." && exit 1)
+
+check-drift-ts:
+	cd ../clients && npx --yes pnpm@10.32.1 run check:api-drift
+
+check-drift-all: check-drift-go check-drift-ts
 
 # ── Database Migrations ──
 

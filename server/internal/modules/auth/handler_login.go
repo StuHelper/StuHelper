@@ -23,7 +23,6 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 const (
@@ -145,30 +144,22 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	// 将 ID Token 作为 access_token 写入 Cookie
-	if err := h.setTokenCookies(c, rawIDToken, oauthToken.RefreshToken); err != nil {
+	// 跟踪用户 Token，支持 LogoutAll 批量撤销
+	// 必须在写入 Cookie 之前完成：未跟踪的 token 无法被 LogoutAll 撤销
+	if err := h.svc.TrackTokenPair(ctx, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken); err != nil {
+		logger.FromGin(c).Error("failed to track token pair",
+			zap.String("user_id", claims.GetUserID()),
+			zap.Error(err),
+		)
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "token tracking failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}
 
-	// 跟踪用户 Token，支持 LogoutAll 批量撤销
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		ctx, claims.GetUserID(), rawIDToken, token.TokenTypeAccess, time.Now().Add(h.tokenService.GetAccessTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track user token",
-			zap.String("user_id", claims.GetUserID()),
-			zap.Error(trackErr),
-		)
-	}
-	if oauthToken.RefreshToken != "" {
-		if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-			ctx, claims.GetUserID(), oauthToken.RefreshToken, token.TokenTypeRefresh, time.Now().Add(h.tokenService.GetRefreshTokenTTL()),
-		); trackErr != nil {
-			logger.FromGin(c).Warn("failed to track refresh token",
-				zap.String("user_id", claims.GetUserID()),
-				zap.Error(trackErr),
-			)
-		}
+	// 将 ID Token 作为 access_token 写入 Cookie
+	if err := h.setTokenCookies(c, rawIDToken, oauthToken.RefreshToken); err != nil {
+		response.InternalError(c, "authentication failed")
+		return
 	}
 
 	audit.LogSuccess(audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), requestID)

@@ -3,6 +3,7 @@ export * from './types'
 export * from './types/business'
 export * from './utils'
 export * from './constants'
+export * from './notification'
 
 // Re-export API client creators
 export {

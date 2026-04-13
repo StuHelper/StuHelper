@@ -109,6 +109,22 @@ sha256_file_portable() {
 
 ensure_node_toolchain() {
   require_cmd node
+  local node_version
+  node_version="$(node -p 'process.versions.node')"
+  if ! node - "${node_version}" <<'EOF'
+const version = process.argv[2]
+const [major, minor] = version.split('.').map(Number)
+
+const supported =
+  (major === 20 && minor >= 19) ||
+  (major === 22 && minor >= 18) ||
+  (major === 24 && minor >= 0)
+
+process.exit(supported ? 0 : 1)
+EOF
+  then
+    die "unsupported Node.js ${node_version}; use Node 24 (preferred) or a supported LTS release matching ^20.19.0 || ^22.18.0 || ^24.0.0"
+  fi
   require_cmd corepack
   corepack enable >/dev/null 2>&1 || true
   corepack prepare pnpm@10 --activate >/dev/null 2>&1
