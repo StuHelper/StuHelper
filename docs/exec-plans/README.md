@@ -11,12 +11,12 @@
 ## 活跃计划
 
 - [active/iam-architecture-migration.md](active/iam-architecture-migration.md)
-- [active/2026-04-13-full-repo-audit.md](active/2026-04-13-full-repo-audit.md)
 
 ## 归档
 
 - [archived/2026-03-casdoor-migration-and-vben.md](archived/2026-03-casdoor-migration-and-vben.md)
 - [archived/2026-03-vben-admin-user-system.md](archived/2026-03-vben-admin-user-system.md)
+- [archived/2026-04-13-full-repo-audit.md](archived/2026-04-13-full-repo-audit.md)
 
 ## 技术债
 
