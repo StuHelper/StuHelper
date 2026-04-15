@@ -122,7 +122,8 @@
       原生 App 请求时，响应额外包含 accessToken 和 refreshToken 字段，
       供客户端更新本地存储。
     security:
-      - cookieAuth: []
+      - cookieAuth: []   # Web 浏览器：refresh_token 通过 cookie 自动携带
+      - {}               # 原生 App：refresh token 通过请求体传递，无需 cookie
     requestBody:
       description: 原生 App 通过请求体传递 refresh token（Web 浏览器通过 cookie 自动携带，无需此字段）
       required: false
