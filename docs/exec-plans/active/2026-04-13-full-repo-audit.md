@@ -1283,10 +1283,10 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 - ✅ FGA 全环境校验（F-21：`OPENFGA_MODEL_ID` 校验提升为所有环境）
 - ✅ `user_hash` 回填迁出启动路径（F-20：改为仅检查+警告）
 - ✅ 删除 faceid 死包（F-19）
-- `clients/shared` 的 source-first 消费模式收口（D-15）
-- 发布前备份容器化（D-09）
-- 仓库内 edge proxy 正式化（D-05）
-- `uniappx` native auth 闭环补齐（D-10）
+- ✅ `clients/shared` 的 source-first 消费模式收口（D-15：exports 增加 source 条件，web tsconfig 增加 paths，冷启动 type-check 已验证通过）
+- 发布前备份容器化（D-09：需要基础设施测试环境）
+- 仓库内 edge proxy 正式化（D-05：需要拓扑 / 证书决策）
+- `uniappx` native auth 闭环补齐（D-10：需要原生端开发与测试）
 
 ### Batch 2：契约治理
 - ✅ Go/TS 生成链路已统一消费 bundled spec（F-05）
@@ -1298,16 +1298,16 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 ### Batch 3：分层与架构收口
 - ✅ 把认证编排收回 `auth.Service`（D-07：Handler 不再持有 `userSyncRepo`，新增 `SyncOIDCUser`/`SyncPhoneUser`/`UserExistsByExternalID` 方法）
 - ✅ Review 访问策略内聚进 Service（D-08：`resolveReviewAccessFacts` → `Service.ResolveAccessFacts`，Handler 不再持有 `userRepo`）
-- 迁移 `auth/user_sync.go` 到 `modules/user` persistence（D-03：接口抽象已完成，物理迁移待执行）
-- 引入 Session / Token Family 模型（D-02）
-- 明确 shared 分层边界（D-06）
+- ✅ 迁移 `auth/user_sync.go` 到 `modules/user` persistence（D-03：实现移至 `user/repository_auth_sync.go`，共享类型在 `pkg/usersync`，auth 仅保留接口和别名）
+- 引入 Session / Token Family 模型（D-02：需要数据库迁移与完整重构）
+- 明确 shared 分层边界（D-06：影子类型清理后执行）
 
 ### Batch 4：前端结构与性能
 - ✅ 课程目录页收敛到 `loadCourseCatalog` helper（F-08 Phase 1）
 - ✅ 历史 review 分叉组件和孤儿页面已清理（F-07）
 - ✅ 删除 admin 历史变体 `web-antd`/`web-antdv-next`/`web-naive`（D-11：214 文件已删除）
-- 清理 admin `web-ele` 未挂路由页面和 `any` 黑洞
-- 课程目录页后端分组接口（D-04 Phase 2）
+- ✅ 清理 admin `web-ele` 未挂路由页面（10 个孤儿页面已删除）；`any` 黑洞属于 Vben 上游适配层，记为已知技术债
+- 课程目录页后端分组接口（D-04 Phase 2：需要 API 契约设计）
 - 建立死代码检测与孤儿页面治理规则
 
 ### Batch 5：上线质量体系
@@ -1336,14 +1336,14 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 - ✅ OpenAPI 为唯一契约事实源（Go/TS 均消费 bundled spec）
 - ✅ backend-only drift gate 可独立运行（不依赖 pnpm）
 - ✅ `pnpm` 版本在 Dockerfile/CI/本地已固定为 `10.32.1`
-- `clients/shared` 在 fresh checkout 下可被 `web` / `uniappx` 稳定消费（D-15 待执行）
+- ✅ `clients/shared` 在 fresh checkout 下可被 `web` / `uniappx` 稳定消费（D-15：tsconfig paths + source exports，冷启动已验证）
 - ✅ Notification deprecated 别名已清除（D-01：`relatedType`/`relatedID` 从 OpenAPI、Go model、shared types、frontend 全部移除）
 - ✅ 三端错误 envelope 语义统一（D-12：shared `parseApiError` 已被 web/admin/uniappx 接入）
 
 ### 前端
 - ✅ 课程目录页已收敛到 `loadCourseCatalog` helper
 - ✅ 历史 review 分叉组件和孤儿页面已清理
-- ✅ Admin 仓库中不再保留非主线变体（D-11：`web-antd`/`web-antdv-next`/`web-naive` 已删除）
+- ✅ Admin 仓库中不再保留非主线变体（D-11）；web-ele 孤儿页面已清理
 - `uniappx` native auth callback 闭环真实可用（D-10 待执行）
 - ✅ Web / Admin / Uniappx 对同一类后端错误具有一致语义（D-12 已完成）
 

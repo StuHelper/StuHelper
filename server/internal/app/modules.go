@@ -58,7 +58,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return fmt.Errorf("failed to initialize PII cipher: %w", err)
 	}
 
-	userSyncRepo := auth.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey())
+	userSyncRepo := user.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey())
 	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
 
 	authHandler := auth.NewHandler(
@@ -184,7 +184,7 @@ func (rt *Runtime) initSMSService() (*sms.Service, error) {
 
 // warnPendingUserHashBackfill 在启动时检查是否仍有未回填的 user_hash 记录。
 // 仅记录警告日志，不再自动执行回填——回填应作为运维任务显式执行。
-func (rt *Runtime) warnPendingUserHashBackfill(ctx context.Context, repo *auth.UserSyncRepository) {
+func (rt *Runtime) warnPendingUserHashBackfill(ctx context.Context, repo *user.UserSyncRepository) {
 	count, err := repo.CountMissingUserHashes(ctx)
 	if err != nil {
 		logger.L().Warn("failed to check pending user_hash backfill", gozap.Error(err))

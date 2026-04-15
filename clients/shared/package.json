@@ -9,22 +9,27 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./api": {
+      "source": "./src/api/index.ts",
       "types": "./dist/api/index.d.ts",
       "import": "./dist/api/index.js"
     },
     "./types": {
+      "source": "./src/types/index.ts",
       "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.js"
     },
     "./utils": {
+      "source": "./src/utils/index.ts",
       "types": "./dist/utils/index.d.ts",
       "import": "./dist/utils/index.js"
     },
     "./constants": {
+      "source": "./src/constants/index.ts",
       "types": "./dist/constants/index.d.ts",
       "import": "./dist/constants/index.js"
     }
