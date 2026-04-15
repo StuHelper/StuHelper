@@ -167,13 +167,14 @@ func (c *Config) validate(parseErrs []string) error {
 		errs = append(errs, "ZITADEL_PROJECT_ID is required")
 	}
 
-	// OpenFGA 配置校验（生产环境必须完整配置，防止授权结果随模型发布漂移）
-	if c.App.Env == "production" && c.OpenFGA.StoreID != "" {
+	// OpenFGA 配置校验：只要启用 FGA（StoreID 非空），就必须显式绑定 Model + API URL，
+	// 不再仅限生产环境——staging/dev 的半配置状态会导致授权行为不可复现。
+	if c.OpenFGA.StoreID != "" {
 		if c.OpenFGA.AuthorizationModelID == "" {
-			errs = append(errs, "OPENFGA_MODEL_ID is required in production when FGA is enabled")
+			errs = append(errs, "OPENFGA_MODEL_ID is required when OPENFGA_STORE_ID is set")
 		}
 		if c.OpenFGA.APIUrl == "" {
-			errs = append(errs, "OPENFGA_API_URL is required in production when FGA is enabled")
+			errs = append(errs, "OPENFGA_API_URL is required when OPENFGA_STORE_ID is set")
 		}
 	}
 	if c.App.Env == "production" && c.OpenFGA.StoreID == "" {

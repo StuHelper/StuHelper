@@ -258,6 +258,13 @@ func IsAuthenticated(c *gin.Context) bool {
 	return GetUserID(c) != ""
 }
 
+// GetAccessToken 从请求中提取 access token（优先级：Authorization Header > Cookie）。
+// 用于 Logout 等需要获取当前 token 原始值的场景。
+func GetAccessToken(c *gin.Context) string {
+	token, _ := getTokenWithSource(c)
+	return token
+}
+
 // getContextString 从上下文获取字符串值
 func getContextString(c *gin.Context, key string) string {
 	if val, exists := c.Get(key); exists {

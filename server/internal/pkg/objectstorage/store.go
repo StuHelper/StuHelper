@@ -88,6 +88,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 }
 
 // EnsureBucket 确保存储桶存在。
+// Deprecated: 生产环境中 bucket 应由 infra 预置，使用 CheckBucket 代替。
 func (s *Store) EnsureBucket(ctx context.Context) error {
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &s.bucket})
 	if err == nil {
@@ -107,6 +108,16 @@ func (s *Store) EnsureBucket(ctx context.Context) error {
 	})
 	if createErr != nil && !strings.Contains(strings.ToLower(createErr.Error()), "bucket already owned") {
 		return fmt.Errorf("create bucket %q: %w", s.bucket, createErr)
+	}
+	return nil
+}
+
+// CheckBucket 验证存储桶存在且可访问，不会自动创建。
+// 应用启动时使用此方法做 fail-closed 校验；bucket 由 infra/deploy 流程预置。
+func (s *Store) CheckBucket(ctx context.Context) error {
+	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &s.bucket})
+	if err != nil {
+		return fmt.Errorf("bucket %q not accessible (must be pre-provisioned): %w", s.bucket, err)
 	}
 	return nil
 }

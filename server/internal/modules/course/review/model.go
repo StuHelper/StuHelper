@@ -187,8 +187,6 @@ type Notification struct {
 	SourceModule string          `json:"sourceModule,omitempty"`
 	SourceID     string          `json:"sourceId,omitempty"`
 	SourceURL    *string         `json:"sourceUrl,omitempty"`
-	RelatedType  string          `json:"relatedType,omitempty"`
-	RelatedID    string          `json:"relatedID,omitempty"`
 	CourseID     *int64          `json:"courseID,omitempty"`
 	IsRead       bool            `json:"isRead"`
 	CreatedAt    time.Time       `json:"createdAt"`

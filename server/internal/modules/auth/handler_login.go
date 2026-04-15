@@ -123,13 +123,7 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	}
 
 	// 同步本地 shadow user；登录成功必须意味着内部主体已经就绪。
-	if h.userSyncRepo == nil {
-		logger.FromGin(c).Error("user sync repository is not configured")
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "user sync repository not configured")
-		response.InternalError(c, "authentication failed")
-		return
-	}
-	if syncErr := h.userSyncRepo.UpsertUser(ctx, UserSyncInput{
+	if syncErr := h.svc.SyncOIDCUser(ctx, UserSyncInput{
 		ExternalID: claims.GetUserID(),
 		Username:   claims.GetUsername(),
 		Email:      claims.GetEmail(),

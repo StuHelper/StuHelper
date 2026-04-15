@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import CourseThemeProvider from '@/modules/course/theme/CourseThemeProvider.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import { api } from '@/api'
+import { loadCourseCatalog } from '@/modules/course/courseCatalogLoader'
 import type { components } from '@stuhelper/shared/types'
 
 type Course = components['schemas']['Course']
@@ -84,34 +85,14 @@ async function fetchCourses(): Promise<void> {
   loading.value = true
   error.value = null
   try {
-    const pageSize = 100
-    const firstPageResponse = await api.course.getCourses({
-      page: 1,
-      pageSize,
-      sort: 'name',
-    })
-    const firstPageData = firstPageResponse.data?.data
-    const firstPageItems: Course[] = firstPageData?.list ?? []
-    const total = firstPageData?.total ?? firstPageItems.length
-    const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
-    const remainingResponses = totalPages > 1
-      ? await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, index) =>
-            api.course.getCourses({
-              page: index + 2,
-              pageSize,
-              sort: 'name',
-            }),
-          ),
-        )
-      : []
-
-    const courses: Course[] = [
-      ...firstPageItems,
-      ...remainingResponses.flatMap((response) => response.data?.data?.list ?? []),
-    ]
-
+    const courses = await loadCourseCatalog<Course>(
+      async (page, pageSize) => {
+        const res = await api.course.getCourses({ page, pageSize, sort: 'name' })
+        const data = res.data?.data
+        return { list: data?.list ?? [], total: data?.total ?? 0 }
+      },
+      100,
+    )
     departmentGroups.value = groupByDepartment(courses)
   } catch {
     error.value = t('review.courseList.loadFailed')

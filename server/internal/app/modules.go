@@ -59,7 +59,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 
 	userSyncRepo := auth.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey())
-	rt.startUserHashBackfill(bgCtx, userSyncRepo)
+	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
 
 	authHandler := auth.NewHandler(
 		rt.cfg,
@@ -89,8 +89,10 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	notifRepo := notification.NewRepository(rt.database)
 	notifService := notification.NewService(notifRepo, notifHub, rt.redisClient.GetClient())
 
+	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
+
 	courseCache := cache.NewHelper(rt.redisClient.GetClient())
-	courseHandler := course.NewHandler(rt.database, courseCache, rt.redisClient.GetClient(), rt.cfg, fgaClient, notifService)
+	courseHandler := course.NewHandler(rt.database, courseCache, rt.redisClient.GetClient(), rt.cfg, fgaClient, notifService, userRepo)
 	courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 
 	ldapClient, err := rt.initLDAPClient()
@@ -101,7 +103,6 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		ldapClient = nil
 	}
 
-	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
 	userService, err := user.NewService(userRepo, ldapClient, crypto.GetHMACKey(), piiCipher)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user service: %w", err)
@@ -181,16 +182,19 @@ func (rt *Runtime) initSMSService() (*sms.Service, error) {
 	return smsSvc, nil
 }
 
-func (rt *Runtime) startUserHashBackfill(bgCtx context.Context, repo *auth.UserSyncRepository) {
-	rt.bgWg.Add(1)
-	go func() {
-		defer rt.bgWg.Done()
-		if backfilled, backfillErr := repo.BackfillUserHashes(bgCtx); backfillErr != nil {
-			logger.L().Warn("user_hash backfill failed (non-fatal)", gozap.Error(backfillErr))
-		} else if backfilled > 0 {
-			logger.L().Info("backfilled user_hash for existing users", gozap.Int64("count", backfilled))
-		}
-	}()
+// warnPendingUserHashBackfill 在启动时检查是否仍有未回填的 user_hash 记录。
+// 仅记录警告日志，不再自动执行回填——回填应作为运维任务显式执行。
+func (rt *Runtime) warnPendingUserHashBackfill(ctx context.Context, repo *auth.UserSyncRepository) {
+	count, err := repo.CountMissingUserHashes(ctx)
+	if err != nil {
+		logger.L().Warn("failed to check pending user_hash backfill", gozap.Error(err))
+		return
+	}
+	if count > 0 {
+		logger.L().Warn("users with missing user_hash detected; run backfill ops task",
+			gozap.Int64("pending_count", count),
+		)
+	}
 }
 
 func (rt *Runtime) initLDAPClient() (*ldap.Client, error) {
@@ -213,7 +217,9 @@ func (rt *Runtime) initLDAPClient() (*ldap.Client, error) {
 
 func (rt *Runtime) configureUserService(userService *user.Service, userRepo *user.Repository) error {
 	if rt.cfg.ObjectStorage.Endpoint != "" {
-		photoStore, err := objectstorage.New(context.Background(), objectstorage.Config{
+		initCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		photoStore, err := objectstorage.New(initCtx, objectstorage.Config{
 			Endpoint:        rt.cfg.ObjectStorage.Endpoint,
 			Region:          rt.cfg.ObjectStorage.Region,
 			Bucket:          rt.cfg.ObjectStorage.Bucket,
@@ -226,8 +232,8 @@ func (rt *Runtime) configureUserService(userService *user.Service, userRepo *use
 		if err != nil {
 			return fmt.Errorf("failed to initialize object storage: %w", err)
 		}
-		if err := photoStore.EnsureBucket(context.Background()); err != nil {
-			return fmt.Errorf("failed to ensure identity photo bucket: %w", err)
+		if err := photoStore.CheckBucket(initCtx); err != nil {
+			return fmt.Errorf("identity photo bucket check failed (bucket must be pre-provisioned by infra): %w", err)
 		}
 		userService.SetIdentityPhotoStore(photoStore)
 	}

@@ -8,15 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"golang.org/x/sync/singleflight"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
@@ -27,29 +24,27 @@ import (
 
 // Handler 评课社区处理器
 type Handler struct {
-	db             *db.DB
-	cache          *cache.Helper
-	service        *Service
-	userRepo       *user.Repository
-	fga            *fga.Client
-	postLimiter    *middleware.RedisRateLimiter
-	voteLimiter    *middleware.RedisRateLimiter
-	reportLimiter  *middleware.RedisRateLimiter
-	replyLimiter   *middleware.RedisRateLimiter
-	writeLimiter   *middleware.RedisRateLimiter
-	accessPolicySF singleflight.Group
+	db            *db.DB
+	cache         *cache.Helper
+	service       *Service
+	fga           *fga.Client
+	postLimiter   *middleware.RedisRateLimiter
+	voteLimiter   *middleware.RedisRateLimiter
+	reportLimiter *middleware.RedisRateLimiter
+	replyLimiter  *middleware.RedisRateLimiter
+	writeLimiter  *middleware.RedisRateLimiter
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, fgaClient *fga.Client, notifSender notification.Sender) *Handler {
+func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, fgaClient *fga.Client, notifSender notification.Sender, accessReader ReviewAccessReader) *Handler {
 	repo := NewRepository(database)
 	svc := NewService(database, repo, notifSender)
 	svc.SetFGAWriter(fgaClient)
+	svc.SetAccessReader(accessReader)
 	return &Handler{
 		db:            database,
 		cache:         cacheHelper,
 		service:       svc,
-		userRepo:      user.NewRepository(database, crypto.GetHMACKey()),
 		fga:           fgaClient,
 		postLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.PostLimit, time.Minute),
 		voteLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.VoteLimit, time.Minute),

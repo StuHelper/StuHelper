@@ -122,7 +122,7 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	}
 
 	// 查找或创建用户
-	user, err := h.userSyncRepo.UpsertByPhone(c.Request.Context(), phone)
+	user, err := h.svc.SyncPhoneUser(c.Request.Context(), phone)
 	if err != nil {
 		logger.FromGin(c).Error("failed to upsert phone user", zap.String("phone", maskPhone(phone)), zap.Error(err))
 		response.InternalError(c, "login failed")

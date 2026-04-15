@@ -1,5 +1,6 @@
 import { ElMessage } from 'element-plus';
 
+import { extractApiErrorMessage } from '@stuhelper/shared/api';
 import { $t } from '#/locales';
 
 export interface ApiEnvelope<T> {
@@ -18,42 +19,17 @@ export interface ApiCallResult<T = unknown> {
   };
 }
 
-function readErrorMessage(value: unknown): null | string {
-  if (typeof value === 'string') {
-    return value.trim() || null;
-  }
-
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const message = record.message;
-  if (typeof message === 'string' && message.trim()) {
-    return message;
-  }
-
-  const error = record.error;
-  if (typeof error === 'string' && error.trim()) {
-    return error;
-  }
-
-  return null;
-}
-
 export function extractErrorMessage(result: ApiCallResult<unknown>): string {
-  const dataError = readErrorMessage(result.data?.error);
-  if (dataError) {
-    return dataError;
+  // 优先从 envelope 提取（使用 shared 统一解析）
+  if (result.data) {
+    const msg = extractApiErrorMessage(result.data, '');
+    if (msg) return msg;
   }
 
-  if (result.data?.message) {
-    return result.data.message;
-  }
-
-  const runtimeError = readErrorMessage(result.error);
-  if (runtimeError) {
-    return runtimeError;
+  // runtime error
+  if (result.error) {
+    const msg = extractApiErrorMessage(result.error, '');
+    if (msg) return msg;
   }
 
   if (result.response?.status === 401) {

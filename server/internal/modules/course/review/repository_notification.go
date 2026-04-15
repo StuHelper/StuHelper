@@ -42,8 +42,6 @@ func (r *Repository) ListNotifications(ctx context.Context, userID int64, limit,
 		); err != nil {
 			return nil, fmt.Errorf("ListNotifications scan: %w", err)
 		}
-		n.RelatedType = n.SourceModule
-		n.RelatedID = n.SourceID
 		result.List = append(result.List, n)
 	}
 	return result, rows.Err()

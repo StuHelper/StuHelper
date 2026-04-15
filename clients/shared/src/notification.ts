@@ -71,15 +71,6 @@ export function resolveNotificationHref(notification: Notification): string | un
   if (typeof notification.courseID === 'number' && notification.courseID > 0) {
     return `/courses/${notification.courseID}/reviews`
   }
-  if (notification.relatedType === 'course' && typeof notification.relatedID === 'string') {
-    const relatedID = notification.relatedID.trim()
-    if (relatedID.length > 0) {
-      return `/courses/${relatedID}/reviews`
-    }
-  }
-  if (notification.relatedType === 'review') {
-    return '/user/reviews'
-  }
 
   switch (normalizeNotificationType(notification.type)) {
     case 'identity_approved':

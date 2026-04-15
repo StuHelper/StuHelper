@@ -24,7 +24,6 @@ type Handler struct {
 	redisClient          *redis.Client
 	refreshLimiter       *middleware.RedisRateLimiter
 	phoneLimiter         *middleware.RedisRateLimiter
-	userSyncRepo         UserSyncRepo
 	allowedRedirectHosts map[string]struct{}
 	defaultRedirectURL   string
 	otpService           *OTPService
@@ -41,7 +40,7 @@ func NewHandler(
 	userSyncRepo UserSyncRepo,
 	smsService *sms.Service,
 ) *Handler {
-	svc := NewService(cfg, tokenService)
+	svc := NewService(cfg, tokenService, userSyncRepo)
 
 	// 从 CORS_ORIGINS 构建允许的重定向地址白名单
 	redirectHosts := buildAllowedRedirectHosts(cfg.App.CORSOrigins)
@@ -58,7 +57,6 @@ func NewHandler(
 		tokenService:         tokenService,
 		tokenConfig:          cfg.Token,
 		redisClient:          rdb,
-		userSyncRepo:         userSyncRepo,
 		refreshLimiter:       middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
 		phoneLimiter:         middleware.NewRedisRateLimiter(rdb, 5, time.Minute),
 		allowedRedirectHosts: redirectHosts,

@@ -22,14 +22,26 @@ func (h *Handler) Logout(c *gin.Context) {
 	username := middleware.GetUsername(c)
 	requestID := middleware.GetRequestID(c)
 
-	var accessToken, refreshToken string
-	if v, err := c.Cookie(middleware.CookieAccessToken); err == nil {
-		accessToken = v
-	}
+	// 与 AuthMiddleware 保持一致：优先从 Authorization: Bearer 读 token，
+	// 再回退 cookie。确保 Bearer 客户端调用 /logout 时也能正确撤销 access token。
+	accessToken := middleware.GetAccessToken(c)
+
+	var refreshToken string
 	if v, err := c.Cookie(middleware.CookieRefreshToken); err == nil {
 		refreshToken = v
 	}
-	h.svc.RevokeCurrentSession(c.Request.Context(), userID, accessToken, refreshToken)
+
+	if err := h.svc.RevokeCurrentSession(c.Request.Context(), userID, accessToken, refreshToken); err != nil {
+		logger.FromGin(c).Error("failed to revoke current session",
+			zap.String("user_id", userID),
+			zap.Error(err),
+		)
+		// 仍然清除客户端 cookie（减少攻击面），但不向客户端承诺撤销成功
+		h.clearTokenCookies(c)
+		audit.LogFailure(audit.EventUserLogout, c.ClientIP(), c.Request.UserAgent(), requestID, "server-side revocation failed")
+		response.InternalError(c, "logout partially failed: server-side revocation unsuccessful")
+		return
+	}
 
 	h.clearTokenCookies(c)
 	audit.LogSuccess(audit.EventUserLogout, userID, username, c.ClientIP(), c.Request.UserAgent(), requestID)
@@ -138,7 +150,7 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	accessTTL := time.Duration(h.tokenConfig.AccessTokenTTL) * time.Second
 	refreshTTL := time.Duration(h.tokenConfig.RefreshTokenTTL) * time.Second
 
-	exists, err := h.userSyncRepo.ExistsByExternalID(c.Request.Context(), oldClaims.Sub)
+	exists, err := h.svc.UserExistsByExternalID(c.Request.Context(), oldClaims.Sub)
 	if err != nil {
 		logger.FromGin(c).Error("failed to verify phone-login user during refresh", zap.Error(err))
 		h.clearTokenCookies(c)

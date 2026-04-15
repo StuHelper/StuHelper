@@ -28,8 +28,6 @@ export interface Notification {
   sourceModule?: string
   sourceId?: string
   sourceUrl?: string
-  relatedType?: string
-  relatedID?: string
   courseID?: number
   isRead: boolean
   createdAt: string

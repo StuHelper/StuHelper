@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"net/url"
 )
 
@@ -308,10 +307,11 @@ func Load() (*Config, error) {
 	parseErrs = append(parseErrs, securityErrs...)
 
 	if cfg.Database.URL == "" && cfg.Database.Host != "" {
-		cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-			cfg.Database.User, url.QueryEscape(cfg.Database.Password),
+		cfg.Database.URL = assembleDBURL(
+			cfg.Database.User, cfg.Database.Password,
 			cfg.Database.Host, cfg.Database.Port,
-			cfg.Database.Name, cfg.Database.SSLMode)
+			cfg.Database.Name, cfg.Database.SSLMode,
+		)
 	} else if cfg.Database.URL != "" && cfg.Database.Host != "localhost" {
 		parseErrs = append(parseErrs, "both DATABASE_URL and DB_HOST are set; DATABASE_URL takes priority, individual DB_* fields will be ignored")
 	}
@@ -321,4 +321,19 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// assembleDBURL builds a PostgreSQL connection URL from individual fields.
+// It uses url.UserPassword to correctly percent-encode the password in the
+// userinfo section of the URI (RFC 3986), avoiding the url.QueryEscape bug
+// that would encode spaces as '+' instead of '%20'.
+func assembleDBURL(user, password, host, port, dbName, sslMode string) string {
+	dbURL := &url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(user, password),
+		Host:     host + ":" + port,
+		Path:     dbName,
+		RawQuery: "sslmode=" + url.QueryEscape(sslMode),
+	}
+	return dbURL.String()
 }

@@ -1773,15 +1773,19 @@ export interface components {
         Notification: {
             /** Format: uuid */
             id: string;
-            /** @enum {string} */
-            type: "reply" | "vote" | "system";
+            type: components["schemas"]["NotificationType"];
             title: string;
             content?: string;
-            relatedType?: string;
-            relatedID?: string;
+            payload?: components["schemas"]["NotificationPayload"];
+            /** @description 触发通知的业务模块（canonical wire field） */
+            sourceModule?: string;
+            /** @description 触发通知的资源 ID（canonical wire field） */
+            sourceId?: string;
+            /** @description 前端可直接跳转的目标地址（canonical wire field） */
+            sourceUrl?: string;
             /**
              * Format: int64
-             * @description 关联课程ID，用于前端精准跳转
+             * @description 关联课程 ID，用于前端精准跳转
              */
             courseID?: number;
             isRead: boolean;
@@ -2102,6 +2106,11 @@ export interface components {
             scopeSchoolIDs?: string[];
             scopeRoles?: string[];
             global: boolean;
+        };
+        /** @enum {string} */
+        NotificationType: "reply" | "like" | "vote" | "review_hidden" | "review_restored" | "report_resolved" | "identity_approved" | "identity_rejected" | "student_approved" | "student_rejected" | "system";
+        NotificationPayload: {
+            [key: string]: unknown;
         };
         FavoriteStatusData: {
             favorited: boolean;

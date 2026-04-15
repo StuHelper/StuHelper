@@ -207,6 +207,31 @@ func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
 	assert.Contains(t, err.Error(), "OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1")
 }
 
+func TestDatabaseURLAssembly_SpecialPasswordCharacters(t *testing.T) {
+	tests := []struct {
+		name     string
+		password string
+		wantSub  string // substring that must appear in the assembled URL
+	}{
+		{"space", "my pass", "my%20pass"},
+		{"plus sign", "my+pass", "my+pass"},           // '+' is valid in userinfo, no encoding needed
+		{"at sign", "p@ss", "p%40ss"},                  // '@' must be encoded in userinfo
+		{"colon", "p:ss", "p%3Ass"},                    // ':' in password must be encoded
+		{"simple", "simplepass", "simplepass"},          // no special chars
+		{"slash", "p/ss", "p%2Fss"},                    // '/' must be encoded in userinfo
+		{"percent", "100%done", "100%25done"},           // '%' must be encoded
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dbURL := assembleDBURL("testuser", tt.password, "localhost", "5432", "testdb", "disable")
+			assert.Contains(t, dbURL, tt.wantSub, "password encoding mismatch")
+			assert.Contains(t, dbURL, "postgres://")
+			assert.Contains(t, dbURL, "sslmode=disable")
+		})
+	}
+}
+
 func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
 	c := &Config{
 		App: AppConfig{

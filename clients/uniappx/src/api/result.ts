@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/auth'
 import { translate } from '@/i18n'
+import { parseApiError, extractApiErrorMessage } from '@stuhelper/shared/api'
 
 export interface StructuredApiError {
   code?: string
@@ -27,45 +28,26 @@ function readStatus(result: ApiCallResult<unknown>): number | undefined {
   return result.response?.status
 }
 
-function normalizeStructuredError(value: unknown): StructuredApiError | null {
-  if (typeof value === 'string') {
-    return value ? { message: value } : null
-  }
-
-  if (!value || typeof value !== 'object') {
-    return null
-  }
-
-  const record = value as Record<string, unknown>
-  const code = typeof record.code === 'string' ? record.code : undefined
-  const message = typeof record.message === 'string' ? record.message : undefined
-  const details = 'details' in record ? record.details : undefined
-
-  if (!code && !message && typeof details === 'undefined') {
-    return null
-  }
-
-  return { code, message, details }
-}
-
 export function extractErrorMessage(result: ApiCallResult<unknown>): string {
-  const envelope = result.data
-  const envelopeError = normalizeStructuredError(envelope?.error)
-  if (envelopeError?.message) return envelopeError.message
-  if (typeof envelope?.error === 'string' && envelope.error) return envelope.error
-  if (envelope?.message) return envelope.message
+  // 从 envelope 提取（使用 shared 统一解析）
+  if (result.data) {
+    const msg = extractApiErrorMessage(result.data, '')
+    if (msg) return msg
+  }
 
-  const structuredError = normalizeStructuredError(result.error)
-  if (structuredError?.message) return structuredError.message
-  if (structuredError?.code) return structuredError.code
+  // runtime error
+  if (result.error) {
+    const msg = extractApiErrorMessage(result.error, '')
+    if (msg) return msg
 
-  if (result.error && typeof result.error === 'object') {
-    const error = result.error as Record<string, unknown>
-    const nestedError = normalizeStructuredError(error.error)
-    if (nestedError?.message) return nestedError.message
-    if (nestedError?.code) return nestedError.code
-    const nestedMessage = error.message
-    if (typeof nestedMessage === 'string' && nestedMessage) return nestedMessage
+    // 嵌套 error 对象
+    if (typeof result.error === 'object') {
+      const nested = (result.error as Record<string, unknown>).error
+      if (nested) {
+        const nestedMsg = extractApiErrorMessage({ error: nested }, '')
+        if (nestedMsg) return nestedMsg
+      }
+    }
   }
 
   const status = readStatus(result)

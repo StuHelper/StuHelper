@@ -239,7 +239,16 @@ func (r *UserSyncRepository) ExistsByExternalID(ctx context.Context, externalID 
 	return exists, nil
 }
 
-// BackfillUserHashes 回填所有 user_hash 为空的用户。启动时调用一次。
+// CountMissingUserHashes 返回 user_hash 为空的用户数量（用于启动时检查）。
+func (r *UserSyncRepository) CountMissingUserHashes(ctx context.Context) (int64, error) {
+	var count int64
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE user_hash IS NULL`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("CountMissingUserHashes: %w", err)
+	}
+	return count, nil
+}
+
+// BackfillUserHashes 回填所有 user_hash 为空的用户。
 // 使用分批处理避免一次性加载全量用户数据。
 func (r *UserSyncRepository) BackfillUserHashes(ctx context.Context) (int64, error) {
 	const batchSize = 500

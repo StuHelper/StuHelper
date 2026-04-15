@@ -1,4 +1,4 @@
-import { createApiClient } from "@stuhelper/shared/api";
+import { createApiClient, parseApiError } from "@stuhelper/shared/api";
 import {
     ApiError,
     httpStatusToDefaultCode,
@@ -267,29 +267,14 @@ async function authenticatedFetch(input: Request): Promise<Response> {
 }
 
 function buildApiError(response: Response, payload: unknown): ApiError {
-    let errorData: {
-        code?: string;
-        message?: string;
-        details?: Record<string, unknown>;
-    } | undefined;
-
-    if (typeof payload === "object" && payload !== null && "error" in payload) {
-        const rawError = (payload as Record<string, unknown>).error;
-        if (typeof rawError === "object" && rawError !== null) {
-            errorData = rawError as {
-                code?: string;
-                message?: string;
-                details?: Record<string, unknown>;
-            };
-        }
-    }
+    const errorData = parseApiError(payload);
 
     return new ApiError({
         message:
-            errorData?.message || response.statusText || "API request failed",
-        code: errorData?.code || httpStatusToDefaultCode(response.status),
+            errorData.message || response.statusText || "API request failed",
+        code: errorData.code || httpStatusToDefaultCode(response.status),
         status: response.status,
-        details: errorData?.details,
+        details: errorData.details,
         requestID: response.headers.get("X-Request-Id") || undefined,
     });
 }

@@ -4514,14 +4514,6 @@ components:
         sourceUrl:
           type: string
           description: 前端可直接跳转的目标地址（canonical wire field）
-        relatedType:
-          type: string
-          deprecated: true
-          description: 兼容旧前端的 sourceModule 别名；新代码请使用 sourceModule
-        relatedID:
-          type: string
-          deprecated: true
-          description: 兼容旧前端的 sourceId 别名；新代码请使用 sourceId
         courseID:
           type: integer
           format: int64

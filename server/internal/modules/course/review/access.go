@@ -35,14 +35,14 @@ type ReviewAccessFacts struct {
 	PreviewContentPct   int
 }
 
-func (h *Handler) getReviewAccessPolicy(ctx context.Context) (systemconfig.ReviewAccessPolicySnapshot, error) {
-	cached := h.readReviewAccessPolicy()
+func (s *Service) getReviewAccessPolicy(ctx context.Context) (systemconfig.ReviewAccessPolicySnapshot, error) {
+	cached := s.readReviewAccessPolicy()
 	if policyFresh(cached) {
 		return cached, nil
 	}
 
-	result, err, _ := h.accessPolicySF.Do("access-policy", func() (interface{}, error) {
-		cached := h.readReviewAccessPolicy()
+	result, err, _ := s.accessPolicySF.Do("access-policy", func() (interface{}, error) {
+		cached := s.readReviewAccessPolicy()
 		if policyFresh(cached) {
 			return cached, nil
 		}
@@ -50,7 +50,7 @@ func (h *Handler) getReviewAccessPolicy(ctx context.Context) (systemconfig.Revie
 		refreshCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		policy, err := h.loadReviewAccessPolicy(refreshCtx)
+		policy, err := s.loadReviewAccessPolicy(refreshCtx)
 		if err != nil {
 			if !cached.LoadedAt.IsZero() {
 				logger.L().Warn("failed to refresh review access policy, using stale policy", zap.Error(err))
@@ -72,7 +72,7 @@ func (h *Handler) getReviewAccessPolicy(ctx context.Context) (systemconfig.Revie
 	return policy, nil
 }
 
-func (h *Handler) readReviewAccessPolicy() systemconfig.ReviewAccessPolicySnapshot {
+func (s *Service) readReviewAccessPolicy() systemconfig.ReviewAccessPolicySnapshot {
 	return systemconfig.GetReviewAccessPolicySnapshot()
 }
 
@@ -83,12 +83,12 @@ func policyFresh(policy systemconfig.ReviewAccessPolicySnapshot) bool {
 	return time.Since(policy.LoadedAt) <= reviewAccessPolicyTTL
 }
 
-func (h *Handler) loadReviewAccessPolicy(ctx context.Context) (systemconfig.ReviewAccessPolicySnapshot, error) {
-	schools, err := h.userRepo.ListSchoolConfigs(ctx)
+func (s *Service) loadReviewAccessPolicy(ctx context.Context) (systemconfig.ReviewAccessPolicySnapshot, error) {
+	schools, err := s.accessReader.ListSchoolConfigs(ctx)
 	if err != nil {
 		return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("load enabled schools: %w", err)
 	}
-	configs, err := h.userRepo.ListSystemConfigs(ctx)
+	configs, err := s.accessReader.ListSystemConfigs(ctx)
 	if err != nil {
 		return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("load system configs: %w", err)
 	}
@@ -161,8 +161,10 @@ func firstNonEmptyConfig(configs map[string]string, keys ...string) (string, boo
 	return "", false
 }
 
-func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID string, capabilities []string) (ReviewAccessFacts, error) {
-	policy, err := h.getReviewAccessPolicy(ctx)
+// ResolveAccessFacts 解析当前用户的评课访问事实。
+// 由 Service 统一生产，Handler 不再自行拼装。
+func (s *Service) ResolveAccessFacts(ctx context.Context, externalID string, capabilities []string) (ReviewAccessFacts, error) {
+	policy, err := s.getReviewAccessPolicy(ctx)
 	if err != nil {
 		return ReviewAccessFacts{}, err
 	}
@@ -181,7 +183,7 @@ func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID strin
 	// 从 Token 角色展开的能力中检查管理权限（零 DB 查询）
 	facts.CanManageReviews = capability.Has(capabilities, capability.AdminReviewsManage)
 
-	subject, err := h.userRepo.GetReviewAccessSubjectByExternalID(ctx, externalID)
+	subject, err := s.accessReader.GetReviewAccessSubjectByExternalID(ctx, externalID)
 	if err != nil {
 		return facts, err
 	}
@@ -203,7 +205,7 @@ func (h *Handler) resolveReviewAccessFacts(ctx context.Context, externalID strin
 func (h *Handler) resolveReviewAccessFactsForRequest(c *gin.Context) ReviewAccessFacts {
 	externalID := middleware.GetUserID(c)
 	capabilities := middleware.GetCapabilities(c)
-	facts, err := h.resolveReviewAccessFacts(c.Request.Context(), externalID, capabilities)
+	facts, err := h.service.ResolveAccessFacts(c.Request.Context(), externalID, capabilities)
 	if err == nil {
 		return facts
 	}

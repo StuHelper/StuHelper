@@ -18,13 +18,15 @@ import (
 type Service struct {
 	tokenService *token.Service
 	tokenConfig  config.TokenConfig
+	userSyncRepo UserSyncRepo
 }
 
 // NewService 创建认证业务逻辑服务
-func NewService(cfg *config.Config, tokenService *token.Service) *Service {
+func NewService(cfg *config.Config, tokenService *token.Service, userSyncRepo UserSyncRepo) *Service {
 	return &Service{
 		tokenService: tokenService,
 		tokenConfig:  cfg.Token,
+		userSyncRepo: userSyncRepo,
 	}
 }
 
@@ -82,14 +84,17 @@ func (s *Service) RotateTokenPair(ctx context.Context, userID, oldRefreshToken, 
 	}
 }
 
-// RevokeCurrentSession 将指定 token 加入黑名单并解除跟踪（用于 Logout 单设备）
-func (s *Service) RevokeCurrentSession(ctx context.Context, userID, accessToken, refreshToken string) {
+// RevokeCurrentSession 将指定 token 加入黑名单并解除跟踪（用于 Logout 单设备）。
+// 黑名单写入是权威撤销操作——失败时返回 error，调用方不得向客户端承诺"登出成功"。
+// untrack 为辅助清理，失败仅 warn。
+func (s *Service) RevokeCurrentSession(ctx context.Context, userID, accessToken, refreshToken string) error {
 	if accessToken != "" {
 		if blErr := s.tokenService.GetBlacklist().Add(ctx, accessToken, s.tokenService.GetAccessTokenTTL()); blErr != nil {
-			logger.L().Warn("failed to blacklist access token",
+			logger.L().Error("failed to blacklist access token",
 				zap.String("user_id", userID),
 				zap.Error(blErr),
 			)
+			return fmt.Errorf("revoke access token: %w", blErr)
 		}
 		if untrackErr := s.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, accessToken, token.TokenTypeAccess); untrackErr != nil {
 			logger.L().Warn("failed to untrack access token",
@@ -100,10 +105,11 @@ func (s *Service) RevokeCurrentSession(ctx context.Context, userID, accessToken,
 	}
 	if refreshToken != "" {
 		if blErr := s.tokenService.GetBlacklist().Add(ctx, refreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
-			logger.L().Warn("failed to blacklist refresh token",
+			logger.L().Error("failed to blacklist refresh token",
 				zap.String("user_id", userID),
 				zap.Error(blErr),
 			)
+			return fmt.Errorf("revoke refresh token: %w", blErr)
 		}
 		if untrackErr := s.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, refreshToken, token.TokenTypeRefresh); untrackErr != nil {
 			logger.L().Warn("failed to untrack refresh token",
@@ -112,6 +118,7 @@ func (s *Service) RevokeCurrentSession(ctx context.Context, userID, accessToken,
 			)
 		}
 	}
+	return nil
 }
 
 // RevokeAllSessions 撤销用户的全部 token（用于 LogoutAll）
@@ -160,4 +167,29 @@ func (s *Service) SignPhoneTokenPair(user *PhoneUser, roles []string) (accessTok
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+// SyncOIDCUser 同步 OIDC 登录的用户到本地 shadow user 表。
+// 登录成功必须意味着内部主体已就绪。
+func (s *Service) SyncOIDCUser(ctx context.Context, input UserSyncInput) error {
+	if s.userSyncRepo == nil {
+		return fmt.Errorf("user sync repository is not configured")
+	}
+	return s.userSyncRepo.UpsertUser(ctx, input)
+}
+
+// SyncPhoneUser 通过手机号查找或创建用户。
+func (s *Service) SyncPhoneUser(ctx context.Context, phone string) (*PhoneUser, error) {
+	if s.userSyncRepo == nil {
+		return nil, fmt.Errorf("user sync repository is not configured")
+	}
+	return s.userSyncRepo.UpsertByPhone(ctx, phone)
+}
+
+// UserExistsByExternalID 检查用户是否存在（用于 refresh token 校验）。
+func (s *Service) UserExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
+	if s.userSyncRepo == nil {
+		return false, fmt.Errorf("user sync repository is not configured")
+	}
+	return s.userSyncRepo.ExistsByExternalID(ctx, externalID)
 }

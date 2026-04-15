@@ -10,8 +10,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -57,6 +59,20 @@ type Service struct {
 	dimensionCache atomic.Value // map[string]string
 	fgaWriter      reviewFGAWriter
 	notifSender    notification.Sender // nil-safe: skip notifications if not wired
+	accessReader   ReviewAccessReader
+	accessPolicySF singleflight.Group
+}
+
+// ReviewAccessReader 访问控制策略数据源（由 user.Repository 实现）。
+type ReviewAccessReader interface {
+	ListSchoolConfigs(ctx context.Context) ([]user.SchoolConfig, error)
+	ListSystemConfigs(ctx context.Context) ([]user.SystemConfig, error)
+	GetReviewAccessSubjectByExternalID(ctx context.Context, externalID string) (*user.ReviewAccessSubject, error)
+}
+
+// SetAccessReader 注入访问控制数据源（可选依赖，nil 安全）。
+func (s *Service) SetAccessReader(reader ReviewAccessReader) {
+	s.accessReader = reader
 }
 
 // NewService 创建评课服务
