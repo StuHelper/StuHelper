@@ -1,0 +1,96 @@
+# StuHelper 应用服务路由
+#
+# 覆盖范围：
+#   /api/*    → backend (Go 服务，strip /api 前缀)
+#   /admin/*  → admin 前端 (Vben Admin)
+#   /         → web 前端 (Vue SPA)
+#
+# 优先级约定（与 zitadel.dynamic.yaml 协调）：
+#   Zitadel 路由: 800–1100（见 zitadel.dynamic.yaml）
+#   应用路由:     500–700（本文件）
+#
+# 注意：开发环境下 backend/frontend/admin 通过 dev-full 或 prod profile 启动。
+# 当对应容器不存在时，Traefik 会将这些 router 标记为不可用，不会影响其他路由。
+
+http:
+  middlewares:
+    # 去除 /api 前缀后转发给 backend
+    strip-api-prefix:
+      stripPrefix:
+        prefixes:
+          - /api
+
+    # 安全响应头（所有应用服务共享）
+    security-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        frameDeny: true
+        stsIncludeSubdomains: true
+        stsSeconds: 31536000
+        customResponseHeaders:
+          X-Powered-By: ""
+
+    # 压缩中间件
+    gzip-compress:
+      compress:
+        excludedContentTypes:
+          - "application/grpc"
+
+  routers:
+    # /api/* → backend（Go 服务）
+    # 优先级 700：最高，确保 API 路径不被前端 SPA 拦截
+    backend-api:
+      rule: "PathPrefix(`/api`)"
+      entryPoints:
+        - web
+        - websecure
+      middlewares:
+        - strip-api-prefix
+        - security-headers
+      service: backend
+      priority: 700
+
+    # /admin/* → admin 前端（Vben Admin，base path = /admin/）
+    # 优先级 600：高于 web 前端的 catch-all
+    admin-web:
+      rule: "PathPrefix(`/admin`)"
+      entryPoints:
+        - web
+        - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+      service: admin
+      priority: 600
+
+    # / → web 前端（Vue SPA，catch-all）
+    # 优先级 500：最低应用路由，兜底所有非 API / 非 admin / 非 Zitadel 路径
+    frontend-web:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - web
+        - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+      service: frontend
+      priority: 500
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: http://app:8080
+        healthCheck:
+          path: /health/live
+          interval: 10s
+          timeout: 3s
+    frontend:
+      loadBalancer:
+        servers:
+          - url: http://frontend:80
+    admin:
+      loadBalancer:
+        servers:
+          - url: http://admin:8080

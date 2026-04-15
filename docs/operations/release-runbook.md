@@ -152,3 +152,89 @@ Smoke Check 结果:
 回滚情况:
 备注:
 ```
+
+## TLS 终止策略
+
+### 方案选择
+
+StuHelper 支持两种 TLS 终止模式，根据部署环境选择：
+
+| 模式 | 适用场景 | 证书管理 |
+|------|---------|---------|
+| **Traefik ACME** | 单机部署，无外部 LB | Traefik 自动申请 Let's Encrypt 证书 |
+| **External LB** | 云厂商 LB / CDN 前置 | 外部 LB 终止 TLS，Traefik 仅接收 HTTP |
+
+### 方案 A：Traefik ACME（推荐单机部署）
+
+Traefik 内置 Let's Encrypt ACME 客户端，通过 HTTP-01 challenge 自动申请和续期证书。
+
+**启用步骤：**
+
+1. 在 `.env` 中配置：
+
+```bash
+# 绑定公网 IP（必须，ACME HTTP-01 challenge 需要 80 端口可达）
+TRAEFIK_BIND_IP=0.0.0.0
+TRAEFIK_HTTP_PORT=80
+TRAEFIK_HTTPS_PORT=443
+
+# 设置邮箱即启用 ACME
+TRAEFIK_ACME_EMAIL=admin@stuhelper.com
+
+# 启用 HTTP → HTTPS 强制重定向
+TRAEFIK_TLS_REDIRECT_TARGET=websecure
+TRAEFIK_TLS_REDIRECT_PERMANENT=true
+```
+
+2. 确保域名 A 记录指向服务器公网 IP
+3. 确保防火墙开放 80 和 443 端口
+4. 证书自动存储在 `acme_data` Docker 卷中（`/acme/acme.json`）
+5. 证书自动续期，无需人工干预
+
+**注意事项：**
+
+- ACME HTTP-01 challenge 要求 80 端口从公网可达
+- 首次启动时证书申请可能需要 1-2 分钟
+- Let's Encrypt 有速率限制（每域名每周 50 张证书），测试时建议使用 staging CA
+- 证书存储在 Docker 卷中，`docker compose down -v` 会删除证书
+
+### 方案 B：External LB 终止 TLS
+
+由外部负载均衡器（如阿里云 SLB、AWS ALB、Cloudflare）终止 TLS，Traefik 仅处理 HTTP 流量。
+
+**配置步骤：**
+
+1. 在 `.env` 中配置：
+
+```bash
+# Traefik 仅监听 HTTP，不暴露 443
+TRAEFIK_BIND_IP=0.0.0.0
+TRAEFIK_HTTP_PORT=80
+
+# 不设置 ACME 邮箱（禁用 ACME）
+TRAEFIK_ACME_EMAIL=
+
+# 不设置重定向（由 LB 处理）
+TRAEFIK_TLS_REDIRECT_TARGET=
+```
+
+2. 外部 LB 配置：
+   - 监听 443 (HTTPS)，后端转发到 Traefik 的 80 (HTTP)
+   - 设置 `X-Forwarded-Proto: https` 头
+   - 在 LB 上配置 TLS 证书
+
+3. 应用层面需要配置受信代理：
+   - 设置 `TRUSTED_PROXIES` 为 LB 的内网 IP
+   - Zitadel 的 `ZITADEL_PUBLIC_SCHEME=https`、`ZITADEL_EXTERNALSECURE=true`
+
+### TLS 终止检查清单
+
+发布前确认：
+
+- [ ] `ZITADEL_PUBLIC_SCHEME` 与实际 scheme 一致（http/https）
+- [ ] `ZITADEL_EXTERNALSECURE` 与实际 scheme 一致
+- [ ] `ZITADEL_EXTERNALPORT` 与实际端口一致（ACME 模式下通常为 443）
+- [ ] `CORS_ORIGINS` 使用正确的 scheme 和端口
+- [ ] `WEB_VITE_SSO_URL` 使用正确的 scheme
+- [ ] `TOKEN_COOKIE_SECURE=true`（生产必须）
+- [ ] 如果使用 External LB，`TRUSTED_PROXIES` 已正确配置

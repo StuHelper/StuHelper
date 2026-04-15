@@ -1,13 +1,21 @@
 # StuHelper Docker Compose
 #
-# 基于 Zitadel 官方 deploy/compose 模式，适配 StuHelper 共享 PostgreSQL。
-# 架构：Traefik (80) → Zitadel API (8080/h2c) + Zitadel Login V2 (3000)
+# 架构：Traefik (edge proxy) → 所有 HTTP 服务
 #
-# 路由优先级（Traefik）:
-#   /              (400) → rewrite → /ui/v2/login/ → zitadel-login
-#   /ui/v2/login/* (250) → zitadel-login
-#   /api/*         (200) → strip /api → zitadel-api
-#   其他           (100) → zitadel-api（gRPC-Web, Console, OIDC endpoints）
+# Traefik 动态路由文件（infra/traefik/）:
+#   zitadel.dynamic.yaml  — Zitadel IAM 路由（优先级 800–1100）
+#   services.dynamic.yaml — 应用服务路由（优先级 500–700）
+#   tls.dynamic.yaml      — TLS 选项（生产环境启用 ACME 时加载）
+#
+# 路由优先级总览:
+#   /ui/v2/login/*  (1100) → zitadel-login
+#   /oidc/* 等      (1000) → zitadel-api（OIDC/OAuth/SAML/well-known）
+#   /ui/console/*   (950)  → zitadel-api（Zitadel Admin Console）
+#   /zitadel.* 等   (900)  → zitadel-api（gRPC-Web protobuf）
+#   /management/*   (850)  → zitadel-api（REST API 原生路径）
+#   /api/*          (700)  → backend（Go 服务，strip /api）
+#   /admin/*        (600)  → admin 前端（Vben Admin）
+#   /               (500)  → web 前端（Vue SPA，catch-all）
 #
 # 使用方式:
 #   开发（仅基础设施）:  docker compose up -d --wait
@@ -20,17 +28,35 @@ services:
     container_name: ${STACK_NAME:-stuhelper}-proxy
     restart: unless-stopped
     command:
-    - --providers.file.filename=/etc/traefik/dynamic/zitadel.yaml
+    # 动态配置目录（加载 infra/traefik/ 下所有 .yaml 文件）
+    - --providers.file.directory=/etc/traefik/dynamic
     - --providers.file.watch=true
+    # HTTP 入口（开发 + 生产共用）
     - --entrypoints.web.address=:80
+    # HTTPS 入口（生产启用 TLS 时使用；开发环境下无证书则不接受连接，无副作用）
+    - --entrypoints.websecure.address=:443
+    # HTTP → HTTPS 自动重定向（仅在 TRAEFIK_TLS_REDIRECT=true 时生效）
+    - --entrypoints.web.http.redirections.entryPoint.to=${TRAEFIK_TLS_REDIRECT_TARGET:-}
+    - --entrypoints.web.http.redirections.entryPoint.permanent=${TRAEFIK_TLS_REDIRECT_PERMANENT:-false}
+    # Let's Encrypt ACME（默认禁用；生产环境设置 TRAEFIK_ACME_EMAIL 即可启用）
+    # 启用时需要挂载 acme_data 卷并设置 TRAEFIK_ACME_EMAIL
+    - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:-}
+    - --certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json
+    - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    # 健康检查
     - --ping=true
     - --ping.entrypoint=web
+    # 日志
     - --log.level=${TRAEFIK_LOG_LEVEL:-WARN}
     - --accesslog=${TRAEFIK_ACCESSLOG_ENABLED:-false}
     ports:
-    - "127.0.0.1:${ZITADEL_EXTERNALPORT:-8085}:80"
+    # HTTP — 开发环境绑定 127.0.0.1，生产环境通过 TRAEFIK_BIND_IP 设为 0.0.0.0
+    - "${TRAEFIK_BIND_IP:-127.0.0.1}:${TRAEFIK_HTTP_PORT:-80}:80"
+    # HTTPS — 同上
+    - "${TRAEFIK_BIND_IP:-127.0.0.1}:${TRAEFIK_HTTPS_PORT:-443}:443"
     volumes:
-    - ./infra/traefik/zitadel.dynamic.yaml:/etc/traefik/dynamic/zitadel.yaml:ro
+    - ./infra/traefik:/etc/traefik/dynamic:ro
+    - acme_data:/acme
     depends_on:
       zitadel-api:
         condition: service_healthy
@@ -44,6 +70,7 @@ services:
 
     networks:
     - frontend
+    - backend
     - zitadel-internal
     deploy:
       resources:
@@ -1111,6 +1138,8 @@ volumes:
     name: ${STACK_NAME:-stuhelper}-minio-data
   zitadel_bootstrap:
     name: ${STACK_NAME:-stuhelper}-zitadel-bootstrap
+  acme_data:
+    name: ${STACK_NAME:-stuhelper}-acme-data
   frontend_dev_node_modules:
     name: ${STACK_NAME:-stuhelper}-frontend-dev-node-modules
   admin_dev_node_modules:
