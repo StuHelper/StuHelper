@@ -1,39 +1,13 @@
 /**
- * 通知相关类型定义
+ * 通知相关类型定义 — 直接别名到 OpenAPI 生成类型
  */
+import type { components } from '../api.gen'
 
-// 通知类型
-export type NotificationType =
-  | 'reply'
-  | 'like'
-  | 'vote'
-  | 'review_hidden'
-  | 'review_restored'
-  | 'report_resolved'
-  | 'identity_approved'
-  | 'identity_rejected'
-  | 'student_approved'
-  | 'student_rejected'
-  | 'system'
+export type NotificationType = components['schemas']['NotificationType']
+export type NotificationPayload = components['schemas']['NotificationPayload']
+export type Notification = components['schemas']['Notification']
 
-export type NotificationPayload = Record<string, unknown>
-
-// 通知
-export interface Notification {
-  id: string
-  type: NotificationType
-  title: string
-  content?: string
-  payload?: NotificationPayload
-  sourceModule?: string
-  sourceId?: string
-  sourceUrl?: string
-  courseID?: number
-  isRead: boolean
-  createdAt: string
-}
-
-// 未读数量响应
+/** 未读数量响应 */
 export interface UnreadCountResponse {
   count: number
 }

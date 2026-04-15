@@ -82,7 +82,7 @@ export const useDraftStore = defineStore('draft', () => {
       ...(draft.termID !== undefined && { termID: draft.termID }),
       ...(draft.title !== undefined && { title: draft.title }),
       ...(draft.content !== undefined && { content: draft.content }),
-      ...(draft.grade !== undefined && { grade: draft.grade }),
+      ...(draft.grade !== undefined && { grade: draft.grade as Draft['grade'] }),
       ...(ratings !== undefined && { ratings }),
       updatedAt: draft.updatedAt,
     }

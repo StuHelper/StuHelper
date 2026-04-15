@@ -1,11 +1,20 @@
 /**
  * 测评相关类型定义
+ *
+ * 核心实体直接别名到 OpenAPI 生成类型。
+ * normalizer 函数负责 wire → view-model 转换。
  */
 import type { components } from '../api.gen'
-import type { RatingValue } from './course'
 
-// 动态评分类型
-export type ReviewRatings = Record<string, RatingValue>
+// ---- OpenAPI 别名 ----
+
+export type Review = components['schemas']['Review']
+export type PostReviewRequest = components['schemas']['PostReviewRequest']
+
+// ---- 前端补充类型 ----
+
+/** 动态评分（维度 key → 分值），与 OpenAPI ReviewRatings 一致 */
+export type ReviewRatings = components['schemas']['ReviewRatings']
 
 export interface PaginatedResult<T> {
   list: T[]
@@ -18,33 +27,8 @@ export interface ReviewContentCheck {
   reason?: string
 }
 
-// 测评
-export interface Review {
-  id: string
-  courseID: number
-  courseName?: string
-  teacherID?: number | null
-  teacherName?: string
-  termID: string
-  termName?: string
-  title: string
-  content: string
-  grade?: string
-  ratings: ReviewRatings
-  likeCount: number
-  dislikeCount: number
-  replyCount: number
-  status: 'published' | 'pending_review' | 'hidden' | 'deleted'
-  contentFlag?: 'warn' | 'review' | 'cleared' | null
-  moderationReason?: string | null
-  createdAt: string
-  updatedAt?: string
-}
+// ---- 守卫 ----
 
-// 发布测评请求（严格对齐 OpenAPI）
-export type PostReviewRequest = components['schemas']['PostReviewRequest']
-
-// 类型守卫：检查是否为有效的评分对象
 export function isValidRatings(
   ratings: unknown,
   requiredKeys: string[]
@@ -52,9 +36,11 @@ export function isValidRatings(
   if (!ratings || typeof ratings !== 'object') return false
   const obj = ratings as Record<string, unknown>
   return requiredKeys.every(
-    key => key in obj && typeof obj[key] === 'number' && obj[key] >= 1 && obj[key] <= 5
+    key => key in obj && typeof obj[key] === 'number' && obj[key]! >= 1 && obj[key]! <= 5
   )
 }
+
+// ---- wire → view-model 转换 ----
 
 type ApiReview = components['schemas']['Review']
 type ApiReviewListPayload = {
@@ -64,12 +50,7 @@ type ApiReviewListPayload = {
 type ApiContentCheckResult = components['schemas']['ContentCheckResult']
 
 export function normalizeReview(apiReview: ApiReview): Review {
-  return {
-    ...apiReview,
-    ratings: apiReview.ratings as ReviewRatings,
-    status: apiReview.status as Review['status'],
-    contentFlag: (apiReview.contentFlag ?? null) as Review['contentFlag'],
-  }
+  return { ...apiReview }
 }
 
 export function normalizeReviews(items?: ApiReview[] | null): Review[] {

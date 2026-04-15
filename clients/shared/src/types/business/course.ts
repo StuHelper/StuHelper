@@ -1,78 +1,32 @@
 /**
  * 课程相关类型定义
+ *
+ * 核心实体类型直接别名到 OpenAPI 生成类型（api.gen.ts 为唯一事实源）。
+ * 仅保留 OpenAPI 未覆盖的前端展示 / 守卫 / 统计类型。
  */
+import type { components } from '../api.gen'
 
-// 评分值 (1-5 五级制)
+// ---- OpenAPI 别名（唯一事实源） ----
+
+export type Course = components['schemas']['Course']
+export type Department = components['schemas']['Department']
+export type Term = components['schemas']['Term']
+export type CourseCategory = components['schemas']['CourseCategory']
+export type FavoriteCourse = components['schemas']['FavoriteCourse']
+export type RatingDimension = components['schemas']['RatingDimension']
+
+// ---- 评分值（OpenAPI 中为 number，此处收窄为字面量联合以便前端守卫） ----
+
 export type RatingValue = 1 | 2 | 3 | 4 | 5
 
-// 评分值数组（用于验证）
 export const RATING_VALUES: readonly RatingValue[] = [1, 2, 3, 4, 5] as const
 
-// 类型守卫：检查是否为有效评分值
 export function isValidRating(value: unknown): value is RatingValue {
   return typeof value === 'number' && RATING_VALUES.includes(value as RatingValue)
 }
 
-// 评分维度配置
-export interface RatingDimension {
-  id: string
-  key: string
-  name: string
-  description?: string
-  sortOrder: number
-  isActive: boolean
-}
+// ---- 前端展示型（OpenAPI 未覆盖的纯 UI 模型） ----
 
-// 院系
-export interface Department {
-  id: number
-  name: string
-  shortName?: string
-  category: string
-}
-
-export interface Term {
-  id: string
-  schoolID?: number
-  name: string
-  isCurrent: boolean
-}
-
-// 课程
-export interface Course {
-  id: number
-  schoolID?: number
-  name: string
-  code?: string
-  credits: number
-  departmentID: number
-  departmentName?: string
-  category?: string
-  reviewCount: number
-}
-
-// 收藏的课程（后端 FavoriteCourse 结构，字段为 Course 子集 + favoritedAt）
-export interface FavoriteCourse {
-  id: number
-  name: string
-  code?: string
-  credits: number
-  departmentID: number
-  departmentName?: string
-  category?: string
-  reviewCount: number
-  favoritedAt: string
-}
-
-// 课程分类（后台可配置）
-export interface CourseCategory {
-  id: number
-  schoolID?: number
-  name: string
-  sortOrder?: number
-}
-
-// 维度评分统计
 export interface DimensionStats {
   key: string
   name: string
@@ -81,14 +35,12 @@ export interface DimensionStats {
   distribution?: Record<string, number>
 }
 
-// 学期评分统计
 export interface TermRatingStats {
   termID?: string
   termName: string
   dimensions: DimensionStats[]
 }
 
-// 雷达图数据集
 export interface RadarChartDataset {
   label: string
   data: number[]
@@ -96,13 +48,11 @@ export interface RadarChartDataset {
   borderColor: string
 }
 
-// 雷达图数据
 export interface RadarChartData {
   labels: string[]
   datasets: RadarChartDataset[]
 }
 
-// 教师统计卡片数据
 export interface TeacherStats {
   teacherID: number
   teacherName: string
@@ -113,7 +63,6 @@ export interface TeacherStats {
   tags?: string[]
 }
 
-// 课程评分统计响应
 export interface CourseRatingStatsResponse {
   courseID: number
   overall: TermRatingStats
