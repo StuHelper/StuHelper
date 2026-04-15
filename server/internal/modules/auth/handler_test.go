@@ -130,7 +130,7 @@ func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
 	}
 
 	const state = "test-state"
-	require.NoError(t, h.storeOIDCState(context.Background(), state, "/courses/1", "test-verifier"))
+	require.NoError(t, h.storeOIDCState(context.Background(), state, "/courses/1", "test-verifier", false))
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -138,10 +138,11 @@ func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 	c.Request = req
 
-	redirect, codeVerifier, err := h.consumeOIDCState(c, state)
+	redirect, codeVerifier, isNative, err := h.consumeOIDCState(c, state)
 	require.NoError(t, err)
 	assert.Equal(t, "/courses/1", redirect)
 	assert.Equal(t, "test-verifier", codeVerifier)
+	assert.False(t, isNative)
 
 	w2 := httptest.NewRecorder()
 	c2, _ := gin.CreateTestContext(w2)
@@ -149,7 +150,7 @@ func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
 	req2.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 	c2.Request = req2
 
-	_, _, err = h.consumeOIDCState(c2, state)
+	_, _, _, err = h.consumeOIDCState(c2, state)
 	require.Error(t, err)
 }
 

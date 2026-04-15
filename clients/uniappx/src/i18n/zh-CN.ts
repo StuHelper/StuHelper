@@ -70,6 +70,13 @@ export const zhCNMessages = {
   'auth.login.useSso': '使用校园 SSO 登录',
   'auth.login.tips': '登录后会自动获取个人中心、收藏、通知、我的评课等真实数据。',
   'auth.requireLogin': '请先登录后再继续',
+  'auth.callback.processing': '正在完成登录...',
+  'auth.callback.success': '登录成功，正在跳转...',
+  'auth.callback.failed': '登录失败',
+  'auth.callback.missingParams': '回调参数缺失，请重新登录',
+  'auth.callback.stateMismatch': '安全校验失败，请重新登录',
+  'auth.callback.exchangeFailed': '令牌交换失败，请重试',
+  'auth.callback.retry': '重新登录',
 
   'home.greetingBack': '欢迎回来，{name}',
   'home.greetingGuest': '欢迎使用 StuHelper',

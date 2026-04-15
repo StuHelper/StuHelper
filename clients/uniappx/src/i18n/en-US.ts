@@ -70,6 +70,13 @@ export const enUSMessages = {
   'auth.login.useSso': 'Use campus SSO',
   'auth.login.tips': 'After signing in you can access real profile, favorites, notifications, and my-review data.',
   'auth.requireLogin': 'Please sign in first.',
+  'auth.callback.processing': 'Completing sign-in...',
+  'auth.callback.success': 'Signed in successfully, redirecting...',
+  'auth.callback.failed': 'Sign-in failed',
+  'auth.callback.missingParams': 'Missing callback parameters. Please sign in again.',
+  'auth.callback.stateMismatch': 'Security check failed. Please sign in again.',
+  'auth.callback.exchangeFailed': 'Token exchange failed. Please try again.',
+  'auth.callback.retry': 'Sign in again',
 
   'home.greetingBack': 'Welcome back, {name}',
   'home.greetingGuest': 'Welcome to StuHelper',
