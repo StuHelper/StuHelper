@@ -141,3 +141,58 @@ WAL_ARCHIVE_DIR=/opt/stuhelper/infra/generated/postgres/wal-archive \
 - [ ] base backup + WAL 归档可恢复到目标时间点
 - [ ] 恢复后应用健康检查通过
 - [ ] Web / Admin Smoke Check 通过
+
+## 恢复演练
+
+### 恢复验证步骤
+
+恢复完成后，按以下顺序确认数据完整性：
+
+1. **校验文件完整性**：对比恢复所用 dump 文件的 `.sha256` 是否与备份时生成的一致
+2. **核心表行数比对**：恢复前记录各核心表的行数，恢复后重新查询并比对
+   ```bash
+   psql "$DATABASE_URL" -c "
+     SELECT 'users' AS tbl, count(*) FROM users
+     UNION ALL SELECT 'courses', count(*) FROM courses
+     UNION ALL SELECT 'reviews', count(*) FROM reviews
+     UNION ALL SELECT 'reports', count(*) FROM reports;
+   "
+   ```
+3. **最新记录时间戳检查**：确认恢复后数据库中最新一条记录的 `created_at` 与预期备份时间点一致
+   ```bash
+   psql "$DATABASE_URL" -c "SELECT max(created_at) FROM reviews;"
+   ```
+4. **应用层冒烟检查**：运行 `./infra/ops/smoke-check.sh`，确认所有业务端点正常响应
+5. **认证流程验证**：手动执行一次登录 → 访问受保护端点 → 登出流程，确认 OIDC + token 链路完整
+6. **外键与约束检查**：确认数据库约束未被破坏
+   ```bash
+   psql "$DATABASE_URL" -c "
+     SELECT conname, conrelid::regclass
+     FROM pg_constraint
+     WHERE contype = 'f' AND NOT convalidated;
+   "
+   ```
+
+### 定期演练建议
+
+| 演练类型 | 频率 | 负责人 | 说明 |
+|---------|------|--------|------|
+| 逻辑备份恢复 | 每月一次 | 运维 / DBA | 在 staging 环境还原最新逻辑备份并执行上述验证步骤 |
+| Base Backup + PITR | 每季度一次 | 运维 / DBA | 还原 base backup 并追 WAL 到指定时间点，验证数据一致性 |
+| 对象存储拉取 | 每月一次 | 运维 | 从对象存储拉取全部备份工件到干净机器，验证文件完整 |
+| 全链路演练 | 每季度一次 | 全团队 | 模拟生产故障：停库 → 拉取备份 → 恢复 → 冒烟检查 → 业务验证 |
+
+### 演练记录模板
+
+每次演练完成后填写记录，归档至 `docs/operations/drill-logs/`：
+
+```
+日期：YYYY-MM-DD
+演练类型：逻辑备份恢复 / PITR / 全链路
+执行人：
+备份文件：
+恢复耗时：
+验证结果：通过 / 未通过
+发现问题：
+改进措施：
+```

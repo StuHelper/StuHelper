@@ -15,6 +15,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 // RequestPhoneOTP 发送手机验证码
@@ -135,19 +136,28 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	// 角色由 Zitadel ID Token claims 提供。
 	roles := []string{"user"}
 
-	// 签发自签名 JWT 对
-	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(user, roles)
+	// 创建 session（Token Family）
+	sessionID, sessIDErr := token.GenerateSessionID()
+	if sessIDErr != nil {
+		logger.FromGin(c).Error("failed to generate session ID", zap.Error(sessIDErr))
+		response.InternalError(c, "login failed")
+		return
+	}
+
+	// 签发自签名 JWT 对（含 session ID）
+	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(user, roles, sessionID)
 	if err != nil {
 		logger.FromGin(c).Error("failed to sign phone JWT pair", zap.Error(err))
 		response.InternalError(c, "login failed")
 		return
 	}
 
-	// Token 跟踪（支持 LogoutAll）— 必须在写入 Cookie 之前完成
-	if err := h.svc.TrackTokenPair(c.Request.Context(), user.ExternalID, accessToken, refreshToken); err != nil {
-		logger.FromGin(c).Error("failed to track phone login tokens",
+	// 创建服务端 Session 并跟踪 token — 必须在写入 Cookie 之前完成
+	deviceInfo := c.Request.UserAgent()
+	if _, sessErr := h.svc.CreateSession(c.Request.Context(), user.ExternalID, accessToken, refreshToken, "phone", deviceInfo); sessErr != nil {
+		logger.FromGin(c).Error("failed to create session",
 			zap.String("user_id", user.ExternalID),
-			zap.Error(err),
+			zap.Error(sessErr),
 		)
 		response.InternalError(c, "login failed")
 		return

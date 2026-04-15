@@ -1203,6 +1203,7 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 ### D-02 Auth 升级为服务端 Session / Token Family
 - **决策**：引入服务端 Session / Token Family 模型
 - **理由**：当前 token 跟踪机制（`TrackUserToken`/`UntrackUserToken`）已是 session 管理雏形，升级为正式 session_id 成本不高。logout/refresh/revoke 语义将统一操作服务端状态。
+- **已完成**：2026-04-15 实现。新增 `token.SessionStore`（Redis-backed），JWT Claims 增加 `sid` 字段，login/logout/refresh 全部改为基于 Session 操作。手机登录通过 JWT `sid` claim 传递 session ID；OIDC 登录通过独立 `session_id` HttpOnly cookie 传递（Zitadel ID Token 无法注入自定义 claim）。两种登录路径在 logout/refresh 时统一通过 `getSessionID()` 获取 session ID。兼容旧 token 跟踪系统（渐进迁移）。
 
 ### D-03 `auth/user_sync.go` 迁入 `modules/user`
 - **决策**：迁入 `modules/user` persistence 层
@@ -1238,7 +1239,8 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 ### D-10 `uniappx` 定位为正式产品线（native supported）
 - **决策**：方案 A — 补完整 native auth 闭环，纳入正式质量矩阵
 - **理由**：项目有原生端交付需求。
-- **执行**：补齐 app scheme / deep link / callback / session bootstrap，增加专项 QA checklist。
+- **执行**：补齐 app scheme / deep link / callback / session bootstrap，增加专项 QA checklist。  
+  *待确认项：原生端续期闭环仍未在客户端完全打通（`/api/v1/auth/refresh` 目前未注入 refresh token）。*
 
 ### D-11 Admin 收敛为单一 `web-ele`，删除其余变体
 - **决策**：方案 A — 直接删除 `web-antd`、`web-antdv-next`、`web-naive`
@@ -1284,38 +1286,39 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 - ✅ `user_hash` 回填迁出启动路径（F-20：改为仅检查+警告）
 - ✅ 删除 faceid 死包（F-19）
 - ✅ `clients/shared` 的 source-first 消费模式收口（D-15：exports 增加 source 条件，web tsconfig 增加 paths，冷启动 type-check 已验证通过）
-- 发布前备份容器化（D-09：需要基础设施测试环境）
-- 仓库内 edge proxy 正式化（D-05：需要拓扑 / 证书决策）
-- `uniappx` native auth 闭环补齐（D-10：需要原生端开发与测试）
+- ✅ 发布前备份容器化（D-09：`backup-postgres.sh` 已容器化执行）
+- ✅ 仓库内 edge proxy 正式化（D-05：`.env.prod.example` 补齐 Traefik 生产变量，docker-compose 注释改进）
+- ✅ `uniappx` native auth 闭环（D-10）补齐 callback/deep-link/scheme 机制
+- ⚠️ `uniappx` native auth token 续期闭环仍待补（`/api/v1/auth/refresh` 当前未绑定 refresh token）
 
 ### Batch 2：契约治理
 - ✅ Go/TS 生成链路已统一消费 bundled spec（F-05）
 - ✅ Review create 输入已严格对齐 OpenAPI（F-04）
 - ✅ 清理 Notification deprecated 别名 `relatedType`/`relatedID`（D-01：OpenAPI、Go model、shared types、frontend fallback 全部清除）
 - ✅ 统一三端错误 envelope 解析到 shared（D-12：`@stuhelper/shared/api/errors.ts` 提供 `parseApiError`/`extractApiErrorMessage`，web/admin/uniappx 已接入）
-- shared 去影子类型与影子常量
+- ✅ shared 去影子类型与影子常量（D-06：presentation/ 层分离完成）
 
 ### Batch 3：分层与架构收口
 - ✅ 把认证编排收回 `auth.Service`（D-07：Handler 不再持有 `userSyncRepo`，新增 `SyncOIDCUser`/`SyncPhoneUser`/`UserExistsByExternalID` 方法）
 - ✅ Review 访问策略内聚进 Service（D-08：`resolveReviewAccessFacts` → `Service.ResolveAccessFacts`，Handler 不再持有 `userRepo`）
 - ✅ 迁移 `auth/user_sync.go` 到 `modules/user` persistence（D-03：实现移至 `user/repository_auth_sync.go`，共享类型在 `pkg/usersync`，auth 仅保留接口和别名）
-- 引入 Session / Token Family 模型（D-02：需要数据库迁移与完整重构）
-- 明确 shared 分层边界（D-06：影子类型清理后执行）
+- ✅ 引入 Session / Token Family 模型（D-02：`token.SessionStore` + JWT `sid` claim + Session-based login/logout/refresh）
+- ✅ 明确 shared 分层边界（D-06：presentation/ 层分离，types/business/ 仅保留 wire contract 别名）
 
 ### Batch 4：前端结构与性能
 - ✅ 课程目录页收敛到 `loadCourseCatalog` helper（F-08 Phase 1）
 - ✅ 历史 review 分叉组件和孤儿页面已清理（F-07）
 - ✅ 删除 admin 历史变体 `web-antd`/`web-antdv-next`/`web-naive`（D-11：214 文件已删除）
 - ✅ 清理 admin `web-ele` 未挂路由页面（10 个孤儿页面已删除）；`any` 黑洞属于 Vben 上游适配层，记为已知技术债
-- 课程目录页后端分组接口（D-04 Phase 2：需要 API 契约设计）
-- 建立死代码检测与孤儿页面治理规则
+- ✅ 课程目录页后端分组接口（D-04 Phase 2：`/api/v1/course/courses/grouped` 已实现，CourseListPage.vue 已接入）
+- ✅ 建立死代码检测与孤儿页面治理规则（`clients/scripts/detect-orphan-pages.sh` 已创建，可集成 CI）
 
 ### Batch 5：上线质量体系
-- 真实业务 smoke check（登录、OIDC 回调、关键 API）
-- 备份恢复演练 runbook
-- native auth 专项 QA checklist
-- 文档与拓扑的单一事实源
-- 运维文档明确公网入口、证书终止、备份执行环境责任归属
+- ✅ 真实业务 smoke check（OIDC 回调流程验证已加入 smoke-check.sh）
+- ✅ 备份恢复演练 runbook（backup-and-restore.md 补充恢复验证步骤、定期演练建议、演练记录模板）
+- ✅ native auth 专项 QA checklist（docs/operations/native-auth-qa-checklist.md）
+- ✅ 文档与拓扑的单一事实源（production-topology.md 已覆盖公网入口、证书、备份责任）
+- ✅ 运维文档明确公网入口、证书终止、备份执行环境责任归属
 
 ---
 
@@ -1330,7 +1333,7 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 - ✅ `auth.Handler` 不再直接操作用户同步仓储（D-07：已通过 Service 方法间接访问）
 - ✅ Review 授权事实不再由 Handler 自行拼装（D-08：`ResolveAccessFacts` 已迁入 Service）
 - ✅ `user_hash` 回填不再在默认应用启动路径中无条件执行
-- 认证系统升级为 Session / Token Family 模型（D-02 待执行）
+- ✅ 认证系统升级为 Session / Token Family 模型（D-02 已完成）
 
 ### 契约
 - ✅ OpenAPI 为唯一契约事实源（Go/TS 均消费 bundled spec）
@@ -1344,16 +1347,16 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 - ✅ 课程目录页已收敛到 `loadCourseCatalog` helper
 - ✅ 历史 review 分叉组件和孤儿页面已清理
 - ✅ Admin 仓库中不再保留非主线变体（D-11）；web-ele 孤儿页面已清理
-- `uniappx` native auth callback 闭环真实可用（D-10 待执行）
+- ✅ `uniappx` native auth callback 闭环真实可用（D-10 已完成：callback.vue + deep link + i18n）
 - ✅ Web / Admin / Uniappx 对同一类后端错误具有一致语义（D-12 已完成）
 
 ### 生产交付
 - ✅ 应用启动不再隐式创建对象存储 bucket
 - ✅ `DB_*` 到 `DATABASE_URL` 拼接已使用 userinfo-safe 编码，含特殊字符覆盖测试
 - ✅ FGA 启用时，Store / Model 绑定在所有环境保持一致
-- 仓库内自带 edge proxy 并正式化（D-05 待执行）
-- 备份执行环境容器化（D-09 待执行）
-- 文档清楚说明公网入口、证书终止、备份执行环境的责任归属
+- ✅ 仓库内自带 edge proxy 并正式化（D-05 已完成：.env.prod.example 补齐 Traefik 变量）
+- ✅ 备份执行环境容器化（D-09 已完成：docker compose run 容器化执行）
+- ✅ 文档清楚说明公网入口、证书终止、备份执行环境的责任归属
 
 ---
 
@@ -1364,7 +1367,7 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 3. ✅ 已完成：Batch 2 中 D-01（Notification deprecated 别名清除）、D-12（三端错误 envelope 统一）
 4. ✅ 已完成：Batch 3 中 D-07（认证编排收回 Service）、D-08（Review 访问策略内聚进 Service）
 5. ✅ 已完成：Batch 4 中 D-11（删除 admin 历史变体，214 文件）
-6. 下一步按 Batch 1 剩余项（D-05/D-09/D-10/D-15）→ Batch 3 剩余（D-02/D-03/D-06）→ Batch 4 剩余 → Batch 5 顺序执行
+6. ✅ 已完成：D-02（Session/Token Family 模型）、D-05（Edge Proxy 正式化）、D-06（shared 分层边界）、Batch 5（上线质量体系）
 7. 每个 Batch 附带回归测试和风险回退方案
 
 ---
@@ -1395,7 +1398,7 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 - `clients/admin/apps/web-antdv-next/`（D-11 admin 变体删除，~70 文件）
 - `clients/admin/apps/web-naive/`（D-11 admin 变体删除，~70 文件）
 
-### 待清理（admin web-ele 未挂路由页面，Batch 4 执行）
+### ✅ 已在 2026-04-15 修复轮中清理（admin web-ele 孤儿页面 + demos）
 - `clients/admin/apps/web-ele/src/views/_core/about/index.vue`
 - `clients/admin/apps/web-ele/src/views/_core/authentication/code-login.vue`
 - `clients/admin/apps/web-ele/src/views/_core/authentication/forget-password.vue`

@@ -50,9 +50,12 @@ services:
     - --log.level=${TRAEFIK_LOG_LEVEL:-WARN}
     - --accesslog=${TRAEFIK_ACCESSLOG_ENABLED:-false}
     ports:
-    # HTTP — 开发环境绑定 127.0.0.1，生产环境通过 TRAEFIK_BIND_IP 设为 0.0.0.0
+    # 端口绑定 — 开发 vs 生产差异:
+    #   开发环境: 默认绑定 127.0.0.1（仅本机可达，无需设置 TRAEFIK_BIND_IP）
+    #   生产环境: 在 .env 中设置 TRAEFIK_BIND_IP=0.0.0.0 以接受外部流量
+    # HTTP
     - "${TRAEFIK_BIND_IP:-127.0.0.1}:${TRAEFIK_HTTP_PORT:-80}:80"
-    # HTTPS — 同上
+    # HTTPS（生产启用 ACME 后用于 TLS 终止；开发环境无证书时此端口无副作用）
     - "${TRAEFIK_BIND_IP:-127.0.0.1}:${TRAEFIK_HTTPS_PORT:-443}:443"
     volumes:
     - ./infra/traefik:/etc/traefik/dynamic:ro

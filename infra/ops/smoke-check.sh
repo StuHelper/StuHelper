@@ -87,8 +87,19 @@ check_body   "课程列表返回 success" "${API_BASE_URL}/api/v1/course/courses
 
 echo ""
 echo "── 认证端点 ──"
-check_body   "登录 URL" "${API_BASE_URL}/api/v1/auth/login-url" '"url":'
+check_body   "登录 URL" "${API_BASE_URL}/api/v1/auth/login?platform=native" '"url":'
 check_status "未认证保护端点" "${API_BASE_URL}/api/v1/auth/me" "401"
+
+echo ""
+echo "── OIDC 回调流程 ──"
+# 验证登录 URL 接口返回的 JSON 中包含授权 URL（url 字段）
+check_body   "login-url 返回授权地址" "${API_BASE_URL}/api/v1/auth/login?platform=native" '"url":'
+# 验证 callback 端点在缺少 code 参数时返回 400
+check_status "callback 无 code 返回 400" "${API_BASE_URL}/api/v1/auth/callback" "400"
+# 验证 exchange-native 端点在无请求体时返回 400
+check_status "exchange-native 无 body 返回 400" "${API_BASE_URL}/api/v1/auth/exchange-native" "400"
+# 验证 refresh 端点在无 cookie 时返回 401（未携带刷新令牌）
+check_status "refresh 无 cookie 返回 401" "${API_BASE_URL}/api/v1/auth/refresh" "401"
 
 echo ""
 echo "── 指标与观测 ──"

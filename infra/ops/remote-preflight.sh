@@ -91,4 +91,49 @@ fi
 [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL must be configured"
 [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL must be configured"
 
+# ── 恢复能力校验 ──
+# 不仅检查配置存在，还验证恢复链路的实际可执行性
+
+log "正在校验恢复能力..."
+
+# 1. pg_restore 可用（恢复 custom-format dump 的核心工具）
+if ! docker run --rm "${pg_image}" which pg_restore >/dev/null 2>&1; then
+  die "postgres 容器镜像 (${pg_image}) 中 pg_restore 不可用"
+fi
+pg_restore_version="$(docker run --rm "${pg_image}" pg_restore --version 2>/dev/null | head -1 || echo "unknown")"
+log "容器内 pg_restore 版本: ${pg_restore_version}"
+
+# 2. 备份目录存在且可写
+for dir in \
+  "${REPO_ROOT}/backups/postgres/logical" \
+  "${REPO_ROOT}/backups/postgres/base"; do
+  if [[ ! -d "${dir}" ]]; then
+    die "备份目录不存在: ${dir}"
+  fi
+  if [[ ! -w "${dir}" ]]; then
+    die "备份目录不可写: ${dir}"
+  fi
+done
+
+# 3. 最近一次逻辑备份存在（如果目录非空）
+latest_dump=$(find "${REPO_ROOT}/backups/postgres/logical" -name "*.dump" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+if [[ -n "${latest_dump}" ]]; then
+  # 验证对应的 sha256 校验文件存在
+  if [[ -f "${latest_dump}.sha256" ]]; then
+    log "最近逻辑备份: $(basename "${latest_dump}"), sha256 校验文件存在"
+  else
+    log "⚠️  最近逻辑备份 $(basename "${latest_dump}") 缺少 .sha256 校验文件"
+  fi
+else
+  log "⚠️  逻辑备份目录为空，尚无历史备份"
+fi
+
+# 4. BACKUP_DATABASE_URL 连通性（快速超时检测）
+if docker run --rm --network host "${pg_image}" \
+  pg_isready -d "${BACKUP_DATABASE_URL}" -t 5 >/dev/null 2>&1; then
+  log "备份数据库连通性: OK"
+else
+  log "⚠️  备份数据库连通性检查失败（pg_isready 超时），请确认 BACKUP_DATABASE_URL 可达"
+fi
+
 log "remote preflight checks passed"

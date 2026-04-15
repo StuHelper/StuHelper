@@ -16,14 +16,12 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
-// Logout 登出当前设备
+// Logout 登出当前设备（基于 Session 撤销）
 func (h *Handler) Logout(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	username := middleware.GetUsername(c)
 	requestID := middleware.GetRequestID(c)
 
-	// 与 AuthMiddleware 保持一致：优先从 Authorization: Bearer 读 token，
-	// 再回退 cookie。确保 Bearer 客户端调用 /logout 时也能正确撤销 access token。
 	accessToken := middleware.GetAccessToken(c)
 
 	var refreshToken string
@@ -31,9 +29,13 @@ func (h *Handler) Logout(c *gin.Context) {
 		refreshToken = v
 	}
 
-	if err := h.svc.RevokeCurrentSession(c.Request.Context(), userID, accessToken, refreshToken); err != nil {
-		logger.FromGin(c).Error("failed to revoke current session",
+	// 从 access token 或 session cookie 中获取 session ID
+	sessionID := h.getSessionID(c, accessToken)
+
+	if err := h.svc.RevokeSession(c.Request.Context(), sessionID, userID, accessToken, refreshToken); err != nil {
+		logger.FromGin(c).Error("failed to revoke session",
 			zap.String("user_id", userID),
+			zap.String("session_id", sessionID),
 			zap.Error(err),
 		)
 		// 仍然清除客户端 cookie（减少攻击面），但不向客户端承诺撤销成功
@@ -56,7 +58,7 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 	requestID := middleware.GetRequestID(c)
 
 	if err := h.svc.RevokeAllSessions(c.Request.Context(), userID); err != nil {
-		logger.FromGin(c).Error("failed to revoke all tokens",
+		logger.FromGin(c).Error("failed to revoke all sessions",
 			zap.String("user_id", userID),
 			zap.Error(err),
 		)
@@ -164,6 +166,9 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 		return false
 	}
 
+	// Token Family：refresh 在同一 session 内轮换，继承 session ID
+	sessionID := oldClaims.Sid
+
 	newAccessClaims := token.JWTClaims{
 		Sub:         oldClaims.Sub,
 		Name:        oldClaims.Name,
@@ -172,6 +177,7 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 		Avatar:      oldClaims.Avatar,
 		Roles:       []string{"user"},
 		Typ:         token.JWTTokenTypeAccess,
+		Sid:         sessionID,
 	}
 
 	newAccessToken, err := token.SignJWT(hmacKey, newAccessClaims, accessTTL)
@@ -187,6 +193,7 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 		Name:  oldClaims.Name,
 		Roles: []string{"user"},
 		Typ:   token.JWTTokenTypeRefresh,
+		Sid:   sessionID,
 	}
 	newRefreshToken, err := token.SignJWT(hmacKey, newRefreshClaims, refreshTTL)
 	if err != nil {
@@ -201,8 +208,8 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 		return false
 	}
 
-	// 新 token 签发成功后，旋转 token 对（黑名单旧 + 跟踪新）
-	h.svc.RotateTokenPair(c.Request.Context(), oldClaims.Sub, refreshTokenStr, newAccessToken, newRefreshToken)
+	// 在同一 session 内轮换 token（黑名单旧 + 更新 session + 跟踪新）
+	h.svc.RotateSession(c.Request.Context(), sessionID, oldClaims.Sub, refreshTokenStr, newAccessToken, newRefreshToken)
 
 	response.Success(c, gin.H{
 		"message":   "token refreshed successfully",
@@ -230,7 +237,7 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 		return false
 	}
 
-	// 验证新 ID Token 并提取用户信息（用于 Token 跟踪）
+	// 验证新 ID Token 并提取用户信息
 	newClaims, err := h.oidcClient.VerifyIDToken(c.Request.Context(), rawIDToken)
 	if err != nil {
 		logger.FromGin(c).Error("new ID token verification failed after refresh", zap.Error(err))
@@ -244,12 +251,33 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 		return false
 	}
 
-	// 新 token 签发成功后，旋转 token 对（黑名单旧 + 跟踪新）
-	h.svc.RotateTokenPair(c.Request.Context(), newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken)
+	// OIDC token 没有 sid claim，从 session cookie 获取
+	oidcSessionID := h.getSessionID(c, "")
+	h.svc.RotateSession(c.Request.Context(), oidcSessionID, newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken)
 
 	response.Success(c, gin.H{
 		"message":   "token refreshed successfully",
 		"expiresIn": h.tokenConfig.AccessTokenTTL,
 	})
 	return true
+}
+
+// extractSessionID 从 access token 中提取 session ID。
+// 仅自签名 JWT（手机登录）携带 sid claim；OIDC ID Token 无此 claim，返回空字符串。
+func extractSessionID(accessToken string) string {
+	if accessToken == "" {
+		return ""
+	}
+	if !token.IsSelfSignedToken(accessToken) {
+		return ""
+	}
+	hmacKey := crypto.GetHMACKey()
+	if len(hmacKey) == 0 {
+		return ""
+	}
+	claims, err := token.VerifyJWT(hmacKey, accessToken)
+	if err != nil {
+		return ""
+	}
+	return claims.Sid
 }

@@ -167,14 +167,16 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, code, r
 		return
 	}
 
-	// 跟踪用户 Token，支持 LogoutAll 批量撤销
+	// 创建服务端 Session（Token Family），跟踪 token 对
 	// 必须在写入 Cookie 之前完成：未跟踪的 token 无法被 LogoutAll 撤销
-	if err := h.svc.TrackTokenPair(ctx, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken); err != nil {
-		logger.FromGin(c).Error("failed to track token pair",
+	deviceInfo := c.Request.UserAgent()
+	sessInfo, sessErr := h.svc.CreateSession(ctx, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc", deviceInfo)
+	if sessErr != nil {
+		logger.FromGin(c).Error("failed to create session",
 			zap.String("user_id", claims.GetUserID()),
-			zap.Error(err),
+			zap.Error(sessErr),
 		)
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "token tracking failed")
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session creation failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}
@@ -184,6 +186,8 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, code, r
 		response.InternalError(c, "authentication failed")
 		return
 	}
+	// OIDC ID Token 无法携带自定义 sid claim，通过独立 cookie 传递 session ID
+	h.setSessionCookie(c, sessInfo.SessionID)
 
 	audit.LogSuccess(audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), requestID)
 
@@ -387,11 +391,12 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 		return
 	}
 
-	// 跟踪用户 Token
-	if err := h.svc.TrackTokenPair(ctx, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken); err != nil {
-		logger.FromGin(c).Error("native exchange: failed to track token pair",
-			zap.String("user_id", claims.GetUserID()), zap.Error(err))
-		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "token tracking failed")
+	// 创建服务端 Session（Token Family）
+	deviceInfo := c.Request.UserAgent()
+	if _, sessErr := h.svc.CreateSession(ctx, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc-native", deviceInfo); sessErr != nil {
+		logger.FromGin(c).Error("native exchange: failed to create session",
+			zap.String("user_id", claims.GetUserID()), zap.Error(sessErr))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session creation failed")
 		response.InternalError(c, "authentication failed")
 		return
 	}

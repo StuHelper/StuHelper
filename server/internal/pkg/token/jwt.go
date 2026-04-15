@@ -48,9 +48,11 @@ type JWTClaims struct {
 	Phone       string       `json:"phone,omitempty"`
 	Roles       []string     `json:"roles,omitempty"`
 	Typ         JWTTokenType `json:"typ,omitempty"`
-	Iss         string       `json:"iss"`
-	Exp         int64        `json:"exp"`
-	Iat         int64        `json:"iat"`
+	// Sid Session ID — 标识 token 所属的服务端 session（Token Family 模式）
+	Sid string `json:"sid,omitempty"`
+	Iss string `json:"iss"`
+	Exp int64  `json:"exp"`
+	Iat int64  `json:"iat"`
 }
 
 // jwtHeader HS256 固定头

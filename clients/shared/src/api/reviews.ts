@@ -1,17 +1,9 @@
 import type { ApiClient } from './client'
 import type { components } from '../types/api.gen'
-import type { PostReviewRequest } from '../types/business/review'
-import type {
-  PaginatedResult,
-  Review,
-  ReviewContentCheck,
-  ReviewRatings,
-} from '../types/business/review'
+import type { PostReviewRequest, Review, ReviewRatings } from '../types/business/review'
+import type { PaginatedResult, ReviewContentCheck } from '../presentation/review'
 import { isReviewGrade, type ReviewGrade } from '../constants/review'
-import {
-  normalizeContentCheck,
-  normalizeReviewList,
-} from '../types/business/review'
+import { normalizeContentCheck, normalizeReviewList } from '../presentation/review'
 
 type UpdateReviewRequest = components['schemas']['UpdateReviewRequest']
 type VoteRequest = components['schemas']['VoteRequest']

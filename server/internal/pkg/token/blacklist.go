@@ -109,6 +109,30 @@ func hashToken(token string) (string, error) {
 	return crypto.HMACHash(token)
 }
 
+// AddByHash 将已知 token hash 直接加入黑名单（用于 Session 撤销场景，token 原文不可用）。
+func (b *Blacklist) AddByHash(ctx context.Context, tokenHash string, expiry time.Duration) error {
+	if expiry < minBlacklistTTL || expiry > maxBlacklistTTL {
+		return fmt.Errorf("blacklist TTL %v out of valid range [%v, %v]", expiry, minBlacklistTTL, maxBlacklistTTL)
+	}
+
+	b.localCache.Store(tokenHash, localCacheEntry{
+		blacklisted: true,
+		expiresAt:   time.Now().Add(localCacheTTL),
+	})
+
+	if !b.cb.Allow() {
+		return fmt.Errorf("blacklist service unavailable (circuit breaker open)")
+	}
+
+	key := blacklistPrefix + tokenHash
+	if err := b.rdb.Set(ctx, key, "1", expiry).Err(); err != nil {
+		b.cb.RecordFailure()
+		return fmt.Errorf("failed to add token hash to blacklist: %w", err)
+	}
+	b.cb.RecordSuccess()
+	return nil
+}
+
 // Add 将 token 加入黑名单
 func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration) error {
 	if expiry < minBlacklistTTL || expiry > maxBlacklistTTL {

@@ -32,6 +32,11 @@
       "source": "./src/constants/index.ts",
       "types": "./dist/constants/index.d.ts",
       "import": "./dist/constants/index.js"
+    },
+    "./presentation": {
+      "source": "./src/presentation/index.ts",
+      "types": "./dist/presentation/index.d.ts",
+      "import": "./dist/presentation/index.js"
     }
   },
   "scripts": {
