@@ -72,16 +72,18 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 }
 
 // RefreshToken 使用 refresh token 获取新的 token 对。
-// 支持三种来源（按优先级）：
-//   1. 请求体 JSON {"refreshToken": "..."}（原生 App）
-//   2. Authorization: Bearer header（原生 App / API 客户端）
-//   3. Cookie（Web 浏览器）
+// 支持两种来源：
+//  1. 请求体 JSON {"refreshToken": "..."}（原生 App）
+//  2. Cookie（Web 浏览器）
 func (h *Handler) RefreshToken(c *gin.Context) {
-	refreshTokenStr := resolveRefreshToken(c)
+	refreshTokenStr, fromBody := resolveRefreshToken(c)
 	if refreshTokenStr == "" {
 		response.Unauthorized(c, "missing refresh token", errs.ErrTokenMissing)
 		return
 	}
+
+	// fromBody 标记请求来自原生 App（无 cookie），refresh 响应需包含 token 值
+	c.Set("refresh_from_native", fromBody)
 
 	// 检查 refresh token 是否已被吊销或已被并发请求消费
 	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), refreshTokenStr)
@@ -215,16 +217,7 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	// 在同一 session 内轮换 token（黑名单旧 + 更新 session + 跟踪新）
 	h.svc.RotateSession(c.Request.Context(), sessionID, oldClaims.Sub, refreshTokenStr, newAccessToken, newRefreshToken)
 
-	resp := gin.H{
-		"message":   "token refreshed successfully",
-		"expiresIn": h.tokenConfig.AccessTokenTTL,
-	}
-	// 原生 App 需要通过 JSON body 接收新 token（无 cookie 可用）
-	if oldClaims.Sid != "" {
-		resp["accessToken"] = newAccessToken
-		resp["refreshToken"] = newRefreshToken
-	}
-	response.Success(c, resp)
+	response.Success(c, h.buildRefreshResponse(c, newAccessToken, newRefreshToken))
 	return true
 }
 
@@ -265,10 +258,7 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 	oidcSessionID := h.getSessionID(c, "")
 	h.svc.RotateSession(c.Request.Context(), oidcSessionID, newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken)
 
-	response.Success(c, gin.H{
-		"message":   "token refreshed successfully",
-		"expiresIn": h.tokenConfig.AccessTokenTTL,
-	})
+	response.Success(c, h.buildRefreshResponse(c, rawIDToken, newToken.RefreshToken))
 	return true
 }
 
@@ -297,20 +287,37 @@ type refreshTokenRequest struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
+// buildRefreshResponse 构建 refresh 响应。
+// 原生 App（通过请求体提交 refresh token）需要在响应中获取新 token；
+// Web 浏览器通过 cookie 自动获取，响应只需 message + expiresIn。
+func (h *Handler) buildRefreshResponse(c *gin.Context, accessToken, refreshToken string) gin.H {
+	resp := gin.H{
+		"message":   "token refreshed successfully",
+		"expiresIn": h.tokenConfig.AccessTokenTTL,
+	}
+	if fromNative, _ := c.Get("refresh_from_native"); fromNative == true {
+		resp["accessToken"] = accessToken
+		resp["refreshToken"] = refreshToken
+	}
+	return resp
+}
+
 // resolveRefreshToken 按优先级从请求中获取 refresh token：
 //  1. 请求体 JSON {"refreshToken": "..."}（原生 App）
 //  2. Cookie（Web 浏览器）
-func resolveRefreshToken(c *gin.Context) string {
+//
+// 返回 token 字符串和是否来自请求体（原生 App 标识）。
+func resolveRefreshToken(c *gin.Context) (string, bool) {
 	// 1. 请求体（原生 App 无 cookie，通过 JSON body 传递）
 	var body refreshTokenRequest
 	if err := c.ShouldBindJSON(&body); err == nil && body.RefreshToken != "" {
-		return body.RefreshToken
+		return body.RefreshToken, true
 	}
 
 	// 2. Cookie（Web 浏览器标准路径）
 	if v, err := c.Cookie(middleware.CookieRefreshToken); err == nil && v != "" {
-		return v
+		return v, false
 	}
 
-	return ""
+	return "", false
 }
