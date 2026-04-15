@@ -20,7 +20,7 @@ OpenAPI 和 `clients/shared` 使用的接口：
 
 ## 数据模型
 
-`notifications` 表核心字段：`user_id` / `type` / `title` / `body` / `source_module` / `source_id` / `source_url` / `is_read`
+`notifications` 表核心字段：`user_id` / `type` / `title` / `body` / `payload`（JSONB） / `source_module` / `source_id` / `source_url` / `source_course_id`（int64） / `is_read`
 
 数据库层已迁移到独立通知模块结构。
 
@@ -32,7 +32,7 @@ OpenAPI 和 `clients/shared` 使用的接口：
 
 ## 通知类型
 
-`reply` / `review_hidden` / `review_restored` / `report_resolved` / `identity_approved` / `identity_rejected` / `student_approved` / `student_rejected`
+`reply` / `like` / `review_hidden` / `review_restored` / `report_resolved` / `identity_approved` / `identity_rejected` / `student_approved` / `student_rejected` / `system`
 
 ## 代码入口
 

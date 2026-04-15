@@ -33,13 +33,12 @@ DATABASE_URL='postgres://...' make seed-dev
 ## Docker Compose 行为
 
 - `docker compose up -d`
-  - 会自动启动 `migrate` 服务并应用 `server/migrations/*.sql`
-  - **不会**自动加载 `seed.sql`
+  - 默认 profile **不包含**迁移服务，需要手动运行迁移或使用带 profile 的启动命令
 - `docker compose --profile dev-full up -d`
-  - 会自动应用迁移
+  - 会自动启动 `migrate-dev` 服务并应用 `server/migrations/*.sql`
   - 会额外执行 `seed-dev` 一次性服务
 - `docker compose --profile prod up -d`
-  - 会自动应用迁移
+  - 会自动启动 `migrate` 服务并应用迁移
   - **不会**执行任何 seed
 
 ## staging / production 迁移前检查

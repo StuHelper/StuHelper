@@ -20,7 +20,7 @@ Handler → Service → Repository
 
 | 模块 | 拆分示例 |
 |------|----------|
-| `user` | `handler.go` / `handler_self.go` / `handler_admin.go` / `handler_fga.go` / `service_identity.go` / `service_profile.go` / `service_admin.go` / `repository_identity.go` / `repository_profile.go` |
+| `user` | `handler.go` / `handler_self.go` / `handler_admin.go` / `external_sync.go`（含 FGA 逻辑）/ `service_identity.go` / `service_profile.go` / `service_admin.go` / `repository_identity.go` / `repository_profile.go` |
 | `course/review` | `handler.go` / `admin.go` / `review.go` / `review_read.go` / `review_reply.go` / `review_draft.go` / `service_review_write.go` / `service_report.go` / `service_admin.go` / `repository_review_query.go` / `repository_rating.go` |
 | `rbac` | `middleware.go`（仅 capability 中间件） |
 

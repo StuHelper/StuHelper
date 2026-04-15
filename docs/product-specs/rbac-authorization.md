@@ -16,8 +16,9 @@
 - 后台入口：`admin:dashboard:view`
 - 评课运营：`admin:reviews:manage` / `admin:reports:manage`
 - 教师与敏感词：`admin:teachers:manage` / `admin:sensitive_words:manage`
-- 用户系统：`user:identity:*` / `user:student:*` / `user:school:*`
-- 主站：`review:list:brief` / `review:list:full` / `review:create` / `review:edit:own`
+- 操作日志：`admin:logs:view`
+- 用户系统：`user:identity:read` / `user:identity:review` / `user:student:read` / `user:student:review` / `user:school:read` / `user:school:update` / `user:system:read` / `user:system:update`
+- 主站：`review:list:brief` / `review:list:full` / `review:create` / `review:edit:own` / `review:delete:own`
 
 ## 业务访问事实
 

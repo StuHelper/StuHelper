@@ -22,7 +22,7 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 
 采集：path / method / query / status / latency / size / client_ip / user_agent（256 字符）/ user_id / request_id
 
-敏感参数黑名单：`code` / `token` / `access_token` / `refresh_token` / `password` / `secret` / `state` → `[REDACTED]`
+敏感参数黑名单：`code` / `token` / `access_token` / `refresh_token` / `id_token` / `password` / `secret` / `key` / `api_key` / `apikey` / `auth` / `authorization` / `credential` / `credentials` / `state` / `nonce` / `session` / `session_id` → `[REDACTED]`
 
 级别映射：500+ Error / 400+ Warn / 其他 Info
 
@@ -40,9 +40,11 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 
 | 模块 | 事件 |
 |------|------|
-| 认证 | login / login_failed / logout / logout_all / token.refresh / token.revoked |
-| 评课 | 发布/编辑/删除、投票、举报、回复、收藏 |
-| 管理 | 隐藏/恢复/删除评课、编辑内容、处理举报 |
+| 认证 | `user.login` / `user.login_failed` / `user.logout` / `user.logout_all` / `token.refresh` / `token.revoked` |
+| 数据操作 | `data.access` / `data.create` / `data.update` / `data.delete` / `data.export` |
+| 用户操作 | `user.review_post` / `user.review_edit` / `user.review_delete` / `user.vote` / `user.report` / `user.reply` / `user.favorite` |
+| 管理 | `admin.review_hide` / `admin.review_restore` / `admin.review_delete` / `admin.report_resolve` / `admin.config_change` / `admin.user_ban` / `admin.batch_operation` |
+| 系统 | `system.cron_start` / `system.cron_complete` / `system.cache_refresh` / `system.stats_update` / `system.error` |
 
 ## 环境变量
 

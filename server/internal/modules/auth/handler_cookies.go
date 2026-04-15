@@ -11,7 +11,7 @@ import (
 )
 
 const tokenCookieSameSite = http.SameSiteLaxMode
-const refreshTokenCookiePath = "/"
+const refreshTokenCookiePath = "/api/v1/auth"
 
 // sessionCookieName 服务端 session ID cookie
 // OIDC ID Token 由 Zitadel 签发，无法注入自定义 sid claim。

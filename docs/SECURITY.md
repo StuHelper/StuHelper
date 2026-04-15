@@ -6,14 +6,14 @@
 
 - 后端生成授权地址，包含服务端生成的 `state`
 - `state` 存 Redis（一次性验证后销毁）+ HttpOnly cookie 双重校验
-- 回调时 `GetDel` 验证并销毁 state，防伪造和重放
+- 回调时 `GetDel` 原子验证并销毁 state，防伪造和重放
 
 ### Token
 
 | 令牌 | TTL | 存储 | 用途 |
 |------|-----|------|------|
-| Access Token | 5 分钟 | HttpOnly Cookie | API 访问 |
-| Refresh Token | 7 天 | Path 受限 HttpOnly Cookie | 续期 |
+| Access Token | 5 分钟（默认 300 s，可通过 `TOKEN_ACCESS_TTL` 配置） | HttpOnly Cookie | API 访问 |
+| Refresh Token | 7 天 | Path `/api/v1/auth` HttpOnly Cookie | 续期 |
 | CSRF Token | 随 refresh | 普通 Cookie | 前端读取后放 `X-CSRF-Token` |
 
 access / refresh token 已显式区分 `typ`。
@@ -80,6 +80,7 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 | 回复 | 10/min |
 | 刷新 token | 10/min |
 | 手机验证码 | 5/min |
+| 手机验证码（单号码） | 5/hour |
 
 ## 安全响应头
 
@@ -87,7 +88,7 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 - `X-Frame-Options: DENY`
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `Content-Security-Policy`
-- 生产环境额外：`Strict-Transport-Security`、`Permissions-Policy`、`Cross-Origin-*`
+- 生产环境额外：`Strict-Transport-Security`
 
 前端静态页和后端 API 统一禁止被 `iframe` 嵌入：静态页使用 `X-Frame-Options: DENY` + `frame-ancestors 'none'`，后端 API 也保持同样策略。
 

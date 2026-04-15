@@ -16,6 +16,7 @@
 | `/api/v1/auth/login` | GET | 登录跳转地址 |
 | `/api/v1/auth/signup` | GET | 注册跳转地址 |
 | `/api/v1/auth/callback` | GET | OIDC 回调 |
+| `/api/v1/auth/exchange-native` | POST | 原生 App 令牌交换（OIDC code+state → access/refresh tokens） |
 | `/api/v1/auth/phone/request-otp` | POST | 发送验证码 |
 | `/api/v1/auth/phone/verify-otp` | POST | 验证码登录 |
 | `/api/v1/auth/refresh` | POST | 续期 |
@@ -32,6 +33,7 @@
 | `/api/v1/course/categories` | GET | 课程分类 |
 | `/api/v1/course/courses` | GET | 课程列表 |
 | `/api/v1/course/courses/search` | GET | 搜索课程 |
+| `/api/v1/course/courses/grouped` | GET | 按院系分组课程目录 |
 | `/api/v1/course/courses/{courseID}` | GET | 课程详情 |
 | `/api/v1/course/stats` | GET | 门户统计 |
 
@@ -50,6 +52,8 @@
 | `/api/v1/course/review/reviews/{reviewID}/replies` | GET | 回复列表 |
 | `/api/v1/course/review/stats` | GET | 门户统计 |
 | `/api/v1/course/review/rankings/hot` | GET | 热门排行 |
+| `/api/v1/course/review/teachers` | GET | 公开教师列表 |
+| `/api/v1/course/review/teachers/hot` | GET | 热门教师排行 |
 | `/api/v1/course/review/teachers/{teacherID}/stats` | GET | 教师统计 |
 
 ## 评课（需认证）
@@ -63,7 +67,7 @@
 | `/api/v1/course/review/reviews/{reviewID}/replies` | POST | 回复 |
 | `/api/v1/course/review/replies/{replyID}` | DELETE | 删除回复 |
 | `/api/v1/course/review/content/check` | POST | 内容检查 |
-| `/api/v1/course/review/courses/{courseID}/favorites` | POST / DELETE | 收藏 |
+| `/api/v1/course/review/courses/{courseID}/favorites` | GET / POST / DELETE | 收藏状态 / 收藏 / 取消收藏 |
 | `/api/v1/course/review/drafts` | POST | 保存草稿 |
 | `/api/v1/course/review/drafts/{courseID}` | GET / DELETE | 读取 / 删除草稿 |
 
@@ -126,6 +130,13 @@
 | `/api/v1/admin/school-configs/{schoolID}` | PUT | 更新学校配置 |
 | `/api/v1/admin/system-configs` | GET | 系统配置列表 |
 | `/api/v1/admin/system-configs/{key}` | PUT | 更新系统配置 |
+
+## 指标采集
+
+| 路径 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/metrics/vitals` | POST | Web Vitals 指标上报 |
+| `/api/v1/metrics/frontend-errors` | POST | 前端错误上报 |
 
 ## 认证说明
 

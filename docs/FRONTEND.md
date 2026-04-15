@@ -18,9 +18,17 @@ clients/
 │   ├── api/
 │   ├── components/
 │   ├── composables/
+│   ├── constants/
+│   ├── design-system/
+│   ├── directives/
+│   ├── i18n/
 │   ├── modules/
+│   ├── router/
 │   ├── stores/
-│   └── router/
+│   ├── styles/
+│   ├── types/
+│   ├── utils/
+│   └── vendor/
 ├── admin/apps/web-ele/src/ # 独立管理后台
 └── uniappx/src/            # 实验性跨端
 ```
@@ -30,6 +38,7 @@ clients/
 `clients/web/src/modules/`：
 
 - `auth` — 登录、OIDC 回调
+- `common` — InfoPage.vue（/about、/privacy、/terms）
 - `course` — 课程列表、教师、门户
 - `review` — 评课、搜索、发帖
 - `user` — 用户中心、认证、通知
@@ -49,7 +58,7 @@ pnpm dev:admin       # 单独启动
 ## 共享契约链路
 
 ```
-server/api/openapi.yaml
+server/api/openapi.bundled.yaml
   ↓
 clients/shared/src/types/api.gen.ts
   ↓
@@ -65,18 +74,31 @@ web / admin / uniappx 封装
 | 路径 | 页面 |
 |------|------|
 | `/` | 首页 |
+| `/about` / `/privacy` / `/terms` | 信息页（InfoPage） |
 | `/course` | 教学门户 |
 | `/courses` / `/courses/:id` | 课程列表 / 详情 |
+| `/courses/:id/reviews` | 课程评课列表 |
 | `/courses/:id/reviews/post` | 发评课 |
-| `/teachers` / `/teachers/:id` | 教师 |
+| `/course/about` | 评课说明 |
+| `/review` | 评课首页 |
+| `/teachers` / `/teachers/:id` | 教师列表 / 教师主页 |
 | `/search` | 搜索 |
 | `/login` / `/auth/callback` | 登录 |
-| `/user/*` | 用户中心 |
+| `/user/reviews` | 用户中心 — 我的评课 |
+| `/user/votes` | 用户中心 — 我的投票 |
+| `/user/favorites` | 用户中心 — 我的收藏 |
+| `/user/identity-verification` | 实名认证 |
+| `/user/student-verification` | 学生认证 |
+| `/user/phone-binding` | 手机号绑定 |
+| `/user/academic-info` | 学籍信息 |
+| `/user-center` | redirect → `/user/reviews` |
 | `/notifications` | 通知 |
+| `/review/courses/:id` | legacy redirect → `/courses/:id/reviews` |
+| `/courses/:id/review` | legacy redirect → `/courses/:id/reviews` |
 
 ## 状态管理
 
-Pinia store 当前用于：认证会话、通知、课程评课聚合、草稿、主题/语言。
+Pinia store 当前用于：`auth`（认证会话）、`notification`（通知）、`courseReview`（课程评课聚合）、`draft`（草稿）、`user`（用户中心状态）、`verification`（实名/学生认证状态）、`theme`（主题）、`locale`（语言）。
 
 组件级表单、弹窗、局部交互留在页面内部。
 

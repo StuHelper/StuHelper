@@ -29,7 +29,7 @@
 **默认方案：Traefik ACME (Let's Encrypt)**
 
 - `infra/traefik/traefik.yml` 中配置 `certificatesResolvers.letsencrypt`
-- 证书自动续期，存储在 Docker volume `traefik_acme`
+- 证书自动续期，存储在 Docker volume `acme_data`（实际名称 `${STACK_NAME:-stuhelper}-acme-data`）
 - 要求：域名 DNS 解析到部署机公网 IP，80 端口可达
 
 **备选方案：外部 LB/CDN 终止**

@@ -41,7 +41,7 @@ ensure_dev_default() {
 
 placeholder_or_empty() {
   local value="${1:-}"
-  [[ -z "${value}" || "${value}" == *"REPLACE_WITH_"* || "${value}" == "ChangeMeBeforeProduction" ]]
+  [[ -z "${value}" || "${value}" == *"REPLACE_WITH_"* || "${value}" == "ChangeMeBeforeProduction" || "${value}" == "RUN_MAKE_DEV_INIT" ]]
 }
 
 future_iso_timestamp() {
@@ -126,6 +126,7 @@ ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
 ensure_value "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true"
 ensure_value "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
 ensure_value "ZITADEL_EXTERNALPORT" "${ZITADEL_EXTERNALPORT:-}" "8085"
+ensure_value "TRAEFIK_HTTP_PORT" "${TRAEFIK_HTTP_PORT:-}" "8085"
 ensure_dev_default "ZITADEL_DOMAIN" "${ZITADEL_DOMAIN:-}" "localhost" "host.docker.internal"
 ensure_value "ZITADEL_PUBLIC_SCHEME" "${ZITADEL_PUBLIC_SCHEME:-}" "http"
 ensure_dev_default "ZITADEL_ISSUER" "${ZITADEL_ISSUER:-}" "http://localhost:8085" "http://host.docker.internal:8085"

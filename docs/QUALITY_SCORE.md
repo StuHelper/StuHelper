@@ -35,7 +35,7 @@
 
 | 项 | 优先级 | 说明 |
 |----|--------|------|
-| 通知双轨并存 | 高 | 旧评课通知接口与独立通知模块未完全统一 |
+| 通知双轨并存 | 高 | notification CRUD 在 review 模块，SSE stream 在 notification 模块 — 功能已统一但代码归属仍分离 |
 | 证件照后端中转上传 | 中 | 已切对象存储，可进一步优化为浏览器直传 |
 | 后端核心覆盖率 | 中 | auth / review / middleware / fga 仍需要更多关键路径测试 |
 | staging / production 实战不足 | 中 | 脚本齐全，需要完成完整联调 |

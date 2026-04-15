@@ -39,6 +39,7 @@ const (
 	// 管理员操作
 	EventAdminReviewHide    EventType = "admin.review_hide"
 	EventAdminReviewDelete  EventType = "admin.review_delete"
+	EventAdminReviewRestore EventType = "admin.review_restore"
 	EventAdminReportResolve EventType = "admin.report_resolve"
 	EventAdminConfigChange  EventType = "admin.config_change"
 	EventAdminUserBan       EventType = "admin.user_ban"

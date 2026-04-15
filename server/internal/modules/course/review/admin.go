@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
@@ -200,6 +201,23 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 	h.logAdminOp(c, req.Action, "review", reviewID,
 		map[string]string{"status": result.OldStatus},
 		newValue)
+
+	// 记录审计事件（restore 操作）
+	if req.Action == "restore" {
+		audit.Log(audit.Event{
+			Type:     audit.EventAdminReviewRestore,
+			UserID:   userID,
+			Username: middleware.GetUsername(c),
+			IP:       c.ClientIP(),
+			Resource: "review",
+			Action:   "restore",
+			Result:   "success",
+			Details: map[string]any{
+				"review_id":  reviewID,
+				"old_status": result.OldStatus,
+			},
+		})
+	}
 
 	h.invalidateReviewAggregateCaches(c)
 

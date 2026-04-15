@@ -10,7 +10,7 @@
 | 课程与评课 | `modules/course` + `course/review` | [course-review.md](course-review.md) | 现行 |
 | 用户系统 | `modules/user` + `modules/ldap` | [user-system.md](user-system.md) | 现行 |
 | 授权 | `pkg/capability` + `modules/rbac` + `pkg/fga` | [rbac-authorization.md](rbac-authorization.md) | 现行 |
-| 通知 | `modules/notification` + `course/review` | [notification.md](notification.md) | 现行（双轨逐步统一中） |
+| 通知 | `modules/notification` + `course/review` | [notification.md](notification.md) | 现行（功能已统一，SSE 在 notification 模块，CRUD 在 review 模块） |
 | 审计 | `pkg/audit` + `pkg/logger` | [audit-logging.md](audit-logging.md) | 现行 |
 
 ## 用户角色

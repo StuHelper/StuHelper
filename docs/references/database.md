@@ -44,6 +44,7 @@ PostgreSQL 存储：
 | `user_profiles` | 学生认证档案 |
 | `school_configs` | 学校认证配置 |
 | `system_configs` | 全局配置 |
+| `academic.buaa_students` | 学籍数据本地表（从教务同步，含学号、姓名、院系、年级等） |
 
 ### 课程与评课
 
@@ -61,17 +62,24 @@ PostgreSQL 存储：
 | `review_replies` | 回复 |
 | `course_favorites` | 收藏 |
 | `review_drafts` | 草稿 |
+| `course_rating_stats` | 课程评分统计（按课程+学期+维度聚合） |
+| `teacher_rating_stats` | 教师评分统计（按教师+学期+维度聚合） |
+| `sensitive_words` | 敏感词（分类 + 级别：block/warn/review） |
 
 ### 通知与审计
 
 | 表 | 用途 |
 |----|------|
-| `notifications` | 通知（已迁移到 `user_id` / `body` / `source_module` 结构） |
+| `notifications` | 通知（`user_id` / `body` / `source_module` / `source_id` / `source_url` 结构，含 `payload` JSONB 扩展字段） |
+| `notification_preferences` | 通知偏好（用户按通知类型开关，复合主键 `user_id` + `type`） |
 | `admin_operation_logs` | 操作日志 |
+
+## 搜索索引
+
+- `pg_trgm` 扩展已启用，`courses.name`、`courses.code`、`teachers.name` 上建有 GIN trigram 索引（见 migration `000006_search_trgm.up.sql`）
 
 ## 已知限制
 
-- 搜索仍用 `LIKE` / `LOWER(...) LIKE`，缺少 `pg_trgm` 索引
 - 证件照存储在对象存储，数据库只保存 key
 
 ## 关联文档

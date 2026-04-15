@@ -225,8 +225,8 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 		return "", "", false, fmt.Errorf("redis client not configured")
 	}
 
-	// 先 peek Redis 判断是否为原生 App 流程（原生无 cookie）
-	raw, err := h.redisClient.Get(c.Request.Context(), oidcStateRedisPrefix+state).Result()
+	// 原子消费 Redis state（GetDel 保证一次性使用）
+	raw, err := h.redisClient.GetDel(c.Request.Context(), oidcStateRedisPrefix+state).Result()
 	if err != nil {
 		h.clearOIDCStateCookie(c)
 		if errors.Is(err, redis.Nil) {
@@ -238,23 +238,20 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 	var payload oidcStatePayload
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
 		// 兼容：旧格式纯 redirect 字符串——一定是 Web 流程
-		h.consumeOIDCStateFromRedis(c, state)
 		h.clearOIDCStateCookie(c)
 		return raw, "", false, nil
 	}
 
 	if payload.Native {
-		// 原生 App 流程：不校验 cookie，直接消费 Redis state。
-		// 但对于 callback 重定向步骤，不消费 code_verifier——
-		// 将其重存回 Redis，供 ExchangeNative 消费。
-		h.consumeOIDCStateFromRedis(c, state)
+		// 原生 App 流程：不校验 cookie，state 已被 GetDel 消费。
+		// 将 code_verifier 重存回 Redis，供 ExchangeNative 消费。
 		if err := h.storeNativeCodeVerifier(c.Request.Context(), state, payload.CodeVerifier); err != nil {
 			return "", "", true, fmt.Errorf("failed to persist code_verifier for native exchange: %w", err)
 		}
 		return payload.RedirectURL, payload.CodeVerifier, true, nil
 	}
 
-	// Web 流程：校验 cookie 再消费
+	// Web 流程：校验 cookie（state 已被 GetDel 消费）
 	cookieState, err := c.Cookie(oidcStateCookieName)
 	if err != nil || cookieState == "" {
 		h.clearOIDCStateCookie(c)
@@ -265,16 +262,8 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 		return "", "", false, fmt.Errorf("state cookie mismatch")
 	}
 
-	h.consumeOIDCStateFromRedis(c, state)
 	h.clearOIDCStateCookie(c)
 	return payload.RedirectURL, payload.CodeVerifier, false, nil
-}
-
-// consumeOIDCStateFromRedis 从 Redis 中删除已使用的 state
-func (h *Handler) consumeOIDCStateFromRedis(c *gin.Context, state string) {
-	if err := h.redisClient.Del(c.Request.Context(), oidcStateRedisPrefix+state).Err(); err != nil {
-		logger.FromGin(c).Warn("failed to delete consumed oidc state", zap.String("state", state), zap.Error(err))
-	}
 }
 
 const nativeCodeVerifierPrefix = "auth:native:verifier:"

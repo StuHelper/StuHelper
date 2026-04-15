@@ -20,14 +20,27 @@
 | 路径 | 页面 |
 |------|------|
 | `/` | 首页 |
+| `/about` / `/privacy` / `/terms` | 信息页（InfoPage） |
 | `/course` | 教学门户 |
 | `/courses` / `/courses/:id` | 课程列表 / 详情 |
+| `/courses/:id/reviews` | 课程评课列表 |
 | `/courses/:id/reviews/post` | 发评课 |
+| `/course/about` | 评课说明 |
+| `/review` | 评课首页 |
+| `/teachers` / `/teachers/:id` | 教师列表 / 教师主页 |
 | `/search` | 搜索 |
-| `/teachers` / `/teachers/:id` | 教师 |
-| `/user/*` | 用户中心 |
-| `/notifications` | 通知 |
 | `/login` / `/auth/callback` | 登录 |
+| `/user/reviews` | 用户中心 — 我的评课 |
+| `/user/votes` | 用户中心 — 我的投票 |
+| `/user/favorites` | 用户中心 — 我的收藏 |
+| `/user/identity-verification` | 实名认证 |
+| `/user/student-verification` | 学生认证 |
+| `/user/phone-binding` | 手机号绑定 |
+| `/user/academic-info` | 学籍信息 |
+| `/user-center` | redirect → `/user/reviews` |
+| `/notifications` | 通知 |
+| `/review/courses/:id` | legacy redirect → `/courses/:id/reviews` |
+| `/courses/:id/review` | legacy redirect → `/courses/:id/reviews` |
 
 ### Admin
 
@@ -36,7 +49,7 @@
 ## 共享契约链路
 
 ```
-server/api/openapi.yaml
+server/api/openapi.bundled.yaml
   ├── server/internal/api/gen/              # Go 类型
   └── clients/shared/src/types/api.gen.ts   # TS 类型
         ↓
@@ -72,7 +85,7 @@ LoginPage → /api/v1/auth/login
 
 ## 状态管理
 
-Pinia store：`auth` / `notification` / `draft` / `courseReview` / `user`
+Pinia store：`auth` / `notification` / `draft` / `courseReview` / `user` / `verification` / `theme` / `locale`
 
 原则：
 - 服务端状态优先 API 即取即用
@@ -84,7 +97,10 @@ Pinia store：`auth` / `notification` / `draft` / `courseReview` / `user`
 ```bash
 cd clients
 pnpm install
-pnpm dev:web && pnpm dev:admin && pnpm dev:uni
+# 以下为持久化 dev server，需在各自终端中运行
+pnpm dev:web       # 主站
+pnpm dev:admin     # 管理后台（另开终端）
+pnpm dev:uni       # UniApp X（另开终端）
 pnpm type-check && pnpm lint && pnpm test:web && pnpm test:e2e
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```

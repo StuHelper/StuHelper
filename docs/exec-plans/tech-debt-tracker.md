@@ -4,12 +4,16 @@
 
 ## 活跃技术债
 
-当前无活跃技术债。
+| ID | 事项 | 优先级 | 预计解决时机 |
+|----|------|--------|-------------|
+| TD-08 | notification 模块双轨残留 — review handler 中的通知 CRUD 与独立 notification 模块的 SSE stream 分离 | 高 | 待定 |
 
 ## 已解决
 
 | ID | 事项 | 解决方式 | 解决时间 |
 |----|------|----------|----------|
+| TD-07 | `clients/admin/apps/web-tdesign/` 和 `backend-mock/` 未清理变体 | 本次清理中删除 | 2026-04-16 |
+| TD-06 | `clients/web/src/modules/course/courseCatalogLoader.ts` 死代码 | 本次清理中删除 | 2026-04-16 |
 | TD-05 | 实名自动匹配的多校化 | 删除默认学籍表，强制要求学校上下文；学籍查询方法仅接受指定表名 | 2026-03-31 |
 | TD-04 | 认证方式与审批策略解耦 | `school_configs` 新增 `approval_policy` 字段（auto/manual），认证结果根据策略决定状态 | 2026-03-31 |
 | TD-03 | 应用级通知中心 | 独立 `notification` 模块，`user_id` 归属键，SSE 实时推送 + Redis Pub/Sub | 2026-03-31 |

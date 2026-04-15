@@ -28,7 +28,7 @@
 
 ## 状态机
 
-实名：`pending` → `verified` / `rejected`
+实名：数据库使用 `Verified bool` 字段 + `RejectionReason`，API 层映射为：`none`（未提交）→ `pending`（已提交未审核）→ `approved`（Verified=true）/ `rejected`（RejectionReason 非空）。大陆身份证命中学籍表自动通过（auto-verify），其他证件类型转人工审核。
 
 学生：`unverified` → `pending` → `verified` / `rejected`（rejected 可重新提交）
 
@@ -36,7 +36,11 @@
 
 ## 手机号绑定
 
-`POST /api/v1/user/profile/bind-phone`，仅限中国大陆手机号。绑定手机号不授予学生身份。
+两步流程：
+1. `POST /api/v1/user/profile/bind-phone/otp` — 发送 OTP 验证码到目标手机号
+2. `POST /api/v1/user/profile/bind-phone` — 提交手机号 + OTP 验证码完成绑定
+
+仅限中国大陆手机号。绑定手机号不授予学生身份。
 
 ## 学校配置
 
@@ -65,10 +69,12 @@
 
 | 路径 | 方法 | 说明 |
 |------|------|------|
+| `/api/v1/user/me` | GET | 用户综合概览（身份状态、认证状态、手机绑定、能力） |
 | `/api/v1/user/identity` | GET / POST | 实名认证 |
 | `/api/v1/user/identity/uploads` | POST | 上传证件照片 |
 | `/api/v1/user/profile` | GET | 学生认证档案 |
 | `/api/v1/user/profile/verify` | POST | 发起学生认证 |
+| `/api/v1/user/profile/bind-phone/otp` | POST | 发送绑定手机验证码 |
 | `/api/v1/user/profile/bind-phone` | POST | 绑定手机号 |
 | `/api/v1/user/profile/academic-info` | GET | 学籍信息 |
 | `/api/v1/user/schools` | GET | 学校列表 |

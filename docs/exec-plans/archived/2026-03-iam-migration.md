@@ -1,5 +1,11 @@
 # StuHelper IAM 架构设计
 
+> **HISTORICAL DOCUMENT** — 本文记录 2026-03 Casdoor → Zitadel 迁移的设计决策与执行过程。
+> 代码示例和能力常量已过时，当前实现请参见：
+> - 认证：`docs/product-specs/auth-sso.md`
+> - 授权：`docs/product-specs/rbac-authorization.md`
+> - 能力常量：`server/internal/pkg/capability/capability.go`
+
 > 版本：1.0
 > 日期：2026-03-21
 > 状态：大部分已完成。本文保留迁移设计背景、取舍和历史术语，不等同于当前运行手册。

@@ -1,6 +1,6 @@
+import { extractApiErrorMessage } from '@stuhelper/shared/api';
 import { ElMessage } from 'element-plus';
 
-import { extractApiErrorMessage } from '@stuhelper/shared/api';
 import { $t } from '#/locales';
 
 export interface ApiEnvelope<T> {

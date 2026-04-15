@@ -29,6 +29,8 @@
 | 历史 RBAC | `005` |
 | 课程 | `010` |
 | 评课 | `011` |
+| 文件 | `020` |
+| 通知 | `030` |
 
 ## 响应格式
 
@@ -130,6 +132,12 @@
 | A0050003 | 403 | ErrRoleIsSystem | 系统角色 |
 | A0050004 | 404 | ErrPermissionNotFound | 权限不存在 |
 | A0050005 | 403 | ErrPermissionDenied | 权限不足 |
+| A0050006 | 404 | ErrGroupNotFound | 用户组不存在 |
+| A0050007 | 409 | ErrGroupNameTaken | 用户组名已存在 |
+| A0050008 | 400 | ErrPermissionSelectionInvalid | 权限选择无效 |
+| A0050009 | 400 | ErrRolePermissionClearConfirm | 清空角色权限需显式确认 |
+| A0050010 | 400 | ErrRoleSelectionInvalid | 角色选择无效 |
+| A0050011 | 400 | ErrUserSelectionInvalid | 用户选择无效 |
 
 ## A010 课程
 

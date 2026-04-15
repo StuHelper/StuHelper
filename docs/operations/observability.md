@@ -14,9 +14,11 @@ StuHelper 采用 **方案 A** 的完整生产观测栈：
 
 ## 目录与配置
 
+源模板在 `infra/observability/`，Docker 容器挂载的是 `infra/generated/observability/` 下的生成版本。编辑模板后需运行 `render-observability.sh` 生成最终配置。
+
 | 路径 | 作用 |
 | --- | --- |
-| `infra/observability/alloy/config.alloy` | OTLP 接收与日志采集 |
+| `infra/observability/alloy/config.alloy` | OTLP 接收与日志采集（模板） |
 | `infra/observability/prometheus/prometheus.yml.tmpl` | Prometheus 抓取配置模板 |
 | `infra/observability/prometheus/rules/` | 告警规则 |
 | `infra/observability/alertmanager/alertmanager.yml` | Alertmanager 路由 |

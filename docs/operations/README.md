@@ -17,6 +17,8 @@
 | [release-runbook.md](release-runbook.md) | 发布流程、verify、回滚 |
 | [backup-and-restore.md](backup-and-restore.md) | PostgreSQL 备份与恢复 |
 | [observability.md](observability.md) | Grafana LGTM、告警、排障 |
+| [production-topology.md](production-topology.md) | 生产部署拓扑 |
+| [native-auth-qa-checklist.md](native-auth-qa-checklist.md) | 原生认证 QA 检查清单 |
 
 ## 环境
 
