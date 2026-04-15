@@ -1239,8 +1239,8 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 ### D-10 `uniappx` 定位为正式产品线（native supported）
 - **决策**：方案 A — 补完整 native auth 闭环，纳入正式质量矩阵
 - **理由**：项目有原生端交付需求。
-- **执行**：补齐 app scheme / deep link / callback / session bootstrap，增加专项 QA checklist。  
-  *待确认项：原生端续期闭环仍未在客户端完全打通（`/api/v1/auth/refresh` 目前未注入 refresh token）。*
+- **执行**：补齐 app scheme / deep link / callback / session bootstrap，增加专项 QA checklist。
+- **已完成**：2026-04-15 native auth 续期闭环打通：后端 refresh 支持请求体传 refreshToken（原生 App 无 cookie），前端 refreshSession 携带 token 并更新本地存储。
 
 ### D-11 Admin 收敛为单一 `web-ele`，删除其余变体
 - **决策**：方案 A — 直接删除 `web-antd`、`web-antdv-next`、`web-naive`
@@ -1289,7 +1289,7 @@ cfg.Database.URL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 - ✅ 发布前备份容器化（D-09：`backup-postgres.sh` 已容器化执行）
 - ✅ 仓库内 edge proxy 正式化（D-05：`.env.prod.example` 补齐 Traefik 生产变量，docker-compose 注释改进）
 - ✅ `uniappx` native auth 闭环（D-10）补齐 callback/deep-link/scheme 机制
-- ⚠️ `uniappx` native auth token 续期闭环仍待补（`/api/v1/auth/refresh` 当前未绑定 refresh token）
+- ✅ `uniappx` native auth token 续期闭环（后端 refresh 支持请求体传 token + 前端 refreshSession 携带 refresh token + 续期后更新本地存储）
 
 ### Batch 2：契约治理
 - ✅ Go/TS 生成链路已统一消费 bundled spec（F-05）

@@ -60,6 +60,37 @@ function readNativeAccessToken(): string | null {
   }
 }
 
+/** 从本地存储读取原生 App 的 refresh token（用于续期请求） */
+function readNativeRefreshToken(): string | null {
+  if (!isNativeRuntime()) return null
+  try {
+    const raw = uni.getStorageSync(NATIVE_TOKEN_STORAGE_KEY)
+    if (!raw || typeof raw !== 'string') return null
+    const parsed = JSON.parse(raw) as { refreshToken?: string }
+    return parsed.refreshToken || null
+  } catch {
+    return null
+  }
+}
+
+/** 续期成功后更新本地存储的 token */
+function updateNativeTokensAfterRefresh(
+  accessToken: string,
+  refreshToken?: string | null,
+  expiresIn?: number | null,
+): void {
+  try {
+    const raw = uni.getStorageSync(NATIVE_TOKEN_STORAGE_KEY)
+    const existing = (raw && typeof raw === 'string' ? JSON.parse(raw) : {}) as Record<string, unknown>
+    existing.accessToken = accessToken
+    if (refreshToken) existing.refreshToken = refreshToken
+    if (typeof expiresIn === 'number') existing.expiresAt = Date.now() + expiresIn * 1000
+    uni.setStorageSync(NATIVE_TOKEN_STORAGE_KEY, JSON.stringify(existing))
+  } catch {
+    // 存储失败不阻断流程
+  }
+}
+
 function serializePath(schemaPath: string, pathParams?: Record<string, unknown>): string {
   return schemaPath.replace(/\{([^}]+)\}/g, (_match, key) => {
     const value = pathParams?.[key]
@@ -289,11 +320,30 @@ function toTransportErrorResult<T>(error: unknown): ApiCallResult<T> {
 
 async function refreshSession(): Promise<boolean> {
   if (!refreshPromise) {
-    refreshPromise = performRequest<unknown>('POST', AUTH_REFRESH_PATH, undefined, { skipRefresh: true })
-      .then((result) => {
-        const status = result.response?.status ?? 0
-        return !result.error && status >= 200 && status < 300
-      })
+    refreshPromise = (async () => {
+      // 原生 App：从本地存储读取 refresh token 通过请求体传递
+      // Web/H5：refresh token 通过 cookie 自动携带
+      let body: unknown
+      if (isNativeRuntime()) {
+        const refreshToken = readNativeRefreshToken()
+        if (!refreshToken) return false
+        body = { refreshToken }
+      }
+      const result = await performRequest<{ accessToken?: string; refreshToken?: string; expiresIn?: number }>(
+        'POST', AUTH_REFRESH_PATH, body ? { body } : undefined, { skipRefresh: true },
+      )
+      const status = result.response?.status ?? 0
+      if (result.error || status < 200 || status >= 300) return false
+      // 原生 App：更新本地存储的 token
+      if (isNativeRuntime() && result.data) {
+        const payload = result.data as { data?: { accessToken?: string; refreshToken?: string; expiresIn?: number } }
+        const tokenData = payload.data
+        if (tokenData?.accessToken) {
+          updateNativeTokensAfterRefresh(tokenData.accessToken, tokenData.refreshToken, tokenData.expiresIn)
+        }
+      }
+      return true
+    })()
       .catch(() => false)
       .finally(() => {
         refreshPromise = null

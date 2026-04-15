@@ -71,10 +71,14 @@ func (h *Handler) LogoutAll(c *gin.Context) {
 	response.Success(c, gin.H{"message": "logged out from all devices"})
 }
 
-// RefreshToken 使用 refresh token 获取新的 token 对
+// RefreshToken 使用 refresh token 获取新的 token 对。
+// 支持三种来源（按优先级）：
+//   1. 请求体 JSON {"refreshToken": "..."}（原生 App）
+//   2. Authorization: Bearer header（原生 App / API 客户端）
+//   3. Cookie（Web 浏览器）
 func (h *Handler) RefreshToken(c *gin.Context) {
-	refreshTokenStr, err := c.Cookie(middleware.CookieRefreshToken)
-	if err != nil || refreshTokenStr == "" {
+	refreshTokenStr := resolveRefreshToken(c)
+	if refreshTokenStr == "" {
 		response.Unauthorized(c, "missing refresh token", errs.ErrTokenMissing)
 		return
 	}
@@ -211,10 +215,16 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	// 在同一 session 内轮换 token（黑名单旧 + 更新 session + 跟踪新）
 	h.svc.RotateSession(c.Request.Context(), sessionID, oldClaims.Sub, refreshTokenStr, newAccessToken, newRefreshToken)
 
-	response.Success(c, gin.H{
+	resp := gin.H{
 		"message":   "token refreshed successfully",
 		"expiresIn": h.tokenConfig.AccessTokenTTL,
-	})
+	}
+	// 原生 App 需要通过 JSON body 接收新 token（无 cookie 可用）
+	if oldClaims.Sid != "" {
+		resp["accessToken"] = newAccessToken
+		resp["refreshToken"] = newRefreshToken
+	}
+	response.Success(c, resp)
 	return true
 }
 
@@ -280,4 +290,27 @@ func extractSessionID(accessToken string) string {
 		return ""
 	}
 	return claims.Sid
+}
+
+// refreshTokenRequest 原生 App 通过请求体传递 refresh token
+type refreshTokenRequest struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
+// resolveRefreshToken 按优先级从请求中获取 refresh token：
+//  1. 请求体 JSON {"refreshToken": "..."}（原生 App）
+//  2. Cookie（Web 浏览器）
+func resolveRefreshToken(c *gin.Context) string {
+	// 1. 请求体（原生 App 无 cookie，通过 JSON body 传递）
+	var body refreshTokenRequest
+	if err := c.ShouldBindJSON(&body); err == nil && body.RefreshToken != "" {
+		return body.RefreshToken
+	}
+
+	// 2. Cookie（Web 浏览器标准路径）
+	if v, err := c.Cookie(middleware.CookieRefreshToken); err == nil && v != "" {
+		return v
+	}
+
+	return ""
 }
