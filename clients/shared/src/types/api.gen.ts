@@ -197,6 +197,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/exchange-native": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 原生 App 令牌交换（用一次性 state 换取 token）
+         * @description 原生 App 完成浏览器 SSO 后，通过 deep link 回传 code + state，
+         *     由本端点完成 code → token 交换并以 JSON 返回（不写 cookie）。
+         */
+        post: operations["exchangeNative"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/course/departments": {
         parameters: {
             query?: never;
@@ -2608,6 +2629,47 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
+        };
+    };
+    exchangeNative: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description OIDC authorization code */
+                    code: string;
+                    /** @description 登录时生成的一次性 state */
+                    state: string;
+                    /** @description PKCE code verifier */
+                    code_verifier?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 令牌交换成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            accessToken: string;
+                            refreshToken?: string;
+                            expiresIn: number;
+                            user?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
         };
     };
     getDepartments: {

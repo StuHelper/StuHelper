@@ -103,6 +103,8 @@ func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 		phone.POST("/request-otp", middleware.RateLimitMiddleware(h.phoneLimiter), h.RequestPhoneOTP)
 		phone.POST("/verify-otp", middleware.RateLimitMiddleware(h.phoneLimiter), h.VerifyPhoneOTP)
 	}
+	// 原生 App 令牌交换：无 cookie / 无 CSRF，用一次性 state 做防重放
+	r.POST("/auth/exchange-native", middleware.RateLimitMiddleware(h.refreshLimiter), h.ExchangeNative)
 }
 
 // RegisterRoutes 注册认证路由

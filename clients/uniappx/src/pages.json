@@ -79,6 +79,13 @@
         "navigationBarTitleText": "Sign In",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/auth/callback",
+      "style": {
+        "navigationBarTitleText": "SSO Callback",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {

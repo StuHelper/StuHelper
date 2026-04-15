@@ -8,6 +8,7 @@ import { translate } from '@/i18n'
 type CurrentUser = components['schemas']['UserInfo']
 type RequestPhoneOTPResult = { message: string; cooldown: number }
 type VerifyPhoneOTPResult = { user: CurrentUser; expiresIn: number }
+type ExchangeNativeResult = { accessToken: string; refreshToken?: string; expiresIn: number }
 
 type UniPageLike = {
   options?: Record<string, string | undefined>
@@ -15,6 +16,56 @@ type UniPageLike = {
 }
 
 const BOOTSTRAP_STALE_MS = 60_000
+const TOKEN_STORAGE_KEY = 'stuhelper:native-tokens'
+
+/** 原生 App 本地存储的 token 结构 */
+interface NativeTokens {
+  accessToken: string
+  refreshToken: string
+  /** token 到期时间戳（毫秒） */
+  expiresAt: number
+}
+
+/** 判断当前是否运行在原生 App 环境 */
+function isNativeApp(): boolean {
+  return typeof plus !== 'undefined'
+}
+
+/** 从本地存储读取原生 token */
+function readNativeTokens(): NativeTokens | null {
+  try {
+    const raw = uni.getStorageSync(TOKEN_STORAGE_KEY)
+    if (!raw || typeof raw !== 'string') return null
+    const parsed = JSON.parse(raw) as NativeTokens
+    if (!parsed.accessToken || !parsed.refreshToken) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+/** 持久化原生 token 到本地存储 */
+function writeNativeTokens(tokens: NativeTokens): void {
+  try {
+    uni.setStorageSync(TOKEN_STORAGE_KEY, JSON.stringify(tokens))
+  } catch {
+    // 存储失败不阻断流程
+  }
+}
+
+/** 清除本地存储的原生 token */
+function clearNativeTokens(): void {
+  try {
+    uni.removeStorageSync(TOKEN_STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+/** 检查原生 token 是否已过期（预留 30s 缓冲） */
+function isTokenExpired(tokens: NativeTokens): boolean {
+  return Date.now() >= tokens.expiresAt - 30_000
+}
 
 function buildCurrentRouteRedirect(): string {
   try {
@@ -55,6 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
   function clearSession() {
     user.value = null
     lastBootstrapAt.value = 0
+    clearNativeTokens()
   }
 
   async function bootstrapSession(force = false) {
@@ -65,6 +117,18 @@ export const useAuthStore = defineStore('auth', () => {
     if (loading.value) return
     loading.value = true
     try {
+      // 原生 App：检查本地 token 是否存在且未过期
+      if (isNativeApp()) {
+        const tokens = readNativeTokens()
+        if (!tokens || isTokenExpired(tokens)) {
+          // 无 token 或已过期——标记为未登录
+          user.value = null
+          lastBootstrapAt.value = Date.now()
+          initialized.value = true
+          return
+        }
+      }
+
       const result = await api.auth.me()
       user.value = unwrapOptionalData<CurrentUser>(result)
       lastBootstrapAt.value = Date.now()
@@ -76,6 +140,8 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = null
         lastBootstrapAt.value = Date.now()
         initialized.value = true
+        // 原生 App 401 说明 token 失效，清除本地存储
+        if (isNativeApp()) clearNativeTokens()
       }
       // 网络错误 / 超时 / 5xx：不更新 lastBootstrapAt 和 initialized，允许后续重试
     } finally {
@@ -101,6 +167,37 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession()
   }
 
+  /** 原生 App SSO 回调：用授权码 + state 换取 token 并持久化 */
+  async function exchangeNativeCode(code: string, state: string): Promise<void> {
+    const result = await api.auth.exchangeNative(code, state, '')
+    const data = unwrapData<ExchangeNativeResult>(result)
+
+    // 持久化 token 到本地存储
+    writeNativeTokens({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken ?? '',
+      expiresAt: Date.now() + data.expiresIn * 1000,
+    })
+
+    // 立即拉取用户信息
+    await bootstrapSession(true)
+  }
+
+  /** 检查原生 App 是否持有有效 token */
+  function hasNativeToken(): boolean {
+    if (!isNativeApp()) return false
+    const tokens = readNativeTokens()
+    return tokens !== null && !isTokenExpired(tokens)
+  }
+
+  /** 获取原生 App 的 access token（供请求头注入） */
+  function getNativeAccessToken(): string | null {
+    if (!isNativeApp()) return null
+    const tokens = readNativeTokens()
+    if (!tokens || isTokenExpired(tokens)) return null
+    return tokens.accessToken
+  }
+
   async function requireAuth(message = translate('auth.requireLogin')) {
     if (isAuthenticated.value) return true
     await bootstrapSession()
@@ -121,6 +218,9 @@ export const useAuthStore = defineStore('auth', () => {
     bootstrapSession,
     requestPhoneOTP,
     verifyPhoneOTP,
+    exchangeNativeCode,
+    hasNativeToken,
+    getNativeAccessToken,
     logout,
     requireAuth,
   }

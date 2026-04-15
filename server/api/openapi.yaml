@@ -71,6 +71,8 @@ paths:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1request-otp"
   /api/v1/auth/phone/verify-otp:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1verify-otp"
+  /api/v1/auth/exchange-native:
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1exchange-native"
 
   # ── Course Entity ──
   /api/v1/course/departments:

@@ -315,3 +315,59 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/exchange-native:
+  post:
+    tags: [Auth]
+    operationId: exchangeNative
+    summary: 原生 App 令牌交换（用一次性 state 换取 token）
+    description: |
+      原生 App 完成浏览器 SSO 后，通过 deep link 回传 code + state，
+      由本端点完成 code → token 交换并以 JSON 返回（不写 cookie）。
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, state]
+            properties:
+              code:
+                type: string
+                description: OIDC authorization code
+              state:
+                type: string
+                description: 登录时生成的一次性 state
+              code_verifier:
+                type: string
+                description: PKCE code verifier
+    responses:
+      '200':
+        description: 令牌交换成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [accessToken, expiresIn]
+                      properties:
+                        accessToken:
+                          type: string
+                        refreshToken:
+                          type: string
+                        expiresIn:
+                          type: integer
+                        user:
+                          type: object
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

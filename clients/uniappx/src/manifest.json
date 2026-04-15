@@ -9,5 +9,19 @@
     "setting": {
       "urlCheck": true
     }
+  },
+  "app-plus": {
+    "distribute": {
+      "android": {
+        "schemes": "stuhelper"
+      },
+      "ios": {
+        "urltypes": [
+          {
+            "urlschemes": ["stuhelper"]
+          }
+        ]
+      }
+    }
   }
 }

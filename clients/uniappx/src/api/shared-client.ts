@@ -24,6 +24,7 @@ const CSRF_COOKIE_NAME = 'csrf_token'
 const CSRF_HEADER_NAME = 'X-CSRF-Token'
 const CSRF_STORAGE_KEY = 'stuhelper:csrf-token'
 const H5 = typeof window !== 'undefined' && typeof window.location?.origin === 'string'
+const NATIVE_TOKEN_STORAGE_KEY = 'stuhelper:native-tokens'
 const AUTH_REFRESH_PATH = '/api/v1/auth/refresh'
 const AUTO_REFRESH_EXCLUDED_PATHS = new Set([
   '/api/v1/auth/login',
@@ -33,9 +34,31 @@ const AUTO_REFRESH_EXCLUDED_PATHS = new Set([
   '/api/v1/auth/logout-all',
   '/api/v1/auth/phone/request-otp',
   '/api/v1/auth/phone/verify-otp',
+  '/api/v1/auth/exchange-native',
 ])
 
 let refreshPromise: Promise<boolean> | null = null
+
+/** 判断当前是否运行在原生 App 环境 */
+function isNativeRuntime(): boolean {
+  return typeof plus !== 'undefined'
+}
+
+/** 从本地存储读取原生 App 的 access token */
+function readNativeAccessToken(): string | null {
+  if (!isNativeRuntime()) return null
+  try {
+    const raw = uni.getStorageSync(NATIVE_TOKEN_STORAGE_KEY)
+    if (!raw || typeof raw !== 'string') return null
+    const parsed = JSON.parse(raw) as { accessToken?: string; expiresAt?: number }
+    if (!parsed.accessToken) return null
+    // 预留 30s 缓冲判断过期
+    if (typeof parsed.expiresAt === 'number' && Date.now() >= parsed.expiresAt - 30_000) return null
+    return parsed.accessToken
+  } catch {
+    return null
+  }
+}
 
 function serializePath(schemaPath: string, pathParams?: Record<string, unknown>): string {
   return schemaPath.replace(/\{([^}]+)\}/g, (_match, key) => {
@@ -312,6 +335,12 @@ function performRequest<T>(
     if (csrfToken) {
       headers[CSRF_HEADER_NAME] = csrfToken
     }
+  }
+
+  // 原生 App：从本地存储注入 Bearer token（替代 cookie）
+  const nativeToken = readNativeAccessToken()
+  if (nativeToken && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${nativeToken}`
   }
 
   return new Promise((resolve) => {
