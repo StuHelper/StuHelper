@@ -141,6 +141,34 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
+/api/v1/course/courses/grouped:
+  get:
+    tags: [Course]
+    operationId: getCoursesGrouped
+    summary: 按院系分组获取全部课程（课程目录页专用）
+    security: []
+    responses:
+      '200':
+        description: 按院系分组的课程列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [groups]
+                      properties:
+                        groups:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/course.yaml#/DepartmentGroup'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
 /api/v1/course/courses/search:
   get:
     tags: [Course]

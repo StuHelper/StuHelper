@@ -101,3 +101,17 @@ CourseStats:
       type: integer
     departmentCount:
       type: integer
+
+DepartmentGroup:
+  type: object
+  required: [departmentID, departmentName, courses]
+  properties:
+    departmentID:
+      type: integer
+      format: int64
+    departmentName:
+      type: string
+    courses:
+      type: array
+      items:
+        $ref: '#/Course'

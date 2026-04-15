@@ -133,6 +133,16 @@ func (s *Service) GetCourseCategories(ctx context.Context) ([]CourseCategory, er
 	return s.repo.ListCourseCategories(ctx)
 }
 
+// GetCoursesGrouped 按院系分组返回全部课程（面向课程目录页）
+func (s *Service) GetCoursesGrouped(ctx context.Context) ([]DepartmentGroup, error) {
+	groups, err := s.repo.ListCoursesGroupedByDepartment(ctx)
+	if err != nil {
+		s.log.Error("获取按院系分组课程失败", zap.Error(err))
+		return nil, err
+	}
+	return groups, nil
+}
+
 // StatsResult 统计结果
 type StatsResult struct {
 	CourseCount     int

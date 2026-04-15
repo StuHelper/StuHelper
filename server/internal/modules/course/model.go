@@ -57,3 +57,10 @@ type Stats struct {
 	TeacherCount    int       `json:"teacherCount"`
 	UpdatedAt       time.Time `json:"updatedAt,omitempty"`
 }
+
+// DepartmentGroup 按院系分组的课程列表
+type DepartmentGroup struct {
+	DepartmentID   int64    `json:"departmentID"`
+	DepartmentName string   `json:"departmentName"`
+	Courses        []Course `json:"courses"`
+}

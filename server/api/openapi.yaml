@@ -81,6 +81,8 @@ paths:
     $ref: "paths/course.yaml#/~1api~1v1~1course~1categories"
   /api/v1/course/courses:
     $ref: "paths/course.yaml#/~1api~1v1~1course~1courses"
+  /api/v1/course/courses/grouped:
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1courses~1grouped"
   /api/v1/course/courses/search:
     $ref: "paths/course.yaml#/~1api~1v1~1course~1courses~1search"
   /api/v1/course/courses/{courseID}:
@@ -335,6 +337,8 @@ components:
       $ref: "components/schemas/course.yaml#/FavoriteCourse"
     CourseStats:
       $ref: "components/schemas/course.yaml#/CourseStats"
+    DepartmentGroup:
+      $ref: "components/schemas/course.yaml#/DepartmentGroup"
 
     # Review
     Review:

@@ -46,6 +46,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 		course.GET("/terms", h.GetTerms)
 		course.GET("/categories", h.GetCourseCategories)
 		course.GET("/courses", optionalAuthMiddleware, h.GetCourses)
+		course.GET("/courses/grouped", h.GetCoursesGrouped)
 		course.GET("/courses/search", optionalAuthMiddleware, h.SearchCourses)
 		course.GET("/courses/:courseID", optionalAuthMiddleware, h.GetCourse)
 		course.GET("/stats", h.GetStats)

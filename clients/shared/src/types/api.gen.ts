@@ -265,6 +265,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/course/courses/grouped": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按院系分组获取全部课程（课程目录页专用） */
+        get: operations["getCoursesGrouped"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/course/courses/search": {
         parameters: {
             query?: never;
@@ -1549,6 +1566,12 @@ export interface components {
             courseCount: number;
             departmentCount: number;
         };
+        DepartmentGroup: {
+            /** Format: int64 */
+            departmentID: number;
+            departmentName: string;
+            courses: components["schemas"]["Course"][];
+        };
         Review: {
             /** Format: uuid */
             id: string;
@@ -2699,6 +2722,31 @@ export interface operations {
                 };
             };
             400: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getCoursesGrouped: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 按院系分组的课程列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            groups: components["schemas"]["DepartmentGroup"][];
+                        };
+                    };
+                };
+            };
             500: components["responses"]["ErrorResponse"];
         };
     };

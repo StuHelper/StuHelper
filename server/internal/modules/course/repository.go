@@ -257,3 +257,47 @@ func (r *Repository) BatchFavoritedCourseIDs(ctx context.Context, userHash strin
 	}
 	return result, rows.Err()
 }
+
+// ListCoursesGroupedByDepartment 一次查询获取所有课程，按院系分组返回。
+// 数据库端按 department 排序，Go 侧分组，避免前端全量拉取 + 聚合。
+func (r *Repository) ListCoursesGroupedByDepartment(ctx context.Context) ([]DepartmentGroup, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT c.id, c.school_id, c.department_id, d.name, c.code, c.name, c.credits, c.category, c.review_count
+		FROM courses c
+		LEFT JOIN departments d ON d.id = c.department_id
+		ORDER BY d.name ASC, c.name ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("ListCoursesGroupedByDepartment: %w", err)
+	}
+	defer rows.Close()
+
+	var groups []DepartmentGroup
+	groupIndex := make(map[int64]int) // departmentID → groups 下标
+
+	for rows.Next() {
+		var item Course
+		if err := rows.Scan(
+			&item.ID, &item.SchoolID, &item.DepartmentID, &item.DepartmentName,
+			&item.Code, &item.Name, &item.Credits, &item.Category, &item.ReviewCount,
+		); err != nil {
+			return nil, fmt.Errorf("ListCoursesGroupedByDepartment scan: %w", err)
+		}
+
+		idx, exists := groupIndex[item.DepartmentID]
+		if !exists {
+			idx = len(groups)
+			groupIndex[item.DepartmentID] = idx
+			groups = append(groups, DepartmentGroup{
+				DepartmentID:   item.DepartmentID,
+				DepartmentName: item.DepartmentName,
+				Courses:        make([]Course, 0, 16),
+			})
+		}
+		groups[idx].Courses = append(groups[idx].Courses, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ListCoursesGroupedByDepartment rows: %w", err)
+	}
+	return groups, nil
+}
