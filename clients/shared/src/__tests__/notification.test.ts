@@ -49,17 +49,15 @@ describe('notification helpers', () => {
     expect(resolveNotificationHref(notification)).toBe('/user/student-verification')
   })
 
-  it('falls back to legacy related review route when no source fields are present', () => {
+  it('falls back to type-based route when no source fields are present', () => {
     const notification: Notification = {
       id: '1',
-      type: 'vote',
+      type: 'identity_approved',
       title: 'x',
-      relatedType: 'review',
-      relatedID: 'review-1',
       isRead: false,
       createdAt: '2026-04-08T00:00:00Z',
     }
 
-    expect(resolveNotificationHref(notification)).toBe('/user/reviews')
+    expect(resolveNotificationHref(notification)).toBe('/user/identity-verification')
   })
 })
