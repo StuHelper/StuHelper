@@ -257,8 +257,27 @@ paths:
         - Auth
       operationId: refreshToken
       summary: 刷新 Access Token
+      description: |
+        支持两种传递 refresh token 的方式：
+        - **Web 浏览器**：通过 HttpOnly cookie 自动携带（cookieAuth）
+        - **原生 App**：通过请求体 JSON 传递（无 cookie 环境）
+
+        原生 App 请求时，响应额外包含 accessToken 和 refreshToken 字段，
+        供客户端更新本地存储。
       security:
         - cookieAuth: []
+        - {}
+      requestBody:
+        description: 原生 App 通过请求体传递 refresh token（Web 浏览器通过 cookie 自动携带，无需此字段）
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  description: 原生 App 的 refresh token
       responses:
         '200':
           description: Token 刷新成功
@@ -281,6 +300,12 @@ paths:
                             type: string
                           expiresIn:
                             type: integer
+                          accessToken:
+                            type: string
+                            description: 仅原生 App 请求时返回
+                          refreshToken:
+                            type: string
+                            description: 仅原生 App 请求时返回
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
