@@ -14,6 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Route constants matching the real registration in app/modules.go:
+//   api := r.Group("/api/v1")
+//   api.POST("/metrics/vitals", metrics.VitalsHandler())
+//   api.POST("/metrics/frontend-errors", metrics.FrontendErrorHandler())
+const (
+	frontendErrorsRoute = "/api/v1/metrics/frontend-errors"
+	vitalsRoute         = "/api/v1/metrics/vitals"
+)
+
 func init() {
 	gin.SetMode(gin.TestMode)
 }
@@ -240,14 +249,30 @@ func TestObserveExternalRequest_Error(t *testing.T) {
 // Frontend errors handler (frontend_errors.go)
 // ---------------------------------------------------------------------------
 
+// TestFrontendErrors_RouteContract validates the handler is reachable at the
+// real route path used in app/modules.go (api group "/api/v1" + "/metrics/frontend-errors").
+func TestFrontendErrors_RouteContract(t *testing.T) {
+	router := gin.New()
+	api := router.Group("/api/v1")
+	api.POST("/metrics/frontend-errors", FrontendErrorHandler())
+
+	body := `{"kind":"error"}`
+	req := httptest.NewRequest(http.MethodPost, frontendErrorsRoute, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code, "POST %s should return 204, not 404", frontendErrorsRoute)
+}
+
 func TestFrontendErrorHandler_ValidKind(t *testing.T) {
 	router := gin.New()
-	router.POST("/api/v1/frontend-errors", FrontendErrorHandler())
+	router.POST(frontendErrorsRoute, FrontendErrorHandler())
 
 	before := testutil.ToFloat64(FrontendErrorsTotal.WithLabelValues("error"))
 
 	body := `{"kind":"error"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/frontend-errors", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, frontendErrorsRoute, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -258,12 +283,12 @@ func TestFrontendErrorHandler_ValidKind(t *testing.T) {
 
 func TestFrontendErrorHandler_UnhandledRejection(t *testing.T) {
 	router := gin.New()
-	router.POST("/fe-err", FrontendErrorHandler())
+	router.POST(frontendErrorsRoute, FrontendErrorHandler())
 
 	before := testutil.ToFloat64(FrontendErrorsTotal.WithLabelValues("unhandledrejection"))
 
 	body := `{"kind":"unhandledrejection"}`
-	req := httptest.NewRequest(http.MethodPost, "/fe-err", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, frontendErrorsRoute, strings.NewReader(body))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -273,12 +298,12 @@ func TestFrontendErrorHandler_UnhandledRejection(t *testing.T) {
 
 func TestFrontendErrorHandler_InvalidKind(t *testing.T) {
 	router := gin.New()
-	router.POST("/fe-err", FrontendErrorHandler())
+	router.POST(frontendErrorsRoute, FrontendErrorHandler())
 
 	before := testutil.ToFloat64(FrontendErrorsTotal.WithLabelValues("xss"))
 
 	body := `{"kind":"xss"}`
-	req := httptest.NewRequest(http.MethodPost, "/fe-err", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, frontendErrorsRoute, strings.NewReader(body))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -289,9 +314,9 @@ func TestFrontendErrorHandler_InvalidKind(t *testing.T) {
 
 func TestFrontendErrorHandler_EmptyBody(t *testing.T) {
 	router := gin.New()
-	router.POST("/fe-err", FrontendErrorHandler())
+	router.POST(frontendErrorsRoute, FrontendErrorHandler())
 
-	req := httptest.NewRequest(http.MethodPost, "/fe-err", strings.NewReader(""))
+	req := httptest.NewRequest(http.MethodPost, frontendErrorsRoute, strings.NewReader(""))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -300,9 +325,9 @@ func TestFrontendErrorHandler_EmptyBody(t *testing.T) {
 
 func TestFrontendErrorHandler_InvalidJSON(t *testing.T) {
 	router := gin.New()
-	router.POST("/fe-err", FrontendErrorHandler())
+	router.POST(frontendErrorsRoute, FrontendErrorHandler())
 
-	req := httptest.NewRequest(http.MethodPost, "/fe-err", strings.NewReader("{invalid"))
+	req := httptest.NewRequest(http.MethodPost, frontendErrorsRoute, strings.NewReader("{invalid"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -313,12 +338,28 @@ func TestFrontendErrorHandler_InvalidJSON(t *testing.T) {
 // Web Vitals handler (vitals.go)
 // ---------------------------------------------------------------------------
 
-func TestVitalsHandler_ValidMetric(t *testing.T) {
+// TestVitals_RouteContract validates the handler is reachable at the
+// real route path used in app/modules.go (api group "/api/v1" + "/metrics/vitals").
+func TestVitals_RouteContract(t *testing.T) {
 	router := gin.New()
-	router.POST("/api/v1/vitals", VitalsHandler())
+	api := router.Group("/api/v1")
+	api.POST("/metrics/vitals", VitalsHandler())
 
 	body := `{"name":"LCP","value":1234.5,"rating":"good"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/vitals", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, vitalsRoute, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code, "POST %s should return 204, not 404", vitalsRoute)
+}
+
+func TestVitalsHandler_ValidMetric(t *testing.T) {
+	router := gin.New()
+	router.POST(vitalsRoute, VitalsHandler())
+
+	body := `{"name":"LCP","value":1234.5,"rating":"good"}`
+	req := httptest.NewRequest(http.MethodPost, vitalsRoute, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -332,12 +373,12 @@ func TestVitalsHandler_ValidMetric(t *testing.T) {
 
 func TestVitalsHandler_AllValidNames(t *testing.T) {
 	router := gin.New()
-	router.POST("/vitals", VitalsHandler())
+	router.POST(vitalsRoute, VitalsHandler())
 
 	for _, name := range []string{"CLS", "INP", "LCP", "FCP", "TTFB"} {
 		t.Run(name, func(t *testing.T) {
 			body := `{"name":"` + name + `","value":100,"rating":"good"}`
-			req := httptest.NewRequest(http.MethodPost, "/vitals", strings.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost, vitalsRoute, strings.NewReader(body))
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusNoContent, w.Code)
@@ -347,12 +388,12 @@ func TestVitalsHandler_AllValidNames(t *testing.T) {
 
 func TestVitalsHandler_AllValidRatings(t *testing.T) {
 	router := gin.New()
-	router.POST("/vitals", VitalsHandler())
+	router.POST(vitalsRoute, VitalsHandler())
 
 	for _, rating := range []string{"good", "needs-improvement", "poor"} {
 		t.Run(rating, func(t *testing.T) {
 			body := `{"name":"LCP","value":500,"rating":"` + rating + `"}`
-			req := httptest.NewRequest(http.MethodPost, "/vitals", strings.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost, vitalsRoute, strings.NewReader(body))
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusNoContent, w.Code)
@@ -362,10 +403,10 @@ func TestVitalsHandler_AllValidRatings(t *testing.T) {
 
 func TestVitalsHandler_InvalidName(t *testing.T) {
 	router := gin.New()
-	router.POST("/vitals", VitalsHandler())
+	router.POST(vitalsRoute, VitalsHandler())
 
 	body := `{"name":"EVIL_METRIC","value":100,"rating":"good"}`
-	req := httptest.NewRequest(http.MethodPost, "/vitals", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, vitalsRoute, strings.NewReader(body))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -374,10 +415,10 @@ func TestVitalsHandler_InvalidName(t *testing.T) {
 
 func TestVitalsHandler_InvalidRating(t *testing.T) {
 	router := gin.New()
-	router.POST("/vitals", VitalsHandler())
+	router.POST(vitalsRoute, VitalsHandler())
 
 	body := `{"name":"LCP","value":100,"rating":"excellent"}`
-	req := httptest.NewRequest(http.MethodPost, "/vitals", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, vitalsRoute, strings.NewReader(body))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -386,9 +427,9 @@ func TestVitalsHandler_InvalidRating(t *testing.T) {
 
 func TestVitalsHandler_EmptyBody(t *testing.T) {
 	router := gin.New()
-	router.POST("/vitals", VitalsHandler())
+	router.POST(vitalsRoute, VitalsHandler())
 
-	req := httptest.NewRequest(http.MethodPost, "/vitals", strings.NewReader(""))
+	req := httptest.NewRequest(http.MethodPost, vitalsRoute, strings.NewReader(""))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -397,9 +438,9 @@ func TestVitalsHandler_EmptyBody(t *testing.T) {
 
 func TestVitalsHandler_InvalidJSON(t *testing.T) {
 	router := gin.New()
-	router.POST("/vitals", VitalsHandler())
+	router.POST(vitalsRoute, VitalsHandler())
 
-	req := httptest.NewRequest(http.MethodPost, "/vitals", strings.NewReader("not json"))
+	req := httptest.NewRequest(http.MethodPost, vitalsRoute, strings.NewReader("not json"))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

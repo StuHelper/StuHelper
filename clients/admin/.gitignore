@@ -54,6 +54,10 @@ vite.config.ts.*
 .history
 .cursor
 
+# Archived
+_archived/*/node_modules
+_archived/*/dist
+
 # AI
 .agent
 .agents

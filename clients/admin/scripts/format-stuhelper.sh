@@ -15,9 +15,6 @@ FORMAT_TARGETS=(
   "apps/web-ele/tests/e2e"
   "apps/web-ele/playwright.config.ts"
   "apps/web-ele/vite.config.ts"
-  "playground/src/api/core/menu.ts"
-  "playground/src/api/request.ts"
-  "playground/src/router/access.ts"
 )
 
 JS_TARGETS=(
@@ -25,9 +22,6 @@ JS_TARGETS=(
   "apps/web-ele/tests/e2e"
   "apps/web-ele/playwright.config.ts"
   "apps/web-ele/vite.config.ts"
-  "playground/src/api/core/menu.ts"
-  "playground/src/api/request.ts"
-  "playground/src/router/access.ts"
 )
 
 pnpm exec oxfmt "${FORMAT_TARGETS[@]}"
