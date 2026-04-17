@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,11 +20,9 @@ const (
 	blacklistPrefix = "token:blacklist:"
 	// 已消费的一次性 refresh token 标记前缀
 	refreshConsumedPrefix = "token:refresh:consumed:"
-	// 用户 token 集合前缀（ZSET: member = type:hash, score = expiry unix timestamp）
-	userTokensPrefix = "token:user:"
 )
 
-// TokenType 标识 token 类型（用于 ZSET member 前缀）
+// TokenType 标识 token 类型（保留给 audit/metric 使用）
 type TokenType string
 
 const (
@@ -47,9 +44,6 @@ const (
 	minBlacklistTTL = 1 * time.Second
 	// maxBlacklistTTL 黑名单 TTL 最大值（30 天）
 	maxBlacklistTTL = 30 * 24 * time.Hour
-	// maxTrackingKeyTTL ZSET key 的安全网 TTL，防止孤立 key 永不过期。
-	// 实际过期成员由 ZREMRANGEBYSCORE 清理。
-	maxTrackingKeyTTL = 30 * 24 * time.Hour
 )
 
 // Blacklist Token 黑名单服务
@@ -295,129 +289,10 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 	return blacklisted, nil
 }
 
-// RevokeAllUserTokens 撤销用户的所有活跃 token。
-// 先 prune 已过期成员，再将剩余活跃 token 加入黑名单。
-func (b *Blacklist) RevokeAllUserTokens(ctx context.Context, userID string, blacklistExpiry time.Duration) error {
-	if !b.cb.Allow() {
-		return fmt.Errorf("RevokeAllUserTokens: blacklist service unavailable (circuit breaker open)")
-	}
-
-	key := userTokensPrefix + userID
-
-	// 先清理已过期成员
-	nowStr := fmt.Sprintf("%d", time.Now().Unix())
-	if err := b.rdb.ZRemRangeByScore(ctx, key, "-inf", nowStr).Err(); err != nil {
-		logger.L().Warn("RevokeAllUserTokens: failed to prune expired members",
-			zap.String("user_id", userID),
-			zap.Error(err),
-		)
-	}
-
-	// 获取剩余活跃成员
-	members, err := b.rdb.ZRange(ctx, key, 0, -1).Result()
-	if err != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("RevokeAllUserTokens: failed to get user tokens: %w", err)
-	}
-
-	if len(members) == 0 {
-		b.cb.RecordSuccess()
-		return nil
-	}
-
-	pipe := b.rdb.Pipeline()
-	for _, member := range members {
-		tokenHash := extractHash(member)
-		pipe.Set(ctx, blacklistPrefix+tokenHash, "1", blacklistExpiry)
-	}
-	pipe.Del(ctx, key)
-
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("RevokeAllUserTokens: failed to execute pipeline: %w", err)
-	}
-	b.cb.RecordSuccess()
-
-	// 同步更新本地缓存，避免 IsBlacklisted 在 TTL 窗口内返回旧的 false
-	for _, member := range members {
-		tokenHash := extractHash(member)
-		b.localCache.Store(tokenHash, localCacheEntry{
-			blacklisted: true,
-			expiresAt:   time.Now().Add(localCacheTTL),
-		})
-	}
-
-	return nil
-}
-
-// TrackUserToken 记录用户 token 到 ZSET（按过期时间戳排序）。
-// member 格式: "access:<hash>" 或 "refresh:<hash>"
-// score: token 过期的 Unix 时间戳
-// 每次写入时顺带清理已过期成员，防止集合无限增长。
-func (b *Blacklist) TrackUserToken(ctx context.Context, userID, token string, tokenType TokenType, expiresAt time.Time) error {
-	if !b.cb.Allow() {
-		return fmt.Errorf("TrackUserToken: blacklist service unavailable (circuit breaker open)")
-	}
-
-	tokenHash, err := hashToken(token)
-	if err != nil {
-		return fmt.Errorf("failed to hash token: %w", err)
-	}
-
-	key := userTokensPrefix + userID
-	member := string(tokenType) + ":" + tokenHash
-	score := float64(expiresAt.Unix())
-
-	pipe := b.rdb.Pipeline()
-	// 清理已过期成员
-	nowStr := fmt.Sprintf("%d", time.Now().Unix())
-	pipe.ZRemRangeByScore(ctx, key, "-inf", nowStr)
-	// 添加新成员
-	pipe.ZAdd(ctx, key, redis.Z{Score: score, Member: member})
-	// 设置安全网 TTL，防止 key 孤立
-	pipe.Expire(ctx, key, maxTrackingKeyTTL)
-
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("TrackUserToken: pipeline exec failed: %w", err)
-	}
-
-	b.cb.RecordSuccess()
-	return nil
-}
-
-// UntrackUserToken 从用户 token 集合中移除指定 token
-func (b *Blacklist) UntrackUserToken(ctx context.Context, userID, token string, tokenType TokenType) error {
-	if !b.cb.Allow() {
-		return fmt.Errorf("UntrackUserToken: blacklist service unavailable (circuit breaker open)")
-	}
-
-	tokenHash, err := hashToken(token)
-	if err != nil {
-		return fmt.Errorf("failed to hash token: %w", err)
-	}
-
-	member := string(tokenType) + ":" + tokenHash
-	if err := b.rdb.ZRem(ctx, userTokensPrefix+userID, member).Err(); err != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("UntrackUserToken: ZRem failed: %w", err)
-	}
-	b.cb.RecordSuccess()
-	return nil
-}
+// RevokeAllUserTokens / TrackUserToken / UntrackUserToken 已随双轨 session 清理一并移除。
+// 全设备撤销通过 SessionStore.RevokeAll 完成，token 原文撤销通过 Add / AddByHash。
 
 // CircuitBreakerMetrics 获取熔断器指标（用于监控）
 func (b *Blacklist) CircuitBreakerMetrics() map[string]any {
 	return b.cb.Metrics()
-}
-
-// extractHash 从 ZSET member 中提取 token hash。
-// member 格式: "type:hash"。如果没有前缀（兼容旧数据），直接返回原值。
-func extractHash(member string) string {
-	if idx := strings.IndexByte(member, ':'); idx >= 0 {
-		return member[idx+1:]
-	}
-	return member
 }

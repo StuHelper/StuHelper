@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	mrand "math/rand"
 	"sync"
@@ -299,7 +300,7 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 
 		version, err := h.client.Get(ctx, vk).Result()
 		if err != nil {
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				return "0", nil
 			}
 			// 非 key-not-found 错误，记录日志并返回默认值

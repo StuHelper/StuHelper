@@ -400,73 +400,6 @@ func TestBlacklist_TryConsumeRefreshToken_TTLBounds(t *testing.T) {
 	assert.Contains(t, err.Error(), "out of valid range")
 }
 
-func TestBlacklist_TrackAndUntrack(t *testing.T) {
-	require.NoError(t, crypto.InitHMACKey("test-blacklist-track-secret", false))
-
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
-
-	bl := NewBlacklist(client)
-	defer bl.Close()
-
-	ctx := t.Context()
-
-	err := bl.TrackUserToken(ctx, "user-1", "access-tok-1", TokenTypeAccess, time.Now().Add(time.Hour))
-	require.NoError(t, err)
-
-	err = bl.TrackUserToken(ctx, "user-1", "refresh-tok-1", TokenTypeRefresh, time.Now().Add(24*time.Hour))
-	require.NoError(t, err)
-
-	err = bl.UntrackUserToken(ctx, "user-1", "access-tok-1", TokenTypeAccess)
-	require.NoError(t, err)
-}
-
-func TestBlacklist_RevokeAllUserTokens(t *testing.T) {
-	require.NoError(t, crypto.InitHMACKey("test-blacklist-revoke-secret", false))
-
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
-
-	bl := NewBlacklist(client)
-	defer bl.Close()
-
-	ctx := t.Context()
-
-	// Track two tokens, then revoke all.
-	err := bl.TrackUserToken(ctx, "user-revoke", "tok-a", TokenTypeAccess, time.Now().Add(time.Hour))
-	require.NoError(t, err)
-	err = bl.TrackUserToken(ctx, "user-revoke", "tok-b", TokenTypeRefresh, time.Now().Add(24*time.Hour))
-	require.NoError(t, err)
-
-	err = bl.RevokeAllUserTokens(ctx, "user-revoke", time.Hour)
-	require.NoError(t, err)
-
-	// After revocation, both tokens should be blacklisted.
-	isBlacklisted, err := bl.IsBlacklisted(ctx, "tok-a")
-	require.NoError(t, err)
-	assert.True(t, isBlacklisted)
-
-	isBlacklisted, err = bl.IsBlacklisted(ctx, "tok-b")
-	require.NoError(t, err)
-	assert.True(t, isBlacklisted)
-}
-
-func TestBlacklist_RevokeAllUserTokens_Empty(t *testing.T) {
-	require.NoError(t, crypto.InitHMACKey("test-blacklist-revoke-empty", false))
-
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
-
-	bl := NewBlacklist(client)
-	defer bl.Close()
-
-	ctx := t.Context()
-
-	// Revoking when no tokens tracked should not error.
-	err := bl.RevokeAllUserTokens(ctx, "nonexistent-user", time.Hour)
-	assert.NoError(t, err)
-}
-
 func TestBlacklist_CircuitBreakerMetrics(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-cb-metrics-secret", false))
 
@@ -479,23 +412,6 @@ func TestBlacklist_CircuitBreakerMetrics(t *testing.T) {
 	m := bl.CircuitBreakerMetrics()
 	assert.NotNil(t, m)
 	assert.Contains(t, m, "state")
-}
-
-func TestExtractHash(t *testing.T) {
-	tests := []struct {
-		member string
-		want   string
-	}{
-		{"access:abc123", "abc123"},
-		{"refresh:xyz789", "xyz789"},
-		{"no-prefix", "no-prefix"},
-		{"a:b:c", "b:c"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.member, func(t *testing.T) {
-			assert.Equal(t, tt.want, extractHash(tt.member))
-		})
-	}
 }
 
 // ---------------------------------------------------------------------------

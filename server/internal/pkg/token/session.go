@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,6 +19,40 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
+
+// touchSessionScript 原子地读取、合并 lastActiveAt / tokenHash 字段并重写 session + 续期 TTL。
+// 作为 Lua 脚本执行避免两个并发 refresh 之间的 read-modify-write 竞态——
+// 否则较晚完成的请求会用过期的 access/refresh hash 覆盖已经轮换过的值，
+// 黑名单就失去了对旧 token 的追踪能力（安全退化）。
+//
+// KEYS[1] = session key (session:<sessionID>)
+// ARGV[1] = new lastActiveAt unix timestamp (string)
+// ARGV[2] = new access token hash (empty string == keep current)
+// ARGV[3] = new refresh token hash (empty string == keep current)
+// ARGV[4] = TTL seconds
+//
+// 返回 1 表示成功，0 表示 session 不存在。
+const touchSessionScript = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then
+    return 0
+end
+local data = cjson.decode(raw)
+data['lastActiveAt'] = tonumber(ARGV[1])
+if ARGV[2] ~= '' then
+    data['accessTokenHash'] = ARGV[2]
+end
+if ARGV[3] ~= '' then
+    data['refreshTokenHash'] = ARGV[3]
+end
+redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[4]))
+return 1
+`
+
+var touchSessionScriptObj = redis.NewScript(touchSessionScript)
+
+// ErrSessionNotFound session 不存在或已过期。
+var ErrSessionNotFound = errors.New("session not found")
 
 // Redis key 前缀
 const (
@@ -98,7 +133,7 @@ func (s *SessionStore) Create(ctx context.Context, data SessionData) error {
 func (s *SessionStore) Get(ctx context.Context, sessionID string) (*SessionData, error) {
 	raw, err := s.rdb.Get(ctx, sessionPrefix+sessionID).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("session get: %w", err)
@@ -111,37 +146,26 @@ func (s *SessionStore) Get(ctx context.Context, sessionID string) (*SessionData,
 	return &data, nil
 }
 
-// Touch 更新 session 的 lastActiveAt 和 token 哈希（用于 refresh 轮换）。
+// Touch 原子地更新 session 的 lastActiveAt 和 token 哈希（用于 refresh 轮换）。
+// 使用 Redis Lua 脚本在一次 RTT 内完成 GET+merge+SET+EXPIRE，避免并发 refresh
+// 造成的 read-modify-write 竞态——两个 refresh 同时命中时互相覆盖，会让已
+// 轮换的 token hash 失去追踪，使旧 token 绕过黑名单。session 不存在时返回
+// ErrSessionNotFound。
 func (s *SessionStore) Touch(ctx context.Context, sessionID, newAccessHash, newRefreshHash string) error {
-	raw, err := s.rdb.Get(ctx, sessionPrefix+sessionID).Result()
+	now := time.Now().Unix()
+	res, err := touchSessionScriptObj.Run(
+		ctx, s.rdb,
+		[]string{sessionPrefix + sessionID},
+		now,
+		newAccessHash,
+		newRefreshHash,
+		int(s.sessionTTL.Seconds()),
+	).Int64()
 	if err != nil {
-		if err == redis.Nil {
-			return fmt.Errorf("session touch: session not found")
-		}
-		return fmt.Errorf("session touch: get: %w", err)
+		return fmt.Errorf("session touch: run script: %w", err)
 	}
-
-	var data SessionData
-	if err := json.Unmarshal([]byte(raw), &data); err != nil {
-		return fmt.Errorf("session touch: unmarshal: %w", err)
-	}
-
-	data.LastActiveAt = time.Now().Unix()
-	if newAccessHash != "" {
-		data.AccessTokenHash = newAccessHash
-	}
-	if newRefreshHash != "" {
-		data.RefreshTokenHash = newRefreshHash
-	}
-
-	encoded, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("session touch: marshal: %w", err)
-	}
-
-	// 续期 session TTL
-	if err := s.rdb.Set(ctx, sessionPrefix+sessionID, encoded, s.sessionTTL).Err(); err != nil {
-		return fmt.Errorf("session touch: set: %w", err)
+	if res == 0 {
+		return ErrSessionNotFound
 	}
 	return nil
 }

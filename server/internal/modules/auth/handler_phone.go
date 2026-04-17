@@ -152,9 +152,10 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 		return
 	}
 
-	// 创建服务端 Session 并跟踪 token — 必须在写入 Cookie 之前完成
+	// 创建服务端 Session —— 必须传入签发 JWT 时使用的同一 sessionID，
+	// 否则 JWT 中的 Sid claim 与 session store key 不一致，refresh/revoke 会失效。
 	deviceInfo := c.Request.UserAgent()
-	if _, sessErr := h.svc.CreateSession(c.Request.Context(), user.ExternalID, accessToken, refreshToken, "phone", deviceInfo); sessErr != nil {
+	if _, sessErr := h.svc.CreateSession(c.Request.Context(), sessionID, user.ExternalID, accessToken, refreshToken, "phone", deviceInfo); sessErr != nil {
 		logger.FromGin(c).Error("failed to create session",
 			zap.String("user_id", user.ExternalID),
 			zap.Error(sessErr),

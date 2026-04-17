@@ -23,6 +23,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 const (
@@ -169,8 +170,15 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, code, r
 
 	// 创建服务端 Session（Token Family），跟踪 token 对
 	// 必须在写入 Cookie 之前完成：未跟踪的 token 无法被 LogoutAll 撤销
+	sessionID, sidErr := token.GenerateSessionID()
+	if sidErr != nil {
+		logger.FromGin(c).Error("failed to generate session id", zap.Error(sidErr))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session id generation failed")
+		response.InternalError(c, "authentication failed")
+		return
+	}
 	deviceInfo := c.Request.UserAgent()
-	sessInfo, sessErr := h.svc.CreateSession(ctx, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc", deviceInfo)
+	sessInfo, sessErr := h.svc.CreateSession(ctx, sessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc", deviceInfo)
 	if sessErr != nil {
 		logger.FromGin(c).Error("failed to create session",
 			zap.String("user_id", claims.GetUserID()),
@@ -380,9 +388,18 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 		return
 	}
 
-	// 创建服务端 Session（Token Family）
+	// 创建服务端 Session（Token Family）。原生客户端没有 cookie，
+	// 下面把 sessionID 写入响应体，客户端须在 refresh 时通过 header 回传
+	// 以保留 Token Family 追踪语义。
+	nativeSessionID, nativeSidErr := token.GenerateSessionID()
+	if nativeSidErr != nil {
+		logger.FromGin(c).Error("native exchange: failed to generate session id", zap.Error(nativeSidErr))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session id generation failed")
+		response.InternalError(c, "authentication failed")
+		return
+	}
 	deviceInfo := c.Request.UserAgent()
-	if _, sessErr := h.svc.CreateSession(ctx, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc-native", deviceInfo); sessErr != nil {
+	if _, sessErr := h.svc.CreateSession(ctx, nativeSessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc-native", deviceInfo); sessErr != nil {
 		logger.FromGin(c).Error("native exchange: failed to create session",
 			zap.String("user_id", claims.GetUserID()), zap.Error(sessErr))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session creation failed")
@@ -396,6 +413,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	response.Success(c, gin.H{
 		"accessToken":  rawIDToken,
 		"refreshToken": oauthToken.RefreshToken,
+		"sessionID":    nativeSessionID,
 		"expiresIn":    h.tokenConfig.AccessTokenTTL,
 	})
 }

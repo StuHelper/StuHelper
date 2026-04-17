@@ -35,12 +35,16 @@ type SessionInfo struct {
 	SessionID string
 }
 
-// CreateSession 创建新 session 并跟踪 token 对。
-// 必须在 token 签发后、写入 cookie/response 前调用。
-func (s *Service) CreateSession(ctx context.Context, userID, accessToken, refreshToken, loginMethod, deviceInfo string) (*SessionInfo, error) {
-	sessionID, err := token.GenerateSessionID()
-	if err != nil {
-		return nil, fmt.Errorf("create session: %w", err)
+// CreateSession 在 Redis session store 中注册新 session。
+// 调用方必须在签发 JWT 前生成 sessionID（token.GenerateSessionID），
+// 并在签发 JWT 的 Sid claim 中使用同一值——否则 JWT sid 与服务端存储的
+// session key 不一致，refresh / revoke 都会失效。
+func (s *Service) CreateSession(ctx context.Context, sessionID, userID, accessToken, refreshToken, loginMethod, deviceInfo string) (*SessionInfo, error) {
+	if sessionID == "" {
+		return nil, fmt.Errorf("create session: sessionID is required")
+	}
+	if userID == "" {
+		return nil, fmt.Errorf("create session: userID is required")
 	}
 
 	accessHash, err := hashTokenForSession(accessToken)
@@ -69,47 +73,58 @@ func (s *Service) CreateSession(ctx context.Context, userID, accessToken, refres
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 
-	// 兼容：同时注册到旧 token 跟踪系统（支持渐进迁移）
-	if trackErr := s.trackTokenPair(ctx, userID, accessToken, refreshToken); trackErr != nil {
-		logger.L().Warn("create session: legacy token tracking failed (session already created)",
-			zap.String("session_id", sessionID),
-			zap.Error(trackErr),
-		)
-	}
-
 	return &SessionInfo{SessionID: sessionID}, nil
 }
 
-// RotateSession 在 refresh 流程中轮换 session 内的 token 对。
-// 旧 token 加入黑名单，新 token 更新到 session（Token Family 模式）。
-func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefreshToken, newAccessToken, newRefreshToken string) {
-	// 黑名单旧 refresh token
+// RotateSession 在 refresh 流程中轮换 session 内的 token 对（Token Family 模式）。
+// 步骤：
+//  1. 将旧 refresh token 加入黑名单
+//  2. 计算新 token 的 HMAC hash 并原子更新 session store
+//
+// 任何步骤失败都返回 error——若静默吞错，过期 hash 会覆盖 session 中
+// 已经轮换的值，黑名单失去对旧 token 的追踪（安全退化）。
+//
+// sessionID 为空时（例如原生 OIDC 刷新——ID Token 不携带自定义 sid claim、
+// 客户端亦无 cookie），只做黑名单，不做 session touch 并记录一次 warn。
+// 这是原生 OIDC 流程的已知缺口：session store 中该 session 的 token hash
+// 不会更新。生产修复应让 exchange-native 返回 sid 并在 refresh 时回传。
+func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefreshToken, newAccessToken, newRefreshToken string) error {
+	// 黑名单旧 refresh token（强制执行，失败即返回）
 	if blErr := s.tokenService.GetBlacklist().Add(ctx, oldRefreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
-		logger.L().Warn("rotate session: failed to blacklist old refresh token", zap.Error(blErr))
+		return fmt.Errorf("rotate session: blacklist old refresh token: %w", blErr)
 	}
 
-	// 更新 session 中的 token hash
-	newAccessHash, _ := hashTokenForSession(newAccessToken)
+	if sessionID == "" {
+		logger.L().Warn("rotate session: missing sessionID, token tracking limited (likely native OIDC refresh without sid propagation)",
+			zap.String("user_id", userID),
+		)
+		return nil
+	}
+
+	newAccessHash, err := hashTokenForSession(newAccessToken)
+	if err != nil {
+		return fmt.Errorf("rotate session: hash new access token: %w", err)
+	}
 	var newRefreshHash string
 	if newRefreshToken != "" {
-		newRefreshHash, _ = hashTokenForSession(newRefreshToken)
+		newRefreshHash, err = hashTokenForSession(newRefreshToken)
+		if err != nil {
+			return fmt.Errorf("rotate session: hash new refresh token: %w", err)
+		}
 	}
 
 	if touchErr := s.tokenService.GetSessionStore().Touch(ctx, sessionID, newAccessHash, newRefreshHash); touchErr != nil {
-		logger.L().Warn("rotate session: failed to touch session",
-			zap.String("session_id", sessionID),
-			zap.Error(touchErr),
-		)
+		return fmt.Errorf("rotate session: touch session: %w", touchErr)
 	}
-
-	// 兼容：同时更新旧 token 跟踪系统
-	s.legacyRotateTokenPair(ctx, userID, oldRefreshToken, newAccessToken, newRefreshToken)
+	return nil
 }
 
 // RevokeSession 撤销单个 session（单设备登出）。
 // 权威撤销操作——失败时返回 error，调用方不得向客户端承诺"登出成功"。
+//
+// 优先通过 session store 撤销（将 session 内 token hash 加入黑名单）；
+// 若调用方持有 token 原文（例如 session ID 无法解析），直接按 token 原文加黑名单作兜底。
 func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessToken, refreshToken string) error {
-	// 优先通过 session store 撤销（将 session 内 token hash 加入黑名单）
 	if sessionID != "" {
 		_, err := s.tokenService.GetSessionStore().Revoke(
 			ctx, sessionID,
@@ -122,10 +137,10 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 		}
 	}
 
-	// 兼容回退：如果有 token 原文，也直接加入黑名单（处理无 session ID 的旧 token）
+	// 兜底：无 session ID 或 session 已过期时，按 token 原文加黑名单
 	if accessToken != "" {
 		if blErr := s.tokenService.GetBlacklist().Add(ctx, accessToken, s.tokenService.GetAccessTokenTTL()); blErr != nil {
-			logger.L().Error("revoke session: failed to blacklist access token directly",
+			logger.L().Error("revoke session: failed to blacklist access token",
 				zap.String("user_id", userID),
 				zap.Error(blErr),
 			)
@@ -136,7 +151,7 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 	}
 	if refreshToken != "" {
 		if blErr := s.tokenService.GetBlacklist().Add(ctx, refreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
-			logger.L().Error("revoke session: failed to blacklist refresh token directly",
+			logger.L().Error("revoke session: failed to blacklist refresh token",
 				zap.String("user_id", userID),
 				zap.Error(blErr),
 			)
@@ -145,31 +160,21 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 			}
 		}
 	}
-
-	// 清理旧 token 跟踪
-	s.legacyUntrackTokens(ctx, userID, accessToken, refreshToken)
 	return nil
 }
 
-// RevokeAllSessions 撤销用户的全部 session（全设备登出）
+// RevokeAllSessions 撤销用户的全部 session（全设备登出）。
+// 仅依赖 session store；不再回退到旧 token 跟踪系统。
 func (s *Service) RevokeAllSessions(ctx context.Context, userID string) error {
-	// 通过 session store 撤销所有 session
 	if err := s.tokenService.GetSessionStore().RevokeAll(
 		ctx, userID,
 		s.tokenService.GetBlacklist(),
 		s.tokenService.GetAccessTokenTTL(),
 		s.tokenService.GetRefreshTokenTTL(),
 	); err != nil {
-		logger.L().Warn("revoke all sessions: session store revoke failed, falling back to legacy",
-			zap.String("user_id", userID),
-			zap.Error(err),
-		)
+		return fmt.Errorf("revoke all sessions: %w", err)
 	}
-
-	// 兼容：同时撤销旧 token 跟踪系统中的所有 token
-	return s.tokenService.GetBlacklist().RevokeAllUserTokens(
-		ctx, userID, s.tokenService.GetRefreshTokenTTL(),
-	)
+	return nil
 }
 
 // SignPhoneTokenPair 为手机登录用户签发自签名 JWT 对（含 session ID）
@@ -238,65 +243,6 @@ func (s *Service) UserExistsByExternalID(ctx context.Context, externalID string)
 		return false, fmt.Errorf("user sync repository is not configured")
 	}
 	return s.userSyncRepo.ExistsByExternalID(ctx, externalID)
-}
-
-// ---- 兼容旧 token 跟踪系统的内部方法 ----
-
-func (s *Service) trackTokenPair(ctx context.Context, userID, accessToken, refreshToken string) error {
-	if err := s.tokenService.GetBlacklist().TrackUserToken(
-		ctx, userID, accessToken, token.TokenTypeAccess, time.Now().Add(s.tokenService.GetAccessTokenTTL()),
-	); err != nil {
-		return fmt.Errorf("track access token: %w", err)
-	}
-	if refreshToken != "" {
-		if err := s.tokenService.GetBlacklist().TrackUserToken(
-			ctx, userID, refreshToken, token.TokenTypeRefresh, time.Now().Add(s.tokenService.GetRefreshTokenTTL()),
-		); err != nil {
-			return fmt.Errorf("track refresh token: %w", err)
-		}
-	}
-	return nil
-}
-
-func (s *Service) legacyRotateTokenPair(ctx context.Context, userID, oldRefreshToken, newAccessToken, newRefreshToken string) {
-	if untrackErr := s.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, oldRefreshToken, token.TokenTypeRefresh); untrackErr != nil {
-		logger.L().Warn("legacy rotate: failed to untrack old refresh token",
-			zap.String("user_id", userID),
-			zap.Error(untrackErr),
-		)
-	}
-
-	if trackErr := s.tokenService.GetBlacklist().TrackUserToken(
-		ctx, userID, newAccessToken, token.TokenTypeAccess, time.Now().Add(s.tokenService.GetAccessTokenTTL()),
-	); trackErr != nil {
-		logger.L().Warn("legacy rotate: failed to track new access token",
-			zap.String("user_id", userID),
-			zap.Error(trackErr),
-		)
-	}
-	if newRefreshToken != "" {
-		if trackErr := s.tokenService.GetBlacklist().TrackUserToken(
-			ctx, userID, newRefreshToken, token.TokenTypeRefresh, time.Now().Add(s.tokenService.GetRefreshTokenTTL()),
-		); trackErr != nil {
-			logger.L().Warn("legacy rotate: failed to track new refresh token",
-				zap.String("user_id", userID),
-				zap.Error(trackErr),
-			)
-		}
-	}
-}
-
-func (s *Service) legacyUntrackTokens(ctx context.Context, userID, accessToken, refreshToken string) {
-	if accessToken != "" {
-		if err := s.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, accessToken, token.TokenTypeAccess); err != nil {
-			logger.L().Warn("legacy untrack: access token", zap.String("user_id", userID), zap.Error(err))
-		}
-	}
-	if refreshToken != "" {
-		if err := s.tokenService.GetBlacklist().UntrackUserToken(ctx, userID, refreshToken, token.TokenTypeRefresh); err != nil {
-			logger.L().Warn("legacy untrack: refresh token", zap.String("user_id", userID), zap.Error(err))
-		}
-	}
 }
 
 // hashTokenForSession 生成 token 的 HMAC hash（用于 session 内存储）

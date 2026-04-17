@@ -215,7 +215,15 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	}
 
 	// 在同一 session 内轮换 token（黑名单旧 + 更新 session + 跟踪新）
-	h.svc.RotateSession(c.Request.Context(), sessionID, oldClaims.Sub, refreshTokenStr, newAccessToken, newRefreshToken)
+	if rotErr := h.svc.RotateSession(c.Request.Context(), sessionID, oldClaims.Sub, refreshTokenStr, newAccessToken, newRefreshToken); rotErr != nil {
+		logger.FromGin(c).Error("failed to rotate self-signed session",
+			zap.String("session_id", sessionID),
+			zap.Error(rotErr),
+		)
+		h.clearTokenCookies(c)
+		response.InternalError(c, "failed to refresh token")
+		return false
+	}
 
 	response.Success(c, h.buildRefreshResponse(c, newAccessToken, newRefreshToken))
 	return true
@@ -254,9 +262,18 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 		return false
 	}
 
-	// OIDC token 没有 sid claim，从 session cookie 获取
+	// OIDC token 没有 sid claim，从 session cookie 获取（原生客户端无 cookie，sid 为空——
+	// RotateSession 会记录 warn 并仅做黑名单轮换）
 	oidcSessionID := h.getSessionID(c, "")
-	h.svc.RotateSession(c.Request.Context(), oidcSessionID, newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken)
+	if rotErr := h.svc.RotateSession(c.Request.Context(), oidcSessionID, newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken); rotErr != nil {
+		logger.FromGin(c).Error("failed to rotate OIDC session",
+			zap.String("session_id", oidcSessionID),
+			zap.Error(rotErr),
+		)
+		h.clearTokenCookies(c)
+		response.InternalError(c, "failed to refresh token")
+		return false
+	}
 
 	response.Success(c, h.buildRefreshResponse(c, rawIDToken, newToken.RefreshToken))
 	return true
