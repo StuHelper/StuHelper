@@ -106,11 +106,12 @@ func (c *Client) VerifyIDToken(ctx context.Context, rawIDToken string) (*Claims,
 	// 从原始 JSON 中提取 Zitadel 项目角色（动态 claim key 无法用 struct tag 解析）
 	var rawJSON []byte
 	if rawJSON, err = marshalIDTokenClaims(idToken); err == nil {
-		roles, parseErr := ParseRolesFromRaw(rawJSON, c.projectID)
+		roles, scoped, parseErr := ParseRolesFromRaw(rawJSON, c.projectID)
 		if parseErr != nil {
 			logger.L().Warn("oidc: failed to parse roles from id_token", zap.Error(parseErr))
 		} else {
 			claims.Roles = roles
+			claims.OrgScopedRoles = scoped
 		}
 	}
 
@@ -207,7 +208,7 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 	}
 
 	// 从原始 JSON 解析 Zitadel 项目角色
-	roles, parseErr := ParseRolesFromRaw(rawJSON, c.projectID)
+	roles, _, parseErr := ParseRolesFromRaw(rawJSON, c.projectID)
 	if parseErr != nil {
 		logger.L().Warn("oidc: failed to parse roles from introspection response", zap.Error(parseErr))
 	} else {

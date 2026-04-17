@@ -26,6 +26,7 @@ const (
 	CtxKeyDisplayName        = "display_name"
 	CtxKeyAvatar             = "avatar"
 	CtxKeyRoles              = "roles"
+	CtxKeyOrgScopedRoles     = "org_scoped_roles"     // map[string][]string — Zitadel 多租户作用域
 	CtxKeyCapabilities       = "capabilities"
 	CtxKeyCapabilitySet      = "capability_set"       // map[string]struct{} — O(1) 查找
 	CtxKeyAuthBackendFailure = "auth_backend_failure" // OptionalAuth 后端故障诊断标记
@@ -65,6 +66,7 @@ type authResult struct {
 	userID, username, email, displayName string
 	avatar                               *string
 	roles                                []string
+	orgScopedRoles                       map[string][]string
 }
 
 // resolveToken 从请求中提取、验证并解析 Token。
@@ -120,12 +122,13 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			return nil, fmt.Errorf("invalid token: %w", verifyErr)
 		}
 		return &authResult{
-			userID:      claims.GetUserID(),
-			username:    claims.GetUsername(),
-			email:       claims.GetEmail(),
-			displayName: claims.GetDisplayName(),
-			avatar:      claims.GetAvatar(),
-			roles:       claims.Roles,
+			userID:         claims.GetUserID(),
+			username:       claims.GetUsername(),
+			email:          claims.GetEmail(),
+			displayName:    claims.GetDisplayName(),
+			avatar:         claims.GetAvatar(),
+			roles:          claims.Roles,
+			orgScopedRoles: claims.OrgScopedRoles,
 		}, nil
 
 	case tokenSourceBearer:
@@ -254,6 +257,9 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 		c.Set(CtxKeyAvatar, "")
 	}
 	c.Set(CtxKeyRoles, auth.roles)
+	if auth.orgScopedRoles != nil {
+		c.Set(CtxKeyOrgScopedRoles, auth.orgScopedRoles)
+	}
 	c.Set(CtxKeyCapabilities, capabilities)
 	c.Set(CtxKeyCapabilitySet, capSet)
 }
@@ -309,6 +315,29 @@ func HasCapability(c *gin.Context, capabilityName string) bool {
 		if set, ok := val.(map[string]struct{}); ok {
 			_, found := set[capabilityName]
 			return found
+		}
+	}
+	return false
+}
+
+// HasRoleInOrg 检查当前用户是否在指定 orgID 上拥有指定角色（Zitadel 多租户作用域）。
+// 仅 cookie-OIDC 登录路径填充 scope；手机登录与 Bearer introspection 返回
+// false。orgID 为空时判定"是否在任意 org 拥有此角色"。
+func HasRoleInOrg(c *gin.Context, role, orgID string) bool {
+	if val, exists := c.Get(CtxKeyOrgScopedRoles); exists {
+		if scoped, ok := val.(map[string][]string); ok {
+			orgs, has := scoped[role]
+			if !has {
+				return false
+			}
+			if orgID == "" {
+				return len(orgs) > 0
+			}
+			for _, o := range orgs {
+				if o == orgID {
+					return true
+				}
+			}
 		}
 	}
 	return false
