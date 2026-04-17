@@ -208,9 +208,6 @@ func (h *Handler) storeOIDCState(ctx context.Context, state, redirect, codeVerif
 	if state == "" {
 		return fmt.Errorf("empty state")
 	}
-	if h.redisClient == nil {
-		return fmt.Errorf("redis client not configured")
-	}
 	payload := oidcStatePayload{
 		RedirectURL:  redirect,
 		CodeVerifier: codeVerifier,
@@ -227,10 +224,6 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 	if state == "" {
 		h.clearOIDCStateCookie(c)
 		return "", "", false, fmt.Errorf("empty state")
-	}
-	if h.redisClient == nil {
-		h.clearOIDCStateCookie(c)
-		return "", "", false, fmt.Errorf("redis client not configured")
 	}
 
 	// 原子消费 Redis state（GetDel 保证一次性使用）

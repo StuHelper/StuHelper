@@ -81,17 +81,17 @@ func buildAllowedRedirectHosts(corsOrigins []string) map[string]struct{} {
 }
 
 // buildDefaultRedirectURL 从 CORS_ORIGINS 取第一个作为默认重定向地址。
-// 如果 CORS_ORIGINS 未配置或为空，回退到 http://localhost:3000。
-// 此回退仅适用于本地开发；生产环境 CORS_ORIGINS 由 validate() 强制要求配置，
-// 同时 NewHandler 会在配置缺失时输出 WARNING 日志以便运维排查。
+// CORS_ORIGINS 由 config.validate() 强制要求在所有环境（含 dev）非空，
+// 因此此处无需 localhost 兜底——若调用时仍为空即配置异常，立刻 panic 以便
+// fail-fast 暴露。
 func buildDefaultRedirectURL(corsOrigins []string) string {
-	if len(corsOrigins) > 0 {
-		origin := strings.TrimRight(strings.TrimSpace(corsOrigins[0]), "/")
+	for _, raw := range corsOrigins {
+		origin := strings.TrimRight(strings.TrimSpace(raw), "/")
 		if origin != "" {
 			return origin
 		}
 	}
-	return "http://localhost:3000"
+	panic("auth.buildDefaultRedirectURL: CORS_ORIGINS must be configured (config.validate() should have caught this)")
 }
 
 // RegisterPublicRoutes 注册不需要 CSRF 保护的公开路由。

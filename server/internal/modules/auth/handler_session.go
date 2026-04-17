@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/subtle"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -84,6 +86,24 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 
 	// fromBody 标记请求来自原生 App（无 cookie），refresh 响应需包含 token 值
 	c.Set("refresh_from_native", fromBody)
+
+	// 纵深防御：若 refresh token 来自 cookie，必须携带有效 CSRF token。
+	// 全局 CSRFMiddleware 对携带 Bearer Authorization 的请求放行，攻击者
+	// 同时诱导浏览器发送 Bearer header 和 cookie 时可绕过；refresh 是最敏感的
+	// 会话轮换入口，此处显式校验关闭该缺口。原生 App 通过 body 传递 refresh
+	// token，无需 cookie，不触发此校验。
+	if !fromBody {
+		cookieCSRF, err := c.Cookie(middleware.CSRFCookieName)
+		if err != nil || cookieCSRF == "" {
+			response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenMissing, "csrf token missing for cookie-based refresh")
+			return
+		}
+		headerCSRF := c.GetHeader(middleware.CSRFHeaderName)
+		if headerCSRF == "" || subtle.ConstantTimeCompare([]byte(headerCSRF), []byte(cookieCSRF)) != 1 {
+			response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenInvalid, "csrf token invalid for cookie-based refresh")
+			return
+		}
+	}
 
 	// 检查 refresh token 是否已被吊销或已被并发请求消费
 	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), refreshTokenStr)

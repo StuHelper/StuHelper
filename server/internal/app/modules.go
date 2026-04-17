@@ -75,7 +75,10 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	authHandler.RegisterRoutes(api, rt.oidcClient, rt.tokenService)
 
 	authMW := middleware.AuthMiddleware(rt.oidcClient, rt.tokenService)
-	optionalAuthMW := middleware.OptionalAuthMiddleware(rt.oidcClient, rt.tokenService)
+	optionalAuthMW := middleware.OptionalAuthMiddleware(rt.oidcClient, rt.tokenService, middleware.OptionalAuthConfig{
+		CookieDomain: rt.cfg.Token.CookieDomain,
+		CookieSecure: rt.cfg.Token.CookieSecure,
+	})
 
 	fgaClient, err := fga.NewClient(rt.cfg.OpenFGA)
 	if err != nil {

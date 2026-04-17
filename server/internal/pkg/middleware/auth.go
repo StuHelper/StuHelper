@@ -20,15 +20,23 @@ import (
 
 // 上下文键名常量
 const (
-	CtxKeyUserID        = "user_id"
-	CtxKeyUsername      = "username"
-	CtxKeyEmail         = "email"
-	CtxKeyDisplayName   = "display_name"
-	CtxKeyAvatar        = "avatar"
-	CtxKeyRoles         = "roles"
-	CtxKeyCapabilities  = "capabilities"
-	CtxKeyCapabilitySet = "capability_set" // map[string]struct{} — O(1) 查找
+	CtxKeyUserID             = "user_id"
+	CtxKeyUsername           = "username"
+	CtxKeyEmail              = "email"
+	CtxKeyDisplayName        = "display_name"
+	CtxKeyAvatar             = "avatar"
+	CtxKeyRoles              = "roles"
+	CtxKeyCapabilities       = "capabilities"
+	CtxKeyCapabilitySet      = "capability_set"       // map[string]struct{} — O(1) 查找
+	CtxKeyAuthBackendFailure = "auth_backend_failure" // OptionalAuth 后端故障诊断标记
 )
+
+// OptionalAuthConfig 可选认证中间件的配置。
+// Cookie 无效时中间件需要清理浏览器端 cookie，为此需要 cookie 的 domain/secure 属性。
+type OptionalAuthConfig struct {
+	CookieDomain string
+	CookieSecure bool
+}
 
 // Cookie 名称常量
 const (
@@ -164,14 +172,67 @@ func AuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.Ha
 	}
 }
 
-// OptionalAuthMiddleware 可选认证中间件：成功则注入用户上下文，失败则静默跳过。
-func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.HandlerFunc {
+// OptionalAuthMiddleware 可选认证中间件。
+// 四分支处理：
+//  1. 无 token → 匿名继续。
+//  2. Cookie token 无效/已撤销 → 清 cookie + 记录日志 + 匿名继续
+//     （cookie 由浏览器自动附带，不应因过期 cookie 把公开页面打成 401）。
+//  3. Bearer token 无效/已撤销 → 返回 401（bearer 是主动认证请求）。
+//  4. 后端故障（黑名单/Redis 不可用）→ 注入诊断标记到 context 供
+//     handler 按路由敏感度决定是否拒绝，匿名继续。
+func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service, cfg OptionalAuthConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if result, err := resolveToken(c, oidcClient, tokenService); err == nil {
-			setClaimsToContext(c, result)
+		_, source := getTokenWithSource(c)
+		if source == tokenSourceNone {
+			c.Next()
+			return
 		}
-		c.Next()
+
+		result, err := resolveToken(c, oidcClient, tokenService)
+		if err == nil {
+			setClaimsToContext(c, result)
+			c.Next()
+			return
+		}
+
+		switch {
+		case errors.Is(err, errBlacklistFail):
+			// 后端故障：不应把故障降级为匿名；注入标记由路由决定
+			logger.FromGin(c).Warn("optional auth: blacklist backend unavailable", zap.Error(err))
+			c.Set(CtxKeyAuthBackendFailure, true)
+			c.Next()
+
+		case errors.Is(err, errTokenRevoked):
+			if source == tokenSourceBearer {
+				response.Unauthorized(c, "token has been revoked", errs.ErrTokenRevoked)
+				c.Abort()
+				return
+			}
+			// Cookie 被撤销：清除 + 匿名继续
+			logger.FromGin(c).Debug("optional auth: clearing revoked cookie token")
+			clearAuthCookies(c, cfg)
+			c.Next()
+
+		default:
+			// invalid/expired token
+			if source == tokenSourceBearer {
+				response.Unauthorized(c, "invalid or expired token", errs.ErrTokenInvalid)
+				c.Abort()
+				return
+			}
+			logger.FromGin(c).Debug("optional auth: clearing invalid cookie token", zap.Error(err))
+			clearAuthCookies(c, cfg)
+			c.Next()
+		}
 	}
+}
+
+// clearAuthCookies 把 access / refresh cookie 清除（MaxAge=-1）。
+// 浏览器匹配通过 (name, domain, path) 三元组——这里用 handler_cookies.go
+// 写入时使用的同一路径组合。
+func clearAuthCookies(c *gin.Context, cfg OptionalAuthConfig) {
+	c.SetCookie(CookieAccessToken, "", -1, "/", cfg.CookieDomain, cfg.CookieSecure, true)
+	c.SetCookie(CookieRefreshToken, "", -1, "/api/v1/auth", cfg.CookieDomain, cfg.CookieSecure, true)
 }
 
 // setClaimsToContext 将用户信息、角色和能力集合注入 Gin context。
