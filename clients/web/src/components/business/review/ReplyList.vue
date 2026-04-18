@@ -73,7 +73,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
-import type { Reply } from '@/types/reply'
+import type { Reply } from '@stuhelper/shared/reply'
 import { api } from '@/api'
 import ReplyCard from './ReplyCard.vue'
 import ReplyForm from './ReplyForm.vue'
@@ -111,7 +111,7 @@ const fetchReplies = async () => {
   try {
     const res = await api.reply.getReplies(props.reviewID)
     replies.value = res.data?.data?.list || []
-  } catch {
+  } catch (_error) { void _error;
     error.value = t('review.reply.loadFailed')
   } finally {
     loading.value = false
@@ -127,7 +127,7 @@ const handleSubmit = async (content: string) => {
       replies.value = [res.data.data, ...replies.value]
     }
     showForm.value = false
-  } catch {
+  } catch (_error) { void _error;
     error.value = t('review.reply.sendFailed')
   } finally {
     submitting.value = false
@@ -175,7 +175,7 @@ const handleDelete = async (id: string) => {
   try {
     await api.reply.deleteReply(id)
     replies.value = replies.value.filter(r => r.id !== id)
-  } catch {
+  } catch (_error) { void _error;
     error.value = t('review.reply.deleteFailed')
   }
 }

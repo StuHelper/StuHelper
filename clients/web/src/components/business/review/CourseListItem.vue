@@ -16,7 +16,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import type { Course } from '@/types/course'
+import type { Course } from '@stuhelper/shared/course'
 
 const props = defineProps<{ course: Course }>()
 

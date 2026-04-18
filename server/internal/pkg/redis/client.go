@@ -28,6 +28,7 @@ type Client struct {
 func NewClient(cfg config.RedisConfig) (*Client, error) {
 	opts := &redis.Options{
 		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+		Username:        cfg.Username,
 		Password:        cfg.Password,
 		DB:              cfg.DB,
 		PoolSize:        cfg.PoolSize,

@@ -5,26 +5,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
-func newTestSessionStore(t *testing.T) (*SessionStore, *Blacklist, *miniredis.Miniredis) {
+func newTestSessionStore(t *testing.T) (*SessionStore, *Blacklist, *redisfixture.Fixture) {
 	t.Helper()
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	t.Cleanup(mr.Close)
+	fixture := redisfixture.Start(t)
 
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
-
-	store := NewSessionStore(rdb, 10*time.Minute)
-	bl := NewBlacklist(rdb)
+	store := NewSessionStore(fixture.Client, 10*time.Minute)
+	bl := NewBlacklist(fixture.Client)
 	t.Cleanup(bl.Close)
 
-	return store, bl, mr
+	return store, bl, fixture
 }
 
 func TestSessionStore_CreateAndGet(t *testing.T) {
@@ -164,6 +159,31 @@ func TestSessionStore_ListUserSessions(t *testing.T) {
 	u2Sessions, err := store.ListUserSessions(ctx, "u2")
 	require.NoError(t, err)
 	assert.Len(t, u2Sessions, 1)
+}
+
+func TestSessionStore_ListUserSessions_CleansMissingSessionMembers(t *testing.T) {
+	store, _, fixture := newTestSessionStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID: "active-session",
+		UserID:    "u-cleanup",
+	}))
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID: "expired-session",
+		UserID:    "u-cleanup",
+	}))
+
+	fixture.Server.Del(sessionPrefix + "expired-session")
+
+	sessions, err := store.ListUserSessions(ctx, "u-cleanup")
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, "active-session", sessions[0].SessionID)
+
+	sessionIDs, err := store.rdb.SMembers(ctx, userSessionsPrefix+"u-cleanup").Result()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"active-session"}, sessionIDs)
 }
 
 func TestGenerateSessionID(t *testing.T) {

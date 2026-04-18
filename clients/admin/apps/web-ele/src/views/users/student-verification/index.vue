@@ -38,7 +38,7 @@ async function fetchData() {
     const data = await getStudentVerificationList(query);
     items.value = data.items;
     total.value = data.total;
-  } catch {
+  } catch (_error) { void _error;
     items.value = [];
     total.value = 0;
   } finally {
@@ -55,7 +55,7 @@ async function handleReview(userId: number, approved: boolean) {
   try {
     await reviewStudentVerification(userId, { approved });
     await fetchData();
-  } catch {
+  } catch (_error) { void _error;
     // unwrapData already displays a toast for failed mutations.
   } finally {
     actionLoading.value = false;

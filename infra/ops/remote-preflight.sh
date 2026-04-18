@@ -28,6 +28,12 @@ fi
 if [[ -n "${SECRETS_ENV_SECRET_REF:-}" && -z "${SECRET_BACKEND:-}" ]]; then
   die "SECRET_BACKEND must be set when SECRETS_ENV_SECRET_REF is provided"
 fi
+if [[ -z "${GENERATED_ENV_SECRET_REF:-}" ]]; then
+  die "GENERATED_ENV_SECRET_REF must be set for production bootstrap"
+fi
+if [[ -z "${SECRET_BACKEND:-}" || "${SECRET_BACKEND:-}" == "none" || "${SECRET_BACKEND:-}" == "file" ]]; then
+  die "production bootstrap requires a non-file secret backend for generated secrets"
+fi
 
 ensure_generated_files
 if [[ -n "${SHARED_ENV_SECRET_REF:-}" ]]; then
@@ -75,7 +81,7 @@ require_backup_object_storage_config
 mkdir -p \
   "${REPO_ROOT}/backups/postgres/logical" \
   "${REPO_ROOT}/backups/postgres/base" \
-  "${REPO_ROOT}/infra/generated/postgres/wal-archive" \
+  "${POSTGRES_WAL_RESTORE_DIR}" \
   "${DEPLOY_STATE_DIR}"
 
 if command -v systemctl >/dev/null 2>&1; then

@@ -66,28 +66,36 @@ func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error)
 // List 获取通知列表
 func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error) {
 	offset := httputil.SafeOffset(p.Page, p.PageSize)
+	result := &ListResult{List: make([]Notification, 0, p.PageSize)}
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*), COUNT(*) FILTER (WHERE is_read = false)
+		FROM notifications
+		WHERE user_id = $1
+	`, p.UserID).Scan(&result.Total, &result.Unread); err != nil {
+		return nil, fmt.Errorf("notification list count: %w", err)
+	}
+	if result.Total == 0 {
+		return result, nil
+	}
+
 	rows, err := r.db.Query(ctx, `
-		SELECT id, type, title, body, payload, source_module, source_id, source_url, source_course_id, is_read, created_at,
-		       COUNT(*) OVER() AS total,
-		       SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) OVER() AS unread
+		SELECT id, type, title, body, payload, source_module, source_id, source_url, source_course_id, is_read, created_at
 		FROM notifications
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`, p.UserID, p.PageSize, offset)
 	if err != nil {
-		return nil, fmt.Errorf("notification list: %w", err)
+		return nil, fmt.Errorf("notification list data: %w", err)
 	}
 	defer rows.Close()
 
-	result := &ListResult{List: make([]Notification, 0, p.PageSize)}
 	for rows.Next() {
 		var n Notification
 		if err := rows.Scan(
 			&n.ID, &n.Type, &n.Title, &n.Body, &n.Payload,
 			&n.SourceModule, &n.SourceID, &n.SourceURL, &n.CourseID,
 			&n.IsRead, &n.CreatedAt,
-			&result.Total, &result.Unread,
 		); err != nil {
 			return nil, fmt.Errorf("notification list scan: %w", err)
 		}

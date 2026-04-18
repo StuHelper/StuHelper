@@ -11,6 +11,10 @@ require_cmd jq
 require_cmd python3
 require_cmd openssl
 
+[[ -n "${GENERATED_ENV_SECRET_REF:-}" ]] || die "GENERATED_ENV_SECRET_REF must be configured for production deploy"
+[[ -n "${SECRET_BACKEND:-}" && "${SECRET_BACKEND:-}" != "none" && "${SECRET_BACKEND:-}" != "file" ]] || \
+  die "production deploy requires a non-file secret backend for generated secrets"
+
 ensure_generated_files
 if [[ -n "${SHARED_ENV_SECRET_REF:-}" ]]; then
   mkdir -p "$(dirname "${ENV_FILE}")"
@@ -175,7 +179,6 @@ infra_services=(
   prometheus
   grafana
   node-exporter
-  cadvisor
   postgres-exporter
   redis-exporter
   blackbox-exporter

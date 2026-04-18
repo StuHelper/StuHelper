@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { api } from '@/api'
 import type { components } from '@/api'
-import type { ReviewRatings } from '@stuhelper/shared'
+import type { ReviewRatings } from '@stuhelper/shared/review'
 import { assertMutationSuccess, unwrapData, unwrapOptionalData } from '@/api/result'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -134,7 +134,7 @@ async function submitReview() {
       ratings: form.value.ratings as ReviewRatings,
     }))
     uni.showToast({ title: t('review.post.submitSuccess'), icon: 'success' })
-    try { await api.draft.deleteDraft(course.value.id) } catch { /* draft cleanup is best-effort */ }
+    try { await api.draft.deleteDraft(course.value.id) } catch (_error) { void _error; /* draft cleanup is best-effort */ }
     setTimeout(() => {
       uni.redirectTo({ url: `/pages/course/detail?id=${course.value?.id}` })
     }, 300)

@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
 )
 
 // ReviewAccessSubject 是评课访问控制所需的最小用户事实集合。
@@ -41,4 +43,17 @@ func (r *Repository) GetReviewAccessSubjectByExternalID(ctx context.Context, ext
 		return nil, fmt.Errorf("GetReviewAccessSubjectByExternalID: %w", err)
 	}
 	return &subject, nil
+}
+
+func (r *Repository) GetReviewAccessSubject(ctx context.Context, externalID string) (*reviewaccess.Subject, error) {
+	subject, err := r.GetReviewAccessSubjectByExternalID(ctx, externalID)
+	if err != nil || subject == nil {
+		return nil, err
+	}
+	return &reviewaccess.Subject{
+		InternalUserID:   subject.InternalUserID,
+		SchoolID:         subject.SchoolID,
+		StudentVerified:  subject.StudentVerified,
+		IdentityVerified: subject.IdentityVerified,
+	}, nil
 }

@@ -19,7 +19,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import type { Notification } from '@/types/notification'
+import type { Notification } from '@stuhelper/shared/notification'
 import NotificationItem from './NotificationItem.vue'
 
 const { t } = useI18n()

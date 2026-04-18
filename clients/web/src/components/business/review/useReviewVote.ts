@@ -5,7 +5,7 @@
  * Extracted from ReviewCard.vue for single-responsibility.
  */
 import { ref, computed, watch, onScopeDispose } from 'vue'
-import type { Review } from '@/types/review'
+import type { Review } from '@stuhelper/shared/review'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'

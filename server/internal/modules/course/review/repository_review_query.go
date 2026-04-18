@@ -12,12 +12,59 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
+const reviewCoreFieldsBaseQuery = `
+	SELECT user_hash, course_id, COALESCE(teacher_id, 0), status
+	FROM reviews
+	WHERE id = $1
+`
+
+type reviewCoreFields struct {
+	userHash  string
+	courseID  int64
+	teacherID *int64
+	status    string
+}
+
+type reviewCoreRow interface {
+	Scan(dest ...any) error
+}
+
+func scanReviewCoreFields(row reviewCoreRow) (reviewCoreFields, error) {
+	var (
+		fields    reviewCoreFields
+		teacherID int64
+	)
+	if err := row.Scan(&fields.userHash, &fields.courseID, &teacherID, &fields.status); err != nil {
+		return reviewCoreFields{}, err
+	}
+	if teacherID != 0 {
+		fields.teacherID = &teacherID
+	}
+	return fields, nil
+}
+
+func reviewCoreFieldsQuery(forUpdate bool) string {
+	if forUpdate {
+		return reviewCoreFieldsBaseQuery + " FOR UPDATE"
+	}
+	return reviewCoreFieldsBaseQuery
+}
+
+func (r *Repository) getReviewCoreFields(ctx context.Context, reviewID string, forUpdate bool) (reviewCoreFields, error) {
+	return scanReviewCoreFields(r.db.QueryRow(ctx, reviewCoreFieldsQuery(forUpdate), reviewID))
+}
+
+func getReviewCoreFieldsTx(ctx context.Context, tx pgx.Tx, reviewID string, forUpdate bool) (reviewCoreFields, error) {
+	return scanReviewCoreFields(tx.QueryRow(ctx, reviewCoreFieldsQuery(forUpdate), reviewID))
+}
+
 // GetReviewByID 根据ID获取已发布的评论（仅返回 published 状态）
 // 包装 pgx.ErrNoRows 为业务层 sentinel error
 func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Review, error) {
 	var item Review
 	err := r.db.QueryRow(ctx, `
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
+		       r.user_hash,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
@@ -28,7 +75,7 @@ func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Revie
 		WHERE r.id = $1 AND r.status = 'published'
 	`, reviewID).Scan(
 		&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
-		&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
+		&item.TermID, &item.UserHash, &item.Title, &item.Content, &item.Grade, &item.Ratings,
 		&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
 		&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 	)
@@ -39,43 +86,6 @@ func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Revie
 		return nil, fmt.Errorf("GetReviewByID: %w", err)
 	}
 	return &item, nil
-}
-
-// GetReviewOwner 获取评论所有者哈希
-func (r *Repository) GetReviewOwner(ctx context.Context, reviewID string) (string, error) {
-	var userHash string
-	err := r.db.QueryRow(ctx, `SELECT user_hash FROM reviews WHERE id = $1`, reviewID).Scan(&userHash)
-	return userHash, err
-}
-
-// GetReviewOwnerAndStatus 获取评论所有者哈希和状态（单次查询）
-func (r *Repository) GetReviewOwnerAndStatus(ctx context.Context, reviewID string) (string, string, error) {
-	var userHash, status string
-	err := r.db.QueryRow(ctx, `SELECT user_hash, status FROM reviews WHERE id = $1`, reviewID).Scan(&userHash, &status)
-	return userHash, status, err
-}
-
-// GetReviewOwnerAndStatusTx 在事务内获取评论所有者和状态（带行锁）
-func (r *Repository) GetReviewOwnerAndStatusTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, string, error) {
-	var userHash, status string
-	err := tx.QueryRow(ctx, `SELECT user_hash, status FROM reviews WHERE id = $1 FOR UPDATE`, reviewID).Scan(&userHash, &status)
-	return userHash, status, err
-}
-
-// GetReviewOwnerCourseIDAndStatusTx 在事务内获取评论所有者、课程ID和状态（带行锁）
-func (r *Repository) GetReviewOwnerCourseIDAndStatusTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, string, error) {
-	var userHash, status string
-	var courseID int64
-	err := tx.QueryRow(ctx, `SELECT user_hash, course_id, status FROM reviews WHERE id = $1 FOR UPDATE`, reviewID).Scan(&userHash, &courseID, &status)
-	return userHash, courseID, status, err
-}
-
-// GetReviewOwnerAndCourseID 获取评论所有者哈希和课程ID（单次查询）
-func (r *Repository) GetReviewOwnerAndCourseID(ctx context.Context, reviewID string) (string, int64, error) {
-	var userHash string
-	var courseID int64
-	err := r.db.QueryRow(ctx, `SELECT user_hash, course_id FROM reviews WHERE id = $1`, reviewID).Scan(&userHash, &courseID)
-	return userHash, courseID, err
 }
 
 // UpdateParams 更新评论参数
@@ -118,18 +128,13 @@ func (r *Repository) DecrementCourseReviewCount(ctx context.Context, tx pgx.Tx, 
 	return err
 }
 
-// GetReviewCourseID 获取评论的课程ID
-func (r *Repository) GetReviewCourseID(ctx context.Context, reviewID string) (int64, error) {
-	var courseID int64
-	err := r.db.QueryRow(ctx, `SELECT course_id FROM reviews WHERE id = $1`, reviewID).Scan(&courseID)
-	return courseID, err
-}
-
 // GetReviewCourseIDTx 在事务内获取评论的课程ID
 func (r *Repository) GetReviewCourseIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (int64, error) {
-	var courseID int64
-	err := tx.QueryRow(ctx, `SELECT course_id FROM reviews WHERE id = $1`, reviewID).Scan(&courseID)
-	return courseID, err
+	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, false)
+	if err != nil {
+		return 0, err
+	}
+	return fields.courseID, nil
 }
 
 // GetCourseSchoolIDTx 在事务内获取课程所属学校 ID。
@@ -153,55 +158,29 @@ func (r *Repository) GetReviewSchoolIDTx(ctx context.Context, tx pgx.Tx, reviewI
 
 // GetReviewStatusAndCourseIDTx 在事务内获取评论状态和课程ID
 func (r *Repository) GetReviewStatusAndCourseIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, error) {
-	var status string
-	var courseID int64
-	err := tx.QueryRow(ctx, `SELECT status, course_id FROM reviews WHERE id = $1 FOR UPDATE`, reviewID).Scan(&status, &courseID)
-	return status, courseID, err
+	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, true)
+	if err != nil {
+		return "", 0, err
+	}
+	return fields.status, fields.courseID, nil
 }
 
 // GetReviewStatusCourseTeacherTx 在事务内获取评论状态、课程ID和教师ID（带行锁）。
 func (r *Repository) GetReviewStatusCourseTeacherTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, *int64, error) {
-	var (
-		status    string
-		courseID  int64
-		teacherID int64
-	)
-	err := tx.QueryRow(ctx, `
-		SELECT status, course_id, COALESCE(teacher_id, 0)
-		FROM reviews
-		WHERE id = $1
-		FOR UPDATE
-	`, reviewID).Scan(&status, &courseID, &teacherID)
+	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, true)
 	if err != nil {
 		return "", 0, nil, err
 	}
-	if teacherID == 0 {
-		return status, courseID, nil, nil
-	}
-	return status, courseID, &teacherID, nil
+	return fields.status, fields.courseID, fields.teacherID, nil
 }
 
 // GetReviewOwnerCourseTeacherStatusTx 在事务内获取评论所有者、课程ID、教师ID和状态（带行锁）。
 func (r *Repository) GetReviewOwnerCourseTeacherStatusTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, *int64, string, error) {
-	var (
-		userHash  string
-		courseID  int64
-		teacherID int64
-		status    string
-	)
-	err := tx.QueryRow(ctx, `
-		SELECT user_hash, course_id, COALESCE(teacher_id, 0), status
-		FROM reviews
-		WHERE id = $1
-		FOR UPDATE
-	`, reviewID).Scan(&userHash, &courseID, &teacherID, &status)
+	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, true)
 	if err != nil {
 		return "", 0, nil, "", err
 	}
-	if teacherID == 0 {
-		return userHash, courseID, nil, status, nil
-	}
-	return userHash, courseID, &teacherID, status, nil
+	return fields.userHash, fields.courseID, fields.teacherID, fields.status, nil
 }
 
 // ListDistinctReviewTargetIDsTx 在事务内获取一批评论关联的课程ID和教师ID集合。

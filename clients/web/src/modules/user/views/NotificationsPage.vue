@@ -60,17 +60,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { resolveNotificationHref } from '@stuhelper/shared'
 import { useNotificationStore } from '@/stores/notification'
-import type { Notification } from '@/types/notification'
 import NotificationItem from '@/components/common/NotificationItem.vue'
 import InfiniteScroll from '@/components/common/InfiniteScroll.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import { useNotificationSSESync, type NotificationFilter } from '@/composables/useNotificationSSESync'
+import { useNotificationsPageController } from '../useNotificationsPageController'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -85,54 +83,32 @@ const {
   lastSSEEvent,
 } = storeToRefs(store)
 
-const activeFilter = ref<NotificationFilter>('all')
-
-useNotificationSSESync(pageNotifications, pageTotal, activeFilter, lastSSEEvent)
-
-const filterOptions = [
-  { value: 'all' as const, label: t('user.notification.filterAll') },
-  { value: 'unread' as const, label: t('user.notification.filterUnread') },
-  { value: 'read' as const, label: t('user.notification.filterRead') },
-]
-
-const visibleNotifications = computed(() => {
-  switch (activeFilter.value) {
-    case 'unread':
-      return pageNotifications.value.filter(notification => !notification.isRead)
-    case 'read':
-      return pageNotifications.value.filter(notification => notification.isRead)
-    default:
-      return pageNotifications.value
-  }
+const {
+  activeFilter,
+  filterOptions,
+  visibleNotifications,
+  loading,
+  hasMore,
+  init,
+  loadMore,
+  handleMarkAllRead,
+  handleClick,
+} = useNotificationsPageController({
+  pageNotifications,
+  pageTotal,
+  pageLoading,
+  pageHasMore,
+  unreadCount,
+  hasUnread,
+  lastSSEEvent,
+  fetchPageNotifications: (page) => store.fetchPageNotifications(page),
+  markAllAsRead: () => store.markAllAsRead(),
+  markAsRead: (id) => store.markAsRead(id),
+  push: (href) => router.push(href),
+  t,
 })
-
-const loading = computed(() => pageLoading.value)
-const hasMore = computed(() => activeFilter.value === 'all' && pageHasMore.value)
-const page = ref(1)
 
 onMounted(() => {
-  void store.fetchPageNotifications(1).catch(() => {})
+  void init()
 })
-
-const loadMore = async () => {
-  if (loading.value || !hasMore.value) return
-  page.value++
-  try {
-    await store.fetchPageNotifications(page.value)
-  } catch {
-    page.value = Math.max(1, page.value - 1)
-  }
-}
-
-const handleMarkAllRead = () => {
-  store.markAllAsRead().catch(() => {})
-}
-
-const handleClick = async (n: Notification) => {
-  store.markAsRead(n.id).catch(() => {})
-  const href = resolveNotificationHref(n)
-  if (href) {
-    await router.push(href)
-  }
-}
 </script>

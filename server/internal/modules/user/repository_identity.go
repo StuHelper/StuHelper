@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -56,40 +54,44 @@ func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64
 
 // ListIdentityReviewItems 分页查询实名认证审核列表（不含 doc_number_enc/person_uid）
 func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error) {
-	var qb strings.Builder
-	qb.WriteString(`
-		SELECT user_id, doc_type, real_name,
-		       verified, verify_method, reviewed_at, verified_at,
-		       doc_photo_front, doc_photo_back, doc_photo_selfie,
-		       rejection_reason, created_at, updated_at,
-		       COUNT(*) OVER() AS total
-		FROM user_identities
-		WHERE 1=1
-	`)
 	args := make([]any, 0, 4)
-	argIdx := 1
+	whereClause := ""
 
 	switch status {
 	case StatusPending:
-		qb.WriteString(` AND verified = false AND reviewed_at IS NULL`)
+		whereClause = ` WHERE verified = false AND reviewed_at IS NULL`
 	case StatusRejected:
-		qb.WriteString(` AND verified = false AND reviewed_at IS NOT NULL`)
+		whereClause = ` WHERE verified = false AND reviewed_at IS NOT NULL`
 	case StatusVerified:
-		qb.WriteString(` AND verified = true`)
+		whereClause = ` WHERE verified = true`
 	}
 
-	qb.WriteString(` ORDER BY created_at DESC`)
-	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
-	args = append(args, pageSize, (page-1)*pageSize)
+	countQuery := `SELECT COUNT(*) FROM user_identities` + whereClause
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("ListIdentityReviewItems count: %w", err)
+	}
+	if total == 0 {
+		return []IdentityReviewItem{}, 0, nil
+	}
 
-	rows, err := r.db.Query(ctx, qb.String(), args...)
+	args = append(args, pageSize, (page-1)*pageSize)
+	rows, err := r.db.Query(ctx, `
+		SELECT user_id, doc_type, real_name,
+		       verified, verify_method, reviewed_at, verified_at,
+		       doc_photo_front, doc_photo_back, doc_photo_selfie,
+		       rejection_reason, created_at, updated_at
+		FROM user_identities
+	`+whereClause+`
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("ListIdentityReviewItems: %w", err)
+		return nil, 0, fmt.Errorf("ListIdentityReviewItems data: %w", err)
 	}
 	defer rows.Close()
 
 	list := make([]IdentityReviewItem, 0, pageSize)
-	var total int
 	for rows.Next() {
 		var item IdentityReviewItem
 		if err := rows.Scan(
@@ -97,7 +99,6 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 			&item.Verified, &item.VerifyMethod, &item.ReviewedAt, &item.VerifiedAt,
 			&item.DocPhotoFront, &item.DocPhotoBack, &item.DocPhotoSelfie,
 			&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
-			&total,
 		); err != nil {
 			return nil, 0, fmt.Errorf("ListIdentityReviewItems scan: %w", err)
 		}

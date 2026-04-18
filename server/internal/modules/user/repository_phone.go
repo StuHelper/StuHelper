@@ -14,10 +14,11 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-// SetUserPhone 将手机号写入 users 表的加密列和哈希列。
-func (r *Repository) SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error {
+type queryRowFn func(ctx context.Context, sql string, args ...any) rowScanner
+
+func setUserPhone(ctx context.Context, queryRow queryRowFn, exec execFn, userID int64, phoneEnc []byte, phoneHash, op string) error {
 	var conflictID int64
-	err := r.db.QueryRow(ctx, `
+	err := queryRow(ctx, `
 		SELECT id
 		FROM users
 		WHERE id != $1
@@ -28,10 +29,10 @@ func (r *Repository) SetUserPhone(ctx context.Context, userID int64, phoneEnc []
 		return ErrPhoneAlreadyBound
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("SetUserPhone check conflict: %w", err)
+		return fmt.Errorf("%s check conflict: %w", op, err)
 	}
 
-	_, err = r.db.Exec(ctx, `
+	_, err = exec(ctx, `
 		UPDATE users
 		SET phone_enc = $2,
 		    phone_hash = $3,
@@ -42,39 +43,16 @@ func (r *Repository) SetUserPhone(ctx context.Context, userID int64, phoneEnc []
 		if isUniqueViolation(err) {
 			return ErrPhoneAlreadyBound
 		}
-		return fmt.Errorf("SetUserPhone: %w", err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
 }
 
-func (r *Repository) SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error {
-	var conflictID int64
-	err := tx.QueryRow(ctx, `
-		SELECT id
-		FROM users
-		WHERE id != $1
-		  AND phone_hash = $2
-		LIMIT 1
-	`, userID, phoneHash).Scan(&conflictID)
-	if err == nil {
-		return ErrPhoneAlreadyBound
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("SetUserPhoneTx check conflict: %w", err)
-	}
+// SetUserPhone 将手机号写入 users 表的加密列和哈希列。
+func (r *Repository) SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error {
+	return setUserPhone(ctx, func(ctx context.Context, sql string, args ...any) rowScanner { return r.db.QueryRow(ctx, sql, args...) }, r.db.Exec, userID, phoneEnc, phoneHash, "SetUserPhone")
+}
 
-	_, err = tx.Exec(ctx, `
-		UPDATE users
-		SET phone_enc = $2,
-		    phone_hash = $3,
-		    updated_at = NOW()
-		WHERE id = $1
-	`, userID, phoneEnc, phoneHash)
-	if err != nil {
-		if isUniqueViolation(err) {
-			return ErrPhoneAlreadyBound
-		}
-		return fmt.Errorf("SetUserPhoneTx: %w", err)
-	}
-	return nil
+func (r *Repository) SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error {
+	return setUserPhone(ctx, func(ctx context.Context, sql string, args ...any) rowScanner { return tx.QueryRow(ctx, sql, args...) }, tx.Exec, userID, phoneEnc, phoneHash, "SetUserPhoneTx")
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
@@ -23,7 +24,7 @@ func TestBuildUserPayload_OmitsNilAvatarAndEmptyEmail(t *testing.T) {
 		"",
 		nil,
 		[]string{"user"},
-		[]string{"review:list:brief"},
+		[]capability.Grant{{Name: "review:list:brief", Global: true}},
 	)
 
 	raw, err := json.Marshal(payload)
@@ -46,7 +47,7 @@ func TestBuildUserPayload_IncludesAvatarWhenPresent(t *testing.T) {
 		"alice@example.com",
 		&avatar,
 		[]string{"super_admin"},
-		[]string{"admin:dashboard:view"},
+		[]capability.Grant{{Name: "admin:dashboard:view", Global: true}},
 	)
 
 	raw, err := json.Marshal(payload)
@@ -71,6 +72,7 @@ func TestGetCurrentUser_HTTPContract_OmitsNilAvatar(t *testing.T) {
 		c.Set(middleware.CtxKeyAvatar, "")
 		c.Set(middleware.CtxKeyRoles, []string{"user"})
 		c.Set(middleware.CtxKeyCapabilities, []string{"review:list:brief"})
+		c.Set(middleware.CtxKeyCapabilityGrants, []capability.Grant{{Name: "review:list:brief", Global: true}})
 		h.GetCurrentUser(c)
 	})
 
@@ -88,4 +90,28 @@ func TestGetCurrentUser_HTTPContract_OmitsNilAvatar(t *testing.T) {
 	assert.True(t, resp.Success)
 	assert.NotContains(t, resp.Data, "avatar")
 	assert.NotContains(t, resp.Data, "email")
+}
+
+func TestBuildUserPayload_SchoolAdminScopesStayNonGlobal(t *testing.T) {
+	h := &Handler{}
+
+	payload := h.buildUserPayload(
+		"user-1",
+		"alice",
+		"Alice",
+		"",
+		nil,
+		[]string{"school_admin"},
+		capability.ExpandRoleGrants([]string{"school_admin"}, map[string][]string{
+			"school_admin": {"1002", "1001"},
+		}),
+	)
+
+	assert.Empty(t, payload.GlobalCapabilities)
+	assert.True(t, payload.CanAccessAdmin)
+	require.NotEmpty(t, payload.CapabilityGrants)
+	for _, grant := range payload.CapabilityGrants {
+		assert.False(t, grant.Global)
+		assert.Equal(t, []string{"1001", "1002"}, grant.ScopeSchoolIDs)
+	}
 }

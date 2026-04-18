@@ -4,11 +4,13 @@
 -- 1. reviews.status 扩展：新增 pending_review
 -- PostgreSQL CHECK 约束需要先删后建
 ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_status_check;
+ALTER TABLE reviews DROP CONSTRAINT IF EXISTS chk_reviews_status;
 ALTER TABLE reviews ADD CONSTRAINT reviews_status_check
     CHECK (status IN ('published', 'hidden', 'deleted', 'pending_review'));
 
 -- 2. review_replies.status 扩展：同步支持 pending_review
 ALTER TABLE review_replies DROP CONSTRAINT IF EXISTS review_replies_status_check;
+ALTER TABLE review_replies DROP CONSTRAINT IF EXISTS chk_review_replies_status;
 ALTER TABLE review_replies ADD CONSTRAINT review_replies_status_check
     CHECK (status IN ('published', 'hidden', 'deleted', 'pending_review'));
 

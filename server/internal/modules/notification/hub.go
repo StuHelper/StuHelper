@@ -73,6 +73,10 @@ type SSEEvent struct {
 // 超出限制时关闭最早建立的连接，防止资源耗尽。
 const maxConnsPerUser = 5
 
+// sseBufferSize 为单连接缓冲少量突发事件。
+// 取 32 足以覆盖未读数 + 列表刷新等短时 burst，同时避免慢客户端无限积压。
+const sseBufferSize = 32
+
 // NewHub 创建通知 Hub
 func NewHub(rdb *redis.Client) *Hub {
 	return &Hub{
@@ -85,7 +89,7 @@ func NewHub(rdb *redis.Client) *Hub {
 // Subscribe 注册 SSE 连接。
 // 当同一用户的连接数达到 maxConnsPerUser 时，按订阅顺序驱逐最老的现有连接。
 func (h *Hub) Subscribe(userID int64) chan SSEEvent {
-	ch := make(chan SSEEvent, 32)
+	ch := make(chan SSEEvent, sseBufferSize)
 	h.mu.Lock()
 	if h.connections[userID] == nil {
 		h.connections[userID] = &userConnections{}

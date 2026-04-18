@@ -53,11 +53,11 @@ PY
 
 load_env
 
-if placeholder_or_empty "${POSTGRES_PASSWORD:-}"; then
-  upsert_env_file "${ENV_FILE}" "POSTGRES_PASSWORD" "dev123"
+if placeholder_or_empty "${POSTGRES_PASSWORD:-}" || [[ "${POSTGRES_PASSWORD:-}" == "dev123" ]]; then
+  upsert_env_file "${ENV_FILE}" "POSTGRES_PASSWORD" "dev-postgres-$(random_hex 12)"
 fi
-if placeholder_or_empty "${REDIS_PASSWORD:-}"; then
-  upsert_env_file "${ENV_FILE}" "REDIS_PASSWORD" "dev123"
+if placeholder_or_empty "${REDIS_PASSWORD:-}" || [[ "${REDIS_PASSWORD:-}" == "dev123" ]]; then
+  upsert_env_file "${ENV_FILE}" "REDIS_PASSWORD" "dev-redis-$(random_hex 12)"
 fi
 if placeholder_or_empty "${STUHELPER_APP_DB_PASSWORD:-}"; then
   upsert_env_file "${ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "dev-app-$(random_hex 12)"
@@ -81,7 +81,7 @@ if placeholder_or_empty "${DOC_AES_KEYS:-}"; then
   upsert_env_file "${ENV_FILE}" "DOC_AES_ACTIVE_KEY_ID" "1"
   upsert_env_file "${ENV_FILE}" "DOC_AES_KEYS" "1:$(random_hex 32)"
 fi
-if placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
+if [[ "${SMS_ENABLED:-false}" == "true" ]] && placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
   upsert_env_file "${ENV_FILE}" "SMS_INTERNAL_KEY" "$(random_hex 16)"
 fi
 if placeholder_or_empty "${METRICS_PASSWORD:-}"; then
@@ -98,9 +98,6 @@ if placeholder_or_empty "${MINIO_ROOT_PASSWORD:-}"; then
 fi
 if placeholder_or_empty "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
   upsert_env_file "${ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "dev-minio-$(random_hex 12)"
-fi
-if placeholder_or_empty "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
-  upsert_env_file "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "dev-backup-store-$(random_hex 12)"
 fi
 if placeholder_or_empty "${ZITADEL_MASTERKEY:-}" || [[ "${ZITADEL_MASTERKEY:-}" == "StuHelperDevMasterKey123456789AB" ]]; then
   upsert_env_file "${ENV_FILE}" "ZITADEL_MASTERKEY" "$(random_hex 16)"
@@ -144,19 +141,14 @@ ensure_value "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "http://lo
 ensure_value "OBJECT_STORAGE_REGION" "${OBJECT_STORAGE_REGION:-}" "us-east-1"
 ensure_value "OBJECT_STORAGE_BUCKET" "${OBJECT_STORAGE_BUCKET:-}" "stuhelper-identity"
 ensure_value "OBJECT_STORAGE_ACCESS_KEY_ID" "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" "stuhelper"
-ensure_value "BACKUP_OBJECT_STORAGE_ENDPOINT" "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" "http://localhost:9000"
-ensure_value "BACKUP_OBJECT_STORAGE_BUCKET" "${BACKUP_OBJECT_STORAGE_BUCKET:-}" "stuhelper-postgres-backup"
-ensure_value "BACKUP_OBJECT_STORAGE_PREFIX" "${BACKUP_OBJECT_STORAGE_PREFIX:-}" "postgres"
-ensure_value "BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID" "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" "stuhelper-backup"
-ensure_value "BACKUP_OBJECT_STORAGE_TLS_INSECURE" "${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-}" "true"
 ensure_value "OBJECT_STORAGE_USE_SSL" "${OBJECT_STORAGE_USE_SSL:-}" "false"
 ensure_value "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PATH_STYLE:-}" "true"
 ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
 ensure_value "PROMETHEUS_RETENTION_TIME" "${PROMETHEUS_RETENTION_TIME:-}" "15d"
 ensure_value "PROMETHEUS_RETENTION_SIZE" "${PROMETHEUS_RETENTION_SIZE:-}" "20GB"
-ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "7"
-ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "14"
-ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "7"
+ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "14"
+ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "30"
+ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "14"
 ensure_value "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "stuhelper/backend:dev-placeholder"
 ensure_value "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "stuhelper/frontend:dev-placeholder"
 ensure_value "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "stuhelper/admin:dev-placeholder"

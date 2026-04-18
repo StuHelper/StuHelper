@@ -1,11 +1,12 @@
 /**
  * 认证状态管理（实名认证 + 学生认证）
  */
-import { defineStore } from "pinia";
-import { ref, computed } from "vue";
-import type { components } from "@stuhelper/shared";
+import { defineStore, getActivePinia } from "pinia";
+import { computed, onScopeDispose, ref } from "vue";
+import type { components } from "@stuhelper/shared/types";
 import { api } from "@/api";
 import { getErrorStatus } from "@/api/errors";
+import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
 type IdentityInfo = components["schemas"]["UserIdentity"];
 type ProfileInfo = components["schemas"]["UserProfile"];
@@ -18,6 +19,11 @@ type SubmitStudentVerificationRequest =
 type BindPhoneRequest = components["schemas"]["BindPhoneRequest"];
 
 export const useVerificationStore = defineStore("verification", () => {
+    const pinia = getActivePinia();
+    if (!pinia) {
+        throw new Error("verification store requires an active Pinia instance");
+    }
+
     // 状态
     const identity = ref<IdentityInfo | null>(null);
     const profile = ref<ProfileInfo | null>(null);
@@ -94,13 +100,9 @@ export const useVerificationStore = defineStore("verification", () => {
     // 绑定手机
     const bindPhone = async (data: BindPhoneRequest) => {
         await api.identity.bindPhone(data);
-        // 刷新 profile 以反映手机号变化
-        try {
-            const profileRes = await api.identity.getProfile();
-            profile.value = profileRes.data?.data ?? null;
-        } catch {
-            // ignore refresh errors
-        }
+        // 绑定成功后必须刷新 profile；刷新失败应显式抛出，避免 UI 误判为已绑定。
+        const profileRes = await api.identity.getProfile();
+        profile.value = profileRes.data?.data ?? null;
     };
 
     // 重置状态（setup store 不支持 $reset）
@@ -110,6 +112,13 @@ export const useVerificationStore = defineStore("verification", () => {
         schools.value = [];
         loading.value = false;
     };
+
+    const unregisterSessionReset = registerSessionResetHandler(
+        "verification",
+        reset,
+        pinia,
+    );
+    onScopeDispose(unregisterSessionReset);
 
     return {
         identity,

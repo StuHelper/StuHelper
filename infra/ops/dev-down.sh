@@ -43,9 +43,4 @@ fi
 compose --profile dev-full down "${extra_profile_args[@]}" >/dev/null 2>&1 || true
 compose --profile observability down "${extra_profile_args[@]}" >/dev/null 2>&1 || true
 
-if [[ "${REMOVE_VOLUMES:-false}" == "true" ]]; then
-  find "${REPO_ROOT}/infra/generated/postgres/wal-archive" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-  log "cleared development PostgreSQL WAL archive"
-fi
-
 log "development stack stopped"

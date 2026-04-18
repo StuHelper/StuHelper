@@ -11,7 +11,7 @@ import {
   type VoteType,
 } from '@/components/business/review/reviewVoteState'
 
-import type { Review } from '@/types/review'
+import type { Review } from '@stuhelper/shared/review'
 
 export function useReviewVoting() {
   const { t } = useI18n()

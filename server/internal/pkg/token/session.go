@@ -243,23 +243,64 @@ func (s *SessionStore) ListUserSessions(ctx context.Context, userID string) ([]S
 	if err != nil {
 		return nil, fmt.Errorf("list user sessions: %w", err)
 	}
+	if len(sessionIDs) == 0 {
+		return []SessionData{}, nil
+	}
 
-	var sessions []SessionData
+	keys := make([]string, 0, len(sessionIDs))
 	for _, sid := range sessionIDs {
-		data, getErr := s.Get(ctx, sid)
-		if getErr != nil {
-			logger.L().Warn("list user sessions: failed to get session",
-				zap.String("session_id", sid),
-				zap.Error(getErr),
-			)
+		keys = append(keys, sessionPrefix+sid)
+	}
+
+	values, err := s.rdb.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("list user sessions mget: %w", err)
+	}
+
+	sessions := make([]SessionData, 0, len(sessionIDs))
+	staleSessionIDs := make([]string, 0)
+	for i, raw := range values {
+		sid := sessionIDs[i]
+		if raw == nil {
+			staleSessionIDs = append(staleSessionIDs, sid)
 			continue
 		}
-		if data != nil {
-			sessions = append(sessions, *data)
-		} else {
-			// session 已过期，从集合中清理
-			_ = s.rdb.SRem(ctx, userSessionsPrefix+userID, sid).Err()
+
+		var payload string
+		switch value := raw.(type) {
+		case string:
+			payload = value
+		case []byte:
+			payload = string(value)
+		default:
+			logger.L().Warn("list user sessions: unexpected session payload type",
+				zap.String("session_id", sid),
+				zap.String("type", fmt.Sprintf("%T", raw)),
+			)
+			staleSessionIDs = append(staleSessionIDs, sid)
+			continue
 		}
+
+		var data SessionData
+		if unmarshalErr := json.Unmarshal([]byte(payload), &data); unmarshalErr != nil {
+			logger.L().Warn("list user sessions: failed to decode session payload",
+				zap.String("session_id", sid),
+				zap.Error(unmarshalErr),
+			)
+			staleSessionIDs = append(staleSessionIDs, sid)
+			continue
+		}
+
+		sessions = append(sessions, data)
 	}
+
+	if len(staleSessionIDs) > 0 {
+		staleMembers := make([]interface{}, 0, len(staleSessionIDs))
+		for _, sid := range staleSessionIDs {
+			staleMembers = append(staleMembers, sid)
+		}
+		_ = s.rdb.SRem(ctx, userSessionsPrefix+userID, staleMembers...).Err()
+	}
+
 	return sessions, nil
 }

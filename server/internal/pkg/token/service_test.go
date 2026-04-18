@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
 // ---------------------------------------------------------------------------
@@ -18,15 +17,10 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestNewService_Valid(t *testing.T) {
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	defer mr.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer rdb.Close()
+	fixture := redisfixture.Start(t)
 
 	svc, err := NewService(ServiceConfig{
-		RedisClient: rdb,
+		RedisClient: fixture.Client,
 		AccessTTL:   3600,
 		RefreshTTL:  86400,
 	})
@@ -49,12 +43,7 @@ func TestNewService_MissingRedis(t *testing.T) {
 }
 
 func TestNewService_InvalidTTL(t *testing.T) {
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	defer mr.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer rdb.Close()
+	fixture := redisfixture.Start(t)
 
 	tests := []struct {
 		name       string
@@ -71,7 +60,7 @@ func TestNewService_InvalidTTL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := NewService(ServiceConfig{
-				RedisClient: rdb,
+				RedisClient: fixture.Client,
 				AccessTTL:   tt.accessTTL,
 				RefreshTTL:  tt.refreshTTL,
 			})
@@ -88,15 +77,10 @@ func TestService_Close_Nil(t *testing.T) {
 }
 
 func TestService_Close_Idempotent(t *testing.T) {
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	defer mr.Close()
-
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer rdb.Close()
+	fixture := redisfixture.Start(t)
 
 	svc, err := NewService(ServiceConfig{
-		RedisClient: rdb,
+		RedisClient: fixture.Client,
 		AccessTTL:   3600,
 		RefreshTTL:  86400,
 	})
@@ -365,10 +349,9 @@ func TestIsSelfSignedToken(t *testing.T) {
 func TestBlacklist_Add_TTLBounds(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret-ttl-bounds", false))
 
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
+	fixture := setupTestRedis(t)
 
-	bl := NewBlacklist(client)
+	bl := NewBlacklist(fixture.Client)
 	defer bl.Close()
 
 	ctx := t.Context()
@@ -387,10 +370,9 @@ func TestBlacklist_Add_TTLBounds(t *testing.T) {
 func TestBlacklist_TryConsumeRefreshToken_TTLBounds(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret-consume-ttl", false))
 
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
+	fixture := setupTestRedis(t)
 
-	bl := NewBlacklist(client)
+	bl := NewBlacklist(fixture.Client)
 	defer bl.Close()
 
 	ctx := t.Context()
@@ -403,10 +385,9 @@ func TestBlacklist_TryConsumeRefreshToken_TTLBounds(t *testing.T) {
 func TestBlacklist_CircuitBreakerMetrics(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-cb-metrics-secret", false))
 
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
+	fixture := setupTestRedis(t)
 
-	bl := NewBlacklist(client)
+	bl := NewBlacklist(fixture.Client)
 	defer bl.Close()
 
 	m := bl.CircuitBreakerMetrics()

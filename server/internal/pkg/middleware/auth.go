@@ -26,8 +26,10 @@ const (
 	CtxKeyDisplayName        = "display_name"
 	CtxKeyAvatar             = "avatar"
 	CtxKeyRoles              = "roles"
-	CtxKeyOrgScopedRoles     = "org_scoped_roles"     // map[string][]string — Zitadel 多租户作用域
+	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — Zitadel 多租户作用域
 	CtxKeyCapabilities       = "capabilities"
+	CtxKeyGlobalCapabilities = "global_capabilities"
+	CtxKeyCapabilityGrants   = "capability_grants"
 	CtxKeyCapabilitySet      = "capability_set"       // map[string]struct{} — O(1) 查找
 	CtxKeyAuthBackendFailure = "auth_backend_failure" // OptionalAuth 后端故障诊断标记
 )
@@ -241,9 +243,10 @@ func clearAuthCookies(c *gin.Context, cfg OptionalAuthConfig) {
 // setClaimsToContext 将用户信息、角色和能力集合注入 Gin context。
 // 同时构建 capability set（map）供 HasCapability 进行 O(1) 查找。
 func setClaimsToContext(c *gin.Context, auth *authResult) {
-	capabilities := capability.ExpandRoles(auth.roles)
-	capSet := make(map[string]struct{}, len(capabilities))
-	for _, cap := range capabilities {
+	grants := capability.ExpandRoleGrants(auth.roles, auth.orgScopedRoles)
+	snapshot := capability.BuildUserAccessSnapshot(grants)
+	capSet := make(map[string]struct{}, len(snapshot.Capabilities))
+	for _, cap := range snapshot.Capabilities {
 		capSet[cap] = struct{}{}
 	}
 
@@ -260,7 +263,9 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 	if auth.orgScopedRoles != nil {
 		c.Set(CtxKeyOrgScopedRoles, auth.orgScopedRoles)
 	}
-	c.Set(CtxKeyCapabilities, capabilities)
+	c.Set(CtxKeyCapabilities, snapshot.Capabilities)
+	c.Set(CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+	c.Set(CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
 	c.Set(CtxKeyCapabilitySet, capSet)
 }
 
@@ -309,6 +314,24 @@ func GetCapabilities(c *gin.Context) []string {
 	return nil
 }
 
+func GetGlobalCapabilities(c *gin.Context) []string {
+	if val, exists := c.Get(CtxKeyGlobalCapabilities); exists {
+		if caps, ok := val.([]string); ok {
+			return caps
+		}
+	}
+	return nil
+}
+
+func GetCapabilityGrants(c *gin.Context) []capability.Grant {
+	if val, exists := c.Get(CtxKeyCapabilityGrants); exists {
+		if grants, ok := val.([]capability.Grant); ok {
+			return grants
+		}
+	}
+	return nil
+}
+
 // HasCapability 检查当前用户是否具有指定能力（O(1) map 查找）
 func HasCapability(c *gin.Context, capabilityName string) bool {
 	if val, exists := c.Get(CtxKeyCapabilitySet); exists {
@@ -318,6 +341,14 @@ func HasCapability(c *gin.Context, capabilityName string) bool {
 		}
 	}
 	return false
+}
+
+func HasGlobalCapability(c *gin.Context, capabilityName string) bool {
+	return capability.HasGlobalGrant(GetCapabilityGrants(c), capabilityName)
+}
+
+func HasCapabilityInSchool(c *gin.Context, capabilityName, schoolID string) bool {
+	return capability.HasGrantInSchool(GetCapabilityGrants(c), capabilityName, schoolID)
 }
 
 // HasRoleInOrg 检查当前用户是否在指定 orgID 上拥有指定角色（Zitadel 多租户作用域）。

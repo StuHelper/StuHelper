@@ -64,7 +64,14 @@ function setupAccessGuard(router: Router) {
 
     // 没有 token 时，尝试通过 Cookie 从后端获取会话
     if (!accessStore.accessToken) {
-      const userInfo = await authStore.initSession();
+      let userInfo = null;
+      try {
+        userInfo = await authStore.initSession();
+      } catch (error) {
+        console.warn('[admin-auth] access guard session bootstrap failed', error);
+        return false;
+      }
+
       if (!userInfo) {
         if (authStore.sessionForbidden) {
           return {

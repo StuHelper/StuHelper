@@ -26,8 +26,19 @@ type Service struct {
 	rdb  *redis.Client
 }
 
+var _ Sender = (*Service)(nil)
+
 // NewService 创建通知服务
 func NewService(repo *Repository, hub *Hub, rdb *redis.Client) *Service {
+	if repo == nil {
+		panic("notification.NewService: repo must not be nil")
+	}
+	if hub == nil {
+		panic("notification.NewService: hub must not be nil")
+	}
+	if rdb == nil {
+		panic("notification.NewService: rdb must not be nil")
+	}
 	return &Service{repo: repo, hub: hub, rdb: rdb}
 }
 

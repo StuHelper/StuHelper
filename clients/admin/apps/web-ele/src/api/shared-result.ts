@@ -1,38 +1,24 @@
-import { extractApiErrorMessage } from '@stuhelper/shared/api';
 import { ElMessage } from 'element-plus';
+
+import {
+  extractResultData,
+  extractResultErrorCode,
+  extractOptionalResultData,
+  extractResultList,
+  readResultStatus,
+  type ApiCallResult,
+  type ApiEnvelope,
+} from '@stuhelper/shared/api';
 
 import { $t } from '#/locales';
 
-export interface ApiEnvelope<T> {
-  success?: boolean;
-  data?: T;
-  error?: unknown;
-  message?: string;
-  code?: string;
-}
-
-export interface ApiCallResult<T = unknown> {
-  data?: ApiEnvelope<T>;
-  error?: unknown;
-  response?: {
-    status?: number;
-  };
-}
+export type { ApiCallResult, ApiEnvelope };
 
 export function extractErrorMessage(result: ApiCallResult<unknown>): string {
-  // 优先从 envelope 提取（使用 shared 统一解析）
-  if (result.data) {
-    const msg = extractApiErrorMessage(result.data, '');
-    if (msg) return msg;
-  }
+  const code = extractResultErrorCode(result);
+  const status = readResultStatus(result);
 
-  // runtime error
-  if (result.error) {
-    const msg = extractApiErrorMessage(result.error, '');
-    if (msg) return msg;
-  }
-
-  if (result.response?.status === 401) {
+  if (status === 401 || code?.startsWith('A00101')) {
     return $t('admin.result.authExpired');
   }
 
@@ -40,8 +26,9 @@ export function extractErrorMessage(result: ApiCallResult<unknown>): string {
 }
 
 export function unwrapData<T>(result: ApiCallResult<T>): T {
-  if (result.data && 'data' in result.data && result.data.data !== undefined) {
-    return result.data.data as T;
+  const payload = extractResultData(result);
+  if (typeof payload !== 'undefined') {
+    return payload;
   }
 
   const message = extractErrorMessage(result);
@@ -50,11 +37,13 @@ export function unwrapData<T>(result: ApiCallResult<T>): T {
 }
 
 export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
-  if (result.data && 'data' in result.data) {
-    return (result.data.data ?? null) as null | T;
+  const payload = extractOptionalResultData(result);
+  if (typeof payload !== 'undefined') {
+    return payload;
   }
 
-  if (result.response?.status === 401 || result.response?.status === 404) {
+  const status = readResultStatus(result);
+  if (status === 401 || status === 404) {
     return null;
   }
 
@@ -63,13 +52,16 @@ export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
   throw new Error(message);
 }
 
-export function unwrapListData<T>(
-  result: ApiCallResult<{ list?: T[]; total?: number }>,
-): { items: T[]; total: number } {
-  const payload = unwrapData(result);
+export function unwrapListData<T>(result: ApiCallResult<{ list?: T[]; total?: number }>): {
+  items: T[];
+  total: number;
+} {
+  const payload = extractResultList(result);
+  if (payload) {
+    return { items: payload.list, total: payload.total };
+  }
 
-  return {
-    items: Array.isArray(payload.list) ? payload.list : [],
-    total: typeof payload.total === 'number' ? payload.total : 0,
-  };
+  const message = extractErrorMessage(result);
+  ElMessage.error(message);
+  throw new Error(message);
 }

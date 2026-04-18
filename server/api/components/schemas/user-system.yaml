@@ -67,21 +67,6 @@ AdminIdentityReviewItem:
         - string
         - "null"
       format: date-time
-    docPhotoFront:
-      type:
-        - string
-        - "null"
-      description: 已上传到对象存储的正面照片 key
-    docPhotoBack:
-      type:
-        - string
-        - "null"
-      description: 已上传到对象存储的背面照片 key
-    docPhotoSelfie:
-      type:
-        - string
-        - "null"
-      description: 已上传到对象存储的手持证件照 key
     rejectionReason:
       type:
         - string

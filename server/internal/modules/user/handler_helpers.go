@@ -5,135 +5,240 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // resolveCurrentUser 从请求上下文解析当前用户内部 ID
 func (h *Handler) resolveCurrentUser(c *gin.Context) (int64, bool) {
-	externalID := middleware.GetUserID(c)
-	if externalID == "" {
-		response.Unauthorized(c, "authentication required", errs.ErrLoginRequired)
-		return 0, false
-	}
-
-	userID, err := h.service.GetInternalUserID(c.Request.Context(), externalID)
-	if err != nil {
-		logger.FromGin(c).Error("failed to resolve user ID",
-			zap.String("external_id", externalID),
-			zap.Error(err),
-		)
-		response.InternalError(c, "failed to resolve user")
-		return 0, false
-	}
-
-	return userID, true
+	return middleware.ResolveRequiredInternalUserID(c, h.service.GetInternalUserID, "failed to resolve user")
 }
 
-func identityStatusToJSON(i *IdentityStatus) gin.H {
-	return gin.H{
-		"userID":          i.UserID,
-		"docType":         i.DocType,
-		"realName":        i.RealName,
-		"verified":        i.Verified,
-		"verifyMethod":    i.VerifyMethod,
-		"reviewedAt":      i.ReviewedAt,
-		"verifiedAt":      i.VerifiedAt,
-		"rejectionReason": i.RejectionReason,
-		"createdAt":       i.CreatedAt,
-		"updatedAt":       i.UpdatedAt,
+type messageResponse struct {
+	Message string `json:"message"`
+}
+
+type pagedListResponse[T any] struct {
+	List  []T `json:"list"`
+	Total int `json:"total"`
+}
+
+type identityStatusResponse struct {
+	UserID          int64      `json:"userID"`
+	DocType         string     `json:"docType"`
+	RealName        string     `json:"realName"`
+	Verified        bool       `json:"verified"`
+	VerifyMethod    *string    `json:"verifyMethod"`
+	ReviewedAt      *time.Time `json:"reviewedAt"`
+	VerifiedAt      *time.Time `json:"verifiedAt"`
+	RejectionReason *string    `json:"rejectionReason"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+}
+
+type identityReviewItemResponse struct {
+	UserID          int64      `json:"userID"`
+	DocType         string     `json:"docType"`
+	RealName        string     `json:"realName"`
+	Verified        bool       `json:"verified"`
+	VerifyMethod    *string    `json:"verifyMethod"`
+	ReviewedAt      *time.Time `json:"reviewedAt"`
+	VerifiedAt      *time.Time `json:"verifiedAt"`
+	RejectionReason *string    `json:"rejectionReason"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+}
+
+type profileResponse struct {
+	UserID             int64      `json:"userID"`
+	SchoolID           *int64     `json:"schoolID"`
+	StudentIDs         []string   `json:"studentIDs"`
+	ActiveStudentID    *string    `json:"activeStudentID"`
+	VerificationStatus string     `json:"verificationStatus"`
+	VerificationMethod *string    `json:"verificationMethod"`
+	RejectionReason    *string    `json:"rejectionReason"`
+	ReviewedAt         *time.Time `json:"reviewedAt"`
+	Phone              *string    `json:"phone"`
+	PhoneVerified      bool       `json:"phoneVerified"`
+	ConsentGivenAt     *time.Time `json:"consentGivenAt"`
+	VerifiedAt         *time.Time `json:"verifiedAt"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
+}
+
+type schoolConfigPublicResponse struct {
+	SchoolID           int64                    `json:"schoolID"`
+	SchoolName         string                   `json:"schoolName"`
+	VerificationMethod string                   `json:"verificationMethod"`
+	ConsentText        *string                  `json:"consentText"`
+	Enabled            bool                     `json:"enabled"`
+	ManualFormFields   *[]ManualFieldDescriptor `json:"manualFormFields,omitempty"`
+}
+
+type adminSchoolConfigResponse struct {
+	SchoolID           int64                   `json:"schoolID"`
+	SchoolName         string                  `json:"schoolName"`
+	VerificationMethod string                  `json:"verificationMethod"`
+	ApprovalPolicy     string                  `json:"approvalPolicy"`
+	AcademicDBTable    *string                 `json:"academicDbTable"`
+	ConsentText        *string                 `json:"consentText"`
+	ManualFormFields   []ManualFieldDescriptor `json:"manualFormFields"`
+	Enabled            bool                    `json:"enabled"`
+	CreatedAt          time.Time               `json:"createdAt"`
+	LDAPConfig         *SchoolLDAPConfigView   `json:"ldapConfig,omitempty"`
+}
+
+type adminStudentVerificationResponse struct {
+	UserID             int64          `json:"userID"`
+	SchoolID           *int64         `json:"schoolID"`
+	StudentIDs         []string       `json:"studentIDs"`
+	ActiveStudentID    *string        `json:"activeStudentID"`
+	ManualFormData     map[string]any `json:"manualFormData"`
+	VerificationStatus string         `json:"verificationStatus"`
+	VerificationMethod *string        `json:"verificationMethod"`
+	RejectionReason    *string        `json:"rejectionReason"`
+	ReviewedAt         *time.Time     `json:"reviewedAt"`
+	Phone              *string        `json:"phone"`
+	PhoneVerified      bool           `json:"phoneVerified"`
+	ConsentGivenAt     *time.Time     `json:"consentGivenAt"`
+	VerifiedAt         *time.Time     `json:"verifiedAt"`
+	CreatedAt          time.Time      `json:"createdAt"`
+	UpdatedAt          time.Time      `json:"updatedAt"`
+}
+
+type systemConfigResponse struct {
+	Key         string    `json:"key"`
+	Value       string    `json:"value"`
+	Description *string   `json:"description"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type userSurfaceResponse struct {
+	DisplayName        string   `json:"displayName"`
+	AvatarURL          string   `json:"avatarURL,omitempty"`
+	IdentityStatus     string   `json:"identityStatus"`
+	VerificationStatus string   `json:"verificationStatus"`
+	PhoneBound         bool     `json:"phoneBound"`
+	Capabilities       []string `json:"capabilities"`
+}
+
+type uploadIdentityPhotoResponse struct {
+	Key string `json:"key"`
+}
+
+type bindPhoneOTPResponse struct {
+	Message  string `json:"message"`
+	Cooldown int    `json:"cooldown"`
+}
+
+type academicInfoResponse struct {
+	XH     string  `json:"xh"`
+	XM     *string `json:"xm"`
+	YXDM   *string `json:"yxdm"`
+	ZYDM   *string `json:"zydm"`
+	BJDM   *string `json:"bjdm"`
+	XZNJ   *string `json:"xznj"`
+	RXNJ   *string `json:"rxnj"`
+	PYCCDM *string `json:"pyccdm"`
+	SJH    *string `json:"sjh"`
+	DZXX   *string `json:"dzxx"`
+}
+
+func identityStatusToJSON(i *IdentityStatus) identityStatusResponse {
+	return identityStatusResponse{
+		UserID:          i.UserID,
+		DocType:         i.DocType,
+		RealName:        i.RealName,
+		Verified:        i.Verified,
+		VerifyMethod:    i.VerifyMethod,
+		ReviewedAt:      i.ReviewedAt,
+		VerifiedAt:      i.VerifiedAt,
+		RejectionReason: i.RejectionReason,
+		CreatedAt:       i.CreatedAt,
+		UpdatedAt:       i.UpdatedAt,
 	}
 }
 
-func identityReviewItemToJSON(i *IdentityReviewItem) gin.H {
-	return gin.H{
-		"userID":          i.UserID,
-		"docType":         i.DocType,
-		"realName":        i.RealName,
-		"verified":        i.Verified,
-		"verifyMethod":    i.VerifyMethod,
-		"reviewedAt":      i.ReviewedAt,
-		"verifiedAt":      i.VerifiedAt,
-		"docPhotoFront":   i.DocPhotoFront,
-		"docPhotoBack":    i.DocPhotoBack,
-		"docPhotoSelfie":  i.DocPhotoSelfie,
-		"rejectionReason": i.RejectionReason,
-		"createdAt":       i.CreatedAt,
-		"updatedAt":       i.UpdatedAt,
+func identityReviewItemToJSON(i *IdentityReviewItem) identityReviewItemResponse {
+	return identityReviewItemResponse{
+		UserID:          i.UserID,
+		DocType:         i.DocType,
+		RealName:        i.RealName,
+		Verified:        i.Verified,
+		VerifyMethod:    i.VerifyMethod,
+		ReviewedAt:      i.ReviewedAt,
+		VerifiedAt:      i.VerifiedAt,
+		RejectionReason: i.RejectionReason,
+		CreatedAt:       i.CreatedAt,
+		UpdatedAt:       i.UpdatedAt,
 	}
 }
 
-func profileToJSON(p *Profile) gin.H {
+func profileToJSON(p *Profile) profileResponse {
 	phone := normalizeMaskedPhone(p.Phone)
-	return gin.H{
-		"userID":             p.UserID,
-		"schoolID":           p.SchoolID,
-		"studentIDs":         p.StudentIDs,
-		"activeStudentID":    p.ActiveStudentID,
-		"verificationStatus": p.VerificationStatus,
-		"verificationMethod": p.VerificationMethod,
-		"rejectionReason":    p.RejectionReason,
-		"reviewedAt":         p.ReviewedAt,
-		"phone":              phone,
-		"phoneVerified":      p.PhoneVerified,
-		"consentGivenAt":     p.ConsentGivenAt,
-		"verifiedAt":         p.VerifiedAt,
-		"createdAt":          p.CreatedAt,
-		"updatedAt":          p.UpdatedAt,
+	return profileResponse{
+		UserID:             p.UserID,
+		SchoolID:           p.SchoolID,
+		StudentIDs:         nonNilStrings(p.StudentIDs),
+		ActiveStudentID:    p.ActiveStudentID,
+		VerificationStatus: p.VerificationStatus,
+		VerificationMethod: p.VerificationMethod,
+		RejectionReason:    p.RejectionReason,
+		ReviewedAt:         p.ReviewedAt,
+		Phone:              phone,
+		PhoneVerified:      p.PhoneVerified,
+		ConsentGivenAt:     p.ConsentGivenAt,
+		VerifiedAt:         p.VerifiedAt,
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
 	}
 }
 
-func schoolConfigPublicToJSON(s *SchoolConfig) (gin.H, error) {
+func schoolConfigPublicToJSON(s *SchoolConfig) (schoolConfigPublicResponse, error) {
 	manualFormFields, err := decodeManualFieldDescriptors(s.ManualFormFields)
 	if err != nil {
-		return nil, fmt.Errorf("decode manualFormFields: %w", err)
+		return schoolConfigPublicResponse{}, fmt.Errorf("decode manualFormFields: %w", err)
 	}
 
-	result := gin.H{
-		"schoolID":           s.SchoolID,
-		"schoolName":         s.SchoolName,
-		"verificationMethod": s.VerificationMethod,
-		"consentText":        s.ConsentText,
-		"enabled":            s.Enabled,
+	result := schoolConfigPublicResponse{
+		SchoolID:           s.SchoolID,
+		SchoolName:         s.SchoolName,
+		VerificationMethod: s.VerificationMethod,
+		ConsentText:        s.ConsentText,
+		Enabled:            s.Enabled,
 	}
 	if s.VerificationMethod == VerifyMethodManual {
-		result["manualFormFields"] = manualFormFields
+		fields := nonNilManualFieldDescriptors(manualFormFields)
+		result.ManualFormFields = &fields
 	}
 	return result, nil
 }
 
-func adminSchoolConfigToJSON(s *SchoolConfig) (gin.H, error) {
+func adminSchoolConfigToJSON(s *SchoolConfig) (adminSchoolConfigResponse, error) {
 	ldapConfig, err := buildAdminSchoolLDAPConfig(s.LDAPConfig)
 	if err != nil {
-		return nil, fmt.Errorf("decode ldapConfig: %w", err)
+		return adminSchoolConfigResponse{}, fmt.Errorf("decode ldapConfig: %w", err)
 	}
 	manualFormFields, err := decodeManualFieldDescriptors(s.ManualFormFields)
 	if err != nil {
-		return nil, fmt.Errorf("decode manualFormFields: %w", err)
+		return adminSchoolConfigResponse{}, fmt.Errorf("decode manualFormFields: %w", err)
 	}
 
-	result := gin.H{
-		"schoolID":           s.SchoolID,
-		"schoolName":         s.SchoolName,
-		"verificationMethod": s.VerificationMethod,
-		"approvalPolicy":     s.ApprovalPolicy,
-		"academicDbTable":    s.AcademicDBTable,
-		"consentText":        s.ConsentText,
-		"manualFormFields":   manualFormFields,
-		"enabled":            s.Enabled,
-		"createdAt":          s.CreatedAt,
-	}
-	if ldapConfig != nil {
-		result["ldapConfig"] = ldapConfig
-	}
-
-	return result, nil
+	return adminSchoolConfigResponse{
+		SchoolID:           s.SchoolID,
+		SchoolName:         s.SchoolName,
+		VerificationMethod: s.VerificationMethod,
+		ApprovalPolicy:     s.ApprovalPolicy,
+		AcademicDBTable:    s.AcademicDBTable,
+		ConsentText:        s.ConsentText,
+		ManualFormFields:   nonNilManualFieldDescriptors(manualFormFields),
+		Enabled:            s.Enabled,
+		CreatedAt:          s.CreatedAt,
+		LDAPConfig:         ldapConfig,
+	}, nil
 }
 
 func buildAdminSchoolLDAPConfig(raw json.RawMessage) (*SchoolLDAPConfigView, error) {
@@ -154,38 +259,38 @@ func buildAdminSchoolLDAPConfig(raw json.RawMessage) (*SchoolLDAPConfigView, err
 	}, nil
 }
 
-func adminStudentVerificationToJSON(p *Profile) (gin.H, error) {
+func adminStudentVerificationToJSON(p *Profile) (adminStudentVerificationResponse, error) {
 	manualFormData, err := decodeJSONObject(p.ManualFormData)
 	if err != nil {
-		return nil, fmt.Errorf("decode manualFormData: %w", err)
+		return adminStudentVerificationResponse{}, fmt.Errorf("decode manualFormData: %w", err)
 	}
 	phone := normalizeMaskedPhone(p.Phone)
 
-	return gin.H{
-		"userID":             p.UserID,
-		"schoolID":           p.SchoolID,
-		"studentIDs":         p.StudentIDs,
-		"activeStudentID":    p.ActiveStudentID,
-		"manualFormData":     manualFormData,
-		"verificationStatus": p.VerificationStatus,
-		"verificationMethod": p.VerificationMethod,
-		"rejectionReason":    p.RejectionReason,
-		"reviewedAt":         p.ReviewedAt,
-		"phone":              phone,
-		"phoneVerified":      p.PhoneVerified,
-		"consentGivenAt":     p.ConsentGivenAt,
-		"verifiedAt":         p.VerifiedAt,
-		"createdAt":          p.CreatedAt,
-		"updatedAt":          p.UpdatedAt,
+	return adminStudentVerificationResponse{
+		UserID:             p.UserID,
+		SchoolID:           p.SchoolID,
+		StudentIDs:         nonNilStrings(p.StudentIDs),
+		ActiveStudentID:    p.ActiveStudentID,
+		ManualFormData:     manualFormData,
+		VerificationStatus: p.VerificationStatus,
+		VerificationMethod: p.VerificationMethod,
+		RejectionReason:    p.RejectionReason,
+		ReviewedAt:         p.ReviewedAt,
+		Phone:              phone,
+		PhoneVerified:      p.PhoneVerified,
+		ConsentGivenAt:     p.ConsentGivenAt,
+		VerifiedAt:         p.VerifiedAt,
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
 	}, nil
 }
 
-func systemConfigToJSON(c *SystemConfig) gin.H {
-	return gin.H{
-		"key":         c.Key,
-		"value":       c.Value,
-		"description": c.Description,
-		"updatedAt":   c.UpdatedAt,
+func systemConfigToJSON(c *SystemConfig) systemConfigResponse {
+	return systemConfigResponse{
+		Key:         c.Key,
+		Value:       c.Value,
+		Description: c.Description,
+		UpdatedAt:   c.UpdatedAt,
 	}
 }
 
@@ -199,6 +304,20 @@ func decodeJSONObject(raw json.RawMessage) (map[string]any, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
+func nonNilManualFieldDescriptors(fields []ManualFieldDescriptor) []ManualFieldDescriptor {
+	if fields == nil {
+		return []ManualFieldDescriptor{}
+	}
+	return fields
 }
 
 func normalizeAdminReviewStatus(raw string) (string, bool) {

@@ -1,320 +1,434 @@
-import { createApiClient, parseApiError } from "@stuhelper/shared/api";
+import type { ApiClient } from '@stuhelper/shared/api'
 import {
-    ApiError,
-    httpStatusToDefaultCode,
-    isAuthError,
-    isCsrfError,
-} from "./errors";
-import { useAuthStore } from "@/stores/auth";
-import { tokenExpiry } from "@/utils/auth";
+  AUTH_REFRESH_PATH,
+  appendQuery,
+  buildSecurityHeaders,
+  createSessionApiClient,
+  executeSessionRefresh,
+  parseApiError,
+  serializePath,
+  type HttpMethod,
+  type RefreshSessionData,
+  type RequestInitShape,
+} from '@stuhelper/shared/api'
+import {
+  ApiError,
+  httpStatusToDefaultCode,
+  isAuthError,
+  isCsrfError,
+} from './errors'
+import { useAuthStore } from '@/stores/auth'
+import { tokenExpiry } from '@/utils/auth'
 
-const RAW_API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || "";
-const AUTH_REFRESH_PATH = "/api/v1/auth/refresh";
-const AUTH_REFRESH_TIMEOUT_MS = 10_000;
+const RAW_API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || ''
+const AUTH_REFRESH_TIMEOUT_MS = 10_000
 const DEFAULT_REQUEST_TIMEOUT_MS = (() => {
-    const raw = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 15_000);
-    return Number.isFinite(raw) && raw > 0 ? raw : 15_000;
-})();
-const CSRF_COOKIE_NAME = "csrf_token";
-const CSRF_HEADER_NAME = "X-CSRF-Token";
-
-type RefreshResult =
-    | { ok: true }
-    | { ok: false; reason: "unauthorized" }
-    | { ok: false; reason: "error"; error: ApiError };
-
-let refreshPromise: Promise<RefreshResult> | null = null;
+  const raw = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 15_000)
+  return Number.isFinite(raw) && raw > 0 ? raw : 15_000
+})()
+const CSRF_COOKIE_NAME = 'csrf_token'
+const inflightGetRequests = new Map<string, Promise<unknown>>()
 
 function stripSchemaPrefix(baseUrl: string): string {
-    const trimmed = baseUrl.trim().replace(/\/$/, "");
-    return trimmed.replace(/\/api(?:\/v1)?$/, "");
+  const trimmed = baseUrl.trim().replace(/\/$/, '')
+  return trimmed.replace(/\/api(?:\/v1)?$/, '')
 }
 
 export function resolveApiBaseUrl(rawBaseUrl: string = RAW_API_BASE_URL): string {
-    const normalizedBaseUrl = stripSchemaPrefix(rawBaseUrl);
+  const normalizedBaseUrl = stripSchemaPrefix(rawBaseUrl)
 
-    if (/^https?:\/\//.test(normalizedBaseUrl)) {
-        return normalizedBaseUrl;
-    }
+  if (/^https?:\/\//.test(normalizedBaseUrl)) {
+    return normalizedBaseUrl
+  }
 
-    if (typeof window !== "undefined" && window.location?.origin) {
-        return window.location.origin;
-    }
+  if (window.location?.origin) {
+    return window.location.origin
+  }
 
-    return normalizedBaseUrl;
+  return normalizedBaseUrl
 }
 
 function readCookie(name: string): string | null {
-    if (typeof document === "undefined") return null;
-    const cookies = document.cookie ? document.cookie.split(";") : [];
-    const target = `${encodeURIComponent(name)}=`;
-    for (const raw of cookies) {
-        const cookie = raw.trim();
-        if (!cookie.startsWith(target)) continue;
-        try {
-            return decodeURIComponent(cookie.slice(target.length));
-        } catch {
-            return null;
-        }
+  const cookies = document.cookie ? document.cookie.split(';') : []
+  const target = `${encodeURIComponent(name)}=`
+  for (const raw of cookies) {
+    const cookie = raw.trim()
+    if (!cookie.startsWith(target)) continue
+    try {
+      return decodeURIComponent(cookie.slice(target.length))
+    } catch (_error) { void _error;
+      return null
     }
-    return null;
+  }
+  return null
 }
 
-function needsCSRF(method: string): boolean {
-    return !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
+function resolveApiPath(
+  schemaPath: string,
+  pathParams?: Record<string, unknown>,
+  query?: Record<string, unknown>,
+): string {
+  return appendQuery(serializePath(schemaPath, pathParams), query)
 }
 
 /**
  * 将 API 路径解析为绝对 URL。
  */
 export function resolveApiURL(path: string): URL {
-    const base = resolveApiBaseUrl();
-    return new URL(path, base);
+  const base = resolveApiBaseUrl()
+  return new URL(path, base)
 }
 
 function withBrowserSecurity(request: Request): Request {
-    const headers = new Headers(request.headers);
-    if (needsCSRF(request.method)) {
-        const csrfToken = readCookie(CSRF_COOKIE_NAME);
-        if (csrfToken) {
-            headers.set(CSRF_HEADER_NAME, csrfToken);
-        }
-    }
+  const headers = buildSecurityHeaders(
+    request.method as HttpMethod,
+    Object.fromEntries(request.headers.entries()),
+    {
+      csrfToken: readCookie(CSRF_COOKIE_NAME),
+    },
+  )
 
-    return new Request(request, {
-        credentials: "include",
-        headers,
-    });
+  return new Request(request, {
+    credentials: 'include',
+    headers,
+  })
 }
 
-function isRefreshRequest(request: Request): boolean {
-    const url = new URL(request.url, window.location.origin);
-    return url.pathname === AUTH_REFRESH_PATH;
-}
-
-function getExpiresInFromPayload(payload: unknown): number | null {
-    if (!payload || typeof payload !== "object") {
-        return null;
-    }
-
-    if (!("data" in payload)) {
-        return null;
-    }
-    const data = (payload as Record<string, unknown>).data;
-    if (!data || typeof data !== "object") {
-        return null;
-    }
-
-    if (!("expiresIn" in data)) {
-        return null;
-    }
-    const expiresIn = (data as Record<string, unknown>).expiresIn;
-    return typeof expiresIn === "number" ? expiresIn : null;
+function isRefreshRequestPath(pathname: string): boolean {
+  return pathname === AUTH_REFRESH_PATH
 }
 
 function normalizeClientError(error: unknown): ApiError {
-    if (error instanceof ApiError) {
-        return error;
-    }
+  if (error instanceof ApiError) {
+    return error
+  }
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-        return new ApiError({ code: "OFFLINE", message: "offline" });
-    }
+  if (!navigator.onLine) {
+    return new ApiError({ code: 'OFFLINE', message: 'offline' })
+  }
 
-    if (error instanceof DOMException && error.name === "AbortError") {
-        return new ApiError({ code: "TIMEOUT", message: "request timeout" });
-    }
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return new ApiError({ code: 'TIMEOUT', message: 'request timeout' })
+  }
 
-    return new ApiError({
-        code: "NETWORK_ERROR",
-        message: error instanceof Error ? error.message : "network error",
-    });
+  return new ApiError({
+    code: 'NETWORK_ERROR',
+    message: error instanceof Error ? error.message : 'network error',
+  })
 }
 
 async function fetchWithTimeout(
-    request: Request,
-    timeoutMs: number,
+  request: Request,
+  timeoutMs: number,
 ): Promise<Response> {
-    const controller = new AbortController();
-    const upstreamSignal = request.signal;
-    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
-    const abortFromUpstream = () => controller.abort();
+  const controller = new AbortController()
+  const upstreamSignal = request.signal
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  const abortFromUpstream = () => controller.abort()
 
-    if (upstreamSignal) {
-        if (upstreamSignal.aborted) {
-            controller.abort();
-        } else {
-            upstreamSignal.addEventListener("abort", abortFromUpstream, {
-                once: true,
-            });
-        }
+  if (upstreamSignal) {
+    if (upstreamSignal.aborted) {
+      controller.abort()
+    } else {
+      upstreamSignal.addEventListener('abort', abortFromUpstream, {
+        once: true,
+      })
     }
+  }
 
-    try {
-        return await window.fetch(
-            new Request(request, { signal: controller.signal }),
-        );
-    } finally {
-        window.clearTimeout(timeoutId);
-        upstreamSignal?.removeEventListener("abort", abortFromUpstream);
-    }
+  try {
+    return await window.fetch(
+      new Request(request, { signal: controller.signal }),
+    )
+  } finally {
+    window.clearTimeout(timeoutId)
+    upstreamSignal?.removeEventListener('abort', abortFromUpstream)
+  }
 }
 
 async function performBrowserFetch(request: Request): Promise<Response> {
-    const timeoutMs = isRefreshRequest(request)
-        ? AUTH_REFRESH_TIMEOUT_MS
-        : DEFAULT_REQUEST_TIMEOUT_MS;
-    return fetchWithTimeout(request, timeoutMs);
+  const timeoutMs = isRefreshRequestPath(new URL(request.url, window.location.origin).pathname)
+    ? AUTH_REFRESH_TIMEOUT_MS
+    : DEFAULT_REQUEST_TIMEOUT_MS
+  return fetchWithTimeout(request, timeoutMs)
 }
 
-function createRefreshRequest(): Request {
-    const headers = new Headers();
-    const csrfToken = readCookie(CSRF_COOKIE_NAME);
-    if (csrfToken) {
-        headers.set(CSRF_HEADER_NAME, csrfToken);
-    }
-
-    return new Request(resolveApiURL(AUTH_REFRESH_PATH), {
-        method: "POST",
-        credentials: "include",
-        headers,
-    });
+function normalizeRequestBody(body: unknown): BodyInit | null | undefined {
+  if (body == null) return undefined
+  if (
+    typeof body === 'string' ||
+    body instanceof Blob ||
+    body instanceof FormData ||
+    body instanceof URLSearchParams ||
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body)
+  ) {
+    return body as BodyInit
+  }
+  if (typeof body === 'object') {
+    return JSON.stringify(body)
+  }
+  return String(body)
 }
 
-async function refreshAccessToken(): Promise<RefreshResult> {
-    if (typeof window === "undefined") {
-        return {
-            ok: false,
-            reason: "error",
-            error: new ApiError({
-                code: "NETWORK_ERROR",
-                message: "window is not available",
-            }),
-        };
-    }
-    if (refreshPromise) return refreshPromise;
-
-    refreshPromise = (async () => {
-        try {
-            const response = await performBrowserFetch(createRefreshRequest());
-
-            if (!response.ok) {
-                const payload = await response
-                    .clone()
-                    .json()
-                    .catch(() => null);
-                const error = buildApiError(response, payload);
-
-                if (
-                    response.status === 401 ||
-                    (!isCsrfError(error.code) && isAuthError(error.code))
-                ) {
-                    return { ok: false, reason: "unauthorized" } as const;
-                }
-
-                return { ok: false, reason: "error", error } as const;
-            }
-
-            const payload = await response.json().catch(() => null);
-            const expiresIn = getExpiresInFromPayload(payload);
-            if (typeof expiresIn === "number") {
-                tokenExpiry.set(expiresIn);
-            }
-
-            return { ok: true } as const;
-        } catch (error) {
-            return {
-                ok: false,
-                reason: "error",
-                error: normalizeClientError(error),
-            } as const;
-        } finally {
-            refreshPromise = null;
-        }
-    })();
-
-    return refreshPromise;
+function requestHeadersToObject(headers: Headers): Record<string, unknown> {
+  return Object.fromEntries(headers.entries())
 }
 
-async function authenticatedFetch(input: Request): Promise<Response> {
-    const initialSeed = input.clone();
-    const initialRequest = withBrowserSecurity(initialSeed);
-    const response = await performBrowserFetch(initialRequest);
+async function browserRequest<T>(
+  method: HttpMethod,
+  schemaPath: string,
+  init?: RequestInitShape,
+) {
+  const path = resolveApiPath(schemaPath, init?.params?.path, init?.params?.query)
+  const url = resolveApiURL(path)
+  const requestHeaders = new Headers(
+    Object.entries(init?.params?.header ?? {}).reduce<Record<string, string>>(
+      (acc, [key, value]) => {
+        if (value != null) acc[key] = String(value)
+        return acc
+      },
+      {},
+    ),
+  )
+  const body = normalizeRequestBody(init?.body)
+  if (body !== undefined && !requestHeaders.has('Content-Type')) {
+    requestHeaders.set('Content-Type', 'application/json')
+  }
 
-    if (response.status !== 401 || isRefreshRequest(initialRequest)) {
-        return response;
+  const request = withBrowserSecurity(
+    new Request(url, {
+      body,
+      credentials: 'include',
+      headers: requestHeaders,
+      method,
+      signal: init?.signal,
+    }),
+  )
+
+  const response = await performBrowserFetch(request)
+  const payload = await response.clone().json().catch(() => null)
+
+  if (response.ok) {
+    return {
+      data: payload as T,
+      response,
     }
+  }
 
-    const refreshed = await refreshAccessToken();
-    if (!refreshed.ok) {
-        if (refreshed.reason === "unauthorized") {
-            useAuthStore().clearSession();
-            return response;
-        }
+  return {
+    error: payload,
+    response,
+  }
+}
 
-        throw refreshed.error;
+async function refreshSession() {
+  return executeSessionRefresh({
+    async onSuccess(payload) {
+      tokenExpiry.set(payload.expiresIn)
+    },
+    async request(init) {
+      const result = await browserRequest<RefreshSessionData>('POST', AUTH_REFRESH_PATH, init)
+      const status = result.response?.status ?? 0
+      if (!result.error && status >= 200 && status < 300) {
+        return result
+      }
+
+      return {
+        ...result,
+        error: buildApiError(
+          result.response as Response,
+          result.error ?? result.data,
+        ),
+      }
+    },
+    shouldTreatAsUnauthorized(result, status) {
+      if (status === 401) {
+        return true
+      }
+      const error = result.error
+      return (
+        error instanceof ApiError &&
+        !isCsrfError(error.code) &&
+        isAuthError(error.code)
+      )
+    },
+  }).then((result) => {
+    if (
+      result.kind === 'error' &&
+      result.error instanceof ApiError &&
+      isAuthError(result.error.code)
+    ) {
+      return { kind: 'unauthorized', status: result.status } as const
     }
-
-    const retryRequest = withBrowserSecurity(input.clone());
-    const retryResponse = await performBrowserFetch(retryRequest);
-
-    if (retryResponse.status === 401) {
-        useAuthStore().clearSession();
-        return retryResponse;
+    if (
+      result.kind === 'error' &&
+      !(result.error instanceof ApiError)
+    ) {
+      return {
+        kind: 'error',
+        error: normalizeClientError(result.error),
+        status: result.status,
+      } as const
     }
-
-    return retryResponse;
+    return result
+  })
 }
 
 function buildApiError(response: Response, payload: unknown): ApiError {
-    const errorData = parseApiError(payload);
+  const errorData = parseApiError(payload)
 
-    return new ApiError({
-        message:
-            errorData.message || response.statusText || "API request failed",
-        code: errorData.code || httpStatusToDefaultCode(response.status),
-        status: response.status,
-        details: errorData.details,
-        requestID: response.headers.get("X-Request-Id") || undefined,
-    });
+  return new ApiError({
+    message:
+      errorData.message || response.statusText || 'API request failed',
+    code: errorData.code || httpStatusToDefaultCode(response.status),
+    status: response.status,
+    details: errorData.details,
+    requestID: response.headers.get('X-Request-Id') || undefined,
+  })
+}
+
+const browserSessionClient = createSessionApiClient(
+  {
+    onUnauthorized() {
+      useAuthStore().clearSession()
+    },
+    refresh: refreshSession,
+    request: browserRequest,
+  },
+  {
+    enableRefresh: true,
+    reauthenticateOnUnauthorized: true,
+  },
+)
+
+function callBrowserSessionClient(
+  method: HttpMethod,
+  schemaPath: string,
+  init?: unknown,
+) {
+  switch (method) {
+    case 'DELETE':
+      return browserSessionClient.DELETE(schemaPath as never, init as never)
+    case 'GET':
+      return browserSessionClient.GET(schemaPath as never, init as never)
+    case 'PATCH':
+      return browserSessionClient.PATCH(schemaPath as never, init as never)
+    case 'POST':
+      return browserSessionClient.POST(schemaPath as never, init as never)
+    case 'PUT':
+      return browserSessionClient.PUT(schemaPath as never, init as never)
+  }
+}
+
+async function authenticatedFetch(input: Request): Promise<Response> {
+  const url = new URL(input.url, window.location.origin)
+  const body = ['GET', 'HEAD'].includes(input.method.toUpperCase())
+    ? undefined
+    : await input.clone().text().catch(() => undefined)
+  const result = await callBrowserSessionClient(
+    input.method.toUpperCase() as HttpMethod,
+    url.pathname + url.search,
+    {
+      body,
+      params: {
+        header: requestHeadersToObject(input.headers),
+      },
+      signal: input.signal,
+    },
+  )
+
+  if (!result.response) {
+    throw normalizeClientError(result.error)
+  }
+  return result.response as Response
+}
+
+async function invokeClientMethod(
+  method: HttpMethod,
+  schemaPath: string,
+  init?: unknown,
+) {
+  const execute = async () => {
+    const result = await callBrowserSessionClient(method, schemaPath, init)
+    const status = result.response?.status ?? 0
+    if (result.error || status >= 400) {
+      throw buildApiError(result.response as Response, result.error ?? result.data)
+    }
+    return result
+  }
+
+  try {
+    if (method === 'GET' && canDeduplicateRequest(init)) {
+      const key = buildInflightGetRequestKey(schemaPath, init)
+      const existing = inflightGetRequests.get(key)
+      if (existing) {
+        return await existing
+      }
+      const pending = execute().finally(() => {
+        inflightGetRequests.delete(key)
+      })
+      inflightGetRequests.set(key, pending)
+      return await pending
+    }
+
+    return await execute()
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error
+    }
+    throw normalizeClientError(error)
+  }
+}
+
+function canDeduplicateRequest(init?: unknown): boolean {
+  if (!init || typeof init !== 'object') {
+    return true
+  }
+  return !('signal' in init)
+}
+
+function buildInflightGetRequestKey(schemaPath: string, init?: unknown): string {
+  return JSON.stringify({
+    schemaPath,
+    init: init ?? null,
+  })
 }
 
 export const apiClientOptions = {
-    baseUrl: resolveApiBaseUrl(),
-    credentials: "include" as const,
-    fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
-        const request = new Request(input, init);
-        return authenticatedFetch(request);
-    }) as typeof fetch,
-};
+  baseUrl: resolveApiBaseUrl(),
+  credentials: 'include' as const,
+  fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init)
+    return authenticatedFetch(request)
+  }) as typeof fetch,
+}
 
-export const apiClient = createApiClient(apiClientOptions);
-
-apiClient.use({
-    async onResponse({ response }) {
-        if (response.ok) return response;
-
-        const payload = await response
-            .clone()
-            .json()
-            .catch(() => null);
-        throw buildApiError(response, payload);
-    },
-    onError({ error }) {
-        throw normalizeClientError(error);
-    },
-});
+export const apiClient: ApiClient = {
+  DELETE: ((schemaPath: string, init?: unknown) =>
+    invokeClientMethod('DELETE', schemaPath, init)) as ApiClient['DELETE'],
+  GET: ((schemaPath: string, init?: unknown) =>
+    invokeClientMethod('GET', schemaPath, init)) as ApiClient['GET'],
+  PATCH: ((schemaPath: string, init?: unknown) =>
+    invokeClientMethod('PATCH', schemaPath, init)) as ApiClient['PATCH'],
+  POST: ((schemaPath: string, init?: unknown) =>
+    invokeClientMethod('POST', schemaPath, init)) as ApiClient['POST'],
+  PUT: ((schemaPath: string, init?: unknown) =>
+    invokeClientMethod('PUT', schemaPath, init)) as ApiClient['PUT'],
+}
 
 export const __testing__ = {
-    DEFAULT_REQUEST_TIMEOUT_MS,
-    AUTH_REFRESH_TIMEOUT_MS,
-    readCookie,
-    withBrowserSecurity,
-    fetchWithTimeout,
-    performBrowserFetch,
-    authenticatedFetch,
-    buildApiError,
-    resolveApiBaseUrl,
-    normalizeClientError,
-    resolveApiURL,
-};
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  AUTH_REFRESH_TIMEOUT_MS,
+  readCookie,
+  withBrowserSecurity,
+  fetchWithTimeout,
+  performBrowserFetch,
+  authenticatedFetch,
+  buildApiError,
+  resolveApiBaseUrl,
+  normalizeClientError,
+  resolveApiURL,
+  buildInflightGetRequestKey,
+  canDeduplicateRequest,
+}

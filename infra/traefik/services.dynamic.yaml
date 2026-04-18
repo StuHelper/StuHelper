@@ -31,6 +31,13 @@ http:
         customResponseHeaders:
           X-Powered-By: ""
 
+    # Edge 限流：在应用入口先做粗粒度削峰，避免瞬时放大直接打到后端
+    edge-rate-limit:
+      rateLimit:
+        average: 120
+        burst: 240
+        period: 1s
+
     # 压缩中间件
     gzip-compress:
       compress:
@@ -48,6 +55,7 @@ http:
       middlewares:
         - strip-api-prefix
         - security-headers
+        - edge-rate-limit
       service: backend
       priority: 700
 

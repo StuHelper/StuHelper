@@ -11,10 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/singleflightx"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
@@ -27,6 +29,8 @@ type ReviewAccessFacts struct {
 	CanManageReviews    bool
 	CanViewFull         bool
 	CanPostReview       bool
+	CanEditOwn          bool
+	CanDeleteOwn        bool
 	IdentityVerified    bool
 	StudentVerified     bool
 	SchoolID            *string
@@ -41,7 +45,7 @@ func (s *Service) getReviewAccessPolicy(ctx context.Context) (systemconfig.Revie
 		return cached, nil
 	}
 
-	result, err, _ := s.accessPolicySF.Do("access-policy", func() (interface{}, error) {
+	policy, err := singleflightx.DoValue(&s.accessPolicySF, "access-policy", func() (systemconfig.ReviewAccessPolicySnapshot, error) {
 		cached := s.readReviewAccessPolicy()
 		if policyFresh(cached) {
 			return cached, nil
@@ -52,10 +56,6 @@ func (s *Service) getReviewAccessPolicy(ctx context.Context) (systemconfig.Revie
 
 		policy, err := s.loadReviewAccessPolicy(refreshCtx)
 		if err != nil {
-			if !cached.LoadedAt.IsZero() {
-				logger.L().Warn("failed to refresh review access policy, using stale policy", zap.Error(err))
-				return cached, nil
-			}
 			return systemconfig.ReviewAccessPolicySnapshot{}, err
 		}
 
@@ -64,10 +64,6 @@ func (s *Service) getReviewAccessPolicy(ctx context.Context) (systemconfig.Revie
 	})
 	if err != nil {
 		return systemconfig.ReviewAccessPolicySnapshot{}, err
-	}
-	policy, ok := result.(systemconfig.ReviewAccessPolicySnapshot)
-	if !ok {
-		return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("unexpected access policy result type %T", result)
 	}
 	return policy, nil
 }
@@ -84,11 +80,11 @@ func policyFresh(policy systemconfig.ReviewAccessPolicySnapshot) bool {
 }
 
 func (s *Service) loadReviewAccessPolicy(ctx context.Context) (systemconfig.ReviewAccessPolicySnapshot, error) {
-	schools, err := s.accessReader.ListSchoolConfigs(ctx)
+	schools, err := s.accessReader.ListReviewAccessSchoolConfigs(ctx)
 	if err != nil {
 		return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("load enabled schools: %w", err)
 	}
-	configs, err := s.accessReader.ListSystemConfigs(ctx)
+	configs, err := s.accessReader.ListReviewAccessSystemConfigs(ctx)
 	if err != nil {
 		return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("load system configs: %w", err)
 	}
@@ -101,7 +97,7 @@ func (s *Service) loadReviewAccessPolicy(ctx context.Context) (systemconfig.Revi
 	return policy, nil
 }
 
-func buildReviewAccessPolicy(schools []user.SchoolConfig, configs []user.SystemConfig) (systemconfig.ReviewAccessPolicySnapshot, error) {
+func buildReviewAccessPolicy(schools []reviewaccess.SchoolConfig, configs []reviewaccess.SystemConfig) (systemconfig.ReviewAccessPolicySnapshot, error) {
 	policy := systemconfig.DefaultReviewAccessPolicySnapshot()
 
 	enabledSchoolIDs := make([]string, 0, len(schools))
@@ -182,8 +178,12 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, externalID string, cap
 
 	// 从 Token 角色展开的能力中检查管理权限（零 DB 查询）
 	facts.CanManageReviews = capability.Has(capabilities, capability.AdminReviewsManage)
+	canViewFull := capability.Has(capabilities, capability.ReviewListFull)
+	canCreate := capability.Has(capabilities, capability.ReviewCreate)
+	canEditOwn := capability.Has(capabilities, capability.ReviewEditOwn)
+	canDeleteOwn := capability.Has(capabilities, capability.ReviewDeleteOwn)
 
-	subject, err := s.accessReader.GetReviewAccessSubjectByExternalID(ctx, externalID)
+	subject, err := s.accessReader.GetReviewAccessSubject(ctx, externalID)
 	if err != nil {
 		return facts, err
 	}
@@ -196,28 +196,25 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, externalID string, cap
 		subject.SchoolID != nil &&
 		policy.AllowsSchool(strconv.FormatInt(*subject.SchoolID, 10))
 	facts.IdentityVerified = subject.IdentityVerified
-	facts.CanViewFull = facts.CanManageReviews || facts.StudentVerified
-	facts.CanPostReview = facts.StudentVerified && facts.IdentityVerified
+	facts.CanViewFull = facts.CanManageReviews || (canViewFull && facts.StudentVerified)
+	facts.CanPostReview = canCreate && facts.StudentVerified && facts.IdentityVerified
+	facts.CanEditOwn = canEditOwn && facts.StudentVerified && facts.IdentityVerified
+	facts.CanDeleteOwn = canDeleteOwn && facts.StudentVerified && facts.IdentityVerified
 
 	return facts, nil
 }
 
-func (h *Handler) resolveReviewAccessFactsForRequest(c *gin.Context) ReviewAccessFacts {
+func (h *Handler) resolveReviewAccessFactsForRequest(c *gin.Context) (ReviewAccessFacts, bool) {
 	externalID := middleware.GetUserID(c)
 	capabilities := middleware.GetCapabilities(c)
 	facts, err := h.service.ResolveAccessFacts(c.Request.Context(), externalID, capabilities)
 	if err == nil {
-		return facts
+		return facts, true
 	}
 
 	logger.FromGin(c).Warn("failed to resolve review access facts", zap.Error(err))
-	policy := systemconfig.DefaultReviewAccessPolicySnapshot()
-	return ReviewAccessFacts{
-		Authenticated:       externalID != "",
-		PreviewTitleRunes:   policy.PreviewTitleRunes,
-		PreviewContentRunes: policy.PreviewContentRunes,
-		PreviewContentPct:   policy.PreviewContentPct,
-	}
+	response.ServiceUnavailable(c, "review access policy temporarily unavailable")
+	return ReviewAccessFacts{}, false
 }
 
 func stripReviewsForResponse(reviews []Review, facts ReviewAccessFacts) []Review {

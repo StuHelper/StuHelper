@@ -34,7 +34,7 @@
 
 - **目标机自持部署控制面**：`${DEPLOY_APP_DIR}/.deploy/remote.env`
 - **CI / Ansible 只负责上传 bundle + 传递 release metadata**（`TAG`、`*_IMAGE_REF`、`ROLLBACK_TAG`）
-- **secret backend 选择、env 文件位置、registry 凭据引用** 都由目标机的 `.deploy/remote.env` 决定
+- **secret backend 选择、env 文件位置、registry/shared/generated secret refs** 都由目标机的 `.deploy/remote.env` 决定
 
 如果控制面配置变更，直接在目标机执行：
 

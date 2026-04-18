@@ -138,7 +138,7 @@ function sanitizeInternalRedirect(redirect: string | null | undefined): string |
         const parsed = new URL(redirect, window.location.origin);
         if (parsed.origin !== window.location.origin) return undefined;
         return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-    } catch {
+    } catch (_error) { void _error;
         return undefined;
     }
 }

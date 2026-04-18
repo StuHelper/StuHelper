@@ -1,15 +1,9 @@
 import type { ApiClient } from './client'
 import type { components } from '../types'
 import type { SaveDraftParams } from '../types/business/draft'
-import { isReviewGrade, type ReviewGrade } from '../constants/review'
+import { normalizeReviewGrade } from '../constants/review'
 
 type SaveDraftRequest = components['schemas']['SaveDraftRequest']
-
-function normalizeReviewGrade(grade?: string): ReviewGrade | undefined {
-  if (!grade) return undefined
-  const trimmed = grade.trim()
-  return isReviewGrade(trimmed) ? trimmed : undefined
-}
 
 function toSaveDraftRequest(data: SaveDraftParams): SaveDraftRequest {
   const grade = normalizeReviewGrade(data.grade)

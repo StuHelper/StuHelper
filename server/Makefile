@@ -2,6 +2,7 @@
 
 .PHONY: help tidy fmt lint test test-coverage build run clean security ci \
        bundle-spec lint-spec generate generate-go generate-ts check-drift check-drift-go check-drift-ts check-drift-all \
+       check-doc-sync check-coverage-threshold \
        migrate-up migrate-down-one migrate-status migrate-verify seed-dev
 
 # 默认目标
@@ -39,6 +40,8 @@ help:
 	@echo "  generate-go   - regenerate Go types and server interface"
 	@echo "  generate-ts   - regenerate frontend TypeScript types"
 	@echo "  generate      - bundle spec + regenerate all code (Go + TS)"
+	@echo "  check-doc-sync - verify docs/references/api-overview.md stays in sync with bundled OpenAPI paths"
+	@echo "  check-coverage-threshold - enforce minimum coverage for key packages"
 	@echo ""
 	@echo "CI/CD:"
 	@echo "  ci            - run all CI checks (lint, test, build, drift check)"
@@ -115,6 +118,12 @@ check-drift-ts:
 	cd ../clients && npx --yes pnpm@10.32.1 run check:api-drift
 
 check-drift-all: check-drift-go check-drift-ts
+
+check-doc-sync: bundle-spec
+	node scripts/check-api-overview-sync.mjs
+
+check-coverage-threshold:
+	bash scripts/check-coverage-threshold.sh
 
 # ── Database Migrations ──
 

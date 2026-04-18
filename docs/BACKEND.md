@@ -14,6 +14,18 @@ Repository → SQL、结果扫描、事务内操作
 - 不手改 `server/internal/api/gen/`
 - 配置从环境变量读取，不硬编码
 
+## OpenAPI 生成代码边界
+
+- `server/internal/api/gen/` 的 Go 生成代码主要用于：
+  - embedded OpenAPI spec
+  - 运行时请求契约校验（`internal/pkg/middleware/openapi_validation.go`）
+  - drift gate / 生成链校验
+- Handler 层允许继续使用局部 request DTO，只要：
+  - 契约权威仍然是 `server/api/openapi.yaml`
+  - 运行时已接入 OpenAPI request validation
+  - 变更接口时始终先改 OpenAPI，再 `make generate`
+- 不要求把 handler 强行改写成直接依赖 `gen.*` 类型；否则会把 HTTP 绑定细节、业务演进节奏和生成模型硬耦合在一起。
+
 ## 改接口流程
 
 ```bash
@@ -72,7 +84,7 @@ server/
 | Redis | 缓存、限流、token 黑名单 |
 | Zitadel | OIDC / 角色同步 |
 | OpenFGA | 资源关系授权 |
-| Tencent SMS | 手机 OTP |
+| Tencent SMS | 手机 OTP（仅当 `SMS_ENABLED=true`） |
 | OpenTelemetry | trace / metrics / logs |
 
 ## 日志和错误

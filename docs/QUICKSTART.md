@@ -5,6 +5,7 @@
 - Docker + Docker Compose
 - Go 1.26+
 - Node.js 24+ / pnpm 10+
+- Python 3（运维脚本、环境渲染、远程部署前置检查依赖）
 
 ## 一键启动
 
@@ -110,7 +111,7 @@ make prod-down     # 停止
 sudo bash infra/ops/bootstrap-ubuntu2404.sh
 ```
 
-这个脚本会一起装好 Docker / Compose、部署目录、备份目录、`.deploy/remote.env`、registry 凭据占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。
+这个脚本会一起装好 Docker / Compose、部署目录、备份目录、`.deploy/remote.env`、Vault token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。
 
 Ansible 入口：
 

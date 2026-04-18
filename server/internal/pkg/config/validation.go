@@ -85,6 +85,27 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 	}
 
+	if c.SMS.Enabled {
+		if c.SMS.SecretID == "" {
+			errs = append(errs, "SMS_SECRET_ID is required when SMS_ENABLED=true")
+		}
+		if c.SMS.SecretKey == "" {
+			errs = append(errs, "SMS_SECRET_KEY is required when SMS_ENABLED=true")
+		}
+		if c.SMS.AppID == "" {
+			errs = append(errs, "SMS_APP_ID is required when SMS_ENABLED=true")
+		}
+		if c.SMS.SignName == "" {
+			errs = append(errs, "SMS_SIGN_NAME is required when SMS_ENABLED=true")
+		}
+		if c.SMS.TemplateID == "" {
+			errs = append(errs, "SMS_TEMPLATE_ID is required when SMS_ENABLED=true")
+		}
+		if c.SMS.InternalKey == "" {
+			errs = append(errs, "SMS_INTERNAL_KEY is required when SMS_ENABLED=true")
+		}
+	}
+
 	if c.App.Env == "production" {
 		if c.Database.URL == "" {
 			errs = append(errs, "DATABASE_URL is required in production")
@@ -193,6 +214,21 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 	if c.RateLimit.ReplyLimit <= 0 || c.RateLimit.ReplyLimit > maxRateLimit {
 		errs = append(errs, fmt.Sprintf("REVIEW_RATE_REPLY_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.ReplyLimit))
+	}
+	if c.RateLimit.WriteLimit <= 0 || c.RateLimit.WriteLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_WRITE_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.WriteLimit))
+	}
+	if c.RateLimit.SearchAnonLimit <= 0 || c.RateLimit.SearchAnonLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_SEARCH_ANON_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.SearchAnonLimit))
+	}
+	if c.RateLimit.SearchUserLimit <= 0 || c.RateLimit.SearchUserLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_SEARCH_USER_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.SearchUserLimit))
+	}
+	if c.RateLimit.BatchAnonLimit <= 0 || c.RateLimit.BatchAnonLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_BATCH_ANON_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.BatchAnonLimit))
+	}
+	if c.RateLimit.BatchUserLimit <= 0 || c.RateLimit.BatchUserLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_BATCH_USER_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.BatchUserLimit))
 	}
 
 	if len(errs) > 0 {

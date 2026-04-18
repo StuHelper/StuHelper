@@ -46,7 +46,7 @@ async function loadMore() {
     const data = unwrapListData<components['schemas']['Review']>(result)
     reviews.value = [...reviews.value, ...data.list]
     hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
-  } catch {
+  } catch (_error) { void _error;
     page.value = Math.max(1, page.value - 1)
   } finally {
     loadingMore.value = false

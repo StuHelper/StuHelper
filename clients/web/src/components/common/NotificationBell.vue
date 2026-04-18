@@ -1,5 +1,5 @@
 <template>
-  <div class="notification-bell relative" :class="{ 'has-new': hasUnread }">
+  <div ref="rootRef" class="notification-bell relative" :class="{ 'has-new': hasUnread }">
     <button
       class="bell-btn relative flex items-center justify-center w-9 h-9 bg-transparent border-none text-text-muted cursor-pointer rounded-sm transition-colors duration-fast hover:text-text-primary"
       :aria-label="t('user.notification.bell')"
@@ -48,77 +48,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bell } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
-import { resolveNotificationHref } from '@stuhelper/shared'
 import { useNotificationStore } from '@/stores/notification'
-import type { Notification } from '@/types/notification'
 import NotificationList from './NotificationList.vue'
+import { useNotificationBellController } from './useNotificationBellController'
 
 const { t } = useI18n()
 const router = useRouter()
 const store = useNotificationStore()
-const showPanel = ref(false)
-const hasLoadedHistory = ref(false)
-
-const notifications = computed(() => store.bellNotifications.slice(0, 5))
-const unreadCount = computed(() => store.unreadCount)
-const hasUnread = computed(() => store.hasUnread)
-const loading = computed(() => store.bellLoading)
-
-const togglePanel = async () => {
-  showPanel.value = !showPanel.value
-  if (showPanel.value && !hasLoadedHistory.value) {
-    hasLoadedHistory.value = true
-    await store.fetchBellNotifications(1, 5).catch(() => {})
-  }
-}
-
-const handleMarkAllRead = async () => {
-  try {
-    await store.markAllAsRead()
-  } catch {
-    // markAllAsRead 失败时 store 已在 API 成功后才更新本地状态，无需回滚
-  }
-}
-
-const handleNotificationClick = async (payload: string | Notification) => {
-  const notification = typeof payload === 'string'
-    ? notifications.value.find(item => item.id === payload)
-    : payload
-
-  if (!notification) return
-
-  try {
-    await store.markAsRead(notification.id)
-    showPanel.value = false
-    const href = resolveNotificationHref(notification)
-    if (href) {
-      await router.push(href)
-    }
-  } catch {
-    // API 失败时不更新本地状态（store 先调 API 再更新）
-  }
-}
-
-// 点击外部关闭
-const handleClickOutside = (e: MouseEvent) => {
-  const target = e.target as HTMLElement
-  if (!target.closest('.notification-bell')) {
-    showPanel.value = false
-  }
-}
+const rootRef = ref<HTMLElement | null>(null)
+const {
+  showPanel,
+  notifications,
+  unreadCount,
+  hasUnread,
+  loading,
+  togglePanel,
+  handleMarkAllRead,
+  handleNotificationClick,
+  handleDocumentClick,
+  start,
+  stop,
+} = useNotificationBellController({
+  rootRef,
+  store,
+  router,
+})
 
 onMounted(() => {
-  store.connectSSE()
-  document.addEventListener('click', handleClickOutside)
+  start()
+  document.addEventListener('click', handleDocumentClick)
 })
 
 onUnmounted(() => {
-  store.stopPolling()
-  document.removeEventListener('click', handleClickOutside)
+  stop()
+  document.removeEventListener('click', handleDocumentClick)
 })
 </script>
 

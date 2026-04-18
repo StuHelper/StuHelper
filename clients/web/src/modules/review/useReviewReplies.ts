@@ -6,7 +6,7 @@ import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import ReplyForm from '@/components/business/review/ReplyForm.vue'
 
-import type { Reply } from '@/types/reply'
+import type { Reply } from '@stuhelper/shared/reply'
 
 export function useReviewReplies() {
   const { t } = useI18n()
@@ -39,7 +39,7 @@ export function useReviewReplies() {
       if (requestSeq !== repliesRequestSeq || expandedReviewID.value !== reviewId) return
       replies.value = res.data?.data?.list || []
       replyCountMap[reviewId] = res.data?.data?.total || 0
-    } catch {
+    } catch (_error) { void _error;
       if (requestSeq !== repliesRequestSeq || expandedReviewID.value !== reviewId) return
       replies.value = []
       repliesError.value = true

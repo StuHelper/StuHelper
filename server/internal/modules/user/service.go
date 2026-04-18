@@ -8,9 +8,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 )
 
 // 业务错误定义
@@ -100,6 +102,18 @@ type Repo interface {
 
 	GetInternalUserID(ctx context.Context, externalID string) (int64, error)
 	GetExternalID(ctx context.Context, userID int64) (string, error)
+	GetAcademicStudentByXHFromTable(ctx context.Context, xh string, tableName string) (*AcademicStudent, error)
+	FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh string, tableName string) ([]AcademicStudent, error)
+	ValidateAcademicDBTable(ctx context.Context, tableName string) error
+	WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
+	GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
+	CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
+	UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
+	SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error
+	UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
+	ClaimExternalSyncJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
+	MarkExternalSyncJobDone(ctx context.Context, jobID int64) error
+	MarkExternalSyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
 }
 
 type ldapAuthClient interface {
@@ -114,10 +128,44 @@ type identityPhotoStore interface {
 	PresignGetURL(ctx context.Context, key string) (string, error)
 }
 
+type profileFGAClient interface {
+	WriteTuples(ctx context.Context, tuples []fga.Tuple) error
+	DeleteTuples(ctx context.Context, tuples []fga.Tuple) error
+	ReadTuples(ctx context.Context, object, relation string) ([]fga.Tuple, error)
+}
+
 // RoleSyncFunc 角色同步回调。
 // 当用户认证状态变化时调用：approved=true 添加角色，approved=false 移除角色。
 // userID 是内部用户 ID（用于查询 external_id），role 是 Zitadel Project Role 名称。
 type RoleSyncFunc func(ctx context.Context, userID int64, role string, approved bool) error
+
+type ServiceOption func(*Service)
+
+func WithRoleSyncFunc(fn RoleSyncFunc) ServiceOption {
+	return func(s *Service) {
+		s.onRoleSync = fn
+	}
+}
+
+func WithProfileFGAClient(client profileFGAClient) ServiceOption {
+	return func(s *Service) {
+		s.profileFGA = client
+	}
+}
+
+func WithIdentityPhotoStore(store identityPhotoStore) ServiceOption {
+	return func(s *Service) {
+		s.photoStore = store
+	}
+}
+
+func WithLDAPClientFactory(factory ldapClientFactory) ServiceOption {
+	return func(s *Service) {
+		if factory != nil {
+			s.ldapClientFactory = factory
+		}
+	}
+}
 
 // Service 用户服务层
 type Service struct {
@@ -129,12 +177,10 @@ type Service struct {
 	onRoleSync        RoleSyncFunc
 	profileFGA        profileFGAClient
 	photoStore        identityPhotoStore
-	identityVerifier  mainlandIdentityVerifier
-	notifSender       notification.Sender
 }
 
 // NewService 创建用户服务（构造期校验关键依赖）
-func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pii.EncryptDecryptor) (*Service, error) {
+func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pii.EncryptDecryptor, opts ...ServiceOption) (*Service, error) {
 	if repo == nil {
 		return nil, errors.New("user.NewService: repo must not be nil")
 	}
@@ -144,28 +190,19 @@ func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pi
 	if docCipher == nil {
 		return nil, errors.New("user.NewService: docCipher must not be nil")
 	}
-	return &Service{
+	svc := &Service{
 		repo:              repo,
 		ldapClient:        ldapClient,
 		ldapClientFactory: func(cfg ldap.Config) (ldapAuthClient, error) { return ldap.NewClient(cfg) },
 		hmacKey:           hmacKey,
 		docCipher:         docCipher,
-	}, nil
-}
-
-// SetRoleSyncFunc 注册角色同步回调（认证状态变化时异步通知 Zitadel）
-func (s *Service) SetRoleSyncFunc(fn RoleSyncFunc) {
-	s.onRoleSync = fn
-}
-
-// SetProfileFGAClient 注册 user_profile 关系投影客户端。
-func (s *Service) SetProfileFGAClient(client profileFGAClient) {
-	s.profileFGA = client
-}
-
-// SetIdentityPhotoStore 注册实名认证照片对象存储。
-func (s *Service) SetIdentityPhotoStore(store identityPhotoStore) {
-	s.photoStore = store
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(svc)
+		}
+	}
+	return svc, nil
 }
 
 // SubmitIdentityRequest 提交实名认证请求
@@ -233,18 +270,4 @@ func (s *Service) computePersonUID(docType, docNumber string) string {
 	mac := hmac.New(sha256.New, s.hmacKey)
 	mac.Write([]byte(docType + ":" + docNumber))
 	return hex.EncodeToString(mac.Sum(nil))
-}
-
-type mainlandIdentityVerifier interface {
-	VerifyMainlandID(ctx context.Context, idCard, name string) (matched bool, code, description string, err error)
-}
-
-// SetNotificationSender 注册用户模块通知发送器。
-func (s *Service) SetNotificationSender(sender notification.Sender) {
-	s.notifSender = sender
-}
-
-// SetMainlandIdentityVerifier 注册大陆身份证二要素核验器。
-func (s *Service) SetMainlandIdentityVerifier(verifier mainlandIdentityVerifier) {
-	s.identityVerifier = verifier
 }

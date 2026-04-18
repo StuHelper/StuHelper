@@ -11,10 +11,11 @@
 - [ ] production 发布已由发布人手工审批（`deploy_production`）
 - [ ] 如果包含数据库变更，已完成备份（注：`prod-deploy.sh` 现已自动在迁移前执行 `backup-postgres.sh`）
 - [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用
+- [ ] 承载 `postgres_data` / `redis_data` / 对象存储目录的宿主机块设备已启用静态加密（云盘 KMS/EBS/PD 或 LUKS）
 - [ ] 远端部署控制面已核对：`.deploy/remote.env`
 - [ ] 共享配置已核对：`.env.prod.shared`
-- [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 由 `.env.prod.generated.secrets` 管理
-- [ ] registry 凭据已核对：`.secrets/registry/username`、`.secrets/registry/password` 或等价 secret ref
+- [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 必须通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend，`.env.prod.generated.secrets` 仅保留空占位
+- [ ] secret backend 已核对：`.deploy/remote.env` 中的 `SECRET_BACKEND` / `*_SECRET_REF` / `GENERATED_ENV_SECRET_REF` / `VAULT_ADDR` / `VAULT_TOKEN_FILE`
 - [ ] 关键变量已核对：`POSTGRES_PASSWORD`、`REDIS_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`、`WEB_VITE_SSO_URL`
 - [ ] 观测配置已核对：`METRICS_PASSWORD`、`GRAFANA_ADMIN_PASSWORD`、`OTEL_ENABLED=true`
 - [ ] staging 已验证通过（如有 staging）
@@ -89,7 +90,7 @@ make prod-deploy
 - Prometheus：`http://127.0.0.1:9090/-/ready`
 - Loki：`http://127.0.0.1:3100/ready`
 - Tempo：`http://127.0.0.1:3200/ready`
-- `docker compose --profile prod ps` 中 `app` / `frontend` / `admin` 为 healthy/running
+- `docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod ps` 中 `app` / `frontend` / `admin` 为 healthy/running
 
 ## 回滚步骤
 
@@ -196,7 +197,7 @@ TRAEFIK_TLS_REDIRECT_PERMANENT=true
 - ACME HTTP-01 challenge 要求 80 端口从公网可达
 - 首次启动时证书申请可能需要 1-2 分钟
 - Let's Encrypt 有速率限制（每域名每周 50 张证书），测试时建议使用 staging CA
-- 证书存储在 Docker 卷中，`docker compose down -v` 会删除证书
+- 证书存储在 Docker 卷中，`docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml down -v` 会删除证书
 
 ### 方案 B：External LB 终止 TLS
 

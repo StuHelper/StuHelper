@@ -20,7 +20,7 @@ export function readCookie(name: string): null | string {
 
     try {
       return decodeURIComponent(cookie.slice(target.length));
-    } catch {
+    } catch (_error) { void _error;
       return null;
     }
   }

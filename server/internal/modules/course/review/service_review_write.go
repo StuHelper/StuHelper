@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
@@ -121,13 +120,13 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 			ContentFlag: contentFlag,
 		})
 		if err != nil {
+			if isUniqueConstraintViolation(err, "idx_reviews_user_course") {
+				return ErrAlreadyReviewed
+			}
 			return err
 		}
 		review = *created
 		if !isPublicReviewStatus(review.Status) {
-			if s.fgaWriter == nil {
-				return nil
-			}
 			schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
 			if err != nil {
 				return err
@@ -139,9 +138,6 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		}
 		if err := s.refreshReviewTargetTx(ctx, tx, params.CourseID, params.TeacherID); err != nil {
 			return err
-		}
-		if s.fgaWriter == nil {
-			return nil
 		}
 		schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
 		if err != nil {
@@ -238,12 +234,10 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 		return 0, err
 	}
 	// 仅在新增 upvote 时通知评价作者
-	if s.notifSender != nil && shouldNotifyLike {
-		go func(parent context.Context) {
-			notifCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
-			defer cancel()
+	if shouldNotifyLike {
+		s.dispatchNotification(ctx, func(notifCtx context.Context) {
 			s.sendVoteNotification(notifCtx, params.ReviewID, params.UserHash)
-		}(ctx)
+		})
 	}
 	return courseID, nil
 }

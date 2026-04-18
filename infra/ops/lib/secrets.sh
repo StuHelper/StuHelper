@@ -118,6 +118,61 @@ PY
   esac
 }
 
+secret_backend_read_to_stdout() {
+  local ref="$1"
+
+  case "${SECRET_BACKEND}" in
+    none|"")
+      die "secret backend is disabled; cannot resolve secret ref ${ref}"
+      ;;
+    file)
+      local src
+      src="$(secret_file_path "${ref}")"
+      [[ -f "${src}" ]] || die "secret ref not found: ${src}"
+      cat "${src}"
+      ;;
+    vault-kv-v2)
+      require_cmd curl
+      require_cmd jq
+      require_cmd python3
+      [[ -n "${VAULT_ADDR}" ]] || die "VAULT_ADDR is required for SECRET_BACKEND=vault-kv-v2"
+      local mount path field token response
+      mapfile -t __secret_ref_parts < <(parse_secret_ref "${ref}")
+      mount="${__secret_ref_parts[0]}"
+      path="${__secret_ref_parts[1]}"
+      field="${__secret_ref_parts[2]}"
+      token="$(vault_token)"
+      response="$(mktemp)"
+      local headers=(-H "X-Vault-Token: ${token}")
+      if [[ -n "${VAULT_NAMESPACE}" ]]; then
+        headers+=( -H "X-Vault-Namespace: ${VAULT_NAMESPACE}" )
+      fi
+      curl --fail --silent --show-error \
+        "${headers[@]}" \
+        "${VAULT_ADDR%/}/v1/${mount}/data/${path}" > "${response}"
+      python3 - "${response}" "${field}" <<'PY'
+import json
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+field = sys.argv[2]
+try:
+    value = payload['data']['data'][field]
+except Exception as exc:
+    raise SystemExit(f'vault secret field not found: {field} ({exc})')
+if not isinstance(value, str):
+    raise SystemExit(f'vault secret field must be a string: {field}')
+sys.stdout.write(value if value.endswith('\n') else value + '\n')
+PY
+      rm -f "${response}"
+      ;;
+    *)
+      die "unsupported SECRET_BACKEND=${SECRET_BACKEND}"
+      ;;
+  esac
+}
+
 secret_backend_write_from_file() {
   local ref="$1"
   local src="$2"

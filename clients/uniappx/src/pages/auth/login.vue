@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { SSO_STATE_STORAGE_KEY } from '@/auth/sso-state'
 import { api } from '@/api'
 import { unwrapData } from '@/api/result'
 import { translate } from '@/i18n'
@@ -93,8 +94,8 @@ async function handleSSOLogin() {
     if (isNativeApp) {
       // 暂存 state 到本地，deep link 回调时用于校验
       try {
-        uni.setStorageSync('stuhelper:sso-state', data.state)
-      } catch {
+        uni.setStorageSync(SSO_STATE_STORAGE_KEY, data.state)
+      } catch (_error) { void _error;
         // 存储失败不阻断
       }
       // 原生：打开系统浏览器完成 SSO（支持密码管理器、已保存的会话）

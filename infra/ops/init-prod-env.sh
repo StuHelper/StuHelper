@@ -108,7 +108,7 @@ if placeholder_or_empty "${DOC_AES_KEYS:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "DOC_AES_ACTIVE_KEY_ID" "1"
   upsert_env_file "${SECRETS_ENV_FILE}" "DOC_AES_KEYS" "1:$(random_hex 32)"
 fi
-if placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
+if [[ "${SMS_ENABLED:-false}" == "true" ]] && placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "SMS_INTERNAL_KEY" "$(random_hex 16)"
 fi
 if placeholder_or_empty "${METRICS_PASSWORD:-}"; then
@@ -172,13 +172,13 @@ ensure_value "ZITADEL_EXTERNALPORT" "${ZITADEL_EXTERNALPORT:-}" "8085"
 ensure_prod_default "ZITADEL_DOMAIN" "${ZITADEL_DOMAIN:-}" "REPLACE_WITH_ZITADEL_DOMAIN" "localhost"
 ensure_prod_default "ZITADEL_PUBLIC_SCHEME" "${ZITADEL_PUBLIC_SCHEME:-}" "https" "http"
 ensure_prod_default "ZITADEL_EXTERNALSECURE" "${ZITADEL_EXTERNALSECURE:-}" "true" "false"
-ensure_prod_default "ZITADEL_ISSUER" "${ZITADEL_ISSUER:-}" "REPLACE_WITH_ZITADEL_ISSUER" "http://localhost:8085"
+ensure_prod_default "ZITADEL_ISSUER" "${ZITADEL_ISSUER:-}" "REPLACE_WITH_ZITADEL_ISSUER" "http://localhost:8085" "http://localhost"
 ensure_prod_default "ZITADEL_INTERNAL_ADDRESS" "${ZITADEL_INTERNAL_ADDRESS:-}" "" "host.docker.internal:8085"
 ensure_prod_default "ZITADEL_REDIRECT_URI" "${ZITADEL_REDIRECT_URI:-}" "REPLACE_WITH_ZITADEL_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
 ensure_prod_default "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL" "http://localhost:3000"
 ensure_prod_default "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL" "http://localhost:3001"
 ensure_prod_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
-ensure_prod_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB_VITE_SSO_URL" "http://localhost:8085"
+ensure_prod_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB_VITE_SSO_URL" "http://localhost:8085" "http://localhost"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
 ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"
 ensure_value "ADMIN_VITE_BASE" "${ADMIN_VITE_BASE:-}" "/admin/"
@@ -198,9 +198,9 @@ ensure_prod_default "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PA
 ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
 ensure_value "PROMETHEUS_RETENTION_TIME" "${PROMETHEUS_RETENTION_TIME:-}" "15d"
 ensure_value "PROMETHEUS_RETENTION_SIZE" "${PROMETHEUS_RETENTION_SIZE:-}" "20GB"
-ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "7"
-ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "14"
-ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "7"
+ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "14"
+ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "30"
+ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "14"
 ensure_prod_default "GRAFANA_ROOT_URL" "${GRAFANA_ROOT_URL:-}" "REPLACE_WITH_GRAFANA_ROOT_URL" "http://localhost:3003"
 ensure_prod_default "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" "false" "true"
 ensure_prod_default "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL" "http://alert-webhook-sink:8080/alerts"

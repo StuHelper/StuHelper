@@ -1,6 +1,6 @@
-import type { Course } from '@/types/course'
-import { isValidRating } from '@/types/course'
-import type { ReviewRatings } from '@/types/review'
+import type { Course } from '@stuhelper/shared/course'
+import { isValidRating } from '@stuhelper/shared/course'
+import type { ReviewRatings } from '@stuhelper/shared/review'
 
 const LOCAL_DRAFT_KEY_PREFIX = 'review_draft:'
 const LOCAL_DRAFT_CLEARED_KEY_PREFIX = 'review_draft_cleared:'
@@ -118,7 +118,7 @@ function parseDraftRecord(
       ratings,
       updatedAt: parsed.updatedAt,
     }
-  } catch {
+  } catch (_error) { void _error;
     return null
   }
 }
@@ -184,7 +184,7 @@ export function loadLocalReviewDraft(
     if (drafts.length === 0) return null
     drafts.sort((a, b) => b.updatedAt - a.updatedAt)
     return drafts[0]
-  } catch {
+  } catch (_error) { void _error;
     return null
   }
 }

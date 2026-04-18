@@ -62,7 +62,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { Review } from '@/types/review'
+import type { Review } from '@stuhelper/shared/review'
 
 const props = defineProps<{
   visible: boolean

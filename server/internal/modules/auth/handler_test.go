@@ -6,37 +6,31 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
 func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func newTestHandler(t *testing.T) (*Handler, *miniredis.Miniredis) {
+func newTestHandler(t *testing.T) (*Handler, *redisfixture.Fixture) {
 	t.Helper()
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	t.Cleanup(mr.Close)
-
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { _ = rdb.Close() })
+	fixture := redisfixture.Start(t)
 
 	h := &Handler{
 		oidcClient:           oidc.NewStubClient("https://sso.example.com/authorize"),
-		redisClient:          rdb,
+		redisClient:          fixture.Client,
 		tokenConfig:          config.TokenConfig{},
 		defaultRedirectURL:   "https://web.example.com",
 		allowedRedirectHosts: map[string]struct{}{"web.example.com": {}},
 	}
-	return h, mr
+	return h, fixture
 }
 
 func TestGetLoginURL_ReturnsAuthURL(t *testing.T) {
@@ -71,7 +65,7 @@ func TestGetSignupURL_ReturnsAuthURL(t *testing.T) {
 }
 
 func TestGetLoginURL_StoresStateInRedis(t *testing.T) {
-	h, mr := newTestHandler(t)
+	h, fixture := newTestHandler(t)
 
 	r := gin.New()
 	r.GET("/auth/login", h.GetLoginURL)
@@ -83,7 +77,7 @@ func TestGetLoginURL_StoresStateInRedis(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 
 	found := false
-	for _, k := range mr.Keys() {
+	for _, k := range fixture.Server.Keys() {
 		if len(k) > len(oidcStateRedisPrefix) && k[:len(oidcStateRedisPrefix)] == oidcStateRedisPrefix {
 			found = true
 			break
@@ -115,16 +109,27 @@ func TestGetLoginURL_SetsCookie(t *testing.T) {
 	assert.True(t, stateCookie.HttpOnly)
 }
 
-func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	defer mr.Close()
+func TestGetLoginURL_NativeSkipsStateCookie(t *testing.T) {
+	h, _ := newTestHandler(t)
 
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer rdb.Close()
+	r := gin.New()
+	r.GET("/auth/login", h.GetLoginURL)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/login?platform=native", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	for _, c := range w.Result().Cookies() {
+		assert.NotEqual(t, oidcStateCookieName, c.Name)
+	}
+}
+
+func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
+	fixture := redisfixture.Start(t)
 
 	h := &Handler{
-		redisClient:        rdb,
+		redisClient:        fixture.Client,
 		tokenConfig:        config.TokenConfig{},
 		defaultRedirectURL: "https://web.example.com",
 	}
@@ -173,4 +178,13 @@ func TestResolveRedirectTarget_DisallowedHost(t *testing.T) {
 		allowedRedirectHosts: map[string]struct{}{"web.example.com": {}},
 	}
 	assert.Equal(t, "https://web.example.com", h.resolveRedirectTarget("https://evil.example.com/phish"))
+}
+
+func TestResolveRedirectTarget_AllowedAbsoluteAndEmpty(t *testing.T) {
+	h := &Handler{
+		defaultRedirectURL:   "https://web.example.com",
+		allowedRedirectHosts: map[string]struct{}{"web.example.com": {}, "admin.example.com": {}},
+	}
+	assert.Equal(t, "https://admin.example.com/reviews", h.resolveRedirectTarget("https://admin.example.com/reviews"))
+	assert.Equal(t, "https://web.example.com", h.resolveRedirectTarget("   "))
 }

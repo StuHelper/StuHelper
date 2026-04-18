@@ -31,20 +31,26 @@ type Handler struct {
 	oidcIssuer           string
 }
 
+type HandlerConfig struct {
+	Token       config.TokenConfig
+	CORSOrigins []string
+	OIDCIssuer  string
+}
+
 // NewHandler 创建认证处理器
 func NewHandler(
-	cfg *config.Config,
+	cfg HandlerConfig,
 	tokenService *token.Service,
 	rdb *redis.Client,
 	oidcClient *oidc.Client,
 	userSyncRepo UserSyncRepo,
 	smsService *sms.Service,
 ) *Handler {
-	svc := NewService(cfg, tokenService, userSyncRepo)
+	svc := NewService(cfg.Token, tokenService, userSyncRepo)
 
 	// 从 CORS_ORIGINS 构建允许的重定向地址白名单
-	redirectHosts := buildAllowedRedirectHosts(cfg.App.CORSOrigins)
-	defaultRedirect := buildDefaultRedirectURL(cfg.App.CORSOrigins)
+	redirectHosts := buildAllowedRedirectHosts(cfg.CORSOrigins)
+	defaultRedirect := buildDefaultRedirectURL(cfg.CORSOrigins)
 
 	var otpSvc *OTPService
 	if smsService != nil {
@@ -63,7 +69,7 @@ func NewHandler(
 		defaultRedirectURL:   defaultRedirect,
 		otpService:           otpSvc,
 		smsService:           smsService,
-		oidcIssuer:           cfg.Zitadel.Issuer,
+		oidcIssuer:           cfg.OIDCIssuer,
 	}
 }
 

@@ -11,7 +11,7 @@ export const useLocaleStore = defineStore('locale', () => {
   let stored: string | null = null
   try {
     stored = localStorage.getItem(LOCALE_STORAGE_KEY)
-  } catch {
+  } catch (_error) { void _error;
     stored = null
   }
 
@@ -51,7 +51,7 @@ export const useLocaleStore = defineStore('locale', () => {
     locale.value = newLocale
     try {
       localStorage.setItem(LOCALE_STORAGE_KEY, newLocale)
-    } catch {
+    } catch (_error) { void _error;
       // 隐私模式或存储已满，降级为内存存储
     }
     i18n.global.locale.value = newLocale

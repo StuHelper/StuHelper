@@ -1,7 +1,7 @@
 package review
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"strconv"
 
@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -32,29 +31,15 @@ func (h *Handler) ListReports(c *gin.Context) {
 	}
 	page, pageSize := httputil.ParsePage(c)
 
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:admin:reports",
-		"status="+status+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize))
-	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
-
-	result, err := h.service.ListReports(c.Request.Context(), ListReportsParams{
-		Status:   status,
-		Page:     page,
-		PageSize: pageSize,
-	})
-	if err != nil {
-		logger.FromGin(c).Error("failed to load reports", zap.Error(err))
-		response.InternalError(c, "failed to load reports")
-		return
-	}
-
-	data := gin.H{"list": result.List, "total": result.Total}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, data)
+	respondWithCachedData(h, c, "review:admin:reports", "status="+status+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize), func(ctx context.Context) (*ListReportsResult, error) {
+		return h.service.ListReports(ctx, ListReportsParams{
+			Status:   status,
+			Page:     page,
+			PageSize: pageSize,
+		})
+	}, func(result *ListReportsResult) any {
+		return gin.H{"list": result.List, "total": result.Total}
+	}, "failed to load reports", "failed to load reports", nil)
 }
 
 // ProcessReportRequest 处理举报请求
@@ -86,15 +71,11 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 		ResolvedBy: username,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReportNotFound):
-			response.NotFound(c, "report not found", errs.ErrReportNotFound)
-		case errors.Is(err, ErrInvalidAction):
-			response.BadRequest(c, "invalid action")
-		default:
-			logger.FromGin(c).Error("failed to process report", zap.Error(err))
-			response.InternalError(c, "failed to process report")
+		if respondProcessReportError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to process report", zap.Error(err))
+		response.InternalError(c, "failed to process report")
 		return
 	}
 
@@ -157,19 +138,9 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-
-	// FGA 关系型授权检查（可选增强，FGA 未配置时跳过，回退到能力中间件）
-	if h.fga != nil {
-		fgaUser := "user:" + userID
-		fgaObject := "review:" + reviewID
-		relation := "can_hide"
-		if req.Action == "delete" {
-			relation = "can_delete"
-		}
-		if !h.checkFGA(c.Request.Context(), fgaUser, relation, fgaObject) {
-			response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
-			return
-		}
+	if !h.checkFGA(c.Request.Context(), "user:"+userID, reviewPermissionRelationForAction(req.Action), "review:"+reviewID) {
+		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
+		return
 	}
 
 	result, err := h.service.AdminUpdateReview(c.Request.Context(), AdminUpdateReviewParams{
@@ -179,17 +150,11 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		AdminID:  userID,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
-		case errors.Is(err, ErrInvalidAction):
-			response.BadRequest(c, "invalid action")
-		case errors.Is(err, ErrInvalidTransition):
-			response.BadRequest(c, "invalid status transition for this action", errs.ErrInvalidTransition)
-		default:
-			logger.FromGin(c).Error("failed to update review", zap.Error(err))
-			response.InternalError(c, "failed to update review")
+		if respondAdminUpdateReviewError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to update review", zap.Error(err))
+		response.InternalError(c, "failed to update review")
 		return
 	}
 
@@ -226,23 +191,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 
 // GetAdminStats 获取管理统计
 func (h *Handler) GetAdminStats(c *gin.Context) {
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:admin:stats", "all")
-	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
-
-	stats, err := h.service.GetAdminStats(c.Request.Context())
-	if err != nil {
-		logger.FromGin(c).Error("failed to load stats", zap.Error(err))
-		response.InternalError(c, "failed to load stats")
-		return
-	}
-
-	if err := h.cache.Set(c.Request.Context(), cacheKey, stats, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, stats)
+	respondWithCachedData(h, c, "review:admin:stats", "all", h.service.GetAdminStats, nil, "failed to load stats", "failed to load stats", nil)
 }
 
 // BatchUpdateReviewsRequest 批量更新评论请求
@@ -259,12 +208,6 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		return
 	}
 
-	// 纵深防御：显式校验批量上限（binding tag 已有 max=100，此处为双重保障）
-	if len(req.IDs) > maxBatchSize {
-		response.BadRequest(c, fmt.Sprintf("batch size %d exceeds limit of %d", len(req.IDs), maxBatchSize))
-		return
-	}
-
 	// 校验所有 ID 为合法 UUID 格式
 	for _, id := range req.IDs {
 		if _, err := uuid.Parse(id); err != nil {
@@ -273,15 +216,22 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		}
 	}
 
+	userID := middleware.GetUserID(c)
+	relation := reviewPermissionRelationForAction(req.Action)
+	for _, id := range req.IDs {
+		if !h.checkFGA(c.Request.Context(), "user:"+userID, relation, "review:"+id) {
+			response.Forbidden(c, "insufficient permission for one or more reviews", errs.ErrAccessDenied)
+			return
+		}
+	}
+
 	result, err := h.service.BatchUpdateReviews(c.Request.Context(), BatchUpdateReviewsParams(req))
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrInvalidAction):
-			response.BadRequest(c, "invalid action")
-		default:
-			logger.FromGin(c).Error("failed to batch update reviews", zap.Error(err))
-			response.InternalError(c, "failed to batch update reviews")
+		if response.RespondMappedErrorGroups(c, err, reviewAdminActionErrorMappings) {
+			return
 		}
+		logger.FromGin(c).Error("failed to batch update reviews", zap.Error(err))
+		response.InternalError(c, "failed to batch update reviews")
 		return
 	}
 

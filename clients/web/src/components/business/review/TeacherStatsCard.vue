@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { User, ChevronRight } from 'lucide-vue-next'
-import type { TeacherStats } from '@/types/course'
+import type { TeacherStats } from '@stuhelper/shared/course'
 
 const { t } = useI18n()
 

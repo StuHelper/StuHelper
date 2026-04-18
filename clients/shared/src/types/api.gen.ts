@@ -85,7 +85,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 处理 OIDC 回调并重定向回前端 */
+        /**
+         * 处理 OIDC 回调并完成 302 跳转
+         * @description 服务端消费一次性 state 后完成 OIDC code exchange。
+         *     - Web/H5 state：写入会话 cookie，然后 302 到前端页面
+         *     - Native state：不写 cookie，而是 302 到 `stuhelper://auth/callback?...` deep link 交回 App
+         */
         get: operations["handleCallback"];
         put?: never;
         post?: never;
@@ -104,7 +109,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 刷新 Access Token */
+        /**
+         * 刷新 Access Token
+         * @description 支持两种传递 refresh token 的方式：
+         *     - **Web 浏览器**：通过 HttpOnly cookie 自动携带（cookieAuth）
+         *     - **原生 App**：通过请求体 JSON 传递（无 cookie 环境）
+         *
+         *     原生 App 请求时，响应额外包含 accessToken 和 refreshToken 字段，
+         *     供客户端更新本地存储。
+         */
         post: operations["refreshToken"];
         delete?: never;
         options?: never;
@@ -210,6 +223,7 @@ export interface paths {
          * 原生 App 令牌交换（用一次性 state 换取 token）
          * @description 原生 App 完成浏览器 SSO 后，通过 deep link 回传 code + state，
          *     由本端点完成 code → token 交换并以 JSON 返回（不写 cookie）。
+         *     PKCE `code_verifier` 只保存在服务端 Redis，并随 state 一次性消费，客户端无需传递。
          */
         post: operations["exchangeNative"];
         delete?: never;
@@ -1999,12 +2013,6 @@ export interface components {
             reviewedAt?: string | null;
             /** Format: date-time */
             verifiedAt?: string | null;
-            /** @description 已上传到对象存储的正面照片 key */
-            docPhotoFront?: string | null;
-            /** @description 已上传到对象存储的背面照片 key */
-            docPhotoBack?: string | null;
-            /** @description 已上传到对象存储的手持证件照 key */
-            docPhotoSelfie?: string | null;
             rejectionReason?: string | null;
             /** Format: date-time */
             createdAt: string;
@@ -2372,8 +2380,10 @@ export interface operations {
     getLoginURL: {
         parameters: {
             query?: {
-                /** @description 登录完成后的前端回跳地址（绝对 URL） */
+                /** @description 登录完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。 */
                 redirect?: string;
+                /** @description 登录发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。 */
+                platform?: "web" | "native";
             };
             header?: never;
             path?: never;
@@ -2403,8 +2413,10 @@ export interface operations {
     getSignupURL: {
         parameters: {
             query?: {
-                /** @description 注册完成后的前端回跳地址（绝对 URL） */
+                /** @description 注册完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。 */
                 redirect?: string;
+                /** @description 注册发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。 */
+                platform?: "web" | "native";
             };
             header?: never;
             path?: never;
@@ -2443,10 +2455,10 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 登录成功，写入 Cookie 后重定向到前端页面 */
+            /** @description 登录成功后的重定向；Web/H5 返回前端 URL，native 返回 `stuhelper://auth/callback?...` deep link */
             302: {
                 headers: {
-                    /** @description 前端回跳地址 */
+                    /** @description Web/H5 为前端回跳地址；native 为 App deep link */
                     Location?: string;
                     [name: string]: unknown;
                 };
@@ -2464,7 +2476,15 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        /** @description 原生 App 通过请求体传递 refresh token（Web 浏览器通过 cookie 自动携带，无需此字段） */
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 原生 App 的 refresh token */
+                    refreshToken?: string;
+                };
+            };
+        };
         responses: {
             /** @description Token 刷新成功 */
             200: {
@@ -2476,6 +2496,10 @@ export interface operations {
                         data: {
                             message: string;
                             expiresIn: number;
+                            /** @description 仅原生 App 请求时返回 */
+                            accessToken?: string;
+                            /** @description 仅原生 App 请求时返回 */
+                            refreshToken?: string;
                         };
                     };
                 };
@@ -2643,10 +2667,8 @@ export interface operations {
                 "application/json": {
                     /** @description OIDC authorization code */
                     code: string;
-                    /** @description 登录时生成的一次性 state */
+                    /** @description 登录时生成的一次性 state（同时用于服务端查找并消费 PKCE verifier） */
                     state: string;
-                    /** @description PKCE code verifier */
-                    code_verifier?: string;
                 };
             };
         };
@@ -2660,9 +2682,10 @@ export interface operations {
                     "application/json": components["schemas"]["SuccessResponse"] & {
                         data: {
                             accessToken: string;
-                            refreshToken?: string;
+                            refreshToken: string;
+                            /** @description 原生会话唯一标识；refresh 时用于保留 token family 追踪语义 */
+                            sessionID: string;
                             expiresIn: number;
-                            user?: Record<string, never>;
                         };
                     };
                 };
@@ -2809,6 +2832,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };

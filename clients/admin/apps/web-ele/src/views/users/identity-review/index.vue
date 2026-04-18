@@ -47,7 +47,7 @@ async function handleReview(userId: number, approved: boolean) {
   try {
     await reviewIdentity(userId, { approved });
     await fetchData();
-  } catch {
+  } catch (_error) { void _error;
     // unwrapData already displays a toast for failed mutations.
   } finally {
     actionLoading.value = false;

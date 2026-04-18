@@ -15,14 +15,14 @@ load_env
 
 logical_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
 base_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
-wal_archive_dir="${POSTGRES_WAL_ARCHIVE_DIR:-${REPO_ROOT}/infra/generated/postgres/wal-archive}"
+wal_archive_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}-postgres-wal-archive}"
 prefix="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
 secure_flag=()
 if [[ "${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-false}" == "true" ]]; then
   secure_flag+=(--insecure)
 fi
 
-mkdir -p "${logical_dir}" "${base_dir}" "${wal_archive_dir}"
+mkdir -p "${logical_dir}" "${base_dir}"
 
 docker run --rm \
   -e MC_HOST_target="${BACKUP_OBJECT_STORAGE_ENDPOINT}" \
@@ -32,7 +32,7 @@ docker run --rm \
   -e BACKUP_PREFIX="${prefix}" \
   -v "${logical_dir}:/backup/logical:ro" \
   -v "${base_dir}:/backup/base:ro" \
-  -v "${wal_archive_dir}:/backup/wal:ro" \
+  -v "${wal_archive_volume}:/backup/wal:ro" \
   minio/mc:RELEASE.2025-03-12T17-29-24Z /bin/sh -ec "
     mc alias set target \"\${MC_HOST_target}\" \"\${MC_ACCESS_KEY}\" \"\${MC_SECRET_KEY}\" ${secure_flag[*]} >/dev/null
     mc mb --ignore-existing \"target/\${BACKUP_BUCKET}\" >/dev/null

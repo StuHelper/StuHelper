@@ -112,12 +112,12 @@ install -m 600 "${runtime_env_tmp}" "${GENERATED_ENV_FILE}"
 log "wrote derived runtime configuration to ${GENERATED_ENV_FILE}"
 
 if [[ "${MODE}" == "prod" ]]; then
-  install -m 600 "${secret_env_tmp}" "${GENERATED_SECRET_ENV_FILE}"
-  if [[ -n "${GENERATED_ENV_SECRET_REF:-}" ]]; then
-    secret_backend_write_from_file "${GENERATED_ENV_SECRET_REF}" "${secret_env_tmp}"
-    log "persisted generated secrets to remote secret backend ref ${GENERATED_ENV_SECRET_REF}"
-  fi
-  log "wrote generated secrets to ${GENERATED_SECRET_ENV_FILE}"
+  [[ -n "${GENERATED_ENV_SECRET_REF:-}" ]] || die "GENERATED_ENV_SECRET_REF is required in production"
+  [[ -n "${SECRET_BACKEND:-}" && "${SECRET_BACKEND}" != "none" && "${SECRET_BACKEND}" != "file" ]] || \
+    die "production generated secrets must use a non-file secret backend"
+  secret_backend_write_from_file "${GENERATED_ENV_SECRET_REF}" "${secret_env_tmp}"
+  : > "${GENERATED_SECRET_ENV_FILE}"
+  log "persisted generated secrets to remote secret backend ref ${GENERATED_ENV_SECRET_REF}"
 else
   cat "${secret_env_tmp}" >> "${GENERATED_ENV_FILE}"
   : > "${GENERATED_SECRET_ENV_FILE}"

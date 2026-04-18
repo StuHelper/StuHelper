@@ -1,43 +1,26 @@
 import type { ApiClient } from '@stuhelper/shared/api'
+import {
+  AUTH_REFRESH_PATH,
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+  appendQuery,
+  buildSecurityHeaders,
+  createSessionApiClient,
+  executeSessionRefresh,
+  normalizeSchemaPath,
+  serializePath,
+  type HttpMethod,
+  type RefreshSessionData,
+  type RequestInitShape,
+} from '@stuhelper/shared/api'
 import type { ApiCallResult } from './result'
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 type RequestBody = UniNamespace.RequestOptions['data']
 
-type RequestInitShape = {
-  params?: {
-    path?: Record<string, unknown>
-    query?: Record<string, unknown>
-    header?: Record<string, unknown>
-  }
-  body?: unknown
-  signal?: AbortSignal
-}
-
-type PerformRequestOptions = {
-  skipRefresh?: boolean
-}
-
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
-const API_VERSION_PREFIX = '/api/v1'
-const CSRF_COOKIE_NAME = 'csrf_token'
-const CSRF_HEADER_NAME = 'X-CSRF-Token'
 const CSRF_STORAGE_KEY = 'stuhelper:csrf-token'
 const H5 = typeof window !== 'undefined' && typeof window.location?.origin === 'string'
 const NATIVE_TOKEN_STORAGE_KEY = 'stuhelper:native-tokens'
-const AUTH_REFRESH_PATH = '/api/v1/auth/refresh'
-const AUTO_REFRESH_EXCLUDED_PATHS = new Set([
-  '/api/v1/auth/login',
-  '/api/v1/auth/signup',
-  AUTH_REFRESH_PATH,
-  '/api/v1/auth/logout',
-  '/api/v1/auth/logout-all',
-  '/api/v1/auth/phone/request-otp',
-  '/api/v1/auth/phone/verify-otp',
-  '/api/v1/auth/exchange-native',
-])
-
-let refreshPromise: Promise<boolean> | null = null
 
 /** 判断当前是否运行在原生 App 环境 */
 function isNativeRuntime(): boolean {
@@ -52,10 +35,9 @@ function readNativeAccessToken(): string | null {
     if (!raw || typeof raw !== 'string') return null
     const parsed = JSON.parse(raw) as { accessToken?: string; expiresAt?: number }
     if (!parsed.accessToken) return null
-    // 预留 30s 缓冲判断过期
     if (typeof parsed.expiresAt === 'number' && Date.now() >= parsed.expiresAt - 30_000) return null
     return parsed.accessToken
-  } catch {
+  } catch (_error) { void _error;
     return null
   }
 }
@@ -68,7 +50,7 @@ function readNativeRefreshToken(): string | null {
     if (!raw || typeof raw !== 'string') return null
     const parsed = JSON.parse(raw) as { refreshToken?: string }
     return parsed.refreshToken || null
-  } catch {
+  } catch (_error) { void _error;
     return null
   }
 }
@@ -86,56 +68,15 @@ function updateNativeTokensAfterRefresh(
     if (refreshToken) existing.refreshToken = refreshToken
     if (typeof expiresIn === 'number') existing.expiresAt = Date.now() + expiresIn * 1000
     uni.setStorageSync(NATIVE_TOKEN_STORAGE_KEY, JSON.stringify(existing))
-  } catch {
+  } catch (_error) { void _error;
     // 存储失败不阻断流程
   }
 }
 
-function serializePath(schemaPath: string, pathParams?: Record<string, unknown>): string {
-  return schemaPath.replace(/\{([^}]+)\}/g, (_match, key) => {
-    const value = pathParams?.[key]
-    return encodeURIComponent(value == null ? '' : String(value))
-  })
-}
-
-function appendQuery(path: string, query?: Record<string, unknown>): string {
-  if (!query) return path
-
-  const pairs: string[] = []
-  for (const [key, value] of Object.entries(query)) {
-    if (value == null || value === '') continue
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (item == null || item === '') continue
-        pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(item))}`)
-      }
-      continue
-    }
-    pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-  }
-
-  if (pairs.length === 0) return path
-  return `${path}${path.includes('?') ? '&' : '?'}${pairs.join('&')}`
-}
-
-function normalizeSchemaPath(schemaPath: string): string {
-  const trimmedBase = API_BASE_URL.replace(/\/$/, '')
-  if (trimmedBase.endsWith(API_VERSION_PREFIX) && schemaPath.startsWith(`${API_VERSION_PREFIX}/`)) {
-    return schemaPath.slice(API_VERSION_PREFIX.length)
-  }
-  return schemaPath
-}
-
 function stripRelativeBasePrefix(baseUrl: string, path: string): string {
   if (!baseUrl) return path
-
-  if (path === baseUrl) {
-    return '/'
-  }
-
-  if (!path.startsWith(baseUrl)) {
-    return path
-  }
+  if (path === baseUrl) return '/'
+  if (!path.startsWith(baseUrl)) return path
 
   const remainder = path.slice(baseUrl.length)
   return remainder.startsWith('/') ? remainder : `/${remainder}`
@@ -152,7 +93,7 @@ function readCookie(name: string): string | null {
 
     try {
       return decodeURIComponent(cookie.slice(target.length))
-    } catch {
+    } catch (_error) { void _error;
       return null
     }
   }
@@ -168,10 +109,9 @@ function readStoredCSRFToken(): string | null {
     }
 
     if (typeof localStorage !== 'undefined') {
-      const value = localStorage.getItem(CSRF_STORAGE_KEY)
-      return value || null
+      return localStorage.getItem(CSRF_STORAGE_KEY) || null
     }
-  } catch {
+  } catch (_error) { void _error;
     // ignore storage access failures
   }
 
@@ -190,14 +130,14 @@ function writeStoredCSRFToken(token: string): void {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(CSRF_STORAGE_KEY, token)
     }
-  } catch {
+  } catch (_error) { void _error;
     // ignore storage access failures
   }
 }
 
 function readHeader(
   headers: Record<string, unknown> | undefined,
-  name: string
+  name: string,
 ): string | null {
   if (!headers) return null
 
@@ -222,18 +162,14 @@ function resolveCSRFToken(): string | null {
   return readCookie(CSRF_COOKIE_NAME) ?? readStoredCSRFToken()
 }
 
-function needsCSRF(method: string): boolean {
-  return !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
-}
-
 function resolveRequestURL(
   schemaPath: string,
   pathParams?: Record<string, unknown>,
-  query?: Record<string, unknown>
+  query?: Record<string, unknown>,
 ): string {
   const normalizedPath = appendQuery(
-    serializePath(normalizeSchemaPath(schemaPath), pathParams),
-    query
+    serializePath(normalizeSchemaPath(API_BASE_URL, schemaPath), pathParams),
+    query,
   )
   const trimmedBase = API_BASE_URL.replace(/\/$/, '')
 
@@ -253,7 +189,7 @@ function normalizeBody(data: unknown): unknown {
   if (typeof data !== 'string') return data
   try {
     return JSON.parse(data)
-  } catch {
+  } catch (_error) { void _error;
     return data
   }
 }
@@ -269,7 +205,7 @@ function normalizeRequestBody(data: unknown): RequestBody {
 
 function createResponse(status: number, headers?: Record<string, unknown>): Response {
   const normalizedHeaders = Object.fromEntries(
-    Object.entries(headers ?? {}).map(([key, value]) => [key.toLowerCase(), String(value)])
+    Object.entries(headers ?? {}).map(([key, value]) => [key.toLowerCase(), String(value)]),
   )
 
   return {
@@ -286,7 +222,7 @@ function createResponse(status: number, headers?: Record<string, unknown>): Resp
 function buildSuccessResult<T>(
   status: number,
   data: unknown,
-  headers?: Record<string, unknown>
+  headers?: Record<string, unknown>,
 ): ApiCallResult<T> {
   persistCSRFToken(headers)
   return {
@@ -298,17 +234,13 @@ function buildSuccessResult<T>(
 function buildErrorResult<T>(
   status: number,
   data: unknown,
-  headers?: Record<string, unknown>
+  headers?: Record<string, unknown>,
 ): ApiCallResult<T> {
   persistCSRFToken(headers)
   return {
     error: normalizeBody(data),
     response: createResponse(status, headers),
   }
-}
-
-function shouldAutoRefresh(schemaPath: string, status: number, options?: PerformRequestOptions): boolean {
-  return status === 401 && !options?.skipRefresh && !AUTO_REFRESH_EXCLUDED_PATHS.has(schemaPath)
 }
 
 function toTransportErrorResult<T>(error: unknown): ApiCallResult<T> {
@@ -318,79 +250,34 @@ function toTransportErrorResult<T>(error: unknown): ApiCallResult<T> {
   }
 }
 
-async function refreshSession(): Promise<boolean> {
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
-      // 原生 App：从本地存储读取 refresh token 通过请求体传递
-      // Web/H5：refresh token 通过 cookie 自动携带
-      let body: unknown
-      if (isNativeRuntime()) {
-        const refreshToken = readNativeRefreshToken()
-        if (!refreshToken) return false
-        body = { refreshToken }
-      }
-      const result = await performRequest<{ accessToken?: string; refreshToken?: string; expiresIn?: number }>(
-        'POST', AUTH_REFRESH_PATH, body ? { body } : undefined, { skipRefresh: true },
-      )
-      const status = result.response?.status ?? 0
-      if (result.error || status < 200 || status >= 300) return false
-      // 原生 App：更新本地存储的 token
-      if (isNativeRuntime() && result.data) {
-        const payload = result.data as { data?: { accessToken?: string; refreshToken?: string; expiresIn?: number } }
-        const tokenData = payload.data
-        if (tokenData?.accessToken) {
-          updateNativeTokensAfterRefresh(tokenData.accessToken, tokenData.refreshToken, tokenData.expiresIn)
-        }
-      }
-      return true
-    })()
-      .catch(() => false)
-      .finally(() => {
-        refreshPromise = null
-      })
-  }
-  return refreshPromise
-}
-
 function performRequest<T>(
   method: HttpMethod,
   schemaPath: string,
-  init?: unknown,
-  options?: PerformRequestOptions,
+  init?: RequestInitShape,
 ): Promise<ApiCallResult<T>> {
-  const requestInit = (init ?? {}) as RequestInitShape
   let url: string
   try {
-    url = resolveRequestURL(
-      schemaPath,
-      requestInit.params?.path,
-      requestInit.params?.query
-    )
+    url = resolveRequestURL(schemaPath, init?.params?.path, init?.params?.query)
   } catch (error) {
     return Promise.reject(error)
   }
-  const headers: Record<string, string> = {}
 
-  for (const [key, value] of Object.entries(requestInit.params?.header ?? {})) {
+  const requestHeaders: Record<string, string> = {}
+  for (const [key, value] of Object.entries(init?.params?.header ?? {})) {
     if (value == null) continue
-    headers[key] = String(value)
+    requestHeaders[key] = String(value)
+  }
+  if (init?.body !== undefined && !requestHeaders['Content-Type']) {
+    requestHeaders['Content-Type'] = 'application/json'
   }
 
-  if (requestInit.body !== undefined && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json'
-  }
+  const headers = buildSecurityHeaders(method, requestHeaders, {
+    csrfToken: resolveCSRFToken(),
+  })
 
-  if (needsCSRF(method)) {
-    const csrfToken = resolveCSRFToken()
-    if (csrfToken) {
-      headers[CSRF_HEADER_NAME] = csrfToken
-    }
-  }
-
-  // 原生 App：从本地存储注入 Bearer token（替代 cookie）
   const nativeToken = readNativeAccessToken()
-  if (nativeToken && !headers['Authorization']) {
-    headers['Authorization'] = `Bearer ${nativeToken}`
+  if (nativeToken && !headers.Authorization) {
+    headers.Authorization = `Bearer ${nativeToken}`
   }
 
   return new Promise((resolve) => {
@@ -407,12 +294,12 @@ function performRequest<T>(
     }
 
     const requestTask = uni.request({
-      url,
-      method: method as unknown as UniNamespace.RequestOptions['method'],
-      data: normalizeRequestBody(requestInit.body),
+      data: normalizeRequestBody(init?.body),
+      fail: (error) => {
+        finish(toTransportErrorResult<T>(error))
+      },
       header: headers,
-      timeout: 15000,
-      withCredentials: true,
+      method: method as unknown as UniNamespace.RequestOptions['method'],
       success: (response) => {
         const status = typeof response.statusCode === 'number' ? response.statusCode : 0
         if (status >= 200 && status < 300) {
@@ -420,36 +307,25 @@ function performRequest<T>(
             buildSuccessResult<T>(
               status,
               response.data,
-              response.header as Record<string, unknown>
-            )
+              response.header as Record<string, unknown>,
+            ),
           )
           return
         }
-        const errorResult = buildErrorResult<T>(
-          status,
-          response.data,
-          response.header as Record<string, unknown>
+        finish(
+          buildErrorResult<T>(
+            status,
+            response.data,
+            response.header as Record<string, unknown>,
+          ),
         )
-        if (shouldAutoRefresh(schemaPath, status, options)) {
-          void refreshSession().then((refreshed) => {
-            if (!refreshed) {
-              finish(errorResult)
-              return
-            }
-            void performRequest<T>(method, schemaPath, init, { skipRefresh: true })
-              .then(finish)
-              .catch((error) => finish(toTransportErrorResult<T>(error)))
-    }) as unknown as UniNamespace.RequestTask
-          return
-        }
-        finish(errorResult)
       },
-      fail: (error) => {
-        finish(toTransportErrorResult<T>(error))
-      },
+      timeout: 15000,
+      url,
+      withCredentials: true,
     }) as UniNamespace.RequestTask
 
-    const signal = requestInit.signal
+    const signal = init?.signal
     if (!signal) return
 
     const abort = () => {
@@ -472,16 +348,38 @@ function performRequest<T>(
   })
 }
 
-const GET = ((schemaPath: string, init?: unknown) => performRequest('GET', schemaPath, init)) as ApiClient['GET']
-const POST = ((schemaPath: string, init?: unknown) => performRequest('POST', schemaPath, init)) as ApiClient['POST']
-const PUT = ((schemaPath: string, init?: unknown) => performRequest('PUT', schemaPath, init)) as ApiClient['PUT']
-const PATCH = ((schemaPath: string, init?: unknown) => performRequest('PATCH', schemaPath, init)) as ApiClient['PATCH']
-const DELETE = ((schemaPath: string, init?: unknown) => performRequest('DELETE', schemaPath, init)) as ApiClient['DELETE']
+async function refreshSession() {
+  let body: unknown
+  if (isNativeRuntime()) {
+    const refreshToken = readNativeRefreshToken()
+    if (!refreshToken) {
+      return { kind: 'unauthorized' } as const
+    }
+    body = { refreshToken }
+  }
 
-export const apiClient: ApiClient = {
-  GET,
-  POST,
-  PUT,
-  PATCH,
-  DELETE,
+  return executeSessionRefresh({
+    body,
+    onSuccess(payload) {
+      if (isNativeRuntime() && payload.accessToken) {
+        updateNativeTokensAfterRefresh(
+          payload.accessToken,
+          payload.refreshToken,
+          payload.expiresIn,
+        )
+      }
+    },
+    request: (init) => performRequest<RefreshSessionData>('POST', AUTH_REFRESH_PATH, init),
+  })
 }
+
+export const apiClient: ApiClient = createSessionApiClient(
+  {
+    refresh: refreshSession,
+    request: performRequest,
+  },
+  {
+    enableRefresh: true,
+    reauthenticateOnUnauthorized: false,
+  },
+)

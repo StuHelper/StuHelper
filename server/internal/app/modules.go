@@ -14,6 +14,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
@@ -33,20 +34,10 @@ import (
 
 func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error {
 	api := r.Group("/api/v1")
-
-	globalLimiter := middleware.NewRedisRateLimiter(rt.redisClient.GetClient(), rt.cfg.App.APIGlobalLimit, time.Minute)
-	ipLimiter := middleware.NewRedisRateLimiter(rt.redisClient.GetClient(), rt.cfg.App.APIIPRateLimit, time.Minute)
-	api.Use(middleware.GlobalRateLimitMiddleware(globalLimiter))
-	api.Use(middleware.RateLimitMiddleware(ipLimiter))
-
-	api.POST("/metrics/vitals", metrics.VitalsHandler())
-	api.POST("/metrics/frontend-errors", metrics.FrontendErrorHandler())
-
-	openapiValidationMW, err := middleware.NewOpenAPIRequestValidationMiddleware()
-	if err != nil {
-		return fmt.Errorf("failed to initialize OpenAPI request validator: %w", err)
+	if err := rt.configureAPICommonMiddleware(api); err != nil {
+		return err
 	}
-	api.Use(openapiValidationMW)
+	rt.registerMetricsRoutes(api)
 
 	smsSvc, err := rt.initSMSService()
 	if err != nil {
@@ -58,11 +49,91 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return fmt.Errorf("failed to initialize PII cipher: %w", err)
 	}
 
+	authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, smsSvc)
+	if err != nil {
+		return err
+	}
+
+	fgaClient, err := fga.NewClient(rt.cfg.OpenFGA)
+	if err != nil {
+		return fmt.Errorf("failed to create FGA client: %w", err)
+	}
+	if fgaClient == nil {
+		return fmt.Errorf("openfga must be configured")
+	}
+
+	notifHub := notification.NewHub(rt.redisClient.GetClient())
+	notifRepo := notification.NewRepository(rt.database)
+	notifService := notification.NewService(notifRepo, notifHub, rt.redisClient.GetClient())
+	notifHandler := notification.NewHandler(notifService, notifHub)
+	notifHandler.RegisterRoutes(api, authMW)
+	notifHub.StartRedisSubscriber(bgCtx)
+	rt.addCleanup(notifHub.Stop)
+
+	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
+	courseHandler := rt.initCourseModule(fgaClient, notifService, userRepo)
+	courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
+
+	ldapClient, err := rt.initLDAPClient()
+	if err != nil {
+		logger.L().Warn("LDAP client initialization failed, student verification via LDAP unavailable",
+			gozap.Error(err),
+		)
+		ldapClient = nil
+	}
+
+	userService, err := rt.initUserService(userRepo, ldapClient, piiCipher, fgaClient)
+	if err != nil {
+		return err
+	}
+
+	var bindPhoneOTP user.OTPGenerator
+	var bindPhoneSMS user.SMSSender
+	if smsSvc != nil {
+		bindPhoneOTP = auth.NewOTPService(rt.redisClient.GetClient())
+		bindPhoneSMS = smsSvc
+	}
+	userHandler := user.NewHandler(userService, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
+	userService.StartBackgroundJobs(bgCtx)
+	rt.registerUserRoutes(api, userHandler, authMW)
+	rt.registerAdminRoutes(api, userHandler, authMW)
+
+	courseHandler.StartBackgroundJobs(bgCtx)
+
+	return nil
+}
+
+func (rt *Runtime) configureAPICommonMiddleware(api *gin.RouterGroup) error {
+	globalLimiter := middleware.NewRedisRateLimiter(rt.redisClient.GetClient(), rt.cfg.App.APIGlobalLimit, time.Minute)
+	ipLimiter := middleware.NewRedisRateLimiter(rt.redisClient.GetClient(), rt.cfg.App.APIIPRateLimit, time.Minute)
+	api.Use(middleware.GlobalRateLimitMiddleware(globalLimiter))
+	api.Use(middleware.RateLimitMiddleware(ipLimiter))
+
+	openapiValidationMW, err := middleware.NewOpenAPIRequestValidationMiddleware()
+	if err != nil {
+		return fmt.Errorf("failed to initialize OpenAPI request validator: %w", err)
+	}
+	api.Use(openapiValidationMW)
+	return nil
+}
+
+func (rt *Runtime) registerMetricsRoutes(api *gin.RouterGroup) {
+	metricsGroup := api.Group("/metrics")
+	metricsGroup.Use(metrics.OriginValidationMiddleware(rt.metricsAllowedOrigins()))
+	metricsGroup.POST("/vitals", metrics.VitalsHandler())
+	metricsGroup.POST("/frontend-errors", metrics.FrontendErrorHandler())
+}
+
+func (rt *Runtime) initAuthModule(api *gin.RouterGroup, bgCtx context.Context, piiCipher *pii.Cipher, smsSvc *sms.Service) (gin.HandlerFunc, gin.HandlerFunc, error) {
 	userSyncRepo := user.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey())
 	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
 
 	authHandler := auth.NewHandler(
-		rt.cfg,
+		auth.HandlerConfig{
+			Token:       rt.cfg.Token,
+			CORSOrigins: rt.cfg.App.CORSOrigins,
+			OIDCIssuer:  rt.cfg.Zitadel.Issuer,
+		},
 		rt.tokenService,
 		rt.redisClient.GetClient(),
 		rt.oidcClient,
@@ -79,68 +150,47 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		CookieDomain: rt.cfg.Token.CookieDomain,
 		CookieSecure: rt.cfg.Token.CookieSecure,
 	})
+	return authMW, optionalAuthMW, nil
+}
 
-	fgaClient, err := fga.NewClient(rt.cfg.OpenFGA)
-	if err != nil {
-		return fmt.Errorf("failed to create FGA client: %w", err)
-	}
-	if fgaClient == nil {
-		logger.L().Info("OpenFGA not configured, relational authorization disabled")
-	}
-
-	notifHub := notification.NewHub(rt.redisClient.GetClient())
-	notifRepo := notification.NewRepository(rt.database)
-	notifService := notification.NewService(notifRepo, notifHub, rt.redisClient.GetClient())
-
-	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
-
+func (rt *Runtime) initCourseModule(authorizer review.AuthorizationProvider, notifSender notification.Sender, accessReader review.ReviewAccessReader) *course.Handler {
 	courseCache := cache.NewHelper(rt.redisClient.GetClient())
-	courseHandler := course.NewHandler(rt.database, courseCache, rt.redisClient.GetClient(), rt.cfg, fgaClient, notifService, userRepo)
-	courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
+	reviewRepo := review.NewRepository(rt.database)
+	reviewService := review.NewService(rt.database, reviewRepo, notifSender, authorizer, accessReader)
+	reviewHandler := review.NewHandler(courseCache, reviewService, rt.redisClient.GetClient(), rt.cfg.RateLimit, authorizer)
 
-	ldapClient, err := rt.initLDAPClient()
-	if err != nil {
-		logger.L().Warn("LDAP client initialization failed, student verification via LDAP unavailable",
-			gozap.Error(err),
-		)
-		ldapClient = nil
-	}
+	courseRepo := course.NewRepository(rt.database)
+	courseService := course.NewService(courseRepo, logger.L().Named("course_service"))
+	return course.NewHandler(courseCache, courseService, reviewHandler)
+}
 
-	userService, err := user.NewService(userRepo, ldapClient, crypto.GetHMACKey(), piiCipher)
-	if err != nil {
-		return fmt.Errorf("failed to initialize user service: %w", err)
-	}
-	if err := rt.configureUserService(userService, userRepo); err != nil {
-		return err
-	}
-
-	var bindPhoneOTP user.OTPGenerator
-	var bindPhoneSMS user.SMSSender
-	if smsSvc != nil {
-		bindPhoneOTP = auth.NewOTPService(rt.redisClient.GetClient())
-		bindPhoneSMS = smsSvc
-	}
-	userHandler := user.NewHandler(userService, fgaClient, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
+func (rt *Runtime) registerUserRoutes(api *gin.RouterGroup, userHandler *user.Handler, authMW gin.HandlerFunc) {
 	userHandler.RegisterRoutes(api, authMW)
-	userService.StartBackgroundJobs(bgCtx)
+}
 
+func (rt *Runtime) registerAdminRoutes(api *gin.RouterGroup, userHandler *user.Handler, authMW gin.HandlerFunc) {
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(authMW, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
 	userHandler.RegisterAdminRoutes(adminGroup)
+}
 
-	courseHandler.StartBackgroundJobs(bgCtx)
-
-	notifHandler := notification.NewHandler(notifService, notifHub)
-	notifHandler.RegisterRoutes(api, authMW)
-	notifHub.StartRedisSubscriber(bgCtx)
-	rt.addCleanup(notifHub.Stop)
-
-	return nil
+func (rt *Runtime) metricsAllowedOrigins() []string {
+	if len(rt.cfg.App.CORSOrigins) > 0 {
+		return rt.cfg.App.CORSOrigins
+	}
+	if rt.isProduction {
+		return nil
+	}
+	return []string{
+		"http://localhost:3000",
+		"http://localhost:5173",
+		"http://localhost:4173",
+	}
 }
 
 func (rt *Runtime) initSMSService() (*sms.Service, error) {
-	if rt.cfg.SMS.SecretID == "" || rt.cfg.SMS.SecretKey == "" {
-		logger.L().Info("SMS service not configured (SMS_SECRET_ID/SMS_SECRET_KEY missing), phone login and Zitadel SMS callback unavailable")
+	if !rt.cfg.SMS.Enabled {
+		logger.L().Info("SMS service disabled (SMS_ENABLED=false), phone login and Zitadel SMS callback unavailable")
 		return nil, nil
 	}
 
@@ -218,11 +268,12 @@ func (rt *Runtime) initLDAPClient() (*ldap.Client, error) {
 	return ldapClient, nil
 }
 
-func (rt *Runtime) configureUserService(userService *user.Service, userRepo *user.Repository) error {
+func (rt *Runtime) initUserService(userRepo *user.Repository, ldapClient *ldap.Client, piiCipher *pii.Cipher, fgaClient *fga.Client) (*user.Service, error) {
+	var photoStore user.ServiceOption
 	if rt.cfg.ObjectStorage.Endpoint != "" {
 		initCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		photoStore, err := objectstorage.New(initCtx, objectstorage.Config{
+		store, err := objectstorage.New(initCtx, objectstorage.Config{
 			Endpoint:        rt.cfg.ObjectStorage.Endpoint,
 			Region:          rt.cfg.ObjectStorage.Region,
 			Bucket:          rt.cfg.ObjectStorage.Bucket,
@@ -233,18 +284,30 @@ func (rt *Runtime) configureUserService(userService *user.Service, userRepo *use
 			PresignTTL:      time.Duration(rt.cfg.ObjectStorage.PresignTTL) * time.Second,
 		})
 		if err != nil {
-			return fmt.Errorf("failed to initialize object storage: %w", err)
+			return nil, fmt.Errorf("failed to initialize object storage: %w", err)
 		}
-		if err := photoStore.CheckBucket(initCtx); err != nil {
-			return fmt.Errorf("identity photo bucket check failed (bucket must be pre-provisioned by infra): %w", err)
+		if err := store.CheckBucket(initCtx); err != nil {
+			return nil, fmt.Errorf("identity photo bucket check failed (bucket must be pre-provisioned by infra): %w", err)
 		}
-		userService.SetIdentityPhotoStore(photoStore)
+		photoStore = user.WithIdentityPhotoStore(store)
 	}
 
 	mgmtClient := oidc.NewManagementClient(rt.cfg.Zitadel)
 	roleSyncFn := oidc.BuildRoleSyncFunc(mgmtClient, func(ctx context.Context, userID int64) (string, error) {
 		return userRepo.GetExternalID(ctx, userID)
 	})
-	userService.SetRoleSyncFunc(roleSyncFn)
-	return nil
+
+	userService, err := user.NewService(
+		userRepo,
+		ldapClient,
+		crypto.GetHMACKey(),
+		piiCipher,
+		user.WithProfileFGAClient(fgaClient),
+		user.WithRoleSyncFunc(roleSyncFn),
+		photoStore,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize user service: %w", err)
+	}
+	return userService, nil
 }

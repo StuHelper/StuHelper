@@ -88,7 +88,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Search } from 'lucide-vue-next'
 import { api } from '@/api'
-import type { Course } from '@/types/course'
+import type { Course } from '@stuhelper/shared/course'
 
 interface RecentItem {
   id: number
@@ -237,7 +237,7 @@ function loadRecent(): RecentItem[] {
     return parsed.filter((item): item is RecentItem =>
       typeof item === 'object' && item !== null && typeof item.name === 'string' && typeof item.id === 'number'
     ).slice(0, MAX_RECENT)
-  } catch {
+  } catch (_error) { void _error;
     return []
   }
 }
@@ -247,7 +247,7 @@ function saveRecent(item: RecentItem) {
   recentSearches.value = updated
   try {
     localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
-  } catch {
+  } catch (_error) { void _error;
     // localStorage 不可用时静默忽略
   }
 }

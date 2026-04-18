@@ -46,19 +46,23 @@ func (f *fakeProfileFGAClient) DeleteTuples(_ context.Context, tuples []fga.Tupl
 
 func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 	schoolID := int64(10006)
+	fgaClient := &fakeProfileFGAClient{
+		readTuples: []fga.Tuple{{User: "school:99999", Relation: "school", Object: "user_profile:123"}},
+	}
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
 			require.Equal(t, int64(123), userID)
 			return &Profile{UserID: userID, SchoolID: &schoolID, VerificationStatus: StatusVerified}, nil
 		},
 	}
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(
+		repo,
+		nil,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithProfileFGAClient(fgaClient),
+	)
 	require.NoError(t, err)
-
-	fgaClient := &fakeProfileFGAClient{
-		readTuples: []fga.Tuple{{User: "school:99999", Relation: "school", Object: "user_profile:123"}},
-	}
-	svc.SetProfileFGAClient(fgaClient)
 
 	err = svc.syncUserProfileProjection(context.Background(), 123, true)
 	require.NoError(t, err)
@@ -92,14 +96,19 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 			return nil
 		},
 	}
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(
+		repo,
+		nil,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
+			assert.Equal(t, int64(42), userID)
+			assert.Equal(t, verifiedStudentRoleName, role)
+			assert.True(t, approved)
+			return errors.New("zitadel unavailable")
+		}),
+	)
 	require.NoError(t, err)
-	svc.SetRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
-		assert.Equal(t, int64(42), userID)
-		assert.Equal(t, verifiedStudentRoleName, role)
-		assert.True(t, approved)
-		return errors.New("zitadel unavailable")
-	})
 
 	err = svc.processExternalSyncBatch(context.Background())
 	require.NoError(t, err)

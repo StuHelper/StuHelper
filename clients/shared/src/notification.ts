@@ -1,5 +1,12 @@
 import type { Notification, NotificationPayload, NotificationType } from './types/business/notification'
 
+export type {
+  Notification,
+  NotificationPayload,
+  NotificationType,
+  UnreadCountResponse,
+} from './types/business/notification'
+
 export type NotificationVisualKind = 'reply' | 'like' | 'moderation' | 'success' | 'warning' | 'info'
 export type NotificationTranslationValue = string | number | boolean | null | undefined
 export type NotificationTranslationParams = Record<string, NotificationTranslationValue>

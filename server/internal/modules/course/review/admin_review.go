@@ -1,8 +1,6 @@
 package review
 
 import (
-	"errors"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
@@ -35,6 +33,11 @@ func (h *Handler) AdminEditReviewContent(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
+	if !h.checkFGA(c.Request.Context(), "user:"+userID, "can_edit", "review:"+reviewID) {
+		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
+		return
+	}
+
 	err = h.service.AdminEditReview(c.Request.Context(), AdminEditReviewParams{
 		ReviewID: reviewID,
 		Title:    req.Title,
@@ -43,23 +46,11 @@ func (h *Handler) AdminEditReviewContent(c *gin.Context) {
 		AdminID:  userID,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
-		case errors.Is(err, ErrTitleEmpty):
-			response.BadRequest(c, "title cannot be empty")
-		case errors.Is(err, ErrDangerousContent):
-			response.BadRequest(c, "content contains potentially dangerous elements")
-		case errors.Is(err, ErrSensitiveContent):
-			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
-		case errors.Is(err, ErrModerationUnavailable):
-			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
-		case errors.Is(err, ErrContentEmpty):
-			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
-		default:
-			logger.FromGin(c).Error("failed to edit review", zap.Error(err))
-			response.InternalError(c, "failed to edit review")
+		if respondAdminEditReviewError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to edit review", zap.Error(err))
+		response.InternalError(c, "failed to edit review")
 		return
 	}
 

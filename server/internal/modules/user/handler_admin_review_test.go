@@ -56,16 +56,20 @@ func TestHandleAdminListStudentVerifications_IncludesReviewMeta(t *testing.T) {
 
 func TestHandleAdminListIdentities_IncludesReviewMeta(t *testing.T) {
 	reviewedAt := time.Date(2026, 3, 17, 16, 40, 0, 0, time.UTC)
+	photoFront := "identity/front.png"
+	photoBack := "identity/back.png"
 
 	repo := &mockRepo{
 		onListIdentityReviewItems: func(_ context.Context, status string, _, _ int) ([]IdentityReviewItem, int, error) {
 			assert.Equal(t, StatusPending, status)
 			return []IdentityReviewItem{
 				{
-					UserID:     202,
-					DocType:    DocTypeMainlandID,
-					RealName:   "李四",
-					ReviewedAt: &reviewedAt,
+					UserID:        202,
+					DocType:       DocTypeMainlandID,
+					RealName:      "李四",
+					ReviewedAt:    &reviewedAt,
+					DocPhotoFront: &photoFront,
+					DocPhotoBack:  &photoBack,
 				},
 			}, 1, nil
 		},
@@ -88,4 +92,7 @@ func TestHandleAdminListIdentities_IncludesReviewMeta(t *testing.T) {
 	item := list[0].(map[string]any)
 
 	assert.Equal(t, reviewedAt.Format(time.RFC3339), item["reviewedAt"])
+	assert.NotContains(t, item, "docPhotoFront")
+	assert.NotContains(t, item, "docPhotoBack")
+	assert.NotContains(t, item, "docPhotoSelfie")
 }

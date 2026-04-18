@@ -72,6 +72,8 @@ scrape_configs:
           - http://app:8080/health/live
           - http://frontend/
           - http://admin:8080/
+          - http://zitadel-api:8080/debug/healthz
+          - http://zitadel-login:3000/ui/v2/login/healthy
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
@@ -81,3 +83,20 @@ scrape_configs:
         replacement: blackbox-exporter:9115
       - target_label: job
         replacement: blackbox-http
+
+  - job_name: blackbox-tcp
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+          - openfga:8081
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+      - target_label: job
+        replacement: blackbox-tcp

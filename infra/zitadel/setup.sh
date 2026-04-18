@@ -159,7 +159,9 @@ for i in "${!ROLES[@]}"; do
     if [[ "$ERROR_CODE" == "6" ]]; then
       echo "  角色 ${ROLE_KEY} 已存在，跳过"
     else
-      echo "  警告: 创建角色 ${ROLE_KEY} 失败: ${ROLE_RESPONSE}"
+      echo "ERROR: 创建角色 ${ROLE_KEY} 失败" >&2
+      echo "API 响应: ${ROLE_RESPONSE}" >&2
+      exit 1
     fi
   else
     echo "  角色 ${ROLE_KEY} 创建成功"
@@ -248,7 +250,9 @@ if echo "$ADMIN_GRANT_RESPONSE" | jq -e '.code' >/dev/null 2>&1; then
   if [[ "$ERROR_CODE" == "6" ]]; then
     echo "  默认管理员已具备 super_admin 角色，跳过"
   else
-    echo "  警告: 默认管理员授权失败: ${ADMIN_GRANT_RESPONSE}"
+    echo "ERROR: 默认管理员授权失败" >&2
+    echo "API 响应: ${ADMIN_GRANT_RESPONSE}" >&2
+    exit 1
   fi
 else
   echo "  默认管理员已授予 super_admin 角色"

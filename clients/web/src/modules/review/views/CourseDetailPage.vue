@@ -26,6 +26,9 @@
       </div>
 
       <template v-else-if="course">
+        <div v-if="partialLoadError" class="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+          {{ t('common.loadFailed') }}
+        </div>
         <!-- ========== 1. Course Header ========== -->
         <header class="flex items-center gap-3 flex-wrap mb-6">
           <h4 class="text-xl font-bold m-0 text-text-primary">
@@ -390,7 +393,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, watch, nextTick, reactive } from 'vue'
+import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -410,30 +413,24 @@ import ReplyCard from '@/components/business/review/ReplyCard.vue'
 import ReplyForm from '@/components/business/review/ReplyForm.vue'
 import ModerationDialog from '@/components/business/review/ModerationDialog.vue'
 import AdminEditDialog from '@/components/business/review/AdminEditDialog.vue'
-import {
-  applyOptimisticVote,
-  createReviewVoteState,
-  getDisplayVoteCount,
-  type VoteType,
-} from '@/components/business/review/reviewVoteState'
+import { useReviewAdmin } from '@/modules/review/useReviewAdmin'
+import { useReviewReplies } from '@/modules/review/useReviewReplies'
+import { useReviewVoting } from '@/modules/review/useReviewVoting'
 
 import { api } from '@/api'
-import { ADMIN_REVIEWS_MANAGE, hasCapability } from '@stuhelper/shared/constants'
-import { useAuthStore } from '@/stores/auth'
+import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
 import { useReviewPost } from '@/composables/useReviewPost'
-import { getRatingColor } from '@/modules/course/theme'
+import { getRatingColor } from '@/design-system/rating'
 
-import type { Course, CourseRatingStatsResponse, TeacherStats, TermRatingStats } from '@/types/course'
-import type { Review } from '@/types/review'
-import type { Reply } from '@/types/reply'
+import type { Course, CourseRatingStatsResponse, TeacherStats, TermRatingStats } from '@stuhelper/shared/course'
+import type { Review } from '@stuhelper/shared/review'
 
 const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const authStore = useAuthStore()
 const { lastPostedAt } = useReviewPost()
 
 const courseID = computed(() => Number(route.params.id))
@@ -442,14 +439,10 @@ const isPanelMode = computed(() => {
   return route.matched.some(r => r.name === 'review')
 })
 
-// ── Auth & Capabilities ──
-const canManageReviews = computed(() =>
-  hasCapability(authStore.globalCapabilities, ADMIN_REVIEWS_MANAGE),
-)
-
 // ── Page state ──
 const loading = ref(false)
 const error = ref(false)
+const partialLoadError = ref(false)
 const contentReady = ref(false)
 const course = ref<Course | null>(null)
 const ratingStats = ref<CourseRatingStatsResponse | null>(null)
@@ -483,162 +476,43 @@ function selectTeacher(name: string) {
 }
 
 // ── Voting state (per-review) ──
-const reviewVotes = reactive<Record<string, VoteType | null>>({})
-const likeOffsets = reactive<Record<string, number>>({})
-const dislikeOffsets = reactive<Record<string, number>>({})
-const votingReviews = ref(new Set<string>())
-
-function displayLikeCount(r: Review): number {
-  return getDisplayVoteCount(r.likeCount, likeOffsets[r.id] ?? 0)
-}
-
-function displayDislikeCount(r: Review): number {
-  return getDisplayVoteCount(r.dislikeCount, dislikeOffsets[r.id] ?? 0)
-}
-
-async function handleVote(r: Review, type: VoteType) {
-  if (votingReviews.value.has(r.id)) return
-  votingReviews.value.add(r.id)
-
-  const id = r.id
-  const previousState = createReviewVoteState({
-    userVote: reviewVotes[id] ?? null,
-    likeOffset: likeOffsets[id] ?? 0,
-    dislikeOffset: dislikeOffsets[id] ?? 0,
-  })
-  const nextState = applyOptimisticVote(previousState, type)
-
-  reviewVotes[id] = nextState.userVote
-  likeOffsets[id] = nextState.likeOffset
-  dislikeOffsets[id] = nextState.dislikeOffset
-
-  try {
-    await api.review.voteReview(id, { voteType: type })
-  } catch {
-    reviewVotes[id] = previousState.userVote
-    likeOffsets[id] = previousState.likeOffset
-    dislikeOffsets[id] = previousState.dislikeOffset
-    toast.error(t('review.review.voteFailed'))
-  } finally {
-    votingReviews.value.delete(id)
-  }
-}
+const {
+  reviewVotes,
+  displayLikeCount,
+  displayDislikeCount,
+  handleVote,
+} = useReviewVoting()
 
 // ── Reply system ──
-const expandedReviewID = ref<string | null>(null)
-const replies = ref<Reply[]>([])
-const repliesLoading = ref(false)
-const repliesError = ref(false)
-const replySubmitting = ref(false)
-const replyFormRef = ref<InstanceType<typeof ReplyForm> | null>(null)
-const replyCountMap = reactive<Record<string, number>>({})
-let repliesRequestSeq = 0
-
-async function toggleExpand(reviewId: string) {
-  if (expandedReviewID.value === reviewId) {
-    expandedReviewID.value = null
-    return
-  }
-  expandedReviewID.value = reviewId
-  await loadReplies(reviewId)
-}
-
-async function loadReplies(reviewId: string) {
-  const requestSeq = ++repliesRequestSeq
-  repliesLoading.value = true
-  repliesError.value = false
-  try {
-    const res = await api.reply.getReplies(reviewId)
-    if (requestSeq !== repliesRequestSeq || expandedReviewID.value !== reviewId) return
-    replies.value = res.data?.data?.list || []
-    replyCountMap[reviewId] = res.data?.data?.total || 0
-  } catch {
-    if (requestSeq !== repliesRequestSeq || expandedReviewID.value !== reviewId) return
-    replies.value = []
-    repliesError.value = true
-  } finally {
-    if (requestSeq === repliesRequestSeq) {
-      repliesLoading.value = false
-    }
-  }
-}
-
-async function handleReplySubmit(reviewId: string, content: string) {
-  replySubmitting.value = true
-  try {
-    const res = await api.reply.createReply(reviewId, { content })
-    if (res.data?.data) {
-      replies.value = [...replies.value, res.data.data]
-      replyCountMap[reviewId] = (replyCountMap[reviewId] ?? 0) + 1
-      replyFormRef.value?.clear()
-      toast.success(t('review.review.replySuccess'))
-    }
-  } catch {
-    toast.error(t('review.review.replyFailed'))
-  } finally {
-    replySubmitting.value = false
-  }
-}
-
-async function handleDeleteReply(id: string) {
-  if (!expandedReviewID.value) return
-  try {
-    await api.reply.deleteReply(id)
-    replies.value = replies.value.filter(r => r.id !== id)
-    replyCountMap[expandedReviewID.value] = Math.max(0, (replyCountMap[expandedReviewID.value] ?? 0) - 1)
-  } catch {
-    toast.error(t('review.review.deleteFailed'))
-  }
-}
+const {
+  expandedReviewID,
+  replies,
+  repliesLoading,
+  repliesError,
+  replySubmitting,
+  replyFormRef,
+  replyCountMap,
+  toggleExpand,
+  loadReplies,
+  handleReplySubmit,
+  handleDeleteReply,
+} = useReviewReplies()
 
 // ── Admin tools ──
-const showModerationDialog = ref(false)
-const showEditDialog = ref(false)
-const moderatingReviewID = ref('')
-const editingReview = ref<Review | null>(null)
-
-function openModeration(r: Review) {
-  moderatingReviewID.value = r.id
-  showModerationDialog.value = true
-}
-
-function openEdit(r: Review) {
-  editingReview.value = r
-  showEditDialog.value = true
-}
-
-async function handleModerate(reason: string) {
-  showModerationDialog.value = false
-  try {
-    await api.admin.updateReview(moderatingReviewID.value, { action: 'hide', reason })
-    toast.success(t('review.admin.moderateSuccess'))
-    refreshReviews()
-  } catch {
-    toast.error(t('review.admin.actionFailed'))
-  }
-}
-
-async function handleRestore(r: Review) {
-  try {
-    await api.admin.updateReview(r.id, { action: 'restore' })
-    toast.success(t('review.admin.restoreSuccess'))
-    refreshReviews()
-  } catch {
-    toast.error(t('review.admin.actionFailed'))
-  }
-}
-
-async function handleAdminEdit(payload: { title: string; content: string; reason: string }) {
-  if (!editingReview.value) return
-  showEditDialog.value = false
-  try {
-    await api.admin.editReview(editingReview.value.id, payload)
-    toast.success(t('review.admin.editSuccess'))
-    refreshReviews()
-  } catch {
-    toast.error(t('review.admin.actionFailed'))
-  }
-}
+const {
+  canManageReviews,
+  showModerationDialog,
+  showEditDialog,
+  moderatingReviewID,
+  editingReview,
+  openModeration,
+  openEdit,
+  handleModerate,
+  handleRestore,
+  handleAdminEdit,
+} = useReviewAdmin(() => {
+  refreshReviews()
+})
 
 // ── Rating helpers ──
 const DIMENSION_LABELS: Record<string, string> = {
@@ -700,7 +574,7 @@ const fetchReviews = async (append = false, expectedVersion?: number) => {
     total.value = pageData.total
   } catch (error) {
     if (expectedVersion === undefined || expectedVersion === loadVersion) {
-      toast.error(error instanceof Error ? error.message : t('review.course.loadFailed'))
+      toast.error(getErrorMessage(error, t('review.course.loadFailed')))
     }
   } finally {
     if (expectedVersion === undefined || expectedVersion === loadVersion) {
@@ -727,7 +601,7 @@ const fetchRatingStats = async () => {
     const res = await api.rating.getCourseStats(courseID.value)
     ratingStats.value = res.data?.data ?? null
   } catch (error) {
-    toast.error(error instanceof Error ? error.message : t('common.loadFailed'))
+    toast.error(getErrorMessage(error, t('common.loadFailed')))
   }
 }
 
@@ -748,25 +622,60 @@ const fetchAll = async () => {
   selectedTeacher.value = ''
   contentReady.value = false
   loading.value = true
+  error.value = false
+  partialLoadError.value = false
 
   try {
-    const [courseRes, statsRes, reviewsRes, teachersRes, trendRes] = await Promise.all([
-      api.course.getCourse(id).catch(() => null),
-      api.rating.getCourseStats(id).catch(() => null),
-      api.review.getReviewsPage(id, { page: 1, pageSize: limit, sort: 'time' }).catch(() => null),
-      api.rating.getCourseTeachers(id).catch(() => null),
-      api.rating.getRatingTrend(id).catch(() => null),
+    const [courseRes, statsRes, reviewsRes, teachersRes, trendRes] = await Promise.allSettled([
+      api.course.getCourse(id),
+      api.rating.getCourseStats(id),
+      api.review.getReviewsPage(id, { page: 1, pageSize: limit, sort: 'time' }),
+      api.rating.getCourseTeachers(id),
+      api.rating.getRatingTrend(id),
     ])
 
     if (version !== loadVersion) return
 
-    course.value = courseRes?.data?.data ?? null
-    error.value = !courseRes
-    ratingStats.value = statsRes?.data?.data ?? null
-    reviews.value = reviewsRes?.list ?? []
-    total.value = reviewsRes?.total ?? 0
-    courseTeachers.value = teachersRes?.data?.data || []
-    ratingTrend.value = trendRes?.data?.data?.trend || []
+    if (courseRes.status === 'fulfilled') {
+      course.value = courseRes.value.data?.data ?? null
+    } else {
+      course.value = null
+      error.value = true
+      toast.error(getErrorMessage(courseRes.reason, t('review.course.loadFailed')))
+      return
+    }
+
+
+    if (statsRes.status === 'fulfilled') {
+      ratingStats.value = statsRes.value.data?.data ?? null
+    } else {
+      ratingStats.value = null
+    }
+
+    if (reviewsRes.status === 'fulfilled') {
+      reviews.value = reviewsRes.value.list
+      total.value = reviewsRes.value.total
+    } else {
+      reviews.value = []
+      total.value = 0
+    }
+
+    if (teachersRes.status === 'fulfilled') {
+      courseTeachers.value = teachersRes.value.data?.data || []
+    } else {
+      courseTeachers.value = []
+    }
+
+    if (trendRes.status === 'fulfilled') {
+      ratingTrend.value = trendRes.value.data?.data?.trend || []
+    } else {
+      ratingTrend.value = []
+    }
+
+    partialLoadError.value = [statsRes, reviewsRes, teachersRes, trendRes].some(item => item.status === 'rejected')
+    if (partialLoadError.value) {
+      toast.error(t('common.loadFailed'))
+    }
   } finally {
     if (version === loadVersion) {
       loading.value = false

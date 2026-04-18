@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/singleflightx"
 )
 
 // isASCIIWord 判断词是否仅包含 ASCII 字母（英文词需要词边界匹配）
@@ -117,12 +118,12 @@ func (f *Filter) ensureFresh(_ context.Context) error {
 
 	// singleflight 确保同一时刻只有一个 goroutine 执行 DB 查询
 	// 使用独立 context 避免单个请求取消导致所有并发等待者的刷新失败
-	_, err, _ := f.sf.Do("refresh", func() (interface{}, error) {
+	err := singleflightx.Do(&f.sf, "refresh", func() error {
 		// 二次检查：进入 singleflight 后再次确认是否仍需刷新
 		f.mu.RLock()
 		if time.Since(f.lastRefresh) <= f.refreshTTL {
 			f.mu.RUnlock()
-			return nil, nil
+			return nil
 		}
 		f.mu.RUnlock()
 
@@ -134,11 +135,11 @@ func (f *Filter) ensureFresh(_ context.Context) error {
 		words, err := f.repo.ListActiveSensitiveWords(refreshCtx)
 		if err != nil {
 			logger.L().Warn("failed to refresh sensitive words", zap.Error(err))
-			return nil, err
+			return err
 		}
 
 		f.applyWords(words)
-		return nil, nil
+		return nil
 	})
 	if err != nil {
 		return errors.Join(ErrModerationUnavailable, err)

@@ -12,10 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/zap"
 	_ "golang.org/x/image/webp"
-
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 const maxIdentityPhotoSize = 5 * 1024 * 1024
@@ -74,10 +71,7 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 	if req.DocType == DocTypeMainlandID {
 		matched, err := s.tryAcademicDBMatch(ctx, req.DocNumber, req.RealName)
 		if err != nil {
-			logger.L().Warn("academic DB match failed, falling through",
-				zap.Int64("user_id", userID),
-				zap.Error(err),
-			)
+			return nil, fmt.Errorf("SubmitIdentity academic match: %w", err)
 		}
 		if matched {
 			method := VerifyMethodAcademicDB
@@ -145,10 +139,6 @@ func (s *Service) ResolveIdentityReviewItemAssets(ctx context.Context, item *Ide
 
 // tryAcademicDBMatch 尝试通过学籍数据库匹配进行自动实名验证
 func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName string) (bool, error) {
-	if _, ok := s.repo.(academicTableRepo); !ok {
-		return false, nil
-	}
-
 	schools, err := s.repo.ListSchoolConfigs(ctx)
 	if err != nil {
 		return false, err
@@ -164,11 +154,7 @@ func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName st
 		school := &schools[i]
 		tableName, err := s.ensureAcademicTableConfigured(school)
 		if err != nil {
-			logger.L().Warn("skip academic DB auto-match for school with invalid table config",
-				zap.Int64("school_id", school.SchoolID),
-				zap.Error(err),
-			)
-			continue
+			return false, fmt.Errorf("school %d academic table config: %w", school.SchoolID, err)
 		}
 		if _, ok := visitedTables[tableName]; ok {
 			continue
@@ -177,12 +163,7 @@ func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName st
 
 		students, err := s.findAcademicStudentsByPersonUID(ctx, DocTypeMainlandID, docNumber, tableName)
 		if err != nil {
-			logger.L().Warn("academic DB auto-match query failed for school",
-				zap.Int64("school_id", school.SchoolID),
-				zap.String("academic_db_table", tableName),
-				zap.Error(err),
-			)
-			continue
+			return false, fmt.Errorf("academic DB auto-match query failed for school %d table %s: %w", school.SchoolID, tableName, err)
 		}
 
 		for _, stu := range students {

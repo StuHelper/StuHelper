@@ -49,7 +49,7 @@ async function loadMore() {
     const data = unwrapListData<components['schemas']['FavoriteCourse']>(result)
     favorites.value = [...favorites.value, ...data.list]
     hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
-  } catch {
+  } catch (_error) { void _error;
     page.value = Math.max(1, page.value - 1)
   } finally {
     loadingMore.value = false

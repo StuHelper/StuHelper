@@ -1,0 +1,166 @@
+package review
+
+import (
+	"errors"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+)
+
+var (
+	reviewModerationErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrTitleEmpty, 400, "title cannot be empty"),
+		response.MatchError(ErrDangerousContent, 400, "content contains potentially dangerous elements"),
+		response.MatchError(ErrSensitiveContent, 400, "content contains sensitive words", errs.ErrSensitiveContent),
+		response.MatchError(ErrModerationUnavailable, 503, "content moderation is temporarily unavailable"),
+		response.MatchError(ErrContentEmpty, 400, "content cannot be empty", errs.ErrContentEmpty),
+	}
+	reviewCourseLookupErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrCourseNotFound, 404, "course not found", errs.ErrCourseNotFound),
+	}
+	reviewTeacherLookupErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrTeacherNotFound, 404, "teacher not found", errs.ErrTeacherNotFound),
+		{
+			Match: func(err error) bool {
+				return errors.Is(err, pgx.ErrNoRows)
+			},
+			Status:  404,
+			Code:    errs.ErrTeacherNotFound,
+			Message: "teacher not found",
+		},
+	}
+	reviewWriteValidationErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrRatingRequired, 400, "at least one rating dimension is required"),
+		response.MatchError(ErrInvalidRating, 400, "rating must be between 1 and 5"),
+	}
+	reviewNotFoundErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrReviewNotFound, 404, "review not found", errs.ErrReviewNotFound),
+	}
+	reviewOwnerErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrNotReviewOwner, 403, "you can only modify your own review", errs.ErrNotReviewOwner),
+	}
+	reviewReplyOwnerErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrReplyNotFound, 404, "reply not found", errs.ErrReplyNotFound),
+		response.MatchError(ErrNotReplyOwner, 403, "you can only delete your own reply", errs.ErrNotReplyOwner),
+	}
+	reviewDraftErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrDraftNotFound, 404, "draft not found", errs.ErrDraftNotFound),
+	}
+	reviewReportErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrAlreadyReported, 409, "you have already reported this review", errs.ErrAlreadyReported),
+		response.MatchError(ErrReportNotFound, 404, "report not found", errs.ErrReportNotFound),
+	}
+	reviewAdminActionErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrInvalidAction, 400, "invalid action"),
+		response.MatchError(ErrInvalidTransition, 400, "invalid status transition for this action", errs.ErrInvalidTransition),
+	}
+	reviewSensitiveWordErrorMappings = []response.ErrorMapping{
+		{
+			Match: func(err error) bool {
+				return errors.Is(err, pgx.ErrNoRows)
+			},
+			Status:  404,
+			Code:    errs.ErrSensitiveWordNotFound,
+			Message: "sensitive word not found",
+		},
+	}
+)
+
+func respondToModerationError(c *gin.Context, err error) bool {
+	return response.RespondMappedError(c, err, reviewModerationErrorMappings...)
+}
+
+func respondPostReviewError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err,
+		reviewWriteValidationErrorMappings,
+		reviewModerationErrorMappings,
+		[]response.ErrorMapping{response.MatchError(ErrAlreadyReviewed, 409, "you have already reviewed this course", errs.ErrReviewExists)},
+		reviewCourseLookupErrorMappings,
+	)
+}
+
+func respondVoteReviewError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewNotFoundErrorMappings)
+}
+
+func respondUpdateReviewError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err,
+		reviewNotFoundErrorMappings,
+		[]response.ErrorMapping{response.MatchError(ErrNotReviewOwner, 403, "you can only edit your own review", errs.ErrNotReviewOwner)},
+		reviewWriteValidationErrorMappings,
+		reviewModerationErrorMappings,
+	)
+}
+
+func respondDeleteReviewError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err,
+		reviewNotFoundErrorMappings,
+		[]response.ErrorMapping{response.MatchError(ErrNotReviewOwner, 403, "you can only delete your own review", errs.ErrNotReviewOwner)},
+	)
+}
+
+func respondReportReviewError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err,
+		reviewNotFoundErrorMappings,
+		[]response.ErrorMapping{response.MatchError(ErrAlreadyReported, 409, "you have already reported this review", errs.ErrAlreadyReported)},
+	)
+}
+
+func respondCheckContentError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err,
+		[]response.ErrorMapping{response.MatchError(ErrModerationUnavailable, 503, "content moderation is temporarily unavailable")},
+	)
+}
+
+func respondCreateReplyError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err,
+		reviewNotFoundErrorMappings,
+		reviewModerationErrorMappings,
+	)
+}
+
+func respondDeleteReplyError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewReplyOwnerErrorMappings)
+}
+
+func respondSaveDraftError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err,
+		reviewCourseLookupErrorMappings,
+		[]response.ErrorMapping{response.MatchError(ErrDangerousContent, 400, "content contains potentially dangerous elements")},
+	)
+}
+
+func respondGetDraftError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewDraftErrorMappings)
+}
+
+func respondProcessReportError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewReportErrorMappings, reviewAdminActionErrorMappings)
+}
+
+func respondAdminUpdateReviewError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewNotFoundErrorMappings, reviewAdminActionErrorMappings)
+}
+
+func respondAdminEditReviewError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewNotFoundErrorMappings, reviewModerationErrorMappings)
+}
+
+func respondTeacherLookupError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewTeacherLookupErrorMappings)
+}
+
+func respondAddFavoriteError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewCourseLookupErrorMappings)
+}
+
+func respondClearContentFlagError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewNotFoundErrorMappings)
+}
+
+func respondSensitiveWordAdminError(c *gin.Context, err error) bool {
+	return response.RespondMappedErrorGroups(c, err, reviewSensitiveWordErrorMappings)
+}

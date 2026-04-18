@@ -46,6 +46,11 @@ func OTPCooldownSeconds() int {
 	return int(otpCooldown.Seconds())
 }
 
+// PhoneSMSSender 发送 OTP 短信所需的最小依赖。
+type PhoneSMSSender interface {
+	Send(ctx context.Context, phone, content string) error
+}
+
 // OTPService 短信验证码管理服务
 type OTPService struct {
 	rdb *redis.Client
@@ -72,6 +77,11 @@ func NewOTPService(rdb *redis.Client) *OTPService {
 	return &OTPService{rdb: rdb}
 }
 
+// CooldownSeconds 返回 OTP 冷却期秒数，供 handler 响应使用。
+func (s *OTPService) CooldownSeconds() int {
+	return OTPCooldownSeconds()
+}
+
 func otpPhoneKey(phone string) (string, error) {
 	hash, err := phoneutil.HashLookup(phone)
 	if err != nil {
@@ -94,6 +104,30 @@ func (s *OTPService) CheckPhoneRateLimit(ctx context.Context, phone string) erro
 	}
 	if count > int64(otpPhoneLimit) {
 		return ErrOTPPhoneRateLimited
+	}
+	return nil
+}
+
+// IssueCode 执行完整的 OTP 发送流程：手机号限流、生成验证码、发送短信与失败补偿。
+func (s *OTPService) IssueCode(ctx context.Context, phone string, smsSender PhoneSMSSender) error {
+	if smsSender == nil {
+		return errors.New("otp: sms sender is required")
+	}
+	if err := s.CheckPhoneRateLimit(ctx, phone); err != nil {
+		return err
+	}
+
+	code, err := s.Generate(ctx, phone)
+	if err != nil {
+		return err
+	}
+
+	internationalPhone := "+86" + phone
+	if err := smsSender.Send(ctx, internationalPhone, code); err != nil {
+		if cleanupErr := s.CleanupCodeOnly(ctx, phone); cleanupErr != nil {
+			return errors.Join(fmt.Errorf("otp: send sms: %w", err), fmt.Errorf("otp: cleanup code after send failure: %w", cleanupErr))
+		}
+		return fmt.Errorf("otp: send sms: %w", err)
 	}
 	return nil
 }

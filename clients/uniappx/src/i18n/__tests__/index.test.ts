@@ -32,13 +32,17 @@ function createUniStub(systemLocale = 'en-US'): UniStub {
 }
 
 describe('uniappx i18n', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     storage.clear()
     runtime.uni = createUniStub('en-US')
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
   afterEach(() => {
     delete runtime.uni
+    warnSpy.mockRestore()
     setLocale('zh-CN')
   })
 
@@ -63,5 +67,47 @@ describe('uniappx i18n', () => {
     setPageTitle('common.pageTitles.courseList')
 
     expect(runtime.uni?.setNavigationBarTitle).toHaveBeenCalledWith({ title: 'Courses' })
+  })
+
+  it('reports storage read failure once and falls back to system locale', () => {
+    runtime.uni = {
+      ...createUniStub('en-US'),
+      getStorageSync: () => {
+        throw new Error('storage unavailable')
+      },
+    }
+
+    expect(bootstrapLocale()).toBe('en-US')
+    expect(bootstrapLocale()).toBe('en-US')
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0]?.[0]).toContain('[uniappx:i18n] failed to read stored locale')
+  })
+
+  it('ignores expected tabbar-unavailable errors', () => {
+    runtime.uni = {
+      ...createUniStub('en-US'),
+      setTabBarItem: vi.fn(() => {
+        throw new Error('not TabBar page')
+      }),
+    }
+
+    bootstrapLocale()
+
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('reports unexpected tabbar sync errors once', () => {
+    runtime.uni = {
+      ...createUniStub('en-US'),
+      setTabBarItem: vi.fn(() => {
+        throw new Error('native bridge crashed')
+      }),
+    }
+
+    bootstrapLocale()
+    bootstrapLocale()
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0]?.[0]).toContain('[uniappx:i18n] failed to sync tab bar label')
   })
 })

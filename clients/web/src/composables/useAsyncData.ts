@@ -11,6 +11,9 @@ export interface AsyncDataState<T> {
 /**
  * 统一的异步数据加载 composable
  * 消除组件中重复的 loading/error 处理逻辑
+ *
+ * 默认会立即执行一次加载；仅当调用点明确需要延迟触发时传入
+ * `immediate: false`，避免把“懒加载”需求错误地塞进默认行为。
  */
 export function useAsyncData<T>(
   fetcher: () => Promise<T>,

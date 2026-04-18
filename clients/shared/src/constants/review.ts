@@ -9,6 +9,12 @@ export function isReviewGrade(value: unknown): value is ReviewGrade {
   return typeof value === 'string' && REVIEW_GRADES.includes(value as ReviewGrade)
 }
 
-export const REVIEW_TITLE_MAX_LENGTH = 100
+export function normalizeReviewGrade(grade?: string): ReviewGrade | undefined {
+  if (!grade) return undefined
+  const trimmed = grade.trim()
+  return isReviewGrade(trimmed) ? trimmed : undefined
+}
+
+export const REVIEW_TITLE_MAX_LENGTH = 200
 export const REVIEW_CONTENT_MIN_LENGTH = 10
 export const REVIEW_CONTENT_MAX_LENGTH = 5000

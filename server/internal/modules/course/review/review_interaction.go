@@ -1,15 +1,11 @@
 package review
 
 import (
-	"errors"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -21,10 +17,8 @@ func (h *Handler) AddFavorite(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -33,8 +27,7 @@ func (h *Handler) AddFavorite(c *gin.Context) {
 		CourseID: courseID,
 	})
 	if err != nil {
-		if errors.Is(err, ErrCourseNotFound) {
-			response.NotFound(c, "course not found", errs.ErrCourseNotFound)
+		if respondAddFavoriteError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to add favorite", zap.Error(err))
@@ -53,10 +46,8 @@ func (h *Handler) GetFavoriteStatus(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -78,10 +69,8 @@ func (h *Handler) RemoveFavorite(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -98,10 +87,8 @@ func (h *Handler) RemoveFavorite(c *gin.Context) {
 // GetUserFavorites 获取用户收藏列表
 func (h *Handler) GetUserFavorites(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -122,10 +109,8 @@ func (h *Handler) GetUserFavorites(c *gin.Context) {
 // GetUserReviews 获取用户评论列表
 func (h *Handler) GetUserReviews(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -155,10 +140,8 @@ func (h *Handler) GetUserVotes(c *gin.Context) {
 		response.BadRequest(c, "voteType must be 'like' or 'dislike'")
 		return
 	}
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 

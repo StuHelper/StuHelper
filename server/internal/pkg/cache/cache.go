@@ -4,8 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	mrand "math/rand"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/singleflightx"
 )
 
 const (
@@ -29,9 +29,6 @@ const (
 	// jitterFraction TTL 抖动比例（±15%）
 	jitterFraction = 0.15
 )
-
-var ttlRand = mrand.New(mrand.NewSource(time.Now().UnixNano()))
-var ttlRandMu sync.Mutex
 
 // incrExpireScript 原子执行 INCR + EXPIRE，避免 Expire 失败导致 key 永不过期
 var incrExpireScript = redis.NewScript(`
@@ -86,9 +83,7 @@ func JitteredTTL(base time.Duration) time.Duration {
 
 // randFloat64 使用非安全随机源生成 [0, 1) 范围的 float64。
 func randFloat64() float64 {
-	ttlRandMu.Lock()
-	defer ttlRandMu.Unlock()
-	return ttlRand.Float64()
+	return rand.Float64()
 }
 
 // Client 返回底层 Redis 客户端（用于需要直接访问的场景）
@@ -289,7 +284,7 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 	h.vmu.RUnlock()
 
 	// 本地缓存未命中，通过 singleflight 去重并发 Redis 查询
-	result, err, _ := h.sf.Do("version:"+vk, func() (any, error) {
+	version, err := singleflightx.DoValue(&h.sf, "version:"+vk, func() (string, error) {
 		// 二次检查本地缓存（可能在等待期间被其他请求填充）
 		h.vmu.RLock()
 		if entry, ok := h.versions[vk]; ok && time.Now().Before(entry.expiresAt) {
@@ -315,40 +310,20 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 	if err != nil {
 		return "0"
 	}
-
-	version, _ := result.(string) //nolint:errcheck // redis result, empty string handled below
 	if version == "" {
 		version = "0"
 	}
 
 	// 写入本地缓存
 	h.vmu.Lock()
+	if _, exists := h.versions[vk]; !exists && len(h.versions) >= h.maxVersionEntries {
+		// 本地版本缓存只是 Redis 命中的短时优化，达到上限时直接重置即可。
+		// 这样避免为了淘汰一个条目而按 map 大小 O(N) 扫描整张表。
+		h.versions = make(map[string]versionEntry, h.maxVersionEntries)
+	}
 	h.versions[vk] = versionEntry{
 		version:   version,
 		expiresAt: time.Now().Add(versionLocalTTL),
-	}
-	// 超过上限时清理：先删过期条目，仍超限则淘汰最旧条目
-	if len(h.versions) > h.maxVersionEntries {
-		now := time.Now()
-		for k, e := range h.versions {
-			if now.After(e.expiresAt) {
-				delete(h.versions, k)
-			}
-		}
-		// 清理过期条目后仍超限，强制淘汰最旧条目
-		for len(h.versions) > h.maxVersionEntries {
-			var oldestKey string
-			var oldestTime time.Time
-			for k, e := range h.versions {
-				if oldestKey == "" || e.expiresAt.Before(oldestTime) {
-					oldestKey = k
-					oldestTime = e.expiresAt
-				}
-			}
-			if oldestKey != "" {
-				delete(h.versions, oldestKey)
-			}
-		}
 	}
 	h.vmu.Unlock()
 
@@ -403,7 +378,7 @@ func GetOrSet[T any](h *Helper, ctx context.Context, key string, ttl time.Durati
 	}
 
 	// 缓存未命中，通过 singleflight 去重并发加载
-	result, err, _ := h.sf.Do(key, func() (any, error) {
+	val, err := singleflightx.DoValue(&h.sf, key, func() (T, error) {
 		// 再次检查缓存（可能在等待期间被其他请求填充）
 		if val, ok := GetAs[T](h, ctx, key); ok {
 			return val, nil
@@ -414,7 +389,7 @@ func GetOrSet[T any](h *Helper, ctx context.Context, key string, ttl time.Durati
 		if err != nil {
 			// 加载失败时移除 singleflight 缓存，允许后续请求重试
 			h.sf.Forget(key)
-			return nil, err
+			return zero, err
 		}
 
 		// 写入缓存（使用带抖动的 TTL）
@@ -429,11 +404,6 @@ func GetOrSet[T any](h *Helper, ctx context.Context, key string, ttl time.Durati
 	})
 	if err != nil {
 		return zero, err
-	}
-
-	val, ok := result.(T)
-	if !ok {
-		return zero, fmt.Errorf("GetOrSet: expected %T, got %T for key %s", zero, result, key)
 	}
 	return val, nil
 }

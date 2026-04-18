@@ -180,10 +180,15 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 			APIUrl:               "http://openfga:8080",
 		},
 		RateLimit: ReviewRateLimitConfig{
-			PostLimit:   5,
-			VoteLimit:   30,
-			ReportLimit: 10,
-			ReplyLimit:  10,
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
 		},
 	}
 
@@ -207,29 +212,111 @@ func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
 	assert.Contains(t, err.Error(), "OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1")
 }
 
-func TestDatabaseURLAssembly_SpecialPasswordCharacters(t *testing.T) {
-	tests := []struct {
-		name     string
-		password string
-		wantSub  string // substring that must appear in the assembled URL
-	}{
-		{"space", "my pass", "my%20pass"},
-		{"plus sign", "my+pass", "my+pass"},           // '+' is valid in userinfo, no encoding needed
-		{"at sign", "p@ss", "p%40ss"},                  // '@' must be encoded in userinfo
-		{"colon", "p:ss", "p%3Ass"},                    // ':' in password must be encoded
-		{"simple", "simplepass", "simplepass"},          // no special chars
-		{"slash", "p/ss", "p%2Fss"},                    // '/' must be encoded in userinfo
-		{"percent", "100%done", "100%25done"},           // '%' must be encoded
+func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
+	c := &Config{
+		App: AppConfig{
+			Env:             "development",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{
+			DocAESActiveKeyID: 1,
+			DocAESKeys: map[uint8][]byte{
+				1: make([]byte, 32),
+			},
+		},
+		Database: DatabaseConfig{
+			QueryTimeout: 5,
+			MaxConns:     20,
+			MinConns:     2,
+		},
+		Token: TokenConfig{
+			AccessTokenTTL:  300,
+			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		ObjectStorage: ObjectStorageConfig{
+			PresignTTL: 600,
+		},
+		Zitadel: ZitadelConfig{
+			Issuer:       "https://sso.example.com",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
+			ProjectID:    "project-id",
+		},
+		RateLimit: ReviewRateLimitConfig{
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
+		},
+		SMS: SMSConfig{
+			Enabled: true,
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dbURL := assembleDBURL("testuser", tt.password, "localhost", "5432", "testdb", "disable")
-			assert.Contains(t, dbURL, tt.wantSub, "password encoding mismatch")
-			assert.Contains(t, dbURL, "postgres://")
-			assert.Contains(t, dbURL, "sslmode=disable")
-		})
+	err := c.validate(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SMS_SECRET_ID is required when SMS_ENABLED=true")
+	assert.Contains(t, err.Error(), "SMS_INTERNAL_KEY is required when SMS_ENABLED=true")
+}
+
+func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
+	c := &Config{
+		App: AppConfig{
+			Env:             "development",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{
+			DocAESActiveKeyID: 1,
+			DocAESKeys: map[uint8][]byte{
+				1: make([]byte, 32),
+			},
+		},
+		Database: DatabaseConfig{
+			QueryTimeout: 5,
+			MaxConns:     20,
+			MinConns:     2,
+		},
+		Token: TokenConfig{
+			AccessTokenTTL:  300,
+			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		ObjectStorage: ObjectStorageConfig{
+			PresignTTL: 600,
+		},
+		Zitadel: ZitadelConfig{
+			Issuer:       "https://sso.example.com",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
+			ProjectID:    "project-id",
+		},
+		RateLimit: ReviewRateLimitConfig{
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
+		},
+		SMS: SMSConfig{
+			Enabled: false,
+		},
 	}
+
+	require.NoError(t, c.validate(nil))
 }
 
 func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
@@ -262,10 +349,15 @@ func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
 			ProjectID:    "project-id",
 		},
 		RateLimit: ReviewRateLimitConfig{
-			PostLimit:   5,
-			VoteLimit:   30,
-			ReportLimit: 10,
-			ReplyLimit:  10,
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
 		},
 		LDAP: LDAPConfig{
 			URL: "ldaps://ldap.example.com:636",

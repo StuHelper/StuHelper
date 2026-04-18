@@ -42,7 +42,10 @@ func jitteredRetryDelay() time.Duration {
 // cryptoRandFloat64 使用 crypto/rand 生成 [0, 1) 范围的 float64
 func cryptoRandFloat64() float64 {
 	var b [8]byte
-	_, _ = rand.Read(b[:])
+	if _, err := rand.Read(b[:]); err != nil {
+		logger.L().Warn("crypto/rand unavailable, falling back to time-based jitter seed", zap.Error(err))
+		return float64(time.Now().UnixNano()&((1<<53)-1)) / (1 << 53)
+	}
 	return float64(binary.LittleEndian.Uint64(b[:])>>11) / (1 << 53)
 }
 
@@ -126,9 +129,22 @@ type RowWithCancel struct {
 	span   trace.Span
 }
 
+func (r *RowWithCancel) release() {
+	r.row = nil
+	r.cancel = nil
+	r.db = nil
+	r.ctx = nil
+	r.sql = ""
+	r.args = nil
+	r.span = nil
+	r.start = time.Time{}
+}
+
 // Scan 扫描行数据，完成后自动取消 context
 // 对瞬时连接错误自动重试一次
 func (r *RowWithCancel) Scan(dest ...any) error {
+	defer r.release()
+
 	err := r.row.Scan(dest...)
 	duration := time.Since(r.start).Seconds()
 	metrics.DBQueryDuration.WithLabelValues("query_row", "").Observe(duration)
@@ -143,7 +159,9 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 		metrics.DBQueryDuration.WithLabelValues("query_row", "retry").Observe(duration)
 	}
 
-	r.cancel()
+	if r.cancel != nil {
+		r.cancel()
+	}
 	status := "ok"
 	if err != nil {
 		status = "error"

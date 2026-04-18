@@ -123,10 +123,10 @@ import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import { Star, Users, ChevronDown } from 'lucide-vue-next'
 import { api } from '@/api'
-import type { CourseRatingStatsResponse } from '@/types/course'
+import type { CourseRatingStatsResponse } from '@stuhelper/shared/course'
 import { useThemeStore } from '@/stores/theme'
 import RatingDisplay from './RatingDisplay.vue'
-import { withAlpha } from '@/utils/color'
+import { withAlpha } from '@stuhelper/shared/utils'
 
 use([RadarChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -261,7 +261,7 @@ const fetchData = async () => {
   try {
     const res = await api.rating.getCourseStats(props.courseID)
     ratingStats.value = res.data?.data ?? null
-  } catch {
+  } catch (_error) { void _error;
     // 评分统计加载失败，UI 显示空状态
   } finally {
     loading.value = false

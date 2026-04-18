@@ -30,7 +30,7 @@ pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 
 | 层 | 技术 |
 |----|------|
-| 后端 | Go 1.26+ / Gin / pgx / PostgreSQL 17 / Redis 7 |
+| 后端 | Go 1.26+ / Gin / pgx / PostgreSQL 18 / Redis 8 |
 | 前端 | Vue 3.5+ / TypeScript 5+ / Vite 6+ / Element Plus / Pinia |
 | 管理后台 | Vben Admin 5（Element Plus 变体） |
 | 认证 | Zitadel OIDC |

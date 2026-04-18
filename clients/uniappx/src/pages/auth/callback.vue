@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { SSO_STATE_STORAGE_KEY, validateStoredSSOState } from '@/auth/sso-state'
 import { useAuthStore } from '@/stores/auth'
 import { translate } from '@/i18n'
 
@@ -20,14 +21,20 @@ onLoad(async (options) => {
   }
 
   // 校验 state 与发起 SSO 时存储的一致
-  let savedState = ''
+  let savedState: unknown = ''
   try {
-    savedState = uni.getStorageSync('stuhelper:sso-state') as string
-  } catch {
-    // ignore
+    savedState = uni.getStorageSync(SSO_STATE_STORAGE_KEY)
+  } catch (_error) { void _error;
+    savedState = ''
   }
 
-  if (savedState && savedState !== state) {
+  try {
+    uni.removeStorageSync(SSO_STATE_STORAGE_KEY)
+  } catch (_error) { void _error;
+    // best-effort cleanup; validation above already fails closed
+  }
+
+  if (!validateStoredSSOState(savedState, state).ok) {
     status.value = 'error'
     errorMessage.value = t('auth.callback.stateMismatch')
     return
@@ -36,13 +43,6 @@ onLoad(async (options) => {
   try {
     // 用授权码换取 token 并持久化
     await authStore.exchangeNativeCode(code, state)
-
-    // 清除已使用的 state
-    try {
-      uni.removeStorageSync('stuhelper:sso-state')
-    } catch {
-      // ignore
-    }
 
     status.value = 'success'
     uni.showToast({ title: t('auth.login.success'), icon: 'success' })

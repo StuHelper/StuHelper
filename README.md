@@ -11,6 +11,8 @@ make dev-up
 
 自动启动 PostgreSQL / Redis / Zitadel / OpenFGA / MinIO，执行迁移和 seed，启动热重载（后端 `air`，前端 `Vite`）。
 
+前置工具：Docker / Docker Compose、Go 1.26+、Node.js 24+ / pnpm 10+、Python 3（供环境渲染与运维脚本使用）。
+
 ```bash
 make dev-status   # 端口和进程
 make dev-logs     # 热重载日志
@@ -66,7 +68,7 @@ make ansible-rollback-prod      # Ansible 回滚
 | 后端 | Go 1.26+ / Gin / pgx |
 | 前端 | Vue 3.5+ / TypeScript 5+ / Vite 6+ / Pinia |
 | 管理后台 | Vben Admin（Element Plus 变体） |
-| 数据库 | PostgreSQL 17 / Redis 7 |
+| 数据库 | PostgreSQL 18 / Redis 8 |
 | 对象存储 | S3 兼容（默认 MinIO） |
 | 认证 | Zitadel OIDC |
 | 资源授权 | OpenFGA |

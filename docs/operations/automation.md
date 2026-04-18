@@ -84,7 +84,7 @@ make prod-deploy
 - `.env.prod.shared`：共享配置
 - `.env.prod.secrets.local`：本机或临时环境使用的 secrets 文件
 - `.env.prod.generated`：运行时派生配置
-- `.env.prod.generated.secrets`：运行时派生 secrets（生产链路使用，避免与开发 `.env.generated.secrets` 混用）
+- `.env.prod.generated.secrets`：生产保留空占位；真实运行时派生 secrets 写入远端 secret backend，避免本地明文落盘
 
 `make prod-deploy` 会自动完成：
 
@@ -103,10 +103,10 @@ make prod-deploy
 
 - 目标机自持 `${DEPLOY_APP_DIR}/.deploy/remote.env`
 - 目标机自持 `${DEPLOY_APP_DIR}/.env.prod.shared` / `${DEPLOY_APP_DIR}/.env.prod.secrets`
-- 运行时派生 secrets：`${DEPLOY_APP_DIR}/.env.prod.generated.secrets`（由 bootstrap/runtime 维护，不手工编辑）
-- 目标机自持 registry 凭据文件（默认 file backend）：
-  - `${DEPLOY_APP_DIR}/.secrets/registry/username`
-  - `${DEPLOY_APP_DIR}/.secrets/registry/password`
+- 运行时派生 secrets 通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend；`${DEPLOY_APP_DIR}/.env.prod.generated.secrets` 仅保留空占位文件
+- 目标机自持 Vault token 文件：
+  - `${DEPLOY_APP_DIR}/.secrets/vault/token`
+- registry / shared env / generated env secrets 都由 `${DEPLOY_APP_DIR}/.deploy/remote.env` 中的 secret ref 决定（默认 `SECRET_BACKEND=vault-kv-v2`）
 - CI / Ansible 仅传：`TAG`、`BACKEND_IMAGE_REF`、`FRONTEND_IMAGE_REF`、`ADMIN_IMAGE_REF`、`ROLLBACK_TAG`
 
 如果远端部署控制面变更，直接在目标机执行：
@@ -142,7 +142,7 @@ make prod-reset
 
 - `.env.generated`
 - `.env.prod.generated`
-- `.env.prod.generated.secrets`
+- `.env.prod.generated.secrets`（生产为空占位）
 - `infra/generated/observability/prometheus/prometheus.yml`
 - `infra/generated/observability/alertmanager/alertmanager.yml`
 - `.deploy/releases.log`
@@ -186,7 +186,7 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 
 - 部署目录
 - `.deploy/remote.env`
-- `.secrets/registry/*` 占位文件
+- `.secrets/vault/token` 占位文件
 - PostgreSQL 逻辑备份 timer
 - PostgreSQL base backup timer
 - PostgreSQL backup sync timer
@@ -219,9 +219,8 @@ GitLab CI 至少需要以下变量：
 - `${DEPLOY_APP_DIR}/.deploy/remote.env`
 - `${DEPLOY_APP_DIR}/.env.prod.shared`
 - `${DEPLOY_APP_DIR}/.env.prod.secrets`
-- `${DEPLOY_APP_DIR}/.env.prod.generated.secrets`
-- `${DEPLOY_APP_DIR}/.secrets/registry/username`
-- `${DEPLOY_APP_DIR}/.secrets/registry/password`
+- `${DEPLOY_APP_DIR}/.env.prod.generated.secrets`（应为空占位）
+- `${DEPLOY_APP_DIR}/.secrets/vault/token`
 
 ## GitLab 环境流转
 

@@ -13,6 +13,8 @@ require_cmd jq
 require_cmd python3
 require_cmd go
 
+dev_up_mode="${DEV_UP_MODE:-local}"
+
 ensure_dev_runtime_dirs
 ensure_node_toolchain
 "${SCRIPT_DIR}/init-dev-env.sh"
@@ -42,15 +44,35 @@ compose up --no-deps minio-init
 log "bootstrapping platform identities and authorization model"
 "${SCRIPT_DIR}/bootstrap-platform.sh" dev
 
-log "ensuring dockerized dev app containers are stopped"
-compose --profile dev-full stop app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
-compose --profile dev-full rm -f app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
-kill_all_dev_processes
-
 if [[ "${WITH_OBSERVABILITY:-false}" == "true" ]]; then
   log "starting observability stack for development"
   compose --profile observability up -d --wait alloy prometheus alertmanager loki tempo grafana node-exporter cadvisor postgres-exporter redis-exporter blackbox-exporter
 fi
+
+if [[ "${dev_up_mode}" == "dockerized" ]]; then
+  log "ensuring local hot-reload processes are stopped"
+  kill_all_dev_processes
+
+  log "starting full dockerized development stack"
+  compose --profile dev-full up -d --wait app-dev frontend-dev admin-dev
+
+  wait_for_http "backend" "http://127.0.0.1:8080/health/ready" 120 2
+  wait_for_http "frontend" "http://127.0.0.1:3000/" 180 2
+  wait_for_http "admin" "http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}/admin/" 240 2
+
+  log "dockerized development stack is ready"
+  echo "  Web:        http://127.0.0.1:3000"
+  echo "  Admin:      http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}/admin/"
+  echo "  Backend:    http://127.0.0.1:8080"
+  echo "  Zitadel:    http://127.0.0.1:${ZITADEL_EXTERNALPORT:-8085}"
+  echo "  Generated:  ${GENERATED_ENV_FILE}"
+  exit 0
+fi
+
+log "ensuring dockerized dev app containers are stopped"
+compose --profile dev-full stop app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
+compose --profile dev-full rm -f app-dev frontend-dev admin-dev >/dev/null 2>&1 || true
+kill_all_dev_processes
 
 ensure_pnpm_workspace \
   "${REPO_ROOT}/clients" \
@@ -78,6 +100,7 @@ backend_cmd="
   export DATABASE_URL='postgresql://${STUHELPER_APP_DB_USER:-stuhelper_app}:${STUHELPER_APP_DB_PASSWORD}@localhost:5432/${POSTGRES_DB:-stuhelper}?sslmode=disable' && \
   export REDIS_HOST='localhost' && \
   export REDIS_PORT='6379' && \
+  export REDIS_USERNAME='${REDIS_USERNAME:-stuhelper_app}' && \
   export REDIS_PASSWORD='${REDIS_PASSWORD}' && \
   export REDIS_TLS_ENABLED='true' && \
   export REDIS_TLS_CA='${REPO_ROOT}/infra/generated/redis/ca.crt' && \

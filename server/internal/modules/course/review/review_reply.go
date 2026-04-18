@@ -1,15 +1,11 @@
 package review
 
 import (
-	"errors"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -22,14 +18,9 @@ func (h *Handler) GetReplies(c *gin.Context) {
 	}
 	page, pageSize := httputil.ParsePage(c)
 
-	var userHash string
-	if userID := middleware.GetUserID(c); userID != "" {
-		var hashErr error
-		userHash, hashErr = httputil.HashUserID(userID)
-		if hashErr != nil {
-			response.InternalError(c, "failed to hash user identity")
-			return
-		}
+	userHash, ok := h.resolveOptionalUserHash(c)
+	if !ok {
+		return
 	}
 
 	result, err := h.service.GetReplies(c.Request.Context(), GetRepliesParams{
@@ -67,10 +58,8 @@ func (h *Handler) CreateReply(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -81,19 +70,11 @@ func (h *Handler) CreateReply(c *gin.Context) {
 		Content:  req.Content,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
-		case errors.Is(err, ErrDangerousContent):
-			response.BadRequest(c, "content contains dangerous elements")
-		case errors.Is(err, ErrSensitiveContent):
-			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
-		case errors.Is(err, ErrModerationUnavailable):
-			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
-		default:
-			logger.FromGin(c).Error("failed to create reply", zap.Error(err))
-			response.InternalError(c, "failed to create reply")
+		if respondCreateReplyError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to create reply", zap.Error(err))
+		response.InternalError(c, "failed to create reply")
 		return
 	}
 
@@ -109,10 +90,8 @@ func (h *Handler) DeleteReply(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -121,15 +100,11 @@ func (h *Handler) DeleteReply(c *gin.Context) {
 		UserHash: userHash,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReplyNotFound):
-			response.NotFound(c, "reply not found", errs.ErrReplyNotFound)
-		case errors.Is(err, ErrNotReplyOwner):
-			response.Forbidden(c, "you can only delete your own reply", errs.ErrNotReplyOwner)
-		default:
-			logger.FromGin(c).Error("failed to delete reply", zap.Error(err))
-			response.InternalError(c, "failed to delete reply")
+		if respondDeleteReplyError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to delete reply", zap.Error(err))
+		response.InternalError(c, "failed to delete reply")
 		return
 	}
 

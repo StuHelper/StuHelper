@@ -54,7 +54,7 @@ const handleClick = async () => {
   loading.value = true
   try {
     await userStore.toggleFavorite(props.courseID)
-  } catch {
+  } catch (_error) { void _error;
     toast.error(t('review.favorite.failed'))
   } finally {
     loading.value = false

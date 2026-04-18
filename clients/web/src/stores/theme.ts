@@ -14,7 +14,7 @@ const VALID_MODES: ThemeMode[] = ['light', 'dark', 'system']
 function safeGetStorageItem(key: string): string | null {
   try {
     return localStorage.getItem(key)
-  } catch {
+  } catch (_error) { void _error;
     return null
   }
 }
@@ -23,7 +23,7 @@ function safeGetStorageItem(key: string): string | null {
 function safeSetStorageItem(key: string, value: string): void {
   try {
     localStorage.setItem(key, value)
-  } catch {
+  } catch (_error) { void _error;
     // 隐私模式或存储已满，降级为内存存储
   }
 }

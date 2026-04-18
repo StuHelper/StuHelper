@@ -65,18 +65,7 @@ func reportRelationsSyncKey(reportID string) string {
 	return "report-relations:" + reportID
 }
 
-func (s *Service) SetFGAWriter(writer reviewFGAWriter) {
-	s.fgaWriter = writer
-}
-
 func (s *Service) enqueueReviewFGASyncTx(ctx context.Context, tx pgx.Tx, reviewID, authorUserID string, courseID, schoolID int64) error {
-	if s.fgaWriter == nil {
-		return nil
-	}
-	repo, ok := any(s.repo).(reviewFGASyncRepo)
-	if !ok {
-		return fmt.Errorf("repository does not support review FGA sync outbox")
-	}
 	payload, err := json.Marshal(reviewRelationsSyncPayload{
 		ReviewID:     reviewID,
 		AuthorUserID: authorUserID,
@@ -86,17 +75,10 @@ func (s *Service) enqueueReviewFGASyncTx(ctx context.Context, tx pgx.Tx, reviewI
 	if err != nil {
 		return fmt.Errorf("marshal review FGA sync payload: %w", err)
 	}
-	return repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReviewRelations, reviewRelationsSyncKey(reviewID), payload)
+	return s.repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReviewRelations, reviewRelationsSyncKey(reviewID), payload)
 }
 
 func (s *Service) enqueueReportFGASyncTx(ctx context.Context, tx pgx.Tx, reportID, reporterUserID, reviewID string, schoolID int64) error {
-	if s.fgaWriter == nil {
-		return nil
-	}
-	repo, ok := any(s.repo).(reviewFGASyncRepo)
-	if !ok {
-		return fmt.Errorf("repository does not support review FGA sync outbox")
-	}
 	payload, err := json.Marshal(reportRelationsSyncPayload{
 		ReportID:       reportID,
 		ReporterUserID: reporterUserID,
@@ -106,18 +88,11 @@ func (s *Service) enqueueReportFGASyncTx(ctx context.Context, tx pgx.Tx, reportI
 	if err != nil {
 		return fmt.Errorf("marshal report FGA sync payload: %w", err)
 	}
-	return repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReportRelations, reportRelationsSyncKey(reportID), payload)
+	return s.repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReportRelations, reportRelationsSyncKey(reportID), payload)
 }
 
 func (s *Service) StartBackgroundJobs(ctx context.Context) {
-	if s.fgaWriter == nil {
-		return
-	}
-	if _, ok := any(s.repo).(reviewFGASyncRepo); !ok {
-		logger.L().Warn("review FGA sync worker disabled: repository does not support outbox")
-		return
-	}
-
+	s.asyncCtx = ctx
 	go s.runFGASyncWorker(ctx)
 }
 
@@ -139,12 +114,7 @@ func (s *Service) runFGASyncWorker(ctx context.Context) {
 }
 
 func (s *Service) processFGASyncBatch(ctx context.Context) error {
-	repo, ok := any(s.repo).(reviewFGASyncRepo)
-	if !ok {
-		return nil
-	}
-
-	jobs, err := repo.ClaimFGASyncJobs(ctx, fgaSyncBatchSize, fgaSyncLockStaleAfter)
+	jobs, err := s.repo.ClaimFGASyncJobs(ctx, fgaSyncBatchSize, fgaSyncLockStaleAfter)
 	if err != nil {
 		return fmt.Errorf("claim review FGA sync jobs: %w", err)
 	}
@@ -156,7 +126,7 @@ func (s *Service) processFGASyncBatch(ctx context.Context) error {
 				backoff = fgaSyncMaxBackoff
 			}
 			nextAttemptAt := time.Now().Add(backoff)
-			markErr := repo.MarkFGASyncJobRetry(ctx, job.ID, nextAttemptAt, truncateFGASyncError(err))
+			markErr := s.repo.MarkFGASyncJobRetry(ctx, job.ID, nextAttemptAt, truncateFGASyncError(err))
 			if markErr != nil {
 				logger.L().Error("failed to mark review FGA sync job retry",
 					zap.Int64("job_id", job.ID),
@@ -174,7 +144,7 @@ func (s *Service) processFGASyncBatch(ctx context.Context) error {
 			continue
 		}
 
-		if err := repo.MarkFGASyncJobDone(ctx, job.ID); err != nil {
+		if err := s.repo.MarkFGASyncJobDone(ctx, job.ID); err != nil {
 			return fmt.Errorf("mark review FGA sync job done: %w", err)
 		}
 	}
@@ -183,10 +153,6 @@ func (s *Service) processFGASyncBatch(ctx context.Context) error {
 }
 
 func (s *Service) processFGASyncJob(ctx context.Context, job FGASyncJob) error {
-	if s.fgaWriter == nil {
-		return nil
-	}
-
 	switch job.JobType {
 	case fgaSyncJobTypeReviewRelations:
 		var payload reviewRelationsSyncPayload

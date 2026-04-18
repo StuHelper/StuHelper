@@ -37,7 +37,7 @@ DATABASE_URL='postgres://...' make seed-dev
 - `docker compose --profile dev-full up -d`
   - 会自动启动 `migrate-dev` 服务并应用 `server/migrations/*.sql`
   - 会额外执行 `seed-dev` 一次性服务
-- `docker compose --profile prod up -d`
+- `docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod up -d`
   - 会自动启动 `migrate` 服务并应用迁移
   - **不会**执行任何 seed
 

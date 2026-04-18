@@ -12,8 +12,12 @@ export const createAuthApi = (client: ApiClient) => ({
     return client.GET('/api/v1/auth/login', Object.keys(query).length > 0 ? { params: { query } } : undefined)
   },
 
-  signup: (redirect?: string) =>
-    client.GET('/api/v1/auth/signup', redirect ? { params: { query: { redirect } } } : undefined),
+  signup: (redirect?: string, platform?: string) => {
+    const query: Record<string, string> = {}
+    if (redirect) query.redirect = redirect
+    if (platform) query.platform = platform
+    return client.GET('/api/v1/auth/signup', Object.keys(query).length > 0 ? { params: { query } } : undefined)
+  },
 
   refresh: () =>
     client.POST('/api/v1/auth/refresh'),
@@ -33,8 +37,8 @@ export const createAuthApi = (client: ApiClient) => ({
   verifyPhoneOTP: (phone: string, code: string) =>
     client.POST('/api/v1/auth/phone/verify-otp', { body: { phone, code } }),
 
-  exchangeNative: (code: string, state: string, codeVerifier: string) =>
-    client.POST('/api/v1/auth/exchange-native', { body: { code, state, code_verifier: codeVerifier } }),
+  exchangeNative: (code: string, state: string) =>
+    client.POST('/api/v1/auth/exchange-native', { body: { code, state } }),
 })
 
 export type {

@@ -28,7 +28,6 @@ type currentUserPayload struct {
 // GetCurrentUser 获取当前用户信息（从 AuthMiddleware 注入的 context 读取）
 func (h *Handler) GetCurrentUser(c *gin.Context) {
 	roles := middleware.GetRoles(c)
-	capabilities := middleware.GetCapabilities(c)
 	avatar := middleware.GetAvatar(c)
 	response.Success(c, h.buildUserPayload(
 		middleware.GetUserID(c),
@@ -37,16 +36,17 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 		middleware.GetEmail(c),
 		nullableString(avatar),
 		roles,
-		capabilities,
+		middleware.GetCapabilityGrants(c),
 	))
 }
 
 func (h *Handler) buildUserPayload(
 	userID, username, displayName, email string,
 	avatar *string,
-	roles, capabilities []string,
+	roles []string,
+	grants []capability.Grant,
 ) currentUserPayload {
-	snapshot := buildAccessSnapshot(capabilities)
+	snapshot := capability.BuildUserAccessSnapshot(grants)
 	var accountURL string
 	if h.oidcIssuer != "" {
 		accountURL = strings.TrimRight(h.oidcIssuer, "/") + "/ui/v2/login/password/change"
@@ -68,14 +68,6 @@ func (h *Handler) buildUserPayload(
 	}
 }
 
-func buildAccessSnapshot(capabilities []string) capability.UserAccessSnapshot {
-	grants := make([]capability.Grant, 0, len(capabilities))
-	for _, capName := range capabilities {
-		grants = append(grants, capability.Grant{Name: capName})
-	}
-	return capability.BuildUserAccessSnapshot(grants)
-}
-
 func hasRole(roles []string, expected string) bool {
 	for _, role := range roles {
 		if role == expected {
@@ -83,6 +75,10 @@ func hasRole(roles []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+func buildAccessSnapshotForRoles(roles []string, orgScopedRoles map[string][]string) capability.UserAccessSnapshot {
+	return capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, orgScopedRoles))
 }
 
 func nullableString(value string) *string {

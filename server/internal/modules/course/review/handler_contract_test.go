@@ -2,14 +2,13 @@ package review
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +16,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
 func init() {
@@ -29,28 +29,18 @@ type contractResponse struct {
 	Error   *response.APIError `json:"error,omitempty"`
 }
 
-// setupContractRedis 创建 miniredis 实例和 Redis 客户端
-func setupContractRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
+// setupContractRedis 创建共享 Redis fixture。
+func setupContractRedis(t *testing.T) *redisfixture.Fixture {
 	t.Helper()
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	t.Cleanup(func() { mr.Close() })
-
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() {
-		if err := rdb.Close(); err != nil {
-			t.Logf("redis close error: %v", err)
-		}
-	})
-
-	return rdb, mr
+	return redisfixture.Start(t)
 }
 
 // setupContractRouter 创建带中间件的测试路由
 // 注意：不注入真实 DB 和 SSO client，仅测试中间件层的 HTTP 契约
-func setupContractRouter(t *testing.T, rdb *redis.Client, tokenSvc *token.Service) *gin.Engine {
+func setupContractRouter(t *testing.T, rdb *redisfixture.Fixture, tokenSvc *token.Service) *gin.Engine {
 	t.Helper()
 	r := gin.New()
+	reviewID := "review-123"
 
 	// 测试用 auth 中间件：只检查 Cookie 中有 token 且不在黑名单，不做 OIDC 验证
 	authMW := func(c *gin.Context) {
@@ -72,7 +62,7 @@ func setupContractRouter(t *testing.T, rdb *redis.Client, tokenSvc *token.Servic
 	}
 	csrfMW := middleware.CSRFMiddleware()
 
-	limiter := middleware.NewRedisRateLimiter(rdb, 2, time.Minute) // PostLimit=2
+	limiter := middleware.NewRedisRateLimiter(rdb.Client, 2, time.Minute) // PostLimit=2
 
 	api := r.Group("/api/v1/course/review")
 	{
@@ -88,7 +78,7 @@ func setupContractRouter(t *testing.T, rdb *redis.Client, tokenSvc *token.Servic
 				c.JSON(http.StatusCreated, gin.H{"success": true})
 			})
 
-		api.POST("/reviews/test-id/votes", authMW,
+		api.POST("/reviews/"+reviewID+"/votes", authMW,
 			middleware.EndpointRateLimitMiddleware(limiter, "vote"),
 			func(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"success": true})
@@ -100,16 +90,16 @@ func setupContractRouter(t *testing.T, rdb *redis.Client, tokenSvc *token.Servic
 
 // TestContract_401_NoToken 未携带 token 访问受保护端点返回 401
 func TestContract_401_NoToken(t *testing.T) {
-	rdb, _ := setupContractRedis(t)
-	tokenSvc := token.NewServiceForTest(rdb)
-	r := setupContractRouter(t, rdb, tokenSvc)
+	redisFixture := setupContractRedis(t)
+	tokenSvc := token.NewServiceForTest(redisFixture.Client)
+	r := setupContractRouter(t, redisFixture, tokenSvc)
 
 	endpoints := []struct {
 		method string
 		path   string
 	}{
 		{http.MethodPost, "/api/v1/course/review/reviews"},
-		{http.MethodPost, "/api/v1/course/review/reviews/test-id/votes"},
+		{http.MethodPost, fmt.Sprintf("/api/v1/course/review/reviews/%s/votes", "review-123")},
 	}
 
 	for _, ep := range endpoints {
@@ -131,9 +121,9 @@ func TestContract_401_NoToken(t *testing.T) {
 
 // TestContract_403_NoCSRF 缺少 CSRF token 的写请求返回 403
 func TestContract_403_NoCSRF(t *testing.T) {
-	rdb, _ := setupContractRedis(t)
-	tokenSvc := token.NewServiceForTest(rdb)
-	r := setupContractRouter(t, rdb, tokenSvc)
+	redisFixture := setupContractRedis(t)
+	tokenSvc := token.NewServiceForTest(redisFixture.Client)
+	r := setupContractRouter(t, redisFixture, tokenSvc)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/course/review/reviews", nil)
@@ -152,9 +142,9 @@ func TestContract_403_NoCSRF(t *testing.T) {
 
 // TestContract_429_RateLimited 超过限流阈值返回 429
 func TestContract_429_RateLimited(t *testing.T) {
-	rdb, _ := setupContractRedis(t)
-	tokenSvc := token.NewServiceForTest(rdb)
-	r := setupContractRouter(t, rdb, tokenSvc)
+	redisFixture := setupContractRedis(t)
+	tokenSvc := token.NewServiceForTest(redisFixture.Client)
+	r := setupContractRouter(t, redisFixture, tokenSvc)
 
 	validToken := "test-valid-token"
 	csrfToken := "test-csrf-token"
@@ -185,9 +175,9 @@ func TestContract_429_RateLimited(t *testing.T) {
 
 // TestContract_200_PublicEndpoint 公开端点无需认证返回 200
 func TestContract_200_PublicEndpoint(t *testing.T) {
-	rdb, _ := setupContractRedis(t)
-	tokenSvc := token.NewServiceForTest(rdb)
-	r := setupContractRouter(t, rdb, tokenSvc)
+	redisFixture := setupContractRedis(t)
+	tokenSvc := token.NewServiceForTest(redisFixture.Client)
+	r := setupContractRouter(t, redisFixture, tokenSvc)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/course/review/stats", nil)

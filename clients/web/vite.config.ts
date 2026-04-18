@@ -23,6 +23,7 @@ export default defineConfig({
     })
   ],
   resolve: {
+    dedupe: ['vue', '@vue/runtime-core', '@vue/runtime-dom', '@vue/reactivity', '@vue/shared'],
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       // @stuhelper/shared 及其子路径统一解析到 shared 源码（source-first，D-15）
@@ -35,6 +36,18 @@ export default defineConfig({
       '/api': {
         target: devProxyTarget,
         changeOrigin: true
+      }
+    }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/echarts/') || id.includes('/node_modules/zrender/')) {
+            return 'echarts'
+          }
+          return undefined
+        }
       }
     }
   }

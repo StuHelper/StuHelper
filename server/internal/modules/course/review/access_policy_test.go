@@ -1,23 +1,41 @@
 package review
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
+type fakeReviewAccessReader struct {
+	subject *reviewaccess.Subject
+}
+
+func (f fakeReviewAccessReader) ListReviewAccessSchoolConfigs(context.Context) ([]reviewaccess.SchoolConfig, error) {
+	return []reviewaccess.SchoolConfig{{SchoolID: 10006}}, nil
+}
+
+func (f fakeReviewAccessReader) ListReviewAccessSystemConfigs(context.Context) ([]reviewaccess.SystemConfig, error) {
+	return nil, nil
+}
+
+func (f fakeReviewAccessReader) GetReviewAccessSubject(context.Context, string) (*reviewaccess.Subject, error) {
+	return f.subject, nil
+}
+
 func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
-		[]user.SchoolConfig{
-			{SchoolID: 10006, Enabled: true},
-			{SchoolID: 10007, Enabled: true},
+		[]reviewaccess.SchoolConfig{
+			{SchoolID: 10006},
+			{SchoolID: 10007},
 		},
-		[]user.SystemConfig{
+		[]reviewaccess.SystemConfig{
 			{Key: systemconfig.ReviewAccessSchoolIDsKey, Value: `["10007","10008"]`},
 			{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: "36"},
 			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: "180"},
@@ -36,11 +54,11 @@ func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 
 func TestBuildReviewAccessPolicy_UsesEnabledSchoolsAndPreviewKeys(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
-		[]user.SchoolConfig{
-			{SchoolID: 10006, Enabled: true},
-			{SchoolID: 10007, Enabled: true},
+		[]reviewaccess.SchoolConfig{
+			{SchoolID: 10006},
+			{SchoolID: 10007},
 		},
-		[]user.SystemConfig{
+		[]reviewaccess.SystemConfig{
 			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: "96"},
 			{Key: systemconfig.ReviewPreviewContentPercentKey, Value: "25"},
 		},
@@ -58,4 +76,41 @@ func TestPreviewText_RespectsConfiguredPercent(t *testing.T) {
 	value := strings.Repeat("评", 200)
 	preview := previewText(value, 120, 20)
 	assert.Equal(t, strings.Repeat("评", 40)+"...", preview)
+}
+
+func TestResolveAccessFacts_RequiresCapabilityAndVerificationFacts(t *testing.T) {
+	service := &Service{
+		accessReader: fakeReviewAccessReader{
+			subject: &reviewaccess.Subject{
+				IdentityVerified: true,
+				StudentVerified:  true,
+				SchoolID:         int64Ptr(10006),
+			},
+		},
+	}
+
+	facts, err := service.ResolveAccessFacts(context.Background(), "user-1", []string{
+		capability.ReviewListFull,
+		capability.ReviewCreate,
+		capability.ReviewEditOwn,
+		capability.ReviewDeleteOwn,
+	})
+	require.NoError(t, err)
+	assert.True(t, facts.CanViewFull)
+	assert.True(t, facts.CanPostReview)
+	assert.True(t, facts.CanEditOwn)
+	assert.True(t, facts.CanDeleteOwn)
+
+	facts, err = service.ResolveAccessFacts(context.Background(), "user-1", []string{
+		capability.ReviewListFull,
+	})
+	require.NoError(t, err)
+	assert.True(t, facts.CanViewFull)
+	assert.False(t, facts.CanPostReview)
+	assert.False(t, facts.CanEditOwn)
+	assert.False(t, facts.CanDeleteOwn)
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
 }

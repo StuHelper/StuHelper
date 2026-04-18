@@ -4,7 +4,6 @@ import {
     type RouteRecordRaw,
 } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import { useReviewPost } from "@/composables/useReviewPost";
 import { isTokenExpired } from "@/utils/auth";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
@@ -409,8 +408,6 @@ router.beforeEach(async (to) => {
 });
 
 router.afterEach(() => {
-    const { showPostModal, closePostModal } = useReviewPost();
-    if (showPostModal.value) closePostModal();
     // 导航成功说明 chunk 加载正常，清除重试标记
     sessionStorage.removeItem(CHUNK_RELOAD_KEY);
 });

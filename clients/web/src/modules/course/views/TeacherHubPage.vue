@@ -68,7 +68,7 @@ async function doSearch() {
     const data = res.data?.data
     searchResults.value = (data?.list ?? []).map(mapTeacher)
     searchTotal.value = data?.total ?? 0
-  } catch {
+  } catch (_error) { void _error;
     searchResults.value = []
     searchTotal.value = 0
   } finally {

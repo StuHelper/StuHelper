@@ -45,25 +45,41 @@ export const useAuthStore = defineStore('auth', () => {
       sessionForbidden.value = false;
 
       // 先用 baseRequestClient 探测 session 是否存在
-      const me = await tryGetMe();
-      if (!me) {
+      const probe = await tryGetMe();
+      const clearAccess = () => {
         userStore.setUserInfo(null);
         accessStore.setAccessToken(null);
         accessStore.setAccessCodes([]);
         accessStore.setAccessMenus([]);
         accessStore.setAccessRoutes([]);
         accessStore.setIsAccessChecked(false);
+      };
+
+      if (probe.kind === 'unauthenticated') {
+        clearAccess();
         return null;
       }
 
+      if (probe.kind === 'forbidden') {
+        sessionForbidden.value = true;
+        clearAccess();
+        return null;
+      }
+
+      if (probe.kind === 'retryable_error' || probe.kind === 'fatal_error') {
+        clearAccess();
+        ElNotification({
+          message: $t(probe.message),
+          title: $t('authentication.loginFailed'),
+          type: 'error',
+        });
+        throw new Error($t(probe.message));
+      }
+
+      const me = probe.me;
       if (!me.canAccessAdmin) {
         sessionForbidden.value = true;
-        accessStore.setAccessToken(null);
-        accessStore.setAccessCodes([]);
-        accessStore.setAccessMenus([]);
-        accessStore.setAccessRoutes([]);
-        accessStore.setIsAccessChecked(false);
-        userStore.setUserInfo(null);
+        clearAccess();
         return null;
       }
 
@@ -93,7 +109,8 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       return userInfo;
-    } catch {
+    } catch (error) {
+      console.warn('[admin-auth] initSession failed unexpectedly', error);
       return null;
     } finally {
       loginLoading.value = false;
@@ -104,7 +121,7 @@ export const useAuthStore = defineStore('auth', () => {
    * 兼容 Vben 原有 authLogin 接口
    */
   async function authLogin(
-    _params: Record<string, any>,
+    _params: Record<string, unknown>,
     onSuccess?: () => Promise<void> | void,
   ) {
     const userInfo = await initSession();
@@ -128,8 +145,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout(redirect: boolean = true) {
     try {
       await logoutApi();
-    } catch {
-      // ignore
+    } catch (error) {
+      console.warn('[admin-auth] logout API failed', error);
     }
     sessionForbidden.value = false;
     resetAllStores();

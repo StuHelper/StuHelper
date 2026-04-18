@@ -5,35 +5,35 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // Handler 学习中心处理器
 type Handler struct {
-	db            *db.DB
 	cache         *cache.Helper
 	service       *Service
 	reviewHandler *review.Handler
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, cacheHelper *cache.Helper, rdb *redis.Client, cfg *config.Config, fgaClient *fga.Client, notifSender notification.Sender, accessReader review.ReviewAccessReader) *Handler {
-	repo := NewRepository(database)
-	svc := NewService(repo, logger.L().Named("course_service"))
+func NewHandler(cacheHelper *cache.Helper, service *Service, reviewHandler *review.Handler) *Handler {
+	if cacheHelper == nil {
+		panic("course.NewHandler: cacheHelper must not be nil")
+	}
+	if service == nil {
+		panic("course.NewHandler: service must not be nil")
+	}
+	if reviewHandler == nil {
+		panic("course.NewHandler: reviewHandler must not be nil")
+	}
 	return &Handler{
-		db:            database,
 		cache:         cacheHelper,
-		service:       svc,
-		reviewHandler: review.NewHandler(database, cacheHelper, rdb, cfg.RateLimit, fgaClient, notifSender, accessReader),
+		service:       service,
+		reviewHandler: reviewHandler,
 	}
 }
 

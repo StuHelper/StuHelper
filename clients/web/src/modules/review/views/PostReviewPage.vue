@@ -332,9 +332,9 @@ import {
   REVIEW_TITLE_MAX_LENGTH,
   REVIEW_CONTENT_MIN_LENGTH,
   REVIEW_CONTENT_MAX_LENGTH,
-} from '@/constants/review'
-import type { Course, TeacherStats, Term } from '@/types/course'
-import type { ReviewRatings } from '@/types/review'
+} from '@stuhelper/shared/constants'
+import type { Course, TeacherStats, Term } from '@stuhelper/shared/course'
+import type { ReviewRatings } from '@stuhelper/shared/review'
 
 const route = useRoute()
 const router = useRouter()
@@ -387,7 +387,7 @@ async function fetchTerms() {
       const options = buildTermOptions(terms.value)
       termID.value = options[0]?.id || ''
     }
-  } catch {
+  } catch (_error) { void _error;
     terms.value = []
   }
 }
@@ -399,7 +399,7 @@ async function fetchTeachers(courseID: number) {
   try {
     const res = await api.rating.getCourseTeachers(courseID)
     teachers.value = res.data?.data ?? []
-  } catch {
+  } catch (_error) { void _error;
     teachers.value = []
   } finally {
     teachersLoading.value = false
@@ -521,7 +521,7 @@ onMounted(async () => {
         selectedCourse.value = data
         courseSearch.query.value = data.name
       }
-    } catch {
+    } catch (_error) { void _error;
       // Course not found via route param, user can search manually
     }
   }
@@ -609,7 +609,7 @@ async function handleSubmit() {
 
     // Navigate to the course reviews page
     router.push({ name: 'course-reviews', params: { id: selectedCourse.value!.id } })
-  } catch {
+  } catch (_error) { void _error;
     toast.error(t('review.post.failed'))
   } finally {
     submitting.value = false

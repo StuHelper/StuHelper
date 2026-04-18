@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -100,5 +101,36 @@ func TestProcessFGASyncJob_PropagatesWriterError(t *testing.T) {
 	})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("expected %v, got %v", wantErr, err)
+	}
+}
+
+func TestProcessFGASyncJob_InvalidPayloadAndUnsupportedType(t *testing.T) {
+	service := &Service{fgaWriter: &fakeReviewFGAWriter{}}
+
+	err := service.processFGASyncJob(context.Background(), FGASyncJob{
+		JobType: fgaSyncJobTypeReviewRelations,
+		Payload: []byte("{bad-json"),
+	})
+	if err == nil {
+		t.Fatal("expected invalid payload error")
+	}
+
+	err = service.processFGASyncJob(context.Background(), FGASyncJob{
+		JobType: "unknown-job-type",
+		Payload: []byte(`{}`),
+	})
+	if err == nil {
+		t.Fatal("expected unsupported job type error")
+	}
+}
+
+func TestTruncateFGASyncError(t *testing.T) {
+	if got := truncateFGASyncError(nil); got != "" {
+		t.Fatalf("expected empty string, got %q", got)
+	}
+	longErr := errors.New(strings.Repeat("x", 1005))
+	got := truncateFGASyncError(longErr)
+	if len(got) != 1000 {
+		t.Fatalf("expected truncated error length 1000, got %d", len(got))
 	}
 }

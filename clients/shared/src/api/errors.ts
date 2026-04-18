@@ -12,6 +12,10 @@ export interface ParsedApiError {
   details?: Record<string, unknown>
 }
 
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object'
+}
+
 /**
  * 从 API 响应 payload 中解析错误信息。
  * 兼容两种后端格式：
@@ -19,16 +23,16 @@ export interface ParsedApiError {
  *   2. 扁平：{ code, message }
  */
 export function parseApiError(payload: unknown): ParsedApiError {
-  if (!payload || typeof payload !== 'object') {
+  if (!isRecord(payload)) {
     return {}
   }
 
-  const record = payload as Record<string, unknown>
+  const record = payload
 
   // 优先读取嵌套 error 对象
   const rawError = record.error
-  if (rawError && typeof rawError === 'object') {
-    const errorObj = rawError as Record<string, unknown>
+  if (isRecord(rawError)) {
+    const errorObj = rawError
     const result: ParsedApiError = {}
     if (typeof errorObj.message === 'string' && errorObj.message) {
       result.message = errorObj.message
@@ -36,8 +40,8 @@ export function parseApiError(payload: unknown): ParsedApiError {
     if (typeof errorObj.code === 'string' && errorObj.code) {
       result.code = errorObj.code
     }
-    if (errorObj.details && typeof errorObj.details === 'object') {
-      result.details = errorObj.details as Record<string, unknown>
+    if (isRecord(errorObj.details)) {
+      result.details = errorObj.details
     }
     if (result.message || result.code) {
       return result

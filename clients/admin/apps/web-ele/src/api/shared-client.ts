@@ -1,164 +1,107 @@
-import type { ApiClient } from '@stuhelper/shared/api';
+import type { ApiCallResult, ApiEnvelope } from './shared-result'
 
-import type { ApiCallResult, ApiEnvelope } from './shared-result';
+import {
+  AUTH_REFRESH_PATH,
+  buildSecurityHeaders,
+  createSessionApiClient,
+  executeSessionRefresh,
+  normalizeSchemaPath,
+  serializePath,
+  type HttpMethod,
+  type RefreshSessionData,
+  type RequestInitShape,
+} from '@stuhelper/shared/api'
+import { preferences } from '@vben/preferences'
 
-import { preferences } from '@vben/preferences';
-
-import { baseRequestClient } from '#/api/request';
+import { baseRequestClient } from '#/api/request'
 import {
   CSRF_COOKIE_NAME,
-  CSRF_HEADER_NAME,
   readCookie,
-} from '#/api/utils/csrf';
+} from '#/api/utils/csrf'
 
-type HttpMethod = 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
+type TransportError = {
+  response?: {
+    data?: unknown
+    status?: number
+  }
+}
 
-const SAFE_METHODS = new Set<'HEAD' | 'OPTIONS' | HttpMethod>([
-  'GET',
-  'HEAD',
-  'OPTIONS',
-]);
-
-type RequestInitShape = {
-  body?: unknown;
-  params?: {
-    header?: Record<string, unknown>;
-    path?: Record<string, unknown>;
-    query?: Record<string, unknown>;
-  };
-  signal?: AbortSignal;
-};
-
-const API_VERSION_PREFIX = '/api/v1';
-
-let refreshPromise: null | Promise<boolean> = null;
-let redirectPromise: null | Promise<void> = null;
+function logAdminAuthWarning(
+  event: string,
+  error: unknown,
+  extra?: Record<string, unknown>,
+) {
+  console.warn('[admin-auth]', event, extra ?? {}, error)
+}
 
 function withSecurityHeaders(
   method: HttpMethod,
   headers: Record<string, string>,
 ): Record<string, string> {
-  const nextHeaders = { ...headers };
-
-  if (!SAFE_METHODS.has(method)) {
-    const csrfToken = readCookie(CSRF_COOKIE_NAME);
-    if (csrfToken) {
-      nextHeaders[CSRF_HEADER_NAME] = csrfToken;
-    }
-  }
-
-  nextHeaders['Accept-Language'] = preferences.app.locale;
-  return nextHeaders;
+  return buildSecurityHeaders(method, headers, {
+    acceptLanguage: preferences.app.locale,
+    csrfToken: readCookie(CSRF_COOKIE_NAME),
+  })
 }
 
-function normalizeSchemaPath(schemaPath: string): string {
-  const baseUrl = baseRequestClient.getBaseUrl() ?? '';
-  const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
-
-  if (
-    normalizedBaseUrl.endsWith(API_VERSION_PREFIX) &&
-    schemaPath.startsWith(`${API_VERSION_PREFIX}/`)
-  ) {
-    return schemaPath.slice(API_VERSION_PREFIX.length);
-  }
-
-  return schemaPath;
-}
-
-function serializePath(
+function serializeSchemaPath(
   schemaPath: string,
   pathParams?: Record<string, unknown>,
 ): string {
-  return schemaPath.replaceAll(/\{([^}]+)\}/g, (_match, key) => {
-    const value = pathParams?.[key];
-    return encodeURIComponent(
-      value === null || value === undefined ? '' : String(value),
-    );
-  });
-}
-
-async function refreshSession(): Promise<boolean> {
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-
-  refreshPromise = (async () => {
-    try {
-      await baseRequestClient.instance.request({
-        headers: withSecurityHeaders('POST', {}),
-        method: 'POST',
-        url: normalizeSchemaPath('/api/v1/auth/refresh'),
-        withCredentials: true,
-      });
-
-      return true;
-    } catch {
-      return false;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-
-  return refreshPromise;
+  return serializePath(
+    normalizeSchemaPath(baseRequestClient.getBaseUrl() ?? '', schemaPath),
+    pathParams,
+  )
 }
 
 async function redirectToOIDCLogin() {
   if (typeof window === 'undefined') {
-    return;
+    return
   }
 
-  if (redirectPromise) {
-    return redirectPromise;
+  try {
+    const { resetAllStores } = await import('@vben/stores')
+    resetAllStores()
+  } catch (error) {
+    logAdminAuthWarning('resetAllStores failed during forced re-auth', error)
   }
 
-  redirectPromise = (async () => {
-    try {
-      const { resetAllStores } = await import('@vben/stores');
-      resetAllStores();
-    } catch {
-      // ignore store reset failures during forced re-auth
+  try {
+    const response = await baseRequestClient.instance.request<
+      ApiEnvelope<{ url?: string }>
+    >({
+      headers: withSecurityHeaders('GET', {}),
+      method: 'GET',
+      params: {
+        redirect: window.location.href,
+      },
+      url: serializeSchemaPath('/api/v1/auth/login'),
+      withCredentials: true,
+    })
+
+    const url = response.data?.data?.url
+    if (url) {
+      window.location.replace(url)
+      return
     }
+  } catch (error) {
+    logAdminAuthWarning(
+      'failed to fetch OIDC login URL during forced re-auth',
+      error,
+      {
+        redirect: window.location.href,
+      },
+    )
+  }
 
-    try {
-      const response = await baseRequestClient.instance.request<
-        ApiEnvelope<{ url?: string }>
-      >({
-        headers: withSecurityHeaders('GET', {}),
-        method: 'GET',
-        params: {
-          redirect: window.location.href,
-        },
-        url: normalizeSchemaPath('/api/v1/auth/login'),
-        withCredentials: true,
-      });
-
-      const url = response.data?.data?.url;
-      if (url) {
-        window.location.replace(url);
-        return;
-      }
-    } catch {
-      // ignore and fall back below
-    }
-
-    window.location.replace('/admin/');
-  })();
-
-  return redirectPromise;
+  window.location.replace('/admin/')
 }
 
-async function performRequest<T>(
+async function doRequest<T>(
   method: HttpMethod,
   schemaPath: string,
   init?: RequestInitShape,
-  enableRefresh: boolean = true,
-  shouldReAuthenticate: boolean = enableRefresh,
 ): Promise<ApiCallResult<T>> {
-  const url = serializePath(
-    normalizeSchemaPath(schemaPath),
-    init?.params?.path,
-  );
-
   try {
     const response = await baseRequestClient.instance.request<ApiEnvelope<T>>({
       data: init?.body,
@@ -169,117 +112,49 @@ async function performRequest<T>(
       method,
       params: init?.params?.query,
       signal: init?.signal,
-      url,
+      url: serializeSchemaPath(schemaPath, init?.params?.path),
       withCredentials: true,
-    });
+    })
 
     return {
       data: response.data,
       response: {
         status: response.status,
       },
-    };
+    }
   } catch (error) {
-    const responseError = error as {
-      response?: {
-        data?: unknown;
-        status?: number;
-      };
-    };
-    const status = responseError.response?.status;
-
-    if (
-      status === 401 &&
-      enableRefresh &&
-      schemaPath !== '/api/v1/auth/refresh'
-    ) {
-      const refreshed = await refreshSession();
-      if (refreshed) {
-        return performRequest<T>(
-          method,
-          schemaPath,
-          init,
-          false,
-          shouldReAuthenticate,
-        );
-      }
-
-      if (shouldReAuthenticate) {
-        await redirectToOIDCLogin();
-        return {
-          error: responseError.response?.data ?? error,
-          response: {
-            status,
-          },
-        };
-      }
-    }
-
-    if (
-      status === 401 &&
-      shouldReAuthenticate &&
-      schemaPath !== '/api/v1/auth/refresh'
-    ) {
-      await redirectToOIDCLogin();
-    }
-
+    const responseError = error as TransportError
     return {
       error: responseError.response?.data ?? error,
       response: {
-        status,
+        status: responseError.response?.status,
       },
-    };
+    }
   }
 }
 
-export async function requestApi<T>(
-  method: HttpMethod,
-  schemaPath: string,
-  init?: RequestInitShape,
-  options?: {
-    enableRefresh?: boolean;
-    shouldReAuthenticate?: boolean;
-  },
-): Promise<ApiCallResult<T>> {
-  const enableRefresh = options?.enableRefresh ?? true;
-  return performRequest<T>(
-    method,
-    schemaPath,
-    init,
-    enableRefresh,
-    options?.shouldReAuthenticate ?? enableRefresh,
-  );
+async function refreshSession() {
+  return executeSessionRefresh({
+    request: (init) =>
+      doRequest<RefreshSessionData>('POST', AUTH_REFRESH_PATH, {
+        params: { header: {} },
+        ...init,
+      }),
+  })
 }
 
-function buildApiClient(enableRefresh: boolean): ApiClient {
-  return {
-    DELETE: ((schemaPath: string, init?: RequestInitShape) =>
-      requestApi('DELETE', schemaPath, init, {
-        enableRefresh,
-        shouldReAuthenticate: enableRefresh,
-      })) as ApiClient['DELETE'],
-    GET: ((schemaPath: string, init?: RequestInitShape) =>
-      requestApi('GET', schemaPath, init, {
-        enableRefresh,
-        shouldReAuthenticate: enableRefresh,
-      })) as ApiClient['GET'],
-    PATCH: ((schemaPath: string, init?: RequestInitShape) =>
-      requestApi('PATCH', schemaPath, init, {
-        enableRefresh,
-        shouldReAuthenticate: enableRefresh,
-      })) as ApiClient['PATCH'],
-    POST: ((schemaPath: string, init?: RequestInitShape) =>
-      requestApi('POST', schemaPath, init, {
-        enableRefresh,
-        shouldReAuthenticate: enableRefresh,
-      })) as ApiClient['POST'],
-    PUT: ((schemaPath: string, init?: RequestInitShape) =>
-      requestApi('PUT', schemaPath, init, {
-        enableRefresh,
-        shouldReAuthenticate: enableRefresh,
-      })) as ApiClient['PUT'],
-  };
+const adminSessionTransport = {
+  onUnauthorized: redirectToOIDCLogin,
+  refresh: refreshSession,
+  request: doRequest,
 }
 
-export const sharedApiClient = buildApiClient(true);
-export const sharedBaseApiClient = buildApiClient(false);
+export const sharedApiClient = createSessionApiClient(adminSessionTransport, {
+  enableRefresh: true,
+  reauthenticateOnUnauthorized: true,
+})
+
+export const sharedBaseApiClient = createSessionApiClient(adminSessionTransport, {
+  enableRefresh: false,
+  reauthenticateOnUnauthorized: false,
+})

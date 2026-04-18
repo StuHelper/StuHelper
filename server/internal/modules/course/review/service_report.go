@@ -84,10 +84,10 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 			Description:  params.Description,
 		})
 		if err != nil {
+			if isUniqueConstraintViolation(err, "uq_review_reports_user") {
+				return ErrAlreadyReported
+			}
 			return err
-		}
-		if s.fgaWriter == nil {
-			return nil
 		}
 		schoolID, err := s.repo.GetReviewSchoolIDTx(ctx, tx, params.ReviewID)
 		if err != nil {

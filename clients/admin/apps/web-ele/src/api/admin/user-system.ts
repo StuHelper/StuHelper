@@ -1,4 +1,4 @@
-import type { components } from '@stuhelper/shared';
+import type { components } from '@stuhelper/shared/types';
 
 import { createUserAdminApi } from '@stuhelper/shared/api';
 

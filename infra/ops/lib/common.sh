@@ -44,9 +44,43 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
+default_local_state_dir() {
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    printf '%s/Library/Application Support/StuHelper' "${HOME}"
+  else
+    printf '%s/stuhelper' "${XDG_STATE_HOME:-${HOME}/.local/state}"
+  fi
+}
+
+normalize_backup_object_storage_env() {
+  if [[ -z "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" && -n "${OBJECT_STORAGE_ENDPOINT:-}" ]]; then
+    export BACKUP_OBJECT_STORAGE_ENDPOINT="${OBJECT_STORAGE_ENDPOINT}"
+  fi
+  export BACKUP_OBJECT_STORAGE_BUCKET="${BACKUP_OBJECT_STORAGE_BUCKET:-stuhelper-postgres-backup}"
+  export BACKUP_OBJECT_STORAGE_PREFIX="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
+  if [[ -z "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" && -n "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" ]]; then
+    export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="${OBJECT_STORAGE_ACCESS_KEY_ID}"
+  fi
+  if [[ -z "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" && -n "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" ]]; then
+    export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="${OBJECT_STORAGE_SECRET_ACCESS_KEY}"
+  fi
+  if [[ -z "${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-}" ]]; then
+    if [[ "${OBJECT_STORAGE_USE_SSL:-false}" == "true" ]]; then
+      export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
+    else
+      export BACKUP_OBJECT_STORAGE_TLS_INSECURE="true"
+    fi
+  fi
+}
+
+LOCAL_STATE_DIR="${LOCAL_STATE_DIR:-$(default_local_state_dir)}"
+POSTGRES_WAL_RESTORE_DIR="${POSTGRES_WAL_RESTORE_DIR:-${LOCAL_STATE_DIR}/postgres/wal-restore}"
+
 require_backup_object_storage_config() {
   local missing=()
   local key
+
+  normalize_backup_object_storage_env
 
   for key in \
     BACKUP_OBJECT_STORAGE_ENDPOINT \
@@ -79,6 +113,28 @@ ensure_generated_files() {
   touch "${GENERATED_SECRET_ENV_FILE}"
 }
 
+should_source_generated_secret_from_backend() {
+  [[ -n "${GENERATED_ENV_SECRET_REF:-}" ]] && [[ -n "${SECRET_BACKEND:-}" ]] && [[ "${SECRET_BACKEND:-}" != "none" ]] && [[ "${SECRET_BACKEND:-}" != "file" ]]
+}
+
+source_generated_secret_env() {
+  if should_source_generated_secret_from_backend; then
+    local rendered
+    if rendered="$(secret_backend_read_to_stdout "${GENERATED_ENV_SECRET_REF}" 2>/dev/null)"; then
+      if [[ -n "${rendered}" ]]; then
+        # shellcheck disable=SC1091
+        source /dev/stdin <<<"${rendered}"
+      fi
+    fi
+    return 0
+  fi
+
+  if [[ -f "${GENERATED_SECRET_ENV_FILE}" ]]; then
+    # shellcheck disable=SC1090
+    source "${GENERATED_SECRET_ENV_FILE}"
+  fi
+}
+
 materialize_secret_env_inputs() {
   if [[ -n "${SHARED_ENV_SECRET_REF}" ]]; then
     materialize_secret_env_file "${SHARED_ENV_SECRET_REF}" "${ENV_FILE}"
@@ -86,7 +142,7 @@ materialize_secret_env_inputs() {
   if [[ -n "${SECRETS_ENV_SECRET_REF}" && -n "${SECRETS_ENV_FILE}" ]]; then
     materialize_secret_env_file "${SECRETS_ENV_SECRET_REF}" "${SECRETS_ENV_FILE}"
   fi
-  if [[ -n "${GENERATED_ENV_SECRET_REF}" ]]; then
+  if [[ -n "${GENERATED_ENV_SECRET_REF}" ]] && ! should_source_generated_secret_from_backend; then
     materialize_secret_env_file "${GENERATED_ENV_SECRET_REF}" "${GENERATED_SECRET_ENV_FILE}"
   fi
 }
@@ -117,10 +173,9 @@ load_env() {
   fi
   # shellcheck disable=SC1090
   source "${GENERATED_ENV_FILE}"
-  if [[ -f "${GENERATED_SECRET_ENV_FILE}" ]]; then
-    # shellcheck disable=SC1090
-    source "${GENERATED_SECRET_ENV_FILE}"
-  fi
+  source_generated_secret_env
+  normalize_backup_object_storage_env
+  export POSTGRES_WAL_ARCHIVE_VOLUME_NAME="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}-postgres-wal-archive}"
   if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi
   if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi
   if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi
@@ -158,6 +213,9 @@ load_remote_deploy_config() {
 compose() {
   (
     cd "${REPO_ROOT}" && \
+    compose_files=(-f "${REPO_ROOT}/docker-compose.yml") && \
+    if [[ -f "${REPO_ROOT}/docker-compose.observability.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.observability.yml"); fi && \
+    if [[ -f "${REPO_ROOT}/docker-compose.prod.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.prod.yml"); fi && \
     preserved_tag="${TAG-__STUHELPER_UNSET__}" && \
     preserved_rollback_tag="${ROLLBACK_TAG-__STUHELPER_UNSET__}" && \
     preserved_backend_image_ref="${BACKEND_IMAGE_REF-__STUHELPER_UNSET__}" && \
@@ -167,19 +225,28 @@ compose() {
     source "${ENV_FILE}" && \
     if [[ -n "${SECRETS_ENV_FILE}" && -f "${SECRETS_ENV_FILE}" ]]; then source "${SECRETS_ENV_FILE}"; fi && \
     if [[ -f "${GENERATED_ENV_FILE}" ]]; then source "${GENERATED_ENV_FILE}"; fi && \
-    if [[ -f "${GENERATED_SECRET_ENV_FILE}" ]]; then source "${GENERATED_SECRET_ENV_FILE}"; fi && \
+    source_generated_secret_env && \
     if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi && \
     if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi && \
     if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi && \
     if [[ "${preserved_frontend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export FRONTEND_IMAGE_REF="${preserved_frontend_image_ref}"; fi && \
     if [[ "${preserved_admin_image_ref}" != "__STUHELPER_UNSET__" ]]; then export ADMIN_IMAGE_REF="${preserved_admin_image_ref}"; fi && \
     set +a && \
+    if [[ -z "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" && -n "${OBJECT_STORAGE_ENDPOINT:-}" ]]; then export BACKUP_OBJECT_STORAGE_ENDPOINT="${OBJECT_STORAGE_ENDPOINT}"; fi && \
+    export BACKUP_OBJECT_STORAGE_BUCKET="${BACKUP_OBJECT_STORAGE_BUCKET:-stuhelper-postgres-backup}" && \
+    export BACKUP_OBJECT_STORAGE_PREFIX="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}" && \
+    if [[ -z "${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}" && -n "${OBJECT_STORAGE_ACCESS_KEY_ID:-}" ]]; then export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="${OBJECT_STORAGE_ACCESS_KEY_ID}"; fi && \
+    if [[ -z "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" && -n "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" ]]; then export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="${OBJECT_STORAGE_SECRET_ACCESS_KEY}"; fi && \
+    if [[ -z "${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-}" ]]; then \
+      if [[ "${OBJECT_STORAGE_USE_SSL:-false}" == "true" ]]; then export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"; else export BACKUP_OBJECT_STORAGE_TLS_INSECURE="true"; fi; \
+    fi && \
+    export POSTGRES_WAL_ARCHIVE_VOLUME_NAME="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}-postgres-wal-archive}" && \
     ENV_FILE_PATH="${ENV_FILE}" \
     GENERATED_ENV_FILE_PATH="${GENERATED_ENV_FILE}" \
     BACKEND_IMAGE_REF="${BACKEND_IMAGE_REF:-}" \
     FRONTEND_IMAGE_REF="${FRONTEND_IMAGE_REF:-}" \
     ADMIN_IMAGE_REF="${ADMIN_IMAGE_REF:-}" \
-    docker compose --env-file "${ENV_FILE}" "$@"
+    docker compose "${compose_files[@]}" --env-file "${ENV_FILE}" "$@"
   )
 }
 

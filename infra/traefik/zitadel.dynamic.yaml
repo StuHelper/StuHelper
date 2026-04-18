@@ -15,6 +15,13 @@
 # 无需 /api 前缀别名。
 
 http:
+  middlewares:
+    iam-edge-rate-limit:
+      rateLimit:
+        average: 60
+        burst: 120
+        period: 1s
+
   routers:
     # Zitadel Login V2 前端
     zitadel-login-web:
@@ -22,6 +29,10 @@ http:
       entryPoints:
         - web
         - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
       service: zitadel-login
       priority: 1100
 
@@ -31,6 +42,10 @@ http:
       entryPoints:
         - web
         - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
       service: zitadel-api
       priority: 1000
 
@@ -40,6 +55,10 @@ http:
       entryPoints:
         - web
         - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
       service: zitadel-api
       priority: 950
 
@@ -49,6 +68,10 @@ http:
       entryPoints:
         - web
         - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
       service: zitadel-api
       priority: 900
 
@@ -62,6 +85,10 @@ http:
       entryPoints:
         - web
         - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
       service: zitadel-api
       priority: 850
 
@@ -75,4 +102,3 @@ http:
       loadBalancer:
         servers:
           - url: http://zitadel-login:3000
-

@@ -1,0 +1,315 @@
+package review
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
+)
+
+type noopReviewFGAWriter struct{}
+
+func (noopReviewFGAWriter) WriteReviewRelations(context.Context, string, string, string, string) error {
+	return nil
+}
+func (noopReviewFGAWriter) WriteReportRelations(context.Context, string, string, string, string) error {
+	return nil
+}
+
+type noopNotificationSender struct{}
+
+func (noopNotificationSender) Send(context.Context, notification.SendParams) error        { return nil }
+func (noopNotificationSender) SendBatch(context.Context, []notification.SendParams) error { return nil }
+
+func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, 10006, "计算机学院")
+	teacherID := seedTeacher(t, fixture, 10006, "王老师", departmentID)
+	courseID := seedCourse(t, fixture, 10006, departmentID, "数据库系统")
+	otherCourseID := seedCourse(t, fixture, 10006, departmentID, "分布式系统")
+
+	seedReviewWithRatings(t, fixture, "review-read-1", courseID, teacherID, "u-read-1", 4.5, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "数据库真不错", "内容一")
+	seedReviewWithRatings(t, fixture, "review-read-2", otherCourseID, teacherID, "u-read-2", 4.0, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "分布式很赞", "内容二")
+
+	courseReviews, err := svc.GetCourseReviews(ctx, GetCourseReviewsParams{CourseID: courseID, Page: 1, PageSize: 10, Sort: SortTime})
+	require.NoError(t, err)
+	require.Len(t, courseReviews.List, 1)
+	assert.Equal(t, "review-read-1", courseReviews.List[0].ID)
+
+	batched, err := svc.GetBatchCourseReviews(ctx, GetBatchCourseReviewsParams{CourseIDs: []int64{courseID, otherCourseID}, PageSize: 5, Sort: SortTime})
+	require.NoError(t, err)
+	assert.Len(t, batched.Reviews[courseID], 1)
+	assert.Len(t, batched.Reviews[otherCourseID], 1)
+
+	exists, err := svc.CheckCourseExists(ctx, courseID)
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	latest, err := svc.GetLatestReviews(ctx, GetLatestReviewsParams{Page: 1, PageSize: 10, Sort: SortTime})
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, latest.Total, 2)
+
+	searched, err := svc.SearchReviews(ctx, SearchReviewsParams{Query: "数据库", DepartmentID: departmentID, TeacherName: "王老师", TermID: "2025-2", Page: 1, PageSize: 10, Sort: SortTime})
+	require.NoError(t, err)
+	require.Len(t, searched.List, 1)
+	assert.Equal(t, "review-read-1", searched.List[0].ID)
+
+	stats, err := svc.GetStats(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, stats.CourseCount, 2)
+	assert.GreaterOrEqual(t, stats.ReviewCount, 2)
+
+	dimensions, err := svc.GetRatingDimensions(ctx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, dimensions)
+
+	dimensionNames, err := svc.GetDimensionNames(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, dimensionNames, "teaching")
+
+	ratingStats, err := svc.GetCourseRatingStats(ctx, courseID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, ratingStats)
+
+	teachers, err := svc.GetCourseTeachers(ctx, courseID)
+	require.NoError(t, err)
+	require.Len(t, teachers, 1)
+	assert.Equal(t, teacherID, teachers[0].TeacherID)
+
+	reviewByID, err := svc.GetReviewByID(ctx, "review-read-1")
+	require.NoError(t, err)
+	assert.Equal(t, courseID, reviewByID.CourseID)
+
+	word, err := svc.CreateSensitiveWord(ctx, "敏感词条", "custom", ContentFlagWarn)
+	require.NoError(t, err)
+	checked, err := svc.CheckContent(ctx, "这是一段敏感词条内容")
+	require.NoError(t, err)
+	assert.Equal(t, ContentFlagWarn, checked.Level)
+
+	listedWords, totalWords, err := svc.ListSensitiveWords(ctx, "custom", ContentFlagWarn, 10, 0)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, totalWords, 1)
+	assert.NotEmpty(t, listedWords)
+
+	inactive := false
+	require.NoError(t, svc.UpdateSensitiveWord(ctx, word.ID, nil, nil, nil, &inactive))
+	require.NoError(t, svc.DeleteSensitiveWord(ctx, word.ID))
+
+	require.NoError(t, svc.RefreshTeacherPublicStats(ctx))
+	teacherList, totalTeachers, err := svc.ListTeachers(ctx, "王", &departmentID, "reviews", 1, 10)
+	require.NoError(t, err)
+	require.Len(t, teacherList, 1)
+	assert.Equal(t, 1, totalTeachers)
+
+	hotTeachers, err := svc.ListHotTeachers(ctx, 5)
+	require.NoError(t, err)
+	require.NotEmpty(t, hotTeachers)
+
+	teacherStats, err := svc.GetTeacherRatingStats(ctx, teacherID)
+	require.NoError(t, err)
+	assert.Equal(t, teacherID, teacherStats.TeacherID)
+	assert.GreaterOrEqual(t, teacherStats.ReviewCount, 2)
+	assert.NotEmpty(t, teacherStats.Courses)
+
+	posted, err := svc.PostReview(ctx, PostReviewParams{
+		CourseID:             courseID,
+		TeacherID:            &teacherID,
+		TermID:               "2025-2",
+		Title:                "新评课",
+		Content:              "内容三",
+		Grade:                "A",
+		Ratings:              ReviewRatings{"teaching": 5, "difficulty": 4},
+		UserHash:             "u-post-1",
+		AuthorExternalUserID: "ext-u-post-1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, StatusPublished, posted.Review.Status)
+
+	_, err = svc.PostReview(ctx, PostReviewParams{
+		CourseID:             courseID,
+		TeacherID:            &teacherID,
+		TermID:               "2025-2",
+		Title:                "重复评课",
+		Content:              "重复内容",
+		Grade:                "A",
+		Ratings:              ReviewRatings{"teaching": 5},
+		UserHash:             "u-post-1",
+		AuthorExternalUserID: "ext-u-post-1",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrAlreadyReviewed)
+
+	require.NoError(t, svc.UpdateReview(ctx, UpdateReviewParams{
+		ReviewID: posted.Review.ID,
+		UserHash: "u-post-1",
+		Title:    "更新后标题",
+		Content:  "更新后内容",
+		Grade:    "A+",
+		Ratings:  ReviewRatings{"teaching": 4, "difficulty": 5},
+	}))
+
+	voteCourseID, err := svc.VoteReview(ctx, VoteReviewParams{ReviewID: posted.Review.ID, UserHash: "u-voter-1", VoteType: "like"})
+	require.NoError(t, err)
+	assert.Equal(t, courseID, voteCourseID)
+
+	reportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: posted.Review.ID, UserHash: "u-reporter-1", ReporterExternalUserID: "ext-u-reporter-1", Reason: "spam", Description: "需要处理"})
+	require.NoError(t, err)
+	assert.NotEmpty(t, reportID)
+
+	reports, err := svc.ListReports(ctx, ListReportsParams{Status: ReportStatusPending, Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, reports.List, 1)
+	assert.Equal(t, reportID, reports.List[0].ID)
+
+	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: reportID, Action: "reject", Note: "误报", ResolvedBy: "admin-1"}))
+	report, err := repo.GetReportByID(ctx, reportID)
+	require.NoError(t, err)
+	assert.Equal(t, ReportStatusRejected, report.Status)
+
+	hideReviewID := "review-report-hide-1"
+	deleteReviewID := "review-report-delete-1"
+	seedReviewWithRatings(t, fixture, hideReviewID, courseID, teacherID, "u-report-hide", 4.2, StatusPublished, ReviewRatings{"teaching": 4}, "待隐藏", "待处理内容")
+	seedReviewWithRatings(t, fixture, deleteReviewID, courseID, teacherID, "u-report-delete", 4.1, StatusPublished, ReviewRatings{"teaching": 4}, "待删除", "待删除内容")
+	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 3 WHERE id = $1`, courseID)
+	require.NoError(t, err)
+
+	hideReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: hideReviewID, UserHash: "u-reporter-hide", ReporterExternalUserID: "ext-u-reporter-hide", Reason: "abuse", Description: "需要隐藏"})
+	require.NoError(t, err)
+	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: hideReportID, Action: "hide", Note: "隐藏处理", ResolvedBy: "admin-2"}))
+
+	var hiddenStatus string
+	err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, hideReviewID).Scan(&hiddenStatus)
+	require.NoError(t, err)
+	assert.Equal(t, StatusHidden, hiddenStatus)
+	hideReport, err := repo.GetReportByID(ctx, hideReportID)
+	require.NoError(t, err)
+	assert.Equal(t, ReportStatusResolved, hideReport.Status)
+
+	deleteReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: deleteReviewID, UserHash: "u-reporter-delete", ReporterExternalUserID: "ext-u-reporter-delete", Reason: "illegal", Description: "需要删除"})
+	require.NoError(t, err)
+	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: deleteReportID, Action: "delete", Note: "删除处理", ResolvedBy: "admin-3"}))
+
+	var deletedReportStatus string
+	err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, deleteReviewID).Scan(&deletedReportStatus)
+	require.NoError(t, err)
+	assert.Equal(t, StatusDeleted, deletedReportStatus)
+	deleteReport, err := repo.GetReportByID(ctx, deleteReportID)
+	require.NoError(t, err)
+	assert.Equal(t, ReportStatusResolved, deleteReport.Status)
+
+	require.NoError(t, svc.DeleteReview(ctx, DeleteReviewParams{ReviewID: posted.Review.ID, UserHash: "u-post-1"}))
+	var deletedStatus string
+	err = fixture.Pool.QueryRow(ctx, `SELECT status FROM reviews WHERE id = $1`, posted.Review.ID).Scan(&deletedStatus)
+	require.NoError(t, err)
+	assert.Equal(t, StatusDeleted, deletedStatus)
+}
+
+func seedReviewWithRatings(t *testing.T, fixture *postgresfixture.Fixture, reviewID string, courseID, teacherID int64, userHash string, avgRating float64, status string, ratings ReviewRatings, title, content string) {
+	t.Helper()
+	ratingsJSON, err := json.Marshal(ratings)
+	require.NoError(t, err)
+	_, err = fixture.Pool.Exec(context.Background(), `
+		INSERT INTO reviews (
+			id, course_id, teacher_id, term_id, user_hash, title, content, grade, ratings, avg_rating, status
+		) VALUES (
+			$1, $2, $3, '2025-2', $4, $5, $6, 'A', $7::jsonb, $8, $9
+		)
+	`, reviewID, courseID, teacherID, userHash, title, content, string(ratingsJSON), avgRating, status)
+	require.NoError(t, err)
+}
+
+func TestReviewService_IntegrationInteractionPaths(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, 10006, "软件学院")
+	teacherID := seedTeacher(t, fixture, 10006, "陈老师", departmentID)
+	courseID := seedCourse(t, fixture, 10006, departmentID, "软件工程")
+	seedReviewWithRatings(t, fixture, "review-owner-1", courseID, teacherID, "u-owner-1", 4.8, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "很棒", "值得推荐")
+
+	// 收藏链路
+	require.NoError(t, svc.AddFavorite(ctx, AddFavoriteParams{UserHash: "u-fav-1", CourseID: courseID}))
+	favorited, err := svc.GetFavoriteStatus(ctx, "u-fav-1", courseID)
+	require.NoError(t, err)
+	assert.True(t, favorited)
+
+	favorites, err := svc.GetUserFavorites(ctx, GetUserFavoritesParams{UserHash: "u-fav-1", Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, favorites.List, 1)
+	assert.Equal(t, courseID, favorites.List[0].ID)
+	assert.Equal(t, 1, favorites.Total)
+
+	require.NoError(t, svc.RemoveFavorite(ctx, "u-fav-1", courseID))
+	favorited, err = svc.GetFavoriteStatus(ctx, "u-fav-1", courseID)
+	require.NoError(t, err)
+	assert.False(t, favorited)
+
+	// 草稿链路
+	draft, err := svc.SaveDraft(ctx, SaveDraftParams{
+		UserHash:  "u-draft-1",
+		CourseID:  courseID,
+		TeacherID: &teacherID,
+		TermID:    "2025-2",
+		Title:     "草稿标题",
+		Content:   "草稿内容",
+		Grade:     "A-",
+		Ratings:   ReviewRatings{"teaching": 4, "difficulty": 3},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, courseID, draft.CourseID)
+	assert.Equal(t, "草稿标题", draft.Title)
+
+	loadedDraft, err := svc.GetDraft(ctx, "u-draft-1", courseID)
+	require.NoError(t, err)
+	assert.Equal(t, draft.ID, loadedDraft.ID)
+	assert.Equal(t, "草稿内容", loadedDraft.Content)
+	assert.Equal(t, 4, loadedDraft.Ratings["teaching"])
+
+	require.NoError(t, svc.DeleteDraft(ctx, "u-draft-1", courseID))
+	_, err = svc.GetDraft(ctx, "u-draft-1", courseID)
+	require.ErrorIs(t, err, ErrDraftNotFound)
+
+	// 用户评论 / 投票链路
+	userReviews, err := svc.GetUserReviews(ctx, GetUserReviewsParams{UserHash: "u-owner-1", Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, userReviews.List, 1)
+	assert.Equal(t, "review-owner-1", userReviews.List[0].ID)
+
+	voteCourseID, err := svc.VoteReview(ctx, VoteReviewParams{ReviewID: "review-owner-1", UserHash: "u-voter-2", VoteType: "like"})
+	require.NoError(t, err)
+	assert.Equal(t, courseID, voteCourseID)
+
+	userVotes, err := svc.GetUserVotes(ctx, GetUserVotesParams{UserHash: "u-voter-2", VoteType: "like", Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, userVotes.List, 1)
+	assert.Equal(t, "review-owner-1", userVotes.List[0].ID)
+
+	// 回复链路
+	replyResult, err := svc.CreateReply(ctx, CreateReplyParams{ReviewID: "review-owner-1", UserHash: "u-replier-1", Content: "收到，感谢分享"})
+	require.NoError(t, err)
+	assert.Equal(t, StatusPublished, replyResult.Reply.Status)
+
+	replies, err := svc.GetReplies(ctx, GetRepliesParams{ReviewID: "review-owner-1", UserHash: "u-replier-1", Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, replies.List, 1)
+	assert.True(t, replies.List[0].IsOwner)
+	assert.Empty(t, replies.List[0].UserHash)
+	assert.Equal(t, 1, replies.Total)
+
+	require.NoError(t, svc.DeleteReply(ctx, DeleteReplyParams{ReplyID: replyResult.Reply.ID, UserHash: "u-replier-1"}))
+	replies, err = svc.GetReplies(ctx, GetRepliesParams{ReviewID: "review-owner-1", UserHash: "u-replier-1", Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	assert.Empty(t, replies.List)
+	assert.Equal(t, 0, replies.Total)
+}

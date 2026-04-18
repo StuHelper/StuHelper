@@ -42,9 +42,11 @@ PostgreSQL 存储：
 | `users` | Shadow user、业务外键锚点 |
 | `user_identities` | 实名认证（`doc_number_enc` 密文、`person_uid` HMAC、`doc_photo_*` 对象存储 key） |
 | `user_profiles` | 学生认证档案 |
-| `school_configs` | 学校认证配置 |
+| `schools` | 学校主数据（`id BIGINT` / `code` / `name`），其他学校维度表统一引用它 |
+| `school_configs` | 学校认证配置（`school_id BIGINT`，FK → `schools.id`） |
 | `system_configs` | 全局配置 |
 | `academic.buaa_students` | 学籍数据本地表（从教务同步，含学号、姓名、院系、年级等） |
+| `user_external_sync_outbox` | 用户侧外部同步 outbox（如 verified_student 角色投递、用户画像投递） |
 
 ### 课程与评课
 
@@ -56,15 +58,22 @@ PostgreSQL 存储：
 | `courses` | 课程 |
 | `teachers` | 教师 |
 | `rating_dimensions` | 评分维度 |
-| `reviews` | 评课 |
+| `reviews` | 评课（`status` 支持 `published / hidden / deleted / pending_review`；`content_flag` 记录 `warn / review / cleared` 审核状态） |
 | `review_votes` | 投票 |
 | `review_reports` | 举报 |
-| `review_replies` | 回复 |
+| `review_replies` | 回复（`status` 同步支持 `pending_review`） |
 | `course_favorites` | 收藏 |
 | `review_drafts` | 草稿 |
 | `course_rating_stats` | 课程评分统计（按课程+学期+维度聚合） |
 | `teacher_rating_stats` | 教师评分统计（按教师+学期+维度聚合） |
 | `sensitive_words` | 敏感词（分类 + 级别：block/warn/review） |
+| `review_fga_sync_outbox` | 评课 / 举报关系同步到 OpenFGA 的 outbox |
+
+### 物化视图
+
+| 名称 | 用途 |
+|------|------|
+| `mv_teacher_public_stats` | 教师公开列表聚合视图，缓存教师评分 / 课程数 / 院系名称，避免每次列表请求做全表聚合 |
 
 ### 通知与审计
 
@@ -73,6 +82,14 @@ PostgreSQL 存储：
 | `notifications` | 通知（`user_id` / `body` / `source_module` / `source_id` / `source_url` 结构，含 `payload` JSONB 扩展字段） |
 | `notification_preferences` | 通知偏好（用户按通知类型开关，复合主键 `user_id` + `type`） |
 | `admin_operation_logs` | 操作日志 |
+
+## 关键 schema 备注
+
+- `school_configs.school_id` 已从早期 `VARCHAR(10)` 统一为 `BIGINT`，并通过 `schools.id` 做权威外键。
+- `user_profiles.school_id` 同步使用 `BIGINT`，不再直接挂在旧字符串主键上。
+- `reviews.content_flag` / `content_flag_cleared_at` / `content_flag_cleared_by` 用于内容审核流水线。
+- `reviews.status` 与 `review_replies.status` 已支持 `pending_review`，表示进入人工审核队列。
+- 两个 outbox 表都采用 `pending / processing / completed / failed` 状态机，靠后台 worker 拉取并执行外部副作用，而不是在主事务里直连外部系统。
 
 ## 搜索索引
 

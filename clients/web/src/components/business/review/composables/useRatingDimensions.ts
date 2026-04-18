@@ -1,7 +1,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api'
-import { isValidRating, type RatingDimension } from '@/types/course'
-import type { ReviewRatings } from '@/types/review'
+import { isValidRating, type RatingDimension } from '@stuhelper/shared/course'
+import type { ReviewRatings } from '@stuhelper/shared/review'
 
 export function useRatingDimensions() {
   const rawDimensions = ref<RatingDimension[]>([])
@@ -23,7 +23,7 @@ export function useRatingDimensions() {
     try {
       const response = await api.rating.getDimensions()
       rawDimensions.value = response.data?.data ?? []
-    } catch {
+    } catch (_error) { void _error;
       rawDimensions.value = []
       loadFailed.value = true
     } finally {

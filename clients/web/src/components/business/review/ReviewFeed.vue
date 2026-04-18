@@ -72,7 +72,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import type { Review } from '@/types/review'
+import type { Review } from '@stuhelper/shared/review'
 import TabBar from '@/components/common/TabBar.vue'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -135,7 +135,7 @@ async function loadReviews(reset = false) {
     }
     hasMore.value = list.length >= pageSize
     page.value++
-  } catch {
+  } catch (_error) { void _error;
     if (signal.aborted || currentVersion !== requestVersion) return
     error.value = t('review.hub.loadFailed')
   } finally {

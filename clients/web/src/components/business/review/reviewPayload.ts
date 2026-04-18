@@ -1,5 +1,5 @@
 import { isReviewGrade } from '@stuhelper/shared/constants'
-import type { PostReviewRequest, ReviewRatings } from '@/types/review'
+import type { PostReviewRequest, ReviewRatings } from '@stuhelper/shared/review'
 
 export interface CreateReviewPayloadInput {
   courseID: number

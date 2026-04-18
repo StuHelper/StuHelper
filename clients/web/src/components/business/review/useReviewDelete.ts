@@ -1,12 +1,10 @@
 /**
- * Composable: delete-with-confirmation for a review card
+ * Composable: delete handling for a review card
  *
- * Manages the two-click delete flow: first click shows "Confirm",
- * second click performs the deletion.
- * Extracted from ReviewCard.vue for single-responsibility.
+ * Manages deletion state and emits the deleted review id on success.
  */
-import { ref, watch } from 'vue'
-import type { Review } from '@/types/review'
+import { ref } from 'vue'
+import type { Review } from '@stuhelper/shared/review'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
@@ -19,26 +17,8 @@ export function useReviewDelete(
   const toast = useToast()
 
   const deleting = ref(false)
-  const deleteConfirming = ref(false)
 
-  // Reset confirmation when review changes
-  watch(() => reviewGetter().id, () => {
-    deleteConfirming.value = false
-  })
-
-  function handleDeleteOwn() {
-    if (!deleteConfirming.value) {
-      deleteConfirming.value = true
-      return
-    }
-    confirmDeleteOwn()
-  }
-
-  function cancelDelete() {
-    deleteConfirming.value = false
-  }
-
-  async function confirmDeleteOwn() {
+  async function handleDeleteOwn() {
     deleting.value = true
     try {
       const review = reviewGetter()
@@ -49,14 +29,11 @@ export function useReviewDelete(
       toast.error(getErrorMessage(err, t('review.review.deleteFailed')))
     } finally {
       deleting.value = false
-      deleteConfirming.value = false
     }
   }
 
   return {
     deleting,
-    deleteConfirming,
     handleDeleteOwn,
-    cancelDelete,
   }
 }

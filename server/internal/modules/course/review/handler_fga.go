@@ -9,9 +9,6 @@ import (
 
 // checkFGA 检查 FGA 权限（FGA 未配置时返回 false）
 func (h *Handler) checkFGA(ctx context.Context, user, relation, object string) bool {
-	if h.fga == nil {
-		return false
-	}
 	allowed, err := h.fga.Check(ctx, user, relation, object)
 	if err != nil {
 		logger.L().Warn("FGA check failed, denying",
@@ -23,4 +20,11 @@ func (h *Handler) checkFGA(ctx context.Context, user, relation, object string) b
 		return false
 	}
 	return allowed
+}
+
+func reviewPermissionRelationForAction(action string) string {
+	if action == "delete" {
+		return "can_delete"
+	}
+	return "can_hide"
 }

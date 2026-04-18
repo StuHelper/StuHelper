@@ -5,8 +5,8 @@
  * Extracted from ReviewCard.vue for single-responsibility.
  */
 import { ref, watch } from 'vue'
-import type { Reply } from '@/types/reply'
-import type { Review } from '@/types/review'
+import type { Reply } from '@stuhelper/shared/reply'
+import type { Review } from '@stuhelper/shared/review'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
@@ -44,7 +44,7 @@ export function useReviewReply(
       replies.value = res.data?.data?.list || []
       replyCount.value = res.data?.data?.total || 0
       replyCountDirty = false
-    } catch {
+    } catch (_error) { void _error;
       replies.value = []
       repliesError.value = true
     } finally {

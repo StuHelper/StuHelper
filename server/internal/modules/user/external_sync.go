@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -25,13 +26,6 @@ const (
 	externalSyncMaxBackoff     = 5 * time.Minute
 	roleSyncTimeout            = 15 * time.Second
 )
-
-type externalSyncRepo interface {
-	UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
-	ClaimExternalSyncJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
-	MarkExternalSyncJobDone(ctx context.Context, jobID int64) error
-	MarkExternalSyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
-}
 
 type ExternalSyncJob struct {
 	ID           int64
@@ -60,10 +54,6 @@ func userProfileProjectionKey(userID int64) string {
 }
 
 func (s *Service) enqueueVerifiedStudentRoleSyncTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error {
-	repo, ok := s.repo.(externalSyncRepo)
-	if !ok {
-		return fmt.Errorf("repository does not support external sync outbox")
-	}
 	payload, err := json.Marshal(verifiedStudentRoleSyncPayload{
 		UserID:   userID,
 		Role:     verifiedStudentRoleName,
@@ -72,14 +62,10 @@ func (s *Service) enqueueVerifiedStudentRoleSyncTx(ctx context.Context, tx pgx.T
 	if err != nil {
 		return fmt.Errorf("marshal verified student role payload: %w", err)
 	}
-	return repo.UpsertExternalSyncJobTx(ctx, tx, externalSyncJobTypeVerifiedStudentRole, verifiedStudentRoleSyncKey(userID), payload)
+	return s.repo.UpsertExternalSyncJobTx(ctx, tx, externalSyncJobTypeVerifiedStudentRole, verifiedStudentRoleSyncKey(userID), payload)
 }
 
 func (s *Service) enqueueUserProfileProjectionTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error {
-	repo, ok := s.repo.(externalSyncRepo)
-	if !ok {
-		return fmt.Errorf("repository does not support external sync outbox")
-	}
 	payload, err := json.Marshal(userProfileProjectionPayload{
 		UserID:   userID,
 		Approved: approved,
@@ -87,7 +73,7 @@ func (s *Service) enqueueUserProfileProjectionTx(ctx context.Context, tx pgx.Tx,
 	if err != nil {
 		return fmt.Errorf("marshal user profile projection payload: %w", err)
 	}
-	return repo.UpsertExternalSyncJobTx(ctx, tx, externalSyncJobTypeUserProfileProjection, userProfileProjectionKey(userID), payload)
+	return s.repo.UpsertExternalSyncJobTx(ctx, tx, externalSyncJobTypeUserProfileProjection, userProfileProjectionKey(userID), payload)
 }
 
 func (s *Service) enqueueVerificationProjectionTx(ctx context.Context, tx pgx.Tx, userID int64, status string) error {
@@ -104,11 +90,6 @@ func (s *Service) enqueueVerificationProjectionTx(ctx context.Context, tx pgx.Tx
 }
 
 func (s *Service) StartBackgroundJobs(ctx context.Context) {
-	if _, ok := s.repo.(externalSyncRepo); !ok {
-		logger.L().Warn("user external sync worker disabled: repository does not support outbox")
-		return
-	}
-
 	go s.runExternalSyncWorker(ctx)
 }
 
@@ -130,12 +111,7 @@ func (s *Service) runExternalSyncWorker(ctx context.Context) {
 }
 
 func (s *Service) processExternalSyncBatch(ctx context.Context) error {
-	repo, ok := s.repo.(externalSyncRepo)
-	if !ok {
-		return nil
-	}
-
-	jobs, err := repo.ClaimExternalSyncJobs(ctx, externalSyncBatchSize, externalSyncLockStaleAfter)
+	jobs, err := s.repo.ClaimExternalSyncJobs(ctx, externalSyncBatchSize, externalSyncLockStaleAfter)
 	if err != nil {
 		return fmt.Errorf("claim external sync jobs: %w", err)
 	}
@@ -146,7 +122,7 @@ func (s *Service) processExternalSyncBatch(ctx context.Context) error {
 				backoff = externalSyncMaxBackoff
 			}
 			nextAttemptAt := time.Now().Add(backoff)
-			markErr := repo.MarkExternalSyncJobRetry(ctx, job.ID, nextAttemptAt, truncateExternalSyncError(err))
+			markErr := s.repo.MarkExternalSyncJobRetry(ctx, job.ID, nextAttemptAt, truncateExternalSyncError(err))
 			if markErr != nil {
 				logger.L().Error("failed to mark external sync job retry",
 					zap.Int64("job_id", job.ID),
@@ -164,7 +140,7 @@ func (s *Service) processExternalSyncBatch(ctx context.Context) error {
 			continue
 		}
 
-		if err := repo.MarkExternalSyncJobDone(ctx, job.ID); err != nil {
+		if err := s.repo.MarkExternalSyncJobDone(ctx, job.ID); err != nil {
 			return fmt.Errorf("mark external sync job done: %w", err)
 		}
 	}
@@ -206,7 +182,7 @@ func truncateExternalSyncError(err error) string {
 
 func (s *Service) syncVerifiedStudentRole(ctx context.Context, userID int64, role string, approved bool) error {
 	if s.onRoleSync == nil {
-		return nil
+		return errors.New("role sync dependency is not configured")
 	}
 
 	roleCtx, cancel := context.WithTimeout(ctx, roleSyncTimeout)
@@ -220,7 +196,7 @@ func (s *Service) syncVerifiedStudentRole(ctx context.Context, userID int64, rol
 
 func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, approved bool) error {
 	if s.profileFGA == nil {
-		return nil
+		return errors.New("profile FGA dependency is not configured")
 	}
 
 	projectionCtx, cancel := context.WithTimeout(ctx, fga.DefaultWriteTimeout)

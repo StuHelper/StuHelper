@@ -66,7 +66,7 @@ async function fetchCourses(): Promise<void> {
       courses: g.courses ?? [],
       expanded: true,
     }))
-  } catch {
+  } catch (_error) { void _error;
     error.value = t('review.courseList.loadFailed')
     departmentGroups.value = []
   } finally {

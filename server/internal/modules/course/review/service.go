@@ -13,10 +13,10 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
 
@@ -58,31 +58,50 @@ type Service struct {
 	filter         *Filter
 	dimensionCache atomic.Value // map[string]string
 	fgaWriter      reviewFGAWriter
-	notifSender    notification.Sender // nil-safe: skip notifications if not wired
+	notifSender    notification.Sender
 	accessReader   ReviewAccessReader
 	accessPolicySF singleflight.Group
+	asyncCtx       context.Context
 }
 
 // ReviewAccessReader 访问控制策略数据源（由 user.Repository 实现）。
 type ReviewAccessReader interface {
-	ListSchoolConfigs(ctx context.Context) ([]user.SchoolConfig, error)
-	ListSystemConfigs(ctx context.Context) ([]user.SystemConfig, error)
-	GetReviewAccessSubjectByExternalID(ctx context.Context, externalID string) (*user.ReviewAccessSubject, error)
-}
-
-// SetAccessReader 注入访问控制数据源（可选依赖，nil 安全）。
-func (s *Service) SetAccessReader(reader ReviewAccessReader) {
-	s.accessReader = reader
+	ListReviewAccessSchoolConfigs(ctx context.Context) ([]reviewaccess.SchoolConfig, error)
+	ListReviewAccessSystemConfigs(ctx context.Context) ([]reviewaccess.SystemConfig, error)
+	GetReviewAccessSubject(ctx context.Context, externalID string) (*reviewaccess.Subject, error)
 }
 
 // NewService 创建评课服务
-func NewService(database *db.DB, repo *Repository, notifSender notification.Sender) *Service {
+func NewService(
+	database *db.DB,
+	repo *Repository,
+	notifSender notification.Sender,
+	fgaWriter reviewFGAWriter,
+	accessReader ReviewAccessReader,
+) *Service {
+	if database == nil {
+		panic("review.NewService: database must not be nil")
+	}
+	if repo == nil {
+		panic("review.NewService: repo must not be nil")
+	}
+	if fgaWriter == nil {
+		panic("review.NewService: fgaWriter must not be nil")
+	}
+	if notifSender == nil {
+		panic("review.NewService: notifSender must not be nil")
+	}
+	if accessReader == nil {
+		panic("review.NewService: accessReader must not be nil")
+	}
 	filter := NewFilter(repo)
 	s := &Service{
-		db:          database,
-		repo:        repo,
-		filter:      filter,
-		notifSender: notifSender,
+		db:           database,
+		repo:         repo,
+		filter:       filter,
+		fgaWriter:    fgaWriter,
+		notifSender:  notifSender,
+		accessReader: accessReader,
 	}
 	// 初始化时加载维度缓存
 	if err := s.refreshDimensionCache(context.Background()); err != nil {

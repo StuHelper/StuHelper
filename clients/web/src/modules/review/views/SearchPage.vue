@@ -161,6 +161,8 @@
         <span class="text-text-muted">{{ t('common.actions.loading') }}</span>
       </div>
 
+      <div v-if="searchError" class="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">{{ searchError }}</div>
+
       <!-- No Results -->
       <div
         v-else-if="resultCourses.length === 0 && resultReviews.length === 0"
@@ -338,12 +340,15 @@ import { ArrowLeft, Search, SearchX, Heart, ThumbsDown, MessageCircle } from 'lu
 import EmojiRating from '@/components/business/review/EmojiRating.vue'
 import ControversialBadge from '@/components/business/review/ControversialBadge.vue'
 import { api } from '@/api'
-import type { Department, Term, Course } from '@/types/course'
-import type { Review } from '@/types/review'
-import { getRatingColor } from '@/modules/course/theme'
+import { getErrorMessage } from '@/api/errors'
+import { useToast } from '@/composables/useToast'
+import type { Department, Term, Course } from '@stuhelper/shared/course'
+import type { Review } from '@stuhelper/shared/review'
+import { getRatingColor } from '@/design-system/rating'
 
 const { t } = useI18n()
 const router = useRouter()
+const toast = useToast()
 
 // --- State ---
 
@@ -370,6 +375,7 @@ const showResults = ref(false)
 const validationError = ref('')
 const resultCourses = ref<Course[]>([])
 const resultReviews = ref<Review[]>([])
+const searchError = ref('')
 
 let abortController: AbortController | null = null
 
@@ -431,7 +437,7 @@ async function loadDepartments() {
   try {
     const res = await api.course.getDepartments()
     departments.value = res.data?.data || []
-  } catch {
+  } catch (_error) { void _error;
     departments.value = []
   }
 }
@@ -440,7 +446,7 @@ async function loadTerms() {
   try {
     const res = await api.course.getTerms()
     terms.value = res.data?.data || []
-  } catch {
+  } catch (_error) { void _error;
     terms.value = []
   }
 }
@@ -478,6 +484,7 @@ async function handleSearch() {
   showResults.value = true
   resultCourses.value = []
   resultReviews.value = []
+  searchError.value = ''
 
   try {
     // Build search queries from form
@@ -501,28 +508,34 @@ async function handleSearch() {
       { signal },
     )
 
-    const [courseRes, reviewRes] = await Promise.all([
-      coursePromise.catch(() => null),
-      reviewPromise.catch(() => null),
-    ])
+    const [courseRes, reviewRes] = await Promise.allSettled([coursePromise, reviewPromise])
 
     if (signal.aborted) return
 
-    // Process course results
-    if (courseRes) {
-      const raw = courseRes.data?.data
+    if (courseRes.status === 'fulfilled' && courseRes.value) {
+      const raw = courseRes.value.data?.data
       const courseList: Course[] = (raw && 'list' in raw ? raw.list : raw) as Course[] ?? []
       resultCourses.value = courseList
+    } else if (courseRes.status === 'rejected') {
+      searchError.value = getErrorMessage(courseRes.reason, t('common.loadFailed'))
     }
 
-    // Process review results
-    if (reviewRes) {
-      resultReviews.value = reviewRes.list
+    if (reviewRes.status === 'fulfilled') {
+      resultReviews.value = reviewRes.value.list
+    } else {
+      const message = getErrorMessage(reviewRes.reason, t('common.loadFailed'))
+      searchError.value = searchError.value || message
     }
-  } catch {
+
+    if (courseRes.status === 'rejected' || reviewRes.status === 'rejected') {
+      toast.error(searchError.value || t('common.loadFailed'))
+    }
+  } catch (error) {
     if (!signal.aborted) {
       resultCourses.value = []
       resultReviews.value = []
+      searchError.value = getErrorMessage(error, t('common.loadFailed'))
+      toast.error(searchError.value)
     }
   } finally {
     if (!signal.aborted) {

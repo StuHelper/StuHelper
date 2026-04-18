@@ -4,6 +4,8 @@
 
 单机 Docker Compose 部署，所有服务由仓库内 `docker-compose.yml` 定义。
 
+> 生产前提：承载 `postgres_data` / `redis_data` / 对象存储数据目录的底层块设备必须开启静态加密（云盘 KMS/EBS/PD 或主机侧 LUKS）。仓库内的 Compose 只定义容器拓扑，不负责替代宿主机磁盘加密。
+
 ```
 [Internet]
     │

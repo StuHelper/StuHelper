@@ -6,30 +6,58 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 
 config_file="${REMOTE_DEPLOY_CONFIG_FILE:-${DEPLOY_STATE_DIR}/remote.env}"
-default_env_file="${ENV_FILE:-${REPO_ROOT}/.env.prod.shared}"
-default_secrets_env_file="${SECRETS_ENV_FILE:-${REPO_ROOT}/.env.prod.secrets}"
-default_generated_env_file="${GENERATED_ENV_FILE:-${REPO_ROOT}/.env.prod.generated}"
-default_generated_secret_env_file="${GENERATED_SECRET_ENV_FILE:-${REPO_ROOT}/.env.prod.generated.secrets}"
-default_secret_file_root="${SECRET_FILE_ROOT:-${REPO_ROOT}/.secrets}"
-default_secret_backend="${SECRET_BACKEND:-file}"
+common_default_env_file="${REPO_ROOT}/.env"
+common_default_generated_env_file="${REPO_ROOT}/.env.generated"
+common_default_generated_secret_env_file="${REPO_ROOT}/.env.generated.secrets"
+common_default_secret_file_root="${REPO_ROOT}/infra/generated/secrets"
+
+default_env_file="${ENV_FILE:-}"
+if [[ -z "${default_env_file}" || "${default_env_file}" == "${common_default_env_file}" ]]; then
+  default_env_file="${REPO_ROOT}/.env.prod.shared"
+fi
+
+default_secrets_env_file="${SECRETS_ENV_FILE:-}"
+if [[ -z "${default_secrets_env_file}" ]]; then
+  default_secrets_env_file="${REPO_ROOT}/.env.prod.secrets"
+fi
+
+default_generated_env_file="${GENERATED_ENV_FILE:-}"
+if [[ -z "${default_generated_env_file}" || "${default_generated_env_file}" == "${common_default_generated_env_file}" ]]; then
+  default_generated_env_file="${REPO_ROOT}/.env.prod.generated"
+fi
+
+default_generated_secret_env_file="${GENERATED_SECRET_ENV_FILE:-}"
+if [[ -z "${default_generated_secret_env_file}" || "${default_generated_secret_env_file}" == "${common_default_generated_secret_env_file}" ]]; then
+  default_generated_secret_env_file="${REPO_ROOT}/.env.prod.generated.secrets"
+fi
+
+default_secret_file_root="${SECRET_FILE_ROOT:-}"
+if [[ -z "${default_secret_file_root}" || "${default_secret_file_root}" == "${common_default_secret_file_root}" ]]; then
+  default_secret_file_root="${REPO_ROOT}/.secrets"
+fi
+
+default_secret_backend="${SECRET_BACKEND:-}"
+if [[ -z "${default_secret_backend}" || "${default_secret_backend}" == "none" ]]; then
+  default_secret_backend="vault-kv-v2"
+fi
 
 mkdir -p "$(dirname "${config_file}")"
 
 DEFAULT_REGISTRY="${REGISTRY:-REPLACE_WITH_REGISTRY_HOST}" \
-DEFAULT_REGISTRY_USERNAME_SECRET_REF="${REGISTRY_USERNAME_SECRET_REF:-${default_secret_file_root}/registry/username}" \
-DEFAULT_REGISTRY_PASSWORD_SECRET_REF="${REGISTRY_PASSWORD_SECRET_REF:-${default_secret_file_root}/registry/password}" \
+DEFAULT_REGISTRY_USERNAME_SECRET_REF="${REGISTRY_USERNAME_SECRET_REF:-secret/stuhelper/prod/registry-username}" \
+DEFAULT_REGISTRY_PASSWORD_SECRET_REF="${REGISTRY_PASSWORD_SECRET_REF:-secret/stuhelper/prod/registry-password}" \
 DEFAULT_ENV_FILE="${default_env_file}" \
 DEFAULT_SECRETS_ENV_FILE="${default_secrets_env_file}" \
 DEFAULT_GENERATED_ENV_FILE="${default_generated_env_file}" \
 DEFAULT_GENERATED_SECRET_ENV_FILE="${default_generated_secret_env_file}" \
 DEFAULT_SECRET_BACKEND="${default_secret_backend}" \
-DEFAULT_SHARED_ENV_SECRET_REF="${SHARED_ENV_SECRET_REF:-${default_env_file}}" \
-DEFAULT_SECRETS_ENV_SECRET_REF="${SECRETS_ENV_SECRET_REF:-${default_secrets_env_file}}" \
-DEFAULT_GENERATED_ENV_SECRET_REF="${GENERATED_ENV_SECRET_REF:-${default_generated_secret_env_file}}" \
+DEFAULT_SHARED_ENV_SECRET_REF="${SHARED_ENV_SECRET_REF:-secret/stuhelper/prod/shared-env}" \
+DEFAULT_SECRETS_ENV_SECRET_REF="${SECRETS_ENV_SECRET_REF:-secret/stuhelper/prod/secrets-env}" \
+DEFAULT_GENERATED_ENV_SECRET_REF="${GENERATED_ENV_SECRET_REF:-secret/stuhelper/prod/generated-secrets-env}" \
 DEFAULT_SECRET_FILE_ROOT="${default_secret_file_root}" \
-DEFAULT_VAULT_ADDR="${VAULT_ADDR:-}" \
+DEFAULT_VAULT_ADDR="${VAULT_ADDR:-REPLACE_WITH_VAULT_ADDR}" \
 DEFAULT_VAULT_NAMESPACE="${VAULT_NAMESPACE:-}" \
-DEFAULT_VAULT_TOKEN_FILE="${VAULT_TOKEN_FILE:-}" \
+DEFAULT_VAULT_TOKEN_FILE="${VAULT_TOKEN_FILE:-${default_secret_file_root}/vault/token}" \
 DEFAULT_VAULT_KV_MOUNT="${VAULT_KV_MOUNT:-secret}" \
 python3 - "${config_file}" <<'PY'
 from pathlib import Path

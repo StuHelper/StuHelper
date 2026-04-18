@@ -1,3 +1,11 @@
+.openapi_contract_node_setup: &openapi_contract_node_setup
+  - apt-get update
+  - apt-get install -y curl ca-certificates gnupg
+  - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+  - apt-get install -y nodejs
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+
 .go_job:
   image: golang:1.26-bookworm
   variables:
@@ -36,19 +44,16 @@ backend_vulnerability_scan:
   extends: .go_job
 openapi_contract:
   stage: lint
+  before_script: *openapi_contract_node_setup
   script:
-  - apt-get update
-  - apt-get install -y curl ca-certificates gnupg
-  - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
-  - apt-get install -y nodejs
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd server
   - make lint-spec
   - make check-drift-go
+  - make check-doc-sync
   - cd ../clients
   - pnpm install --frozen-lockfile
   - pnpm run check:api-drift
+  - pnpm run check:capabilities-drift
 
   extends: .go_job
 backend_test:
@@ -71,6 +76,7 @@ backend_test:
   - cd server
   - make migrate-up
   - go test -v -race -timeout=10m -coverprofile=coverage.out ./...
+  - make check-coverage-threshold
   artifacts:
     when: always
     paths:

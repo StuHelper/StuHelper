@@ -21,11 +21,18 @@ type Service struct {
 	userSyncRepo UserSyncRepo
 }
 
-// NewService 创建认证业务逻辑服务
-func NewService(cfg *config.Config, tokenService *token.Service, userSyncRepo UserSyncRepo) *Service {
+// NewService 创建认证业务逻辑服务。
+// 开发期采用 fail-fast：关键依赖缺失直接 panic，而不是把“不可能状态”带进热路径。
+func NewService(tokenConfig config.TokenConfig, tokenService *token.Service, userSyncRepo UserSyncRepo) *Service {
+	if tokenService == nil {
+		panic("auth.NewService: tokenService is required")
+	}
+	if userSyncRepo == nil {
+		panic("auth.NewService: userSyncRepo is required")
+	}
 	return &Service{
 		tokenService: tokenService,
-		tokenConfig:  cfg.Token,
+		tokenConfig:  tokenConfig,
 		userSyncRepo: userSyncRepo,
 	}
 }
@@ -223,25 +230,16 @@ func (s *Service) SignPhoneTokenPair(user *PhoneUser, roles []string, sessionID 
 // SyncOIDCUser 同步 OIDC 登录的用户到本地 shadow user 表。
 // 登录成功必须意味着内部主体已就绪。
 func (s *Service) SyncOIDCUser(ctx context.Context, input UserSyncInput) error {
-	if s.userSyncRepo == nil {
-		return fmt.Errorf("user sync repository is not configured")
-	}
 	return s.userSyncRepo.UpsertUser(ctx, input)
 }
 
 // SyncPhoneUser 通过手机号查找或创建用户。
 func (s *Service) SyncPhoneUser(ctx context.Context, phone string) (*PhoneUser, error) {
-	if s.userSyncRepo == nil {
-		return nil, fmt.Errorf("user sync repository is not configured")
-	}
 	return s.userSyncRepo.UpsertByPhone(ctx, phone)
 }
 
 // UserExistsByExternalID 检查用户是否存在（用于 refresh token 校验）。
 func (s *Service) UserExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
-	if s.userSyncRepo == nil {
-		return false, fmt.Errorf("user sync repository is not configured")
-	}
 	return s.userSyncRepo.ExistsByExternalID(ctx, externalID)
 }
 

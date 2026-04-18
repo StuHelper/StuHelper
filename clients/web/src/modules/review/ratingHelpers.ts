@@ -1,6 +1,6 @@
-import type { TermRatingStats } from '@/types/course'
-import type { Review } from '@/types/review'
-import { getRatingColor } from '@/modules/course/theme'
+import type { TermRatingStats } from '@stuhelper/shared/course'
+import type { Review } from '@stuhelper/shared/review'
+import { getRatingColor } from '@/design-system/rating'
 
 const DIMENSION_LABELS: Readonly<Record<string, string>> = {
   recommendation: 'review.detail.recommend',

@@ -35,8 +35,7 @@ func (h *Handler) ClearContentFlag(c *gin.Context) {
 
 	adminUserID := middleware.GetUserID(c)
 	if err := h.service.ClearContentFlag(c.Request.Context(), reviewID, adminUserID); err != nil {
-		if err == ErrReviewNotFound {
-			response.NotFound(c, "review not found")
+		if respondClearContentFlagError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to clear content flag", zap.Error(err))

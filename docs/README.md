@@ -27,13 +27,7 @@
 - [operations/README.md](operations/README.md)
 - [references/api-overview.md](references/api-overview.md) / [references/database.md](references/database.md)
 
-## 业务域索引
-
-| 域 | 后端入口 | 规格文档 |
-|----|----------|----------|
-| 认证 | `modules/auth` + `pkg/oidc` + `pkg/token` | [auth-sso.md](product-specs/auth-sso.md) |
-| 课程与评课 | `modules/course` + `course/review` | [course-review.md](product-specs/course-review.md) |
-| 用户系统 | `modules/user` + `modules/ldap` | [user-system.md](product-specs/user-system.md) |
-| 通知 | `modules/notification` | [notification.md](product-specs/notification.md) |
-| 授权 | `pkg/capability` + `modules/rbac/middleware.go` + `pkg/fga` | [rbac-authorization.md](product-specs/rbac-authorization.md) |
-| 审计 | `pkg/audit` + `pkg/logger` | [audit-logging.md](product-specs/audit-logging.md) |
+业务域、角色和能力说明统一收敛在：
+- [product-specs/index.md](product-specs/index.md) —— 业务域索引
+- [PRODUCT.md](PRODUCT.md) —— 产品形态与用户角色
+- [references/api-overview.md](references/api-overview.md) —— 人工 API 索引

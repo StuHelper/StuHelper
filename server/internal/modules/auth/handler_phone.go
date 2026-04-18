@@ -39,41 +39,21 @@ func (h *Handler) RequestPhoneOTP(c *gin.Context) {
 		return
 	}
 
-	if err := h.otpService.CheckPhoneRateLimit(c.Request.Context(), phone); err != nil {
+	if err := h.otpService.IssueCode(c.Request.Context(), phone, h.smsService); err != nil {
 		if errors.Is(err, ErrOTPPhoneRateLimited) {
 			response.RateLimitExceeded(c, "too many requests for this phone number")
-		} else {
-			logger.FromGin(c).Error("failed to check phone OTP rate limit", zap.String("phone", maskPhone(phone)), zap.Error(err))
-			response.InternalError(c, "failed to send verification code")
-		}
-		return
-	}
-
-	code, err := h.otpService.Generate(c.Request.Context(), phone)
-	if err != nil {
-		if errors.Is(err, ErrOTPCooldown) {
+		} else if errors.Is(err, ErrOTPCooldown) {
 			response.RateLimitExceeded(c, "please wait before requesting a new code")
 		} else {
-			logger.FromGin(c).Error("failed to generate OTP", zap.String("phone", maskPhone(phone)), zap.Error(err))
+			logger.FromGin(c).Error("failed to send phone OTP", zap.String("phone", maskPhone(phone)), zap.Error(err))
 			response.InternalError(c, "failed to send verification code")
 		}
-		return
-	}
-
-	// 发送短信
-	internationalPhone := "+86" + phone
-	if err := h.smsService.Send(c.Request.Context(), internationalPhone, code); err != nil {
-		if cleanupErr := h.otpService.CleanupCodeOnly(c.Request.Context(), phone); cleanupErr != nil {
-			logger.FromGin(c).Warn("failed to cleanup OTP after SMS send failure", zap.String("phone", maskPhone(phone)), zap.Error(cleanupErr))
-		}
-		logger.FromGin(c).Error("failed to send SMS", zap.String("phone", maskPhone(phone)), zap.Error(err))
-		response.InternalError(c, "failed to send verification code")
 		return
 	}
 
 	response.Success(c, gin.H{
 		"message":  "verification code sent",
-		"cooldown": int(otpCooldown.Seconds()),
+		"cooldown": h.otpService.CooldownSeconds(),
 	})
 }
 
@@ -175,8 +155,7 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	audit.LogSuccess(audit.EventUserLogin, maskedID, user.Username, c.ClientIP(), c.Request.UserAgent(), requestID)
 
 	// 构建用户响应
-	capabilities := capability.ExpandRoles(roles)
-	snapshot := buildAccessSnapshot(capabilities)
+	snapshot := buildAccessSnapshotForRoles(roles, nil)
 
 	response.Success(c, gin.H{
 		"user": gin.H{

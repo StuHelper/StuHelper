@@ -17,6 +17,10 @@ stages:
 default:
   interruptible: true
 
+.pnpm_setup: &pnpm_setup
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+
 variables:
   REGISTRY: registry.stuhelper.com
   BACKEND_IMAGE: registry.stuhelper.com/stuhelper/backend
@@ -34,8 +38,13 @@ include:
 .playwright_job:
   stage: test
   image: mcr.microsoft.com/playwright:v1.58.2-noble
+  before_script: *pnpm_setup
   variables:
     CI: "true"
+
+.node_pnpm_job:
+  image: node:24-bookworm
+  before_script: *pnpm_setup
 
 .docker_job:
   image: docker:27.5.1-cli
@@ -59,10 +68,8 @@ check_shadow_files:
 
 frontend_lint:
   stage: lint
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients
   - pnpm install --frozen-lockfile
   - pnpm --filter @stuhelper/web lint
@@ -70,30 +77,24 @@ frontend_lint:
 
 admin_lint:
   stage: lint
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients/admin
   - pnpm install --frozen-lockfile
   - pnpm lint
 
 frontend_typecheck:
   stage: test
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients
   - pnpm install --frozen-lockfile
   - pnpm run type-check
 
 admin_typecheck:
   stage: test
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients/admin
   - pnpm install --frozen-lockfile
   - pnpm --filter @vben/web-ele typecheck
@@ -109,10 +110,8 @@ prod_init_contract:
 
 frontend_test:
   stage: test
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients
   - pnpm install --frozen-lockfile
   - pnpm --filter @stuhelper/web test
@@ -120,8 +119,6 @@ frontend_test:
 frontend_e2e:
   extends: .playwright_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients
   - pnpm install --frozen-lockfile
   - pnpm --filter @stuhelper/web test:e2e
@@ -134,8 +131,6 @@ frontend_e2e:
 admin_e2e:
   extends: .playwright_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients/admin
   - pnpm install --frozen-lockfile
   - pnpm --filter @vben/web-ele test:e2e
@@ -147,23 +142,25 @@ admin_e2e:
 
 frontend_dependency_scan:
   stage: security
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients
   - pnpm install --frozen-lockfile
   - pnpm audit --audit-level=high --prod
 
 admin_dependency_scan:
   stage: security
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients/admin
   - pnpm install --frozen-lockfile
   - pnpm audit --audit-level=high --prod
+
+frontend_sast:
+  stage: security
+  image: semgrep/semgrep:1.128.0
+  script:
+  - semgrep scan --config=p/vuejs --config=p/typescript --error clients/web/src clients/admin/apps/web-ele/src
 
 container_scan_backend:
   extends: .trivy_scan_job
@@ -188,10 +185,8 @@ container_scan_admin:
   - docker_build_admin
 frontend_build:
   stage: build
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients
   - pnpm install --frozen-lockfile
   - ': "${WEB_VITE_SSO_URL:?WEB_VITE_SSO_URL must be set for frontend builds}"'
@@ -200,10 +195,8 @@ frontend_build:
 
 admin_build:
   stage: build
-  image: node:24-bookworm
+  extends: .node_pnpm_job
   script:
-  - corepack enable
-  - corepack prepare pnpm@10 --activate
   - cd clients/admin
   - pnpm install --frozen-lockfile
   - pnpm build:ele

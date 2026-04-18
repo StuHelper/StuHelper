@@ -236,6 +236,46 @@ func EndpointRateLimitMiddleware(limiter *RedisRateLimiter, endpoint string) gin
 	}
 }
 
+// ProgressiveEndpointRateLimitMiddleware 对公开端点执行渐进式限流：
+// 匿名用户按 IP 使用更严格阈值；已认证用户按 userID 使用更宽松阈值。
+func ProgressiveEndpointRateLimitMiddleware(anonLimiter, userLimiter *RedisRateLimiter, endpoint string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := GetUserID(c)
+		limiter := anonLimiter
+		key := "rl:endpoint:" + endpoint + ":ip:" + extractIP(c.ClientIP())
+		if userID != "" {
+			limiter = userLimiter
+			key = "rl:endpoint:" + endpoint + ":user:" + userID
+		}
+
+		allowed, err := limiter.Allow(c.Request.Context(), key)
+		if err != nil {
+			logger.L().Warn("redis unavailable, rejecting request (fail-closed)",
+				zap.String("endpoint", endpoint),
+				zap.String("rate_limit_scope", rateLimitScope(userID)),
+			)
+			logger.L().Debug("progressive endpoint rate limit redis error detail", zap.Error(err))
+			response.ServiceUnavailable(c, "service temporarily unavailable")
+			c.Abort()
+			return
+		}
+		if !allowed {
+			setRetryAfterHeader(c, limiter.window)
+			response.RateLimitExceeded(c, "rate limit exceeded")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+func rateLimitScope(userID string) string {
+	if userID != "" {
+		return "user"
+	}
+	return "anonymous"
+}
+
 func setRetryAfterHeader(c *gin.Context, window time.Duration) {
 	seconds := int(window.Seconds())
 	if seconds <= 0 {

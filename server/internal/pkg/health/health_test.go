@@ -7,30 +7,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
 func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-// setupMiniredis 启动一个 miniredis 实例并返回对应的 redis.Client。
-func setupMiniredis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
+// setupMiniredis 启动一个 miniredis 实例并返回共享 fixture。
+func setupMiniredis(t *testing.T) *redisfixture.Fixture {
 	t.Helper()
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("failed to start miniredis: %v", err)
-	}
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() {
-		_ = client.Close()
-		mr.Close()
-	})
-	return mr, client
+	return redisfixture.Start(t)
 }
 
 // responseEnvelope 匹配 response.Response 的 JSON 结构。
@@ -145,8 +136,8 @@ func TestLiveness_ResponseContainsStatusAndTimestamp(t *testing.T) {
 
 func TestReadiness_NilPgPool_Returns503(t *testing.T) {
 	// nil pgPool 将导致 checkPostgres goroutine panic，被 recover 捕获后标记为 unhealthy
-	_, redisClient := setupMiniredis(t)
-	h := NewHandler(nil, redisClient, BuildInfo{}, false, time.Second)
+	redisFixture := setupMiniredis(t)
+	h := NewHandler(nil, redisFixture.Client, BuildInfo{}, false, time.Second)
 
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
@@ -176,11 +167,11 @@ func TestReadiness_NilPgPool_Returns503(t *testing.T) {
 
 func TestReadiness_RedisDown_Returns503(t *testing.T) {
 	// 使用 SetError 让 miniredis 对所有命令返回错误
-	mr, redisClient := setupMiniredis(t)
-	mr.SetError("forced-failure")
+	redisFixture := setupMiniredis(t)
+	redisFixture.Server.SetError("forced-failure")
 
 	// pgPool 为 nil 也会导致 postgres unhealthy，但重点是 redis 也失败
-	h := NewHandler(nil, redisClient, BuildInfo{}, false, time.Second)
+	h := NewHandler(nil, redisFixture.Client, BuildInfo{}, false, time.Second)
 
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
@@ -219,8 +210,8 @@ func TestReadiness_BothDepsDown_Returns503(t *testing.T) {
 // ---- Readiness: response format ----
 
 func TestReadiness_ErrorResponse_JSONStructure(t *testing.T) {
-	_, redisClient := setupMiniredis(t)
-	h := NewHandler(nil, redisClient, BuildInfo{}, false, time.Second)
+	redisFixture := setupMiniredis(t)
+	h := NewHandler(nil, redisFixture.Client, BuildInfo{}, false, time.Second)
 
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)

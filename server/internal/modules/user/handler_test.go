@@ -34,6 +34,16 @@ func ptr[T any](value T) *T {
 
 func setupAdminHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engine {
 	t.Helper()
+	return setupAdminHandlerTestRouterWithRole(t, repo, []string{"super_admin"}, nil)
+}
+
+func setupAdminHandlerTestRouterWithRole(
+	t *testing.T,
+	repo *mockRepo,
+	roles []string,
+	orgScopedRoles map[string][]string,
+) *gin.Engine {
+	t.Helper()
 
 	if repo == nil {
 		repo = &mockRepo{}
@@ -42,18 +52,24 @@ func setupAdminHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engi
 	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	h := NewHandler(svc, nil, nil, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 	r := gin.New()
 	api := r.Group("/api/v1")
 	admin := api.Group("/admin")
-	// 模拟 AuthMiddleware 注入用户信息和全部能力
+	// 模拟 AuthMiddleware 注入用户信息和能力快照
 	admin.Use(func(c *gin.Context) {
 		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
-		caps := capability.ExpandRoles([]string{"super_admin"})
-		c.Set(appmiddleware.CtxKeyCapabilities, caps)
+		snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, orgScopedRoles))
+		c.Set(appmiddleware.CtxKeyRoles, roles)
+		if orgScopedRoles != nil {
+			c.Set(appmiddleware.CtxKeyOrgScopedRoles, orgScopedRoles)
+		}
+		c.Set(appmiddleware.CtxKeyCapabilities, snapshot.Capabilities)
+		c.Set(appmiddleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+		c.Set(appmiddleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
 		// HasCapability 从 CtxKeyCapabilitySet (map) 做 O(1) 查找
-		capSet := make(map[string]struct{}, len(caps))
-		for _, cap := range caps {
+		capSet := make(map[string]struct{}, len(snapshot.Capabilities))
+		for _, cap := range snapshot.Capabilities {
 			capSet[cap] = struct{}{}
 		}
 		c.Set(appmiddleware.CtxKeyCapabilitySet, capSet)
@@ -79,7 +95,7 @@ func setupUserHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engin
 	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	h := NewHandler(svc, nil, nil, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 	r := gin.New()
 	api := r.Group("/api/v1")
 	authMW := func(c *gin.Context) {
@@ -290,6 +306,40 @@ func TestHandleAdminListStudentVerifications_DefaultsStatusToPending(t *testing.
 	assert.Equal(t, StatusPending, capturedStatus)
 }
 
+func TestHandleAdminListStudentVerifications_ScopedAdminRequiresSchoolIDForMultipleScopes(t *testing.T) {
+	repo := &mockRepo{}
+	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
+		"school_admin": {"10006", "10007"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandleAdminListStudentVerifications_ScopedAdminAllowsInScopeSchool(t *testing.T) {
+	var capturedSchoolID *int64
+	repo := &mockRepo{
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
+			capturedSchoolID = schoolID
+			return []Profile{}, 0, nil
+		},
+	}
+	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
+		"school_admin": {"10006"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications?schoolID=10006", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, capturedSchoolID)
+	assert.Equal(t, int64(10006), *capturedSchoolID)
+}
+
 func TestHandleAdminListIdentities_AllStatusClearsRepositoryFilter(t *testing.T) {
 	var capturedStatus string
 	repo := &mockRepo{
@@ -469,6 +519,60 @@ func TestHandleVerifyStudent_LDAPMissingStudentIDReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestHandleGetUserSurface_NormalizesNilCapabilitiesToEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
+			assert.Equal(t, "external-user-123", externalID)
+			return 42, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/me", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	data := resp["data"].(map[string]any)
+	capabilities := data["capabilities"].([]any)
+	assert.Empty(t, capabilities)
+}
+
+func TestHandleGetProfile_NormalizesNilStudentIDsToEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			assert.Equal(t, int64(42), userID)
+			return &Profile{
+				UserID:             userID,
+				VerificationStatus: StatusPending,
+			}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/profile", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	data := resp["data"].(map[string]any)
+	studentIDs := data["studentIDs"].([]any)
+	assert.Empty(t, studentIDs)
+}
+
 func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	now := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
 	repo := &mockRepo{
@@ -516,6 +620,37 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	firstField := manualFormFields[0].(map[string]any)
 	assert.Equal(t, "studentID", firstField["key"])
 	assert.Equal(t, "学号", firstField["label"])
+}
+
+func TestHandleAdminListSchoolConfigs_NormalizesNilManualFormFieldsToEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onListAllSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{{
+				SchoolID:           10006,
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				ApprovalPolicy:     "manual",
+				Enabled:            true,
+			}}, nil
+		},
+	}
+
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/school-configs", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	items := resp["data"].([]any)
+	require.Len(t, items, 1)
+	item := items[0].(map[string]any)
+	manualFormFields := item["manualFormFields"].([]any)
+	assert.Empty(t, manualFormFields)
 }
 
 func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t *testing.T) {
@@ -588,6 +723,25 @@ func TestHandleAdminUpdateSchoolConfig_MissingLDAPConfigReturnsBusinessCode(t *t
 	assert.Equal(t, string(errs.ErrSchoolLDAPConfigMissing), resp.Error.Code)
 }
 
+func TestHandleAdminUpdateSchoolConfig_ScopedAdminOutOfScopeReturns403(t *testing.T) {
+	repo := &mockRepo{}
+	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
+		"school_admin": {"10006"},
+	})
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/admin/school-configs/10007",
+		strings.NewReader(`{"enabled":true}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
 func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
 	repo := &mockRepo{
 		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
@@ -619,6 +773,36 @@ func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
 	require.Len(t, manualFormFields, 1)
 	firstField := manualFormFields[0].(map[string]any)
 	assert.Equal(t, "studentID", firstField["key"])
+}
+
+func TestHandleListSchools_ManualWithoutFieldsReturnsEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{{
+				SchoolID:           20002,
+				SchoolName:         "人工审核学校",
+				VerificationMethod: VerifyMethodManual,
+				Enabled:            true,
+			}}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/schools", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	list := resp["data"].([]any)
+	require.Len(t, list, 1)
+	item := list[0].(map[string]any)
+	manualFormFields := item["manualFormFields"].([]any)
+	assert.Empty(t, manualFormFields)
 }
 
 func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {
@@ -654,6 +838,18 @@ func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {
 	assert.Equal(t, "演示配置", item["description"])
 	assert.NotContains(t, item, "Key")
 	assert.NotContains(t, item, "UpdatedAt")
+}
+
+func TestHandleAdminListSystemConfigs_ScopedAdminForbidden(t *testing.T) {
+	r := setupAdminHandlerTestRouterWithRole(t, nil, []string{"school_admin"}, map[string][]string{
+		"school_admin": {"10006"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system-configs", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestHandleAdminUpdateSystemConfig_InvalidReviewPreviewPercentReturns400(t *testing.T) {

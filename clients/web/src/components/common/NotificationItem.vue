@@ -21,7 +21,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MessageSquare, ThumbsUp, Info } from 'lucide-vue-next'
-import type { Notification } from '@/types/notification'
+import type { Notification } from '@stuhelper/shared/notification'
 import { formatRelativeTime } from '@/utils/date'
 
 const { t, locale } = useI18n()

@@ -12,9 +12,13 @@ ACL_FILE="${REDIS_ACL_FILE:-${ACL_DIR}/users.acl}"
 mkdir -p "${ACL_DIR}"
 
 [[ -n "${REDIS_PASSWORD:-}" ]] || die "REDIS_PASSWORD is required to render Redis ACL"
+REDIS_USERNAME="${REDIS_USERNAME:-stuhelper_app}"
+REDIS_EXPORTER_USERNAME="${REDIS_EXPORTER_USERNAME:-stuhelper_metrics}"
 
 cat >"${ACL_FILE}" <<ACL
-user default on >${REDIS_PASSWORD} ~* +@all
+user default off
+user ${REDIS_USERNAME} on >${REDIS_PASSWORD} ~* +@all
+user ${REDIS_EXPORTER_USERNAME} on >${REDIS_PASSWORD} ~* +@all
 ACL
 chmod 600 "${ACL_FILE}"
 

@@ -14,10 +14,6 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
-type academicTableValidationRepo interface {
-	ValidateAcademicDBTable(ctx context.Context, tableName string) error
-}
-
 // GetInternalUserID 根据外部ID获取内部用户ID
 func (s *Service) GetInternalUserID(ctx context.Context, externalID string) (int64, error) {
 	return s.repo.GetInternalUserID(ctx, externalID)
@@ -83,6 +79,17 @@ func (s *Service) ListProfiles(ctx context.Context, status string, schoolID *int
 	return list, total, nil
 }
 
+func (s *Service) GetProfileSchoolID(ctx context.Context, userID int64) (*int64, error) {
+	profile, err := s.repo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetProfileSchoolID get: %w", err)
+	}
+	if profile == nil {
+		return nil, ErrProfileNotFound
+	}
+	return profile.SchoolID, nil
+}
+
 // ReviewStudentVerification 管理员审核学生认证（通过/驳回）
 func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, approved bool, reason string) error {
 	trimmedReason := strings.TrimSpace(reason)
@@ -111,23 +118,15 @@ func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, a
 		}
 	}
 
-	txRepo, err := requireProfileTxRepo(s.repo)
-	if err != nil {
-		return err
-	}
-	if err := txRepo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if err := txRepo.UpdateProfileTx(ctx, tx, profile); err != nil {
+	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if err := s.repo.UpdateProfileTx(ctx, tx, profile); err != nil {
 			return fmt.Errorf("ReviewStudentVerification update profile tx: %w", err)
 		}
 		if err := s.enqueueVerificationProjectionTx(ctx, tx, userID, profile.VerificationStatus); err != nil {
 			return fmt.Errorf("ReviewStudentVerification enqueue projections: %w", err)
 		}
 		return nil
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 // ListAllSchoolConfigs 获取所有学校配置（含禁用，管理端用）
@@ -247,10 +246,8 @@ func (s *Service) validateSchoolConfig(ctx context.Context, config *SchoolConfig
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
 		}
-		if validator, ok := s.repo.(academicTableValidationRepo); ok {
-			if err := validator.ValidateAcademicDBTable(ctx, normalizedTable); err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
-			}
+		if err := s.repo.ValidateAcademicDBTable(ctx, normalizedTable); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
 		}
 	}
 

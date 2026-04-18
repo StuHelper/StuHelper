@@ -38,7 +38,7 @@ function loadLocalVotes(): Record<string, VoteType | null> {
       }
     }
     return result
-  } catch {
+  } catch (_error) { void _error;
     return {}
   }
 }
@@ -46,7 +46,7 @@ function loadLocalVotes(): Record<string, VoteType | null> {
 function persistLocalVotes() {
   try {
     uni.setStorageSync(LOCAL_VOTES_STORAGE_KEY, JSON.stringify(localVotes.value))
-  } catch {
+  } catch (_error) { void _error;
     // ignore storage failures
   }
 }
@@ -79,7 +79,7 @@ async function loadMore() {
     const data = unwrapListData<components['schemas']['Review']>(result)
     reviews.value = [...reviews.value, ...data.list]
     hasMore.value = data.list.length >= 20
-  } catch {
+  } catch (_error) { void _error;
     page.value = Math.max(1, page.value - 1)
   } finally {
     loadingMore.value = false

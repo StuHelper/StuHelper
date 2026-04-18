@@ -1,8 +1,6 @@
 package review
 
 import (
-	"errors"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
@@ -26,7 +24,10 @@ type PostReviewRequest struct {
 
 // PostReview 发布测评
 func (h *Handler) PostReview(c *gin.Context) {
-	facts := h.resolveReviewAccessFactsForRequest(c)
+	facts, ok := h.resolveReviewAccessFactsForRequest(c)
+	if !ok {
+		return
+	}
 	if !facts.CanPostReview {
 		response.Forbidden(c, "student and identity verification are required to post reviews", errs.ErrAccessDenied)
 		return
@@ -38,10 +39,8 @@ func (h *Handler) PostReview(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	userID, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -62,29 +61,11 @@ func (h *Handler) PostReview(c *gin.Context) {
 		RequestID:            requestIDStr,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrRatingRequired):
-			response.BadRequest(c, "at least one rating dimension is required")
-		case errors.Is(err, ErrInvalidRating):
-			response.BadRequest(c, "rating must be between 1 and 5")
-		case errors.Is(err, ErrTitleEmpty):
-			response.BadRequest(c, "title cannot be empty")
-		case errors.Is(err, ErrDangerousContent):
-			response.BadRequest(c, "content contains potentially dangerous elements")
-		case errors.Is(err, ErrSensitiveContent):
-			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
-		case errors.Is(err, ErrModerationUnavailable):
-			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
-		case errors.Is(err, ErrContentEmpty):
-			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
-		case errors.Is(err, ErrAlreadyReviewed):
-			response.Conflict(c, "you have already reviewed this course", errs.ErrReviewExists)
-		case errors.Is(err, ErrCourseNotFound):
-			response.NotFound(c, "course not found", errs.ErrCourseNotFound)
-		default:
-			logger.FromGin(c).Error("failed to create review", zap.Error(err))
-			response.InternalError(c, "failed to create review")
+		if respondPostReviewError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to create review", zap.Error(err))
+		response.InternalError(c, "failed to create review")
 		return
 	}
 
@@ -108,10 +89,8 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		response.BadRequest(c, "invalid review id")
 		return
 	}
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -121,13 +100,11 @@ func (h *Handler) VoteReview(c *gin.Context) {
 		VoteType: req.VoteType,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
-		default:
-			logger.FromGin(c).Error("failed to vote", zap.Error(err))
-			response.InternalError(c, "failed to vote")
+		if respondVoteReviewError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to vote", zap.Error(err))
+		response.InternalError(c, "failed to vote")
 		return
 	}
 
@@ -145,6 +122,15 @@ type UpdateReviewRequest struct {
 
 // UpdateReview 更新评论
 func (h *Handler) UpdateReview(c *gin.Context) {
+	facts, ok := h.resolveReviewAccessFactsForRequest(c)
+	if !ok {
+		return
+	}
+	if !facts.CanEditOwn {
+		response.Forbidden(c, "verified student capability is required to edit your own review", errs.ErrAccessDenied)
+		return
+	}
+
 	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
@@ -157,10 +143,8 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -173,29 +157,11 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 		Ratings:  req.Ratings,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
-		case errors.Is(err, ErrNotReviewOwner):
-			response.Forbidden(c, "you can only edit your own review", errs.ErrNotReviewOwner)
-		case errors.Is(err, ErrRatingRequired):
-			response.BadRequest(c, "at least one rating dimension is required")
-		case errors.Is(err, ErrInvalidRating):
-			response.BadRequest(c, "rating must be between 1 and 5")
-		case errors.Is(err, ErrTitleEmpty):
-			response.BadRequest(c, "title cannot be empty")
-		case errors.Is(err, ErrDangerousContent):
-			response.BadRequest(c, "content contains potentially dangerous elements")
-		case errors.Is(err, ErrSensitiveContent):
-			response.BadRequest(c, "content contains sensitive words", errs.ErrSensitiveContent)
-		case errors.Is(err, ErrModerationUnavailable):
-			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
-		case errors.Is(err, ErrContentEmpty):
-			response.BadRequest(c, "content cannot be empty", errs.ErrContentEmpty)
-		default:
-			logger.FromGin(c).Error("failed to update review", zap.Error(err))
-			response.InternalError(c, "failed to update review")
+		if respondUpdateReviewError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to update review", zap.Error(err))
+		response.InternalError(c, "failed to update review")
 		return
 	}
 
@@ -205,15 +171,22 @@ func (h *Handler) UpdateReview(c *gin.Context) {
 
 // DeleteReview 删除评论
 func (h *Handler) DeleteReview(c *gin.Context) {
+	facts, ok := h.resolveReviewAccessFactsForRequest(c)
+	if !ok {
+		return
+	}
+	if !facts.CanDeleteOwn {
+		response.Forbidden(c, "verified student capability is required to delete your own review", errs.ErrAccessDenied)
+		return
+	}
+
 	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
 		return
 	}
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -222,15 +195,11 @@ func (h *Handler) DeleteReview(c *gin.Context) {
 		UserHash: userHash,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
-		case errors.Is(err, ErrNotReviewOwner):
-			response.Forbidden(c, "you can only delete your own review", errs.ErrNotReviewOwner)
-		default:
-			logger.FromGin(c).Error("failed to delete review", zap.Error(err))
-			response.InternalError(c, "failed to delete review")
+		if respondDeleteReviewError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to delete review", zap.Error(err))
+		response.InternalError(c, "failed to delete review")
 		return
 	}
 
@@ -258,10 +227,8 @@ func (h *Handler) ReportReview(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	userID, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -273,15 +240,11 @@ func (h *Handler) ReportReview(c *gin.Context) {
 		Description:            req.Description,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrReviewNotFound):
-			response.NotFound(c, "review not found", errs.ErrReviewNotFound)
-		case errors.Is(err, ErrAlreadyReported):
-			response.Conflict(c, "you have already reported this review", errs.ErrAlreadyReported)
-		default:
-			logger.FromGin(c).Error("failed to submit report", zap.Error(err))
-			response.InternalError(c, "failed to submit report")
+		if respondReportReviewError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to submit report", zap.Error(err))
+		response.InternalError(c, "failed to submit report")
 		return
 	}
 
@@ -303,13 +266,11 @@ func (h *Handler) CheckContent(c *gin.Context) {
 
 	result, err := h.service.CheckContent(c.Request.Context(), req.Content)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrModerationUnavailable):
-			response.ServiceUnavailable(c, "content moderation is temporarily unavailable")
-		default:
-			logger.FromGin(c).Error("failed to check content", zap.Error(err))
-			response.InternalError(c, "failed to check content")
+		if respondCheckContentError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to check content", zap.Error(err))
+		response.InternalError(c, "failed to check content")
 		return
 	}
 	response.Success(c, result)

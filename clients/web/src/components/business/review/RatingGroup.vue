@@ -48,8 +48,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { RatingDimension, RatingValue } from '@/types/course'
-import type { ReviewRatings } from '@/types/review'
+import type { RatingDimension, RatingValue } from '@stuhelper/shared/course'
+import type { ReviewRatings } from '@stuhelper/shared/review'
 
 const props = withDefaults(defineProps<{
   modelValue: ReviewRatings

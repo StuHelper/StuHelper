@@ -117,13 +117,22 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 		orderClause = allowedSortOrders[SortTime]
 	}
 
+	var total int
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM reviews WHERE status = 'published'
+	`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return []Review{}, 0, nil
+	}
+
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.moderation_reason, r.created_at, r.updated_at,
-		       COUNT(*) OVER() AS total
+		       r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
@@ -135,7 +144,11 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanReviewsWithTotal(rows)
+	list, err := scanReviews(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }
 
 // CreateParams 创建评论参数

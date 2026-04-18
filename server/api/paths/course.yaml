@@ -166,6 +166,8 @@
                           type: array
                           items:
                             $ref: '../components/schemas/course.yaml#/DepartmentGroup'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 

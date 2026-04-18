@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 
 const mockPush = vi.fn()
 const mockGetUserSurface = vi.fn()
@@ -53,6 +54,7 @@ const { useReviewPost } = await import('../useReviewPost')
 
 describe('useReviewPost', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     mockPush.mockReset()
     mockGetUserSurface.mockReset()
     mockToastError.mockReset()

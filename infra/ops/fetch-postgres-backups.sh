@@ -17,7 +17,7 @@ load_env
 
 logical_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
 base_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
-wal_archive_dir="${POSTGRES_WAL_ARCHIVE_DIR:-${REPO_ROOT}/infra/generated/postgres/wal-archive}"
+wal_archive_dir="${POSTGRES_WAL_RESTORE_DIR:-${LOCAL_STATE_DIR}/postgres/wal-restore}"
 prefix="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
 secure_flag=()
 if [[ "${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-false}" == "true" ]]; then

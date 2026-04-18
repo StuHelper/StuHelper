@@ -1,6 +1,6 @@
 # 认证与 SSO
 
-> 状态：现行。支持 Zitadel OIDC 登录和手机号验证码登录。
+> 状态：现行。默认支持 Zitadel OIDC 登录；手机号验证码登录仅在 `SMS_ENABLED=true` 且短信凭据完整时启用。
 
 ## 登录方式
 
@@ -26,6 +26,7 @@ POST /api/v1/auth/phone/verify-otp  → 验证 → 签发本地 JWT Cookie
 - 仅限中国大陆手机号
 - 有冷却和频率限制
 - 只授予 `user` 角色，管理角色仍需 Zitadel SSO
+- 默认关闭；需要同时配置 `SMS_ENABLED=true`、`SMS_SECRET_ID`、`SMS_SECRET_KEY`、`SMS_APP_ID`、`SMS_SIGN_NAME`、`SMS_TEMPLATE_ID`、`SMS_INTERNAL_KEY`
 
 ## 端点
 
@@ -52,6 +53,33 @@ POST /api/v1/auth/phone/verify-otp  → 验证 → 签发本地 JWT Cookie
 
 access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
 
+### Refresh 行为
+
+- **浏览器**：`POST /api/v1/auth/refresh`
+  - refresh token 来自 HttpOnly cookie
+  - 必须同时携带 CSRF header + CSRF cookie
+  - 响应体只返回 `message` / `expiresIn`，新 token 通过 cookie 下发
+- **原生 App**：`POST /api/v1/auth/refresh`
+  - 请求体传 `{ "refreshToken": "..." }`
+  - 不走 cookie / 不做 CSRF 校验
+  - 响应体返回 `accessToken`、`refreshToken`、`expiresIn`
+
+### 浏览器 access token 校验模型
+
+- 浏览器 Cookie access token 走 **本地 JWKS 验证**，不做每请求 session store lookup
+- 即时吊销依赖 Redis blacklist；自然过期依赖 5 分钟 `TOKEN_ACCESS_TTL`
+- `refresh` / `logout` / `logout-all` 仍会命中 session store 做轮换或撤销
+- 这是当前有意的性能/安全边界：不把浏览器读请求重新拉回每请求 Redis RTT
+
+### Native exchange / refresh 当前口径
+
+- `POST /api/v1/auth/exchange-native` 请求体：`{ code, state }`
+- 成功响应：`{ accessToken, refreshToken, sessionID, expiresIn }`
+- `sessionID` 目前仅用于 App 侧保留诊断/追踪信息；原生 refresh 端点当前**不会**回传 `sessionID`，因此：
+  - refresh 仍会对旧 refresh token 做 blacklist
+  - 但 native OIDC 流程的 session store touch 目前无法完全闭环
+  - 这属于当前实现限制，文档必须按现状说明，不能写成“已完全对齐 Web 会话轮换”
+
 ## Shadow User
 
 OIDC 用户同步到本地 `users` 表：`external_id`、`username`、`email`、`avatar_url`。
@@ -72,7 +100,7 @@ OIDC 用户同步到本地 `users` 表：`external_id`、`username`、`email`、
 2. 后端生成 state + PKCE code_verifier，state 标记 `native=true`
 3. 用户在系统浏览器完成 Zitadel 登录
 4. 回调时后端识别 native state，将 `code` + `state` 通过 deep link（`stuhelper://auth/callback?code=...&state=...`）回传给 App
-5. App 调用 `POST /api/v1/auth/exchange-native`（body: `{code, state}`），后端用保存的 code_verifier 完成 OIDC 交换，返回 JSON token pair
+5. App 调用 `POST /api/v1/auth/exchange-native`（body: `{code, state}`），后端用保存的 code_verifier 完成 OIDC 交换，返回 JSON token pair + `sessionID`
 
 ## 代码入口
 

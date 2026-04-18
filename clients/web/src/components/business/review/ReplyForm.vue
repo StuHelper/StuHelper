@@ -2,7 +2,7 @@
   <div class="py-3">
     <textarea
       v-model="content"
-      class="w-full min-h-[80px] p-3 bg-bg-secondary rounded-lg text-text-primary text-sm font-[inherit] resize-y transition-[border-color,box-shadow] duration-fast focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] focus:bg-bg-card placeholder:text-text-muted"
+      class="w-full min-h-[80px] p-3 bg-bg-secondary rounded-lg text-text-primary text-sm font-[inherit] resize-y focus-ring-field placeholder:text-text-muted"
       :placeholder="placeholder ?? t('review.reply.placeholder')"
       :aria-label="t('review.reply.inputLabel')"
       :aria-describedby="content.length > 0 && content.trim().length < minLength ? errorId : undefined"

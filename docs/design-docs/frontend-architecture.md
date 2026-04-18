@@ -13,38 +13,11 @@
 
 ## 路由
 
-### Web
-
-路由定义：`clients/web/src/router/index.ts`
-
-| 路径 | 页面 |
-|------|------|
-| `/` | 首页 |
-| `/about` / `/privacy` / `/terms` | 信息页（InfoPage） |
-| `/course` | 教学门户 |
-| `/courses` / `/courses/:id` | 课程列表 / 详情 |
-| `/courses/:id/reviews` | 课程评课列表 |
-| `/courses/:id/reviews/post` | 发评课 |
-| `/course/about` | 评课说明 |
-| `/review` | 评课首页 |
-| `/teachers` / `/teachers/:id` | 教师列表 / 教师主页 |
-| `/search` | 搜索 |
-| `/login` / `/auth/callback` | 登录 |
-| `/user/reviews` | 用户中心 — 我的评课 |
-| `/user/votes` | 用户中心 — 我的投票 |
-| `/user/favorites` | 用户中心 — 我的收藏 |
-| `/user/identity-verification` | 实名认证 |
-| `/user/student-verification` | 学生认证 |
-| `/user/phone-binding` | 手机号绑定 |
-| `/user/academic-info` | 学籍信息 |
-| `/user-center` | redirect → `/user/reviews` |
-| `/notifications` | 通知 |
-| `/review/courses/:id` | legacy redirect → `/courses/:id/reviews` |
-| `/courses/:id/review` | legacy redirect → `/courses/:id/reviews` |
-
-### Admin
-
-部署基路径 `/admin/`，路由在 `clients/admin/apps/web-ele/src/router/` 内维护。
+- Web 路由权威来源：`clients/web/src/router/index.ts`
+- Admin 路由权威来源：`clients/admin/apps/web-ele/src/router/`
+- 人工 API / 页面索引不在本设计文档重复维护，统一看：
+  - `/Users/zxy/Code/StuHelper/docs/FRONTEND.md`
+  - `/Users/zxy/Code/StuHelper/docs/references/api-overview.md`
 
 ## 共享契约链路
 

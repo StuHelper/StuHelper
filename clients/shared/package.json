@@ -23,6 +23,31 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.js"
     },
+    "./business": {
+      "source": "./src/types/business/index.ts",
+      "types": "./dist/types/business/index.d.ts",
+      "import": "./dist/types/business/index.js"
+    },
+    "./course": {
+      "source": "./src/course.ts",
+      "types": "./dist/course.d.ts",
+      "import": "./dist/course.js"
+    },
+    "./review": {
+      "source": "./src/review.ts",
+      "types": "./dist/review.d.ts",
+      "import": "./dist/review.js"
+    },
+    "./draft": {
+      "source": "./src/draft.ts",
+      "types": "./dist/draft.d.ts",
+      "import": "./dist/draft.js"
+    },
+    "./reply": {
+      "source": "./src/reply.ts",
+      "types": "./dist/reply.d.ts",
+      "import": "./dist/reply.js"
+    },
     "./utils": {
       "source": "./src/utils/index.ts",
       "types": "./dist/utils/index.d.ts",
@@ -37,6 +62,11 @@
       "source": "./src/presentation/index.ts",
       "types": "./dist/presentation/index.d.ts",
       "import": "./dist/presentation/index.js"
+    },
+    "./notification": {
+      "source": "./src/notification.ts",
+      "types": "./dist/notification.d.ts",
+      "import": "./dist/notification.js"
     }
   },
   "scripts": {

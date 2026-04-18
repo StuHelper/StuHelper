@@ -39,7 +39,7 @@ function readNativeTokens(): NativeTokens | null {
     const parsed = JSON.parse(raw) as NativeTokens
     if (!parsed.accessToken || !parsed.refreshToken) return null
     return parsed
-  } catch {
+  } catch (_error) { void _error;
     return null
   }
 }
@@ -48,7 +48,7 @@ function readNativeTokens(): NativeTokens | null {
 function writeNativeTokens(tokens: NativeTokens): void {
   try {
     uni.setStorageSync(TOKEN_STORAGE_KEY, JSON.stringify(tokens))
-  } catch {
+  } catch (_error) { void _error;
     // 存储失败不阻断流程
   }
 }
@@ -57,7 +57,7 @@ function writeNativeTokens(tokens: NativeTokens): void {
 function clearNativeTokens(): void {
   try {
     uni.removeStorageSync(TOKEN_STORAGE_KEY)
-  } catch {
+  } catch (_error) { void _error;
     // ignore
   }
 }
@@ -82,7 +82,7 @@ function buildCurrentRouteRedirect(): string {
       : []
 
     return `/${currentPage.route}${query.length > 0 ? `?${query.join('&')}` : ''}`
-  } catch {
+  } catch (_error) { void _error;
     return '/pages/user/index'
   }
 }
@@ -169,7 +169,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   /** 原生 App SSO 回调：用授权码 + state 换取 token 并持久化 */
   async function exchangeNativeCode(code: string, state: string): Promise<void> {
-    const result = await api.auth.exchangeNative(code, state, '')
+    const result = await api.auth.exchangeNative(code, state)
     const data = unwrapData<ExchangeNativeResult>(result)
 
     // 持久化 token 到本地存储

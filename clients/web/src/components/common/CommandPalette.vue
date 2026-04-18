@@ -97,7 +97,7 @@ import { useI18n } from 'vue-i18n'
 import { Search, Clock } from 'lucide-vue-next'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { api } from '@/api'
-import type { Course } from '@/types/course'
+import type { Course } from '@stuhelper/shared/course'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -119,7 +119,7 @@ const recentSearches = ref<string[]>((() => {
   try {
     const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]')
     return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string').slice(0, MAX_RECENT) : []
-  } catch {
+  } catch (_error) { void _error;
     return []
   }
 })())
@@ -132,7 +132,7 @@ function saveRecent(term: string) {
   recentSearches.value = list.slice(0, MAX_RECENT)
   try {
     localStorage.setItem(RECENT_KEY, JSON.stringify(recentSearches.value))
-  } catch {
+  } catch (_error) { void _error;
     // localStorage 不可用时静默忽略
   }
 }
@@ -185,7 +185,7 @@ watch(searchQuery, (val) => {
         seen.add(c.id)
         return true
       })
-    } catch {
+    } catch (_error) { void _error;
       if (controller.signal.aborted) return
       if (searchQuery.value.trim() === q) {
         results.value = []

@@ -57,7 +57,7 @@ dev-up:
 	./infra/ops/dev-up.sh
 
 dev-docker-up:
-	./infra/ops/dev-docker-up.sh
+	DEV_UP_MODE=dockerized ./infra/ops/dev-up.sh
 
 dev-down:
 	./infra/ops/dev-down.sh

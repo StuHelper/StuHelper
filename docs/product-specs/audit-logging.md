@@ -53,9 +53,9 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 | `LOG_LEVEL` | 日志级别 | info |
 | `LOG_FORMAT` | console / json | json |
 | `LOG_OUTPUT` | stdout / stderr | stdout |
-| `LOG_FILE_ENABLED` | 启用文件输出 | false |
-| `LOG_FILE_PATH` | 文件路径 | — |
 | `LOG_SAMPLING_ENABLED` | 启用采样 | false |
+
+> 容器化部署统一输出到 stdout，由 Alloy / Loki 收集；不再提供 `LOG_FILE_*` 文件轮转环境变量。
 
 ## 禁止记录
 

@@ -82,7 +82,7 @@ sudo ./infra/ops/install-backup-timers.sh
 
 - `backups/postgres/logical`
 - `backups/postgres/base`
-- `infra/generated/postgres/wal-archive`
+- `${POSTGRES_WAL_RESTORE_DIR:-$HOME/Library/Application Support/StuHelper/postgres/wal-restore}`（Linux 默认 `~/.local/state/stuhelper/postgres/wal-restore`）
 
 ## 逻辑备份恢复
 
@@ -107,13 +107,13 @@ ALLOW_DESTRUCTIVE=1 ./infra/ops/restore-postgres-basebackup.sh \
 
 ```bash
 ALLOW_DESTRUCTIVE=1 \
-WAL_ARCHIVE_DIR=/opt/stuhelper/infra/generated/postgres/wal-archive \
+WAL_ARCHIVE_DIR=/var/lib/stuhelper/postgres/wal-restore \
 ./infra/ops/restore-postgres-basebackup.sh \
   backups/stuhelper-2026-03-30T120000Z.tar.gz \
   /var/lib/postgresql/data
 ```
 
-脚本会写入 `restore_command` 和 `recovery.signal`，让 PostgreSQL 从 WAL 归档继续恢复。
+脚本会写入 `restore_command` 和 `recovery.signal`，让 PostgreSQL 从 WAL 归档继续恢复。运行中的 PostgreSQL 实例使用 Docker named volume `postgres_wal_archive` 保存在线 WAL 归档；恢复演练则显式使用本地 restore cache 目录，避免把活动 WAL 写回仓库树。
 
 ## 生产规则
 
@@ -126,9 +126,9 @@ WAL_ARCHIVE_DIR=/opt/stuhelper/infra/generated/postgres/wal-archive \
 
 ## 建议保留策略
 
-- 每日逻辑备份：保留 7 天
-- 每周 base backup：保留 2 周
-- WAL 归档：保留 7 天
+- 每日逻辑备份：保留 14 天
+- 每周 base backup：保留 30 天
+- WAL 归档：保留 14 天
 - 每次重大上线前额外生成一次人工备份
 
 ## 演练清单

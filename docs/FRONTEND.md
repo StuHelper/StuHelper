@@ -4,7 +4,9 @@
 
 - 组件统一用 `<script setup lang="ts">`
 - 不手改 `clients/shared/src/types/api.gen.ts`
-- 请求统一使用 `clients/shared`，页面不直接 `fetch`
+- 请求默认统一使用 `clients/shared`
+  - 合法例外：OIDC callback 浏览器跳转、`sendBeacon` / `keepalive` 可观测性上报、框架/浏览器原生基础设施请求
+  - 例外必须在调用点保留注释，说明为何不能走 shared API
 - 本地状态够用就不引入 Pinia；跨路由共享的状态才用 store
 
 ## 工作区结构
@@ -27,22 +29,21 @@ clients/
 │   ├── stores/
 │   ├── styles/
 │   ├── types/
-│   ├── utils/
-│   └── vendor/
+│   └── utils/
 ├── admin/apps/web-ele/src/ # 独立管理后台
 └── uniappx/src/            # 实验性跨端
 ```
 
 ## Web 模块
 
-`clients/web/src/modules/`：
-
-- `auth` — 登录、OIDC 回调
-- `common` — InfoPage.vue（/about、/privacy、/terms）
-- `course` — 课程列表、教师、门户
-- `review` — 评课、搜索、发帖
-- `user` — 用户中心、认证、通知
-- `home` / `errors`
+主站模块以 `clients/web/src/modules/` 为准，当前主要分为：
+- `auth`
+- `course`
+- `review`
+- `user`
+- `home`
+- `common`
+- `errors`
 
 主站无嵌入式 `/admin/*` 路由，后台独立部署在 `clients/admin`。
 
@@ -69,38 +70,19 @@ web / admin / uniappx 封装
 
 改接口流程：改 OpenAPI → 重新生成 → 改 shared → 改页面和 store。
 
-## 主站路由
+## 路由权威来源
 
-| 路径 | 页面 |
-|------|------|
-| `/` | 首页 |
-| `/about` / `/privacy` / `/terms` | 信息页（InfoPage） |
-| `/course` | 教学门户 |
-| `/courses` / `/courses/:id` | 课程列表 / 详情 |
-| `/courses/:id/reviews` | 课程评课列表 |
-| `/courses/:id/reviews/post` | 发评课 |
-| `/course/about` | 评课说明 |
-| `/review` | 评课首页 |
-| `/teachers` / `/teachers/:id` | 教师列表 / 教师主页 |
-| `/search` | 搜索 |
-| `/login` / `/auth/callback` | 登录 |
-| `/user/reviews` | 用户中心 — 我的评课 |
-| `/user/votes` | 用户中心 — 我的投票 |
-| `/user/favorites` | 用户中心 — 我的收藏 |
-| `/user/identity-verification` | 实名认证 |
-| `/user/student-verification` | 学生认证 |
-| `/user/phone-binding` | 手机号绑定 |
-| `/user/academic-info` | 学籍信息 |
-| `/user-center` | redirect → `/user/reviews` |
-| `/notifications` | 通知 |
-| `/review/courses/:id` | legacy redirect → `/courses/:id/reviews` |
-| `/courses/:id/review` | legacy redirect → `/courses/:id/reviews` |
+- Web 路由权威来源：`clients/web/src/router/index.ts`
+- Admin 路由权威来源：`clients/admin/apps/web-ele/src/router/`
+- 对外的人工接口索引只维护在：
+  - `/Users/zxy/Code/StuHelper/docs/references/api-overview.md`
+
+本页不再重复维护完整页面路径表；需要查看具体页面入口时，直接以路由源码为准。
 
 ## 状态管理
 
-Pinia store 当前用于：`auth`（认证会话）、`notification`（通知）、`courseReview`（课程评课聚合）、`draft`（草稿）、`user`（用户中心状态）、`verification`（实名/学生认证状态）、`theme`（主题）、`locale`（语言）。
-
-组件级表单、弹窗、局部交互留在页面内部。
+跨路由共享状态优先放 Pinia；局部表单、弹窗与一次性页面交互留在组件内部。
+当前主站共享状态以 `clients/web/src/stores/` 为准，本页不再重复列出具体 store 清单。
 
 ## 开发命令
 

@@ -4,18 +4,36 @@
  * lastPostedAt 供子页面（如 CourseDetailPage）监听发布事件并刷新数据
  * preselectedCourse 允许从课程详情页直接打开已选好课程的对话框
  */
-import { ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { defineStore } from 'pinia'
 import { useRouter } from 'vue-router'
-import type { Course } from '@/types/course'
+import type { Course } from '@stuhelper/shared/course'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import i18n from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 
-const showPostModal = ref(false)
-const lastPostedAt = ref(0)
-const preselectedCourse = ref<Course | null>(null)
+const useReviewPostStore = defineStore('reviewPost', {
+  state: () => ({
+    showPostModal: false,
+    lastPostedAt: 0,
+    preselectedCourse: null as Course | null,
+  }),
+  actions: {
+    open(course?: Course) {
+      this.preselectedCourse = course ?? null
+      this.showPostModal = true
+    },
+    close() {
+      this.showPostModal = false
+      this.preselectedCourse = null
+    },
+    markPosted() {
+      this.lastPostedAt = Date.now()
+    },
+  },
+})
 
 export type UseReviewPostReturn = ReturnType<typeof useReviewPost>
 
@@ -23,19 +41,19 @@ export function useReviewPost() {
   const router = useRouter()
   const authStore = useAuthStore()
   const toast = useToast()
+  const reviewPostStore = useReviewPostStore()
+  const { showPostModal, lastPostedAt, preselectedCourse } = storeToRefs(reviewPostStore)
 
   function openPostModal(course?: Course) {
-    preselectedCourse.value = course ?? null
-    showPostModal.value = true
+    reviewPostStore.open(course)
   }
 
   function closePostModal() {
-    showPostModal.value = false
-    preselectedCourse.value = null
+    reviewPostStore.close()
   }
 
   function notifyPosted() {
-    lastPostedAt.value = Date.now()
+    reviewPostStore.markPosted()
   }
 
   async function ensureCanPostReview() {

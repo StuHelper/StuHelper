@@ -19,7 +19,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Angry, Frown, Meh, Smile, SmilePlus } from 'lucide-vue-next'
-import { getRatingColor } from '@/modules/course/theme'
+import { getRatingColor } from '@/design-system/rating'
 
 const props = withDefaults(defineProps<{
   value: number

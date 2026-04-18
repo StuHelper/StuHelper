@@ -7,7 +7,7 @@ import { ADMIN_REVIEWS_MANAGE, hasCapability } from '@stuhelper/shared/constants
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 
-import type { Review } from '@/types/review'
+import type { Review } from '@stuhelper/shared/review'
 
 export function useReviewAdmin(onRefresh: () => void) {
   const { t } = useI18n()

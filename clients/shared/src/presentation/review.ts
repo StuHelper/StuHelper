@@ -42,19 +42,13 @@ export function isValidRatings(
   )
 }
 
-// ---- wire → view-model normalizer ----
-
-export function normalizeReview(apiReview: ApiReview): Review {
-  return { ...apiReview }
-}
-
 export function normalizeReviews(items?: ApiReview[] | null): Review[] {
-  return (items ?? []).map(normalizeReview)
+  return (items ?? []) as Review[]
 }
 
 export function normalizeReviewList(payload?: ApiReviewListPayload | null): PaginatedResult<Review> {
   return {
-    list: (payload?.list ?? []).map(normalizeReview),
+    list: (payload?.list ?? []) as Review[],
     total: payload?.total ?? 0,
   }
 }
