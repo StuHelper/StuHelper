@@ -1,3 +1,11 @@
+---
+type: reference
+audience: maintainers
+status: current
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # ADR-NNNN: [Decision Title]
 
 **Date**: YYYY-MM-DD

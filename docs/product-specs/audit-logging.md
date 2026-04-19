@@ -1,3 +1,11 @@
+---
+type: product-spec
+audience: product, backend-dev
+status: current
+authoritative-source: server/api/openapi.yaml
+last-verified: 2026-04-19
+---
+
 # 审计日志
 
 > 状态：现行

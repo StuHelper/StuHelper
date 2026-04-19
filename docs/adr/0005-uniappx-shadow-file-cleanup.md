@@ -1,3 +1,11 @@
+---
+type: adr
+audience: frontend-dev
+status: current
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # ADR-0005: UniApp X Shadow File (.js/.ts pair) Cleanup
 
 **Date**: 2026-04-16

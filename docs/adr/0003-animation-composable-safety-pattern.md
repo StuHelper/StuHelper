@@ -1,3 +1,11 @@
+---
+type: adr
+audience: frontend-dev
+status: current
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # ADR-0003: Mandatory three-guard safety pattern for JS animation composables
 
 **Date**: 2026-03-31

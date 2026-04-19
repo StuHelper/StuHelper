@@ -1,3 +1,11 @@
+---
+type: adr
+audience: frontend-dev
+status: current
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # ADR-0004: Dual-selector rule for scoped dark mode CSS
 
 **Date**: 2026-03-31

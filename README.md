@@ -100,11 +100,11 @@ StuHelper/
 | 文档 | 内容 |
 |------|------|
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | 快速开始 |
-| [docs/BACKEND.md](docs/BACKEND.md) | 后端规范 |
-| [docs/FRONTEND.md](docs/FRONTEND.md) | 前端规范 |
-| [docs/PRODUCT.md](docs/PRODUCT.md) | 产品形态与边界 |
-| [docs/architecture/0001-stuhelper-target-scope-and-module-boundaries.md](docs/architecture/0001-stuhelper-target-scope-and-module-boundaries.md) | 目标范围与模块边界 |
-| [docs/operations/README.md](docs/operations/README.md) | 运维与发布 |
+| [docs/guides/backend-development.md](docs/guides/backend-development.md) | 后端规范 |
+| [docs/guides/frontend-development.md](docs/guides/frontend-development.md) | 前端规范 |
+| [docs/design/product-overview.md](docs/design/product-overview.md) | 产品形态与边界 |
+| [docs/design/target-scope.md](docs/design/target-scope.md) | 目标范围与模块边界 |
+| [docs/guides/](docs/guides/) | 运维与发布 |
 | [docs/README.md](docs/README.md) | 文档总索引 |
 
 ## 约定

@@ -1,6 +1,14 @@
+---
+type: product-spec
+audience: product, backend-dev
+status: current
+authoritative-source: server/api/openapi.yaml
+last-verified: 2026-04-19
+---
+
 # 通知中心
 
-> 状态：现行，已统一到评课用户命名空间
+> 状态：现行，通知实现已统一收口到 `notification` 模块，对外沿用评课用户命名空间
 
 ## 现状
 
@@ -12,11 +20,9 @@ OpenAPI 和 `clients/shared` 使用的接口：
 - `PUT /api/v1/course/review/user/notifications/{notificationID}/read`
 - `PUT /api/v1/course/review/user/notifications/read-all`
 
-运行时 SSE 由独立通知模块提供，但仍挂在同一路径前缀下：
+统一入口：`/api/v1/course/review/user/notifications/*`。该路径前缀是稳定的对外命名空间，不代表代码归属仍在 `review` 模块。
 
-- `GET /api/v1/course/review/user/notifications/stream`
-
-统一入口：`/api/v1/course/review/user/notifications/*`，`user_id` 归属键，Redis Pub/Sub 广播，SSE 推送。
+运行时实现统一由 `notification` 模块负责：通知写入、列表查询、已读更新、未读数统计、Redis Pub/Sub 广播和 SSE 推送都在同一模块内闭环。
 
 ## 数据模型
 
@@ -38,6 +44,6 @@ OpenAPI 和 `clients/shared` 使用的接口：
 
 | 组件 | 位置 |
 |------|------|
-| 独立通知模块 | `server/internal/modules/notification/` |
-| 评课旧通知 | `server/internal/modules/course/review/review_notification.go` |
-| Web 通知封装 | `clients/shared/src/api/notification.ts` |
+| 通知模块 | `server/internal/modules/notification/` |
+| 评课域通知发送方 | `server/internal/modules/course/review/service_review_write.go` / `service_interaction.go` |
+| Shared 通知封装 | `clients/shared/src/api/notification.ts` |

@@ -1,24 +1,34 @@
-# 产品规格
+---
+type: product-spec
+audience: product, backend-dev, frontend-dev
+status: current
+authoritative-source: this file (index only) + listed specs
+last-verified: 2026-04-19
+---
 
-按业务域拆分的功能规格，描述当前代码库已实现的功能与业务规则。
-本页只保留域索引；角色说明以 `/Users/zxy/Code/StuHelper/docs/PRODUCT.md` 为准，能力/授权细节以对应规格页与 `/Users/zxy/Code/StuHelper/docs/product-specs/rbac-authorization.md` 为准。
+# 产品规格索引
 
-## 域索引
+本目录只放**业务域规格**：当前代码库已实现的功能范围、业务规则、边界。
 
-| 域 | 权威规格 | 备注 |
-|----|----------|------|
-| 认证 | [auth-sso.md](auth-sso.md) | 登录、回调、会话、手机号 OTP |
+- 角色与产品形态 → [design/product-overview.md](../design/product-overview.md)
+- 认证 / 授权 / 存储 / 安全 等**技术机制** → [design/](../design/)
+- API 字段与 schema → `server/api/openapi.yaml`
+
+## 业务域
+
+| 域 | 规格 | 说明 |
+|----|------|------|
 | 课程与评课 | [course-review.md](course-review.md) | 课程实体、评课、回复、举报、收藏 |
 | 教务展示 | [academics-data-integration.md](academics-data-integration.md) | 外部教务数据导入、标准化、我的课程、我的课表 |
 | 资源共享 | [resource-sharing.md](resource-sharing.md) | 资源条目、版本、标签、绑定、下载 |
-| 存储驱动 | [storage-driver-architecture.md](storage-driver-architecture.md) | mount、driver、能力声明、诊断 |
 | 用户系统 | [user-system.md](user-system.md) | 实名、学生认证、手机号绑定、学校配置 |
-| 授权 | [rbac-authorization.md](rbac-authorization.md) | capability、组织 scope、OpenFGA |
 | 通知 | [notification.md](notification.md) | 通知列表、未读数、SSE |
 | 审计 | [audit-logging.md](audit-logging.md) | 审计日志与留痕 |
 
 ## 当前边界
 
-- StuHelper 是校园信息平台，不是完整教务系统。
-- 教务相关能力只做导入、标准化、展示与查询。
+- StuHelper 是**校园信息平台**，不是完整教务系统。
+- 教务相关能力只做导入、标准化、展示与查询，不做写侧。
 - 资源相关能力只做资源共享与可插拔存储，不做实验 / 作业附件平台。
+
+更完整的目标范围和非目标见 [design/target-scope.md](../design/target-scope.md)。

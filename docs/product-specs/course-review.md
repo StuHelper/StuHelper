@@ -1,3 +1,11 @@
+---
+type: product-spec
+audience: product, backend-dev
+status: current
+authoritative-source: server/api/openapi.yaml
+last-verified: 2026-04-19
+---
+
 # 课程与评课
 
 > 状态：现行

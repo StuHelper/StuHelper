@@ -66,6 +66,12 @@ check_shadow_files:
   - apk add --no-cache bash findutils
   - bash scripts/check-uniappx-shadow-files.sh
 
+check_docs_hygiene:
+  stage: lint
+  image: node:24-bookworm
+  script:
+  - make check-docs
+
 frontend_lint:
   stage: lint
   extends: .node_pnpm_job

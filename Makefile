@@ -1,4 +1,4 @@
-.PHONY: help dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod
+.PHONY: help dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs
 
 .DEFAULT_GOAL := help
 
@@ -133,3 +133,7 @@ ansible-rollback-staging:
 
 ansible-rollback-prod:
 	cd infra/ansible && ansible-playbook -i inventory/production.ini playbooks/rollback.yml -e env_name=production
+
+check-docs:
+	node --test scripts/check-docs-hygiene.test.mjs
+	bash scripts/check-docs-hygiene.sh

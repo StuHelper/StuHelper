@@ -1,37 +1,93 @@
+---
+type: reference
+audience: all
+status: current
+authoritative-source: this file (index) + linked docs
+last-verified: 2026-04-19
+---
+
 # StuHelper 文档
 
-`docs/` 记录当前代码库的实际状态。接口以 `server/api/openapi.yaml` 为准，schema 以 `server/migrations/` 为准。
+`docs/` 只放**长期文档**：反映当前代码库真实状态的规范、设计、规格、参考。临时工件（执行计划、审计、评估）在 [`internal/`](internal/)。
 
-## 目录
+**真源永远是代码**：API → `server/api/openapi.yaml`；Schema → `server/migrations/`；能力常量 → `server/internal/pkg/capability/`。本目录只做解释与导航。
 
-| 文件 / 目录 | 内容 |
-|-------------|------|
-| `QUICKSTART.md` | 环境搭建与首次启动 |
-| `BACKEND.md` | 后端开发规范 |
-| `FRONTEND.md` | 前端开发规范 |
-| `PRODUCT.md` | 产品形态概览 |
-| `SECURITY.md` | 安全措施 |
-| `QUALITY_SCORE.md` | 质量评估 |
-| `product-specs/` | 按业务域拆分的功能规格 |
-| `architecture/` | 当前主路线的目标架构边界 |
-| `design-docs/` | 架构设计与工程原则 |
-| `operations/` | 启动、部署、观测、回滚、备份 |
-| `references/` | API、数据库、错误码速查 |
-| `exec-plans/` | 执行计划与技术债 |
-| `adr/` | 架构决策记录 |
+---
 
-## 导航
+## 按读者分流
 
-- [QUICKSTART.md](QUICKSTART.md)
-- [BACKEND.md](BACKEND.md) / [FRONTEND.md](FRONTEND.md)
-- [architecture/README.md](architecture/README.md)
-- [architecture/0001-stuhelper-target-scope-and-module-boundaries.md](architecture/0001-stuhelper-target-scope-and-module-boundaries.md)
-- [product-specs/index.md](product-specs/index.md)
-- [operations/README.md](operations/README.md)
-- [references/api-overview.md](references/api-overview.md) / [references/database.md](references/database.md)
+### 我是**新人**，第一次跑这个项目
 
-业务域、角色和能力说明统一收敛在：
-- [product-specs/index.md](product-specs/index.md) —— 业务域索引
-- [PRODUCT.md](PRODUCT.md) —— 产品形态与用户角色
-- [architecture/0001-stuhelper-target-scope-and-module-boundaries.md](architecture/0001-stuhelper-target-scope-and-module-boundaries.md) —— 主路线边界
-- [references/api-overview.md](references/api-overview.md) —— 人工 API 索引
+1. [QUICKSTART.md](QUICKSTART.md) — 环境搭建与一键启动
+2. [design/product-overview.md](design/product-overview.md) — 这是什么产品、给谁用
+3. [design/target-scope.md](design/target-scope.md) — 做什么、不做什么
+
+### 我要**写代码**（后端 / 前端）
+
+1. [guides/backend-development.md](guides/backend-development.md) — 后端规范、分层、OpenAPI 工作流
+2. [guides/frontend-development.md](guides/frontend-development.md) — 前端规范、共享契约、路由
+3. [design/core-beliefs.md](design/core-beliefs.md) — 工程原则（契约驱动、不可变、小文件）
+4. [product-specs/](product-specs/) — 要改的业务域规格
+5. [reference/api-overview.md](reference/api-overview.md) — 接口模块分组
+
+### 我要**维护文档系统**
+
+1. [design/documentation-governance.md](design/documentation-governance.md) — 文档架构、元数据、生命周期
+2. [guides/documentation-maintenance.md](guides/documentation-maintenance.md) — 新增 / 修改文档时的操作步骤
+3. [design/core-beliefs.md](design/core-beliefs.md) — 工程原则与真源约束
+
+### 我要**理解系统**（架构 / 设计）
+
+1. [design/target-scope.md](design/target-scope.md) — 主路线边界
+2. [design/layered-architecture.md](design/layered-architecture.md) — 后端分层为什么这么切
+3. [design/frontend-architecture.md](design/frontend-architecture.md) — 前端 Monorepo 与共享契约链路
+4. [design/auth-and-session.md](design/auth-and-session.md) — 认证与会话机制
+5. [design/authorization-model.md](design/authorization-model.md) — 三层授权（角色 → 能力 → FGA）
+6. [design/storage-architecture.md](design/storage-architecture.md) — 存储抽象与驱动
+7. [design/security-model.md](design/security-model.md) — 安全措施
+8. [adr/](adr/) — 单项架构决策
+
+### 我要**运维 / 发布 / 排障**
+
+1. [guides/release-runbook.md](guides/release-runbook.md) — 发布流程、verify、回滚
+2. [guides/database-migrations.md](guides/database-migrations.md) — 迁移、seed、回滚
+3. [guides/observability.md](guides/observability.md) — Grafana LGTM、告警、排障
+4. [guides/backup-and-restore.md](guides/backup-and-restore.md) — PostgreSQL 备份恢复
+5. [guides/automation.md](guides/automation.md) — 一键启动、GitLab、Ansible
+6. [guides/production-topology.md](guides/production-topology.md) — 生产拓扑
+
+### 我想查**事实**
+
+| 我想查 | 去哪里 |
+|--------|--------|
+| 某个接口的字段 / schema | `server/api/openapi.yaml` |
+| 某张表的列 / 索引 | `server/migrations/*.sql` |
+| 能力常量 | `server/internal/pkg/capability/capability.go` |
+| API 模块分组 | [reference/api-overview.md](reference/api-overview.md) |
+| 数据库模块分组 | [reference/database.md](reference/database.md) |
+| 错误码规则 | [reference/error-codes.md](reference/error-codes.md) |
+
+---
+
+## 目录图
+
+```
+docs/
+├── README.md              本页（角色分流入口）
+├── QUICKSTART.md          新人上手
+├── guides/                How-to:怎么做
+├── design/                Explanation:为什么这样设计
+├── product-specs/         业务域规格
+├── reference/             查资料(只做导航摘要)
+├── adr/                   单项架构决策
+└── internal/              临时工件:exec-plans + 阶段性评估
+```
+
+## 目录职责
+
+- **一目录一承诺**：进入任一目录前，读者应能预期里面是什么类型的文档。
+- **一文档一类型**：每份文档只回答一种问题，不混写。
+- **一事实一真源**：OpenAPI、migrations、capability 常量只能有一份权威来源。
+- **一切规则可执行**：长期文档结构与元数据由 `make check-docs` 守卫。
+
+完整规则见 [design/core-beliefs.md](design/core-beliefs.md)、[design/documentation-governance.md](design/documentation-governance.md) 与 [guides/documentation-maintenance.md](guides/documentation-maintenance.md)。

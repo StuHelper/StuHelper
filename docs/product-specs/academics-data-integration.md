@@ -1,8 +1,12 @@
+---
+type: product-spec
+audience: product, backend-dev
+status: current
+authoritative-source: server/api/openapi.yaml
+last-verified: 2026-04-19
+---
+
 # 教务数据接入与展示
-
-## 文档类型
-
-Explanation + Reference
 
 ## 目标
 
@@ -39,10 +43,10 @@ Explanation + Reference
 
 当前阶段只要求：
 
-- provider interface
-- provider registry
-- fixture / stub provider
-- health check
+- provider 接口
+- provider 注册表
+- 测试用 fixture / stub provider
+- 健康检查
 
 真实学校连接器后续补充，不阻塞当前读模型闭环。
 

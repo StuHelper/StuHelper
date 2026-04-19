@@ -34,8 +34,8 @@ describe('stale frontend artifacts', () => {
     const source = [
       readFileSync(resolve(repoRoot, 'AGENTS.md'), 'utf-8'),
       readFileSync(resolve(repoRoot, 'README.md'), 'utf-8'),
-      readFileSync(resolve(repoRoot, 'docs/FRONTEND.md'), 'utf-8'),
-      readFileSync(resolve(repoRoot, 'docs/design-docs/frontend-architecture.md'), 'utf-8'),
+      readFileSync(resolve(repoRoot, 'docs/guides/frontend-development.md'), 'utf-8'),
+      readFileSync(resolve(repoRoot, 'docs/design/frontend-architecture.md'), 'utf-8'),
     ].join('\n')
 
     expect(source).not.toContain('clients/web/course/src/')
@@ -45,7 +45,7 @@ describe('stale frontend artifacts', () => {
 
   it('updates auth and quick-start docs away from old local frontend port', () => {
     const quickStart = readFileSync(resolve(repoRoot, 'docs/QUICKSTART.md'), 'utf-8')
-    const authGuide = readFileSync(resolve(repoRoot, 'docs/product-specs/auth-sso.md'), 'utf-8')
+    const authGuide = readFileSync(resolve(repoRoot, 'docs/design/auth-and-session.md'), 'utf-8')
     expect(quickStart).not.toContain('http://localhost:5173')
     expect(authGuide).not.toContain('http://localhost:5173')
     expect(quickStart).not.toContain('configs/config.example.yaml')

@@ -1,3 +1,11 @@
+---
+type: guide
+audience: all
+status: current
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # 快速开始
 
 ## 前置要求
@@ -123,7 +131,7 @@ make ansible-deploy-prod
 
 ## 下一步
 
-- [BACKEND.md](BACKEND.md) — 后端规范
-- [FRONTEND.md](FRONTEND.md) — 前端规范
+- [guides/backend-development.md](guides/backend-development.md) — 后端规范
+- [guides/frontend-development.md](guides/frontend-development.md) — 前端规范
 - [product-specs/index.md](product-specs/index.md) — 业务域规格
-- [operations/README.md](operations/README.md) — 运维文档
+- [guides/](guides/) — 运维文档

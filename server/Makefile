@@ -40,7 +40,7 @@ help:
 	@echo "  generate-go   - regenerate Go types and server interface"
 	@echo "  generate-ts   - regenerate frontend TypeScript types"
 	@echo "  generate      - bundle spec + regenerate all code (Go + TS)"
-	@echo "  check-doc-sync - verify docs/references/api-overview.md stays in sync with bundled OpenAPI paths"
+	@echo "  check-doc-sync - verify docs/reference/api-overview.md prefixes still cover bundled OpenAPI paths"
 	@echo "  check-coverage-threshold - enforce minimum coverage for key packages"
 	@echo ""
 	@echo "CI/CD:"
@@ -120,6 +120,7 @@ check-drift-ts:
 check-drift-all: check-drift-go check-drift-ts
 
 check-doc-sync: bundle-spec
+	node --test scripts/check-api-overview-sync.test.mjs
 	node scripts/check-api-overview-sync.mjs
 
 check-coverage-threshold:

@@ -1,8 +1,12 @@
+---
+type: product-spec
+audience: product, backend-dev
+status: current
+authoritative-source: server/api/openapi.yaml
+last-verified: 2026-04-19
+---
+
 # 资源共享
-
-## 文档类型
-
-Explanation + Reference
 
 ## 目标
 
@@ -32,7 +36,7 @@ Explanation + Reference
 - `resource_bindings`
 - `resource_tags`
 
-## 设计原则
+## 业务约束
 
 - 资源本体是业务元数据，不是底层对象 key
 - 资源与存储对象解耦

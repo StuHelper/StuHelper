@@ -7,7 +7,7 @@
 - StuHelper Admin 侧接口调用以 `@stuhelper/shared/api` 与项目内封装为准
 - 不以本目录中的 `axios` / `requestClient` / `src/api/request.ts` 示例作为项目规范
 - 项目级前端约定请优先阅读：
-  - `/Users/zxy/Code/StuHelper/docs/FRONTEND.md`
+  - `docs/guides/frontend-development.md`
   - `/Users/zxy/Code/StuHelper/clients/web/API_USAGE.md`
 
 ## 使用方式

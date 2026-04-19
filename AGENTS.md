@@ -137,14 +137,16 @@ StuHelper/
 | 目标 | 入口 |
 |------|------|
 | 快速开始 | [docs/QUICKSTART.md](docs/QUICKSTART.md) |
-| 后端规范 | [docs/BACKEND.md](docs/BACKEND.md) |
-| 前端规范 | [docs/FRONTEND.md](docs/FRONTEND.md) |
+| 后端规范 | [docs/guides/backend-development.md](docs/guides/backend-development.md) |
+| 前端规范 | [docs/guides/frontend-development.md](docs/guides/frontend-development.md) |
 | 产品规格 | [docs/product-specs/index.md](docs/product-specs/index.md) |
-| 设计文档 | [docs/design-docs/index.md](docs/design-docs/index.md) |
-| 运维发布 | [docs/operations/README.md](docs/operations/README.md) |
-| API 参考 | [docs/references/api-overview.md](docs/references/api-overview.md) |
-| 数据库参考 | [docs/references/database.md](docs/references/database.md) |
-| 错误码参考 | [docs/references/error-codes.md](docs/references/error-codes.md) |
+| 设计文档 | [docs/design/](docs/design/) |
+| 文档治理 | [docs/design/documentation-governance.md](docs/design/documentation-governance.md) |
+| 文档维护 | [docs/guides/documentation-maintenance.md](docs/guides/documentation-maintenance.md) |
+| 运维发布 | [docs/guides/](docs/guides/) |
+| API 参考 | [docs/reference/api-overview.md](docs/reference/api-overview.md) |
+| 数据库参考 | [docs/reference/database.md](docs/reference/database.md) |
+| 错误码参考 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
 
 ## 开发铁律
 
@@ -156,4 +158,4 @@ StuHelper/
 - 前端 API 统一使用 `clients/shared`
 - 配置通过环境变量读取，不硬编码
 
-工程原则详见 [docs/design-docs/core-beliefs.md](docs/design-docs/core-beliefs.md)。
+工程原则详见 [docs/design/core-beliefs.md](docs/design/core-beliefs.md)。

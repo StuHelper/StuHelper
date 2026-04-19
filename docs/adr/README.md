@@ -1,9 +1,17 @@
+---
+type: reference
+audience: all
+status: current
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # 架构决策记录
 
-`adr/` 用于沉淀已经采纳的单项架构决策。它与 `architecture/` 的区别是：
+`adr/` 用于沉淀已经采纳、代价高、难回退的单项架构决策。
 
-- `architecture/` 关注系统整体边界与主路线。
-- `adr/` 关注某一个具体架构选择为什么这样定。
+- 系统整体边界、主路线和长期设计解释，请看 [`docs/design/`](../design/)。
+- `adr/` 只回答“为什么这里做了这个关键选择”，不承担全局架构说明，也不充当变更日志。
 
 | ADR | 内容 | 状态 | 日期 |
 |-----|------|------|------|
