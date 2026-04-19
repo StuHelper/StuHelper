@@ -176,22 +176,6 @@ type Reply struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// Notification 通知
-type Notification struct {
-	ID           string          `json:"id"`
-	UserHash     string          `json:"-"`
-	Type         string          `json:"type"`
-	Title        string          `json:"title"`
-	Content      string          `json:"content,omitempty"`
-	Payload      json.RawMessage `json:"payload,omitempty"`
-	SourceModule string          `json:"sourceModule,omitempty"`
-	SourceID     string          `json:"sourceId,omitempty"`
-	SourceURL    *string         `json:"sourceUrl,omitempty"`
-	CourseID     *int64          `json:"courseID,omitempty"`
-	IsRead       bool            `json:"isRead"`
-	CreatedAt    time.Time       `json:"createdAt"`
-}
-
 // TeacherRatingStats 教师评分统计
 type TeacherRatingStats struct {
 	ID           string          `json:"id"`

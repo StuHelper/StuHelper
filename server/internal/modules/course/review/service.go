@@ -46,7 +46,6 @@ var (
 	ErrAlreadyReported       = errors.New("already reported this review")
 	ErrReportNotFound        = errors.New("report not found")
 	ErrDraftNotFound         = errors.New("draft not found")
-	ErrNotificationNotFound  = errors.New("notification not found")
 	ErrInvalidAction         = errors.New("invalid action")
 	ErrInvalidTransition     = errors.New("invalid status transition")
 )

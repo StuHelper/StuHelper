@@ -13,7 +13,7 @@
 //   - 040-099: 业务扩展预留
 //   - 100-999: 未来扩展预留
 //
-// 详细说明见 docs/references/error-codes.md
+// 详细说明见 docs/reference/error-codes.md
 package errs
 
 // ErrorCode 错误码类型，提供编译期拼写检查
