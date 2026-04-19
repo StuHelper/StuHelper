@@ -1,0 +1,50 @@
+package user
+
+import "time"
+
+type qqBindingResponse struct {
+	UserID     int64      `json:"userID"`
+	QQID       string     `json:"qqID"`
+	QQNickname *string    `json:"qqNickname"`
+	BoundAt    time.Time  `json:"boundAt"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+type qqBindingCodeResponse struct {
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+type qqVerificationStatusResponse struct {
+	QQID                    string               `json:"qqID"`
+	UserID                  *int64               `json:"userID"`
+	QQNickname              *string              `json:"qqNickname"`
+	BoundAt                 *time.Time           `json:"boundAt"`
+	VerificationState       QQVerificationState  `json:"verificationState"`
+	ProfileVerificationStatus string             `json:"profileVerificationStatus"`
+	StudentVerified         bool                 `json:"studentVerified"`
+}
+
+func qqBindingToJSON(binding *QQBinding) qqBindingResponse {
+	return qqBindingResponse{
+		UserID:     binding.UserID,
+		QQID:       binding.QQID,
+		QQNickname: binding.QQNickname,
+		BoundAt:    binding.BoundAt,
+		CreatedAt:  binding.CreatedAt,
+		UpdatedAt:  binding.UpdatedAt,
+	}
+}
+
+func qqVerificationStatusToJSON(status *QQVerificationStatus) qqVerificationStatusResponse {
+	return qqVerificationStatusResponse{
+		QQID:                    status.QQID,
+		UserID:                  status.UserID,
+		QQNickname:              status.QQNickname,
+		BoundAt:                 status.BoundAt,
+		VerificationState:       status.VerificationState,
+		ProfileVerificationStatus: status.ProfileVerificationStatus,
+		StudentVerified:         status.StudentVerified,
+	}
+}

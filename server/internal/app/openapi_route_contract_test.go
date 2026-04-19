@@ -56,6 +56,8 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 
 	userHandler := &user.Handler{}
 	userHandler.RegisterRoutes(api, noOp)
+	botHandler := &user.BotHandler{}
+	botHandler.RegisterRoutes(api)
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(noOp)
 	userHandler.RegisterAdminRoutes(adminGroup)

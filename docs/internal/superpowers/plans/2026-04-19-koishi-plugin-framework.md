@@ -1,4 +1,14 @@
+---
+type: internal
+audience: backend-dev, maintainers
+status: archived
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # Koishi Plugin Framework Implementation Plan
+
+> 现状说明：本计划已完成并被后续实现扩展。当前真实行为以 `bots/koishi/README.md`、`bots/koishi/` 源码和自动化测试结果为准。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

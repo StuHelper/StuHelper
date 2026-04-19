@@ -8,7 +8,7 @@ last-verified: 2026-04-19
 
 # StuHelper 文档
 
-`docs/` 只放**长期文档**：反映当前代码库真实状态的规范、设计、规格、参考。临时工件（执行计划、审计、评估）在 [`internal/`](internal/)。
+`docs/` 只放**长期文档**：反映当前代码库真实状态的规范、设计、规格、参考。临时工件（执行计划、审计、评估）在 [internal/README.md](internal/README.md)。
 
 **真源永远是代码**：API → `server/api/openapi.yaml`；Schema → `server/migrations/`；能力常量 → `server/internal/pkg/capability/`。本目录只做解释与导航。
 
@@ -26,9 +26,10 @@ last-verified: 2026-04-19
 
 1. [guides/backend-development.md](guides/backend-development.md) — 后端规范、分层、OpenAPI 工作流
 2. [guides/frontend-development.md](guides/frontend-development.md) — 前端规范、共享契约、路由
-3. [design/core-beliefs.md](design/core-beliefs.md) — 工程原则（契约驱动、不可变、小文件）
-4. [product-specs/](product-specs/) — 要改的业务域规格
-5. [reference/api-overview.md](reference/api-overview.md) — 接口模块分组
+3. [guides/koishi-development.md](guides/koishi-development.md) — Koishi 工作区、绑定/群管能力、固定端口与机器人测试
+4. [design/core-beliefs.md](design/core-beliefs.md) — 工程原则（契约驱动、不可变、小文件）
+5. [product-specs/](product-specs/) — 要改的业务域规格
+6. [reference/api-overview.md](reference/api-overview.md) — 接口模块分组
 
 ### 我要**维护文档系统**
 
@@ -45,7 +46,8 @@ last-verified: 2026-04-19
 5. [design/authorization-model.md](design/authorization-model.md) — 三层授权（角色 → 能力 → FGA）
 6. [design/storage-architecture.md](design/storage-architecture.md) — 存储抽象与驱动
 7. [design/security-model.md](design/security-model.md) — 安全措施
-8. [adr/](adr/) — 单项架构决策
+8. [guides/koishi-development.md](guides/koishi-development.md) — 机器人子系统边界与开发入口
+9. [adr/](adr/) — 单项架构决策
 
 ### 我要**运维 / 发布 / 排障**
 

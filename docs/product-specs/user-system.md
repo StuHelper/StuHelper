@@ -50,6 +50,25 @@ last-verified: 2026-04-19
 
 仅限中国大陆手机号。绑定手机号不授予学生身份。
 
+## QQ 绑定与机器人联动
+
+用户在主站内生成一次性绑定码，再到 StuHelper QQ 机器人私聊发送 `绑定 <code>` 完成绑定。
+
+核心规则：
+
+- 一个 StuHelper 账号最多绑定一个 QQ 号。
+- 一个 QQ 号最多绑定一个 StuHelper 账号。
+- 绑定码一次性消费，默认有效期 10 分钟，过期后必须重新生成。
+- 已经绑定的账号不再生成新绑定码，接口返回冲突。
+- 机器人消费绑定码后，会立即拿到当前学生认证状态，用于受控群的自动放行、继续禁言或超时踢出。
+- 机器人内部接口只接受服务令牌，不接受用户 Cookie、用户 JWT 或前端调用。
+
+机器人联动返回的认证状态固定为：
+
+- `unbound`：当前 QQ 号尚未绑定 StuHelper 账号
+- `bound_unverified`：已绑定，但学生认证未通过
+- `verified`：已绑定，且学生认证已通过
+
 ## 学校配置
 
 `school_configs` 每校一条：
@@ -84,7 +103,11 @@ last-verified: 2026-04-19
 | `/api/v1/user/profile/verify` | POST | 发起学生认证 |
 | `/api/v1/user/profile/bind-phone/otp` | POST | 发送绑定手机验证码 |
 | `/api/v1/user/profile/bind-phone` | POST | 绑定手机号 |
+| `/api/v1/user/qq-binding` | GET | 获取当前用户 QQ 绑定状态 |
+| `/api/v1/user/qq-binding/code` | POST | 生成一次性 QQ 绑定码 |
 | `/api/v1/user/profile/academic-info` | GET | 学籍信息 |
+| `/api/v1/bot/qq-binding/consume` | POST | 机器人消费绑定码并建立绑定 |
+| `/api/v1/bot/qq-users/{qqID}/verification` | GET | 机器人按 QQ 号查询绑定与学生认证状态 |
 | `/api/v1/user/schools` | GET | 学校列表 |
 | `/api/v1/admin/identities` | GET / PUT | 实名审核 |
 | `/api/v1/admin/student-verifications` | GET / PUT | 学生审核 |
@@ -98,3 +121,4 @@ last-verified: 2026-04-19
 | 用户模块 | `server/internal/modules/user/` |
 | LDAP 客户端 | `server/internal/modules/ldap/` |
 | PII 加密 | `server/internal/pkg/crypto/pii/` |
+| QQ 绑定前端入口 | `clients/web/src/modules/user/views/QQBindingPage.vue` |

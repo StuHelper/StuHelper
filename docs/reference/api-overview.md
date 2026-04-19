@@ -27,6 +27,7 @@ last-verified: 2026-04-19
 | 评课后台 | `/api/v1/course/review/admin/*` | [design/authorization-model.md](../design/authorization-model.md) |
 | 用户系统 | `/api/v1/user/*` | [product-specs/user-system.md](../product-specs/user-system.md) |
 | 用户系统后台 | `/api/v1/admin/*` | [product-specs/user-system.md](../product-specs/user-system.md) |
+| 机器人内部接口 | `/api/v1/bot/*`（`serviceTokenAuth`） | [product-specs/user-system.md](../product-specs/user-system.md) / [guides/koishi-development.md](../guides/koishi-development.md) |
 | 教务展示 | `/api/v1/academics/*` | [product-specs/academics-data-integration.md](../product-specs/academics-data-integration.md) |
 | 资源共享 | `/api/v1/resources/*` | [product-specs/resource-sharing.md](../product-specs/resource-sharing.md) |
 | 通知 | `/api/v1/course/review/user/notifications/*`（含 SSE 子路径） | [product-specs/notification.md](../product-specs/notification.md) |

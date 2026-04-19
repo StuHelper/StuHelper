@@ -261,6 +261,14 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.phoneBinding", requiresAuth: true },
     },
     {
+        path: "/user/qq-binding",
+        name: "qq-binding",
+        component: lazyLoad(
+            () => import("@/modules/user/views/QQBindingPage.vue"),
+        ),
+        meta: { titleKey: "routes.qqBinding", requiresAuth: true },
+    },
+    {
         path: "/user/academic-info",
         name: "academic-info",
         component: lazyLoad(

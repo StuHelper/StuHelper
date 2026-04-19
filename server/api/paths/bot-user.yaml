@@ -1,0 +1,79 @@
+/api/v1/bot/qq-binding/consume:
+  post:
+    tags: [Bot]
+    operationId: consumeQQBindingCode
+    summary: 机器人消费 QQ 绑定码并建立绑定关系
+    security:
+      - serviceTokenAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/user-system.yaml#/ConsumeQQBindingRequest'
+    responses:
+      '200':
+        description: QQ 绑定成功并返回当前认证状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [binding, verificationState]
+                      properties:
+                        binding:
+                          $ref: '../components/schemas/user-system.yaml#/QQBinding'
+                        verificationState:
+                          $ref: '../components/schemas/user-system.yaml#/QQVerificationStatus'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/bot/qq-users/{qqID}/verification:
+  get:
+    tags: [Bot]
+    operationId: getQQVerificationStatus
+    summary: 机器人按 QQ 号查询绑定与学生认证状态
+    security:
+      - serviceTokenAuth: []
+    parameters:
+      - name: qqID
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 64
+    responses:
+      '200':
+        description: QQ 账号绑定与认证状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user-system.yaml#/QQVerificationStatus'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

@@ -13,6 +13,7 @@ type Config struct {
 	RateLimit     ReviewRateLimitConfig
 	Security      SecurityConfig
 	SMS           SMSConfig
+	Bot           BotConfig
 	Observability ObservabilityConfig
 }
 
@@ -131,6 +132,11 @@ type SMSConfig struct {
 	InternalPort string // 内部 HTTP 端口（SMS 转发服务）
 }
 
+// BotConfig 机器人内部调用配置。
+type BotConfig struct {
+	ServiceToken string // 机器人访问后端内部接口的服务令牌
+}
+
 // RedisConfig Redis 配置
 type RedisConfig struct {
 	Host         string
@@ -169,6 +175,7 @@ func Load() (*Config, error) {
 		Log:           loadLogConfig(&parseErrs),
 		RateLimit:     loadReviewRateLimitConfig(&parseErrs),
 		SMS:           loadSMSConfig(&parseErrs),
+		Bot:           loadBotConfig(),
 		Observability: loadObservabilityConfig(&parseErrs),
 	}
 
@@ -312,6 +319,12 @@ func loadSMSConfig(parseErrs *[]string) SMSConfig {
 		Region:       getEnv("SMS_REGION", "ap-beijing"),
 		InternalKey:  getEnv("SMS_INTERNAL_KEY", ""),
 		InternalPort: getEnv("SMS_INTERNAL_PORT", "9090"),
+	}
+}
+
+func loadBotConfig() BotConfig {
+	return BotConfig{
+		ServiceToken: getEnv("BOT_SERVICE_TOKEN", ""),
 	}
 }
 

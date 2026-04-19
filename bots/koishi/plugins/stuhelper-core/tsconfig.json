@@ -1,6 +1,9 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {},
+    "rootDir": "src",
     "composite": false,
     "incremental": false,
     "outDir": "lib",
@@ -10,10 +13,9 @@
     ]
   },
   "include": [
-    "src",
-    "../../packages/shared/src",
-    "../stuhelper-admin/src",
-    "../stuhelper-binding/src",
-    "../stuhelper-group-guard/src"
+    "src"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
   ]
 }

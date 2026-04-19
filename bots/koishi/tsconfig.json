@@ -43,6 +43,8 @@
         "external/webui/packages/*/src",
         "external/*/packages/core/src",
       ],
+      "@stuhelper/koishi-moderation-core": ["packages/moderation-core/src"],
+      "@stuhelper/koishi-moderation-core/*": ["packages/moderation-core/src/*"],
       "@minatojs/driver-*": ["external/minato/packages/*/src"],
       "@minatojs/*": ["external/minato/packages/*/src"],
       "@satorijs/adapter-*": ["external/satori/adapters/*/src"],

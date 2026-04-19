@@ -1,8 +1,20 @@
+---
+type: internal
+audience: backend-dev, maintainers
+status: archived
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # Koishi Plugin Framework Design
 
 > 日期：2026-04-19
 > 状态：approved-for-implementation
 > 范围：StuHelper 仓库内新增 Koishi 子工作区与官方插件框架，不实现具体业务规则。
+>
+> 现状说明：后续实现已经超出本文初始范围，QQ 绑定、群管与管理员命令已落地。当前真实行为以 `bots/koishi/README.md`、`bots/koishi/` 源码和自动化测试为准。
+>
+> 扩展说明：重型群管中心的后续目标与边界，见 `2026-04-19-koishi-moderation-center-design.md`。
 
 ## 背景
 

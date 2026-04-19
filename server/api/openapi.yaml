@@ -42,6 +42,8 @@ tags:
     description: 收藏
   - name: User
     description: 用户中心
+  - name: Bot
+    description: 机器人内部接口
   - name: Identity
     description: 实名认证
   - name: Profile
@@ -245,6 +247,10 @@ paths:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity"
   /api/v1/user/identity/uploads:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity~1uploads"
+  /api/v1/user/qq-binding:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1qq-binding"
+  /api/v1/user/qq-binding/code:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1qq-binding~1code"
   /api/v1/user/profile:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile"
   /api/v1/user/profile/verify:
@@ -259,6 +265,12 @@ paths:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1schools"
   /api/v1/user/me:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1me"
+
+  # ── Bot: User Binding ──
+  /api/v1/bot/qq-binding/consume:
+    $ref: "paths/bot-user.yaml#/~1api~1v1~1bot~1qq-binding~1consume"
+  /api/v1/bot/qq-users/{qqID}/verification:
+    $ref: "paths/bot-user.yaml#/~1api~1v1~1bot~1qq-users~1{qqID}~1verification"
 
   # ── Admin: User System ──
   /api/v1/admin/identities:
@@ -336,6 +348,8 @@ components:
       $ref: "components/security.yaml#/securitySchemes/cookieAuth"
     bearerAuth:
       $ref: "components/security.yaml#/securitySchemes/bearerAuth"
+    serviceTokenAuth:
+      $ref: "components/security.yaml#/securitySchemes/serviceTokenAuth"
 
   responses:
     ErrorResponse:
@@ -495,6 +509,14 @@ components:
       $ref: "components/schemas/user-system.yaml#/UpdateSchoolConfigRequest"
     UserSurface:
       $ref: "components/schemas/user-system.yaml#/UserSurface"
+    QQBinding:
+      $ref: "components/schemas/user-system.yaml#/QQBinding"
+    QQBindingCode:
+      $ref: "components/schemas/user-system.yaml#/QQBindingCode"
+    ConsumeQQBindingRequest:
+      $ref: "components/schemas/user-system.yaml#/ConsumeQQBindingRequest"
+    QQVerificationStatus:
+      $ref: "components/schemas/user-system.yaml#/QQVerificationStatus"
 
   parameters:
     PageParam:

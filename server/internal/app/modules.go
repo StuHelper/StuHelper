@@ -107,8 +107,10 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		bindPhoneSMS = smsSvc
 	}
 	userHandler := user.NewHandler(userService, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
+	botHandler := user.NewBotHandler(userService, rt.cfg.Bot.ServiceToken)
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
+	botHandler.RegisterRoutes(api)
 	rt.registerAdminRoutes(api, userHandler, authMW)
 
 	courseHandler.StartBackgroundJobs(bgCtx, startBackgroundTask)

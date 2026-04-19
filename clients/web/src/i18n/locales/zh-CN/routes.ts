@@ -32,6 +32,7 @@ export default {
   identityVerification: '实名认证',
   studentVerification: '学生认证',
   phoneBinding: '绑定手机',
+  qqBinding: '绑定 QQ',
   academicInfo: '学业信息',
   search: '高级搜索',
   courseAbout: '关于评课社区',

@@ -39,6 +39,8 @@ tags:
     description: 收藏
   - name: User
     description: 用户中心
+  - name: Bot
+    description: 机器人内部接口
   - name: Identity
     description: 实名认证
   - name: Profile
@@ -3762,6 +3764,64 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/user/qq-binding:
+    get:
+      tags:
+        - User
+      operationId: getUserQQBinding
+      summary: 获取当前用户 QQ 绑定状态
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 用户 QQ 绑定信息
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/QQBinding'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/user/qq-binding/code:
+    post:
+      tags:
+        - User
+      operationId: createUserQQBindingCode
+      summary: 生成当前用户的 QQ 绑定码
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '201':
+          description: QQ 绑定码已生成
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/QQBindingCode'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/user/profile:
     get:
       tags:
@@ -3999,6 +4059,90 @@ paths:
                       data:
                         $ref: '#/components/schemas/UserSurface'
         '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/qq-binding/consume:
+    post:
+      tags:
+        - Bot
+      operationId: consumeQQBindingCode
+      summary: 机器人消费 QQ 绑定码并建立绑定关系
+      security:
+        - serviceTokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumeQQBindingRequest'
+      responses:
+        '200':
+          description: QQ 绑定成功并返回当前认证状态
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - binding
+                          - verificationState
+                        properties:
+                          binding:
+                            $ref: '#/components/schemas/QQBinding'
+                          verificationState:
+                            $ref: '#/components/schemas/QQVerificationStatus'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/qq-users/{qqID}/verification:
+    get:
+      tags:
+        - Bot
+      operationId: getQQVerificationStatus
+      summary: 机器人按 QQ 号查询绑定与学生认证状态
+      security:
+        - serviceTokenAuth: []
+      parameters:
+        - name: qqID
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+      responses:
+        '200':
+          description: QQ 账号绑定与认证状态
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/QQVerificationStatus'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/identities:
     get:
@@ -4434,6 +4578,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    serviceTokenAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
   responses:
     ErrorResponse:
       description: 统一错误响应
@@ -6088,6 +6236,102 @@ components:
           type: array
           items:
             type: string
+    QQBinding:
+      type: object
+      required:
+        - userID
+        - qqID
+        - boundAt
+        - createdAt
+        - updatedAt
+      properties:
+        userID:
+          type: integer
+          format: int64
+        qqID:
+          type: string
+        qqNickname:
+          type:
+            - string
+            - 'null'
+        boundAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    QQBindingCode:
+      type: object
+      required:
+        - code
+        - expiresAt
+      properties:
+        code:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    ConsumeQQBindingRequest:
+      type: object
+      required:
+        - code
+        - qqID
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 32
+        qqID:
+          type: string
+          minLength: 1
+          maxLength: 64
+        qqNickname:
+          type:
+            - string
+            - 'null'
+          maxLength: 255
+    QQVerificationStatus:
+      type: object
+      required:
+        - qqID
+        - verificationState
+        - profileVerificationStatus
+        - studentVerified
+      properties:
+        qqID:
+          type: string
+        userID:
+          type:
+            - integer
+            - 'null'
+          format: int64
+        qqNickname:
+          type:
+            - string
+            - 'null'
+        boundAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        verificationState:
+          type: string
+          enum:
+            - unbound
+            - bound_unverified
+            - verified
+        profileVerificationStatus:
+          type: string
+          enum:
+            - unverified
+            - pending
+            - verified
+            - rejected
+        studentVerified:
+          type: boolean
     CapabilityGrant:
       type: object
       required:

@@ -21,7 +21,7 @@ last-verified: 2026-04-19
 | 课程与评课 | [course-review.md](course-review.md) | 课程实体、评课、回复、举报、收藏 |
 | 教务展示 | [academics-data-integration.md](academics-data-integration.md) | 外部教务数据导入、标准化、我的课程、我的课表 |
 | 资源共享 | [resource-sharing.md](resource-sharing.md) | 资源条目、版本、标签、绑定、下载 |
-| 用户系统 | [user-system.md](user-system.md) | 实名、学生认证、手机号绑定、学校配置 |
+| 用户系统 | [user-system.md](user-system.md) | 实名、学生认证、手机号与 QQ 绑定、学校配置 |
 | 通知 | [notification.md](notification.md) | 通知列表、未读数、SSE |
 | 审计 | [audit-logging.md](audit-logging.md) | 审计日志与留痕 |
 

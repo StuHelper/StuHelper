@@ -26,6 +26,7 @@ export default {
   logoutNetworkError: '登出失败，请检查网络后重试',
   identityVerification: '实名认证',
   studentVerification: '学生认证',
+  qqBinding: '绑定 QQ',
   verificationStatus: '认证状态',
   adminConsole: '管理后台',
   adminBadge: '管理员'

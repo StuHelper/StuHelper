@@ -28,8 +28,24 @@ func TestRegisterRoutes_UsesOpenAPIUserPaths(t *testing.T) {
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/user/profile/verify")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/user/profile/bind-phone/otp")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/user/profile/bind-phone")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/user/qq-binding")
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/user/qq-binding/code")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/user/profile/academic-info")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/user/schools")
+}
+
+func TestRegisterBotRoutes_UsesOpenAPIBotUserPaths(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := gin.New()
+	api := r.Group("/api/v1")
+	h := &BotHandler{}
+
+	h.RegisterRoutes(api)
+
+	routes := r.Routes()
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/qq-binding/consume")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/bot/qq-users/:qqID/verification")
 }
 
 func TestRegisterAdminRoutes_UsesOpenAPIAdminUserPaths(t *testing.T) {

@@ -1,0 +1,153 @@
+/**
+ * StuHelper Console — Design Tokens
+ *
+ * 跟随 Koishi Console 的主题变量（--bg0/1/2、--fg0/1、--primary），
+ * 仅补齐 Koishi 没有标准化的：间距阶、字号阶、圆角、阴影、语义色、tabular numeric。
+ *
+ * 任何视觉决策都必须来自这个文件；组件样式里不允许再出现硬编码颜色/数字。
+ */
+
+.sh-console {
+  /* spatial scale (4-based) */
+  --sh-s-1: 4px;
+  --sh-s-2: 8px;
+  --sh-s-3: 12px;
+  --sh-s-4: 16px;
+  --sh-s-5: 20px;
+  --sh-s-6: 24px;
+  --sh-s-8: 32px;
+  --sh-s-10: 40px;
+  --sh-s-12: 48px;
+
+  /* radius */
+  --sh-r-1: 4px;
+  --sh-r-2: 6px;
+  --sh-r-3: 8px;
+  --sh-r-4: 10px;
+  --sh-r-full: 999px;
+
+  /* type scale */
+  --sh-t-caption: 11px;
+  --sh-t-meta: 12px;
+  --sh-t-body: 13px;
+  --sh-t-body-lg: 14px;
+  --sh-t-title: 16px;
+  --sh-t-section: 18px;
+  --sh-t-heading: 22px;
+  --sh-t-stat: clamp(26px, 2.6vw, 32px);
+
+  /* line */
+  --sh-l-tight: 1.15;
+  --sh-l-normal: 1.45;
+  --sh-l-loose: 1.7;
+
+  /* weight */
+  --sh-w-regular: 400;
+  --sh-w-medium: 500;
+  --sh-w-semibold: 600;
+
+  /* fonts */
+  --sh-font-ui:
+    'Inter', 'Geist Sans', system-ui, -apple-system, 'Segoe UI', Roboto,
+    'PingFang SC', 'Noto Sans CJK SC', sans-serif;
+  --sh-font-mono:
+    'JetBrains Mono', 'SF Mono', ui-monospace, 'Menlo', 'Consolas', monospace;
+
+  /* semantic intent colors — only used when Koishi vars don't cover */
+  --sh-danger: oklch(62% 0.2 25);
+  --sh-danger-soft: oklch(62% 0.2 25 / 0.14);
+  --sh-warning: oklch(76% 0.15 80);
+  --sh-warning-soft: oklch(76% 0.15 80 / 0.16);
+  --sh-success: oklch(66% 0.13 160);
+  --sh-success-soft: oklch(66% 0.13 160 / 0.16);
+  --sh-info: oklch(70% 0.1 220);
+  --sh-info-soft: oklch(70% 0.1 220 / 0.16);
+
+  /* thin overlays (fall back to Koishi vars) */
+  --sh-surface-0: var(--k-card-bg, var(--bg1, #ffffff));
+  --sh-surface-1: var(--bg2, rgba(0, 0, 0, 0.02));
+  --sh-surface-2: var(--bg3, rgba(0, 0, 0, 0.04));
+  --sh-surface-hover: var(--hover-bg, rgba(0, 0, 0, 0.04));
+  --sh-surface-active: var(--active-bg, rgba(0, 0, 0, 0.06));
+  --sh-border: var(--border, rgba(0, 0, 0, 0.08));
+  --sh-border-strong: var(--border, rgba(0, 0, 0, 0.16));
+  --sh-fg: var(--fg0, #1a1a1a);
+  --sh-fg-1: var(--fg1, #444);
+  --sh-fg-2: var(--fg2, #808080);
+  --sh-fg-3: var(--fg3, #a8a8a8);
+  --sh-primary: var(--primary, oklch(62% 0.16 250));
+  --sh-primary-soft: color-mix(in oklch, var(--sh-primary) 14%, transparent);
+  --sh-primary-fg: var(--primary-fg, #ffffff);
+
+  /* elevation */
+  --sh-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04), 0 0 0 1px var(--sh-border);
+  --sh-shadow-2: 0 6px 16px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --sh-shadow-3: 0 16px 40px rgba(0, 0, 0, 0.1), 0 4px 10px rgba(0, 0, 0, 0.06);
+
+  /* motion */
+  --sh-ease: cubic-bezier(0.2, 0, 0, 1);
+  --sh-dur-fast: 120ms;
+  --sh-dur-base: 180ms;
+  --sh-dur-slow: 260ms;
+
+  /* density */
+  --sh-row-h: 40px;
+  --sh-control-h: 34px;
+
+  color: var(--sh-fg);
+  font-family: var(--sh-font-ui);
+  font-size: var(--sh-t-body);
+  line-height: var(--sh-l-normal);
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+}
+
+.sh-console *,
+.sh-console *::before,
+.sh-console *::after {
+  box-sizing: border-box;
+}
+
+.sh-console h1,
+.sh-console h2,
+.sh-console h3,
+.sh-console h4 {
+  margin: 0;
+  font-weight: var(--sh-w-semibold);
+  letter-spacing: -0.012em;
+  color: var(--sh-fg);
+}
+
+.sh-console p {
+  margin: 0;
+  color: var(--sh-fg-1);
+}
+
+.sh-console button {
+  font: inherit;
+  color: inherit;
+}
+
+.sh-console code,
+.sh-console .sh-mono {
+  font-family: var(--sh-font-mono);
+  font-feature-settings: 'zero', 'ss01';
+}
+
+.sh-console .sh-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum', 'zero';
+}
+
+.dark .sh-console,
+html[data-theme='dark'] .sh-console {
+  --sh-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--sh-border);
+  --sh-shadow-2: 0 6px 16px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --sh-shadow-3: 0 16px 40px rgba(0, 0, 0, 0.5), 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sh-console * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -540,6 +540,86 @@ UpdateSchoolConfigRequest:
     enabled:
       type: boolean
 
+QQBinding:
+  type: object
+  required: [userID, qqID, boundAt, createdAt, updatedAt]
+  properties:
+    userID:
+      type: integer
+      format: int64
+    qqID:
+      type: string
+    qqNickname:
+      type:
+        - string
+        - "null"
+    boundAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+QQBindingCode:
+  type: object
+  required: [code, expiresAt]
+  properties:
+    code:
+      type: string
+    expiresAt:
+      type: string
+      format: date-time
+
+ConsumeQQBindingRequest:
+  type: object
+  required: [code, qqID]
+  properties:
+    code:
+      type: string
+      minLength: 1
+      maxLength: 32
+    qqID:
+      type: string
+      minLength: 1
+      maxLength: 64
+    qqNickname:
+      type:
+        - string
+        - "null"
+      maxLength: 255
+
+QQVerificationStatus:
+  type: object
+  required: [qqID, verificationState, profileVerificationStatus, studentVerified]
+  properties:
+    qqID:
+      type: string
+    userID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    qqNickname:
+      type:
+        - string
+        - "null"
+    boundAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    verificationState:
+      type: string
+      enum: [unbound, bound_unverified, verified]
+    profileVerificationStatus:
+      type: string
+      enum: [unverified, pending, verified, rejected]
+    studentVerified:
+      type: boolean
+
 UserSurface:
   type: object
   required: [displayName, identityStatus, verificationStatus, phoneBound, capabilities]

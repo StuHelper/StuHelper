@@ -108,6 +108,19 @@
               {{ t('nav.studentVerification') }}
               <span v-if="verificationStore.studentVerified" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.student.verified') }}</span>
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              data-user-menu-item
+              class="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors duration-fast hover:bg-bg-hover"
+              :class="verificationStore.qqBound ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
+              @click="goTo('qq-binding')"
+            >
+              <Bot class="size-4" />
+              {{ t('nav.qqBinding') }}
+              <span v-if="verificationStore.qqBound" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.qq.bound') }}</span>
+            </button>
             <template v-if="showAdminEntry">
               <div class="h-px bg-border mx-2 my-0.5" />
               <button
@@ -165,7 +178,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { GraduationCap, LogOut, PenLine, Settings, ShieldCheck, User } from 'lucide-vue-next'
+import { Bot, GraduationCap, LogOut, PenLine, Settings, ShieldCheck, User } from 'lucide-vue-next'
 import { canAccessAdmin } from '@stuhelper/shared/constants'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'

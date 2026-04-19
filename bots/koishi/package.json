@@ -33,12 +33,17 @@
     "dep": "yakumo upgrade",
     "pub": "yakumo publish",
     "dev": "cross-env NODE_ENV=development koishi start -r esbuild-register -r yml-register",
+    "prestart": "yarn build",
     "start": "koishi start",
-    "workspaces:list": "yarn workspaces list"
+    "test:unit": "tsx --test packages/**/src/**/*.test.ts plugins/**/src/**/*.test.ts",
+    "test:startup": "node scripts/startup-smoke.mjs",
+    "workspaces:list": "yarn workspaces list",
+    "test": "yarn build && yarn test:unit && yarn test:startup"
   },
   "devDependencies": {
     "@koishijs/client": "^5.30.4",
     "@koishijs/plugin-hmr": "^1.2.9",
+    "@koishijs/plugin-mock": "^2.6.6",
     "@koishijs/scripts": "^4.6.1",
     "@types/node": "^22.7.5",
     "@types/react": "^18.2.70",

@@ -75,6 +75,26 @@ pnpm test:web && pnpm test:e2e
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
+## Koishi 工作区
+
+```bash
+cd bots/koishi
+corepack yarn install
+corepack yarn build
+corepack yarn test:unit
+corepack yarn test:startup
+corepack yarn test
+corepack yarn dev
+```
+
+说明：
+
+- Koishi 工作区与主站开发环境分离启动。
+- 本地 `koishi.yml` 固定监听 `5140`；启动烟雾验证会先释放已占用的 `5140` 端口。
+- NapCat 保持外部部署；本地单元测试不依赖真实 OneBot。
+- Koishi Console 已挂载 StuHelper 自定义群管页面，访问路径为 `/stuhelper`。
+- 机器人开发说明见 [guides/koishi-development.md](guides/koishi-development.md)。
+
 ## 手动拆分启动
 
 ```bash
@@ -133,5 +153,6 @@ make ansible-deploy-prod
 
 - [guides/backend-development.md](guides/backend-development.md) — 后端规范
 - [guides/frontend-development.md](guides/frontend-development.md) — 前端规范
+- [guides/koishi-development.md](guides/koishi-development.md) — 机器人工作区
 - [product-specs/index.md](product-specs/index.md) — 业务域规格
 - [guides/](guides/) — 运维文档

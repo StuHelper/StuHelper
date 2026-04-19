@@ -42,6 +42,8 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMW gin.HandlerFunc) {
 		user.GET("/identity", h.handleGetIdentity)
 		user.POST("/identity", h.handleSubmitIdentity)
 		user.POST("/identity/uploads", h.handleUploadIdentityPhoto)
+		user.GET("/qq-binding", h.handleGetQQBinding)
+		user.POST("/qq-binding/code", h.handleCreateQQBindingCode)
 		user.GET("/profile", h.handleGetProfile)
 		if h.verifyLimiter != nil {
 			user.POST("/profile/verify", middleware.EndpointRateLimitMiddleware(h.verifyLimiter, "user-profile-verify"), h.handleVerifyStudent)

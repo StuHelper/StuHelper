@@ -47,6 +47,12 @@ var (
 	ErrIdentityPhotoInvalidType   = errors.New("identity photo content type is invalid")
 	ErrIdentityPhotoInvalidData   = errors.New("identity photo data is invalid")
 	ErrIdentityPhotoInvalidRef    = errors.New("identity photo reference is invalid")
+	ErrQQBindingAlreadyExists     = errors.New("qq binding already exists")
+	ErrQQBindingCodeInvalid       = errors.New("qq binding code is invalid")
+	ErrQQBindingCodeExpired       = errors.New("qq binding code has expired")
+	ErrQQBindingQQAlreadyBound    = errors.New("qq account already bound to another user")
+	ErrQQBindingUserConflict      = errors.New("user already bound to another qq account")
+	ErrQQIDRequired               = errors.New("qq id is required")
 )
 
 // DocType 证件类型常量
@@ -79,6 +85,10 @@ const (
 	IdentityPhotoSlotSelfie = "selfie"
 )
 
+const (
+	qqBindingCodeLength = 8
+)
+
 // Repo 定义 Service 所需的数据访问能力。
 type Repo interface {
 	GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error)
@@ -91,6 +101,9 @@ type Repo interface {
 	UpdateProfile(ctx context.Context, profile *Profile) error
 	ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error)
 	SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
+	GetQQBindingByUserID(ctx context.Context, userID int64) (*QQBinding, error)
+	GetQQBindingByQQID(ctx context.Context, qqID string) (*QQBinding, error)
+	UpsertQQBindingCode(ctx context.Context, code *QQBindingCode) error
 
 	GetSchoolConfig(ctx context.Context, schoolID int64) (*SchoolConfig, error)
 	ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error)
@@ -110,6 +123,11 @@ type Repo interface {
 	CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error
+	GetQQBindingCodeByHashTx(ctx context.Context, tx pgx.Tx, codeHash string) (*QQBindingCode, error)
+	GetQQBindingByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*QQBinding, error)
+	GetQQBindingByQQIDTx(ctx context.Context, tx pgx.Tx, qqID string) (*QQBinding, error)
+	CreateQQBindingTx(ctx context.Context, tx pgx.Tx, binding *QQBinding) error
+	MarkQQBindingCodeConsumedTx(ctx context.Context, tx pgx.Tx, userID int64, consumedAt time.Time) error
 	UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
 	ClaimExternalSyncJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
 	MarkExternalSyncJobDone(ctx context.Context, jobID int64) error

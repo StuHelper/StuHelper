@@ -192,7 +192,7 @@ WAL_ARCHIVE_DIR=/var/lib/stuhelper/postgres/wal-restore \
 
 ### 演练记录模板
 
-每次演练完成后填写记录，归档至 `docs/internal/drill-logs/`：
+每次演练完成后填写记录，归档至 [../internal/drill-logs/README.md](../internal/drill-logs/README.md) 对应目录：
 
 ```
 日期：YYYY-MM-DD

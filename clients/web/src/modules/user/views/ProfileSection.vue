@@ -24,7 +24,7 @@
     </div>
 
     <!-- Status cards grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <!-- Identity verification card -->
       <div class="border-0 rounded-lg p-4 transition-all duration-fast">
         <div class="flex items-center gap-3 mb-3">
@@ -103,6 +103,41 @@
         </router-link>
       </div>
 
+      <!-- QQ binding card -->
+      <div class="border-0 rounded-lg p-4 transition-all duration-fast">
+        <div class="flex items-center gap-3 mb-3">
+          <div
+            class="p-2 rounded-lg"
+            :class="qqBound ? 'bg-green-500/10' : 'bg-bg-base'"
+          >
+            <Bot
+              class="size-5"
+              :class="qqBound ? 'text-green-500' : 'text-text-muted'"
+            />
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-text-primary m-0">
+              {{ t('user.verification.qq.title') }}
+            </p>
+            <span
+              class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium"
+              :class="qqBound ? 'bg-green-500/10 text-green-600' : 'bg-bg-base text-text-muted'"
+            >
+              {{ qqBound ? t('user.verification.qq.bound') : t('user.verification.qq.unbound') }}
+            </span>
+          </div>
+        </div>
+        <router-link
+          to="/user/qq-binding"
+          class="block w-full py-2 rounded-lg text-xs font-medium text-center no-underline transition-all duration-fast"
+          :class="qqBound
+            ? 'bg-accent/10 text-accent hover:bg-accent hover:text-white'
+            : 'bg-text-primary text-bg-base hover:bg-accent hover:text-white'"
+        >
+          {{ qqBound ? t('common.actions.more') : t('user.verification.qq.createCode') }}
+        </router-link>
+      </div>
+
       <!-- Phone binding card -->
       <div class="border-0 rounded-lg p-4 transition-all duration-fast">
         <div class="flex items-center gap-3 mb-3">
@@ -142,7 +177,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ShieldCheck, GraduationCap, User, Phone } from 'lucide-vue-next'
+import { Bot, ShieldCheck, GraduationCap, User, Phone } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 
@@ -154,6 +189,7 @@ const user = computed(() => authStore.user)
 const displayName = computed(() => user.value?.displayName ?? user.value?.name ?? '')
 const identityVerified = computed(() => verificationStore.identityVerified)
 const studentVerified = computed(() => verificationStore.studentVerified)
+const qqBound = computed(() => verificationStore.qqBound)
 const phoneBound = computed(() => profile.value?.phoneVerified === true)
 
 const identity = computed(() => verificationStore.identity)

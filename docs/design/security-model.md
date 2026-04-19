@@ -42,6 +42,18 @@ access / refresh token 已显式区分 `typ`。
 - 有冷却和频率限制
 - 登录成功只签发 `user` 角色
 
+## 机器人内部接口
+
+Koishi 与主站后端跨机通信时，不复用用户态会话，而是使用独立的服务令牌：
+
+- 接口范围：`/api/v1/bot/*`
+- 鉴权方式：`Authorization: Bearer <BOT_SERVICE_TOKEN>`
+- 后端配置项：`BOT_SERVICE_TOKEN`
+- 比较方式：服务端使用常量时间比较校验 Bearer token
+- 失败行为：未配置返回 `503`，令牌错误返回 `401`
+
+这类接口只提供给机器人运行时，不对浏览器、移动端或普通用户开放。
+
 ## PII 保护
 
 ### 证件号

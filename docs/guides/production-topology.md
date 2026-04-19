@@ -26,6 +26,36 @@ last-verified: 2026-04-19
     └── 其他 Zitadel    → zitadel-api (:8080)
 ```
 
+## 外部机器人链路
+
+Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外部独立节点部署：
+
+```text
+[QQ 平台]
+   │
+   ▼
+[NapCat / OneBot]
+   │
+   ▼
+[Koishi]
+   │
+   ├── 调用 StuHelper API：QQ 绑定码消费、QQ 认证状态查询
+   ├── 持有本地 SQLite：群规则、消息账本、处罚记录、事件日志
+   └── 持有独立服务令牌：不与主站浏览器令牌共享
+```
+
+运维责任边界：
+
+- StuHelper 主站负责 API、身份系统、业务数据和 OpenAPI 契约。
+- Koishi 负责机器人运行时、群管逻辑和本地群管域数据。
+- NapCat 只负责 QQ 协议与 OneBot 适配。
+
+当前工作区默认约定：
+
+- Koishi 本地控制台端口固定为 `5140`
+- 群管本地数据库路径为 `bots/koishi/data/koishi.db`
+- Koishi 与主站之间只通过 `/api/v1/bot/*` 服务令牌接口通信，不共享 PostgreSQL 或 Redis
+
 ## 公网入口
 
 | 决策 | 内容 |

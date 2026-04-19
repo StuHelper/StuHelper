@@ -7,6 +7,7 @@ import {
 } from '@stuhelper/koishi-shared'
 import * as admin from 'koishi-plugin-stuhelper-admin'
 import * as binding from 'koishi-plugin-stuhelper-binding'
+import * as consolePlugin from 'koishi-plugin-stuhelper-console'
 import * as groupGuard from 'koishi-plugin-stuhelper-group-guard'
 
 export const name = 'stuhelper-core'
@@ -26,11 +27,26 @@ export function apply(ctx: Context, config: Config) {
     platform: config.platform,
     guard: config.guard,
     scheduler: config.scheduler,
+    moderation: config.moderation,
+    fun: config.fun,
+    ai: config.ai,
   })
   ctx.plugin(admin, {
     platform: config.platform,
     admin: config.admin,
+    moderation: config.moderation,
+    fun: config.fun,
+  })
+  ctx.plugin(consolePlugin, {
+    console: config.console,
+    moderation: config.moderation,
   })
 
   logger.info(`StuHelper 插件框架已加载，平台地址：${config.platform.baseUrl}`)
+}
+
+export default {
+  name,
+  Config,
+  apply,
 }

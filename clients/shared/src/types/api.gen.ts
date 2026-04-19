@@ -1417,6 +1417,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user/qq-binding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前用户 QQ 绑定状态 */
+        get: operations["getUserQQBinding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/qq-binding/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 生成当前用户的 QQ 绑定码 */
+        post: operations["createUserQQBindingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/profile": {
         parameters: {
             query?: never;
@@ -1528,6 +1562,40 @@ export interface paths {
         };
         /** 获取当前用户聚合信息 */
         get: operations["getUserSurface"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/qq-binding/consume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人消费 QQ 绑定码并建立绑定关系 */
+        post: operations["consumeQQBindingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/qq-users/{qqID}/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 机器人按 QQ 号查询绑定与学生认证状态 */
+        get: operations["getQQVerificationStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2369,6 +2437,41 @@ export interface components {
             verificationStatus: "none" | "pending" | "approved" | "rejected";
             phoneBound: boolean;
             capabilities: string[];
+        };
+        QQBinding: {
+            /** Format: int64 */
+            userID: number;
+            qqID: string;
+            qqNickname?: string | null;
+            /** Format: date-time */
+            boundAt: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        QQBindingCode: {
+            code: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        ConsumeQQBindingRequest: {
+            code: string;
+            qqID: string;
+            qqNickname?: string | null;
+        };
+        QQVerificationStatus: {
+            qqID: string;
+            /** Format: int64 */
+            userID?: number | null;
+            qqNickname?: string | null;
+            /** Format: date-time */
+            boundAt?: string | null;
+            /** @enum {string} */
+            verificationState: "unbound" | "bound_unverified" | "verified";
+            /** @enum {string} */
+            profileVerificationStatus: "unverified" | "pending" | "verified" | "rejected";
+            studentVerified: boolean;
         };
         CapabilityGrant: {
             name: string;
@@ -5594,6 +5697,56 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    getUserQQBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 用户 QQ 绑定信息 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["QQBinding"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    createUserQQBindingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description QQ 绑定码已生成 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["QQBindingCode"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
     getUserProfile: {
         parameters: {
             query?: never;
@@ -5786,6 +5939,68 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
+        };
+    };
+    consumeQQBindingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsumeQQBindingRequest"];
+            };
+        };
+        responses: {
+            /** @description QQ 绑定成功并返回当前认证状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            binding: components["schemas"]["QQBinding"];
+                            verificationState: components["schemas"]["QQVerificationStatus"];
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getQQVerificationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                qqID: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description QQ 账号绑定与认证状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["QQVerificationStatus"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     listIdentityVerifications: {
