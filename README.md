@@ -26,6 +26,17 @@ make e2e          # Playwright
 make dev-down     # 停止
 ```
 
+## 机器人开发
+
+```bash
+cd bots/koishi
+corepack yarn install
+corepack yarn dev
+corepack yarn workspaces list
+```
+
+该目录是 StuHelper 的 Koishi 插件工作区，用于承载 QQ 机器人与群管相关能力；NapCat 保持外部独立部署。
+
 默认地址（以 `make dev-status` 为准）：
 
 | 服务 | 地址 |
@@ -81,6 +92,7 @@ make ansible-rollback-prod      # Ansible 回滚
 | 契约 | OpenAPI 3.1 |
 | 部署 | Docker Compose / GitLab CI/CD |
 | 观测 | Grafana LGTM + Alertmanager + OpenTelemetry |
+| 机器人 | Koishi 工作区 / NapCat（外部部署） |
 
 ## 仓库结构
 
@@ -91,6 +103,7 @@ StuHelper/
 ├── docker-compose.yml
 ├── server/             # Go 后端
 ├── clients/            # Web / Admin / Shared / uniappx
+├── bots/               # Koishi 机器人工作区
 ├── infra/              # 部署、观测、运维脚本
 └── docs/               # 项目文档
 ```

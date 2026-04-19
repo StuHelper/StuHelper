@@ -1,0 +1,25 @@
+plugins:
+  group:server:
+    server:chm356:
+      port: 5140
+      maxPort: 5149
+  group:basic:
+    commands:339hfb: {}
+    help:3hh4h8: {}
+    http:8iyqxs: {}
+    locales:x35hpb: {}
+  group:console:
+    actions:ibf4cy: {}
+    config:ktowud: {}
+    console:4j5qqj:
+      open: true
+    logger:fftuua: {}
+  group:storage:
+    database-sqlite:q4tbt0:
+      path: data/koishi.db
+  group:stuhelper:
+    stuhelper-core:q1wm1r: {}
+  group:develop:
+    $if: env.NODE_ENV === 'development'
+    hmr:nepc4u:
+      root: .

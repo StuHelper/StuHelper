@@ -24,6 +24,12 @@ pnpm install
 pnpm type-check && pnpm lint
 pnpm test:web && pnpm test:e2e
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
+
+# 机器人 (bots/koishi)
+cd bots/koishi
+corepack yarn install
+corepack yarn dev
+corepack yarn workspaces list
 ```
 
 ## 技术栈
@@ -33,6 +39,7 @@ pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 | 后端 | Go 1.26+ / Gin / pgx / PostgreSQL 18 / Redis 8 |
 | 前端 | Vue 3.5+ / TypeScript 5+ / Vite 6+ / Element Plus / Pinia |
 | 管理后台 | Vben Admin 5（Element Plus 变体） |
+| 机器人 | Koishi 工作区 / NapCat（外部部署） |
 | 认证 | Zitadel OIDC |
 | 资源授权 | OpenFGA |
 | 契约 | OpenAPI 3.1 → Go + TypeScript 生成 |
@@ -128,6 +135,8 @@ StuHelper/
 │   ├── admin/               # 独立管理后台
 │   ├── shared/              # 共享 API / 类型
 │   └── uniappx/             # 实验性跨端
+├── bots/
+│   └── koishi/              # Koishi 机器人插件工作区
 ├── infra/                   # Docker、观测、运维脚本
 └── docs/                    # 项目文档
 ```

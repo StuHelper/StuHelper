@@ -1,0 +1,18 @@
+- id: 3tde15
+  name: yakumo
+  config:
+    pipeline:
+      build:
+        - tsc
+        - esbuild
+        - client
+      clean:
+        - tsc --clean
+- id: iqn4xi
+  name: yakumo-esbuild
+- id: 16dr9o
+  name: yakumo-tsc
+- id: v9z04p
+  name: '@koishijs/client/lib'
+- id: 6ng0sq
+  name: yakumo/run

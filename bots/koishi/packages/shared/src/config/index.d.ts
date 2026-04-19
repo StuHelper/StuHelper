@@ -1,0 +1,11 @@
+import { Schema } from 'koishi';
+import type { StuhelperAdminConfig, StuhelperAdminPluginConfig, StuhelperBindingConfig, StuhelperBindingPluginConfig, StuhelperCoreConfig, StuhelperGuardConfig, StuhelperGroupGuardPluginConfig, StuhelperPlatformConfig, StuhelperSchedulerConfig } from '../types';
+export declare function createPlatformConfigSchema(): Schema<StuhelperPlatformConfig>;
+export declare function createBindingConfigSchema(): Schema<StuhelperBindingConfig>;
+export declare function createGuardConfigSchema(): Schema<StuhelperGuardConfig>;
+export declare function createAdminConfigSchema(): Schema<StuhelperAdminConfig>;
+export declare function createSchedulerConfigSchema(): Schema<StuhelperSchedulerConfig>;
+export declare function createCoreConfigSchema(): Schema<StuhelperCoreConfig>;
+export declare function createBindingPluginConfigSchema(): Schema<StuhelperBindingPluginConfig>;
+export declare function createGroupGuardPluginConfigSchema(): Schema<StuhelperGroupGuardPluginConfig>;
+export declare function createAdminPluginConfigSchema(): Schema<StuhelperAdminPluginConfig>;
