@@ -267,7 +267,7 @@ type CreateReplyParams struct {
 	Status   string
 }
 
-// ReplyTimestamps holds the DB-generated timestamps for a newly created reply.
+// ReplyTimestamps 保存数据库为新回复生成的时间戳。
 type ReplyTimestamps struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time

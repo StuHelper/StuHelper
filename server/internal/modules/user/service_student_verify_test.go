@@ -62,7 +62,7 @@ func TestVerifyStudent_ManualAllowsEmptyCredentialsAndPersistsManualData(t *test
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	profile, err := svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
@@ -107,7 +107,7 @@ func TestVerifyStudent_ManualWithoutStudentIDDoesNotPersistBlankIdentifiers(t *t
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
@@ -136,7 +136,7 @@ func TestVerifyStudent_LDAPRequiresStudentID(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
@@ -162,7 +162,7 @@ func TestVerifyStudent_LDAPRequiresPassword(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
@@ -190,7 +190,7 @@ func TestReviewStudentVerification_RejectionReasonIsOptional(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.ReviewStudentVerification(context.Background(), 1, false, "")
@@ -225,7 +225,7 @@ func TestReviewStudentVerification_ApproveFlow(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.ReviewStudentVerification(context.Background(), 1, true, "")

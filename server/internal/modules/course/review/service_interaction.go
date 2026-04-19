@@ -336,7 +336,7 @@ func (s *Service) sendReplyNotification(ctx context.Context, reviewID, replierHa
 	if err != nil || review == nil {
 		return
 	}
-	// Don't notify self
+	// 自己回复自己时不发送通知
 	if review.UserHash == replierHash {
 		return
 	}

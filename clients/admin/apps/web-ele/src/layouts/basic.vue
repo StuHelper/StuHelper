@@ -53,7 +53,11 @@ const avatar = computed(() => {
 });
 
 async function handleLogout() {
-  await authStore.logout();
+  try {
+    await authStore.logout();
+  } catch {
+    // 失败提示已在 store 处理。
+  }
 }
 
 function handleNoticeClear() {

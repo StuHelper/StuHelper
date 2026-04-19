@@ -74,14 +74,8 @@ func (rt *Runtime) registerGlobalMiddleware(r *gin.Engine) {
 
 func (rt *Runtime) registerPlatformRoutes(r *gin.Engine) error {
 	corsOrigins := rt.cfg.App.CORSOrigins
-	if len(corsOrigins) == 0 && !rt.isProduction {
-		corsOrigins = []string{
-			"http://localhost:3000",
-			"http://localhost:5173",
-			"http://localhost:4173",
-		}
-		logger.L().Warn("CORS_ORIGINS not configured, using default dev origins",
-			gozap.Strings("origins", corsOrigins))
+	if len(corsOrigins) == 0 {
+		return errors.New("CORS_ORIGINS is required")
 	}
 	for _, origin := range corsOrigins {
 		trimmed := strings.TrimSpace(origin)

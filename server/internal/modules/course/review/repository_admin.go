@@ -72,8 +72,8 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 //   - reviews: idx_reviews_created_at (created_at) — 加速 today/week 过滤
 //   - review_reports: idx_review_reports_status (status) — 加速 pending 计数
 //
-// NOTE(DB-M7): Handler 层通过 review:admin:stats 版本化缓存键对结果进行缓存，
-// 典型 TTL 约 30s (JitteredTTL)。写操作后通过 invalidateReviewAggregateCaches 失效。
+// Handler 层会通过 review:admin:stats 版本化缓存键缓存该结果，
+// 典型 TTL 约 30s。写操作后会通过 invalidateReviewAggregateCaches 失效。
 func (r *Repository) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 	var stats AdminStats
 	// reviews 表：6 个计数合并为单次全表扫描 + FILTER 条件聚合
@@ -113,7 +113,7 @@ func (r *Repository) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 	return &stats, nil
 }
 
-// maxBatchDBSize 数据库层批量操作的最大数量上限（L-36: 纵深防御，防止绕过 handler 直接调用）
+// maxBatchDBSize 数据库层批量操作的最大数量上限，避免绕过 handler 后一次更新过多记录。
 const maxBatchDBSize = 1000
 
 // BatchUpdateReviewStatusTx 批量更新评论状态（事务内执行）。

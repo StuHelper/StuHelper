@@ -178,9 +178,9 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 	assert.Equal(t, "hide", logs.List[0].Action)
 
 	var oldLogID string
-	err = fixture.Pool.QueryRow(ctx, `SELECT id FROM admin_operation_logs ORDER BY created_at ASC LIMIT 1`).Scan(&oldLogID)
+	err = fixture.Pool.QueryRow(ctx, `SELECT id FROM audit_events WHERE category = 'admin_operation' ORDER BY created_at ASC LIMIT 1`).Scan(&oldLogID)
 	require.NoError(t, err)
-	_, err = fixture.Pool.Exec(ctx, `UPDATE admin_operation_logs SET created_at = NOW() - INTERVAL '120 days' WHERE id = $1`, oldLogID)
+	_, err = fixture.Pool.Exec(ctx, `UPDATE audit_events SET created_at = NOW() - INTERVAL '120 days' WHERE id = $1`, oldLogID)
 	require.NoError(t, err)
 	deletedLogs, err := svc.CleanupOldOperationLogs(ctx, 90)
 	require.NoError(t, err)

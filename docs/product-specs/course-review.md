@@ -130,7 +130,7 @@
 
 ## 主要数据表
 
-`departments`、`courses`、`teachers`、`terms`、`rating_dimensions`、`reviews`、`review_votes`、`review_reports`、`review_replies`、`course_favorites`、`review_drafts`、`notifications`、`admin_operation_logs`、`sensitive_words`
+`departments`、`courses`、`teachers`、`terms`、`rating_dimensions`、`reviews`、`review_votes`、`review_reports`、`review_replies`、`course_favorites`、`review_drafts`、`notifications`、`audit_events`、`domain_event_outbox`、`sensitive_words`
 
 ## 代码入口
 

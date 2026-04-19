@@ -4,7 +4,7 @@
       <div>
         <h1 class="font-sans text-xl font-extrabold tracking-tight text-text-primary m-0">
           {{ t('user.notification.title') }}
-          <!-- L-42: 未读数量变化时屏幕阅读器播报 -->
+          <!-- 未读数量变化时，通过屏幕阅读器播报 -->
           <span v-if="hasUnread" class="sr-only" aria-live="polite" role="status">
             {{ t('user.notification.unreadCount', { count: unreadCount }) }}
           </span>

@@ -1,8 +1,5 @@
 /**
- * Composable: inline editing for a review card
- *
- * Manages edit state, content buffer, and API save.
- * Extracted from ReviewCard.vue for single-responsibility.
+ * 管理单条评测的行内编辑状态与保存流程。
  */
 import { ref } from 'vue'
 import type { Review } from '@stuhelper/shared/review'

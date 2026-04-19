@@ -72,10 +72,13 @@ func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
 	}
 
 	audit.LogFromGin(c, audit.Event{
-		Type:     audit.EventDataUpdate,
-		Resource: "identity_review",
-		Action:   map[bool]string{true: "approve", false: "reject"}[*req.Approved],
-		Result:   "success",
+		Type:         audit.EventDataUpdate,
+		Category:     "admin_operation",
+		Resource:     "identity_review",
+		ResourceType: "identity_review",
+		ResourceID:   strconv.FormatInt(userID, 10),
+		Action:       map[bool]string{true: "approve", false: "reject"}[*req.Approved],
+		Result:       "success",
 		Details: map[string]any{
 			"target_user_id":   userID,
 			"approved":         *req.Approved,
@@ -178,10 +181,13 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 	}
 
 	audit.LogFromGin(c, audit.Event{
-		Type:     audit.EventDataUpdate,
-		Resource: "student_verification_review",
-		Action:   map[bool]string{true: "approve", false: "reject"}[*req.Approved],
-		Result:   "success",
+		Type:         audit.EventDataUpdate,
+		Category:     "admin_operation",
+		Resource:     "student_verification_review",
+		ResourceType: "student_verification_review",
+		ResourceID:   strconv.FormatInt(userID, 10),
+		Action:       map[bool]string{true: "approve", false: "reject"}[*req.Approved],
+		Result:       "success",
 		Details: map[string]any{
 			"target_user_id":   userID,
 			"approved":         *req.Approved,
@@ -266,10 +272,13 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 	}
 
 	audit.LogFromGin(c, audit.Event{
-		Type:     audit.EventAdminConfigChange,
-		Resource: "school_config",
-		Action:   "update",
-		Result:   "success",
+		Type:         audit.EventAdminConfigChange,
+		Category:     "admin_operation",
+		Resource:     "school_config",
+		ResourceType: "school_config",
+		ResourceID:   strconv.FormatInt(schoolID, 10),
+		Action:       "update",
+		Result:       "success",
 		Details: map[string]any{
 			"school_id": schoolID,
 			"fields": map[string]bool{
@@ -410,10 +419,13 @@ func (h *Handler) handleAdminUpdateSystemConfig(c *gin.Context) {
 	}
 
 	audit.LogFromGin(c, audit.Event{
-		Type:     audit.EventAdminConfigChange,
-		Resource: "system_config",
-		Action:   "update",
-		Result:   "success",
+		Type:         audit.EventAdminConfigChange,
+		Category:     "admin_operation",
+		Resource:     "system_config",
+		ResourceType: "system_config",
+		ResourceID:   key,
+		Action:       "update",
+		Result:       "success",
 		Details: map[string]any{
 			"key": key,
 		},

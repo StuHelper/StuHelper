@@ -62,6 +62,7 @@ type Service struct {
 	accessReader   ReviewAccessReader
 	accessPolicySF singleflight.Group
 	asyncCtx       context.Context
+	asyncLaunch    func(string, func(context.Context))
 }
 
 // ReviewAccessReader 访问控制策略数据源（由 user.Repository 实现）。

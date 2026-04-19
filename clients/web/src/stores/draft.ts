@@ -2,10 +2,11 @@
  * 草稿状态管理
  */
 import { defineStore, getActivePinia } from "pinia";
-import { onScopeDispose, ref } from "vue";
+import { ref } from "vue";
 import type { Draft, SaveDraftParams } from "@stuhelper/shared/draft";
 import { isValidRating } from "@stuhelper/shared/course";
 import { api } from "@/api";
+import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
 // 草稿缓存最大条目数
@@ -193,7 +194,7 @@ export const useDraftStore = defineStore("draft", () => {
         reset,
         pinia,
     );
-    onScopeDispose(unregisterSessionReset);
+    safeOnScopeDispose(unregisterSessionReset);
 
     return {
         drafts,

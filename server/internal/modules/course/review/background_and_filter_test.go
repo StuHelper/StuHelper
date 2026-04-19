@@ -75,8 +75,11 @@ func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 	assert.NoError(t, err)
 
 	jobCtx, cancel := context.WithCancel(context.Background())
-	h.StartBackgroundJobs(jobCtx)
-	svc.StartBackgroundJobs(jobCtx)
+	start := func(_ string, run func(context.Context)) {
+		go run(jobCtx)
+	}
+	h.StartBackgroundJobs(jobCtx, start)
+	svc.StartBackgroundJobs(jobCtx, start)
 	time.Sleep(20 * time.Millisecond)
 	cancel()
 }
@@ -100,4 +103,44 @@ func TestReviewFGASyncProcessBatchAndHelpers(t *testing.T) {
 	assert.Contains(t, writer.reviewIDs, "review-sync-1")
 	assert.Contains(t, writer.reportIDs, "report-sync-1")
 	assert.Contains(t, truncateFGASyncError(fmt.Errorf("%s", strings.Repeat("x", 300))), "xxx")
+}
+
+func TestReviewDispatchNotificationUsesManagedLauncher(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopReviewSender2{}, &recordingReviewFGAWriter{}, fakeAccessReader{})
+
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	launches := make(chan string, 2)
+	start := func(name string, run func(context.Context)) {
+		launches <- name
+		go run(jobCtx)
+	}
+	svc.StartBackgroundJobs(jobCtx, start)
+
+	select {
+	case <-launches:
+	case <-time.After(time.Second):
+		t.Fatal("expected review background worker to launch")
+	}
+
+	done := make(chan struct{})
+	svc.dispatchNotification(context.Background(), func(context.Context) {
+		close(done)
+	})
+
+	select {
+	case name := <-launches:
+		assert.Equal(t, "", name)
+	case <-time.After(time.Second):
+		t.Fatal("expected notification dispatch to use managed launcher")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expected notification task to run")
+	}
 }

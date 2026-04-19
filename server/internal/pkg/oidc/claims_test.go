@@ -32,6 +32,12 @@ func TestParseRolesFromRaw_InvalidRolesClaim(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestParseRolesFromRaw_InvalidFallbackRolesClaimReportsFallbackError(t *testing.T) {
+	_, _, err := ParseRolesFromRaw([]byte(`{"urn:zitadel:iam:org:project:test-project:roles":{"school_admin":[1,2]}}`), "test-project")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "map[string]interface {}")
+}
+
 func TestClaims_HasRoleInOrg(t *testing.T) {
 	c := &Claims{
 		OrgScopedRoles: map[string][]string{

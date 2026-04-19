@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/circuitbreaker"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
@@ -84,4 +85,54 @@ func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {
 	consumed, err = bl.TryConsumeRefreshToken(ctx, "refresh-token", time.Hour)
 	require.NoError(t, err)
 	assert.True(t, consumed)
+}
+
+func TestBlacklist_IsBlacklisted_DeniesWhenCircuitOpenAndOnlyNegativeCacheExists(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	bl := &Blacklist{
+		cb: circuitbreaker.NewNamed("token_blacklist_test", circuitbreaker.Config{
+			FailureThreshold: 1,
+			SuccessThreshold: 1,
+			Timeout:          time.Hour,
+		}),
+		stopCh: make(chan struct{}),
+	}
+
+	hash, err := hashToken("stale-negative-cache-token")
+	require.NoError(t, err)
+	bl.localCache.Store(hash, localCacheEntry{
+		blacklisted: false,
+		expiresAt:   time.Now().Add(time.Minute),
+	})
+	bl.cb.RecordFailure()
+
+	blacklisted, err := bl.IsBlacklisted(context.Background(), "stale-negative-cache-token")
+	require.Error(t, err)
+	assert.True(t, blacklisted)
+}
+
+func TestBlacklist_IsBlacklisted_AllowsPositiveRevocationCacheWhenCircuitOpen(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	bl := &Blacklist{
+		cb: circuitbreaker.NewNamed("token_blacklist_test_positive", circuitbreaker.Config{
+			FailureThreshold: 1,
+			SuccessThreshold: 1,
+			Timeout:          time.Hour,
+		}),
+		stopCh: make(chan struct{}),
+	}
+
+	hash, err := hashToken("cached-revoked-token")
+	require.NoError(t, err)
+	bl.localCache.Store(hash, localCacheEntry{
+		blacklisted: true,
+		expiresAt:   time.Now().Add(time.Minute),
+	})
+	bl.cb.RecordFailure()
+
+	blacklisted, err := bl.IsBlacklisted(context.Background(), "cached-revoked-token")
+	require.NoError(t, err)
+	assert.True(t, blacklisted)
 }

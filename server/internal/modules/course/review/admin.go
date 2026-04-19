@@ -169,19 +169,22 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 
 	// 记录审计事件（restore 操作）
 	if req.Action == "restore" {
-		audit.Log(audit.Event{
-			Type:     audit.EventAdminReviewRestore,
-			UserID:   userID,
-			Username: middleware.GetUsername(c),
-			IP:       c.ClientIP(),
-			Resource: "review",
-			Action:   "restore",
-			Result:   "success",
+		audit.Log(audit.EventFromContext(c.Request.Context(), audit.Event{
+			Type:         audit.EventAdminReviewRestore,
+			ActorType:    "admin",
+			UserID:       userID,
+			Username:     middleware.GetUsername(c),
+			IP:           c.ClientIP(),
+			Resource:     "review",
+			ResourceType: "review",
+			ResourceID:   reviewID,
+			Action:       "restore",
+			Result:       "success",
 			Details: map[string]any{
 				"review_id":  reviewID,
 				"old_status": result.OldStatus,
 			},
-		})
+		}))
 	}
 
 	h.invalidateReviewAggregateCaches(c)

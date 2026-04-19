@@ -67,7 +67,11 @@ func TestCourseBackgroundJobsAndConstructor(t *testing.T) {
 
 	require.NotPanics(t, func() { h.runLogCleanup(ctx) })
 	require.NotPanics(t, func() { h.runTeacherPublicStatsRefresh(ctx) })
-	require.NotPanics(t, func() { h.StartBackgroundJobs(ctx) })
+	require.NotPanics(t, func() {
+		h.StartBackgroundJobs(ctx, func(_ string, run func(context.Context)) {
+			go run(ctx)
+		})
+	})
 
 	cancel()
 	time.Sleep(20 * time.Millisecond)

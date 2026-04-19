@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// OriginValidationMiddleware restricts anonymous metrics ingestion to known frontend origins.
-// Accept either an Origin header or a Referer whose scheme://host matches the allowlist.
+// OriginValidationMiddleware 只允许已知前端来源匿名上报指标。
+// 它接受 Origin 头，或从 Referer 中提取出的 scheme://host 并与白名单匹配。
 func OriginValidationMiddleware(allowedOrigins []string) gin.HandlerFunc {
 	allowed := make(map[string]struct{}, len(allowedOrigins))
 	for _, origin := range allowedOrigins {

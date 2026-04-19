@@ -207,6 +207,32 @@ func TestReadiness_BothDepsDown_Returns503(t *testing.T) {
 	}
 }
 
+func TestCheckPostgres_NilPool_ReturnsExplicitUnhealthy(t *testing.T) {
+	h := NewHandler(nil, nil, BuildInfo{}, false, time.Second)
+
+	result := h.checkPostgres(t.Context())
+
+	if result.Status != "unhealthy" {
+		t.Fatalf("status = %q, want %q", result.Status, "unhealthy")
+	}
+	if result.Error != "not configured" {
+		t.Fatalf("error = %q, want %q", result.Error, "not configured")
+	}
+}
+
+func TestCheckRedis_NilClient_ReturnsExplicitUnhealthy(t *testing.T) {
+	h := NewHandler(nil, nil, BuildInfo{}, false, time.Second)
+
+	result := h.checkRedis(t.Context())
+
+	if result.Status != "unhealthy" {
+		t.Fatalf("status = %q, want %q", result.Status, "unhealthy")
+	}
+	if result.Error != "not configured" {
+		t.Fatalf("error = %q, want %q", result.Error, "not configured")
+	}
+}
+
 // ---- Readiness: response format ----
 
 func TestReadiness_ErrorResponse_JSONStructure(t *testing.T) {

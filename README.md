@@ -1,6 +1,12 @@
 # StuHelper
 
-北航校园信息平台：课程、教师、评课、用户认证、管理后台。
+北航校园信息平台：主站、管理后台、认证、课程评课、教务数据导入展示、资源共享。
+
+当前主路线明确不包含：
+
+- 完整教务写侧
+- 实验 / 作业 / 提交 / 批改 / 评分系统
+- 第三方教务系统与第三方网盘的真实连接器实现
 
 ## 本地开发
 
@@ -96,6 +102,8 @@ StuHelper/
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | 快速开始 |
 | [docs/BACKEND.md](docs/BACKEND.md) | 后端规范 |
 | [docs/FRONTEND.md](docs/FRONTEND.md) | 前端规范 |
+| [docs/PRODUCT.md](docs/PRODUCT.md) | 产品形态与边界 |
+| [docs/architecture/0001-stuhelper-target-scope-and-module-boundaries.md](docs/architecture/0001-stuhelper-target-scope-and-module-boundaries.md) | 目标范围与模块边界 |
 | [docs/operations/README.md](docs/operations/README.md) | 运维与发布 |
 | [docs/README.md](docs/README.md) | 文档总索引 |
 

@@ -3,6 +3,7 @@ import {
   AUTH_REFRESH_PATH,
   CSRF_COOKIE_NAME,
   CSRF_HEADER_NAME,
+  NATIVE_SESSION_ID_HEADER,
   appendQuery,
   buildSecurityHeaders,
   createSessionApiClient,
@@ -14,62 +15,31 @@ import {
   type RequestInitShape,
 } from '@stuhelper/shared/api'
 import type { ApiCallResult } from './result'
+import {
+  isNativeRuntime,
+  readNativeAccessToken,
+  readNativeRefreshToken,
+  readNativeSessionID,
+  updateNativeTokensAfterRefresh,
+} from './native-session'
 
 type RequestBody = UniNamespace.RequestOptions['data']
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
 const CSRF_STORAGE_KEY = 'stuhelper:csrf-token'
 const H5 = typeof window !== 'undefined' && typeof window.location?.origin === 'string'
-const NATIVE_TOKEN_STORAGE_KEY = 'stuhelper:native-tokens'
+const SESSION_BOUND_AUTH_PATHS = new Set<string>([
+  AUTH_REFRESH_PATH,
+  '/api/v1/auth/logout',
+])
 
-/** 判断当前是否运行在原生 App 环境 */
-function isNativeRuntime(): boolean {
-  return typeof plus !== 'undefined'
-}
+class CSRFTokenStorageError extends Error {
+  cause: unknown
 
-/** 从本地存储读取原生 App 的 access token */
-function readNativeAccessToken(): string | null {
-  if (!isNativeRuntime()) return null
-  try {
-    const raw = uni.getStorageSync(NATIVE_TOKEN_STORAGE_KEY)
-    if (!raw || typeof raw !== 'string') return null
-    const parsed = JSON.parse(raw) as { accessToken?: string; expiresAt?: number }
-    if (!parsed.accessToken) return null
-    if (typeof parsed.expiresAt === 'number' && Date.now() >= parsed.expiresAt - 30_000) return null
-    return parsed.accessToken
-  } catch (_error) { void _error;
-    return null
-  }
-}
-
-/** 从本地存储读取原生 App 的 refresh token（用于续期请求） */
-function readNativeRefreshToken(): string | null {
-  if (!isNativeRuntime()) return null
-  try {
-    const raw = uni.getStorageSync(NATIVE_TOKEN_STORAGE_KEY)
-    if (!raw || typeof raw !== 'string') return null
-    const parsed = JSON.parse(raw) as { refreshToken?: string }
-    return parsed.refreshToken || null
-  } catch (_error) { void _error;
-    return null
-  }
-}
-
-/** 续期成功后更新本地存储的 token */
-function updateNativeTokensAfterRefresh(
-  accessToken: string,
-  refreshToken?: string | null,
-  expiresIn?: number | null,
-): void {
-  try {
-    const raw = uni.getStorageSync(NATIVE_TOKEN_STORAGE_KEY)
-    const existing = (raw && typeof raw === 'string' ? JSON.parse(raw) : {}) as Record<string, unknown>
-    existing.accessToken = accessToken
-    if (refreshToken) existing.refreshToken = refreshToken
-    if (typeof expiresIn === 'number') existing.expiresAt = Date.now() + expiresIn * 1000
-    uni.setStorageSync(NATIVE_TOKEN_STORAGE_KEY, JSON.stringify(existing))
-  } catch (_error) { void _error;
-    // 存储失败不阻断流程
+  constructor(action: 'persist' | 'read', cause: unknown) {
+    super(`failed to ${action} csrf token`)
+    this.name = 'CSRFTokenStorageError'
+    this.cause = cause
   }
 }
 
@@ -111,8 +81,8 @@ function readStoredCSRFToken(): string | null {
     if (typeof localStorage !== 'undefined') {
       return localStorage.getItem(CSRF_STORAGE_KEY) || null
     }
-  } catch (_error) { void _error;
-    // ignore storage access failures
+  } catch (error) {
+    throw new CSRFTokenStorageError('read', error)
   }
 
   return null
@@ -130,8 +100,8 @@ function writeStoredCSRFToken(token: string): void {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(CSRF_STORAGE_KEY, token)
     }
-  } catch (_error) { void _error;
-    // ignore storage access failures
+  } catch (error) {
+    throw new CSRFTokenStorageError('persist', error)
   }
 }
 
@@ -155,6 +125,17 @@ function persistCSRFToken(headers?: Record<string, unknown>) {
   const csrfToken = readHeader(headers, CSRF_HEADER_NAME)
   if (csrfToken) {
     writeStoredCSRFToken(csrfToken)
+  }
+}
+
+function injectNativeSessionHeader(schemaPath: string, headers: Record<string, string>): void {
+  if (!isNativeRuntime()) return
+  if (!SESSION_BOUND_AUTH_PATHS.has(schemaPath)) return
+  if (headers[NATIVE_SESSION_ID_HEADER]) return
+
+  const sessionID = readNativeSessionID()
+  if (sessionID) {
+    headers[NATIVE_SESSION_ID_HEADER] = sessionID
   }
 }
 
@@ -270,14 +251,19 @@ function performRequest<T>(
   if (init?.body !== undefined && !requestHeaders['Content-Type']) {
     requestHeaders['Content-Type'] = 'application/json'
   }
+  let headers: Record<string, string>
+  try {
+    injectNativeSessionHeader(schemaPath, requestHeaders)
+    headers = buildSecurityHeaders(method, requestHeaders, {
+      csrfToken: resolveCSRFToken(),
+    })
 
-  const headers = buildSecurityHeaders(method, requestHeaders, {
-    csrfToken: resolveCSRFToken(),
-  })
-
-  const nativeToken = readNativeAccessToken()
-  if (nativeToken && !headers.Authorization) {
-    headers.Authorization = `Bearer ${nativeToken}`
+    const nativeToken = readNativeAccessToken()
+    if (nativeToken && !headers.Authorization) {
+      headers.Authorization = `Bearer ${nativeToken}`
+    }
+  } catch (error) {
+    return Promise.reject(error)
   }
 
   return new Promise((resolve) => {
@@ -301,24 +287,28 @@ function performRequest<T>(
       header: headers,
       method: method as unknown as UniNamespace.RequestOptions['method'],
       success: (response) => {
-        const status = typeof response.statusCode === 'number' ? response.statusCode : 0
-        if (status >= 200 && status < 300) {
+        try {
+          const status = typeof response.statusCode === 'number' ? response.statusCode : 0
+          if (status >= 200 && status < 300) {
+            finish(
+              buildSuccessResult<T>(
+                status,
+                response.data,
+                response.header as Record<string, unknown>,
+              ),
+            )
+            return
+          }
           finish(
-            buildSuccessResult<T>(
+            buildErrorResult<T>(
               status,
               response.data,
               response.header as Record<string, unknown>,
             ),
           )
-          return
+        } catch (error) {
+          finish(toTransportErrorResult<T>(error))
         }
-        finish(
-          buildErrorResult<T>(
-            status,
-            response.data,
-            response.header as Record<string, unknown>,
-          ),
-        )
       },
       timeout: 15000,
       url,
@@ -362,11 +352,11 @@ async function refreshSession() {
     body,
     onSuccess(payload) {
       if (isNativeRuntime() && payload.accessToken) {
-        updateNativeTokensAfterRefresh(
-          payload.accessToken,
-          payload.refreshToken,
-          payload.expiresIn,
-        )
+        updateNativeTokensAfterRefresh({
+          accessToken: payload.accessToken,
+          expiresIn: payload.expiresIn,
+          refreshToken: payload.refreshToken,
+        })
       }
     },
     request: (init) => performRequest<RefreshSessionData>('POST', AUTH_REFRESH_PATH, init),

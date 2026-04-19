@@ -1,8 +1,5 @@
 /**
- * Composable: vote handling for a review card
- *
- * Manages optimistic vote state, bounce/shake animations, and API calls.
- * Extracted from ReviewCard.vue for single-responsibility.
+ * 管理单条评测的投票状态、乐观更新与反馈动画。
  */
 import { ref, computed, watch, onScopeDispose } from 'vue'
 import type { Review } from '@stuhelper/shared/review'
@@ -36,14 +33,14 @@ export function useReviewVote(
     getDisplayVoteCount(reviewGetter().dislikeCount, dislikeOffset.value),
   )
 
-  // Reset vote offsets when the review prop changes (e.g. data refresh)
+  // 评测数据刷新后，重置本地投票偏移量
   watch(reviewGetter, () => {
     likeOffset.value = 0
     dislikeOffset.value = 0
     userVote.value = null
   })
 
-  // Timer cleanup
+  // 清理动画定时器
   let bounceTimer: ReturnType<typeof setTimeout> | null = null
   let shakeTimer: ReturnType<typeof setTimeout> | null = null
 

@@ -72,7 +72,7 @@ export function extractOptionalResultData<T>(
 }
 
 export function extractResultList<T>(
-    result: ApiCallResult<{ list?: T[]; total?: number }>,
+    result: ApiCallResult<{ items?: T[]; list?: T[]; total?: number }>,
 ):
     | {
           list: T[];
@@ -83,8 +83,13 @@ export function extractResultList<T>(
     if (!payload) {
         return undefined;
     }
+    const list = Array.isArray(payload.list)
+        ? payload.list
+        : Array.isArray(payload.items)
+          ? payload.items
+          : [];
     return {
-        list: Array.isArray(payload.list) ? payload.list : [],
+        list,
         total: typeof payload.total === "number" ? payload.total : 0,
     };
 }

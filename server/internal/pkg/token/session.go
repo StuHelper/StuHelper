@@ -217,6 +217,7 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 		return fmt.Errorf("session revoke all: get sessions: %w", err)
 	}
 
+	var revokeErr error
 	for _, sid := range sessionIDs {
 		if _, rErr := s.Revoke(ctx, sid, blacklist, accessTTL, refreshTTL); rErr != nil {
 			logger.L().Warn("session revoke all: failed to revoke session",
@@ -224,15 +225,16 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 				zap.String("session_id", sid),
 				zap.Error(rErr),
 			)
+			revokeErr = errors.Join(revokeErr, fmt.Errorf("session %s: %w", sid, rErr))
 		}
+	}
+	if revokeErr != nil {
+		return fmt.Errorf("session revoke all: revoke sessions: %w", revokeErr)
 	}
 
 	// 清理用户 session 集合
 	if err := s.rdb.Del(ctx, userKey).Err(); err != nil {
-		logger.L().Warn("session revoke all: failed to delete user sessions set",
-			zap.String("user_id", userID),
-			zap.Error(err),
-		)
+		return fmt.Errorf("session revoke all: delete user sessions set: %w", err)
 	}
 	return nil
 }
@@ -299,7 +301,13 @@ func (s *SessionStore) ListUserSessions(ctx context.Context, userID string) ([]S
 		for _, sid := range staleSessionIDs {
 			staleMembers = append(staleMembers, sid)
 		}
-		_ = s.rdb.SRem(ctx, userSessionsPrefix+userID, staleMembers...).Err()
+		if err := s.rdb.SRem(ctx, userSessionsPrefix+userID, staleMembers...).Err(); err != nil {
+			logger.L().Warn("list user sessions: failed to remove stale session references",
+				zap.String("user_id", userID),
+				zap.Int("stale_count", len(staleSessionIDs)),
+				zap.Error(err),
+			)
+		}
 	}
 
 	return sessions, nil

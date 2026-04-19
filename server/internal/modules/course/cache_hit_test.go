@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	cachepkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
@@ -25,15 +27,16 @@ func setupCourseCacheHandler(t *testing.T) (*Handler, context.Context) {
 func TestCourseHandlers_ServeFromCache(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, ctx := setupCourseCacheHandler(t)
+	require.NoError(t, crypto.InitHMACKey("test-course-cache-hit-secret-32-bytes", false))
 
 	require.NoError(t, h.cache.Set(ctx, "course:categories", []CourseCategory{{ID: 1, Name: "公共课"}}, time.Minute))
-	require.NoError(t, h.cache.Set(ctx, "course:departments:science", []Department{{ID: 1, Name: "理学院"}}, time.Minute))
+	require.NoError(t, h.cache.Set(ctx, "course:departments:"+httputil.SanitizeCacheKey("science"), []Department{{ID: 1, Name: "理学院"}}, time.Minute))
 	require.NoError(t, h.cache.Set(ctx, "course:terms", []Term{{ID: "2024-1", Name: "2024春", IsCurrent: true}}, time.Minute))
 	require.NoError(t, h.cache.Set(ctx, "course:courses:grouped", gin.H{"groups": []DepartmentGroup{{DepartmentID: 1, DepartmentName: "理学院"}}}, time.Minute))
 	require.NoError(t, h.cache.Set(ctx, "course:stats", gin.H{"courseCount": 10, "departmentCount": 2}, time.Minute))
 	require.NoError(t, h.cache.Set(ctx, "course:course:1", Course{ID: 1, Code: "MATH101", Name: "高数"}, time.Minute))
-	require.NoError(t, h.cache.Set(ctx, "course:courses:q=math:dept=0:cat=:sort=name:page=1:size=20", gin.H{"list": []Course{{ID: 1, Code: "MATH101", Name: "高数"}}, "total": 1}, time.Minute))
-	require.NoError(t, h.cache.Set(ctx, "course:courses:search:math:page=1:size=20", gin.H{"list": []Course{{ID: 1, Code: "MATH101", Name: "高数"}}, "total": 1}, time.Minute))
+	require.NoError(t, h.cache.Set(ctx, "course:courses:q="+httputil.SanitizeCacheKey("math")+":dept=0:cat="+httputil.SanitizeCacheKey("")+":sort=name:page=1:size=20", gin.H{"list": []Course{{ID: 1, Code: "MATH101", Name: "高数"}}, "total": 1}, time.Minute))
+	require.NoError(t, h.cache.Set(ctx, "course:courses:search:"+httputil.SanitizeCacheKey("math")+":page=1:size=20", gin.H{"list": []Course{{ID: 1, Code: "MATH101", Name: "高数"}}, "total": 1}, time.Minute))
 
 	cases := []struct {
 		name string

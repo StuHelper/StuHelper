@@ -5,7 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/objectstorage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -17,11 +19,33 @@ var (
 		response.MatchError(ErrIdentityPhotoInvalidRef, 400, "invalid identity photo reference"),
 	}
 	uploadIdentityPhotoErrorMappings = []response.ErrorMapping{
-		response.MatchError(ErrIdentityPhotoStoreDisabled, 500, "identity photo upload is not available"),
+		response.MatchError(ErrIdentityPhotoStoreDisabled, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
 		response.MatchError(ErrIdentityPhotoTooLarge, 400, "identity photo is too large"),
 		response.MatchError(ErrIdentityPhotoInvalidType, 400, "identity photo content type is invalid"),
 		response.MatchError(ErrIdentityPhotoInvalidData, 400, "identity photo data is invalid"),
 		response.MatchError(ErrIdentityPhotoInvalidRef, 400, "identity photo data is invalid"),
+		response.MatchError(storage.ErrMountDisabled, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
+		response.MatchError(storage.ErrMountNotFound, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
+		response.MatchError(storage.ErrDriverNotRegistered, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
+		{
+			Match: func(err error) bool {
+				return objectstorage.IsKind(err, objectstorage.ErrorKindConfig) ||
+					objectstorage.IsKind(err, objectstorage.ErrorKindAuthentication) ||
+					objectstorage.IsKind(err, objectstorage.ErrorKindPermission) ||
+					objectstorage.IsKind(err, objectstorage.ErrorKindNotFound)
+			},
+			Status:  503,
+			Code:    errs.ErrServiceUnavailable,
+			Message: "identity photo upload is not available",
+		},
+		{
+			Match: func(err error) bool {
+				return objectstorage.IsKind(err, objectstorage.ErrorKindNetwork)
+			},
+			Status:  503,
+			Code:    errs.ErrServiceUnavailable,
+			Message: "identity photo storage is temporarily unavailable",
+		},
 	}
 	verifyStudentErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrIdentityRequired, 403, "identity verification required before student verification", errs.ErrForbidden),

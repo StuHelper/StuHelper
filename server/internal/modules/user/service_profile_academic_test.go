@@ -55,7 +55,7 @@ func TestGetAcademicStudentByXH_UsesTableAwareRepoWhenAvailable(t *testing.T) {
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	student, err := service.getAcademicStudentByXH(context.Background(), expectedStudentID, expectedTable)
@@ -78,7 +78,7 @@ func TestFindAcademicStudentsByPersonUID_UsesTableAwareRepoWhenAvailable(t *test
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	students, err := service.findAcademicStudentsByPersonUID(context.Background(), "", expectedDocID, expectedTable)
@@ -138,7 +138,7 @@ func TestSubmitIdentity_MainlandIDAutoMatchUsesEnabledSchoolTables(t *testing.T)
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	result, err := service.SubmitIdentity(context.Background(), 7, SubmitIdentityRequest{
@@ -178,7 +178,7 @@ func TestUpdateSchoolConfig_RejectsInvalidAcademicTable(t *testing.T) {
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	invalidTable := "academic.students;drop table users;"
@@ -216,7 +216,7 @@ func TestGetAcademicInfo_UsesSchoolConfiguredAcademicTable(t *testing.T) {
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	student, err := service.GetAcademicInfo(context.Background(), schoolID, expectedStudent)
@@ -240,7 +240,7 @@ func TestGetAcademicInfo_FailsWhenAcademicTableMissing(t *testing.T) {
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	_, err = service.GetAcademicInfo(context.Background(), schoolID, expectedStudent)
@@ -264,7 +264,7 @@ func TestGetAcademicInfo_FailsWhenSchoolDisabled(t *testing.T) {
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	_, err = service.GetAcademicInfo(context.Background(), schoolID, expectedStudent)
@@ -298,7 +298,7 @@ func TestParseSchoolLDAPConfig_EmptyFails(t *testing.T) {
 }
 
 func TestEnsureLDAPClientForSchool_UsesSchoolConfig(t *testing.T) {
-	service, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	var captured ldap.Config
@@ -325,9 +325,8 @@ func TestEnsureLDAPClientForSchool_UsesSchoolConfig(t *testing.T) {
 }
 
 func TestEnsureLDAPClientForSchool_MissingConfigFailsEvenWhenDefaultClientExists(t *testing.T) {
-	service, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
-	service.ldapClient = &fakeLDAPAuthClient{}
 
 	_, err = service.ensureLDAPClientForSchool(&SchoolConfig{})
 	assert.ErrorIs(t, err, ErrSchoolLDAPConfigMissing)

@@ -1,0 +1,69 @@
+StorageCapabilitySet:
+  type: object
+  required: [put, delete, stat, presignedDownload]
+  properties:
+    put:
+      type: boolean
+    delete:
+      type: boolean
+    stat:
+      type: boolean
+    presignedDownload:
+      type: boolean
+
+StorageMount:
+  type: object
+  required: [id, key, name, driver, basePath, credentialSource, enabled, capabilities]
+  properties:
+    id:
+      type: integer
+      format: int64
+    key:
+      type: string
+    name:
+      type: string
+    driver:
+      type: string
+    bucket:
+      type: string
+    basePath:
+      type: string
+    credentialSource:
+      type: string
+    enabled:
+      type: boolean
+    lastHealthStatus:
+      type: string
+    lastHealthError:
+      type: string
+    lastHealthCheckedAt:
+      type: string
+      format: date-time
+    capabilities:
+      $ref: '#/StorageCapabilitySet'
+
+CreateStorageMountRequest:
+  type: object
+  required: [key, name, driver, basePath, enabled]
+  properties:
+    key:
+      type: string
+    name:
+      type: string
+    driver:
+      type: string
+      description: 当前已实现 `s3` 驱动；未来可扩展 openlist-like 家族
+    bucket:
+      type: string
+    basePath:
+      type: string
+    enabled:
+      type: boolean
+
+StorageDownloadURL:
+  type: object
+  required: [url]
+  properties:
+    url:
+      type: string
+      format: uri

@@ -26,8 +26,8 @@ func TestResolveRefreshToken_PrefersBodyThenCookie(t *testing.T) {
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Request.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "cookie-token"})
 
-	token, fromBody := resolveRefreshToken(c)
-	assert.Equal(t, "body-token", token)
+	refreshToken, fromBody := resolveRefreshToken(c)
+	assert.Equal(t, "body-token", refreshToken)
 	assert.True(t, fromBody)
 
 	w = httptest.NewRecorder()
@@ -35,8 +35,8 @@ func TestResolveRefreshToken_PrefersBodyThenCookie(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/refresh", nil)
 	c.Request.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "cookie-token"})
 
-	token, fromBody = resolveRefreshToken(c)
-	assert.Equal(t, "cookie-token", token)
+	refreshToken, fromBody = resolveRefreshToken(c)
+	assert.Equal(t, "cookie-token", refreshToken)
 	assert.False(t, fromBody)
 }
 
@@ -153,6 +153,81 @@ func TestLogout_SuccessAndFailureBranches(t *testing.T) {
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "logout partially failed")
+}
+
+func TestLogout_UsesNativeSessionHeaderForOIDCSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-native-logout")
+		c.Set(middleware.CtxKeyUsername, "native-logout-user")
+		c.Set(middleware.CtxKeyRequestID, "req-native-logout")
+		c.Next()
+	})
+	r.POST("/logout", h.Logout)
+
+	_, err := h.svc.CreateSession(t.Context(), "sid-native-logout", "user-native-logout", "oidc-access-token", "oidc-refresh-token", "oidc-native", "ios")
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "oidc-refresh-token"})
+	req.Header.Set("Authorization", "Bearer oidc-access-token")
+	req.Header.Set(nativeSessionIDHeader, "sid-native-logout")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	session, err := tokenSvc.GetSessionStore().Get(t.Context(), "sid-native-logout")
+	require.NoError(t, err)
+	assert.Nil(t, session)
+}
+
+func TestLogout_NativeOIDCRequiresTrackedSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-native-logout")
+		c.Set(middleware.CtxKeyUsername, "native-logout-user")
+		c.Set(middleware.CtxKeyRequestID, "req-native-logout")
+		c.Next()
+	})
+	r.POST("/logout", h.Logout)
+
+	_, err := h.svc.CreateSession(t.Context(), "sid-native-logout", "user-native-logout", "oidc-access-token", "oidc-refresh-token", "oidc-native", "ios")
+	require.NoError(t, err)
+
+	t.Run("missing session header is rejected", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+		req.Header.Set("Authorization", "Bearer oidc-access-token")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+		assert.Contains(t, w.Body.String(), "missing native session id")
+
+		session, getErr := tokenSvc.GetSessionStore().Get(t.Context(), "sid-native-logout")
+		require.NoError(t, getErr)
+		require.NotNil(t, session)
+	})
+
+	t.Run("unknown session header is rejected", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+		req.Header.Set("Authorization", "Bearer oidc-access-token")
+		req.Header.Set(nativeSessionIDHeader, "sid-unknown")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid native session id")
+
+		session, getErr := tokenSvc.GetSessionStore().Get(t.Context(), "sid-native-logout")
+		require.NoError(t, getErr)
+		require.NotNil(t, session)
+	})
 }
 
 func mustSignAccessTokenForHandler(t *testing.T, userID, sessionID string) string {

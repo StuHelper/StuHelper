@@ -10,6 +10,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
 // Handler 学习中心处理器
@@ -45,10 +46,10 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 		course.GET("/departments", h.GetDepartments)
 		course.GET("/terms", h.GetTerms)
 		course.GET("/categories", h.GetCourseCategories)
-		course.GET("/courses", optionalAuthMiddleware, h.GetCourses)
+		course.GET("/courses", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.GetCourses)
 		course.GET("/courses/grouped", h.GetCoursesGrouped)
-		course.GET("/courses/search", optionalAuthMiddleware, h.SearchCourses)
-		course.GET("/courses/:courseID", optionalAuthMiddleware, h.GetCourse)
+		course.GET("/courses/search", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.SearchCourses)
+		course.GET("/courses/:courseID", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.GetCourse)
 		course.GET("/stats", h.GetStats)
 
 		// 评课社区子模块
@@ -57,46 +58,55 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	}
 }
 
-// StartBackgroundJobs 启动后台定时任务（日志清理等）
-// 调用方需传入可取消的 context，用于优雅关闭时停止后台任务
-func (h *Handler) StartBackgroundJobs(ctx context.Context) {
-	h.reviewHandler.StartBackgroundJobs(ctx)
+// StartBackgroundJobs 启动后台定时任务（日志清理等）。
+// 调用方可传入 start 统一托管 goroutine 生命周期。
+func (h *Handler) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
+	h.reviewHandler.StartBackgroundJobs(ctx, start)
 
-	go func() {
-		const cleanupInterval = 24 * time.Hour
-		ticker := time.NewTicker(cleanupInterval)
-		defer ticker.Stop()
-
-		// 启动时立即执行一次清理
-		h.runLogCleanup(ctx)
-
-		for {
-			select {
-			case <-ticker.C:
-				h.runLogCleanup(ctx)
-			case <-ctx.Done():
-				logger.L().Info("Background jobs stopped")
-				return
-			}
+	launch := start
+	if launch == nil {
+		launch = func(name string, run func(context.Context)) {
+			go run(ctx)
 		}
-	}()
+	}
 
-	go func() {
-		const refreshInterval = 10 * time.Minute
-		ticker := time.NewTicker(refreshInterval)
-		defer ticker.Stop()
+	launch("course operation log cleanup", h.runLogCleanupLoop)
+	launch("course teacher public stats refresh", h.runTeacherPublicStatsRefreshLoop)
+}
 
-		h.runTeacherPublicStatsRefresh(ctx)
+func (h *Handler) runLogCleanupLoop(ctx context.Context) {
+	const cleanupInterval = 24 * time.Hour
+	ticker := time.NewTicker(cleanupInterval)
+	defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				h.runTeacherPublicStatsRefresh(ctx)
-			case <-ctx.Done():
-				return
-			}
+	h.runLogCleanup(ctx)
+
+	for {
+		select {
+		case <-ticker.C:
+			h.runLogCleanup(ctx)
+		case <-ctx.Done():
+			logger.L().Info("Background jobs stopped")
+			return
 		}
-	}()
+	}
+}
+
+func (h *Handler) runTeacherPublicStatsRefreshLoop(ctx context.Context) {
+	const refreshInterval = 10 * time.Minute
+	ticker := time.NewTicker(refreshInterval)
+	defer ticker.Stop()
+
+	h.runTeacherPublicStatsRefresh(ctx)
+
+	for {
+		select {
+		case <-ticker.C:
+			h.runTeacherPublicStatsRefresh(ctx)
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // runLogCleanup 执行操作日志清理

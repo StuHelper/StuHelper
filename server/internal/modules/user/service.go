@@ -79,7 +79,7 @@ const (
 	IdentityPhotoSlotSelfie = "selfie"
 )
 
-// Repo defines the data access methods required by Service.
+// Repo 定义 Service 所需的数据访问能力。
 type Repo interface {
 	GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error)
 	CreateIdentity(ctx context.Context, identity *IdentityRecord) error
@@ -170,7 +170,6 @@ func WithLDAPClientFactory(factory ldapClientFactory) ServiceOption {
 // Service 用户服务层
 type Service struct {
 	repo              Repo
-	ldapClient        ldapAuthClient
 	ldapClientFactory ldapClientFactory
 	hmacKey           []byte
 	docCipher         pii.EncryptDecryptor
@@ -180,7 +179,7 @@ type Service struct {
 }
 
 // NewService 创建用户服务（构造期校验关键依赖）
-func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pii.EncryptDecryptor, opts ...ServiceOption) (*Service, error) {
+func NewService(repo Repo, hmacKey []byte, docCipher pii.EncryptDecryptor, opts ...ServiceOption) (*Service, error) {
 	if repo == nil {
 		return nil, errors.New("user.NewService: repo must not be nil")
 	}
@@ -192,7 +191,6 @@ func NewService(repo Repo, ldapClient *ldap.Client, hmacKey []byte, docCipher pi
 	}
 	svc := &Service{
 		repo:              repo,
-		ldapClient:        ldapClient,
 		ldapClientFactory: func(cfg ldap.Config) (ldapAuthClient, error) { return ldap.NewClient(cfg) },
 		hmacKey:           hmacKey,
 		docCipher:         docCipher,

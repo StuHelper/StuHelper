@@ -139,9 +139,14 @@
 
       原生 App 请求时，响应额外包含 accessToken 和 refreshToken 字段，
       供客户端更新本地存储。
+      如果 token 来源于 `/api/v1/auth/exchange-native`，客户端还必须在请求头
+      `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID，以便服务端在
+      refresh rotation 时继续追踪同一 session family。
     security:
       - cookieAuth: []   # Web 浏览器：refresh_token 通过 cookie 自动携带
       - {}               # 原生 App：refresh token 通过请求体传递，无需 cookie
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/NativeSessionIDHeader'
     requestBody:
       description: 原生 App 通过请求体传递 refresh token（Web 浏览器通过 cookie 自动携带，无需此字段）
       required: false
@@ -216,9 +221,15 @@
     tags: [Auth]
     operationId: logout
     summary: 登出当前设备
+    description: |
+      浏览器请求通过服务端 `session_id` cookie 定位会话。
+      原生 OIDC 客户端如果没有 `session_id` cookie，必须在请求头
+      `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID。
     security:
       - cookieAuth: []
       - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/NativeSessionIDHeader'
     responses:
       '200':
         description: 登出成功

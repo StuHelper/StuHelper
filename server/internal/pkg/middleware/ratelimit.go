@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"time"
@@ -63,6 +64,8 @@ redis.call('PEXPIRE', key, math.max(1, window))
 return 1
 `)
 
+var rateLimitEntropyReader io.Reader = rand.Reader
+
 // RedisRateLimiter 基于 Redis 的速率限制器
 type RedisRateLimiter struct {
 	rdb    *redis.Client
@@ -89,7 +92,10 @@ func (rl *RedisRateLimiter) Allow(ctx context.Context, key string) (bool, error)
 	}
 
 	// 生成唯一 member，避免毫秒内并发请求覆盖
-	uniqueID := generateUniqueID()
+	uniqueID, err := generateUniqueID()
+	if err != nil {
+		return false, fmt.Errorf("generate unique id: %w", err)
+	}
 
 	// 独立超时 context，防止 Redis 慢响应阻塞请求
 	scriptCtx, scriptCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -112,14 +118,14 @@ func (rl *RedisRateLimiter) Allow(ctx context.Context, key string) (bool, error)
 }
 
 // generateUniqueID 生成唯一标识符
-func generateUniqueID() string {
+func generateUniqueID() (string, error) {
 	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
+	if _, err := io.ReadFull(rateLimitEntropyReader, b); err != nil {
 		metrics.CryptoRandFailuresTotal.Inc()
-		logger.L().Warn("crypto/rand.Read failed, using timestamp fallback", zap.Error(err))
-		return fmt.Sprintf("%d", time.Now().UnixNano())
+		logger.L().Warn("crypto/rand.Read failed, rejecting rate-limit operation", zap.Error(err))
+		return "", fmt.Errorf("read entropy: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 // extractIP 从 ClientIP() 返回值中提取纯 IP 地址

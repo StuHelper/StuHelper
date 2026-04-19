@@ -138,6 +138,31 @@ func TestSessionStore_RevokeAll(t *testing.T) {
 	assert.Len(t, sessions, 0)
 }
 
+func TestSessionStore_RevokeAll_ReturnsErrorAndKeepsIndexOnRevokeFailure(t *testing.T) {
+	store, bl, _ := newTestSessionStore(t)
+	ctx := context.Background()
+
+	for _, sid := range []string{"sess-fail-a", "sess-fail-b"} {
+		require.NoError(t, store.Create(ctx, SessionData{
+			SessionID:       sid,
+			UserID:          "user-revoke-fail",
+			AccessTokenHash: "acc-" + sid,
+		}))
+	}
+
+	err := store.RevokeAll(ctx, "user-revoke-fail", bl, 0, 10*time.Minute)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "session revoke all")
+
+	sessions, err := store.ListUserSessions(ctx, "user-revoke-fail")
+	require.NoError(t, err)
+	assert.Len(t, sessions, 2)
+
+	session, err := store.Get(ctx, "sess-fail-a")
+	require.NoError(t, err)
+	assert.NotNil(t, session)
+}
+
 func TestSessionStore_ListUserSessions(t *testing.T) {
 	store, _, _ := newTestSessionStore(t)
 	ctx := context.Background()

@@ -1,8 +1,5 @@
 /**
- * Composable: report handling for a review card
- *
- * Manages report menu visibility, reason selection, and API submission.
- * Extracted from ReviewCard.vue for single-responsibility.
+ * 管理单条评测的举报菜单与提交流程。
  */
 import { ref } from 'vue'
 import { api } from '@/api'

@@ -10,25 +10,25 @@ import (
 )
 
 func TestNewService_NilRepo(t *testing.T) {
-	_, err := NewService(nil, nil, []byte("secret-key-32-chars-long-enough!"), &fakeEncryptor{})
+	_, err := NewService(nil, []byte("secret-key-32-chars-long-enough!"), &fakeEncryptor{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "repo must not be nil")
 }
 
 func TestNewService_EmptyHMACKey(t *testing.T) {
-	_, err := NewService(&mockRepo{}, nil, nil, &fakeEncryptor{})
+	_, err := NewService(&mockRepo{}, nil, &fakeEncryptor{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "hmacKey must not be empty")
 }
 
 func TestNewService_NilDocCipher(t *testing.T) {
-	_, err := NewService(&mockRepo{}, nil, []byte("secret-key-32-chars-long-enough!"), nil)
+	_, err := NewService(&mockRepo{}, []byte("secret-key-32-chars-long-enough!"), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "docCipher must not be nil")
 }
 
 func TestNewService_ValidConstruction(t *testing.T) {
-	svc, err := NewService(&mockRepo{}, nil, []byte("secret-key-32-chars-long-enough!"), &fakeEncryptor{})
+	svc, err := NewService(&mockRepo{}, []byte("secret-key-32-chars-long-enough!"), &fakeEncryptor{})
 	require.NoError(t, err)
 	assert.NotNil(t, svc)
 	assert.NotNil(t, svc.docCipher)
@@ -59,7 +59,7 @@ func TestBindPhone_StoresEncryptedPhoneAndMaskedProfile(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), enc)
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), enc)
 	require.NoError(t, err)
 
 	err = svc.BindPhone(context.Background(), 42, "13800138000")
@@ -84,7 +84,7 @@ func TestBindPhone_ReturnsConflictWhenAlreadyBound(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.BindPhone(context.Background(), 7, "13800138000")
@@ -96,7 +96,7 @@ func TestBindPhone_ReturnsConflictWhenAlreadyBound(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestComputePersonUID_Consistency(t *testing.T) {
-	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	uid1 := svc.computePersonUID("MAINLAND_ID", "110101199001011234")
@@ -142,7 +142,7 @@ func TestSubmitIdentity_EncryptAndWriteCiphertext(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), enc)
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), enc)
 	require.NoError(t, err)
 
 	docNumber := "110101199001011234"
@@ -176,7 +176,7 @@ func TestSubmitIdentity_AlreadyExists(t *testing.T) {
 			return &IdentityStatus{Verified: false}, nil
 		},
 	}
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	_, err = svc.SubmitIdentity(context.Background(), 1, SubmitIdentityRequest{
@@ -191,7 +191,7 @@ func TestSubmitIdentity_AlreadyVerified(t *testing.T) {
 			return &IdentityStatus{Verified: true}, nil
 		},
 	}
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	_, err = svc.SubmitIdentity(context.Background(), 1, SubmitIdentityRequest{
@@ -220,7 +220,7 @@ func TestReviewIdentity_RejectionReasonIsOptional(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.ReviewIdentity(context.Background(), 1, false, "")
@@ -258,7 +258,7 @@ func TestReviewIdentity_ApproveFlow(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.ReviewIdentity(context.Background(), 1, true, "")
@@ -289,7 +289,7 @@ func TestReviewIdentity_RejectFlow(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.ReviewIdentity(context.Background(), 1, false, "材料不清晰")
@@ -303,7 +303,7 @@ func TestReviewIdentity_RejectFlow(t *testing.T) {
 
 func TestReviewIdentity_NotFoundReturnsError(t *testing.T) {
 	// GetIdentityStatusByUserID 返回 nil → ErrIdentityNotFound
-	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.ReviewIdentity(context.Background(), 999, true, "")

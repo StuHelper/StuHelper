@@ -40,11 +40,12 @@ func (h *Handler) RequestPhoneOTP(c *gin.Context) {
 	}
 
 	if err := h.otpService.IssueCode(c.Request.Context(), phone, h.smsService); err != nil {
-		if errors.Is(err, ErrOTPPhoneRateLimited) {
+		switch {
+		case errors.Is(err, ErrOTPPhoneRateLimited):
 			response.RateLimitExceeded(c, "too many requests for this phone number")
-		} else if errors.Is(err, ErrOTPCooldown) {
+		case errors.Is(err, ErrOTPCooldown):
 			response.RateLimitExceeded(c, "please wait before requesting a new code")
-		} else {
+		default:
 			logger.FromGin(c).Error("failed to send phone OTP", zap.String("phone", maskPhone(phone)), zap.Error(err))
 			response.InternalError(c, "failed to send verification code")
 		}

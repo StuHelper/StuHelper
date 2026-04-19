@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	cachepkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
@@ -25,6 +27,7 @@ func setupReviewCacheHandler(t *testing.T) (*Handler, context.Context) {
 func TestReviewHandlers_ServeFromCache(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, ctx := setupReviewCacheHandler(t)
+	require.NoError(t, crypto.InitHMACKey("test-review-cache-hit-secret-32-bytes", false))
 
 	mustSet := func(prefix, key string, value any) {
 		t.Helper()
@@ -39,7 +42,7 @@ func TestReviewHandlers_ServeFromCache(t *testing.T) {
 	mustSet("review:hot", "period=all:limit=20", gin.H{"list": []HotCourse{{CourseID: 1, CourseName: "高数"}}})
 	mustSet("review:course_teachers", "1", []CourseTeacherStats{{TeacherID: 1, TeacherName: "张老师"}})
 	mustSet("review:teacher_stats", "teacherID=1", TeacherRatingStatsResponse{TeacherID: 1, TeacherName: "张老师", Overall: TermRatingStats{TermID: "overall", TermName: "Overall", Dimensions: []DimensionStats{{Key: "overall", Name: "综合", AvgRating: 4.5, RatingCount: 1, Distribution: map[int]int{5: 1}}}}})
-	mustSet("review:teachers", "q=:dept=0:sort=reviews:p=1:ps=20", gin.H{"list": []TeacherSummary{{TeacherID: 1, TeacherName: "张老师"}}, "total": 1})
+	mustSet("review:teachers", "q="+httputil.SanitizeCacheKey("")+":dept=0:sort=reviews:p=1:ps=20", gin.H{"list": []TeacherSummary{{TeacherID: 1, TeacherName: "张老师"}}, "total": 1})
 	mustSet("review:hot_teachers", "limit=10", gin.H{"list": []TeacherSummary{{TeacherID: 1, TeacherName: "张老师"}}})
 	mustSet("review:admin:reports", "status=pending:page=1:size=20", gin.H{"list": []ReviewReport{{ID: "550e8400-e29b-41d4-a716-446655440000", ReviewID: "660e8400-e29b-41d4-a716-446655440000", Status: ReportStatusPending}}, "total": 1})
 	mustSet("review:admin:stats", "all", gin.H{"totalReviews": 1})

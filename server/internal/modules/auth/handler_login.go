@@ -382,8 +382,8 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	}
 
 	// 创建服务端 Session（Token Family）。原生客户端没有 cookie，
-	// 下面把 sessionID 写入响应体，客户端须在 refresh 时通过 header 回传
-	// 以保留 Token Family 追踪语义。
+	// 下面把 sessionID 写入响应体，客户端须在 refresh / logout 时通过
+	// X-Stuhelper-Session-ID header 回传，以保留 Token Family 追踪语义。
 	nativeSessionID, nativeSidErr := token.GenerateSessionID()
 	if nativeSidErr != nil {
 		logger.FromGin(c).Error("native exchange: failed to generate session id", zap.Error(nativeSidErr))

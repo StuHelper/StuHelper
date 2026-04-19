@@ -1,10 +1,11 @@
 /**
  * 用户中心状态管理
  */
-import { onScopeDispose, ref, type Ref } from "vue";
+import { ref, type Ref } from "vue";
 import { defineStore, getActivePinia } from "pinia";
 import type { FavoriteCourse } from "@stuhelper/shared/course";
 import { api } from "@/api";
+import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
 async function fetchPaginated<T>(
@@ -140,7 +141,7 @@ export const useUserStore = defineStore("user", () => {
         reset,
         pinia,
     );
-    onScopeDispose(unregisterSessionReset);
+    safeOnScopeDispose(unregisterSessionReset);
 
     return {
         myFavorites,

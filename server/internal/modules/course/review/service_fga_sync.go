@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
 )
 
 const (
@@ -27,13 +26,6 @@ const (
 type reviewFGAWriter interface {
 	WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error
 	WriteReportRelations(ctx context.Context, reportID, reporterUserID, reviewID, schoolID string) error
-}
-
-type reviewFGASyncRepo interface {
-	UpsertFGASyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
-	ClaimFGASyncJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]FGASyncJob, error)
-	MarkFGASyncJobDone(ctx context.Context, jobID int64) error
-	MarkFGASyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
 }
 
 type FGASyncJob struct {
@@ -91,65 +83,57 @@ func (s *Service) enqueueReportFGASyncTx(ctx context.Context, tx pgx.Tx, reportI
 	return s.repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReportRelations, reportRelationsSyncKey(reportID), payload)
 }
 
-func (s *Service) StartBackgroundJobs(ctx context.Context) {
+func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
 	s.asyncCtx = ctx
-	go s.runFGASyncWorker(ctx)
+	s.asyncLaunch = start
+	if start == nil {
+		go s.runFGASyncWorker(ctx)
+		return
+	}
+	start("review fga sync worker", s.runFGASyncWorker)
 }
 
 func (s *Service) runFGASyncWorker(ctx context.Context) {
-	ticker := time.NewTicker(fgaSyncPollInterval)
-	defer ticker.Stop()
-
-	for {
-		if err := s.processFGASyncBatch(ctx); err != nil && ctx.Err() == nil {
-			logger.L().Warn("review FGA sync batch failed", zap.Error(err))
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
+	outbox.RunPollingWorker(
+		ctx,
+		outbox.WorkerConfig{
+			Name:             "review FGA sync",
+			BatchSize:        fgaSyncBatchSize,
+			PollInterval:     fgaSyncPollInterval,
+			LockStaleAfter:   fgaSyncLockStaleAfter,
+			RetryBaseBackoff: 5 * time.Second,
+			MaxBackoff:       fgaSyncMaxBackoff,
+		},
+		s.repo.ClaimFGASyncJobs,
+		s.processFGASyncJob,
+		s.repo.MarkFGASyncJobDone,
+		s.repo.MarkFGASyncJobRetry,
+		func(job FGASyncJob) outbox.JobMeta {
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+		},
+		truncateFGASyncError,
+	)
 }
 
 func (s *Service) processFGASyncBatch(ctx context.Context) error {
-	jobs, err := s.repo.ClaimFGASyncJobs(ctx, fgaSyncBatchSize, fgaSyncLockStaleAfter)
-	if err != nil {
-		return fmt.Errorf("claim review FGA sync jobs: %w", err)
-	}
-
-	for _, job := range jobs {
-		if err := s.processFGASyncJob(ctx, job); err != nil {
-			backoff := time.Duration(job.AttemptCount+1) * 5 * time.Second
-			if backoff > fgaSyncMaxBackoff {
-				backoff = fgaSyncMaxBackoff
-			}
-			nextAttemptAt := time.Now().Add(backoff)
-			markErr := s.repo.MarkFGASyncJobRetry(ctx, job.ID, nextAttemptAt, truncateFGASyncError(err))
-			if markErr != nil {
-				logger.L().Error("failed to mark review FGA sync job retry",
-					zap.Int64("job_id", job.ID),
-					zap.String("job_type", job.JobType),
-					zap.Error(markErr),
-				)
-			}
-			logger.L().Warn("review FGA sync job failed",
-				zap.Int64("job_id", job.ID),
-				zap.String("job_type", job.JobType),
-				zap.Int("attempt", job.AttemptCount+1),
-				zap.Time("next_attempt_at", nextAttemptAt),
-				zap.Error(err),
-			)
-			continue
-		}
-
-		if err := s.repo.MarkFGASyncJobDone(ctx, job.ID); err != nil {
-			return fmt.Errorf("mark review FGA sync job done: %w", err)
-		}
-	}
-
-	return nil
+	return outbox.ProcessBatch(
+		ctx,
+		outbox.WorkerConfig{
+			Name:             "review FGA sync",
+			BatchSize:        fgaSyncBatchSize,
+			LockStaleAfter:   fgaSyncLockStaleAfter,
+			RetryBaseBackoff: 5 * time.Second,
+			MaxBackoff:       fgaSyncMaxBackoff,
+		},
+		s.repo.ClaimFGASyncJobs,
+		s.processFGASyncJob,
+		s.repo.MarkFGASyncJobDone,
+		s.repo.MarkFGASyncJobRetry,
+		func(job FGASyncJob) outbox.JobMeta {
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+		},
+		truncateFGASyncError,
+	)
 }
 
 func (s *Service) processFGASyncJob(ctx context.Context, job FGASyncJob) error {

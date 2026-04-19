@@ -104,6 +104,29 @@ func TestGetSessionID_FallsBackToCookie(t *testing.T) {
 	assert.Equal(t, "cookie-session", h.getSessionID(c, "not-a-jwt"))
 }
 
+func TestGetSessionID_FallsBackToHeaderWhenCookieMissing(t *testing.T) {
+	h, _ := newTestHandler(t)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(nativeSessionIDHeader, "header-session")
+	c.Request = req
+
+	assert.Equal(t, "header-session", h.getSessionID(c, "not-a-jwt"))
+}
+
+func TestGetSessionID_PrefersCookieOverHeader(t *testing.T) {
+	h, _ := newTestHandler(t)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "cookie-session"})
+	req.Header.Set(nativeSessionIDHeader, "header-session")
+	c.Request = req
+
+	assert.Equal(t, "cookie-session", h.getSessionID(c, "not-a-jwt"))
+}
+
 func TestSetSessionCookie(t *testing.T) {
 	h, _ := newTestHandler(t)
 	h.tokenConfig = config.TokenConfig{RefreshTokenTTL: 900, CookieSecure: true, CookieDomain: "example.com"}

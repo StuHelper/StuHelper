@@ -30,7 +30,7 @@ func TestReviewStudentVerification_RejectClearsVerifiedAtAndStoresReviewMeta(t *
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = service.ReviewStudentVerification(context.Background(), 1001, false, "  材料信息不一致  ")
@@ -65,7 +65,7 @@ func TestReviewStudentVerification_ApproveClearsRejectionReasonAndSetsReviewMeta
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = service.ReviewStudentVerification(context.Background(), 1002, true, "")
@@ -97,7 +97,7 @@ func TestReviewIdentity_RejectSetsReviewedAtEvenWithoutReason(t *testing.T) {
 		},
 	}
 
-	service, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = service.ReviewIdentity(context.Background(), 88, false, "")

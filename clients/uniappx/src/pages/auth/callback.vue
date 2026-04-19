@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { SSO_STATE_STORAGE_KEY, validateStoredSSOState } from '@/auth/sso-state'
+import { readStoredSSOState, SSO_STATE_STORAGE_KEY, validateStoredSSOState } from '@/auth/sso-state'
 import { useAuthStore } from '@/stores/auth'
 import { translate } from '@/i18n'
 
@@ -21,22 +21,23 @@ onLoad(async (options) => {
   }
 
   // 校验 state 与发起 SSO 时存储的一致
-  let savedState: unknown = ''
   try {
-    savedState = uni.getStorageSync(SSO_STATE_STORAGE_KEY)
-  } catch (_error) { void _error;
-    savedState = ''
-  }
+    const savedState = readStoredSSOState()
 
-  try {
-    uni.removeStorageSync(SSO_STATE_STORAGE_KEY)
-  } catch (_error) { void _error;
-    // best-effort cleanup; validation above already fails closed
-  }
+    try {
+      uni.removeStorageSync(SSO_STATE_STORAGE_KEY)
+    } catch (_error) { void _error;
+      // best-effort cleanup; validation above already fails closed
+    }
 
-  if (!validateStoredSSOState(savedState, state).ok) {
+    if (!validateStoredSSOState(savedState, state).ok) {
+      status.value = 'error'
+      errorMessage.value = t('auth.callback.stateMismatch')
+      return
+    }
+  } catch (error) {
     status.value = 'error'
-    errorMessage.value = t('auth.callback.stateMismatch')
+    errorMessage.value = error instanceof Error ? error.message : t('auth.callback.stateMismatch')
     return
   }
 

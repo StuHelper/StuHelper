@@ -22,7 +22,7 @@ func Start(t *testing.T) *Fixture {
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 
 	t.Cleanup(func() {
-		_ = client.Close()
+		require.NoError(t, client.Close())
 		server.Close()
 	})
 

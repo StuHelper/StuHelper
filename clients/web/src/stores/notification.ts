@@ -1,10 +1,11 @@
 /**
  * 通知状态管理
  */
-import { computed, onScopeDispose, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { defineStore, getActivePinia } from "pinia";
 import type { Notification as AppNotification } from "@stuhelper/shared/notification";
 import { api, NOTIFICATION_STREAM_PATH } from "@/api";
+import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
 const PAGE_DEFAULT_SIZE = 20;
@@ -550,7 +551,7 @@ export const useNotificationStore = defineStore("notification", () => {
         };
     };
 
-    onScopeDispose(stopPolling);
+    safeOnScopeDispose(stopPolling);
 
     const reset = () => {
         stopPolling();
@@ -574,7 +575,7 @@ export const useNotificationStore = defineStore("notification", () => {
         },
         pinia,
     );
-    onScopeDispose(unregisterSessionReset);
+    safeOnScopeDispose(unregisterSessionReset);
 
     return {
         pageNotifications,

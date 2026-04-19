@@ -26,11 +26,14 @@ describe('extractRefreshSessionData', () => {
   })
 
   it('returns null when payload is missing refresh metadata', () => {
-    expect(
-      extractRefreshSessionData({
+    const missingMetadataResult =
+      {
         data: { data: { message: 'ok' } },
         response: { status: 200 },
-      }),
+      } as unknown as Parameters<typeof extractRefreshSessionData>[0]
+
+    expect(
+      extractRefreshSessionData(missingMetadataResult),
     ).toBeNull()
   })
 })

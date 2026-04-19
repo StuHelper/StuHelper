@@ -6,7 +6,7 @@
 |------|------|
 | PostgreSQL | 业务数据 |
 | Redis | 会话、黑名单、限流、缓存、通知广播 |
-| 对象存储（MinIO/S3） | 证件照片 |
+| 对象存储（MinIO/S3） | 证件照片、资源文件（统一经 `storage` abstraction 访问） |
 | Zitadel | 身份平面 |
 | OpenFGA | 资源关系授权 |
 
@@ -27,7 +27,7 @@ PostgreSQL 存储：
 - 课程、教师、院系、学期、分类
 - 评课、回复、投票、举报、草稿、收藏
 - 实名认证、学生认证、学校配置、系统配置
-- 通知、操作日志
+- 通知、审计事件、领域 outbox
 
 ## 授权平面
 
@@ -40,13 +40,13 @@ PostgreSQL 存储：
 | 表 | 用途 |
 |----|------|
 | `users` | Shadow user、业务外键锚点 |
-| `user_identities` | 实名认证（`doc_number_enc` 密文、`person_uid` HMAC、`doc_photo_*` 对象存储 key） |
+| `user_identities` | 实名认证（`doc_number_enc` 密文、`person_uid` HMAC、`doc_photo_*` 证件照片对象 key） |
 | `user_profiles` | 学生认证档案 |
 | `schools` | 学校主数据（`id BIGINT` / `code` / `name`），其他学校维度表统一引用它 |
 | `school_configs` | 学校认证配置（`school_id BIGINT`，FK → `schools.id`） |
 | `system_configs` | 全局配置 |
 | `academic.buaa_students` | 学籍数据本地表（从教务同步，含学号、姓名、院系、年级等） |
-| `user_external_sync_outbox` | 用户侧外部同步 outbox（如 verified_student 角色投递、用户画像投递） |
+| `domain_event_outbox` | 统一领域 outbox；当前 `stream` 已落地 `user_external_sync`、`review_fga_sync` |
 
 ### 课程与评课
 
@@ -67,7 +67,6 @@ PostgreSQL 存储：
 | `course_rating_stats` | 课程评分统计（按课程+学期+维度聚合） |
 | `teacher_rating_stats` | 教师评分统计（按教师+学期+维度聚合） |
 | `sensitive_words` | 敏感词（分类 + 级别：block/warn/review） |
-| `review_fga_sync_outbox` | 评课 / 举报关系同步到 OpenFGA 的 outbox |
 
 ### 物化视图
 
@@ -81,7 +80,7 @@ PostgreSQL 存储：
 |----|------|
 | `notifications` | 通知（`user_id` / `body` / `source_module` / `source_id` / `source_url` 结构，含 `payload` JSONB 扩展字段） |
 | `notification_preferences` | 通知偏好（用户按通知类型开关，复合主键 `user_id` + `type`） |
-| `admin_operation_logs` | 操作日志 |
+| `audit_events` | 统一审计事件；管理员操作通过 `category = 'admin_operation'` 收口 |
 
 ## 关键 schema 备注
 
@@ -89,7 +88,7 @@ PostgreSQL 存储：
 - `user_profiles.school_id` 同步使用 `BIGINT`，不再直接挂在旧字符串主键上。
 - `reviews.content_flag` / `content_flag_cleared_at` / `content_flag_cleared_by` 用于内容审核流水线。
 - `reviews.status` 与 `review_replies.status` 已支持 `pending_review`，表示进入人工审核队列。
-- 两个 outbox 表都采用 `pending / processing / completed / failed` 状态机，靠后台 worker 拉取并执行外部副作用，而不是在主事务里直连外部系统。
+- `domain_event_outbox` 采用 `stream + dedupe_key` 唯一键，以及 `pending / processing / completed / failed` 状态机；后台 worker 只消费所属 stream，主事务不直连外部系统。
 
 ## 搜索索引
 
@@ -97,7 +96,7 @@ PostgreSQL 存储：
 
 ## 已知限制
 
-- 证件照存储在对象存储，数据库只保存 key
+- 证件照和资源文件都落在对象存储，数据库只保存对象 key / 业务引用
 
 ## 关联文档
 

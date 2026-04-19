@@ -2,9 +2,11 @@ package review
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+	auditpkg "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 )
 
 // maxExportLimit 导出查询的最大行数上限
@@ -19,74 +21,84 @@ type CreateOperationLogParams struct {
 	ResourceID    string
 	OldValue      []byte
 	NewValue      []byte
+	RequestID     string
+	TraceID       string
 	IPAddress     string
 	UserAgent     string
 }
 
-// defaultLogRetentionDays is the default retention period for admin operation logs
-const defaultLogRetentionDays = 90
-
 // CreateOperationLog 创建操作日志
 func (r *Repository) CreateOperationLog(ctx context.Context, p CreateOperationLogParams) error {
-	newID, err := id.New()
-	if err != nil {
-		return fmt.Errorf("CreateOperationLog generate id: %w", err)
-	}
-	_, err = r.db.Exec(ctx, `
-		INSERT INTO admin_operation_logs
-		(id, admin_user_id, admin_username, action, resource_type, resource_id, old_value, new_value, ip_address, user_agent)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`, newID, p.AdminUserID, p.AdminUsername, p.Action, p.ResourceType, p.ResourceID, p.OldValue, p.NewValue, p.IPAddress, p.UserAgent)
-	if err != nil {
-		return fmt.Errorf("CreateOperationLog: %w", err)
-	}
-	return nil
+	return auditpkg.NewRepository(r.db).WriteEvent(ctx, auditpkg.Event{
+		Type:         eventTypeForOperationAction(p.Action),
+		Category:     "admin_operation",
+		ActorType:    "admin",
+		UserID:       p.AdminUserID,
+		Username:     p.AdminUsername,
+		RequestID:    p.RequestID,
+		TraceID:      p.TraceID,
+		IP:           p.IPAddress,
+		UserAgent:    p.UserAgent,
+		Action:       p.Action,
+		ResourceType: p.ResourceType,
+		ResourceID:   p.ResourceID,
+		Result:       "success",
+		Before:       rawJSONOrNil(p.OldValue),
+		After:        rawJSONOrNil(p.NewValue),
+	})
 }
 
 // ListOperationLogs 获取操作日志列表
 func (r *Repository) ListOperationLogs(ctx context.Context, limit, offset int) ([]AdminOperationLog, int, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT id, admin_user_id, admin_username, action, resource_type, resource_id,
-			old_value, new_value, ip_address, user_agent, created_at,
-			COUNT(*) OVER() AS total
-		FROM admin_operation_logs
-		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`, limit, offset)
+	items, total, err := auditpkg.NewRepository(r.db).ListAdminOperations(ctx, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("ListOperationLogs: %w", err)
 	}
-	defer rows.Close()
-
-	list := make([]AdminOperationLog, 0, limit)
-	var total int
-	for rows.Next() {
-		var log AdminOperationLog
-		if err := rows.Scan(
-			&log.ID, &log.AdminUserID, &log.AdminUsername, &log.Action, &log.ResourceType, &log.ResourceID,
-			&log.OldValue, &log.NewValue, &log.IPAddress, &log.UserAgent, &log.CreatedAt,
-			&total,
-		); err != nil {
-			return nil, 0, fmt.Errorf("ListOperationLogs scan: %w", err)
-		}
-		list = append(list, log)
+	list := make([]AdminOperationLog, 0, len(items))
+	for _, item := range items {
+		list = append(list, AdminOperationLog{
+			ID:            item.ID,
+			AdminUserID:   item.ActorUserID,
+			AdminUsername: item.ActorUsername,
+			Action:        item.Action,
+			ResourceType:  item.ResourceType,
+			ResourceID:    item.ResourceID,
+			OldValue:      append([]byte(nil), item.BeforeData...),
+			NewValue:      append([]byte(nil), item.AfterData...),
+			IPAddress:     item.IPAddress,
+			UserAgent:     item.UserAgent,
+			CreatedAt:     item.CreatedAt,
+		})
 	}
-	return list, total, rows.Err()
+	return list, total, nil
 }
 
 // CleanupOldOperationLogs 清理历史操作日志
 func (r *Repository) CleanupOldOperationLogs(ctx context.Context, retentionDays int) (int64, error) {
-	if retentionDays <= 0 {
-		retentionDays = defaultLogRetentionDays
-	}
-	result, err := r.db.Exec(ctx, `
-		DELETE FROM admin_operation_logs
-		WHERE created_at < NOW() - make_interval(days => $1)
-	`, retentionDays)
+	rows, err := auditpkg.NewRepository(r.db).CleanupAdminOperations(ctx, retentionDays)
 	if err != nil {
 		return 0, fmt.Errorf("CleanupOldOperationLogs: %w", err)
 	}
-	return result.RowsAffected(), nil
+	return rows, nil
+}
+
+func eventTypeForOperationAction(action string) auditpkg.EventType {
+	normalized := strings.ToLower(strings.TrimSpace(action))
+	switch {
+	case strings.Contains(normalized, "delete"):
+		return auditpkg.EventDataDelete
+	case strings.Contains(normalized, "create"):
+		return auditpkg.EventDataCreate
+	default:
+		return auditpkg.EventDataUpdate
+	}
+}
+
+func rawJSONOrNil(value []byte) any {
+	if len(value) == 0 {
+		return nil
+	}
+	return json.RawMessage(value)
 }
 
 // buildExportQuery 构建导出查询

@@ -1,6 +1,6 @@
 package review
 
-// moderationDecision describes the persisted review state derived from content moderation.
+// moderationDecision 表示内容审核后要落库的评测状态。
 type moderationDecision struct {
 	Status      string
 	ContentFlag *string

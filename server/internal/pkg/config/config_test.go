@@ -217,6 +217,7 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 		App: AppConfig{
 			Env:             "development",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
 		},
 		Security: SecurityConfig{
@@ -245,6 +246,11 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
 			ProjectID:    "project-id",
 		},
+		OpenFGA: OpenFGAConfig{
+			StoreID:              "store-id",
+			AuthorizationModelID: "model-id",
+			APIUrl:               "http://openfga:8080",
+		},
 		RateLimit: ReviewRateLimitConfig{
 			PostLimit:       5,
 			VoteLimit:       30,
@@ -268,6 +274,64 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 }
 
 func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
+	c := &Config{
+		App: AppConfig{
+			Env:             "development",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"http://localhost:3000"},
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{
+			DocAESActiveKeyID: 1,
+			DocAESKeys: map[uint8][]byte{
+				1: make([]byte, 32),
+			},
+		},
+		Database: DatabaseConfig{
+			QueryTimeout: 5,
+			MaxConns:     20,
+			MinConns:     2,
+		},
+		Token: TokenConfig{
+			AccessTokenTTL:  300,
+			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		ObjectStorage: ObjectStorageConfig{
+			PresignTTL: 600,
+		},
+		Zitadel: ZitadelConfig{
+			Issuer:       "https://sso.example.com",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
+			ProjectID:    "project-id",
+		},
+		OpenFGA: OpenFGAConfig{
+			StoreID:              "store-id",
+			AuthorizationModelID: "model-id",
+			APIUrl:               "http://openfga:8080",
+		},
+		RateLimit: ReviewRateLimitConfig{
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
+		},
+		SMS: SMSConfig{
+			Enabled: false,
+		},
+	}
+
+	require.NoError(t, c.validate(nil))
+}
+
+func TestValidate_RequiresCORSOriginsInDevelopment(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
 			Env:             "development",
@@ -316,14 +380,17 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, c.validate(nil))
+	err := c.validate(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CORS_ORIGINS is required")
 }
 
-func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
+func TestValidate_RequiresOpenFGAInDevelopment(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
 			Env:             "development",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
 		},
 		Security: SecurityConfig{
@@ -340,6 +407,10 @@ func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
 		Token: TokenConfig{
 			AccessTokenTTL:  300,
 			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		ObjectStorage: ObjectStorageConfig{
+			PresignTTL: 600,
 		},
 		Zitadel: ZitadelConfig{
 			Issuer:       "https://sso.example.com",
@@ -359,14 +430,14 @@ func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
 			BatchAnonLimit:  5,
 			BatchUserLimit:  60,
 		},
-		LDAP: LDAPConfig{
-			URL: "ldaps://ldap.example.com:636",
+		SMS: SMSConfig{
+			Enabled: false,
 		},
 	}
 
 	err := c.validate(nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LDAP_BASE_DN is required when LDAP_URL is set")
-	assert.Contains(t, err.Error(), "LDAP_SYSTEM_BIND_DN is required when LDAP_URL is set")
-	assert.Contains(t, err.Error(), "LDAP_SYSTEM_BIND_PASSWORD is required when LDAP_URL is set")
+	assert.Contains(t, err.Error(), "OPENFGA_STORE_ID is required")
+	assert.Contains(t, err.Error(), "OPENFGA_MODEL_ID is required")
+	assert.Contains(t, err.Error(), "OPENFGA_API_URL is required")
 }

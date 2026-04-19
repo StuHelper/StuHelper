@@ -685,7 +685,7 @@ const fetchAll = async () => {
   }
 }
 
-// Watch for post events
+// 发帖成功后刷新评测列表
 let lastPostedAtSnapshot = lastPostedAt.value
 watch(lastPostedAt, (val) => {
   if (val > lastPostedAtSnapshot) {
@@ -698,7 +698,7 @@ onUnmounted(() => {
   ++loadVersion
 })
 
-// Main data load
+// 课程切换后重新加载主数据
 watch(courseID, async (newID, oldID) => {
   if (oldID !== undefined && (newID === oldID || isNaN(newID) || newID <= 0)) return
   await fetchAll()

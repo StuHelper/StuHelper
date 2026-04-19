@@ -13,6 +13,7 @@
 | `SECURITY.md` | 安全措施 |
 | `QUALITY_SCORE.md` | 质量评估 |
 | `product-specs/` | 按业务域拆分的功能规格 |
+| `architecture/` | 当前主路线的目标架构边界 |
 | `design-docs/` | 架构设计与工程原则 |
 | `operations/` | 启动、部署、观测、回滚、备份 |
 | `references/` | API、数据库、错误码速查 |
@@ -23,6 +24,8 @@
 
 - [QUICKSTART.md](QUICKSTART.md)
 - [BACKEND.md](BACKEND.md) / [FRONTEND.md](FRONTEND.md)
+- [architecture/README.md](architecture/README.md)
+- [architecture/0001-stuhelper-target-scope-and-module-boundaries.md](architecture/0001-stuhelper-target-scope-and-module-boundaries.md)
 - [product-specs/index.md](product-specs/index.md)
 - [operations/README.md](operations/README.md)
 - [references/api-overview.md](references/api-overview.md) / [references/database.md](references/database.md)
@@ -30,4 +33,5 @@
 业务域、角色和能力说明统一收敛在：
 - [product-specs/index.md](product-specs/index.md) —— 业务域索引
 - [PRODUCT.md](PRODUCT.md) —— 产品形态与用户角色
+- [architecture/0001-stuhelper-target-scope-and-module-boundaries.md](architecture/0001-stuhelper-target-scope-and-module-boundaries.md) —— 主路线边界
 - [references/api-overview.md](references/api-overview.md) —— 人工 API 索引

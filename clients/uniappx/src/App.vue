@@ -4,6 +4,12 @@ import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
 
+function bootstrapAuthSession(): void {
+  void authStore.bootstrapSession().catch((error) => {
+    console.error('[uniappx] auth bootstrap failed', error)
+  })
+}
+
 /**
  * 解析 deep link URL 中的查询参数
  * 支持 stuhelper://auth/callback?code=xxx&state=yyy
@@ -43,7 +49,7 @@ function handleDeepLink(urlString: string): void {
 }
 
 onLaunch((options) => {
-  void authStore.bootstrapSession()
+  bootstrapAuthSession()
 
   // 冷启动：通过 scheme 唤起 App 的场景
   const launchUrl = (options as { path?: string; scene?: number })?.path
@@ -60,7 +66,7 @@ onLaunch((options) => {
 
 onShow(() => {
   if (!authStore.initialized) return
-  void authStore.bootstrapSession()
+  bootstrapAuthSession()
 
   // 热启动：App 在后台被 scheme 唤起
   if (typeof plus !== 'undefined' && plus.runtime.arguments) {

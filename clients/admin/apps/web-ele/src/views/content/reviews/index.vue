@@ -62,8 +62,9 @@ async function handleAction(
   try {
     await updateReview(reviewId, { action });
     await fetchData();
-  } catch (_error) { void _error;
-    // unwrapData already displays a toast for failed mutations.
+  } catch (_error) {
+    void _error;
+    // 失败提示已由 unwrapData 统一处理。
   } finally {
     actionLoading.value = false;
   }

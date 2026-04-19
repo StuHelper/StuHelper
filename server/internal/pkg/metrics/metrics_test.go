@@ -15,9 +15,10 @@ import (
 )
 
 // Route constants matching the real registration in app/modules.go:
-//   api := r.Group("/api/v1")
-//   api.POST("/metrics/vitals", metrics.VitalsHandler())
-//   api.POST("/metrics/frontend-errors", metrics.FrontendErrorHandler())
+//
+//	api := r.Group("/api/v1")
+//	api.POST("/metrics/vitals", metrics.VitalsHandler())
+//	api.POST("/metrics/frontend-errors", metrics.FrontendErrorHandler())
 const (
 	frontendErrorsRoute = "/api/v1/metrics/frontend-errors"
 	vitalsRoute         = "/api/v1/metrics/vitals"

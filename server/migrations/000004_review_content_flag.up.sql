@@ -1,4 +1,4 @@
--- TD-02: 评课内容审核流水线 — warn 状态持久化
+-- 为评课内容审核增加 warn 状态持久化字段
 -- 新增 content_flag 字段，记录敏感词检查结果
 -- 值：null（无标记）、warn（触发警告级敏感词）、cleared（人工复核通过）
 ALTER TABLE reviews ADD COLUMN IF NOT EXISTS content_flag VARCHAR(20);

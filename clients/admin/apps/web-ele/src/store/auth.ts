@@ -18,6 +18,8 @@ import {
 import { getUserInfoApi, mapMeToUserInfo } from '#/api/core/user';
 import { $t } from '#/locales';
 
+class SessionBootstrapError extends Error {}
+
 export const useAuthStore = defineStore('auth', () => {
   const accessStore = useAccessStore();
   const userStore = useUserStore();
@@ -25,7 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginLoading = ref(false);
   const sessionForbidden = ref(false);
-  /** Backend-provided URL for the identity provider's account settings page. */
+  /** 后端返回的身份提供方账户设置页地址。 */
   const accountSettingsUrl = ref('');
 
   /**
@@ -73,7 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
           title: $t('authentication.loginFailed'),
           type: 'error',
         });
-        throw new Error($t(probe.message));
+        throw new SessionBootstrapError($t(probe.message));
       }
 
       const me = probe.me;
@@ -83,10 +85,9 @@ export const useAuthStore = defineStore('auth', () => {
         return null;
       }
 
-      // StuHelper uses cookie-based auth via Zitadel OIDC. There is no Bearer
-      // token -- `token` is vestigial from Vben's default auth pattern and kept
-      // empty. `accessStore.accessToken` is set to 'cookie-session' solely to
-      // satisfy Vben's "is logged in?" guards that check for a truthy token.
+      // StuHelper 使用基于 Cookie 的 Zitadel OIDC 会话。
+      // Vben 默认 auth 流程仍要求存在一个 truthy token，因此这里用
+      // `cookie-session` 作为占位值，仅用于通过其“已登录”守卫判断。
       const userInfo = mapMeToUserInfo(me);
 
       userStore.setUserInfo(userInfo);
@@ -110,8 +111,11 @@ export const useAuthStore = defineStore('auth', () => {
 
       return userInfo;
     } catch (error) {
+      if (error instanceof SessionBootstrapError) {
+        throw error;
+      }
       console.warn('[admin-auth] initSession failed unexpectedly', error);
-      return null;
+      throw error;
     } finally {
       loginLoading.value = false;
     }
@@ -143,11 +147,16 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout(redirect: boolean = true) {
-    try {
-      await logoutApi();
-    } catch (error) {
-      console.warn('[admin-auth] logout API failed', error);
+    const result = await logoutApi();
+    if (result.kind === 'error') {
+      ElNotification({
+        message: $t(result.message),
+        title: $t('common.logout'),
+        type: 'error',
+      });
+      throw new Error($t(result.message));
     }
+
     sessionForbidden.value = false;
     resetAllStores();
     accessStore.setLoginExpired(false);

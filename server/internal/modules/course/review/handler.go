@@ -64,8 +64,8 @@ func NewHandler(cacheHelper *cache.Helper, service *Service, rdb *redis.Client, 
 }
 
 // StartBackgroundJobs 启动评课后台任务（如 FGA 同步队列）。
-func (h *Handler) StartBackgroundJobs(ctx context.Context) {
-	h.service.StartBackgroundJobs(ctx)
+func (h *Handler) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
+	h.service.StartBackgroundJobs(ctx, start)
 }
 
 // RefreshTeacherPublicStats 刷新公开教师统计物化视图。
@@ -86,15 +86,17 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	r.GET("/courses/:courseID/teachers", h.GetCourseTeachers)
 
 	// 测评（使用 optionalAuth：已登录用户看完整内容，未登录用户看脱敏内容）
-	r.GET("/courses/:courseID/reviews", optionalAuthMiddleware, h.GetCourseReviews)
-	r.GET("/reviews/latest", optionalAuthMiddleware, h.GetLatestReviews)
+	r.GET("/courses/:courseID/reviews", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.GetCourseReviews)
+	r.GET("/reviews/latest", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.GetLatestReviews)
 	r.GET("/reviews/search",
 		optionalAuthMiddleware,
+		middleware.RequireHealthyOptionalAuth(),
 		middleware.ProgressiveEndpointRateLimitMiddleware(h.searchAnonLimiter, h.searchUserLimiter, "review-search"),
 		h.SearchReviews,
 	)
 	r.GET("/reviews/batch",
 		optionalAuthMiddleware,
+		middleware.RequireHealthyOptionalAuth(),
 		middleware.ProgressiveEndpointRateLimitMiddleware(h.batchAnonLimiter, h.batchUserLimiter, "review-batch"),
 		h.GetBatchCourseReviews,
 	)
@@ -188,6 +190,8 @@ func (h *Handler) logAdminOp(c *gin.Context, action, resourceType, resourceID st
 		ResourceID:    resourceID,
 		OldValue:      oldValue,
 		NewValue:      newValue,
+		RequestID:     event.RequestID,
+		TraceID:       event.TraceID,
 		IPAddress:     event.IP,
 		UserAgent:     event.UserAgent,
 	}); err != nil {

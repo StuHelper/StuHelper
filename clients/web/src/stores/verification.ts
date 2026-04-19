@@ -2,10 +2,11 @@
  * 认证状态管理（实名认证 + 学生认证）
  */
 import { defineStore, getActivePinia } from "pinia";
-import { computed, onScopeDispose, ref } from "vue";
+import { computed, ref } from "vue";
 import type { components } from "@stuhelper/shared/types";
 import { api } from "@/api";
 import { getErrorStatus } from "@/api/errors";
+import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
 type IdentityInfo = components["schemas"]["UserIdentity"];
@@ -118,7 +119,7 @@ export const useVerificationStore = defineStore("verification", () => {
         reset,
         pinia,
     );
-    onScopeDispose(unregisterSessionReset);
+    safeOnScopeDispose(unregisterSessionReset);
 
     return {
         identity,

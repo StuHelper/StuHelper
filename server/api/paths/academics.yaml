@@ -1,0 +1,283 @@
+/api/v1/academics/terms:
+  get:
+    tags: [Academics]
+    operationId: listAcademicTerms
+    summary: 获取教务学期列表
+    security: []
+    responses:
+      '200':
+        description: 学期列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [items]
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/academics.yaml#/AcademicTerm'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/academics/offerings:
+  get:
+    tags: [Academics]
+    operationId: listAcademicOfferings
+    summary: 查询开课列表
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: termCode
+        in: query
+        schema:
+          type: string
+      - name: schoolName
+        in: query
+        schema:
+          type: string
+      - name: departmentName
+        in: query
+        schema:
+          type: string
+      - name: query
+        in: query
+        schema:
+          type: string
+      - name: teacherName
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 开课列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [items, total, page, pageSize]
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/academics.yaml#/AcademicOffering'
+                        total:
+                          type: integer
+                        page:
+                          type: integer
+                        pageSize:
+                          type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/academics/offerings/{offeringID}:
+  get:
+    tags: [Academics]
+    operationId: getAcademicOffering
+    summary: 获取开课详情
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/OfferingIDPath'
+    responses:
+      '200':
+        description: 开课详情
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/academics.yaml#/AcademicOffering'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/academics/me/courses:
+  get:
+    tags: [Academics]
+    operationId: listMyAcademicCourses
+    summary: 获取我的课程
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: termCode
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 我的课程列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [items]
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/academics.yaml#/AcademicOffering'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/academics/me/schedule:
+  get:
+    tags: [Academics]
+    operationId: listMyAcademicSchedule
+    summary: 获取我的课表
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: termCode
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 我的课表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [items]
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/academics.yaml#/AcademicOffering'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/academics/sources:
+  get:
+    tags: [Academics, Admin]
+    operationId: listAcademicSources
+    summary: 管理员查看导入源
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 导入源列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [items]
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/academics.yaml#/AcademicSource'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/academics/import-jobs:
+  get:
+    tags: [Academics, Admin]
+    operationId: listAcademicImportJobs
+    summary: 管理员查看导入作业
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 导入作业列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [items, total, page, pageSize]
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/academics.yaml#/AcademicImportJob'
+                        total:
+                          type: integer
+                        page:
+                          type: integer
+                        pageSize:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Academics, Admin]
+    operationId: triggerAcademicImport
+    summary: 管理员触发一次导入
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/academics.yaml#/AcademicImportRequest'
+    responses:
+      '201':
+        description: 导入作业创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/academics.yaml#/AcademicImportJob'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

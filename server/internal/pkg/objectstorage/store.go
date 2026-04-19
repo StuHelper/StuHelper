@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -34,19 +33,25 @@ type Store struct {
 	presignTTL time.Duration
 }
 
+type ObjectInfo struct {
+	Key         string
+	SizeBytes   int64
+	ContentType string
+}
+
 // New 创建对象存储客户端。
 func New(ctx context.Context, cfg Config) (*Store, error) {
 	if strings.TrimSpace(cfg.Endpoint) == "" {
-		return nil, errors.New("object storage endpoint is required")
+		return nil, &StoreError{Kind: ErrorKindConfig, Op: "init", Resource: "endpoint", Err: errors.New("object storage endpoint is required")}
 	}
 	if strings.TrimSpace(cfg.Region) == "" {
-		return nil, errors.New("object storage region is required")
+		return nil, &StoreError{Kind: ErrorKindConfig, Op: "init", Resource: "region", Err: errors.New("object storage region is required")}
 	}
 	if strings.TrimSpace(cfg.Bucket) == "" {
-		return nil, errors.New("object storage bucket is required")
+		return nil, &StoreError{Kind: ErrorKindConfig, Op: "init", Resource: "bucket", Err: errors.New("object storage bucket is required")}
 	}
 	if strings.TrimSpace(cfg.AccessKeyID) == "" || strings.TrimSpace(cfg.SecretAccessKey) == "" {
-		return nil, errors.New("object storage credentials are required")
+		return nil, &StoreError{Kind: ErrorKindConfig, Op: "init", Resource: "credentials", Err: errors.New("object storage credentials are required")}
 	}
 	if cfg.PresignTTL <= 0 {
 		cfg.PresignTTL = 10 * time.Minute
@@ -71,7 +76,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 		)),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("load object storage config: %w", err)
+		return nil, wrapError("load_config", cfg.Endpoint, err)
 	}
 
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
@@ -88,6 +93,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 }
 
 // EnsureBucket 确保存储桶存在。
+//
 // Deprecated: 生产环境中 bucket 应由 infra 预置，使用 CheckBucket 代替。
 func (s *Store) EnsureBucket(ctx context.Context) error {
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &s.bucket})
@@ -99,7 +105,7 @@ func (s *Store) EnsureBucket(ctx context.Context) error {
 	if !errors.As(err, &apiErr) {
 		lower := strings.ToLower(err.Error())
 		if !strings.Contains(lower, "not found") && !strings.Contains(lower, "no such bucket") {
-			return fmt.Errorf("head bucket %q: %w", s.bucket, err)
+			return wrapError("head_bucket", s.bucket, err)
 		}
 	}
 
@@ -107,7 +113,7 @@ func (s *Store) EnsureBucket(ctx context.Context) error {
 		Bucket: &s.bucket,
 	})
 	if createErr != nil && !strings.Contains(strings.ToLower(createErr.Error()), "bucket already owned") {
-		return fmt.Errorf("create bucket %q: %w", s.bucket, createErr)
+		return wrapError("create_bucket", s.bucket, createErr)
 	}
 	return nil
 }
@@ -117,7 +123,7 @@ func (s *Store) EnsureBucket(ctx context.Context) error {
 func (s *Store) CheckBucket(ctx context.Context) error {
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &s.bucket})
 	if err != nil {
-		return fmt.Errorf("bucket %q not accessible (must be pre-provisioned): %w", s.bucket, err)
+		return wrapError("check_bucket", s.bucket, err)
 	}
 	return nil
 }
@@ -125,10 +131,10 @@ func (s *Store) CheckBucket(ctx context.Context) error {
 // Upload 上传对象。
 func (s *Store) Upload(ctx context.Context, key string, content []byte, contentType string) error {
 	if strings.TrimSpace(key) == "" {
-		return errors.New("object key is required")
+		return &StoreError{Kind: ErrorKindConfig, Op: "upload", Resource: "object", Err: errors.New("object key is required")}
 	}
 	if len(content) == 0 {
-		return errors.New("object content is empty")
+		return &StoreError{Kind: ErrorKindConfig, Op: "upload", Resource: key, Err: errors.New("object content is empty")}
 	}
 	size := int64(len(content))
 	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
@@ -139,7 +145,7 @@ func (s *Store) Upload(ctx context.Context, key string, content []byte, contentT
 		ContentType:   &contentType,
 	})
 	if err != nil {
-		return fmt.Errorf("put object %q: %w", key, err)
+		return wrapError("put_object", key, err)
 	}
 	return nil
 }
@@ -153,7 +159,36 @@ func (s *Store) PresignGetURL(ctx context.Context, key string) (string, error) {
 		o.Expires = s.presignTTL
 	})
 	if err != nil {
-		return "", fmt.Errorf("presign get %q: %w", key, err)
+		return "", wrapError("presign_get", key, err)
 	}
 	return result.URL, nil
+}
+
+func (s *Store) Stat(ctx context.Context, key string) (*ObjectInfo, error) {
+	output, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: &s.bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		return nil, wrapError("head_object", key, err)
+	}
+	info := &ObjectInfo{Key: key}
+	if output.ContentLength != nil {
+		info.SizeBytes = *output.ContentLength
+	}
+	if output.ContentType != nil {
+		info.ContentType = *output.ContentType
+	}
+	return info, nil
+}
+
+func (s *Store) Delete(ctx context.Context, key string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &s.bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		return wrapError("delete_object", key, err)
+	}
+	return nil
 }

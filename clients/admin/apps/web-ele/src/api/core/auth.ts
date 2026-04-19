@@ -1,9 +1,10 @@
 import type { components } from '@stuhelper/shared/types';
 
+import type { ApiCallResult } from '#/api/shared-result';
+
 import { createAuthApi, extractResultErrorCode } from '@stuhelper/shared/api';
 
 import { sharedApiClient, sharedBaseApiClient } from '#/api/shared-client';
-import type { ApiCallResult } from '#/api/shared-result';
 import { unwrapData } from '#/api/shared-result';
 
 const authApi = createAuthApi(sharedApiClient);
@@ -15,13 +16,20 @@ export namespace AuthApi {
 }
 
 export type SessionProbeResult =
-  | { kind: 'ok'; me: AuthApi.MeResult }
-  | { kind: 'unauthenticated' }
+  | { kind: 'fatal_error'; message: string }
   | { kind: 'forbidden' }
+  | { kind: 'ok'; me: AuthApi.MeResult }
   | { kind: 'retryable_error'; message: string }
-  | { kind: 'fatal_error'; message: string };
+  | { kind: 'unauthenticated' };
 
-function classifySessionProbe(result: ApiCallResult<AuthApi.MeResult>): SessionProbeResult {
+export type LogoutResult =
+  | { kind: 'error'; message: string }
+  | { kind: 'ok' }
+  | { kind: 'unauthenticated' };
+
+function classifySessionProbe(
+  result: ApiCallResult<AuthApi.MeResult>,
+): SessionProbeResult {
   if (result.data && 'data' in result.data && result.data.data) {
     return { kind: 'ok', me: result.data.data as AuthApi.MeResult };
   }
@@ -52,10 +60,14 @@ export function getAccountSettingsUrl(me: AuthApi.MeResult): string {
  */
 export async function redirectToOIDCLogin(redirectPath?: string) {
   const currentUrl =
-    redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')
+    redirectPath &&
+    redirectPath.startsWith('/') &&
+    !redirectPath.startsWith('//')
       ? new URL(redirectPath, window.location.origin).toString()
       : redirectPath || window.location.href;
-  const data = unwrapData<AuthApi.LoginUrlResult>(await baseAuthApi.login(currentUrl));
+  const data = unwrapData<AuthApi.LoginUrlResult>(
+    await baseAuthApi.login(currentUrl),
+  );
   const url = data.url;
   if (url) {
     window.location.href = url;
@@ -84,9 +96,22 @@ export async function refreshTokenApi() {
   return unwrapData(await authApi.refresh());
 }
 
+function classifyLogoutResult(result: ApiCallResult<unknown>): LogoutResult {
+  const status = result.response?.status;
+  const code = extractResultErrorCode(result);
+
+  if (!result.error && status !== undefined && status >= 200 && status < 300) {
+    return { kind: 'ok' };
+  }
+  if (status === 401 || code?.startsWith('A00101')) {
+    return { kind: 'unauthenticated' };
+  }
+  return { kind: 'error', message: 'admin.result.requestFailed' };
+}
+
 /**
  * 退出登录
  */
 export async function logoutApi() {
-  return unwrapData(await authApi.logout());
+  return classifyLogoutResult(await baseAuthApi.logout());
 }

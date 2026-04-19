@@ -29,7 +29,7 @@
     "#/*": "./src/*"
   },
   "dependencies": {
-    "@tanstack/vue-query": "catalog:",
+    "@tanstack/vue-query": "catalog:conflicts_@tanstack/vue-query_h5_99_0",
     "@vben-core/design": "workspace:*",
     "@vben-core/menu-ui": "workspace:*",
     "@vben-core/shadcn-ui": "workspace:*",
@@ -48,7 +48,7 @@
     "@vben/types": "workspace:*",
     "@vben/utils": "workspace:*",
     "@vueuse/core": "catalog:",
-    "ant-design-vue": "catalog:",
+    "ant-design-vue": "catalog:conflicts_ant-design-vue_h4_2_6",
     "dayjs": "catalog:",
     "json-bigint": "catalog:",
     "pinia": "catalog:",

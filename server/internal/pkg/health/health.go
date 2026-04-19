@@ -84,7 +84,7 @@ func (h *Handler) Readiness(c *gin.Context) {
 	checks := make(map[string]CheckResult)
 	var mu sync.Mutex
 
-	// 使用子 context 确保函数返回后 goroutine 不会继续运行（M-80）
+	// 使用子 context，确保探针返回后后台检查协程能及时退出
 	checkCtx, checkCancel := context.WithCancel(ctx)
 	defer checkCancel()
 
@@ -93,7 +93,7 @@ func (h *Handler) Readiness(c *gin.Context) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		// panic recovery
+		// 捕获探针协程 panic，避免健康检查整体失效
 		defer func() {
 			if r := recover(); r != nil {
 				logger.L().Error("health check: postgres goroutine panicked", zap.Any("panic", r))
@@ -109,7 +109,7 @@ func (h *Handler) Readiness(c *gin.Context) {
 	}()
 	go func() {
 		defer wg.Done()
-		// panic recovery
+		// 捕获探针协程 panic，避免健康检查整体失效
 		defer func() {
 			if r := recover(); r != nil {
 				logger.L().Error("health check: redis goroutine panicked", zap.Any("panic", r))
@@ -179,6 +179,13 @@ type CheckResult struct {
 }
 
 func (h *Handler) checkPostgres(ctx context.Context) CheckResult {
+	if h.pgPool == nil {
+		return CheckResult{
+			Status: "unhealthy",
+			Error:  "not configured",
+		}
+	}
+
 	start := time.Now()
 	err := h.pgPool.Ping(ctx)
 	latency := time.Since(start)
@@ -206,6 +213,13 @@ func (h *Handler) checkPostgres(ctx context.Context) CheckResult {
 }
 
 func (h *Handler) checkRedis(ctx context.Context) CheckResult {
+	if h.redisClient == nil {
+		return CheckResult{
+			Status: "unhealthy",
+			Error:  "not configured",
+		}
+	}
+
 	start := time.Now()
 	pong, err := h.redisClient.Ping(ctx).Result()
 	latency := time.Since(start)

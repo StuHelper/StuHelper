@@ -148,12 +148,12 @@ CREATE INDEX IF NOT EXISTS idx_reviews_teacher_id ON reviews(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_user_hash ON reviews(user_hash);
 CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 CREATE INDEX IF NOT EXISTS idx_reviews_term_id ON reviews(term_id);
--- L-58: 此索引可能被 idx_reviews_course_status_created 和 idx_reviews_user_hash_created 覆盖，
+-- 此索引用于全局按时间倒序查询评课列表。
 -- 仅在全局按时间排序（不带 course_id/user_hash 过滤）时有用。
 -- 建议上线后用 EXPLAIN ANALYZE 验证实际查询是否命中此索引，若未命中可考虑移除。
 CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_avg_rating ON reviews(avg_rating DESC);
--- M-113: 索引列顺序 (course_id, status, created_at DESC) 经过优化：
+-- 该索引服务于按课程、状态、时间倒序查询的主读路径。
 -- course_id 等值过滤在前（高选择性），status 等值过滤居中，created_at DESC 用于排序避免 filesort。
 -- 此顺序匹配主查询 WHERE course_id=? AND status='published' ORDER BY created_at DESC。
 CREATE INDEX IF NOT EXISTS idx_reviews_course_status_created ON reviews(course_id, status, created_at DESC);
@@ -245,9 +245,9 @@ CREATE TABLE IF NOT EXISTS review_reports (
 CREATE INDEX IF NOT EXISTS idx_review_reports_review_id ON review_reports(review_id);
 CREATE INDEX IF NOT EXISTS idx_review_reports_status ON review_reports(status);
 CREATE INDEX IF NOT EXISTS idx_review_reports_created_at ON review_reports(created_at DESC);
--- M-35: 支持按 review_id + reporter_hash 快速查询是否已举报（去重检查）
+-- 该索引用于按评课与举报人快速检查重复举报。
 CREATE INDEX IF NOT EXISTS idx_review_reports_review_reporter ON review_reports(review_id, reporter_hash);
--- M-36: 支持管理后台按状态+时间排序查询举报列表
+-- 该索引用于管理后台按状态与时间倒序查询举报列表。
 CREATE INDEX IF NOT EXISTS idx_review_reports_status_created ON review_reports(status, created_at DESC);
 
 -- ============================================
@@ -335,7 +335,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_hash ON notifications(user_has
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(user_hash, is_read);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_hash, created_at DESC);
--- M-38: 支持「未读通知列表」查询 WHERE user_hash=? AND is_read=false ORDER BY created_at DESC
+-- 该索引用于按用户读取未读通知并按时间倒序展示。
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read_created ON notifications(user_hash, is_read, created_at DESC);
 
 -- ============================================

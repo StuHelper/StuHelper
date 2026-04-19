@@ -262,19 +262,22 @@ func (s *Service) BatchUpdateReviewsWithAudit(ctx context.Context, params BatchU
 	}
 
 	// 记录批量操作审计日志
-	audit.Log(audit.Event{
-		Type:     audit.EventAdminBatchOp,
-		UserID:   adminUserID,
-		Username: adminUsername,
-		Resource: "review",
-		Action:   "batch_" + params.Action,
-		Result:   "success",
+	audit.Log(audit.EventFromContext(ctx, audit.Event{
+		Type:         audit.EventAdminBatchOp,
+		ActorType:    "admin",
+		UserID:       adminUserID,
+		Username:     adminUsername,
+		Resource:     "review",
+		ResourceType: "review",
+		ResourceID:   fmt.Sprintf("batch:%d_items", len(params.IDs)),
+		Action:       "batch_" + params.Action,
+		Result:       "success",
 		Details: map[string]any{
 			"ids":      params.IDs,
 			"action":   params.Action,
 			"affected": result.Affected,
 		},
-	})
+	}))
 
 	return result, nil
 }
@@ -288,6 +291,8 @@ type LogOperationParams struct {
 	ResourceID    string
 	OldValue      any
 	NewValue      any
+	RequestID     string
+	TraceID       string
 	IPAddress     string
 	UserAgent     string
 }
@@ -318,6 +323,8 @@ func (s *Service) LogOperation(ctx context.Context, params LogOperationParams) e
 		ResourceID:    params.ResourceID,
 		OldValue:      oldValue,
 		NewValue:      newValue,
+		RequestID:     params.RequestID,
+		TraceID:       params.TraceID,
 		IPAddress:     params.IPAddress,
 		UserAgent:     params.UserAgent,
 	})
@@ -352,8 +359,8 @@ func (s *Service) StreamExportReviews(ctx context.Context, status string, fn fun
 	return s.repo.ForEachReviewForExport(ctx, status, fn)
 }
 
-// CleanupOldOperationLogs removes operation logs older than the retention period.
-// Returns the number of deleted rows.
+// CleanupOldOperationLogs 清理超过保留期的操作日志。
+// 返回实际删除的行数。
 func (s *Service) CleanupOldOperationLogs(ctx context.Context, retentionDays int) (int64, error) {
 	return s.repo.CleanupOldOperationLogs(ctx, retentionDays)
 }

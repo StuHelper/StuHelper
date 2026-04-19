@@ -148,20 +148,22 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		return nil, err
 	}
 
-	audit.Log(audit.Event{
-		Type:      audit.EventDataCreate,
-		UserID:    maskHash(params.UserHash),
-		IP:        params.IPAddress,
-		RequestID: params.RequestID,
-		Resource:  "review",
-		Action:    "post_review",
-		Result:    "success",
+	audit.Log(audit.EventFromContext(ctx, audit.Event{
+		Type:         audit.EventDataCreate,
+		UserID:       maskHash(params.UserHash),
+		IP:           params.IPAddress,
+		RequestID:    params.RequestID,
+		Resource:     "review",
+		ResourceType: "review",
+		ResourceID:   reviewID,
+		Action:       "post_review",
+		Result:       "success",
 		Details: map[string]interface{}{
 			"review_id": reviewID,
 			"course_id": params.CourseID,
 			"status":    review.Status,
 		},
-	})
+	}))
 
 	return &PostReviewResult{Review: review}, nil
 }

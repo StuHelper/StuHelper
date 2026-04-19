@@ -39,9 +39,6 @@ var (
 	reviewNotFoundErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrReviewNotFound, 404, "review not found", errs.ErrReviewNotFound),
 	}
-	reviewOwnerErrorMappings = []response.ErrorMapping{
-		response.MatchError(ErrNotReviewOwner, 403, "you can only modify your own review", errs.ErrNotReviewOwner),
-	}
 	reviewReplyOwnerErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrReplyNotFound, 404, "reply not found", errs.ErrReplyNotFound),
 		response.MatchError(ErrNotReplyOwner, 403, "you can only delete your own reply", errs.ErrNotReplyOwner),

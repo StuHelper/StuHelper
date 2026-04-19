@@ -58,18 +58,18 @@ func TestReviewService_ProcessFGASyncBatchLifecycle(t *testing.T) {
 
 	var attemptCount int
 	var lastError string
-	err := fixture.Pool.QueryRow(ctx, `SELECT attempt_count, last_error FROM review_fga_sync_outbox WHERE dedupe_key = $1`, reviewRelationsSyncKey("review-sync-1")).Scan(&attemptCount, &lastError)
+	err := fixture.Pool.QueryRow(ctx, `SELECT attempt_count, last_error FROM domain_event_outbox WHERE stream = 'review_fga_sync' AND dedupe_key = $1`, reviewRelationsSyncKey("review-sync-1")).Scan(&attemptCount, &lastError)
 	require.NoError(t, err)
 	assert.Equal(t, 1, attemptCount)
 	assert.Contains(t, lastError, "transient review fga failure")
 
-	_, err = fixture.Pool.Exec(ctx, `UPDATE review_fga_sync_outbox SET available_at = NOW() - INTERVAL '1 second' WHERE dedupe_key = $1`, reviewRelationsSyncKey("review-sync-1"))
+	_, err = fixture.Pool.Exec(ctx, `UPDATE domain_event_outbox SET available_at = NOW() - INTERVAL '1 second' WHERE stream = 'review_fga_sync' AND dedupe_key = $1`, reviewRelationsSyncKey("review-sync-1"))
 	require.NoError(t, err)
 
 	require.NoError(t, svc.processFGASyncBatch(ctx))
 
 	var remaining int
-	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM review_fga_sync_outbox WHERE dedupe_key = $1 AND status <> 'completed'`, reviewRelationsSyncKey("review-sync-1")).Scan(&remaining)
+	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM domain_event_outbox WHERE stream = 'review_fga_sync' AND dedupe_key = $1 AND status <> 'completed'`, reviewRelationsSyncKey("review-sync-1")).Scan(&remaining)
 	require.NoError(t, err)
 	assert.Equal(t, 0, remaining)
 	assert.Equal(t, 2, writer.calls)

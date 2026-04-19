@@ -3,11 +3,12 @@
  * 带缓存机制和增强错误处理
  */
 import { defineStore, getActivePinia } from "pinia";
-import { onScopeDispose, ref, computed } from "vue";
+import { ref, computed } from "vue";
 import type { Department, Course } from "@stuhelper/shared/course";
 import { api } from "@/api";
 import { classifyApiError } from "@/api/errors";
 import i18n from "@/i18n";
+import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
 // 缓存配置
@@ -227,7 +228,7 @@ export const useCourseStore = defineStore("course", () => {
         reset,
         pinia,
     );
-    onScopeDispose(unregisterSessionReset);
+    safeOnScopeDispose(unregisterSessionReset);
 
     return {
         departments,

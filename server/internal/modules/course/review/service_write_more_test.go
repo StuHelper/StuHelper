@@ -43,7 +43,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	assert.Equal(t, 0, reviewCount)
 
 	var outboxCount int
-	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM review_fga_sync_outbox WHERE dedupe_key = $1`, reviewRelationsSyncKey(posted.Review.ID)).Scan(&outboxCount)
+	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM domain_event_outbox WHERE stream = 'review_fga_sync' AND dedupe_key = $1`, reviewRelationsSyncKey(posted.Review.ID)).Scan(&outboxCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, outboxCount)
 

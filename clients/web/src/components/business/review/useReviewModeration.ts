@@ -1,8 +1,5 @@
 /**
- * Composable: admin moderation actions for a review card
- *
- * Manages moderation dialog, admin edit dialog, restore, and admin edit actions.
- * Extracted from ReviewCard.vue for single-responsibility.
+ * 管理管理员对单条评测的审核、恢复与编辑动作。
  */
 import { ref } from 'vue'
 import type { Review } from '@stuhelper/shared/review'

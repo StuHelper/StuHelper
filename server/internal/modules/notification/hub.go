@@ -142,12 +142,12 @@ func (h *Hub) Broadcast(userID int64, event SSEEvent) {
 	}
 }
 
-// StartRedisSubscriber 启动 Redis Pub/Sub 订阅
-// 监听 notify:* 频道，收到消息后广播给对应用户的 SSE 连接
-func (h *Hub) StartRedisSubscriber(ctx context.Context) {
+// StartRedisSubscriber 启动 Redis Pub/Sub 订阅。
+// 调用方可传入 start 以统一托管 goroutine 生命周期。
+func (h *Hub) StartRedisSubscriber(ctx context.Context, start func(string, func(context.Context))) {
 	pubsub := h.rdb.PSubscribe(ctx, "notify:*")
 
-	go func() {
+	run := func(ctx context.Context) {
 		defer func() {
 			if err := pubsub.Close(); err != nil {
 				logger.L().Warn("failed to close notification pubsub", zap.Error(err))
@@ -174,7 +174,13 @@ func (h *Hub) StartRedisSubscriber(ctx context.Context) {
 				})
 			}
 		}
-	}()
+	}
+
+	if start == nil {
+		go run(ctx)
+		return
+	}
+	start("notification redis subscriber", run)
 }
 
 // Stop 停止 Hub

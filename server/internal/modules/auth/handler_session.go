@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/subtle"
+	"errors"
 	"net/http"
 	"time"
 
@@ -33,6 +34,9 @@ func (h *Handler) Logout(c *gin.Context) {
 
 	// 从 access token 或 session cookie 中获取 session ID
 	sessionID := h.getSessionID(c, accessToken)
+	if !h.requireTrackedNativeLogoutSession(c, accessToken, refreshToken, sessionID) {
+		return
+	}
 
 	if err := h.svc.RevokeSession(c.Request.Context(), sessionID, userID, accessToken, refreshToken); err != nil {
 		logger.FromGin(c).Error("failed to revoke session",
@@ -86,6 +90,9 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 
 	// fromBody 标记请求来自原生 App（无 cookie），refresh 响应需包含 token 值
 	c.Set("refresh_from_native", fromBody)
+	if !h.requireTrackedNativeRefreshSession(c, fromBody, refreshTokenStr) {
+		return
+	}
 
 	// 纵深防御：若 refresh token 来自 cookie，必须携带有效 CSRF token。
 	// 全局 CSRFMiddleware 对携带 Bearer Authorization 的请求放行，攻击者
@@ -282,8 +289,8 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 		return false
 	}
 
-	// OIDC token 没有 sid claim，从 session cookie 获取（原生客户端无 cookie，sid 为空——
-	// RotateSession 会记录 warn 并仅做黑名单轮换）
+	// OIDC token 没有 sid claim，native 客户端必须通过显式 session header 回传
+	// 受追踪的 session family。
 	oidcSessionID := h.getSessionID(c, "")
 	if rotErr := h.svc.RotateSession(c.Request.Context(), oidcSessionID, newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken); rotErr != nil {
 		logger.FromGin(c).Error("failed to rotate OIDC session",
@@ -291,6 +298,10 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 			zap.Error(rotErr),
 		)
 		h.clearTokenCookies(c)
+		if errors.Is(rotErr, token.ErrSessionNotFound) {
+			response.Unauthorized(c, "invalid native session id", errs.ErrTokenInvalid)
+			return false
+		}
 		response.InternalError(c, "failed to refresh token")
 		return false
 	}

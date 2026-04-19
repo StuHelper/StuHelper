@@ -25,7 +25,7 @@ type Fixture struct {
 	DB      *db.DB
 	Pool    *pgxpool.Pool
 	URL     string
-	closeFn func()
+	closeFn func() error
 }
 
 func Start(t *testing.T) *Fixture {
@@ -60,21 +60,22 @@ func Start(t *testing.T) *Fixture {
 		DB:   wrapped,
 		Pool: pool,
 		URL:  connStr,
-		closeFn: func() {
+		closeFn: func() error {
 			wrapped.Close()
 			termCtx, termCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer termCancel()
-			_ = container.Terminate(termCtx)
+			return container.Terminate(termCtx)
 		},
 	}
-	t.Cleanup(fixturesCleanup(fixture))
+	t.Cleanup(fixturesCleanup(t, fixture))
 	return fixture
 }
 
-func fixturesCleanup(f *Fixture) func() {
+func fixturesCleanup(t *testing.T, f *Fixture) func() {
 	return func() {
+		t.Helper()
 		if f != nil && f.closeFn != nil {
-			f.closeFn()
+			require.NoError(t, f.closeFn())
 		}
 	}
 }
@@ -106,7 +107,7 @@ func serverRoot() string {
 	if !ok {
 		panic("postgresfixture: runtime.Caller failed")
 	}
-	root := filepath.Clean(filepath.Join(filepath.Dir(file), "../../.."))
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
 	if root == "." || root == "/" {
 		panic(fmt.Sprintf("postgresfixture: unexpected server root resolved from %q", file))
 	}

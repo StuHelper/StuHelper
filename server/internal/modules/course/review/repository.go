@@ -42,7 +42,7 @@ func (r *Repository) CourseExistsTx(ctx context.Context, tx pgx.Tx, courseID int
 	return exists, err
 }
 
-// TeacherExistsTx 在事务内检查教师是否存在（H-23）
+// TeacherExistsTx 在事务内检查教师是否存在。
 func (r *Repository) TeacherExistsTx(ctx context.Context, tx pgx.Tx, teacherID int64) (bool, error) {
 	var exists bool
 	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM teachers WHERE id = $1)`, teacherID).Scan(&exists)
@@ -180,7 +180,7 @@ func (r *Repository) Create(ctx context.Context, tx pgx.Tx, p CreateParams) erro
 	return err
 }
 
-// CreateReturning 创建评论并通过 RETURNING 返回完整记录（H-16: 避免创建后查询失败导致孤儿记录）
+// CreateReturning 创建评论并通过 RETURNING 返回完整记录。
 func (r *Repository) CreateReturning(ctx context.Context, tx pgx.Tx, p CreateParams) (*Review, error) {
 	var review Review
 	err := tx.QueryRow(ctx, `

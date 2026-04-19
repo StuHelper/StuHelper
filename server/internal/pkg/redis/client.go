@@ -21,6 +21,7 @@ type Client struct {
 	rdb       *redis.Client
 	stopCh    chan struct{}
 	closeOnce sync.Once
+	wg        sync.WaitGroup
 	lastStats redis.PoolStats
 }
 
@@ -63,7 +64,11 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 	}
 
 	client := &Client{rdb: rdb, stopCh: make(chan struct{})}
-	go client.collectPoolMetrics()
+	client.wg.Add(1)
+	go func() {
+		defer client.wg.Done()
+		client.collectPoolMetrics()
+	}()
 	return client, nil
 }
 
@@ -77,6 +82,7 @@ func (c *Client) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
 		close(c.stopCh)
+		c.wg.Wait()
 		err = c.rdb.Close()
 	})
 	return err

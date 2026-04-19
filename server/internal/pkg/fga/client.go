@@ -32,13 +32,16 @@ var tracer = otel.Tracer("git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga
 const DefaultWriteTimeout = 10 * time.Second
 
 // NewClient 创建 OpenFGA 客户端。
-// 当 StoreID 为空时返回 nil（FGA 未配置），调用方应判空处理。
+// OpenFGA 是运行时必需依赖，缺少关键配置时直接返回错误。
 func NewClient(cfg config.OpenFGAConfig) (*Client, error) {
 	if cfg.StoreID == "" {
-		return nil, nil //nolint:nilnil // nil 表示 FGA 未配置，非错误
+		return nil, fmt.Errorf("fga: StoreID is required")
 	}
 	if cfg.APIUrl == "" {
-		return nil, fmt.Errorf("fga: APIUrl is required when StoreID is set")
+		return nil, fmt.Errorf("fga: APIUrl is required")
+	}
+	if cfg.AuthorizationModelID == "" {
+		return nil, fmt.Errorf("fga: AuthorizationModelID is required")
 	}
 
 	fgaClient, err := client.NewSdkClient(&client.ClientConfiguration{

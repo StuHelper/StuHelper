@@ -36,7 +36,7 @@ func TestUpdateSchoolConfig_MergesPartialUpdateAndPreservesUnspecifiedFields(t *
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	schoolName := "新学校名"
@@ -92,7 +92,7 @@ func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	ldapURL := "ldaps://ldap.new:636"
@@ -109,7 +109,7 @@ func TestUpdateSchoolConfig_PreservesExistingLDAPPasswordWhenOmitted(t *testing.
 }
 
 func TestUpdateSchoolConfig_SchoolNotFoundReturnsError(t *testing.T) {
-	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.UpdateSchoolConfig(context.Background(), 99999, UpdateSchoolConfigInput{})
@@ -128,7 +128,7 @@ func TestUpdateSchoolConfig_InvalidManualFieldConfigReturnsError(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	fields := []ManualFieldDescriptor{{Key: "", Label: "空 key", Type: "text", Required: true}}
@@ -150,7 +150,7 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresAcademicTable(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	method := VerifyMethodLDAP
@@ -177,7 +177,7 @@ func TestUpdateSchoolConfig_EnabledLDAPRequiresValidLDAPConfig(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{})
@@ -203,7 +203,7 @@ func TestUpdateSchoolConfig_ValidatesAcademicTableExists(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.UpdateSchoolConfig(context.Background(), 10006, UpdateSchoolConfigInput{})
@@ -212,7 +212,7 @@ func TestUpdateSchoolConfig_ValidatesAcademicTableExists(t *testing.T) {
 }
 
 func TestUpdateSystemConfig_RejectsInvalidReviewAccessSchoolIDs(t *testing.T) {
-	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `{"schoolID":"10006"}`)
@@ -220,7 +220,7 @@ func TestUpdateSystemConfig_RejectsInvalidReviewAccessSchoolIDs(t *testing.T) {
 }
 
 func TestUpdateSystemConfig_RejectsInvalidReviewPreviewPercent(t *testing.T) {
-	svc, err := NewService(&mockRepo{}, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewPreviewContentPercentKey, "120")
@@ -237,7 +237,7 @@ func TestUpdateSystemConfig_RejectsUnknownReviewAccessSchoolIDs(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewAccessSchoolIDsKey, `["10006","99999"]`)
@@ -253,7 +253,7 @@ func TestUpdateSystemConfig_ReturnsNotFoundWhenKeyMissing(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.UpdateSystemConfig(context.Background(), "feature.missing", "enabled")

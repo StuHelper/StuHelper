@@ -17,6 +17,8 @@ const (
 	DefaultPageSize = 20
 	MaxPageSize     = 100
 	MaxPage         = 1000 // 防止过大的 OFFSET 导致性能问题
+	cacheKeyHashLen = 16
+	emptyCacheKey   = "empty"
 )
 
 // ParsePage 解析分页参数。
@@ -141,16 +143,15 @@ func EscapeLikePattern(s string) string {
 	return s
 }
 
-// SanitizeCacheKey 清理缓存 key 中的特殊字符，防止缓存 key 注入。
-// 失败时返回原始输入的截断值作为降级，避免空字符串导致缓存碰撞。
+// SanitizeCacheKey 生成稳定缓存 key 片段。
+// 空输入使用固定占位；其余情况下依赖 HMAC，初始化失败时直接暴露配置错误。
 func SanitizeCacheKey(s string) string {
-	hash, err := crypto.HMACHashShort(s, 16)
+	if s == "" {
+		return emptyCacheKey
+	}
+	hash, err := crypto.HMACHashShort(s, cacheKeyHashLen)
 	if err != nil {
-		safe := EscapeLikePattern(s)
-		if len(safe) > 64 {
-			safe = safe[:64]
-		}
-		return safe
+		panic(fmt.Sprintf("sanitize cache key: %v", err))
 	}
 	return hash
 }

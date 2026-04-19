@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	gozap "go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
@@ -121,6 +122,33 @@ func (rt *Runtime) addCleanup(fn func()) {
 	rt.cleanups = append(rt.cleanups, fn)
 }
 
+func (rt *Runtime) startBackgroundTask(ctx context.Context, name string, run func(context.Context)) {
+	if run == nil {
+		return
+	}
+
+	rt.bgWg.Add(1)
+	go func() {
+		defer rt.bgWg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				fields := []gozap.Field{gozap.Any("panic", r)}
+				if name != "" {
+					fields = append(fields, gozap.String("task", name))
+				}
+				logger.L().Error("background task panicked", fields...)
+			}
+		}()
+
+		if name != "" {
+			logger.L().Info("background task started", gozap.String("task", name))
+			defer logger.L().Info("background task stopped", gozap.String("task", name))
+		}
+
+		run(ctx)
+	}()
+}
+
 func (rt *Runtime) runCleanups() {
 	if rt.bgCancel != nil {
 		rt.bgCancel()
@@ -170,6 +198,7 @@ func (rt *Runtime) initCoreServices() error {
 	rt.pgPool = pgPool
 	rt.database = db.NewDB(pgPool, time.Duration(rt.cfg.Database.QueryTimeout)*time.Second)
 	rt.addCleanup(rt.database.Close)
+	audit.ConfigureRepository(audit.NewRepository(rt.database))
 
 	tokenService, err := token.NewService(token.ServiceConfig{
 		RedisClient: redisClient.GetClient(),

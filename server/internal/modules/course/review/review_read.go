@@ -280,7 +280,5 @@ func (h *Handler) GetTeacherRatingStats(c *gin.Context) {
 
 	respondWithCachedData(h, c, "review:teacher_stats", "teacherID="+c.Param("teacherID"), func(ctx context.Context) (*TeacherRatingStatsResponse, error) {
 		return h.service.GetTeacherRatingStats(ctx, teacherID)
-	}, nil, "failed to load teacher stats", "failed to load teacher stats", func(c *gin.Context, err error) bool {
-		return respondTeacherLookupError(c, err)
-	})
+	}, nil, "failed to load teacher stats", "failed to load teacher stats", respondTeacherLookupError)
 }

@@ -134,7 +134,7 @@ const handleSubmit = async (content: string) => {
   }
 }
 
-// collapse transition hooks — 动态计算高度替代 max-height hack
+// 折叠动画直接计算真实高度，避免依赖固定 max-height
 const onEnter = (el: Element) => {
   const htmlEl = el as HTMLElement
   htmlEl.style.overflow = 'hidden'

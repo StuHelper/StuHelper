@@ -12,7 +12,7 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 
 级别：`Info`（正常请求、审计事件）、`Warn`（可恢复问题、降级）、`Error`（5xx、panic 恢复）
 
-输出：stdout 或文件（lumberjack 轮转，可选压缩）
+输出：stdout（由容器运行时 / Alloy / Loki 收集）
 
 脱敏：`MaskSensitiveData`（部分遮蔽）、`MaskIP`
 
@@ -28,13 +28,17 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 
 ### 操作审计
 
-表：`admin_operation_logs`
+表：`audit_events`
 
-字段：admin_user_id / admin_username / action / resource_type / resource_id / old_value（JSONB）/ new_value（JSONB）/ ip_address / user_agent
+关键字段：`category` / `event_type` / `actor_type` / `actor_user_id` / `actor_username` / `action` / `resource_type` / `resource_id` / `before_data` / `after_data` / `result` / `reason` / `trace_id` / `request_id` / `ip_address` / `user_agent` / `details` / `created_at`
+
+管理员操作审计统一写入：`category = 'admin_operation'`
 
 查询：`GET /api/v1/course/review/admin/logs`
 
 留存：90 天 + 每日清理。
+
+历史说明：旧表 `admin_operation_logs` 已迁入 `audit_events` 并从现行 schema 移除。
 
 ## 审计事件
 

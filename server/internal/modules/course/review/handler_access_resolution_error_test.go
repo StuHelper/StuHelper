@@ -60,7 +60,7 @@ func TestReviewHandler_AccessResolutionFailurePaths(t *testing.T) {
 		},
 		{
 			name: "GetLatestReviews",
-			run: func(c *gin.Context) { h.GetLatestReviews(c) },
+			run:  func(c *gin.Context) { h.GetLatestReviews(c) },
 		},
 		{
 			name: "SearchReviews",

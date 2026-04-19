@@ -57,7 +57,6 @@ func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 	}
 	svc, err := NewService(
 		repo,
-		nil,
 		[]byte("test-hmac-key-at-least-32-chars!"),
 		&fakeEncryptor{},
 		WithProfileFGAClient(fgaClient),
@@ -98,7 +97,6 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 	}
 	svc, err := NewService(
 		repo,
-		nil,
 		[]byte("test-hmac-key-at-least-32-chars!"),
 		&fakeEncryptor{},
 		WithRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
@@ -134,7 +132,7 @@ func TestVerifyStudent_EnqueuesProjectionInsideTransaction(t *testing.T) {
 			return nil
 		},
 	}
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{SchoolID: 10006, Consent: true})

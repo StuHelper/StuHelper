@@ -1,8 +1,5 @@
 /**
- * Composable: reply handling for a review card
- *
- * Manages reply list loading, submission, and deletion.
- * Extracted from ReviewCard.vue for single-responsibility.
+ * 管理单条评测的回复列表、提交与删除。
  */
 import { ref, watch } from 'vue'
 import type { Reply } from '@stuhelper/shared/reply'
@@ -25,13 +22,13 @@ export function useReviewReply(
   const replyCount = ref(reviewGetter().replyCount ?? 0)
   const replyFormRef = ref<InstanceType<typeof ReplyForm> | null>(null)
 
-  // Sync props changes (only when no local modification, to avoid overwriting optimistic updates)
+  // 父级数据刷新时，仅在本地未改动计数的情况下同步 replyCount
   let replyCountDirty = false
   watch(() => reviewGetter().replyCount, (val) => {
     if (val !== undefined && !replyCountDirty) replyCount.value = val
   })
 
-  // Reset dirty flag when review data refreshes
+  // 评测数据整体刷新后，允许重新接收服务端计数
   watch(reviewGetter, () => {
     replyCountDirty = false
   })
@@ -44,7 +41,7 @@ export function useReviewReply(
       replies.value = res.data?.data?.list || []
       replyCount.value = res.data?.data?.total || 0
       replyCountDirty = false
-    } catch (_error) { void _error;
+    } catch (_error) { void _error
       replies.value = []
       repliesError.value = true
     } finally {

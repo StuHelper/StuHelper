@@ -425,7 +425,7 @@ const courseSearch = usePinyinSearch({
   maxResults: 15,
 })
 
-// Debounced API search when query changes
+// 搜索词变化后延迟请求接口，避免频繁查询
 let searchAbortController: AbortController | null = null
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -491,7 +491,7 @@ function handleCourseKeyDown(e: KeyboardEvent) {
   }
 }
 
-// Close dropdown on click outside
+// 点击外部区域时关闭下拉面板
 function handleClickOutside(e: MouseEvent) {
   if (searchContainerRef.value && !searchContainerRef.value.contains(e.target as Node)) {
     showDropdown.value = false
@@ -508,7 +508,7 @@ onBeforeUnmount(() => {
   if (searchAbortController) searchAbortController.abort()
 })
 
-// ── Pre-select course if coming from route param ─────────
+// ── 路由携带课程 ID 时预选课程 ─────────
 onMounted(async () => {
   await fetchTerms()
 
@@ -522,7 +522,7 @@ onMounted(async () => {
         courseSearch.query.value = data.name
       }
     } catch (_error) { void _error;
-      // Course not found via route param, user can search manually
+      // 路由中的课程不存在时，仍允许用户手动搜索
     }
   }
 })
@@ -537,12 +537,12 @@ watch(selectedCourse, async (course) => {
   await fetchTeachers(course.id)
 })
 
-// ── Ratings ──────────────────────────────────────────────
+// ── 评分相关状态 ─────────────────────────────────────────
 function updateRating(key: string, value: number) {
   ratings.value = { ...ratings.value, [key]: value } as ReviewRatings
 }
 
-// ── Validation ───────────────────────────────────────────
+// ── 表单校验 ─────────────────────────────────────────────
 const contentError = computed(() => {
   const trimmed = content.value.trim()
   if (!trimmed || trimmed === defaultTemplate.value.trim()) {
@@ -569,7 +569,7 @@ const canSubmit = computed(() =>
   !contentError.value,
 )
 
-// ── Submission ───────────────────────────────────────────
+// ── 提交流程 ─────────────────────────────────────────────
 async function handleSubmit() {
   showErrors.value = true
   if (ratingDimensionsLoadFailed.value) {
@@ -607,7 +607,7 @@ async function handleSubmit() {
     await api.review.createReview(payload)
     toast.success(t('review.post.success'))
 
-    // Navigate to the course reviews page
+    // 发布成功后跳转到课程评测页
     router.push({ name: 'course-reviews', params: { id: selectedCourse.value!.id } })
   } catch (_error) { void _error;
     toast.error(t('review.post.failed'))

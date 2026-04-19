@@ -49,7 +49,7 @@ func setupAdminHandlerTestRouterWithRole(
 		repo = &mockRepo{}
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	h := NewHandler(svc, nil, nil, nil)
@@ -87,12 +87,17 @@ func setupAdminHandlerTestRouter(t *testing.T) *gin.Engine {
 
 func setupUserHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engine {
 	t.Helper()
+	return setupUserHandlerTestRouterWithServiceOptions(t, repo)
+}
+
+func setupUserHandlerTestRouterWithServiceOptions(t *testing.T, repo *mockRepo, opts ...ServiceOption) *gin.Engine {
+	t.Helper()
 
 	if repo == nil {
 		repo = &mockRepo{}
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{}, opts...)
 	require.NoError(t, err)
 
 	h := NewHandler(svc, nil, nil, nil)

@@ -1,14 +1,13 @@
-import { ElMessage } from 'element-plus';
+import type { ApiCallResult, ApiEnvelope } from '@stuhelper/shared/api';
 
 import {
+  extractOptionalResultData,
   extractResultData,
   extractResultErrorCode,
-  extractOptionalResultData,
   extractResultList,
   readResultStatus,
-  type ApiCallResult,
-  type ApiEnvelope,
 } from '@stuhelper/shared/api';
+import { ElMessage } from 'element-plus';
 
 import { $t } from '#/locales';
 
@@ -27,7 +26,7 @@ export function extractErrorMessage(result: ApiCallResult<unknown>): string {
 
 export function unwrapData<T>(result: ApiCallResult<T>): T {
   const payload = extractResultData(result);
-  if (typeof payload !== 'undefined') {
+  if (payload !== undefined) {
     return payload;
   }
 
@@ -38,7 +37,7 @@ export function unwrapData<T>(result: ApiCallResult<T>): T {
 
 export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
   const payload = extractOptionalResultData(result);
-  if (typeof payload !== 'undefined') {
+  if (payload !== undefined) {
     return payload;
   }
 
@@ -52,7 +51,9 @@ export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
   throw new Error(message);
 }
 
-export function unwrapListData<T>(result: ApiCallResult<{ list?: T[]; total?: number }>): {
+export function unwrapListData<T>(
+  result: ApiCallResult<{ items?: T[]; list?: T[]; total?: number }>,
+): {
   items: T[];
   total: number;
 } {

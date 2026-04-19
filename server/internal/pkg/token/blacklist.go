@@ -36,7 +36,7 @@ type localCacheEntry struct {
 	expiresAt   time.Time
 }
 
-// localCacheTTL 本地缓存 TTL（短时间缓存，仅用于 Redis 不可用时降级）
+// localCacheTTL 本地缓存 TTL（短时间缓存，仅用于当前实例立即感知撤销结果）
 const localCacheTTL = 30 * time.Second
 
 const (
@@ -53,6 +53,7 @@ type Blacklist struct {
 	localCache sync.Map // map[string]localCacheEntry
 	stopCh     chan struct{}
 	closeOnce  sync.Once
+	wg         sync.WaitGroup
 }
 
 // NewBlacklist 创建黑名单服务
@@ -67,7 +68,11 @@ func NewBlacklist(rdb *redis.Client) *Blacklist {
 		stopCh: make(chan struct{}),
 	}
 	// 定期清理过期的本地缓存条目，防止 sync.Map 无限增长
-	go b.cleanupLoop()
+	b.wg.Add(1)
+	go func() {
+		defer b.wg.Done()
+		b.cleanupLoop()
+	}()
 	return b
 }
 
@@ -75,6 +80,7 @@ func NewBlacklist(rdb *redis.Client) *Blacklist {
 func (b *Blacklist) Close() {
 	b.closeOnce.Do(func() {
 		close(b.stopCh)
+		b.wg.Wait()
 	})
 }
 
@@ -218,8 +224,8 @@ func (b *Blacklist) ReleaseConsumedRefreshToken(ctx context.Context, token strin
 	return nil
 }
 
-// IsBlacklisted 检查 token 是否在黑名单中
-// 使用熔断器模式：Redis 持续故障时降级到本地缓存，避免服务完全不可用
+// IsBlacklisted 检查 token 是否在黑名单中。
+// Redis 故障时只信任本地“已撤销=true”缓存；负缓存绝不用于放行请求。
 func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, error) {
 	hash, err := hashToken(token)
 	if err != nil {
@@ -229,21 +235,11 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 
 	// 检查熔断器状态
 	if !b.cb.Allow() {
-		// 熔断器打开：尝试本地缓存降级
-		if entry, ok := b.localCache.Load(hash); ok {
-			cached, ok := entry.(localCacheEntry)
-			if !ok {
-				b.localCache.Delete(hash)
-				return true, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
-			}
-			if time.Now().Before(cached.expiresAt) {
-				logger.L().Warn("circuit breaker open, using local cache fallback",
-					zap.String("operation", "IsBlacklisted"),
-				)
-				return cached.blacklisted, nil
-			}
-			// 缓存过期，原子清理（仅当值未被其他 goroutine 更新时才删除）
-			b.localCache.CompareAndDelete(hash, entry)
+		if blacklisted, ok := b.cachedRevocation(hash); ok {
+			logger.L().Warn("circuit breaker open, using local revocation cache",
+				zap.String("operation", "IsBlacklisted"),
+			)
+			return blacklisted, nil
 		}
 		// 无本地缓存可用：安全优先 - 拒绝请求
 		logger.L().Warn("circuit breaker open, no local cache, denying request (fail-closed)",
@@ -260,17 +256,8 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 			zap.String("circuit_state", b.cb.State().String()),
 		)
 
-		// Redis 错误时尝试本地缓存降级
-		if entry, ok := b.localCache.Load(hash); ok {
-			cached, ok := entry.(localCacheEntry)
-			if !ok {
-				b.localCache.Delete(hash)
-				return true, fmt.Errorf("blacklist service unavailable")
-			}
-			if time.Now().Before(cached.expiresAt) {
-				return cached.blacklisted, nil
-			}
-			b.localCache.CompareAndDelete(hash, entry)
+		if blacklisted, ok := b.cachedRevocation(hash); ok {
+			return blacklisted, nil
 		}
 
 		// 安全优先：无缓存时拒绝请求
@@ -280,13 +267,38 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 	b.cb.RecordSuccess()
 	blacklisted := exists > 0
 
-	// 更新本地缓存
-	b.localCache.Store(hash, localCacheEntry{
-		blacklisted: blacklisted,
-		expiresAt:   time.Now().Add(localCacheTTL),
-	})
+	if blacklisted {
+		b.localCache.Store(hash, localCacheEntry{
+			blacklisted: true,
+			expiresAt:   time.Now().Add(localCacheTTL),
+		})
+	} else {
+		b.localCache.Delete(hash)
+	}
 
 	return blacklisted, nil
+}
+
+func (b *Blacklist) cachedRevocation(hash string) (bool, bool) {
+	entry, ok := b.localCache.Load(hash)
+	if !ok {
+		return false, false
+	}
+
+	cached, ok := entry.(localCacheEntry)
+	if !ok {
+		b.localCache.Delete(hash)
+		return false, false
+	}
+	if time.Now().After(cached.expiresAt) {
+		b.localCache.CompareAndDelete(hash, entry)
+		return false, false
+	}
+	if !cached.blacklisted {
+		b.localCache.CompareAndDelete(hash, entry)
+		return false, false
+	}
+	return true, true
 }
 
 // RevokeAllUserTokens / TrackUserToken / UntrackUserToken 已随双轨 session 清理一并移除。

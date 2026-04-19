@@ -174,6 +174,27 @@ func TestOptionalAuthMiddleware_BackendFailureMarksDiagnostic(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"userID":""`)
 }
 
+func TestRequireHealthyOptionalAuth_RejectsBackendFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(CtxKeyAuthBackendFailure, true)
+		c.Next()
+	})
+	r.GET("/public", RequireHealthyOptionalAuth(), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/public", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrServiceUnavailable))
+	assert.NotContains(t, w.Body.String(), `"ok":true`)
+}
+
 func TestClearAuthCookies_PathContract(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

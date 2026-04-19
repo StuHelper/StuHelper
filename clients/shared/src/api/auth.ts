@@ -3,6 +3,25 @@ import type { operations } from '../types/api.gen'
 
 type RequestPhoneOTPResponse = operations['requestPhoneOTP']['responses'][200]['content']['application/json']['data']
 type VerifyPhoneOTPResponse = operations['verifyPhoneOTP']['responses'][200]['content']['application/json']['data']
+type NativeSessionHeader = NonNullable<operations['refreshToken']['parameters']['header']>
+
+export const NATIVE_SESSION_ID_HEADER = 'X-Stuhelper-Session-ID' as const
+
+export interface NativeSessionRequestOptions {
+  sessionID?: NativeSessionHeader[typeof NATIVE_SESSION_ID_HEADER]
+}
+
+function withNativeSessionHeader(sessionID?: NativeSessionRequestOptions['sessionID']) {
+  if (!sessionID) return undefined
+
+  return {
+    params: {
+      header: {
+        [NATIVE_SESSION_ID_HEADER]: sessionID,
+      },
+    },
+  }
+}
 
 export const createAuthApi = (client: ApiClient) => ({
   login: (redirect?: string, platform?: string) => {
@@ -19,14 +38,14 @@ export const createAuthApi = (client: ApiClient) => ({
     return client.GET('/api/v1/auth/signup', Object.keys(query).length > 0 ? { params: { query } } : undefined)
   },
 
-  refresh: () =>
-    client.POST('/api/v1/auth/refresh'),
+  refresh: (options?: NativeSessionRequestOptions) =>
+    client.POST('/api/v1/auth/refresh', withNativeSessionHeader(options?.sessionID)),
 
   me: () =>
     client.GET('/api/v1/auth/me'),
 
-  logout: () =>
-    client.POST('/api/v1/auth/logout'),
+  logout: (options?: NativeSessionRequestOptions) =>
+    client.POST('/api/v1/auth/logout', withNativeSessionHeader(options?.sessionID)),
 
   logoutAll: () =>
     client.POST('/api/v1/auth/logout-all'),

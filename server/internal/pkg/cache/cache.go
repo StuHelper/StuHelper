@@ -82,6 +82,8 @@ func JitteredTTL(base time.Duration) time.Duration {
 }
 
 // randFloat64 使用非安全随机源生成 [0, 1) 范围的 float64。
+//
+//nolint:gosec // TTL jitter 只需要低成本随机性，不参与任何安全决策。
 func randFloat64() float64 {
 	return rand.Float64()
 }
@@ -91,9 +93,9 @@ func (h *Helper) Client() *redis.Client {
 	return h.client
 }
 
-// GetRaw returns the cached value as pre-serialized JSON bytes.
-// Unlike Get, this avoids double-deserialization and the float64 precision issue.
-// The returned json.RawMessage can be passed directly to response.Success.
+// GetRaw 直接返回缓存中的 JSON 字节。
+// 相比 Get，它避免了重复反序列化以及 float64 精度丢失问题。
+// 返回的 json.RawMessage 可直接传给 response.Success。
 func (h *Helper) GetRaw(ctx context.Context, key string) (json.RawMessage, bool) {
 	if h.client == nil {
 		return nil, false

@@ -159,7 +159,7 @@ const phoneBound = computed(() => profile.value?.phoneVerified === true)
 const identity = computed(() => verificationStore.identity)
 const profile = computed(() => verificationStore.profile)
 
-// Identity status helpers
+// 身份认证状态派生
 type StatusVariant = 'verified' | 'pending' | 'rejected' | 'unverified'
 
 const identityStatus = computed((): StatusVariant => {

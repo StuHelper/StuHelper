@@ -12,12 +12,14 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	gozap "go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/academics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
@@ -27,7 +29,6 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/objectstorage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
 )
@@ -38,6 +39,9 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return err
 	}
 	rt.registerMetricsRoutes(api)
+	startBackgroundTask := func(name string, run func(context.Context)) {
+		rt.startBackgroundTask(bgCtx, name, run)
+	}
 
 	smsSvc, err := rt.initSMSService()
 	if err != nil {
@@ -58,34 +62,43 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return fmt.Errorf("failed to create FGA client: %w", err)
 	}
-	if fgaClient == nil {
-		return fmt.Errorf("openfga must be configured")
-	}
 
 	notifHub := notification.NewHub(rt.redisClient.GetClient())
 	notifRepo := notification.NewRepository(rt.database)
 	notifService := notification.NewService(notifRepo, notifHub, rt.redisClient.GetClient())
 	notifHandler := notification.NewHandler(notifService, notifHub)
 	notifHandler.RegisterRoutes(api, authMW)
-	notifHub.StartRedisSubscriber(bgCtx)
+	notifHub.StartRedisSubscriber(bgCtx, startBackgroundTask)
 	rt.addCleanup(notifHub.Stop)
 
 	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
 	courseHandler := rt.initCourseModule(fgaClient, notifService, userRepo)
 	courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 
-	ldapClient, err := rt.initLDAPClient()
-	if err != nil {
-		logger.L().Warn("LDAP client initialization failed, student verification via LDAP unavailable",
-			gozap.Error(err),
-		)
-		ldapClient = nil
+	storageService := storage.NewService(storage.NewRepository(rt.database), rt.cfg.ObjectStorage)
+	if err := storageService.EnsureDefaultMount(bgCtx); err != nil {
+		return fmt.Errorf("failed to ensure storage default mount: %w", err)
 	}
 
-	userService, err := rt.initUserService(userRepo, ldapClient, piiCipher, fgaClient)
+	userService, err := rt.initUserService(userRepo, piiCipher, fgaClient, storageService)
 	if err != nil {
 		return err
 	}
+	academicsHandler := academics.NewHandler(academics.NewService(
+		academics.NewRepository(rt.database),
+		academics.NewRegistry(),
+	))
+	academicsHandler.RegisterRoutes(api, authMW)
+
+	storage.NewHandler(storageService).RegisterAdminRoutes(api, authMW)
+
+	resourceService := resource.NewService(
+		resource.NewRepository(rt.database),
+		storageService,
+	)
+	resourceService.StartBackgroundJobs(bgCtx, startBackgroundTask)
+	resourceHandler := resource.NewHandler(resourceService)
+	resourceHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 
 	var bindPhoneOTP user.OTPGenerator
 	var bindPhoneSMS user.SMSSender
@@ -94,11 +107,11 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		bindPhoneSMS = smsSvc
 	}
 	userHandler := user.NewHandler(userService, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
-	userService.StartBackgroundJobs(bgCtx)
+	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
 	rt.registerAdminRoutes(api, userHandler, authMW)
 
-	courseHandler.StartBackgroundJobs(bgCtx)
+	courseHandler.StartBackgroundJobs(bgCtx, startBackgroundTask)
 
 	return nil
 }
@@ -250,46 +263,15 @@ func (rt *Runtime) warnPendingUserHashBackfill(ctx context.Context, repo *user.U
 	}
 }
 
-func (rt *Runtime) initLDAPClient() (*ldap.Client, error) {
-	if rt.cfg.LDAP.URL == "" {
-		return nil, nil
-	}
-	ldapClient, err := ldap.NewClient(ldap.Config{
-		URL:                rt.cfg.LDAP.URL,
-		BaseDN:             rt.cfg.LDAP.BaseDN,
-		SystemBindDN:       rt.cfg.LDAP.SystemBindDN,
-		SystemBindPassword: rt.cfg.LDAP.SystemBindPassword,
-		UseTLS:             rt.cfg.LDAP.UseTLS,
-	})
-	if err != nil {
-		return nil, err
-	}
-	logger.L().Info("LDAP client initialized", gozap.String("url", rt.cfg.LDAP.URL))
-	return ldapClient, nil
-}
-
-func (rt *Runtime) initUserService(userRepo *user.Repository, ldapClient *ldap.Client, piiCipher *pii.Cipher, fgaClient *fga.Client) (*user.Service, error) {
+func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cipher, fgaClient *fga.Client, storageService *storage.Service) (*user.Service, error) {
 	var photoStore user.ServiceOption
 	if rt.cfg.ObjectStorage.Endpoint != "" {
 		initCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		store, err := objectstorage.New(initCtx, objectstorage.Config{
-			Endpoint:        rt.cfg.ObjectStorage.Endpoint,
-			Region:          rt.cfg.ObjectStorage.Region,
-			Bucket:          rt.cfg.ObjectStorage.Bucket,
-			AccessKeyID:     rt.cfg.ObjectStorage.AccessKeyID,
-			SecretAccessKey: rt.cfg.ObjectStorage.SecretAccessKey,
-			UseSSL:          rt.cfg.ObjectStorage.UseSSL,
-			ForcePathStyle:  rt.cfg.ObjectStorage.ForcePathStyle,
-			PresignTTL:      time.Duration(rt.cfg.ObjectStorage.PresignTTL) * time.Second,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize object storage: %w", err)
+		if _, err := storageService.ValidateMountByKey(initCtx, storage.DefaultMountKey); err != nil {
+			return nil, fmt.Errorf("identity photo storage mount validation failed: %w", err)
 		}
-		if err := store.CheckBucket(initCtx); err != nil {
-			return nil, fmt.Errorf("identity photo bucket check failed (bucket must be pre-provisioned by infra): %w", err)
-		}
-		photoStore = user.WithIdentityPhotoStore(store)
+		photoStore = user.WithIdentityPhotoStorageService(storageService, storage.DefaultMountKey)
 	}
 
 	mgmtClient := oidc.NewManagementClient(rt.cfg.Zitadel)
@@ -299,7 +281,6 @@ func (rt *Runtime) initUserService(userRepo *user.Repository, ldapClient *ldap.C
 
 	userService, err := user.NewService(
 		userRepo,
-		ldapClient,
 		crypto.GetHMACKey(),
 		piiCipher,
 		user.WithProfileFGAClient(fgaClient),

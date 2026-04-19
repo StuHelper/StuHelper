@@ -13,9 +13,16 @@ func (s *Service) dispatchNotification(parent context.Context, fn func(context.C
 		baseCtx = s.asyncCtx
 	}
 
-	go func(ctx context.Context) {
+	run := func(ctx context.Context) {
 		notifCtx, cancel := context.WithTimeout(ctx, asyncNotificationTimeout)
 		defer cancel()
 		fn(notifCtx)
-	}(baseCtx)
+	}
+
+	if s.asyncLaunch != nil {
+		s.asyncLaunch("", run)
+		return
+	}
+
+	go run(baseCtx)
 }

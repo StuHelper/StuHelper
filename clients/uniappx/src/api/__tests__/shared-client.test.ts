@@ -107,6 +107,67 @@ describe('uniappx api client transport', () => {
     expect(result.response?.status).toBe(200)
   })
 
+  it('fails closed when csrf token storage cannot be read in non-h5 builds', async () => {
+    const request = vi.fn()
+
+    vi.stubEnv('VITE_API_URL', 'https://api.example.com')
+    vi.stubGlobal('uni', {
+      request,
+      getStorageSync: vi.fn(() => {
+        throw new Error('storage unavailable')
+      }),
+      setStorageSync: vi.fn(),
+    })
+
+    const { apiClient } = await import('../shared-client')
+
+    await expect(apiClient.POST('/api/v1/review' as never, {
+      body: { hello: 'world' },
+    } as never)).rejects.toThrow('failed to read csrf token')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when rotated csrf token cannot be persisted', async () => {
+    const request = vi.fn((options: any) => {
+      options.success?.({
+        statusCode: 200,
+        data: {
+          data: { ok: true },
+        },
+        header: {
+          'X-CSRF-Token': 'rotated-csrf-token',
+        },
+      })
+      return { abort: vi.fn() }
+    })
+
+    vi.stubEnv('VITE_API_URL', 'https://api.example.com')
+    vi.stubGlobal('uni', {
+      request,
+      getStorageSync: vi.fn(() => 'stored-csrf-token'),
+      setStorageSync: vi.fn(() => {
+        throw new Error('disk full')
+      }),
+    })
+
+    const { apiClient } = await import('../shared-client')
+    const result: any = await apiClient.POST('/api/v1/review' as never, {
+      body: { hello: 'world' },
+    } as never)
+
+    const error: any = result.error
+    if (
+      !error
+      || typeof error !== 'object'
+      || !('message' in error)
+      || typeof error.message !== 'string'
+    ) {
+      throw new Error('expected csrf storage persistence error')
+    }
+    expect(error.message).toContain('failed to persist csrf token')
+    expect(result.response?.status).toBe(0)
+  })
+
   it('hard-fails when a non-h5 build has only a relative api base', async () => {
     const request = vi.fn()
     vi.stubEnv('VITE_API_URL', '/api')
@@ -164,5 +225,111 @@ describe('uniappx api client transport', () => {
     expect(request.mock.calls[1][0].url).toBe('https://api.example.com/api/v1/auth/refresh')
     expect(result.response?.status).toBe(200)
     expect(result.data).toEqual({ data: { ok: true } })
+  })
+
+  it('injects native session header into refresh requests', async () => {
+    const storedTokens = JSON.stringify({
+      accessToken: 'native-access-token',
+      refreshToken: 'native-refresh-token',
+      sessionID: 'sid-native-refresh',
+      expiresAt: Date.now() + 60_000,
+    })
+    const request = vi.fn((options: any) => {
+      if (options.url.endsWith('/api/v1/auth/refresh')) {
+        options.success?.({
+          statusCode: 200,
+          data: {
+            data: {
+              expiresIn: 600,
+              accessToken: 'rotated-access-token',
+              refreshToken: 'rotated-refresh-token',
+            },
+          },
+          header: {},
+        })
+        return { abort: vi.fn() }
+      }
+
+      if (request.mock.calls.length === 1) {
+        options.success?.({
+          statusCode: 401,
+          data: { error: { message: 'expired' } },
+          header: {},
+        })
+        return { abort: vi.fn() }
+      }
+
+      options.success?.({
+        statusCode: 200,
+        data: { data: { ok: true } },
+        header: {},
+      })
+      return { abort: vi.fn() }
+    })
+
+    vi.stubEnv('VITE_API_URL', 'https://api.example.com')
+    vi.stubGlobal('plus', {})
+    vi.stubGlobal('uni', {
+      request,
+      getStorageSync: vi.fn((key: string) => (key === 'stuhelper:native-tokens' ? storedTokens : '')),
+      setStorageSync: vi.fn(),
+    })
+
+    const { apiClient } = await import('../shared-client')
+    const { NATIVE_SESSION_ID_HEADER } = await import('@stuhelper/shared/api')
+    await apiClient.GET('/api/v1/auth/me' as never)
+
+    expect(request).toHaveBeenCalledTimes(3)
+    expect(request.mock.calls[1][0]).toMatchObject({
+      data: {
+        refreshToken: 'native-refresh-token',
+      },
+      header: {
+        [NATIVE_SESSION_ID_HEADER]: 'sid-native-refresh',
+      },
+      method: 'POST',
+      url: 'https://api.example.com/api/v1/auth/refresh',
+    })
+  })
+
+  it('injects native session header into logout requests', async () => {
+    const storedTokens = JSON.stringify({
+      accessToken: 'native-access-token',
+      refreshToken: 'native-refresh-token',
+      sessionID: 'sid-native-logout',
+      expiresAt: Date.now() + 60_000,
+    })
+    const request = vi.fn((options: any) => {
+      options.success?.({
+        statusCode: 200,
+        data: { data: { message: 'logout successful' } },
+        header: {},
+      })
+      return { abort: vi.fn() }
+    })
+
+    vi.stubEnv('VITE_API_URL', 'https://api.example.com')
+    vi.stubGlobal('plus', {})
+    vi.stubGlobal('uni', {
+      request,
+      getStorageSync: vi.fn((key: string) => (key === 'stuhelper:native-tokens' ? storedTokens : '')),
+      setStorageSync: vi.fn(),
+    })
+
+    const { apiClient } = await import('../shared-client')
+    const { createAuthApi, NATIVE_SESSION_ID_HEADER } = await import('@stuhelper/shared/api')
+    const authApi = createAuthApi(apiClient)
+
+    await authApi.logout()
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0]).toMatchObject({
+      header: {
+        Authorization: 'Bearer native-access-token',
+        [NATIVE_SESSION_ID_HEADER]: 'sid-native-logout',
+      },
+      method: 'POST',
+      url: 'https://api.example.com/api/v1/auth/logout',
+    })
   })
 })

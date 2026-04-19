@@ -11,7 +11,8 @@ import (
 )
 
 const tokenCookieSameSite = http.SameSiteLaxMode
-const refreshTokenCookiePath = "/api/v1/auth"
+const refreshTokenCookiePath = "/api/v1/auth" //nolint:gosec // Cookie path literal, not a credential.
+const nativeSessionIDHeader = "X-Stuhelper-Session-ID"
 
 // sessionCookieName 服务端 session ID cookie
 // OIDC ID Token 由 Zitadel 签发，无法注入自定义 sid claim。
@@ -71,8 +72,10 @@ func (h *Handler) setSessionCookie(c *gin.Context, sessionID string) {
 }
 
 // getSessionID 从请求中获取 session ID。
-// 优先从自签名 JWT 的 sid claim 提取（手机登录），
-// 回退到 session_id cookie（OIDC 登录）。
+// 优先级：
+//  1. 自签名 JWT 的 sid claim（手机登录）
+//  2. session_id cookie（浏览器 OIDC）
+//  3. X-Stuhelper-Session-ID header（原生 OIDC）
 func (h *Handler) getSessionID(c *gin.Context, accessToken string) string {
 	// 自签名 JWT 优先（手机登录，sid 在 token claim 中）
 	if sid := extractSessionID(accessToken); sid != "" {
@@ -80,6 +83,10 @@ func (h *Handler) getSessionID(c *gin.Context, accessToken string) string {
 	}
 	// OIDC 回退：从 session cookie 读取
 	if v, err := c.Cookie(sessionCookieName); err == nil && v != "" {
+		return v
+	}
+	// 原生客户端：从显式 header 读取 session ID
+	if v := c.GetHeader(nativeSessionIDHeader); v != "" {
 		return v
 	}
 	return ""

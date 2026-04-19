@@ -108,12 +108,13 @@ func TestRotateSession_BlacklistsOldRefreshAndTouchesSession(t *testing.T) {
 	assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
 }
 
-func TestRotateSession_WithoutSessionIDStillBlacklists(t *testing.T) {
+func TestRotateSession_WithoutSessionIDRejectsRequestAndBlacklistsOldRefresh(t *testing.T) {
 	svc, tokenSvc := newAuthServiceForTest(t)
 	ctx := context.Background()
 
 	err := svc.RotateSession(ctx, "", "user-1", "old-refresh", "new-access", "new-refresh")
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sessionID is required")
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "old-refresh")
 	require.NoError(t, err)

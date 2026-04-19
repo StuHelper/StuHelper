@@ -2,8 +2,8 @@ package review
 
 import "context"
 
-// AuthorizationProvider is the review module's single authorization dependency.
-// It serves both request-time permission checks and async relation projection.
+// AuthorizationProvider 是评测模块唯一的授权依赖。
+// 它同时承担请求时鉴权和异步关系投影写入。
 type AuthorizationProvider interface {
 	Check(ctx context.Context, user, relation, object string) (bool, error)
 	WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error

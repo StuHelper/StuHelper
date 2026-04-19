@@ -72,17 +72,8 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Observability.Enabled && c.Observability.OTLPEndpoint == "" {
 		errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_ENABLED=true")
 	}
-
-	if c.LDAP.URL != "" {
-		if c.LDAP.BaseDN == "" {
-			errs = append(errs, "LDAP_BASE_DN is required when LDAP_URL is set")
-		}
-		if c.LDAP.SystemBindDN == "" {
-			errs = append(errs, "LDAP_SYSTEM_BIND_DN is required when LDAP_URL is set")
-		}
-		if c.LDAP.SystemBindPassword == "" {
-			errs = append(errs, "LDAP_SYSTEM_BIND_PASSWORD is required when LDAP_URL is set")
-		}
+	if len(c.App.CORSOrigins) == 0 {
+		errs = append(errs, "CORS_ORIGINS is required")
 	}
 
 	if c.SMS.Enabled {
@@ -112,9 +103,6 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 		if !c.Token.CookieSecure {
 			errs = append(errs, "TOKEN_COOKIE_SECURE must be true in production")
-		}
-		if len(c.App.CORSOrigins) == 0 {
-			errs = append(errs, "CORS_ORIGINS is required in production")
 		}
 		if len(c.App.TrustedProxies) == 0 {
 			errs = append(errs, "TRUSTED_PROXIES is required in production for secure IP detection")
@@ -159,12 +147,10 @@ func (c *Config) validate(parseErrs []string) error {
 		if !c.ObjectStorage.UseSSL {
 			errs = append(errs, "OBJECT_STORAGE_USE_SSL must be true in production")
 		}
-		if len(parseErrs) > 0 {
-			errs = append(errs, parseErrs...)
-		}
-	} else if len(parseErrs) > 0 {
-		fmt.Fprintf(os.Stderr, "WARNING: %d config parse error(s) detected (using defaults): %s\n",
-			len(parseErrs), strings.Join(parseErrs, "; "))
+	}
+
+	if len(parseErrs) > 0 {
+		errs = append(errs, parseErrs...)
 	}
 
 	if c.App.Env != "production" && c.App.Env != "development" && !c.Token.CookieSecure {
@@ -188,18 +174,15 @@ func (c *Config) validate(parseErrs []string) error {
 		errs = append(errs, "ZITADEL_PROJECT_ID is required")
 	}
 
-	// OpenFGA 配置校验：只要启用 FGA（StoreID 非空），就必须显式绑定 Model + API URL，
-	// 不再仅限生产环境——staging/dev 的半配置状态会导致授权行为不可复现。
-	if c.OpenFGA.StoreID != "" {
-		if c.OpenFGA.AuthorizationModelID == "" {
-			errs = append(errs, "OPENFGA_MODEL_ID is required when OPENFGA_STORE_ID is set")
-		}
-		if c.OpenFGA.APIUrl == "" {
-			errs = append(errs, "OPENFGA_API_URL is required when OPENFGA_STORE_ID is set")
-		}
+	// OpenFGA 是应用运行时必需依赖，所有环境都需要完整配置。
+	if c.OpenFGA.StoreID == "" {
+		errs = append(errs, "OPENFGA_STORE_ID is required")
 	}
-	if c.App.Env == "production" && c.OpenFGA.StoreID == "" {
-		errs = append(errs, "OPENFGA_STORE_ID is required in production")
+	if c.OpenFGA.AuthorizationModelID == "" {
+		errs = append(errs, "OPENFGA_MODEL_ID is required")
+	}
+	if c.OpenFGA.APIUrl == "" {
+		errs = append(errs, "OPENFGA_API_URL is required")
 	}
 
 	const maxRateLimit = 100000

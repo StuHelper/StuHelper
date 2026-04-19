@@ -22,6 +22,12 @@ tags:
     description: 健康检查
   - name: Auth
     description: 认证与授权
+  - name: Academics
+    description: 教务数据导入与展示
+  - name: Resource
+    description: 校园资源共享
+  - name: Storage
+    description: 存储挂载与驱动管理
   - name: Course
     description: 课程实体
   - name: Review
@@ -73,6 +79,36 @@ paths:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1verify-otp"
   /api/v1/auth/exchange-native:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1exchange-native"
+
+  # ── Academics ──
+  /api/v1/academics/terms:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1terms"
+  /api/v1/academics/offerings:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1offerings"
+  /api/v1/academics/offerings/{offeringID}:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1offerings~1{offeringID}"
+  /api/v1/academics/me/courses:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1me~1courses"
+  /api/v1/academics/me/schedule:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1me~1schedule"
+  /api/v1/admin/academics/sources:
+    $ref: "paths/academics.yaml#/~1api~1v1~1admin~1academics~1sources"
+  /api/v1/admin/academics/import-jobs:
+    $ref: "paths/academics.yaml#/~1api~1v1~1admin~1academics~1import-jobs"
+
+  # ── Resource ──
+  /api/v1/resources:
+    $ref: "paths/resource.yaml#/~1api~1v1~1resources"
+  /api/v1/resources/{resourceID}:
+    $ref: "paths/resource.yaml#/~1api~1v1~1resources~1{resourceID}"
+  /api/v1/resources/{resourceID}/download-url:
+    $ref: "paths/resource.yaml#/~1api~1v1~1resources~1{resourceID}~1download-url"
+
+  # ── Storage ──
+  /api/v1/admin/storage/mounts:
+    $ref: "paths/storage.yaml#/~1api~1v1~1admin~1storage~1mounts"
+  /api/v1/admin/storage/mounts/{mountID}/health-check:
+    $ref: "paths/storage.yaml#/~1api~1v1~1admin~1storage~1mounts~1{mountID}~1health-check"
 
   # ── Course Entity ──
   /api/v1/course/departments:

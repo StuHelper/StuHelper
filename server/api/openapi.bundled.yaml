@@ -19,6 +19,12 @@ tags:
     description: 健康检查
   - name: Auth
     description: 认证与授权
+  - name: Academics
+    description: 教务数据导入与展示
+  - name: Resource
+    description: 校园资源共享
+  - name: Storage
+    description: 存储挂载与驱动管理
   - name: Course
     description: 课程实体
   - name: Review
@@ -286,9 +292,14 @@ paths:
 
         原生 App 请求时，响应额外包含 accessToken 和 refreshToken 字段，
         供客户端更新本地存储。
+        如果 token 来源于 `/api/v1/auth/exchange-native`，客户端还必须在请求头
+        `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID，以便服务端在
+        refresh rotation 时继续追踪同一 session family。
       security:
         - cookieAuth: []
         - {}
+      parameters:
+        - $ref: '#/components/parameters/NativeSessionIDHeader'
       requestBody:
         description: 原生 App 通过请求体传递 refresh token（Web 浏览器通过 cookie 自动携带，无需此字段）
         required: false
@@ -367,9 +378,15 @@ paths:
         - Auth
       operationId: logout
       summary: 登出当前设备
+      description: |
+        浏览器请求通过服务端 `session_id` cookie 定位会话。
+        原生 OIDC 客户端如果没有 `session_id` cookie，必须在请求头
+        `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID。
       security:
         - cookieAuth: []
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NativeSessionIDHeader'
       responses:
         '200':
           description: 登出成功
@@ -581,6 +598,630 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '429':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/academics/terms:
+    get:
+      tags:
+        - Academics
+      operationId: listAcademicTerms
+      summary: 获取教务学期列表
+      security: []
+      responses:
+        '200':
+          description: 学期列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AcademicTerm'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/academics/offerings:
+    get:
+      tags:
+        - Academics
+      operationId: listAcademicOfferings
+      summary: 查询开课列表
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: termCode
+          in: query
+          schema:
+            type: string
+        - name: schoolName
+          in: query
+          schema:
+            type: string
+        - name: departmentName
+          in: query
+          schema:
+            type: string
+        - name: query
+          in: query
+          schema:
+            type: string
+        - name: teacherName
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 开课列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                          - total
+                          - page
+                          - pageSize
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AcademicOffering'
+                          total:
+                            type: integer
+                          page:
+                            type: integer
+                          pageSize:
+                            type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/academics/offerings/{offeringID}:
+    get:
+      tags:
+        - Academics
+      operationId: getAcademicOffering
+      summary: 获取开课详情
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/OfferingIDPath'
+      responses:
+        '200':
+          description: 开课详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AcademicOffering'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/academics/me/courses:
+    get:
+      tags:
+        - Academics
+      operationId: listMyAcademicCourses
+      summary: 获取我的课程
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: termCode
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 我的课程列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AcademicOffering'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/academics/me/schedule:
+    get:
+      tags:
+        - Academics
+      operationId: listMyAcademicSchedule
+      summary: 获取我的课表
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: termCode
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 我的课表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AcademicOffering'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/academics/sources:
+    get:
+      tags:
+        - Academics
+        - Admin
+      operationId: listAcademicSources
+      summary: 管理员查看导入源
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 导入源列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AcademicSource'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/academics/import-jobs:
+    get:
+      tags:
+        - Academics
+        - Admin
+      operationId: listAcademicImportJobs
+      summary: 管理员查看导入作业
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 导入作业列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                          - total
+                          - page
+                          - pageSize
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AcademicImportJob'
+                          total:
+                            type: integer
+                          page:
+                            type: integer
+                          pageSize:
+                            type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Academics
+        - Admin
+      operationId: triggerAcademicImport
+      summary: 管理员触发一次导入
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcademicImportRequest'
+      responses:
+        '201':
+          description: 导入作业创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AcademicImportJob'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/resources:
+    get:
+      tags:
+        - Resource
+      operationId: listResources
+      summary: 查询共享资源列表
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: query
+          in: query
+          schema:
+            type: string
+        - name: tag
+          in: query
+          schema:
+            type: string
+        - name: bindingType
+          in: query
+          schema:
+            type: string
+        - name: bindingValue
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 资源列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                          - total
+                          - page
+                          - pageSize
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ResourceItem'
+                          total:
+                            type: integer
+                          page:
+                            type: integer
+                          pageSize:
+                            type: integer
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Resource
+      operationId: createResource
+      summary: 创建共享资源
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResourceRequest'
+      responses:
+        '201':
+          description: 资源创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceItem'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/resources/{resourceID}:
+    get:
+      tags:
+        - Resource
+      operationId: getResource
+      summary: 获取共享资源详情
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceIDPath'
+      responses:
+        '200':
+          description: 资源详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceItem'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags:
+        - Resource
+      operationId: updateResource
+      summary: 更新共享资源元数据
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceIDPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateResourceRequest'
+      responses:
+        '200':
+          description: 更新后的资源详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceItem'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags:
+        - Resource
+      operationId: deleteResource
+      summary: 删除共享资源
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceIDPath'
+      responses:
+        '200':
+          description: 删除结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/resources/{resourceID}/download-url:
+    get:
+      tags:
+        - Resource
+      operationId: getResourceDownloadURL
+      summary: 获取共享资源下载链接
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceIDPath'
+      responses:
+        '200':
+          description: 下载链接
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceDownloadURL'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/storage/mounts:
+    get:
+      tags:
+        - Storage
+        - Admin
+      operationId: listStorageMounts
+      summary: 管理员查看存储挂载点
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 存储挂载点列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/StorageMount'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Storage
+        - Admin
+      operationId: createStorageMount
+      summary: 管理员创建存储挂载点
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStorageMountRequest'
+      responses:
+        '201':
+          description: 存储挂载点创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StorageMount'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/storage/mounts/{mountID}/health-check:
+    post:
+      tags:
+        - Storage
+        - Admin
+      operationId: checkStorageMountHealth
+      summary: 管理员触发挂载点健康检查
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MountIDPath'
+      responses:
+        '200':
+          description: 健康检查结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StorageMount'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/departments:
     get:
@@ -5465,6 +6106,397 @@ components:
             type: string
         global:
           type: boolean
+    AcademicTerm:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - isCurrent
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        isCurrent:
+          type: boolean
+    AcademicScheduleSlot:
+      type: object
+      required:
+        - weekday
+        - startPeriod
+        - endPeriod
+        - location
+        - weeksText
+      properties:
+        weekday:
+          type: integer
+        startPeriod:
+          type: integer
+        endPeriod:
+          type: integer
+        location:
+          type: string
+        building:
+          type: string
+        weeksText:
+          type: string
+    AcademicOffering:
+      type: object
+      required:
+        - id
+        - termCode
+        - termName
+        - courseCode
+        - courseName
+        - sectionCode
+        - teacherNames
+      properties:
+        id:
+          type: integer
+          format: int64
+        termCode:
+          type: string
+        termName:
+          type: string
+        courseCode:
+          type: string
+        courseName:
+          type: string
+        sectionCode:
+          type: string
+        schoolName:
+          type: string
+        departmentName:
+          type: string
+        campus:
+          type: string
+        teacherNames:
+          type: array
+          items:
+            type: string
+        schedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/AcademicScheduleSlot'
+    AcademicSource:
+      type: object
+      required:
+        - id
+        - key
+        - name
+        - provider
+        - enabled
+      properties:
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+        enabled:
+          type: boolean
+    AcademicImportJob:
+      type: object
+      required:
+        - id
+        - sourceKey
+        - sourceName
+        - provider
+        - status
+        - triggerMode
+        - stats
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        sourceKey:
+          type: string
+        sourceName:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - running
+            - succeeded
+            - failed
+        triggerMode:
+          type: string
+        requestedByUserID:
+          type: string
+        stats:
+          type: object
+          additionalProperties: true
+        errorMessage:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    AcademicImportRequest:
+      type: object
+      required:
+        - sourceKey
+      properties:
+        sourceKey:
+          type: string
+    ResourceBinding:
+      type: object
+      required:
+        - type
+        - value
+      properties:
+        type:
+          type: string
+        value:
+          type: string
+    ResourceVersion:
+      type: object
+      required:
+        - id
+        - versionNo
+        - mountID
+        - objectKey
+        - filename
+        - contentType
+        - sizeBytes
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        versionNo:
+          type: integer
+        mountID:
+          type: integer
+          format: int64
+        objectKey:
+          type: string
+        filename:
+          type: string
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    ResourceItem:
+      type: object
+      required:
+        - id
+        - title
+        - visibility
+        - tags
+        - bindings
+        - latestVersion
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        ownerUserID:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        tags:
+          type: array
+          items:
+            type: string
+        bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceBinding'
+        latestVersion:
+          $ref: '#/components/schemas/ResourceVersion'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateResourceRequest:
+      type: object
+      required:
+        - title
+        - visibility
+        - tags
+        - bindings
+        - filename
+        - contentType
+        - dataBase64
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        tags:
+          type: array
+          items:
+            type: string
+        bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceBinding'
+        filename:
+          type: string
+        contentType:
+          type: string
+        dataBase64:
+          type: string
+          description: 文件 base64 内容，支持标准 Base64 或 data URL 形式
+        mountKey:
+          type: string
+    UpdateResourceRequest:
+      type: object
+      required:
+        - title
+        - visibility
+        - tags
+        - bindings
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        tags:
+          type: array
+          items:
+            type: string
+        bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceBinding'
+    ResourceDownloadURL:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+    StorageCapabilitySet:
+      type: object
+      required:
+        - put
+        - delete
+        - stat
+        - presignedDownload
+      properties:
+        put:
+          type: boolean
+        delete:
+          type: boolean
+        stat:
+          type: boolean
+        presignedDownload:
+          type: boolean
+    StorageMount:
+      type: object
+      required:
+        - id
+        - key
+        - name
+        - driver
+        - basePath
+        - credentialSource
+        - enabled
+        - capabilities
+      properties:
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+        name:
+          type: string
+        driver:
+          type: string
+        bucket:
+          type: string
+        basePath:
+          type: string
+        credentialSource:
+          type: string
+        enabled:
+          type: boolean
+        lastHealthStatus:
+          type: string
+        lastHealthError:
+          type: string
+        lastHealthCheckedAt:
+          type: string
+          format: date-time
+        capabilities:
+          $ref: '#/components/schemas/StorageCapabilitySet'
+    CreateStorageMountRequest:
+      type: object
+      required:
+        - key
+        - name
+        - driver
+        - basePath
+        - enabled
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        driver:
+          type: string
+          description: 当前已实现 `s3` 驱动；未来可扩展 openlist-like 家族
+        bucket:
+          type: string
+        basePath:
+          type: string
+        enabled:
+          type: boolean
     NotificationType:
       type: string
       enum:
@@ -5780,3 +6812,34 @@ components:
       schema:
         type: string
         format: uuid
+    NativeSessionIDHeader:
+      name: X-Stuhelper-Session-ID
+      in: header
+      required: false
+      description: 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪
+      schema:
+        type: string
+    OfferingIDPath:
+      name: offeringID
+      in: path
+      required: true
+      description: 开课实例 ID
+      schema:
+        type: integer
+        format: int64
+    ResourceIDPath:
+      name: resourceID
+      in: path
+      required: true
+      description: 资源 ID
+      schema:
+        type: integer
+        format: int64
+    MountIDPath:
+      name: mountID
+      in: path
+      required: true
+      description: 存储挂载点 ID
+      schema:
+        type: integer
+        format: int64

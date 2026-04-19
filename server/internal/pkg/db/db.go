@@ -55,6 +55,7 @@ type DB struct {
 	timeout   time.Duration
 	stopCh    chan struct{}
 	closeOnce sync.Once
+	wg        sync.WaitGroup
 }
 
 // NewDB 创建带超时的数据库封装
@@ -64,7 +65,11 @@ func NewDB(pool *pgxpool.Pool, timeout time.Duration) *DB {
 		timeout: timeout,
 		stopCh:  make(chan struct{}),
 	}
-	go d.collectPoolMetrics()
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		d.collectPoolMetrics()
+	}()
 	return d
 }
 
@@ -244,6 +249,7 @@ func (d *DB) Ping(ctx context.Context) error {
 func (d *DB) Close() {
 	d.closeOnce.Do(func() {
 		close(d.stopCh)
+		d.wg.Wait()
 		d.pool.Close()
 	})
 }

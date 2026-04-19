@@ -38,7 +38,8 @@ async function fetchData() {
     const data = await getStudentVerificationList(query);
     items.value = data.items;
     total.value = data.total;
-  } catch (_error) { void _error;
+  } catch (_error) {
+    void _error;
     items.value = [];
     total.value = 0;
   } finally {
@@ -55,8 +56,9 @@ async function handleReview(userId: number, approved: boolean) {
   try {
     await reviewStudentVerification(userId, { approved });
     await fetchData();
-  } catch (_error) { void _error;
-    // unwrapData already displays a toast for failed mutations.
+  } catch (_error) {
+    void _error;
+    // 失败提示已由 unwrapData 统一处理。
   } finally {
     actionLoading.value = false;
   }

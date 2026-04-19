@@ -62,9 +62,6 @@ func (rt *Runtime) serve(router *gin.Engine) error {
 		logger.L().Info("HTTP server stopped gracefully")
 	}
 
-	if rt.bgCancel != nil {
-		rt.bgCancel()
-	}
 	rt.runCleanups()
 	logger.L().Info("All resources released, server exited")
 	return serverStartErr

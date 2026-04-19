@@ -473,7 +473,7 @@ async function handleSearch() {
   if (!validateForm()) return
   if (searching.value) return
 
-  // Cancel any in-flight request
+  // 新搜索开始前取消上一次未完成请求
   if (abortController) {
     abortController.abort()
   }
@@ -487,7 +487,7 @@ async function handleSearch() {
   searchError.value = ''
 
   try {
-    // Build search queries from form
+    // 根据表单内容构造课程与评测查询条件
     const courseQuery = form.courseName.trim() || form.courseCode.trim()
 
     const coursePromise = courseQuery

@@ -1,0 +1,198 @@
+/api/v1/resources:
+  get:
+    tags: [Resource]
+    operationId: listResources
+    summary: 查询共享资源列表
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+      - name: query
+        in: query
+        schema:
+          type: string
+      - name: tag
+        in: query
+        schema:
+          type: string
+      - name: bindingType
+        in: query
+        schema:
+          type: string
+      - name: bindingValue
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 资源列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [items, total, page, pageSize]
+                      properties:
+                        items:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/resource.yaml#/ResourceItem'
+                        total:
+                          type: integer
+                        page:
+                          type: integer
+                        pageSize:
+                          type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Resource]
+    operationId: createResource
+    summary: 创建共享资源
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/resource.yaml#/CreateResourceRequest'
+    responses:
+      '201':
+        description: 资源创建成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/resource.yaml#/ResourceItem'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/resources/{resourceID}:
+  get:
+    tags: [Resource]
+    operationId: getResource
+    summary: 获取共享资源详情
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ResourceIDPath'
+    responses:
+      '200':
+        description: 资源详情
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/resource.yaml#/ResourceItem'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  patch:
+    tags: [Resource]
+    operationId: updateResource
+    summary: 更新共享资源元数据
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ResourceIDPath'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/resource.yaml#/UpdateResourceRequest'
+    responses:
+      '200':
+        description: 更新后的资源详情
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/resource.yaml#/ResourceItem'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  delete:
+    tags: [Resource]
+    operationId: deleteResource
+    summary: 删除共享资源
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ResourceIDPath'
+    responses:
+      '200':
+        description: 删除结果
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/resources/{resourceID}/download-url:
+  get:
+    tags: [Resource]
+    operationId: getResourceDownloadURL
+    summary: 获取共享资源下载链接
+    security: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/ResourceIDPath'
+    responses:
+      '200':
+        description: 下载链接
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/resource.yaml#/ResourceDownloadURL'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

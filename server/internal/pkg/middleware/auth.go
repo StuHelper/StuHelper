@@ -219,7 +219,7 @@ func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service
 			c.Next()
 
 		default:
-			// invalid/expired token
+			// token 无效或已过期
 			if source == tokenSourceBearer {
 				response.Unauthorized(c, "invalid or expired token", errs.ErrTokenInvalid)
 				c.Abort()
@@ -229,6 +229,21 @@ func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service
 			clearAuthCookies(c, cfg)
 			c.Next()
 		}
+	}
+}
+
+// RequireHealthyOptionalAuth 在 optional auth 之后执行。
+// 如果请求携带了认证态，但认证后端故障导致无法可靠判定身份，则返回 503，
+// 避免业务路由把真实故障静默降级成匿名访问。
+func RequireHealthyOptionalAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !c.GetBool(CtxKeyAuthBackendFailure) {
+			c.Next()
+			return
+		}
+
+		response.ServiceUnavailable(c, "authentication service temporarily unavailable", errs.ErrServiceUnavailable)
+		c.Abort()
 	}
 }
 
@@ -382,8 +397,8 @@ func IsAuthenticated(c *gin.Context) bool {
 // GetAccessToken 从请求中提取 access token（优先级：Authorization Header > Cookie）。
 // 用于 Logout 等需要获取当前 token 原始值的场景。
 func GetAccessToken(c *gin.Context) string {
-	token, _ := getTokenWithSource(c)
-	return token
+	accessToken, _ := getTokenWithSource(c)
+	return accessToken
 }
 
 // getContextString 从上下文获取字符串值

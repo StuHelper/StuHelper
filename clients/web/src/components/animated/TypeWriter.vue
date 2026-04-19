@@ -18,7 +18,7 @@ let intervalId: number | undefined
 let currentIndex = 0
 
 function startTyping(text: string) {
-  // Skip animation when user prefers reduced motion
+  // 用户偏好减少动态效果时，直接展示完整文本
   if (prefersReducedMotion.value) {
     displayedText.value = text
     return
@@ -39,7 +39,7 @@ function startTyping(text: string) {
   }, props.speed)
 }
 
-// React to text prop changes by restarting the typing animation
+// 文本变化后重新开始逐字动画
 watch(() => props.text, (newText) => {
   if (intervalId !== undefined) {
     clearInterval(intervalId)
@@ -48,7 +48,7 @@ watch(() => props.text, (newText) => {
   startTyping(newText)
 })
 
-// React to reduced motion preference changes
+// 系统动态效果偏好变化后立即同步展示状态
 watch(prefersReducedMotion, (reduced) => {
   if (reduced) {
     if (intervalId !== undefined) {

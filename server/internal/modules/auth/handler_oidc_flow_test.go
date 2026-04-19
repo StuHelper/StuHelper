@@ -221,6 +221,78 @@ func TestRefreshZitadelToken_Success(t *testing.T) {
 	assert.NotEmpty(t, session.RefreshTokenHash)
 }
 
+func TestRefreshToken_NativeOIDCUsesSessionHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	ctx := context.Background()
+
+	_, err := h.svc.CreateSession(ctx, "sid-native-oidc-refresh", "oidc-user-1", "old-access-token", "old-refresh-token", "oidc-native", "ios")
+	require.NoError(t, err)
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	body := bytes.NewBufferString(`{"refreshToken":"old-refresh-token"}`)
+	req := httptest.NewRequest(http.MethodPost, "/refresh", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(nativeSessionIDHeader, "sid-native-oidc-refresh")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "accessToken")
+	assert.Contains(t, w.Body.String(), "refreshToken")
+
+	session, err := h.tokenService.GetSessionStore().Get(ctx, "sid-native-oidc-refresh")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, "sid-native-oidc-refresh", session.SessionID)
+	assert.NotEmpty(t, session.RefreshTokenHash)
+}
+
+func TestRefreshToken_NativeOIDCRequiresTrackedSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	ctx := context.Background()
+
+	_, err := h.svc.CreateSession(ctx, "sid-native-oidc-refresh", "oidc-user-1", "old-access-token", "old-refresh-token", "oidc-native", "ios")
+	require.NoError(t, err)
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	t.Run("missing session header is rejected before rotation", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"refreshToken":"old-refresh-token"}`)
+		req := httptest.NewRequest(http.MethodPost, "/refresh", body)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), "missing native session id")
+
+		blacklisted, blErr := h.tokenService.GetBlacklist().IsBlacklisted(ctx, "old-refresh-token")
+		require.NoError(t, blErr)
+		assert.False(t, blacklisted)
+	})
+
+	t.Run("unknown session header is rejected before oidc refresh", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"refreshToken":"old-refresh-token"}`)
+		req := httptest.NewRequest(http.MethodPost, "/refresh", body)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(nativeSessionIDHeader, "sid-does-not-exist")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), "invalid native session id")
+
+		blacklisted, blErr := h.tokenService.GetBlacklist().IsBlacklisted(ctx, "old-refresh-token")
+		require.NoError(t, blErr)
+		assert.False(t, blacklisted)
+	})
+}
+
 func TestExchangeNative_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})

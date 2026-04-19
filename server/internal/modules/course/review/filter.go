@@ -55,17 +55,14 @@ func NewFilter(repo *Repository) *Filter {
 // buildMatcher 根据词内容构建匹配器：纯 ASCII 英文词使用 \b 词边界正则，其他使用子串匹配
 func buildMatcher(word string) wordMatcher {
 	lowerWord := strings.ToLower(word)
-	if isASCIIWord(lowerWord) {
-		// 英文词使用 \b 词边界，避免 "ass" 匹配 "class"/"assignment"
-		re, err := regexp.Compile(`(?i)\b` + regexp.QuoteMeta(lowerWord) + `\b`)
-		if err == nil {
-			return wordMatcher{word: lowerWord, regex: re}
-		}
-		// 正则编译失败时降级为子串匹配
-		logger.L().Warn("failed to compile word boundary regex, falling back to substring match",
-			zap.String("word", lowerWord), zap.Error(err))
+	if !isASCIIWord(lowerWord) {
+		return wordMatcher{word: lowerWord}
 	}
-	return wordMatcher{word: lowerWord}
+	// 模式完全由固定前缀和 QuoteMeta 输出组成，这里应始终可编译。
+	return wordMatcher{
+		word:  lowerWord,
+		regex: regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(lowerWord) + `\b`),
+	}
 }
 
 // Refresh 刷新敏感词列表

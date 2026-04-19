@@ -30,8 +30,7 @@ const (
 	ReviewListBrief = "review:list:brief"
 )
 
-// RoleCapabilities 角色 → 能力静态映射。
-// 这是权限模型的核心配置，修改需要 code review。
+// RoleCapabilities 角色到能力的静态映射。
 var roleCapabilities = map[string][]string{
 	"super_admin": {
 		AdminDashboardView, AdminReviewsManage, AdminReportsManage,

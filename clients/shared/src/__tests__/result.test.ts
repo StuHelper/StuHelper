@@ -32,6 +32,14 @@ describe("shared api result helpers", () => {
             list: [{ id: 1 }],
             total: 1,
         });
+        expect(
+            extractResultList({
+                data: { data: { items: [{ id: 2 }], total: 1 } },
+            }),
+        ).toEqual({
+            list: [{ id: 2 }],
+            total: 1,
+        });
     });
 
     it("marks failure on http errors, transport errors, or explicit success=false", () => {

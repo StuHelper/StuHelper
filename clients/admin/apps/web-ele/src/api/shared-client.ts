@@ -1,4 +1,12 @@
-import type { ApiCallResult, ApiEnvelope } from './shared-result'
+import type {
+  HttpMethod,
+  RefreshSessionData,
+  RequestInitShape,
+} from '@stuhelper/shared/api';
+
+import type { ApiCallResult, ApiEnvelope } from './shared-result';
+
+import { preferences } from '@vben/preferences';
 
 import {
   AUTH_REFRESH_PATH,
@@ -7,31 +15,34 @@ import {
   executeSessionRefresh,
   normalizeSchemaPath,
   serializePath,
-  type HttpMethod,
-  type RefreshSessionData,
-  type RequestInitShape,
-} from '@stuhelper/shared/api'
-import { preferences } from '@vben/preferences'
+} from '@stuhelper/shared/api';
 
-import { baseRequestClient } from '#/api/request'
-import {
-  CSRF_COOKIE_NAME,
-  readCookie,
-} from '#/api/utils/csrf'
+import { baseRequestClient } from '#/api/request';
+import { CSRF_COOKIE_NAME, readCookie } from '#/api/utils/csrf';
 
 type TransportError = {
   response?: {
-    data?: unknown
-    status?: number
-  }
-}
+    data?: unknown;
+    status?: number;
+  };
+};
 
 function logAdminAuthWarning(
   event: string,
   error: unknown,
   extra?: Record<string, unknown>,
 ) {
-  console.warn('[admin-auth]', event, extra ?? {}, error)
+  console.warn('[admin-auth]', event, extra ?? {}, error);
+}
+
+function normalizeAdminAuthError(
+  error: unknown,
+  fallbackMessage: string,
+): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(fallbackMessage);
 }
 
 function withSecurityHeaders(
@@ -41,7 +52,7 @@ function withSecurityHeaders(
   return buildSecurityHeaders(method, headers, {
     acceptLanguage: preferences.app.locale,
     csrfToken: readCookie(CSRF_COOKIE_NAME),
-  })
+  });
 }
 
 function serializeSchemaPath(
@@ -51,19 +62,19 @@ function serializeSchemaPath(
   return serializePath(
     normalizeSchemaPath(baseRequestClient.getBaseUrl() ?? '', schemaPath),
     pathParams,
-  )
+  );
 }
 
 async function redirectToOIDCLogin() {
   if (typeof window === 'undefined') {
-    return
+    return;
   }
 
   try {
-    const { resetAllStores } = await import('@vben/stores')
-    resetAllStores()
+    const { resetAllStores } = await import('@vben/stores');
+    resetAllStores();
   } catch (error) {
-    logAdminAuthWarning('resetAllStores failed during forced re-auth', error)
+    logAdminAuthWarning('resetAllStores failed during forced re-auth', error);
   }
 
   try {
@@ -77,13 +88,15 @@ async function redirectToOIDCLogin() {
       },
       url: serializeSchemaPath('/api/v1/auth/login'),
       withCredentials: true,
-    })
+    });
 
-    const url = response.data?.data?.url
+    const url = response.data?.data?.url;
     if (url) {
-      window.location.replace(url)
-      return
+      window.location.replace(url);
+      return;
     }
+
+    throw new Error('forced reauthentication login URL is missing');
   } catch (error) {
     logAdminAuthWarning(
       'failed to fetch OIDC login URL during forced re-auth',
@@ -91,10 +104,12 @@ async function redirectToOIDCLogin() {
       {
         redirect: window.location.href,
       },
-    )
+    );
+    throw normalizeAdminAuthError(
+      error,
+      'forced reauthentication failed',
+    );
   }
-
-  window.location.replace('/admin/')
 }
 
 async function doRequest<T>(
@@ -114,22 +129,22 @@ async function doRequest<T>(
       signal: init?.signal,
       url: serializeSchemaPath(schemaPath, init?.params?.path),
       withCredentials: true,
-    })
+    });
 
     return {
       data: response.data,
       response: {
         status: response.status,
       },
-    }
+    };
   } catch (error) {
-    const responseError = error as TransportError
+    const responseError = error as TransportError;
     return {
       error: responseError.response?.data ?? error,
       response: {
         status: responseError.response?.status,
       },
-    }
+    };
   }
 }
 
@@ -140,21 +155,24 @@ async function refreshSession() {
         params: { header: {} },
         ...init,
       }),
-  })
+  });
 }
 
 const adminSessionTransport = {
   onUnauthorized: redirectToOIDCLogin,
   refresh: refreshSession,
   request: doRequest,
-}
+};
 
 export const sharedApiClient = createSessionApiClient(adminSessionTransport, {
   enableRefresh: true,
   reauthenticateOnUnauthorized: true,
-})
+});
 
-export const sharedBaseApiClient = createSessionApiClient(adminSessionTransport, {
-  enableRefresh: false,
-  reauthenticateOnUnauthorized: false,
-})
+export const sharedBaseApiClient = createSessionApiClient(
+  adminSessionTransport,
+  {
+    enableRefresh: false,
+    reauthenticateOnUnauthorized: false,
+  },
+);

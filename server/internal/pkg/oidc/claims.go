@@ -104,7 +104,7 @@ func ParseRolesFromRaw(rawJSON []byte, projectID string) ([]string, map[string][
 		// 宽容：允许值为 map[orgID]any（非字符串 domain）
 		var fallback map[string]map[string]any
 		if fbErr := json.Unmarshal(roleData, &fallback); fbErr != nil {
-			return nil, nil, fmt.Errorf("unmarshal roles claim %q: %w", claimKey, err)
+			return nil, nil, fmt.Errorf("unmarshal roles claim %q: %w", claimKey, fbErr)
 		}
 		roleMap = make(map[string]map[string]string, len(fallback))
 		for roleName, orgs := range fallback {

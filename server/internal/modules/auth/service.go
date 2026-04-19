@@ -91,10 +91,8 @@ func (s *Service) CreateSession(ctx context.Context, sessionID, userID, accessTo
 // 任何步骤失败都返回 error——若静默吞错，过期 hash 会覆盖 session 中
 // 已经轮换的值，黑名单失去对旧 token 的追踪（安全退化）。
 //
-// sessionID 为空时（例如原生 OIDC 刷新——ID Token 不携带自定义 sid claim、
-// 客户端亦无 cookie），只做黑名单，不做 session touch 并记录一次 warn。
-// 这是原生 OIDC 流程的已知缺口：session store 中该 session 的 token hash
-// 不会更新。生产修复应让 exchange-native 返回 sid 并在 refresh 时回传。
+// sessionID 为空时直接失败。调用方必须先定位到被追踪的 session family，
+// 否则 refresh 不能继续签发“不受 session store 跟踪”的新 token。
 func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefreshToken, newAccessToken, newRefreshToken string) error {
 	// 黑名单旧 refresh token（强制执行，失败即返回）
 	if blErr := s.tokenService.GetBlacklist().Add(ctx, oldRefreshToken, s.tokenService.GetRefreshTokenTTL()); blErr != nil {
@@ -102,10 +100,7 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 	}
 
 	if sessionID == "" {
-		logger.L().Warn("rotate session: missing sessionID, token tracking limited (likely native OIDC refresh without sid propagation)",
-			zap.String("user_id", userID),
-		)
-		return nil
+		return fmt.Errorf("rotate session: sessionID is required")
 	}
 
 	newAccessHash, err := hashTokenForSession(newAccessToken)

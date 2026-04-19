@@ -14,9 +14,9 @@ const authStore = useAuthStore();
 
 const isForbidden = computed(() => route.query.error === 'forbidden');
 
-// After OIDC completes, always land on an actual admin route (never back
-// to /auth/login) so the guard runs initSession() and evaluates access.
-// Respect ?redirect= from deep links; fall back to admin home.
+// OIDC 完成后必须落到真实后台路由，不能回到 /auth/login，
+// 这样守卫才能执行 initSession() 并重新判断权限。
+// 优先使用深链传入的 ?redirect=，否则回到后台首页。
 const postLoginPath = computed(
   () => (route.query.redirect as string) || preferences.app.defaultHomePath,
 );
@@ -28,9 +28,12 @@ onMounted(async () => {
 });
 
 async function handleTryDifferentAccount() {
-  // Clear the existing forbidden session cookie first, then re-authenticate.
-  // Redirect to admin home — the guard will evaluate the new session.
-  await authStore.logout(false);
+  // 先清掉当前被拒绝的会话，再重新发起登录。
+  try {
+    await authStore.logout(false);
+  } catch {
+    return;
+  }
   await authStore.redirectToLogin(preferences.app.defaultHomePath);
 }
 </script>

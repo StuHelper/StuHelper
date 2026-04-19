@@ -50,7 +50,8 @@ async function handleAction(
   try {
     await processReport(reportId, { action });
     await fetchData();
-  } catch (_error) { void _error;
+  } catch (_error) {
+    void _error;
     // unwrapData already displays a toast for failed mutations.
   } finally {
     actionLoading.value = false;

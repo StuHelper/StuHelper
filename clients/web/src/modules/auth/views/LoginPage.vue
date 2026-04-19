@@ -8,7 +8,7 @@
       <h1 class="font-sans text-2xl font-extrabold tracking-tight m-0 mb-2 gradient-text">StuHelper</h1>
       <p class="text-text-muted mb-6 text-sm leading-relaxed">{{ $t('common.login.subtitle') }}</p>
 
-      <!-- Tab 切换 -->
+      <!-- 登录方式切换 -->
       <div class="flex border-b border-border mb-6">
         <button
           v-for="tab in tabs"
@@ -69,7 +69,7 @@
         <p class="mt-2 text-text-muted text-xs">{{ $t('common.login.phoneHint') }}</p>
       </div>
 
-      <!-- SSO 登录 -->
+      <!-- 单点登录 -->
       <div v-else class="flex flex-col gap-3">
         <button
           v-ripple
@@ -110,14 +110,14 @@ const router = useRouter();
 const authStore = useAuthStore();
 const { loading } = storeToRefs(authStore);
 
-// Tab state
+// 当前登录方式
 const activeTab = ref<"phone" | "sso">("phone");
 const tabs = computed(() => [
     { key: "phone" as const, label: t("common.login.phoneLogin") },
     { key: "sso" as const, label: t("common.login.ssoLogin") },
 ]);
 
-// Phone login state
+// 手机验证码登录表单状态
 const phone = ref("");
 const otpCode = ref("");
 const cooldown = ref(0);
@@ -210,7 +210,7 @@ const handlePhoneLogin = async () => {
     }
 };
 
-// SSO login helpers
+// 单点登录跳转辅助逻辑
 const getRedirectTarget = (): string | undefined => {
     const redirect = sanitizeInternalRedirect(
         typeof route.query.redirect === "string" ? route.query.redirect : undefined,

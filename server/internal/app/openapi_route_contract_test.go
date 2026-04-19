@@ -11,10 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apigen "git.stuhelper.com/StuHelper/StuHelper/internal/api/gen"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/academics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	reviewmodule "git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/health"
@@ -38,6 +41,15 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 
 	notificationHandler := &notification.Handler{}
 	notificationHandler.RegisterRoutes(api, noOp)
+
+	academicsHandler := &academics.Handler{}
+	academicsHandler.RegisterRoutes(api, noOp)
+
+	resourceHandler := &resource.Handler{}
+	resourceHandler.RegisterRoutes(api, noOp, noOp)
+
+	storageHandler := &storage.Handler{}
+	storageHandler.RegisterAdminRoutes(api, noOp)
 
 	courseHandler := course.NewHandler(&cache.Helper{}, &course.Service{}, &reviewmodule.Handler{})
 	courseHandler.RegisterRoutes(api, noOp, noOp)

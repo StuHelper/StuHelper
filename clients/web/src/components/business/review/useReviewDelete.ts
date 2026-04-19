@@ -1,7 +1,5 @@
 /**
- * Composable: delete handling for a review card
- *
- * Manages deletion state and emits the deleted review id on success.
+ * 管理单条评测的删除流程。
  */
 import { ref } from 'vue'
 import type { Review } from '@stuhelper/shared/review'

@@ -117,6 +117,9 @@ export interface paths {
          *
          *     原生 App 请求时，响应额外包含 accessToken 和 refreshToken 字段，
          *     供客户端更新本地存储。
+         *     如果 token 来源于 `/api/v1/auth/exchange-native`，客户端还必须在请求头
+         *     `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID，以便服务端在
+         *     refresh rotation 时继续追踪同一 session family。
          */
         post: operations["refreshToken"];
         delete?: never;
@@ -151,7 +154,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 登出当前设备 */
+        /**
+         * 登出当前设备
+         * @description 浏览器请求通过服务端 `session_id` cookie 定位会话。
+         *     原生 OIDC 客户端如果没有 `session_id` cookie，必须在请求头
+         *     `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID。
+         */
         post: operations["logout"];
         delete?: never;
         options?: never;
@@ -226,6 +234,215 @@ export interface paths {
          *     PKCE `code_verifier` 只保存在服务端 Redis，并随 state 一次性消费，客户端无需传递。
          */
         post: operations["exchangeNative"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取教务学期列表 */
+        get: operations["listAcademicTerms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/offerings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询开课列表 */
+        get: operations["listAcademicOfferings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/offerings/{offeringID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取开课详情 */
+        get: operations["getAcademicOffering"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/me/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取我的课程 */
+        get: operations["listMyAcademicCourses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/me/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取我的课表 */
+        get: operations["listMyAcademicSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/academics/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管理员查看导入源 */
+        get: operations["listAcademicSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/academics/import-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管理员查看导入作业 */
+        get: operations["listAcademicImportJobs"];
+        put?: never;
+        /** 管理员触发一次导入 */
+        post: operations["triggerAcademicImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询共享资源列表 */
+        get: operations["listResources"];
+        put?: never;
+        /** 创建共享资源 */
+        post: operations["createResource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/resources/{resourceID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取共享资源详情 */
+        get: operations["getResource"];
+        put?: never;
+        post?: never;
+        /** 删除共享资源 */
+        delete: operations["deleteResource"];
+        options?: never;
+        head?: never;
+        /** 更新共享资源元数据 */
+        patch: operations["updateResource"];
+        trace?: never;
+    };
+    "/api/v1/resources/{resourceID}/download-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取共享资源下载链接 */
+        get: operations["getResourceDownloadURL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/storage/mounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管理员查看存储挂载点 */
+        get: operations["listStorageMounts"];
+        put?: never;
+        /** 管理员创建存储挂载点 */
+        post: operations["createStorageMount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/storage/mounts/{mountID}/health-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 管理员触发挂载点健康检查 */
+        post: operations["checkStorageMountHealth"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2159,6 +2376,164 @@ export interface components {
             scopeRoles?: string[];
             global: boolean;
         };
+        AcademicTerm: {
+            /** Format: int64 */
+            id: number;
+            code: string;
+            name: string;
+            /** Format: date */
+            startDate?: string;
+            /** Format: date */
+            endDate?: string;
+            isCurrent: boolean;
+        };
+        AcademicScheduleSlot: {
+            weekday: number;
+            startPeriod: number;
+            endPeriod: number;
+            location: string;
+            building?: string;
+            weeksText: string;
+        };
+        AcademicOffering: {
+            /** Format: int64 */
+            id: number;
+            termCode: string;
+            termName: string;
+            courseCode: string;
+            courseName: string;
+            sectionCode: string;
+            schoolName?: string;
+            departmentName?: string;
+            campus?: string;
+            teacherNames: string[];
+            schedules?: components["schemas"]["AcademicScheduleSlot"][];
+        };
+        AcademicSource: {
+            /** Format: int64 */
+            id: number;
+            key: string;
+            name: string;
+            provider: string;
+            enabled: boolean;
+        };
+        AcademicImportJob: {
+            /** Format: int64 */
+            id: number;
+            sourceKey: string;
+            sourceName: string;
+            provider: string;
+            /** @enum {string} */
+            status: "pending" | "running" | "succeeded" | "failed";
+            triggerMode: string;
+            requestedByUserID?: string;
+            stats: {
+                [key: string]: unknown;
+            };
+            errorMessage?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            finishedAt?: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AcademicImportRequest: {
+            sourceKey: string;
+        };
+        ResourceBinding: {
+            type: string;
+            value: string;
+        };
+        ResourceVersion: {
+            /** Format: int64 */
+            id: number;
+            versionNo: number;
+            /** Format: int64 */
+            mountID: number;
+            objectKey: string;
+            filename: string;
+            contentType: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ResourceItem: {
+            /** Format: int64 */
+            id: number;
+            ownerUserID?: string;
+            title: string;
+            description?: string;
+            category?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            tags: string[];
+            bindings: components["schemas"]["ResourceBinding"][];
+            latestVersion: components["schemas"]["ResourceVersion"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateResourceRequest: {
+            title: string;
+            description?: string;
+            category?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            tags: string[];
+            bindings: components["schemas"]["ResourceBinding"][];
+            filename: string;
+            contentType: string;
+            /** @description 文件 base64 内容，支持标准 Base64 或 data URL 形式 */
+            dataBase64: string;
+            mountKey?: string;
+        };
+        UpdateResourceRequest: {
+            title: string;
+            description?: string;
+            category?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            tags: string[];
+            bindings: components["schemas"]["ResourceBinding"][];
+        };
+        ResourceDownloadURL: {
+            /** Format: uri */
+            url: string;
+        };
+        StorageCapabilitySet: {
+            put: boolean;
+            delete: boolean;
+            stat: boolean;
+            presignedDownload: boolean;
+        };
+        StorageMount: {
+            /** Format: int64 */
+            id: number;
+            key: string;
+            name: string;
+            driver: string;
+            bucket?: string;
+            basePath: string;
+            credentialSource: string;
+            enabled: boolean;
+            lastHealthStatus?: string;
+            lastHealthError?: string;
+            /** Format: date-time */
+            lastHealthCheckedAt?: string;
+            capabilities: components["schemas"]["StorageCapabilitySet"];
+        };
+        CreateStorageMountRequest: {
+            key: string;
+            name: string;
+            /** @description 当前已实现 `s3` 驱动；未来可扩展 openlist-like 家族 */
+            driver: string;
+            bucket?: string;
+            basePath: string;
+            enabled: boolean;
+        };
         /** @enum {string} */
         NotificationType: "reply" | "like" | "vote" | "review_hidden" | "review_restored" | "report_resolved" | "identity_approved" | "identity_rejected" | "student_approved" | "student_rejected" | "system";
         NotificationPayload: {
@@ -2281,6 +2656,14 @@ export interface components {
         ReportIDPath: string;
         /** @description 敏感词 ID */
         SensitiveWordIDPath: string;
+        /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
+        NativeSessionIDHeader: string;
+        /** @description 开课实例 ID */
+        OfferingIDPath: number;
+        /** @description 资源 ID */
+        ResourceIDPath: number;
+        /** @description 存储挂载点 ID */
+        MountIDPath: number;
     };
     requestBodies: never;
     headers: never;
@@ -2472,7 +2855,10 @@ export interface operations {
     refreshToken: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
+                "X-Stuhelper-Session-ID"?: components["parameters"]["NativeSessionIDHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2536,7 +2922,10 @@ export interface operations {
     logout: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
+                "X-Stuhelper-Session-ID"?: components["parameters"]["NativeSessionIDHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2693,6 +3082,502 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAcademicTerms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 学期列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicTerm"][];
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAcademicOfferings: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+                termCode?: string;
+                schoolName?: string;
+                departmentName?: string;
+                query?: string;
+                teacherName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 开课列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicOffering"][];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAcademicOffering: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 开课实例 ID */
+                offeringID: components["parameters"]["OfferingIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 开课详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AcademicOffering"];
+                    };
+                };
+            };
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    listMyAcademicCourses: {
+        parameters: {
+            query?: {
+                termCode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 我的课程列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicOffering"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listMyAcademicSchedule: {
+        parameters: {
+            query?: {
+                termCode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 我的课表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicOffering"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAcademicSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 导入源列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicSource"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAcademicImportJobs: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 导入作业列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicImportJob"][];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    triggerAcademicImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcademicImportRequest"];
+            };
+        };
+        responses: {
+            /** @description 导入作业创建成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AcademicImportJob"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    listResources: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+                query?: string;
+                tag?: string;
+                bindingType?: string;
+                bindingValue?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 资源列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["ResourceItem"][];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
+    createResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateResourceRequest"];
+            };
+        };
+        responses: {
+            /** @description 资源创建成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ResourceItem"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    getResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                resourceID: components["parameters"]["ResourceIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 资源详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ResourceItem"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    deleteResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                resourceID: components["parameters"]["ResourceIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 删除结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                resourceID: components["parameters"]["ResourceIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateResourceRequest"];
+            };
+        };
+        responses: {
+            /** @description 更新后的资源详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ResourceItem"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    getResourceDownloadURL: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                resourceID: components["parameters"]["ResourceIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 下载链接 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ResourceDownloadURL"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    listStorageMounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 存储挂载点列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["StorageMount"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    createStorageMount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStorageMountRequest"];
+            };
+        };
+        responses: {
+            /** @description 存储挂载点创建成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StorageMount"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    checkStorageMountHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 存储挂载点 ID */
+                mountID: components["parameters"]["MountIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 健康检查结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StorageMount"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
         };
     };
     getDepartments: {

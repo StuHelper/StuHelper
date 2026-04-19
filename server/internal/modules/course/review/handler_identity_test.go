@@ -64,25 +64,33 @@ func TestReviewHandler_IdentityRequiredBranches(t *testing.T) {
 		{
 			name: "CreateReply requires auth",
 			body: `{"content":"reply content"}`,
-			prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "reviewID", Value: "550e8400-e29b-41d4-a716-446655440000"}} },
-			run:  func(h *Handler, c *gin.Context) { h.CreateReply(c) },
+			prep: func(c *gin.Context) {
+				c.Params = gin.Params{{Key: "reviewID", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+			},
+			run: func(h *Handler, c *gin.Context) { h.CreateReply(c) },
 		},
 		{
 			name: "DeleteReply requires auth",
-			prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "replyID", Value: "550e8400-e29b-41d4-a716-446655440000"}} },
-			run:  func(h *Handler, c *gin.Context) { h.DeleteReply(c) },
+			prep: func(c *gin.Context) {
+				c.Params = gin.Params{{Key: "replyID", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+			},
+			run: func(h *Handler, c *gin.Context) { h.DeleteReply(c) },
 		},
 		{
 			name: "ReportReview requires auth",
 			body: `{"reason":"spam","description":"dup"}`,
-			prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "reviewID", Value: "550e8400-e29b-41d4-a716-446655440000"}} },
-			run:  func(h *Handler, c *gin.Context) { h.ReportReview(c) },
+			prep: func(c *gin.Context) {
+				c.Params = gin.Params{{Key: "reviewID", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+			},
+			run: func(h *Handler, c *gin.Context) { h.ReportReview(c) },
 		},
 		{
 			name: "VoteReview requires auth",
 			body: `{"voteType":"like"}`,
-			prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "reviewID", Value: "550e8400-e29b-41d4-a716-446655440000"}} },
-			run:  func(h *Handler, c *gin.Context) { h.VoteReview(c) },
+			prep: func(c *gin.Context) {
+				c.Params = gin.Params{{Key: "reviewID", Value: "550e8400-e29b-41d4-a716-446655440000"}}
+			},
+			run: func(h *Handler, c *gin.Context) { h.VoteReview(c) },
 		},
 	}
 

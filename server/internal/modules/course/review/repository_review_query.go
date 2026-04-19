@@ -205,7 +205,7 @@ func (r *Repository) ListDistinctReviewTargetIDsTx(ctx context.Context, tx pgx.T
 	return courseIDs, teacherIDs, nil
 }
 
-// maxBatchCourseIDs limits the number of course IDs in a batch query
+// maxBatchCourseIDs 限制批量查询时允许携带的课程 ID 数量
 const maxBatchCourseIDs = 20
 
 // ListByMultipleCourses 批量获取多个课程的测评列表（消除 N+1 查询）

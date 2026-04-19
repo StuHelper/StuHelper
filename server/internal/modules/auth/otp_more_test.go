@@ -54,7 +54,7 @@ func TestOTPService_CleanupCodeOnlyAndVerifySuccess(t *testing.T) {
 	ctx := context.Background()
 	phone := "13800138000"
 
-	code, err := svc.Generate(ctx, phone)
+	_, err := svc.Generate(ctx, phone)
 	require.NoError(t, err)
 	phoneKey, err := phoneutil.HashLookup(phone)
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestOTPService_CleanupCodeOnlyAndVerifySuccess(t *testing.T) {
 	assert.True(t, fixture.Server.Exists(cooldownKey))
 
 	fixture.Server.FastForward(otpCooldown)
-	code, err = svc.Generate(ctx, phone)
+	code, err := svc.Generate(ctx, phone)
 	require.NoError(t, err)
 	require.NoError(t, svc.Verify(ctx, phone, code))
 	assert.False(t, fixture.Server.Exists(codeKey))

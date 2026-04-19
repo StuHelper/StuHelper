@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
 )
 
 const (
@@ -89,62 +88,55 @@ func (s *Service) enqueueVerificationProjectionTx(ctx context.Context, tx pgx.Tx
 	return nil
 }
 
-func (s *Service) StartBackgroundJobs(ctx context.Context) {
-	go s.runExternalSyncWorker(ctx)
+func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
+	if start == nil {
+		go s.runExternalSyncWorker(ctx)
+		return
+	}
+	start("user external sync worker", s.runExternalSyncWorker)
 }
 
 func (s *Service) runExternalSyncWorker(ctx context.Context) {
-	ticker := time.NewTicker(externalSyncPollInterval)
-	defer ticker.Stop()
-
-	for {
-		if err := s.processExternalSyncBatch(ctx); err != nil && ctx.Err() == nil {
-			logger.L().Warn("user external sync batch failed", zap.Error(err))
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
+	outbox.RunPollingWorker(
+		ctx,
+		outbox.WorkerConfig{
+			Name:             "user external sync",
+			BatchSize:        externalSyncBatchSize,
+			PollInterval:     externalSyncPollInterval,
+			LockStaleAfter:   externalSyncLockStaleAfter,
+			RetryBaseBackoff: 5 * time.Second,
+			MaxBackoff:       externalSyncMaxBackoff,
+		},
+		s.repo.ClaimExternalSyncJobs,
+		s.processExternalSyncJob,
+		s.repo.MarkExternalSyncJobDone,
+		s.repo.MarkExternalSyncJobRetry,
+		func(job ExternalSyncJob) outbox.JobMeta {
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+		},
+		truncateExternalSyncError,
+	)
 }
 
 func (s *Service) processExternalSyncBatch(ctx context.Context) error {
-	jobs, err := s.repo.ClaimExternalSyncJobs(ctx, externalSyncBatchSize, externalSyncLockStaleAfter)
-	if err != nil {
-		return fmt.Errorf("claim external sync jobs: %w", err)
-	}
-	for _, job := range jobs {
-		if err := s.processExternalSyncJob(ctx, job); err != nil {
-			backoff := time.Duration(job.AttemptCount+1) * 5 * time.Second
-			if backoff > externalSyncMaxBackoff {
-				backoff = externalSyncMaxBackoff
-			}
-			nextAttemptAt := time.Now().Add(backoff)
-			markErr := s.repo.MarkExternalSyncJobRetry(ctx, job.ID, nextAttemptAt, truncateExternalSyncError(err))
-			if markErr != nil {
-				logger.L().Error("failed to mark external sync job retry",
-					zap.Int64("job_id", job.ID),
-					zap.String("job_type", job.JobType),
-					zap.Error(markErr),
-				)
-			}
-			logger.L().Warn("external sync job failed",
-				zap.Int64("job_id", job.ID),
-				zap.String("job_type", job.JobType),
-				zap.Int("attempt", job.AttemptCount+1),
-				zap.Time("next_attempt_at", nextAttemptAt),
-				zap.Error(err),
-			)
-			continue
-		}
-
-		if err := s.repo.MarkExternalSyncJobDone(ctx, job.ID); err != nil {
-			return fmt.Errorf("mark external sync job done: %w", err)
-		}
-	}
-	return nil
+	return outbox.ProcessBatch(
+		ctx,
+		outbox.WorkerConfig{
+			Name:             "user external sync",
+			BatchSize:        externalSyncBatchSize,
+			LockStaleAfter:   externalSyncLockStaleAfter,
+			RetryBaseBackoff: 5 * time.Second,
+			MaxBackoff:       externalSyncMaxBackoff,
+		},
+		s.repo.ClaimExternalSyncJobs,
+		s.processExternalSyncJob,
+		s.repo.MarkExternalSyncJobDone,
+		s.repo.MarkExternalSyncJobRetry,
+		func(job ExternalSyncJob) outbox.JobMeta {
+			return outbox.JobMeta{ID: job.ID, JobType: job.JobType, AttemptCount: job.AttemptCount}
+		},
+		truncateExternalSyncError,
+	)
 }
 
 func (s *Service) processExternalSyncJob(ctx context.Context, job ExternalSyncJob) error {

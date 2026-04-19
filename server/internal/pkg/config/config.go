@@ -7,7 +7,6 @@ type Config struct {
 	Redis         RedisConfig
 	Zitadel       ZitadelConfig
 	OpenFGA       OpenFGAConfig
-	LDAP          LDAPConfig
 	ObjectStorage ObjectStorageConfig
 	Token         TokenConfig
 	Log           LogConfig
@@ -132,15 +131,6 @@ type SMSConfig struct {
 	InternalPort string // 内部 HTTP 端口（SMS 转发服务）
 }
 
-// LDAPConfig LDAP 学生认证配置。
-type LDAPConfig struct {
-	URL                string
-	BaseDN             string
-	SystemBindDN       string
-	SystemBindPassword string
-	UseTLS             bool
-}
-
 // RedisConfig Redis 配置
 type RedisConfig struct {
 	Host         string
@@ -173,7 +163,6 @@ func Load() (*Config, error) {
 		Database:      loadDatabaseConfig(&parseErrs),
 		Zitadel:       loadZitadelConfig(),
 		OpenFGA:       loadOpenFGAConfig(),
-		LDAP:          loadLDAPConfig(&parseErrs),
 		ObjectStorage: loadObjectStorageConfig(&parseErrs),
 		Redis:         loadRedisConfig(&parseErrs),
 		Token:         loadTokenConfig(&parseErrs),
@@ -243,16 +232,6 @@ func loadOpenFGAConfig() OpenFGAConfig {
 		APIUrl:               getEnv("OPENFGA_API_URL", "http://localhost:8081"),
 		StoreID:              getEnv("OPENFGA_STORE_ID", ""),
 		AuthorizationModelID: getEnv("OPENFGA_MODEL_ID", ""),
-	}
-}
-
-func loadLDAPConfig(parseErrs *[]string) LDAPConfig {
-	return LDAPConfig{
-		URL:                getEnv("LDAP_URL", ""),
-		BaseDN:             getEnv("LDAP_BASE_DN", ""),
-		SystemBindDN:       getEnv("LDAP_SYSTEM_BIND_DN", ""),
-		SystemBindPassword: getEnv("LDAP_SYSTEM_BIND_PASSWORD", ""),
-		UseTLS:             getEnvBool("LDAP_USE_TLS", false, parseErrs),
 	}
 }
 

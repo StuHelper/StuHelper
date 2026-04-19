@@ -1,0 +1,126 @@
+AcademicSource:
+  type: object
+  required: [id, key, name, provider, enabled]
+  properties:
+    id:
+      type: integer
+      format: int64
+    key:
+      type: string
+    name:
+      type: string
+    provider:
+      type: string
+    enabled:
+      type: boolean
+
+AcademicImportJob:
+  type: object
+  required: [id, sourceKey, sourceName, provider, status, triggerMode, stats, createdAt]
+  properties:
+    id:
+      type: integer
+      format: int64
+    sourceKey:
+      type: string
+    sourceName:
+      type: string
+    provider:
+      type: string
+    status:
+      type: string
+      enum: [pending, running, succeeded, failed]
+    triggerMode:
+      type: string
+    requestedByUserID:
+      type: string
+    stats:
+      type: object
+      additionalProperties: true
+    errorMessage:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+
+AcademicTerm:
+  type: object
+  required: [id, code, name, isCurrent]
+  properties:
+    id:
+      type: integer
+      format: int64
+    code:
+      type: string
+    name:
+      type: string
+    startDate:
+      type: string
+      format: date
+    endDate:
+      type: string
+      format: date
+    isCurrent:
+      type: boolean
+
+AcademicScheduleSlot:
+  type: object
+  required: [weekday, startPeriod, endPeriod, location, weeksText]
+  properties:
+    weekday:
+      type: integer
+    startPeriod:
+      type: integer
+    endPeriod:
+      type: integer
+    location:
+      type: string
+    building:
+      type: string
+    weeksText:
+      type: string
+
+AcademicOffering:
+  type: object
+  required: [id, termCode, termName, courseCode, courseName, sectionCode, teacherNames]
+  properties:
+    id:
+      type: integer
+      format: int64
+    termCode:
+      type: string
+    termName:
+      type: string
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    sectionCode:
+      type: string
+    schoolName:
+      type: string
+    departmentName:
+      type: string
+    campus:
+      type: string
+    teacherNames:
+      type: array
+      items:
+        type: string
+    schedules:
+      type: array
+      items:
+        $ref: '#/AcademicScheduleSlot'
+
+AcademicImportRequest:
+  type: object
+  required: [sourceKey]
+  properties:
+    sourceKey:
+      type: string
