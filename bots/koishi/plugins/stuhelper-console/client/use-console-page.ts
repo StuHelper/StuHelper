@@ -12,8 +12,8 @@ import {
   saveMemberRoles,
 } from './api'
 import {
-  createConsoleSearch,
   parseConsoleSearch,
+  updateConsoleUrl,
   type ConsoleSearchState,
 } from './navigation'
 import type {
@@ -74,8 +74,8 @@ export function useConsolePage() {
   )
   function setRouteState(next: Partial<ConsoleSearchState>) {
     routeState.value = { ...routeState.value, ...next }
-    const search = createConsoleSearch(routeState.value).toString()
-    window.history.replaceState({}, '', `${window.location.pathname}?${search}`)
+    const url = updateConsoleUrl(new URL(window.location.href), routeState.value)
+    window.history.replaceState(window.history.state, '', url)
   }
 
   const activeTab = ref<ViewId>('overview')

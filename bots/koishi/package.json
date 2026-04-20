@@ -35,7 +35,7 @@
     "dev": "cross-env NODE_ENV=development koishi start -r esbuild-register -r yml-register",
     "prestart": "yarn build",
     "start": "koishi start",
-    "test:unit": "tsx --test packages/**/src/**/*.test.ts plugins/**/src/**/*.test.ts",
+    "test:unit": "tsx --test packages/**/src/**/*.test.ts plugins/**/src/**/*.test.ts plugins/**/client/**/*.test.ts",
     "test:startup": "node scripts/startup-smoke.mjs",
     "workspaces:list": "yarn workspaces list",
     "test": "yarn build && yarn test:unit && yarn test:startup"
