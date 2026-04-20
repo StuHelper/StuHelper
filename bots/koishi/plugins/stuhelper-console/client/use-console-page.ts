@@ -32,6 +32,7 @@ import {
   buildDashboardModel,
   type DashboardTarget,
 } from './dashboard/model'
+import { getNextFocusableId } from './queue/model'
 
 export type InspectorKind =
   | 'member'
@@ -56,6 +57,8 @@ export interface NoticeItem {
 }
 
 const NOTICE_TTL_MS = 4000
+const REVIEW_QUEUE_ID = 'review'
+const MEMBER_QUEUE_ID = 'member'
 
 export function useConsolePage() {
   const data = computed(
@@ -72,6 +75,20 @@ export function useConsolePage() {
     routeState.value = { ...routeState.value, ...next }
     const url = updateConsoleUrl(new URL(window.location.href), routeState.value)
     window.history.replaceState(window.history.state, '', url)
+  }
+
+  function getSelectedQueueId(section: ConsoleSearchState['section'], queue: string) {
+    if (routeState.value.section !== section) return ''
+    if (routeState.value.queue && routeState.value.queue !== queue) return ''
+    return routeState.value.id
+  }
+
+  function selectQueueItem(
+    section: ConsoleSearchState['section'],
+    queue: string,
+    id: string,
+  ) {
+    setRouteState({ section, queue, id, source: 'direct' })
   }
 
   const inspector = reactive<InspectorState>({
@@ -159,6 +176,8 @@ export function useConsolePage() {
   const recentReports = computed(() => data.value?.recentReports || [])
   const dashboardModel = computed(() => buildDashboardModel(data.value))
   const supportedCommandIds = computed(() => data.value?.supportedCommandIds || [])
+  const selectedMemberId = computed(() => getSelectedQueueId('identity', MEMBER_QUEUE_ID))
+  const selectedReviewId = computed(() => getSelectedQueueId('enforcement', REVIEW_QUEUE_ID))
 
   const filteredEvents = computed(() => {
     const q = eventSearch.value.trim().toLowerCase()
@@ -219,8 +238,37 @@ export function useConsolePage() {
       action,
       note: reviewForm.note.trim() || undefined,
     })
-    closeInspector()
     reviewForm.note = ''
+    return result
+  }
+
+  async function submitReviewAndFocus(reviewId: string, action: 'execute' | 'reject') {
+    const nextId = getNextFocusableId({
+      ids: pendingReviews.value.map((review) => review.id),
+      currentId: reviewId,
+      removedId: reviewId,
+    })
+    const result = await submitReviewAction(reviewId, action)
+
+    setRouteState({
+      section: 'enforcement',
+      queue: REVIEW_QUEUE_ID,
+      id: nextId,
+      source: 'direct',
+    })
+
+    if (!nextId) {
+      closeInspector()
+      return result
+    }
+
+    const nextReview = pendingReviews.value.find((review) => review.id === nextId)
+    if (!nextReview) {
+      closeInspector()
+      return result
+    }
+
+    openInspector('review', nextReview.id, nextReview)
     return result
   }
 
@@ -306,10 +354,12 @@ export function useConsolePage() {
   }
 
   function inspectMember(member: StuhelperConsoleGuardMember) {
+    selectQueueItem('identity', MEMBER_QUEUE_ID, member.id)
     openInspector('member', member.id, member)
   }
 
   function inspectReview(review: StuhelperConsoleReview) {
+    selectQueueItem('enforcement', REVIEW_QUEUE_ID, review.id)
     openInspector('review', review.id, review)
   }
 
@@ -322,6 +372,7 @@ export function useConsolePage() {
   }
 
   function openDashboardTarget(target: DashboardTarget) {
+    closeInspector()
     setRouteState({ section: target.section, queue: null, id: '', source: 'dashboard' })
   }
 
@@ -345,6 +396,8 @@ export function useConsolePage() {
     dismissNotice,
     pendingMembers,
     pendingReviews,
+    selectedMemberId,
+    selectedReviewId,
     keywordRules,
     commandPolicies,
     memberRoles,
@@ -370,6 +423,7 @@ export function useConsolePage() {
     refresh,
     submitGuardAction,
     submitReviewAction,
+    submitReviewAndFocus,
     submitRule,
     submitTemplate,
     submitBinding,

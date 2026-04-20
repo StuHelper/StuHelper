@@ -31,24 +31,25 @@
             :model="dashboardModel"
             @open-target="openDashboardTarget"
           />
-          <GateView
+          <IdentityQueuePage
             v-else-if="activeSection === 'identity'"
             v-model:selected-guard-ids="selectedGuardIds"
             :pending-members="pendingMembers"
+            :selected-id="selectedMemberId"
             :loading="loading"
             :guard-form="guardForm"
-            :inspector="inspector"
             :run-task="runTask"
             :submit-guard-action="submitGuardAction"
             :inspect-member="inspectMember"
           />
-          <EnforcementView
+          <ReviewQueuePage
             v-else-if="activeSection === 'enforcement'"
             :pending-reviews="pendingReviews"
             :recent-reports="recentReports"
+            :selected-id="selectedReviewId"
             :review-form="reviewForm"
             :run-task="runTask"
-            :submit-review-action="submitReviewAction"
+            :submit-review-and-focus="submitReviewAndFocus"
             :inspect-review="inspectReview"
             :inspect-report="inspectReport"
           />
@@ -107,8 +108,8 @@
             </template>
           </dl>
           <template #footer v-if="reviewPending">
-            <button class="sh-btn sh-btn--ghost" @click="runTask(() => submitReviewAction(inspector.id, 'reject'))">驳回</button>
-            <button class="sh-btn sh-btn--primary" @click="runTask(() => submitReviewAction(inspector.id, 'execute'))">执行</button>
+            <button class="sh-btn sh-btn--ghost" @click="runTask(() => submitReviewAndFocus(inspector.id, 'reject'))">驳回</button>
+            <button class="sh-btn sh-btn--primary" @click="runTask(() => submitReviewAndFocus(inspector.id, 'execute'))">执行</button>
           </template>
         </Drawer>
       </div>
@@ -134,12 +135,12 @@ import Drawer from './components/Drawer.vue'
 import EmptyState from './components/EmptyState.vue'
 import GuardPolicyPanel from './components/GuardPolicyPanel.vue'
 import NoticeStack from './components/NoticeStack.vue'
+import IdentityQueuePage from './components/queue/IdentityQueuePage.vue'
+import ReviewQueuePage from './components/queue/ReviewQueuePage.vue'
 import ConsoleShell from './components/layout/ConsoleShell.vue'
 import ConsoleSidebar from './components/layout/ConsoleSidebar.vue'
 import ConsoleWorkspaceHeader from './components/layout/ConsoleWorkspaceHeader.vue'
-import EnforcementView from './components/views/EnforcementView.vue'
 import EventsView from './components/views/EventsView.vue'
-import GateView from './components/views/GateView.vue'
 import MemberRolesPanel from './components/views/MemberRolesPanel.vue'
 import RulesView from './components/views/RulesView.vue'
 import { buildSidebarItems } from './sidebar-items'
@@ -164,6 +165,8 @@ const {
   dismissNotice,
   pendingMembers,
   pendingReviews,
+  selectedMemberId,
+  selectedReviewId,
   dashboardModel,
   keywordRules,
   commandPolicies,
@@ -187,7 +190,7 @@ const {
   runTask,
   refresh,
   submitGuardAction,
-  submitReviewAction,
+  submitReviewAndFocus,
   submitRule,
   submitTemplate,
   submitBinding,
@@ -232,6 +235,7 @@ const inspectorDetails = computed(() => {
 
 function selectSection(section: ConsoleSectionId) {
   if (section === activeSection.value) return
+  closeInspector()
   setRouteState({ section, queue: null, id: '', source: 'nav' })
 }
 
