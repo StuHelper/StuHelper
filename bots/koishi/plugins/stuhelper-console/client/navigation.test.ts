@@ -14,15 +14,14 @@ test('parseConsoleSearch falls back to dashboard for unknown sections', () => {
 })
 
 test('createConsoleSearch round-trips queue context', () => {
-  const search = createConsoleSearch({
+  const state = {
     section: 'enforcement',
     queue: 'review',
     id: 'rv_42',
     source: 'dashboard',
-  })
+  } as const
+  const search = createConsoleSearch(state)
+  const parsed = parseConsoleSearch(search)
 
-  assert.equal(
-    search.toString(),
-    'section=enforcement&queue=review&id=rv_42&source=dashboard',
-  )
+  assert.deepEqual(parsed, state)
 })
