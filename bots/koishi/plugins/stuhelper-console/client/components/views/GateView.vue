@@ -136,7 +136,6 @@ import {
 
 const props = defineProps<{
   pendingMembers: readonly StuhelperConsoleGuardMember[]
-  selectedGuardIds: string[]
   guardForm: {
     action: 'mute' | 'unmute' | 'kick' | 'set-role' | 'unset-role'
     seconds: number
@@ -149,6 +148,8 @@ const props = defineProps<{
   submitGuardAction: () => Promise<unknown>
   inspectMember: (member: StuhelperConsoleGuardMember) => void
 }>()
+
+const selectedGuardIds = defineModel<string[]>('selectedGuardIds', { required: true })
 
 function stateIntent(state: string): ActionIntent {
   switch (state) {
