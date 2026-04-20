@@ -1,119 +1,176 @@
 <template>
-  <div id="sh-view-overview" class="sh-view" role="tabpanel">
-    <header class="sh-view__header">
-      <div class="sh-view__title-group">
-        <span class="sh-view__eyebrow">OVERVIEW / 总览</span>
-        <h1 class="sh-view__title">今日群管中心状态</h1>
-        <p class="sh-view__lead">待办与风险集中在这里，快速跳转到对应工作流处理。</p>
-      </div>
-      <div class="sh-view__toolbar">
-        <span v-if="generatedAt" class="sh-toolbar__count sh-mono">
-          同步于 {{ formatTimestamp(generatedAt) }}
-        </span>
-      </div>
-    </header>
-
+  <div id="sh-view-dashboard" class="sh-view" role="tabpanel">
     <div class="sh-split sh-split--7-5">
-      <Section
-        eyebrow="Recent activity"
-        title="最近事件"
-        description="自动处罚和人工决策会在这里首先出现；点击跳转到事件日志。"
-        :meta="`${recentEvents.length} 条`"
-        flush
-      >
-        <div v-if="recentEvents.length === 0" class="sh-empty">
-          <p class="sh-empty__title">暂无事件</p>
-          <p class="sh-empty__body">当群管引擎命中规则或执行动作时，会自动写入事件流。</p>
-        </div>
-        <div v-else class="sh-lane">
-          <div
-            v-for="event in recentEvents.slice(0, 8)"
-            :key="event.id"
-            class="sh-lane__row"
-          >
-            <span class="sh-lane__dot" :class="dotClass(event.level)"></span>
+      <Section title="当前概览" description="待认证与待复核会从这里分流到对应工作区。">
+        <div class="sh-lane">
+          <div class="sh-lane__row">
+            <span class="sh-lane__dot" :class="pendingMemberDotClass"></span>
             <div>
-              <div class="sh-lane__title">{{ event.summary || event.level }}</div>
-              <div class="sh-lane__subtitle sh-mono">
-                {{ event.memberId || '—' }} · {{ event.guildId || '系统' }}
-              </div>
+              <div class="sh-lane__title">待认证成员</div>
+              <div class="sh-lane__subtitle">{{ pendingMemberSummary }}</div>
             </div>
-            <span class="sh-lane__time">{{ formatTimestamp(event.createdAt) }}</span>
+            <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="goToSection('identity', DASHBOARD_QUEUES.pendingMembers)">
+              进入
+            </button>
           </div>
-        </div>
-        <div v-if="recentEvents.length > 0" class="sh-section__body">
-          <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="goto('events')">
-            进入事件日志 →
-          </button>
+          <div class="sh-lane__row">
+            <span class="sh-lane__dot" :class="pendingReviewDotClass"></span>
+            <div>
+              <div class="sh-lane__title">待复核动作</div>
+              <div class="sh-lane__subtitle">{{ pendingReviewSummary }}</div>
+            </div>
+            <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="goToSection('enforcement', DASHBOARD_QUEUES.pendingReviews)">
+              进入
+            </button>
+          </div>
         </div>
       </Section>
 
-      <Section
-        eyebrow="Reports"
-        title="最近举报"
-        description="举报单进入 AI 审核；高风险等级进入人工复核队列。"
-        :meta="`${recentReports.length} 条`"
-        flush
-      >
-        <div v-if="recentReports.length === 0" class="sh-empty">
-          <p class="sh-empty__title">暂无举报</p>
-          <p class="sh-empty__body">用户提交举报后会出现在这里。</p>
-        </div>
-        <div v-else class="sh-lane">
-          <div
-            v-for="report in recentReports.slice(0, 8)"
-            :key="report.id"
-            class="sh-lane__row"
-          >
-            <span class="sh-lane__dot" :class="dotClass(report.aiSeverity)"></span>
-            <div>
-              <div class="sh-lane__title">
-                {{ report.reporterMemberId }} → {{ report.targetMemberId }}
-              </div>
-              <div class="sh-lane__subtitle">{{ report.aiSummary || report.reason }}</div>
-            </div>
-            <span class="sh-lane__time">{{ formatTimestamp(report.createdAt) }}</span>
-          </div>
-        </div>
-        <div v-if="recentReports.length > 0" class="sh-section__body">
-          <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="goto('events')">
-            查看全部举报 →
+      <Section title="快捷入口" description="按工作流进入身份、处置、策略与审计分区。">
+        <div class="sh-btn-row">
+          <button class="sh-btn" @click="goToSection('identity', DASHBOARD_QUEUES.pendingMembers)">
+            身份认证
+          </button>
+          <button class="sh-btn" @click="goToSection('enforcement', DASHBOARD_QUEUES.pendingReviews)">
+            处置中心
+          </button>
+          <button class="sh-btn" @click="goToSection('policy', DASHBOARD_QUEUES.keywordRules)">
+            策略中心
+          </button>
+          <button class="sh-btn" @click="goToSection('audit', DASHBOARD_QUEUES.events)">
+            审计检索
           </button>
         </div>
       </Section>
     </div>
 
-    <Section
-      eyebrow="Shortcuts"
-      title="快捷入口"
-      description="按 spec 的 6 个一级分区直接跳转，不必在页面里找位置。"
-    >
-      <div class="sh-btn-row">
-        <button class="sh-btn" @click="goto('gate')">认证准入 ↗</button>
-        <button class="sh-btn" @click="goto('rules')">通用群规 ↗</button>
-        <button class="sh-btn" @click="goto('templates')">模板与群绑定 ↗</button>
-        <button class="sh-btn" @click="goto('enforcement')">处置中心 ↗</button>
-        <button class="sh-btn" @click="goto('events')">事件日志 ↗</button>
-      </div>
-    </Section>
+    <div class="sh-split sh-split--1-1">
+      <Section title="最近事件" :meta="`${recentEvents.length} 条`" flush>
+        <EmptyState
+          v-if="visibleEvents.length === 0"
+          title="暂无事件"
+          body="事件流会在命中规则、执行动作或人工决策后更新。"
+        />
+        <div v-else class="sh-lane">
+          <div v-for="event in visibleEvents" :key="event.id" class="sh-lane__row">
+            <span class="sh-lane__dot" :class="dotClass(event.level)"></span>
+            <div>
+              <div class="sh-lane__title">{{ event.summary || event.type || '未命名事件' }}</div>
+              <div class="sh-lane__subtitle sh-mono">
+                {{ event.memberId || '—' }} · {{ event.guildId || '系统' }}
+              </div>
+            </div>
+            <button
+              class="sh-btn sh-btn--ghost sh-btn--sm"
+              @click="goToSection('audit', DASHBOARD_QUEUES.events, event.id)"
+            >
+              查看
+            </button>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="最近举报" :meta="`${recentReports.length} 条`" flush>
+        <EmptyState
+          v-if="visibleReports.length === 0"
+          title="暂无举报"
+          body="用户提交举报后会出现在这里，并同步进入审计检索。"
+        />
+        <div v-else class="sh-lane">
+          <div v-for="report in visibleReports" :key="report.id" class="sh-lane__row">
+            <span class="sh-lane__dot" :class="dotClass(report.aiSeverity)"></span>
+            <div>
+              <div class="sh-lane__title">
+                {{ report.reporterMemberId || '匿名举报' }} → {{ report.targetMemberId || '未知目标' }}
+              </div>
+              <div class="sh-lane__subtitle">{{ report.aiSummary || report.reason || '无摘要' }}</div>
+            </div>
+            <button
+              class="sh-btn sh-btn--ghost sh-btn--sm"
+              @click="goToSection('audit', DASHBOARD_QUEUES.reports, report.id)"
+            >
+              查看
+            </button>
+          </div>
+        </div>
+      </Section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import Section from '../ConsolePanel.vue'
-import type { StuhelperConsoleEvent, StuhelperConsoleReport } from '../../../src/console-types'
-import { describeLevel, formatTimestamp, type ViewId } from '../../use-console-page'
+import { computed } from 'vue'
 
-defineProps<{
+import type {
+  StuhelperConsoleEvent,
+  StuhelperConsoleGuardMember,
+  StuhelperConsoleReport,
+  StuhelperConsoleReview,
+} from '../../../src/console-types'
+import type { ConsoleSectionId } from '../../sections'
+import { describeLevel, formatTimestamp } from '../../use-console-page'
+import Section from '../ConsolePanel.vue'
+import EmptyState from '../EmptyState.vue'
+
+const ITEM_LIMIT = 6
+const DASHBOARD_QUEUES = {
+  pendingMembers: 'pending-members',
+  pendingReviews: 'pending-reviews',
+  keywordRules: 'keyword-rules',
+  events: 'events',
+  reports: 'reports',
+} as const
+
+const props = defineProps<{
+  pendingMembers: readonly StuhelperConsoleGuardMember[]
+  pendingReviews: readonly StuhelperConsoleReview[]
   recentEvents: readonly StuhelperConsoleEvent[]
   recentReports: readonly StuhelperConsoleReport[]
-  generatedAt: string
-  goto: (view: ViewId) => void
+  openSection: (section: ConsoleSectionId, queue?: string | null, id?: string) => void
 }>()
+
+const visibleEvents = computed(() => props.recentEvents.slice(0, ITEM_LIMIT))
+const visibleReports = computed(() => props.recentReports.slice(0, ITEM_LIMIT))
+const pendingMemberSummary = computed(() => describePendingMembers(props.pendingMembers))
+const pendingReviewSummary = computed(() => describePendingReviews(props.pendingReviews))
+const pendingMemberDotClass = computed(() => statusDotClass(props.pendingMembers.length, countOverdueMembers(props.pendingMembers)))
+const pendingReviewDotClass = computed(() => statusDotClass(props.pendingReviews.length, props.pendingReviews.length))
+
+function goToSection(section: ConsoleSectionId, queue: string | null, id = '') {
+  props.openSection(section, queue, id)
+}
 
 function dotClass(level?: string | null) {
   const intent = describeLevel(level || '')
-  if (intent === 'neutral' || intent === 'muted') return ''
+  if (intent === 'neutral' || intent === 'muted' || intent === 'info') return ''
   return `sh-lane__dot--${intent}`
+}
+
+function describePendingMembers(items: readonly StuhelperConsoleGuardMember[]) {
+  if (items.length === 0) return '当前没有待认证成员。'
+
+  const overdueCount = countOverdueMembers(items)
+  if (overdueCount > 0) {
+    return `当前 ${items.length} 条待处理，其中 ${overdueCount} 条已超时。`
+  }
+
+  const nextDeadline = items[0]?.deadlineAt
+  if (!nextDeadline) return `当前 ${items.length} 条待处理。`
+  return `当前 ${items.length} 条待处理，最近截止 ${formatTimestamp(nextDeadline)}。`
+}
+
+function describePendingReviews(items: readonly StuhelperConsoleReview[]) {
+  if (items.length === 0) return '当前没有待复核动作。'
+  return `当前 ${items.length} 条待复核，最近提交 ${formatTimestamp(items[0]?.createdAt)}。`
+}
+
+function countOverdueMembers(items: readonly StuhelperConsoleGuardMember[]) {
+  return items.filter((item) => item.verificationState === 'overdue').length
+}
+
+function statusDotClass(total: number, urgent: number) {
+  if (urgent > 0) return 'sh-lane__dot--danger'
+  if (total > 0) return 'sh-lane__dot--warning'
+  return 'sh-lane__dot--success'
 }
 </script>

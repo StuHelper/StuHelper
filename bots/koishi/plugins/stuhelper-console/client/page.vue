@@ -26,6 +26,14 @@
             title="控制台数据尚未就绪"
             body="点击刷新，或确认 stuhelper-console 数据服务已经正确加载。"
           />
+          <OverviewView
+            v-else-if="activeSection === 'dashboard'"
+            :pending-members="pendingMembers"
+            :pending-reviews="pendingReviews"
+            :recent-events="recentEvents"
+            :recent-reports="recentReports"
+            :open-section="openDashboardSection"
+          />
           <GateView
             v-else-if="activeSection === 'identity'"
             v-model:selected-guard-ids="selectedGuardIds"
@@ -146,6 +154,7 @@ import EnforcementView from './components/views/EnforcementView.vue'
 import EventsView from './components/views/EventsView.vue'
 import GateView from './components/views/GateView.vue'
 import MemberRolesPanel from './components/views/MemberRolesPanel.vue'
+import OverviewView from './components/views/OverviewView.vue'
 import RulesView from './components/views/RulesView.vue'
 import { buildSidebarItems } from './sidebar-items'
 import { CONSOLE_SECTIONS, type ConsoleSectionId } from './sections'
@@ -169,6 +178,7 @@ const {
   dismissNotice,
   pendingMembers,
   pendingReviews,
+  recentEvents,
   keywordRules,
   commandPolicies,
   memberRoles,
@@ -236,6 +246,14 @@ const inspectorDetails = computed(() => {
 function selectSection(section: ConsoleSectionId) {
   if (section === activeSection.value) return
   setRouteState({ section, queue: null, id: '', source: 'nav' })
+}
+
+function openDashboardSection(
+  section: ConsoleSectionId,
+  queue: string | null = null,
+  id = '',
+) {
+  setRouteState({ section, queue, id, source: 'dashboard' })
 }
 
 function detailList(record: Record<string, unknown>, fields: Array<[string, string, boolean?]>) {
