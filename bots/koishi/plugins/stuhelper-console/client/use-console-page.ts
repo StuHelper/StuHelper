@@ -11,6 +11,11 @@ import {
   saveKeywordRule,
   saveMemberRoles,
 } from './api'
+import {
+  createConsoleSearch,
+  parseConsoleSearch,
+  type ConsoleSearchState,
+} from './navigation'
 import type {
   StuhelperConsoleCommandPolicy,
   StuhelperConsoleData,
@@ -63,6 +68,15 @@ export function useConsolePage() {
   const title = computed(() => data.value?.title || 'StuHelper 群管中心')
   const generatedAt = computed(() => data.value?.generatedAt || '')
   const loading = ref(false)
+
+  const routeState = ref<ConsoleSearchState>(
+    parseConsoleSearch(new URLSearchParams(window.location.search)),
+  )
+  function setRouteState(next: Partial<ConsoleSearchState>) {
+    routeState.value = { ...routeState.value, ...next }
+    const search = createConsoleSearch(routeState.value).toString()
+    window.history.replaceState({}, '', `${window.location.pathname}?${search}`)
+  }
 
   const activeTab = ref<ViewId>('overview')
   function goto(view: ViewId) {
@@ -363,6 +377,8 @@ export function useConsolePage() {
     title,
     generatedAt,
     loading,
+    routeState,
+    setRouteState,
     activeTab,
     tabs,
     goto,
