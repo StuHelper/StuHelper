@@ -26,13 +26,10 @@
             title="控制台数据尚未就绪"
             body="点击刷新，或确认 stuhelper-console 数据服务已经正确加载。"
           />
-          <OverviewView
+          <DashboardPage
             v-else-if="activeSection === 'dashboard'"
-            :pending-members="pendingMembers"
-            :pending-reviews="pendingReviews"
-            :recent-events="recentEvents"
-            :recent-reports="recentReports"
-            :open-section="openDashboardSection"
+            :model="dashboardModel"
+            @open-target="openDashboardTarget"
           />
           <GateView
             v-else-if="activeSection === 'identity'"
@@ -99,16 +96,6 @@
               :inspect-binding="(item) => openInspector('binding', item.id, item)"
             />
           </template>
-          <ConsolePanel
-            v-else
-            title="首页驾驶舱待接入"
-            description="兼容层先恢复操作分区，仪表盘内容会在后续任务中单独接回。"
-          >
-            <EmptyState
-              title="操作分区已恢复"
-              body="身份认证、处置中心、策略中心和审计检索已可从左侧侧栏进入。"
-            />
-          </ConsolePanel>
         </ConsoleShell>
 
         <NoticeStack :items="notices" @dismiss="dismissNotice" />
@@ -142,7 +129,7 @@ import type {
   StuhelperConsoleReview,
 } from '../src/console-types'
 import './styles/layout.css'
-import ConsolePanel from './components/ConsolePanel.vue'
+import DashboardPage from './components/dashboard/DashboardPage.vue'
 import Drawer from './components/Drawer.vue'
 import EmptyState from './components/EmptyState.vue'
 import GuardPolicyPanel from './components/GuardPolicyPanel.vue'
@@ -154,7 +141,6 @@ import EnforcementView from './components/views/EnforcementView.vue'
 import EventsView from './components/views/EventsView.vue'
 import GateView from './components/views/GateView.vue'
 import MemberRolesPanel from './components/views/MemberRolesPanel.vue'
-import OverviewView from './components/views/OverviewView.vue'
 import RulesView from './components/views/RulesView.vue'
 import { buildSidebarItems } from './sidebar-items'
 import { CONSOLE_SECTIONS, type ConsoleSectionId } from './sections'
@@ -178,7 +164,7 @@ const {
   dismissNotice,
   pendingMembers,
   pendingReviews,
-  recentEvents,
+  dashboardModel,
   keywordRules,
   commandPolicies,
   memberRoles,
@@ -212,6 +198,7 @@ const {
   loadBinding,
   loadMemberRoles,
   loadPolicy,
+  openDashboardTarget,
 } = useConsolePage()
 
 const activeSection = computed(() => routeState.value.section)
@@ -246,12 +233,6 @@ const inspectorDetails = computed(() => {
 function selectSection(section: ConsoleSectionId) {
   if (section === activeSection.value) return
   setRouteState({ section, queue: null, id: '', source: 'nav' })
-}
-
-function openDashboardSection(
-  section: ConsoleSectionId,
-) {
-  setRouteState({ section, queue: null, id: '', source: 'dashboard' })
 }
 
 function detailList(record: Record<string, unknown>, fields: Array<[string, string, boolean?]>) {

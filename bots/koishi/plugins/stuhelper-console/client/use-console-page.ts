@@ -28,6 +28,10 @@ import type {
   StuhelperConsoleReport,
   StuhelperConsoleReview,
 } from '../src/console-types'
+import {
+  buildDashboardModel,
+  type DashboardTarget,
+} from './dashboard/model'
 
 export type InspectorKind =
   | 'member'
@@ -153,6 +157,7 @@ export function useConsolePage() {
   const guardBindings = computed(() => data.value?.guardBindings || [])
   const recentEvents = computed(() => data.value?.recentEvents || [])
   const recentReports = computed(() => data.value?.recentReports || [])
+  const dashboardModel = computed(() => buildDashboardModel(data.value))
   const supportedCommandIds = computed(() => data.value?.supportedCommandIds || [])
 
   const filteredEvents = computed(() => {
@@ -316,6 +321,10 @@ export function useConsolePage() {
     openInspector('report', report.id, report)
   }
 
+  function openDashboardTarget(target: DashboardTarget) {
+    setRouteState({ section: target.section, queue: null, id: '', source: 'dashboard' })
+  }
+
   return {
     data,
     title,
@@ -330,6 +339,7 @@ export function useConsolePage() {
     inspectReview,
     inspectEvent,
     inspectReport,
+    openDashboardTarget,
     notices,
     pushNotice,
     dismissNotice,
@@ -342,6 +352,7 @@ export function useConsolePage() {
     guardBindings,
     recentEvents,
     recentReports,
+    dashboardModel,
     supportedCommandIds,
     filteredEvents,
     filteredReports,

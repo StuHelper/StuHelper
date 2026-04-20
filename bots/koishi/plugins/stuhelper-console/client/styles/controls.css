@@ -186,6 +186,15 @@
   flex-wrap: wrap;
 }
 
+.sh-dashboard .sh-btn {
+  font-size: var(--sh-t-meta);
+}
+
+.sh-workspace-header .sh-btn {
+  min-height: 32px;
+  font-size: var(--sh-t-meta);
+}
+
 /* ── Toolbar ────────────────────────────────────────────── */
 
 .sh-toolbar {
@@ -257,6 +266,21 @@
 }
 
 .sh-table td:first-child { font-weight: var(--sh-w-medium); color: var(--sh-fg); }
+
+.sh-dashboard-table th,
+.sh-dashboard-table td {
+  font-size: var(--sh-t-meta);
+}
+
+.sh-dashboard-table td:last-child {
+  width: 72px;
+}
+
+.sh-dashboard-table__empty {
+  padding: var(--sh-s-4) 14px;
+  color: var(--sh-fg-2);
+  text-align: center;
+}
 
 .sh-table td {
   font-size: var(--sh-t-body-lg);
@@ -451,4 +475,86 @@
   font-size: var(--sh-t-meta);
   color: var(--sh-fg-2);
   white-space: nowrap;
+}
+
+.sh-dashboard .sh-lane__row {
+  padding: 10px 14px;
+}
+
+.sh-dashboard .sh-lane__title,
+.sh-dashboard .sh-lane__subtitle,
+.sh-dashboard .sh-lane__time,
+.sh-dashboard .sh-tag {
+  font-size: var(--sh-t-meta);
+}
+
+.sh-shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-3);
+}
+
+.sh-shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: var(--sh-s-3);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-0);
+  color: var(--sh-fg);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--sh-dur-fast) var(--sh-ease),
+    border-color var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-shortcut:hover {
+  background: var(--sh-surface-hover);
+  border-color: var(--sh-border-strong);
+}
+
+.sh-shortcut:focus-visible {
+  outline: none;
+  border-color: var(--sh-primary);
+  box-shadow: 0 0 0 3px var(--sh-primary-soft);
+}
+
+.sh-shortcut__label {
+  font-size: var(--sh-t-meta);
+  font-weight: var(--sh-w-medium);
+}
+
+.sh-shortcut__description {
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-2);
+  line-height: var(--sh-l-normal);
+}
+
+.sh-dashboard-policy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-2);
+}
+
+.sh-dashboard-policy__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sh-s-3);
+  padding: var(--sh-s-2) 0;
+  border-bottom: 1px solid var(--sh-border);
+  font-size: var(--sh-t-meta);
+}
+
+.sh-dashboard-policy__row:last-child {
+  border-bottom: none;
+}
+
+.sh-dashboard-empty {
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-2);
 }

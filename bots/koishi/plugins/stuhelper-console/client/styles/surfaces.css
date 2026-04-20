@@ -386,6 +386,83 @@
   );
 }
 
+/* ── Dashboard ──────────────────────────────────────────── */
+
+.sh-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-3);
+}
+
+.sh-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(300px, 4fr);
+  gap: var(--sh-s-3);
+  align-items: start;
+}
+
+.sh-dashboard-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-3);
+}
+
+.sh-dashboard .sh-section__head {
+  padding: var(--sh-s-3) 14px;
+}
+
+.sh-dashboard .sh-section__body {
+  gap: var(--sh-s-3);
+  padding: var(--sh-s-3) 14px;
+}
+
+.sh-dashboard .sh-section__body--flush {
+  padding: 0;
+}
+
+.sh-dashboard .sh-section__title {
+  font-size: var(--sh-t-body-lg);
+  font-weight: var(--sh-w-semibold);
+}
+
+.sh-dashboard .sh-btn {
+  min-height: 32px;
+}
+
+.sh-dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sh-s-3);
+}
+
+.sh-dashboard-metric {
+  padding: var(--sh-s-3) 14px;
+}
+
+.sh-dashboard-metric .sh-stat__label {
+  font: var(--sh-w-medium) var(--sh-t-meta) / 1.2 var(--sh-font-ui);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sh-dashboard-metric .sh-stat__value {
+  font-size: 24px;
+  margin-top: var(--sh-s-1);
+}
+
+.sh-dashboard-metric .sh-stat__note {
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-2);
+}
+
+.sh-admin-shell .sh-workspace-header__title {
+  font-size: var(--sh-t-title);
+}
+
+.sh-admin-shell .sh-workspace-header__description {
+  font-size: var(--sh-t-meta);
+}
+
 /* ── Notice stack ───────────────────────────────────────── */
 
 .sh-notice-stack {
@@ -523,12 +600,14 @@
 
 @media (max-width: 1080px) {
   .sh-stat-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sh-dashboard-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 720px) {
   .sh-shell { width: min(100%, calc(100% - var(--sh-s-4))); }
   .sh-topbar { flex-wrap: wrap; }
   .sh-stat-strip { grid-template-columns: 1fr; }
+  .sh-dashboard-metrics { grid-template-columns: minmax(0, 1fr); }
   .sh-section__head,
   .sh-section__body { padding-left: var(--sh-s-4); padding-right: var(--sh-s-4); }
 }
