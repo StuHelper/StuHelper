@@ -19,23 +19,15 @@ import {
 import type {
   StuhelperConsoleCommandPolicy,
   StuhelperConsoleData,
+  StuhelperConsoleEvent,
   StuhelperConsoleGuardBinding,
   StuhelperConsoleGuardMember,
   StuhelperConsoleGuardTemplate,
   StuhelperConsoleKeywordRule,
   StuhelperConsoleMemberRole,
-  StuhelperConsoleReview,
   StuhelperConsoleReport,
-  StuhelperConsoleEvent,
+  StuhelperConsoleReview,
 } from '../src/console-types'
-
-export type ViewId =
-  | 'overview'
-  | 'gate'
-  | 'rules'
-  | 'templates'
-  | 'enforcement'
-  | 'events'
 
 export type InspectorKind =
   | 'member'
@@ -76,11 +68,6 @@ export function useConsolePage() {
     routeState.value = { ...routeState.value, ...next }
     const url = updateConsoleUrl(new URL(window.location.href), routeState.value)
     window.history.replaceState(window.history.state, '', url)
-  }
-
-  const activeTab = ref<ViewId>('overview')
-  function goto(view: ViewId) {
-    activeTab.value = view
   }
 
   const inspector = reactive<InspectorState>({
@@ -187,49 +174,6 @@ export function useConsolePage() {
         .some((field) => String(field).toLowerCase().includes(q)),
     )
   })
-
-  const metrics = computed(() => {
-    const overview = data.value?.overview
-    const gateCount = pendingMembers.value.length
-    const reviewCount = overview?.pendingReviews ?? pendingReviews.value.length
-    const openReports = overview?.openReports ?? 0
-    const highRisk = overview?.highRiskEvents ?? 0
-    return [
-      {
-        label: '待复核',
-        value: reviewCount,
-        note: '人工复核队列；踢人/拉黑全部回流此处。',
-        tone: reviewCount > 0 ? ('warning' as const) : ('primary' as const),
-      },
-      {
-        label: '待认证成员',
-        value: gateCount,
-        note: '入群准入与超时踢出共用一条工作流。',
-        tone: gateCount > 0 ? ('primary' as const) : ('success' as const),
-      },
-      {
-        label: '开放举报',
-        value: openReports,
-        note: '举报单持续汇入 AI 判断与人工处理。',
-        tone: openReports > 0 ? ('warning' as const) : ('success' as const),
-      },
-      {
-        label: '高风险事件',
-        value: highRisk,
-        note: '关键动作都带审计记录与最近事件摘要。',
-        tone: highRisk > 0 ? ('danger' as const) : ('success' as const),
-      },
-    ]
-  })
-
-  const tabs = computed(() => [
-    { id: 'overview' as const, label: '总览' },
-    { id: 'gate' as const, label: '认证准入', count: pendingMembers.value.length },
-    { id: 'rules' as const, label: '通用群规', count: keywordRules.value.length },
-    { id: 'templates' as const, label: '模板与群绑定', count: guardTemplates.value.length },
-    { id: 'enforcement' as const, label: '处置中心', count: pendingReviews.value.length },
-    { id: 'events' as const, label: '事件日志' },
-  ])
 
   async function runTask(task: () => Promise<unknown>) {
     loading.value = true
@@ -379,9 +323,6 @@ export function useConsolePage() {
     loading,
     routeState,
     setRouteState,
-    activeTab,
-    tabs,
-    goto,
     inspector,
     openInspector,
     closeInspector,
@@ -404,7 +345,6 @@ export function useConsolePage() {
     supportedCommandIds,
     filteredEvents,
     filteredReports,
-    metrics,
     eventSearch,
     reportSearch,
     selectedGuardIds,
