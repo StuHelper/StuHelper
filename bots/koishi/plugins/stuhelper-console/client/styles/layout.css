@@ -1,0 +1,214 @@
+.sh-console__frame {
+  width: min(1360px, calc(100% - var(--sh-s-8)));
+  margin: 0 auto;
+}
+
+.sh-admin-shell {
+  display: grid;
+  grid-template-columns: var(--sh-sidebar-w) minmax(0, 1fr);
+  min-height: 720px;
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-3);
+  overflow: hidden;
+  background: var(--sh-surface-0);
+  box-shadow: var(--sh-shadow-1);
+}
+
+.sh-admin-shell__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--sh-surface-0);
+}
+
+.sh-admin-shell__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-4);
+  padding: var(--sh-s-5);
+  background: var(--sh-surface-1);
+}
+
+.sh-sidebar {
+  min-width: 0;
+  padding: var(--sh-s-4);
+  border-right: 1px solid var(--sh-border);
+  background: var(--sh-surface-0);
+}
+
+.sh-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-sidebar__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sh-s-3);
+  min-height: 40px;
+  padding: 0 var(--sh-s-3);
+  border: 0;
+  border-radius: var(--sh-r-2);
+  background: transparent;
+  color: var(--sh-fg-1);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--sh-dur-fast) var(--sh-ease),
+    color var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-sidebar__item:hover {
+  background: var(--sh-surface-hover);
+  color: var(--sh-fg);
+}
+
+.sh-sidebar__item[data-active='true'] {
+  background: var(--sh-primary-soft);
+  color: var(--sh-primary);
+}
+
+.sh-sidebar__label {
+  min-width: 0;
+  font-size: var(--sh-t-body-lg);
+  font-weight: var(--sh-w-medium);
+}
+
+.sh-sidebar__count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-1);
+  color: inherit;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+  font-size: var(--sh-t-meta);
+  font-weight: var(--sh-w-semibold);
+}
+
+.sh-workspace-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sh-s-4);
+  padding: var(--sh-s-5);
+  border-bottom: 1px solid var(--sh-border);
+}
+
+.sh-workspace-header__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sh-workspace-header__title {
+  font-size: var(--sh-t-heading);
+  line-height: 1.2;
+}
+
+.sh-workspace-header__description {
+  max-width: 64ch;
+  color: var(--sh-fg-1);
+}
+
+.sh-workspace-header__meta {
+  color: var(--sh-fg-2);
+  font-size: var(--sh-t-meta);
+}
+
+.sh-workspace-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-s-2);
+  flex-wrap: wrap;
+}
+
+.sh-shell-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sh-s-4);
+}
+
+.sh-summary-list,
+.sh-status-list {
+  margin: 0;
+  padding: 0;
+}
+
+.sh-summary-list {
+  list-style: none;
+}
+
+.sh-summary-list__item,
+.sh-status-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sh-s-3);
+  padding: var(--sh-s-3) 0;
+  border-top: 1px solid var(--sh-border);
+}
+
+.sh-summary-list__item:first-child,
+.sh-status-list__row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.sh-summary-list__label,
+.sh-status-list__label {
+  color: var(--sh-fg-2);
+}
+
+.sh-summary-list__value,
+.sh-status-list__value {
+  margin: 0;
+  color: var(--sh-fg);
+  font-weight: var(--sh-w-semibold);
+  text-align: right;
+}
+
+@media (max-width: 960px) {
+  .sh-console__frame {
+    width: min(100%, calc(100% - var(--sh-s-6)));
+  }
+
+  .sh-admin-shell {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .sh-sidebar {
+    padding: var(--sh-s-3);
+    border-right: 0;
+    border-bottom: 1px solid var(--sh-border);
+  }
+
+  .sh-sidebar__nav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .sh-sidebar__item {
+    min-width: 148px;
+  }
+
+  .sh-workspace-header,
+  .sh-admin-shell__content {
+    padding: var(--sh-s-4);
+  }
+
+  .sh-workspace-header {
+    flex-direction: column;
+  }
+
+  .sh-shell-grid {
+    grid-template-columns: 1fr;
+  }
+}
