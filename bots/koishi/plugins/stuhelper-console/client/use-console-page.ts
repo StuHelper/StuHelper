@@ -164,6 +164,7 @@ export function useConsolePage() {
 
   const eventSearch = ref('')
   const reportSearch = ref('')
+  const visibleReviewIds = ref<string[]>([])
 
   const pendingMembers = computed(() => data.value?.pendingMembers || [])
   const pendingReviews = computed(() => data.value?.pendingReviews || [])
@@ -245,7 +246,9 @@ export function useConsolePage() {
   async function submitReviewAndFocus(
     reviewId: string,
     action: 'execute' | 'reject',
-    visibleIds = pendingReviews.value.map((review) => review.id),
+    visibleIds = visibleReviewIds.value.length
+      ? visibleReviewIds.value
+      : pendingReviews.value.map((review) => review.id),
   ) {
     const nextId = getNextFocusableId({
       ids: visibleIds,
@@ -375,6 +378,10 @@ export function useConsolePage() {
     openInspector('report', report.id, report)
   }
 
+  function setVisibleReviewIds(ids: readonly string[]) {
+    visibleReviewIds.value = [...ids]
+  }
+
   function openDashboardTarget(target: DashboardTarget) {
     closeInspector()
     setRouteState({ section: target.section, queue: null, id: '', source: 'dashboard' })
@@ -394,6 +401,7 @@ export function useConsolePage() {
     inspectReview,
     inspectEvent,
     inspectReport,
+    setVisibleReviewIds,
     openDashboardTarget,
     notices,
     pushNotice,

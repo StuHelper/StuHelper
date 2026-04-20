@@ -52,6 +52,7 @@
             :submit-review-and-focus="submitReviewAndFocus"
             :inspect-review="inspectReview"
             :inspect-report="inspectReport"
+            :set-visible-review-ids="setVisibleReviewIds"
           />
           <EventsView
             v-else-if="activeSection === 'audit'"
@@ -161,6 +162,7 @@ const {
   inspectReview,
   inspectEvent,
   inspectReport,
+  setVisibleReviewIds,
   notices,
   dismissNotice,
   pendingMembers,

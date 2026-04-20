@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import type { StuhelperConsoleReport, StuhelperConsoleReview } from '../../../src/console-types'
 import Section from '../ConsolePanel.vue'
@@ -91,6 +91,7 @@ const props = defineProps<{
   ) => Promise<unknown>
   inspectReview: (review: StuhelperConsoleReview) => void
   inspectReport: (report: StuhelperConsoleReport) => void
+  setVisibleReviewIds: (ids: readonly string[]) => void
 }>()
 
 const search = ref('')
@@ -137,6 +138,14 @@ const reviewRows = computed(() =>
       { key: 'reject', label: '驳回', tone: 'ghost' as const },
     ],
   })),
+)
+
+watch(
+  filteredReviews,
+  (reviews) => {
+    props.setVisibleReviewIds(reviews.map((review) => review.id))
+  },
+  { immediate: true },
 )
 
 const reportRows = computed(() =>
