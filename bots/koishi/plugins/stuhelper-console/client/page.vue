@@ -63,8 +63,16 @@
             :inspect-event="inspectEvent"
             :inspect-report="inspectReport"
           />
-          <template v-else-if="activeSection === 'policy'">
+          <PolicyCenterPage
+            v-else-if="activeSection === 'policy'"
+            :categories="policyCategoryItems"
+            :active-category="activePolicyCategory"
+            @select-category="selectPolicyCategory"
+          >
             <RulesView
+              v-if="activePolicyCategory === 'keyword-rules' || activePolicyCategory === 'command-policies'"
+              :mode="activePolicyCategory"
+              :show-header="false"
               :keyword-rules="keywordRules"
               :command-policies="commandPolicies"
               :supported-command-ids="supportedCommandIds"
@@ -78,6 +86,7 @@
               :load-policy="loadPolicy"
             />
             <MemberRolesPanel
+              v-else-if="activePolicyCategory === 'member-roles'"
               :member-roles="memberRoles"
               :role-form="roleForm"
               :run-task="runTask"
@@ -85,6 +94,8 @@
               :load-member-roles="loadMemberRoles"
             />
             <GuardPolicyPanel
+              v-else
+              :mode="activePolicyCategory"
               :templates="guardTemplates"
               :bindings="guardBindings"
               :template-form="templateForm"
@@ -97,7 +108,7 @@
               :inspect-template="(item) => openInspector('template', item.id, item)"
               :inspect-binding="(item) => openInspector('binding', item.id, item)"
             />
-          </template>
+          </PolicyCenterPage>
         </ConsoleShell>
 
         <NoticeStack :items="notices" @dismiss="dismissNotice" />
@@ -137,6 +148,7 @@ import EmptyState from './components/EmptyState.vue'
 import GuardPolicyPanel from './components/GuardPolicyPanel.vue'
 import NoticeStack from './components/NoticeStack.vue'
 import IdentityQueuePage from './components/queue/IdentityQueuePage.vue'
+import PolicyCenterPage from './components/policy/PolicyCenterPage.vue'
 import ReviewQueuePage from './components/queue/ReviewQueuePage.vue'
 import ConsoleShell from './components/layout/ConsoleShell.vue'
 import ConsoleSidebar from './components/layout/ConsoleSidebar.vue'
@@ -144,6 +156,7 @@ import ConsoleWorkspaceHeader from './components/layout/ConsoleWorkspaceHeader.v
 import EventsView from './components/views/EventsView.vue'
 import MemberRolesPanel from './components/views/MemberRolesPanel.vue'
 import RulesView from './components/views/RulesView.vue'
+import { POLICY_CATEGORIES } from './policy/categories'
 import { buildSidebarItems } from './sidebar-items'
 import { CONSOLE_SECTIONS, type ConsoleSectionId } from './sections'
 import { formatTimestamp, useConsolePage } from './use-console-page'
@@ -163,12 +176,14 @@ const {
   inspectEvent,
   inspectReport,
   setVisibleReviewIds,
+  selectPolicyCategory,
   notices,
   dismissNotice,
   pendingMembers,
   pendingReviews,
   selectedMemberId,
   selectedReviewId,
+  activePolicyCategory,
   dashboardModel,
   keywordRules,
   commandPolicies,
@@ -213,6 +228,20 @@ const activeSectionLabel = computed(
     CONSOLE_SECTIONS[0].label,
 )
 const sidebarItems = computed(() => buildSidebarItems(data.value))
+const policyCategoryItems = computed(() => {
+  const counts = {
+    'keyword-rules': keywordRules.value.length,
+    'command-policies': commandPolicies.value.length,
+    'member-roles': memberRoles.value.length,
+    'guard-templates': guardTemplates.value.length,
+    'guard-bindings': guardBindings.value.length,
+  } as const
+
+  return POLICY_CATEGORIES.map((item) => ({
+    ...item,
+    count: counts[item.id],
+  }))
+})
 const headerMeta = computed(() => {
   const updatedAt = generatedAt.value ? `最近同步 ${formatTimestamp(generatedAt.value)}` : '尚未获取同步时间'
   return `${title.value} · ${updatedAt}`
@@ -238,7 +267,12 @@ const inspectorDetails = computed(() => {
 function selectSection(section: ConsoleSectionId) {
   if (section === activeSection.value) return
   closeInspector()
-  setRouteState({ section, queue: null, id: '', source: 'nav' })
+  setRouteState({
+    section,
+    queue: section === 'policy' ? activePolicyCategory.value : null,
+    id: '',
+    source: 'nav',
+  })
 }
 
 function detailList(record: Record<string, unknown>, fields: Array<[string, string, boolean?]>) {

@@ -1,6 +1,10 @@
 <template>
-  <div id="sh-view-rules" class="sh-view" role="tabpanel">
-    <header class="sh-view__header">
+  <div
+    :id="props.showHeader ? 'sh-view-rules' : undefined"
+    :class="props.showHeader ? 'sh-view' : 'sh-rules-view'"
+    :role="props.showHeader ? 'tabpanel' : undefined"
+  >
+    <header v-if="props.showHeader" class="sh-view__header">
       <div class="sh-view__title-group">
         <span class="sh-view__eyebrow">RULES / 通用群规</span>
         <h1 class="sh-view__title">关键词与命令权限</h1>
@@ -11,6 +15,7 @@
     </header>
 
     <Section
+      v-if="props.mode !== 'command-policies'"
       eyebrow="Keyword rules"
       title="关键词规则"
       description="左侧编辑、下方列表。命中后的动作可以是警告、撤回、禁言或转人工复核。"
@@ -134,6 +139,7 @@
     </Section>
 
     <Section
+      v-if="props.mode !== 'keyword-rules'"
       eyebrow="Command policies"
       title="命令权限策略"
       description="为关键指令设置 authority 下限与角色白名单，避免命令入口失控。"
@@ -214,7 +220,7 @@ import type {
 } from '../../../src/console-types'
 import { describeAction } from '../../use-console-page'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   keywordRules: readonly StuhelperConsoleKeywordRule[]
   commandPolicies: readonly StuhelperConsoleCommandPolicy[]
   supportedCommandIds: readonly string[]
@@ -235,5 +241,18 @@ defineProps<{
   inspectRule?: (rule: StuhelperConsoleKeywordRule) => void
   loadRule: (rule: StuhelperConsoleKeywordRule) => void
   loadPolicy: (policy: StuhelperConsoleCommandPolicy) => void
-}>()
+  mode?: 'keyword-rules' | 'command-policies' | 'all'
+  showHeader?: boolean
+}>(), {
+  mode: 'all',
+  showHeader: true,
+})
 </script>
+
+<style scoped>
+.sh-rules-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-4);
+}
+</style>

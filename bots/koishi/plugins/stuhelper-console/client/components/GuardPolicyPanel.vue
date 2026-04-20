@@ -1,6 +1,6 @@
 <template>
-  <div class="sh-split sh-split--7-5">
-    <ConsolePanel eyebrow="Policy" title="群模板" description="把提醒文案、禁言时长和超时踢出收敛到一套模板，用于多个群快速复用。" :meta="`${templates.length} 条模板`" tone="accent">
+  <div :class="props.mode === 'all' ? 'sh-split sh-split--7-5' : 'sh-guard-policy'">
+    <ConsolePanel v-if="props.mode !== 'guard-bindings'" eyebrow="Policy" title="群模板" description="把提醒文案、禁言时长和超时踢出收敛到一套模板，用于多个群快速复用。" :meta="`${templates.length} 条模板`" tone="accent">
       <div class="sh-form-grid">
         <label class="sh-field"><span class="sh-field__label">模板 ID</span><input v-model="templateForm.id" class="sh-input sh-input--mono" placeholder="dormitory" /></label>
         <label class="sh-field"><span class="sh-field__label">模板名称</span><input v-model="templateForm.name" class="sh-input" placeholder="宿舍群模板" /></label>
@@ -29,7 +29,7 @@
       </div>
     </ConsolePanel>
 
-    <ConsolePanel eyebrow="Binding" title="群绑定" description="按 platform + guildId 挂载模板。已绑定群优先读取数据库规则，未绑定群才回退静态 guard 配置。" :meta="`${bindings.length} 条绑定`">
+    <ConsolePanel v-if="props.mode !== 'guard-templates'" eyebrow="Binding" title="群绑定" description="按 platform + guildId 挂载模板。已绑定群优先读取数据库规则，未绑定群才回退静态 guard 配置。" :meta="`${bindings.length} 条绑定`">
       <div class="sh-form-grid">
         <label class="sh-field"><span class="sh-field__label">平台</span><input v-model="bindingForm.platform" class="sh-input sh-input--mono" placeholder="onebot / qq / mock" /></label>
         <label class="sh-field"><span class="sh-field__label">群号</span><input v-model="bindingForm.guildId" class="sh-input sh-input--mono" placeholder="群号" /></label>
@@ -65,7 +65,7 @@ import SeverityTag from './SeverityTag.vue'
 
 import type { StuhelperConsoleGuardBinding, StuhelperConsoleGuardTemplate } from '../../src/console-types'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   templates: StuhelperConsoleGuardTemplate[]
   bindings: StuhelperConsoleGuardBinding[]
   templateForm: {
@@ -84,12 +84,23 @@ defineProps<{
     enabled: boolean
     note: string
   }
-  runTask: (task: () => Promise<unknown>) => Promise<void>
+  runTask: (task: () => Promise<unknown>) => Promise<unknown>
   submitTemplate: () => Promise<unknown>
   submitBinding: () => Promise<unknown>
   loadTemplate: (template: StuhelperConsoleGuardTemplate) => void
   loadBinding: (binding: StuhelperConsoleGuardBinding) => void
   inspectTemplate?: (template: StuhelperConsoleGuardTemplate) => void
   inspectBinding?: (binding: StuhelperConsoleGuardBinding) => void
-}>()
+  mode?: 'guard-templates' | 'guard-bindings' | 'all'
+}>(), {
+  mode: 'all',
+})
 </script>
+
+<style scoped>
+.sh-guard-policy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-4);
+}
+</style>

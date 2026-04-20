@@ -32,6 +32,11 @@ import {
   buildDashboardModel,
   type DashboardTarget,
 } from './dashboard/model'
+import {
+  DEFAULT_POLICY_CATEGORY_ID,
+  resolvePolicyCategoryId,
+  type PolicyCategoryId,
+} from './policy/categories'
 import { getNextFocusableId } from './queue/model'
 
 export type InspectorKind =
@@ -179,6 +184,11 @@ export function useConsolePage() {
   const supportedCommandIds = computed(() => data.value?.supportedCommandIds || [])
   const selectedMemberId = computed(() => getSelectedQueueId('identity', MEMBER_QUEUE_ID))
   const selectedReviewId = computed(() => getSelectedQueueId('enforcement', REVIEW_QUEUE_ID))
+  const activePolicyCategory = computed(() =>
+    routeState.value.section === 'policy'
+      ? resolvePolicyCategoryId(routeState.value.queue)
+      : DEFAULT_POLICY_CATEGORY_ID,
+  )
 
   const filteredEvents = computed(() => {
     const q = eventSearch.value.trim().toLowerCase()
@@ -382,9 +392,31 @@ export function useConsolePage() {
     visibleReviewIds.value = [...ids]
   }
 
+  function selectPolicyCategory(category: PolicyCategoryId) {
+    if (
+      routeState.value.section === 'policy' &&
+      activePolicyCategory.value === category
+    ) {
+      return
+    }
+
+    closeInspector()
+    setRouteState({
+      section: 'policy',
+      queue: category,
+      id: '',
+      source: 'nav',
+    })
+  }
+
   function openDashboardTarget(target: DashboardTarget) {
     closeInspector()
-    setRouteState({ section: target.section, queue: null, id: '', source: 'dashboard' })
+    setRouteState({
+      section: target.section,
+      queue: target.section === 'policy' ? activePolicyCategory.value : null,
+      id: '',
+      source: 'dashboard',
+    })
   }
 
   return {
@@ -402,6 +434,7 @@ export function useConsolePage() {
     inspectEvent,
     inspectReport,
     setVisibleReviewIds,
+    selectPolicyCategory,
     openDashboardTarget,
     notices,
     pushNotice,
@@ -410,6 +443,7 @@ export function useConsolePage() {
     pendingReviews,
     selectedMemberId,
     selectedReviewId,
+    activePolicyCategory,
     keywordRules,
     commandPolicies,
     memberRoles,
