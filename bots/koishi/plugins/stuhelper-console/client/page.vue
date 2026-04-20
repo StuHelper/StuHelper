@@ -30,6 +30,7 @@
             v-else-if="activeSection === 'identity'"
             v-model:selected-guard-ids="selectedGuardIds"
             :pending-members="pendingMembers"
+            :loading="loading"
             :guard-form="guardForm"
             :inspector="inspector"
             :run-task="runTask"
@@ -65,8 +66,16 @@
               :run-task="runTask"
               :submit-rule="submitRule"
               :submit-policy="submitPolicy"
+              :inspect-rule="(item) => openInspector('rule', item.id, item)"
               :load-rule="loadRule"
               :load-policy="loadPolicy"
+            />
+            <MemberRolesPanel
+              :member-roles="memberRoles"
+              :role-form="roleForm"
+              :run-task="runTask"
+              :submit-roles="submitRoles"
+              :load-member-roles="loadMemberRoles"
             />
             <GuardPolicyPanel
               :templates="guardTemplates"
@@ -136,6 +145,7 @@ import ConsoleWorkspaceHeader from './components/layout/ConsoleWorkspaceHeader.v
 import EnforcementView from './components/views/EnforcementView.vue'
 import EventsView from './components/views/EventsView.vue'
 import GateView from './components/views/GateView.vue'
+import MemberRolesPanel from './components/views/MemberRolesPanel.vue'
 import RulesView from './components/views/RulesView.vue'
 import { buildSidebarItems } from './sidebar-items'
 import { CONSOLE_SECTIONS, type ConsoleSectionId } from './sections'
@@ -161,6 +171,7 @@ const {
   pendingReviews,
   keywordRules,
   commandPolicies,
+  memberRoles,
   guardTemplates,
   guardBindings,
   recentReports,
@@ -175,6 +186,7 @@ const {
   ruleForm,
   templateForm,
   bindingForm,
+  roleForm,
   policyForm,
   runTask,
   refresh,
@@ -183,10 +195,12 @@ const {
   submitRule,
   submitTemplate,
   submitBinding,
+  submitRoles,
   submitPolicy,
   loadRule,
   loadTemplate,
   loadBinding,
+  loadMemberRoles,
   loadPolicy,
 } = useConsolePage()
 

@@ -98,7 +98,12 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="rule in keywordRules" :key="rule.id">
+            <tr
+              v-for="rule in keywordRules"
+              :key="rule.id"
+              data-clickable="true"
+              @click="inspectRule?.(rule)"
+            >
               <td>
                 <div>{{ rule.id }}</div>
                 <div class="sh-table__id">{{ rule.matchMode }}</div>
@@ -118,7 +123,7 @@
                 />
               </td>
               <td class="sh-table__actions">
-                <button class="sh-btn sh-btn--sm sh-btn--ghost" @click="loadRule(rule)">
+                <button class="sh-btn sh-btn--sm sh-btn--ghost" @click.stop="loadRule(rule)">
                   编辑
                 </button>
               </td>
@@ -227,6 +232,7 @@ defineProps<{
   runTask: (task: () => Promise<unknown>) => Promise<unknown>
   submitRule: () => Promise<unknown>
   submitPolicy: () => Promise<unknown>
+  inspectRule?: (rule: StuhelperConsoleKeywordRule) => void
   loadRule: (rule: StuhelperConsoleKeywordRule) => void
   loadPolicy: (policy: StuhelperConsoleCommandPolicy) => void
 }>()

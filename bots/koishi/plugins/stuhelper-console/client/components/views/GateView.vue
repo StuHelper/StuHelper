@@ -51,7 +51,7 @@
       <div class="sh-btn-row">
         <button
           class="sh-btn sh-btn--primary"
-          :disabled="selectedGuardIds.length === 0"
+          :disabled="selectedGuardIds.length === 0 || loading"
           @click="runTask(submitGuardAction)"
         >
           执行操作
@@ -136,6 +136,7 @@ import {
 
 const props = defineProps<{
   pendingMembers: readonly StuhelperConsoleGuardMember[]
+  loading: boolean
   guardForm: {
     action: 'mute' | 'unmute' | 'kick' | 'set-role' | 'unset-role'
     seconds: number
