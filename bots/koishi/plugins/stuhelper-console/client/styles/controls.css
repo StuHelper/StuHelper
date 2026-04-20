@@ -267,11 +267,6 @@
 
 .sh-table td:first-child { font-weight: var(--sh-w-medium); color: var(--sh-fg); }
 
-.sh-dashboard-table th,
-.sh-dashboard-table td {
-  font-size: var(--sh-t-meta);
-}
-
 .sh-dashboard-table td:last-child {
   width: 72px;
 }
@@ -285,6 +280,11 @@
 .sh-table td {
   font-size: var(--sh-t-body-lg);
   color: var(--sh-fg-1);
+}
+
+.sh-table.sh-dashboard-table th,
+.sh-table.sh-dashboard-table td {
+  font-size: var(--sh-t-meta);
 }
 
 .sh-table__id {
