@@ -17,7 +17,22 @@
         <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="emit('close')">关闭</button>
       </header>
       <div class="sh-drawer__body">
-        <slot />
+        <template v-if="sections.length > 0">
+          <section
+            v-for="section in sections"
+            :key="section.key"
+            class="sh-drawer__section"
+          >
+            <h4 class="sh-drawer__section-title">{{ section.title }}</h4>
+            <dl class="sh-keylist">
+              <template v-for="item in section.items" :key="`${section.key}-${item.label}`">
+                <dt>{{ item.label }}</dt>
+                <dd :class="{ 'sh-mono': item.mono }">{{ item.value }}</dd>
+              </template>
+            </dl>
+          </section>
+        </template>
+        <slot v-else />
       </div>
       <footer v-if="$slots.footer" class="sh-drawer__foot">
         <slot name="footer" />
@@ -27,11 +42,21 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  open: boolean
-  title?: string
-  subtitle?: string
-}>()
+import type { DrawerSection } from '../ui-state'
+
+withDefaults(
+  defineProps<{
+    open: boolean
+    title?: string
+    subtitle?: string
+    sections?: readonly DrawerSection[]
+  }>(),
+  {
+    title: '',
+    subtitle: '',
+    sections: () => [],
+  },
+)
 
 const emit = defineEmits<{ close: [] }>()
 </script>

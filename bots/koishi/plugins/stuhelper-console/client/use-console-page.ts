@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { store } from '@koishijs/client'
 
 import {
@@ -28,6 +28,7 @@ import type {
   StuhelperConsoleReport,
   StuhelperConsoleReview,
 } from '../src/console-types'
+import { buildAuditRows, normalizeAuditFilterKind, type AuditFilterKind, type AuditRow } from './audit/model'
 import {
   buildDashboardModel,
   type DashboardTarget,
@@ -38,6 +39,7 @@ import {
   type PolicyCategoryId,
 } from './policy/categories'
 import { getNextFocusableId } from './queue/model'
+import { resolveNoticeMessage } from './ui-state'
 
 export type InspectorKind =
   | 'member'
@@ -76,6 +78,9 @@ export function useConsolePage() {
   const routeState = ref<ConsoleSearchState>(
     parseConsoleSearch(new URLSearchParams(window.location.search)),
   )
+  const rawAuditQuery = ref('')
+  const visibleReviewIds = ref<string[]>([])
+
   function setRouteState(next: Partial<ConsoleSearchState>) {
     routeState.value = { ...routeState.value, ...next }
     const url = updateConsoleUrl(new URL(window.location.href), routeState.value)
@@ -167,10 +172,6 @@ export function useConsolePage() {
   const roleForm = reactive({ guildId: '', memberId: '', rolesText: '' })
   const policyForm = reactive({ commandId: 'report', minAuthority: 0, rolesText: '' })
 
-  const eventSearch = ref('')
-  const reportSearch = ref('')
-  const visibleReviewIds = ref<string[]>([])
-
   const pendingMembers = computed(() => data.value?.pendingMembers || [])
   const pendingReviews = computed(() => data.value?.pendingReviews || [])
   const keywordRules = computed(() => data.value?.keywordRules || [])
@@ -184,38 +185,60 @@ export function useConsolePage() {
   const supportedCommandIds = computed(() => data.value?.supportedCommandIds || [])
   const selectedMemberId = computed(() => getSelectedQueueId('identity', MEMBER_QUEUE_ID))
   const selectedReviewId = computed(() => getSelectedQueueId('enforcement', REVIEW_QUEUE_ID))
+  const selectedAuditId = computed(() =>
+    routeState.value.section === 'audit' ? routeState.value.id : '',
+  )
   const activePolicyCategory = computed(() =>
     routeState.value.section === 'policy'
       ? resolvePolicyCategoryId(routeState.value.queue)
       : DEFAULT_POLICY_CATEGORY_ID,
   )
-
-  const filteredEvents = computed(() => {
-    const q = eventSearch.value.trim().toLowerCase()
-    if (!q) return recentEvents.value
-    return recentEvents.value.filter((event) =>
-      [event.memberId, event.summary, event.level, event.guildId]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(q)),
-    )
+  const auditKind = computed<AuditFilterKind>({
+    get: () =>
+      routeState.value.section === 'audit'
+        ? normalizeAuditFilterKind(routeState.value.queue)
+        : 'all',
+    set: (kind) => {
+      updateAuditRoute(normalizeAuditFilterKind(kind))
+    },
   })
+  const auditQuery = computed({
+    get: () => rawAuditQuery.value,
+    set: (query: string) => {
+      rawAuditQuery.value = query
+      syncAuditSelection()
+    },
+  })
+  const auditRows = computed(() =>
+    getAuditRows(auditKind.value, rawAuditQuery.value),
+  )
 
-  const filteredReports = computed(() => {
-    const q = reportSearch.value.trim().toLowerCase()
-    if (!q) return recentReports.value
-    return recentReports.value.filter((report) =>
-      [report.reporterMemberId, report.targetMemberId, report.reason, report.aiSummary]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(q)),
-    )
+  watch(auditRows, (rows) => {
+    if (routeState.value.section !== 'audit') return
+    if (!routeState.value.id && rows[0]) {
+      setRouteState({
+        section: 'audit',
+        queue: getAuditQueue(auditKind.value),
+        id: rows[0].id,
+        source: 'direct',
+      })
+      return
+    }
+    if (!routeState.value.id || rows.some((row) => row.id === routeState.value.id)) return
+    closeInspector()
+    setRouteState({
+      section: 'audit',
+      queue: getAuditQueue(auditKind.value),
+      id: rows[0]?.id ?? '',
+      source: 'direct',
+    })
   })
 
   async function runTask(task: () => Promise<unknown>) {
     loading.value = true
     try {
       const result = await task()
-      const message = typeof result === 'string' && result.trim() ? result : '操作已提交并刷新。'
-      pushNotice('success', message)
+      pushNotice('success', resolveNoticeMessage(result))
       return result
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -388,6 +411,24 @@ export function useConsolePage() {
     openInspector('report', report.id, report)
   }
 
+  function inspectAuditRow(row: AuditRow) {
+    setRouteState({
+      section: 'audit',
+      queue: getAuditQueue(auditKind.value),
+      id: row.id,
+      source: 'direct',
+    })
+
+    if (row.kind === 'event') {
+      const event = recentEvents.value.find((item) => item.id === row.id)
+      if (event) inspectEvent(event)
+      return
+    }
+
+    const report = recentReports.value.find((item) => item.id === row.id)
+    if (report) inspectReport(report)
+  }
+
   function setVisibleReviewIds(ids: readonly string[]) {
     visibleReviewIds.value = [...ids]
   }
@@ -419,6 +460,44 @@ export function useConsolePage() {
     })
   }
 
+  function getAuditRows(kind: AuditFilterKind, query = rawAuditQuery.value) {
+    return buildAuditRows(recentEvents.value, recentReports.value, { kind, query })
+  }
+
+  function getAuditQueue(kind: AuditFilterKind) {
+    return kind === 'all' ? null : kind
+  }
+
+  function resolveAuditSelection(kind: AuditFilterKind, currentId = routeState.value.id) {
+    const rows = getAuditRows(kind)
+    if (currentId && rows.some((row) => row.id === currentId)) return currentId
+    return rows[0]?.id ?? ''
+  }
+
+  function updateAuditRoute(kind: AuditFilterKind) {
+    const nextId = resolveAuditSelection(kind)
+    setRouteState({
+      section: 'audit',
+      queue: getAuditQueue(kind),
+      id: nextId,
+      source: 'direct',
+    })
+    if (inspector.kind === 'event' || inspector.kind === 'report') closeInspector()
+  }
+
+  function syncAuditSelection() {
+    if (routeState.value.section !== 'audit') return
+    const nextId = resolveAuditSelection(auditKind.value)
+    if (nextId === routeState.value.id) return
+    closeInspector()
+    setRouteState({
+      section: 'audit',
+      queue: getAuditQueue(auditKind.value),
+      id: nextId,
+      source: 'direct',
+    })
+  }
+
   return {
     data,
     title,
@@ -429,20 +508,13 @@ export function useConsolePage() {
     inspector,
     openInspector,
     closeInspector,
-    inspectMember,
-    inspectReview,
-    inspectEvent,
-    inspectReport,
-    setVisibleReviewIds,
-    selectPolicyCategory,
-    openDashboardTarget,
     notices,
-    pushNotice,
     dismissNotice,
     pendingMembers,
     pendingReviews,
     selectedMemberId,
     selectedReviewId,
+    selectedAuditId,
     activePolicyCategory,
     keywordRules,
     commandPolicies,
@@ -453,10 +525,9 @@ export function useConsolePage() {
     recentReports,
     dashboardModel,
     supportedCommandIds,
-    filteredEvents,
-    filteredReports,
-    eventSearch,
-    reportSearch,
+    auditRows,
+    auditQuery,
+    auditKind,
     selectedGuardIds,
     guardForm,
     reviewForm,
@@ -480,6 +551,13 @@ export function useConsolePage() {
     loadBinding,
     loadMemberRoles,
     loadPolicy,
+    inspectMember,
+    inspectReview,
+    inspectReport,
+    inspectAuditRow,
+    setVisibleReviewIds,
+    selectPolicyCategory,
+    openDashboardTarget,
   }
 }
 

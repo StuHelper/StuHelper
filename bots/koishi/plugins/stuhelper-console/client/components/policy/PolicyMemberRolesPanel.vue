@@ -1,9 +1,8 @@
 <template>
-  <Section
-    eyebrow="Member roles"
+  <WorkspaceSection
     title="成员角色"
-    description="群内角色是命令放行、审核分权和运营协作的基础。"
-    :meta="`${memberRoles.length} 条角色记录`"
+    description="维护命令放行、协作分工和复核责任。"
+    :meta="`${memberRoles.length} 条`"
     flush
   >
     <div class="sh-section__body">
@@ -29,7 +28,7 @@
     <EmptyState
       v-if="memberRoles.length === 0"
       title="暂无成员角色"
-      body="需要时再为特定成员绑定角色。"
+      body="需要时再绑定角色即可。"
     />
     <div v-else class="sh-table-shell">
       <table class="sh-table">
@@ -55,17 +54,21 @@
         </tbody>
       </table>
     </div>
-  </Section>
+  </WorkspaceSection>
 </template>
 
 <script setup lang="ts">
 import type { StuhelperConsoleMemberRole } from '../../../src/console-types'
 import EmptyState from '../EmptyState.vue'
-import Section from '../ConsolePanel.vue'
+import WorkspaceSection from '../layout/WorkspaceSection.vue'
 
 defineProps<{
   memberRoles: readonly StuhelperConsoleMemberRole[]
-  roleForm: { guildId: string; memberId: string; rolesText: string }
+  roleForm: {
+    guildId: string
+    memberId: string
+    rolesText: string
+  }
   runTask: (task: () => Promise<unknown>) => Promise<unknown>
   submitRoles: () => Promise<unknown>
   loadMemberRoles: (entry: StuhelperConsoleMemberRole) => void

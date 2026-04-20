@@ -28,14 +28,14 @@
   --sh-r-full: 999px;
 
   /* type scale */
-  --sh-t-caption: 11px;
+  --sh-t-caption: 12px;
   --sh-t-meta: 12px;
-  --sh-t-body: 13px;
-  --sh-t-body-lg: 14px;
+  --sh-t-body: 12px;
+  --sh-t-body-lg: 12px;
   --sh-t-title: 16px;
-  --sh-t-section: 18px;
-  --sh-t-heading: 22px;
-  --sh-t-stat: clamp(26px, 2.6vw, 32px);
+  --sh-t-section: 14px;
+  --sh-t-heading: 16px;
+  --sh-t-stat: 24px;
 
   /* line */
   --sh-l-tight: 1.15;
@@ -49,8 +49,8 @@
 
   /* fonts */
   --sh-font-ui:
-    'Inter', 'Geist Sans', system-ui, -apple-system, 'Segoe UI', Roboto,
-    'PingFang SC', 'Noto Sans CJK SC', sans-serif;
+    'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC',
+    'Microsoft YaHei', system-ui, sans-serif;
   --sh-font-mono:
     'JetBrains Mono', 'SF Mono', ui-monospace, 'Menlo', 'Consolas', monospace;
 
@@ -93,7 +93,7 @@
 
   /* density */
   --sh-row-h: 40px;
-  --sh-control-h: 34px;
+  --sh-control-h: 32px;
 
   color: var(--sh-fg);
   font-family: var(--sh-font-ui);

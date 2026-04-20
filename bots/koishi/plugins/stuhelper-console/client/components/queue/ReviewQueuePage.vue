@@ -1,16 +1,7 @@
 <template>
   <div id="sh-view-enforcement" class="sh-view" role="tabpanel">
-    <header class="sh-view__header">
-      <div class="sh-view__title-group">
-        <span class="sh-view__eyebrow">ENFORCEMENT / 处置中心</span>
-        <h1 class="sh-view__title">人工复核与举报处理</h1>
-        <p class="sh-view__lead">复核队列和最近举报保持同屏，点行即看详情，执行后自动切到下一条。</p>
-      </div>
-    </header>
-
     <div class="sh-split sh-split--7-5">
-      <Section
-        eyebrow="Review Queue"
+      <WorkspaceSection
         title="人工复核队列"
         description="踢人、拉黑等高风险动作只在这里执行或驳回。"
         :meta="`${pendingReviews.length} 条`"
@@ -35,10 +26,9 @@
           @select="handleReviewSelect"
           @action="handleReviewAction"
         />
-      </Section>
+      </WorkspaceSection>
 
-      <Section
-        eyebrow="Reports"
+      <WorkspaceSection
         title="最近举报"
         description="保留侧栏表格，减少在多个入口之间切换。"
         :meta="`${reportRows.length} 条`"
@@ -50,7 +40,7 @@
           empty-body="用户举报会显示在这里。"
           @select="handleReportSelect"
         />
-      </Section>
+      </WorkspaceSection>
     </div>
   </div>
 </template>
@@ -59,7 +49,7 @@
 import { computed, ref, watch } from 'vue'
 
 import type { StuhelperConsoleReport, StuhelperConsoleReview } from '../../../src/console-types'
-import Section from '../ConsolePanel.vue'
+import WorkspaceSection from '../layout/WorkspaceSection.vue'
 import QueueTable from './QueueTable.vue'
 import QueueToolbar from './QueueToolbar.vue'
 import { describeAction, describeLevel, formatTimestamp } from '../../use-console-page'

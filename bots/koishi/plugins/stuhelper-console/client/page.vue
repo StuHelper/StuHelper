@@ -4,10 +4,18 @@
       <div class="sh-console__frame">
         <ConsoleShell>
           <template #sidebar>
-            <ConsoleSidebar :items="sidebarItems" :active="activeSection" @select="selectSection" />
+            <ConsoleSidebar
+              :items="sidebarItems"
+              :active="activeSection"
+              @select="selectSection"
+            />
           </template>
           <template #header>
-            <ConsoleWorkspaceHeader :title="activeSectionLabel" :meta="headerMeta">
+            <ConsoleWorkspaceHeader
+              :title="activeSectionLabel"
+              :description="activeSectionDescription"
+              :meta="headerMeta"
+            >
               <template #actions>
                 <button
                   type="button"
@@ -54,14 +62,15 @@
             :inspect-report="inspectReport"
             :set-visible-review-ids="setVisibleReviewIds"
           />
-          <EventsView
+          <AuditPage
             v-else-if="activeSection === 'audit'"
-            v-model:event-search="eventSearch"
-            v-model:report-search="reportSearch"
-            :filtered-events="filteredEvents"
-            :filtered-reports="filteredReports"
-            :inspect-event="inspectEvent"
-            :inspect-report="inspectReport"
+            v-model:query="auditQuery"
+            v-model:kind="auditKind"
+            :rows="auditRows"
+            :event-count="recentEvents.length"
+            :report-count="recentReports.length"
+            :selected-id="selectedAuditId"
+            @inspect="inspectAuditRow"
           />
           <PolicyCenterPage
             v-else-if="activeSection === 'policy'"
@@ -69,23 +78,25 @@
             :active-category="activePolicyCategory"
             @select-category="selectPolicyCategory"
           >
-            <RulesView
-              v-if="activePolicyCategory === 'keyword-rules' || activePolicyCategory === 'command-policies'"
-              :mode="activePolicyCategory"
-              :show-header="false"
+            <PolicyKeywordRulesPanel
+              v-if="activePolicyCategory === 'keyword-rules'"
               :keyword-rules="keywordRules"
-              :command-policies="commandPolicies"
-              :supported-command-ids="supportedCommandIds"
               :rule-form="ruleForm"
-              :policy-form="policyForm"
               :run-task="runTask"
               :submit-rule="submitRule"
-              :submit-policy="submitPolicy"
               :inspect-rule="(item) => openInspector('rule', item.id, item)"
               :load-rule="loadRule"
+            />
+            <PolicyCommandPoliciesPanel
+              v-else-if="activePolicyCategory === 'command-policies'"
+              :command-policies="commandPolicies"
+              :supported-command-ids="supportedCommandIds"
+              :policy-form="policyForm"
+              :run-task="runTask"
+              :submit-policy="submitPolicy"
               :load-policy="loadPolicy"
             />
-            <MemberRolesPanel
+            <PolicyMemberRolesPanel
               v-else-if="activePolicyCategory === 'member-roles'"
               :member-roles="memberRoles"
               :role-form="roleForm"
@@ -93,35 +104,43 @@
               :submit-roles="submitRoles"
               :load-member-roles="loadMemberRoles"
             />
-            <GuardPolicyPanel
-              v-else
-              :mode="activePolicyCategory"
+            <PolicyGuardTemplatesPanel
+              v-else-if="activePolicyCategory === 'guard-templates'"
               :templates="guardTemplates"
-              :bindings="guardBindings"
               :template-form="templateForm"
-              :binding-form="bindingForm"
               :run-task="runTask"
               :submit-template="submitTemplate"
-              :submit-binding="submitBinding"
               :load-template="loadTemplate"
-              :load-binding="loadBinding"
               :inspect-template="(item) => openInspector('template', item.id, item)"
+            />
+            <PolicyGuardBindingsPanel
+              v-else
+              :templates="guardTemplates"
+              :bindings="guardBindings"
+              :binding-form="bindingForm"
+              :run-task="runTask"
+              :submit-binding="submitBinding"
+              :load-binding="loadBinding"
               :inspect-binding="(item) => openInspector('binding', item.id, item)"
             />
           </PolicyCenterPage>
         </ConsoleShell>
 
         <NoticeStack :items="notices" @dismiss="dismissNotice" />
-        <Drawer :open="inspector.open" :title="inspectorTitle" :subtitle="inspector.id" @close="closeInspector">
-          <dl class="sh-keylist">
-            <template v-for="item in inspectorDetails" :key="item.label">
-              <dt>{{ item.label }}</dt>
-              <dd :class="{ 'sh-mono': item.mono }">{{ item.value }}</dd>
-            </template>
-          </dl>
+        <Drawer
+          :open="inspector.open"
+          :title="inspectorTitle"
+          :subtitle="inspector.id"
+          :sections="inspectorSections"
+          @close="closeInspector"
+        >
           <template #footer v-if="reviewPending">
-            <button class="sh-btn sh-btn--ghost" @click="runTask(() => submitReviewAndFocus(inspector.id, 'reject'))">驳回</button>
-            <button class="sh-btn sh-btn--primary" @click="runTask(() => submitReviewAndFocus(inspector.id, 'execute'))">执行</button>
+            <button class="sh-btn sh-btn--ghost" @click="runTask(() => submitReviewAndFocus(inspector.id, 'reject'))">
+              驳回
+            </button>
+            <button class="sh-btn sh-btn--primary" @click="runTask(() => submitReviewAndFocus(inspector.id, 'execute'))">
+              执行
+            </button>
           </template>
         </Drawer>
       </div>
@@ -132,34 +151,36 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import type {
-  StuhelperConsoleEvent,
-  StuhelperConsoleGuardBinding,
-  StuhelperConsoleGuardMember,
-  StuhelperConsoleGuardTemplate,
-  StuhelperConsoleKeywordRule,
-  StuhelperConsoleReport,
-  StuhelperConsoleReview,
-} from '../src/console-types'
 import './styles/layout.css'
+import AuditPage from './components/audit/AuditPage.vue'
 import DashboardPage from './components/dashboard/DashboardPage.vue'
 import Drawer from './components/Drawer.vue'
 import EmptyState from './components/EmptyState.vue'
-import GuardPolicyPanel from './components/GuardPolicyPanel.vue'
-import NoticeStack from './components/NoticeStack.vue'
-import IdentityQueuePage from './components/queue/IdentityQueuePage.vue'
-import PolicyCenterPage from './components/policy/PolicyCenterPage.vue'
-import ReviewQueuePage from './components/queue/ReviewQueuePage.vue'
 import ConsoleShell from './components/layout/ConsoleShell.vue'
 import ConsoleSidebar from './components/layout/ConsoleSidebar.vue'
 import ConsoleWorkspaceHeader from './components/layout/ConsoleWorkspaceHeader.vue'
-import EventsView from './components/views/EventsView.vue'
-import MemberRolesPanel from './components/views/MemberRolesPanel.vue'
-import RulesView from './components/views/RulesView.vue'
+import NoticeStack from './components/NoticeStack.vue'
+import PolicyCenterPage from './components/policy/PolicyCenterPage.vue'
+import PolicyCommandPoliciesPanel from './components/policy/PolicyCommandPoliciesPanel.vue'
+import PolicyGuardBindingsPanel from './components/policy/PolicyGuardBindingsPanel.vue'
+import PolicyGuardTemplatesPanel from './components/policy/PolicyGuardTemplatesPanel.vue'
+import PolicyKeywordRulesPanel from './components/policy/PolicyKeywordRulesPanel.vue'
+import PolicyMemberRolesPanel from './components/policy/PolicyMemberRolesPanel.vue'
+import IdentityQueuePage from './components/queue/IdentityQueuePage.vue'
+import ReviewQueuePage from './components/queue/ReviewQueuePage.vue'
 import { POLICY_CATEGORIES } from './policy/categories'
 import { buildSidebarItems } from './sidebar-items'
 import { CONSOLE_SECTIONS, type ConsoleSectionId } from './sections'
+import { buildInspectorSections } from './ui-state'
 import { formatTimestamp, useConsolePage } from './use-console-page'
+
+const SECTION_DESCRIPTIONS: Record<ConsoleSectionId, string> = {
+  dashboard: '汇总积压、异常和最近变更，作为统一工作入口。',
+  enforcement: '连续处理人工复核与高风险动作，减少队列切换。',
+  identity: '集中完成成员准入、认证和批量处置。',
+  policy: '在统一后台内维护规则、权限、模板与群绑定。',
+  audit: '统一检索事件与举报，回溯发生原因和处理结果。',
+}
 
 const {
   data,
@@ -171,18 +192,13 @@ const {
   inspector,
   openInspector,
   closeInspector,
-  inspectMember,
-  inspectReview,
-  inspectEvent,
-  inspectReport,
-  setVisibleReviewIds,
-  selectPolicyCategory,
   notices,
   dismissNotice,
   pendingMembers,
   pendingReviews,
   selectedMemberId,
   selectedReviewId,
+  selectedAuditId,
   activePolicyCategory,
   dashboardModel,
   keywordRules,
@@ -190,12 +206,12 @@ const {
   memberRoles,
   guardTemplates,
   guardBindings,
+  recentEvents,
   recentReports,
   supportedCommandIds,
-  filteredEvents,
-  filteredReports,
-  eventSearch,
-  reportSearch,
+  auditRows,
+  auditQuery,
+  auditKind,
   selectedGuardIds,
   guardForm,
   reviewForm,
@@ -218,6 +234,12 @@ const {
   loadBinding,
   loadMemberRoles,
   loadPolicy,
+  inspectMember,
+  inspectReview,
+  inspectReport,
+  inspectAuditRow,
+  setVisibleReviewIds,
+  selectPolicyCategory,
   openDashboardTarget,
 } = useConsolePage()
 
@@ -226,6 +248,9 @@ const activeSectionLabel = computed(
   () =>
     CONSOLE_SECTIONS.find((section) => section.id === activeSection.value)?.label ??
     CONSOLE_SECTIONS[0].label,
+)
+const activeSectionDescription = computed(
+  () => SECTION_DESCRIPTIONS[activeSection.value],
 )
 const sidebarItems = computed(() => buildSidebarItems(data.value))
 const policyCategoryItems = computed(() => {
@@ -246,23 +271,26 @@ const headerMeta = computed(() => {
   const updatedAt = generatedAt.value ? `最近同步 ${formatTimestamp(generatedAt.value)}` : '尚未获取同步时间'
   return `${title.value} · ${updatedAt}`
 })
-const reviewPending = computed(
-  () => inspector.kind === 'review' && (inspector.payload as StuhelperConsoleReview | null)?.status === 'pending',
-)
-const inspectorTitle = computed(
-  () => ({ member: '成员详情', review: '复核详情', event: '事件详情', report: '举报详情', template: '模板详情', binding: '绑定详情', rule: '规则详情' }[inspector.kind || 'event']),
-)
-const inspectorDetails = computed(() => {
-  const payload = inspector.payload as Record<string, unknown> | null
-  if (!payload) return []
-  if (inspector.kind === 'member') return detailList(payload as unknown as StuhelperConsoleGuardMember, [['成员', 'memberName'], ['成员 ID', 'memberId', true], ['群号', 'guildId', true], ['状态', 'verificationState'], ['截止', 'deadlineAt', true], ['最后错误', 'lastError']])
-  if (inspector.kind === 'review') return detailList(payload as unknown as StuhelperConsoleReview, [['成员', 'memberId', true], ['动作', 'actionType'], ['状态', 'status'], ['原因', 'reason'], ['提交时间', 'createdAt', true], ['备注', 'resolutionNote']])
-  if (inspector.kind === 'event') return detailList(payload as unknown as StuhelperConsoleEvent, [['类型', 'type'], ['级别', 'level'], ['成员', 'memberId', true], ['群号', 'guildId', true], ['摘要', 'summary'], ['时间', 'createdAt', true]])
-  if (inspector.kind === 'report') return detailList(payload as unknown as StuhelperConsoleReport, [['举报人', 'reporterMemberId', true], ['目标', 'targetMemberId', true], ['AI 状态', 'aiStatus'], ['AI 等级', 'aiSeverity'], ['AI 摘要', 'aiSummary'], ['原因', 'reason'], ['时间', 'createdAt', true]])
-  if (inspector.kind === 'template') return detailList(payload as unknown as StuhelperConsoleGuardTemplate, [['模板', 'name'], ['模板 ID', 'id', true], ['禁言秒数', 'muteDurationSeconds', true], ['踢出分钟数', 'kickAfterMinutes', true], ['提醒文案', 'reminderTemplate'], ['启用', 'enabled']])
-  if (inspector.kind === 'binding') return detailList(payload as unknown as StuhelperConsoleGuardBinding, [['平台', 'platform'], ['群号', 'guildId', true], ['模板', 'templateId', true], ['启用', 'enabled'], ['备注', 'note']])
-  return detailList(payload as unknown as StuhelperConsoleKeywordRule, [['规则', 'id', true], ['群号', 'guildId', true], ['模式', 'matchMode'], ['动作', 'action'], ['表达式', 'pattern'], ['备注', 'note']])
+const reviewPending = computed(() => {
+  const payload = inspector.payload as { status?: string } | null
+  return inspector.kind === 'review' && payload?.status === 'pending'
 })
+const inspectorTitle = computed(() => {
+  const titleMap = {
+    member: '成员详情',
+    review: '复核详情',
+    event: '事件详情',
+    report: '举报详情',
+    template: '模板详情',
+    binding: '绑定详情',
+    rule: '规则详情',
+  } as const
+
+  return titleMap[inspector.kind || 'event']
+})
+const inspectorSections = computed(() =>
+  buildInspectorSections(inspector.kind, inspector.payload),
+)
 
 function selectSection(section: ConsoleSectionId) {
   if (section === activeSection.value) return
@@ -273,16 +301,5 @@ function selectSection(section: ConsoleSectionId) {
     id: '',
     source: 'nav',
   })
-}
-
-function detailList(record: Record<string, unknown>, fields: Array<[string, string, boolean?]>) {
-  return fields.map(([label, key, mono]) => ({ label, value: normalizeValue(record[key]), mono: Boolean(mono) }))
-}
-
-function normalizeValue(value: unknown) {
-  if (value === null || value === undefined || value === '') return '—'
-  if (Array.isArray(value)) return value.join(', ') || '—'
-  if (typeof value === 'boolean') return value ? '是' : '否'
-  return String(value)
 }
 </script>

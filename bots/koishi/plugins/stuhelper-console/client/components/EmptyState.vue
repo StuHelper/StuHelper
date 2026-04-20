@@ -1,5 +1,5 @@
 <template>
-  <div class="sh-empty">
+  <div class="sh-empty" :data-tone="tone">
     <p class="sh-empty__title">{{ title }}</p>
     <p v-if="body" class="sh-empty__body">{{ body }}</p>
     <div v-if="$slots.action" class="sh-btn-row" style="margin-top: 12px">
@@ -9,8 +9,15 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  title: string
-  body?: string
-}>()
+withDefaults(
+  defineProps<{
+    title: string
+    body?: string
+    tone?: 'default' | 'error'
+  }>(),
+  {
+    body: '',
+    tone: 'default',
+  },
+)
 </script>

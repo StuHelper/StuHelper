@@ -1,19 +1,6 @@
 <template>
   <div id="sh-view-identity" class="sh-view" role="tabpanel">
-    <header class="sh-view__header">
-      <div class="sh-view__title-group">
-        <span class="sh-view__eyebrow">IDENTITY / 身份认证</span>
-        <h1 class="sh-view__title">待认证成员处置</h1>
-        <p class="sh-view__lead">队列、批量动作和成员详情使用同一套选中模型，减少在兼容视图间跳转。</p>
-      </div>
-      <div class="sh-view__toolbar">
-        <span class="sh-toolbar__count">待处理 {{ pendingMembers.length }}</span>
-        <span class="sh-toolbar__count">已选 {{ selectedGuardIds.length }}</span>
-      </div>
-    </header>
-
-    <Section
-      eyebrow="Bulk Action"
+    <WorkspaceSection
       title="批量处置"
       description="选择目标后执行动作；踢人或踢人并拉黑会创建人工复核任务而不直接执行。"
       :meta="selectedGuardIds.length ? `已选 ${selectedGuardIds.length}` : '未选择成员'"
@@ -59,10 +46,9 @@
           踢人和踢人并拉黑会先创建人工复核申请，不会直接执行。
         </span>
       </div>
-    </Section>
+    </WorkspaceSection>
 
-    <Section
-      eyebrow="Queue"
+    <WorkspaceSection
       title="待认证成员"
       description="点击成员行打开详情抽屉；勾选后在上方执行批量动作。"
       :meta="`${filteredMembers.length} / ${pendingMembers.length}`"
@@ -92,7 +78,7 @@
           />
         </template>
       </QueueTable>
-    </Section>
+    </WorkspaceSection>
   </div>
 </template>
 
@@ -100,7 +86,7 @@
 import { computed, ref } from 'vue'
 
 import type { StuhelperConsoleGuardMember } from '../../../src/console-types'
-import Section from '../ConsolePanel.vue'
+import WorkspaceSection from '../layout/WorkspaceSection.vue'
 import QueueTable from './QueueTable.vue'
 import QueueToolbar from './QueueToolbar.vue'
 import { formatTimestamp, type ActionIntent } from '../../use-console-page'
