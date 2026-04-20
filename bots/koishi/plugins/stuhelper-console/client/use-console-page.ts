@@ -242,9 +242,13 @@ export function useConsolePage() {
     return result
   }
 
-  async function submitReviewAndFocus(reviewId: string, action: 'execute' | 'reject') {
+  async function submitReviewAndFocus(
+    reviewId: string,
+    action: 'execute' | 'reject',
+    visibleIds = pendingReviews.value.map((review) => review.id),
+  ) {
     const nextId = getNextFocusableId({
-      ids: pendingReviews.value.map((review) => review.id),
+      ids: visibleIds,
       currentId: reviewId,
       removedId: reviewId,
     })

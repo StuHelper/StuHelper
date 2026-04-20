@@ -84,7 +84,11 @@ const props = defineProps<{
   selectedId: string
   reviewForm: { note: string }
   runTask: (task: () => Promise<unknown>) => Promise<unknown>
-  submitReviewAndFocus: (reviewId: string, action: 'execute' | 'reject') => Promise<unknown>
+  submitReviewAndFocus: (
+    reviewId: string,
+    action: 'execute' | 'reject',
+    visibleIds?: readonly string[],
+  ) => Promise<unknown>
   inspectReview: (review: StuhelperConsoleReview) => void
   inspectReport: (report: StuhelperConsoleReport) => void
 }>()
@@ -171,7 +175,8 @@ function handleReportSelect(reportId: string) {
 
 function handleReviewAction(payload: { rowId: string; action: string }) {
   if (payload.action !== 'execute' && payload.action !== 'reject') return
-  return props.runTask(() => props.submitReviewAndFocus(payload.rowId, payload.action))
+  const visibleIds = filteredReviews.value.map((review) => review.id)
+  return props.runTask(() => props.submitReviewAndFocus(payload.rowId, payload.action, visibleIds))
 }
 </script>
 

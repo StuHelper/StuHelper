@@ -50,7 +50,7 @@
                   {{ normalizeCell(row.cells[column.key]).secondary }}
                 </div>
               </div>
-              <span :class="{ 'sh-table__mono': normalizeCell(row.cells[column.key]).mono }">
+              <span v-else :class="{ 'sh-table__mono': normalizeCell(row.cells[column.key]).mono }">
                 {{ normalizeCell(row.cells[column.key]).text }}
               </span>
             </slot>
