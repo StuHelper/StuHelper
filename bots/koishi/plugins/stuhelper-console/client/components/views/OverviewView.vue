@@ -9,7 +9,7 @@
               <div class="sh-lane__title">待认证成员</div>
               <div class="sh-lane__subtitle">{{ pendingMemberSummary }}</div>
             </div>
-            <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="goToSection('identity', DASHBOARD_QUEUES.pendingMembers)">
+            <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="goToSection('identity')">
               进入
             </button>
           </div>
@@ -19,7 +19,7 @@
               <div class="sh-lane__title">待复核动作</div>
               <div class="sh-lane__subtitle">{{ pendingReviewSummary }}</div>
             </div>
-            <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="goToSection('enforcement', DASHBOARD_QUEUES.pendingReviews)">
+            <button class="sh-btn sh-btn--ghost sh-btn--sm" @click="goToSection('enforcement')">
               进入
             </button>
           </div>
@@ -28,16 +28,16 @@
 
       <Section title="快捷入口" description="按工作流进入身份、处置、策略与审计分区。">
         <div class="sh-btn-row">
-          <button class="sh-btn" @click="goToSection('identity', DASHBOARD_QUEUES.pendingMembers)">
+          <button class="sh-btn" @click="goToSection('identity')">
             身份认证
           </button>
-          <button class="sh-btn" @click="goToSection('enforcement', DASHBOARD_QUEUES.pendingReviews)">
+          <button class="sh-btn" @click="goToSection('enforcement')">
             处置中心
           </button>
-          <button class="sh-btn" @click="goToSection('policy', DASHBOARD_QUEUES.keywordRules)">
+          <button class="sh-btn" @click="goToSection('policy')">
             策略中心
           </button>
-          <button class="sh-btn" @click="goToSection('audit', DASHBOARD_QUEUES.events)">
+          <button class="sh-btn" @click="goToSection('audit')">
             审计检索
           </button>
         </div>
@@ -62,9 +62,9 @@
             </div>
             <button
               class="sh-btn sh-btn--ghost sh-btn--sm"
-              @click="goToSection('audit', DASHBOARD_QUEUES.events, event.id)"
+              @click="goToSection('audit')"
             >
-              查看
+              进入
             </button>
           </div>
         </div>
@@ -87,9 +87,9 @@
             </div>
             <button
               class="sh-btn sh-btn--ghost sh-btn--sm"
-              @click="goToSection('audit', DASHBOARD_QUEUES.reports, report.id)"
+              @click="goToSection('audit')"
             >
-              查看
+              进入
             </button>
           </div>
         </div>
@@ -113,20 +113,13 @@ import Section from '../ConsolePanel.vue'
 import EmptyState from '../EmptyState.vue'
 
 const ITEM_LIMIT = 6
-const DASHBOARD_QUEUES = {
-  pendingMembers: 'pending-members',
-  pendingReviews: 'pending-reviews',
-  keywordRules: 'keyword-rules',
-  events: 'events',
-  reports: 'reports',
-} as const
 
 const props = defineProps<{
   pendingMembers: readonly StuhelperConsoleGuardMember[]
   pendingReviews: readonly StuhelperConsoleReview[]
   recentEvents: readonly StuhelperConsoleEvent[]
   recentReports: readonly StuhelperConsoleReport[]
-  openSection: (section: ConsoleSectionId, queue?: string | null, id?: string) => void
+  openSection: (section: ConsoleSectionId) => void
 }>()
 
 const visibleEvents = computed(() => props.recentEvents.slice(0, ITEM_LIMIT))
@@ -136,8 +129,8 @@ const pendingReviewSummary = computed(() => describePendingReviews(props.pending
 const pendingMemberDotClass = computed(() => statusDotClass(props.pendingMembers.length, countOverdueMembers(props.pendingMembers)))
 const pendingReviewDotClass = computed(() => statusDotClass(props.pendingReviews.length, props.pendingReviews.length))
 
-function goToSection(section: ConsoleSectionId, queue: string | null, id = '') {
-  props.openSection(section, queue, id)
+function goToSection(section: ConsoleSectionId) {
+  props.openSection(section)
 }
 
 function dotClass(level?: string | null) {
@@ -154,7 +147,7 @@ function describePendingMembers(items: readonly StuhelperConsoleGuardMember[]) {
     return `当前 ${items.length} 条待处理，其中 ${overdueCount} 条已超时。`
   }
 
-  const nextDeadline = items[0]?.deadlineAt
+  const nextDeadline = findNearestDeadline(items)
   if (!nextDeadline) return `当前 ${items.length} 条待处理。`
   return `当前 ${items.length} 条待处理，最近截止 ${formatTimestamp(nextDeadline)}。`
 }
@@ -166,6 +159,20 @@ function describePendingReviews(items: readonly StuhelperConsoleReview[]) {
 
 function countOverdueMembers(items: readonly StuhelperConsoleGuardMember[]) {
   return items.filter((item) => item.verificationState === 'overdue').length
+}
+
+function findNearestDeadline(items: readonly StuhelperConsoleGuardMember[]) {
+  let nearest: string | null = null
+  let nearestTime = Number.POSITIVE_INFINITY
+
+  for (const item of items) {
+    const time = new Date(item.deadlineAt).getTime()
+    if (Number.isNaN(time) || time >= nearestTime) continue
+    nearest = item.deadlineAt
+    nearestTime = time
+  }
+
+  return nearest
 }
 
 function statusDotClass(total: number, urgent: number) {

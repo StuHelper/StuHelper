@@ -250,10 +250,8 @@ function selectSection(section: ConsoleSectionId) {
 
 function openDashboardSection(
   section: ConsoleSectionId,
-  queue: string | null = null,
-  id = '',
 ) {
-  setRouteState({ section, queue, id, source: 'dashboard' })
+  setRouteState({ section, queue: null, id: '', source: 'dashboard' })
 }
 
 function detailList(record: Record<string, unknown>, fields: Array<[string, string, boolean?]>) {
