@@ -129,51 +129,6 @@
   flex-wrap: wrap;
 }
 
-.sh-shell-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sh-s-4);
-}
-
-.sh-summary-list,
-.sh-status-list {
-  margin: 0;
-  padding: 0;
-}
-
-.sh-summary-list {
-  list-style: none;
-}
-
-.sh-summary-list__item,
-.sh-status-list__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sh-s-3);
-  padding: var(--sh-s-3) 0;
-  border-top: 1px solid var(--sh-border);
-}
-
-.sh-summary-list__item:first-child,
-.sh-status-list__row:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.sh-summary-list__label,
-.sh-status-list__label {
-  color: var(--sh-fg-2);
-}
-
-.sh-summary-list__value,
-.sh-status-list__value {
-  margin: 0;
-  color: var(--sh-fg);
-  font-weight: var(--sh-w-semibold);
-  text-align: right;
-}
-
 @media (max-width: 960px) {
   .sh-console__frame {
     width: min(100%, calc(100% - var(--sh-s-6)));
@@ -206,9 +161,5 @@
 
   .sh-workspace-header {
     flex-direction: column;
-  }
-
-  .sh-shell-grid {
-    grid-template-columns: 1fr;
   }
 }

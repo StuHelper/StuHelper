@@ -49,8 +49,8 @@
 
   /* fonts */
   --sh-font-ui:
-    'Geist Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI',
-    'Noto Sans CJK SC', system-ui, sans-serif;
+    'Inter', 'Geist Sans', system-ui, -apple-system, 'Segoe UI', Roboto,
+    'PingFang SC', 'Noto Sans CJK SC', sans-serif;
   --sh-font-mono:
     'JetBrains Mono', 'SF Mono', ui-monospace, 'Menlo', 'Consolas', monospace;
 
