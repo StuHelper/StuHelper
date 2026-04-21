@@ -9,11 +9,15 @@
         <QueueToolbar :stats="reviewStats">
           <label class="sh-field sh-review-queue__field">
             <span class="sh-field__label">检索</span>
-            <input v-model="search" class="sh-input" placeholder="成员 ID / 原因 / 动作" />
+            <el-input v-model="search" class="sh-control" placeholder="成员 ID / 原因 / 动作" />
           </label>
           <label class="sh-field sh-review-queue__field sh-review-queue__field--wide">
             <span class="sh-field__label">复核备注</span>
-            <input v-model="reviewForm.note" class="sh-input" placeholder="记录这次决策依据" />
+            <el-input
+              v-model="reviewForm.note"
+              class="sh-control"
+              placeholder="记录这次决策依据"
+            />
           </label>
         </QueueToolbar>
 
@@ -36,6 +40,7 @@
         <QueueTable
           :columns="reportColumns"
           :rows="reportRows"
+          :selected-id="selectedReportId"
           empty-title="暂无举报"
           empty-body="用户举报会显示在这里。"
           @select="handleReportSelect"
@@ -52,7 +57,7 @@ import type { StuhelperConsoleReport, StuhelperConsoleReview } from '../../../sr
 import WorkspaceSection from '../layout/WorkspaceSection.vue'
 import QueueTable from './QueueTable.vue'
 import QueueToolbar from './QueueToolbar.vue'
-import { describeAction, describeLevel, formatTimestamp } from '../../use-console-page'
+import { describeAction, describeLevel, formatTimestamp } from '../../formatters'
 
 const REVIEW_COLUMNS = [
   { key: 'member', label: '成员' },
@@ -72,6 +77,7 @@ const props = defineProps<{
   pendingReviews: readonly StuhelperConsoleReview[]
   recentReports: readonly StuhelperConsoleReport[]
   selectedId: string
+  selectedReportId?: string
   reviewForm: { note: string }
   runTask: (task: () => Promise<unknown>) => Promise<unknown>
   submitReviewAndFocus: (
@@ -79,7 +85,7 @@ const props = defineProps<{
     action: 'execute' | 'reject',
     visibleIds?: readonly string[],
   ) => Promise<unknown>
-  inspectReview: (review: StuhelperConsoleReview) => void
+  inspectReview: (review: StuhelperConsoleReview, reviewCandidateIds?: readonly string[]) => void
   inspectReport: (report: StuhelperConsoleReport) => void
   setVisibleReviewIds: (ids: readonly string[]) => void
 }>()
@@ -156,14 +162,14 @@ const reportRows = computed(() =>
   })),
 )
 
-function reviewAction(action: string) {
-  return describeAction(action === 'kick_and_block' ? 'kick-permanent' : action)
+function reviewAction(action: StuhelperConsoleReview['actionType']) {
+  return describeAction(action)
 }
 
 function handleReviewSelect(reviewId: string) {
   const review = props.pendingReviews.find((item) => item.id === reviewId)
   if (!review) return
-  props.inspectReview(review)
+  props.inspectReview(review, filteredReviews.value.map((item) => item.id))
 }
 
 function handleReportSelect(reportId: string) {

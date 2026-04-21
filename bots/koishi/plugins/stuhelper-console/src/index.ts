@@ -16,7 +16,7 @@ import type {
   StuhelperGuardBatchActionInput,
   StuhelperGuardBindingInput,
   StuhelperGuardTemplateInput,
-  StuhelperConsoleKeywordRule,
+  StuhelperKeywordRuleInput,
   StuhelperMemberRoleInput,
   StuhelperReviewActionInput,
 } from './console-types'
@@ -27,7 +27,7 @@ declare module '@koishijs/console' {
     'stuhelper-console/refresh'(): void | string | Promise<void | string>
     'stuhelper-console/guard-action'(input: StuhelperGuardBatchActionInput): void | string | Promise<void | string>
     'stuhelper-console/review-action'(input: StuhelperReviewActionInput): void | string | Promise<void | string>
-    'stuhelper-console/save-keyword-rule'(input: StuhelperConsoleKeywordRule): void | string | Promise<void | string>
+    'stuhelper-console/save-keyword-rule'(input: StuhelperKeywordRuleInput): void | string | Promise<void | string>
     'stuhelper-console/save-member-roles'(input: StuhelperMemberRoleInput): void | string | Promise<void | string>
     'stuhelper-console/save-command-policy'(input: StuhelperCommandPolicyInput): void | string | Promise<void | string>
     'stuhelper-console/save-guard-template'(input: StuhelperGuardTemplateInput): void | string | Promise<void | string>

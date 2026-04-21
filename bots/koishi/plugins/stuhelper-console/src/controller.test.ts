@@ -149,6 +149,58 @@ test('控制台执行复核会真正踢人并更新状态', async () => {
   }
 })
 
+test('控制台批量禁言会透传 0 秒而不是静默回退到 60 秒', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-console-'))
+  const muteActions: Array<{ guildId: string, channelId: string, memberId: string, seconds: number }> = []
+
+  registerGuardMemberModel(root)
+  registerModerationModels(root)
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(MockBot, { selfId: '514' })
+
+  try {
+    await root.start()
+    await root.database.create(GUARD_MEMBER_TABLE, createGuardMemberRecord({
+      id: 'guard-4',
+      guildId: 'group-1',
+      memberId: '10004',
+    }))
+
+    const bot = root.bots[0] as unknown as Universal.Methods
+    bot.sendMessage = async () => ['msg-1']
+    bot.muteGuildMember = async (guildId, memberId, seconds) => {
+      muteActions.push({
+        guildId,
+        channelId: guildId,
+        memberId,
+        seconds: seconds / 1000,
+      })
+    }
+
+    const store = new ModerationStore(root)
+    const actions = new ModerationActionService(store)
+
+    await handleGuardBatchAction(root, store, actions, {
+      action: 'mute',
+      memberIds: ['guard-4'],
+      seconds: 0,
+      reason: '解除保底',
+    })
+
+    assert.deepEqual(muteActions, [{
+      guildId: 'group-1',
+      channelId: 'group-1',
+      memberId: '10004',
+      seconds: 0,
+    }])
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('控制台保存群模板与群绑定事件会写入 SQLite', async () => {
   const runtime = createKoishiTestRuntime()
   const { root } = runtime
@@ -201,6 +253,39 @@ test('控制台保存群模板与群绑定事件会写入 SQLite', async () => {
       STUHELPER_CONSOLE_SERVICE,
       STUHELPER_CONSOLE_SERVICE,
     ])
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('控制台 listener 会在 transport 边界拒绝非法关键词规则输入', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-console-'))
+
+  registerModerationModels(root)
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+
+  const consoleHarness = attachConsoleHarness(root)
+  registerConsoleListeners(root)
+
+  try {
+    await root.start()
+
+    await assert.rejects(
+      () => consoleHarness.emit('stuhelper-console/save-keyword-rule', {
+        id: 'keyword-1',
+        guildId: '*',
+        pattern: 'spam',
+        matchMode: 'includes',
+        action: 'warn',
+        enabled: true,
+        muteSeconds: 0,
+        note: { invalid: true },
+      }),
+      /note must be a string or null/,
+    )
   } finally {
     runtime.dispose()
     await rm(tempDir, { recursive: true, force: true })

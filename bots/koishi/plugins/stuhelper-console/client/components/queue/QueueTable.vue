@@ -1,76 +1,78 @@
 <template>
-  <EmptyState v-if="rows.length === 0" :title="emptyTitle" :body="emptyBody" />
-  <div v-else class="sh-table-shell">
-    <table class="sh-table">
-      <thead>
-        <tr>
-          <th
-            v-for="column in columns"
-            :key="column.key"
-            :style="column.width ? { width: column.width } : undefined"
-            :class="headClass(column)"
+  <div class="sh-table-shell">
+    <el-table
+      :data="rows"
+      row-key="id"
+      class="sh-grid-table"
+      @row-click="handleRowClick"
+      :row-class-name="rowClassName"
+    >
+      <template #empty>
+        <EmptyState :title="emptyTitle" :body="emptyBody" />
+      </template>
+
+      <el-table-column
+        v-for="column in columns"
+        :key="column.key"
+        :label="column.label"
+        :prop="column.key"
+        :align="column.align ?? 'left'"
+        :width="column.width"
+      >
+        <template #default="{ row }">
+          <slot
+            :name="`cell-${column.key}`"
+            :row="row"
+            :column="column"
+            :value="row.cells[column.key]"
           >
-            {{ column.label }}
-          </th>
-          <th v-if="hasActions" class="sh-queue-table__actions-head">{{ actionsLabel }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="row in rows"
-          :key="row.id"
-          data-clickable="true"
-          :aria-selected="selectedId === row.id"
-          @click="emit('select', row.id)"
-        >
-          <td
-            v-for="column in columns"
-            :key="`${row.id}-${column.key}`"
-            :class="cellClass(column, row)"
-          >
-            <slot
-              :name="`cell-${column.key}`"
-              :row="row"
-              :column="column"
-              :value="row.cells[column.key]"
-            >
-              <SeverityTag
-                v-if="isTagCell(row.cells[column.key])"
-                :label="normalizeCell(row.cells[column.key]).text"
-                :intent="normalizeCell(row.cells[column.key]).tone"
-              />
-              <div v-else-if="normalizeCell(row.cells[column.key]).secondary" class="sh-queue-table__stack">
-                <div :class="{ 'sh-table__mono': normalizeCell(row.cells[column.key]).mono }">
-                  {{ normalizeCell(row.cells[column.key]).text }}
-                </div>
-                <div
-                  class="sh-table__id"
-                  :class="{ 'sh-table__mono': normalizeCell(row.cells[column.key]).mono }"
-                >
-                  {{ normalizeCell(row.cells[column.key]).secondary }}
-                </div>
+            <SeverityTag
+              v-if="isTagCell(row.cells[column.key])"
+              :label="resolveCell(row, column.key).text"
+              :intent="resolveCell(row, column.key).tone"
+            />
+            <div v-else-if="resolveCell(row, column.key).secondary" class="sh-queue-table__stack">
+              <div :class="{ 'sh-table__mono': resolveCell(row, column.key).mono }">
+                {{ resolveCell(row, column.key).text }}
               </div>
-              <span v-else :class="{ 'sh-table__mono': normalizeCell(row.cells[column.key]).mono }">
-                {{ normalizeCell(row.cells[column.key]).text }}
-              </span>
-            </slot>
-          </td>
-          <td v-if="hasActions" class="sh-table__actions">
-            <button
+              <div
+                class="sh-table__id"
+                :class="{ 'sh-table__mono': resolveCell(row, column.key).mono }"
+              >
+                {{ resolveCell(row, column.key).secondary }}
+              </div>
+            </div>
+            <span v-else :class="{ 'sh-table__mono': resolveCell(row, column.key).mono }">
+              {{ resolveCell(row, column.key).text }}
+            </span>
+          </slot>
+        </template>
+      </el-table-column>
+
+      <el-table-column
+        v-if="hasActions"
+        :label="actionsLabel"
+        align="right"
+        class-name="sh-queue-table__actions-column"
+      >
+        <template #default="{ row }">
+          <div class="sh-table__actions">
+            <el-button
               v-for="action in row.actions ?? []"
               :key="action.key"
-              type="button"
-              class="sh-btn sh-btn--sm"
-              :class="actionClass(action.tone)"
+              size="small"
+              :type="buttonType(action.tone)"
+              class="sh-button sh-button--sm"
+              :class="buttonClass(action.tone)"
               :disabled="action.disabled"
               @click.stop="emit('action', { rowId: row.id, action: action.key })"
             >
               {{ action.label }}
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            </el-button>
+          </div>
+        </template>
+      </el-table-column>
+    </el-table>
   </div>
 </template>
 
@@ -131,6 +133,14 @@ const emit = defineEmits<{
 
 const hasActions = computed(() => props.rows.some((row) => (row.actions?.length ?? 0) > 0))
 
+function handleRowClick(row: QueueTableRow) {
+  emit('select', row.id)
+}
+
+function rowClassName({ row }: { row: QueueTableRow }) {
+  return row.id === props.selectedId ? 'is-selected' : ''
+}
+
 function normalizeCell(cell: QueueTableCell | undefined): QueueTableCellObject {
   if (typeof cell === 'string' || typeof cell === 'number') {
     return { text: String(cell) }
@@ -139,30 +149,27 @@ function normalizeCell(cell: QueueTableCell | undefined): QueueTableCellObject {
   return cell ?? { text: '—' }
 }
 
+function resolveCell(row: QueueTableRow, columnKey: string) {
+  return normalizeCell(row.cells[columnKey])
+}
+
 function isTagCell(cell: QueueTableCell | undefined) {
   const value = normalizeCell(cell)
   return Boolean(value.tone) && !value.secondary
 }
 
-function headClass(column: QueueTableColumn) {
+function buttonClass(tone: QueueTableAction['tone']) {
   return {
-    'sh-queue-table__right': column.align === 'right',
+    'sh-button--ghost': !tone || tone === 'ghost',
+    'sh-button--primary': tone === 'primary',
+    'sh-button--danger': tone === 'danger',
   }
 }
 
-function cellClass(column: QueueTableColumn, row: QueueTableRow) {
-  return {
-    'sh-queue-table__right': column.align === 'right',
-    'sh-table__mono': normalizeCell(row.cells[column.key]).mono && !normalizeCell(row.cells[column.key]).secondary,
-  }
-}
-
-function actionClass(tone: QueueTableAction['tone']) {
-  return {
-    'sh-btn--ghost': !tone || tone === 'ghost',
-    'sh-btn--primary': tone === 'primary',
-    'sh-btn--danger': tone === 'danger',
-  }
+function buttonType(tone: QueueTableAction['tone']) {
+  if (tone === 'primary') return 'primary'
+  if (tone === 'danger') return 'danger'
+  return undefined
 }
 </script>
 

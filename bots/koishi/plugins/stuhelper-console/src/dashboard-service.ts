@@ -1,14 +1,17 @@
 import { DataService } from '@koishijs/console'
 import { Context } from 'koishi'
 
-import { ModerationStore } from '@stuhelper/koishi-moderation-core'
+import {
+  ModerationStore,
+  SUPPORTED_COMMAND_POLICY_IDS,
+} from '@stuhelper/koishi-moderation-core'
 import {
   GUARD_MEMBER_TABLE,
   GuardPolicyStore,
   type GuardMemberRecord,
 } from '@stuhelper/koishi-shared'
 
-import { STUHELPER_CONSOLE_SERVICE, STUHELPER_SUPPORTED_COMMAND_IDS } from './constants'
+import { STUHELPER_CONSOLE_SERVICE } from './constants'
 import type {
   StuhelperConsoleData,
   StuhelperConsoleGuardMember,
@@ -50,7 +53,7 @@ export class StuhelperConsoleDataService extends DataService<StuhelperConsoleDat
     return {
       title: this.title,
       generatedAt: new Date().toISOString(),
-      supportedCommandIds: [...STUHELPER_SUPPORTED_COMMAND_IDS],
+      supportedCommandIds: [...SUPPORTED_COMMAND_POLICY_IDS],
       overview: {
         pendingReviews: overview.pendingReviews,
         openReports: overview.openReports,

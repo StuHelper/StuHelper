@@ -10,14 +10,23 @@ import {
 import type { Context } from 'koishi'
 
 import { STUHELPER_CONSOLE_SERVICE } from './constants'
-import type {
-  StuhelperCommandPolicyInput,
-  StuhelperGuardBatchActionInput,
-  StuhelperGuardBindingInput,
-  StuhelperGuardTemplateInput,
-  StuhelperMemberRoleInput,
-  StuhelperReviewActionInput,
-} from './console-types'
+import type { StuhelperGuardBatchActionInput, StuhelperReviewActionInput } from './console-types'
+import {
+  parseCommandPolicyInput,
+  parseGuardBatchActionInput,
+  parseGuardBindingInput,
+  parseGuardTemplateInput,
+  parseKeywordRuleInput,
+  parseMemberRoleInput,
+  parseReviewActionInput,
+} from './listener-input'
+import {
+  saveCommandPolicy,
+  saveGuardBinding,
+  saveGuardTemplate,
+  saveKeywordRule,
+  saveMemberRoles,
+} from './controller-persistence'
 import { resolveManagedBot } from './runtime'
 
 export function registerConsoleListeners(ctx: Context) {
@@ -30,48 +39,50 @@ export function registerConsoleListeners(ctx: Context) {
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelper-console/guard-action', async (input) => {
-    const result = await handleGuardBatchAction(ctx, moderationStore, actions, input)
+    const result = await handleGuardBatchAction(
+      ctx,
+      moderationStore,
+      actions,
+      parseGuardBatchActionInput(input),
+    )
     await ctx.console.refresh(STUHELPER_CONSOLE_SERVICE)
     return result
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelper-console/review-action', async (input) => {
-    const result = await handleReviewAction(ctx, moderationStore, actions, input)
+    const result = await handleReviewAction(
+      ctx,
+      moderationStore,
+      actions,
+      parseReviewActionInput(input),
+    )
     await ctx.console.refresh(STUHELPER_CONSOLE_SERVICE)
     return result
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelper-console/save-keyword-rule', async (input) => {
-    const now = new Date()
-    const current = (await moderationStore.listAllKeywordRules()).find((item) => item.id === input.id)
-    await moderationStore.upsertKeywordRule({
-      ...input,
-      note: input.note || null,
-      enabled: input.enabled ?? true,
-      createdAt: current?.createdAt || now,
-      updatedAt: now,
-    })
+    await saveKeywordRule(moderationStore, parseKeywordRuleInput(input))
     await ctx.console.refresh(STUHELPER_CONSOLE_SERVICE)
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelper-console/save-member-roles', async (input) => {
-    await saveMemberRoles(moderationStore, input)
+    await saveMemberRoles(moderationStore, parseMemberRoleInput(input))
     await ctx.console.refresh(STUHELPER_CONSOLE_SERVICE)
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelper-console/save-command-policy', async (input) => {
-    await saveCommandPolicy(moderationStore, input)
+    await saveCommandPolicy(moderationStore, parseCommandPolicyInput(input))
     await ctx.console.refresh(STUHELPER_CONSOLE_SERVICE)
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelper-console/save-guard-template', async (input) => {
-    const result = await saveGuardTemplate(guardPolicyStore, input)
+    const result = await saveGuardTemplate(guardPolicyStore, parseGuardTemplateInput(input))
     await ctx.console.refresh(STUHELPER_CONSOLE_SERVICE)
     return result
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelper-console/save-guard-binding', async (input) => {
-    const result = await saveGuardBinding(guardPolicyStore, input)
+    const result = await saveGuardBinding(guardPolicyStore, parseGuardBindingInput(input))
     await ctx.console.refresh(STUHELPER_CONSOLE_SERVICE)
     return result
   }, { authority: 4 })
@@ -95,7 +106,14 @@ export async function handleGuardBatchAction(
   for (const record of records) {
     const bot = resolveManagedBot(ctx, record)
     if (input.action === 'mute') {
-      await actions.muteMember(bot, record.guildId, record.channelId, record.memberId, input.seconds || 60, input.reason)
+      await actions.muteMember(
+        bot,
+        record.guildId,
+        record.channelId,
+        record.memberId,
+        input.seconds ?? 60,
+        input.reason,
+      )
       await updateGuardMember(ctx, record.id, { mutedAt: new Date(), updatedAt: new Date() })
       continue
     }
@@ -166,56 +184,6 @@ export async function handleReviewAction(
   })
   await markGuardMemberKicked(ctx, review)
   return `已执行复核动作：${review.memberId}`
-}
-
-async function saveMemberRoles(moderationStore: ModerationStore, input: StuhelperMemberRoleInput) {
-  await moderationStore.setMemberRoles(input.guildId, input.memberId, input.roles)
-}
-
-async function saveCommandPolicy(moderationStore: ModerationStore, input: StuhelperCommandPolicyInput) {
-  const now = new Date()
-  const current = await moderationStore.getCommandPolicy(input.commandId)
-  await moderationStore.upsertCommandPolicy({
-    commandId: input.commandId,
-    roles: input.roles,
-    minAuthority: input.minAuthority,
-    createdAt: current?.createdAt || now,
-    updatedAt: now,
-  })
-}
-
-async function saveGuardTemplate(guardPolicyStore: GuardPolicyStore, input: StuhelperGuardTemplateInput) {
-  if (!input.id.trim() || !input.name.trim() || !input.reminderTemplate.trim()) {
-    throw new Error('guard template id、名称和提醒文案不能为空')
-  }
-  await guardPolicyStore.saveTemplate({
-    ...input,
-    id: input.id.trim(),
-    name: input.name.trim(),
-    reminderTemplate: input.reminderTemplate.trim(),
-    exemptUsers: [...input.exemptUsers],
-  })
-  return `已保存群模板：${input.name}`
-}
-
-async function saveGuardBinding(guardPolicyStore: GuardPolicyStore, input: StuhelperGuardBindingInput) {
-  if (!input.platform.trim() || !input.guildId.trim() || !input.templateId.trim()) {
-    throw new Error('platform、guildId 和 templateId 不能为空')
-  }
-  const templates = await guardPolicyStore.listTemplates()
-  const templateId = input.templateId.trim()
-  const template = templates.find((item) => item.id === templateId)
-  if (!template) {
-    throw new Error(`guard template not found: ${templateId}`)
-  }
-  await guardPolicyStore.saveBinding({
-    ...input,
-    platform: input.platform.trim(),
-    guildId: input.guildId.trim(),
-    templateId,
-    note: input.note?.trim() || null,
-  })
-  return `已保存群绑定：${input.platform.trim()}/${input.guildId.trim()}`
 }
 
 async function markGuardMemberKicked(ctx: Context, review: ReviewQueueRecord) {

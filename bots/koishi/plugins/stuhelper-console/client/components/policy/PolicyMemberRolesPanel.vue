@@ -9,50 +9,56 @@
       <div class="sh-form-grid sh-form-grid--narrow">
         <label class="sh-field">
           <span class="sh-field__label">群号</span>
-          <input v-model="roleForm.guildId" class="sh-input sh-input--mono" placeholder="guild-id" />
+          <el-input
+            v-model="roleForm.guildId"
+            class="sh-control sh-control--mono"
+            placeholder="guild-id"
+          />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">成员 ID</span>
-          <input v-model="roleForm.memberId" class="sh-input sh-input--mono" placeholder="member-id" />
+          <el-input
+            v-model="roleForm.memberId"
+            class="sh-control sh-control--mono"
+            placeholder="member-id"
+          />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">角色</span>
-          <input v-model="roleForm.rolesText" class="sh-input" placeholder="admin, reviewer" />
+          <el-input
+            v-model="roleForm.rolesText"
+            class="sh-control"
+            placeholder="admin, reviewer"
+          />
         </label>
       </div>
       <div class="sh-btn-row">
-        <button class="sh-btn sh-btn--primary" @click="runTask(submitRoles)">保存角色</button>
+        <el-button type="primary" class="sh-button sh-button--primary" @click="runTask(submitRoles)">
+          保存角色
+        </el-button>
       </div>
     </div>
 
-    <EmptyState
-      v-if="memberRoles.length === 0"
-      title="暂无成员角色"
-      body="需要时再绑定角色即可。"
-    />
-    <div v-else class="sh-table-shell">
-      <table class="sh-table">
-        <thead>
-          <tr>
-            <th>群</th>
-            <th>成员</th>
-            <th>角色</th>
-            <th style="text-align: right">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="entry in memberRoles" :key="entry.id">
-            <td>{{ entry.guildId }}</td>
-            <td>{{ entry.memberId }}</td>
-            <td>{{ entry.roles.join(', ') || '—' }}</td>
-            <td class="sh-table__actions">
-              <button class="sh-btn sh-btn--sm sh-btn--ghost" @click="loadMemberRoles(entry)">
-                编辑
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="sh-table-shell">
+      <el-table :data="memberRoles" row-key="id">
+        <template #empty>
+          <EmptyState title="暂无成员角色" body="需要时再绑定角色即可。" />
+        </template>
+        <el-table-column prop="guildId" label="群" />
+        <el-table-column prop="memberId" label="成员" />
+        <el-table-column label="角色">
+          <template #default="{ row }">
+            {{ row.roles.join(', ') || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" align="right">
+          <template #default="{ row }">
+            <el-button class="sh-button sh-button--ghost sh-button--sm" @click="loadMemberRoles(row)">
+              编辑
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
   </WorkspaceSection>
 </template>

@@ -5,6 +5,7 @@ import {
   type GuardMemberRecord,
 } from '@stuhelper/koishi-shared'
 import {
+  COMMAND_POLICY_IDS,
   canExecuteCommand,
   type ModerationStore,
   type ReviewActionType,
@@ -26,7 +27,11 @@ export function registerAdminCommands(ctx: Context, deps: AdminCommandDeps) {
 function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审状态 [guildId:text]', '查看当前群待认证成员', { authority: 3 })
     .action(async ({ session }, guildId) => {
-      const denial = await ensureAdminCommandAccess(deps.moderationStore, session, 'guard-status')
+      const denial = await ensureAdminCommandAccess(
+        deps.moderationStore,
+        session,
+        COMMAND_POLICY_IDS.guardStatus,
+      )
       if (denial) {
         return denial
       }
@@ -37,7 +42,11 @@ function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {
 function registerWarningCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审警告 <memberId:text> [guildId:text]', '查看成员当前警告次数', { authority: 3 })
     .action(async ({ session }, memberId, guildId) => {
-      const denial = await ensureAdminCommandAccess(deps.moderationStore, session, 'guard-warnings')
+      const denial = await ensureAdminCommandAccess(
+        deps.moderationStore,
+        session,
+        COMMAND_POLICY_IDS.guardWarnings,
+      )
       if (denial) {
         return denial
       }
@@ -52,7 +61,11 @@ function registerWarningCommand(ctx: Context, deps: AdminCommandDeps) {
 function registerReviewListCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审复核 [guildId:text]', '查看当前群待复核队列', { authority: 3 })
     .action(async ({ session }, guildId) => {
-      const denial = await ensureAdminCommandAccess(deps.moderationStore, session, 'guard-reviews')
+      const denial = await ensureAdminCommandAccess(
+        deps.moderationStore,
+        session,
+        COMMAND_POLICY_IDS.guardReviews,
+      )
       if (denial) {
         return denial
       }
@@ -63,7 +76,11 @@ function registerReviewListCommand(ctx: Context, deps: AdminCommandDeps) {
 function registerBatchMuteCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审禁言 <payload:text>', '批量禁言待认证成员', { authority: 3 })
     .action(async ({ session }, payload) => {
-      const denial = await ensureAdminCommandAccess(deps.moderationStore, session, 'guard-mute')
+      const denial = await ensureAdminCommandAccess(
+        deps.moderationStore,
+        session,
+        COMMAND_POLICY_IDS.guardMute,
+      )
       if (denial) {
         return denial
       }
@@ -100,7 +117,11 @@ function registerBatchMuteCommand(ctx: Context, deps: AdminCommandDeps) {
 function registerKickReviewCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审踢人申请 <memberId> <reason:text>', '提交踢人复核申请', { authority: 4 })
     .action(async ({ session }, memberId, reason) => {
-      const denial = await ensureAdminCommandAccess(deps.moderationStore, session, 'guard-kick-request')
+      const denial = await ensureAdminCommandAccess(
+        deps.moderationStore,
+        session,
+        COMMAND_POLICY_IDS.guardKickRequest,
+      )
       if (denial) {
         return denial
       }
@@ -111,7 +132,11 @@ function registerKickReviewCommand(ctx: Context, deps: AdminCommandDeps) {
 function registerBlockReviewCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审拉黑申请 <memberId> <reason:text>', '提交踢人并拉黑复核申请', { authority: 4 })
     .action(async ({ session }, memberId, reason) => {
-      const denial = await ensureAdminCommandAccess(deps.moderationStore, session, 'guard-block-request')
+      const denial = await ensureAdminCommandAccess(
+        deps.moderationStore,
+        session,
+        COMMAND_POLICY_IDS.guardBlockRequest,
+      )
       if (denial) {
         return denial
       }

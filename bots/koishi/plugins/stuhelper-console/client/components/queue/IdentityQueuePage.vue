@@ -9,39 +9,48 @@
       <div class="sh-form-grid">
         <label class="sh-field">
           <span class="sh-field__label">动作</span>
-          <select v-model="guardForm.action" class="sh-select">
-            <option value="mute">批量禁言</option>
-            <option value="unmute">批量解除禁言</option>
-            <option value="kick">提交踢出复核</option>
-            <option value="set-role">批量设置角色</option>
-            <option value="unset-role">批量移除角色</option>
-          </select>
+          <el-select v-model="guardForm.action" class="sh-control" placeholder="选择动作">
+            <el-option value="mute" label="批量禁言" />
+            <el-option value="unmute" label="批量解除禁言" />
+            <el-option value="kick" label="提交踢出复核" />
+            <el-option value="set-role" label="批量设置角色" />
+            <el-option value="unset-role" label="批量移除角色" />
+          </el-select>
         </label>
         <label class="sh-field">
           <span class="sh-field__label">禁言秒数</span>
-          <input v-model.number="guardForm.seconds" class="sh-input" type="number" min="0" />
+          <el-input-number v-model="guardForm.seconds" class="sh-control" :min="0" />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">角色 ID</span>
-          <input v-model="guardForm.roleId" class="sh-input sh-input--mono" placeholder="role_id" />
+          <el-input
+            v-model="guardForm.roleId"
+            class="sh-control sh-control--mono"
+            placeholder="role_id"
+          />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">操作原因</span>
-          <input v-model="guardForm.reason" class="sh-input" placeholder="控制台批量操作" />
+          <el-input
+            v-model="guardForm.reason"
+            class="sh-control"
+            placeholder="控制台批量操作"
+          />
         </label>
-        <label class="sh-check">
-          <input v-model="guardForm.permanent" type="checkbox" />
-          <span>同时拉黑</span>
+        <label class="sh-field">
+          <span class="sh-field__label">附加动作</span>
+          <el-checkbox v-model="guardForm.permanent" class="sh-check">同时拉黑</el-checkbox>
         </label>
       </div>
       <div class="sh-btn-row">
-        <button
-          class="sh-btn sh-btn--primary"
+        <el-button
+          type="primary"
+          class="sh-button sh-button--primary"
           :disabled="selectedGuardIds.length === 0 || loading"
           @click="runTask(submitGuardAction)"
         >
           执行操作
-        </button>
+        </el-button>
         <span v-if="guardForm.action === 'kick'" class="sh-field__hint">
           踢人和踢人并拉黑会先创建人工复核申请，不会直接执行。
         </span>
@@ -56,7 +65,7 @@
       <QueueToolbar :stats="queueStats">
         <label class="sh-field sh-identity-queue__search">
           <span class="sh-field__label">检索</span>
-          <input v-model="search" class="sh-input" placeholder="成员 / 群号 / 错误信息" />
+          <el-input v-model="search" class="sh-control" placeholder="成员 / 群号 / 错误信息" />
         </label>
       </QueueToolbar>
 
@@ -69,12 +78,11 @@
         @select="handleMemberSelect"
       >
         <template #cell-select="{ row }">
-          <input
-            v-model="selectedGuardIds"
-            type="checkbox"
-            :value="row.id"
+          <el-checkbox
+            :model-value="isSelected(row.id)"
             aria-label="选中此成员"
             @click.stop
+            @change="(value) => toggleSelectedGuardId(row.id, value)"
           />
         </template>
       </QueueTable>
@@ -89,7 +97,11 @@ import type { StuhelperConsoleGuardMember } from '../../../src/console-types'
 import WorkspaceSection from '../layout/WorkspaceSection.vue'
 import QueueTable from './QueueTable.vue'
 import QueueToolbar from './QueueToolbar.vue'
-import { formatTimestamp, type ActionIntent } from '../../use-console-page'
+import {
+  describeVerificationState,
+  formatTimestamp,
+  type ActionIntent,
+} from '../../formatters'
 
 const MEMBER_COLUMNS = [
   { key: 'select', label: '', width: '40px' },
@@ -163,20 +175,7 @@ const memberRows = computed(() =>
   })),
 )
 
-function describeVerificationState(state: string) {
-  switch (state) {
-    case 'unbound':
-      return '未绑定'
-    case 'bound_unverified':
-      return '待认证'
-    case 'verified':
-      return '已认证'
-    default:
-      return state
-  }
-}
-
-function stateIntent(state: string): ActionIntent {
+function stateIntent(state: StuhelperConsoleGuardMember['verificationState']): ActionIntent {
   switch (state) {
     case 'verified':
       return 'success'
@@ -184,8 +183,6 @@ function stateIntent(state: string): ActionIntent {
       return 'warning'
     case 'unbound':
       return 'danger'
-    default:
-      return 'neutral'
   }
 }
 
@@ -193,6 +190,19 @@ function handleMemberSelect(memberId: string) {
   const member = props.pendingMembers.find((item) => item.id === memberId)
   if (!member) return
   props.inspectMember(member)
+}
+
+function isSelected(memberId: string) {
+  return selectedGuardIds.value.includes(memberId)
+}
+
+function toggleSelectedGuardId(memberId: string, checked: string | number | boolean) {
+  const nextIds = selectedGuardIds.value.filter((id) => id !== memberId)
+  if (checked) {
+    selectedGuardIds.value = [...nextIds, memberId]
+    return
+  }
+  selectedGuardIds.value = nextIds
 }
 </script>
 

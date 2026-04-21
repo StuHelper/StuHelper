@@ -1,5 +1,13 @@
 <template>
-  <span class="sh-tag" :class="intentClass">{{ label }}</span>
+  <el-tag
+    :class="['sh-tag', `sh-tag--${intent}`]"
+    :type="tagType"
+    effect="light"
+    size="small"
+    round
+  >
+    {{ label }}
+  </el-tag>
 </template>
 
 <script setup lang="ts">
@@ -22,5 +30,18 @@ const props = withDefaults(
   { intent: 'neutral' },
 )
 
-const intentClass = computed(() => `sh-tag--${props.intent}`)
+const tagType = computed(() => {
+  switch (props.intent) {
+    case 'success':
+      return 'success'
+    case 'warning':
+      return 'warning'
+    case 'danger':
+      return 'danger'
+    case 'info':
+      return 'info'
+    default:
+      return undefined
+  }
+})
 </script>

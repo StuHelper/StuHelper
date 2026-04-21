@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { store } from '@koishijs/client'
 
 import {
@@ -11,60 +11,28 @@ import {
   saveKeywordRule,
   saveMemberRoles,
 } from './api'
-import {
-  parseConsoleSearch,
-  updateConsoleUrl,
-  type ConsoleSearchState,
-} from './navigation'
-import type {
-  StuhelperConsoleCommandPolicy,
-  StuhelperConsoleData,
-  StuhelperConsoleEvent,
-  StuhelperConsoleGuardBinding,
-  StuhelperConsoleGuardMember,
-  StuhelperConsoleGuardTemplate,
-  StuhelperConsoleKeywordRule,
-  StuhelperConsoleMemberRole,
-  StuhelperConsoleReport,
-  StuhelperConsoleReview,
-} from '../src/console-types'
-import { buildAuditRows, normalizeAuditFilterKind, type AuditFilterKind, type AuditRow } from './audit/model'
-import {
-  buildDashboardModel,
-  type DashboardTarget,
-} from './dashboard/model'
+import { useConsoleAudit } from './use-console-audit'
+import { buildDashboardModel, type DashboardTarget } from './dashboard/model'
 import {
   DEFAULT_POLICY_CATEGORY_ID,
   resolvePolicyCategoryId,
   type PolicyCategoryId,
 } from './policy/categories'
-import { getNextFocusableId } from './queue/model'
-import { resolveNoticeMessage } from './ui-state'
+import { useConsoleForms } from './use-console-forms'
+import {
+  closeInspector as closeInspectorState,
+  createInspectorState,
+  openInspector as openInspectorState,
+  useInspectorPayload,
+  type InspectorKind,
+} from './use-console-inspector'
+import { useConsoleNavigation } from './use-console-navigation'
+import { useConsoleNotices } from './use-console-notices'
+import { useConsoleSubmitActions } from './use-console-submit-actions'
+import type { StuhelperConsoleData } from '../src/console-types'
 
-export type InspectorKind =
-  | 'member'
-  | 'review'
-  | 'event'
-  | 'report'
-  | 'template'
-  | 'binding'
-  | 'rule'
-
-export interface InspectorState {
-  open: boolean
-  kind: InspectorKind | null
-  id: string
-  payload: unknown
-}
-
-export interface NoticeItem {
-  id: string
-  kind: 'success' | 'error'
-  message: string
-}
-
-const NOTICE_TTL_MS = 4000
 const REVIEW_QUEUE_ID = 'review'
+const REPORT_QUEUE_ID = 'report'
 const MEMBER_QUEUE_ID = 'member'
 
 export function useConsolePage() {
@@ -73,104 +41,33 @@ export function useConsolePage() {
   )
   const title = computed(() => data.value?.title || 'StuHelper 群管中心')
   const generatedAt = computed(() => data.value?.generatedAt || '')
-  const loading = ref(false)
-
-  const routeState = ref<ConsoleSearchState>(
-    parseConsoleSearch(new URLSearchParams(window.location.search)),
-  )
-  const rawAuditQuery = ref('')
   const visibleReviewIds = ref<string[]>([])
 
-  function setRouteState(next: Partial<ConsoleSearchState>) {
-    routeState.value = { ...routeState.value, ...next }
-    const url = updateConsoleUrl(new URL(window.location.href), routeState.value)
-    window.history.replaceState(window.history.state, '', url)
-  }
+  const {
+    routeState,
+    setRouteState,
+    getSelectedQueueId,
+    selectQueueItem,
+  } = useConsoleNavigation()
 
-  function getSelectedQueueId(section: ConsoleSearchState['section'], queue: string) {
-    if (routeState.value.section !== section) return ''
-    if (routeState.value.queue && routeState.value.queue !== queue) return ''
-    return routeState.value.id
-  }
-
-  function selectQueueItem(
-    section: ConsoleSearchState['section'],
-    queue: string,
-    id: string,
-  ) {
-    setRouteState({ section, queue, id, source: 'direct' })
-  }
-
-  const inspector = reactive<InspectorState>({
-    open: false,
-    kind: null,
-    id: '',
-    payload: null,
-  })
-
-  function openInspector(kind: InspectorKind, id: string, payload: unknown) {
-    inspector.open = true
-    inspector.kind = kind
-    inspector.id = id
-    inspector.payload = payload
-  }
-
-  function closeInspector() {
-    inspector.open = false
-    inspector.kind = null
-    inspector.id = ''
-    inspector.payload = null
-  }
-
-  const notices = ref<NoticeItem[]>([])
-
-  function pushNotice(kind: NoticeItem['kind'], message: string) {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    notices.value = [...notices.value, { id, kind, message }]
-    window.setTimeout(() => dismissNotice(id), NOTICE_TTL_MS)
-  }
-
-  function dismissNotice(id: string) {
-    notices.value = notices.value.filter((item) => item.id !== id)
-  }
-
-  const selectedGuardIds = ref<string[]>([])
-  const guardForm = reactive({
-    action: 'mute' as 'mute' | 'unmute' | 'kick' | 'set-role' | 'unset-role',
-    seconds: 600,
-    reason: '控制台批量操作',
-    roleId: '',
-    permanent: false,
-  })
-  const reviewForm = reactive({ note: '' })
-  const ruleForm = reactive({
-    id: '',
-    guildId: '*',
-    pattern: '',
-    matchMode: 'includes' as 'includes' | 'regex',
-    action: 'warn' as 'warn' | 'delete' | 'mute' | 'review',
-    enabled: true,
-    muteSeconds: 0,
-    note: '',
-  })
-  const templateForm = reactive({
-    id: '',
-    name: '',
-    muteDurationSeconds: 600,
-    kickAfterMinutes: 30,
-    reminderTemplate: '请先完成 StuHelper 注册、QQ 绑定与学生认证。',
-    exemptUsersText: '',
-    enabled: true,
-  })
-  const bindingForm = reactive({
-    platform: '',
-    guildId: '',
-    templateId: '',
-    enabled: true,
-    note: '',
-  })
-  const roleForm = reactive({ guildId: '', memberId: '', rolesText: '' })
-  const policyForm = reactive({ commandId: 'report', minAuthority: 0, rolesText: '' })
+  const inspector = createInspectorState()
+  const inspectorPayload = useInspectorPayload(data, inspector)
+  const { loading, notices, pushNotice, dismissNotice, runTask } = useConsoleNotices()
+  const {
+    selectedGuardIds,
+    guardForm,
+    reviewForm,
+    ruleForm,
+    templateForm,
+    bindingForm,
+    roleForm,
+    policyForm,
+    loadRule,
+    loadMemberRoles,
+    loadPolicy,
+    loadTemplate,
+    loadBinding,
+  } = useConsoleForms()
 
   const pendingMembers = computed(() => data.value?.pendingMembers || [])
   const pendingReviews = computed(() => data.value?.pendingReviews || [])
@@ -185,248 +82,83 @@ export function useConsolePage() {
   const supportedCommandIds = computed(() => data.value?.supportedCommandIds || [])
   const selectedMemberId = computed(() => getSelectedQueueId('identity', MEMBER_QUEUE_ID))
   const selectedReviewId = computed(() => getSelectedQueueId('enforcement', REVIEW_QUEUE_ID))
-  const selectedAuditId = computed(() =>
-    routeState.value.section === 'audit' ? routeState.value.id : '',
-  )
+  const selectedReportId = computed(() => getSelectedQueueId('enforcement', REPORT_QUEUE_ID))
   const activePolicyCategory = computed(() =>
     routeState.value.section === 'policy'
       ? resolvePolicyCategoryId(routeState.value.queue)
       : DEFAULT_POLICY_CATEGORY_ID,
   )
-  const auditKind = computed<AuditFilterKind>({
-    get: () =>
-      routeState.value.section === 'audit'
-        ? normalizeAuditFilterKind(routeState.value.queue)
-        : 'all',
-    set: (kind) => {
-      updateAuditRoute(normalizeAuditFilterKind(kind))
-    },
-  })
-  const auditQuery = computed({
-    get: () => rawAuditQuery.value,
-    set: (query: string) => {
-      rawAuditQuery.value = query
-      syncAuditSelection()
-    },
-  })
-  const auditRows = computed(() =>
-    getAuditRows(auditKind.value, rawAuditQuery.value),
-  )
 
-  watch(auditRows, (rows) => {
-    if (routeState.value.section !== 'audit') return
-    if (!routeState.value.id && rows[0]) {
-      setRouteState({
-        section: 'audit',
-        queue: getAuditQueue(auditKind.value),
-        id: rows[0].id,
-        source: 'direct',
-      })
-      return
-    }
-    if (!routeState.value.id || rows.some((row) => row.id === routeState.value.id)) return
-    closeInspector()
-    setRouteState({
-      section: 'audit',
-      queue: getAuditQueue(auditKind.value),
-      id: rows[0]?.id ?? '',
-      source: 'direct',
-    })
-  })
-
-  async function runTask(task: () => Promise<unknown>) {
-    loading.value = true
-    try {
-      const result = await task()
-      pushNotice('success', resolveNoticeMessage(result))
-      return result
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      pushNotice('error', message)
-      throw error
-    } finally {
-      loading.value = false
-    }
+  function openInspector(kind: InspectorKind, id: string, reviewCandidateIds: readonly string[] = []) {
+    openInspectorState(inspector, kind, id, reviewCandidateIds)
   }
+
+  function closeInspector() {
+    closeInspectorState(inspector)
+  }
+
+  const {
+    selectedAuditId,
+    auditKind,
+    auditQuery,
+    auditRows,
+    inspectAuditRow,
+  } = useConsoleAudit({
+    routeState,
+    setRouteState,
+    recentEvents,
+    recentReports,
+    inspector,
+    closeInspector,
+    openInspector,
+    pushNotice,
+  })
+
+  const {
+    submitGuardAction,
+    submitReviewAction,
+    submitReviewAndFocus,
+    submitRule,
+    submitRoles,
+    submitPolicy,
+    submitTemplate,
+    submitBinding,
+    inspectMember,
+    inspectReview,
+    inspectReport,
+  } = useConsoleSubmitActions({
+    selectedGuardIds,
+    guardForm,
+    reviewForm,
+    ruleForm,
+    templateForm,
+    bindingForm,
+    roleForm,
+    policyForm,
+    pendingReviews,
+    visibleReviewIds,
+    inspector,
+    openInspector,
+    closeInspector,
+    setRouteState,
+    selectQueueItem,
+    runGuardBatchAction,
+    runReviewAction,
+    saveKeywordRule,
+    saveMemberRoles,
+    saveCommandPolicy,
+    saveGuardTemplate,
+    saveGuardBinding,
+  })
+
+  watch(inspectorPayload, (payload) => {
+    if (!inspector.open || !data.value) return
+    if (payload) return
+    closeInspector()
+  })
 
   async function refresh() {
     return refreshConsoleData()
-  }
-
-  async function submitGuardAction() {
-    const result = await runGuardBatchAction({
-      action: guardForm.action,
-      memberIds: selectedGuardIds.value,
-      seconds: guardForm.seconds,
-      reason: guardForm.reason,
-      roleId: guardForm.roleId || undefined,
-      permanent: guardForm.permanent,
-    })
-    selectedGuardIds.value = []
-    return result
-  }
-
-  async function submitReviewAction(reviewId: string, action: 'execute' | 'reject') {
-    const result = await runReviewAction({
-      reviewId,
-      action,
-      note: reviewForm.note.trim() || undefined,
-    })
-    reviewForm.note = ''
-    return result
-  }
-
-  async function submitReviewAndFocus(
-    reviewId: string,
-    action: 'execute' | 'reject',
-    visibleIds = visibleReviewIds.value.length
-      ? visibleReviewIds.value
-      : pendingReviews.value.map((review) => review.id),
-  ) {
-    const nextId = getNextFocusableId({
-      ids: visibleIds,
-      currentId: reviewId,
-      removedId: reviewId,
-    })
-    const result = await submitReviewAction(reviewId, action)
-
-    setRouteState({
-      section: 'enforcement',
-      queue: REVIEW_QUEUE_ID,
-      id: nextId,
-      source: 'direct',
-    })
-
-    if (!nextId) {
-      closeInspector()
-      return result
-    }
-
-    const nextReview = pendingReviews.value.find((review) => review.id === nextId)
-    if (!nextReview) {
-      closeInspector()
-      return result
-    }
-
-    openInspector('review', nextReview.id, nextReview)
-    return result
-  }
-
-  async function submitRule() {
-    return saveKeywordRule({
-      ...ruleForm,
-      note: ruleForm.note || null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
-  }
-
-  async function submitRoles() {
-    return saveMemberRoles({
-      guildId: roleForm.guildId,
-      memberId: roleForm.memberId,
-      roles: splitTokens(roleForm.rolesText),
-    })
-  }
-
-  async function submitPolicy() {
-    return saveCommandPolicy({
-      commandId: policyForm.commandId,
-      minAuthority: policyForm.minAuthority,
-      roles: splitTokens(policyForm.rolesText),
-    })
-  }
-
-  async function submitTemplate() {
-    return saveGuardTemplate({
-      id: templateForm.id.trim(),
-      name: templateForm.name.trim(),
-      muteDurationSeconds: templateForm.muteDurationSeconds,
-      kickAfterMinutes: templateForm.kickAfterMinutes,
-      reminderTemplate: templateForm.reminderTemplate.trim(),
-      exemptUsers: splitTokens(templateForm.exemptUsersText),
-      enabled: templateForm.enabled,
-    })
-  }
-
-  async function submitBinding() {
-    return saveGuardBinding({
-      platform: bindingForm.platform.trim(),
-      guildId: bindingForm.guildId.trim(),
-      templateId: bindingForm.templateId.trim(),
-      enabled: bindingForm.enabled,
-      note: bindingForm.note.trim() || null,
-    })
-  }
-
-  function loadRule(rule: StuhelperConsoleKeywordRule) {
-    Object.assign(ruleForm, { ...rule, note: rule.note || '' })
-  }
-
-  function loadMemberRoles(entry: StuhelperConsoleMemberRole) {
-    roleForm.guildId = entry.guildId
-    roleForm.memberId = entry.memberId
-    roleForm.rolesText = entry.roles.join(', ')
-  }
-
-  function loadPolicy(policy: StuhelperConsoleCommandPolicy) {
-    policyForm.commandId = policy.commandId
-    policyForm.minAuthority = policy.minAuthority
-    policyForm.rolesText = policy.roles.join(', ')
-  }
-
-  function loadTemplate(template: StuhelperConsoleGuardTemplate) {
-    templateForm.id = template.id
-    templateForm.name = template.name
-    templateForm.muteDurationSeconds = template.muteDurationSeconds
-    templateForm.kickAfterMinutes = template.kickAfterMinutes
-    templateForm.reminderTemplate = template.reminderTemplate
-    templateForm.exemptUsersText = template.exemptUsers.join(', ')
-    templateForm.enabled = template.enabled
-  }
-
-  function loadBinding(binding: StuhelperConsoleGuardBinding) {
-    bindingForm.platform = binding.platform
-    bindingForm.guildId = binding.guildId
-    bindingForm.templateId = binding.templateId
-    bindingForm.enabled = binding.enabled
-    bindingForm.note = binding.note || ''
-  }
-
-  function inspectMember(member: StuhelperConsoleGuardMember) {
-    selectQueueItem('identity', MEMBER_QUEUE_ID, member.id)
-    openInspector('member', member.id, member)
-  }
-
-  function inspectReview(review: StuhelperConsoleReview) {
-    selectQueueItem('enforcement', REVIEW_QUEUE_ID, review.id)
-    openInspector('review', review.id, review)
-  }
-
-  function inspectEvent(event: StuhelperConsoleEvent) {
-    openInspector('event', event.id, event)
-  }
-
-  function inspectReport(report: StuhelperConsoleReport) {
-    openInspector('report', report.id, report)
-  }
-
-  function inspectAuditRow(row: AuditRow) {
-    setRouteState({
-      section: 'audit',
-      queue: getAuditQueue(auditKind.value),
-      id: row.id,
-      source: 'direct',
-    })
-
-    if (row.kind === 'event') {
-      const event = recentEvents.value.find((item) => item.id === row.id)
-      if (event) inspectEvent(event)
-      return
-    }
-
-    const report = recentReports.value.find((item) => item.id === row.id)
-    if (report) inspectReport(report)
   }
 
   function setVisibleReviewIds(ids: readonly string[]) {
@@ -435,8 +167,8 @@ export function useConsolePage() {
 
   function selectPolicyCategory(category: PolicyCategoryId) {
     if (
-      routeState.value.section === 'policy' &&
-      activePolicyCategory.value === category
+      routeState.value.section === 'policy'
+      && activePolicyCategory.value === category
     ) {
       return
     }
@@ -452,50 +184,7 @@ export function useConsolePage() {
 
   function openDashboardTarget(target: DashboardTarget) {
     closeInspector()
-    setRouteState({
-      section: target.section,
-      queue: target.section === 'policy' ? activePolicyCategory.value : null,
-      id: '',
-      source: 'dashboard',
-    })
-  }
-
-  function getAuditRows(kind: AuditFilterKind, query = rawAuditQuery.value) {
-    return buildAuditRows(recentEvents.value, recentReports.value, { kind, query })
-  }
-
-  function getAuditQueue(kind: AuditFilterKind) {
-    return kind === 'all' ? null : kind
-  }
-
-  function resolveAuditSelection(kind: AuditFilterKind, currentId = routeState.value.id) {
-    const rows = getAuditRows(kind)
-    if (currentId && rows.some((row) => row.id === currentId)) return currentId
-    return rows[0]?.id ?? ''
-  }
-
-  function updateAuditRoute(kind: AuditFilterKind) {
-    const nextId = resolveAuditSelection(kind)
-    setRouteState({
-      section: 'audit',
-      queue: getAuditQueue(kind),
-      id: nextId,
-      source: 'direct',
-    })
-    if (inspector.kind === 'event' || inspector.kind === 'report') closeInspector()
-  }
-
-  function syncAuditSelection() {
-    if (routeState.value.section !== 'audit') return
-    const nextId = resolveAuditSelection(auditKind.value)
-    if (nextId === routeState.value.id) return
-    closeInspector()
-    setRouteState({
-      section: 'audit',
-      queue: getAuditQueue(auditKind.value),
-      id: nextId,
-      source: 'direct',
-    })
+    setRouteState(target)
   }
 
   return {
@@ -506,6 +195,7 @@ export function useConsolePage() {
     routeState,
     setRouteState,
     inspector,
+    inspectorPayload,
     openInspector,
     closeInspector,
     notices,
@@ -514,6 +204,7 @@ export function useConsolePage() {
     pendingReviews,
     selectedMemberId,
     selectedReviewId,
+    selectedReportId,
     selectedAuditId,
     activePolicyCategory,
     keywordRules,
@@ -558,76 +249,5 @@ export function useConsolePage() {
     setVisibleReviewIds,
     selectPolicyCategory,
     openDashboardTarget,
-  }
-}
-
-function splitTokens(input: string) {
-  return input
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-export function formatTimestamp(value?: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-  const min = String(date.getMinutes()).padStart(2, '0')
-  return `${mm}-${dd} ${hh}:${min}`
-}
-
-export type ActionIntent =
-  | 'neutral'
-  | 'primary'
-  | 'warning'
-  | 'danger'
-  | 'success'
-  | 'info'
-  | 'muted'
-
-export function describeAction(action: string): { label: string; intent: ActionIntent } {
-  switch (action) {
-    case 'mute':
-      return { label: '禁言', intent: 'warning' }
-    case 'unmute':
-      return { label: '解除禁言', intent: 'success' }
-    case 'kick':
-      return { label: '踢人（复核）', intent: 'danger' }
-    case 'kick-permanent':
-      return { label: '踢人拉黑（复核）', intent: 'danger' }
-    case 'set-role':
-      return { label: '设置角色', intent: 'primary' }
-    case 'unset-role':
-      return { label: '移除角色', intent: 'muted' }
-    case 'warn':
-      return { label: '警告', intent: 'warning' }
-    case 'delete':
-      return { label: '撤回', intent: 'primary' }
-    case 'review':
-      return { label: '转复核', intent: 'info' }
-    default:
-      return { label: action, intent: 'neutral' }
-  }
-}
-
-export function describeLevel(level: string): ActionIntent {
-  switch (level) {
-    case 'critical':
-    case 'high':
-      return 'danger'
-    case 'medium':
-    case 'warn':
-    case 'warning':
-      return 'warning'
-    case 'info':
-      return 'info'
-    case 'success':
-    case 'ok':
-      return 'success'
-    default:
-      return 'neutral'
   }
 }

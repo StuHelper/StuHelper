@@ -13,7 +13,7 @@
         class="sh-section__meta"
       >
         <slot name="meta">
-          <span v-if="meta" class="sh-tag sh-tag--neutral">{{ meta }}</span>
+          <SeverityTag v-if="meta" :label="meta" intent="neutral" />
         </slot>
         <slot name="actions" />
       </div>
@@ -25,6 +25,8 @@
 </template>
 
 <script setup lang="ts">
+import SeverityTag from '../SeverityTag.vue'
+
 withDefaults(
   defineProps<{
     title?: string

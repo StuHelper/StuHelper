@@ -10,80 +10,88 @@
       <div class="sh-form-grid">
         <label class="sh-field">
           <span class="sh-field__label">模板 ID</span>
-          <input v-model="templateForm.id" class="sh-input sh-input--mono" placeholder="dormitory" />
+          <el-input
+            v-model="templateForm.id"
+            class="sh-control sh-control--mono"
+            placeholder="dormitory"
+          />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">模板名称</span>
-          <input v-model="templateForm.name" class="sh-input" placeholder="宿舍群模板" />
+          <el-input v-model="templateForm.name" class="sh-control" placeholder="宿舍群模板" />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">禁言秒数</span>
-          <input v-model.number="templateForm.muteDurationSeconds" class="sh-input" type="number" min="1" />
+          <el-input-number v-model="templateForm.muteDurationSeconds" class="sh-control" :min="1" />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">踢出分钟数</span>
-          <input v-model.number="templateForm.kickAfterMinutes" class="sh-input" type="number" min="1" />
+          <el-input-number v-model="templateForm.kickAfterMinutes" class="sh-control" :min="1" />
         </label>
         <label class="sh-field" style="grid-column: span 2">
           <span class="sh-field__label">提醒文案</span>
-          <input v-model="templateForm.reminderTemplate" class="sh-input" placeholder="请先完成 StuHelper 注册与认证。" />
+          <el-input
+            v-model="templateForm.reminderTemplate"
+            class="sh-control"
+            placeholder="请先完成 StuHelper 注册与认证。"
+          />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">白名单成员</span>
-          <input v-model="templateForm.exemptUsersText" class="sh-input sh-input--mono" placeholder="成员 ID，逗号分隔" />
+          <el-input
+            v-model="templateForm.exemptUsersText"
+            class="sh-control sh-control--mono"
+            placeholder="成员 ID，逗号分隔"
+          />
         </label>
-        <label class="sh-check">
-          <input v-model="templateForm.enabled" type="checkbox" />
-          <span>模板启用</span>
+        <label class="sh-field">
+          <span class="sh-field__label">状态</span>
+          <el-checkbox v-model="templateForm.enabled" class="sh-check">模板启用</el-checkbox>
         </label>
       </div>
       <div class="sh-btn-row">
-        <button class="sh-btn sh-btn--primary" @click="runTask(submitTemplate)">保存模板</button>
+        <el-button type="primary" class="sh-button sh-button--primary" @click="runTask(submitTemplate)">
+          保存模板
+        </el-button>
       </div>
     </div>
 
-    <EmptyState
-      v-if="templates.length === 0"
-      title="暂无模板"
-      body="先创建一条模板，再挂载到具体群。"
-    />
-    <div v-else class="sh-table-shell">
-      <table class="sh-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>名称</th>
-            <th>禁言</th>
-            <th>超时</th>
-            <th>状态</th>
-            <th style="text-align: right">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="template in templates"
-            :key="template.id"
-            data-clickable="true"
-            @click="inspectTemplate?.(template)"
-          >
-            <td>{{ template.id }}</td>
-            <td>{{ template.name }}</td>
-            <td>{{ template.muteDurationSeconds }} 秒</td>
-            <td>{{ template.kickAfterMinutes }} 分钟</td>
-            <td>
-              <SeverityTag
-                :label="template.enabled ? '启用' : '停用'"
-                :intent="template.enabled ? 'success' : 'muted'"
-              />
-            </td>
-            <td class="sh-table__actions">
-              <button class="sh-btn sh-btn--sm sh-btn--ghost" @click.stop="loadTemplate(template)">
-                编辑
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="sh-table-shell">
+      <el-table :data="templates" row-key="id" @row-click="handleRowClick">
+        <template #empty>
+          <EmptyState title="暂无模板" body="先创建一条模板，再挂载到具体群。" />
+        </template>
+        <el-table-column prop="id" label="ID" />
+        <el-table-column prop="name" label="名称" />
+        <el-table-column label="禁言">
+          <template #default="{ row }">
+            {{ row.muteDurationSeconds }} 秒
+          </template>
+        </el-table-column>
+        <el-table-column label="超时">
+          <template #default="{ row }">
+            {{ row.kickAfterMinutes }} 分钟
+          </template>
+        </el-table-column>
+        <el-table-column label="状态">
+          <template #default="{ row }">
+            <SeverityTag
+              :label="row.enabled ? '启用' : '停用'"
+              :intent="row.enabled ? 'success' : 'muted'"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" align="right">
+          <template #default="{ row }">
+            <el-button
+              class="sh-button sh-button--ghost sh-button--sm"
+              @click.stop="loadTemplate(row)"
+            >
+              编辑
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
   </WorkspaceSection>
 </template>
@@ -94,7 +102,7 @@ import EmptyState from '../EmptyState.vue'
 import WorkspaceSection from '../layout/WorkspaceSection.vue'
 import SeverityTag from '../SeverityTag.vue'
 
-defineProps<{
+const props = defineProps<{
   templates: readonly StuhelperConsoleGuardTemplate[]
   templateForm: {
     id: string
@@ -110,4 +118,8 @@ defineProps<{
   loadTemplate: (template: StuhelperConsoleGuardTemplate) => void
   inspectTemplate?: (template: StuhelperConsoleGuardTemplate) => void
 }>()
+
+function handleRowClick(template: StuhelperConsoleGuardTemplate) {
+  props.inspectTemplate?.(template)
+}
 </script>

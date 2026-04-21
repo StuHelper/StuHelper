@@ -9,78 +9,77 @@
       <div class="sh-form-grid sh-form-grid--narrow">
         <label class="sh-field">
           <span class="sh-field__label">平台</span>
-          <input v-model="bindingForm.platform" class="sh-input sh-input--mono" placeholder="onebot / qq / mock" />
+          <el-input
+            v-model="bindingForm.platform"
+            class="sh-control sh-control--mono"
+            placeholder="onebot / qq / mock"
+          />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">群号</span>
-          <input v-model="bindingForm.guildId" class="sh-input sh-input--mono" placeholder="群号" />
+          <el-input v-model="bindingForm.guildId" class="sh-control sh-control--mono" placeholder="群号" />
         </label>
         <label class="sh-field">
           <span class="sh-field__label">模板</span>
-          <select v-model="bindingForm.templateId" class="sh-select">
-            <option value="">选择模板</option>
-            <option v-for="template in templates" :key="template.id" :value="template.id">
-              {{ template.name }} ({{ template.id }})
-            </option>
-          </select>
+          <el-select v-model="bindingForm.templateId" class="sh-control" placeholder="选择模板">
+            <el-option value="" label="选择模板" />
+            <el-option
+              v-for="template in templates"
+              :key="template.id"
+              :value="template.id"
+              :label="`${template.name} (${template.id})`"
+            />
+          </el-select>
         </label>
         <label class="sh-field">
           <span class="sh-field__label">备注</span>
-          <input v-model="bindingForm.note" class="sh-input" placeholder="如 2026 级宿舍群" />
+          <el-input v-model="bindingForm.note" class="sh-control" placeholder="如 2026 级宿舍群" />
         </label>
-        <label class="sh-check">
-          <input v-model="bindingForm.enabled" type="checkbox" />
-          <span>绑定启用</span>
+        <label class="sh-field">
+          <span class="sh-field__label">状态</span>
+          <el-checkbox v-model="bindingForm.enabled" class="sh-check">绑定启用</el-checkbox>
         </label>
       </div>
       <div class="sh-btn-row">
-        <button class="sh-btn sh-btn--primary" @click="runTask(submitBinding)">保存绑定</button>
+        <el-button type="primary" class="sh-button sh-button--primary" @click="runTask(submitBinding)">
+          保存绑定
+        </el-button>
         <span class="sh-field__hint">禁用后会显式停用数据库规则，不回退静态配置。</span>
       </div>
     </div>
 
-    <EmptyState
-      v-if="bindings.length === 0"
-      title="暂无绑定"
-      body="选择一个群并挂载模板后会显示在这里。"
-    />
-    <div v-else class="sh-table-shell">
-      <table class="sh-table">
-        <thead>
-          <tr>
-            <th>平台</th>
-            <th>群</th>
-            <th>模板</th>
-            <th>状态</th>
-            <th>备注</th>
-            <th style="text-align: right">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="binding in bindings"
-            :key="binding.id"
-            data-clickable="true"
-            @click="inspectBinding?.(binding)"
-          >
-            <td>{{ binding.platform }}</td>
-            <td>{{ binding.guildId }}</td>
-            <td>{{ binding.templateId }}</td>
-            <td>
-              <SeverityTag
-                :label="binding.enabled ? '启用' : '停用'"
-                :intent="binding.enabled ? 'success' : 'muted'"
-              />
-            </td>
-            <td>{{ binding.note || '—' }}</td>
-            <td class="sh-table__actions">
-              <button class="sh-btn sh-btn--sm sh-btn--ghost" @click.stop="loadBinding(binding)">
-                编辑
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="sh-table-shell">
+      <el-table :data="bindings" row-key="id" @row-click="handleRowClick">
+        <template #empty>
+          <EmptyState title="暂无绑定" body="选择一个群并挂载模板后会显示在这里。" />
+        </template>
+        <el-table-column prop="platform" label="平台" />
+        <el-table-column prop="guildId" label="群" />
+        <el-table-column prop="templateId" label="模板" />
+        <el-table-column label="状态">
+          <template #default="{ row }">
+            <SeverityTag
+              :label="row.enabled ? '启用' : '停用'"
+              :intent="row.enabled ? 'success' : 'muted'"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="备注">
+          <template #default="{ row }">
+            {{ row.note || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" align="right">
+          <template #default="{ row }">
+            <el-button
+              class="sh-button sh-button--ghost sh-button--sm"
+              @click.stop="loadBinding(row)"
+            >
+              编辑
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
   </WorkspaceSection>
 </template>
@@ -94,7 +93,7 @@ import EmptyState from '../EmptyState.vue'
 import WorkspaceSection from '../layout/WorkspaceSection.vue'
 import SeverityTag from '../SeverityTag.vue'
 
-defineProps<{
+const props = defineProps<{
   templates: readonly StuhelperConsoleGuardTemplate[]
   bindings: readonly StuhelperConsoleGuardBinding[]
   bindingForm: {
@@ -109,4 +108,8 @@ defineProps<{
   loadBinding: (binding: StuhelperConsoleGuardBinding) => void
   inspectBinding?: (binding: StuhelperConsoleGuardBinding) => void
 }>()
+
+function handleRowClick(binding: StuhelperConsoleGuardBinding) {
+  props.inspectBinding?.(binding)
+}
 </script>

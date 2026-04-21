@@ -4,8 +4,8 @@ import type {
   StuhelperCommandPolicyInput,
   StuhelperGuardBindingInput,
   StuhelperGuardTemplateInput,
-  StuhelperConsoleKeywordRule,
   StuhelperGuardBatchActionInput,
+  StuhelperKeywordRuleInput,
   StuhelperMemberRoleInput,
   StuhelperReviewActionInput,
 } from '../src/console-types'
@@ -22,7 +22,7 @@ export async function runReviewAction(input: StuhelperReviewActionInput) {
   return send('stuhelper-console/review-action', input)
 }
 
-export async function saveKeywordRule(rule: StuhelperConsoleKeywordRule) {
+export async function saveKeywordRule(rule: StuhelperKeywordRuleInput) {
   return send('stuhelper-console/save-keyword-rule', rule)
 }
 

@@ -5,14 +5,31 @@ import type {
   StuhelperConsoleReport,
   StuhelperConsoleReview,
 } from '../../src/console-types'
-import type { ConsoleSectionId } from '../sections'
+import {
+  describeReviewAction,
+  describeReviewStatus,
+  describeVerificationState,
+  formatTimestamp,
+} from '../formatters'
+import type { ConsoleSearchState } from '../navigation'
+import { buildRecentChanges } from './changes'
+import { buildStatusBand, buildSystemStatus } from './status'
 
 const REVIEW_TODO_LIMIT = 4
 const IDENTITY_TODO_LIMIT = 4
 const RECENT_ACTIVITY_LIMIT = 6
+const RECENT_EVENT_LIMIT = 6
+const REVIEW_QUEUE_ID = 'review'
+const MEMBER_QUEUE_ID = 'member'
+const POLICY_BINDINGS_QUEUE_ID = 'guard-bindings'
 
-export interface DashboardTarget {
-  section: ConsoleSectionId
+export type DashboardTarget = Pick<ConsoleSearchState, 'section' | 'queue' | 'id' | 'source'>
+
+export interface DashboardStatusItem {
+  label: string
+  value: string
+  note: string
+  tone?: 'neutral' | 'warning' | 'danger' | 'success' | 'primary' | 'info'
 }
 
 export interface DashboardMetric {
@@ -45,16 +62,28 @@ export interface DashboardActivityRow {
   time: string
 }
 
+export interface DashboardChangeRow {
+  id: string
+  title: string
+  meta: string
+  kindLabel: string
+  time: string
+}
+
 export interface DashboardPolicySummary {
   label: string
   value: number
 }
 
 export interface DashboardModel {
+  statusBand: DashboardStatusItem[]
   metrics: DashboardMetric[]
-  shortcuts: DashboardShortcut[]
   todoRows: DashboardTodoRow[]
+  systemStatus: DashboardStatusItem[]
+  shortcuts: DashboardShortcut[]
+  recentEvents: DashboardActivityRow[]
   policySummary: DashboardPolicySummary[]
+  recentChanges: DashboardChangeRow[]
   recentActivity: DashboardActivityRow[]
 }
 
@@ -67,13 +96,17 @@ export function buildDashboardModel(data: StuhelperConsoleData | undefined): Das
   const pendingMembers = data?.pendingMembers ?? []
 
   return {
+    statusBand: buildStatusBand(data),
     metrics: buildMetrics(data),
-    shortcuts: buildShortcuts(),
     todoRows: [
       ...buildReviewTodoRows(pendingReviews),
       ...buildIdentityTodoRows(pendingMembers),
     ],
+    systemStatus: buildSystemStatus(data),
+    shortcuts: buildShortcuts(),
+    recentEvents: buildRecentEvents(data),
     policySummary: buildPolicySummary(data),
+    recentChanges: buildRecentChanges(data),
     recentActivity: buildRecentActivity(data),
   }
 }
@@ -105,19 +138,39 @@ function createMetric(
 
 function buildShortcuts(): DashboardShortcut[] {
   return [
-    createShortcut('查看全部复核', '进入处置中心查看待复核动作。', 'enforcement'),
-    createShortcut('处理待认证成员', '进入身份认证分区处理待认证成员。', 'identity'),
-    createShortcut('检查模板与群绑定', '进入策略中心检查模板、绑定和命令权限。', 'policy'),
-    createShortcut('检索事件与举报', '进入审计检索查看最近事件和举报摘要。', 'audit'),
+    createShortcut('查看全部复核', '进入处置中心查看待复核动作。', {
+      section: 'enforcement',
+      queue: REVIEW_QUEUE_ID,
+      id: '',
+      source: 'dashboard',
+    }),
+    createShortcut('处理待认证成员', '进入身份认证分区处理待认证成员。', {
+      section: 'identity',
+      queue: MEMBER_QUEUE_ID,
+      id: '',
+      source: 'dashboard',
+    }),
+    createShortcut('检查模板与群绑定', '进入策略中心检查模板、绑定和命令权限。', {
+      section: 'policy',
+      queue: POLICY_BINDINGS_QUEUE_ID,
+      id: '',
+      source: 'dashboard',
+    }),
+    createShortcut('检索事件与举报', '进入审计检索查看最近事件和举报摘要。', {
+      section: 'audit',
+      queue: null,
+      id: '',
+      source: 'dashboard',
+    }),
   ]
 }
 
 function createShortcut(
   label: string,
   description: string,
-  section: ConsoleSectionId,
+  target: DashboardTarget,
 ): DashboardShortcut {
-  return { label, description, target: { section } }
+  return { label, description, target }
 }
 
 function buildReviewTodoRows(items: readonly StuhelperConsoleReview[]): DashboardTodoRow[] {
@@ -127,7 +180,12 @@ function buildReviewTodoRows(items: readonly StuhelperConsoleReview[]): Dashboar
     title: item.reason || `${describeReviewAction(item.actionType)}复核`,
     meta: `${describeReviewAction(item.actionType)} · ${item.memberId} · ${formatTimestamp(item.createdAt)}`,
     status: describeReviewStatus(item.status),
-    target: { section: 'enforcement' },
+    target: {
+      section: 'enforcement',
+      queue: REVIEW_QUEUE_ID,
+      id: item.id,
+      source: 'dashboard',
+    },
   }))
 }
 
@@ -141,8 +199,20 @@ function buildIdentityTodoRows(items: readonly StuhelperConsoleGuardMember[]): D
       title: item.memberName || item.memberId,
       meta: `${item.memberId} · ${item.guildId} · 截止 ${formatTimestamp(item.deadlineAt)}`,
       status: describeVerificationState(item.verificationState),
-      target: { section: 'identity' },
+      target: {
+        section: 'identity',
+        queue: MEMBER_QUEUE_ID,
+        id: item.id,
+        source: 'dashboard',
+      },
     }))
+}
+
+function buildRecentEvents(data: StuhelperConsoleData | undefined): DashboardActivityRow[] {
+  return [...(data?.recentEvents ?? [])]
+    .sort((left, right) => compareTime(right.createdAt, left.createdAt))
+    .slice(0, RECENT_EVENT_LIMIT)
+    .map(toEventActivityRow)
 }
 
 function buildPolicySummary(data: StuhelperConsoleData | undefined): DashboardPolicySummary[] {
@@ -199,45 +269,6 @@ function countPolicyItems(data: StuhelperConsoleData | undefined) {
   )
 }
 
-function describeReviewAction(actionType: string) {
-  switch (actionType) {
-    case 'kick':
-      return '踢出成员'
-    case 'kick_and_block':
-      return '踢出并拉黑'
-    default:
-      return actionType
-  }
-}
-
-function describeReviewStatus(status: string) {
-  switch (status) {
-    case 'pending':
-      return '待复核'
-    case 'approved':
-      return '已批准'
-    case 'rejected':
-      return '已驳回'
-    case 'executed':
-      return '已执行'
-    default:
-      return status
-  }
-}
-
-function describeVerificationState(state: string) {
-  switch (state) {
-    case 'unbound':
-      return '未绑定'
-    case 'bound_unverified':
-      return '待认证'
-    case 'verified':
-      return '已认证'
-    default:
-      return state
-  }
-}
-
 function compareTime(left: string, right: string) {
   return toTime(left) - toTime(right)
 }
@@ -246,15 +277,4 @@ function toTime(value?: string | null) {
   if (!value) return 0
   const time = new Date(value).getTime()
   return Number.isNaN(time) ? 0 : time
-}
-
-function formatTimestamp(value?: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-  const min = String(date.getMinutes()).padStart(2, '0')
-  return `${mm}-${dd} ${hh}:${min}`
 }

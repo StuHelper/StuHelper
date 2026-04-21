@@ -9,17 +9,17 @@
     <div class="sh-audit-filters__controls">
       <label class="sh-field sh-audit-filters__field">
         <span class="sh-field__label">对象类型</span>
-        <select v-model="kind" class="sh-select">
-          <option value="all">全部</option>
-          <option value="event">事件</option>
-          <option value="report">举报</option>
-        </select>
+        <el-select v-model="kind" class="sh-control" placeholder="选择对象类型">
+          <el-option value="all" label="全部" />
+          <el-option value="event" label="事件" />
+          <el-option value="report" label="举报" />
+        </el-select>
       </label>
       <label class="sh-field sh-audit-filters__field sh-audit-filters__field--wide">
         <span class="sh-field__label">关键词</span>
-        <input
+        <el-input
           v-model="query"
-          class="sh-input"
+          class="sh-control"
           placeholder="检索成员、群号、摘要、级别或目标"
         />
       </label>

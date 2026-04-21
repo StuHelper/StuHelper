@@ -36,6 +36,17 @@ export interface StuhelperConsoleKeywordRule extends Omit<KeywordRuleRecord, 'cr
   updatedAt: string
 }
 
+export interface StuhelperKeywordRuleInput {
+  id: string
+  guildId: string
+  pattern: string
+  matchMode: KeywordRuleRecord['matchMode']
+  action: KeywordRuleRecord['action']
+  enabled: boolean
+  muteSeconds: number
+  note?: string | null
+}
+
 export interface StuhelperConsoleCommandPolicy extends Omit<CommandPolicyRecord, 'createdAt' | 'updatedAt'> {
   createdAt: string
   updatedAt: string

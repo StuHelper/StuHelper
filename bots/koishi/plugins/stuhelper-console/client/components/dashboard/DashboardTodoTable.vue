@@ -1,62 +1,53 @@
 <template>
   <div class="sh-table-shell">
-    <table class="sh-table sh-dashboard-table">
-      <thead>
-        <tr>
-          <th>类型</th>
-          <th>事项</th>
-          <th>信息</th>
-          <th>状态</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody v-if="rows.length > 0">
-        <tr v-for="row in rows" :key="row.id">
-          <td>{{ kindLabel(row.kind) }}</td>
-          <td>{{ row.title }}</td>
-          <td>{{ row.meta }}</td>
-          <td>
-            <span class="sh-tag" :class="statusClass(row.kind)">
-              {{ row.status }}
-            </span>
-          </td>
-          <td>
-            <button
-              type="button"
-              class="sh-btn sh-btn--ghost"
-              @click="emit('open', row.target.section)"
-            >
-              进入
-            </button>
-          </td>
-        </tr>
-      </tbody>
-      <tbody v-else>
-        <tr>
-          <td colspan="5" class="sh-dashboard-table__empty">当前没有待处理事项。</td>
-        </tr>
-      </tbody>
-    </table>
+    <el-table :data="rows" class="sh-dashboard-table" row-key="id">
+      <template #empty>
+        <div class="sh-dashboard-table__empty">当前没有待处理事项。</div>
+      </template>
+
+      <el-table-column label="类型">
+        <template #default="{ row }">
+          {{ kindLabel(row.kind) }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="title" label="事项" />
+      <el-table-column prop="meta" label="信息" />
+      <el-table-column label="状态">
+        <template #default="{ row }">
+          <SeverityTag :label="row.status" :intent="statusIntent(row.kind)" />
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" align="right">
+        <template #default="{ row }">
+          <el-button
+            class="sh-button sh-button--ghost sh-button--sm"
+            @click="emit('open', row.target)"
+          >
+            进入
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { DashboardTodoRow } from '../../dashboard/model'
-import type { ConsoleSectionId } from '../../sections'
+import SeverityTag, { type TagIntent } from '../SeverityTag.vue'
 
 defineProps<{
   rows: readonly DashboardTodoRow[]
 }>()
 
 const emit = defineEmits<{
-  open: [section: ConsoleSectionId]
+  open: [target: DashboardTodoRow['target']]
 }>()
 
 function kindLabel(kind: DashboardTodoRow['kind']) {
   return kind === 'review' ? '复核' : '认证'
 }
 
-function statusClass(kind: DashboardTodoRow['kind']) {
-  return kind === 'review' ? 'sh-tag--warning' : 'sh-tag--primary'
+function statusIntent(kind: DashboardTodoRow['kind']): TagIntent {
+  return kind === 'review' ? 'warning' : 'primary'
 }
 </script>

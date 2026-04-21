@@ -13,7 +13,7 @@
 import { computed } from 'vue'
 
 import type { AuditRow } from '../../audit/model'
-import { describeLevel, formatTimestamp } from '../../use-console-page'
+import { describeLevel, formatTimestamp } from '../../formatters'
 import QueueTable from '../queue/QueueTable.vue'
 
 const columns = [

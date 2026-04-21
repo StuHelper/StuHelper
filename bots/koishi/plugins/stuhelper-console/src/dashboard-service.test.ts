@@ -129,3 +129,35 @@ test('控制台数据服务会返回群模板和群绑定列表', async () => {
     await rm(tempDir, { recursive: true, force: true })
   }
 })
+
+test('控制台数据服务会暴露完整的命令策略候选清单', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-console-'))
+
+  registerGuardMemberModel(root)
+  registerGuardPolicyModels(root)
+  registerModerationModels(root)
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+
+  try {
+    await root.start()
+    const service = new StuhelperConsoleDataService(root, { title: '测试控制台' })
+    const data = await service.get()
+
+    assert.deepEqual(data.supportedCommandIds, [
+      'report',
+      'dice',
+      'mute-lottery',
+      'guard-status',
+      'guard-warnings',
+      'guard-reviews',
+      'guard-mute',
+      'guard-kick-request',
+      'guard-block-request',
+    ])
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})

@@ -15,7 +15,7 @@
           <h2 class="sh-policy-center__title">{{ activeItem.label }}</h2>
           <p class="sh-policy-center__description">{{ activeItem.description }}</p>
         </div>
-        <span class="sh-tag sh-tag--neutral">{{ activeItem.count }} 项</span>
+        <SeverityTag :label="`${activeItem.count} 项`" intent="neutral" />
       </header>
 
       <div class="sh-policy-center__body">
@@ -33,6 +33,7 @@ import {
   type PolicyCategoryDefinition,
   type PolicyCategoryId,
 } from '../../policy/categories'
+import SeverityTag from '../SeverityTag.vue'
 import PolicyCategoryNav from './PolicyCategoryNav.vue'
 
 interface PolicyCenterCategoryItem extends PolicyCategoryDefinition {

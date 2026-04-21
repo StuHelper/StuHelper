@@ -4,7 +4,7 @@ import test from 'node:test'
 import type { StuhelperConsoleData } from '../../src/console-types'
 import { buildDashboardModel } from './model'
 
-test('buildDashboardModel returns metrics and section-level targets in the fixed order', () => {
+test('buildDashboardModel returns metrics and route targets in the fixed order', () => {
   const model = buildDashboardModel(
     createConsoleData({
       pendingReviews: [
@@ -38,13 +38,21 @@ test('buildDashboardModel returns metrics and section-level targets in the fixed
   )
   assert.equal(model.todoRows[0].kind, 'review')
   assert.equal(model.todoRows[0].target.section, 'enforcement')
+  assert.equal(model.todoRows[0].target.queue, 'review')
+  assert.equal(model.todoRows[0].target.id, 'rv_1')
+  assert.equal(model.todoRows[0].target.source, 'dashboard')
   assert.equal(model.todoRows[1].target.section, 'enforcement')
+  assert.equal(model.todoRows[1].target.id, 'rv_2')
 
   const identityRow = model.todoRows.find((item) => item.kind === 'identity')
   assert.ok(identityRow)
   assert.equal(identityRow.target.section, 'identity')
+  assert.equal(identityRow.target.queue, 'member')
+  assert.equal(identityRow.target.id, 'gm_1')
   assert.equal(model.shortcuts[1].label, '处理待认证成员')
   assert.equal(model.shortcuts[1].target.section, 'identity')
+  assert.equal(model.shortcuts[2].target.section, 'policy')
+  assert.equal(model.shortcuts[2].target.queue, 'guard-bindings')
   assert.deepEqual(
     model.policySummary.map((item) => [item.label, item.value]),
     [
@@ -82,6 +90,39 @@ test('buildDashboardModel sorts recentActivity by timestamp desc and limits it t
   assert.deepEqual(
     model.recentActivity.map((item) => item.kind),
     ['report', 'event', 'report', 'event', 'report', 'event'],
+  )
+})
+
+test('buildDashboardModel exposes dashboard status, system status, recent events and recent changes', () => {
+  const model = buildDashboardModel(
+    createConsoleData({
+      generatedAt: '2026-04-20T10:30:00.000Z',
+      pendingReviews: [createReview('rv_1', '2026-04-20T09:30:00.000Z')],
+      pendingMembers: [createMember('gm_1', '2026-04-20T11:00:00.000Z')],
+      recentEvents: [
+        createEvent('evt_1', '2026-04-20T10:05:00.000Z'),
+        createEvent('evt_2', '2026-04-20T09:50:00.000Z'),
+      ],
+      keywordRules: [createKeywordRule('kw_1', '2026-04-20T10:20:00.000Z')],
+      commandPolicies: [createCommandPolicy('report', '2026-04-20T10:10:00.000Z')],
+      memberRoles: [createMemberRole('mr_1', '2026-04-20T10:00:00.000Z')],
+      guardTemplates: [createGuardTemplate('guard_1', '2026-04-20T10:15:00.000Z')],
+      guardBindings: [createGuardBinding('binding_1', '2026-04-20T10:25:00.000Z')],
+    }),
+  )
+
+  assert.equal(model.statusBand.length, 3)
+  assert.equal(model.statusBand[0]?.label, '最后同步')
+  assert.equal(model.statusBand[1]?.label, '积压总量')
+  assert.equal(model.systemStatus.length, 3)
+  assert.equal(model.systemStatus[0]?.label, '数据服务')
+  assert.deepEqual(
+    model.recentEvents.map((item) => item.id),
+    ['evt_1', 'evt_2'],
+  )
+  assert.deepEqual(
+    model.recentChanges.map((item) => item.id),
+    ['binding_1', 'kw_1', 'guard_1', 'report', 'mr_1'],
   )
 })
 
@@ -187,7 +228,7 @@ function createReport(id: string, createdAt: string) {
   }
 }
 
-function createKeywordRule(id: string) {
+function createKeywordRule(id: string, updatedAt = '2026-04-20T08:00:00.000Z') {
   return {
     id,
     guildId: 'guild-1',
@@ -198,32 +239,32 @@ function createKeywordRule(id: string) {
     muteSeconds: 0,
     note: '',
     createdAt: '2026-04-20T08:00:00.000Z',
-    updatedAt: '2026-04-20T08:00:00.000Z',
+    updatedAt,
   }
 }
 
-function createCommandPolicy(commandId: string) {
+function createCommandPolicy(commandId: string, updatedAt = '2026-04-20T08:00:00.000Z') {
   return {
     commandId,
     roles: ['admin'],
     minAuthority: 2,
     createdAt: '2026-04-20T08:00:00.000Z',
-    updatedAt: '2026-04-20T08:00:00.000Z',
+    updatedAt,
   }
 }
 
-function createMemberRole(id: string) {
+function createMemberRole(id: string, updatedAt = '2026-04-20T08:00:00.000Z') {
   return {
     id,
     guildId: 'guild-1',
     memberId: `${id}-member`,
     roles: ['moderator'],
     createdAt: '2026-04-20T08:00:00.000Z',
-    updatedAt: '2026-04-20T08:00:00.000Z',
+    updatedAt,
   }
 }
 
-function createGuardTemplate(id: string) {
+function createGuardTemplate(id: string, updatedAt = '2026-04-20T08:00:00.000Z') {
   return {
     id,
     name: `模板 ${id}`,
@@ -233,11 +274,11 @@ function createGuardTemplate(id: string) {
     exemptUsers: [],
     enabled: true,
     createdAt: '2026-04-20T08:00:00.000Z',
-    updatedAt: '2026-04-20T08:00:00.000Z',
+    updatedAt,
   }
 }
 
-function createGuardBinding(id: string) {
+function createGuardBinding(id: string, updatedAt = '2026-04-20T08:00:00.000Z') {
   return {
     id,
     platform: 'mock',
@@ -246,6 +287,6 @@ function createGuardBinding(id: string) {
     enabled: true,
     note: '',
     createdAt: '2026-04-20T08:00:00.000Z',
-    updatedAt: '2026-04-20T08:00:00.000Z',
+    updatedAt,
   }
 }
