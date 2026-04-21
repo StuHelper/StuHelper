@@ -1,0 +1,505 @@
+/* ========================================
+   GitHub Dimmed / Vercel Style - 通用组件样式
+   使用 Koishi 全局 CSS 变量
+   ======================================== */
+
+/* ========== 按钮基础 ========== */
+.gh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: var(--gh-text-sm);
+  font-weight: 500;
+  font-family: var(--gh-font-sans);
+  line-height: 20px;
+  color: var(--fg1);
+  background: var(--bg3);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--gh-radius-md);
+  cursor: pointer;
+  transition: background-color var(--gh-transition-fast),
+              border-color var(--gh-transition-fast),
+              color var(--gh-transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.gh-btn:hover {
+  background: var(--k-hover-bg);
+  border-color: var(--fg3);
+  color: var(--fg1);
+}
+
+.gh-btn:active {
+  background: var(--bg1);
+}
+
+.gh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 主要按钮 - 使用 Koishi primary */
+.gh-btn-primary {
+  color: var(--k-color-primary);
+  background: var(--k-color-primary-fade);
+  border-color: rgba(116, 89, 255, 0.3);
+}
+
+.gh-btn-primary:hover {
+  background: rgba(116, 89, 255, 0.2);
+  border-color: var(--k-color-primary);
+}
+
+/* 成功按钮 */
+.gh-btn-success {
+  color: var(--k-color-success);
+  background: var(--k-color-success-fade);
+  border-color: rgba(59, 165, 94, 0.3);
+}
+
+.gh-btn-success:hover {
+  background: rgba(59, 165, 94, 0.2);
+  border-color: var(--k-color-success);
+}
+
+/* 危险按钮 */
+.gh-btn-danger {
+  color: var(--k-color-danger);
+  background: var(--k-color-danger-fade);
+  border-color: transparent;
+}
+
+.gh-btn-danger:hover {
+  background: rgba(255, 89, 90, 0.2);
+  border-color: var(--k-color-danger);
+}
+
+/* 幽灵按钮 */
+.gh-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--fg2);
+}
+
+.gh-btn-ghost:hover {
+  background: var(--bg3);
+  color: var(--fg1);
+}
+
+/* 小按钮 */
+.gh-btn-sm {
+  padding: 3px 8px;
+  font-size: var(--gh-text-xs);
+}
+
+/* ========== 输入框 ========== */
+.gh-input {
+  width: 100%;
+  padding: 5px 12px;
+  font-size: var(--gh-text-base);
+  font-family: var(--gh-font-sans);
+  line-height: 20px;
+  color: var(--fg1);
+  background: var(--bg1);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--gh-radius-md);
+  transition: border-color var(--gh-transition-fast),
+              box-shadow var(--gh-transition-fast);
+}
+
+.gh-input::placeholder {
+  color: var(--fg3);
+}
+
+.gh-input:focus {
+  outline: none;
+  border-color: var(--k-color-primary);
+  box-shadow: 0 0 0 3px var(--k-color-primary-fade);
+}
+
+.gh-input:disabled {
+  background: var(--bg2);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 等宽字体输入 */
+.gh-input-mono {
+  font-family: var(--gh-font-mono);
+  letter-spacing: 0.02em;
+}
+
+/* ========== 文本域 ========== */
+.gh-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: var(--gh-text-base);
+  font-family: var(--gh-font-sans);
+  line-height: 1.5;
+  color: var(--fg1);
+  background: var(--bg1);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--gh-radius-md);
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color var(--gh-transition-fast);
+}
+
+.gh-textarea::placeholder {
+  color: var(--fg3);
+}
+
+.gh-textarea:focus {
+  outline: none;
+  border-color: var(--k-color-primary);
+}
+
+/* ========== 卡片 ========== */
+.gh-card {
+  background: var(--k-card-bg);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--gh-radius-md);
+  overflow: hidden;
+}
+
+.gh-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--k-color-divider);
+  background: var(--bg1);
+}
+
+.gh-card-body {
+  padding: 16px;
+}
+
+.gh-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--k-color-divider);
+  background: var(--bg1);
+}
+
+/* 可点击卡片 */
+.gh-card-clickable {
+  cursor: pointer;
+  transition: border-color var(--gh-transition-fast),
+              background-color var(--gh-transition-fast);
+}
+
+.gh-card-clickable:hover {
+  border-color: var(--fg3);
+  background: var(--k-hover-bg);
+}
+
+/* ========== 标签/徽章 ========== */
+.gh-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: var(--gh-text-xs);
+  font-weight: 500;
+  font-family: var(--gh-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--fg2);
+  background: var(--bg3);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--gh-radius-sm);
+}
+
+.gh-tag-primary {
+  color: var(--k-color-primary);
+  background: var(--k-color-primary-fade);
+  border-color: rgba(116, 89, 255, 0.3);
+}
+
+.gh-tag-success {
+  color: var(--k-color-success);
+  background: var(--k-color-success-fade);
+  border-color: rgba(59, 165, 94, 0.3);
+}
+
+.gh-tag-warning {
+  color: var(--k-color-warning);
+  background: var(--k-color-warning-fade);
+  border-color: rgba(249, 175, 27, 0.3);
+}
+
+.gh-tag-danger {
+  color: var(--k-color-danger);
+  background: var(--k-color-danger-fade);
+  border-color: rgba(255, 89, 90, 0.3);
+}
+
+/* ========== 状态指示器 (实心点，无高斯模糊) ========== */
+.gh-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--k-color-border);
+  flex-shrink: 0;
+}
+
+.gh-status-dot-sm {
+  width: 6px;
+  height: 6px;
+}
+
+.gh-status-dot-success {
+  background: var(--k-color-success);
+}
+
+.gh-status-dot-warning {
+  background: var(--k-color-warning);
+}
+
+.gh-status-dot-danger {
+  background: var(--k-color-danger);
+}
+
+.gh-status-dot-primary {
+  background: var(--k-color-primary);
+}
+
+/* ========== 头像 (圆形裁剪) ========== */
+.gh-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 1px solid var(--k-color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg3);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.gh-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gh-avatar-sm {
+  width: 24px;
+  height: 24px;
+}
+
+.gh-avatar-lg {
+  width: 40px;
+  height: 40px;
+}
+
+/* ========== 弹窗/对话框 ========== */
+.gh-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--gh-z-modal);
+  animation: fadeIn 0.15s ease;
+}
+
+.gh-dialog {
+  background: var(--k-card-bg);
+  border: 1px solid var(--k-color-border);
+  border-radius: var(--gh-radius-lg);
+  width: 90%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--gh-shadow-overlay);
+  animation: slideUp 0.15s ease;
+}
+
+.gh-dialog-sm {
+  max-width: 380px;
+}
+
+.gh-dialog-lg {
+  max-width: 720px;
+}
+
+.gh-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--k-color-divider);
+  background: var(--bg1);
+}
+
+.gh-dialog-title {
+  margin: 0;
+  font-size: var(--gh-text-md);
+  font-weight: 600;
+  color: var(--fg1);
+}
+
+.gh-dialog-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.gh-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--k-color-divider);
+  background: var(--bg1);
+}
+
+/* ========== 表单组 ========== */
+.gh-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gh-form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gh-form-label {
+  font-size: var(--gh-text-sm);
+  font-weight: 500;
+  color: var(--fg2);
+}
+
+.gh-form-hint {
+  font-size: var(--gh-text-xs);
+  color: var(--fg3);
+}
+
+/* ========== 开关 ========== */
+.gh-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.gh-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.gh-switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg3);
+  border: 1px solid var(--k-color-border);
+  border-radius: 10px;
+  transition: background-color var(--gh-transition-fast),
+              border-color var(--gh-transition-fast);
+}
+
+.gh-switch-slider::before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background-color: var(--fg2);
+  border-radius: 50%;
+  transition: transform var(--gh-transition-fast),
+              background-color var(--gh-transition-fast);
+}
+
+.gh-switch input:checked + .gh-switch-slider {
+  background-color: var(--k-color-primary);
+  border-color: var(--k-color-primary);
+}
+
+.gh-switch input:checked + .gh-switch-slider::before {
+  transform: translateX(16px);
+  background-color: #fff;
+}
+
+/* ========== 代码/等宽文本 ========== */
+.gh-code {
+  font-family: var(--gh-font-mono);
+  font-size: var(--gh-text-sm);
+  color: var(--fg1);
+  background: var(--bg3);
+  padding: 2px 6px;
+  border-radius: var(--gh-radius-sm);
+  border: 1px solid var(--k-color-divider);
+}
+
+/* ========== 分割线 ========== */
+.gh-divider {
+  height: 1px;
+  background: var(--k-color-divider);
+  margin: 16px 0;
+}
+
+/* ========== 加载动画 ========== */
+.gh-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ========== 空状态 ========== */
+.gh-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--fg3);
+  text-align: center;
+}
+
+.gh-empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.gh-empty-text {
+  font-size: var(--gh-text-base);
+  margin: 0;
+}
+
+/* ========== 骨架屏 ========== */
+.gh-skeleton {
+  background: linear-gradient(90deg,
+    var(--bg3) 25%,
+    var(--bg2) 50%,
+    var(--bg3) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.2s infinite;
+  border-radius: var(--gh-radius-sm);
+}
