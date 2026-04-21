@@ -47,6 +47,9 @@ try {
   assert.match(output, new RegExp(`server listening at http://127\\.0\\.0\\.1:${SMOKE_PORT}`), 'Koishi 控制台没有在烟雾端口完成监听。')
   assert.doesNotMatch(output, /ERR_UNSUPPORTED_DIR_IMPORT/, 'Koishi 仍然存在目录导入错误。')
   assert.doesNotMatch(output, /ERR_MODULE_NOT_FOUND/, 'Koishi 仍然存在模块解析错误。')
+  assert.doesNotMatch(output, /property console is not registered, declare it as `inject`/, 'stuhelper-core 仍然在未声明注入的上下文里访问 console 服务。')
+  assert.doesNotMatch(output, /property database is not registered, declare it as `inject`/, 'stuhelper-core 仍然在未声明注入的上下文里访问 database 服务。')
+  assert.doesNotMatch(output, /property stuhelperGroupCenter is not registered, declare it as `inject`/, 'stuhelper-core 仍然在未声明注入的上下文里访问 stuhelperGroupCenter 服务。')
   assert.ok(exitCode === 0 || exitCode === -15, `Koishi 启动探针异常退出：${exitCode}\n${output}`)
 
   process.stdout.write(output)

@@ -1,99 +1,119 @@
 <template>
   <k-layout class="stuhelperGroupCenter-app">
-    <!-- 顶部导航 -->
     <div class="top-nav">
       <div class="nav-container">
-        <!-- Logo 区域 -->
         <div class="logo-area">
           <span class="logo-text">STUHELPER GROUP CENTER</span>
           <span class="version-text">v{{ pkg.version }}</span>
         </div>
-        <!-- 移动端菜单按钮 -->
+
         <button class="mobile-menu-btn" @click="mobileMenuOpen = !mobileMenuOpen">
           <k-icon :name="mobileMenuOpen ? 'stuhelperGroupCenter:octicons.x' : 'stuhelperGroupCenter:octicons.three-bars'" />
         </button>
-        <!-- 导航标签 -->
+
         <div class="nav-tabs" :class="{ open: mobileMenuOpen }">
-          <div
-            v-for="item in menuItems"
+          <button
+            v-for="item in visibleMenuItems"
             :key="item.id"
             class="nav-tab"
-            :class="{ active: currentView === item.id }"
-            @click="selectView(item.id)"
+            :class="{ active: navigation.state.value.view === item.id }"
+            @click="handleSelectView(item.id)"
           >
             <k-icon :name="item.icon" class="tab-icon" />
             <span>{{ item.label }}</span>
+          </button>
+
+          <div v-if="overflowMenuItems.length" class="more-menu">
+            <button class="nav-tab" :class="{ active: overflowActive }" @click="moreMenuOpen = !moreMenuOpen">
+              <k-icon name="stuhelperGroupCenter:octicons.chevron-down" class="tab-icon" />
+              <span>More</span>
+            </button>
+            <div v-if="moreMenuOpen" class="more-menu__panel">
+              <button
+                v-for="item in overflowMenuItems"
+                :key="item.id"
+                class="more-menu__item"
+                @click="handleSelectView(item.id)"
+              >
+                {{ item.label }}
+              </button>
+            </div>
           </div>
         </div>
-        <!-- 移动端菜单遮罩 -->
+
         <div class="mobile-menu-overlay" v-if="mobileMenuOpen" @click="mobileMenuOpen = false"></div>
       </div>
     </div>
 
-    <!-- 主内容区 -->
     <div class="main-content">
       <keep-alive>
-        <component :is="activeComponent" @change-view="currentView = $event" />
+        <component :is="activeComponent" :navigation="navigation" />
       </keep-alive>
     </div>
   </k-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+
 import pkg from '../../package.json'
-import DashboardView from '../components/DashboardView.vue'
-import ConfigView from '../components/ConfigView.vue'
-import WarnsView from '../components/WarnsView.vue'
-import BlacklistView from '../components/BlacklistView.vue'
-import LogsView from '../components/LogsView.vue'
-import SubscriptionView from '../components/SubscriptionView.vue'
-import SettingsView from '../components/SettingsView.vue'
-import ChatView from '../components/ChatView.vue'
-import RolesView from '../components/RolesView.vue'
+import { useConsoleNavigation } from '../composables/use-console-navigation'
+import { useConsolePages } from '../composables/use-console-pages'
+import type { ConsoleViewId } from '../models/views'
 
-const currentView = ref('dashboard')
+const navigation = useConsoleNavigation()
+const pages = useConsolePages()
 const mobileMenuOpen = ref(false)
+const moreMenuOpen = ref(false)
 
-const selectView = (id: string) => {
-  currentView.value = id
-  mobileMenuOpen.value = false
-}
-
-const activeComponent = computed(() => {
-  switch (currentView.value) {
-    case 'dashboard': return DashboardView
-    case 'config': return ConfigView
-    case 'warns': return WarnsView
-    case 'blacklist': return BlacklistView
-    case 'roles': return RolesView
-    case 'logs': return LogsView
-    case 'chat': return ChatView
-    case 'subscriptions': return SubscriptionView
-    case 'settings': return SettingsView
-    default: return DashboardView
-  }
-})
-
-const menuItems = [
+const allMenuItems = [
   { id: 'dashboard', label: '仪表盘', icon: 'stuhelperGroupCenter:octicons.apps' },
-  { id: 'config', label: '群组配置', icon: 'stuhelperGroupCenter:octicons.tools' },
+  { id: 'config', label: '配置治理', icon: 'stuhelperGroupCenter:octicons.tools' },
   { id: 'warns', label: '警告记录', icon: 'stuhelperGroupCenter:octicons.warning' },
   { id: 'blacklist', label: '黑名单', icon: 'stuhelperGroupCenter:octicons.personadd' },
+  { id: 'identity', label: '身份认证', icon: 'stuhelperGroupCenter:user' },
+  { id: 'review', label: '处置中心', icon: 'stuhelperGroupCenter:shield' },
   { id: 'roles', label: '角色权限', icon: 'stuhelperGroupCenter:octicons.people' },
   { id: 'logs', label: '日志检索', icon: 'stuhelperGroupCenter:octicons.log' },
   { id: 'chat', label: '实时聊天', icon: 'stuhelperGroupCenter:octicons.discussion' },
   { id: 'subscriptions', label: '订阅管理', icon: 'stuhelperGroupCenter:octicons.sub' },
   { id: 'settings', label: '设置', icon: 'stuhelperGroupCenter:octicons.gear' },
-]
+] as const satisfies ReadonlyArray<{ id: ConsoleViewId; label: string; icon: string }>
+
+const overflowIds = new Set<ConsoleViewId>(['chat', 'subscriptions', 'settings'])
+
+const activeComponent = computed(() => pages.resolve(navigation.state.value.view))
+const visibleMenuItems = computed(() => {
+  if (navigation.isCompact.value) return allMenuItems
+  if (!navigation.isOverflowMode.value) return allMenuItems
+  return allMenuItems.filter((item) => !overflowIds.has(item.id))
+})
+const overflowMenuItems = computed(() => {
+  if (navigation.isCompact.value || !navigation.isOverflowMode.value) return []
+  return allMenuItems.filter((item) => overflowIds.has(item.id))
+})
+const overflowActive = computed(() => overflowMenuItems.value.some((item) => item.id === navigation.state.value.view))
+
+watch(
+  () => navigation.viewportWidth.value,
+  () => {
+    if (!navigation.isOverflowMode.value) {
+      moreMenuOpen.value = false
+    }
+    if (!navigation.isCompact.value) {
+      mobileMenuOpen.value = false
+    }
+  },
+)
+
+function handleSelectView(id: ConsoleViewId) {
+  navigation.selectView(id)
+  mobileMenuOpen.value = false
+  moreMenuOpen.value = false
+}
 </script>
 
 <style scoped>
-/* ========================================
-   GitHub Dimmed / Vercel 风格主布局
-   使用 Koishi 全局 CSS 变量
-   ======================================== */
-
 .stuhelperGroupCenter-app {
   background: var(--bg1);
   height: 100vh;
@@ -101,21 +121,20 @@ const menuItems = [
   font-family: var(--gh-font-sans, -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif);
 }
 
-/* 顶部导航 - 紧凑专业 */
 .top-nav {
   position: sticky;
   top: 0;
   z-index: 10;
   background: var(--k-card-bg);
   border-bottom: 1px solid var(--k-color-divider);
-  height: 48px;
+  height: 52px;
 }
 
 .nav-container {
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 0 16px;
-  height: 48px;
+  height: 52px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -129,45 +148,47 @@ const menuItems = [
 
 .logo-text {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.3px;
   color: var(--fg1);
   text-transform: uppercase;
 }
 
-/* 版本号 - 等宽字体 */
 .version-text {
   font-size: 10px;
   font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
   color: var(--fg3);
   background: var(--bg3);
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
   border: 1px solid var(--k-color-divider);
 }
 
 .nav-tabs {
   display: flex;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
 }
 
 .nav-tab {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 10px;
-  cursor: pointer;
-  color: var(--fg3);
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  transition: color 0.12s ease, background-color 0.12s ease;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
   border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .nav-tab:hover {
-  color: var(--fg2);
+  color: var(--fg1);
   background: var(--bg3);
 }
 
@@ -181,92 +202,95 @@ const menuItems = [
   font-size: 14px;
   width: 14px;
   height: 14px;
-  opacity: 0.8;
+}
+
+.more-menu {
+  position: relative;
+}
+
+.more-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+  padding: 8px;
+  border: 1px solid var(--k-color-divider);
+  border-radius: 12px;
+  background: var(--k-card-bg);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.more-menu__item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.more-menu__item:hover {
+  background: var(--bg3);
+  color: var(--fg1);
 }
 
 .main-content {
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 16px;
-  height: calc(100vh - 48px);
-  overflow: hidden;
+  height: calc(100vh - 52px);
+  overflow: auto;
   box-sizing: border-box;
 }
 
-.main-content:has(.needs-scroll) {
-  overflow: auto;
-}
-
-/* 移动端菜单按钮 - 默认隐藏 */
 .mobile-menu-btn {
   display: none;
   width: 36px;
   height: 36px;
   border: none;
+  border-radius: 10px;
   background: transparent;
   color: var(--fg2);
   cursor: pointer;
-  border-radius: 6px;
-  margin-left: auto;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  transition: background 0.15s ease;
 }
 
 .mobile-menu-btn:hover {
   background: var(--bg3);
 }
 
-/* 移动端菜单遮罩 - 默认隐藏 */
 .mobile-menu-overlay {
   display: none;
 }
 
-/* ========================================
-   移动端适配 (< 768px)
-   ======================================== */
-@media (max-width: 768px) {
-  .top-nav {
-    height: 52px;
-  }
-
-  .nav-container {
-    height: 52px;
-    padding: 0 12px;
-    position: relative;
-  }
-
-  .logo-text {
-    font-size: 12px;
-  }
-
-  .version-text {
-    font-size: 9px;
-    padding: 1px 4px;
-  }
-
+@media (max-width: 959px) {
   .mobile-menu-btn {
-    display: flex;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
   }
 
-  /* 移动端菜单 - 抽屉式 */
   .nav-tabs {
-    display: flex;
     position: fixed;
     top: 52px;
-    right: -260px;
-    width: 240px;
+    right: -280px;
+    width: 260px;
     height: calc(100vh - 52px);
+    padding: 10px;
+    flex-direction: column;
+    align-items: stretch;
     background: var(--k-card-bg);
     border-left: 1px solid var(--k-color-divider);
-    flex-direction: column;
-    gap: 2px;
-    padding: 8px;
+    transition: right 0.22s ease;
     z-index: 100;
-    transition: right 0.25s ease;
-    overflow-y: auto;
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
   }
 
   .nav-tabs.open {
@@ -274,22 +298,20 @@ const menuItems = [
   }
 
   .nav-tab {
-    padding: 12px 14px;
-    font-size: 14px;
-    border-radius: 6px;
+    justify-content: flex-start;
+    width: 100%;
   }
 
-  .nav-tab .tab-icon {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .more-menu {
+    width: 100%;
   }
 
-  /* 遮罩层 */
+  .more-menu__panel {
+    position: static;
+    width: 100%;
+    box-shadow: none;
+  }
+
   .mobile-menu-overlay {
     display: block;
     position: fixed;
@@ -297,24 +319,26 @@ const menuItems = [
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.45);
     z-index: 99;
-    animation: fadeIn 0.2s ease;
+  }
+}
+
+@media (max-width: 767px) {
+  .nav-container {
+    padding: 0 12px;
+  }
+
+  .logo-text {
+    font-size: 12px;
   }
 
   .main-content {
-    height: calc(100vh - 52px);
     padding: 12px;
   }
 }
 
-/* 小屏手机适配 (< 480px) */
-@media (max-width: 480px) {
-  .logo-text {
-    font-size: 11px;
-    letter-spacing: 0.2px;
-  }
-
+@media (max-width: 479px) {
   .version-text {
     display: none;
   }
@@ -322,25 +346,14 @@ const menuItems = [
   .main-content {
     padding: 8px;
   }
-
-  .nav-tabs {
-    width: 200px;
-    right: -220px;
-  }
-
-  .nav-tabs.open {
-    right: 0;
-  }
 }
 </style>
 
 <style>
-/* 隐藏 Koishi 控制台自带的 layout-header */
 .stuhelperGroupCenter-app .layout-header {
   display: none !important;
 }
 
-/* 全局滚动条样式 - GitHub 风格 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -357,59 +370,5 @@ const menuItems = [
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--fg3);
-}
-
-::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* ========================================
-   全局动画规范 - 克制平衡
-   ======================================== */
-
-/* 统一的过渡时间变量 */
-:root {
-  --gh-transition-fast: 0.12s ease;
-  --gh-transition-normal: 0.15s ease;
-  --gh-transition-slow: 0.2s ease;
-}
-
-/* 减少运动偏好支持 */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* 统一的入场动画 - 简洁版本 */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeInSubtle {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 统一的加载动画 */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* 统一的骨架屏动画 */
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
 }
 </style>

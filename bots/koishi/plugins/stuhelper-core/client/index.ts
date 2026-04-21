@@ -4,6 +4,7 @@ import Index from './pages/index.vue'
 import GroupIcon from './icons/group.vue'
 import LogoIcon from './icons/logo.vue'
 import { icons as customIcons, Octicons } from './icons'
+import './styles/console-pages.css'
 
 // 注册自定义图标
 icons.register('stuhelperGroupCenter', GroupIcon)
