@@ -6,8 +6,10 @@
 import { Context, h } from 'koishi'
 import type {} from '@koishijs/plugin-console'
 import { StuhelperGroupCenterService } from '../services/stuhelper-group-center.service'
-import type { Subscription, Role } from '../../types'
+import type { Subscription, Role, WarnRecord } from '../../types'
 import * as crypto from 'crypto'
+import { createAuthority4ListenerRegistrar } from './authority-listener'
+import { deliverChatMessageToClients } from './chat-delivery'
 const pkg = require('../../../package.json')
 
 /** API 响应格式 */
@@ -37,12 +39,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     return
   }
 
+  const addAuthorityListener = createAuthority4ListenerRegistrar(ctx.console)
   const data = service.data
 
   // ===== 群组配置 API =====
   
   /** 重新加载所有数据 */
-  ctx.console.addListener('stuhelperGroupCenter/config/reload' as any, async () => {
+  addAuthorityListener('stuhelperGroupCenter/config/reload', async () => {
     try {
       data.groupConfig.reload()
       ctx.logger('stuhelperGroupCenter').info('群组配置已重新加载，共 %d 条', Object.keys(data.groupConfig.getAll()).length)
@@ -57,7 +60,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取所有群组配置 */
-  ctx.console.addListener('stuhelperGroupCenter/config/list', async (params?: { fetchNames?: boolean }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/list', async (params?: { fetchNames?: boolean }) => {
     const allConfigs = data.groupConfig.getAll()
     const results: Record<string, any> = {}
 
@@ -87,19 +90,19 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取单个群组配置 */
-  ctx.console.addListener('stuhelperGroupCenter/config/get', async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/get', async (params: { guildId: string }) => {
     return success(data.groupConfig.get(params.guildId))
   })
 
   /** 更新群组配置 */
-  ctx.console.addListener('stuhelperGroupCenter/config/update', async (params: { guildId: string, config: any }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/update', async (params: { guildId: string, config: any }) => {
     data.groupConfig.set(params.guildId, params.config)
     await data.groupConfig.flush()
     return success({ success: true })
   })
 
   /** 创建群组配置 */
-  ctx.console.addListener('stuhelperGroupCenter/config/create', async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/create', async (params: { guildId: string }) => {
     if (data.groupConfig.get(params.guildId)) {
       return error('配置已存在')
     }
@@ -122,7 +125,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 删除群组配置 */
-  ctx.console.addListener('stuhelperGroupCenter/config/delete', async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/delete', async (params: { guildId: string }) => {
     data.groupConfig.delete(params.guildId)
     await data.groupConfig.flush()
     return success({ success: true })
@@ -131,19 +134,19 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 权限管理 API =====
 
   /** 获取所有角色 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/role/list' as any, async () => {
+  addAuthorityListener('stuhelperGroupCenter/auth/role/list', async () => {
     return success(service.auth.getRoles())
   })
 
   /** 创建/更新角色 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/role/update' as any, async (params: { role: Role }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/role/update', async (params: { role: Role }) => {
     await service.auth.saveRole(params.role)
     await service.data.authRoles.flush()
     return success({ success: true })
   })
 
   /** 删除角色 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/role/delete' as any, async (params: { roleId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/role/delete', async (params: { roleId: string }) => {
     await service.auth.deleteRole(params.roleId)
     await service.data.authRoles.flush()
     await service.data.authUsers.flush() // 用户关联可能被清理
@@ -151,12 +154,12 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取某用户的角色列表 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/user/get' as any, async (params: { userId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/user/get', async (params: { userId: string }) => {
     return success(service.auth.getUserRoleIds(params.userId))
   })
 
   /** 获取角色的成员列表 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/role/members' as any, async (params: { roleId: string, fetchNames?: boolean }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/role/members', async (params: { roleId: string, fetchNames?: boolean }) => {
     const userIds = service.auth.getRoleMembers(params.roleId)
     
     if (params.fetchNames) {
@@ -176,21 +179,21 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 分配角色 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/user/assign' as any, async (params: { userId: string, roleId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/user/assign', async (params: { userId: string, roleId: string }) => {
     await service.auth.assignRole(params.userId, params.roleId)
     await service.data.authUsers.flush()
     return success({ success: true })
   })
 
   /** 移除角色 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/user/revoke' as any, async (params: { userId: string, roleId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/user/revoke', async (params: { userId: string, roleId: string }) => {
     await service.auth.revokeRole(params.userId, params.roleId)
     await service.data.authUsers.flush()
     return success({ success: true })
   })
 
   /** 批量导入成员到角色 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/role/import-members' as any, async (params: { roleId: string, userIds: string[] }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/role/import-members', async (params: { roleId: string, userIds: string[] }) => {
     try {
       const { roleId, userIds } = params
       if (!roleId || !userIds || !Array.isArray(userIds)) {
@@ -220,7 +223,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取指定 authority 等级的用户列表 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/users-by-authority' as any, async (params: { authority: number }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/users-by-authority', async (params: { authority: number }) => {
     try {
       const { authority } = params
       if (typeof authority !== 'number' || authority < 1 || authority > 5) {
@@ -274,7 +277,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取指定群的管理员列表 */
-  ctx.console.addListener('stuhelperGroupCenter/auth/guild-admins' as any, async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/guild-admins', async (params: { guildId: string }) => {
     try {
       const { guildId } = params
       if (!guildId) {
@@ -329,7 +332,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取系统所有可用的权限节点列表 (供前端选择) */
-  ctx.console.addListener('stuhelperGroupCenter/auth/permission/list' as any, async () => {
+  addAuthorityListener('stuhelperGroupCenter/auth/permission/list', async () => {
     // 从 AuthService 获取动态注册的权限节点
     const permissions = service.auth.getPermissions()
     return success(permissions)
@@ -338,7 +341,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 警告记录 API =====
 
   /** 重新加载警告数据 */
-  ctx.console.addListener('stuhelperGroupCenter/warns/reload' as any, async () => {
+  addAuthorityListener('stuhelperGroupCenter/warns/reload', async () => {
     try {
       data.warns.reload()
       ctx.logger('stuhelperGroupCenter').info('警告数据已重新加载')
@@ -349,7 +352,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取所有警告记录 (Enriched) - 支持新格式 */
-  ctx.console.addListener('stuhelperGroupCenter/warns/list', async (params?: { fetchNames?: boolean }) => {
+  addAuthorityListener('stuhelperGroupCenter/warns/list', async (params?: { fetchNames?: boolean }) => {
     const allWarns = data.warns.getAll()
     const result: any[] = []
 
@@ -364,8 +367,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
         const guildName = guildCache?.name || ''
         const guildAvatar = guildCache?.avatar || `https://p.qlogo.cn/gh/${guildId}/${guildId}/640/`
 
-        // @ts-ignore
-        for (const [userId, warnInfo] of Object.entries(guildWarns)) {
+        for (const [userId, warnInfo] of Object.entries(guildWarns as WarnRecord)) {
           if (!warnInfo || typeof warnInfo !== 'object' || !('count' in warnInfo)) continue
           const info = warnInfo as { count: number, timestamp: number }
           
@@ -392,8 +394,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       for (const [guildId, guildWarns] of Object.entries(allWarns)) {
         if (!guildWarns || typeof guildWarns !== 'object') continue
 
-        // @ts-ignore
-        for (const [userId, warnInfo] of Object.entries(guildWarns)) {
+        for (const [userId, warnInfo] of Object.entries(guildWarns as WarnRecord)) {
           if (!warnInfo || typeof warnInfo !== 'object' || !('count' in warnInfo)) continue
           const info = warnInfo as { count: number, timestamp: number }
 
@@ -416,7 +417,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 更新警告次数 */
-  ctx.console.addListener('stuhelperGroupCenter/warns/update', async (params: { key: string, count: number }) => {
+  addAuthorityListener('stuhelperGroupCenter/warns/update', async (params: { key: string, count: number }) => {
     const parts = params.key.split(':')
     if (parts.length < 2) return error('Invalid key format')
     
@@ -431,14 +432,12 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
           if (Object.keys(guildWarns).length === 0) {
             data.warns.delete(guildId)
           } else {
-            // @ts-ignore
-            data.warns.set(guildId, guildWarns)
+            data.warns.set(guildId, guildWarns as WarnRecord)
           }
         } else {
           guildWarns[userId].count = params.count
           guildWarns[userId].timestamp = Date.now() // 更新时间戳
-          // @ts-ignore
-          data.warns.set(guildId, guildWarns)
+          data.warns.set(guildId, guildWarns as WarnRecord)
         }
         await data.warns.flush()
         return success({ success: true })
@@ -447,7 +446,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 添加警告 */
-  ctx.console.addListener('stuhelperGroupCenter/warns/add', async (params: { guildId: string, userId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/warns/add', async (params: { guildId: string, userId: string }) => {
     const guildWarns = data.warns.get(params.guildId) || {}
     
     if (!guildWarns[params.userId]) {
@@ -457,14 +456,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     guildWarns[params.userId].count++
     guildWarns[params.userId].timestamp = Date.now()
     
-    // @ts-ignore
-    data.warns.set(params.guildId, guildWarns)
+    data.warns.set(params.guildId, guildWarns as WarnRecord)
     await data.warns.flush()
     return success({ success: true })
   })
 
   /** 获取用户警告记录 */
-  ctx.console.addListener('stuhelperGroupCenter/warns/get', async (params: { key: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/warns/get', async (params: { key: string }) => {
     const parts = params.key.split(':')
     if (parts.length < 2) return error('Invalid key format')
     const guildId = parts[0]
@@ -478,7 +476,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 清除用户警告 */
-  ctx.console.addListener('stuhelperGroupCenter/warns/clear', async (params: { key: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/warns/clear', async (params: { key: string }) => {
     const parts = params.key.split(':')
     if (parts.length < 2) return error('Invalid key format')
     const guildId = parts[0]
@@ -490,8 +488,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
         if (Object.keys(guildWarns).length === 0) {
             data.warns.delete(guildId)
         } else {
-            // @ts-ignore
-            data.warns.set(guildId, guildWarns)
+            data.warns.set(guildId, guildWarns as WarnRecord)
         }
         await data.warns.flush()
     }
@@ -501,19 +498,19 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 黑名单 API =====
 
   /** 获取黑名单 */
-  ctx.console.addListener('stuhelperGroupCenter/blacklist/list', async () => {
+  addAuthorityListener('stuhelperGroupCenter/blacklist/list', async () => {
     return success(data.blacklist.getAll())
   })
 
   /** 添加黑名单 */
-  ctx.console.addListener('stuhelperGroupCenter/blacklist/add', async (params: { userId: string, record: any }) => {
+  addAuthorityListener('stuhelperGroupCenter/blacklist/add', async (params: { userId: string, record: any }) => {
     data.blacklist.set(params.userId, params.record)
     await data.blacklist.flush()
     return success({ success: true })
   })
 
   /** 移除黑名单 */
-  ctx.console.addListener('stuhelperGroupCenter/blacklist/remove', async (params: { userId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/blacklist/remove', async (params: { userId: string }) => {
     data.blacklist.delete(params.userId)
     await data.blacklist.flush()
     return success({ success: true })
@@ -522,7 +519,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 订阅 API =====
 
   /** 获取订阅列表 */
-  ctx.console.addListener('stuhelperGroupCenter/subscriptions/list', async (params?: { fetchNames?: boolean }) => {
+  addAuthorityListener('stuhelperGroupCenter/subscriptions/list', async (params?: { fetchNames?: boolean }) => {
     const subsData = data.subscriptions.get('list') || []
     
     if (params?.fetchNames) {
@@ -550,7 +547,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 添加订阅 */
-  ctx.console.addListener('stuhelperGroupCenter/subscriptions/add', async (params: { subscription: Subscription }) => {
+  addAuthorityListener('stuhelperGroupCenter/subscriptions/add', async (params: { subscription: Subscription }) => {
     const list = data.subscriptions.get('list') || []
     list.push(params.subscription)
     data.subscriptions.set('list', list)
@@ -559,7 +556,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 移除订阅 */
-  ctx.console.addListener('stuhelperGroupCenter/subscriptions/remove', async (params: { index: number }) => {
+  addAuthorityListener('stuhelperGroupCenter/subscriptions/remove', async (params: { index: number }) => {
     const list = data.subscriptions.get('list') || []
     if (params.index >= 0 && params.index < list.length) {
       list.splice(params.index, 1)
@@ -570,7 +567,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 更新订阅 */
-  ctx.console.addListener('stuhelperGroupCenter/subscriptions/update', async (params: { index: number, subscription: Subscription }) => {
+  addAuthorityListener('stuhelperGroupCenter/subscriptions/update', async (params: { index: number, subscription: Subscription }) => {
     const list = data.subscriptions.get('list') || []
     if (params.index >= 0 && params.index < list.length) {
       list[params.index] = params.subscription
@@ -583,7 +580,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 统计 API =====
 
   /** 获取模块状态 */
-  ctx.console.addListener('stuhelperGroupCenter/stats/modules' as any, async () => {
+  addAuthorityListener('stuhelperGroupCenter/stats/modules', async () => {
     const modules = service.getAllModules()
     const result = modules.map(m => ({
       name: m.meta.name,
@@ -595,7 +592,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取仪表盘统计 */
-  ctx.console.addListener('stuhelperGroupCenter/stats/dashboard', async () => {
+  addAuthorityListener('stuhelperGroupCenter/stats/dashboard', async () => {
     const allWarns = data.warns.getAll()
     const allBlacklist = data.blacklist.getAll()
     const allConfigs = data.groupConfig.getAll()
@@ -620,7 +617,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取图表统计数据 */
-  ctx.console.addListener('stuhelperGroupCenter/stats/charts' as any, async (params?: { days?: number }) => {
+  addAuthorityListener('stuhelperGroupCenter/stats/charts', async (params?: { days?: number }) => {
     const days = params?.days || 7
     const now = Date.now()
     const startTime = now - days * 24 * 60 * 60 * 1000
@@ -729,7 +726,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
 
   // ===== 日志检索 API =====
 
-  ctx.console.addListener('stuhelperGroupCenter/logs/search', async (params: {
+  addAuthorityListener('stuhelperGroupCenter/logs/search', async (params: {
     startTime?: string | number
     endTime?: string | number
     command?: string
@@ -784,13 +781,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 设置 API =====
 
   /** 获取插件设置 */
-  ctx.console.addListener('stuhelperGroupCenter/settings/get', async () => {
+  addAuthorityListener('stuhelperGroupCenter/settings/get', async () => {
     // 获取当前设置
     return success(service.settings.settings)
   })
 
   /** 更新插件设置 */
-  ctx.console.addListener('stuhelperGroupCenter/settings/update', async (params: { settings: any }) => {
+  addAuthorityListener('stuhelperGroupCenter/settings/update', async (params: { settings: any }) => {
     try {
       const { settings } = params
       
@@ -811,7 +808,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 重置插件设置 */
-  ctx.console.addListener('stuhelperGroupCenter/settings/reset', async () => {
+  addAuthorityListener('stuhelperGroupCenter/settings/reset', async () => {
     try {
       await service.settings.reset()
       ctx.logger('stuhelperGroupCenter').info('设置已重置为默认值')
@@ -825,7 +822,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 缓存管理 API =====
 
   /** 获取缓存统计信息 */
-  ctx.console.addListener('stuhelperGroupCenter/cache/stats' as any, async () => {
+  addAuthorityListener('stuhelperGroupCenter/cache/stats', async () => {
     try {
       const stats = service.cache.getStats()
       return success(stats)
@@ -836,7 +833,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 强制刷新缓存 */
-  ctx.console.addListener('stuhelperGroupCenter/cache/refresh' as any, async () => {
+  addAuthorityListener('stuhelperGroupCenter/cache/refresh', async () => {
     try {
       ctx.logger('stuhelperGroupCenter').info('开始刷新缓存...')
       await service.cache.refreshAll()
@@ -849,7 +846,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 清空缓存 */
-  ctx.console.addListener('stuhelperGroupCenter/cache/clear' as any, async () => {
+  addAuthorityListener('stuhelperGroupCenter/cache/clear', async () => {
     try {
       await service.cache.clearAll()
       ctx.logger('stuhelperGroupCenter').info('缓存已清空')
@@ -861,7 +858,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 按需获取单个名称（会触发缓存） */
-  ctx.console.addListener('stuhelperGroupCenter/cache/fetch-name' as any, async (params: {
+  addAuthorityListener('stuhelperGroupCenter/cache/fetch-name', async (params: {
     type: 'guild' | 'user' | 'member'
     guildId?: string
     userId?: string
@@ -893,7 +890,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 聊天功能 API =====
 
   /** 获取群成员列表 */
-  ctx.console.addListener('stuhelperGroupCenter/chat/guild-members' as any, async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/guild-members', async (params: { guildId: string }) => {
     try {
       const { guildId } = params
       ctx.logger('stuhelperGroupCenter').debug('getGuildMembers called:', guildId)
@@ -959,7 +956,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取群信息 */
-  ctx.console.addListener('stuhelperGroupCenter/chat/guild-info' as any, async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/guild-info', async (params: { guildId: string }) => {
     try {
       const { guildId } = params
       if (!guildId) return error('缺少 guildId 参数')
@@ -984,7 +981,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取用户信息 */
-  ctx.console.addListener('stuhelperGroupCenter/chat/user-info' as any, async (params: { userId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/user-info', async (params: { userId: string }) => {
     try {
       const { userId } = params
       if (!userId) return error('缺少 userId 参数')
@@ -1009,7 +1006,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 发送消息 */
-  ctx.console.addListener('stuhelperGroupCenter/chat/send' as any, async (params: { channelId: string, content: string, platform?: string, guildId?: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/send', async (params: { channelId: string, content: string, platform?: string, guildId?: string }) => {
     try {
       const { channelId, content, platform, guildId } = params
       if (!channelId || !content) return error('缺少必要参数')
@@ -1027,7 +1024,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 撤回消息 */
-  ctx.console.addListener('stuhelperGroupCenter/chat/recall' as any, async (params: { channelId: string, messageId: string, platform?: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/recall', async (params: { channelId: string, messageId: string, platform?: string }) => {
     try {
       const { channelId, messageId, platform } = params
       if (!channelId || !messageId) return error('缺少必要参数')
@@ -1044,7 +1041,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 图片代理 - 使用 get_image API 获取图片 */
-  ctx.console.addListener('stuhelperGroupCenter/image/fetch' as any, async (params: { url: string, file?: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/image/fetch', async (params: { url: string, file?: string }) => {
     try {
       const { url, file } = params
       if (!url) return error('缺少 URL 参数')
@@ -1375,21 +1372,29 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       return el
     }))
 
-    ctx.console.broadcast('stuhelperGroupCenter/chat/message', {
-      id: session.messageId || session.id || Date.now().toString(),
-      timestamp: session.timestamp || Date.now(),
-      userId: session.userId || session.selfId,
-      username,
-      avatar,
-      content: content || session.content,
-      elements: enrichedElements, // 传递处理后的元素
-      platform: session.platform,
-      guildId: session.guildId,
-      guildName,
-      guildAvatar, // 传递群头像
-      channelId: session.channelId,
-      channelName: (session as any).channelName || (session.event?.channel?.name),
-      selfId: session.selfId,
+    await deliverChatMessageToClients({
+      clients: Object.values(ctx.console.clients),
+      payload: {
+        id: session.messageId || session.id || Date.now().toString(),
+        timestamp: session.timestamp || Date.now(),
+        userId: session.userId || session.selfId,
+        username,
+        avatar,
+        content: content || session.content,
+        elements: enrichedElements,
+        platform: session.platform,
+        guildId: session.guildId,
+        guildName,
+        guildAvatar,
+        channelId: session.channelId,
+        channelName: (session as any).channelName || (session.event?.channel?.name),
+        selfId: session.selfId,
+      },
+      roles: service.auth.getRoles(),
+      getUserRoleIds: (userId) => service.auth.getUserRoleIds(userId),
+      listBindingsByAuthId: async (authId) => {
+        return ctx.database.get('binding', { aid: authId })
+      },
     })
   }
 
@@ -1400,10 +1405,10 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   ctx.logger('stuhelperGroupCenter').info('Chat message listener registered')
 
   // 监听发送消息
-  // @ts-ignore - send 事件类型定义可能不完整
   ctx.on('send', (session) => {
     broadcastMessage(session, true)
   })
+
 }
 
 export * from './page-api'

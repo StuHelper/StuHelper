@@ -10,6 +10,7 @@ const QQ_BINDING_CONSUME_PATH = '/api/v1/bot/qq-binding/consume'
 const QQ_VERIFICATION_PATH_PREFIX = '/api/v1/bot/qq-users/'
 const AUTH_SCHEME = 'Bearer'
 const JSON_CONTENT_TYPE = 'application/json'
+const PLATFORM_REQUEST_TIMEOUT_MS = 8_000
 
 interface APIErrorPayload {
   code?: string
@@ -71,7 +72,7 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
 function createRequest(config: StuhelperPlatformConfig) {
   return async function request<T>(path: string, init: RequestInit, allowEmptyData = false): Promise<T> {
     const endpoint = new URL(path, config.baseUrl)
-    const response = await fetch(endpoint, withAuthHeaders(config, init))
+    const response = await fetch(endpoint, withAuthHeaders(config, withDefaultTimeout(init)))
     if (!response.ok) {
       throw await buildPlatformError(response)
     }
@@ -88,6 +89,13 @@ function withAuthHeaders(config: StuhelperPlatformConfig, init: RequestInit): Re
   const headers = new Headers(init.headers)
   headers.set('Authorization', `${AUTH_SCHEME} ${config.serviceToken}`)
   return { ...init, headers }
+}
+
+function withDefaultTimeout(init: RequestInit): RequestInit {
+  return {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(PLATFORM_REQUEST_TIMEOUT_MS),
+  }
 }
 
 async function buildPlatformError(response: Response): Promise<Error> {

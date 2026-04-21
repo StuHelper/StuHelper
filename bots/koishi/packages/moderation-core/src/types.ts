@@ -8,6 +8,7 @@ export type ModerationEventType =
   | 'warning_threshold'
   | 'review_created'
   | 'review_resolved'
+  | 'review_stuck'
   | 'report_created'
   | 'report_ai_reviewed'
   | 'action_executed'
@@ -15,7 +16,7 @@ export type ModerationEventType =
 export type ModerationRiskLevel = 'info' | 'low' | 'medium' | 'high' | 'critical'
 
 export type ReviewActionType = 'kick' | 'kick_and_block'
-export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'executed'
+export type ReviewStatus = 'pending' | 'approved' | 'stuck_manual' | 'rejected' | 'executed'
 
 export type KeywordMatchMode = 'includes' | 'regex'
 export type KeywordActionType = 'warn' | 'delete' | 'mute' | 'review'

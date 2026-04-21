@@ -30,9 +30,15 @@ import type {
 } from './types'
 
 const REVIEW_STATUS_PENDING: ReviewStatus = 'pending'
+const REVIEW_STATUS_APPROVED: ReviewStatus = 'approved'
+const REVIEW_STATUS_STUCK_MANUAL: ReviewStatus = 'stuck_manual'
+const ACTIONABLE_REVIEW_STATUSES = new Set<ReviewStatus>([
+  REVIEW_STATUS_PENDING,
+  REVIEW_STATUS_STUCK_MANUAL,
+])
 
 export class ModerationStore {
-  constructor(private readonly ctx: Context) {}
+  constructor(private readonly ctx: Pick<Context, 'database'>) {}
 
   async appendEvent(input: Omit<ModerationEventRecord, 'id' | 'createdAt' | 'updatedAt'>) {
     const now = new Date()
@@ -133,10 +139,13 @@ export class ModerationStore {
   }
 
   async listPendingReviews(guildId?: string) {
-    const query = guildId
-      ? { guildId, status: REVIEW_STATUS_PENDING }
-      : { status: REVIEW_STATUS_PENDING }
-    return this.ctx.database.get(MODERATION_REVIEW_TABLE, query)
+    const query = guildId ? { guildId } : {}
+    const records = await this.ctx.database.get(MODERATION_REVIEW_TABLE, query)
+    return records.filter((record) => ACTIONABLE_REVIEW_STATUSES.has(record.status))
+  }
+
+  async listApprovedReviews() {
+    return this.ctx.database.get(MODERATION_REVIEW_TABLE, { status: REVIEW_STATUS_APPROVED })
   }
 
   async resolveReview(id: string, status: ReviewStatus, operatorMemberId: string, resolutionNote: string | null) {
@@ -147,6 +156,20 @@ export class ModerationStore {
       resolutionNote,
       updatedAt,
     })
+  }
+
+  async markReviewStuck(review: Pick<ReviewQueueRecord, 'id' | 'updatedAt'>, resolutionNote: string | null) {
+    const updatedAt = new Date()
+    const result = await this.ctx.database.set(MODERATION_REVIEW_TABLE, {
+      id: review.id,
+      status: REVIEW_STATUS_APPROVED,
+      updatedAt: review.updatedAt,
+    }, {
+      status: REVIEW_STATUS_STUCK_MANUAL,
+      resolutionNote,
+      updatedAt,
+    })
+    return result.matched === 1
   }
 
   async setMemberRoles(guildId: string, memberId: string, roles: string[]) {
@@ -216,12 +239,22 @@ export class ModerationStore {
     return this.ctx.database.get(MODERATION_REPORT_TABLE, query)
   }
 
+  async removeReport(id: string) {
+    return this.ctx.database.remove(MODERATION_REPORT_TABLE, { id })
+  }
+
   async updateReportAIResult(id: string, aiStatus: ModerationReportRecord['aiStatus'], aiSeverity: ModerationReportRecord['aiSeverity'], aiSummary: string | null) {
     await this.ctx.database.set(MODERATION_REPORT_TABLE, { id }, {
       aiStatus,
       aiSeverity,
       aiSummary,
       updatedAt: new Date(),
+    })
+  }
+
+  async transact<T>(callback: (store: ModerationStore) => Promise<T>) {
+    return this.ctx.database.transact(async (database) => {
+      return callback(new ModerationStore({ database }))
     })
   }
 

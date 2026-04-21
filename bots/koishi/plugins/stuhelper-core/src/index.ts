@@ -1,5 +1,6 @@
 import { Context, Logger, Schema } from 'koishi'
 import type {} from '@koishijs/plugin-console'
+import { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import {
   createCoreConfigSchema,
@@ -12,6 +13,8 @@ import type { BaseModule } from './core/modules'
 import { WarnModule, KeywordModule, WelcomeModule, RepeatModule, DiceModule, BanmeModule, AntiRecallModule, AIModule, ConfigModule, LogModule, SubscriptionModule, HelpModule, ReportModule, GetAuthModule, AuthModule, EventModule, StatusModule,
   MemberManageModule, MessageManageModule, OrderManageModule, AntirepeatModule, crossGroupModule} from './core/modules'
 import { applyLegacyFeatures } from './legacy/legacy-wrapper'
+import { validateConsoleAdminPassword } from './console-auth'
+import { registerReviewClaimRecovery } from './review-claim-recovery'
 
 // 插件元信息
 export const name = 'stuhelper-core'
@@ -22,7 +25,7 @@ export const Config: Schema<Config> = createCoreConfigSchema()
 // 声明依赖注入
 export const inject = {
   required: ['database'],
-  optional: ['console', 'puppeteer']
+  optional: ['console', 'puppeteer', 'auth']
 }
 
 // 声明服务类型扩展（注意：这里不能使用，需要在 service 文件中声明）
@@ -77,7 +80,8 @@ function registerConsoleEntry(ctx: Context) {
 }
 
 function registerConsoleAPI(ctx: Context, config: Config) {
-  ctx.inject(['console', 'database', 'stuhelperGroupCenter'], (apiCtx) => {
+  ctx.inject(['console', 'database', 'stuhelperGroupCenter', 'auth'], (apiCtx) => {
+    validateConsoleAdminPassword(process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD)
     registerWebSocketAPI(apiCtx, apiCtx.stuhelperGroupCenter)
     registerPageAPI(apiCtx, {
       service: apiCtx.stuhelperGroupCenter,
@@ -92,6 +96,7 @@ function registerConsoleAPI(ctx: Context, config: Config) {
 
 function registerModules(ctx: Context) {
   ctx.inject(['database', 'stuhelperGroupCenter'], (moduleCtx) => {
+    registerReviewClaimRecovery(moduleCtx, new ModerationStore(moduleCtx))
     moduleCtx.on('ready', async () => {
       const service = moduleCtx.stuhelperGroupCenter
       const moduleConfig = service.pluginConfig

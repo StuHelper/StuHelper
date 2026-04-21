@@ -8,6 +8,8 @@ import {
   type ReviewQueueRecord,
 } from '@stuhelper/koishi-moderation-core'
 
+import type { WorkItemActionActor } from './review-action-handler'
+
 type ManagedBot = Universal.Methods & { platform?: string; selfId: string }
 
 export async function requireReviewRecord(ctx: Context, reviewId: string) {
@@ -42,7 +44,12 @@ export function resolveManagedBot(ctx: Context, platform: string, botSelfId: str
   return bot as ManagedBot
 }
 
-export function createReviewResolvedEvent(review: ReviewQueueRecord, level: 'info' | 'high', note?: string) {
+export function createReviewResolvedEvent(
+  review: ReviewQueueRecord,
+  level: 'info' | 'high',
+  actor: WorkItemActionActor,
+  note?: string,
+) {
   return {
     platform: review.platform,
     botSelfId: review.botSelfId,
@@ -52,7 +59,14 @@ export function createReviewResolvedEvent(review: ReviewQueueRecord, level: 'inf
     type: 'review_resolved',
     level,
     summary: level === 'info' ? `复核已驳回：${review.memberId}` : `复核已执行：${review.memberId}`,
-    payload: { reviewId: review.id, note: note || null, actionType: review.actionType },
+    payload: {
+      reviewId: review.id,
+      note: note || null,
+      actionType: review.actionType,
+      operatorMemberId: actor.memberId,
+      operatorName: actor.displayName,
+      source: 'console',
+    },
   }
 }
 
@@ -61,6 +75,7 @@ export function createAdmissionEvent(
   type: 'join_released' | 'action_executed',
   level: 'info' | 'medium' | 'high',
   summaryPrefix: string,
+  actor: WorkItemActionActor,
   note?: string,
   action?: string,
   deadlineAt?: string,
@@ -74,7 +89,14 @@ export function createAdmissionEvent(
     type,
     level,
     summary: `${summaryPrefix} ${record.memberId}`,
-    payload: { action: action || null, deadlineAt: deadlineAt || null, note: note || null, source: 'console' },
+    payload: {
+      action: action || null,
+      deadlineAt: deadlineAt || null,
+      note: note || null,
+      source: 'console',
+      operatorMemberId: actor.memberId,
+      operatorName: actor.displayName,
+    },
   }
 }
 
@@ -83,6 +105,7 @@ export function createReportActionEvent(
   summaryPrefix: string,
   level: 'info' | 'high',
   action: string,
+  actor: WorkItemActionActor,
   note?: string,
 ) {
   return {
@@ -94,6 +117,13 @@ export function createReportActionEvent(
     type: 'action_executed',
     level,
     summary: `${summaryPrefix}：${report.targetMemberId}`,
-    payload: { action, note: note || null, reportId: report.id, source: 'console' },
+    payload: {
+      action,
+      note: note || null,
+      reportId: report.id,
+      source: 'console',
+      operatorMemberId: actor.memberId,
+      operatorName: actor.displayName,
+    },
   }
 }

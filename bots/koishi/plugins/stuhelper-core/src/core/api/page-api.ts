@@ -19,8 +19,8 @@ import {
   DashboardPageService,
   IdentityPageService,
   ReviewPageService,
-  type IdentityLookupError,
 } from '../services'
+import { IdentityProfileLookup } from './identity-profile-lookup'
 
 interface PageApiOptions {
   service: StuhelperGroupCenterService
@@ -37,6 +37,9 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
   const moderationStore = new ModerationStore(ctx)
   const guardPolicyStore = new GuardPolicyStore(ctx, options.guard)
   const platform = createPlatformClient(options.platform)
+  const identityProfileLookup = new IdentityProfileLookup({
+    getQQVerificationStatus: (memberId) => platform.getQQVerificationStatus(memberId),
+  })
 
   const dashboardPage = new DashboardPageService({
     loadPendingMembers: () => listActiveGuardMembers(ctx),
@@ -56,39 +59,7 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
 
   const identityPage = new IdentityPageService({
     loadGuardRecords: () => listGuardRecords(ctx),
-    lookupVerificationProfiles: async (memberIds) => {
-      const profiles = []
-      const errors: IdentityLookupError[] = []
-
-      const results = await Promise.allSettled(
-        memberIds.map(async (memberId) => {
-          try {
-            return {
-              memberId,
-              profile: await platform.getQQVerificationStatus(memberId),
-            }
-          } catch (error) {
-            throw new Error(
-              `memberId=${memberId}; ${(error instanceof Error ? error.message : String(error))}`,
-            )
-          }
-        }),
-      )
-
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          profiles.push(result.value.profile)
-          continue
-        }
-        const memberId = resolveMemberIdFromLookupError(result.reason)
-        errors.push({
-          memberId,
-          message: result.reason instanceof Error ? result.reason.message : String(result.reason),
-        })
-      }
-
-      return { profiles, errors }
-    },
+    lookupVerificationProfiles: async (memberIds) => identityProfileLookup.lookup(memberIds),
   })
 
   const reviewPage = new ReviewPageService({
@@ -115,19 +86,19 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
     loadSupportedCommandIds: () => [...SUPPORTED_COMMAND_POLICY_IDS],
   })
 
-  ctx.console.addListener('stuhelperGroupCenter/page/dashboard' as any, async () => {
+  ctx.console.addListener('stuhelperGroupCenter/page/dashboard', async () => {
     return dashboardPage.getPageData()
   }, { authority: 4 })
 
-  ctx.console.addListener('stuhelperGroupCenter/page/identity' as any, async () => {
+  ctx.console.addListener('stuhelperGroupCenter/page/identity', async () => {
     return identityPage.getPageData()
   }, { authority: 4 })
 
-  ctx.console.addListener('stuhelperGroupCenter/page/review' as any, async () => {
+  ctx.console.addListener('stuhelperGroupCenter/page/review', async () => {
     return reviewPage.getPageData()
   }, { authority: 4 })
 
-  ctx.console.addListener('stuhelperGroupCenter/page/config-governance' as any, async () => {
+  ctx.console.addListener('stuhelperGroupCenter/page/config-governance', async () => {
     return configPage.getPageData()
   }, { authority: 4 })
 }
@@ -139,17 +110,4 @@ async function listGuardRecords(ctx: Context) {
 async function listActiveGuardMembers(ctx: Context) {
   const records = await listGuardRecords(ctx)
   return records.filter((record) => !record.releasedAt && !record.kickedAt)
-}
-
-function resolveMemberIdFromLookupError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return 'unknown'
-  }
-
-  const marker = 'memberId='
-  const index = error.message.indexOf(marker)
-  if (index === -1) {
-    return 'unknown'
-  }
-  return error.message.slice(index + marker.length) || 'unknown'
 }

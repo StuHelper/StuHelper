@@ -63,6 +63,7 @@ export class ReviewPageService {
 }
 
 function toReviewItem(review: ReviewQueueRecord): ReviewWorkItem {
+  const isStuck = review.status === 'stuck_manual'
   return {
     id: review.id,
     kind: 'review',
@@ -70,11 +71,17 @@ function toReviewItem(review: ReviewQueueRecord): ReviewWorkItem {
     memberId: review.memberId,
     subjectLabel: review.memberId,
     status: review.status,
-    priority: review.actionType === 'kick_and_block' ? 'high' : 'medium',
+    priority: isStuck
+      ? 'critical'
+      : review.actionType === 'kick_and_block'
+        ? 'high'
+        : 'medium',
     createdAt: review.createdAt.toISOString(),
-    availableActions: ['execute', 'reject'],
+    availableActions: isStuck ? [] : ['execute', 'reject'],
     relatedEventIds: [],
-    reason: review.reason,
+    reason: isStuck
+      ? review.resolutionNote || '复核执行阶段中断，请人工核查'
+      : review.reason,
     secondaryLabel: review.actionType,
   }
 }
