@@ -1,1171 +1,469 @@
 <template>
-  <div class="subscription-view">
-    <!-- Header -->
-    <header class="view-header">
-      <h2 class="view-title">订阅管理</h2>
-      <div class="header-actions">
-        <label class="toggle-wrapper">
-          <span class="toggle-label">解析名称</span>
-          <el-switch v-model="fetchNames" @change="refreshSubscriptions" size="small" />
+  <div class="sh-view">
+    <WorkspaceHead
+      title="订阅管理"
+      description="管理将群管事件推送到的目标。每个订阅可独立选择推送的事件类型。"
+      :chips="headerChips"
+    >
+      <template #actions>
+        <label class="sh-warns__toggle">
+          <span class="sh-warns__toggle-label">解析名称</span>
+          <el-switch v-model="fetchNames" size="small" @change="refresh" />
         </label>
-        <div class="btn-group">
-          <button class="action-btn" @click="showAddDialog = true">
-            <k-icon name="plus" class="btn-icon" />
-            <span>添加</span>
-          </button>
-          <button class="action-btn" @click="refreshSubscriptions">
-            <k-icon name="refresh-cw" class="btn-icon" :class="{ spin: loading }" />
-            <span>刷新</span>
-          </button>
-        </div>
-      </div>
-    </header>
+        <el-button
+          class="sh-button sh-button--ghost"
+          :disabled="loading"
+          @click="refresh"
+        >
+          {{ loading ? '刷新中…' : '刷新' }}
+        </el-button>
+        <el-button
+          type="primary"
+          class="sh-button sh-button--primary"
+          @click="openCreate"
+        >
+          添加订阅
+        </el-button>
+      </template>
+    </WorkspaceHead>
 
-    <!-- Loading -->
-    <div v-if="loading" class="loading-state">
-      <k-icon name="loader" class="spin" />
-      <span class="loading-text">Loading...</span>
-    </div>
-
-    <!-- Subscription List -->
-    <div v-else class="sub-list">
-      <div v-if="subscriptions.length === 0" class="empty-state">
-        <k-icon name="bell-off" class="empty-icon" />
-        <p class="empty-text">暂无订阅</p>
-      </div>
-
-      <div
-        v-for="(sub, index) in subscriptions"
-        :key="index"
-        class="sub-card"
-        @click="editSubscription(sub, index)"
-      >
-        <div class="card-header">
-          <div class="sub-info">
-            <div class="sub-avatar">
-              <img
-                v-if="fetchNames && sub.avatar"
-                :src="sub.avatar"
-                class="avatar-img"
-                @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
-              />
-              <k-icon v-else :name="sub.type === 'group' ? 'users' : 'user'" class="sub-icon" />
+    <ConsolePageSkeleton v-if="loading && subscriptions.length === 0" />
+    <EmptyState
+      v-else-if="subscriptions.length === 0"
+      title="暂无订阅"
+      body="创建订阅后,群管事件会推送到指定的群或私聊会话。"
+    />
+    <WorkspaceSection
+      v-else
+      title="订阅目标"
+      description="点击任意卡片进入右侧编辑面板。"
+      :meta="`${subscriptions.length} 条`"
+    >
+      <div class="sh-sub-grid">
+        <button
+          v-for="(sub, index) in subscriptions"
+          :key="`${sub.type}-${sub.id}-${index}`"
+          type="button"
+          class="sh-sub-card"
+          :class="{ 'sh-sub-card--active': editingIndex === index }"
+          @click="openEdit(sub, index)"
+        >
+          <div class="sh-sub-card__head">
+            <div class="sh-sub-card__identity">
+              <span class="sh-sub-card__title">{{ sub.name || sub.id }}</span>
+              <span v-if="sub.name" class="sh-sub-card__id sh-mono">#{{ sub.id }}</span>
             </div>
-            <div class="sub-meta">
-              <span class="sub-id">{{ sub.name || sub.id }}</span>
-              <span v-if="sub.name" class="sub-id-suffix">#{{ sub.id }}</span>
-            </div>
-          </div>
-          <span class="sub-tag" :class="sub.type">{{ sub.type === 'group' ? 'GROUP' : 'DM' }}</span>
-        </div>
-        <div class="card-body">
-          <div class="features-grid">
-            <div class="feature-item" :class="{ active: sub.features.log }">
-              <span class="status-dot"></span>
-              <span class="feature-name">日志推送</span>
-            </div>
-            <div class="feature-item" :class="{ active: sub.features.warning }">
-              <span class="status-dot"></span>
-              <span class="feature-name">警告通知</span>
-            </div>
-            <div class="feature-item" :class="{ active: sub.features.blacklist }">
-              <span class="status-dot"></span>
-              <span class="feature-name">黑名单</span>
-            </div>
-            <div class="feature-item" :class="{ active: sub.features.muteExpire }">
-              <span class="status-dot"></span>
-              <span class="feature-name">禁言解除</span>
-            </div>
-            <div class="feature-item" :class="{ active: sub.features.memberChange }">
-              <span class="status-dot"></span>
-              <span class="feature-name">成员变动</span>
-            </div>
-            <div class="feature-item" :class="{ active: sub.features.antiRecall }">
-              <span class="status-dot"></span>
-              <span class="feature-name">防撤回</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Add/Edit Dialog -->
-    <div v-if="showAddDialog" class="dialog-overlay" @click.self="showAddDialog = false">
-      <div class="dialog-card">
-        <div class="dialog-header">
-          <h3 class="dialog-title">{{ editMode ? '编辑订阅' : '添加订阅' }}</h3>
-          <button class="close-btn" @click="showAddDialog = false">
-            <k-icon name="x" />
-          </button>
-        </div>
-        <div class="dialog-body">
-          <div class="form-group">
-            <label class="form-label">类型</label>
-            <div class="radio-group">
-              <label class="radio-item" :class="{ active: newSub.type === 'group' }">
-                <input type="radio" v-model="newSub.type" value="group" />
-                <span class="radio-text">GROUP</span>
-              </label>
-              <label class="radio-item" :class="{ active: newSub.type === 'private' }">
-                <input type="radio" v-model="newSub.type" value="private" />
-                <span class="radio-text">DM</span>
-              </label>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">目标 ID</label>
-            <input
-              v-model="newSub.id"
-              type="text"
-              placeholder="e.g. 123456789"
-              class="form-input mono"
+            <SeverityTag
+              :label="sub.type === 'group' ? '群' : '私聊'"
+              :intent="sub.type === 'group' ? 'primary' : 'info'"
             />
           </div>
-          <div class="form-group">
-            <label class="form-label">订阅功能</label>
-            <div class="checkbox-grid">
-              <label class="checkbox-item" :class="{ checked: newSub.features.log }">
-                <input type="checkbox" v-model="newSub.features.log" />
-                <span class="checkbox-indicator"></span>
-                <span class="checkbox-text">日志推送</span>
-              </label>
-              <label class="checkbox-item" :class="{ checked: newSub.features.warning }">
-                <input type="checkbox" v-model="newSub.features.warning" />
-                <span class="checkbox-indicator"></span>
-                <span class="checkbox-text">警告通知</span>
-              </label>
-              <label class="checkbox-item" :class="{ checked: newSub.features.blacklist }">
-                <input type="checkbox" v-model="newSub.features.blacklist" />
-                <span class="checkbox-indicator"></span>
-                <span class="checkbox-text">黑名单</span>
-              </label>
-              <label class="checkbox-item" :class="{ checked: newSub.features.muteExpire }">
-                <input type="checkbox" v-model="newSub.features.muteExpire" />
-                <span class="checkbox-indicator"></span>
-                <span class="checkbox-text">禁言解除</span>
-              </label>
-              <label class="checkbox-item" :class="{ checked: newSub.features.memberChange }">
-                <input type="checkbox" v-model="newSub.features.memberChange" />
-                <span class="checkbox-indicator"></span>
-                <span class="checkbox-text">成员变动</span>
-              </label>
-              <label class="checkbox-item" :class="{ checked: newSub.features.antiRecall }">
-                <input type="checkbox" v-model="newSub.features.antiRecall" />
-                <span class="checkbox-indicator"></span>
-                <span class="checkbox-text">防撤回</span>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div class="dialog-footer">
-          <div class="footer-left">
-            <k-button v-if="editMode" type="danger" @click="removeSubscription(editingIndex)">删除</k-button>
-          </div>
-          <div class="footer-right">
-            <k-button @click="showAddDialog = false">取消</k-button>
-            <k-button type="primary" @click="saveSubscription" :loading="adding">{{ editMode ? '保存' : '添加' }}</k-button>
-          </div>
-        </div>
+          <ul class="sh-sub-card__features">
+            <li
+              v-for="feature in FEATURES"
+              :key="feature.key"
+              class="sh-sub-card__feature"
+              :data-active="Boolean(sub.features[feature.key])"
+            >
+              <span class="sh-sub-card__dot" aria-hidden="true"></span>
+              {{ feature.label }}
+            </li>
+          </ul>
+        </button>
       </div>
-    </div>
+    </WorkspaceSection>
 
-    <!-- Delete Confirm Dialog -->
-    <div v-if="showDeleteDialog" class="dialog-overlay" style="z-index: 1100" @click.self="showDeleteDialog = false">
-      <div class="dialog-card dialog-sm">
-        <div class="dialog-header">
-          <h3 class="dialog-title danger">删除订阅</h3>
-          <button class="close-btn" @click="showDeleteDialog = false">
-            <k-icon name="x" />
-          </button>
+    <Drawer
+      :open="formOpen"
+      :title="isEdit ? '编辑订阅' : '添加订阅'"
+      :subtitle="isEdit ? `#${draft.id}` : '一个订阅对应一个推送目标'"
+      @close="closeForm"
+    >
+      <section class="sh-drawer__section">
+        <h4 class="sh-drawer__section-title">基本信息</h4>
+        <label class="sh-field">
+          <span class="sh-field__label">类型</span>
+          <el-radio-group v-model="draft.type" class="sh-sub-radio">
+            <el-radio-button label="group">群聊</el-radio-button>
+            <el-radio-button label="private">私聊</el-radio-button>
+          </el-radio-group>
+        </label>
+        <label class="sh-field">
+          <span class="sh-field__label">目标 ID</span>
+          <el-input
+            v-model.trim="draft.id"
+            class="sh-control sh-control--mono"
+            placeholder="例如 123456789"
+            :disabled="isEdit"
+          />
+          <span v-if="isEdit" class="sh-field__hint">
+            编辑模式下无法修改目标 ID,请删除后重新添加。
+          </span>
+        </label>
+      </section>
+
+      <section class="sh-drawer__section">
+        <h4 class="sh-drawer__section-title">推送事件</h4>
+        <div class="sh-sub-features">
+          <label
+            v-for="feature in FEATURES"
+            :key="feature.key"
+            class="sh-sub-feature"
+          >
+            <el-checkbox
+              :model-value="Boolean(draft.features[feature.key])"
+              class="sh-check"
+              @update:model-value="(val: boolean) => toggleFeature(feature.key, val)"
+            >
+              {{ feature.label }}
+            </el-checkbox>
+            <span class="sh-sub-feature__hint">{{ feature.hint }}</span>
+          </label>
         </div>
-        <div class="dialog-body">
-          <div class="warning-box">
-            <k-icon name="alert-triangle" class="warning-icon" />
-            <span>此操作不可撤销</span>
-          </div>
-          <p class="confirm-text">
-            请输入目标 ID
-            <code class="code-inline" @click="copySubId">{{ newSub.id }}</code>
-            以确认删除
-          </p>
-          <div class="form-group">
-            <input
-              v-model="deleteConfirmId"
-              type="text"
-              :placeholder="newSub.id"
-              class="form-input mono"
-              @keyup.enter="confirmRemove"
-            />
-          </div>
-        </div>
-        <div class="dialog-footer">
-          <k-button @click="showDeleteDialog = false">取消</k-button>
-          <k-button type="danger" @click="confirmRemove" :loading="deleting" :disabled="deleteConfirmId !== newSub.id">确认删除</k-button>
-        </div>
-      </div>
-    </div>
+      </section>
+
+      <template #footer>
+        <el-popconfirm
+          v-if="isEdit"
+          :title="`确认删除订阅 #${draft.id}?`"
+          confirm-button-text="删除"
+          cancel-button-text="取消"
+          @confirm="confirmRemove"
+        >
+          <template #reference>
+            <el-button class="sh-button sh-button--danger">删除订阅</el-button>
+          </template>
+        </el-popconfirm>
+        <span v-else class="sh-drawer__foot-spacer"></span>
+
+        <el-button class="sh-button sh-button--ghost" @click="closeForm">取消</el-button>
+        <el-button
+          type="primary"
+          class="sh-button sh-button--primary"
+          :disabled="!canSave || saving"
+          @click="save"
+        >
+          {{ saving ? '保存中…' : isEdit ? '保存' : '添加' }}
+        </el-button>
+      </template>
+    </Drawer>
+
+    <NoticeStack :items="notices" @dismiss="dismissNotice" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { message } from '@koishijs/client'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+
 import { subscriptionApi } from '../api'
 import type { Subscription } from '../types'
+import { formatTimestamp } from '../models/formatters'
+import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
+import Drawer from './primitives/Drawer.vue'
+import EmptyState from './primitives/EmptyState.vue'
+import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
+import SeverityTag from './primitives/SeverityTag.vue'
+import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'
+import WorkspaceSection from './primitives/WorkspaceSection.vue'
+
+type FeatureKey = keyof Required<Subscription['features']>
+
+interface FeatureDef {
+  key: FeatureKey
+  label: string
+  hint: string
+}
+
+const FEATURES: readonly FeatureDef[] = [
+  { key: 'log', label: '日志推送', hint: '命令执行日志会推送到目标。' },
+  { key: 'warning', label: '警告通知', hint: '新增 / 清除警告时通知目标。' },
+  { key: 'blacklist', label: '黑名单', hint: '黑名单变动立刻同步。' },
+  { key: 'muteExpire', label: '禁言解除', hint: '成员禁言到期时通知。' },
+  { key: 'memberChange', label: '成员变动', hint: '入群 / 退群 / 踢出事件。' },
+  { key: 'antiRecall', label: '防撤回', hint: '命中防撤回规则时通知。' },
+]
+
+const FEATURE_DEFAULTS: Required<Subscription['features']> = {
+  log: true,
+  memberChange: false,
+  muteExpire: false,
+  blacklist: true,
+  warning: true,
+  antiRecall: false,
+}
 
 const loading = ref(false)
-const adding = ref(false)
-const deleting = ref(false)
+const saving = ref(false)
 const fetchNames = ref(true)
-const showAddDialog = ref(false)
-const showDeleteDialog = ref(false)
-const deleteConfirmId = ref('')
+const formOpen = ref(false)
 const subscriptions = ref<Subscription[]>([])
-const editMode = ref(false)
-const editingIndex = ref(-1)
-
-const newSub = reactive<Subscription>({
+const notices = ref<NoticeItem[]>([])
+const editingIndex = ref<number>(-1)
+const lastSync = ref('')
+const draft = reactive<Subscription>({
   type: 'group',
   id: '',
-  features: {
-    log: true,
-    warning: true,
-    blacklist: true,
-    muteExpire: false,
-    memberChange: false,
-    antiRecall: false
+  features: { ...FEATURE_DEFAULTS },
+})
+
+const isEdit = computed(() => editingIndex.value >= 0)
+const canSave = computed(() => Boolean(draft.id.trim()))
+
+const headerChips = computed<WorkspaceHeadChip[]>(() => {
+  const chips: WorkspaceHeadChip[] = [
+    { text: `${subscriptions.value.length} 条订阅`, numeric: true },
+  ]
+  if (lastSync.value) {
+    chips.push({ text: `更新 · ${lastSync.value}`, mono: true })
+  }
+  return chips
+})
+
+onMounted(refresh)
+
+watch(formOpen, (next) => {
+  if (!next) {
+    window.setTimeout(resetDraft, 280)
   }
 })
 
-const refreshSubscriptions = async () => {
+async function refresh() {
   loading.value = true
   try {
     subscriptions.value = await subscriptionApi.list(fetchNames.value)
-  } catch (e: any) {
-    message.error(e.message || '加载订阅失败')
+    lastSync.value = formatTimestamp(Date.now())
+  } catch (cause) {
+    pushError(cause, '加载订阅失败')
   } finally {
     loading.value = false
   }
 }
 
-const saveSubscription = async () => {
-  if (!newSub.id.trim()) {
-    message.warning('请输入目标ID')
-    return
-  }
-
-  adding.value = true
-  try {
-    if (editMode.value) {
-      await subscriptionApi.update(editingIndex.value, { ...newSub })
-      message.success('更新成功')
-    } else {
-      await subscriptionApi.add({ ...newSub })
-      message.success('添加成功')
-    }
-    
-    showAddDialog.value = false
-    await refreshSubscriptions()
-  } catch (e: any) {
-    message.error(e.message || (editMode.value ? '更新失败' : '添加失败'))
-  } finally {
-    adding.value = false
-  }
+function openCreate() {
+  resetDraft()
+  formOpen.value = true
 }
 
-const editSubscription = (sub: Subscription, index: number) => {
-  editMode.value = true
+function openEdit(sub: Subscription, index: number) {
   editingIndex.value = index
-  newSub.type = sub.type
-  newSub.id = sub.id
-  newSub.features = { ...sub.features }
-  showAddDialog.value = true
+  draft.type = sub.type
+  draft.id = sub.id
+  draft.features = { ...FEATURE_DEFAULTS, ...sub.features }
+  formOpen.value = true
 }
 
-// 监听弹窗关闭，重置状态
-import { watch } from 'vue'
-watch(showAddDialog, (val) => {
-  if (!val) {
-    setTimeout(() => {
-      editMode.value = false
-      editingIndex.value = -1
-      newSub.id = ''
-      newSub.type = 'group'
-      newSub.features = {
-        log: true,
-        warning: true,
-        blacklist: true,
-        muteExpire: false,
-        memberChange: false,
-        antiRecall: false
-      }
-    }, 300)
-  }
-})
-
-const removeSubscription = (index: number) => {
-  // 如果是从编辑弹窗触发，直接使用当前的 newSub.id
-  // 如果是从列表卡片触发，需要先设置 id
-  if (!editMode.value) {
-    // 列表触发（其实列表触发也应该进入编辑模式或者直接删除，这里假设列表删除按钮逻辑）
-    // 为了统一，我们暂时不支持从列表直接删除，或者在列表点击删除时，先填充 info
-    const sub = subscriptions.value[index]
-    newSub.id = sub.id
-    editingIndex.value = index
-  }
-  
-  deleteConfirmId.value = ''
-  showDeleteDialog.value = true
+function closeForm() {
+  formOpen.value = false
 }
 
-const confirmRemove = async () => {
-  if (deleteConfirmId.value !== newSub.id) return
+function resetDraft() {
+  editingIndex.value = -1
+  draft.type = 'group'
+  draft.id = ''
+  draft.features = { ...FEATURE_DEFAULTS }
+}
 
-  deleting.value = true
+function toggleFeature(key: FeatureKey, value: boolean) {
+  draft.features = { ...draft.features, [key]: value }
+}
+
+async function save() {
+  if (!canSave.value) return
+  saving.value = true
+  try {
+    const payload: Subscription = {
+      type: draft.type,
+      id: draft.id.trim(),
+      features: { ...draft.features },
+    }
+    if (isEdit.value) {
+      await subscriptionApi.update(editingIndex.value, payload)
+      pushSuccess('订阅已更新')
+    } else {
+      await subscriptionApi.add(payload)
+      pushSuccess('订阅已添加')
+    }
+    formOpen.value = false
+    await refresh()
+  } catch (cause) {
+    pushError(cause, isEdit.value ? '更新失败' : '添加失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function confirmRemove() {
+  if (editingIndex.value < 0) return
   try {
     await subscriptionApi.remove(editingIndex.value)
-    message.success('删除成功')
-    showDeleteDialog.value = false
-    showAddDialog.value = false
-    await refreshSubscriptions()
-  } catch (e: any) {
-    message.error(e.message || '删除失败')
-  } finally {
-    deleting.value = false
+    pushSuccess('订阅已删除')
+    formOpen.value = false
+    await refresh()
+  } catch (cause) {
+    pushError(cause, '删除失败')
   }
 }
 
-const copySubId = () => {
-  navigator.clipboard.writeText(newSub.id)
-  message.success('已复制目标ID')
+function pushSuccess(message: string) {
+  notices.value.push({ id: noticeId(), kind: 'success', message })
+  scheduleDismiss()
 }
 
-onMounted(() => {
-  refreshSubscriptions()
-})
+function pushError(cause: unknown, fallback: string) {
+  const message = cause instanceof Error ? cause.message : fallback
+  notices.value.push({ id: noticeId(), kind: 'error', message })
+  scheduleDismiss()
+}
+
+function dismissNotice(id: string) {
+  notices.value = notices.value.filter((item) => item.id !== id)
+}
+
+function scheduleDismiss() {
+  const id = notices.value[notices.value.length - 1]?.id
+  if (!id) return
+  window.setTimeout(() => dismissNotice(id), 4000)
+}
+
+function noticeId(): string {
+  return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
+}
 </script>
 
 <style scoped>
-/* ========================================
-   GitHub Dimmed / Vercel Style
-   ======================================== */
-
-.subscription-view {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-}
-
-/* Header */
-.view-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 12px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--k-color-divider);
-}
-
-.view-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--fg1);
-  margin: 0;
-  letter-spacing: -0.01em;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.toggle-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.toggle-label {
-  font-size: 12px;
-  color: var(--fg3);
-}
-
-.btn-group {
-  display: flex;
-  gap: 6px;
-}
-
-/* Action Buttons */
-.action-btn {
+.sh-warns__toggle {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 500;
-  font-family: inherit;
-  color: var(--fg2);
-  background: var(--bg2);
-  border: 1px solid var(--k-color-border);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  gap: var(--sh-s-2);
+  padding: 0 10px;
+  min-height: 32px;
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-1);
+  border: 1px solid var(--sh-border);
 }
 
-.action-btn:hover {
-  color: var(--fg1);
-  background: var(--bg3);
-  border-color: var(--fg3);
+.sh-warns__toggle-label {
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-2);
+  font-weight: var(--sh-w-medium);
 }
 
-.action-btn:active {
-  background: var(--bg1);
-}
-
-.btn-icon {
-  font-size: 13px;
-  opacity: 0.7;
-}
-
-.action-btn:hover .btn-icon {
-  opacity: 1;
-}
-
-/* Loading State */
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 48px;
-  color: var(--fg3);
-}
-
-.loading-text {
-  font-size: 12px;
-  font-family: 'SF Mono', 'Consolas', monospace;
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Empty State */
-.empty-state {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  color: var(--fg3);
-}
-
-.empty-icon {
-  font-size: 32px;
-  margin-bottom: 12px;
-  opacity: 0.4;
-}
-
-.empty-text {
-  font-size: 13px;
-  margin: 0;
-}
-
-/* Subscription List */
-.sub-list {
-  flex: 1;
-  overflow-y: auto;
+.sh-sub-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-  align-content: start;
+  gap: var(--sh-s-3);
 }
 
-/* Subscription Card */
-.sub-card {
-  background: var(--bg2);
-  border: 1px solid var(--k-color-border);
-  border-radius: 6px;
-  overflow: hidden;
+.sh-sub-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-3);
+  padding: var(--sh-s-4);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-3);
+  background: var(--sh-surface-0);
+  color: var(--sh-fg);
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  text-align: left;
+  transition:
+    background var(--sh-dur-fast) var(--sh-ease),
+    border-color var(--sh-dur-fast) var(--sh-ease),
+    box-shadow var(--sh-dur-fast) var(--sh-ease);
 }
 
-.sub-card:hover {
-  border-color: var(--fg3);
-  background: var(--bg3);
+.sh-sub-card:hover {
+  border-color: var(--sh-border-strong);
+  background: var(--sh-surface-hover);
 }
 
-.card-header {
+.sh-sub-card--active {
+  border-color: var(--sh-primary);
+  box-shadow: 0 0 0 3px var(--sh-primary-soft);
+}
+
+.sh-sub-card__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--k-color-divider);
+  gap: var(--sh-s-2);
 }
 
-.sub-info {
+.sh-sub-card__identity {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-.sub-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg3);
-  border: 1px solid var(--k-color-divider);
+.sh-sub-card__title {
+  font-size: var(--sh-t-body-lg);
+  font-weight: var(--sh-w-semibold);
+  color: var(--sh-fg);
+  line-height: 1.2;
 }
 
-.avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.sh-sub-card__id {
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-2);
 }
 
-.sub-icon {
-  font-size: 14px;
-  color: var(--fg3);
-}
-
-.sub-meta {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  min-width: 0;
-}
-
-.sub-id {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--fg1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sub-id-suffix {
-  font-size: 11px;
-  font-family: 'SF Mono', 'Consolas', monospace;
-  color: var(--fg3);
-  flex-shrink: 0;
-}
-
-.sub-tag {
-  font-size: 10px;
-  font-weight: 500;
-  font-family: 'SF Mono', 'Consolas', monospace;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--bg3);
-  color: var(--fg3);
-  border: 1px solid var(--k-color-divider);
-  flex-shrink: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.sub-tag.group {
-  color: #58a6ff;
-  background: rgba(88, 166, 255, 0.1);
-  border-color: rgba(88, 166, 255, 0.2);
-}
-
-.sub-tag.private {
-  color: #a371f7;
-  background: rgba(163, 113, 247, 0.1);
-  border-color: rgba(163, 113, 247, 0.2);
-}
-
-.card-body {
-  padding: 10px 12px;
-}
-
-/* Feature Grid */
-.features-grid {
+.sh-sub-card__features {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px 8px;
-}
-
-.feature-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--fg3);
-  opacity: 0.5;
-}
-
-.feature-item.active {
-  opacity: 1;
-  color: var(--fg2);
-}
-
-.status-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--k-color-divider);
-  flex-shrink: 0;
-}
-
-.feature-item.active .status-dot {
-  background: #347d39;
-}
-
-.feature-name {
-  white-space: nowrap;
-}
-
-/* Dialog Styles */
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(2px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.dialog-card {
-  background: var(--bg1);
-  border: 1px solid var(--k-color-border);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 440px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-}
-
-.dialog-card.dialog-sm {
-  max-width: 380px;
-}
-
-.dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--k-color-divider);
-  background: var(--bg2);
-}
-
-.dialog-title {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px var(--sh-s-3);
   margin: 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--fg1);
+  padding: 0;
+  list-style: none;
 }
 
-.dialog-title.danger {
-  color: var(--k-color-danger);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  color: var(--fg3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
-}
-
-.close-btn:hover {
-  background: var(--bg3);
-  color: var(--fg1);
-}
-
-.dialog-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-top: 1px solid var(--k-color-divider);
-  background: var(--bg2);
-}
-
-.footer-left {
-  display: flex;
-  gap: 8px;
-}
-
-.footer-right {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-/* Form Elements */
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--fg2);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.form-input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--k-color-border);
-  border-radius: 6px;
-  background: var(--bg0);
-  color: var(--fg1);
-  font-family: inherit;
-  font-size: 13px;
-  box-sizing: border-box;
-  transition: border-color 0.15s ease;
-}
-
-.form-input::placeholder {
-  color: var(--fg3);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--k-color-primary);
-}
-
-.form-input.mono {
-  font-family: 'SF Mono', 'Consolas', monospace;
-  letter-spacing: 0.02em;
-}
-
-/* Radio Group */
-.radio-group {
-  display: flex;
-  gap: 8px;
-}
-
-.radio-item {
-  display: flex;
+.sh-sub-card__feature {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  cursor: pointer;
-  padding: 6px 10px;
-  border: 1px solid var(--k-color-border);
-  border-radius: 4px;
-  background: var(--bg0);
-  transition: all 0.15s ease;
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-3);
 }
 
-.radio-item input {
-  display: none;
+.sh-sub-card__feature[data-active='true'] {
+  color: var(--sh-fg);
 }
 
-.radio-item.active {
-  border-color: var(--k-color-primary);
-  background: var(--k-color-primary-fade);
-}
-
-.radio-text {
-  font-size: 11px;
-  font-weight: 500;
-  font-family: 'SF Mono', 'Consolas', monospace;
-  color: var(--fg2);
-  text-transform: uppercase;
-}
-
-.radio-item.active .radio-text {
-  color: var(--k-color-primary-tint);
-}
-
-/* Checkbox Grid */
-.checkbox-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.checkbox-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 4px;
-  background: var(--bg0);
-  border: 1px solid var(--k-color-divider);
-  transition: all 0.15s ease;
-}
-
-.checkbox-item:hover {
-  border-color: var(--k-color-border);
-}
-
-.checkbox-item input {
-  display: none;
-}
-
-.checkbox-indicator {
-  width: 14px;
-  height: 14px;
-  border: 1px solid var(--k-color-border);
-  border-radius: 3px;
-  background: var(--bg0);
-  flex-shrink: 0;
-  position: relative;
-  transition: all 0.15s ease;
-}
-
-.checkbox-item.checked .checkbox-indicator {
-  background: var(--k-color-primary);
-  border-color: var(--k-color-primary);
-}
-
-.checkbox-item.checked .checkbox-indicator::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 4px;
-  width: 4px;
-  height: 7px;
-  border: solid var(--fg0);
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(45deg);
-}
-
-.checkbox-text {
-  font-size: 12px;
-  color: var(--fg2);
-}
-
-.checkbox-item.checked .checkbox-text {
-  color: var(--fg1);
-}
-
-/* Warning Box */
-.warning-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--k-color-danger-fade);
-  border: 1px solid rgba(255, 89, 90, 0.2);
-  border-radius: 6px;
-  color: var(--k-color-danger);
-  font-size: 12px;
-}
-
-.warning-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.confirm-text {
-  font-size: 13px;
-  color: var(--fg2);
-  margin: 0;
-  line-height: 1.6;
-}
-
-.code-inline {
-  background: var(--bg3);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'SF Mono', 'Consolas', monospace;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  user-select: all;
-  border: 1px solid var(--k-color-divider);
-  margin: 0 2px;
-  color: var(--fg1);
-  transition: border-color 0.15s ease;
-}
-
-.code-inline:hover {
-  border-color: var(--k-color-primary);
-  color: var(--k-color-primary-tint);
-}
-
-/* Scrollbar */
-::-webkit-scrollbar {
+.sh-sub-card__dot {
   width: 6px;
   height: 6px;
+  border-radius: var(--sh-r-full);
+  background: var(--sh-fg-3);
+  opacity: 0.45;
+  flex-shrink: 0;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+.sh-sub-card__feature[data-active='true'] .sh-sub-card__dot {
+  background: var(--sh-success);
+  opacity: 1;
 }
 
-::-webkit-scrollbar-thumb {
-  background-color: var(--k-color-divider);
-  border-radius: 3px;
+.sh-sub-radio {
+  display: inline-flex;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background-color: var(--fg3);
+.sh-sub-features {
+  display: grid;
+  gap: var(--sh-s-3);
 }
 
-/* ========== Mobile Responsive ========== */
-@media (max-width: 768px) {
-  .subscription-view {
-    padding: 12px;
-  }
-
-  .view-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .view-title {
-    font-size: 1.25rem;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .toggle-wrapper {
-    flex: 1;
-    min-width: 120px;
-  }
-
-  .btn-group {
-    display: flex;
-    gap: 8px;
-  }
-
-  .action-btn {
-    padding: 8px 12px;
-    font-size: 12px;
-  }
-
-  .action-btn span {
-    display: none;
-  }
-
-  .btn-icon {
-    margin: 0;
-  }
-
-  /* Subscription cards */
-  .sub-list {
-    gap: 12px;
-  }
-
-  .sub-card {
-    padding: 12px;
-  }
-
-  .card-header {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .sub-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .sub-avatar {
-    width: 32px;
-    height: 32px;
-  }
-
-  .sub-id {
-    font-size: 13px;
-  }
-
-  .sub-id-suffix {
-    font-size: 11px;
-  }
-
-  .sub-tag {
-    font-size: 10px;
-    padding: 2px 6px;
-  }
-
-  /* Features grid */
-  .features-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
-
-  .feature-item {
-    font-size: 11px;
-    padding: 4px 6px;
-  }
-
-  /* Dialog */
-  .dialog-card {
-    width: 95%;
-    max-width: none;
-    max-height: 90vh;
-    margin: 16px;
-  }
-
-  .dialog-header {
-    padding: 12px 16px;
-  }
-
-  .dialog-title {
-    font-size: 1rem;
-  }
-
-  .dialog-body {
-    padding: 16px;
-    max-height: 60vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .form-grid {
-    gap: 12px;
-  }
-
-  .form-row {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .form-label {
-    width: 100%;
-    font-size: 12px;
-  }
-
-  .form-control {
-    width: 100%;
-  }
-
-  .form-control input,
-  .form-control select {
-    font-size: 16px; /* Prevent iOS zoom */
-    padding: 10px 12px;
-  }
-
-  .type-options {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .type-option {
-    flex: none;
-    width: 100%;
-    padding: 12px;
-  }
-
-  .feature-toggles {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-  }
-
-  .feature-toggle label {
-    font-size: 12px;
-    padding: 8px;
-  }
-
-  .dialog-footer {
-    padding: 12px 16px;
-  }
-
-  /* Confirm dialog */
-  .confirm-dialog {
-    width: 90%;
-    max-width: none;
-    margin: 16px;
-  }
-
-  .confirm-body {
-    padding: 16px;
-  }
-
-  .warning-box {
-    padding: 10px;
-    font-size: 11px;
-  }
-
-  .confirm-text {
-    font-size: 12px;
-  }
+.sh-sub-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-@media (max-width: 480px) {
-  .subscription-view {
-    padding: 8px;
-  }
+.sh-sub-feature__hint {
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-3);
+  padding-left: 26px;
+}
 
-  .header-actions {
-    flex-direction: column;
-  }
-
-  .toggle-wrapper {
-    width: 100%;
-  }
-
-  .btn-group {
-    width: 100%;
-  }
-
-  .action-btn {
-    flex: 1;
-    justify-content: center;
-  }
-
-  .action-btn span {
-    display: inline;
-  }
-
-  .features-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .feature-toggles {
-    grid-template-columns: 1fr;
-  }
-
-  .sub-meta {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
-
-  .sub-id-suffix {
-    margin-left: 0;
-  }
+.sh-drawer__foot-spacer {
+  flex: 1;
 }
 </style>

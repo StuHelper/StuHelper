@@ -1,117 +1,169 @@
 <template>
-  <div class="console-view">
-    <section class="console-header">
-      <div>
-        <h2 class="console-header__title">控制台总览</h2>
-        <div class="console-header__meta">
-          <span class="console-chip">StuHelper 群管中心</span>
-          <span class="console-chip" v-if="dashboardData">页面数据 {{ formatTimestamp(dashboardData.generatedAt) }}</span>
-          <span class="console-chip" v-if="stats.timestamp">统计数据 {{ formatTimestamp(stats.timestamp) }}</span>
+  <div class="sh-view sh-dashboard">
+    <header class="sh-dashboard__head">
+      <div class="sh-dashboard__head-copy">
+        <h1 class="sh-dashboard__title">控制台总览</h1>
+        <p class="sh-dashboard__description">
+          看板 · 待办 · 分发台 — 只做摘要与跳转,复杂处置进入目标页完成。
+        </p>
+        <div class="sh-dashboard__meta">
+          <span class="sh-meta-chip">StuHelper 群管中心</span>
+          <span v-if="dashboardData" class="sh-meta-chip sh-mono">
+            页面 · {{ formatTimestamp(dashboardData.generatedAt) }}
+          </span>
+          <span v-if="stats.timestamp" class="sh-meta-chip sh-mono">
+            统计 · {{ formatTimestamp(stats.timestamp) }}
+          </span>
         </div>
       </div>
-      <div class="console-toolbar">
-        <button class="console-button" @click="loadData">刷新</button>
+      <div class="sh-dashboard__actions">
+        <el-button
+          class="sh-button sh-button--ghost"
+          :disabled="loading"
+          @click="loadData"
+        >
+          {{ loading ? '刷新中…' : '刷新' }}
+        </el-button>
       </div>
-    </section>
+    </header>
 
-    <div v-if="error" class="console-error">{{ error }}</div>
-    <div v-else-if="loading" class="console-empty">正在加载总览数据…</div>
+    <ConsolePageSkeleton v-if="loading && !dashboardData" />
+    <EmptyState
+      v-else-if="error"
+      title="加载失败"
+      :body="error"
+      tone="error"
+    />
     <template v-else-if="dashboardData">
-      <section class="console-metrics">
-        <article v-for="metric in baseMetrics" :key="metric.label" class="console-metric">
-          <div class="console-metric__label">{{ metric.label }}</div>
-          <div class="console-metric__value">{{ metric.value }}</div>
-          <div class="console-metric__note">{{ metric.note }}</div>
+      <section class="sh-dashboard-metrics">
+        <article
+          v-for="(metric, index) in baseMetrics"
+          :key="metric.label"
+          class="sh-stat sh-dashboard-metric"
+          :class="baseIntent(index)"
+        >
+          <span class="sh-stat__label">{{ metric.label }}</span>
+          <span class="sh-stat__value sh-num">{{ metric.value }}</span>
+          <span class="sh-stat__note">{{ metric.note }}</span>
         </article>
       </section>
 
-      <section class="console-metrics">
-        <article v-for="metric in pendingMetrics" :key="metric.label" class="console-metric">
-          <div class="console-metric__label">{{ metric.label }}</div>
-          <div class="console-metric__value">{{ metric.value }}</div>
-          <div class="console-metric__note">{{ metric.note }}</div>
+      <section class="sh-dashboard-metrics">
+        <article
+          v-for="metric in pendingMetrics"
+          :key="metric.label"
+          class="sh-stat sh-dashboard-metric"
+          :class="pendingIntent(metric.value)"
+        >
+          <span class="sh-stat__label">{{ metric.label }}</span>
+          <span class="sh-stat__value sh-num">{{ metric.value }}</span>
+          <span class="sh-stat__note">{{ metric.note }}</span>
         </article>
       </section>
 
-      <section class="console-grid">
-        <div class="console-stack">
-          <div class="console-grid--cards">
-            <TrendChartCard :data="chartData.trend" :loading="chartLoading" />
-            <DistChartCard :data="chartData.distribution" :loading="chartLoading" />
-            <RankChartCard type="guild" title="群聊排行" icon="octicons.people" :data="chartData.guildRank" :loading="chartLoading" />
-            <RankChartCard type="user" title="个人排行" icon="octicons.person" :data="chartData.userRank" :loading="chartLoading" />
-          </div>
+      <div class="sh-dashboard-grid">
+        <div class="sh-dashboard__charts">
+          <TrendChartCard :data="chartData.trend" :loading="chartLoading" />
+          <DistChartCard :data="chartData.distribution" :loading="chartLoading" />
+          <RankChartCard
+            type="guild"
+            title="群聊排行"
+            icon="octicons.people"
+            :data="chartData.guildRank"
+            :loading="chartLoading"
+          />
+          <RankChartCard
+            type="user"
+            title="个人排行"
+            icon="octicons.person"
+            :data="chartData.userRank"
+            :loading="chartLoading"
+          />
         </div>
 
-        <div class="console-stack">
-          <section class="console-panel">
-            <div>
-              <h3 class="console-panel__title">待处理事项</h3>
-              <div class="console-panel__subtitle">从总览直接进入身份认证或处置中心。</div>
-            </div>
-            <div class="console-list">
+        <div class="sh-dashboard__side">
+          <WorkspaceSection
+            title="待处理事项"
+            description="从总览直接进入身份认证或处置中心。"
+            :meta="`${todoRows.length} 条`"
+            flush
+          >
+            <div v-if="todoRows.length > 0" class="sh-lane">
               <button
                 v-for="item in todoRows"
                 :key="item.id"
-                class="console-list__item console-list__item--interactive"
                 type="button"
+                class="sh-lane__row sh-lane__row--interactive"
                 @click="goToTarget(item.target)"
               >
-                <span class="console-list__title">{{ item.title }}</span>
-                <span class="console-list__meta">{{ item.meta }}</span>
+                <span class="sh-lane__dot" :class="todoDotClass(item)"></span>
+                <div class="sh-lane__body">
+                  <div class="sh-lane__title">{{ item.title }}</div>
+                  <div class="sh-lane__subtitle">{{ item.meta }}</div>
+                </div>
+                <span class="sh-lane__chevron" aria-hidden="true">›</span>
               </button>
             </div>
-          </section>
-
-          <section class="console-panel">
-            <div>
-              <h3 class="console-panel__title">快捷入口</h3>
-              <div class="console-panel__subtitle">常用治理动作直达。</div>
+            <div v-else class="sh-dashboard-empty sh-section__body">
+              暂无待处理事项。
             </div>
-            <div class="console-list">
+          </WorkspaceSection>
+
+          <WorkspaceSection title="快捷入口" description="常用治理动作直达。">
+            <div class="sh-shortcut-list">
               <button
                 v-for="item in shortcuts"
                 :key="item.label"
-                class="console-list__item console-list__item--interactive"
                 type="button"
+                class="sh-shortcut"
                 @click="goToTarget(item.target)"
               >
-                <span class="console-list__title">{{ item.label }}</span>
-                <span class="console-list__meta">{{ item.description }}</span>
+                <span class="sh-shortcut__label">{{ item.label }}</span>
+                <span class="sh-shortcut__description">{{ item.description }}</span>
               </button>
             </div>
-          </section>
+          </WorkspaceSection>
 
-          <section class="console-panel">
-            <div>
-              <h3 class="console-panel__title">系统状态</h3>
-              <div class="console-panel__subtitle">核心模块运行状况。</div>
+          <WorkspaceSection title="系统状态" description="核心模块运行状况。">
+            <div class="sh-dashboard-status-list">
+              <article
+                v-for="item in dashboardData.systemStatus"
+                :key="item.name"
+                class="sh-dashboard-status-list__item"
+              >
+                <div>
+                  <div class="sh-dashboard-status-list__label">
+                    {{ item.description }}
+                  </div>
+                  <div v-if="item.error" class="sh-dashboard-status-list__note">
+                    {{ item.error }}
+                  </div>
+                </div>
+                <SeverityTag :label="item.state" :intent="statusIntent(item.state)" />
+              </article>
             </div>
-            <div class="console-list">
-              <div v-for="item in dashboardData.systemStatus" :key="item.name" class="console-list__item">
-                <span class="console-list__title">{{ item.description }}</span>
-                <span class="console-list__meta">
-                  <span :class="statusClass(item.state)" class="console-chip">{{ item.state }}</span>
-                  <span v-if="item.error"> · {{ item.error }}</span>
-                </span>
+          </WorkspaceSection>
+
+          <WorkspaceSection
+            title="最近事件与举报"
+            description="快速判断是否需要进入处置中心。"
+            flush
+          >
+            <div v-if="activityRows.length > 0" class="sh-lane">
+              <div v-for="item in activityRows" :key="item.id" class="sh-lane__row">
+                <span class="sh-lane__dot" :class="activityDotClass(item)"></span>
+                <div class="sh-lane__body">
+                  <div class="sh-lane__title">{{ item.title }}</div>
+                  <div class="sh-lane__subtitle">{{ item.meta }}</div>
+                </div>
               </div>
             </div>
-          </section>
-
-          <section class="console-panel">
-            <div>
-              <h3 class="console-panel__title">最近事件与举报</h3>
-              <div class="console-panel__subtitle">帮助快速判断是否需要进入处置中心。</div>
+            <div v-else class="sh-dashboard-empty sh-section__body">
+              暂无最近事件。
             </div>
-            <div class="console-list">
-              <div v-for="item in activityRows" :key="item.id" class="console-list__item">
-                <span class="console-list__title">{{ item.title }}</span>
-                <span class="console-list__meta">{{ item.meta }}</span>
-              </div>
-            </div>
-          </section>
+          </WorkspaceSection>
         </div>
-      </section>
+      </div>
     </template>
   </div>
 </template>
@@ -124,7 +176,15 @@ import { consolePageApi } from '../page-api'
 import type { DashboardPageData } from '../page-types'
 import { statsApi, type ChartData } from '../api'
 import { formatTimestamp } from '../models/formatters'
-import { buildDashboardModel } from '../models/dashboard'
+import {
+  buildDashboardModel,
+  type DashboardActivityRow,
+  type DashboardTodoRow,
+} from '../models/dashboard'
+import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
+import EmptyState from './primitives/EmptyState.vue'
+import SeverityTag, { type TagIntent } from './primitives/SeverityTag.vue'
+import WorkspaceSection from './primitives/WorkspaceSection.vue'
 import DistChartCard from './dashboard/DistChartCard.vue'
 import RankChartCard from './dashboard/RankChartCard.vue'
 import TrendChartCard from './dashboard/TrendChartCard.vue'
@@ -151,7 +211,7 @@ const chartData = reactive<ChartData>({
   guildRank: [],
   userRank: [],
 })
-const dashboardModel = computed(() => dashboardData.value ? buildDashboardModel(dashboardData.value) : null)
+const dashboardModel = computed(() => (dashboardData.value ? buildDashboardModel(dashboardData.value) : null))
 
 const baseMetrics = computed(() => [
   { label: '已配置群组', value: stats.totalGroups, note: '当前已有治理配置的群组总数。' },
@@ -205,9 +265,160 @@ function goToTarget(target: {
   props.navigation?.jumpTo(target)
 }
 
-function statusClass(state: string) {
-  if (state === 'loaded') return 'console-chip console-chip--success'
-  if (state === 'error') return 'console-chip console-chip--danger'
-  return 'console-chip'
+function statusIntent(state: string): TagIntent {
+  if (state === 'loaded') return 'success'
+  if (state === 'error') return 'danger'
+  if (state === 'loading') return 'info'
+  return 'neutral'
+}
+
+function baseIntent(index: number): string {
+  return index === 0 ? 'sh-stat--primary' : ''
+}
+
+function pendingIntent(value: number): string {
+  if (value === 0) return ''
+  if (value > 20) return 'sh-stat--danger'
+  if (value > 5) return 'sh-stat--warning'
+  return 'sh-stat--primary'
+}
+
+function todoDotClass(item: DashboardTodoRow): string {
+  if (item.target.view === 'identity') return 'sh-lane__dot--warning'
+  return 'sh-lane__dot--primary'
+}
+
+function activityDotClass(item: DashboardActivityRow): string {
+  return item.meta.startsWith('举报') ? 'sh-lane__dot--warning' : 'sh-lane__dot--primary'
 }
 </script>
+
+<style scoped>
+.sh-dashboard__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sh-s-4);
+  padding: var(--sh-s-5) var(--sh-s-6);
+  background: var(--sh-surface-0);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-3);
+  box-shadow: var(--sh-shadow-card);
+}
+
+.sh-dashboard__head-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-2);
+  min-width: 0;
+}
+
+.sh-dashboard__title {
+  font-size: var(--sh-t-heading);
+  font-weight: var(--sh-w-semibold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.sh-dashboard__description {
+  font-size: var(--sh-t-body);
+  color: var(--sh-fg-2);
+  line-height: var(--sh-l-normal);
+  max-width: 64ch;
+}
+
+.sh-dashboard__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sh-s-2);
+  margin-top: var(--sh-s-1);
+}
+
+.sh-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 10px;
+  border-radius: var(--sh-r-full);
+  border: 1px solid var(--sh-border);
+  background: var(--sh-surface-1);
+  color: var(--sh-fg-2);
+  font-size: var(--sh-t-meta);
+  font-weight: var(--sh-w-medium);
+}
+
+.sh-dashboard__actions {
+  flex-shrink: 0;
+}
+
+.sh-dashboard__charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sh-s-3);
+}
+
+.sh-dashboard__charts > * {
+  min-width: 0;
+}
+
+.sh-dashboard__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-3);
+  min-width: 0;
+}
+
+.sh-lane__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.sh-lane__row--interactive {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--sh-border);
+  color: var(--sh-fg);
+  cursor: pointer;
+  padding: 10px 14px;
+  transition: background var(--sh-dur-fast) var(--sh-ease);
+  width: 100%;
+}
+
+.sh-lane__row--interactive:last-child {
+  border-bottom: none;
+}
+
+.sh-lane__row--interactive:hover {
+  background: var(--sh-surface-hover);
+}
+
+.sh-lane__row--interactive:focus-visible {
+  outline: none;
+  background: var(--sh-primary-soft);
+}
+
+.sh-lane__chevron {
+  color: var(--sh-fg-3);
+  font-size: var(--sh-t-title);
+  line-height: 1;
+}
+
+@media (max-width: 1080px) {
+  .sh-dashboard__charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sh-dashboard__head {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 720px) {
+  .sh-dashboard__head {
+    padding: var(--sh-s-4) var(--sh-s-5);
+  }
+}
+</style>

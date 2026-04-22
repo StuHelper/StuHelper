@@ -95,7 +95,7 @@ const getBarHeight = (count: number, max: number) => {
   background: var(--bg3);
   padding: 2px 6px;
   border-radius: 3px;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
 }
 
 .chart-container {
@@ -150,7 +150,7 @@ const getBarHeight = (count: number, max: number) => {
   background: var(--bg3);
   color: var(--fg3);
   font-size: 0.6rem;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -173,7 +173,7 @@ const getBarHeight = (count: number, max: number) => {
 
 .h-bar-name {
   font-size: 0.75rem;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
   color: var(--fg2);
   white-space: nowrap;
   overflow: hidden;
@@ -202,7 +202,7 @@ const getBarHeight = (count: number, max: number) => {
 .h-bar-count {
   min-width: 32px;
   font-size: 0.7rem;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
   font-weight: 500;
   color: var(--fg3);
   text-align: right;

@@ -1,99 +1,169 @@
 <template>
-  <div class="console-view">
-    <section class="console-header">
-      <div>
-        <h2 class="console-header__title">处置中心</h2>
-        <div class="console-header__meta">
-          <span class="console-chip">统一工作项列表</span>
-          <span class="console-chip" v-if="data">更新于 {{ formatTimestamp(data.generatedAt) }}</span>
+  <div class="sh-view">
+    <header class="sh-workspace-head">
+      <div class="sh-workspace-head__copy">
+        <h1 class="sh-workspace-head__title">处置中心</h1>
+        <p class="sh-workspace-head__description">
+          统一工作项列表 — 复核、准入、举报三类入口并列展示。高风险动作只在右侧处置面板执行。
+        </p>
+        <div class="sh-workspace-head__meta" v-if="data">
+          <span class="sh-meta-chip sh-mono">
+            更新 · {{ formatTimestamp(data.generatedAt) }}
+          </span>
         </div>
       </div>
-      <div class="console-toolbar">
-        <select v-model="kindFilter" class="console-select" @change="syncSelection()">
-          <option value="">全部类型</option>
-          <option value="review">复核</option>
-          <option value="admission">准入</option>
-          <option value="report">举报</option>
-        </select>
-        <input v-model.trim="keyword" class="console-input" type="text" placeholder="搜索成员、群号、原因" @input="syncSelection()" />
-        <button class="console-button" @click="loadData">刷新</button>
+      <div class="sh-workspace-head__actions">
+        <el-button
+          class="sh-button sh-button--ghost"
+          :disabled="loading"
+          @click="loadData"
+        >
+          {{ loading ? '刷新中…' : '刷新' }}
+        </el-button>
       </div>
-    </section>
+    </header>
 
-    <div v-if="error" class="console-error">{{ error }}</div>
-    <div v-else-if="loading" class="console-empty">正在加载处置工作项…</div>
+    <EmptyState
+      v-if="error"
+      title="加载失败"
+      :body="error"
+      tone="error"
+    />
+    <ConsolePageSkeleton v-else-if="loading && !data" />
+
     <template v-else-if="data">
-      <section class="console-metrics">
-        <article v-for="metric in metrics" :key="metric.label" class="console-metric">
-          <div class="console-metric__label">{{ metric.label }}</div>
-          <div class="console-metric__value">{{ metric.value }}</div>
-          <div class="console-metric__note">{{ metric.note }}</div>
+      <section class="sh-dashboard-metrics">
+        <article
+          v-for="(metric, index) in metrics"
+          :key="metric.label"
+          class="sh-stat sh-dashboard-metric"
+          :class="metricIntent(index, metric.value)"
+        >
+          <span class="sh-stat__label">{{ metric.label }}</span>
+          <span class="sh-stat__value sh-num">{{ metric.value }}</span>
+          <span class="sh-stat__note">{{ metric.note }}</span>
         </article>
       </section>
 
-      <section class="console-split">
-        <section class="console-panel">
-          <div>
-            <h3 class="console-panel__title">工作项列表</h3>
-            <div class="console-panel__subtitle">复核、准入、举报统一展示。</div>
-          </div>
-          <div v-if="filteredItems.length === 0" class="console-empty">没有匹配的工作项。</div>
-          <div v-else class="console-list">
+      <section class="sh-toolbar sh-review-toolbar">
+        <label class="sh-field sh-review-toolbar__field">
+          <span class="sh-field__label">类型</span>
+          <el-select
+            v-model="kindFilter"
+            class="sh-control"
+            clearable
+            placeholder="全部类型"
+            @change="syncSelection()"
+          >
+            <el-option label="全部类型" value="" />
+            <el-option label="复核" value="review" />
+            <el-option label="准入" value="admission" />
+            <el-option label="举报" value="report" />
+          </el-select>
+        </label>
+        <label class="sh-field sh-review-toolbar__field sh-review-toolbar__field--wide">
+          <span class="sh-field__label">检索</span>
+          <el-input
+            v-model.trim="keyword"
+            class="sh-control"
+            placeholder="成员、群号、原因"
+            @input="syncSelection()"
+          />
+        </label>
+      </section>
+
+      <div class="sh-split sh-split--7-5">
+        <WorkspaceSection
+          title="工作项列表"
+          description="复核、准入、举报统一展示,按严重度排序。"
+          :meta="`${filteredItems.length} 条`"
+          flush
+        >
+          <EmptyState
+            v-if="filteredItems.length === 0"
+            title="没有匹配的工作项"
+            body="清除过滤条件或等待新任务进入队列。"
+          />
+          <div v-else class="sh-lane">
             <button
               v-for="item in filteredItems"
               :key="item.id"
               type="button"
-              class="console-list__item console-list__item--interactive"
-              :class="{ 'console-list__item--active': selectedItem?.id === item.id }"
+              class="sh-lane__row sh-lane__row--interactive"
+              :class="{ 'sh-lane__row--active': selectedItem?.id === item.id }"
               @click="selectItem(item.id)"
             >
-              <span class="console-list__title">{{ item.subjectLabel }}</span>
-              <span class="console-list__meta">{{ REVIEW_KIND_LABELS[item.kind] }} · {{ item.status }} · {{ item.reason }}</span>
+              <span class="sh-lane__dot" :class="kindDotClass(item.kind)"></span>
+              <div class="sh-lane__body">
+                <div class="sh-lane__title">{{ item.subjectLabel }}</div>
+                <div class="sh-lane__subtitle">
+                  <SeverityTag
+                    :label="REVIEW_KIND_LABELS[item.kind]"
+                    :intent="kindIntent(item.kind)"
+                  />
+                  <span class="sh-mono">{{ item.status }}</span>
+                  <span>· {{ item.reason }}</span>
+                </div>
+              </div>
+              <span class="sh-lane__time sh-mono">
+                {{ formatTimestamp(item.createdAt) }}
+              </span>
             </button>
           </div>
-        </section>
+        </WorkspaceSection>
 
-        <section class="console-panel">
-          <div>
-            <h3 class="console-panel__title">详情与上下文</h3>
-            <div class="console-panel__subtitle">优先接通 review 工作项的执行与驳回动作。</div>
-          </div>
-          <div v-if="!selectedItem" class="console-empty">请选择左侧工作项。</div>
-          <div v-else class="console-stack">
-            <div class="console-list__item">
-              <span class="console-list__title">{{ selectedItem.subjectLabel }}</span>
-              <span class="console-list__meta">
-                {{ REVIEW_KIND_LABELS[selectedItem.kind] }} · {{ selectedItem.priority }} · {{ formatTimestamp(selectedItem.createdAt) }}
-              </span>
+        <WorkspaceSection
+          title="详情与处置"
+          description="执行或驳回前,先确认上下文。"
+        >
+          <EmptyState
+            v-if="!selectedItem"
+            title="请选择左侧工作项"
+            body="选中后这里会展示可用动作、原因与关联事件。"
+          />
+          <template v-else>
+            <dl class="sh-keylist">
+              <dt>对象</dt>
+              <dd>{{ selectedItem.subjectLabel }}</dd>
+              <dt>类型</dt>
+              <dd>{{ REVIEW_KIND_LABELS[selectedItem.kind] }}</dd>
+              <dt>优先级</dt>
+              <dd>{{ selectedItem.priority }}</dd>
+              <dt>创建时间</dt>
+              <dd class="sh-mono">{{ formatTimestamp(selectedItem.createdAt) }}</dd>
+              <dt>原因</dt>
+              <dd>{{ selectedItem.reason || '—' }}</dd>
+              <dt>关联事件</dt>
+              <dd>
+                {{ relatedEvents.map((item) => item.summary).join(' / ') || '暂无' }}
+              </dd>
+            </dl>
+
+            <div class="sh-field">
+              <span class="sh-field__label">处理备注(可选)</span>
+              <el-input
+                v-model.trim="reviewNote"
+                class="sh-control"
+                placeholder="记录这次决策依据"
+              />
             </div>
-            <div class="console-list__item">
-              <span class="console-list__title">处理原因</span>
-              <span class="console-list__meta">{{ selectedItem.reason }}</span>
-            </div>
-            <div class="console-list__item">
-              <span class="console-list__title">可用动作</span>
-              <span class="console-list__meta">{{ selectedItem.availableActions.map((action) => REVIEW_ACTION_LABELS[action]).join('、') }}</span>
-            </div>
-            <div class="console-list__item">
-              <span class="console-list__title">关联事件</span>
-              <span class="console-list__meta">{{ relatedEvents.map((item) => item.summary).join(' / ') || '暂无' }}</span>
-            </div>
-            <div class="console-toolbar">
-              <input v-model.trim="reviewNote" class="console-input" type="text" placeholder="可选处理备注" />
-              <button
-                v-for="action in selectedItem.availableActions"
+
+            <div class="sh-btn-row sh-review__actions">
+              <el-button
+                v-for="(action, actionIndex) in selectedItem.availableActions"
                 :key="action"
-                class="console-button"
-                :class="{ 'console-button--primary': action === selectedItem.availableActions[0] }"
+                class="sh-button"
+                :class="actionButtonClass(actionIndex, action)"
+                :type="actionIndex === 0 ? 'primary' : undefined"
                 :disabled="actionLoading"
                 @click="submitAction(action)"
               >
                 {{ REVIEW_ACTION_LABELS[action] }}
-              </button>
+              </el-button>
             </div>
-          </div>
-        </section>
-      </section>
+          </template>
+        </WorkspaceSection>
+      </div>
     </template>
   </div>
 </template>
@@ -106,6 +176,10 @@ import { consolePageApi } from '../page-api'
 import type { ReviewPageData, ReviewWorkItem } from '../page-types'
 import { formatTimestamp } from '../models/formatters'
 import { buildReviewModel, REVIEW_ACTION_LABELS, REVIEW_KIND_LABELS } from '../models/review'
+import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
+import EmptyState from './primitives/EmptyState.vue'
+import SeverityTag, { type TagIntent } from './primitives/SeverityTag.vue'
+import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
 const props = defineProps<{
   navigation?: ConsoleNavigationController
@@ -121,9 +195,7 @@ const reviewNote = ref('')
 const actionLoading = ref(false)
 
 const model = computed(() => {
-  if (!data.value) {
-    return null
-  }
+  if (!data.value) return null
   return buildReviewModel(data.value, {
     workspace: kindFilter.value,
     keyword: keyword.value,
@@ -161,7 +233,13 @@ function selectItem(itemId: string) {
 function syncSelection() {
   const item = filteredItems.value.find((entry) => entry.id === selectedItemId.value) ?? filteredItems.value[0] ?? null
   if (!item) {
-    props.navigation?.replaceState({ workspace: kindFilter.value || null, guildId: null, memberId: null, itemId: null, keyword: keyword.value })
+    props.navigation?.replaceState({
+      workspace: kindFilter.value || null,
+      guildId: null,
+      memberId: null,
+      itemId: null,
+      keyword: keyword.value,
+    })
     return
   }
   selectedItemId.value = item.id
@@ -175,9 +253,7 @@ function syncSelection() {
 }
 
 async function submitAction(action: ReviewWorkItem['availableActions'][number]) {
-  if (!selectedItem.value) {
-    return
-  }
+  if (!selectedItem.value) return
   actionLoading.value = true
   error.value = ''
   try {
@@ -196,4 +272,143 @@ async function submitAction(action: ReviewWorkItem['availableActions'][number]) 
     actionLoading.value = false
   }
 }
+
+function metricIntent(index: number, value: number): string {
+  if (index === 0 && value > 0) return 'sh-stat--primary'
+  if (index === 1 && value > 5) return 'sh-stat--warning'
+  if (index === 2 && value > 10) return 'sh-stat--warning'
+  if (index === 3 && value > 0) return 'sh-stat--danger'
+  return ''
+}
+
+function kindDotClass(kind: ReviewWorkItem['kind']): string {
+  if (kind === 'review') return 'sh-lane__dot--primary'
+  if (kind === 'admission') return 'sh-lane__dot--warning'
+  return 'sh-lane__dot--danger'
+}
+
+function kindIntent(kind: ReviewWorkItem['kind']): TagIntent {
+  if (kind === 'review') return 'primary'
+  if (kind === 'admission') return 'warning'
+  return 'danger'
+}
+
+function actionButtonClass(index: number, action: string): string {
+  if (action === 'reject' || action === 'deny' || action === 'dismiss') {
+    return 'sh-button--danger'
+  }
+  if (index === 0) return 'sh-button--primary'
+  return 'sh-button--ghost'
+}
 </script>
+
+<style scoped>
+.sh-workspace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sh-s-4);
+  padding: var(--sh-s-5) var(--sh-s-6);
+  background: var(--sh-surface-0);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-3);
+  box-shadow: var(--sh-shadow-card);
+}
+
+.sh-workspace-head__copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-2);
+  min-width: 0;
+}
+
+.sh-workspace-head__title {
+  font-size: var(--sh-t-heading);
+  font-weight: var(--sh-w-semibold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.sh-workspace-head__description {
+  font-size: var(--sh-t-body);
+  color: var(--sh-fg-2);
+  line-height: var(--sh-l-normal);
+  max-width: 64ch;
+}
+
+.sh-workspace-head__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sh-s-2);
+  margin-top: var(--sh-s-1);
+}
+
+.sh-workspace-head__actions {
+  flex-shrink: 0;
+}
+
+.sh-review-toolbar {
+  gap: var(--sh-s-3);
+  padding: 0;
+}
+
+.sh-review-toolbar__field {
+  min-width: 180px;
+  flex: 0 1 220px;
+}
+
+.sh-review-toolbar__field--wide {
+  flex-basis: 320px;
+}
+
+.sh-review__actions {
+  justify-content: flex-end;
+}
+
+.sh-lane__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.sh-lane__subtitle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-2);
+}
+
+.sh-lane__row--interactive {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--sh-border);
+  color: var(--sh-fg);
+  cursor: pointer;
+  padding: 10px 14px;
+  transition: background var(--sh-dur-fast) var(--sh-ease);
+  width: 100%;
+}
+
+.sh-lane__row--interactive:last-child {
+  border-bottom: none;
+}
+
+.sh-lane__row--interactive:hover {
+  background: var(--sh-surface-hover);
+}
+
+.sh-lane__row--active {
+  background: var(--sh-primary-soft);
+  box-shadow: inset 2px 0 0 var(--sh-primary);
+}
+
+@media (max-width: 1080px) {
+  .sh-workspace-head {
+    flex-direction: column;
+  }
+}
+</style>

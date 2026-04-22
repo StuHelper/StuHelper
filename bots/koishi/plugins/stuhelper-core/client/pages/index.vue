@@ -118,7 +118,7 @@ function handleSelectView(id: ConsoleViewId) {
   background: var(--bg1);
   height: 100vh;
   min-height: 0;
-  font-family: var(--gh-font-sans, -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif);
+  font-family: var(--sh-font-ui);
 }
 
 .top-nav {
@@ -156,7 +156,7 @@ function handleSelectView(id: ConsoleViewId) {
 
 .version-text {
   font-size: 10px;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
   color: var(--fg3);
   background: var(--bg3);
   padding: 1px 6px;

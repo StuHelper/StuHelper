@@ -102,7 +102,7 @@ const getBarHeight = (count: number, max: number) => {
   background: var(--bg3);
   padding: 2px 6px;
   border-radius: 3px;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
 }
 
 .chart-container {
@@ -166,7 +166,7 @@ const getBarHeight = (count: number, max: number) => {
 /* 数值 - 等宽字体 */
 .bar-value {
   font-size: 0.65rem;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
   color: var(--fg3);
   margin-bottom: 2px;
   transition: color 0.15s ease;
@@ -179,7 +179,7 @@ const getBarHeight = (count: number, max: number) => {
 /* 标签 */
 .bar-label {
   font-size: 0.6rem;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
   color: var(--fg3);
   white-space: nowrap;
 }
@@ -188,7 +188,7 @@ const getBarHeight = (count: number, max: number) => {
 .chart-total {
   text-align: center;
   font-size: 0.7rem;
-  font-family: var(--gh-font-mono, 'JetBrains Mono', 'SF Mono', Consolas, monospace);
+  font-family: var(--sh-font-mono);
   color: var(--fg3);
   padding-top: 0.5rem;
   border-top: 1px solid var(--k-color-divider);

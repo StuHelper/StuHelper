@@ -1,338 +1,273 @@
 <template>
-  <div class="logs-view">
-    <!-- 顶部标题栏 -->
-    <div class="view-header">
-      <div class="header-left">
-        <k-icon name="stuhelperGroupCenter:file-text" class="header-icon" />
-        <h2 class="view-title">日志检索</h2>
-        <span class="record-count" v-if="total > 0">{{ total.toLocaleString() }} 条记录</span>
-      </div>
-      <div class="header-actions">
-        <button class="btn btn-ghost" @click="resetColumnWidths" title="重置列宽">
-          <k-icon name="columns" />
-        </button>
-        <button class="btn btn-secondary" @click="resetFilters">
-          <k-icon name="x" />
-          重置
-        </button>
-        <button class="btn btn-primary" @click="refreshLogs">
-          <k-icon name="search" />
-          搜索
-        </button>
-      </div>
-    </div>
+  <div class="sh-view">
+    <WorkspaceHead
+      title="日志检索"
+      description="全局命令执行日志。本页只用于检索与原始日志浏览;处置动作请在处置中心完成。"
+      :chips="headerChips"
+    >
+      <template #actions>
+        <el-button class="sh-button sh-button--ghost" @click="resetFilters">重置</el-button>
+        <el-button
+          type="primary"
+          class="sh-button sh-button--primary"
+          :disabled="loading"
+          @click="runSearch"
+        >
+          {{ loading ? '检索中…' : '检索' }}
+        </el-button>
+      </template>
+    </WorkspaceHead>
 
-    <!-- 搜索栏 - 更紧凑的网格布局 -->
-    <div class="search-panel">
-      <!-- 时间范围单独一行 -->
-      <div class="search-row-time">
-        <div class="search-field search-field-time">
-          <label>时间范围</label>
-          <el-date-picker
-            v-model="dateRange"
-            type="datetimerange"
-            range-separator="→"
-            start-placeholder="开始"
-            end-placeholder="结束"
-            value-format="x"
+    <WorkspaceSection title="过滤条件" description="时间范围与若干关键字段的交集匹配。">
+      <label class="sh-field sh-logs__field--time">
+        <span class="sh-field__label">时间范围</span>
+        <el-date-picker
+          v-model="dateRange"
+          class="sh-control"
+          type="datetimerange"
+          range-separator="→"
+          start-placeholder="开始时间"
+          end-placeholder="结束时间"
+          value-format="x"
+        />
+      </label>
+      <div class="sh-form-grid">
+        <label class="sh-field">
+          <span class="sh-field__label">命令</span>
+          <el-input
+            v-model="searchParams.command"
+            class="sh-control sh-control--mono"
+            placeholder="命令名"
+            clearable
+          />
+        </label>
+        <label class="sh-field">
+          <span class="sh-field__label">用户 ID</span>
+          <el-input
+            v-model="searchParams.userId"
+            class="sh-control sh-control--mono"
+            placeholder="1234567890"
+            clearable
+          />
+        </label>
+        <label class="sh-field">
+          <span class="sh-field__label">用户名</span>
+          <el-input
+            v-model="searchParams.username"
+            class="sh-control"
+            placeholder="昵称"
+            clearable
+          />
+        </label>
+        <label class="sh-field">
+          <span class="sh-field__label">群组 ID</span>
+          <el-input
+            v-model="searchParams.guildId"
+            class="sh-control sh-control--mono"
+            placeholder="12345678"
+            clearable
+          />
+        </label>
+        <label class="sh-field sh-logs__field--wide">
+          <span class="sh-field__label">详情关键字</span>
+          <el-input
+            v-model="searchParams.details"
+            class="sh-control"
+            placeholder="错误信息、参数或结果"
+            clearable
+            @keyup.enter="runSearch"
+          />
+        </label>
+      </div>
+    </WorkspaceSection>
+
+    <ConsolePageSkeleton v-if="loading && logs.length === 0" />
+
+    <WorkspaceSection
+      v-else
+      title="检索结果"
+      :description="logs.length ? '点击任意行在右侧 Drawer 查看原始执行详情。' : '调整上方过滤条件后点击检索。'"
+      :meta="total > 0 ? `${total.toLocaleString()} 条` : ''"
+      flush
+    >
+      <EmptyState
+        v-if="logs.length === 0 && !loading"
+        title="暂无匹配记录"
+        body="这段时间没有满足过滤条件的命令执行记录。"
+      />
+      <template v-else>
+        <div class="sh-table-shell">
+          <el-table
+            :data="logs"
+            row-key="id"
+            class="sh-grid-table"
+            @row-click="openDetail"
+          >
+            <el-table-column label="时间" prop="timestamp" width="160">
+              <template #default="{ row }">
+                <span class="sh-mono">{{ formatTime(row.timestamp) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="命令" prop="command" width="140">
+              <template #default="{ row }">
+                <code class="sh-logs__cmd">{{ row.command }}</code>
+              </template>
+            </el-table-column>
+            <el-table-column label="用户" width="170">
+              <template #default="{ row }">
+                <div class="sh-logs__user">
+                  <div>{{ row.username || '—' }}</div>
+                  <div class="sh-table__id">{{ row.userId }}</div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="群组" width="140">
+              <template #default="{ row }">
+                <span v-if="row.guildId" class="sh-mono">{{ row.guildName || row.guildId }}</span>
+                <span v-else class="sh-logs__private">私聊</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="92">
+              <template #default="{ row }">
+                <SeverityTag
+                  :label="row.success ? '成功' : '失败'"
+                  :intent="row.success ? 'success' : 'danger'"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="详情" min-width="240">
+              <template #default="{ row }">
+                <span class="sh-logs__detail" :title="getDetail(row)">
+                  {{ getDetail(row) }}
+                </span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <div class="sh-logs__pagination">
+          <el-pagination
+            v-model:current-page="searchParams.page"
+            v-model:page-size="searchParams.pageSize"
+            :total="total"
+            :page-sizes="[20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
             size="small"
-            class="date-picker"
+            @size-change="runSearch"
+            @current-change="runSearch"
           />
         </div>
-      </div>
-      <!-- 其他筛选条件 -->
-      <div class="search-grid">
-        <div class="search-field">
-          <label>命令</label>
-          <el-input v-model="searchParams.command" placeholder="命令名..." clearable size="small" />
-        </div>
-        <div class="search-field">
-          <label>用户ID</label>
-          <el-input v-model="searchParams.userId" placeholder="用户ID..." clearable size="small" />
-        </div>
-        <div class="search-field">
-          <label>用户名</label>
-          <el-input v-model="searchParams.username" placeholder="用户名..." clearable size="small" />
-        </div>
-        <div class="search-field">
-          <label>群组ID</label>
-          <el-input v-model="searchParams.guildId" placeholder="群组ID..." clearable size="small" />
-        </div>
-        <div class="search-field">
-          <label>详情</label>
-          <el-input v-model="searchParams.details" placeholder="关键词..." clearable size="small" />
-        </div>
-      </div>
-    </div>
+      </template>
+    </WorkspaceSection>
 
-    <!-- 加载状态 -->
-    <div v-if="loading" class="loading-state">
-      <k-icon name="loader" class="spin" />
-      <span>正在加载数据...</span>
-    </div>
+    <Drawer
+      :open="Boolean(detailLog)"
+      :title="detailLog?.command ?? ''"
+      :subtitle="detailLog ? formatTime(detailLog.timestamp) : ''"
+      @close="closeDetail"
+    >
+      <template v-if="detailLog">
+        <section class="sh-drawer__section">
+          <h4 class="sh-drawer__section-title">基本信息</h4>
+          <dl class="sh-keylist">
+            <dt>状态</dt>
+            <dd>
+              <SeverityTag
+                :label="detailLog.success ? '成功' : '失败'"
+                :intent="detailLog.success ? 'success' : 'danger'"
+              />
+            </dd>
+            <dt>时间</dt>
+            <dd class="sh-mono">{{ formatTime(detailLog.timestamp) }}</dd>
+            <dt>用户</dt>
+            <dd>{{ detailLog.username || '—' }}</dd>
+            <dt>用户 ID</dt>
+            <dd class="sh-mono">{{ detailLog.userId }}</dd>
+            <template v-if="detailLog.guildId">
+              <dt>群组</dt>
+              <dd>{{ detailLog.guildName || detailLog.guildId }}</dd>
+              <dt>群组 ID</dt>
+              <dd class="sh-mono">{{ detailLog.guildId }}</dd>
+            </template>
+            <dt>平台</dt>
+            <dd class="sh-mono">{{ detailLog.platform }}</dd>
+            <dt>执行耗时</dt>
+            <dd class="sh-mono">{{ detailLog.executionTime ?? 0 }} ms</dd>
+          </dl>
+        </section>
 
-    <!-- 日志列表 -->
-    <div v-else class="logs-container">
-      <div v-if="logs.length === 0" class="empty-state">
-        <k-icon name="inbox" class="empty-icon" />
-        <p>暂无日志记录</p>
-        <span class="empty-hint">尝试调整筛选条件或等待新数据</span>
-      </div>
+        <section v-if="detailLog.args && detailLog.args.length > 0" class="sh-drawer__section">
+          <h4 class="sh-drawer__section-title">命令参数</h4>
+          <pre class="sh-logs__code">{{ detailLog.args.join(' ') }}</pre>
+        </section>
 
-      <div class="logs-table" v-else>
-        <div class="table-header">
-          <div class="col col-time" :style="{ width: columnWidths.time + 'px' }">
-            时间
-            <div class="resize-handle" @mousedown="startResize($event, 'time')"></div>
-          </div>
-          <div class="col col-cmd" :style="{ width: columnWidths.cmd + 'px' }">
-            命令
-            <div class="resize-handle" @mousedown="startResize($event, 'cmd')"></div>
-          </div>
-          <div class="col col-user" :style="{ width: columnWidths.user + 'px' }">
-            用户
-            <div class="resize-handle" @mousedown="startResize($event, 'user')"></div>
-          </div>
-          <div class="col col-userid" :style="{ width: columnWidths.userid + 'px' }">
-            用户ID
-            <div class="resize-handle" @mousedown="startResize($event, 'userid')"></div>
-          </div>
-          <div class="col col-group" :style="{ width: columnWidths.group + 'px' }">
-            群组
-            <div class="resize-handle" @mousedown="startResize($event, 'group')"></div>
-          </div>
-          <div class="col col-status" :style="{ width: columnWidths.status + 'px' }">
-            状态
-            <div class="resize-handle" @mousedown="startResize($event, 'status')"></div>
-          </div>
-          <div class="col col-detail">详情</div>
-        </div>
-        <div class="table-body">
-          <div
-            v-for="(log, index) in logs"
-            :key="log.id"
-            class="table-row"
-            :style="{ animationDelay: `${Math.min(index * 0.015, 0.2)}s` }"
-            @click="openDetail(log)"
-          >
-            <div class="col col-time" :style="{ width: columnWidths.time + 'px' }">
-              <span class="time-value">{{ formatTime(log.timestamp) }}</span>
-            </div>
-            <div class="col col-cmd" :style="{ width: columnWidths.cmd + 'px' }">
-              <code class="cmd-tag">{{ log.command }}</code>
-            </div>
-            <div class="col col-user" :style="{ width: columnWidths.user + 'px' }" :title="log.username">{{ log.username || '-' }}</div>
-            <div class="col col-userid" :style="{ width: columnWidths.userid + 'px' }" :title="log.userId">
-              <code>{{ log.userId }}</code>
-            </div>
-            <div class="col col-group" :style="{ width: columnWidths.group + 'px' }" :title="log.guildId">{{ log.guildName || log.guildId || '私聊' }}</div>
-            <div class="col col-status" :style="{ width: columnWidths.status + 'px' }">
-              <span class="status-badge" :class="log.success ? 'success' : 'fail'">
-                <span class="status-dot"></span>
-                {{ log.success ? '成功' : '失败' }}
-              </span>
-            </div>
-            <div class="col col-detail" :title="getDetail(log)">
-              {{ getDetail(log) }}
-            </div>
-          </div>
-        </div>
-      </div>
+        <section
+          v-if="detailLog.options && Object.keys(detailLog.options).length > 0"
+          class="sh-drawer__section"
+        >
+          <h4 class="sh-drawer__section-title">命令选项</h4>
+          <pre class="sh-logs__code">{{ JSON.stringify(detailLog.options, null, 2) }}</pre>
+        </section>
 
-      <!-- 分页 -->
-      <div class="pagination-bar" v-if="total > 0">
-        <el-pagination
-          v-model:current-page="searchParams.page"
-          v-model:page-size="searchParams.pageSize"
-          :total="total"
-          :page-sizes="[20, 50, 100]"
-          layout="total, sizes, prev, pager, next"
-          size="small"
-          @size-change="refreshLogs"
-          @current-change="refreshLogs"
-        />
-      </div>
-    </div>
+        <section v-if="detailLog.result" class="sh-drawer__section">
+          <h4 class="sh-drawer__section-title">执行结果</h4>
+          <pre class="sh-logs__code">{{ detailLog.result }}</pre>
+        </section>
 
-    <!-- 详情弹窗 -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="detailLog" class="detail-overlay" @click="closeDetail">
-          <div class="detail-modal" @click.stop>
-            <div class="detail-header">
-              <div class="detail-title">
-                <code class="detail-cmd">{{ detailLog.command }}</code>
-                <span class="status-badge" :class="detailLog.success ? 'success' : 'fail'">
-                  <span class="status-dot"></span>
-                  {{ detailLog.success ? '成功' : '失败' }}
-                </span>
-              </div>
-              <button class="detail-close" @click="closeDetail">
-                <k-icon name="x" />
-              </button>
-            </div>
-            <div class="detail-body">
-              <div class="detail-section">
-                <h4>基本信息</h4>
-                <div class="detail-grid">
-                  <div class="detail-item">
-                    <label>时间</label>
-                    <span class="mono">{{ formatTime(detailLog.timestamp) }}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>用户</label>
-                    <span>{{ detailLog.username || '-' }}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>用户ID</label>
-                    <span class="mono">{{ detailLog.userId }}</span>
-                  </div>
-                  <div class="detail-item">
-                    <label>群组</label>
-                    <span>{{ detailLog.guildName || detailLog.guildId || '私聊' }}</span>
-                  </div>
-                  <div class="detail-item" v-if="detailLog.guildId">
-                    <label>群组ID</label>
-                    <span class="mono">{{ detailLog.guildId }}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="detail-section" v-if="detailLog.args && detailLog.args.length > 0">
-                <h4>命令参数</h4>
-                <div class="detail-code">
-                  <code>{{ detailLog.args.join(' ') }}</code>
-                </div>
-              </div>
-              <div class="detail-section" v-if="detailLog.options && Object.keys(detailLog.options).length > 0">
-                <h4>命令选项</h4>
-                <div class="detail-code">
-                  <pre>{{ JSON.stringify(detailLog.options, null, 2) }}</pre>
-                </div>
-              </div>
-              <div class="detail-section" v-if="detailLog.result">
-                <h4>执行结果</h4>
-                <div class="detail-code">
-                  <pre>{{ detailLog.result }}</pre>
-                </div>
-              </div>
-              <div class="detail-section" v-if="!detailLog.success && detailLog.error">
-                <h4>错误信息</h4>
-                <div class="detail-code error">
-                  <pre>{{ detailLog.error }}</pre>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+        <section v-if="!detailLog.success && detailLog.error" class="sh-drawer__section">
+          <h4 class="sh-drawer__section-title">错误信息</h4>
+          <pre class="sh-logs__code sh-logs__code--error">{{ detailLog.error }}</pre>
+        </section>
+      </template>
+    </Drawer>
+
+    <NoticeStack :items="notices" @dismiss="dismissNotice" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { message } from '@koishijs/client'
+import { computed, onMounted, reactive, ref } from 'vue'
+
 import { logsApi } from '../api'
 import type { LogRecord, LogSearchParams } from '../types'
+import { formatTimestamp } from '../models/formatters'
+import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
+import Drawer from './primitives/Drawer.vue'
+import EmptyState from './primitives/EmptyState.vue'
+import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
+import SeverityTag from './primitives/SeverityTag.vue'
+import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'
+import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
 const loading = ref(false)
 const logs = ref<LogRecord[]>([])
 const total = ref(0)
 const dateRange = ref<[number, number] | null>(null)
+const detailLog = ref<LogRecord | null>(null)
+const notices = ref<NoticeItem[]>([])
 
 const searchParams = reactive<LogSearchParams>({
   page: 1,
-  pageSize: 20
+  pageSize: 20,
 })
 
-// ======== 列宽调整功能 ========
-interface ColumnWidths {
-  time: number
-  cmd: number
-  user: number
-  userid: number
-  group: number
-  status: number
-}
-
-const defaultWidths: ColumnWidths = {
-  time: 145,
-  cmd: 90,
-  user: 100,
-  userid: 110,
-  group: 100,
-  status: 70
-}
-
-// 从 localStorage 加载列宽
-const loadColumnWidths = (): ColumnWidths => {
-  const saved = localStorage.getItem('gh-logs-column-widths')
-  if (saved) {
-    try {
-      return { ...defaultWidths, ...JSON.parse(saved) }
-    } catch (e) { /* ignore */ }
+const headerChips = computed<WorkspaceHeadChip[]>(() => {
+  const chips: WorkspaceHeadChip[] = []
+  if (total.value > 0) {
+    chips.push({ text: `${total.value.toLocaleString()} 条`, numeric: true })
   }
-  return { ...defaultWidths }
-}
-
-const columnWidths = reactive<ColumnWidths>(loadColumnWidths())
-
-// 保存列宽到 localStorage
-const saveColumnWidths = () => {
-  localStorage.setItem('gh-logs-column-widths', JSON.stringify(columnWidths))
-}
-
-// 拖拽调整列宽
-let resizing = false
-let resizeColumn: keyof ColumnWidths | null = null
-let startX = 0
-let startWidth = 0
-
-const startResize = (e: MouseEvent, column: keyof ColumnWidths) => {
-  e.preventDefault()
-  resizing = true
-  resizeColumn = column
-  startX = e.clientX
-  startWidth = columnWidths[column]
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-}
-
-const onMouseMove = (e: MouseEvent) => {
-  if (!resizing || !resizeColumn) return
-  const diff = e.clientX - startX
-  const newWidth = Math.max(50, Math.min(400, startWidth + diff))
-  columnWidths[resizeColumn] = newWidth
-}
-
-const onMouseUp = () => {
-  if (resizing) {
-    resizing = false
-    resizeColumn = null
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    saveColumnWidths()
+  if (searchParams.page && searchParams.pageSize) {
+    chips.push({
+      text: `第 ${searchParams.page} 页 · ${searchParams.pageSize} 条/页`,
+      mono: true,
+    })
   }
-}
-
-// 重置列宽
-const resetColumnWidths = () => {
-  Object.assign(columnWidths, defaultWidths)
-  saveColumnWidths()
-}
-
-onMounted(() => {
-  document.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
-  refreshLogs()
+  return chips
 })
 
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onMouseMove)
-  document.removeEventListener('mouseup', onMouseUp)
-})
+onMounted(runSearch)
 
-const refreshLogs = async () => {
+async function runSearch() {
   loading.value = true
   try {
     const params: LogSearchParams = { ...searchParams }
@@ -340,22 +275,17 @@ const refreshLogs = async () => {
       params.startTime = dateRange.value[0]
       params.endTime = dateRange.value[1]
     }
-    
     const result = await logsApi.search(params)
     logs.value = result.list
     total.value = result.total
-  } catch (e: any) {
-    message.error(e.message || '加载日志失败')
+  } catch (cause) {
+    pushError(cause, '加载日志失败')
   } finally {
     loading.value = false
   }
 }
 
-const formatTime = (timestamp: string | number) => {
-  return new Date(timestamp).toLocaleString('zh-CN')
-}
-
-const resetFilters = () => {
+function resetFilters() {
   dateRange.value = null
   searchParams.command = undefined
   searchParams.userId = undefined
@@ -363,908 +293,128 @@ const resetFilters = () => {
   searchParams.guildId = undefined
   searchParams.details = undefined
   searchParams.page = 1
+  void runSearch()
 }
 
-const getDetail = (log: LogRecord) => {
+function getDetail(log: LogRecord): string {
   if (!log.success && log.error) return log.error
   if (log.result) return log.result
-  if (Object.keys(log.options).length > 0) return JSON.stringify(log.options)
-  if (log.args.length > 0) return log.args.join(' ')
-  return '-'
+  if (log.options && Object.keys(log.options).length > 0) {
+    return JSON.stringify(log.options)
+  }
+  if (log.args && log.args.length > 0) return log.args.join(' ')
+  return '—'
 }
 
-// ======== 详情弹窗 ========
-const detailLog = ref<LogRecord | null>(null)
-
-const openDetail = (log: LogRecord) => {
-  detailLog.value = log
+function formatTime(timestamp: string | number | undefined): string {
+  return formatTimestamp(timestamp)
 }
 
-const closeDetail = () => {
+function openDetail(row: LogRecord) {
+  detailLog.value = row
+}
+
+function closeDetail() {
   detailLog.value = null
+}
+
+function pushError(cause: unknown, fallback: string) {
+  const message = cause instanceof Error ? cause.message : fallback
+  notices.value.push({ id: noticeId(), kind: 'error', message })
+  scheduleDismiss()
+}
+
+function dismissNotice(id: string) {
+  notices.value = notices.value.filter((item) => item.id !== id)
+}
+
+function scheduleDismiss() {
+  const id = notices.value[notices.value.length - 1]?.id
+  if (!id) return
+  window.setTimeout(() => dismissNotice(id), 4000)
+}
+
+function noticeId(): string {
+  return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
 }
 </script>
 
 <style scoped>
-/* ========================================
-   GitHub Dimmed / Vercel 风格日志视图
-   硬核专业高信噪比 · Developer-First
-   ======================================== */
-
-.logs-view {
-  --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
-  --radius: 6px;
-  --radius-sm: 4px;
-  --border: 1px solid var(--k-color-divider);
-  --border-subtle: 1px solid var(--k-color-divider);
-
-  height: 100%;
+.sh-logs__field--time {
+  min-width: min(100%, 420px);
   display: flex;
   flex-direction: column;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  gap: 10px;
-  color: var(--fg2);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ======== 头部区域 ======== */
-.view-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.header-icon {
-  font-size: 1rem;
-  color: var(--fg3);
-  opacity: 0.7;
-}
-
-.view-title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  color: var(--fg1);
-  margin: 0;
-}
-
-.record-count {
-  font-size: 0.6875rem;
-  font-family: var(--mono);
-  font-feature-settings: 'tnum' 1;
-  color: var(--fg3);
-  background: var(--bg3);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  border: var(--border-subtle);
-}
-
-.header-actions {
-  display: flex;
   gap: 6px;
 }
 
-/* ======== 按钮样式 ======== */
-.btn {
-  cursor: pointer;
-  padding: 5px 10px;
-  border-radius: var(--radius);
+.sh-logs__field--wide {
+  grid-column: 1 / -1;
+}
+
+.sh-logs__cmd {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  transition: all 0.12s ease;
-  user-select: none;
-  border: var(--border);
-  line-height: 1;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: var(--sh-r-1);
+  background: var(--sh-primary-soft);
+  color: var(--sh-primary);
+  font-family: var(--sh-font-mono);
+  font-size: var(--sh-t-meta);
+  font-weight: var(--sh-w-medium);
 }
 
-.btn-secondary {
-  background: var(--bg3);
-  color: var(--fg2);
+.sh-logs__private {
+  color: var(--sh-fg-3);
+  font-size: var(--sh-t-meta);
 }
 
-.btn-secondary:hover {
-  background: var(--bg3);
-  border-color: var(--k-color-border);
-  color: var(--fg1);
-}
-
-.btn-primary {
-  background: var(--k-color-primary-fade);
-  color: var(--k-color-primary);
-  border-color: rgba(116, 89, 255, 0.2);
-}
-
-.btn-primary:hover {
-  background: rgba(116, 89, 255, 0.18);
-  border-color: rgba(116, 89, 255, 0.35);
-  color: var(--k-color-primary);
-}
-
-.btn-ghost {
-  background: transparent;
-  color: var(--fg3);
-  border-color: transparent;
-  padding: 5px;
-}
-
-.btn-ghost:hover {
-  background: var(--bg3);
-  color: var(--fg2);
-  border-color: var(--k-color-divider);
-}
-
-/* ======== 搜索面板 ======== */
-.search-panel {
-  background: var(--bg2);
-  border: 1px solid var(--k-color-divider);
-  border-radius: 6px;
-  padding: 0.75rem 0.875rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* 时间范围单独一行 */
-.search-row-time {
-  display: flex;
-}
-
-.search-field-time {
-  flex: 1;
-  max-width: 380px;
-}
-
-.search-field-time :deep(.el-range-editor) {
-  width: 100% !important;
-}
-
-.search-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.625rem;
-}
-
-.search-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.search-field label {
-  font-size: 0.625rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--fg3);
-}
-
-.search-field :deep(.el-input__wrapper),
-.search-field :deep(.el-range-editor) {
-  background: var(--bg3) !important;
-  border-color: var(--k-color-divider) !important;
-  box-shadow: none !important;
-  border-radius: 4px !important;
-  height: 28px !important;
-  line-height: 28px !important;
-}
-
-.search-field :deep(.el-input__inner),
-.search-field :deep(.el-range-input) {
-  font-size: 0.8rem !important;
-  color: var(--fg1) !important;
-}
-
-.search-field :deep(.el-input__inner)::placeholder,
-.search-field :deep(.el-range-input)::placeholder {
-  color: var(--fg3) !important;
-}
-
-/* ======== 加载状态 ======== */
-.loading-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  color: var(--fg3);
-  font-size: 0.75rem;
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* ======== 日志容器 ======== */
-.logs-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+.sh-logs__detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  background: var(--bg2);
-  border: 1px solid var(--k-color-divider);
-  border-radius: 6px;
+  color: var(--sh-fg-2);
+  font-size: var(--sh-t-meta);
+  line-height: var(--sh-l-normal);
 }
 
-/* ======== 空状态 ======== */
-.empty-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  color: var(--fg3);
-  padding: 2.5rem;
-}
-
-.empty-icon {
-  font-size: 2rem;
-  opacity: 0.35;
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--fg2);
-}
-
-.empty-hint {
-  font-size: 0.7rem;
-}
-
-/* ======== 表格样式 ======== */
-.logs-table {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.table-header {
-  display: flex;
-  padding: 0.5rem 0.875rem;
-  background: var(--bg3);
-  border-bottom: 1px solid var(--k-color-divider);
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--fg3);
-  flex-shrink: 0;
-}
-
-.table-header .col {
-  position: relative;
-  user-select: none;
-}
-
-/* ======== 拖拽调整手柄 ======== */
-.resize-handle {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  cursor: col-resize;
-}
-
-.resize-handle::after {
-  content: '';
-  position: absolute;
-  right: 2px;
-  top: 20%;
-  bottom: 20%;
-  width: 1px;
-  background: var(--k-color-divider);
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.table-header .col:hover .resize-handle::after {
-  opacity: 0.6;
-}
-
-.resize-handle:hover::after,
-.resize-handle:active::after {
-  opacity: 1;
-  background: var(--k-color-primary);
-}
-
-.table-body {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.table-row {
-  display: flex;
-  padding: 0.4375rem 0.875rem;
-  border-bottom: 1px solid var(--k-color-divider);
-  align-items: center;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: background-color 0.1s ease;
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.table-row:hover {
-  background: var(--k-hover-bg);
-}
-
-/* ======== 列样式 ======== */
-.col {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 0;
-  padding-right: 6px;
-}
-
-.col-time {
-  min-width: 80px;
-}
-
-.time-value {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
-  font-size: 0.7rem;
-  font-feature-settings: 'tnum' 1;
-  color: var(--fg3);
-  letter-spacing: -0.01em;
-}
-
-.col-cmd {
-  min-width: 60px;
-}
-
-.cmd-tag {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
-  font-size: 0.6875rem;
-  background: var(--k-color-primary-fade);
-  color: var(--k-color-primary);
-  padding: 2px 5px;
-  border-radius: 3px;
-  border: 1px solid rgba(116, 89, 255, 0.18);
-}
-
-.col-user {
-  min-width: 60px;
-  color: var(--fg2);
-}
-
-.col-userid {
-  min-width: 60px;
-}
-
-.col-userid code {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
-  font-size: 0.6875rem;
-  color: var(--fg3);
-}
-
-.col-group {
-  min-width: 60px;
-  color: var(--fg2);
-}
-
-.col-status {
-  min-width: 50px;
-}
-
-.col-detail {
-  flex: 1;
-  flex-shrink: 1;
-  color: var(--fg3);
-  font-size: 0.7rem;
-}
-
-/* ======== 状态徽章 - 实心小圆点，克制颜色 ======== */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-/* 成功 - 暗绿色，克制 */
-.status-badge.success {
-  background: var(--k-color-success-fade);
-  color: var(--k-color-success);
-  border: 1px solid rgba(46, 160, 67, 0.15);
-}
-
-.status-badge.success .status-dot {
-  background: var(--k-color-success);
-}
-
-/* 失败 - 暗红色 */
-.status-badge.fail {
-  background: var(--k-color-danger-fade);
-  color: var(--k-color-danger);
-  border: 1px solid rgba(218, 54, 51, 0.15);
-}
-
-.status-badge.fail .status-dot {
-  background: var(--k-color-danger);
-}
-
-/* ======== 分页栏 ======== */
-.pagination-bar {
-  padding: 0.5rem 0.875rem;
-  border-top: 1px solid var(--k-color-divider);
-  display: flex;
-  justify-content: flex-end;
-  background: var(--bg3);
-}
-
-.pagination-bar :deep(.el-pagination) {
-  --el-pagination-font-size: 11px;
-}
-
-.pagination-bar :deep(.el-pagination button),
-.pagination-bar :deep(.el-pager li) {
-  background: transparent !important;
-  color: var(--fg2) !important;
-  border-radius: 4px !important;
-  min-width: 24px;
-  height: 24px;
-}
-
-.pagination-bar :deep(.el-pager li.is-active) {
-  background: var(--k-color-primary) !important;
-  color: #fff !important;
-}
-
-/* ======== 滚动条 ======== */
-.table-body::-webkit-scrollbar {
-  width: 4px;
-}
-
-.table-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.table-body::-webkit-scrollbar-thumb {
-  background: var(--k-color-divider);
-  border-radius: 2px;
-}
-
-.table-body::-webkit-scrollbar-thumb:hover {
-  background: var(--fg3);
-}
-
-/* ======== 响应式 ======== */
-@media (max-width: 1200px) {
-  .search-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .search-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .col-userid,
-  .col-group {
-    display: none;
-  }
-}
-
-@media (max-width: 600px) {
-  .search-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .col-detail {
-    display: none;
-  }
-}
-
-/* ======== 详情弹窗 ======== */
-.detail-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 1.5rem;
-}
-
-.detail-modal {
-  background: var(--bg2);
-  border: 1px solid var(--k-color-divider);
-  border-radius: 6px;
-  width: 100%;
-  max-width: 520px;
-  max-height: 80vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--k-color-divider);
-  background: var(--bg3);
-}
-
-.detail-title {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-}
-
-.detail-cmd {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
-  font-size: 0.8rem;
-  font-weight: 600;
-  background: var(--k-color-primary-fade);
-  color: var(--k-color-primary);
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(116, 89, 255, 0.18);
-}
-
-.detail-close {
-  background: transparent;
-  border: none;
-  color: var(--fg3);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.1s, color 0.1s;
-}
-
-.detail-close:hover {
-  background: var(--k-hover-bg);
-  color: var(--fg1);
-}
-
-.detail-body {
-  padding: 1rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.detail-section h4 {
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--fg3);
-  margin: 0 0 0.5rem 0;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
-}
-
-.detail-item {
+.sh-logs__user {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
-.detail-item label {
-  font-size: 0.6rem;
-  color: var(--fg3);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+.sh-logs__pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--sh-s-3) var(--sh-s-5);
+  border-top: 1px solid var(--sh-border);
 }
 
-.detail-item span {
-  font-size: 0.75rem;
-  color: var(--fg1);
-}
-
-.detail-item .mono {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
-  font-size: 0.7rem;
-  font-feature-settings: 'tnum' 1;
-  color: var(--fg2);
-}
-
-.detail-code {
-  background: var(--bg1);
-  border: 1px solid var(--k-color-divider);
-  border-radius: 4px;
-  padding: 0.625rem;
+.sh-logs__code {
+  margin: 0;
+  padding: var(--sh-s-3);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-1);
+  color: var(--sh-fg-1);
+  font-family: var(--sh-font-mono);
+  font-size: var(--sh-t-meta);
+  line-height: var(--sh-l-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
   overflow-x: auto;
 }
 
-.detail-code code,
-.detail-code pre {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
-  font-size: 0.7rem;
-  color: var(--fg2);
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.5;
+.sh-logs__code--error {
+  background: var(--sh-danger-soft);
+  border-color: color-mix(in oklch, var(--sh-danger) 28%, var(--sh-border));
+  color: var(--sh-danger);
 }
 
-.detail-code.error {
-  border-color: rgba(218, 54, 51, 0.25);
-  background: rgba(218, 54, 51, 0.04);
-}
-
-.detail-code.error pre {
-  color: var(--k-color-danger);
-}
-
-/* 弹窗动画 */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-.modal-enter-from .detail-modal,
-.modal-leave-to .detail-modal {
-  transform: scale(0.97) translateY(8px);
-}
-
-.modal-enter-active .detail-modal,
-.modal-leave-active .detail-modal {
-  transition: transform 0.15s ease;
-}
-
-/* ========================================
-   移动端适配 (< 768px)
-   ======================================== */
-@media (max-width: 768px) {
-  .logs-view {
-    padding: 0;
-  }
-
-  .view-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
-    padding: 0.75rem;
-  }
-
-  .header-left {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .view-title {
-    font-size: 1rem;
-  }
-
-  .record-count {
-    font-size: 0.7rem;
-    width: 100%;
-  }
-
-  .header-actions {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.5rem;
-  }
-
-  .header-actions .btn {
-    padding: 0.5rem;
-    font-size: 0.75rem;
-    justify-content: center;
-  }
-
-  /* 搜索面板 */
-  .search-panel {
-    padding: 0.75rem;
-  }
-
-  .search-row-time {
-    margin-bottom: 0.75rem;
-  }
-
-  .search-field-time {
-    width: 100%;
-  }
-
-  .search-field-time .date-picker {
-    width: 100%;
-  }
-
-  .search-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
-
-  .search-field label {
-    font-size: 0.65rem;
-  }
-
-  /* 表格改为卡片列表 */
-  .logs-table {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .table-header {
-    display: none;
-  }
-
-  .table-row {
-    display: flex;
-    flex-direction: column;
-    padding: 0.75rem;
-    gap: 0.375rem;
-    border-bottom: 1px solid var(--k-color-divider);
-  }
-
-  .table-row .col {
-    width: 100% !important;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .table-row .col::before {
-    content: attr(data-label);
-    font-size: 0.65rem;
-    color: var(--fg3);
-    min-width: 50px;
-    text-transform: uppercase;
-  }
-
-  .table-row .col-time {
-    order: -1;
-    font-size: 0.7rem;
-  }
-
-  .table-row .col-status {
-    position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-  }
-
-  .resize-handle {
-    display: none;
-  }
-
-  /* 分页 */
-  .pagination {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.75rem;
-  }
-
-  .page-info {
-    width: 100%;
-    text-align: center;
-    font-size: 0.7rem;
-  }
-
-  .page-btns {
-    gap: 0.25rem;
-  }
-
-  .page-btn {
-    min-width: 32px;
-    height: 32px;
-    padding: 0.375rem;
-    font-size: 0.75rem;
-  }
-
-  /* 详情弹窗 */
-  .detail-overlay {
-    padding: 0.5rem;
-  }
-
-  .detail-modal {
-    max-width: 100%;
-    max-height: 90vh;
-  }
-
-  .detail-header {
-    padding: 0.75rem;
-  }
-
-  .detail-header h3 {
-    font-size: 0.85rem;
-  }
-
-  .detail-body {
-    padding: 0.75rem;
-    max-height: 65vh;
-  }
-
-  .detail-group h4 {
-    font-size: 0.7rem;
-  }
-
-  .detail-grid {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-  }
-
-  .detail-item .label {
-    font-size: 0.6rem;
-  }
-
-  .detail-item .value {
-    font-size: 0.75rem;
-  }
-}
-
-/* 小屏手机适配 (< 480px) */
-@media (max-width: 480px) {
-  .view-header {
-    padding: 0.5rem;
-  }
-
-  .view-title {
-    font-size: 0.9rem;
-  }
-
-  .search-panel {
-    padding: 0.5rem;
-  }
-
-  .search-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .table-row {
-    padding: 0.5rem;
-    font-size: 0.75rem;
-  }
-
-  .page-btn {
-    min-width: 28px;
-    height: 28px;
-    font-size: 0.7rem;
-  }
+:deep(.sh-grid-table .el-table__row) {
+  cursor: pointer;
 }
 </style>
