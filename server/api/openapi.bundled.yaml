@@ -4977,9 +4977,6 @@ components:
           $ref: '#/components/schemas/ReviewRatings'
     UpdateReviewRequest:
       type: object
-      required:
-        - content
-        - ratings
       properties:
         title:
           type: string

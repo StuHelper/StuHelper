@@ -199,7 +199,7 @@ func TestRefreshZitadelToken_Success(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "token refreshed successfully")
-	var hasAccessCookie, hasRefreshCookie bool
+	var hasAccessCookie, hasRefreshCookie, hasSessionCookie bool
 	for _, cookie := range w.Result().Cookies() {
 		if cookie.Name == "access_token" {
 			hasAccessCookie = true
@@ -207,9 +207,14 @@ func TestRefreshZitadelToken_Success(t *testing.T) {
 		if cookie.Name == "refresh_token" {
 			hasRefreshCookie = true
 		}
+		if cookie.Name == sessionCookieName {
+			hasSessionCookie = true
+			assert.Equal(t, "sid-oidc-refresh", cookie.Value)
+		}
 	}
 	assert.True(t, hasAccessCookie)
 	assert.True(t, hasRefreshCookie)
+	assert.True(t, hasSessionCookie)
 
 	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(ctx, "old-refresh-token")
 	require.NoError(t, err)

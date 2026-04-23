@@ -1,9 +1,22 @@
+import { hasAnyCapability } from '@stuhelper/shared/constants'
+
 export interface ProtectedRouteAuthFailureInput {
   redirect: string
   refreshFailed: boolean
   requiresAuthRoute: boolean
   sessionBootstrapFailed: boolean
   stillAuthenticated: boolean
+}
+
+export function hasRequiredRouteCapabilityAccess(
+  userCapabilities: string[],
+  requiredCapabilities: string[],
+) {
+  if (requiredCapabilities.length === 0) {
+    return true
+  }
+
+  return hasAnyCapability(userCapabilities, requiredCapabilities)
 }
 
 export function resolveProtectedRouteAuthFailure(

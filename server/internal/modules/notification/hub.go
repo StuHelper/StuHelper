@@ -160,21 +160,29 @@ func (h *Hub) StartRedisSubscriber(ctx context.Context, start func(string, func(
 				return
 			case <-h.stopCh:
 				return
-			case msg, ok := <-ch:
-				if !ok {
-					return
+				case msg, ok := <-ch:
+					if !ok {
+						return
+					}
+					var userID int64
+					if _, err := fmt.Sscanf(msg.Channel, "notify:%d", &userID); err != nil {
+						continue
+					}
+					payload, err := decodeNotificationPubSubPayload(msg.Payload)
+					if err != nil {
+						logger.L().Warn("failed to decode notification pubsub payload",
+							zap.Int64("user_id", userID),
+							zap.Error(err),
+						)
+						continue
+					}
+					h.Broadcast(userID, SSEEvent{
+						Event: "notification",
+						Data:  payload,
+					})
 				}
-				var userID int64
-				if _, err := fmt.Sscanf(msg.Channel, "notify:%d", &userID); err != nil {
-					continue
-				}
-				h.Broadcast(userID, SSEEvent{
-					Event: "notification",
-					Data:  msg.Payload,
-				})
 			}
 		}
-	}
 
 	if start == nil {
 		go run(ctx)
@@ -199,4 +207,12 @@ func (u *userConnections) remove(ch chan SSEEvent) bool {
 		return true
 	}
 	return false
+}
+
+func decodeNotificationPubSubPayload(raw string) (any, error) {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
 }

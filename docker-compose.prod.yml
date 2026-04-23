@@ -8,7 +8,9 @@ services:
     container_name: ${STACK_NAME:-stuhelper}-app
     env_file:
     - ${ENV_FILE_PATH:-.env}
+    - ${SECRETS_ENV_FILE_PATH:-.env.prod.secrets.local}
     - ${GENERATED_ENV_FILE_PATH:-.env.generated}
+    - ${GENERATED_SECRET_ENV_FILE_PATH:-.env.prod.generated.secrets}
     environment:
       APP_ENV: production
       LOG_FORMAT: json

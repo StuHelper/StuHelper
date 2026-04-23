@@ -22,9 +22,10 @@ type ReportReviewParams struct {
 
 // ListReportsParams 获取举报列表参数
 type ListReportsParams struct {
-	Status   string
-	Page     int
-	PageSize int
+	Status    string
+	Page      int
+	PageSize  int
+	SchoolIDs []int64
 }
 
 // ListReportsResult 获取举报列表结果
@@ -106,7 +107,7 @@ func (s *Service) ListReports(ctx context.Context, params ListReportsParams) (*L
 	}
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
-	list, total, err := s.repo.ListReports(ctx, status, pageSize, offset)
+	list, total, err := s.repo.ListReports(ctx, status, pageSize, offset, params.SchoolIDs)
 	if err != nil {
 		return nil, err
 	}

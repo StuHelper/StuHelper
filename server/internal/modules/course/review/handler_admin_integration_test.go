@@ -3,6 +3,7 @@ package review
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
@@ -32,11 +34,15 @@ func (allowAllAuthorizationProvider) WriteReportRelations(context.Context, strin
 }
 
 func newReviewAdminHandler(t *testing.T, svc *Service) *Handler {
+	return newReviewAdminHandlerWithAuthorizer(t, svc, allowAllAuthorizationProvider{})
+}
+
+func newReviewAdminHandlerWithAuthorizer(t *testing.T, svc *Service, authorizer AuthorizationProvider) *Handler {
 	t.Helper()
 	fixture := redisfixture.Start(t)
 
 	cacheHelper := cache.NewHelper(fixture.Client)
-	return NewHandler(cacheHelper, svc, fixture.Client, config.ReviewRateLimitConfig{}, allowAllAuthorizationProvider{})
+	return NewHandler(cacheHelper, svc, fixture.Client, config.ReviewRateLimitConfig{}, authorizer)
 }
 
 func withAdminContext(method, target, body string) (*httptest.ResponseRecorder, *gin.Context) {
@@ -54,6 +60,8 @@ func withAdminContext(method, target, body string) (*httptest.ResponseRecorder, 
 	}
 	c.Set(middleware.CtxKeyUserID, "admin-user-1")
 	c.Set(middleware.CtxKeyUsername, "admin-root")
+	c.Set(middleware.CtxKeyRoles, []string{"super_admin"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{})
 	return w, c
 }
 
@@ -185,4 +193,133 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	h.GetOperationLogs(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "create_teacher")
+}
+
+func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	h := newReviewAdminHandlerWithAuthorizer(t, svc, NewFailClosedAuthorizationProvider())
+
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO schools (id, code, name)
+		VALUES (10006, '10006', '学校A'), (10007, '10007', '学校B')
+		ON CONFLICT (id) DO NOTHING
+	`)
+	require.NoError(t, err)
+	departmentA := seedDepartment(t, fixture, 10006, "计算学院")
+	teacherA := seedTeacher(t, fixture, 10006, "甲老师", departmentA)
+	courseA := seedCourse(t, fixture, 10006, departmentA, "学校A课程")
+	reviewA := "550e8400-e29b-41d4-a716-446655440211"
+	seedReviewWithRatings(t, fixture, reviewA, courseA, teacherA, "u-admin-role-a", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "学校A评论", "学校A内容")
+
+	departmentB := seedDepartment(t, fixture, 10007, "经济学院")
+	teacherB := seedTeacher(t, fixture, 10007, "乙老师", departmentB)
+	courseB := seedCourse(t, fixture, 10007, departmentB, "学校B课程")
+	reviewB := "550e8400-e29b-41d4-a716-446655440212"
+	seedReviewWithRatings(t, fixture, reviewB, courseB, teacherB, "u-admin-role-b", 4.3, StatusPublished, ReviewRatings{"teaching": 4}, "学校B评论", "学校B内容")
+
+	w, c := withAdminContext(http.MethodPut, "/admin/reviews/"+reviewA, `{"action":"hide","reason":"spam"}`)
+	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
+	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"10006"}})
+	h.AdminUpdateReview(c)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	w, c = withAdminContext(http.MethodPut, "/admin/reviews/"+reviewB, `{"action":"hide","reason":"spam"}`)
+	c.Params = gin.Params{{Key: "reviewID", Value: reviewB}}
+	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"10006"}})
+	h.AdminUpdateReview(c)
+	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+
+	w, c = withAdminContext(http.MethodPost, "/admin/reviews/"+reviewA+"/edit", `{"title":"管理员修订","content":"管理员修订后的内容","reason":"规范化"}`)
+	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
+	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"10006"}})
+	h.AdminEditReviewContent(c)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	w, c = withAdminContext(http.MethodPost, "/admin/reviews/"+reviewA+"/edit", `{"title":"志愿者修订","content":"志愿者不应能改内容","reason":"越权"}`)
+	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
+	c.Set(middleware.CtxKeyRoles, []string{"moderator"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"moderator": {"10006"}})
+	h.AdminEditReviewContent(c)
+	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+}
+
+func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	h := newReviewAdminHandlerWithAuthorizer(t, svc, NewFailClosedAuthorizationProvider())
+	ctx := context.Background()
+
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO schools (id, code, name)
+		VALUES (10006, '10006', '学校A'), (10007, '10007', '学校B')
+		ON CONFLICT (id) DO NOTHING
+	`)
+	require.NoError(t, err)
+	departmentA := seedDepartment(t, fixture, 10006, "计算学院")
+	teacherA := seedTeacher(t, fixture, 10006, "甲老师", departmentA)
+	courseA := seedCourse(t, fixture, 10006, departmentA, "学校A课程")
+	reviewA := "550e8400-e29b-41d4-a716-446655440221"
+	seedReviewWithRatings(t, fixture, reviewA, courseA, teacherA, "u-report-a", 4.4, StatusPublished, ReviewRatings{"teaching": 5}, "学校A评论", "学校A内容")
+
+	departmentB := seedDepartment(t, fixture, 10007, "经济学院")
+	teacherB := seedTeacher(t, fixture, 10007, "乙老师", departmentB)
+	courseB := seedCourse(t, fixture, 10007, departmentB, "学校B课程")
+	reviewB := "550e8400-e29b-41d4-a716-446655440222"
+	seedReviewWithRatings(t, fixture, reviewB, courseB, teacherB, "u-report-b", 4.1, StatusPublished, ReviewRatings{"teaching": 4}, "学校B评论", "学校B内容")
+
+	reportA, err := svc.ReportReview(ctx, ReportReviewParams{
+		ReviewID:               reviewA,
+		UserHash:               "u-reporter-a",
+		ReporterExternalUserID: "ext-reporter-a",
+		Reason:                 "spam",
+		Description:            "学校A举报",
+	})
+	require.NoError(t, err)
+	reportB, err := svc.ReportReview(ctx, ReportReviewParams{
+		ReviewID:               reviewB,
+		UserHash:               "u-reporter-b",
+		ReporterExternalUserID: "ext-reporter-b",
+		Reason:                 "spam",
+		Description:            "学校B举报",
+	})
+	require.NoError(t, err)
+
+	w, c := withAdminContext(http.MethodGet, "/admin/reports?status=pending", "")
+	c.Set(middleware.CtxKeyRoles, []string{"moderator"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"moderator": {"10006"}})
+	h.ListReports(c)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var envelope response.Response
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &envelope))
+	raw, err := json.Marshal(envelope.Data)
+	require.NoError(t, err)
+	var payload struct {
+		List []ReviewReport `json:"list"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	require.Len(t, payload.List, 1)
+	assert.Equal(t, reportA, payload.List[0].ID)
+
+	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportA, `{"action":"reject","note":"handled"}`)
+	c.Params = gin.Params{{Key: "reportID", Value: reportA}}
+	c.Set(middleware.CtxKeyRoles, []string{"moderator"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"moderator": {"10006"}})
+	h.ProcessReport(c)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportB, `{"action":"reject","note":"handled"}`)
+	c.Params = gin.Params{{Key: "reportID", Value: reportB}}
+	c.Set(middleware.CtxKeyRoles, []string{"moderator"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"moderator": {"10006"}})
+	h.ProcessReport(c)
+	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 }

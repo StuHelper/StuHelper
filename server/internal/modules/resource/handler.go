@@ -81,7 +81,11 @@ func (h *Handler) createResource(c *gin.Context) {
 		if respondResourceStorageError(c, err) {
 			return
 		}
-		response.BadRequest(c, err.Error())
+		if isResourceBadRequestError(err) {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		response.InternalError(c, "failed to create resource")
 		return
 	}
 	logResourceAudit(c, audit.EventDataCreate, "create", "success", item.ID, map[string]any{"visibility": item.Visibility})
@@ -109,7 +113,11 @@ func (h *Handler) updateResource(c *gin.Context) {
 			return
 		}
 		logResourceAudit(c, audit.EventDataUpdate, "update", "failure", resourceID, map[string]any{"reason": err.Error()})
-		response.BadRequest(c, err.Error())
+		if isResourceBadRequestError(err) {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		response.InternalError(c, "failed to update resource")
 		return
 	}
 	logResourceAudit(c, audit.EventDataUpdate, "update", "success", resourceID, map[string]any{"visibility": item.Visibility})

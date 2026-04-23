@@ -3,6 +3,8 @@ package review
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -76,8 +78,9 @@ func (r *Repository) ReportExistsTx(ctx context.Context, tx pgx.Tx, reviewID, us
 
 // ListReports 获取举报列表（包含评论信息，含总数）
 // 当 reviewID 为 nil（评论已被物理删除）时，跳过 Review 对象赋值，标记为已删除
-func (r *Repository) ListReports(ctx context.Context, status string, limit, offset int) ([]ReviewReport, int, error) {
-	baseQuery := `
+func (r *Repository) ListReports(ctx context.Context, status string, limit, offset int, schoolIDs []int64) ([]ReviewReport, int, error) {
+	var qb strings.Builder
+	qb.WriteString(`
 		SELECT rr.id, rr.review_id, rr.reason, rr.description, rr.status,
 		       rr.resolved_by, rr.resolved_at, rr.resolution_note, rr.created_at,
 		       rv.id, rv.course_id, COALESCE(c.name, ''), rv.teacher_id, COALESCE(t.name, ''),
@@ -90,18 +93,28 @@ func (r *Repository) ListReports(ctx context.Context, status string, limit, offs
 		LEFT JOIN reviews rv ON rv.id = rr.review_id
 		LEFT JOIN courses c ON c.id = rv.course_id
 		LEFT JOIN teachers t ON t.id = rv.teacher_id
-	`
+	`)
 	var args []interface{}
 
-	if status != "" && status != "all" {
-		baseQuery += ` WHERE rr.status = $1 ORDER BY rr.created_at DESC LIMIT $2 OFFSET $3`
-		args = []interface{}{status, limit, offset}
-	} else {
-		baseQuery += ` ORDER BY rr.created_at DESC LIMIT $1 OFFSET $2`
-		args = []interface{}{limit, offset}
+	hasWhere := false
+	if len(schoolIDs) > 0 {
+		qb.WriteString(` WHERE c.school_id = ANY($1)`)
+		args = append(args, schoolIDs)
+		hasWhere = true
 	}
+	if status != "" && status != "all" {
+		if hasWhere {
+			qb.WriteString(` AND`)
+		} else {
+			qb.WriteString(` WHERE`)
+		}
+		qb.WriteString(` rr.status = $` + strconv.Itoa(len(args)+1))
+		args = append(args, status)
+	}
+	qb.WriteString(` ORDER BY rr.created_at DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2))
+	args = append(args, limit, offset)
 
-	rows, err := r.db.Query(ctx, baseQuery, args...)
+	rows, err := r.db.Query(ctx, qb.String(), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("ListReports: %w", err)
 	}
@@ -165,6 +178,18 @@ func (r *Repository) GetReportByIDForUpdate(ctx context.Context, tx pgx.Tx, repo
 		return nil, fmt.Errorf("GetReportByIDForUpdate: %w", err)
 	}
 	return &rp, nil
+}
+
+func (r *Repository) GetReportSchoolID(ctx context.Context, reportID string) (int64, error) {
+	var schoolID int64
+	err := r.db.QueryRow(ctx, `
+		SELECT c.school_id
+		FROM review_reports rr
+		JOIN reviews r ON r.id = rr.review_id
+		JOIN courses c ON c.id = r.course_id
+		WHERE rr.id = $1
+	`, reportID).Scan(&schoolID)
+	return schoolID, err
 }
 
 // UpdateReportParams 更新举报参数

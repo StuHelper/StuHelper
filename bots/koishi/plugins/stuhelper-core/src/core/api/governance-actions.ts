@@ -4,6 +4,12 @@ import { z } from 'zod'
 import { GuardPolicyStore } from '@stuhelper/koishi-shared'
 import { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
+import {
+  assertConsoleGuildAccess,
+  assertGlobalConsoleScope,
+  resolveRequiredConsoleGuildScope,
+} from './console-guild-scope'
+
 const MAX_COMMAND_ID_LENGTH = 128
 const MAX_ROLE_ID_LENGTH = 64
 const MAX_TEMPLATE_ID_LENGTH = 64
@@ -75,17 +81,24 @@ export function registerGovernanceActionAPI(ctx: Context) {
   const moderationStore = new ModerationStore(ctx)
   const guardPolicyStore = new GuardPolicyStore(ctx)
 
-  ctx.console.addListener('stuhelperGroupCenter/action/save-command-policy', async (input) => {
+  ctx.console.addListener('stuhelperGroupCenter/action/save-command-policy', async function (input) {
+    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx))
+    assertCommandPolicyWriteAccess(scope)
     await saveCommandPolicy(moderationStore, parseCommandPolicyInput(input))
     return '已保存命令策略。'
   }, { authority: 4 })
 
-  ctx.console.addListener('stuhelperGroupCenter/action/save-guard-template', async (input) => {
+  ctx.console.addListener('stuhelperGroupCenter/action/save-guard-template', async function (input) {
+    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx))
+    assertGuardTemplateWriteAccess(scope)
     return saveGuardTemplate(guardPolicyStore, parseGuardTemplateInput(input))
   }, { authority: 4 })
 
-  ctx.console.addListener('stuhelperGroupCenter/action/save-guard-binding', async (input) => {
-    return saveGuardBinding(guardPolicyStore, parseGuardBindingInput(input))
+  ctx.console.addListener('stuhelperGroupCenter/action/save-guard-binding', async function (input) {
+    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx))
+    const parsed = parseGuardBindingInput(input)
+    assertGuardBindingWriteAccess(scope, parsed)
+    return saveGuardBinding(guardPolicyStore, parsed)
   }, { authority: 4 })
 }
 
@@ -131,6 +144,21 @@ async function saveGuardBinding(
   return `已保存群绑定：${input.platform}/${input.guildId}`
 }
 
+export function assertCommandPolicyWriteAccess(scope: Parameters<typeof assertGlobalConsoleScope>[0]) {
+  assertGlobalConsoleScope(scope, 'command policy write')
+}
+
+export function assertGuardTemplateWriteAccess(scope: Parameters<typeof assertGlobalConsoleScope>[0]) {
+  assertGlobalConsoleScope(scope, 'guard template write')
+}
+
+export function assertGuardBindingWriteAccess(
+  scope: Parameters<typeof assertConsoleGuildAccess>[0],
+  input: GuardBindingInput,
+) {
+  assertConsoleGuildAccess(scope, input.guildId, 'guard binding guild')
+}
+
 export function parseCommandPolicyInput(input: unknown): CommandPolicyInput {
   const record = commandPolicySchema.parse(requireRecord(input, 'command policy'))
   return {
@@ -169,4 +197,12 @@ function requireRecord(input: unknown, label: string) {
     throw new Error(`${label} input must be an object`)
   }
   return input as Record<string, unknown>
+}
+
+function createScopeDeps(ctx: Context) {
+  return {
+    roles: ctx.stuhelperGroupCenter.auth.getRoles(),
+    getUserRoleIds: (userId: string) => ctx.stuhelperGroupCenter.auth.getUserRoleIds(userId),
+    listBindingsByAuthId: (authId: number) => ctx.database.get('binding', { aid: authId }),
+  }
 }

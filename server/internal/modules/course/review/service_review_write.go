@@ -45,10 +45,10 @@ type VoteReviewParams struct {
 type UpdateReviewParams struct {
 	ReviewID string
 	UserHash string
-	Title    string
-	Content  string
-	Grade    string
-	Ratings  ReviewRatings
+	Title    *string
+	Content  *string
+	Grade    *string
+	Ratings  *ReviewRatings
 }
 
 // DeleteReviewParams 删除评论参数
@@ -246,39 +246,36 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 
 // UpdateReview 更新评论
 func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) error {
-	var err error
-	var contentFlag *string
-	var nextStatus string
-	params.Title, params.Content, nextStatus, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, "")
-	if err != nil {
-		return err
-	}
-
-	ratingsData, err := json.Marshal(params.Ratings)
-	if err != nil {
-		return err
-	}
-
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		ownerHash, courseID, teacherID, currentStatus, err := s.repo.GetReviewOwnerCourseTeacherStatusTx(ctx, tx, params.ReviewID)
+		state, err := s.repo.GetReviewUpdateStateTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrReviewNotFound
 			}
 			return err
 		}
-		if currentStatus != StatusPublished && currentStatus != StatusPendingReview {
+		if state.status != StatusPublished && state.status != StatusPendingReview {
 			return ErrReviewNotFound
 		}
-		if ownerHash != params.UserHash {
+		if state.userHash != params.UserHash {
 			return ErrNotReviewOwner
+		}
+
+		title, content, grade, ratings := mergeReviewUpdate(state, params)
+		sanitizedTitle, sanitizedContent, nextStatus, contentFlag, err := s.validateAndSanitizeReview(ctx, ratings, title, content, "")
+		if err != nil {
+			return err
+		}
+		ratingsData, err := json.Marshal(ratings)
+		if err != nil {
+			return err
 		}
 
 		if err := s.repo.Update(ctx, tx, UpdateParams{
 			ID:          params.ReviewID,
-			Title:       params.Title,
-			Content:     params.Content,
-			Grade:       params.Grade,
+			Title:       sanitizedTitle,
+			Content:     sanitizedContent,
+			Grade:       grade,
 			Ratings:     ratingsData,
 			Status:      nextStatus,
 			ContentFlag: contentFlag,
@@ -286,24 +283,58 @@ func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) e
 			return err
 		}
 
-		wasPublic := isPublicReviewStatus(currentStatus)
+		wasPublic := isPublicReviewStatus(state.status)
 		isPublic := isPublicReviewStatus(nextStatus)
 		switch {
 		case wasPublic && !isPublic:
-			if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+			if err := s.repo.DecrementCourseReviewCount(ctx, tx, state.courseID); err != nil {
 				return err
 			}
 		case !wasPublic && isPublic:
-			if err := s.repo.IncrementCourseReviewCount(ctx, tx, courseID); err != nil {
+			if err := s.repo.IncrementCourseReviewCount(ctx, tx, state.courseID); err != nil {
 				return err
 			}
 		}
 
 		if wasPublic || isPublic {
-			return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
+			return s.refreshReviewTargetTx(ctx, tx, state.courseID, state.teacherID)
 		}
 		return nil
 	})
+}
+
+func mergeReviewUpdate(state reviewUpdateState, params UpdateReviewParams) (string, string, string, ReviewRatings) {
+	title := state.title
+	if params.Title != nil {
+		title = *params.Title
+	}
+
+	content := state.content
+	if params.Content != nil {
+		content = *params.Content
+	}
+
+	grade := state.grade
+	if params.Grade != nil {
+		grade = *params.Grade
+	}
+
+	ratings := cloneReviewRatings(state.ratings)
+	if params.Ratings != nil {
+		ratings = cloneReviewRatings(*params.Ratings)
+	}
+	return title, content, grade, ratings
+}
+
+func cloneReviewRatings(source ReviewRatings) ReviewRatings {
+	if len(source) == 0 {
+		return ReviewRatings{}
+	}
+	cloned := make(ReviewRatings, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 // DeleteReview 删除评论

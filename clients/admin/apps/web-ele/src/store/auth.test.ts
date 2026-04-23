@@ -183,4 +183,54 @@ describe('useAuthStore', () => {
 
     expect(mocks.accessStore.accessCodes).toEqual(['user:school:read']);
   });
+
+  it('defaults blank student verification school filters to the first allowed scoped school', async () => {
+    const me = {
+      capabilities: ['user:student:review'],
+      globalCapabilities: [],
+      capabilityGrants: [
+        {
+          name: 'user:student:review',
+          global: false,
+          scopeSchoolIDs: ['1001', '1002'],
+        },
+      ],
+      canAccessAdmin: true,
+    };
+    mocks.tryGetMe.mockResolvedValue({ kind: 'authenticated', me });
+    mocks.mapMeToUserInfo.mockReturnValue({ realName: 'School Admin' });
+
+    const store = useAuthStore();
+
+    await store.initSession();
+
+    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe(
+      '1001',
+    );
+    expect(store.resolveScopedSchoolId('user:student:review', '1002')).toBe(
+      '1002',
+    );
+  });
+
+  it('keeps blank school filters for global student verification admins', async () => {
+    mocks.getUserInfoApi.mockResolvedValue({
+      userInfo: { realName: 'Platform Admin' },
+      me: {
+        capabilities: ['user:student:review'],
+        globalCapabilities: ['user:student:review'],
+        capabilityGrants: [
+          {
+            name: 'user:student:review',
+            global: true,
+          },
+        ],
+      },
+    });
+
+    const store = useAuthStore();
+
+    await store.fetchUserInfo();
+
+    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe('');
+  });
 });

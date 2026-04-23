@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +18,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	appmiddleware "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
 func init() {
@@ -110,6 +112,57 @@ func setupUserHandlerTestRouterWithServiceOptions(t *testing.T, repo *mockRepo, 
 	h.RegisterRoutes(api, authMW)
 
 	return r
+}
+
+func setupUserHandlerTestRouterWithRuntimeDeps(
+	t *testing.T,
+	repo *mockRepo,
+	rdb *redis.Client,
+	otpService OTPGenerator,
+	smsService SMSSender,
+	opts ...ServiceOption,
+) *gin.Engine {
+	t.Helper()
+
+	if repo == nil {
+		repo = &mockRepo{}
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{}, opts...)
+	require.NoError(t, err)
+
+	h := NewHandler(svc, rdb, otpService, smsService)
+	r := gin.New()
+	api := r.Group("/api/v1")
+	authMW := func(c *gin.Context) {
+		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+		c.Next()
+	}
+	h.RegisterRoutes(api, authMW)
+	return r
+}
+
+type stubBindPhoneOTPGenerator struct {
+	issueCalls int
+}
+
+func (s *stubBindPhoneOTPGenerator) IssueCode(_ context.Context, _ string, _ SMSSender) error {
+	s.issueCalls++
+	return nil
+}
+
+func (s *stubBindPhoneOTPGenerator) CooldownSeconds() int {
+	return 60
+}
+
+func (s *stubBindPhoneOTPGenerator) Verify(context.Context, string, string) error {
+	return nil
+}
+
+type stubBindPhoneSMSSender struct{}
+
+func (stubBindPhoneSMSSender) Send(context.Context, string, string) error {
+	return nil
 }
 
 func TestHandleAdminReviewIdentity_AllowsBlankRejectionReason(t *testing.T) {
@@ -576,6 +629,49 @@ func TestHandleGetProfile_NormalizesNilStudentIDsToEmptySlice(t *testing.T) {
 	data := resp["data"].(map[string]any)
 	studentIDs := data["studentIDs"].([]any)
 	assert.Empty(t, studentIDs)
+}
+
+func TestHandleRequestBindPhoneOTP_IsRateLimitedPerUserEndpoint(t *testing.T) {
+	fixture := redisfixture.Start(t)
+	otp := &stubBindPhoneOTPGenerator{}
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRuntimeDeps(
+		t,
+		repo,
+		fixture.Client,
+		otp,
+		stubBindPhoneSMSSender{},
+	)
+
+	body := strings.NewReader(`{"phone":"13800138000"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone/otp", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 1, otp.issueCalls)
+
+	for i := 0; i < bindPhoneOTPUserLimitPerMinute-1; i++ {
+		body = strings.NewReader(`{"phone":"13900139000"}`)
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone/otp", body)
+		req.Header.Set("Content-Type", "application/json")
+		w = httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+
+	body = strings.NewReader(`{"phone":"13700137000"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone/otp", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Equal(t, bindPhoneOTPUserLimitPerMinute, otp.issueCalls)
 }
 
 func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {

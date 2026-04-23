@@ -32,20 +32,22 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 		if existing.Verified {
 			return nil, ErrIdentityAlreadyVerified
 		}
-		return nil, ErrIdentityAlreadyExists
+		if !canResubmitIdentity(existing) {
+			return nil, ErrIdentityAlreadyExists
+		}
 	}
 
 	if req.DocType != DocTypeMainlandID {
 		if req.DocPhotoFront == nil || *req.DocPhotoFront == "" {
 			return nil, ErrPhotoRequired
 		}
-		if err := validateIdentityPhotoRef(userID, req.DocPhotoFront); err != nil {
+		if err := validateSubmittedIdentityPhotoRef(userID, req.DocPhotoFront); err != nil {
 			return nil, err
 		}
-		if err := validateIdentityPhotoRef(userID, req.DocPhotoBack); err != nil {
+		if err := validateSubmittedIdentityPhotoRef(userID, req.DocPhotoBack); err != nil {
 			return nil, err
 		}
-		if err := validateIdentityPhotoRef(userID, req.DocPhotoSelfie); err != nil {
+		if err := validateSubmittedIdentityPhotoRef(userID, req.DocPhotoSelfie); err != nil {
 			return nil, err
 		}
 	}
@@ -83,7 +85,11 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 		}
 	}
 
-	if err := s.repo.CreateIdentity(ctx, identity); err != nil {
+	if existing != nil {
+		if err := s.repo.UpdateIdentitySubmission(ctx, identity); err != nil {
+			return nil, fmt.Errorf("SubmitIdentity resubmit: %w", err)
+		}
+	} else if err := s.repo.CreateIdentity(ctx, identity); err != nil {
 		return nil, fmt.Errorf("SubmitIdentity create: %w", err)
 	}
 
@@ -208,18 +214,19 @@ func decodeAndValidateIdentityPhoto(contentType, dataBase64 string) ([]byte, str
 	return content, detectedType, nil
 }
 
-func validateIdentityPhotoRef(userID int64, value *string) error {
+func validateSubmittedIdentityPhotoRef(userID int64, value *string) error {
 	if value == nil || strings.TrimSpace(*value) == "" {
 		return nil
 	}
 	raw := strings.TrimSpace(*value)
-	if looksLikeLegacyPhotoValue(raw) {
-		return nil
-	}
 	if !strings.HasPrefix(raw, identityPhotoPrefix(userID)) {
 		return ErrIdentityPhotoInvalidRef
 	}
 	return nil
+}
+
+func canResubmitIdentity(existing *IdentityStatus) bool {
+	return existing != nil && !existing.Verified && existing.ReviewedAt != nil
 }
 
 func buildIdentityPhotoKey(userID int64, slot, ext string) string {

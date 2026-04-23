@@ -2,6 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  assertCommandPolicyWriteAccess,
+  assertGuardBindingWriteAccess,
+  assertGuardTemplateWriteAccess,
   parseCommandPolicyInput,
   parseGuardBindingInput,
   parseGuardTemplateInput,
@@ -122,5 +125,31 @@ test('parseGuardBindingInput trims text fields and normalizes blank note to null
       enabled: false,
       note: null,
     },
+  )
+})
+
+test('governance write access rejects global writes for guild-scoped operators', () => {
+  const scoped = {
+    kind: 'guilds' as const,
+    guildIds: new Set(['1001']),
+  }
+
+  assert.throws(
+    () => assertCommandPolicyWriteAccess(scoped),
+    /requires global console scope/,
+  )
+  assert.throws(
+    () => assertGuardTemplateWriteAccess(scoped),
+    /requires global console scope/,
+  )
+  assert.throws(
+    () => assertGuardBindingWriteAccess(scoped, {
+      platform: 'onebot',
+      guildId: '2002',
+      templateId: 'tpl-default',
+      enabled: true,
+      note: null,
+    }),
+    /outside of the current console guild scope/,
   )
 })

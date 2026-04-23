@@ -21,6 +21,10 @@ import {
   requireReviewRecord,
   resolveManagedBot,
 } from './review-action-support'
+import {
+  assertConsoleGuildAccess,
+  type ConsoleGuildScope,
+} from './console-guild-scope'
 
 const REVIEW_STATUS_PENDING = 'pending'
 const REVIEW_STATUS_APPROVED = 'approved'
@@ -78,6 +82,7 @@ export interface WorkItemActionDeps {
 export interface WorkItemActionActor {
   memberId: string
   displayName: string | null
+  guildScope: ConsoleGuildScope
 }
 
 export async function handleWorkItemAction(
@@ -101,6 +106,7 @@ async function handleReviewAction(
   actor: WorkItemActionActor,
 ) {
   const review = await requireReviewRecord(deps.ctx, input.itemId)
+  assertConsoleGuildAccess(actor.guildScope, review.guildId, 'review work item')
   if (review.status !== REVIEW_STATUS_PENDING) {
     throw new Error(`review is already resolved: ${input.itemId}`)
   }
@@ -137,6 +143,7 @@ async function handleAdmissionAction(
   actor: WorkItemActionActor,
 ) {
   const record = await requireGuardRecord(deps.ctx, input.itemId)
+  assertConsoleGuildAccess(actor.guildScope, record.guildId, 'admission work item')
   const now = getNow(deps)
 
   if (input.action === 'approve') {
@@ -223,6 +230,7 @@ async function handleReportAction(
   actor: WorkItemActionActor,
 ) {
   const report = await requireReportRecord(deps.ctx, input.itemId)
+  assertConsoleGuildAccess(actor.guildScope, report.guildId, 'report work item')
   const store = resolveTransactionalStore(deps)
 
   if (input.action === 'dismiss') {

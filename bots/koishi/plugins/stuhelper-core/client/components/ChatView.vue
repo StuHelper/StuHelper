@@ -22,10 +22,10 @@
         </div>
         <div
           v-for="session in sessions"
-          :key="session.id"
+          :key="session.key"
           class="session-item"
-          :class="{ active: currentSessionId === session.id }"
-          @click="selectSession(session.id)"
+          :class="{ active: currentSessionId === session.key }"
+          @click="selectSession(session.key)"
         >
           <div class="session-icon">
             <img v-if="session.avatar" :src="session.avatar" @error="handleAvatarError($event, true)" />
@@ -77,7 +77,13 @@
                 <span class="username">{{ msg.username }}</span>
                 <span class="timestamp">{{ formatTimeDetail(msg.timestamp) }}</span>
               </div>
-              <div class="message-bubble" v-html="renderMessage(msg)"></div>
+              <div class="message-bubble">
+                <ChatMessageContent
+                  :message="msg"
+                  :members="members"
+                  :session-messages="currentSession?.messages ?? []"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -316,95 +322,12 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { receive, message } from '@koishijs/client'
-import { chatApi, imageApi, GuildMember } from '../api'
+import { chatApi, GuildMember } from '../api'
 import type { ChatMessage } from '../types'
-
-// 图片缓存 - URL -> dataUrl
-const imageCache = reactive<Map<string, string>>(new Map())
-// 正在加载的图片 URLs
-const loadingImages = reactive<Set<string>>(new Set())
-
-// 检查 URL 是否需要代理
-const needsProxy = (url: string): boolean => {
-  try {
-    const urlObj = new URL(url)
-    const proxyDomains = [
-      'gchat.qpic.cn',
-      'multimedia.nt.qq.com.cn',
-      'c2cpicdw.qpic.cn',
-    ]
-    return proxyDomains.some(domain => urlObj.hostname.endsWith(domain))
-  } catch {
-    return false
-  }
-}
-
-// 通过代理加载图片
-// file 参数用于 OneBot get_image API 获取本地缓存
-const loadImageViaProxy = async (url: string, file?: string): Promise<string | null> => {
-  // 使用 url+file 作为缓存 key，因为同一个 url 可能有不同的 file
-  const cacheKey = file ? `${url}#${file}` : url
-  
-  if (imageCache.has(cacheKey)) {
-    return imageCache.get(cacheKey)!
-  }
-  
-  if (loadingImages.has(cacheKey)) {
-    return null // 正在加载中
-  }
-  
-  loadingImages.add(cacheKey)
-  
-  try {
-    const result = await imageApi.fetch(url, file)
-    if (result?.success && result.data?.dataUrl) {
-      imageCache.set(cacheKey, result.data.dataUrl)
-      // 如果是本地缓存加载成功，也缓存原始 url
-      if (result.data.source === 'local' && file) {
-        imageCache.set(url, result.data.dataUrl)
-      }
-      return result.data.dataUrl
-    }
-    // 如果 direct: true，说明不需要代理
-    if (result?.success && result.data?.direct) {
-      imageCache.set(cacheKey, url)
-      return url
-    }
-    // 缓存失败状态，避免重复请求
-    imageCache.set(cacheKey, 'error')
-    return 'error'
-  } catch (e) {
-    console.warn('Image proxy failed:', url, file, e)
-    imageCache.set(cacheKey, 'error')
-    return 'error'
-  } finally {
-    loadingImages.delete(cacheKey)
-  }
-}
-
-// 处理图片加载（从 DOM 事件触发）
-// file 参数用于 OneBot get_image API
-const handleProxyImage = async (imgId: string, originalUrl: string, file?: string) => {
-  const dataUrl = await loadImageViaProxy(originalUrl, file)
-  const img = document.getElementById(imgId) as HTMLImageElement
-  if (img) {
-    if (dataUrl && dataUrl !== 'error') {
-      img.src = dataUrl
-      img.classList.remove('loading')
-    } else {
-      // 图片加载失败，显示错误占位
-      img.classList.remove('loading')
-      img.classList.add('error')
-      img.alt = '图片已过期或无法加载'
-    }
-  }
-}
-
-// 生成唯一图片 ID
-let imageIdCounter = 0
-const generateImageId = () => `proxy-img-${++imageIdCounter}`
+import ChatMessageContent from './chat/ChatMessageContent.vue'
 
 interface Session {
+  key: string
   id: string // channelId
   type: 'group' | 'private'
   name: string
@@ -436,6 +359,20 @@ const connectForm = reactive({
   name: '',
   platform: 'onebot'
 })
+
+const buildSessionKey = (params: {
+  platform: string
+  type: Session['type']
+  channelId: string
+  guildId?: string
+}) => {
+  const guildPart = params.guildId?.trim() || '-'
+  return `${params.platform}:${params.type}:${guildPart}:${params.channelId}`
+}
+
+const findSessionByKey = (key: string) => {
+  return sessions.value.find(session => session.key === key)
+}
 
 // 群成员相关
 const members = ref<GuildMember[]>([])
@@ -639,20 +576,26 @@ onMounted(() => {
 })
 
 const handleIncomingMessage = async (msg: ChatMessage) => {
-  // 确定会话ID (通常是 channelId)
-  const sessionId = msg.channelId
+  const sessionType: Session['type'] = msg.guildId ? 'group' : 'private'
+  const sessionKey = buildSessionKey({
+    platform: msg.platform,
+    type: sessionType,
+    channelId: msg.channelId,
+    guildId: msg.guildId
+  })
 
-  let session = sessions.value.find(s => s.id === sessionId)
+  let session = findSessionByKey(sessionKey)
 
   if (!session) {
     // 新会话 - 先创建基础会话
-    const isGroup = !!msg.guildId
-    let displayName = msg.channelName || msg.guildName || (isGroup ? `群聊 ${sessionId}` : `私聊 ${msg.username}`)
+    const isGroup = sessionType === 'group'
+    let displayName = msg.channelName || msg.guildName || (isGroup ? `群聊 ${msg.channelId}` : `私聊 ${msg.username}`)
     let displayAvatar = isGroup ? msg.guildAvatar : msg.avatar
 
     session = {
-      id: sessionId,
-      type: isGroup ? 'group' : 'private',
+      key: sessionKey,
+      id: msg.channelId,
+      type: sessionType,
       name: displayName,
       platform: msg.platform,
       guildId: msg.guildId,
@@ -693,7 +636,7 @@ const handleIncomingMessage = async (msg: ChatMessage) => {
   session.lastMessage = msg
   
   // 如果不是当前会话，增加未读
-  if (currentSessionId.value !== sessionId) {
+  if (currentSessionId.value !== sessionKey) {
     session.unread++
   } else {
     scrollToBottom()
@@ -703,7 +646,7 @@ const handleIncomingMessage = async (msg: ChatMessage) => {
 const currentSession = ref<Session | undefined>(undefined)
 
 watch(currentSessionId, (newId) => {
-  const session = sessions.value.find(s => s.id === newId)
+  const session = findSessionByKey(newId)
   if (session) {
     session.unread = 0
     currentSession.value = session
@@ -752,13 +695,21 @@ const connectToChat = async () => {
   if (!displayName) {
     displayName = isGroup ? `群聊 ${targetId}` : `私聊 ${targetId}`
   }
+
+  const sessionKey = buildSessionKey({
+    platform: connectForm.platform,
+    type: connectForm.type,
+    channelId: targetId,
+    guildId: isGroup ? targetId : undefined
+  })
   
   // 检查是否已存在该会话
-  let session = sessions.value.find(s => s.id === targetId)
+  let session = findSessionByKey(sessionKey)
   
   if (!session) {
     // 创建新会话
     session = {
+      key: sessionKey,
       id: targetId,
       type: connectForm.type,
       name: displayName,
@@ -779,7 +730,7 @@ const connectToChat = async () => {
   }
   
   // 选中该会话
-  currentSessionId.value = targetId
+  currentSessionId.value = sessionKey
   
   // 关闭对话框并重置表单
   showConnectDialog.value = false
@@ -853,176 +804,6 @@ const handleAvatarError = (e: Event, isSession = false) => {
     // Better: set src to null? modifying prop is bad. modifying state?
     // Let's just let it hide.
   }
-}
-
-const renderMessage = (msg: ChatMessage) => {
-  if (!msg.content) return ''
-  
-  let html = msg.content
-
-  // 1. 转义 HTML 特殊字符 (除了标签) - Koishi content 已经是 XML-like 格式
-  // 如果是普通文本，可能会有 < >，但通常 Koishi 会处理。
-  // 为了安全，我们假设 content 是 Koishi 的 element string。
-
-  // 辅助函数：从属性字符串中提取 file 属性
-  const extractFileAttr = (attrs: string): string | undefined => {
-    const fileMatch = attrs.match(/file="([^"]+)"/)
-    return fileMatch ? fileMatch[1] : undefined
-  }
-
-  // 辅助函数：生成图片 HTML（支持代理）
-  // file 参数用于 OneBot get_image API 获取本地缓存（解决 rkey 过期问题）
-  const createImgTag = (src: string, file?: string) => {
-    if (needsProxy(src)) {
-      const imgId = generateImageId()
-      const cacheKey = file ? `${src}#${file}` : src
-      // 如果已缓存，直接用缓存
-      if (imageCache.has(cacheKey)) {
-        const cachedUrl = imageCache.get(cacheKey)!
-        if (cachedUrl !== 'error') {
-          return `<img id="${imgId}" src="${cachedUrl}" class="msg-img" onclick="window.open('${src}', '_blank')">`
-        }
-        // 已知失败的图片，直接显示错误状态
-        return `<img id="${imgId}" src="" class="msg-img error" data-original="${src}" alt="图片已过期">`
-      }
-      // 需要代理加载，先用占位符，然后异步加载
-      nextTick(() => handleProxyImage(imgId, src, file))
-      return `<img id="${imgId}" src="" class="msg-img loading" data-original="${src}"${file ? ` data-file="${file}"` : ''} onclick="window.open('${src}', '_blank')">`
-    }
-    return `<img src="${src}" class="msg-img" onclick="window.open('${src}', '_blank')">`
-  }
-
-  // 2. 替换图片 <img src="..." file="..." /> 或 <img src="..." />
-  html = html.replace(/<img\s+([^>]*)src="([^"]+)"([^>]*)\/?>/g, (match, before, src, after) => {
-    const attrs = before + after
-    const file = extractFileAttr(attrs)
-    return createImgTag(src, file)
-  })
-  // 替换 <image url="..." file="..." /> 格式
-  html = html.replace(/<image\s+([^>]*)url="([^"]+)"([^>]*)\/?>/g, (match, before, src, after) => {
-    const attrs = before + after
-    const file = extractFileAttr(attrs)
-    return createImgTag(src, file)
-  })
-
-  // 3. 替换 At <at id="..." name="..." />
-  html = html.replace(/<at\s+([^>]*)\/?>/g, (match, attrs) => {
-    const idMatch = attrs.match(/id="([^"]+)"/)
-    const nameMatch = attrs.match(/name="([^"]+)"/)
-    const id = idMatch ? idMatch[1] : '?'
-    const name = nameMatch ? nameMatch[1] : id
-    // 如果存在同名但不同 ID 的情况，或者 name 和 id 相同，尝试从 msg.elements 中查找更准确的名字
-    // 注意：msg.elements 是我们在后端 enriched 过的
-    let displayName = name
-    if (msg.elements) {
-      const atElement = msg.elements.find((el: any) => el.type === 'at' && el.attrs?.id === id)
-      if (atElement && atElement.attrs?.name) {
-        displayName = atElement.attrs.name
-      }
-    }
-    return `<span class="msg-at">@${displayName}</span>`
-  })
-
-  // 4. 替换表情 <face id="..." />
-  html = html.replace(/<face\s+([^>]*)\/?>/g, (match, attrs) => {
-    const idMatch = attrs.match(/id="([^"]+)"/)
-    return `<span class="msg-face">[表情:${idMatch ? idMatch[1] : '?'}]</span>`
-  })
-
-  // 4.5 替换引用 <quote id="..." user="..." content="..." /> 或 <quote>...</quote>
-  html = html.replace(/<quote\s+([^>]*)(?:\/>|>([\s\S]*?)<\/quote>)/g, (match, attrs, innerContent) => {
-    const idMatch = attrs.match(/id="([^"]+)"/)
-    const userMatch = attrs.match(/user="([^"]+)"/)
-    const contentMatch = attrs.match(/content="([^"]*)"/)
-    const msgId = idMatch ? idMatch[1] : ''
-    
-    // 优先使用属性中的 user 和 content
-    let quotedUser = userMatch ? userMatch[1] : ''
-    let quotedContent = contentMatch ? contentMatch[1].replace(/&quot;/g, '"') : (innerContent || '')
-    
-    // 如果属性中没有，尝试从当前会话中找到被引用的消息
-    if (msgId && currentSession.value && (!quotedUser || !quotedContent)) {
-      const quotedMsg = currentSession.value.messages.find(m => m.id === msgId)
-      if (quotedMsg) {
-        if (!quotedUser) quotedUser = quotedMsg.username || ''
-        // 获取纯文本预览
-        if (!quotedContent) {
-          const preview = quotedMsg.content?.replace(/<[^>]+>/g, '').substring(0, 50) || ''
-          quotedContent = preview + (quotedMsg.content && quotedMsg.content.length > 50 ? '...' : '')
-        }
-      }
-    }
-    
-    return `<div class="msg-quote"><span class="quote-user">${quotedUser ? '@' + quotedUser : ''}</span><span class="quote-content">${quotedContent || '[引用消息]'}</span></div>`
-  })
-
-  // 5. 简单的 CQ 码兼容 (以防万一)
-  // [CQ:image,file=xxx,url=xxx] 格式 - 优先使用 url
-  html = html.replace(/\[CQ:image,[^\]]*\]/g, (match) => {
-    // 提取 url 参数
-    const urlMatch = match.match(/url=([^,\]]+)/)
-    // 提取 file 参数 (可能是本地文件名或 base64)
-    const fileMatch = match.match(/file=([^,\]]+)/)
-    
-    let src = ''
-    let file = ''
-    
-    if (urlMatch) {
-      src = urlMatch[1]
-    }
-    if (fileMatch) {
-      file = fileMatch[1]
-      // 如果 file 是 base64 格式
-      if (file.startsWith('base64://')) {
-        src = `data:image/png;base64,${file.substring(9)}`
-      } else if (!src) {
-        // 如果没有 url，尝试用 file 作为 url（可能是远程地址）
-        src = file
-      }
-    }
-    
-    if (!src) return match // 无法解析，保留原始
-    return createImgTag(src, file)
-  })
-  html = html.replace(/\[CQ:at,[^\]]*qq=([^,\]]+)[^\]]*\]/g, (match, id) => {
-    // 尝试从成员列表中获取名称
-    let displayName = id
-    const member = members.value.find(m => m.id === id)
-    if (member && member.name) {
-      displayName = member.name
-    }
-    return `<span class="msg-at">@${displayName}</span>`
-  })
-  
-  // 5.5 CQ 码 reply 兼容: [CQ:reply,id=消息ID]
-  html = html.replace(/\[CQ:reply,id=([^\],]+)[^\]]*\]/g, (match, msgId) => {
-    // 尝试从当前会话中找到被引用的消息
-    let quotedContent = ''
-    let quotedUser = ''
-    
-    if (msgId && currentSession.value) {
-      const quotedMsg = currentSession.value.messages.find(m => m.id === msgId)
-      if (quotedMsg) {
-        quotedUser = quotedMsg.username || ''
-        // 获取纯文本预览（移除 CQ 码和 HTML 标签）
-        const preview = quotedMsg.content
-          ?.replace(/\[CQ:[^\]]+\]/g, '')
-          ?.replace(/<[^>]+>/g, '')
-          ?.trim()
-          ?.substring(0, 50) || ''
-        quotedContent = preview + (quotedMsg.content && quotedMsg.content.length > 50 ? '...' : '')
-      }
-    }
-    
-    return `<div class="msg-quote"><span class="quote-user">${quotedUser ? '@' + quotedUser : ''}</span><span class="quote-content">${quotedContent || '[引用消息]'}</span></div>`
-  })
-
-  // 6. 处理 OneBot/Red 协议的特殊图片格式 (如果直接是 URL)
-  // 有些时候 image 可能不是 xml 或 CQ 码，而是由 koishi h 转换后的结果，这里主要是在 renderMessage 前端兜底
-  // 如果内容里包含 http(s) 图片链接，尝试转为 img 标签 (简单处理)
-  // 注意：这可能会误伤普通链接，暂时不启用，依赖 Koishi 的解析结果
-
-  return html
 }
 </script>
 

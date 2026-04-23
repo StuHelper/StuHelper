@@ -30,6 +30,7 @@ func (f *fakeEncryptor) Decrypt(ciphertext []byte) (string, error) {
 type mockRepo struct {
 	onGetIdentityStatusByUserID                func(ctx context.Context, userID int64) (*IdentityStatus, error)
 	onCreateIdentity                           func(ctx context.Context, identity *IdentityRecord) error
+	onUpdateIdentitySubmission                 func(ctx context.Context, identity *IdentityRecord) error
 	onListIdentityReviewItems                  func(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
 	onFindAcademicStudentsByPersonUIDFromTable func(ctx context.Context, sfzjlxdm, sfzjh, tableName string) ([]AcademicStudent, error)
 	onGetAcademicStudentByXHFromTable          func(ctx context.Context, xh, tableName string) (*AcademicStudent, error)
@@ -68,6 +69,13 @@ func (m *mockRepo) GetIdentityStatusByUserID(ctx context.Context, userID int64) 
 func (m *mockRepo) CreateIdentity(ctx context.Context, identity *IdentityRecord) error {
 	if m.onCreateIdentity != nil {
 		return m.onCreateIdentity(ctx, identity)
+	}
+	return nil
+}
+
+func (m *mockRepo) UpdateIdentitySubmission(ctx context.Context, identity *IdentityRecord) error {
+	if m.onUpdateIdentitySubmission != nil {
+		return m.onUpdateIdentitySubmission(ctx, identity)
 	}
 	return nil
 }

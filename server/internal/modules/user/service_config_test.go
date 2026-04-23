@@ -259,3 +259,42 @@ func TestUpdateSystemConfig_ReturnsNotFoundWhenKeyMissing(t *testing.T) {
 	err = svc.UpdateSystemConfig(context.Background(), "feature.missing", "enabled")
 	assert.ErrorIs(t, err, ErrSystemConfigNotFound)
 }
+
+func TestLoadSystemConfigSnapshots_LoadsAuthAccessTokenTTL(t *testing.T) {
+	t.Cleanup(systemconfig.InvalidateAuthTokenPolicySnapshot)
+
+	repo := &mockRepo{
+		onListSystemConfigs: func(_ context.Context) ([]SystemConfig, error) {
+			return []SystemConfig{{
+				Key:   systemconfig.AuthAccessTokenTTLSecondsKey,
+				Value: "900",
+			}}, nil
+		},
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.LoadSystemConfigSnapshots(context.Background()))
+	snapshot := systemconfig.GetAuthTokenPolicySnapshot()
+	assert.Equal(t, 900, snapshot.AccessTokenTTLSeconds)
+}
+
+func TestUpdateSystemConfig_RefreshesAuthAccessTokenTTLSnapshot(t *testing.T) {
+	t.Cleanup(systemconfig.InvalidateAuthTokenPolicySnapshot)
+
+	repo := &mockRepo{
+		onUpdateSystemConfig: func(_ context.Context, key, value string) error {
+			assert.Equal(t, systemconfig.AuthAccessTokenTTLSecondsKey, key)
+			assert.Equal(t, "1200", value)
+			return nil
+		},
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.UpdateSystemConfig(context.Background(), systemconfig.AuthAccessTokenTTLSecondsKey, "1200"))
+	snapshot := systemconfig.GetAuthTokenPolicySnapshot()
+	assert.Equal(t, 1200, snapshot.AccessTokenTTLSeconds)
+}

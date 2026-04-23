@@ -37,9 +37,9 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 
 	admin := api.Group("/admin/academics")
 	admin.Use(authMW)
-	admin.GET("/sources", rbac.RequireCapability(capability.UserSchoolRead), h.listSources)
-	admin.GET("/import-jobs", rbac.RequireCapability(capability.UserSchoolRead), h.listImportJobs)
-	admin.POST("/import-jobs", rbac.RequireCapability(capability.UserSchoolUpdate), h.triggerImport)
+	admin.GET("/sources", rbac.RequireGlobalCapability(capability.UserSchoolRead), h.listSources)
+	admin.GET("/import-jobs", rbac.RequireGlobalCapability(capability.UserSchoolRead), h.listImportJobs)
+	admin.POST("/import-jobs", rbac.RequireGlobalCapability(capability.UserSchoolUpdate), h.triggerImport)
 }
 
 func (h *Handler) listSources(c *gin.Context) {

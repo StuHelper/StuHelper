@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +14,15 @@ import (
 )
 
 const maxResourceUploadSize = 10 * 1024 * 1024
+
+var (
+	ErrResourceTitleRequired       = errors.New("title is required")
+	ErrResourceFilenameRequired    = errors.New("filename is required")
+	ErrResourcePayloadRequired     = errors.New("dataBase64 is required")
+	ErrResourcePayloadInvalid      = errors.New("invalid base64 payload")
+	ErrResourcePayloadSizeInvalid  = errors.New("resource payload size is invalid")
+	ErrResourceContentTypeMismatch = errors.New("contentType does not match payload")
+)
 
 type objectStore interface {
 	Put(ctx context.Context, mountKey, objectKey string, content []byte, contentType string) (*storage.Mount, *storage.StoredObject, error)
@@ -40,8 +50,11 @@ func (s *Service) CreateResource(ctx context.Context, ownerUserID string, req Cr
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Filename) == "" {
-		return nil, errors.New("title and filename are required")
+	if strings.TrimSpace(req.Title) == "" {
+		return nil, ErrResourceTitleRequired
+	}
+	if strings.TrimSpace(req.Filename) == "" {
+		return nil, ErrResourceFilenameRequired
 	}
 	req.Visibility = normalizeVisibility(req.Visibility)
 	objectKey := fmt.Sprintf("resources/%s/%d-%s", ownerUserID, time.Now().UnixNano(), sanitizeFilename(req.Filename))
@@ -76,7 +89,7 @@ func (s *Service) GetResource(ctx context.Context, resourceID int64, viewerUserI
 
 func (s *Service) UpdateResource(ctx context.Context, resourceID int64, ownerUserID string, req UpdateRequest) (*Item, error) {
 	if strings.TrimSpace(req.Title) == "" {
-		return nil, errors.New("title is required")
+		return nil, ErrResourceTitleRequired
 	}
 	req.Visibility = normalizeVisibility(req.Visibility)
 	return s.repo.UpdateResource(ctx, resourceID, ownerUserID, req)
@@ -104,23 +117,43 @@ func (s *Service) GetDownloadURL(ctx context.Context, resourceID int64, viewerUs
 func decodePayload(contentType, dataBase64 string) ([]byte, string, error) {
 	raw := strings.TrimSpace(dataBase64)
 	if raw == "" {
-		return nil, "", errors.New("dataBase64 is required")
+		return nil, "", ErrResourcePayloadRequired
 	}
 	if idx := strings.Index(raw, ","); strings.HasPrefix(raw, "data:") && idx > 0 {
 		raw = raw[idx+1:]
 	}
 	content, err := base64.StdEncoding.DecodeString(raw)
 	if err != nil {
-		return nil, "", errors.New("invalid base64 payload")
+		return nil, "", ErrResourcePayloadInvalid
 	}
 	if len(content) == 0 || len(content) > maxResourceUploadSize {
-		return nil, "", errors.New("resource payload size is invalid")
+		return nil, "", ErrResourcePayloadSizeInvalid
 	}
 	detectedType := http.DetectContentType(content)
-	if strings.TrimSpace(contentType) != "" && contentType != detectedType {
-		return nil, "", errors.New("contentType does not match payload")
+	if provided := strings.TrimSpace(contentType); provided != "" {
+		if !resourceMediaTypesMatch(provided, detectedType) {
+			return nil, "", ErrResourceContentTypeMismatch
+		}
 	}
 	return content, detectedType, nil
+}
+
+func resourceMediaTypesMatch(provided, detected string) bool {
+	providedType, _, providedErr := mime.ParseMediaType(provided)
+	detectedType, _, detectedErr := mime.ParseMediaType(detected)
+	if providedErr != nil || detectedErr != nil {
+		return provided == detected
+	}
+	return providedType == detectedType
+}
+
+func isResourceBadRequestError(err error) bool {
+	return errors.Is(err, ErrResourceTitleRequired) ||
+		errors.Is(err, ErrResourceFilenameRequired) ||
+		errors.Is(err, ErrResourcePayloadRequired) ||
+		errors.Is(err, ErrResourcePayloadInvalid) ||
+		errors.Is(err, ErrResourcePayloadSizeInvalid) ||
+		errors.Is(err, ErrResourceContentTypeMismatch)
 }
 
 func normalizeVisibility(value string) string {

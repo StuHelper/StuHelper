@@ -3,6 +3,8 @@ import type { Logger, Session, Universal } from 'koishi'
 import { ModerationActionService, type ModerationStore } from '@stuhelper/koishi-moderation-core'
 import type { StuhelperAIConfig, StuhelperGroupGuardPluginConfig } from '@stuhelper/koishi-shared'
 
+const AI_REVIEW_TIMEOUT_MS = 10_000
+
 interface AIReviewResult {
   severity: 'none' | 'low' | 'medium' | 'high'
   summary: string
@@ -134,6 +136,7 @@ async function reviewReportWithAI(config: StuhelperAIConfig, input: Record<strin
       Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
+    signal: AbortSignal.timeout(AI_REVIEW_TIMEOUT_MS),
     body: JSON.stringify({
       model: config.model,
       input,

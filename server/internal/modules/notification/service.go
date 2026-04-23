@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -108,7 +109,20 @@ func (s *Service) CountUnread(ctx context.Context, userID int64) (int, error) {
 
 // MarkRead 标记通知已读
 func (s *Service) MarkRead(ctx context.Context, notifID string, userID int64) error {
-	return s.repo.MarkRead(ctx, notifID, userID)
+	if err := s.repo.MarkRead(ctx, notifID, userID); err != nil {
+		return err
+	}
+
+	s.hub.Broadcast(userID, SSEEvent{
+		Event: "notification_read",
+		Data: map[string]any{
+			"id":     notifID,
+			"userId": userID,
+			"isRead": true,
+		},
+	})
+
+	return nil
 }
 
 // MarkAllRead 标记所有通知已读
@@ -116,6 +130,14 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 	if err := s.repo.MarkAllRead(ctx, userID); err != nil {
 		return err
 	}
+
+	s.hub.Broadcast(userID, SSEEvent{
+		Event: "notification_read_all",
+		Data: map[string]any{
+			"userId": userID,
+			"isRead": true,
+		},
+	})
 
 	// 推送未读数更新
 	s.hub.Broadcast(userID, SSEEvent{
@@ -133,26 +155,7 @@ func (s *Service) ResolveInternalUserID(ctx context.Context, externalID string) 
 
 // publishToRedis 通过 Redis Pub/Sub 广播通知
 func (s *Service) publishToRedis(ctx context.Context, userID int64, notifID string, params SendParams) {
-	body := params.Body
-	if body == "" {
-		body = params.Content
-	}
-	payload := map[string]any{
-		"id":           notifID,
-		"type":         params.Type,
-		"title":        params.Title,
-		"body":         body,
-		"content":      body,
-		"payload":      payloadOrEmptyJSON(params.Payload),
-		"sourceModule": params.SourceModule,
-		"sourceId":     params.SourceID,
-	}
-	if params.SourceURL != "" {
-		payload["sourceUrl"] = params.SourceURL
-	}
-	if params.CourseID != 0 {
-		payload["courseID"] = params.CourseID
-	}
+	payload := buildRealtimeNotificationPayload(notifID, params, time.Now().UTC())
 	data, err := json.Marshal(payload)
 	if err != nil {
 		logger.L().Warn("failed to marshal notification payload", zap.Error(err))
@@ -165,6 +168,29 @@ func (s *Service) publishToRedis(ctx context.Context, userID int64, notifID stri
 			zap.Int64("user_id", userID),
 			zap.Error(err),
 		)
+	}
+}
+
+func buildRealtimeNotificationPayload(notifID string, params SendParams, createdAt time.Time) Notification {
+	body := params.Body
+	if body == "" {
+		body = params.Content
+	}
+
+	return Notification{
+		ID:           notifID,
+		UserID:       params.UserID,
+		Type:         params.Type,
+		Title:        params.Title,
+		Body:         body,
+		Content:      body,
+		Payload:      payloadOrEmptyJSON(params.Payload),
+		SourceModule: params.SourceModule,
+		SourceID:     params.SourceID,
+		SourceURL:    nilIfEmpty(params.SourceURL),
+		CourseID:     courseIDOrNil(params.CourseID),
+		IsRead:       false,
+		CreatedAt:    createdAt.Format(time.RFC3339Nano),
 	}
 }
 

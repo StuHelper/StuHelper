@@ -247,16 +247,17 @@ func (s *Service) AdminEditReview(ctx context.Context, params AdminEditReviewPar
 
 // ListAllReviewsParams 获取所有评论参数
 type ListAllReviewsParams struct {
-	Status   string
-	Page     int
-	PageSize int
+	Status    string
+	Page      int
+	PageSize  int
+	SchoolIDs []int64
 }
 
 // ListAllReviews 获取所有评论（管理员）
 func (s *Service) ListAllReviews(ctx context.Context, params ListAllReviewsParams) (*GetCourseReviewsResult, error) {
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
-	list, total, err := s.repo.ListAllReviews(ctx, params.Status, pageSize, offset)
+	list, total, err := s.repo.ListAllReviews(ctx, params.Status, pageSize, offset, params.SchoolIDs)
 	if err != nil {
 		return nil, err
 	}

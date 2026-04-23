@@ -26,6 +26,10 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		_, _, _, err := h.consumeOIDCState(c, state)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "state cookie missing")
+
+		remaining, getErr := fixture.Client.Get(context.Background(), oidcStateRedisPrefix+state).Result()
+		require.NoError(t, getErr)
+		assert.NotEmpty(t, remaining)
 	})
 
 	t.Run("cookie mismatch", func(t *testing.T) {
@@ -40,6 +44,22 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		_, _, _, err := h.consumeOIDCState(c, state)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "state cookie mismatch")
+
+		remaining, getErr := fixture.Client.Get(context.Background(), oidcStateRedisPrefix+state).Result()
+		require.NoError(t, getErr)
+		assert.NotEmpty(t, remaining)
+
+		retryW := httptest.NewRecorder()
+		retryCtx, _ := gin.CreateTestContext(retryW)
+		retryReq := httptest.NewRequest(http.MethodGet, "/callback?state="+state, nil)
+		retryReq.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
+		retryCtx.Request = retryReq
+
+		redirect, verifier, isNative, retryErr := h.consumeOIDCState(retryCtx, state)
+		require.NoError(t, retryErr)
+		assert.Equal(t, "/courses/1", redirect)
+		assert.Equal(t, "verifier-2", verifier)
+		assert.False(t, isNative)
 	})
 
 	t.Run("legacy redirect payload", func(t *testing.T) {
@@ -47,7 +67,9 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		require.NoError(t, fixture.Client.Set(context.Background(), oidcStateRedisPrefix+state, "/legacy/path", stateMaxAge).Err())
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodGet, "/callback?state="+state, nil)
+		req := httptest.NewRequest(http.MethodGet, "/callback?state="+state, nil)
+		req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
+		c.Request = req
 
 		redirect, verifier, isNative, err := h.consumeOIDCState(c, state)
 		require.NoError(t, err)

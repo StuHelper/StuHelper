@@ -172,7 +172,7 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 			"isPlatformAdmin":    false,
 			"canAccessAdmin":     capability.CanAccessAdmin(snapshot.Capabilities),
 		},
-		"expiresIn": h.tokenConfig.AccessTokenTTL,
+		"expiresIn": h.currentAccessTokenTTLSeconds(),
 	})
 }
 

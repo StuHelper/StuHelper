@@ -14,8 +14,9 @@ import (
 func (h *Handler) ListFlaggedReviews(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	offset := httputil.SafeOffset(page, pageSize)
+	scope := resolveModerationScope(c)
 
-	list, total, err := h.service.ListFlaggedReviews(c.Request.Context(), pageSize, offset)
+	list, total, err := h.service.ListFlaggedReviews(c.Request.Context(), pageSize, offset, scope.schoolIDs()...)
 	if err != nil {
 		logger.FromGin(c).Error("failed to list flagged reviews", zap.Error(err))
 		response.InternalError(c, "failed to list flagged reviews")
@@ -30,6 +31,9 @@ func (h *Handler) ClearContentFlag(c *gin.Context) {
 	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
 	if err != nil {
 		response.BadRequest(c, "invalid review id")
+		return
+	}
+	if !h.authorizeReviewModeration(c, reviewID) {
 		return
 	}
 

@@ -151,10 +151,10 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	require.NoError(t, svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: posted.Review.ID,
 		UserHash: "u-post-1",
-		Title:    "更新后标题",
-		Content:  "更新后内容",
-		Grade:    "A+",
-		Ratings:  ReviewRatings{"teaching": 4, "difficulty": 5},
+		Title:    strPtr("更新后标题"),
+		Content:  strPtr("更新后内容"),
+		Grade:    strPtr("A+"),
+		Ratings:  ratingsPtr(ReviewRatings{"teaching": 4, "difficulty": 5}),
 	}))
 
 	voteCourseID, err := svc.VoteReview(ctx, VoteReviewParams{ReviewID: posted.Review.ID, UserHash: "u-voter-1", VoteType: "like"})

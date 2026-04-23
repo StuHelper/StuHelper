@@ -84,30 +84,30 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: "550e8400-e29b-41d4-a716-446655449997",
 		UserHash: "u-owner-write",
-		Title:    "缺失评论",
-		Content:  "缺失评论内容",
-		Grade:    "A",
-		Ratings:  ReviewRatings{"teaching": 4},
+		Title:    strPtr("缺失评论"),
+		Content:  strPtr("缺失评论内容"),
+		Grade:    strPtr("A"),
+		Ratings:  ratingsPtr(ReviewRatings{"teaching": 4}),
 	})
 	require.ErrorIs(t, err, ErrReviewNotFound)
 
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: hiddenID,
 		UserHash: "u-hidden-write",
-		Title:    "更新隐藏评论",
-		Content:  "更新后的隐藏评论内容",
-		Grade:    "A",
-		Ratings:  ReviewRatings{"teaching": 4},
+		Title:    strPtr("更新隐藏评论"),
+		Content:  strPtr("更新后的隐藏评论内容"),
+		Grade:    strPtr("A"),
+		Ratings:  ratingsPtr(ReviewRatings{"teaching": 4}),
 	})
 	require.ErrorIs(t, err, ErrReviewNotFound)
 
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: publishedID,
 		UserHash: "u-other-write",
-		Title:    "越权更新",
-		Content:  "越权更新内容",
-		Grade:    "A",
-		Ratings:  ReviewRatings{"teaching": 4},
+		Title:    strPtr("越权更新"),
+		Content:  strPtr("越权更新内容"),
+		Grade:    strPtr("A"),
+		Ratings:  ratingsPtr(ReviewRatings{"teaching": 4}),
 	})
 	require.ErrorIs(t, err, ErrNotReviewOwner)
 

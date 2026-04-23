@@ -114,10 +114,10 @@ func (h *Handler) VoteReview(c *gin.Context) {
 
 // UpdateReviewRequest 更新评论请求
 type UpdateReviewRequest struct {
-	Title   string        `json:"title" binding:"max=200"`
-	Content string        `json:"content" binding:"required,min=10,max=5000"`
-	Grade   string        `json:"grade" binding:"omitempty,oneof=A+ A A- B+ B B- C+ C C- D F"`
-	Ratings ReviewRatings `json:"ratings" binding:"required"`
+	Title   *string        `json:"title" binding:"omitempty,max=200"`
+	Content *string        `json:"content" binding:"omitempty,min=10,max=5000"`
+	Grade   *string        `json:"grade" binding:"omitempty,oneof=A+ A A- B+ B B- C+ C C- D F"`
+	Ratings *ReviewRatings `json:"ratings"`
 }
 
 // UpdateReview 更新评论

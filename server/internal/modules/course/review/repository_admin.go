@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -30,7 +31,7 @@ func validateStatus(status, fallback string) string {
 
 // ListAllReviews 获取所有评论（管理员，含总数）
 // 使用 strings.Builder 重构 SQL 构建逻辑，参数绑定更清晰
-func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, offset int) ([]Review, int, error) {
+func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, offset int, schoolIDs []int64) ([]Review, int, error) {
 	status = validateStatus(status, "all")
 
 	var qb strings.Builder
@@ -47,16 +48,23 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 	`)
 
 	var args []interface{}
-	needFilter := status != "" && status != "all"
-
-	if needFilter {
-		qb.WriteString(` WHERE r.status = $1`)
-		qb.WriteString(` ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`)
-		args = []interface{}{status, limit, offset}
-	} else {
-		qb.WriteString(` ORDER BY r.created_at DESC LIMIT $1 OFFSET $2`)
-		args = []interface{}{limit, offset}
+	hasWhere := false
+	if len(schoolIDs) > 0 {
+		qb.WriteString(` WHERE c.school_id = ANY($1)`)
+		args = append(args, schoolIDs)
+		hasWhere = true
 	}
+	if status != "" && status != "all" {
+		if hasWhere {
+			qb.WriteString(` AND`)
+		} else {
+			qb.WriteString(` WHERE`)
+		}
+		qb.WriteString(` r.status = $` + strconv.Itoa(len(args)+1))
+		args = append(args, status)
+	}
+	qb.WriteString(` ORDER BY r.created_at DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2))
+	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, qb.String(), args...)
 	if err != nil {

@@ -147,12 +147,12 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	admin := r.Group("/admin")
 	admin.Use(authMiddleware, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
 	{
-		admin.GET("/reports", rbac.RequireCapability(capability.AdminReportsManage), h.ListReports)
-		admin.PUT("/reports/:reportID", rbac.RequireCapability(capability.AdminReportsManage), h.ProcessReport)
-		admin.GET("/reviews", rbac.RequireCapability(capability.AdminReviewsManage), h.ListAllReviews)
-		admin.PUT("/reviews/:reviewID", rbac.RequireCapability(capability.AdminReviewsManage), h.AdminUpdateReview)
-		admin.POST("/reviews/:reviewID/edit", rbac.RequireCapability(capability.AdminReviewsManage), h.AdminEditReviewContent)
-		admin.PATCH("/reviews/batch", rbac.RequireCapability(capability.AdminReviewsManage), h.BatchUpdateReviews)
+		admin.GET("/reports", requireModerationRole(), h.ListReports)
+		admin.PUT("/reports/:reportID", requireModerationRole(), h.ProcessReport)
+		admin.GET("/reviews", requireModerationRole(), h.ListAllReviews)
+		admin.PUT("/reviews/:reviewID", requireModerationRole(), h.AdminUpdateReview)
+		admin.POST("/reviews/:reviewID/edit", requireSchoolAdminRole(), h.AdminEditReviewContent)
+		admin.PATCH("/reviews/batch", requireModerationRole(), h.BatchUpdateReviews)
 		admin.GET("/stats", rbac.RequireCapability(capability.AdminDashboardView), h.GetAdminStats)
 		admin.GET("/logs", rbac.RequireCapability(capability.AdminLogsView), h.GetOperationLogs)
 		admin.GET("/export", rbac.RequireCapability(capability.AdminReviewsManage), h.ExportReviews)
@@ -167,8 +167,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 		admin.PUT("/sensitive-words/:sensitiveWordID", rbac.RequireCapability(capability.AdminSensitiveWordsManage), h.UpdateSensitiveWord)
 		admin.DELETE("/sensitive-words/:sensitiveWordID", rbac.RequireCapability(capability.AdminSensitiveWordsManage), h.DeleteSensitiveWord)
 
-		admin.GET("/content-flags", rbac.RequireCapability(capability.AdminReviewsManage), h.ListFlaggedReviews)
-		admin.PUT("/content-flags/:reviewID/clear", rbac.RequireCapability(capability.AdminReviewsManage), h.ClearContentFlag)
+		admin.GET("/content-flags", requireModerationRole(), h.ListFlaggedReviews)
+		admin.PUT("/content-flags/:reviewID/clear", requireModerationRole(), h.ClearContentFlag)
 	}
 }
 

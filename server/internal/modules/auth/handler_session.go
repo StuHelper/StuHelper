@@ -190,7 +190,7 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 		return false
 	}
 
-	accessTTL := time.Duration(h.tokenConfig.AccessTokenTTL) * time.Second
+	accessTTL := h.currentAccessTokenTTL()
 	refreshTTL := time.Duration(h.tokenConfig.RefreshTokenTTL) * time.Second
 
 	exists, err := h.svc.UserExistsByExternalID(c.Request.Context(), oldClaims.Sub)
@@ -303,6 +303,9 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 	// OIDC token 没有 sid claim，native 客户端必须通过显式 session header 回传
 	// 受追踪的 session family。
 	oidcSessionID := h.getSessionID(c, "")
+	if oidcSessionID != "" {
+		h.setSessionCookie(c, oidcSessionID)
+	}
 	if rotErr := h.svc.RotateSession(c.Request.Context(), oidcSessionID, newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken); rotErr != nil {
 		logger.FromGin(c).Error("failed to rotate OIDC session",
 			zap.String("session_id", oidcSessionID),
@@ -354,7 +357,7 @@ type refreshTokenRequest struct {
 func (h *Handler) buildRefreshResponse(c *gin.Context, accessToken, refreshToken string) gin.H {
 	resp := gin.H{
 		"message":   "token refreshed successfully",
-		"expiresIn": h.tokenConfig.AccessTokenTTL,
+		"expiresIn": h.currentAccessTokenTTLSeconds(),
 	}
 	if fromNative, _ := c.Get("refresh_from_native"); fromNative == true {
 		resp["accessToken"] = accessToken

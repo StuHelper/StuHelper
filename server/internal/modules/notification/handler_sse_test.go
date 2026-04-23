@@ -26,3 +26,16 @@ func TestWriteSSE_SanitizesEventName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "event: unread_count\ndata: {\"count\":2}\n\n", buf.String())
 }
+
+func TestWriteSSE_WritesStructuredNotificationObject(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	err := writeSSE(&buf, "notification", map[string]any{
+		"id":        "notif-1",
+		"isRead":    false,
+		"createdAt": "2026-04-23T09:00:00Z",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "event: notification\ndata: {\"createdAt\":\"2026-04-23T09:00:00Z\",\"id\":\"notif-1\",\"isRead\":false}\n\n", buf.String())
+}

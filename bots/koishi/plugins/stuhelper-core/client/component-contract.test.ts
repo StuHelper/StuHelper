@@ -32,3 +32,19 @@ test('WarnsView refreshes server state after successful count updates', () => {
   assert.match(source, /pushSuccess\(next <= 0 \? '警告已清除' : '警告次数已更新'\)/)
   assert.match(source, /await refresh\(\)/)
 })
+
+test('ChatView delegates message rendering to a safe component instead of v-html', () => {
+  const source = readClientFile('./components/ChatView.vue')
+
+  assert.match(source, /<ChatMessageContent\b/)
+  assert.doesNotMatch(source, /v-html="renderMessage\(msg\)"/)
+  assert.doesNotMatch(source, /onclick="window\.open\('/)
+})
+
+test('ChatView uses a composite session key to avoid cross-platform collisions', () => {
+  const source = readClientFile('./components/ChatView.vue')
+
+  assert.match(source, /const buildSessionKey = \(params: \{/)
+  assert.match(source, /return `\$\{params\.platform\}:\$\{params\.type\}:\$\{guildPart\}:\$\{params\.channelId\}`/)
+  assert.match(source, /findSessionByKey\(sessionKey\)/)
+})

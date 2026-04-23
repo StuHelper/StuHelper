@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -88,6 +89,33 @@ func TestResourceHandlers_MapObjectStorageNetworkFailureTo503(t *testing.T) {
 	parsed := decodeEnvelope(t, resp.Body.Bytes())
 	require.NotNil(t, parsed.Error)
 	assert.Equal(t, "resource storage is temporarily unavailable", parsed.Error.Message)
+}
+
+func TestResourceHandlers_MapUnknownCreateFailureTo500WithoutLeakingDetails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_, _, _, svc, store := setupResourceService(t)
+	store.putErr = errors.New("storage driver exploded")
+
+	router := newResourceTestRouter(svc)
+	body := marshalResourceRequest(t, CreateRequest{
+		Title:       "Broken Upload",
+		Visibility:  "public",
+		Filename:    "broken.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("payload")),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/resources", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-ID", "oidc-user-1")
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusInternalServerError, resp.Code)
+	parsed := decodeEnvelope(t, resp.Body.Bytes())
+	require.NotNil(t, parsed.Error)
+	assert.Equal(t, "failed to create resource", parsed.Error.Message)
+	assert.NotContains(t, resp.Body.String(), "storage driver exploded")
 }
 
 func TestResourceHandlers_OptionalAuthBackendFailureReturns503(t *testing.T) {

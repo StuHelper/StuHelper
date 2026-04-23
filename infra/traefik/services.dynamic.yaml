@@ -1,7 +1,7 @@
 # StuHelper 应用服务路由
 #
 # 覆盖范围：
-#   /api/*    → backend (Go 服务，strip /api 前缀)
+#   /api/*    → backend (Go 服务，保留 /api 前缀)
 #   /admin/*  → admin 前端 (Vben Admin)
 #   /         → web 前端 (Vue SPA)
 #
@@ -14,12 +14,6 @@
 
 http:
   middlewares:
-    # 去除 /api 前缀后转发给 backend
-    strip-api-prefix:
-      stripPrefix:
-        prefixes:
-          - /api
-
     # 安全响应头（所有应用服务共享）
     security-headers:
       headers:
@@ -53,7 +47,6 @@ http:
         - web
         - websecure
       middlewares:
-        - strip-api-prefix
         - security-headers
         - edge-rate-limit
       service: backend

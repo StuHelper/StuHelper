@@ -25,6 +25,17 @@ type reviewCoreFields struct {
 	status    string
 }
 
+type reviewUpdateState struct {
+	userHash  string
+	courseID  int64
+	teacherID *int64
+	status    string
+	title     string
+	content   string
+	grade     string
+	ratings   ReviewRatings
+}
+
 type reviewCoreRow interface {
 	Scan(dest ...any) error
 }
@@ -86,6 +97,35 @@ func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Revie
 		return nil, fmt.Errorf("GetReviewByID: %w", err)
 	}
 	return &item, nil
+}
+
+func (r *Repository) GetReviewUpdateStateTx(ctx context.Context, tx pgx.Tx, reviewID string) (reviewUpdateState, error) {
+	var (
+		state     reviewUpdateState
+		teacherID int64
+	)
+	err := tx.QueryRow(ctx, `
+		SELECT user_hash, course_id, COALESCE(teacher_id, 0), status, title, content, COALESCE(grade, ''), ratings
+		FROM reviews
+		WHERE id = $1
+		FOR UPDATE
+	`, reviewID).Scan(
+		&state.userHash,
+		&state.courseID,
+		&teacherID,
+		&state.status,
+		&state.title,
+		&state.content,
+		&state.grade,
+		&state.ratings,
+	)
+	if err != nil {
+		return reviewUpdateState{}, err
+	}
+	if teacherID != 0 {
+		state.teacherID = &teacherID
+	}
+	return state, nil
 }
 
 // UpdateParams 更新评论参数
@@ -156,6 +196,17 @@ func (r *Repository) GetReviewSchoolIDTx(ctx context.Context, tx pgx.Tx, reviewI
 	return schoolID, err
 }
 
+func (r *Repository) GetReviewSchoolID(ctx context.Context, reviewID string) (int64, error) {
+	var schoolID int64
+	err := r.db.QueryRow(ctx, `
+		SELECT c.school_id
+		FROM reviews r
+		JOIN courses c ON c.id = r.course_id
+		WHERE r.id = $1
+	`, reviewID).Scan(&schoolID)
+	return schoolID, err
+}
+
 // GetReviewStatusAndCourseIDTx 在事务内获取评论状态和课程ID
 func (r *Repository) GetReviewStatusAndCourseIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, error) {
 	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, true)
@@ -181,6 +232,36 @@ func (r *Repository) GetReviewOwnerCourseTeacherStatusTx(ctx context.Context, tx
 		return "", 0, nil, "", err
 	}
 	return fields.userHash, fields.courseID, fields.teacherID, fields.status, nil
+}
+
+func (r *Repository) ListReviewSchoolIDs(ctx context.Context, reviewIDs []string) (map[string]int64, error) {
+	if len(reviewIDs) == 0 {
+		return map[string]int64{}, nil
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT r.id, c.school_id
+		FROM reviews r
+		JOIN courses c ON c.id = r.course_id
+		WHERE r.id = ANY($1)
+	`, reviewIDs)
+	if err != nil {
+		return nil, fmt.Errorf("ListReviewSchoolIDs: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]int64, len(reviewIDs))
+	for rows.Next() {
+		var (
+			reviewID string
+			schoolID int64
+		)
+		if err := rows.Scan(&reviewID, &schoolID); err != nil {
+			return nil, fmt.Errorf("ListReviewSchoolIDs scan: %w", err)
+		}
+		result[reviewID] = schoolID
+	}
+	return result, rows.Err()
 }
 
 // ListDistinctReviewTargetIDsTx 在事务内获取一批评论关联的课程ID和教师ID集合。

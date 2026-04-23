@@ -9,7 +9,16 @@ import { StuhelperGroupCenterService } from '../services/stuhelper-group-center.
 import type { Subscription, Role, WarnRecord } from '../../types'
 import * as crypto from 'crypto'
 import { createAuthority4ListenerRegistrar } from './authority-listener'
+import { prependQuoteElement, serializeChatElements } from './chat-element-serializer'
 import { deliverChatMessageToClients } from './chat-delivery'
+import {
+  assertConsoleGuildAccess,
+  resolveRequiredConsoleGuildScope,
+} from './console-guild-scope'
+import {
+  normalizeManagedRoleInput,
+  requireAssignableRole,
+} from './auth-management'
 const pkg = require('../../../package.json')
 
 /** API 响应格式 */
@@ -29,6 +38,32 @@ function error(message: string): ApiResponse {
   return { success: false, error: message }
 }
 
+function buildQuotePayload(quote: any) {
+  if (!quote?.messageId) {
+    return undefined
+  }
+
+  const content = quote.content || readQuoteElementsPreview(quote.elements)
+  return {
+    messageId: quote.messageId,
+    user: quote.user?.name || quote.user?.id || '',
+    content: content.slice(0, 100),
+  }
+}
+
+function readQuoteElementsPreview(elements: any[] | undefined): string {
+  if (!Array.isArray(elements)) {
+    return ''
+  }
+
+  return elements.map((element) => {
+    if (element?.type === 'text') {
+      return element.attrs?.content || element.attrs?.text || ''
+    }
+    return `[${element?.type || 'unknown'}]`
+  }).join('')
+}
+
 /**
  * 注册所有 WebSocket API
  */
@@ -41,6 +76,11 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
 
   const addAuthorityListener = createAuthority4ListenerRegistrar(ctx.console)
   const data = service.data
+  const resolveConsoleScope = (client: unknown) => resolveRequiredConsoleGuildScope(client as any, {
+    roles: service.auth.getRoles(),
+    getUserRoleIds: (userId: string) => service.auth.getUserRoleIds(userId),
+    listBindingsByAuthId: (authId: number) => ctx.database.get('binding', { aid: authId }),
+  })
 
   // ===== 群组配置 API =====
   
@@ -95,14 +135,18 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 更新群组配置 */
-  addAuthorityListener('stuhelperGroupCenter/config/update', async (params: { guildId: string, config: any }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/update', async function (params: { guildId: string, config: any }) {
+    const scope = await resolveConsoleScope(this)
+    assertConsoleGuildAccess(scope, params.guildId, 'group config')
     data.groupConfig.set(params.guildId, params.config)
     await data.groupConfig.flush()
     return success({ success: true })
   })
 
   /** 创建群组配置 */
-  addAuthorityListener('stuhelperGroupCenter/config/create', async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/create', async function (params: { guildId: string }) {
+    const scope = await resolveConsoleScope(this)
+    assertConsoleGuildAccess(scope, params.guildId, 'group config')
     if (data.groupConfig.get(params.guildId)) {
       return error('配置已存在')
     }
@@ -125,7 +169,9 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 删除群组配置 */
-  addAuthorityListener('stuhelperGroupCenter/config/delete', async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/delete', async function (params: { guildId: string }) {
+    const scope = await resolveConsoleScope(this)
+    assertConsoleGuildAccess(scope, params.guildId, 'group config')
     data.groupConfig.delete(params.guildId)
     await data.groupConfig.flush()
     return success({ success: true })
@@ -139,14 +185,18 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 创建/更新角色 */
-  addAuthorityListener('stuhelperGroupCenter/auth/role/update', async (params: { role: Role }) => {
-    await service.auth.saveRole(params.role)
+  addAuthorityListener('stuhelperGroupCenter/auth/role/update', async function (params: { role: Role }) {
+    const scope = await resolveConsoleScope(this)
+    const role = normalizeManagedRoleInput(service.auth, scope, params.role)
+    await service.auth.saveRole(role)
     await service.data.authRoles.flush()
     return success({ success: true })
   })
 
   /** 删除角色 */
-  addAuthorityListener('stuhelperGroupCenter/auth/role/delete', async (params: { roleId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/role/delete', async function (params: { roleId: string }) {
+    const scope = await resolveConsoleScope(this)
+    requireAssignableRole(service.auth, scope, params.roleId)
     await service.auth.deleteRole(params.roleId)
     await service.data.authRoles.flush()
     await service.data.authUsers.flush() // 用户关联可能被清理
@@ -179,26 +229,33 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 分配角色 */
-  addAuthorityListener('stuhelperGroupCenter/auth/user/assign', async (params: { userId: string, roleId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/user/assign', async function (params: { userId: string, roleId: string }) {
+    const scope = await resolveConsoleScope(this)
+    requireAssignableRole(service.auth, scope, params.roleId)
     await service.auth.assignRole(params.userId, params.roleId)
     await service.data.authUsers.flush()
     return success({ success: true })
   })
 
   /** 移除角色 */
-  addAuthorityListener('stuhelperGroupCenter/auth/user/revoke', async (params: { userId: string, roleId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/user/revoke', async function (params: { userId: string, roleId: string }) {
+    const scope = await resolveConsoleScope(this)
+    requireAssignableRole(service.auth, scope, params.roleId)
     await service.auth.revokeRole(params.userId, params.roleId)
     await service.data.authUsers.flush()
     return success({ success: true })
   })
 
   /** 批量导入成员到角色 */
-  addAuthorityListener('stuhelperGroupCenter/auth/role/import-members', async (params: { roleId: string, userIds: string[] }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/role/import-members', async function (params: { roleId: string, userIds: string[] }) {
     try {
       const { roleId, userIds } = params
       if (!roleId || !userIds || !Array.isArray(userIds)) {
         return error('无效的参数')
       }
+
+      const scope = await resolveConsoleScope(this)
+      requireAssignableRole(service.auth, scope, roleId)
 
       // 内置角色不可手动分配
       if (service.auth.isBuiltinRole(roleId)) {
@@ -277,12 +334,15 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取指定群的管理员列表 */
-  addAuthorityListener('stuhelperGroupCenter/auth/guild-admins', async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/guild-admins', async function (params: { guildId: string }) {
     try {
       const { guildId } = params
       if (!guildId) {
         return error('缺少群号')
       }
+
+      const scope = await resolveConsoleScope(this)
+      assertConsoleGuildAccess(scope, guildId, 'guild admin query')
 
       // 获取群成员列表
       for (const bot of ctx.bots) {
@@ -1158,67 +1218,6 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     return null
   }
 
-  // 将 Koishi elements 序列化为字符串（保留 quote、at、image 等）
-  const serializeElements = (elements: any[]): string => {
-    if (!elements || !Array.isArray(elements)) return ''
-    
-    return elements.map(el => {
-      if (!el) return ''
-      
-      // 文本节点
-      if (el.type === 'text') {
-        return el.attrs?.content || ''
-      }
-      
-      // 引用消息
-      if (el.type === 'quote') {
-        const id = el.attrs?.id || ''
-        // 如果有子元素，也序列化
-        if (el.children && el.children.length > 0) {
-          const childContent = serializeElements(el.children)
-          return `<quote id="${id}">${childContent}</quote>`
-        }
-        return `<quote id="${id}" />`
-      }
-      
-      // @某人
-      if (el.type === 'at') {
-        const id = el.attrs?.id || ''
-        const name = el.attrs?.name || ''
-        if (name) {
-          return `<at id="${id}" name="${name}" />`
-        }
-        return `<at id="${id}" />`
-      }
-      
-      // 图片
-      if (el.type === 'img' || el.type === 'image') {
-        const src = el.attrs?.src || el.attrs?.url || ''
-        const file = el.attrs?.file || ''
-        if (file) {
-          return `<img src="${src}" file="${file}" />`
-        }
-        return `<img src="${src}" />`
-      }
-      
-      // 表情
-      if (el.type === 'face') {
-        const id = el.attrs?.id || ''
-        return `<face id="${id}" />`
-      }
-      
-      // 其他元素，尝试保留原始格式
-      if (el.type) {
-        const attrs = Object.entries(el.attrs || {})
-          .map(([k, v]) => `${k}="${v}"`)
-          .join(' ')
-        return attrs ? `<${el.type} ${attrs} />` : `<${el.type} />`
-      }
-      
-      return ''
-    }).join('')
-  }
-
   // 监听并广播消息
   const broadcastMessage = async (session: any, isSelf = false) => {
     ctx.logger('stuhelperGroupCenter').debug('broadcastMessage called:', { isSelf, channelId: session.channelId, userId: session.userId })
@@ -1255,38 +1254,21 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       }
     }
     
-    // 处理引用消息：session.quote 存储了被引用的消息信息
-    // 需要将其添加到 content 开头
-    if (session.quote && session.quote.messageId) {
-      const quoteId = session.quote.messageId
-      const quoteUser = session.quote.user?.name || session.quote.user?.id || ''
-      const quoteContent = session.quote.content || session.quote.elements?.map((el: any) =>
-        el.type === 'text' ? (el.attrs?.content || '') : `[${el.type}]`
-      ).join('') || ''
-      
-      // 构造引用元素字符串
-      const quoteTag = `<quote id="${quoteId}" user="${quoteUser}" content="${quoteContent.replace(/"/g, '&quot;').substring(0, 100)}" />`
-      content = quoteTag + content
+    const quotePayload = buildQuotePayload(session.quote)
+    const elementList = Array.isArray(elements) ? elements : (content ? h.parse(content) : [])
+    const elementsWithQuote = prependQuoteElement(elementList, quotePayload)
+    if (elementsWithQuote.length > 0) {
+      elements = elementsWithQuote
     }
     
     // 如果不是 isSelf，也需要将 elements 序列化为包含完整信息的字符串
     // 因为 session.content 可能不包含 quote、at 等元素的完整信息
     if (!isSelf && elements && Array.isArray(elements) && elements.length > 0) {
-      // 检查是否有需要序列化的特殊元素（排除 quote，因为已经处理过了）
       const hasSpecialElements = elements.some(el =>
-        el.type === 'at' || el.type === 'img' || el.type === 'image' || el.type === 'face'
+        el.type === 'quote' || el.type === 'at' || el.type === 'img' || el.type === 'image' || el.type === 'face'
       )
       if (hasSpecialElements) {
-        const serializedContent = serializeElements(elements)
-        // 如果有 quote，保留 quote 前缀
-        if (session.quote && session.quote.messageId) {
-          const quoteMatch = content.match(/^<quote[^>]*\/>/)
-          if (quoteMatch) {
-            content = quoteMatch[0] + serializedContent
-          }
-        } else {
-          content = serializedContent
-        }
+        content = serializeChatElements(elements)
       }
     }
     
@@ -1313,7 +1295,9 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     }
 
     // 使用已获取的 elements 或解析 content
-    const finalElements = elements || session.elements || (content ? h.parse(content) : [])
+    const finalElements = Array.isArray(elements) && elements.length > 0
+      ? elements
+      : (session.elements || (content ? h.parse(content) : []))
 
     // 如果是自己发送的消息，补充作者信息
     let username = session.author?.name || session.author?.nick || session.userId

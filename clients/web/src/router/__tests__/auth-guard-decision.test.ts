@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveProtectedRouteAuthFailure } from '../auth-guard-decision'
+import {
+  hasRequiredRouteCapabilityAccess,
+  resolveProtectedRouteAuthFailure,
+} from '../auth-guard-decision'
 
 describe('resolveProtectedRouteAuthFailure', () => {
   it('cancels protected navigation when session bootstrap failed but auth state is unresolved', () => {
@@ -53,5 +56,25 @@ describe('resolveProtectedRouteAuthFailure', () => {
         stillAuthenticated: false,
       }),
     ).toBeNull()
+  })
+})
+
+describe('hasRequiredRouteCapabilityAccess', () => {
+  it('allows protected routes when the required capability only exists in full capabilities', () => {
+    expect(
+      hasRequiredRouteCapabilityAccess(
+        ['review:create'],
+        ['review:create'],
+      ),
+    ).toBe(true)
+  })
+
+  it('rejects protected routes when the required capability is missing', () => {
+    expect(
+      hasRequiredRouteCapabilityAccess(
+        ['review:list:full'],
+        ['review:create'],
+      ),
+    ).toBe(false)
   })
 })

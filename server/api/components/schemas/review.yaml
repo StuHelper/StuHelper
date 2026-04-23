@@ -108,7 +108,6 @@ PostReviewRequest:
 
 UpdateReviewRequest:
   type: object
-  required: [content, ratings]
   properties:
     title:
       type: string

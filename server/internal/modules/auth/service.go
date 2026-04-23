@@ -214,7 +214,7 @@ func (s *Service) SignPhoneTokenPair(user *PhoneUser, roles []string, sessionID 
 		return "", "", fmt.Errorf("HMAC key not initialized")
 	}
 
-	accessTTL := time.Duration(s.tokenConfig.AccessTokenTTL) * time.Second
+	accessTTL := s.tokenService.GetAccessTokenTTL()
 	refreshTTL := time.Duration(s.tokenConfig.RefreshTokenTTL) * time.Second
 
 	accessClaims := token.JWTClaims{

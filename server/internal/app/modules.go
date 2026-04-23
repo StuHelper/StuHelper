@@ -292,5 +292,8 @@ func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cip
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize user service: %w", err)
 	}
+	if err := userService.LoadSystemConfigSnapshots(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to load user system config snapshots: %w", err)
+	}
 	return userService, nil
 }

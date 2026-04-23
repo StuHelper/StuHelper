@@ -183,6 +183,10 @@ function defaultShouldRefresh(schemaPath: string, status: number): boolean {
   return status === 401 && schemaPath !== AUTH_REFRESH_PATH
 }
 
+function isUnauthorizedStatus(status: number): boolean {
+  return status === 401 || status === 403
+}
+
 export function createSessionApiClient(
   transport: SessionTransport,
   options: SessionClientOptions = {},
@@ -205,7 +209,7 @@ export function createSessionApiClient(
   }
 
   async function maybeHandleUnauthorized(status: number) {
-    if (status !== 401 || !options.reauthenticateOnUnauthorized) {
+    if (!isUnauthorizedStatus(status) || !options.reauthenticateOnUnauthorized) {
       return
     }
     await transport.onUnauthorized?.()

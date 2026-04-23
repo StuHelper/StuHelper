@@ -20,11 +20,15 @@ import {
   reviewStudentVerification,
 } from '#/api/admin';
 import { $t } from '#/locales';
+import { useAuthStore } from '#/store/auth';
+
+const STUDENT_REVIEW_CAPABILITY = 'user:student:review';
 
 const loading = ref(false);
 const actionLoading = ref(false);
 const items = ref<StudentVerification[]>([]);
 const total = ref(0);
+const authStore = useAuthStore();
 const query = reactive({
   page: 1,
   pageSize: 20,
@@ -32,7 +36,18 @@ const query = reactive({
   schoolId: '',
 });
 
+function normalizeScopedSchoolId() {
+  const schoolId = authStore.resolveScopedSchoolId(
+    STUDENT_REVIEW_CAPABILITY,
+    query.schoolId,
+  );
+  if (schoolId !== query.schoolId) {
+    query.schoolId = schoolId;
+  }
+}
+
 async function fetchData() {
+  normalizeScopedSchoolId();
   loading.value = true;
   try {
     const data = await getStudentVerificationList(query);

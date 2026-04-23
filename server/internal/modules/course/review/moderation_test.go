@@ -70,6 +70,14 @@ func strPtr(value string) *string {
 	return &value
 }
 
+func ratingsPtr(value ReviewRatings) *ReviewRatings {
+	cloned := make(ReviewRatings, len(value))
+	for key, score := range value {
+		cloned[key] = score
+	}
+	return &cloned
+}
+
 func sameStringPtr(left, right *string) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil

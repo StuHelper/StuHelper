@@ -8,10 +8,12 @@ import { isTokenExpired } from "@/utils/auth";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
 import {
-    hasAnyCapability,
     REVIEW_CREATE,
 } from "@stuhelper/shared/constants";
-import { resolveProtectedRouteAuthFailure } from "@/router/auth-guard-decision";
+import {
+    hasRequiredRouteCapabilityAccess,
+    resolveProtectedRouteAuthFailure,
+} from "@/router/auth-guard-decision";
 // 静态导入，确保 chunk load 失败时仍可渲染
 import ChunkErrorPage from "@/modules/errors/views/ChunkErrorPage.vue";
 import NotFoundPage from "@/modules/errors/views/NotFoundPage.vue";
@@ -406,7 +408,10 @@ router.beforeEach(async (to) => {
     );
     if (
         requiredCapabilities.length > 0 &&
-        !hasAnyCapability(authStore.globalCapabilities, requiredCapabilities)
+        !hasRequiredRouteCapabilityAccess(
+            authStore.user?.capabilities ?? [],
+            requiredCapabilities,
+        )
     ) {
         return { name: "home" };
     }

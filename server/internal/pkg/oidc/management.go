@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,8 @@ type ManagementClient struct {
 	orgID     string
 	client    *http.Client
 }
+
+var ErrManagementPATNotConfigured = errors.New("zitadel management PAT is not configured")
 
 // NewManagementClient 创建 Management API 客户端。
 // pat 为空时返回 nil（未配置，角色同步禁用）。
@@ -197,7 +200,7 @@ func BuildRoleSyncFunc(mgmt *ManagementClient, getUserExternalID func(ctx contex
 				zap.String("role", role),
 				zap.String("action", action),
 			)
-			return nil
+			return fmt.Errorf("%w: role=%s action=%s user_id=%d", ErrManagementPATNotConfigured, role, action, userID)
 		}
 	}
 

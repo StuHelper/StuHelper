@@ -41,7 +41,7 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 		return err
 	}
 	h.setCSRFCookie(c, csrfToken)
-	h.writeCookie(c, middleware.CookieAccessToken, accessToken, h.tokenConfig.AccessTokenTTL, "/", true)
+	h.writeCookie(c, middleware.CookieAccessToken, accessToken, h.currentAccessTokenTTLSeconds(), "/", true)
 	h.writeCookie(c, middleware.CookieRefreshToken, refreshToken, h.tokenConfig.RefreshTokenTTL, refreshTokenCookiePath, true)
 
 	return nil

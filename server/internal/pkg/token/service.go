@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
 
 // Service Token 管理服务
@@ -58,7 +60,8 @@ func (s *Service) GetSessionStore() *SessionStore {
 
 // GetAccessTokenTTL 获取 Access Token TTL
 func (s *Service) GetAccessTokenTTL() time.Duration {
-	return s.accessTokenTTL
+	effectiveSeconds := systemconfig.EffectiveAuthAccessTokenTTL(int(s.accessTokenTTL / time.Second))
+	return time.Duration(effectiveSeconds) * time.Second
 }
 
 // GetRefreshTokenTTL 获取 Refresh Token TTL

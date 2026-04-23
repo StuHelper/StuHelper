@@ -10,6 +10,7 @@ import {
   type ReviewActionInput,
   type WorkItemActionInput,
 } from './review-action-handler'
+import { resolveRequiredConsoleGuildScope } from './console-guild-scope'
 
 export { handleWorkItemAction } from './review-action-handler'
 
@@ -23,11 +24,19 @@ export function registerReviewActionAPI(ctx: Context) {
   const deps = { ctx, moderationStore, actions }
 
   ctx.console.addListener('stuhelperGroupCenter/action/review', async function (input) {
-    return handleWorkItemAction(deps, normalizeLegacyReviewAction(input), resolveActionActor(this))
+    return handleWorkItemAction(
+      deps,
+      normalizeLegacyReviewAction(input),
+      await resolveActionActor(ctx, this),
+    )
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelperGroupCenter/action/work-item', async function (input) {
-    return handleWorkItemAction(deps, parseWorkItemActionInput(input), resolveActionActor(this))
+    return handleWorkItemAction(
+      deps,
+      parseWorkItemActionInput(input),
+      await resolveActionActor(ctx, this),
+    )
   }, { authority: 4 })
 }
 
@@ -87,13 +96,20 @@ function readEnum<T extends string>(value: unknown, candidates: readonly T[], fi
   return value as T
 }
 
-function resolveActionActor(client: Client): WorkItemActionActor {
+async function resolveActionActor(ctx: Context, client: Client): Promise<WorkItemActionActor> {
   if (!client.auth) {
     throw new Error('console auth is required')
   }
 
+  const guildScope = await resolveRequiredConsoleGuildScope(client, {
+    roles: ctx.stuhelperGroupCenter.auth.getRoles(),
+    getUserRoleIds: (userId: string) => ctx.stuhelperGroupCenter.auth.getUserRoleIds(userId),
+    listBindingsByAuthId: (authId: number) => ctx.database.get('binding', { aid: authId }),
+  })
+
   return {
     memberId: String(client.auth.id),
     displayName: client.auth.name || null,
+    guildScope,
   }
 }

@@ -67,6 +67,25 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	h.UpdateReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 
+	w, c = withUserContext(http.MethodPut, "/reviews/"+createdReviewID, `{"content":"仅更新内容也足够长用于通过校验"}`, viewerID)
+	c.Params = gin.Params{{Key: "reviewID", Value: createdReviewID}}
+	setWriteAccess(c, viewerID)
+	h.UpdateReview(c)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var (
+		title   string
+		content string
+		grade   string
+		ratings ReviewRatings
+	)
+	err = fixture.Pool.QueryRow(ctx, `SELECT title, content, grade, ratings FROM reviews WHERE id = $1`, createdReviewID).Scan(&title, &content, &grade, &ratings)
+	require.NoError(t, err)
+	assert.Equal(t, "更新评论标题", title)
+	assert.Equal(t, "仅更新内容也足够长用于通过校验", content)
+	assert.Equal(t, "A+", grade)
+	assert.Equal(t, ReviewRatings{"teaching": 4, "difficulty": 5}, ratings)
+
 	w, c = withUserContext(http.MethodDelete, "/reviews/"+createdReviewID, "", viewerID)
 	c.Params = gin.Params{{Key: "reviewID", Value: createdReviewID}}
 	setWriteAccess(c, viewerID)

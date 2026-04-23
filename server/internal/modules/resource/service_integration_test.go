@@ -72,6 +72,21 @@ func TestCreateAndQueryResource(t *testing.T) {
 	assert.Equal(t, store.downloadURL, url)
 }
 
+func TestCreateResource_AcceptsPlainTextWithoutCharsetParameter(t *testing.T) {
+	ctx, _, _, svc, _ := setupResourceService(t)
+
+	created, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "Plain Text",
+		Visibility:  "public",
+		Filename:    "plain.txt",
+		ContentType: "text/plain",
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("plain text body")),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, "Plain Text", created.Title)
+}
+
 func TestUpdateAndDeletePrivateResource(t *testing.T) {
 	ctx, _, repo, svc, store := setupResourceService(t)
 	created := createSampleResource(t, ctx, svc)

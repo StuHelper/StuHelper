@@ -389,8 +389,8 @@ func (s *Service) CheckContent(ctx context.Context, content string) (*ContentChe
 // --- 内容标记管理 pass-through ---
 
 // ListFlaggedReviews 获取待人工复核评课列表（content_flag in warn/review）
-func (s *Service) ListFlaggedReviews(ctx context.Context, limit, offset int) ([]Review, int, error) {
-	reviews, total, err := s.repo.ListFlaggedReviews(ctx, limit, offset)
+func (s *Service) ListFlaggedReviews(ctx context.Context, limit, offset int, schoolIDs ...int64) ([]Review, int, error) {
+	reviews, total, err := s.repo.ListFlaggedReviews(ctx, limit, offset, schoolIDs)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list flagged reviews: %w", err)
 	}
@@ -424,6 +424,26 @@ func (s *Service) ClearContentFlag(ctx context.Context, reviewID, adminUserID st
 		}
 		return nil
 	})
+}
+
+func (s *Service) GetReviewSchoolID(ctx context.Context, reviewID string) (int64, error) {
+	schoolID, err := s.repo.GetReviewSchoolID(ctx, reviewID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrReviewNotFound
+	}
+	return schoolID, err
+}
+
+func (s *Service) GetReportSchoolID(ctx context.Context, reportID string) (int64, error) {
+	schoolID, err := s.repo.GetReportSchoolID(ctx, reportID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrReportNotFound
+	}
+	return schoolID, err
+}
+
+func (s *Service) ListReviewSchoolIDs(ctx context.Context, reviewIDs []string) (map[string]int64, error) {
+	return s.repo.ListReviewSchoolIDs(ctx, reviewIDs)
 }
 
 // --- 敏感词管理 pass-through ---

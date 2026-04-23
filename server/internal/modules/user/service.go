@@ -93,6 +93,7 @@ const (
 type Repo interface {
 	GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error)
 	CreateIdentity(ctx context.Context, identity *IdentityRecord) error
+	UpdateIdentitySubmission(ctx context.Context, identity *IdentityRecord) error
 	ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
 	UpdateIdentityReviewStatus(ctx context.Context, userID int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error
 

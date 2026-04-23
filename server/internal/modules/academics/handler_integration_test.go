@@ -124,25 +124,50 @@ func TestAcademicsHandlers_ListSourcesMatchesContract(t *testing.T) {
 	assert.NotContains(t, first, "Enabled")
 }
 
+func TestAcademicsHandlers_AdminRoutesRequireGlobalCapability(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	svc := NewService(NewRepository(fixture.DB), NewRegistry())
+	router := newAcademicsScopedTestRouter(svc, []capability.Grant{{
+		Name:           capability.UserSchoolRead,
+		ScopeSchoolIDs: []string{"10006"},
+	}})
+
+	resp := executeAcademicsRequest(t, router, http.MethodGet, "/api/v1/admin/academics/sources", "")
+	require.Equal(t, http.StatusForbidden, resp.Code)
+}
+
 func newAcademicsTestRouter(svc *Service) *gin.Engine {
+	return newAcademicsScopedTestRouter(svc, []capability.Grant{
+		{Name: capability.UserSchoolRead},
+		{Name: capability.UserSchoolUpdate},
+	})
+}
+
+func newAcademicsScopedTestRouter(svc *Service, grants []capability.Grant) *gin.Engine {
 	router := gin.New()
 	api := router.Group("/api/v1")
 	handler := NewHandler(svc)
-	handler.RegisterRoutes(api, academicsAuthMiddleware())
+	handler.RegisterRoutes(api, academicsAuthMiddleware(grants))
 	return router
 }
 
-func academicsAuthMiddleware() gin.HandlerFunc {
+func academicsAuthMiddleware(grants []capability.Grant) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetHeader("X-User-ID")
 		if userID == "" {
 			userID = "admin-user"
 		}
+		snapshot := capability.BuildUserAccessSnapshot(grants)
+		capSet := make(map[string]struct{}, len(snapshot.Capabilities))
+		for _, capName := range snapshot.Capabilities {
+			capSet[capName] = struct{}{}
+		}
 		c.Set(middleware.CtxKeyUserID, userID)
-		c.Set(middleware.CtxKeyCapabilitySet, map[string]struct{}{
-			capability.UserSchoolRead:   {},
-			capability.UserSchoolUpdate: {},
-		})
+		c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)
+		c.Set(middleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+		c.Set(middleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
+		c.Set(middleware.CtxKeyCapabilitySet, capSet)
 		c.Next()
 	}
 }

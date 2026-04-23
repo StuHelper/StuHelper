@@ -163,10 +163,10 @@ drainLoop:
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: reviewID,
 		UserHash: "u-owner-state",
-		Title:    "需要复核",
-		Content:  "reviewword content",
-		Grade:    "A",
-		Ratings:  ReviewRatings{"teaching": 4, "difficulty": 5},
+		Title:    strPtr("需要复核"),
+		Content:  strPtr("reviewword content"),
+		Grade:    strPtr("A"),
+		Ratings:  ratingsPtr(ReviewRatings{"teaching": 4, "difficulty": 5}),
 	})
 	require.NoError(t, err)
 
@@ -185,10 +185,10 @@ drainLoop:
 	err = svc.UpdateReview(ctx, UpdateReviewParams{
 		ReviewID: reviewID,
 		UserHash: "u-owner-state",
-		Title:    "恢复发布",
-		Content:  "正常内容",
-		Grade:    "A+",
-		Ratings:  ReviewRatings{"teaching": 5, "difficulty": 4},
+		Title:    strPtr("恢复发布"),
+		Content:  strPtr("正常内容"),
+		Grade:    strPtr("A+"),
+		Ratings:  ratingsPtr(ReviewRatings{"teaching": 5, "difficulty": 4}),
 	})
 	require.NoError(t, err)
 	err = fixture.Pool.QueryRow(ctx, `SELECT status, content_flag FROM reviews WHERE id = $1`, reviewID).Scan(&status, &contentFlag)

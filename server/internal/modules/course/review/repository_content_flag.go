@@ -3,6 +3,8 @@ package review
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -49,16 +51,26 @@ func (r *Repository) ClearContentFlagTx(ctx context.Context, tx pgx.Tx, reviewID
 }
 
 // ListFlaggedReviews 获取待复核评课列表（content_flag in warn/review）。
-func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int) ([]Review, int, error) {
-	rows, err := r.db.Query(ctx, `
+func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int, schoolIDs []int64) ([]Review, int, error) {
+	var qb strings.Builder
+	qb.WriteString(`
 		SELECT r.id, r.course_id, r.title, r.content, r.status, r.content_flag,
 		       r.user_hash, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
 		FROM reviews r
+		JOIN courses c ON c.id = r.course_id
 		WHERE r.content_flag IN ('warn', 'review')
-		ORDER BY CASE WHEN r.content_flag = 'review' THEN 0 ELSE 1 END, r.created_at DESC
-		LIMIT $1 OFFSET $2
-	`, limit, offset)
+	`)
+	args := make([]interface{}, 0, 3)
+	if len(schoolIDs) > 0 {
+		qb.WriteString(` AND c.school_id = ANY($1)`)
+		args = append(args, schoolIDs)
+	}
+	qb.WriteString(` ORDER BY CASE WHEN r.content_flag = 'review' THEN 0 ELSE 1 END, r.created_at DESC`)
+	qb.WriteString(` LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2))
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Query(ctx, qb.String(), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("ListFlaggedReviews: %w", err)
 	}

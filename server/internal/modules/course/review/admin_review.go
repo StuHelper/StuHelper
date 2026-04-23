@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -31,13 +30,11 @@ func (h *Handler) AdminEditReviewContent(c *gin.Context) {
 		response.BadRequest(c, "invalid request parameters")
 		return
 	}
-
-	userID := middleware.GetUserID(c)
-	if !h.checkFGA(c.Request.Context(), "user:"+userID, "can_edit", "review:"+reviewID) {
-		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
+	if !h.authorizeReviewContentEdit(c, reviewID) {
 		return
 	}
 
+	userID := middleware.GetUserID(c)
 	err = h.service.AdminEditReview(c.Request.Context(), AdminEditReviewParams{
 		ReviewID: reviewID,
 		Title:    req.Title,

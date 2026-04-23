@@ -29,6 +29,38 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecor
 	return nil
 }
 
+// UpdateIdentitySubmission 覆盖已驳回的实名认证提交内容，并重置审核状态。
+func (r *Repository) UpdateIdentitySubmission(ctx context.Context, identity *IdentityRecord) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE user_identities SET
+			doc_type = $2,
+			doc_number_enc = $3,
+			person_uid = $4,
+			real_name = $5,
+			verified = $6,
+			verify_method = $7,
+			reviewed_at = $8,
+			verified_at = $9,
+			doc_photo_front = $10,
+			doc_photo_back = $11,
+			doc_photo_selfie = $12,
+			rejection_reason = $13,
+			updated_at = NOW()
+		WHERE user_id = $1
+	`, identity.UserID, identity.DocType, identity.DocNumberEnc, identity.PersonUID, identity.RealName,
+		identity.Verified, identity.VerifyMethod, identity.ReviewedAt, identity.VerifiedAt,
+		identity.DocPhotoFront, identity.DocPhotoBack, identity.DocPhotoSelfie,
+		identity.RejectionReason,
+	)
+	if err != nil {
+		return fmt.Errorf("UpdateIdentitySubmission: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrIdentityNotFound
+	}
+	return nil
+}
+
 // GetIdentityStatusByUserID 根据用户ID获取实名认证状态（最小字段集，不含 doc_number_enc/person_uid）
 func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error) {
 	var item IdentityStatus

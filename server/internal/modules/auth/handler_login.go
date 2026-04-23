@@ -226,8 +226,7 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 		return "", "", false, fmt.Errorf("empty state")
 	}
 
-	// 原子消费 Redis state（GetDel 保证一次性使用）
-	raw, err := h.redisClient.GetDel(c.Request.Context(), oidcStateRedisPrefix+state).Result()
+	raw, err := h.redisClient.Get(c.Request.Context(), oidcStateRedisPrefix+state).Result()
 	if err != nil {
 		h.clearOIDCStateCookie(c)
 		if errors.Is(err, redis.Nil) {
@@ -236,35 +235,33 @@ func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string
 		return "", "", false, err
 	}
 
-	var payload oidcStatePayload
-	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		// 兼容：旧格式纯 redirect 字符串——一定是 Web 流程
+	redirectURL, codeVerifier, isNative, err := decodeOIDCStatePayload(raw)
+	if err != nil {
 		h.clearOIDCStateCookie(c)
-		return raw, "", false, nil
+		return "", "", false, err
 	}
 
-	if payload.Native {
-		// 原生 App 流程：不校验 cookie，state 已被 GetDel 消费。
-		// 将 code_verifier 重存回 Redis，供 ExchangeNative 消费。
-		if err := h.storeNativeCodeVerifier(c.Request.Context(), state, payload.CodeVerifier); err != nil {
+	if isNative {
+		if err := h.deleteOIDCState(c.Request.Context(), state); err != nil {
+			return "", "", true, err
+		}
+		if err := h.storeNativeCodeVerifier(c.Request.Context(), state, codeVerifier); err != nil {
 			return "", "", true, fmt.Errorf("failed to persist code_verifier for native exchange: %w", err)
 		}
-		return payload.RedirectURL, payload.CodeVerifier, true, nil
+		return redirectURL, codeVerifier, true, nil
 	}
 
-	// Web 流程：校验 cookie（state 已被 GetDel 消费）
-	cookieState, err := c.Cookie(oidcStateCookieName)
-	if err != nil || cookieState == "" {
+	if err := h.validateOIDCStateCookie(c, state); err != nil {
 		h.clearOIDCStateCookie(c)
-		return "", "", false, fmt.Errorf("state cookie missing")
+		return "", "", false, err
 	}
-	if subtle.ConstantTimeCompare([]byte(cookieState), []byte(state)) != 1 {
+	if err := h.deleteOIDCState(c.Request.Context(), state); err != nil {
 		h.clearOIDCStateCookie(c)
-		return "", "", false, fmt.Errorf("state cookie mismatch")
+		return "", "", false, err
 	}
 
 	h.clearOIDCStateCookie(c)
-	return payload.RedirectURL, payload.CodeVerifier, false, nil
+	return redirectURL, codeVerifier, false, nil
 }
 
 const nativeCodeVerifierPrefix = "auth:native:verifier:"
@@ -284,6 +281,36 @@ func (h *Handler) consumeNativeCodeVerifier(ctx context.Context, state string) (
 		return "", err
 	}
 	return raw, nil
+}
+
+func decodeOIDCStatePayload(raw string) (string, string, bool, error) {
+	var payload oidcStatePayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return raw, "", false, nil
+	}
+	return payload.RedirectURL, payload.CodeVerifier, payload.Native, nil
+}
+
+func (h *Handler) validateOIDCStateCookie(c *gin.Context, state string) error {
+	cookieState, err := c.Cookie(oidcStateCookieName)
+	if err != nil || cookieState == "" {
+		return fmt.Errorf("state cookie missing")
+	}
+	if subtle.ConstantTimeCompare([]byte(cookieState), []byte(state)) != 1 {
+		return fmt.Errorf("state cookie mismatch")
+	}
+	return nil
+}
+
+func (h *Handler) deleteOIDCState(ctx context.Context, state string) error {
+	deleted, err := h.redisClient.Del(ctx, oidcStateRedisPrefix+state).Result()
+	if err != nil {
+		return err
+	}
+	if deleted == 0 {
+		return fmt.Errorf("state expired or already used")
+	}
+	return nil
 }
 
 func (h *Handler) setOIDCStateCookie(c *gin.Context, state string) {
@@ -407,7 +434,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 		"accessToken":  rawIDToken,
 		"refreshToken": oauthToken.RefreshToken,
 		"sessionID":    nativeSessionID,
-		"expiresIn":    h.tokenConfig.AccessTokenTTL,
+		"expiresIn":    h.currentAccessTokenTTLSeconds(),
 	})
 }
 

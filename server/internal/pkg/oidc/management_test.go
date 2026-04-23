@@ -123,14 +123,16 @@ func TestFindUserGrant(t *testing.T) {
 }
 
 func TestBuildRoleSyncFunc(t *testing.T) {
-	t.Run("nil management becomes no-op stub", func(t *testing.T) {
+	t.Run("nil management returns explicit configuration error", func(t *testing.T) {
 		var called atomic.Bool
 		syncFn := BuildRoleSyncFunc(nil, func(ctx context.Context, userID int64) (string, error) {
 			called.Store(true)
 			return "", nil
 		})
 
-		require.NoError(t, syncFn(context.Background(), 42, "school_admin", true))
+		err := syncFn(context.Background(), 42, "school_admin", true)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrManagementPATNotConfigured)
 		assert.False(t, called.Load())
 	})
 

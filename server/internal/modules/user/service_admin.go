@@ -290,6 +290,11 @@ func (s *Service) UpdateSystemConfig(ctx context.Context, key, value string) err
 		return err
 	}
 
+	if systemconfig.AffectsAuthTokenPolicy(key) {
+		if err := applyAuthTokenPolicySnapshotValue(value); err != nil {
+			return err
+		}
+	}
 	if systemconfig.AffectsReviewAccessPolicy(key) {
 		systemconfig.InvalidateReviewAccessPolicySnapshot()
 	}

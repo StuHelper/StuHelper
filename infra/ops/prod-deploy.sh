@@ -158,6 +158,7 @@ export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" |
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 "${SCRIPT_DIR}/render-postgres-tls.sh"
+"${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/render-zitadel-secrets.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 

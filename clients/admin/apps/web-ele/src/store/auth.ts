@@ -1,4 +1,5 @@
 import type { UserInfo } from '@vben/types';
+import type { AuthApi } from '#/api/core/auth';
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -20,6 +21,37 @@ import { $t } from '#/locales';
 
 class SessionBootstrapError extends Error {}
 
+function hasGlobalCapabilityGrant(
+  grants: AuthApi.MeResult['capabilityGrants'],
+  capabilityName: string,
+) {
+  return grants.some(
+    (grant) => grant.name === capabilityName && grant.global,
+  );
+}
+
+function getScopedSchoolIdsForCapability(
+  grants: AuthApi.MeResult['capabilityGrants'],
+  capabilityName: string,
+) {
+  const schoolIds = new Set<string>();
+
+  for (const grant of grants) {
+    if (grant.global || grant.name !== capabilityName) {
+      continue;
+    }
+
+    for (const schoolId of grant.scopeSchoolIDs ?? []) {
+      const trimmed = schoolId.trim();
+      if (trimmed !== '') {
+        schoolIds.add(trimmed);
+      }
+    }
+  }
+
+  return [...schoolIds];
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const accessStore = useAccessStore();
   const userStore = useUserStore();
@@ -27,8 +59,36 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginLoading = ref(false);
   const sessionForbidden = ref(false);
+  const capabilityGrants = ref<AuthApi.MeResult['capabilityGrants']>([]);
   /** 后端返回的身份提供方账户设置页地址。 */
   const accountSettingsUrl = ref('');
+
+  function syncCapabilityGrants(me: AuthApi.MeResult) {
+    capabilityGrants.value = me.capabilityGrants ?? [];
+  }
+
+  function clearCapabilityGrants() {
+    capabilityGrants.value = [];
+  }
+
+  function resolveScopedSchoolId(
+    capabilityName: string,
+    requestedSchoolId: string,
+  ) {
+    const trimmed = requestedSchoolId.trim();
+    if (trimmed !== '') {
+      return trimmed;
+    }
+
+    if (hasGlobalCapabilityGrant(capabilityGrants.value, capabilityName)) {
+      return '';
+    }
+
+    return (
+      getScopedSchoolIdsForCapability(capabilityGrants.value, capabilityName)[0]
+      || ''
+    );
+  }
 
   /**
    * OIDC 登录：调用后端获取授权 URL，然后浏览器跳转到 Zitadel
@@ -55,6 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
         accessStore.setAccessMenus([]);
         accessStore.setAccessRoutes([]);
         accessStore.setIsAccessChecked(false);
+        clearCapabilityGrants();
       };
 
       if (probe.kind === 'unauthenticated') {
@@ -93,6 +154,7 @@ export const useAuthStore = defineStore('auth', () => {
       userStore.setUserInfo(userInfo);
       accessStore.setAccessToken('cookie-session');
       accessStore.setAccessCodes(me.capabilities);
+      syncCapabilityGrants(me);
       accountSettingsUrl.value = getAccountSettingsUrl(me);
 
       if (accessStore.loginExpired) {
@@ -168,6 +230,7 @@ export const useAuthStore = defineStore('auth', () => {
     const { userInfo, me } = await getUserInfoApi();
     userStore.setUserInfo(userInfo);
     accessStore.setAccessCodes(me.capabilities);
+    syncCapabilityGrants(me);
     accountSettingsUrl.value = getAccountSettingsUrl(me);
     return userInfo;
   }
@@ -175,6 +238,7 @@ export const useAuthStore = defineStore('auth', () => {
   function $reset() {
     loginLoading.value = false;
     sessionForbidden.value = false;
+    clearCapabilityGrants();
     accountSettingsUrl.value = '';
   }
 
@@ -182,10 +246,12 @@ export const useAuthStore = defineStore('auth', () => {
     $reset,
     accountSettingsUrl,
     authLogin,
+    capabilityGrants,
     fetchUserInfo,
     initSession,
     loginLoading,
     logout,
+    resolveScopedSchoolId,
     sessionForbidden,
     redirectToLogin,
   };

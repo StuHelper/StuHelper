@@ -185,6 +185,64 @@ func TestSubmitIdentity_AlreadyExists(t *testing.T) {
 	assert.ErrorIs(t, err, ErrIdentityAlreadyExists)
 }
 
+func TestSubmitIdentity_RejectedIdentityAllowsResubmission(t *testing.T) {
+	var updated *IdentityRecord
+	callCount := 0
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			callCount++
+			if callCount == 1 {
+				now := time.Now().Add(-time.Hour)
+				rejectionReason := "照片不清晰"
+				return &IdentityStatus{
+					UserID:          42,
+					DocType:         DocTypePassport,
+					RealName:        "旧实名",
+					ReviewedAt:      &now,
+					RejectionReason: &rejectionReason,
+				}, nil
+			}
+			return &IdentityStatus{
+				UserID:   42,
+				DocType:  DocTypePassport,
+				RealName: "新实名",
+				Verified: false,
+			}, nil
+		},
+		onUpdateIdentitySubmission: func(_ context.Context, identity *IdentityRecord) error {
+			copied := *identity
+			updated = &copied
+			return nil
+		},
+		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return nil, nil
+		},
+	}
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	front := "identities/42/2026/04/front.png"
+	back := "identities/42/2026/04/back.png"
+	selfie := "identities/42/2026/04/selfie.png"
+	result, err := svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:        DocTypePassport,
+		DocNumber:      "P12345678",
+		RealName:       "新实名",
+		DocPhotoFront:  &front,
+		DocPhotoBack:   &back,
+		DocPhotoSelfie: &selfie,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, updated)
+	assert.Equal(t, "新实名", updated.RealName)
+	assert.False(t, updated.Verified)
+	assert.Nil(t, updated.VerifyMethod)
+	assert.Nil(t, updated.ReviewedAt)
+	assert.Nil(t, updated.VerifiedAt)
+	assert.Nil(t, updated.RejectionReason)
+}
+
 func TestSubmitIdentity_AlreadyVerified(t *testing.T) {
 	repo := &mockRepo{
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
@@ -198,6 +256,24 @@ func TestSubmitIdentity_AlreadyVerified(t *testing.T) {
 		DocType: DocTypeMainlandID, DocNumber: "123", RealName: "test",
 	})
 	assert.ErrorIs(t, err, ErrIdentityAlreadyVerified)
+}
+
+func TestSubmitIdentity_RejectsLegacyPhotoValuesForNewSubmission(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	legacyFront := "https://cdn.example.com/front.png"
+	legacyBack := "data:image/png;base64,ZmFrZQ=="
+	legacySelfie := "http://cdn.example.com/selfie.png"
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:        DocTypePassport,
+		DocNumber:      "P12345678",
+		RealName:       "张三",
+		DocPhotoFront:  &legacyFront,
+		DocPhotoBack:   &legacyBack,
+		DocPhotoSelfie: &legacySelfie,
+	})
+	assert.ErrorIs(t, err, ErrIdentityPhotoInvalidRef)
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  createSessionApiClient,
   executeSessionRefresh,
   extractRefreshSessionData,
 } from '../session-client'
@@ -111,5 +112,35 @@ describe('executeSessionRefresh', () => {
       kind: 'error',
       error: networkError,
     })
+  })
+})
+
+describe('createSessionApiClient', () => {
+  it('reauthenticates when refresh returns 403 unauthorized', async () => {
+    const onUnauthorized = vi.fn()
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        error: { code: 'TOKEN_EXPIRED' },
+        response: { status: 401 },
+      })
+      .mockResolvedValueOnce({
+        data: { data: { message: 'csrf invalid' } },
+        response: { status: 403 },
+      })
+
+    const client = createSessionApiClient(
+      {
+        onUnauthorized,
+        refresh: vi.fn().mockResolvedValue({ kind: 'unauthorized', status: 403 }),
+        request,
+      },
+      { reauthenticateOnUnauthorized: true },
+    )
+
+    await client.GET('/api/v1/user/me')
+
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledTimes(1)
   })
 })

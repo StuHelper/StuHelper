@@ -320,6 +320,63 @@ test('handleWorkItemAction preserves the original admission denial error when ro
   assert.match(deps.logErrors[0], /rollback failed/)
 })
 
+test('handleWorkItemAction rejects review work items outside the actor guild scope', async () => {
+  const review = createReviewRecord({ guildId: '1001' })
+  const deps = createActionDeps({
+    guardRecords: [],
+    reports: [],
+    reviews: [review],
+    now: new Date('2026-04-21T08:00:00.000Z'),
+  })
+
+  await assert.rejects(
+    () => handleWorkItemAction(deps, {
+      kind: 'review',
+      itemId: review.id,
+      action: 'execute',
+    }, createActor({ kind: 'guilds', guildIds: new Set(['2002']) })),
+    /outside of the current console guild scope/,
+  )
+})
+
+test('handleWorkItemAction rejects admission work items outside the actor guild scope', async () => {
+  const guardRecord = createGuardRecord({ guildId: '1001' })
+  const deps = createActionDeps({
+    guardRecords: [guardRecord],
+    reports: [],
+    reviews: [],
+    now: new Date('2026-04-21T08:00:00.000Z'),
+  })
+
+  await assert.rejects(
+    () => handleWorkItemAction(deps, {
+      kind: 'admission',
+      itemId: guardRecord.id,
+      action: 'approve',
+    }, createActor({ kind: 'guilds', guildIds: new Set(['2002']) })),
+    /outside of the current console guild scope/,
+  )
+})
+
+test('handleWorkItemAction rejects report work items outside the actor guild scope', async () => {
+  const report = createReportRecord()
+  const deps = createActionDeps({
+    guardRecords: [],
+    reports: [report],
+    reviews: [],
+    now: new Date('2026-04-21T08:00:00.000Z'),
+  })
+
+  await assert.rejects(
+    () => handleWorkItemAction(deps, {
+      kind: 'report',
+      itemId: report.id,
+      action: 'dismiss',
+    }, createActor({ kind: 'guilds', guildIds: new Set(['2002']) })),
+    /outside of the current console guild scope/,
+  )
+})
+
 test('review action parsers reject malformed payloads', () => {
   assert.throws(
     () => normalizeLegacyReviewAction(null),
@@ -587,9 +644,10 @@ function createReviewRecord(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function createActor() {
+function createActor(guildScope = { kind: 'all' as const }) {
   return {
     memberId: 'admin-42',
     displayName: '审核员甲',
+    guildScope,
   }
 }

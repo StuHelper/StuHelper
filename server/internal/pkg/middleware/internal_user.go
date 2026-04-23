@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
@@ -29,6 +31,10 @@ func ResolveRequiredInternalUserID(
 
 	userID, err := resolver(c.Request.Context(), externalID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			response.Forbidden(c, "user has not completed provisioning", errs.ErrUserNotFound)
+			return 0, false
+		}
 		logger.FromGin(c).Error("failed to resolve user ID",
 			zap.String("external_id", externalID),
 			zap.Error(err),

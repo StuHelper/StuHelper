@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -30,12 +29,14 @@ func (h *Handler) ListReports(c *gin.Context) {
 		status = ReportStatusPending
 	}
 	page, pageSize := httputil.ParsePage(c)
+	scope := resolveModerationScope(c)
 
 	respondWithCachedData(h, c, "review:admin:reports", "status="+status+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize), func(ctx context.Context) (*ListReportsResult, error) {
 		return h.service.ListReports(ctx, ListReportsParams{
-			Status:   status,
-			Page:     page,
-			PageSize: pageSize,
+			Status:    status,
+			Page:      page,
+			PageSize:  pageSize,
+			SchoolIDs: scope.schoolIDs(),
 		})
 	}, func(result *ListReportsResult) any {
 		return gin.H{"list": result.List, "total": result.Total}
@@ -61,14 +62,15 @@ func (h *Handler) ProcessReport(c *gin.Context) {
 		response.BadRequest(c, "invalid request parameters")
 		return
 	}
-
-	username := middleware.GetUsername(c)
+	if !h.authorizeReportModeration(c, reportID) {
+		return
+	}
 
 	err = h.service.ProcessReport(c.Request.Context(), ProcessReportParams{
 		ReportID:   reportID,
 		Action:     req.Action,
 		Note:       req.Note,
-		ResolvedBy: username,
+		ResolvedBy: middleware.GetUsername(c),
 	})
 	if err != nil {
 		if respondProcessReportError(c, err) {
@@ -102,11 +104,13 @@ func (h *Handler) ListAllReviews(c *gin.Context) {
 		status = StatusAll
 	}
 	page, pageSize := httputil.ParsePage(c)
+	scope := resolveModerationScope(c)
 
 	result, err := h.service.ListAllReviews(c.Request.Context(), ListAllReviewsParams{
-		Status:   status,
-		Page:     page,
-		PageSize: pageSize,
+		Status:    status,
+		Page:      page,
+		PageSize:  pageSize,
+		SchoolIDs: scope.schoolIDs(),
 	})
 	if err != nil {
 		logger.FromGin(c).Error("failed to load reviews", zap.Error(err))
@@ -136,13 +140,11 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		response.BadRequest(c, "invalid request parameters")
 		return
 	}
-
-	userID := middleware.GetUserID(c)
-	if !h.checkFGA(c.Request.Context(), "user:"+userID, reviewPermissionRelationForAction(req.Action), "review:"+reviewID) {
-		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
+	if !h.authorizeReviewModeration(c, reviewID) {
 		return
 	}
 
+	userID := middleware.GetUserID(c)
 	result, err := h.service.AdminUpdateReview(c.Request.Context(), AdminUpdateReviewParams{
 		ReviewID: reviewID,
 		Action:   req.Action,
@@ -220,12 +222,8 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
-	relation := reviewPermissionRelationForAction(req.Action)
-	for _, id := range req.IDs {
-		if !h.checkFGA(c.Request.Context(), "user:"+userID, relation, "review:"+id) {
-			response.Forbidden(c, "insufficient permission for one or more reviews", errs.ErrAccessDenied)
-			return
-		}
+	if !h.authorizeBatchReviewModeration(c, req.IDs) {
+		return
 	}
 
 	result, err := h.service.BatchUpdateReviews(c.Request.Context(), BatchUpdateReviewsParams{

@@ -13,23 +13,39 @@ import (
 
 // Handler 用户模块 HTTP 处理器
 type Handler struct {
-	service       *Service
-	verifyLimiter *middleware.RedisRateLimiter
-	otpService    OTPGenerator
-	smsService    SMSSender
+	service                  *Service
+	verifyLimiter            *middleware.RedisRateLimiter
+	bindPhoneUserLimiter     *middleware.RedisRateLimiter
+	bindPhoneEndpointLimiter *middleware.RedisRateLimiter
+	otpService               OTPGenerator
+	smsService               SMSSender
 }
+
+const (
+	verifyRateLimitPerMinute        = 5
+	bindPhoneOTPUserLimitPerMinute  = 5
+	bindPhoneOTPRouteLimitPerMinute = 5
+)
 
 // NewHandler 创建用户处理器
 func NewHandler(service *Service, rdb *redis.Client, otpService OTPGenerator, smsService SMSSender) *Handler {
-	var verifyLimiter *middleware.RedisRateLimiter
+	var (
+		verifyLimiter            *middleware.RedisRateLimiter
+		bindPhoneUserLimiter     *middleware.RedisRateLimiter
+		bindPhoneEndpointLimiter *middleware.RedisRateLimiter
+	)
 	if rdb != nil {
-		verifyLimiter = middleware.NewRedisRateLimiter(rdb, 5, time.Minute)
+		verifyLimiter = middleware.NewRedisRateLimiter(rdb, verifyRateLimitPerMinute, time.Minute)
+		bindPhoneUserLimiter = middleware.NewRedisRateLimiter(rdb, bindPhoneOTPUserLimitPerMinute, time.Minute)
+		bindPhoneEndpointLimiter = middleware.NewRedisRateLimiter(rdb, bindPhoneOTPRouteLimitPerMinute, time.Minute)
 	}
 	return &Handler{
-		service:       service,
-		verifyLimiter: verifyLimiter,
-		otpService:    otpService,
-		smsService:    smsService,
+		service:                  service,
+		verifyLimiter:            verifyLimiter,
+		bindPhoneUserLimiter:     bindPhoneUserLimiter,
+		bindPhoneEndpointLimiter: bindPhoneEndpointLimiter,
+		otpService:               otpService,
+		smsService:               smsService,
 	}
 }
 
@@ -50,7 +66,16 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMW gin.HandlerFunc) {
 		} else {
 			user.POST("/profile/verify", h.handleVerifyStudent)
 		}
-		user.POST("/profile/bind-phone/otp", h.handleRequestBindPhoneOTP)
+		if h.bindPhoneUserLimiter != nil && h.bindPhoneEndpointLimiter != nil {
+			user.POST(
+				"/profile/bind-phone/otp",
+				middleware.UserRateLimitMiddleware(h.bindPhoneUserLimiter),
+				middleware.EndpointRateLimitMiddleware(h.bindPhoneEndpointLimiter, "user-profile-bind-phone-otp"),
+				h.handleRequestBindPhoneOTP,
+			)
+		} else {
+			user.POST("/profile/bind-phone/otp", h.handleRequestBindPhoneOTP)
+		}
 		user.POST("/profile/bind-phone", h.handleBindPhone)
 		user.GET("/profile/academic-info", h.handleGetAcademicInfo)
 	}
