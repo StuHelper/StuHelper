@@ -1,7 +1,7 @@
 ---
-type: design
-audience: frontend-dev
-status: proposed
+type: internal
+audience: maintainers, frontend-dev
+status: archived
 authoritative-source: this file
 last-verified: 2026-04-20
 ---

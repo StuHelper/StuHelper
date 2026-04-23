@@ -1,3 +1,11 @@
+---
+type: internal
+audience: maintainers, backend-dev, frontend-dev
+status: snapshot
+authoritative-source: this file
+last-verified: 2026-04-21
+---
+
 # Grouphelper → StuHelper Koishi Migration Design
 
 **Status:** approved-by-user

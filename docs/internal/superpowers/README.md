@@ -24,6 +24,12 @@ last-verified: 2026-04-19
 | [specs/2026-04-19-koishi-plugin-framework-design.md](specs/2026-04-19-koishi-plugin-framework-design.md) | 已归档的框架设计稿 | 已归档 |
 | [plans/2026-04-19-koishi-moderation-center-implementation.md](plans/2026-04-19-koishi-moderation-center-implementation.md) | 群管中心实现快照 | 基础版已落地，模板/群绑定也已落地，剩余高阶规划保留 |
 | [specs/2026-04-19-koishi-moderation-center-design.md](specs/2026-04-19-koishi-moderation-center-design.md) | 群管中心目标设计 | 部分能力已实现，仍保留未来目标 |
+| [plans/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration.md](plans/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration.md) | `stuhelper-core` 兼容能力并入计划快照 | 已归档 |
+| [reports/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration-summary.md](reports/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration-summary.md) | 上述并入工作的阶段总结 | 已归档 |
+| [specs/2026-04-20-koishi-console-ui-redesign-design.md](specs/2026-04-20-koishi-console-ui-redesign-design.md) | 控制台 UI 重构设计快照 | 已归档 |
+| [specs/2026-04-21-koishi-console-ui-redesign-completion.md](specs/2026-04-21-koishi-console-ui-redesign-completion.md) | 控制台 UI 重构完成总结 | 已归档 |
+| [specs/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration-design.md](specs/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration-design.md) | `stuhelper-core` 兼容能力并入设计快照 | 已归档 |
+| [specs/2026-04-21-grouphelper-stuhelper-migration-design.md](specs/2026-04-21-grouphelper-stuhelper-migration-design.md) | grouphelper 迁移方向设计快照 | 仍属未来目标 |
 
 ## 阅读提醒
 

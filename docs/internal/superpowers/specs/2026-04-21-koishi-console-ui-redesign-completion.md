@@ -1,3 +1,11 @@
+---
+type: internal
+audience: maintainers, frontend-dev
+status: archived
+authoritative-source: this file
+last-verified: 2026-04-21
+---
+
 # Koishi Console UI 重构完成总结
 
 日期：2026-04-21

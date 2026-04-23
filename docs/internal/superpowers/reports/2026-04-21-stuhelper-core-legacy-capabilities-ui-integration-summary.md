@@ -1,3 +1,11 @@
+---
+type: internal
+audience: maintainers, backend-dev, frontend-dev
+status: archived
+authoritative-source: this file
+last-verified: 2026-04-21
+---
+
 # StuHelper Core Legacy Capabilities UI Integration Summary
 
 ## 状态
