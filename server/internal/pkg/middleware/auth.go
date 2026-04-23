@@ -143,11 +143,12 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			return nil, errTokenRevoked
 		}
 		return &authResult{
-			userID:      result.Sub,
-			username:    result.Username,
-			email:       result.Email,
-			displayName: result.Name,
-			roles:       result.Roles,
+			userID:         result.Sub,
+			username:       result.Username,
+			email:          result.Email,
+			displayName:    result.Name,
+			roles:          result.Roles,
+			orgScopedRoles: result.OrgScopedRoles,
 		}, nil
 	}
 

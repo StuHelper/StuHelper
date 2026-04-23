@@ -74,19 +74,19 @@ func (h *Handler) setSessionCookie(c *gin.Context, sessionID string) {
 // getSessionID 从请求中获取 session ID。
 // 优先级：
 //  1. 自签名 JWT 的 sid claim（手机登录）
-//  2. session_id cookie（浏览器 OIDC）
-//  3. X-Stuhelper-Session-ID header（原生 OIDC）
+//  2. X-Stuhelper-Session-ID header（原生 OIDC）
+//  3. session_id cookie（浏览器 OIDC）
 func (h *Handler) getSessionID(c *gin.Context, accessToken string) string {
 	// 自签名 JWT 优先（手机登录，sid 在 token claim 中）
 	if sid := extractSessionID(accessToken); sid != "" {
 		return sid
 	}
-	// OIDC 回退：从 session cookie 读取
-	if v, err := c.Cookie(sessionCookieName); err == nil && v != "" {
-		return v
-	}
 	// 原生客户端：从显式 header 读取 session ID
 	if v := c.GetHeader(nativeSessionIDHeader); v != "" {
+		return v
+	}
+	// OIDC 回退：从 session cookie 读取
+	if v, err := c.Cookie(sessionCookieName); err == nil && v != "" {
 		return v
 	}
 	return ""

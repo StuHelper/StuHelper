@@ -72,6 +72,15 @@ end
 return count
 `)
 
+var otpPhoneLimitRollbackScript = redis.NewScript(`
+local count = tonumber(redis.call("GET", KEYS[1]) or "0")
+if count <= 1 then
+  redis.call("DEL", KEYS[1])
+  return 0
+end
+return redis.call("DECR", KEYS[1])
+`)
+
 // NewOTPService 创建 OTP 服务
 func NewOTPService(rdb *redis.Client) *OTPService {
 	return &OTPService{rdb: rdb}
@@ -119,15 +128,41 @@ func (s *OTPService) IssueCode(ctx context.Context, phone string, smsSender Phon
 
 	code, err := s.Generate(ctx, phone)
 	if err != nil {
+		if rollbackErr := s.rollbackPhoneRateLimit(ctx, phone); rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
 		return err
 	}
 
 	internationalPhone := "+86" + phone
 	if err := smsSender.Send(ctx, internationalPhone, code); err != nil {
-		if cleanupErr := s.CleanupCodeOnly(ctx, phone); cleanupErr != nil {
-			return errors.Join(fmt.Errorf("otp: send sms: %w", err), fmt.Errorf("otp: cleanup code after send failure: %w", cleanupErr))
+		sendErr := fmt.Errorf("otp: send sms: %w", err)
+		cleanupErr := s.CleanupCodeOnly(ctx, phone)
+		rollbackErr := s.rollbackPhoneRateLimit(ctx, phone)
+		if cleanupErr != nil || rollbackErr != nil {
+			var joined error = sendErr
+			if cleanupErr != nil {
+				joined = errors.Join(joined, fmt.Errorf("otp: cleanup code after send failure: %w", cleanupErr))
+			}
+			if rollbackErr != nil {
+				joined = errors.Join(joined, rollbackErr)
+			}
+			return joined
 		}
-		return fmt.Errorf("otp: send sms: %w", err)
+		return sendErr
+	}
+	return nil
+}
+
+func (s *OTPService) rollbackPhoneRateLimit(ctx context.Context, phone string) error {
+	phoneKey, err := otpPhoneKey(phone)
+	if err != nil {
+		return err
+	}
+
+	limitKey := otpPhoneLimitPrefix + phoneKey
+	if _, err := otpPhoneLimitRollbackScript.Run(ctx, s.rdb, []string{limitKey}).Int64(); err != nil {
+		return fmt.Errorf("otp: rollback phone rate limit: %w", err)
 	}
 	return nil
 }

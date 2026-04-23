@@ -108,6 +108,22 @@ func TestRotateSession_BlacklistsOldRefreshAndTouchesSession(t *testing.T) {
 	assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
 }
 
+func TestRotateSession_RejectsTrackedSessionMismatch(t *testing.T) {
+	svc, _ := newAuthServiceForTest(t)
+	ctx := context.Background()
+
+	_, err := svc.CreateSession(ctx, "sid-1", "user-1", "old-access", "old-refresh", "oidc", "browser")
+	require.NoError(t, err)
+
+	err = svc.RotateSession(ctx, "sid-1", "user-2", "old-refresh", "new-access", "new-refresh")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errSessionUserMismatch)
+
+	err = svc.RotateSession(ctx, "sid-1", "user-1", "other-refresh", "new-access", "new-refresh")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errSessionRefreshTokenMismatch)
+}
+
 func TestRotateSession_WithoutSessionIDRejectsRequestAndBlacklistsOldRefresh(t *testing.T) {
 	svc, tokenSvc := newAuthServiceForTest(t)
 	ctx := context.Background()
@@ -144,6 +160,9 @@ func TestSignPhoneTokenPairAndHelpers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sid-phone", refreshClaims.Sid)
 	assert.Equal(t, []string{"user"}, refreshClaims.Roles)
+	assert.Equal(t, "phone@example.com", refreshClaims.Email)
+	assert.Equal(t, "phone-user", refreshClaims.DisplayName)
+	assert.Equal(t, avatar, refreshClaims.Avatar)
 
 	hash, err := hashTokenForSession("sample-token")
 	require.NoError(t, err)
@@ -159,7 +178,7 @@ func TestRevokeSessionAndRevokeAll(t *testing.T) {
 	_, err = svc.CreateSession(ctx, "sid-2", "user-1", "access-2", "refresh-2", "oidc", "browser")
 	require.NoError(t, err)
 
-	err = svc.RevokeSession(ctx, "sid-1", "user-1", "access-fallback", "refresh-fallback")
+	err = svc.RevokeSession(ctx, "sid-1", "user-1", "access-1", "refresh-1")
 	require.NoError(t, err)
 	session, err := tokenSvc.GetSessionStore().Get(ctx, "sid-1")
 	require.NoError(t, err)
@@ -170,6 +189,26 @@ func TestRevokeSessionAndRevokeAll(t *testing.T) {
 	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(ctx, "user-1")
 	require.NoError(t, err)
 	assert.Empty(t, sessions)
+}
+
+func TestRevokeSession_RejectsTrackedSessionMismatch(t *testing.T) {
+	svc, tokenSvc := newAuthServiceForTest(t)
+	ctx := context.Background()
+
+	_, err := svc.CreateSession(ctx, "sid-1", "user-1", "access-1", "refresh-1", "oidc", "browser")
+	require.NoError(t, err)
+
+	err = svc.RevokeSession(ctx, "sid-1", "user-2", "access-1", "refresh-1")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errSessionUserMismatch)
+
+	session, err := tokenSvc.GetSessionStore().Get(ctx, "sid-1")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	err = svc.RevokeSession(ctx, "sid-1", "user-1", "access-other", "refresh-1")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errSessionAccessTokenMismatch)
 }
 
 func TestRotateSession_ContextCanceled(t *testing.T) {

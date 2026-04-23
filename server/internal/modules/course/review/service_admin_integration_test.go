@@ -31,16 +31,20 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 	pendingFlaggedID := "550e8400-e29b-41d4-a716-446655440103"
 	warnFlaggedID := "550e8400-e29b-41d4-a716-446655440104"
 	batchDeleteID := "550e8400-e29b-41d4-a716-446655440105"
+	batchHideID := "550e8400-e29b-41d4-a716-446655440106"
 	pendingRestoreID := "550e8400-e29b-41d4-a716-446655440107"
 	hiddenDeleteID := "550e8400-e29b-41d4-a716-446655440108"
+	batchPendingRestoreID := "550e8400-e29b-41d4-a716-446655440109"
 
 	seedReviewWithRatings(t, fixture, publishedID, courseID, teacherID, "u-admin-1", 4.6, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "已发布评论", "内容一")
 	seedReviewWithRatings(t, fixture, hiddenID, courseID, teacherID, "u-admin-2", 3.9, StatusHidden, ReviewRatings{"teaching": 4, "difficulty": 4}, "隐藏评论", "内容二")
 	seedReviewWithRatings(t, fixture, pendingFlaggedID, courseID, teacherID, "u-admin-3", 4.2, StatusPendingReview, ReviewRatings{"teaching": 4, "difficulty": 5}, "待复核评论", "内容三")
 	seedReviewWithRatings(t, fixture, warnFlaggedID, otherCourseID, teacherID, "u-admin-4", 3.7, StatusPublished, ReviewRatings{"teaching": 3, "difficulty": 4}, "警告评论", "内容四")
 	seedReviewWithRatings(t, fixture, batchDeleteID, otherCourseID, teacherID, "u-admin-5", 4.0, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "批量删除评论", "内容五")
+	seedReviewWithRatings(t, fixture, batchHideID, courseID, teacherID, "u-admin-6", 4.1, StatusPublished, ReviewRatings{"teaching": 4}, "批量屏蔽评论", "内容六")
 	seedReviewWithRatings(t, fixture, pendingRestoreID, courseID, teacherID, "u-admin-7", 4.3, StatusPendingReview, ReviewRatings{"teaching": 4}, "待恢复评论", "内容七")
 	seedReviewWithRatings(t, fixture, hiddenDeleteID, courseID, teacherID, "u-admin-8", 3.6, StatusHidden, ReviewRatings{"teaching": 3}, "隐藏待删除", "内容八")
+	seedReviewWithRatings(t, fixture, batchPendingRestoreID, otherCourseID, teacherID, "u-admin-9", 4.0, StatusPendingReview, ReviewRatings{"teaching": 4}, "批量恢复待审", "内容九")
 
 	contentFlagReview := ContentFlagReview
 	contentFlagWarn := ContentFlagWarn
@@ -48,9 +52,11 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 	require.NoError(t, err)
 	_, err = fixture.Pool.Exec(ctx, `UPDATE reviews SET content_flag = $2 WHERE id = $1`, pendingRestoreID, contentFlagReview)
 	require.NoError(t, err)
+	_, err = fixture.Pool.Exec(ctx, `UPDATE reviews SET content_flag = $2 WHERE id = $1`, batchPendingRestoreID, contentFlagReview)
+	require.NoError(t, err)
 	_, err = fixture.Pool.Exec(ctx, `UPDATE reviews SET content_flag = $2 WHERE id = $1`, warnFlaggedID, contentFlagWarn)
 	require.NoError(t, err)
-	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 2 WHERE id = $1`, courseID)
+	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 3 WHERE id = $1`, courseID)
 	require.NoError(t, err)
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 2 WHERE id = $1`, otherCourseID)
 	require.NoError(t, err)
@@ -61,36 +67,36 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 
 	stats, err := svc.GetAdminStats(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 7, stats.TotalReviews)
-	assert.Equal(t, 3, stats.PublishedReviews)
+	assert.Equal(t, 9, stats.TotalReviews)
+	assert.Equal(t, 4, stats.PublishedReviews)
 	assert.Equal(t, 2, stats.HiddenReviews)
 	assert.Equal(t, 1, stats.PendingReports)
 	assert.Equal(t, 1, stats.TotalReports)
 
 	allReviews, err := svc.ListAllReviews(ctx, ListAllReviewsParams{Status: StatusAll, Page: 1, PageSize: 20})
 	require.NoError(t, err)
-	assert.Equal(t, 7, allReviews.Total)
-	assert.Len(t, allReviews.List, 7)
+	assert.Equal(t, 9, allReviews.Total)
+	assert.Len(t, allReviews.List, 9)
 
 	publishedReviews, err := svc.ListAllReviews(ctx, ListAllReviewsParams{Status: StatusPublished, Page: 1, PageSize: 20})
 	require.NoError(t, err)
-	assert.Equal(t, 3, publishedReviews.Total)
+	assert.Equal(t, 4, publishedReviews.Total)
 
 	trend, err := svc.GetRatingTrend(ctx, courseID)
 	require.NoError(t, err)
 	require.Len(t, trend, 1)
 	assert.Equal(t, "2025-2", trend[0].TermID)
-	assert.Equal(t, 1, trend[0].Count)
+	assert.Equal(t, 2, trend[0].Count)
 
 	hotCourses, err := svc.GetHotCourses(ctx, "all", 10)
 	require.NoError(t, err)
 	require.NotEmpty(t, hotCourses)
-	assert.Equal(t, otherCourseID, hotCourses[0].CourseID)
+	assert.Equal(t, courseID, hotCourses[0].CourseID)
 
 	flagged, totalFlagged, err := svc.ListFlaggedReviews(ctx, 20, 0)
 	require.NoError(t, err)
-	assert.Equal(t, 3, totalFlagged)
-	require.Len(t, flagged, 3)
+	assert.Equal(t, 4, totalFlagged)
+	require.Len(t, flagged, 4)
 	assert.Nil(t, flagged[0].ContentFlagClearedBy)
 	assert.Empty(t, flagged[0].UserHash)
 
@@ -142,17 +148,62 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 	assert.Equal(t, "管理员改标题", title)
 	assert.Equal(t, "管理员改内容", content)
 
-	batchResult, err := svc.BatchUpdateReviews(ctx, BatchUpdateReviewsParams{IDs: []string{warnFlaggedID, batchDeleteID}, Action: "delete"})
+	batchHide, err := svc.BatchUpdateReviews(ctx, BatchUpdateReviewsParams{
+		IDs:     []string{batchHideID},
+		Action:  "hide",
+		AdminID: "admin-batch-hide",
+	})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, batchHide.Affected)
+
+	var moderatedBy *string
+	err = fixture.Pool.QueryRow(ctx, `SELECT moderated_by FROM reviews WHERE id = $1`, batchHideID).Scan(&moderatedBy)
+	require.NoError(t, err)
+	require.NotNil(t, moderatedBy)
+	assert.Equal(t, "admin-batch-hide", *moderatedBy)
+
+	batchResult, err := svc.BatchUpdateReviews(ctx, BatchUpdateReviewsParams{
+		IDs:     []string{warnFlaggedID, batchDeleteID},
+		Action:  "delete",
+		AdminID: "admin-batch-delete",
+	})
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, batchResult.Affected)
 
-	restoredReviewID := "550e8400-e29b-41d4-a716-446655440106"
+	restoredReviewID := "550e8400-e29b-41d4-a716-446655440110"
 	seedReviewWithRatings(t, fixture, restoredReviewID, otherCourseID, teacherID, "u-admin-6", 4.1, StatusHidden, ReviewRatings{"teaching": 4}, "待恢复评论", "内容六")
+	_, err = fixture.Pool.Exec(ctx, `
+		UPDATE reviews
+		SET moderation_reason = 'spam', moderated_by = 'admin-hide', moderated_at = NOW()
+		WHERE id = $1
+	`, restoredReviewID)
+	require.NoError(t, err)
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 0 WHERE id = $1`, otherCourseID)
 	require.NoError(t, err)
 	batchRestore, err := svc.BatchUpdateReviewsWithAudit(ctx, BatchUpdateReviewsParams{IDs: []string{restoredReviewID}, Action: "restore"}, "admin-batch", "root")
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, batchRestore.Affected)
+
+	err = fixture.Pool.QueryRow(ctx, `SELECT moderated_by FROM reviews WHERE id = $1`, restoredReviewID).Scan(&moderatedBy)
+	require.NoError(t, err)
+	assert.Nil(t, moderatedBy)
+
+	batchPendingRestore, err := svc.BatchUpdateReviews(ctx, BatchUpdateReviewsParams{
+		IDs:     []string{batchPendingRestoreID},
+		Action:  "restore",
+		AdminID: "admin-batch-restore",
+	})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, batchPendingRestore.Affected)
+
+	var clearedBy *string
+	err = fixture.Pool.QueryRow(ctx, `SELECT content_flag_cleared_by FROM reviews WHERE id = $1`, batchPendingRestoreID).Scan(&clearedBy)
+	require.NoError(t, err)
+	require.NotNil(t, clearedBy)
+	assert.Equal(t, "admin-batch-restore", *clearedBy)
+
+	_, err = svc.BatchUpdateReviews(ctx, BatchUpdateReviewsParams{IDs: []string{hiddenDeleteID}, Action: "restore", AdminID: "admin-batch"})
+	require.ErrorIs(t, err, ErrInvalidTransition)
 
 	var deletedCount int
 	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM reviews WHERE id = ANY($1) AND status = 'deleted'`, []string{warnFlaggedID, batchDeleteID}).Scan(&deletedCount)

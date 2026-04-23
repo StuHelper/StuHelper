@@ -199,7 +199,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const verificationStore = useVerificationStore()
 const toast = useToast()
-const { openPostModal } = useReviewPost()
+const { ensureCanPostReview, openPostModal } = useReviewPost()
 
 const isReviewRoute = computed(() =>
   route.path.startsWith('/review') ||
@@ -354,10 +354,14 @@ function goToAdmin() {
   window.location.assign('/admin/')
 }
 
-function handleWriteReview() {
+async function handleWriteReview() {
+  if (!(await ensureCanPostReview())) {
+    return
+  }
+
   const courseID = typeof route.params.id === 'string' ? Number(route.params.id) : NaN
   if (route.path.startsWith('/courses/') && Number.isFinite(courseID) && courseID > 0) {
-    router.push({ name: 'course-review-post', params: { id: courseID } })
+    await router.push({ name: 'course-review-post', params: { id: courseID } })
     return
   }
   openPostModal()

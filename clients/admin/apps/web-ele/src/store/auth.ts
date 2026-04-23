@@ -92,9 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       userStore.setUserInfo(userInfo);
       accessStore.setAccessToken('cookie-session');
-      accessStore.setAccessCodes(
-        me.globalCapabilities?.length ? me.globalCapabilities : me.capabilities,
-      );
+      accessStore.setAccessCodes(me.capabilities);
       accountSettingsUrl.value = getAccountSettingsUrl(me);
 
       if (accessStore.loginExpired) {
@@ -169,9 +167,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchUserInfo() {
     const { userInfo, me } = await getUserInfoApi();
     userStore.setUserInfo(userInfo);
-    accessStore.setAccessCodes(
-      me.globalCapabilities?.length ? me.globalCapabilities : me.capabilities,
-    );
+    accessStore.setAccessCodes(me.capabilities);
     accountSettingsUrl.value = getAccountSettingsUrl(me);
     return userInfo;
   }

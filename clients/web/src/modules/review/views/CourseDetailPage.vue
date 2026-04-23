@@ -431,7 +431,7 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { lastPostedAt } = useReviewPost()
+const { ensureCanPostReview, lastPostedAt } = useReviewPost()
 
 const courseID = computed(() => Number(route.params.id))
 
@@ -554,8 +554,11 @@ function avgRatingForReview(r: Review): number {
 }
 
 // ── Navigation ──
-function goToPostPage() {
-  router.push({ name: 'course-review-post', params: { id: courseID.value } })
+async function goToPostPage() {
+  if (!(await ensureCanPostReview())) {
+    return
+  }
+  await router.push({ name: 'course-review-post', params: { id: courseID.value } })
 }
 
 // ── Data fetching ──

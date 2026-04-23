@@ -39,6 +39,14 @@ func (h *Handler) Logout(c *gin.Context) {
 	}
 
 	if err := h.svc.RevokeSession(c.Request.Context(), sessionID, userID, accessToken, refreshToken); err != nil {
+		if errors.Is(err, token.ErrSessionNotFound) ||
+			errors.Is(err, errSessionUserMismatch) ||
+			errors.Is(err, errSessionAccessTokenMismatch) ||
+			errors.Is(err, errSessionRefreshTokenMismatch) {
+			h.clearTokenCookies(c)
+			response.Unauthorized(c, "invalid session", errs.ErrTokenInvalid)
+			return
+		}
 		logger.FromGin(c).Error("failed to revoke session",
 			zap.String("user_id", userID),
 			zap.String("session_id", sessionID),
@@ -208,7 +216,7 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 		Email:       oldClaims.Email,
 		DisplayName: oldClaims.DisplayName,
 		Avatar:      oldClaims.Avatar,
-		Roles:       []string{"user"},
+		Roles:       oldClaims.Roles,
 		Typ:         token.JWTTokenTypeAccess,
 		Sid:         sessionID,
 	}
@@ -222,11 +230,14 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	}
 
 	newRefreshClaims := token.JWTClaims{
-		Sub:   oldClaims.Sub,
-		Name:  oldClaims.Name,
-		Roles: []string{"user"},
-		Typ:   token.JWTTokenTypeRefresh,
-		Sid:   sessionID,
+		Sub:         oldClaims.Sub,
+		Name:        oldClaims.Name,
+		Email:       oldClaims.Email,
+		DisplayName: oldClaims.DisplayName,
+		Avatar:      oldClaims.Avatar,
+		Roles:       oldClaims.Roles,
+		Typ:         token.JWTTokenTypeRefresh,
+		Sid:         sessionID,
 	}
 	newRefreshToken, err := token.SignJWT(hmacKey, newRefreshClaims, refreshTTL)
 	if err != nil {
@@ -298,7 +309,9 @@ func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bo
 			zap.Error(rotErr),
 		)
 		h.clearTokenCookies(c)
-		if errors.Is(rotErr, token.ErrSessionNotFound) {
+		if errors.Is(rotErr, token.ErrSessionNotFound) ||
+			errors.Is(rotErr, errSessionUserMismatch) ||
+			errors.Is(rotErr, errSessionRefreshTokenMismatch) {
 			response.Unauthorized(c, "invalid native session id", errs.ErrTokenInvalid)
 			return false
 		}

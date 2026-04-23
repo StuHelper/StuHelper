@@ -78,6 +78,7 @@
       :title="isEdit ? '编辑订阅' : '添加订阅'"
       :subtitle="isEdit ? `#${draft.id}` : '一个订阅对应一个推送目标'"
       @close="closeForm"
+      @closed="handleFormClosed"
     >
       <section class="sh-drawer__section">
         <h4 class="sh-drawer__section-title">基本信息</h4>
@@ -153,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 import { subscriptionApi } from '../api'
 import type { Subscription } from '../types'
@@ -221,12 +222,6 @@ const headerChips = computed<WorkspaceHeadChip[]>(() => {
 
 onMounted(refresh)
 
-watch(formOpen, (next) => {
-  if (!next) {
-    window.setTimeout(resetDraft, 280)
-  }
-})
-
 async function refresh() {
   loading.value = true
   try {
@@ -254,6 +249,10 @@ function openEdit(sub: Subscription, index: number) {
 
 function closeForm() {
   formOpen.value = false
+}
+
+function handleFormClosed() {
+  resetDraft()
 }
 
 function resetDraft() {

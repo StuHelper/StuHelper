@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -102,6 +103,12 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 	if sessionID == "" {
 		return fmt.Errorf("rotate session: sessionID is required")
 	}
+	if err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
+		userID:       userID,
+		refreshToken: oldRefreshToken,
+	}); err != nil {
+		return fmt.Errorf("rotate session: %w", err)
+	}
 
 	newAccessHash, err := hashTokenForSession(newAccessToken)
 	if err != nil {
@@ -128,6 +135,13 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 // 若调用方持有 token 原文（例如 session ID 无法解析），直接按 token 原文加黑名单作兜底。
 func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessToken, refreshToken string) error {
 	if sessionID != "" {
+		if err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
+			userID:       userID,
+			accessToken:  accessToken,
+			refreshToken: refreshToken,
+		}); err != nil {
+			return fmt.Errorf("revoke session: %w", err)
+		}
 		_, err := s.tokenService.GetSessionStore().Revoke(
 			ctx, sessionID,
 			s.tokenService.GetBlacklist(),
@@ -161,6 +175,20 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 				return fmt.Errorf("revoke refresh token: %w", blErr)
 			}
 		}
+	}
+	return nil
+}
+
+func (s *Service) verifyTrackedSession(ctx context.Context, sessionID string, expectation trackedSessionExpectation) error {
+	session, err := loadTrackedSession(ctx, s.tokenService.GetSessionStore(), sessionID)
+	if err != nil {
+		if errors.Is(err, token.ErrSessionNotFound) {
+			return err
+		}
+		return fmt.Errorf("load session: %w", err)
+	}
+	if err := validateTrackedSession(session, expectation); err != nil {
+		return err
 	}
 	return nil
 }
@@ -208,11 +236,16 @@ func (s *Service) SignPhoneTokenPair(user *PhoneUser, roles []string, sessionID 
 	}
 
 	refreshClaims := token.JWTClaims{
-		Sub:   user.ExternalID,
-		Name:  user.Username,
-		Roles: roles,
-		Typ:   token.JWTTokenTypeRefresh,
-		Sid:   sessionID,
+		Sub:         user.ExternalID,
+		Name:        user.Username,
+		Email:       user.Email,
+		DisplayName: user.Username,
+		Roles:       roles,
+		Typ:         token.JWTTokenTypeRefresh,
+		Sid:         sessionID,
+	}
+	if user.AvatarURL != nil {
+		refreshClaims.Avatar = *user.AvatarURL
 	}
 	refreshToken, err = token.SignJWT(hmacKey, refreshClaims, refreshTTL)
 	if err != nil {

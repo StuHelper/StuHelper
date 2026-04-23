@@ -323,10 +323,8 @@ async function updateCount(key: string, next: number | undefined) {
   if (next === undefined) return
   try {
     await warnsApi.update(key, next)
-    if (next <= 0) {
-      pushSuccess('警告已清除')
-      await refresh()
-    }
+    pushSuccess(next <= 0 ? '警告已清除' : '警告次数已更新')
+    await refresh()
   } catch (cause) {
     pushError(cause, '更新警告失败')
     await refresh()

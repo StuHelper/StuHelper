@@ -35,87 +35,168 @@ type AdminUpdateReviewResult struct {
 	OldStatus string // 事务内读取的旧状态，用于审计日志
 }
 
+type adminReviewTransition struct {
+	courseID  int64
+	teacherID *int64
+	newStatus string
+	oldStatus string
+}
+
 // AdminUpdateReview 管理员更新评论，返回事务内读取的旧状态。
 // restore 对 pending_review 表示审核通过并发布。
 func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) (*AdminUpdateReviewResult, error) {
-	var oldStatus string
+	transition, err := s.applyAdminUpdateReview(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &AdminUpdateReviewResult{OldStatus: transition.oldStatus}, nil
+}
+
+func (s *Service) applyAdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) (*adminReviewTransition, error) {
+	var transition *adminReviewTransition
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		currentStatus, courseID, teacherID, err := s.repo.GetReviewStatusCourseTeacherTx(ctx, tx, params.ReviewID)
+		next, err := s.applyAdminReviewActionTx(ctx, tx, params)
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrReviewNotFound
-			}
 			return err
 		}
-		oldStatus = currentStatus
-
-		allowed, ok := validTransitions[params.Action]
-		if !ok {
-			return ErrInvalidAction
-		}
-		if !allowed[currentStatus] {
-			return fmt.Errorf("%w: cannot %s from %s", ErrInvalidTransition, params.Action, currentStatus)
-		}
-
-		var newStatus string
-		switch params.Action {
-		case "hide":
-			newStatus = StatusHidden
-			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, newStatus); err != nil {
-				return err
-			}
-			if params.AdminID != "" {
-				if err := s.repo.ModerateReviewTx(ctx, tx, params.ReviewID, params.Reason, params.AdminID); err != nil {
-					return err
-				}
-			}
-			if isPublicReviewStatus(currentStatus) {
-				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
-					return err
-				}
-			}
-		case "restore":
-			newStatus = StatusPublished
-			if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, newStatus); err != nil {
-				return err
-			}
-			if currentStatus == StatusPendingReview {
-				if err := s.repo.ClearContentFlagTx(ctx, tx, params.ReviewID, params.AdminID); err != nil {
-					return err
-				}
-			} else {
-				if err := s.repo.ClearModerationTx(ctx, tx, params.ReviewID); err != nil {
-					return err
-				}
-			}
-			if !isPublicReviewStatus(currentStatus) {
-				if err := s.repo.IncrementCourseReviewCount(ctx, tx, courseID); err != nil {
-					return err
-				}
-			}
-		case "delete":
-			newStatus = StatusDeleted
-			if err := s.repo.SoftDeleteReview(ctx, tx, params.ReviewID); err != nil {
-				return err
-			}
-			if isPublicReviewStatus(currentStatus) {
-				if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
-					return err
-				}
-			}
-		default:
-			return ErrInvalidAction
-		}
-
-		if isPublicReviewStatus(currentStatus) || isPublicReviewStatus(newStatus) {
-			return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
+		transition = next
+		if isPublicReviewStatus(next.oldStatus) || isPublicReviewStatus(next.newStatus) {
+			return s.refreshReviewTargetTx(ctx, tx, next.courseID, next.teacherID)
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &AdminUpdateReviewResult{OldStatus: oldStatus}, nil
+	return transition, nil
+}
+
+func (s *Service) applyAdminReviewActionTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	params AdminUpdateReviewParams,
+) (*adminReviewTransition, error) {
+	currentStatus, courseID, teacherID, err := s.repo.GetReviewStatusCourseTeacherTx(ctx, tx, params.ReviewID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrReviewNotFound
+		}
+		return nil, err
+	}
+
+	newStatus, err := validateAdminReviewTransition(params.Action, currentStatus)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.executeAdminReviewActionTx(ctx, tx, params, currentStatus, courseID, newStatus); err != nil {
+		return nil, err
+	}
+	return &adminReviewTransition{
+		courseID:  courseID,
+		teacherID: teacherID,
+		newStatus: newStatus,
+		oldStatus: currentStatus,
+	}, nil
+}
+
+func validateAdminReviewTransition(action, currentStatus string) (string, error) {
+	allowed, ok := validTransitions[action]
+	if !ok {
+		return "", ErrInvalidAction
+	}
+	if !allowed[currentStatus] {
+		return "", fmt.Errorf("%w: cannot %s from %s", ErrInvalidTransition, action, currentStatus)
+	}
+
+	switch action {
+	case "hide":
+		return StatusHidden, nil
+	case "restore":
+		return StatusPublished, nil
+	case "delete":
+		return StatusDeleted, nil
+	default:
+		return "", ErrInvalidAction
+	}
+}
+
+func (s *Service) executeAdminReviewActionTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	params AdminUpdateReviewParams,
+	currentStatus string,
+	courseID int64,
+	newStatus string,
+) error {
+	switch params.Action {
+	case "hide":
+		return s.hideReviewByAdminTx(ctx, tx, params, currentStatus, courseID)
+	case "restore":
+		return s.restoreReviewByAdminTx(ctx, tx, params, currentStatus, courseID)
+	case "delete":
+		return s.deleteReviewByAdminTx(ctx, tx, params.ReviewID, currentStatus, courseID)
+	default:
+		return ErrInvalidAction
+	}
+}
+
+func (s *Service) hideReviewByAdminTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	params AdminUpdateReviewParams,
+	currentStatus string,
+	courseID int64,
+) error {
+	if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, StatusHidden); err != nil {
+		return err
+	}
+	if params.AdminID != "" {
+		if err := s.repo.ModerateReviewTx(ctx, tx, params.ReviewID, params.Reason, params.AdminID); err != nil {
+			return err
+		}
+	}
+	if isPublicReviewStatus(currentStatus) {
+		return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
+	}
+	return nil
+}
+
+func (s *Service) restoreReviewByAdminTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	params AdminUpdateReviewParams,
+	currentStatus string,
+	courseID int64,
+) error {
+	if err := s.repo.UpdateReviewStatus(ctx, tx, params.ReviewID, StatusPublished); err != nil {
+		return err
+	}
+	if currentStatus == StatusPendingReview {
+		if err := s.repo.ClearContentFlagTx(ctx, tx, params.ReviewID, params.AdminID); err != nil {
+			return err
+		}
+	} else if err := s.repo.ClearModerationTx(ctx, tx, params.ReviewID); err != nil {
+		return err
+	}
+	if !isPublicReviewStatus(currentStatus) {
+		return s.repo.IncrementCourseReviewCount(ctx, tx, courseID)
+	}
+	return nil
+}
+
+func (s *Service) deleteReviewByAdminTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	reviewID, currentStatus string,
+	courseID int64,
+) error {
+	if err := s.repo.SoftDeleteReview(ctx, tx, reviewID); err != nil {
+		return err
+	}
+	if isPublicReviewStatus(currentStatus) {
+		return s.repo.DecrementCourseReviewCount(ctx, tx, courseID)
+	}
+	return nil
 }
 
 // AdminEditReviewParams 管理员编辑评论内容参数
@@ -185,8 +266,9 @@ func (s *Service) ListAllReviews(ctx context.Context, params ListAllReviewsParam
 
 // BatchUpdateReviewsParams 批量更新评论参数
 type BatchUpdateReviewsParams struct {
-	IDs    []string
-	Action string // hide, restore, delete
+	IDs     []string
+	Action  string // hide, restore, delete
+	AdminID string
 }
 
 // BatchUpdateReviewsResult 批量更新评论结果
@@ -200,50 +282,29 @@ func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateRevi
 	if len(params.IDs) > maxBatchSize {
 		return nil, fmt.Errorf("batch size %d exceeds limit of %d", len(params.IDs), maxBatchSize)
 	}
-
-	var status string
-	switch params.Action {
-	case "hide":
-		status = StatusHidden
-	case "restore":
-		status = StatusPublished
-	case "delete":
-		status = StatusDeleted
-	default:
+	if _, ok := validTransitions[params.Action]; !ok {
 		return nil, ErrInvalidAction
 	}
+	ids := dedupeReviewIDs(params.IDs)
 
 	var affected int64
 	if err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		// 先锁定涉及的评论行，防止并发批量操作导致计数不一致
-		if err := s.repo.LockReviewsTx(ctx, tx, params.IDs); err != nil {
-			return err
-		}
-
-		courseIDs, teacherIDs, err := s.repo.ListDistinctReviewTargetIDsTx(ctx, tx, params.IDs)
-		if err != nil {
-			return err
-		}
-
-		// 先调整课程评论计数（在状态变更前，基于当前状态判断）
-		switch params.Action {
-		case "hide":
-			if err := s.repo.AdjustCourseCountsForBatchHide(ctx, tx, params.IDs); err != nil {
+		courseIDs := make([]int64, 0, len(ids))
+		teacherIDs := make([]int64, 0, len(ids))
+		for _, reviewID := range ids {
+			transition, err := s.applyAdminReviewActionTx(ctx, tx, AdminUpdateReviewParams{
+				ReviewID: reviewID,
+				Action:   params.Action,
+				AdminID:  params.AdminID,
+			})
+			if err != nil {
 				return err
 			}
-		case "delete":
-			if err := s.repo.AdjustCourseCountsForBatchDelete(ctx, tx, params.IDs); err != nil {
-				return err
+			affected++
+			courseIDs = append(courseIDs, transition.courseID)
+			if transition.teacherID != nil {
+				teacherIDs = append(teacherIDs, *transition.teacherID)
 			}
-		case "restore":
-			if err := s.repo.AdjustCourseCountsForBatchRestore(ctx, tx, params.IDs); err != nil {
-				return err
-			}
-		}
-
-		affected, err = s.repo.BatchUpdateReviewStatusTx(ctx, tx, params.IDs, status)
-		if err != nil {
-			return err
 		}
 		return s.refreshReviewTargetsTx(ctx, tx, courseIDs, teacherIDs)
 	}); err != nil {
@@ -256,6 +317,9 @@ func (s *Service) BatchUpdateReviews(ctx context.Context, params BatchUpdateRevi
 // BatchUpdateReviewsWithAudit 批量更新评论状态并记录审计日志（管理员）
 // 封装审计日志记录，供 handler 层调用
 func (s *Service) BatchUpdateReviewsWithAudit(ctx context.Context, params BatchUpdateReviewsParams, adminUserID, adminUsername string) (*BatchUpdateReviewsResult, error) {
+	if params.AdminID == "" {
+		params.AdminID = adminUserID
+	}
 	result, err := s.BatchUpdateReviews(ctx, params)
 	if err != nil {
 		return nil, err
@@ -280,6 +344,23 @@ func (s *Service) BatchUpdateReviewsWithAudit(ctx context.Context, params BatchU
 	}))
 
 	return result, nil
+}
+
+func dedupeReviewIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(ids))
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }
 
 // LogOperationParams 记录操作日志参数

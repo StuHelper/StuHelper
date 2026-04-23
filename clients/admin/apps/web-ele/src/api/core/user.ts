@@ -47,7 +47,5 @@ export async function getUserInfoApi(): Promise<MeWithUserInfo> {
  */
 export async function getAccessCodesApi(): Promise<string[]> {
   const me = await getMeApi();
-  return me.globalCapabilities?.length
-    ? me.globalCapabilities
-    : me.capabilities;
+  return me.capabilities;
 }

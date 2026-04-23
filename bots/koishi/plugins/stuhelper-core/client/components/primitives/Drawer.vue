@@ -7,7 +7,7 @@
     :destroy-on-close="true"
     size="440px"
     @close="emit('close')"
-    @closed="restoreFocus"
+    @closed="handleClosed"
   >
     <div class="sh-drawer__content" :aria-labelledby="title ? headingId : undefined">
       <header v-if="title || subtitle" class="sh-drawer__head">
@@ -75,7 +75,7 @@ const props = withDefaults(
   },
 )
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; closed: [] }>()
 
 const headingId = `sh-drawer-title-${Math.random().toString(36).slice(2, 8)}`
 const lastActiveElement = ref<HTMLElement | null>(null)
@@ -93,6 +93,11 @@ watch(
 function restoreFocus() {
   lastActiveElement.value?.focus()
   lastActiveElement.value = null
+}
+
+function handleClosed() {
+  restoreFocus()
+  emit('closed')
 }
 </script>
 

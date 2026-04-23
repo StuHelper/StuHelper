@@ -101,7 +101,13 @@ func TestRefreshToken_SelfSignedSuccess(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
 
-	phoneUser := &PhoneUser{ExternalID: "phone-user-1", Username: "phone-user-1"}
+	avatar := "https://cdn.example.com/avatar.png"
+	phoneUser := &PhoneUser{
+		ExternalID: "phone-user-1",
+		Username:   "phone-user-1",
+		Email:      "phone-user-1@example.com",
+		AvatarURL:  &avatar,
+	}
 	sessionID := "sid-refresh-success"
 	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(phoneUser, []string{"user"}, sessionID)
 	require.NoError(t, err)
@@ -129,6 +135,18 @@ func TestRefreshToken_SelfSignedSuccess(t *testing.T) {
 	require.True(t, resp.Success)
 	require.NotEmpty(t, resp.Data.AccessToken)
 	require.NotEmpty(t, resp.Data.RefreshToken)
+
+	newAccessClaims, err := token.VerifyJWTWithType(crypto.GetHMACKey(), resp.Data.AccessToken, token.JWTTokenTypeAccess)
+	require.NoError(t, err)
+	assert.Equal(t, phoneUser.Email, newAccessClaims.Email)
+	assert.Equal(t, phoneUser.Username, newAccessClaims.DisplayName)
+	assert.Equal(t, avatar, newAccessClaims.Avatar)
+
+	newRefreshClaims, err := token.VerifyJWTWithType(crypto.GetHMACKey(), resp.Data.RefreshToken, token.JWTTokenTypeRefresh)
+	require.NoError(t, err)
+	assert.Equal(t, phoneUser.Email, newRefreshClaims.Email)
+	assert.Equal(t, phoneUser.Username, newRefreshClaims.DisplayName)
+	assert.Equal(t, avatar, newRefreshClaims.Avatar)
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), refreshToken)
 	require.NoError(t, err)

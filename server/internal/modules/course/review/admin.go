@@ -228,7 +228,11 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		}
 	}
 
-	result, err := h.service.BatchUpdateReviews(c.Request.Context(), BatchUpdateReviewsParams(req))
+	result, err := h.service.BatchUpdateReviews(c.Request.Context(), BatchUpdateReviewsParams{
+		IDs:     req.IDs,
+		Action:  req.Action,
+		AdminID: userID,
+	})
 	if err != nil {
 		if response.RespondMappedErrorGroups(c, err, reviewAdminActionErrorMappings) {
 			return

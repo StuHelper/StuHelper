@@ -328,6 +328,7 @@ import { useToast } from '@/composables/useToast'
 import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinSearch'
 import { buildCreateReviewPayload } from '@/components/business/review/reviewPayload'
 import { buildTermOptions } from '@/modules/course/termOptions'
+import { useReviewPost } from '@/composables/useReviewPost'
 import {
   REVIEW_TITLE_MAX_LENGTH,
   REVIEW_CONTENT_MIN_LENGTH,
@@ -340,6 +341,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
+const { ensureCanPostReview } = useReviewPost()
 
 // ── Constants ────────────────────────────────────────────
 const TITLE_MAX = REVIEW_TITLE_MAX_LENGTH
@@ -510,6 +512,10 @@ onBeforeUnmount(() => {
 
 // ── 路由携带课程 ID 时预选课程 ─────────
 onMounted(async () => {
+  if (!(await ensureCanPostReview())) {
+    return
+  }
+
   await fetchTerms()
 
   const courseID = Number(route.params.id)

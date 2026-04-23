@@ -150,3 +150,46 @@ func TestOTPService_IssueCode_SendFailureCleansCodeOnly(t *testing.T) {
 	assert.False(t, fixture.Server.Exists(otpCodePrefix+phoneKey))
 	assert.True(t, fixture.Server.Exists(otpCooldownPrefix+phoneKey))
 }
+
+func TestOTPService_IssueCode_CooldownDoesNotConsumeHourlyQuota(t *testing.T) {
+	svc, _ := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138001"
+
+	require.NoError(t, svc.IssueCode(ctx, phone, stubPhoneSMSSender(func(_ context.Context, _, _ string) error {
+		return nil
+	})))
+
+	err := svc.IssueCode(ctx, phone, stubPhoneSMSSender(func(_ context.Context, _, _ string) error {
+		return nil
+	}))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPCooldown)
+
+	for i := 0; i < otpPhoneLimit-1; i++ {
+		require.NoError(t, svc.CheckPhoneRateLimit(ctx, phone))
+	}
+	err = svc.CheckPhoneRateLimit(ctx, phone)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPPhoneRateLimited)
+}
+
+func TestOTPService_IssueCode_SendFailureDoesNotConsumeHourlyQuota(t *testing.T) {
+	svc, _ := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138002"
+	sendErr := errors.New("sms down")
+
+	err := svc.IssueCode(ctx, phone, stubPhoneSMSSender(func(_ context.Context, _, _ string) error {
+		return sendErr
+	}))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, sendErr)
+
+	for i := 0; i < otpPhoneLimit; i++ {
+		require.NoError(t, svc.CheckPhoneRateLimit(ctx, phone))
+	}
+	err = svc.CheckPhoneRateLimit(ctx, phone)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPPhoneRateLimited)
+}

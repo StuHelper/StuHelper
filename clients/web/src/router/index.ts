@@ -9,6 +9,7 @@ import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
 import {
     hasAnyCapability,
+    REVIEW_CREATE,
 } from "@stuhelper/shared/constants";
 import { resolveProtectedRouteAuthFailure } from "@/router/auth-guard-decision";
 // 静态导入，确保 chunk load 失败时仍可渲染
@@ -159,7 +160,11 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/review/views/PostReviewPage.vue"),
         ),
-        meta: { titleKey: "routes.postReview", requiresAuth: true },
+        meta: {
+            titleKey: "routes.postReview",
+            requiresAuth: true,
+            requiredCapabilities: [REVIEW_CREATE],
+        },
     },
 
     // 搜索页
@@ -385,7 +390,7 @@ router.beforeEach(async (to) => {
             !authStore.isAuthenticated,
         stillAuthenticated: authStore.isAuthenticated,
     });
-    if (authFailureDecision) {
+    if (authFailureDecision !== null) {
         return authFailureDecision;
     }
 

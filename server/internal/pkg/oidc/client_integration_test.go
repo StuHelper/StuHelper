@@ -131,6 +131,7 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Active)
 	assert.Contains(t, result.Roles, "school_admin")
+	assert.Contains(t, result.OrgScopedRoles["school_admin"], "school-1")
 
 	raw, err := marshalIDTokenClaims(mustVerifyIDToken(t, client, idToken))
 	require.NoError(t, err)

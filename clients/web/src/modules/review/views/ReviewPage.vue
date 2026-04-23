@@ -68,7 +68,7 @@ import { useReviewPost } from '@/composables/useReviewPost'
 const { t } = useI18n()
 const route = useRoute()
 const sidebarOpen = ref(false)
-const { showPostModal, closePostModal, notifyPosted, openPostModal } = useReviewPost()
+const { ensureCanPostReview, showPostModal, closePostModal, notifyPosted, openPostModal } = useReviewPost()
 const feedKey = ref(0)
 
 const hasChildRoute = computed(() => {
@@ -85,7 +85,11 @@ function handlePosted() {
 onMounted(() => {
   if (sessionStorage.getItem('draft_pending')) {
     sessionStorage.removeItem('draft_pending')
-    openPostModal()
+    void ensureCanPostReview().then((allowed) => {
+      if (allowed) {
+        openPostModal()
+      }
+    })
   }
 })
 

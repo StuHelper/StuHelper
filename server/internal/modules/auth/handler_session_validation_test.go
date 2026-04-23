@@ -228,6 +228,28 @@ func TestLogout_NativeOIDCRequiresTrackedSession(t *testing.T) {
 		require.NoError(t, getErr)
 		require.NotNil(t, session)
 	})
+
+	t.Run("session owned by another user is rejected", func(t *testing.T) {
+		_, createErr := h.svc.CreateSession(
+			t.Context(),
+			"sid-native-logout-foreign",
+			"other-user",
+			"other-access-token",
+			"other-refresh-token",
+			"oidc-native",
+			"ios",
+		)
+		require.NoError(t, createErr)
+
+		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+		req.Header.Set("Authorization", "Bearer oidc-access-token")
+		req.Header.Set(nativeSessionIDHeader, "sid-native-logout-foreign")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid native session id")
+	})
 }
 
 func mustSignAccessTokenForHandler(t *testing.T, userID, sessionID string) string {

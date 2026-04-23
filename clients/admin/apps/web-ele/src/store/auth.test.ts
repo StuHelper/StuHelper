@@ -151,4 +151,36 @@ describe('useAuthStore', () => {
     expect(mocks.accessStore.accessToken).toBe('legacy-token');
     expect(mocks.userStore.userInfo).toEqual({ homePath: '/dashboard' });
   });
+
+  it('uses full capabilities instead of globalCapabilities during session bootstrap', async () => {
+    const me = {
+      capabilities: ['user:school:read'],
+      globalCapabilities: [],
+      canAccessAdmin: true,
+    };
+    mocks.tryGetMe.mockResolvedValue({ kind: 'authenticated', me });
+    mocks.mapMeToUserInfo.mockReturnValue({ realName: 'School Admin' });
+
+    const store = useAuthStore();
+
+    await store.initSession();
+
+    expect(mocks.accessStore.accessCodes).toEqual(['user:school:read']);
+  });
+
+  it('uses full capabilities instead of globalCapabilities when refreshing user info', async () => {
+    mocks.getUserInfoApi.mockResolvedValue({
+      userInfo: { realName: 'School Admin' },
+      me: {
+        capabilities: ['user:school:read'],
+        globalCapabilities: [],
+      },
+    });
+
+    const store = useAuthStore();
+
+    await store.fetchUserInfo();
+
+    expect(mocks.accessStore.accessCodes).toEqual(['user:school:read']);
+  });
 });

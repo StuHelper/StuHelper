@@ -142,12 +142,13 @@ func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*oauth2
 
 // IntrospectionResult Token 内省结果
 type IntrospectionResult struct {
-	Active   bool     `json:"active"`
-	Sub      string   `json:"sub"`
-	Username string   `json:"username"`
-	Email    string   `json:"email"`
-	Name     string   `json:"name"`
-	Roles    []string `json:"-"` // 从原始 JSON 解析
+	Active         bool                `json:"active"`
+	Sub            string              `json:"sub"`
+	Username       string              `json:"username"`
+	Email          string              `json:"email"`
+	Name           string              `json:"name"`
+	Roles          []string            `json:"-"` // 从原始 JSON 解析
+	OrgScopedRoles map[string][]string `json:"-"`
 }
 
 // IntrospectToken 调用 Zitadel Token 内省端点验证 Bearer token。
@@ -208,11 +209,12 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 	}
 
 	// 从原始 JSON 解析 Zitadel 项目角色
-	roles, _, parseErr := ParseRolesFromRaw(rawJSON, c.projectID)
+	roles, scoped, parseErr := ParseRolesFromRaw(rawJSON, c.projectID)
 	if parseErr != nil {
 		logger.L().Warn("oidc: failed to parse roles from introspection response", zap.Error(parseErr))
 	} else {
 		result.Roles = roles
+		result.OrgScopedRoles = scoped
 	}
 
 	return &result, nil
