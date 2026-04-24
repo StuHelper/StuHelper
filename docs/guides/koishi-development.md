@@ -56,6 +56,7 @@ corepack yarn workspaces list
 - 当前工作区固定监听 `5140`，由 `port: 5140` 与 `maxPort: 5140` 双重约束
 - `scripts/startup-smoke.mjs` 会在烟雾验证前先清理占用 `5140` 的进程，避免端口漂移到其他值
 - `koishi.yml` 通过 `stuhelper-core` 装配 `stuhelper-console`，页面会挂载到 Koishi Console
+- `STUHELPER_CONSOLE_ADMIN_PASSWORD` 是 Koishi Console 的管理员密码，必须通过环境变量提供且不能为空；`stuhelper-core` 会在启动期显式校验
 - 本地 SQLite 默认位于 `bots/koishi/data/koishi.db`
 
 ### StuHelper 插件配置

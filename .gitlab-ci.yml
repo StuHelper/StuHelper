@@ -78,8 +78,20 @@ frontend_lint:
   script:
   - cd clients
   - pnpm install --frozen-lockfile
+  - pnpm run check:no-empty-catch
   - pnpm --filter @stuhelper/web lint
   - pnpm --filter @stuhelper/web exec prettier --check .
+
+koishi_test:
+  stage: test
+  image: node:24-bookworm
+  before_script:
+  - corepack enable
+  - corepack prepare yarn@4.12.0 --activate
+  script:
+  - cd bots/koishi
+  - corepack yarn install --immutable
+  - corepack yarn test
 
 admin_lint:
   stage: lint
@@ -120,7 +132,15 @@ frontend_test:
   script:
   - cd clients
   - pnpm install --frozen-lockfile
-  - pnpm --filter @stuhelper/web test
+  - pnpm run test:all
+
+admin_unit_test:
+  stage: test
+  extends: .node_pnpm_job
+  script:
+  - cd clients/admin
+  - pnpm install --frozen-lockfile
+  - pnpm test
 
 frontend_e2e:
   extends: .playwright_job

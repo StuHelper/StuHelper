@@ -109,7 +109,7 @@ generate: generate-go generate-ts
 
 # ── CI Drift Detection ──
 
-check-drift: check-drift-go
+check-drift: check-drift-all
 
 check-drift-go: generate-go
 	@git diff --exit-code -- internal/api/gen/ || (echo "ERROR: Generated Go code is out of sync with OpenAPI spec. Run 'make generate-go' and commit." && exit 1)

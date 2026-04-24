@@ -303,7 +303,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, Lock, ShieldAlert, Flag, Trash2 } from 'lucide-vue-next'
 import type { Review } from '@stuhelper/shared/review'
-import { ADMIN_REVIEWS_MANAGE, hasCapability } from '@stuhelper/shared/constants'
+import { canManageReviews as canManageReviewAccess } from '@/utils/adminAccess'
 import { getRatingColor } from '@/design-system/rating'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
@@ -345,9 +345,7 @@ const cardRef = ref<HTMLElement>()
 const { style: tiltStyle } = use3DTilt(cardRef, { maxTilt: 4, scale: 1.01, speed: 500 })
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-const canManageReviews = computed(() =>
-  hasCapability(authStore.globalCapabilities, ADMIN_REVIEWS_MANAGE),
-)
+const canManageReviews = computed(() => canManageReviewAccess(authStore.user))
 const isHidden = computed(() => props.review.status === 'hidden')
 const showActions = computed(() => isAuthenticated.value && !isHidden.value)
 const canViewFull = computed(() => canManageReviews.value || verificationStore.canViewFullReviews)

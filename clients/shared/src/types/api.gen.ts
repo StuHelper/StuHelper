@@ -1943,10 +1943,10 @@ export interface components {
         };
         UpdateReviewRequest: {
             title?: string;
-            content: string;
+            content?: string;
             /** @enum {string} */
             grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
-            ratings: components["schemas"]["ReviewRatings"];
+            ratings?: components["schemas"]["ReviewRatings"];
         };
         VoteRequest: {
             /** @enum {string} */

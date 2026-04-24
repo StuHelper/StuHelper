@@ -81,6 +81,18 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     getUserRoleIds: (userId: string) => service.auth.getUserRoleIds(userId),
     listBindingsByAuthId: (authId: number) => ctx.database.get('binding', { aid: authId }),
   })
+  const filterGuildEntries = <T>(entries: Record<string, T>, scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
+    if (scope.kind === 'all') {
+      return Object.entries(entries)
+    }
+    return Object.entries(entries).filter(([guildId]) => scope.guildIds.has(guildId))
+  }
+  const filterRoles = (roles: Role[], scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
+    if (scope.kind === 'all') {
+      return roles
+    }
+    return roles.filter((role) => role.guildIds?.some((guildId) => scope.guildIds.has(guildId)))
+  }
 
   // ===== 群组配置 API =====
   
@@ -100,14 +112,16 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取所有群组配置 */
-  addAuthorityListener('stuhelperGroupCenter/config/list', async (params?: { fetchNames?: boolean }) => {
+  addAuthorityListener('stuhelperGroupCenter/config/list', async function (params?: { fetchNames?: boolean }) {
+    const scope = await resolveConsoleScope(this)
     const allConfigs = data.groupConfig.getAll()
     const results: Record<string, any> = {}
+    const scopedConfigs = filterGuildEntries(allConfigs, scope)
 
     if (params?.fetchNames) {
       // 开启解析：从缓存读取群组名称和头像，未缓存使用默认头像
       const cacheData = service.cache.getCachedData()
-      Object.entries(allConfigs).forEach(([guildId, config]) => {
+      scopedConfigs.forEach(([guildId, config]) => {
         const cached = cacheData.guilds[guildId]
         results[guildId] = {
           ...config,
@@ -117,7 +131,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       })
     } else {
       // 关闭解析：不读取名称
-      Object.entries(allConfigs).forEach(([guildId, config]) => {
+      scopedConfigs.forEach(([guildId, config]) => {
         results[guildId] = {
           ...config,
           guildName: '',
@@ -130,8 +144,14 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取单个群组配置 */
-  addAuthorityListener('stuhelperGroupCenter/config/get', async (params: { guildId: string }) => {
-    return success(data.groupConfig.get(params.guildId))
+  addAuthorityListener('stuhelperGroupCenter/config/get', async function (params: { guildId: string }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      assertConsoleGuildAccess(scope, params.guildId, 'group config')
+      return success(data.groupConfig.get(params.guildId))
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '获取群组配置失败')
+    }
   })
 
   /** 更新群组配置 */
@@ -180,8 +200,9 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 权限管理 API =====
 
   /** 获取所有角色 */
-  addAuthorityListener('stuhelperGroupCenter/auth/role/list', async () => {
-    return success(service.auth.getRoles())
+  addAuthorityListener('stuhelperGroupCenter/auth/role/list', async function () {
+    const scope = await resolveConsoleScope(this)
+    return success(filterRoles(service.auth.getRoles(), scope))
   })
 
   /** 创建/更新角色 */
@@ -950,11 +971,14 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 聊天功能 API =====
 
   /** 获取群成员列表 */
-  addAuthorityListener('stuhelperGroupCenter/chat/guild-members', async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/guild-members', async function (params: { guildId: string }) {
     try {
       const { guildId } = params
       ctx.logger('stuhelperGroupCenter').debug('getGuildMembers called:', guildId)
       if (!guildId) return error('缺少 guildId 参数')
+
+      const scope = await resolveConsoleScope(this)
+      assertConsoleGuildAccess(scope, guildId, 'chat guild members')
 
       for (const bot of ctx.bots) {
         ctx.logger('stuhelperGroupCenter').debug('Trying bot:', bot.platform, bot.selfId)
@@ -1016,10 +1040,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取群信息 */
-  addAuthorityListener('stuhelperGroupCenter/chat/guild-info', async (params: { guildId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/guild-info', async function (params: { guildId: string }) {
     try {
       const { guildId } = params
       if (!guildId) return error('缺少 guildId 参数')
+
+      const scope = await resolveConsoleScope(this)
+      assertConsoleGuildAccess(scope, guildId, 'chat guild info')
 
       for (const bot of ctx.bots) {
         try {
@@ -1066,10 +1093,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 发送消息 */
-  addAuthorityListener('stuhelperGroupCenter/chat/send', async (params: { channelId: string, content: string, platform?: string, guildId?: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/send', async function (params: { channelId: string, content: string, platform?: string, guildId?: string }) {
     try {
       const { channelId, content, platform, guildId } = params
       if (!channelId || !content) return error('缺少必要参数')
+
+      const scope = await resolveConsoleScope(this)
+      assertConsoleGuildAccess(scope, guildId, 'chat send')
 
       // 寻找合适的 bot
       const bot = ctx.bots.find(b => !platform || b.platform === platform)
@@ -1084,10 +1114,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 撤回消息 */
-  addAuthorityListener('stuhelperGroupCenter/chat/recall', async (params: { channelId: string, messageId: string, platform?: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/recall', async function (params: { channelId: string, messageId: string, platform?: string, guildId?: string }) {
     try {
-      const { channelId, messageId, platform } = params
+      const { channelId, messageId, platform, guildId } = params
       if (!channelId || !messageId) return error('缺少必要参数')
+
+      const scope = await resolveConsoleScope(this)
+      assertConsoleGuildAccess(scope, guildId, 'chat recall')
 
       const bot = ctx.bots.find(b => !platform || b.platform === platform)
       if (!bot) return error('未找到可用的 Bot')

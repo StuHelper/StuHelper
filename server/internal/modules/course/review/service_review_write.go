@@ -89,7 +89,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		}
 
 		if params.TeacherID != nil {
-			teacherExists, err := s.repo.TeacherExistsTx(ctx, tx, *params.TeacherID)
+			teacherExists, err := s.repo.TeacherBelongsToCourseSchoolTx(ctx, tx, *params.TeacherID, params.CourseID)
 			if err != nil {
 				return err
 			}

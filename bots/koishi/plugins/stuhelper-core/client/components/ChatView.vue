@@ -550,7 +550,7 @@ const handleRecall = async () => {
   const session = currentSession.value
   
   try {
-    await chatApi.recall(session.id, msg.id, session.platform)
+    await chatApi.recall(session.id, msg.id, session.platform, session.guildId)
     // 从本地消息列表中移除
     const index = session.messages.findIndex(m => m.id === msg.id)
     if (index !== -1) {

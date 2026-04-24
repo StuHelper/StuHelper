@@ -35,6 +35,16 @@ type AdminUpdateReviewResult struct {
 	OldStatus string // 事务内读取的旧状态，用于审计日志
 }
 
+type AdminUpdateReplyParams struct {
+	ReplyID string
+	Action  string
+	AdminID string
+}
+
+type AdminUpdateReplyResult struct {
+	OldStatus string
+}
+
 type adminReviewTransition struct {
 	courseID  int64
 	teacherID *int64
@@ -50,6 +60,43 @@ func (s *Service) AdminUpdateReview(ctx context.Context, params AdminUpdateRevie
 		return nil, err
 	}
 	return &AdminUpdateReviewResult{OldStatus: transition.oldStatus}, nil
+}
+
+func (s *Service) AdminUpdateReply(ctx context.Context, params AdminUpdateReplyParams) (*AdminUpdateReplyResult, error) {
+	var oldStatus string
+	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		_, reviewID, currentStatus, err := s.repo.GetReplyOwnerAndReviewIDTx(ctx, tx, params.ReplyID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrReplyNotFound
+			}
+			return err
+		}
+
+		newStatus, err := validateAdminReviewTransition(params.Action, currentStatus)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.UpdateReplyStatusTx(ctx, tx, params.ReplyID, newStatus); err != nil {
+			return err
+		}
+		if !isPublicReviewStatus(currentStatus) && isPublicReviewStatus(newStatus) {
+			if err := s.repo.IncrementReplyCount(ctx, tx, reviewID); err != nil {
+				return err
+			}
+		}
+		if isPublicReviewStatus(currentStatus) && !isPublicReviewStatus(newStatus) {
+			if err := s.repo.DecrementReplyCount(ctx, tx, reviewID); err != nil {
+				return err
+			}
+		}
+		oldStatus = currentStatus
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &AdminUpdateReplyResult{OldStatus: oldStatus}, nil
 }
 
 func (s *Service) applyAdminUpdateReview(ctx context.Context, params AdminUpdateReviewParams) (*adminReviewTransition, error) {

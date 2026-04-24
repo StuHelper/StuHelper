@@ -13,6 +13,7 @@ interface WorkspaceManifest {
 
 const currentDir = dirname(fileURLToPath(import.meta.url))
 const workspaceRoot = join(currentDir, '../../..')
+const repoRoot = join(workspaceRoot, '../..')
 
 test('Koishi 本地工作区包使用构建产物作为运行时入口', async () => {
   await assertPackageRuntimeEntry('packages/shared/package.json')
@@ -76,6 +77,24 @@ test('stuhelper-core 控制台 API 注册必须依赖 auth 服务', async () => 
     'registerConsoleAPI 必须在启动期显式校验控制台管理员密码。',
   )
 })
+
+test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {
+  await assertContainsConsoleAdminPassword(join(repoRoot, '.env.example'))
+  await assertContainsConsoleAdminPassword(join(repoRoot, '.env.prod.example'))
+  await assertContainsConsoleAdminPassword(join(workspaceRoot, 'README.md'))
+  await assertContainsConsoleAdminPassword(join(repoRoot, 'docs/QUICKSTART.md'))
+  await assertContainsConsoleAdminPassword(join(repoRoot, 'docs/guides/koishi-development.md'))
+})
+
+async function assertContainsConsoleAdminPassword(filePath: string) {
+  const content = await readFile(filePath, 'utf8')
+
+  assert.match(
+    content,
+    /STUHELPER_CONSOLE_ADMIN_PASSWORD/,
+    `${filePath} 必须说明 STUHELPER_CONSOLE_ADMIN_PASSWORD。`,
+  )
+}
 
 test('stuhelper-core 不应通过覆盖 ctx.console.addListener 注入 authority', async () => {
   const sourcePath = join(workspaceRoot, 'plugins/stuhelper-core/src/core/api/index.ts')

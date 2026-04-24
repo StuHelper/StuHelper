@@ -42,10 +42,17 @@ func (r *Repository) CourseExistsTx(ctx context.Context, tx pgx.Tx, courseID int
 	return exists, err
 }
 
-// TeacherExistsTx 在事务内检查教师是否存在。
-func (r *Repository) TeacherExistsTx(ctx context.Context, tx pgx.Tx, teacherID int64) (bool, error) {
+// TeacherBelongsToCourseSchoolTx 在事务内检查教师是否与课程归属同一学校。
+func (r *Repository) TeacherBelongsToCourseSchoolTx(ctx context.Context, tx pgx.Tx, teacherID int64, courseID int64) (bool, error) {
 	var exists bool
-	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM teachers WHERE id = $1)`, teacherID).Scan(&exists)
+	err := tx.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM teachers t
+			JOIN courses c ON c.school_id = t.school_id
+			WHERE t.id = $1 AND c.id = $2
+		)
+	`, teacherID, courseID).Scan(&exists)
 	return exists, err
 }
 

@@ -197,6 +197,27 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 	assert.Contains(t, err.Error(), "OTEL_ENABLED must be true in production")
 }
 
+func TestValidate_ProductionRequiresBotServiceToken(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Bot.ServiceToken = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "BOT_SERVICE_TOKEN is required in production")
+}
+
+func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.Bot.ServiceToken = ""
+
+	err := c.validate(nil)
+
+	require.NoError(t, err)
+}
+
 func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
 	c := &Config{
 		Observability: ObservabilityConfig{
@@ -440,4 +461,31 @@ func TestValidate_RequiresOpenFGAInDevelopment(t *testing.T) {
 	assert.Contains(t, err.Error(), "OPENFGA_STORE_ID is required")
 	assert.Contains(t, err.Error(), "OPENFGA_MODEL_ID is required")
 	assert.Contains(t, err.Error(), "OPENFGA_API_URL is required")
+}
+
+func validProductionConfigForTest() *Config {
+	return &Config{
+		App: AppConfig{
+			Env:             "production",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"https://stuhelper.example.com"},
+			TrustedProxies:  []string{"10.0.0.0/8"},
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{DocAESActiveKeyID: 1, DocAESKeys: map[uint8][]byte{1: make([]byte, 32)}},
+		Database: DatabaseConfig{URL: "postgres://user:pass@db:5432/stuhelper?sslmode=verify-full", QueryTimeout: 5, MaxConns: 20, MinConns: 2, SSLMode: "verify-full", SSLRootCert: "/run/secrets/postgres-ca.crt"},
+		Token:    TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 604800, CookieSecure: true},
+		Redis:    RedisConfig{Password: "redis-password", TLSEnabled: true, TLSCAFile: "/run/secrets/redis-ca.crt"},
+		ObjectStorage: ObjectStorageConfig{
+			Endpoint: "https://s3.example.com", Bucket: "stuhelper", AccessKeyID: "access", SecretAccessKey: "secret", UseSSL: true, PresignTTL: 600,
+		},
+		Zitadel: ZitadelConfig{Issuer: "https://sso.example.com", ClientID: "client-id", ClientSecret: "client-secret", RedirectURI: "https://api.example.com/api/v1/auth/callback", ProjectID: "project-id"},
+		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
+		Observability: ObservabilityConfig{
+			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,
+		},
+		RateLimit: ReviewRateLimitConfig{PostLimit: 5, VoteLimit: 30, ReportLimit: 10, ReplyLimit: 10, WriteLimit: 10, SearchAnonLimit: 5, SearchUserLimit: 60, BatchAnonLimit: 5, BatchUserLimit: 60},
+		SMS:       SMSConfig{Enabled: false},
+		Bot:       BotConfig{ServiceToken: "bot-service-token"},
+	}
 }

@@ -30,6 +30,11 @@ corepack yarn test     # packages/plugins 单元测试 + 真实启动烟雾验�
 corepack yarn workspaces list
 ```
 
+启动前要求：
+
+- `STUHELPER_CONSOLE_ADMIN_PASSWORD` 必须为非空值；`koishi.yml` 会把它作为 Koishi Console 管理员密码，`stuhelper-core` 也会在启动期显式校验。
+- 本地可直接 `export STUHELPER_CONSOLE_ADMIN_PASSWORD=dev-console-admin-password`，或把同名变量写入仓库根目录 `.env` / 生产环境变量文件。
+
 ## 自动化验证
 
 - 单元测试基于 Koishi 官方 `@koishijs/plugin-mock`，不需要连接真实 OneBot/NapCat。

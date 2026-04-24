@@ -20,3 +20,10 @@ test('validateConsoleAdminPassword accepts non-empty passwords', () => {
     'correct-horse-battery-staple',
   )
 })
+
+test('validateConsoleAdminPassword rejects known placeholder passwords', () => {
+  assert.throws(
+    () => validateConsoleAdminPassword('dev_console_admin_password_change_me'),
+    /placeholder/i,
+  )
+})

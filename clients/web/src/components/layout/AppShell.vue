@@ -179,8 +179,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Bot, GraduationCap, LogOut, PenLine, Settings, ShieldCheck, User } from 'lucide-vue-next'
-import { canAccessAdmin } from '@stuhelper/shared/constants'
 import { useAuthStore } from '@/stores/auth'
+import { canShowAdminEntry } from '@/utils/adminAccess'
 import { useVerificationStore } from '@/stores/verification'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { useToast } from '@/composables/useToast'
@@ -219,9 +219,7 @@ const avatarInitial = computed(() => {
   return name.charAt(0).toUpperCase()
 })
 
-const showAdminEntry = computed(() =>
-  canAccessAdmin(authStore.globalCapabilities),
-)
+const showAdminEntry = computed(() => canShowAdminEntry(authStore.user))
 
 function syncUserMenuItems() {
   userMenuItems.value = userMenuRef.value

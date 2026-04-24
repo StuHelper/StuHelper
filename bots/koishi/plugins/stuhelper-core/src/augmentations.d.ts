@@ -176,7 +176,7 @@ declare module '@koishijs/console' {
     'stuhelperGroupCenter/chat/guild-info'(params: { guildId: string }): Promise<ApiResponse<{ name: string; avatar?: string }>>
     'stuhelperGroupCenter/chat/user-info'(params: { userId: string }): Promise<ApiResponse<{ name: string; avatar?: string }>>
     'stuhelperGroupCenter/chat/send'(params: { channelId: string; content: string; platform?: string; guildId?: string }): Promise<ApiResponse<{ success: boolean }>>
-    'stuhelperGroupCenter/chat/recall'(params: { channelId: string; messageId: string; platform?: string }): Promise<ApiResponse<{ success: boolean }>>
+    'stuhelperGroupCenter/chat/recall'(params: { channelId: string; messageId: string; platform?: string; guildId?: string }): Promise<ApiResponse<{ success: boolean }>>
     'stuhelperGroupCenter/chat/message'(payload: ChatMessagePayload): void
 
     'stuhelperGroupCenter/image/fetch'(params: { url: string; file?: string }): Promise<ApiResponse<{

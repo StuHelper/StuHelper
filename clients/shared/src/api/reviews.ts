@@ -8,14 +8,19 @@ type VoteRequest = components['schemas']['VoteRequest']
 type ReportReviewRequest = components['schemas']['ReportReviewRequest']
 type ContentCheckRequest = components['schemas']['ContentCheckRequest']
 
-function toUpdateReviewRequest(data: { title?: string; content: string; grade?: string; ratings: ReviewRatings }): UpdateReviewRequest {
+type ReviewUpdateInput = Omit<UpdateReviewRequest, 'grade' | 'ratings'> & {
+  grade?: string
+  ratings?: ReviewRatings
+}
+
+function toUpdateReviewRequest(data: ReviewUpdateInput): UpdateReviewRequest {
   const grade = normalizeReviewGrade(data.grade)
 
   return {
-    content: data.content,
-    ratings: data.ratings,
     ...(data.title !== undefined && { title: data.title }),
+    ...(data.content !== undefined && { content: data.content }),
     ...(grade !== undefined && { grade }),
+    ...(data.ratings !== undefined && { ratings: data.ratings }),
   }
 }
 
@@ -56,7 +61,7 @@ export const createReviewApi = (client: ApiClient) => ({
   createReview: (data: PostReviewRequest) =>
     client.POST('/api/v1/course/review/reviews', { body: data }),
 
-  updateReview: (id: string, data: { title?: string; content: string; grade?: string; ratings: ReviewRatings }) =>
+  updateReview: (id: string, data: ReviewUpdateInput) =>
     client.PUT('/api/v1/course/review/reviews/{reviewID}', {
       params: { path: { reviewID: id } },
       body: toUpdateReviewRequest(data)

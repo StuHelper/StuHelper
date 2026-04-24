@@ -313,3 +313,75 @@ func TestReviewService_IntegrationInteractionPaths(t *testing.T) {
 	assert.Empty(t, replies.List)
 	assert.Equal(t, 0, replies.Total)
 }
+
+func TestAdminUpdateReplyPublishesPendingReplyAndRestoresCount(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	svc.filter = seededFilter([]SensitiveWord{{Word: "reviewword", Level: ContentFlagReview}})
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, 10006, "回复审核学院")
+	teacherID := seedTeacher(t, fixture, 10006, "回复审核老师", departmentID)
+	courseID := seedCourse(t, fixture, 10006, departmentID, "回复审核课程")
+	seedReviewWithRatings(t, fixture, "review-reply-admin-1", courseID, teacherID, "u-owner-reply-admin", 4.8, StatusPublished, ReviewRatings{"teaching": 5}, "回复审核", "原评课")
+
+	replyResult, err := svc.CreateReply(ctx, CreateReplyParams{ReviewID: "review-reply-admin-1", UserHash: "u-replier-admin", Content: "reviewword 需要审核"})
+	require.NoError(t, err)
+	assert.Equal(t, StatusPendingReview, replyResult.Reply.Status)
+
+	var replyCount int
+	err = fixture.Pool.QueryRow(ctx, `SELECT reply_count FROM reviews WHERE id = $1`, "review-reply-admin-1").Scan(&replyCount)
+	require.NoError(t, err)
+	assert.Equal(t, 0, replyCount)
+
+	result, err := svc.AdminUpdateReply(ctx, AdminUpdateReplyParams{ReplyID: replyResult.Reply.ID, Action: "restore", AdminID: "admin-reply-1"})
+	require.NoError(t, err)
+	assert.Equal(t, StatusPendingReview, result.OldStatus)
+
+	var status string
+	err = fixture.Pool.QueryRow(ctx, `SELECT status FROM review_replies WHERE id = $1`, replyResult.Reply.ID).Scan(&status)
+	require.NoError(t, err)
+	assert.Equal(t, StatusPublished, status)
+	err = fixture.Pool.QueryRow(ctx, `SELECT reply_count FROM reviews WHERE id = $1`, "review-reply-admin-1").Scan(&replyCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, replyCount)
+}
+
+func TestPostReviewRejectsTeacherFromDifferentSchool(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	courseDepartmentID := seedDepartment(t, fixture, 10006, "跨校课程学院")
+	seedSchool(t, fixture, 20002, "cross", "跨校教师学校")
+	teacherDepartmentID := seedDepartment(t, fixture, 20002, "跨校教师学院")
+	courseID := seedCourse(t, fixture, 10006, courseDepartmentID, "跨校校验课程")
+	teacherID := seedTeacher(t, fixture, 20002, "跨校教师", teacherDepartmentID)
+
+	_, err := svc.PostReview(ctx, PostReviewParams{
+		CourseID:             courseID,
+		TeacherID:            &teacherID,
+		TermID:               "2025-2",
+		Title:                "跨校教师应被拒绝",
+		Content:              "这条评课不能把其它学校教师挂到本课程上",
+		Grade:                "A",
+		Ratings:              ReviewRatings{"teaching": 5},
+		UserHash:             "u-cross-school-teacher",
+		AuthorExternalUserID: "ext-cross-school-teacher",
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTeacherNotFound)
+}
+
+func seedSchool(t *testing.T, fixture *postgresfixture.Fixture, schoolID int64, code string, name string) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO schools (id, code, name)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (id) DO NOTHING
+	`, schoolID, code, name)
+	require.NoError(t, err)
+}

@@ -156,8 +156,8 @@ export const chatApi = {
   getGuildMembers: (guildId: string) =>
     call<{ members: GuildMember[]; total: number }>('stuhelperGroupCenter/chat/guild-members', { guildId }),
   /** 撤回消息 */
-  recall: (channelId: string, messageId: string, platform?: string) =>
-    call<{ success: boolean }>('stuhelperGroupCenter/chat/recall', { channelId, messageId, platform }),
+  recall: (channelId: string, messageId: string, platform?: string, guildId?: string) =>
+    call<{ success: boolean }>('stuhelperGroupCenter/chat/recall', { channelId, messageId, platform, guildId }),
 }
 
 // 图片代理 API

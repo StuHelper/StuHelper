@@ -406,6 +406,17 @@ func (r *Repository) SoftDeleteReply(ctx context.Context, tx pgx.Tx, replyID str
 	return nil
 }
 
+// UpdateReplyStatusTx 在事务内更新回复状态。
+func (r *Repository) UpdateReplyStatusTx(ctx context.Context, tx pgx.Tx, replyID string, status string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE review_replies SET status = $2, updated_at = NOW() WHERE id = $1
+	`, replyID, status)
+	if err != nil {
+		return fmt.Errorf("UpdateReplyStatusTx: %w", err)
+	}
+	return nil
+}
+
 // IncrementReplyCount 增加评论回复计数
 func (r *Repository) IncrementReplyCount(ctx context.Context, tx pgx.Tx, reviewID string) error {
 	_, err := tx.Exec(ctx, `

@@ -125,6 +125,9 @@ func (c *Config) validate(parseErrs []string) error {
 		if c.ObjectStorage.SecretAccessKey == "" {
 			errs = append(errs, "OBJECT_STORAGE_SECRET_ACCESS_KEY is required in production")
 		}
+		if c.Bot.ServiceToken == "" {
+			errs = append(errs, "BOT_SERVICE_TOKEN is required in production")
+		}
 		if !c.Observability.Enabled {
 			errs = append(errs, "OTEL_ENABLED must be true in production")
 		}

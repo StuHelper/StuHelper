@@ -3,9 +3,9 @@ import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
-import { ADMIN_REVIEWS_MANAGE, hasCapability } from '@stuhelper/shared/constants'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import { canManageReviews as canManageReviewAccess } from '@/utils/adminAccess'
 
 import type { Review } from '@stuhelper/shared/review'
 
@@ -14,9 +14,7 @@ export function useReviewAdmin(onRefresh: () => void) {
   const toast = useToast()
   const authStore = useAuthStore()
 
-  const canManageReviews = computed(() =>
-    hasCapability(authStore.globalCapabilities, ADMIN_REVIEWS_MANAGE),
-  )
+  const canManageReviews = computed(() => canManageReviewAccess(authStore.user))
 
   const showModerationDialog = ref(false)
   const showEditDialog = ref(false)
