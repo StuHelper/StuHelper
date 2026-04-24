@@ -348,6 +348,28 @@ func TestAdminUpdateReplyPublishesPendingReplyAndRestoresCount(t *testing.T) {
 	assert.Equal(t, 1, replyCount)
 }
 
+func TestCreateReplyRejectsParentFromDifferentReview(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, 10006, "回复父级学院")
+	teacherID := seedTeacher(t, fixture, 10006, "回复父级老师", departmentID)
+	courseID := seedCourse(t, fixture, 10006, departmentID, "回复父级课程")
+	seedReviewWithRatings(t, fixture, "review-parent-a", courseID, teacherID, "u-parent-a", 4.8, StatusPublished, ReviewRatings{"teaching": 5}, "父级 A", "原评课 A")
+	seedReviewWithRatings(t, fixture, "review-parent-b", courseID, teacherID, "u-parent-b", 4.7, StatusPublished, ReviewRatings{"teaching": 5}, "父级 B", "原评课 B")
+
+	parent, err := svc.CreateReply(ctx, CreateReplyParams{ReviewID: "review-parent-a", UserHash: "u-parent-replier", Content: "父回复"})
+	require.NoError(t, err)
+	parentID := parent.Reply.ID
+
+	_, err = svc.CreateReply(ctx, CreateReplyParams{ReviewID: "review-parent-b", ParentID: &parentID, UserHash: "u-child-replier", Content: "跨评课子回复"})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrReplyNotFound)
+}
+
 func TestPostReviewRejectsTeacherFromDifferentSchool(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

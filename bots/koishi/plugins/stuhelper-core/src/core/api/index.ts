@@ -13,6 +13,7 @@ import { prependQuoteElement, serializeChatElements } from './chat-element-seria
 import { deliverChatMessageToClients } from './chat-delivery'
 import {
   assertConsoleGuildAccess,
+  assertGlobalConsoleScope,
   resolveRequiredConsoleGuildScope,
 } from './console-guild-scope'
 import {
@@ -20,6 +21,8 @@ import {
   requireAssignableRole,
 } from './auth-management'
 const pkg = require('../../../package.json')
+
+const MAX_CHAT_CONTENT_BYTES = 256 * 1024
 
 /** API 响应格式 */
 interface ApiResponse<T = any> {
@@ -64,6 +67,12 @@ function readQuoteElementsPreview(elements: any[] | undefined): string {
   }).join('')
 }
 
+function assertChatContentSize(content: string) {
+  if (Buffer.byteLength(content, 'utf8') > MAX_CHAT_CONTENT_BYTES) {
+    throw new Error(`message content is too large; max ${MAX_CHAT_CONTENT_BYTES} bytes`)
+  }
+}
+
 /**
  * 注册所有 WebSocket API
  */
@@ -93,6 +102,24 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     }
     return roles.filter((role) => role.guildIds?.some((guildId) => scope.guildIds.has(guildId)))
   }
+  const filterSubscriptions = (subscriptions: Subscription[], scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
+    if (scope.kind === 'all') {
+      return subscriptions
+    }
+    return subscriptions.filter((sub) => sub.type === 'group' && scope.guildIds.has(sub.id))
+  }
+  const parseWarnKey = (key: string) => {
+    const [guildId, userId] = key.split(':')
+    return guildId && userId ? { guildId, userId } : null
+  }
+  const assertSubscriptionScope = (scope: Awaited<ReturnType<typeof resolveConsoleScope>>, sub: Subscription) => {
+    if (sub.type === 'group') {
+      assertConsoleGuildAccess(scope, sub.id, 'subscription')
+      return
+    }
+    assertGlobalConsoleScope(scope, 'private subscription')
+  }
+  const readBlacklistGuildId = (record: any) => typeof record?.guildId === 'string' ? record.guildId : undefined
 
   // ===== 群组配置 API =====
   
@@ -422,8 +449,10 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 警告记录 API =====
 
   /** 重新加载警告数据 */
-  addAuthorityListener('stuhelperGroupCenter/warns/reload', async () => {
+  addAuthorityListener('stuhelperGroupCenter/warns/reload', async function () {
     try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'warn reload')
       data.warns.reload()
       ctx.logger('stuhelperGroupCenter').info('警告数据已重新加载')
       return success({ success: true })
@@ -433,7 +462,8 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取所有警告记录 (Enriched) - 支持新格式 */
-  addAuthorityListener('stuhelperGroupCenter/warns/list', async (params?: { fetchNames?: boolean }) => {
+  addAuthorityListener('stuhelperGroupCenter/warns/list', async function (params?: { fetchNames?: boolean }) {
+    const scope = await resolveConsoleScope(this)
     const allWarns = data.warns.getAll()
     const result: any[] = []
 
@@ -443,6 +473,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       
       for (const [guildId, guildWarns] of Object.entries(allWarns)) {
         if (!guildWarns || typeof guildWarns !== 'object') continue
+        if (scope.kind !== 'all' && !scope.guildIds.has(guildId)) continue
 
         const guildCache = cacheData.guilds[guildId]
         const guildName = guildCache?.name || ''
@@ -474,6 +505,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       // 关闭解析：不读取名称
       for (const [guildId, guildWarns] of Object.entries(allWarns)) {
         if (!guildWarns || typeof guildWarns !== 'object') continue
+        if (scope.kind !== 'all' && !scope.guildIds.has(guildId)) continue
 
         for (const [userId, warnInfo] of Object.entries(guildWarns as WarnRecord)) {
           if (!warnInfo || typeof warnInfo !== 'object' || !('count' in warnInfo)) continue
@@ -498,12 +530,14 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 更新警告次数 */
-  addAuthorityListener('stuhelperGroupCenter/warns/update', async (params: { key: string, count: number }) => {
-    const parts = params.key.split(':')
-    if (parts.length < 2) return error('Invalid key format')
-    
-    const guildId = parts[0]
-    const userId = parts[1]
+  addAuthorityListener('stuhelperGroupCenter/warns/update', async function (params: { key: string, count: number }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      const warnKey = parseWarnKey(params.key)
+      if (!warnKey) return error('Invalid key format')
+      assertConsoleGuildAccess(scope, warnKey.guildId, 'warn record')
+
+      const { guildId, userId } = warnKey
     
     const guildWarns = data.warns.get(guildId)
     if (guildWarns && guildWarns[userId]) {
@@ -523,12 +557,18 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
         await data.warns.flush()
         return success({ success: true })
     }
-    return error('Record not found')
+      return error('Record not found')
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '更新警告失败')
+    }
   })
 
   /** 添加警告 */
-  addAuthorityListener('stuhelperGroupCenter/warns/add', async (params: { guildId: string, userId: string }) => {
-    const guildWarns = data.warns.get(params.guildId) || {}
+  addAuthorityListener('stuhelperGroupCenter/warns/add', async function (params: { guildId: string, userId: string }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      assertConsoleGuildAccess(scope, params.guildId, 'warn record')
+      const guildWarns = data.warns.get(params.guildId) || {}
     
     if (!guildWarns[params.userId]) {
       guildWarns[params.userId] = { count: 0, timestamp: 0 }
@@ -539,29 +579,39 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     
     data.warns.set(params.guildId, guildWarns as WarnRecord)
     await data.warns.flush()
-    return success({ success: true })
+      return success({ success: true })
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '添加警告失败')
+    }
   })
 
   /** 获取用户警告记录 */
-  addAuthorityListener('stuhelperGroupCenter/warns/get', async (params: { key: string }) => {
-    const parts = params.key.split(':')
-    if (parts.length < 2) return error('Invalid key format')
-    const guildId = parts[0]
-    const userId = parts[1]
+  addAuthorityListener('stuhelperGroupCenter/warns/get', async function (params: { key: string }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      const warnKey = parseWarnKey(params.key)
+      if (!warnKey) return error('Invalid key format')
+      assertConsoleGuildAccess(scope, warnKey.guildId, 'warn record')
+      const { guildId, userId } = warnKey
     
     const guildWarns = data.warns.get(guildId)
     if (guildWarns && guildWarns[userId]) {
         return success(guildWarns[userId])
     }
-    return success(null)
+      return success(null)
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '获取警告失败')
+    }
   })
 
   /** 清除用户警告 */
-  addAuthorityListener('stuhelperGroupCenter/warns/clear', async (params: { key: string }) => {
-    const parts = params.key.split(':')
-    if (parts.length < 2) return error('Invalid key format')
-    const guildId = parts[0]
-    const userId = parts[1]
+  addAuthorityListener('stuhelperGroupCenter/warns/clear', async function (params: { key: string }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      const warnKey = parseWarnKey(params.key)
+      if (!warnKey) return error('Invalid key format')
+      assertConsoleGuildAccess(scope, warnKey.guildId, 'warn record')
+      const { guildId, userId } = warnKey
 
     const guildWarns = data.warns.get(guildId)
     if (guildWarns && guildWarns[userId]) {
@@ -573,40 +623,67 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
         }
         await data.warns.flush()
     }
-    return success({ success: true })
+      return success({ success: true })
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '清除警告失败')
+    }
   })
 
   // ===== 黑名单 API =====
 
   /** 获取黑名单 */
-  addAuthorityListener('stuhelperGroupCenter/blacklist/list', async () => {
-    return success(data.blacklist.getAll())
+  addAuthorityListener('stuhelperGroupCenter/blacklist/list', async function () {
+    const scope = await resolveConsoleScope(this)
+    const records = data.blacklist.getAll()
+    if (scope.kind === 'all') {
+      return success(records)
+    }
+    return success(Object.fromEntries(Object.entries(records).filter(([, record]) => {
+      const guildId = readBlacklistGuildId(record)
+      return guildId ? scope.guildIds.has(guildId) : false
+    })))
   })
 
   /** 添加黑名单 */
-  addAuthorityListener('stuhelperGroupCenter/blacklist/add', async (params: { userId: string, record: any }) => {
-    data.blacklist.set(params.userId, params.record)
-    await data.blacklist.flush()
-    return success({ success: true })
+  addAuthorityListener('stuhelperGroupCenter/blacklist/add', async function (params: { userId: string, record: any }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      const guildId = readBlacklistGuildId(params.record)
+      assertConsoleGuildAccess(scope, guildId, 'blacklist record')
+      data.blacklist.set(params.userId, params.record)
+      await data.blacklist.flush()
+      return success({ success: true })
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '添加黑名单失败')
+    }
   })
 
   /** 移除黑名单 */
-  addAuthorityListener('stuhelperGroupCenter/blacklist/remove', async (params: { userId: string }) => {
-    data.blacklist.delete(params.userId)
-    await data.blacklist.flush()
-    return success({ success: true })
+  addAuthorityListener('stuhelperGroupCenter/blacklist/remove', async function (params: { userId: string }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      const record = data.blacklist.get(params.userId)
+      assertConsoleGuildAccess(scope, readBlacklistGuildId(record), 'blacklist record')
+      data.blacklist.delete(params.userId)
+      await data.blacklist.flush()
+      return success({ success: true })
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '移除黑名单失败')
+    }
   })
 
   // ===== 订阅 API =====
 
   /** 获取订阅列表 */
-  addAuthorityListener('stuhelperGroupCenter/subscriptions/list', async (params?: { fetchNames?: boolean }) => {
+  addAuthorityListener('stuhelperGroupCenter/subscriptions/list', async function (params?: { fetchNames?: boolean }) {
+    const scope = await resolveConsoleScope(this)
     const subsData = data.subscriptions.get('list') || []
+    const scopedSubs = filterSubscriptions(subsData, scope)
     
     if (params?.fetchNames) {
       // 开启解析：从缓存读取名称和头像，未缓存使用默认头像
       const cacheData = service.cache.getCachedData()
-      const enrichedList = subsData.map((sub) => {
+      const enrichedList = scopedSubs.map((sub) => {
         let name = ''
         let avatar = ''
         if (sub.type === 'group') {
@@ -623,45 +700,67 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       return success(enrichedList)
     } else {
       // 关闭解析：不读取名称
-      return success(subsData.map(sub => ({ ...sub, name: '', avatar: '' })))
+      return success(scopedSubs.map(sub => ({ ...sub, name: '', avatar: '' })))
     }
   })
 
   /** 添加订阅 */
-  addAuthorityListener('stuhelperGroupCenter/subscriptions/add', async (params: { subscription: Subscription }) => {
-    const list = data.subscriptions.get('list') || []
-    list.push(params.subscription)
-    data.subscriptions.set('list', list)
-    await data.subscriptions.flush()
-    return success({ success: true })
+  addAuthorityListener('stuhelperGroupCenter/subscriptions/add', async function (params: { subscription: Subscription }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      assertSubscriptionScope(scope, params.subscription)
+      const list = data.subscriptions.get('list') || []
+      list.push(params.subscription)
+      data.subscriptions.set('list', list)
+      await data.subscriptions.flush()
+      return success({ success: true })
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '添加订阅失败')
+    }
   })
 
   /** 移除订阅 */
-  addAuthorityListener('stuhelperGroupCenter/subscriptions/remove', async (params: { index: number }) => {
-    const list = data.subscriptions.get('list') || []
-    if (params.index >= 0 && params.index < list.length) {
-      list.splice(params.index, 1)
-      data.subscriptions.set('list', list)
-      await data.subscriptions.flush()
+  addAuthorityListener('stuhelperGroupCenter/subscriptions/remove', async function (params: { index: number }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      const list = data.subscriptions.get('list') || []
+      const sub = list[params.index]
+      if (sub) {
+        assertSubscriptionScope(scope, sub)
+        list.splice(params.index, 1)
+        data.subscriptions.set('list', list)
+        await data.subscriptions.flush()
+      }
+      return success({ success: true })
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '移除订阅失败')
     }
-    return success({ success: true })
   })
 
   /** 更新订阅 */
-  addAuthorityListener('stuhelperGroupCenter/subscriptions/update', async (params: { index: number, subscription: Subscription }) => {
-    const list = data.subscriptions.get('list') || []
-    if (params.index >= 0 && params.index < list.length) {
-      list[params.index] = params.subscription
-      data.subscriptions.set('list', list)
-      await data.subscriptions.flush()
+  addAuthorityListener('stuhelperGroupCenter/subscriptions/update', async function (params: { index: number, subscription: Subscription }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      assertSubscriptionScope(scope, params.subscription)
+      const list = data.subscriptions.get('list') || []
+      if (params.index >= 0 && params.index < list.length) {
+        assertSubscriptionScope(scope, list[params.index])
+        list[params.index] = params.subscription
+        data.subscriptions.set('list', list)
+        await data.subscriptions.flush()
+      }
+      return success({ success: true })
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '更新订阅失败')
     }
-    return success({ success: true })
   })
 
   // ===== 统计 API =====
 
   /** 获取模块状态 */
-  addAuthorityListener('stuhelperGroupCenter/stats/modules', async () => {
+  addAuthorityListener('stuhelperGroupCenter/stats/modules', async function () {
+    const scope = await resolveConsoleScope(this)
+    assertGlobalConsoleScope(scope, 'module stats')
     const modules = service.getAllModules()
     const result = modules.map(m => ({
       name: m.meta.name,
@@ -673,32 +772,41 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取仪表盘统计 */
-  addAuthorityListener('stuhelperGroupCenter/stats/dashboard', async () => {
+  addAuthorityListener('stuhelperGroupCenter/stats/dashboard', async function () {
+    const scope = await resolveConsoleScope(this)
     const allWarns = data.warns.getAll()
     const allBlacklist = data.blacklist.getAll()
     const allConfigs = data.groupConfig.getAll()
     const subsList = data.subscriptions.get('list') || []
+    const scopedConfigs = filterGuildEntries(allConfigs, scope)
+    const scopedSubs = filterSubscriptions(subsList, scope)
+    const scopedBlacklist = Object.values(allBlacklist).filter((record) => {
+      const guildId = readBlacklistGuildId(record)
+      return scope.kind === 'all' || (guildId ? scope.guildIds.has(guildId) : false)
+    })
 
     // 统计所有警告记录的真实数量
     let totalWarnCount = 0
-    for (const guildWarns of Object.values(allWarns)) {
+    for (const [guildId, guildWarns] of Object.entries(allWarns)) {
+      if (scope.kind !== 'all' && !scope.guildIds.has(guildId)) continue
       if (guildWarns && typeof guildWarns === 'object') {
         totalWarnCount += Object.keys(guildWarns).length
       }
     }
 
     return success({
-      totalGroups: Object.keys(allConfigs).length,
+      totalGroups: scopedConfigs.length,
       totalWarns: totalWarnCount,
-      totalBlacklisted: Object.keys(allBlacklist).length,
-      totalSubscriptions: subsList.length,
+      totalBlacklisted: scopedBlacklist.length,
+      totalSubscriptions: scopedSubs.length,
       version: pkg.version,
       timestamp: Date.now()
     })
   })
 
   /** 获取图表统计数据 */
-  addAuthorityListener('stuhelperGroupCenter/stats/charts', async (params?: { days?: number }) => {
+  addAuthorityListener('stuhelperGroupCenter/stats/charts', async function (params?: { days?: number }) {
+    const scope = await resolveConsoleScope(this)
     const days = params?.days || 7
     const now = Date.now()
     const startTime = now - days * 24 * 60 * 60 * 1000
@@ -752,6 +860,8 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
         }
 
         // 群组统计
+        if (scope.kind !== 'all' && !scope.guildIds.has(String(log.guildId || ''))) return
+
         if (log.guildId) {
           guildStats[log.guildId] = (guildStats[log.guildId] || 0) + 1
         }
@@ -903,8 +1013,10 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // ===== 缓存管理 API =====
 
   /** 获取缓存统计信息 */
-  addAuthorityListener('stuhelperGroupCenter/cache/stats', async () => {
+  addAuthorityListener('stuhelperGroupCenter/cache/stats', async function () {
     try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'cache stats')
       const stats = service.cache.getStats()
       return success(stats)
     } catch (e) {
@@ -914,8 +1026,10 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 强制刷新缓存 */
-  addAuthorityListener('stuhelperGroupCenter/cache/refresh', async () => {
+  addAuthorityListener('stuhelperGroupCenter/cache/refresh', async function () {
     try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'cache refresh')
       ctx.logger('stuhelperGroupCenter').info('开始刷新缓存...')
       await service.cache.refreshAll()
       ctx.logger('stuhelperGroupCenter').info('缓存刷新完成')
@@ -927,8 +1041,10 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 清空缓存 */
-  addAuthorityListener('stuhelperGroupCenter/cache/clear', async () => {
+  addAuthorityListener('stuhelperGroupCenter/cache/clear', async function () {
     try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'cache clear')
       await service.cache.clearAll()
       ctx.logger('stuhelperGroupCenter').info('缓存已清空')
       return success({ success: true })
@@ -939,21 +1055,25 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 按需获取单个名称（会触发缓存） */
-  addAuthorityListener('stuhelperGroupCenter/cache/fetch-name', async (params: {
+  addAuthorityListener('stuhelperGroupCenter/cache/fetch-name', async function (params: {
     type: 'guild' | 'user' | 'member'
     guildId?: string
     userId?: string
-  }) => {
+  }) {
     try {
       const { type, guildId, userId } = params
+      const scope = await resolveConsoleScope(this)
       
       if (type === 'guild' && guildId) {
+        assertConsoleGuildAccess(scope, guildId, 'cache guild name')
         const info = await service.cache.getGuildInfo(guildId)
         return success({ name: info?.name || '', avatar: info?.avatar })
       } else if (type === 'user' && userId) {
+        assertGlobalConsoleScope(scope, 'cache user name')
         const info = await service.cache.getUserInfo(userId)
         return success({ name: info?.name || '', avatar: info?.avatar })
       } else if (type === 'member' && guildId && userId) {
+        assertConsoleGuildAccess(scope, guildId, 'cache member name')
         const info = await service.cache.getMemberInfo(guildId, userId)
         return success({
           name: info?.name || '',
@@ -1068,8 +1188,10 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取用户信息 */
-  addAuthorityListener('stuhelperGroupCenter/chat/user-info', async (params: { userId: string }) => {
+  addAuthorityListener('stuhelperGroupCenter/chat/user-info', async function (params: { userId: string }) {
     try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'chat user info')
       const { userId } = params
       if (!userId) return error('缺少 userId 参数')
 
@@ -1097,6 +1219,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     try {
       const { channelId, content, platform, guildId } = params
       if (!channelId || !content) return error('缺少必要参数')
+      assertChatContentSize(content)
 
       const scope = await resolveConsoleScope(this)
       assertConsoleGuildAccess(scope, guildId, 'chat send')

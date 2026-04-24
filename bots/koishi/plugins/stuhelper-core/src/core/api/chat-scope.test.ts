@@ -53,6 +53,98 @@ test('chat write APIs reject messages outside the console scope', async () => {
   })
 })
 
+test('chat send rejects oversized content', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/chat/send', {
+    channelId: '1001',
+    content: 'x'.repeat(262145),
+    guildId: '1001',
+  })
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /message content is too large/)
+})
+
+test('legacy warn APIs filter and reject data outside the console scope', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const warns = await callListener(listeners, 'stuhelperGroupCenter/warns/list', {})
+  assert.deepEqual((warns.data || []).map((item: { key: string }) => item.key), ['1001:u1'])
+
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/warns/get', { key: '2002:u2' })
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/warns/add', { guildId: '2002', userId: 'u2' })
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/warns/update', { key: '2002:u2', count: 2 } as any)
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/warns/clear', { key: '2002:u2' })
+})
+
+test('legacy subscription and cache APIs enforce the console scope', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const subscriptions = await callListener(listeners, 'stuhelperGroupCenter/subscriptions/list', {})
+  assert.deepEqual((subscriptions.data || []).map((item: { id: string }) => item.id), ['1001'])
+
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/subscriptions/add', {
+    subscription: { type: 'group', id: '2002', features: {} },
+  } as any)
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/cache/fetch-name', {
+    type: 'guild',
+    guildId: '2002',
+  })
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/cache/fetch-name', {
+    type: 'member',
+    guildId: '2002',
+    userId: 'u2',
+  })
+})
+
+test('legacy global APIs reject guild-scoped console users', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/cache/clear', {})
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/cache/refresh', {})
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/cache/stats', {})
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/chat/user-info', { userId: 'u2' })
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/subscriptions/update', {
+    index: 1,
+    subscription: { type: 'group', id: '2002', features: {} },
+  } as any)
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/subscriptions/remove', { index: 1 })
+})
+
+test('legacy stats APIs filter guild data to the console scope', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const dashboard = await callListener(listeners, 'stuhelperGroupCenter/stats/dashboard', {})
+  assert.equal(dashboard.data.totalGroups, 1)
+  assert.equal(dashboard.data.totalWarns, 1)
+  assert.equal(dashboard.data.totalBlacklisted, 1)
+  assert.equal(dashboard.data.totalSubscriptions, 1)
+
+  const charts = await callListener(listeners, 'stuhelperGroupCenter/stats/charts', {})
+  assert.deepEqual(charts.data.guildRank.map((item: { guildId: string }) => item.guildId), ['1001'])
+})
+
 async function assertRejectsScope(
   listeners: Map<string, Listener>,
   event: string,
@@ -65,6 +157,20 @@ async function assertRejectsScope(
 
   assert.equal(result.success, false)
   assert.match(result.error || '', /outside of the current console guild scope/)
+}
+
+async function assertRejectsGlobalScope(
+  listeners: Map<string, Listener>,
+  event: string,
+  params: Record<string, unknown>,
+) {
+  const listener = listeners.get(event)
+  assert.ok(listener, `${event} listener should be registered`)
+
+  const result = await listener.call(createConsoleClient(), params)
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /(requires global console scope|outside of the current console guild scope)/)
 }
 
 async function callListener(
@@ -130,6 +236,20 @@ function createService(guildIds: string[]) {
         reload() {},
         flush: async () => undefined,
       },
+      warns: createMapStore({
+        '1001': { u1: { count: 1, timestamp: 1 } },
+        '2002': { u2: { count: 1, timestamp: 1 } },
+      }),
+      blacklist: createMapStore({
+        u1: { userId: 'u1', guildId: '1001', timestamp: 1 },
+        u2: { userId: 'u2', guildId: '2002', timestamp: 1 },
+      }),
+      subscriptions: createMapStore({
+        list: [
+          { type: 'group', id: '1001', features: {} },
+          { type: 'group', id: '2002', features: {} },
+        ],
+      }),
     },
     auth: {
       getRoles: () => [
@@ -146,7 +266,39 @@ function createService(guildIds: string[]) {
       },
     },
     cache: {
-      getCachedData: () => ({ guilds: {} }),
+      getCachedData: () => ({ guilds: {}, members: {}, users: {} }),
+      getGuildInfo: async (guildId: string) => ({ name: `guild-${guildId}` }),
+      getMemberInfo: async (guildId: string, userId: string) => ({ name: `${guildId}-${userId}` }),
+      getUserInfo: async (userId: string) => ({ name: userId }),
+      getStats: () => ({ guilds: 2 }),
+      refreshAll: async () => undefined,
+      clearAll: async () => undefined,
     },
+    getAllModules: () => [
+      {
+        meta: { name: 'log', description: 'log' },
+        state: 'active',
+        getAllLogs: async () => [
+          { timestamp: new Date().toISOString(), command: 'a', success: true, guildId: '1001', userId: 'u1' },
+          { timestamp: new Date().toISOString(), command: 'b', success: true, guildId: '2002', userId: 'u2' },
+        ],
+      },
+    ],
+  }
+}
+
+function createMapStore<T>(initial: Record<string, T>) {
+  const values = { ...initial }
+  return {
+    getAll: () => values,
+    get: (key: string) => values[key],
+    set: (key: string, value: T) => {
+      values[key] = value
+    },
+    delete: (key: string) => {
+      delete values[key]
+    },
+    reload() {},
+    flush: async () => undefined,
   }
 }

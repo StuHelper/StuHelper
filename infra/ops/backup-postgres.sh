@@ -20,6 +20,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 mode="${BACKUP_MODE:-dump}"
+load_env
 logical_url="${BACKUP_DATABASE_URL:-}"
 replication_url="${REPLICATION_DATABASE_URL:-}"
 
@@ -40,7 +41,6 @@ mkdir -p "$(dirname "$output_file")"
 # -T：不分配伪终端（支持管道输出）
 run_dump() {
   require_cmd docker
-  load_env
   log "正在通过容器化 pg_dump 导出数据库..."
 
   compose run --rm --no-deps -T \
@@ -51,7 +51,6 @@ run_dump() {
 
 run_basebackup() {
   require_cmd docker
-  load_env
   log "正在通过容器化 pg_basebackup 创建物理备份..."
 
   compose run --rm --no-deps -T \

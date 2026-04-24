@@ -100,11 +100,15 @@ package_backend:
     reports:
       dotenv: backend-image.env
   needs:
+  - check_docs_hygiene
   - openapi_contract
   - backend_lint
   - backend_security
   - backend_test
   - migration_verify
+  - koishi_test
+  - prod_init_contract
+  - infra_contract
   - backend_vulnerability_scan
   - backend_build
   - docker_build_backend
@@ -133,12 +137,17 @@ package_frontend:
     reports:
       dotenv: frontend-image.env
   needs:
+  - check_docs_hygiene
   - openapi_contract
   - frontend_lint
   - frontend_typecheck
   - frontend_test
   - frontend_e2e
   - frontend_dependency_scan
+  - frontend_sast
+  - koishi_test
+  - prod_init_contract
+  - infra_contract
   - frontend_build
   - docker_build_frontend
   - container_scan_frontend
@@ -166,11 +175,17 @@ package_admin:
     reports:
       dotenv: admin-image.env
   needs:
+  - check_docs_hygiene
   - openapi_contract
   - admin_lint
   - admin_typecheck
+  - admin_unit_test
   - admin_e2e
   - admin_dependency_scan
+  - frontend_sast
+  - koishi_test
+  - prod_init_contract
+  - infra_contract
   - admin_build
   - docker_build_admin
   - container_scan_admin

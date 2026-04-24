@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 )
 
 func TestValidateStudentVerificationTransition(t *testing.T) {
@@ -171,6 +173,49 @@ func TestVerifyStudent_LDAPRequiresPassword(t *testing.T) {
 		Consent:   true,
 	})
 	assert.ErrorIs(t, err, ErrPasswordRequired)
+}
+
+func TestVerifyStudent_LDAPRequiresAcademicStudentRecord(t *testing.T) {
+	academicTable := "academic.students"
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 1, Verified: true}, nil
+		},
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
+			return &SchoolConfig{
+				SchoolID:           30002,
+				SchoolName:         "LDAP 学校",
+				VerificationMethod: VerifyMethodLDAP,
+				LDAPConfig:         json.RawMessage(`{"url":"ldaps://ldap.example:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true,"insecureSkipVerify":false}`),
+				AcademicDBTable:    &academicTable,
+				Enabled:            true,
+			}, nil
+		},
+		onGetAcademicStudentByXHFromTable: func(_ context.Context, xh string, tableName string) (*AcademicStudent, error) {
+			assert.Equal(t, "20240001", xh)
+			assert.Equal(t, academicTable, tableName)
+			return nil, nil
+		},
+	}
+
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithLDAPClientFactory(func(_ ldap.Config) (ldapAuthClient, error) {
+			return &fakeLDAPAuthClient{}, nil
+		}),
+	)
+	require.NoError(t, err)
+
+	_, err = svc.VerifyStudent(context.Background(), 1, VerifyStudentRequest{
+		SchoolID:  30002,
+		StudentID: "20240001",
+		Password:  "secret",
+		Consent:   true,
+	})
+
+	assert.ErrorIs(t, err, ErrStudentNotFound)
 }
 
 // ---------------------------------------------------------------------------

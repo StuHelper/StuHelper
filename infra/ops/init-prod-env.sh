@@ -182,7 +182,7 @@ ensure_prod_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
 ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"
 ensure_value "ADMIN_VITE_BASE" "${ADMIN_VITE_BASE:-}" "/admin/"
-ensure_prod_default "OPENFGA_API_URL" "${OPENFGA_API_URL:-}" "http://openfga:8081" "http://localhost:8081"
+ensure_prod_default "OPENFGA_API_URL" "${OPENFGA_API_URL:-}" "http://openfga:8080" "http://localhost:8081"
 ensure_prod_default "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT" "http://localhost:9000" "http://minio:9000"
 ensure_value "OBJECT_STORAGE_REGION" "${OBJECT_STORAGE_REGION:-}" "us-east-1"
 ensure_value "OBJECT_STORAGE_BUCKET" "${OBJECT_STORAGE_BUCKET:-}" "stuhelper-identity"

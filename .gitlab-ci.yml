@@ -126,6 +126,15 @@ prod_init_contract:
   script:
   - bash infra/ops/tests/init-prod-env-contract.sh
 
+infra_contract:
+  stage: test
+  image: python:3.13-bookworm
+  before_script:
+  - apt-get update
+  - apt-get install -y openssl
+  script:
+  - for test_script in infra/ops/tests/*.sh; do bash "${test_script}"; done
+
 frontend_test:
   stage: test
   extends: .node_pnpm_job

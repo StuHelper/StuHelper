@@ -353,6 +353,9 @@ interface PendingImage {
   file: File
 }
 const pendingImages = ref<PendingImage[]>([])
+const MAX_PENDING_IMAGES = 4
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024
+const MAX_MESSAGE_BYTES = 256 * 1024
 const connectForm = reactive({
   type: 'group' as 'group' | 'private',
   targetId: '',
@@ -525,6 +528,14 @@ const handlePaste = (e: ClipboardEvent) => {
       e.preventDefault()
       const file = item.getAsFile()
       if (file) {
+        if (pendingImages.value.length >= MAX_PENDING_IMAGES) {
+          message.error(`最多只能同时发送 ${MAX_PENDING_IMAGES} 张图片`)
+          return
+        }
+        if (file.size > MAX_IMAGE_BYTES) {
+          message.error(`图片不能超过 ${formatBytes(MAX_IMAGE_BYTES)}`)
+          return
+        }
         const reader = new FileReader()
         reader.onload = (event) => {
           const dataUrl = event.target?.result as string
@@ -764,6 +775,9 @@ const sendMessage = async () => {
       // 使用 Koishi 的 img 元素格式，src 为 base64 dataUrl
       content += `<img src="${img.dataUrl}" />`
     }
+    if (new TextEncoder().encode(content).length > MAX_MESSAGE_BYTES) {
+      throw new Error(`消息不能超过 ${formatBytes(MAX_MESSAGE_BYTES)}`)
+    }
     
     await chatApi.send(session.id, content, session.platform, session.guildId)
     
@@ -777,6 +791,10 @@ const sendMessage = async () => {
     // 聚焦回输入框
     inputRef.value?.focus()
   }
+}
+
+function formatBytes(value: number) {
+  return `${(value / 1024 / 1024).toFixed(0)} MiB`
 }
 
 const formatTimeShort = (ts?: number) => {
@@ -829,6 +847,7 @@ const handleAvatarError = (e: Event, isSession = false) => {
 
 .chat-view {
   height: 100%;
+  min-height: 0;
   display: flex;
   background: var(--bg1);
   border: 1px solid var(--k-color-divider);
@@ -986,6 +1005,7 @@ const handleAvatarError = (e: Event, isSession = false) => {
 /* Main Chat Area */
 .chat-main {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg1);
@@ -1025,6 +1045,7 @@ const handleAvatarError = (e: Event, isSession = false) => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
 }
 
 /* Chat Header */
@@ -1091,6 +1112,7 @@ const handleAvatarError = (e: Event, isSession = false) => {
 /* Message List */
 .message-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
   display: flex;

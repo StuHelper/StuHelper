@@ -212,6 +212,15 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 		if !exists {
 			return ErrReviewNotFound
 		}
+		if params.ParentID != nil {
+			belongs, err := s.repo.ReplyBelongsToReviewTx(ctx, tx, *params.ParentID, params.ReviewID)
+			if err != nil {
+				return err
+			}
+			if !belongs {
+				return ErrReplyNotFound
+			}
+		}
 
 		replyID, replyTS, err = s.repo.CreateReply(ctx, tx, CreateReplyParams{
 			ReviewID: params.ReviewID,

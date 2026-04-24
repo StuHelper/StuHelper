@@ -76,7 +76,7 @@ function buildFaceNode(key: string, attrs: Record<string, unknown> | undefined):
 
 function buildImageNode(key: string, attrs: Record<string, unknown> | undefined): MessageNode[] {
   const src = readAttr(attrs, 'src') || readAttr(attrs, 'url')
-  if (!src) {
+  if (!src || !isSafeImageSrc(src)) {
     return []
   }
 
@@ -87,6 +87,18 @@ function buildImageNode(key: string, attrs: Record<string, unknown> | undefined)
     file: readAttr(attrs, 'file') || undefined,
     openUrl: toOpenUrl(src),
   }]
+}
+
+function isSafeImageSrc(value: string): boolean {
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'blob:') {
+      return true
+    }
+    return url.protocol === 'data:' && /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(value)
+  } catch {
+    return false
+  }
 }
 
 function buildQuoteNode(

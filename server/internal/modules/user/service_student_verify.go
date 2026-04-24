@@ -136,10 +136,10 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		studentIDs := []string{trimmedStudentID}
 		academicStudent, err := s.getAcademicStudentByXH(ctx, trimmedStudentID, academicTableName)
 		if err != nil {
-			logger.L().Warn("failed to query academic student",
-				zap.String("student_id", trimmedStudentID),
-				zap.Error(err),
-			)
+			return nil, fmt.Errorf("VerifyStudent query academic student: %w", err)
+		}
+		if academicStudent == nil {
+			return nil, ErrStudentNotFound
 		}
 
 		if academicStudent != nil && academicStudent.SFZJH != nil && *academicStudent.SFZJH != "" {

@@ -316,6 +316,22 @@ func (r *Repository) CreateReply(ctx context.Context, tx pgx.Tx, p CreateReplyPa
 	return replyID, &ts, nil
 }
 
+func (r *Repository) ReplyBelongsToReviewTx(ctx context.Context, tx pgx.Tx, replyID string, reviewID string) (bool, error) {
+	var exists bool
+	err := tx.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM review_replies
+			WHERE id = $1 AND review_id = $2 AND status = 'published'
+			FOR SHARE
+		)
+	`, replyID, reviewID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("ReplyBelongsToReviewTx: %w", err)
+	}
+	return exists, nil
+}
+
 // ListReplies 获取回复列表（含总数）
 func (r *Repository) ListReplies(ctx context.Context, reviewID string, limit, offset int) ([]Reply, int, error) {
 	rows, err := r.db.Query(ctx, `
