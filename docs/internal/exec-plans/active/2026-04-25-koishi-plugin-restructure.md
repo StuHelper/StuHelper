@@ -515,7 +515,7 @@ stuhelper-admin:
 | 阶段 | 状态 | 完成日期 | PR |
 |------|------|---------|----|
 | P0a Playwright 基础设施 | 已完成 | 2026-04-25 | (本分支单 commit) |
-| P0b 登录 fixture + 11 view smoke | 进行中 | - | - |
+| P0b 登录 fixture + 11 view smoke | 已完成 | 2026-04-25 | (本分支单 commit) |
 | P1 删除未启用 UI 包 | 未开始 | - | - |
 | P2 core UI 内部清理 | 未开始 | - | - |
 | P3 core 入口拆分 | 未开始 | - | - |

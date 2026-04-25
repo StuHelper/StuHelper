@@ -17,6 +17,8 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // viewport 设大避免 stuhelper-core TopNavigation 把后几个 item 折进 More 菜单
+    viewport: { width: 1920, height: 1080 },
   },
   projects: [
     {

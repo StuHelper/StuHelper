@@ -51,12 +51,17 @@ try {
   })
 
   let listening = false
+  let cacheWarmed = false
 
   koishiChild.stdout.on('data', (chunk) => {
     const text = chunk.toString()
     process.stdout.write(text)
     if (text.includes(`server listening at http://127.0.0.1:${SMOKE_PORT}`)) {
       listening = true
+    }
+    // 等 cache 预热完成才让 spec 开跑，避免 dashboard 首次访问冷启动竞态
+    if (text.includes('缓存预热完成')) {
+      cacheWarmed = true
     }
   })
 
@@ -71,10 +76,10 @@ try {
           `koishi 进程在监听就绪前提前退出（exitCode=${koishiExitCode}, signal=${koishiExitSignal}）`,
         )
       }
-      return listening
+      return listening && cacheWarmed
     },
     STARTUP_LISTEN_TIMEOUT_MS,
-    'koishi 控制台未在超时内监听 5140',
+    'koishi 控制台未在超时内完成 listening + cache 预热',
   )
 
   playwrightExitCode = await runPlaywright()
