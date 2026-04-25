@@ -17,13 +17,16 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    // viewport 设大避免 stuhelper-core TopNavigation 把后几个 item 折进 More 菜单
-    viewport: { width: 1920, height: 1080 },
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // viewport 写在 project use 块、放在 spread 之后，
+        // 才能覆盖 devices['Desktop Chrome'] 默认的 1280×720
+        viewport: { width: 1920, height: 1080 },
+      },
     },
   ],
 })

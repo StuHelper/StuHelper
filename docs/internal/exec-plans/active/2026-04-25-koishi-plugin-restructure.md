@@ -130,14 +130,27 @@ last-verified: 2026-04-25
 
 #### 退出标准
 
-- `corepack yarn test:ui` 在本地稳定通过 3 次
-- 11 个 view 全部可达且无前端错误
+- `corepack yarn test:ui` 在本地**严格 12/12 通过 10 次连续**（加固原因见下）
+- 11 个 view 全部可达且无前端错误（pageerror + console.error/warning，allowlist 必须 view-specific 显式声明）
+- 至少 2 个**负面用例**验证断言敏感度：
+  - 故意改 anchor 文本 → spec 必须 fail
+  - 故意改 view ID（让 nav click 找不到对应 button）→ spec 必须 fail
 - CI 跑通
+
+> **加固说明**（2026-04-25）：P0b 第一版用"3 次连续通过"作为稳定标准，被 codex 复核
+> 在 fresh checkout 重跑时打出 40% flake（每次 fail 的 view 不同——SPA 重载竞态）。
+> 原因是每个 test 各自 `page.goto` 触发 page reload，丢失 fixture 的 SPA warm-up，
+> Koishi `ctx.console.addEntry` 异步注入路由的竞态再次出现。修法：所有 test 共享
+> worker-scope page，通过 nav button click 在 SPA 内 `pushState` 切 view，不再
+> 重载。同时 per-view 断言加 view-specific anchor（防 dashboard fallback 静默通过）、
+> URL 断言（防 nav click 失败）、console.error/warning 监听（抓 Vue Router 警告
+> 等非 pageerror 信号）。
 
 #### 风险与回滚
 
 - Koishi auth 登录是 WebSocket socket event 而非传统 HTTP cookie → 优先走 UI 输入登录路径；如 SPA 登录页 selector 不稳定，退路是 `page.evaluate()` 直接发 `login/password` socket event
 - SPA 路由切换异步加载组件导致断言提前 → 用 `expect(locator).toBeVisible()` 等待，禁用 hard `waitForTimeout`
+- 多 test 共享 page 的副作用累积（如 console listener、状态污染）→ tracker 用 `await using` 在 test 退出时显式 dispose 监听
 - 回滚：单 PR revert（保留 P0a 基础设施）
 
 ---
@@ -515,7 +528,7 @@ stuhelper-admin:
 | 阶段 | 状态 | 完成日期 | PR |
 |------|------|---------|----|
 | P0a Playwright 基础设施 | 已完成 | 2026-04-25 | (本分支单 commit) |
-| P0b 登录 fixture + 11 view smoke | 已完成 | 2026-04-25 | (本分支单 commit) |
+| P0b 登录 fixture + 11 view smoke | 已完成（含 codex 复核 H1/M1/M2/M3/M4 加固） | 2026-04-25 | (本分支两个 commit：基线 + 加固) |
 | P1 删除未启用 UI 包 | 未开始 | - | - |
 | P2 core UI 内部清理 | 未开始 | - | - |
 | P3 core 入口拆分 | 未开始 | - | - |

@@ -1,47 +1,72 @@
 import { test as base, expect, type Page } from '@playwright/test'
 
 /**
- * Koishi Console 登录 fixture。
+ * Koishi Console 共享登录 fixture。
+ *
+ * 设计要点：
+ * - `consolePage` 是 **worker-scoped** fixture：整个 worker 生命周期只跑一次
+ *   登录 + SPA 路由 warm-up，所有 test 共享同一个 page
+ * - 这样规避了"每个 test 各自 page.goto 触发 page reload + SPA 异步路由
+ *   注册竞态"——这是 P0b 第一版的核心 flake 来源
+ * - test 通过 SPA 内 navigation（`history.pushState` 经由 nav button click）
+ *   切换 view，不触发 page reload
+ * - `loggedInPage` 是 test-scoped 别名，让 spec 与传统 Playwright 写法一致
  *
  * Koishi auth 通过 WebSocket 事件 `login/password(name, password)` 完成登录；
- * 登录态以 token 形式存到浏览器 localStorage 的 "auth" key。
- *
- * 这里走真实 UI 输入路径（`/login` 页面填表 + 点击"登录"按钮），原因：
- * - 验证登录页本身没坏（顺带是 P0b 的回归保护）
- * - 不依赖 Koishi 内部 socket 协议细节，UI 改动也不影响
- *
- * fixture 在每个 test 的 beforeEach 自动跑；登录成功后跳转到 `/profile`，
- * 该页存在与否表示登录成功。
+ * 走真实 UI 输入路径以保护登录页本身的回归。
  */
 
 const ADMIN_USERNAME = 'admin'
 const FALLBACK_PASSWORD = 'ui-smoke-password'
 
-interface LoggedInFixtures {
+interface WorkerFixtures {
+  consolePage: Page
+}
+
+interface TestFixtures {
   loggedInPage: Page
 }
 
-export const test = base.extend<LoggedInFixtures>({
-  loggedInPage: async ({ page }, use) => {
-    await loginAsAdmin(page)
-    await use(page)
+export const test = base.extend<TestFixtures, WorkerFixtures>({
+  consolePage: [
+    async ({ browser }, use) => {
+      const context = await browser.newContext()
+      const page = await context.newPage()
+      try {
+        await loginAndWarmUp(page)
+        await use(page)
+      } finally {
+        await context.close()
+      }
+    },
+    { scope: 'worker' },
+  ],
+
+  loggedInPage: async ({ consolePage }, use) => {
+    await use(consolePage)
   },
 })
 
 export { expect }
 
-async function loginAsAdmin(page: Page): Promise<void> {
+async function loginAndWarmUp(page: Page): Promise<void> {
   const password = process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD ?? FALLBACK_PASSWORD
 
   await page.goto('/login', { waitUntil: 'domcontentloaded' })
 
-  // Koishi auth 登录页用 placeholder 标识 input；placeholder selector 比 nth-child 更稳
   await page.locator('input[placeholder="用户名"]').fill(ADMIN_USERNAME)
   await page.locator('input[placeholder="密码"]').fill(password)
 
-  // <k-button> 渲染后是 native button，按可访问名称定位
   await page.getByRole('button', { name: '登录', exact: true }).click()
 
   // 登录成功后 store.user 被设置，watcher 跳转到 /profile
   await expect(page).toHaveURL(/\/profile($|\?)/, { timeout: 10_000 })
+
+  // SPA 路由 warm-up：Koishi 通过 ctx.console.addEntry 把 /stuhelper 路由
+  // 异步推到客户端 Vue Router；登录后第一次访问 /stuhelper 可能与路由注册
+  // 产生竞态。先访问 /stuhelper 等壳出现，证明路由已注册并接管渲染。
+  await page.goto('/stuhelper', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.stuhelperGroupCenter-app')).toBeVisible({ timeout: 15_000 })
+  // 等顶部导航完整渲染，证明 stuhelper-core 客户端 entry 已挂载
+  await expect(page.locator('.nav-tab').first()).toBeVisible({ timeout: 10_000 })
 }
