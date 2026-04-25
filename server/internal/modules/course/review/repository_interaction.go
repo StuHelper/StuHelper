@@ -3,6 +3,8 @@ package review
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -76,8 +78,9 @@ func (r *Repository) ReportExistsTx(ctx context.Context, tx pgx.Tx, reviewID, us
 
 // ListReports 获取举报列表（包含评论信息，含总数）
 // 当 reviewID 为 nil（评论已被物理删除）时，跳过 Review 对象赋值，标记为已删除
-func (r *Repository) ListReports(ctx context.Context, status string, limit, offset int) ([]ReviewReport, int, error) {
-	baseQuery := `
+func (r *Repository) ListReports(ctx context.Context, status string, limit, offset int, schoolIDs []int64) ([]ReviewReport, int, error) {
+	var qb strings.Builder
+	qb.WriteString(`
 		SELECT rr.id, rr.review_id, rr.reason, rr.description, rr.status,
 		       rr.resolved_by, rr.resolved_at, rr.resolution_note, rr.created_at,
 		       rv.id, rv.course_id, COALESCE(c.name, ''), rv.teacher_id, COALESCE(t.name, ''),
@@ -90,18 +93,28 @@ func (r *Repository) ListReports(ctx context.Context, status string, limit, offs
 		LEFT JOIN reviews rv ON rv.id = rr.review_id
 		LEFT JOIN courses c ON c.id = rv.course_id
 		LEFT JOIN teachers t ON t.id = rv.teacher_id
-	`
+	`)
 	var args []interface{}
 
-	if status != "" && status != "all" {
-		baseQuery += ` WHERE rr.status = $1 ORDER BY rr.created_at DESC LIMIT $2 OFFSET $3`
-		args = []interface{}{status, limit, offset}
-	} else {
-		baseQuery += ` ORDER BY rr.created_at DESC LIMIT $1 OFFSET $2`
-		args = []interface{}{limit, offset}
+	hasWhere := false
+	if len(schoolIDs) > 0 {
+		qb.WriteString(` WHERE c.school_id = ANY($1)`)
+		args = append(args, schoolIDs)
+		hasWhere = true
 	}
+	if status != "" && status != "all" {
+		if hasWhere {
+			qb.WriteString(` AND`)
+		} else {
+			qb.WriteString(` WHERE`)
+		}
+		qb.WriteString(` rr.status = $` + strconv.Itoa(len(args)+1))
+		args = append(args, status)
+	}
+	qb.WriteString(` ORDER BY rr.created_at DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2))
+	args = append(args, limit, offset)
 
-	rows, err := r.db.Query(ctx, baseQuery, args...)
+	rows, err := r.db.Query(ctx, qb.String(), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("ListReports: %w", err)
 	}
@@ -165,6 +178,18 @@ func (r *Repository) GetReportByIDForUpdate(ctx context.Context, tx pgx.Tx, repo
 		return nil, fmt.Errorf("GetReportByIDForUpdate: %w", err)
 	}
 	return &rp, nil
+}
+
+func (r *Repository) GetReportSchoolID(ctx context.Context, reportID string) (int64, error) {
+	var schoolID int64
+	err := r.db.QueryRow(ctx, `
+		SELECT c.school_id
+		FROM review_reports rr
+		JOIN reviews r ON r.id = rr.review_id
+		JOIN courses c ON c.id = r.course_id
+		WHERE rr.id = $1
+	`, reportID).Scan(&schoolID)
+	return schoolID, err
 }
 
 // UpdateReportParams 更新举报参数
@@ -264,9 +289,10 @@ type CreateReplyParams struct {
 	ParentID *string
 	UserHash string
 	Content  string
+	Status   string
 }
 
-// ReplyTimestamps holds the DB-generated timestamps for a newly created reply.
+// ReplyTimestamps 保存数据库为新回复生成的时间戳。
 type ReplyTimestamps struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -280,14 +306,30 @@ func (r *Repository) CreateReply(ctx context.Context, tx pgx.Tx, p CreateReplyPa
 	}
 	var ts ReplyTimestamps
 	err = tx.QueryRow(ctx, `
-		INSERT INTO review_replies (id, review_id, parent_id, user_hash, content)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO review_replies (id, review_id, parent_id, user_hash, content, status)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING created_at, updated_at
-	`, replyID, p.ReviewID, p.ParentID, p.UserHash, p.Content).Scan(&ts.CreatedAt, &ts.UpdatedAt)
+	`, replyID, p.ReviewID, p.ParentID, p.UserHash, p.Content, p.Status).Scan(&ts.CreatedAt, &ts.UpdatedAt)
 	if err != nil {
 		return "", nil, fmt.Errorf("CreateReply: %w", err)
 	}
 	return replyID, &ts, nil
+}
+
+func (r *Repository) ReplyBelongsToReviewTx(ctx context.Context, tx pgx.Tx, replyID string, reviewID string) (bool, error) {
+	var exists bool
+	err := tx.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM review_replies
+			WHERE id = $1 AND review_id = $2 AND status = 'published'
+			FOR SHARE
+		)
+	`, replyID, reviewID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("ReplyBelongsToReviewTx: %w", err)
+	}
+	return exists, nil
 }
 
 // ListReplies 获取回复列表（含总数）
@@ -376,6 +418,17 @@ func (r *Repository) SoftDeleteReply(ctx context.Context, tx pgx.Tx, replyID str
 	`, replyID)
 	if err != nil {
 		return fmt.Errorf("SoftDeleteReply: %w", err)
+	}
+	return nil
+}
+
+// UpdateReplyStatusTx 在事务内更新回复状态。
+func (r *Repository) UpdateReplyStatusTx(ctx context.Context, tx pgx.Tx, replyID string, status string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE review_replies SET status = $2, updated_at = NOW() WHERE id = $1
+	`, replyID, status)
+	if err != nil {
+		return fmt.Errorf("UpdateReplyStatusTx: %w", err)
 	}
 	return nil
 }

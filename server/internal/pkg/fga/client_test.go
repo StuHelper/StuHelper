@@ -4,18 +4,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
 
-func TestNewClient_NilWhenStoreIDEmpty(t *testing.T) {
+func TestNewClient_RequiresStoreID(t *testing.T) {
 	cfg := config.OpenFGAConfig{
 		APIUrl:  "http://localhost:8081",
 		StoreID: "",
 	}
 	client, err := NewClient(cfg)
-	assert.NoError(t, err)
-	assert.Nil(t, client, "client should be nil when StoreID is empty")
+	require.Error(t, err)
+	assert.Nil(t, client)
+	assert.Contains(t, err.Error(), "StoreID is required")
 }
 
 func TestNewClient_ReturnsClientWhenConfigured(t *testing.T) {

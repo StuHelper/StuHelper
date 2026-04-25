@@ -23,10 +23,15 @@ trap 'rm -f "${tmpfile}"' EXIT
     --exclude='.tools' \
     --exclude='.env' \
     --exclude='.env.generated' \
+    --exclude='.env.generated.secrets' \
     --exclude='.env.prod.local' \
     --exclude='.env.prod.shared' \
+    --exclude='.env.prod.secrets' \
     --exclude='.env.prod.secrets.local' \
     --exclude='.env.prod.generated' \
+    --exclude='.env.prod.generated.secrets' \
+    --exclude='.secrets' \
+    --exclude='.secrets/*' \
     --exclude='.deploy' \
     --exclude='infra/generated/*' \
     --exclude='clients/**/node_modules' \

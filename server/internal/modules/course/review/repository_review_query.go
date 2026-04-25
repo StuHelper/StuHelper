@@ -12,12 +12,70 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
+const reviewCoreFieldsBaseQuery = `
+	SELECT user_hash, course_id, COALESCE(teacher_id, 0), status
+	FROM reviews
+	WHERE id = $1
+`
+
+type reviewCoreFields struct {
+	userHash  string
+	courseID  int64
+	teacherID *int64
+	status    string
+}
+
+type reviewUpdateState struct {
+	userHash  string
+	courseID  int64
+	teacherID *int64
+	status    string
+	title     string
+	content   string
+	grade     string
+	ratings   ReviewRatings
+}
+
+type reviewCoreRow interface {
+	Scan(dest ...any) error
+}
+
+func scanReviewCoreFields(row reviewCoreRow) (reviewCoreFields, error) {
+	var (
+		fields    reviewCoreFields
+		teacherID int64
+	)
+	if err := row.Scan(&fields.userHash, &fields.courseID, &teacherID, &fields.status); err != nil {
+		return reviewCoreFields{}, err
+	}
+	if teacherID != 0 {
+		fields.teacherID = &teacherID
+	}
+	return fields, nil
+}
+
+func reviewCoreFieldsQuery(forUpdate bool) string {
+	if forUpdate {
+		return reviewCoreFieldsBaseQuery + " FOR UPDATE"
+	}
+	return reviewCoreFieldsBaseQuery
+}
+
+func (r *Repository) getReviewCoreFields(ctx context.Context, reviewID string, forUpdate bool) (reviewCoreFields, error) {
+	return scanReviewCoreFields(r.db.QueryRow(ctx, reviewCoreFieldsQuery(forUpdate), reviewID))
+}
+
+func getReviewCoreFieldsTx(ctx context.Context, tx pgx.Tx, reviewID string, forUpdate bool) (reviewCoreFields, error) {
+	return scanReviewCoreFields(tx.QueryRow(ctx, reviewCoreFieldsQuery(forUpdate), reviewID))
+}
+
 // GetReviewByID 根据ID获取已发布的评论（仅返回 published 状态）
 // 包装 pgx.ErrNoRows 为业务层 sentinel error
 func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Review, error) {
 	var item Review
 	err := r.db.QueryRow(ctx, `
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
+		       r.user_hash,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
@@ -28,7 +86,7 @@ func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Revie
 		WHERE r.id = $1 AND r.status = 'published'
 	`, reviewID).Scan(
 		&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
-		&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
+		&item.TermID, &item.UserHash, &item.Title, &item.Content, &item.Grade, &item.Ratings,
 		&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
 		&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 	)
@@ -41,41 +99,33 @@ func (r *Repository) GetReviewByID(ctx context.Context, reviewID string) (*Revie
 	return &item, nil
 }
 
-// GetReviewOwner 获取评论所有者哈希
-func (r *Repository) GetReviewOwner(ctx context.Context, reviewID string) (string, error) {
-	var userHash string
-	err := r.db.QueryRow(ctx, `SELECT user_hash FROM reviews WHERE id = $1`, reviewID).Scan(&userHash)
-	return userHash, err
-}
-
-// GetReviewOwnerAndStatus 获取评论所有者哈希和状态（单次查询）
-func (r *Repository) GetReviewOwnerAndStatus(ctx context.Context, reviewID string) (string, string, error) {
-	var userHash, status string
-	err := r.db.QueryRow(ctx, `SELECT user_hash, status FROM reviews WHERE id = $1`, reviewID).Scan(&userHash, &status)
-	return userHash, status, err
-}
-
-// GetReviewOwnerAndStatusTx 在事务内获取评论所有者和状态（带行锁）
-func (r *Repository) GetReviewOwnerAndStatusTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, string, error) {
-	var userHash, status string
-	err := tx.QueryRow(ctx, `SELECT user_hash, status FROM reviews WHERE id = $1 FOR UPDATE`, reviewID).Scan(&userHash, &status)
-	return userHash, status, err
-}
-
-// GetReviewOwnerCourseIDAndStatusTx 在事务内获取评论所有者、课程ID和状态（带行锁）
-func (r *Repository) GetReviewOwnerCourseIDAndStatusTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, string, error) {
-	var userHash, status string
-	var courseID int64
-	err := tx.QueryRow(ctx, `SELECT user_hash, course_id, status FROM reviews WHERE id = $1 FOR UPDATE`, reviewID).Scan(&userHash, &courseID, &status)
-	return userHash, courseID, status, err
-}
-
-// GetReviewOwnerAndCourseID 获取评论所有者哈希和课程ID（单次查询）
-func (r *Repository) GetReviewOwnerAndCourseID(ctx context.Context, reviewID string) (string, int64, error) {
-	var userHash string
-	var courseID int64
-	err := r.db.QueryRow(ctx, `SELECT user_hash, course_id FROM reviews WHERE id = $1`, reviewID).Scan(&userHash, &courseID)
-	return userHash, courseID, err
+func (r *Repository) GetReviewUpdateStateTx(ctx context.Context, tx pgx.Tx, reviewID string) (reviewUpdateState, error) {
+	var (
+		state     reviewUpdateState
+		teacherID int64
+	)
+	err := tx.QueryRow(ctx, `
+		SELECT user_hash, course_id, COALESCE(teacher_id, 0), status, title, content, COALESCE(grade, ''), ratings
+		FROM reviews
+		WHERE id = $1
+		FOR UPDATE
+	`, reviewID).Scan(
+		&state.userHash,
+		&state.courseID,
+		&teacherID,
+		&state.status,
+		&state.title,
+		&state.content,
+		&state.grade,
+		&state.ratings,
+	)
+	if err != nil {
+		return reviewUpdateState{}, err
+	}
+	if teacherID != 0 {
+		state.teacherID = &teacherID
+	}
+	return state, nil
 }
 
 // UpdateParams 更新评论参数
@@ -85,6 +135,7 @@ type UpdateParams struct {
 	Content     string
 	Grade       string
 	Ratings     []byte
+	Status      string
 	ContentFlag *string
 }
 
@@ -93,9 +144,9 @@ func (r *Repository) Update(ctx context.Context, tx pgx.Tx, p UpdateParams) erro
 	_, err := tx.Exec(ctx, `
 		UPDATE reviews SET title = $2, content = $3, grade = $4, ratings = $5,
 			avg_rating = COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($5) WHERE value ~ '^\d+(\.\d+)?$'), 0),
-			content_flag = $6, updated_at = NOW()
+			status = $6, content_flag = $7, updated_at = NOW()
 		WHERE id = $1
-	`, p.ID, p.Title, p.Content, p.Grade, p.Ratings, p.ContentFlag)
+	`, p.ID, p.Title, p.Content, p.Grade, p.Ratings, p.Status, p.ContentFlag)
 	return err
 }
 
@@ -117,71 +168,100 @@ func (r *Repository) DecrementCourseReviewCount(ctx context.Context, tx pgx.Tx, 
 	return err
 }
 
-// GetReviewCourseID 获取评论的课程ID
-func (r *Repository) GetReviewCourseID(ctx context.Context, reviewID string) (int64, error) {
-	var courseID int64
-	err := r.db.QueryRow(ctx, `SELECT course_id FROM reviews WHERE id = $1`, reviewID).Scan(&courseID)
-	return courseID, err
-}
-
 // GetReviewCourseIDTx 在事务内获取评论的课程ID
 func (r *Repository) GetReviewCourseIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (int64, error) {
-	var courseID int64
-	err := tx.QueryRow(ctx, `SELECT course_id FROM reviews WHERE id = $1`, reviewID).Scan(&courseID)
-	return courseID, err
+	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, false)
+	if err != nil {
+		return 0, err
+	}
+	return fields.courseID, nil
+}
+
+// GetCourseSchoolIDTx 在事务内获取课程所属学校 ID。
+func (r *Repository) GetCourseSchoolIDTx(ctx context.Context, tx pgx.Tx, courseID int64) (int64, error) {
+	var schoolID int64
+	err := tx.QueryRow(ctx, `SELECT school_id FROM courses WHERE id = $1`, courseID).Scan(&schoolID)
+	return schoolID, err
+}
+
+// GetReviewSchoolIDTx 在事务内获取评论所属学校 ID。
+func (r *Repository) GetReviewSchoolIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (int64, error) {
+	var schoolID int64
+	err := tx.QueryRow(ctx, `
+		SELECT c.school_id
+		FROM reviews r
+		JOIN courses c ON c.id = r.course_id
+		WHERE r.id = $1
+	`, reviewID).Scan(&schoolID)
+	return schoolID, err
+}
+
+func (r *Repository) GetReviewSchoolID(ctx context.Context, reviewID string) (int64, error) {
+	var schoolID int64
+	err := r.db.QueryRow(ctx, `
+		SELECT c.school_id
+		FROM reviews r
+		JOIN courses c ON c.id = r.course_id
+		WHERE r.id = $1
+	`, reviewID).Scan(&schoolID)
+	return schoolID, err
 }
 
 // GetReviewStatusAndCourseIDTx 在事务内获取评论状态和课程ID
 func (r *Repository) GetReviewStatusAndCourseIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, error) {
-	var status string
-	var courseID int64
-	err := tx.QueryRow(ctx, `SELECT status, course_id FROM reviews WHERE id = $1 FOR UPDATE`, reviewID).Scan(&status, &courseID)
-	return status, courseID, err
+	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, true)
+	if err != nil {
+		return "", 0, err
+	}
+	return fields.status, fields.courseID, nil
 }
 
 // GetReviewStatusCourseTeacherTx 在事务内获取评论状态、课程ID和教师ID（带行锁）。
 func (r *Repository) GetReviewStatusCourseTeacherTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, *int64, error) {
-	var (
-		status    string
-		courseID  int64
-		teacherID int64
-	)
-	err := tx.QueryRow(ctx, `
-		SELECT status, course_id, COALESCE(teacher_id, 0)
-		FROM reviews
-		WHERE id = $1
-		FOR UPDATE
-	`, reviewID).Scan(&status, &courseID, &teacherID)
+	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, true)
 	if err != nil {
 		return "", 0, nil, err
 	}
-	if teacherID == 0 {
-		return status, courseID, nil, nil
-	}
-	return status, courseID, &teacherID, nil
+	return fields.status, fields.courseID, fields.teacherID, nil
 }
 
 // GetReviewOwnerCourseTeacherStatusTx 在事务内获取评论所有者、课程ID、教师ID和状态（带行锁）。
 func (r *Repository) GetReviewOwnerCourseTeacherStatusTx(ctx context.Context, tx pgx.Tx, reviewID string) (string, int64, *int64, string, error) {
-	var (
-		userHash  string
-		courseID  int64
-		teacherID int64
-		status    string
-	)
-	err := tx.QueryRow(ctx, `
-		SELECT user_hash, course_id, COALESCE(teacher_id, 0), status
-		FROM reviews
-		WHERE id = $1
-		FOR UPDATE
-	`, reviewID).Scan(&userHash, &courseID, &teacherID, &status)
+	fields, err := getReviewCoreFieldsTx(ctx, tx, reviewID, true)
 	if err != nil {
 		return "", 0, nil, "", err
 	}
-	if teacherID == 0 {
-		return userHash, courseID, nil, status, nil
+	return fields.userHash, fields.courseID, fields.teacherID, fields.status, nil
+}
+
+func (r *Repository) ListReviewSchoolIDs(ctx context.Context, reviewIDs []string) (map[string]int64, error) {
+	if len(reviewIDs) == 0 {
+		return map[string]int64{}, nil
 	}
-	return userHash, courseID, &teacherID, status, nil
+
+	rows, err := r.db.Query(ctx, `
+		SELECT r.id, c.school_id
+		FROM reviews r
+		JOIN courses c ON c.id = r.course_id
+		WHERE r.id = ANY($1)
+	`, reviewIDs)
+	if err != nil {
+		return nil, fmt.Errorf("ListReviewSchoolIDs: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]int64, len(reviewIDs))
+	for rows.Next() {
+		var (
+			reviewID string
+			schoolID int64
+		)
+		if err := rows.Scan(&reviewID, &schoolID); err != nil {
+			return nil, fmt.Errorf("ListReviewSchoolIDs scan: %w", err)
+		}
+		result[reviewID] = schoolID
+	}
+	return result, rows.Err()
 }
 
 // ListDistinctReviewTargetIDsTx 在事务内获取一批评论关联的课程ID和教师ID集合。
@@ -206,7 +286,7 @@ func (r *Repository) ListDistinctReviewTargetIDsTx(ctx context.Context, tx pgx.T
 	return courseIDs, teacherIDs, nil
 }
 
-// maxBatchCourseIDs limits the number of course IDs in a batch query
+// maxBatchCourseIDs 限制批量查询时允许携带的课程 ID 数量
 const maxBatchCourseIDs = 20
 
 // ListByMultipleCourses 批量获取多个课程的测评列表（消除 N+1 查询）
@@ -295,35 +375,48 @@ type ListByCourseWithSortParams struct {
 	Offset    int
 }
 
-// ListByCourseWithSort 获取课程评论列表（支持排序和筛选，含总数）
-// 使用 strings.Builder 构建动态查询，提高可读性
+// ListByCourseWithSort 获取课程评论列表（支持排序和筛选，含总数）。
+// 公开查询使用分离的 COUNT + 数据查询，避免 COUNT(*) OVER() 的全量窗口扫描开销。
 func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWithSortParams) ([]Review, int, error) {
+	// 构建公共 WHERE 子句
+	baseWhere := ` WHERE r.course_id = $1 AND r.status = 'published'`
+	args := []interface{}{p.CourseID}
+	argIdx := 2
+
+	if p.TermID != "" {
+		baseWhere += ` AND r.term_id = $` + strconv.Itoa(argIdx)
+		args = append(args, p.TermID)
+		argIdx++
+	}
+	if p.TeacherID != nil {
+		baseWhere += ` AND r.teacher_id = $` + strconv.Itoa(argIdx)
+		args = append(args, *p.TeacherID)
+		argIdx++
+	}
+
+	// 1) COUNT 查询
+	countQuery := `SELECT COUNT(*) FROM reviews r` + baseWhere
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args[:argIdx-1]...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("ListByCourseWithSort count: %w", err)
+	}
+	if total == 0 {
+		return []Review{}, 0, nil
+	}
+
+	// 2) 数据查询
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.moderation_reason, r.created_at, r.updated_at,
-		       COUNT(*) OVER() AS total
+		       r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.course_id = $1 AND r.status = 'published'
 	`)
-	args := []interface{}{p.CourseID}
-	argIdx := 2
-
-	if p.TermID != "" {
-		qb.WriteString(` AND r.term_id = $` + strconv.Itoa(argIdx))
-		args = append(args, p.TermID)
-		argIdx++
-	}
-	if p.TeacherID != nil {
-		qb.WriteString(` AND r.teacher_id = $` + strconv.Itoa(argIdx))
-		args = append(args, *p.TeacherID)
-		argIdx++
-	}
+	qb.WriteString(baseWhere)
 
 	// SQL 注入安全保证：orderBy 仅来自 allowedSortOrders 硬编码 map，不含用户输入
 	orderBy, ok := allowedSortOrders[p.Sort]
@@ -333,14 +426,19 @@ func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWit
 	qb.WriteString(` ORDER BY ` + orderBy)
 
 	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
-	args = append(args, p.Limit, p.Offset)
+	dataArgs := append(args, p.Limit, p.Offset) //nolint:gocritic // intentional append to new slice
 
-	rows, err := r.db.Query(ctx, qb.String(), args...)
+	rows, err := r.db.Query(ctx, qb.String(), dataArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("ListByCourseWithSort data: %w", err)
+	}
+	defer rows.Close()
+
+	list, err := scanReviews(rows)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-	return scanReviewsWithTotal(rows)
+	return list, total, nil
 }
 
 // SearchReviewsQueryParams 搜索测评查询参数
@@ -354,46 +452,64 @@ type SearchReviewsQueryParams struct {
 	Offset       int
 }
 
-// SearchReviews 搜索测评列表（支持课程名/课号、院系、教师、学期筛选）
+// SearchReviews 搜索测评列表（支持课程名/课号、院系、教师、学期筛选）。
+// 公开查询使用分离的 COUNT + 数据查询，避免 COUNT(*) OVER() 的全量窗口扫描开销。
 func (r *Repository) SearchReviews(ctx context.Context, p SearchReviewsQueryParams) ([]Review, int, error) {
+	// 构建公共 WHERE 子句片段和参数
+	var whereParts strings.Builder
+	args := make([]any, 0, 6)
+	argIdx := 1
+	if p.Query != "" {
+		pattern := "%" + httputil.EscapeLikePattern(p.Query) + "%"
+		whereParts.WriteString(` AND (c.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\' OR c.code ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\')`)
+		args = append(args, pattern)
+		argIdx++
+	}
+	if p.DepartmentID > 0 {
+		whereParts.WriteString(` AND c.department_id = $` + strconv.Itoa(argIdx))
+		args = append(args, p.DepartmentID)
+		argIdx++
+	}
+	if p.TeacherName != "" {
+		pattern := "%" + httputil.EscapeLikePattern(p.TeacherName) + "%"
+		whereParts.WriteString(` AND t.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\'`)
+		args = append(args, pattern)
+		argIdx++
+	}
+	if p.TermID != "" {
+		whereParts.WriteString(` AND r.term_id = $` + strconv.Itoa(argIdx))
+		args = append(args, p.TermID)
+		argIdx++
+	}
+
+	whereClause := whereParts.String()
+	countArgs := make([]any, len(args))
+	copy(countArgs, args)
+
+	// 1) COUNT 查询
+	countQuery := `SELECT COUNT(*) FROM reviews r LEFT JOIN courses c ON c.id = r.course_id LEFT JOIN teachers t ON t.id = r.teacher_id WHERE r.status = 'published'` + whereClause
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("SearchReviews count: %w", err)
+	}
+	if total == 0 {
+		return []Review{}, 0, nil
+	}
+
+	// 2) 数据查询
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.moderation_reason, r.created_at, r.updated_at,
-		       COUNT(*) OVER() AS total
+		       r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
 		WHERE r.status = 'published'
 	`)
-
-	args := make([]any, 0, 6)
-	argIdx := 1
-	if p.Query != "" {
-		pattern := "%" + httputil.EscapeLikePattern(p.Query) + "%"
-		qb.WriteString(` AND (c.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\' OR c.code ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\')`)
-		args = append(args, pattern)
-		argIdx++
-	}
-	if p.DepartmentID > 0 {
-		qb.WriteString(` AND c.department_id = $` + strconv.Itoa(argIdx))
-		args = append(args, p.DepartmentID)
-		argIdx++
-	}
-	if p.TeacherName != "" {
-		pattern := "%" + httputil.EscapeLikePattern(p.TeacherName) + "%"
-		qb.WriteString(` AND t.name ILIKE $` + strconv.Itoa(argIdx) + ` ESCAPE '\'`)
-		args = append(args, pattern)
-		argIdx++
-	}
-	if p.TermID != "" {
-		qb.WriteString(` AND r.term_id = $` + strconv.Itoa(argIdx))
-		args = append(args, p.TermID)
-		argIdx++
-	}
+	qb.WriteString(whereClause)
 
 	orderBy, ok := allowedSortOrders[p.Sort]
 	if !ok {
@@ -405,10 +521,15 @@ func (r *Repository) SearchReviews(ctx context.Context, p SearchReviewsQueryPara
 
 	rows, err := r.db.Query(ctx, qb.String(), args...)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("SearchReviews data: %w", err)
 	}
 	defer rows.Close()
-	return scanReviewsWithTotal(rows)
+
+	list, err := scanReviews(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }
 
 // ListByUserHash 获取用户的评论列表（含总数）

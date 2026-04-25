@@ -18,8 +18,8 @@ func (r *Repository) GetInternalUserIDByExternalID(ctx context.Context, external
 	return userID, nil
 }
 
-// GetUserIDByUserHash resolves internal user ID from user_hash.
-// Returns 0 if not found (no error).
+// GetUserIDByUserHash 根据 user_hash 解析内部用户 ID。
+// 未命中时返回 0，且不视为错误。
 func (r *Repository) GetUserIDByUserHash(ctx context.Context, userHash string) (int64, error) {
 	var userID int64
 	err := r.db.QueryRow(ctx, `SELECT id FROM users WHERE user_hash = $1`, userHash).Scan(&userID)

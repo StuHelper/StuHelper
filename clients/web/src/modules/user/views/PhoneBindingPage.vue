@@ -102,6 +102,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, Phone } from 'lucide-vue-next'
 import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'
+import { getErrorStatus } from '@/api/errors'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -145,14 +146,6 @@ function startCooldown() {
   }, 1000)
 }
 
-function getStatus(error: unknown): number | undefined {
-  if (typeof error === 'object' && error !== null && 'status' in error) {
-    const status = (error as { status?: unknown }).status
-    return typeof status === 'number' ? status : undefined
-  }
-  return undefined
-}
-
 async function onSendCode() {
   if (!isPhoneValid.value) {
     toast.error(t('user.verification.phone.invalidPhone'))
@@ -164,7 +157,7 @@ async function onSendCode() {
     toast.success(t('user.verification.phone.codeSent'))
     startCooldown()
   } catch (err: unknown) {
-    const status = getStatus(err)
+    const status = getErrorStatus(err)
     if (status === 429) {
       toast.error(t('user.verification.phone.tooManyRequests'))
     } else if (status === 400) {
@@ -185,7 +178,7 @@ async function onSubmit() {
     toast.success(t('user.verification.phone.bindSuccess'))
     router.push('/user/reviews')
   } catch (err: unknown) {
-    const status = getStatus(err)
+    const status = getErrorStatus(err)
     if (status === 401) {
       toast.error(t('user.verification.phone.invalidCode'))
     } else if (status === 409) {

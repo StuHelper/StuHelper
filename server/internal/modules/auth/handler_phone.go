@@ -3,25 +3,20 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
-
-// phonePattern 中国大陆手机号正则
-var phonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
 // RequestPhoneOTP 发送手机验证码
 func (h *Handler) RequestPhoneOTP(c *gin.Context) {
@@ -34,7 +29,7 @@ func (h *Handler) RequestPhoneOTP(c *gin.Context) {
 	}
 
 	phone := strings.TrimSpace(req.Phone)
-	if !phonePattern.MatchString(phone) {
+	if !phoneutil.IsValidMainlandPhone(phone) {
 		response.BadRequest(c, "invalid phone number format")
 		return
 	}
@@ -44,31 +39,22 @@ func (h *Handler) RequestPhoneOTP(c *gin.Context) {
 		return
 	}
 
-	code, err := h.otpService.Generate(c.Request.Context(), phone)
-	if err != nil {
-		if errors.Is(err, ErrOTPCooldown) {
+	if err := h.otpService.IssueCode(c.Request.Context(), phone, h.smsService); err != nil {
+		switch {
+		case errors.Is(err, ErrOTPPhoneRateLimited):
+			response.RateLimitExceeded(c, "too many requests for this phone number")
+		case errors.Is(err, ErrOTPCooldown):
 			response.RateLimitExceeded(c, "please wait before requesting a new code")
-		} else {
-			logger.FromGin(c).Error("failed to generate OTP", zap.String("phone", maskPhone(phone)), zap.Error(err))
+		default:
+			logger.FromGin(c).Error("failed to send phone OTP", zap.String("phone", maskPhone(phone)), zap.Error(err))
 			response.InternalError(c, "failed to send verification code")
 		}
 		return
 	}
 
-	// 发送短信
-	internationalPhone := "+86" + phone
-	if err := h.smsService.Send(c.Request.Context(), internationalPhone, code); err != nil {
-		if cleanupErr := h.otpService.Cleanup(c.Request.Context(), phone); cleanupErr != nil {
-			logger.FromGin(c).Warn("failed to cleanup OTP after SMS send failure", zap.String("phone", maskPhone(phone)), zap.Error(cleanupErr))
-		}
-		logger.FromGin(c).Error("failed to send SMS", zap.String("phone", maskPhone(phone)), zap.Error(err))
-		response.InternalError(c, "failed to send verification code")
-		return
-	}
-
 	response.Success(c, gin.H{
 		"message":  "verification code sent",
-		"cooldown": int(otpCooldown.Seconds()),
+		"cooldown": h.otpService.CooldownSeconds(),
 	})
 }
 
@@ -87,7 +73,7 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	code := strings.TrimSpace(req.Code)
 	requestID := middleware.GetRequestID(c)
 
-	if !phonePattern.MatchString(phone) {
+	if !phoneutil.IsValidMainlandPhone(phone) {
 		response.BadRequest(c, "invalid phone number format")
 		return
 	}
@@ -103,13 +89,14 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 
 	// 验证 OTP
 	if err := h.otpService.Verify(c.Request.Context(), phone, code); err != nil {
-		if errors.Is(err, ErrOTPInvalidCode) {
+		switch {
+		case errors.Is(err, ErrOTPInvalidCode):
 			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
-		} else if errors.Is(err, ErrOTPExpired) {
+		case errors.Is(err, ErrOTPExpired):
 			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
-		} else if errors.Is(err, ErrOTPMaxAttempts) {
+		case errors.Is(err, ErrOTPMaxAttempts):
 			response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
-		} else {
+		default:
 			logger.FromGin(c).Error("OTP verification error", zap.Error(err))
 			response.InternalError(c, "verification failed")
 		}
@@ -117,17 +104,9 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	}
 
 	// 查找或创建用户
-	user, err := h.userSyncRepo.UpsertByPhone(c.Request.Context(), phone)
+	user, err := h.svc.SyncPhoneUser(c.Request.Context(), phone)
 	if err != nil {
 		logger.FromGin(c).Error("failed to upsert phone user", zap.String("phone", maskPhone(phone)), zap.Error(err))
-		response.InternalError(c, "login failed")
-		return
-	}
-
-	// 签发自签名 JWT
-	hmacKey := crypto.GetHMACKey()
-	if len(hmacKey) == 0 {
-		logger.FromGin(c).Error("HMAC key not initialized")
 		response.InternalError(c, "login failed")
 		return
 	}
@@ -137,37 +116,31 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	// 需要 admin/moderator 等高级角色的用户应使用 Zitadel SSO 登录，
 	// 角色由 Zitadel ID Token claims 提供。
 	roles := []string{"user"}
-	accessTTL := time.Duration(h.tokenConfig.AccessTokenTTL) * time.Second
-	refreshTTL := time.Duration(h.tokenConfig.RefreshTokenTTL) * time.Second
 
-	claims := token.JWTClaims{
-		Sub:         user.ExternalID,
-		Name:        user.Username,
-		Email:       user.Email,
-		DisplayName: user.Username,
-		Roles:       roles,
-		Typ:         token.JWTTokenTypeAccess,
-	}
-	if user.AvatarURL != nil {
-		claims.Avatar = *user.AvatarURL
-	}
-
-	accessToken, err := token.SignJWT(hmacKey, claims, accessTTL)
-	if err != nil {
-		logger.FromGin(c).Error("failed to sign JWT", zap.Error(err))
+	// 创建 session（Token Family）
+	sessionID, sessIDErr := token.GenerateSessionID()
+	if sessIDErr != nil {
+		logger.FromGin(c).Error("failed to generate session ID", zap.Error(sessIDErr))
 		response.InternalError(c, "login failed")
 		return
 	}
 
-	// 签发自签名 refresh token（更长有效期，用于刷新 access token）
-	refreshClaims := token.JWTClaims{
-		Sub:  user.ExternalID,
-		Name: user.Username,
-		Typ:  token.JWTTokenTypeRefresh,
-	}
-	refreshToken, err := token.SignJWT(hmacKey, refreshClaims, refreshTTL)
+	// 签发自签名 JWT 对（含 session ID）
+	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(user, roles, sessionID)
 	if err != nil {
-		logger.FromGin(c).Error("failed to sign refresh JWT", zap.Error(err))
+		logger.FromGin(c).Error("failed to sign phone JWT pair", zap.Error(err))
+		response.InternalError(c, "login failed")
+		return
+	}
+
+	// 创建服务端 Session —— 必须传入签发 JWT 时使用的同一 sessionID，
+	// 否则 JWT 中的 Sid claim 与 session store key 不一致，refresh/revoke 会失效。
+	deviceInfo := c.Request.UserAgent()
+	if _, sessErr := h.svc.CreateSession(c.Request.Context(), sessionID, user.ExternalID, accessToken, refreshToken, "phone", deviceInfo); sessErr != nil {
+		logger.FromGin(c).Error("failed to create session",
+			zap.String("user_id", user.ExternalID),
+			zap.Error(sessErr),
+		)
 		response.InternalError(c, "login failed")
 		return
 	}
@@ -178,31 +151,12 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 		return
 	}
 
-	// Token 跟踪（支持 LogoutAll）
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		c.Request.Context(), user.ExternalID, accessToken, token.TokenTypeAccess, time.Now().Add(h.tokenService.GetAccessTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track phone login token",
-			zap.String("user_id", user.ExternalID),
-			zap.Error(trackErr),
-		)
-	}
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		c.Request.Context(), user.ExternalID, refreshToken, token.TokenTypeRefresh, time.Now().Add(h.tokenService.GetRefreshTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track phone login refresh token",
-			zap.String("user_id", user.ExternalID),
-			zap.Error(trackErr),
-		)
-	}
-
 	// 审计日志中使用脱敏的手机号，避免泄露完整号码
 	maskedID := "phone:" + maskPhone(phone)
 	audit.LogSuccess(audit.EventUserLogin, maskedID, user.Username, c.ClientIP(), c.Request.UserAgent(), requestID)
 
 	// 构建用户响应
-	capabilities := capability.ExpandRoles(roles)
-	snapshot := buildAccessSnapshot(capabilities)
+	snapshot := buildAccessSnapshotForRoles(roles, nil)
 
 	response.Success(c, gin.H{
 		"user": gin.H{
@@ -218,7 +172,7 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 			"isPlatformAdmin":    false,
 			"canAccessAdmin":     capability.CanAccessAdmin(snapshot.Capabilities),
 		},
-		"expiresIn": h.tokenConfig.AccessTokenTTL,
+		"expiresIn": h.currentAccessTokenTTLSeconds(),
 	})
 }
 

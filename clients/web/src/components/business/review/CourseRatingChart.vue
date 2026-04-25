@@ -1,6 +1,6 @@
 <template>
   <div class="p-5">
-    <!-- Loading State -->
+    <!-- 加载态 -->
     <div v-if="loading" class="flex flex-col gap-4">
       <div class="flex justify-between items-center">
         <div class="w-[100px] h-6 bg-bg-elevated rounded-sm animate-pulse"></div>
@@ -16,7 +16,7 @@
       </div>
     </div>
 
-    <!-- Content -->
+    <!-- 内容区 -->
     <template v-else-if="ratingStats">
       <div class="flex justify-between items-center mb-4 flex-wrap gap-3 max-sm:flex-col max-sm:items-start">
         <h3 class="flex items-center gap-2 m-0 font-serif text-base font-semibold text-text-primary">
@@ -24,7 +24,7 @@
           {{ t('review.chart.title') }}
         </h3>
 
-        <!-- Custom Multi-Select -->
+        <!-- 自定义多选下拉 -->
         <div class="relative" ref="selectorRef">
           <button
             class="flex items-center gap-2 py-2 px-3 bg-transparent rounded-sm text-text-primary text-sm cursor-pointer transition-all duration-fast min-w-[140px] hover:border-text-primary max-sm:w-full"
@@ -80,12 +80,12 @@
         </div>
       </div>
 
-      <!-- Radar Chart -->
+      <!-- 雷达图 -->
       <div class="h-[280px] mb-4" role="img" :aria-label="t('review.chart.radarAria')">
         <v-chart :option="chartOption" autoresize />
       </div>
 
-      <!-- Dimension List -->
+      <!-- 维度列表 -->
       <div class="flex flex-col gap-3 pt-4 border-t border-border-light">
         <div
           v-for="dim in ratingStats.overall.dimensions"
@@ -104,7 +104,7 @@
       </div>
     </template>
 
-    <!-- Empty State -->
+    <!-- 空状态 -->
     <div v-else class="flex flex-col items-center justify-center py-10 px-4 text-center">
       <Star class="w-16 h-16 text-text-muted opacity-50 mb-4" :stroke-width="1.5" />
       <p class="text-base text-text-secondary m-0 mb-2">{{ t('review.chart.emptyTitle') }}</p>
@@ -123,10 +123,10 @@ import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import { Star, Users, ChevronDown } from 'lucide-vue-next'
 import { api } from '@/api'
-import type { CourseRatingStatsResponse } from '@/types/course'
+import type { CourseRatingStatsResponse } from '@stuhelper/shared/course'
 import { useThemeStore } from '@/stores/theme'
 import RatingDisplay from './RatingDisplay.vue'
-import { withAlpha } from '@/utils/color'
+import { withAlpha } from '@stuhelper/shared/utils'
 
 use([RadarChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -261,7 +261,7 @@ const fetchData = async () => {
   try {
     const res = await api.rating.getCourseStats(props.courseID)
     ratingStats.value = res.data?.data ?? null
-  } catch {
+  } catch (_error) { void _error;
     // 评分统计加载失败，UI 显示空状态
   } finally {
     loading.value = false
@@ -330,7 +330,7 @@ onUnmounted(() => {
   color: var(--color-bg-base);
 }
 
-/* Vue Transition hooks */
+/* 下拉面板过渡动画 */
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition: all var(--duration-fast) var(--ease-out);

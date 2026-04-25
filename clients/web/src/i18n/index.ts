@@ -24,7 +24,7 @@ function detectLocale(): SupportedLocale {
     if (stored && SUPPORTED_LOCALES.includes(stored as SupportedLocale)) {
       return stored as SupportedLocale
     }
-  } catch {
+  } catch (_error) { void _error;
     // ignore storage access failures and fall back to navigator
   }
 

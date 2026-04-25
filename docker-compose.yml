@@ -1,37 +1,91 @@
 # StuHelper Docker Compose
 #
-# 基于 Zitadel 官方 deploy/compose 模式，适配 StuHelper 共享 PostgreSQL。
-# 架构：Traefik (80) → Zitadel API (8080/h2c) + Zitadel Login V2 (3000)
+# 架构：Traefik (edge proxy) → 所有 HTTP 服务
 #
-# 路由优先级（Traefik）:
-#   /              (400) → rewrite → /ui/v2/login/ → zitadel-login
-#   /ui/v2/login/* (250) → zitadel-login
-#   /api/*         (200) → strip /api → zitadel-api
-#   其他           (100) → zitadel-api（gRPC-Web, Console, OIDC endpoints）
+# Traefik 动态路由文件（infra/traefik/）:
+#   zitadel.dynamic.yaml  — Zitadel IAM 路由（优先级 800–1100）
+#   services.dynamic.yaml — 应用服务路由（优先级 500–700）
+#   tls.dynamic.yaml      — TLS 选项（生产环境启用 ACME 时加载）
+#
+# 路由优先级总览:
+#   /ui/v2/login/*  (1100) → zitadel-login
+#   /oidc/* 等      (1000) → zitadel-api（OIDC/OAuth/SAML/well-known）
+#   /ui/console/*   (950)  → zitadel-api（Zitadel Admin Console）
+#   /zitadel.* 等   (900)  → zitadel-api（gRPC-Web protobuf）
+#   /management/*   (850)  → zitadel-api（REST API 原生路径）
+#   /api/*          (700)  → backend（Go 服务，strip /api）
+#   /admin/*        (600)  → admin 前端（Vben Admin）
+#   /               (500)  → web 前端（Vue SPA，catch-all）
 #
 # 使用方式:
-#   开发（仅基础设施）:  docker compose up -d --wait
-#   全 Docker 开发:      docker compose --profile dev-full up -d --wait
-#   生产部署:            docker compose --profile prod up -d --wait
+#   开发（仅基础设施）:  docker compose -f docker-compose.yml up -d --wait
+#   可观测性 overlay:    docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability up -d --wait
+#   生产部署:            docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod up -d --wait
+
+x-zitadel-common-env: &zitadel-common-env
+  ZITADEL_PORT: 8080
+  ZITADEL_EXTERNALDOMAIN: ${ZITADEL_DOMAIN:-localhost}
+  ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8085}
+  ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
+  ZITADEL_TLS_ENABLED: "false"
+  ZITADEL_DATABASE_POSTGRES_DSN: postgresql://zitadel:${ZITADEL_DB_PASSWORD}@postgres:5432/zitadel?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
+  ZITADEL_FIRSTINSTANCE_ORG_NAME: stuhelper-platform
+  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
+  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?ZITADEL_ADMIN_PASSWORD is required}
+  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
+  ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: admin-api
+  ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: "Admin API Service Account"
+  ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${LOGIN_CLIENT_PAT_EXPIRATION:?LOGIN_CLIENT_PAT_EXPIRATION is required}
+  ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin.pat
+  ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
+  ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
+  ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: "Automatically Initialized IAM_LOGIN_CLIENT"
+  ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: ${LOGIN_CLIENT_PAT_EXPIRATION:?LOGIN_CLIENT_PAT_EXPIRATION is required}
+  ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
+  ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/"
+  ZITADEL_OIDC_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?authRequest="
+  ZITADEL_OIDC_DEFAULTLOGOUTURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/logout?post_logout_redirect="
+  ZITADEL_SAML_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?samlRequest="
+  ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED: ${ZITADEL_ACCESS_LOG_STDOUT_ENABLED:-true}
 
 services:
-  # ─── 反向代理（Zitadel API + Login V2 路由）─────────
   proxy:
     image: traefik:v3.6.8
     container_name: ${STACK_NAME:-stuhelper}-proxy
     restart: unless-stopped
     command:
-      - --providers.file.filename=/etc/traefik/dynamic/zitadel.yaml
-      - --providers.file.watch=true
-      - --entrypoints.web.address=:80
-      - --ping=true
-      - --ping.entrypoint=web
-      - --log.level=${TRAEFIK_LOG_LEVEL:-WARN}
-      - --accesslog=${TRAEFIK_ACCESSLOG_ENABLED:-false}
+    # 动态配置目录（加载 infra/traefik/ 下所有 .yaml 文件）
+    - --providers.file.directory=/etc/traefik/dynamic
+    - --providers.file.watch=true
+    # HTTP 入口（开发 + 生产共用）
+    - --entrypoints.web.address=:80
+    # HTTPS 入口（生产启用 TLS 时使用；开发环境下无证书则不接受连接，无副作用）
+    - --entrypoints.websecure.address=:443
+    # HTTP → HTTPS 自动重定向（仅在 TRAEFIK_TLS_REDIRECT=true 时生效）
+    - --entrypoints.web.http.redirections.entryPoint.to=${TRAEFIK_TLS_REDIRECT_TARGET:-}
+    - --entrypoints.web.http.redirections.entryPoint.permanent=${TRAEFIK_TLS_REDIRECT_PERMANENT:-false}
+    # Let's Encrypt ACME（默认禁用；生产环境设置 TRAEFIK_ACME_EMAIL 即可启用）
+    # 启用时需要挂载 acme_data 卷并设置 TRAEFIK_ACME_EMAIL
+    - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:-}
+    - --certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json
+    - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    # 健康检查
+    - --ping=true
+    - --ping.entrypoint=web
+    # 日志
+    - --log.level=${TRAEFIK_LOG_LEVEL:-WARN}
+    - --accesslog=${TRAEFIK_ACCESSLOG_ENABLED:-false}
     ports:
-      - "127.0.0.1:${ZITADEL_EXTERNALPORT:-8085}:80"
+    # 端口绑定 — 开发 vs 生产差异:
+    #   开发环境: 默认绑定 127.0.0.1（仅本机可达，无需设置 TRAEFIK_BIND_IP）
+    #   生产环境: 在 .env 中设置 TRAEFIK_BIND_IP=0.0.0.0 以接受外部流量
+    # HTTP
+    - "${TRAEFIK_BIND_IP:-127.0.0.1}:${TRAEFIK_HTTP_PORT:-80}:80"
+    # HTTPS（生产启用 ACME 后用于 TLS 终止；开发环境无证书时此端口无副作用）
+    - "${TRAEFIK_BIND_IP:-127.0.0.1}:${TRAEFIK_HTTPS_PORT:-443}:443"
     volumes:
-      - ./infra/traefik/zitadel.dynamic.yaml:/etc/traefik/dynamic/zitadel.yaml:ro
+    - ./infra/traefik:/etc/traefik/dynamic:ro
+    - acme_data:/acme
     depends_on:
       zitadel-api:
         condition: service_healthy
@@ -43,37 +97,59 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── 基础设施 ──────────────────────────────────────
+    networks:
+    - frontend
+    - backend
+    - zitadel-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+    read_only: true
+    tmpfs:
+    - /tmp
+    security_opt:
+    - no-new-privileges:true
   postgres:
     image: postgres:${POSTGRES_VERSION:-18.3-alpine}
     container_name: ${STACK_NAME:-stuhelper}-postgres
     command:
-      - postgres
-      - -c
-      - ssl=${POSTGRES_ENABLE_SSL:-off}
-      - -c
-      - ssl_cert_file=/tls/server.crt
-      - -c
-      - ssl_key_file=/tls/server.key
-      - -c
-      - wal_level=replica
-      - -c
-      - archive_mode=on
-      - -c
-      - archive_timeout=60s
-      - -c
-      - archive_command=sh -c 'test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f'
+    - postgres
+    - -c
+    - ssl=${POSTGRES_ENABLE_SSL:-off}
+    - -c
+    - ssl_cert_file=/tls/server.crt
+    - -c
+    - ssl_key_file=/tls/server.key
+    - -c
+    - hba_file=/etc/postgresql/pg_hba.conf
+    - -c
+    - wal_level=replica
+    - -c
+    - archive_mode=${POSTGRES_ARCHIVE_MODE:-on}
+    - -c
+    - archive_timeout=${POSTGRES_ARCHIVE_TIMEOUT:-60s}
+    - -c
+    - archive_command=sh -c 'test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f'
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-stuhelper}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-stuhelper}
+      PGDATA: ${POSTGRES_PGDATA:-/var/lib/postgresql/data}
+      STUHELPER_APP_DB_PASSWORD: ${STUHELPER_APP_DB_PASSWORD:?STUHELPER_APP_DB_PASSWORD is required}
+      ZITADEL_DB_PASSWORD: ${ZITADEL_DB_PASSWORD:?ZITADEL_DB_PASSWORD is required}
+      OPENFGA_DB_PASSWORD: ${OPENFGA_DB_PASSWORD:?OPENFGA_DB_PASSWORD is required}
+      STUHELPER_BACKUP_DB_PASSWORD: ${STUHELPER_BACKUP_DB_PASSWORD:?STUHELPER_BACKUP_DB_PASSWORD is required}
+      STUHELPER_REPLICATION_DB_PASSWORD: ${STUHELPER_REPLICATION_DB_PASSWORD:?STUHELPER_REPLICATION_DB_PASSWORD is required}
     ports:
-      - "127.0.0.1:5432:5432"
+    - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres/init-extra-dbs.sh:/docker-entrypoint-initdb.d/00-init-extra-dbs.sh:ro
-      - ./infra/generated/postgres:/tls:ro
-      - ./infra/generated/postgres/wal-archive:/var/lib/postgresql/wal-archive
+    - postgres_data:/var/lib/postgresql
+    - ./infra/postgres/init-extra-dbs.sh:/docker-entrypoint-initdb.d/00-init-extra-dbs.sh:ro
+    - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    - ./infra/generated/postgres:/tls:ro
+    - postgres_wal_archive:/var/lib/postgresql/wal-archive
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-stuhelper}"]
       interval: 5s
@@ -81,6 +157,18 @@ services:
       retries: 5
     restart: unless-stopped
 
+    networks:
+    - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.50'
+          memory: 512M
+    security_opt:
+    - no-new-privileges:true
   redis:
     image: redis:${REDIS_VERSION:-8.6.2-alpine}
     container_name: ${STACK_NAME:-stuhelper}-redis
@@ -89,32 +177,55 @@ services:
       --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy volatile-lru
-      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --port 0
+      --tls-port 6379
+      --tls-cert-file /tls/server.crt
+      --tls-key-file /tls/server.key
+      --tls-ca-cert-file /tls/ca.crt
+      --tls-auth-clients no
+      --aclfile /usr/local/etc/redis/users.acl
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_USERNAME: ${REDIS_USERNAME:-stuhelper_app}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
+      REDIS_TLS_CA: /redis-tls/ca.crt
     ports:
-      - "127.0.0.1:6379:6379"
+    - "127.0.0.1:6379:6379"
     volumes:
-      - redis_data:/data
+    - redis_data:/data
+    - ./infra/generated/redis:/tls:ro
+    - ./infra/generated/redis/users.acl:/usr/local/etc/redis/users.acl:ro
     healthcheck:
-      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep -q PONG"]
+      test: ["CMD-SHELL", "redis-cli --tls --cacert /tls/ca.crt --user \"$${REDIS_USERNAME:-stuhelper_app}\" -a \"$${REDIS_PASSWORD:?REDIS_PASSWORD is required}\" ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
+    networks:
+    - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+    - no-new-privileges:true
   minio:
     image: minio/minio:RELEASE.2025-02-28T09-55-16Z
     container_name: ${STACK_NAME:-stuhelper}-minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${OBJECT_STORAGE_ACCESS_KEY_ID:?OBJECT_STORAGE_ACCESS_KEY_ID is required}
-      MINIO_ROOT_PASSWORD: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:?OBJECT_STORAGE_SECRET_ACCESS_KEY is required}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+    - "127.0.0.1:9000:9000"
+    - "127.0.0.1:9001:9001"
     volumes:
-      - minio_data:/data
+    - minio_data:/data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
       interval: 5s
@@ -122,51 +233,153 @@ services:
       retries: 12
     restart: unless-stopped
 
+    networks:
+    - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    security_opt:
+    - no-new-privileges:true
   minio-init:
     image: minio/mc:RELEASE.2025-03-12T17-29-24Z
     container_name: ${STACK_NAME:-stuhelper}-minio-init
     entrypoint:
-      - /bin/sh
-      - -ec
-      - |
-        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
-        mc mb --ignore-existing "local/$${OBJECT_STORAGE_BUCKET}"
+    - /bin/sh
+    - -ec
+    - |
+      mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+      backup_bucket="$${BACKUP_OBJECT_STORAGE_BUCKET:-stuhelper-postgres-backup}"
+      backup_access_key="$${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-$${OBJECT_STORAGE_ACCESS_KEY_ID}}"
+      backup_secret_key="$${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-$${OBJECT_STORAGE_SECRET_ACCESS_KEY}}"
+      mc mb --ignore-existing "local/$${OBJECT_STORAGE_BUCKET}"
+      mc mb --ignore-existing "local/$${backup_bucket}"
+      cat >/tmp/object-storage-policy.json <<POLICY
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {"Effect": "Allow", "Action": ["s3:ListBucket"], "Resource": ["arn:aws:s3:::$${OBJECT_STORAGE_BUCKET}"]},
+          {"Effect": "Allow", "Action": ["s3:GetBucketLocation"], "Resource": ["arn:aws:s3:::$${OBJECT_STORAGE_BUCKET}"]},
+          {"Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": ["arn:aws:s3:::$${OBJECT_STORAGE_BUCKET}/*"]}
+        ]
+      }
+      POLICY
+      cat >/tmp/backup-storage-policy.json <<POLICY
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {"Effect": "Allow", "Action": ["s3:ListBucket"], "Resource": ["arn:aws:s3:::$${backup_bucket}"]},
+          {"Effect": "Allow", "Action": ["s3:GetBucketLocation"], "Resource": ["arn:aws:s3:::$${backup_bucket}"]},
+          {"Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": ["arn:aws:s3:::$${backup_bucket}/*"]}
+        ]
+      }
+      POLICY
+      mc admin policy create local stuhelper-object-storage /tmp/object-storage-policy.json >/dev/null 2>&1 || true
+      mc admin policy create local stuhelper-backup-storage /tmp/backup-storage-policy.json >/dev/null 2>&1 || true
+      mc admin user add local "$${OBJECT_STORAGE_ACCESS_KEY_ID}" "$${OBJECT_STORAGE_SECRET_ACCESS_KEY}" >/dev/null 2>&1 || true
+      mc admin user add local "$${backup_access_key}" "$${backup_secret_key}" >/dev/null 2>&1 || true
+      mc admin policy attach local stuhelper-object-storage --user "$${OBJECT_STORAGE_ACCESS_KEY_ID}" >/dev/null
+      mc admin policy attach local stuhelper-backup-storage --user "$${backup_access_key}" >/dev/null
     environment:
-      MINIO_ROOT_USER: ${OBJECT_STORAGE_ACCESS_KEY_ID:?OBJECT_STORAGE_ACCESS_KEY_ID is required}
-      MINIO_ROOT_PASSWORD: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:?OBJECT_STORAGE_SECRET_ACCESS_KEY is required}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:?OBJECT_STORAGE_BUCKET is required}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:?OBJECT_STORAGE_ACCESS_KEY_ID is required}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:?OBJECT_STORAGE_SECRET_ACCESS_KEY is required}
+      BACKUP_OBJECT_STORAGE_BUCKET: ${BACKUP_OBJECT_STORAGE_BUCKET:-}
+      BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID: ${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
     depends_on:
       minio:
         condition: service_healthy
 
-  migrate:
-    image: migrate/migrate:v4.18.3
-    container_name: ${STACK_NAME:-stuhelper}-migrate
-    command:
-      - -path=/migrations
-      - -database=postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
-      - up
+    networks:
+    - backend
+    restart: no
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+    - no-new-privileges:true
+  migrate-dev:
+    profiles: [dev-full]
+    image: golang:1.26-bookworm
+    container_name: ${STACK_NAME:-stuhelper}-migrate-dev
+    working_dir: /workspace/server
+    command: >-
+      sh -lc 'go run ./cmd/migrate-runtime'
+    env_file:
+    - ${ENV_FILE_PATH:-.env}
+    - ${GENERATED_ENV_FILE_PATH:-.env.generated}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
     volumes:
-      - ./server/migrations:/migrations:ro
+    - ./server:/workspace/server:ro
+    - ./infra/generated/postgres:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
 
+    networks:
+    - backend
+    restart: no
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    security_opt:
+    - no-new-privileges:true
+  migrate:
+    profiles: [prod]
+    image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
+    entrypoint: ["/app/migrate-runtime"]
+    container_name: ${STACK_NAME:-stuhelper}-migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
+    volumes:
+    - ./infra/generated/postgres:/tls:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+    - backend
+    restart: no
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+    - no-new-privileges:true
   seed-dev:
     profiles: [dev-full]
     image: postgres:${POSTGRES_VERSION:-18.3-alpine}
     container_name: ${STACK_NAME:-stuhelper}-seed-dev
     command:
-      - /bin/sh
-      - -c
-      - psql "postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}" -v ON_ERROR_STOP=1 -f /seed/seed.sql
+    - /bin/sh
+    - -c
+    - psql "postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}" -v ON_ERROR_STOP=1 -f /seed/seed.sql
     volumes:
-      - ./server/scripts/seed.sql:/seed/seed.sql:ro
+    - ./server/scripts/seed.sql:/seed/seed.sql:ro
     depends_on:
-      migrate:
+      migrate-dev:
         condition: service_completed_successfully
 
-  # ─── Zitadel SSO（官方 Traefik + Login V2 模式）────
+    networks:
+    - backend
+    restart: no
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+    security_opt:
+    - no-new-privileges:true
   zitadel-init:
     build:
       context: .
@@ -176,79 +389,34 @@ services:
     image: stuhelper/zitadel-init:${ZITADEL_VERSION:-v4.13.0}
     container_name: ${STACK_NAME:-stuhelper}-zitadel-init
     restart: "no"
-    user: "0"
     security_opt:
-      - no-new-privileges:true
+    - no-new-privileges:true
     environment:
-      ZITADEL_PORT: 8080
-      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_DOMAIN:-localhost}
-      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8085}
-      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
-      ZITADEL_TLS_ENABLED: "false"
-      ZITADEL_DATABASE_POSTGRES_DSN: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/zitadel?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
-      ZITADEL_FIRSTINSTANCE_ORG_NAME: stuhelper-platform
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?ZITADEL_ADMIN_PASSWORD is required}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: admin-api
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: "Admin API Service Account"
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${LOGIN_CLIENT_PAT_EXPIRATION:?LOGIN_CLIENT_PAT_EXPIRATION is required}
-      ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin.pat
-      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: "Automatically Initialized IAM_LOGIN_CLIENT"
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: ${LOGIN_CLIENT_PAT_EXPIRATION:?LOGIN_CLIENT_PAT_EXPIRATION is required}
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/"
-      ZITADEL_OIDC_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?authRequest="
-      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/logout?post_logout_redirect="
-      ZITADEL_SAML_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?samlRequest="
-      ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED: ${ZITADEL_ACCESS_LOG_STDOUT_ENABLED:-true}
-      ZITADEL_MASTERKEY: ${ZITADEL_MASTERKEY:?ZITADEL_MASTERKEY is required}
+      <<: *zitadel-common-env
     volumes:
-      - zitadel_bootstrap:/zitadel/bootstrap:rw
+    - zitadel_bootstrap:/zitadel/bootstrap:rw
+    - ./infra/generated/postgres:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
 
+    networks:
+    - backend
+    - zitadel-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    secrets:
+    - zitadel_masterkey
   zitadel-api:
-    image: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION:-v4.13.0}
     container_name: ${STACK_NAME:-stuhelper}-zitadel-api
     restart: unless-stopped
     security_opt:
-      - no-new-privileges:true
-    command: start --masterkey "${ZITADEL_MASTERKEY:?ZITADEL_MASTERKEY is required}"
+    - no-new-privileges:true
     environment:
-      ZITADEL_PORT: 8080
-      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_DOMAIN:-localhost}
-      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8085}
-      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
-      ZITADEL_TLS_ENABLED: "false"
-      # DSN 模式连接共享 PostgreSQL（stuhelper 超级用户，Zitadel 自动建库）
-      ZITADEL_DATABASE_POSTGRES_DSN: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/zitadel?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
-      # 首次初始化配置
-      ZITADEL_FIRSTINSTANCE_ORG_NAME: stuhelper-platform
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?ZITADEL_ADMIN_PASSWORD is required}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
-      # Admin 机器用户 + PAT：用于自动化配置（创建 Project、OIDC App 等）
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: admin-api
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: "Admin API Service Account"
-      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${LOGIN_CLIENT_PAT_EXPIRATION:?LOGIN_CLIENT_PAT_EXPIRATION is required}
-      ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin.pat
-      # Login V2: PAT bootstrap（API 启动后将 PAT 写入共享 volume，Login 容器读取）
-      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: "Automatically Initialized IAM_LOGIN_CLIENT"
-      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: ${LOGIN_CLIENT_PAT_EXPIRATION:?LOGIN_CLIENT_PAT_EXPIRATION is required}
-      # Login V2: feature flags
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/"
-      ZITADEL_OIDC_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?authRequest="
-      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/logout?post_logout_redirect="
-      ZITADEL_SAML_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?samlRequest="
-      # Observability
-      ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED: ${ZITADEL_ACCESS_LOG_STDOUT_ENABLED:-true}
+      <<: *zitadel-common-env
     healthcheck:
       test: ["CMD", "/app/zitadel", "ready"]
       interval: 10s
@@ -256,13 +424,33 @@ services:
       retries: 12
       start_period: 20s
     volumes:
-      - zitadel_bootstrap:/zitadel/bootstrap:rw
+    - zitadel_bootstrap:/zitadel/bootstrap:rw
+    - ./infra/generated/postgres:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
       zitadel-init:
         condition: service_completed_successfully
 
+    networks:
+    - backend
+    - zitadel-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.50'
+          memory: 512M
+    build:
+      context: .
+      dockerfile: infra/zitadel/Dockerfile.runtime
+      args:
+        ZITADEL_IMAGE: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION:-v4.13.0}
+    image: stuhelper/zitadel-api:${ZITADEL_VERSION:-v4.13.0}
+    secrets:
+    - zitadel_masterkey
   zitadel-login:
     image: ghcr.io/zitadel/zitadel-login:${ZITADEL_VERSION:-v4.13.0}
     container_name: ${STACK_NAME:-stuhelper}-zitadel-login
@@ -281,34 +469,61 @@ services:
       retries: 12
       start_period: 20s
     volumes:
-      - zitadel_bootstrap:/zitadel/bootstrap:ro
+    - zitadel_bootstrap:/zitadel/bootstrap:ro
     depends_on:
       zitadel-api:
         condition: service_healthy
-  # ─── OpenFGA 授权引擎 ──────────────────────────────
+    networks:
+    - frontend
+    - zitadel-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    read_only: true
+    tmpfs:
+    - /tmp
+    - /var/tmp
+    security_opt:
+    - no-new-privileges:true
   openfga-migrate:
     image: openfga/openfga:v1.8.12
     container_name: ${STACK_NAME:-stuhelper}-openfga-migrate
     command: migrate
     environment:
       OPENFGA_DATASTORE_ENGINE: postgres
-      OPENFGA_DATASTORE_URI: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
+      OPENFGA_DATASTORE_URI: postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
+    volumes:
+    - ./infra/generated/postgres:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
 
+    networks:
+    - backend
+    restart: no
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+    security_opt:
+    - no-new-privileges:true
   openfga:
     image: openfga/openfga:v1.8.12
     container_name: ${STACK_NAME:-stuhelper}-openfga
     command: run
     environment:
       OPENFGA_DATASTORE_ENGINE: postgres
-      OPENFGA_DATASTORE_URI: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
+      OPENFGA_DATASTORE_URI: postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
       OPENFGA_PLAYGROUND_ENABLED: "${OPENFGA_PLAYGROUND_ENABLED:-false}"
     ports:
-      - "127.0.0.1:8081:8080"
-      - "127.0.0.1:8082:8081"
-      - "127.0.0.1:3002:3000"
+    - "127.0.0.1:8081:8080"
+    - "127.0.0.1:8082:8081"
+    - "127.0.0.1:3002:3000"
+    volumes:
+    - ./infra/generated/postgres:/tls:ro
     depends_on:
       openfga-migrate:
         condition: service_completed_successfully
@@ -319,7 +534,18 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ─── 全 Docker 开发（--profile dev-full）────────────
+    networks:
+    - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    read_only: true
+    tmpfs:
+    - /tmp
+    security_opt:
+    - no-new-privileges:true
   app-dev:
     profiles: [dev-full]
     build:
@@ -327,24 +553,29 @@ services:
       dockerfile: Dockerfile.dev
     container_name: ${STACK_NAME:-stuhelper}-app-dev
     env_file:
-      - ${ENV_FILE_PATH:-.env}
-      - ${GENERATED_ENV_FILE_PATH:-.env.generated}
+    - ${ENV_FILE_PATH:-.env}
+    - ${GENERATED_ENV_FILE_PATH:-.env.generated}
     environment:
       APP_ENV: development
-      DATABASE_URL: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=disable
+      DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=disable
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_USERNAME: ${REDIS_USERNAME:-stuhelper_app}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
+      REDIS_TLS_CA: /redis-tls/ca.crt
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+    - "host.docker.internal:host-gateway"
     volumes:
-      - ./server:/app
+    - ./server:/app
+    - ./infra/generated/postgres:/tls:ro
+    - ./infra/generated/redis:/redis-tls:ro
     ports:
-      - "127.0.0.1:8080:8080"
+    - "127.0.0.1:8080:8080"
     depends_on:
       redis:
         condition: service_healthy
-      migrate:
+      migrate-dev:
         condition: service_completed_successfully
       seed-dev:
         condition: service_completed_successfully
@@ -359,6 +590,19 @@ services:
       retries: 10
       start_period: 20s
 
+    networks:
+    - backend
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.50'
+          memory: 512M
+    security_opt:
+    - no-new-privileges:true
   frontend-dev:
     profiles: [dev-full]
     image: node:24-alpine
@@ -366,18 +610,18 @@ services:
     working_dir: /app
     command: sh -c "corepack enable && pnpm install && pnpm --filter @stuhelper/web dev --host 0.0.0.0 --port 3000"
     volumes:
-      - ./clients:/app
-      - frontend_dev_node_modules:/app/node_modules
+    - ./clients:/app
+    - frontend_dev_node_modules:/app/node_modules
     ports:
-      - "127.0.0.1:3000:3000"
+    - "127.0.0.1:3000:3000"
     environment:
-      - NODE_ENV=development
-      - VITE_API_URL=
-      - VITE_SSO_URL=${WEB_VITE_SSO_URL:-http://localhost:8085}
-      - VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}
-      - VITE_DEV_PROXY_TARGET=http://app-dev:8080
+    - NODE_ENV=development
+    - VITE_API_URL=
+    - VITE_SSO_URL=${WEB_VITE_SSO_URL:-http://localhost:8085}
+    - VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}
+    - VITE_DEV_PROXY_TARGET=http://app-dev:8080
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+    - "host.docker.internal:host-gateway"
     depends_on:
       app-dev:
         condition: service_healthy
@@ -388,24 +632,33 @@ services:
       retries: 10
       start_period: 45s
 
+    networks:
+    - frontend
+    - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+    security_opt:
+    - no-new-privileges:true
   admin-dev:
     profiles: [dev-full]
-    platform: linux/amd64
     image: node:24-bookworm
     container_name: ${STACK_NAME:-stuhelper}-admin-dev
     working_dir: /workspace
     command: sh -c "corepack enable && corepack prepare pnpm@10 --activate && CI=1 pnpm install && pnpm dev:ele -- --host 0.0.0.0 --port 3001"
     volumes:
-      - ./clients/admin:/workspace
-      - admin_dev_node_modules:/workspace/node_modules
-      - admin_dev_pnpm_store:/pnpm/store
+    - ./clients/admin:/workspace
+    - admin_dev_node_modules:/workspace/node_modules
+    - admin_dev_pnpm_store:/pnpm/store
     ports:
-      - "127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}:3001"
+    - "127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}:3001"
     environment:
-      - NODE_ENV=development
-      - VITE_DEV_PROXY_TARGET=http://app-dev:8080
+    - NODE_ENV=development
+    - VITE_DEV_PROXY_TARGET=http://app-dev:8080
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+    - "host.docker.internal:host-gateway"
     depends_on:
       app-dev:
         condition: service_healthy
@@ -416,375 +669,29 @@ services:
       retries: 10
       start_period: 120s
 
-  # ─── 可观测性栈（--profile prod / observability）─────
-  alloy:
-    profiles: [observability, prod]
-    image: grafana/alloy:${GRAFANA_ALLOY_VERSION:-v1.10.2}
-    container_name: ${STACK_NAME:-stuhelper}-alloy
-    command:
-      - run
-      - --server.http.listen-addr=0.0.0.0:12345
-      - --storage.path=/var/lib/alloy/data
-      - /etc/alloy/config.alloy
-    ports:
-      - "127.0.0.1:${ALLOY_HTTP_PORT:-12345}:12345"
-      - "127.0.0.1:${OTEL_GRPC_PORT:-4317}:4317"
-      - "127.0.0.1:${OTEL_HTTP_PORT:-4318}:4318"
-    volumes:
-      - ./infra/observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - alloy_data:/var/lib/alloy/data
-    depends_on:
-      loki:
-        condition: service_healthy
-      tempo:
-        condition: service_healthy
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "/usr/bin/bash",
-          "-ec",
-          "exec 3<>/dev/tcp/127.0.0.1/12345 && printf 'GET /-/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-
-  prometheus:
-    profiles: [observability, prod]
-    image: prom/prometheus:${PROMETHEUS_VERSION:-v3.5.0}
-    container_name: ${STACK_NAME:-stuhelper}-prometheus
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --web.enable-lifecycle
-      - --web.enable-remote-write-receiver
-      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}
-      - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-20GB}
-    ports:
-      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
-    volumes:
-      - ./infra/generated/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./infra/observability/prometheus/rules:/etc/prometheus/rules:ro
-      - prometheus_data:/prometheus
-    depends_on:
-      alertmanager:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-
-  alertmanager:
-    profiles: [observability, prod]
-    image: prom/alertmanager:${ALERTMANAGER_VERSION:-v0.28.1}
-    container_name: ${STACK_NAME:-stuhelper}-alertmanager
-    command:
-      - --config.file=/etc/alertmanager/alertmanager.yml
-      - --storage.path=/alertmanager
-    ports:
-      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
-    volumes:
-      - ./infra/generated/observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - alertmanager_data:/alertmanager
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-
-  loki:
-    profiles: [observability, prod]
-    image: grafana/loki:${LOKI_VERSION:-3.5.5}
-    container_name: ${STACK_NAME:-stuhelper}-loki
-    command: ["-config.file=/etc/loki/loki.yaml"]
-    ports:
-      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
-    volumes:
-      - ./infra/observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
-      - loki_data:/loki
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-
-  tempo:
-    profiles: [observability, prod]
-    image: grafana/tempo:${TEMPO_VERSION:-2.8.2}
-    container_name: ${STACK_NAME:-stuhelper}-tempo
-    command: ["-config.file=/etc/tempo/tempo.yaml"]
-    ports:
-      - "127.0.0.1:${TEMPO_HTTP_PORT:-3200}:3200"
-    volumes:
-      - ./infra/observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
-      - tempo_data:/tmp/tempo
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3200/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-
-  grafana:
-    profiles: [observability, prod]
-    image: grafana/grafana:${GRAFANA_VERSION:-12.1.1}
-    container_name: ${STACK_NAME:-stuhelper}-grafana
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-      GF_METRICS_ENABLED: "true"
-      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3003}
-    ports:
-      - "127.0.0.1:${GRAFANA_PORT:-3003}:3000"
-    volumes:
-      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      prometheus:
-        condition: service_healthy
-      loki:
-        condition: service_healthy
-      tempo:
-        condition: service_healthy
-      alertmanager:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    restart: unless-stopped
-
-  node-exporter:
-    profiles: [observability, prod]
-    image: prom/node-exporter:${NODE_EXPORTER_VERSION:-v1.9.1}
-    container_name: ${STACK_NAME:-stuhelper}-node-exporter
-    command:
-      - --path.rootfs=/host
-    volumes:
-      - /:/host:ro,rslave
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9100/metrics"]
-      interval: 20s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
-  cadvisor:
-    profiles: [observability, prod]
-    image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION:-v0.52.1}
-    container_name: ${STACK_NAME:-stuhelper}-cadvisor
-    security_opt:
-      - no-new-privileges:true
-    devices:
-      - /dev/kmsg:/dev/kmsg
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    ports:
-      - "127.0.0.1:${CADVISOR_PORT:-8088}:8080"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/metrics"]
-      interval: 20s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    restart: unless-stopped
-
-  postgres-exporter:
-    profiles: [observability, prod]
-    image: quay.io/prometheuscommunity/postgres-exporter:${POSTGRES_EXPORTER_VERSION:-v0.17.1}
-    container_name: ${STACK_NAME:-stuhelper}-postgres-exporter
-    environment:
-      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
-      DATA_SOURCE_USER: ${POSTGRES_USER:-stuhelper}
-      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
-    ports:
-      - "127.0.0.1:${POSTGRES_EXPORTER_PORT:-9187}:9187"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9187/metrics"]
-      interval: 20s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
-  redis-exporter:
-    profiles: [observability, prod]
-    image: oliver006/redis_exporter:${REDIS_EXPORTER_VERSION:-v1.76.0}
-    container_name: ${STACK_NAME:-stuhelper}-redis-exporter
-    environment:
-      REDIS_ADDR: redis://redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-    ports:
-      - "127.0.0.1:${REDIS_EXPORTER_PORT:-9121}:9121"
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "/redis_exporter", "--version"]
-      interval: 20s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
-  blackbox-exporter:
-    profiles: [observability, prod]
-    image: quay.io/prometheus/blackbox-exporter:${BLACKBOX_EXPORTER_VERSION:-v0.27.0}
-    container_name: ${STACK_NAME:-stuhelper}-blackbox-exporter
-    command:
-      - --config.file=/etc/blackbox/blackbox.yml
-    ports:
-      - "127.0.0.1:${BLACKBOX_EXPORTER_PORT:-9115}:9115"
-    volumes:
-      - ./infra/observability/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9115/metrics"]
-      interval: 20s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-
-  alert-webhook-sink:
-    profiles: [prod]
-    image: mendhak/http-https-echo:${ALERT_WEBHOOK_SINK_VERSION:-35}
-    container_name: ${STACK_NAME:-stuhelper}-alert-webhook-sink
-    environment:
-      HTTP_PORT: 8080
-    restart: unless-stopped
-
-  # ─── 生产服务（--profile prod）──────────────────────
-  app:
-    profiles: [prod]
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-      args:
-        VERSION: ${TAG:-local}
-        GIT_COMMIT: ${TAG:-local}
-        BUILD_TIME: ${BUILD_TIME:-unknown}
-    image: registry.stuhelper.com/stuhelper/backend:${TAG:-latest}
-    container_name: ${STACK_NAME:-stuhelper}-app
-    env_file:
-      - ${ENV_FILE_PATH:-.env}
-      - ${GENERATED_ENV_FILE_PATH:-.env.generated}
-    environment:
-      APP_ENV: production
-      LOG_FORMAT: json
-      DATABASE_URL: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-disable}
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      OTEL_ENABLED: "true"
-      OTEL_SERVICE_NAME: stuhelper-backend
-      OTEL_SERVICE_NAMESPACE: stuhelper
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
-      OTEL_TRACE_SAMPLE_RATIO: ${OTEL_TRACE_SAMPLE_RATIO:-0.2}
-    ports:
-      - "127.0.0.1:8080:8080"
-    depends_on:
-      redis:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-      alloy:
-        condition: service_healthy
-      proxy:
-        condition: service_healthy
-      openfga:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: always
+    networks:
+    - frontend
+    - backend
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 1G
-
-  frontend:
-    profiles: [prod]
-    build:
-      context: ./clients
-      dockerfile: web/Dockerfile
-      args:
-        VITE_API_URL: ${WEB_VITE_API_URL:-}
-        VITE_SSO_URL: ${WEB_VITE_SSO_URL:-http://localhost:8085}
-        VITE_API_TIMEOUT_MS: ${WEB_VITE_API_TIMEOUT_MS:-15000}
-    image: registry.stuhelper.com/stuhelper/frontend:${TAG:-latest}
-    container_name: ${STACK_NAME:-stuhelper}-frontend
-    ports:
-      - "127.0.0.1:3000:80"
-    depends_on:
-      app:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: always
-
-  admin:
-    profiles: [prod]
-    build:
-      context: ./clients/admin
-      dockerfile: scripts/deploy/Dockerfile
-      args:
-        VITE_GLOB_API_URL: ${ADMIN_VITE_API_URL:-/api/v1}
-        VITE_BASE: ${ADMIN_VITE_BASE:-/}
-    image: registry.stuhelper.com/stuhelper/admin:${TAG:-latest}
-    container_name: ${STACK_NAME:-stuhelper}-admin
-    ports:
-      - "127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}:8080"
-    depends_on:
-      app:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: always
-
+          cpus: '1.0'
+          memory: 2G
+    security_opt:
+    - no-new-privileges:true
 volumes:
   postgres_data:
     name: ${STACK_NAME:-stuhelper}-postgres-data
+  postgres_wal_archive:
+    name: ${STACK_NAME:-stuhelper}-postgres-wal-archive
   redis_data:
     name: ${STACK_NAME:-stuhelper}-redis-data
   minio_data:
     name: ${STACK_NAME:-stuhelper}-minio-data
   zitadel_bootstrap:
     name: ${STACK_NAME:-stuhelper}-zitadel-bootstrap
+  acme_data:
+    name: ${STACK_NAME:-stuhelper}-acme-data
   frontend_dev_node_modules:
     name: ${STACK_NAME:-stuhelper}-frontend-dev-node-modules
   admin_dev_node_modules:
@@ -805,6 +712,18 @@ volumes:
     name: ${STACK_NAME:-stuhelper}-grafana-data
 
 networks:
-  default:
-    name: ${STACK_NAME:-stuhelper}
+  frontend:
+    name: ${STACK_NAME:-stuhelper}-frontend
     driver: bridge
+  backend:
+    name: ${STACK_NAME:-stuhelper}-backend
+    driver: bridge
+  observability:
+    name: ${STACK_NAME:-stuhelper}-observability
+    driver: bridge
+  zitadel-internal:
+    name: ${STACK_NAME:-stuhelper}-zitadel-internal
+    driver: bridge
+secrets:
+  zitadel_masterkey:
+    file: ./infra/generated/zitadel/masterkey

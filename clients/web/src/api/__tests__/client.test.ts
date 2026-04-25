@@ -2,13 +2,35 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockClearSession = vi.fn();
 const mockTokenExpirySet = vi.fn();
-const mockClientUse = vi.fn();
 
-vi.mock("@stuhelper/shared/api", () => ({
-    createApiClient: () => ({
-        use: mockClientUse,
-    }),
-}));
+vi.mock("@stuhelper/shared/api", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@stuhelper/shared/api")>();
+    return {
+        ...actual,
+        isRecord: (value: unknown): value is Record<string, unknown> =>
+            !!value && typeof value === "object",
+        parseApiError: (payload: unknown) => {
+            if (
+                payload &&
+                typeof payload === "object" &&
+                "error" in payload &&
+                payload.error &&
+                typeof payload.error === "object"
+            ) {
+                const error = payload.error as Record<string, unknown>;
+                return {
+                    code: typeof error.code === "string" ? error.code : "",
+                    message: typeof error.message === "string" ? error.message : "",
+                    details:
+                        error.details && typeof error.details === "object"
+                            ? (error.details as Record<string, unknown>)
+                            : undefined,
+                };
+            }
+            return { code: "", message: "", details: undefined };
+        },
+    };
+});
 
 vi.mock("@/stores/auth", () => ({
     useAuthStore: () => ({
@@ -76,7 +98,6 @@ describe("browser API client", () => {
         fetchMock.mockReset();
         mockClearSession.mockReset();
         mockTokenExpirySet.mockReset();
-        mockClientUse.mockReset();
 
         Object.defineProperty(globalThis, "window", {
             configurable: true,
@@ -227,5 +248,52 @@ describe("browser API client", () => {
 
         await vi.advanceTimersByTimeAsync(__testing__.DEFAULT_REQUEST_TIMEOUT_MS);
         await assertion;
+    });
+
+    it("deduplicates concurrent GET requests outside refresh", async () => {
+        let resolveFetch: ((value: Response) => void) | null = null;
+        fetchMock.mockImplementation(
+            () =>
+                new Promise<Response>((resolve) => {
+                    resolveFetch = resolve;
+                }),
+        );
+
+        const { apiClient } = await import("../client");
+        const pendingA = apiClient.GET("/api/v1/course/courses");
+        const pendingB = apiClient.GET("/api/v1/course/courses");
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        resolveFetch?.(
+            new Response(JSON.stringify({ data: [{ id: 1 }] }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const [resultA, resultB] = await Promise.all([pendingA, pendingB]);
+        expect(resultA.data).toEqual(resultB.data);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not deduplicate GET requests that carry an AbortSignal", async () => {
+        fetchMock.mockResolvedValue(
+            new Response(JSON.stringify({ data: [] }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+
+        const { apiClient } = await import("../client");
+        const controllerA = new AbortController();
+        const controllerB = new AbortController();
+
+        await Promise.all([
+            apiClient.GET("/api/v1/course/courses", { signal: controllerA.signal }),
+            apiClient.GET("/api/v1/course/courses", { signal: controllerB.signal }),
+        ]);
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 });

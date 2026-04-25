@@ -5,6 +5,7 @@ import { preferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
 import { startProgress, stopProgress } from '@vben/utils';
 
+import { getAccessCodesApi } from '#/api/core/user';
 import { accessRoutes, coreRouteNames } from '#/router/routes';
 import { useAuthStore } from '#/store';
 
@@ -63,8 +64,19 @@ function setupAccessGuard(router: Router) {
 
     // 没有 token 时，尝试通过 Cookie 从后端获取会话
     if (!accessStore.accessToken) {
-      const userInfo = await authStore.initSession();
-      if (!userInfo) {
+      const sessionUser = await authStore.initSession().catch((error) => {
+        console.warn(
+          '[admin-auth] access guard session bootstrap failed',
+          error,
+        );
+        return false as const;
+      });
+
+      if (sessionUser === false) {
+        return false;
+      }
+
+      if (!sessionUser) {
         if (authStore.sessionForbidden) {
           return {
             path: '/auth/login',
@@ -88,7 +100,11 @@ function setupAccessGuard(router: Router) {
     const accessCodes =
       accessStore.accessCodes.length > 0
         ? accessStore.accessCodes
-        : (userInfo.roles ?? []);
+        : await getAccessCodesApi();
+
+    if (accessStore.accessCodes.length === 0) {
+      accessStore.setAccessCodes(accessCodes);
+    }
 
     const { accessibleMenus, accessibleRoutes } = await generateAccess({
       roles: accessCodes,

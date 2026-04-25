@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue'
 import i18n from '@/i18n'
+import { getErrorMessage } from '@/api/errors'
 import { useToast } from './useToast'
 
 // 返回结果对象，调用方可区分成功与失败
@@ -32,7 +33,7 @@ export function useOptimisticUpdate() {
       return { success: true, data: result }
     } catch (err) {
       options.rollback()
-      toast.error(options.errorMessage || t('common.actions.operationFailed'))
+      toast.error(getErrorMessage(err, options.errorMessage || t('common.actions.operationFailed')))
       return { success: false, error: err }
     } finally {
       pending.value = false

@@ -1,0 +1,303 @@
+import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import test from 'node:test'
+
+import commands from '@koishijs/plugin-commands'
+import sqlite from '@koishijs/plugin-database-sqlite'
+import MockBot from '@koishijs/plugin-mock'
+import { Universal } from 'koishi'
+
+import { GUARD_MEMBER_TABLE, type GuardMemberRecord } from '@stuhelper/koishi-shared'
+import { MODERATION_REVIEW_TABLE, ModerationStore } from '@stuhelper/koishi-moderation-core'
+
+import adminPlugin from './index.ts'
+import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
+
+test('管理员可以查看当前群待认证成员', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, {
+    platform: {
+      baseUrl: 'http://127.0.0.1:8080',
+      serviceToken: 'test-token',
+    },
+    admin: {
+      enableCommands: true,
+    },
+    moderation: {
+      repeatThreshold: 3,
+      repeatWindowSize: 3,
+      warningThresholdExpression: 'warnings >= 3',
+      defaultMuteSeconds: 180,
+      antiRecallNotify: true,
+      keywordRules: [],
+    },
+    fun: {
+      diceSides: 100,
+      muteLotteryBaseSeconds: 60,
+      muteLotteryMaxSeconds: 600,
+      muteLotteryPityThreshold: 5,
+      muteLotteryPitySeconds: 300,
+    },
+  })
+
+  try {
+    await root.start()
+    await root.mock.initUser('20001', 3)
+    await root.mock.initChannel('group-1')
+    await root.database.create(GUARD_MEMBER_TABLE, createGuardMemberRecord({
+      id: 'pending-1',
+      guildId: 'group-1',
+      memberId: '10001',
+      deadlineAt: new Date('2026-04-19T10:00:00Z'),
+    }))
+
+    const client = root.mock.client('20001', 'group-1')
+    await client.shouldReply('群审状态', /待认证成员：\n10001 截止 2026-04-19T10:00:00.000Z/)
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('非管理员执行群审状态命令会被拒绝', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, {
+    platform: {
+      baseUrl: 'http://127.0.0.1:8080',
+      serviceToken: 'test-token',
+    },
+    admin: {
+      enableCommands: true,
+    },
+    moderation: {
+      repeatThreshold: 3,
+      repeatWindowSize: 3,
+      warningThresholdExpression: 'warnings >= 3',
+      defaultMuteSeconds: 180,
+      antiRecallNotify: true,
+      keywordRules: [],
+    },
+    fun: {
+      diceSides: 100,
+      muteLotteryBaseSeconds: 60,
+      muteLotteryMaxSeconds: 600,
+      muteLotteryPityThreshold: 5,
+      muteLotteryPitySeconds: 300,
+    },
+  })
+
+  try {
+    await root.start()
+    await root.mock.initUser('20002', 1)
+    await root.mock.initChannel('group-1')
+
+    const client = root.mock.client('20002', 'group-1')
+    await client.shouldReply('群审状态', '权限不足。')
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('管理员可以查看成员警告次数', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20011', 3)
+    await root.mock.initChannel('group-1')
+
+    const moderationStore = new ModerationStore(root)
+    await moderationStore.incrementWarning('group-1', '10001', '广告刷屏', new Date('2026-04-19T10:00:00Z'))
+
+    const client = root.mock.client('20011', 'group-1')
+    await client.shouldReply('群审警告 10001', '10001 当前累计警告 1 次，最近原因：广告刷屏')
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('管理员可以查看待复核队列', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20012', 3)
+    await root.mock.initChannel('group-1')
+
+    const moderationStore = new ModerationStore(root)
+    await moderationStore.createReview({
+      platform: 'mock',
+      botSelfId: '514',
+      guildId: 'group-1',
+      channelId: 'group-1',
+      memberId: '10002',
+      actionType: 'kick',
+      status: 'pending',
+      reason: '广告刷屏',
+      operatorMemberId: null,
+      resolutionNote: null,
+      payload: null,
+    })
+
+    const client = root.mock.client('20012', 'group-1')
+    await client.shouldReply('群审复核', /待复核队列：\n10002 \[kick] 广告刷屏/)
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('管理员可以提交踢人复核申请', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20013', 4)
+    await root.mock.initChannel('group-1')
+
+    const client = root.mock.client('20013', 'group-1')
+    await client.shouldReply('群审踢人申请 10003 广告刷屏', '已提交踢人复核申请：10003，原因：广告刷屏')
+
+    const reviews = await root.database.get(MODERATION_REVIEW_TABLE, {})
+    assert.equal(reviews.length, 1)
+    assert.equal(reviews[0].memberId, '10003')
+    assert.equal(reviews[0].actionType, 'kick')
+    assert.equal(reviews[0].status, 'pending')
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('管理员可以批量禁言待认证成员', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+  const muteActions: Array<{ guildId: string, memberId: string, duration: number }> = []
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20014', 3)
+    await root.mock.initChannel('group-1')
+    await root.database.create(GUARD_MEMBER_TABLE, createGuardMemberRecord({
+      id: 'pending-11',
+      guildId: 'group-1',
+      memberId: '10011',
+      deadlineAt: new Date('2026-04-19T10:00:00Z'),
+    }))
+    await root.database.create(GUARD_MEMBER_TABLE, createGuardMemberRecord({
+      id: 'pending-12',
+      guildId: 'group-1',
+      memberId: '10012',
+      deadlineAt: new Date('2026-04-19T10:00:00Z'),
+    }))
+
+    const bot = root.bots[0] as unknown as Universal.Methods
+    bot.muteGuildMember = async (guildId, memberId, duration) => {
+      muteActions.push({ guildId, memberId, duration })
+    }
+
+    const client = root.mock.client('20014', 'group-1')
+    await client.shouldReply('群审禁言 120 10011,10012', '已批量禁言 2 名成员。')
+
+    assert.deepEqual(muteActions, [
+      { guildId: 'group-1', memberId: '10011', duration: 120000 },
+      { guildId: 'group-1', memberId: '10012', duration: 120000 },
+    ])
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+function createAdminPluginConfig() {
+  return {
+    platform: {
+      baseUrl: 'http://127.0.0.1:8080',
+      serviceToken: 'test-token',
+    },
+    admin: {
+      enableCommands: true,
+    },
+    moderation: {
+      repeatThreshold: 3,
+      repeatWindowSize: 3,
+      warningThresholdExpression: 'warnings >= 3',
+      defaultMuteSeconds: 180,
+      antiRecallNotify: true,
+      keywordRules: [],
+    },
+    fun: {
+      diceSides: 100,
+      muteLotteryBaseSeconds: 60,
+      muteLotteryMaxSeconds: 600,
+      muteLotteryPityThreshold: 5,
+      muteLotteryPitySeconds: 300,
+    },
+  }
+}
+
+function createGuardMemberRecord(input: Pick<GuardMemberRecord, 'id' | 'guildId' | 'memberId' | 'deadlineAt'>): GuardMemberRecord {
+  const now = new Date('2026-04-19T09:00:00Z')
+  return {
+    id: input.id,
+    platform: 'mock',
+    botSelfId: '514',
+    guildId: input.guildId,
+    channelId: input.guildId,
+    memberId: input.memberId,
+    memberName: input.memberId,
+    verificationState: 'bound_unverified',
+    joinedAt: now,
+    deadlineAt: input.deadlineAt,
+    mutedAt: now,
+    reminderSentAt: now,
+    releasedAt: null,
+    kickedAt: null,
+    lastError: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+}

@@ -15,5 +15,5 @@ export const createNotificationApi = (client: ApiClient) => ({
   getStreamPath: () => NOTIFICATION_STREAM_PATH,
 
   getUnreadCount: () =>
-    client.GET('/api/v1/course/review/user/notifications/unread-count')
+    client.GET('/api/v1/course/review/user/notifications/unread-count'),
 })

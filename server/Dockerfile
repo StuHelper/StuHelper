@@ -20,6 +20,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     -o /app/bin/stuhelper \
     ./cmd/stuhelper
 
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w" \
+    -o /app/bin/migrate-runtime \
+    ./cmd/migrate-runtime
+
 # Final stage
 FROM alpine:3.21
 
@@ -28,6 +33,8 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /app/bin/stuhelper /app/stuhelper
+COPY --from=builder /app/bin/migrate-runtime /app/migrate-runtime
+COPY --from=builder /app/migrations /app/migrations
 
 RUN adduser -D -u 1000 appuser
 

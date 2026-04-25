@@ -112,7 +112,9 @@ export default {
     teacherNone: 'No teacher data',
     termLabel: 'Term',
     termPlaceholder: 'Select term',
-    termMissing: 'Please select a term'
+    termMissing: 'Please select a term',
+    ratingLoadFailed: 'Failed to load rating dimensions. Please try again later.',
+    ratingUnavailable: 'No rating dimensions are available.'
   },
   rating: {
     overall: 'Overall',

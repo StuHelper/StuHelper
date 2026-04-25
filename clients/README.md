@@ -9,7 +9,7 @@
 
 ## 环境
 
-- Node.js 24+
+- Node.js 20.19+ / 22.18+ / 24+
 - pnpm 10+
 
 ## 命令
@@ -18,10 +18,10 @@
 cd clients
 pnpm install
 
-pnpm dev:web && pnpm dev:admin
+pnpm dev:web && pnpm dev:admin && pnpm dev:uni
 pnpm type-check && pnpm lint
 pnpm test:web && pnpm test:e2e
-pnpm build:web && pnpm build:admin
+pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 
 连后端一起启动：`make dev-up`（仓库根目录）。

@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/routeassert"
 )
 
-func TestRegisterRoutes_UsesOpenAPIPathParamNames(t *testing.T) {
+func TestReviewRegisterRoutes_UsesOpenAPIPathParamNames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
@@ -19,22 +20,11 @@ func TestRegisterRoutes_UsesOpenAPIPathParamNames(t *testing.T) {
 	h.RegisterRoutes(api, noOp, noOp)
 
 	routes := r.Routes()
-	assertRouteExists(t, routes, http.MethodGet, "/api/v1/course/review/courses/:courseID/reviews")
-	assertRouteExists(t, routes, http.MethodGet, "/api/v1/course/review/courses/:courseID/rating-stats")
-	assertRouteExists(t, routes, http.MethodPut, "/api/v1/course/review/reviews/:reviewID")
-	assertRouteExists(t, routes, http.MethodDelete, "/api/v1/course/review/replies/:replyID")
-	assertRouteExists(t, routes, http.MethodGet, "/api/v1/course/review/teachers/:teacherID/stats")
-	assertRouteExists(t, routes, http.MethodPut, "/api/v1/course/review/admin/reports/:reportID")
-	assertRouteExists(t, routes, http.MethodPut, "/api/v1/course/review/admin/sensitive-words/:sensitiveWordID")
-	assertRouteExists(t, routes, http.MethodPut, "/api/v1/course/review/user/notifications/:notificationID/read")
-}
-
-func assertRouteExists(t *testing.T, routes gin.RoutesInfo, method, path string) {
-	t.Helper()
-	for _, route := range routes {
-		if route.Method == method && route.Path == path {
-			return
-		}
-	}
-	assert.Failf(t, "missing route", "expected route %s %s to be registered", method, path)
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/course/review/courses/:courseID/reviews")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/course/review/courses/:courseID/rating-stats")
+	routeassert.Exists(t, routes, http.MethodPut, "/api/v1/course/review/reviews/:reviewID")
+	routeassert.Exists(t, routes, http.MethodDelete, "/api/v1/course/review/replies/:replyID")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/course/review/teachers/:teacherID/stats")
+	routeassert.Exists(t, routes, http.MethodPut, "/api/v1/course/review/admin/reports/:reportID")
+	routeassert.Exists(t, routes, http.MethodPut, "/api/v1/course/review/admin/sensitive-words/:sensitiveWordID")
 }

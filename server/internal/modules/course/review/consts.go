@@ -2,10 +2,18 @@ package review
 
 // 评论状态常量
 const (
-	StatusPublished = "published"
-	StatusHidden    = "hidden"
-	StatusDeleted   = "deleted"
-	StatusAll       = "all"
+	StatusPublished     = "published"
+	StatusPendingReview = "pending_review"
+	StatusHidden        = "hidden"
+	StatusDeleted       = "deleted"
+	StatusAll           = "all"
+)
+
+// 内容审核标记常量
+const (
+	ContentFlagWarn    = "warn"
+	ContentFlagReview  = "review"
+	ContentFlagCleared = "cleared"
 )
 
 // 举报状态常量
@@ -25,7 +33,7 @@ const (
 // isValidReviewStatus 校验评论状态参数是否合法（含 "all"）
 func isValidReviewStatus(s string) bool {
 	switch s {
-	case StatusPublished, StatusHidden, StatusDeleted, StatusAll:
+	case StatusPublished, StatusPendingReview, StatusHidden, StatusDeleted, StatusAll:
 		return true
 	}
 	return false

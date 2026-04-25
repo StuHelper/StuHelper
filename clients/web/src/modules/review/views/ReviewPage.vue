@@ -68,7 +68,7 @@ import { useReviewPost } from '@/composables/useReviewPost'
 const { t } = useI18n()
 const route = useRoute()
 const sidebarOpen = ref(false)
-const { showPostModal, closePostModal, notifyPosted, openPostModal } = useReviewPost()
+const { ensureCanPostReview, showPostModal, closePostModal, notifyPosted, openPostModal } = useReviewPost()
 const feedKey = ref(0)
 
 const hasChildRoute = computed(() => {
@@ -81,15 +81,19 @@ function handlePosted() {
   feedKey.value++
 }
 
-// Auto-restore draft after login: detect draft_pending flag and open modal
+// 登录回流后检测 draft_pending 标记，自动恢复发帖弹窗
 onMounted(() => {
   if (sessionStorage.getItem('draft_pending')) {
     sessionStorage.removeItem('draft_pending')
-    openPostModal()
+    void ensureCanPostReview().then((allowed) => {
+      if (allowed) {
+        openPostModal()
+      }
+    })
   }
 })
 
-// Auto-close drawer when course is selected (route changes)
+// 路由切到具体课程后自动关闭侧边抽屉
 watch(() => route.params.id, () => {
   sidebarOpen.value = false
 })

@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	mrand "math/rand/v2"
+	"io"
 	"net"
 	"strconv"
 	"time"
@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -63,6 +64,8 @@ redis.call('PEXPIRE', key, math.max(1, window))
 return 1
 `)
 
+var rateLimitEntropyReader io.Reader = rand.Reader
+
 // RedisRateLimiter 基于 Redis 的速率限制器
 type RedisRateLimiter struct {
 	rdb    *redis.Client
@@ -89,7 +92,10 @@ func (rl *RedisRateLimiter) Allow(ctx context.Context, key string) (bool, error)
 	}
 
 	// 生成唯一 member，避免毫秒内并发请求覆盖
-	uniqueID := generateUniqueID()
+	uniqueID, err := generateUniqueID()
+	if err != nil {
+		return false, fmt.Errorf("generate unique id: %w", err)
+	}
 
 	// 独立超时 context，防止 Redis 慢响应阻塞请求
 	scriptCtx, scriptCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -112,14 +118,14 @@ func (rl *RedisRateLimiter) Allow(ctx context.Context, key string) (bool, error)
 }
 
 // generateUniqueID 生成唯一标识符
-// crypto/rand 失败时降级为 math/rand，避免 panic 导致服务中断
-func generateUniqueID() string {
+func generateUniqueID() (string, error) {
 	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		logger.L().Warn("crypto/rand.Read failed, falling back to math/rand", zap.Error(err))
-		return fmt.Sprintf("%d", mrand.Int64()) //nolint:gosec // G404: fallback ID when crypto/rand fails, not security-sensitive
+	if _, err := io.ReadFull(rateLimitEntropyReader, b); err != nil {
+		metrics.CryptoRandFailuresTotal.Inc()
+		logger.L().Warn("crypto/rand.Read failed, rejecting rate-limit operation", zap.Error(err))
+		return "", fmt.Errorf("read entropy: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 // extractIP 从 ClientIP() 返回值中提取纯 IP 地址
@@ -234,6 +240,46 @@ func EndpointRateLimitMiddleware(limiter *RedisRateLimiter, endpoint string) gin
 		}
 		c.Next()
 	}
+}
+
+// ProgressiveEndpointRateLimitMiddleware 对公开端点执行渐进式限流：
+// 匿名用户按 IP 使用更严格阈值；已认证用户按 userID 使用更宽松阈值。
+func ProgressiveEndpointRateLimitMiddleware(anonLimiter, userLimiter *RedisRateLimiter, endpoint string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := GetUserID(c)
+		limiter := anonLimiter
+		key := "rl:endpoint:" + endpoint + ":ip:" + extractIP(c.ClientIP())
+		if userID != "" {
+			limiter = userLimiter
+			key = "rl:endpoint:" + endpoint + ":user:" + userID
+		}
+
+		allowed, err := limiter.Allow(c.Request.Context(), key)
+		if err != nil {
+			logger.L().Warn("redis unavailable, rejecting request (fail-closed)",
+				zap.String("endpoint", endpoint),
+				zap.String("rate_limit_scope", rateLimitScope(userID)),
+			)
+			logger.L().Debug("progressive endpoint rate limit redis error detail", zap.Error(err))
+			response.ServiceUnavailable(c, "service temporarily unavailable")
+			c.Abort()
+			return
+		}
+		if !allowed {
+			setRetryAfterHeader(c, limiter.window)
+			response.RateLimitExceeded(c, "rate limit exceeded")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+func rateLimitScope(userID string) string {
+	if userID != "" {
+		return "user"
+	}
+	return "anonymous"
 }
 
 func setRetryAfterHeader(c *gin.Context, window time.Duration) {

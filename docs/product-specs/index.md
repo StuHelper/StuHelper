@@ -1,33 +1,34 @@
-# 产品规格
+---
+type: product-spec
+audience: product, backend-dev, frontend-dev
+status: current
+authoritative-source: this file (index only) + listed specs
+last-verified: 2026-04-19
+---
 
-按业务域拆分的功能规格，描述当前代码库已实现的功能。
+# 产品规格索引
 
-## 域索引
+本目录只放**业务域规格**：当前代码库已实现的功能范围、业务规则、边界。
 
-| 域 | 后端入口 | 文档 | 状态 |
-|----|----------|------|------|
-| 认证 | `modules/auth` + `pkg/oidc` + `pkg/token` | [auth-sso.md](auth-sso.md) | 现行 |
-| 课程与评课 | `modules/course` + `course/review` | [course-review.md](course-review.md) | 现行 |
-| 用户系统 | `modules/user` + `modules/ldap` | [user-system.md](user-system.md) | 现行 |
-| 授权 | `pkg/capability` + `modules/rbac` + `pkg/fga` | [rbac-authorization.md](rbac-authorization.md) | 现行 |
-| 通知 | `modules/notification` + `course/review` | [notification.md](notification.md) | 现行（双轨逐步统一中） |
-| 审计 | `pkg/audit` + `pkg/logger` | [audit-logging.md](audit-logging.md) | 现行 |
+- 角色与产品形态 → [design/product-overview.md](../design/product-overview.md)
+- 认证 / 授权 / 存储 / 安全 等**技术机制** → [design/](../design/)
+- API 字段与 schema → `server/api/openapi.yaml`
 
-## 用户角色
+## 业务域
 
-| 角色 | 值 | 场景 |
-|------|----|------|
-| 游客 | — | 浏览课程、教师、公开评课预览 |
-| 登录用户 | `user` | 查看更多内容，管理个人资料 |
-| 已认证学生 | `verified_student` | 查看完整评课、发布评课 |
-| 学校管理员 / 志愿者 | `school_admin` / `moderator` | 审核内容、处理举报 |
-| 平台管理员 | `super_admin` | 平台级运维 |
+| 域 | 规格 | 说明 |
+|----|------|------|
+| 课程与评课 | [course-review.md](course-review.md) | 课程实体、评课、回复、举报、收藏 |
+| 教务展示 | [academics-data-integration.md](academics-data-integration.md) | 外部教务数据导入、标准化、我的课程、我的课表 |
+| 资源共享 | [resource-sharing.md](resource-sharing.md) | 资源条目、版本、标签、绑定、下载 |
+| 用户系统 | [user-system.md](user-system.md) | 实名、学生认证、手机号与 QQ 绑定、学校配置 |
+| 通知 | [notification.md](notification.md) | 通知列表、未读数、SSE |
+| 审计 | [audit-logging.md](audit-logging.md) | 审计日志与留痕 |
 
-## 核心概念
+## 当前边界
 
-| 概念 | 定义 |
-|------|------|
-| Capability | 控制功能入口的字符串权限 |
-| 访问事实 | 业务状态：实名通过、学生认证通过、学校归属 |
-| OpenFGA 关系 | 回答"能否操作这个具体 review / report / profile" |
-| Shadow User | 本地 `users` 表，Zitadel sub → 业务外键锚点 |
+- StuHelper 是**校园信息平台**，不是完整教务系统。
+- 教务相关能力只做导入、标准化、展示与查询，不做写侧。
+- 资源相关能力只做资源共享与可插拔存储，不做实验 / 作业附件平台。
+
+更完整的目标范围和非目标见 [design/target-scope.md](../design/target-scope.md)。

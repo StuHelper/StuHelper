@@ -2,8 +2,8 @@ package token
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,11 +20,9 @@ const (
 	blacklistPrefix = "token:blacklist:"
 	// 已消费的一次性 refresh token 标记前缀
 	refreshConsumedPrefix = "token:refresh:consumed:"
-	// 用户 token 集合前缀（ZSET: member = type:hash, score = expiry unix timestamp）
-	userTokensPrefix = "token:user:"
 )
 
-// TokenType 标识 token 类型（用于 ZSET member 前缀）
+// TokenType 标识 token 类型（保留给 audit/metric 使用）
 type TokenType string
 
 const (
@@ -38,7 +36,7 @@ type localCacheEntry struct {
 	expiresAt   time.Time
 }
 
-// localCacheTTL 本地缓存 TTL（短时间缓存，仅用于 Redis 不可用时降级）
+// localCacheTTL 本地缓存 TTL（短时间缓存，仅用于当前实例立即感知撤销结果）
 const localCacheTTL = 30 * time.Second
 
 const (
@@ -46,9 +44,6 @@ const (
 	minBlacklistTTL = 1 * time.Second
 	// maxBlacklistTTL 黑名单 TTL 最大值（30 天）
 	maxBlacklistTTL = 30 * 24 * time.Hour
-	// maxTrackingKeyTTL ZSET key 的安全网 TTL，防止孤立 key 永不过期。
-	// 实际过期成员由 ZREMRANGEBYSCORE 清理。
-	maxTrackingKeyTTL = 30 * 24 * time.Hour
 )
 
 // Blacklist Token 黑名单服务
@@ -58,13 +53,14 @@ type Blacklist struct {
 	localCache sync.Map // map[string]localCacheEntry
 	stopCh     chan struct{}
 	closeOnce  sync.Once
+	wg         sync.WaitGroup
 }
 
 // NewBlacklist 创建黑名单服务
 func NewBlacklist(rdb *redis.Client) *Blacklist {
 	b := &Blacklist{
 		rdb: rdb,
-		cb: circuitbreaker.New(circuitbreaker.Config{
+		cb: circuitbreaker.NewNamed("token_blacklist", circuitbreaker.Config{
 			FailureThreshold: 5,
 			SuccessThreshold: 2,
 			Timeout:          30 * time.Second,
@@ -72,7 +68,11 @@ func NewBlacklist(rdb *redis.Client) *Blacklist {
 		stopCh: make(chan struct{}),
 	}
 	// 定期清理过期的本地缓存条目，防止 sync.Map 无限增长
-	go b.cleanupLoop()
+	b.wg.Add(1)
+	go func() {
+		defer b.wg.Done()
+		b.cleanupLoop()
+	}()
 	return b
 }
 
@@ -80,6 +80,7 @@ func NewBlacklist(rdb *redis.Client) *Blacklist {
 func (b *Blacklist) Close() {
 	b.closeOnce.Do(func() {
 		close(b.stopCh)
+		b.wg.Wait()
 	})
 }
 
@@ -106,6 +107,30 @@ func (b *Blacklist) cleanupLoop() {
 // hashToken 使用 HMAC-SHA256 对 token 进行哈希，减少 Redis 内存占用
 func hashToken(token string) (string, error) {
 	return crypto.HMACHash(token)
+}
+
+// AddByHash 将已知 token hash 直接加入黑名单（用于 Session 撤销场景，token 原文不可用）。
+func (b *Blacklist) AddByHash(ctx context.Context, tokenHash string, expiry time.Duration) error {
+	if expiry < minBlacklistTTL || expiry > maxBlacklistTTL {
+		return fmt.Errorf("blacklist TTL %v out of valid range [%v, %v]", expiry, minBlacklistTTL, maxBlacklistTTL)
+	}
+
+	b.localCache.Store(tokenHash, localCacheEntry{
+		blacklisted: true,
+		expiresAt:   time.Now().Add(localCacheTTL),
+	})
+
+	if !b.cb.Allow() {
+		return fmt.Errorf("blacklist service unavailable (circuit breaker open)")
+	}
+
+	key := blacklistPrefix + tokenHash
+	if err := b.rdb.Set(ctx, key, "1", expiry).Err(); err != nil {
+		b.cb.RecordFailure()
+		return fmt.Errorf("failed to add token hash to blacklist: %w", err)
+	}
+	b.cb.RecordSuccess()
+	return nil
 }
 
 // Add 将 token 加入黑名单
@@ -159,13 +184,20 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 		return false, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
 	}
 
-	ok, err := b.rdb.SetNX(ctx, refreshConsumedPrefix+hash, "1", expiry).Result()
+	status, err := b.rdb.SetArgs(ctx, refreshConsumedPrefix+hash, "1", redis.SetArgs{
+		Mode: "NX",
+		TTL:  expiry,
+	}).Result()
+	if errors.Is(err, redis.Nil) {
+		b.cb.RecordSuccess()
+		return false, nil
+	}
 	if err != nil {
 		b.cb.RecordFailure()
 		return false, fmt.Errorf("failed to mark refresh token consumed: %w", err)
 	}
 	b.cb.RecordSuccess()
-	if !ok {
+	if status != "OK" {
 		return false, nil
 	}
 	return true, nil
@@ -192,8 +224,8 @@ func (b *Blacklist) ReleaseConsumedRefreshToken(ctx context.Context, token strin
 	return nil
 }
 
-// IsBlacklisted 检查 token 是否在黑名单中
-// 使用熔断器模式：Redis 持续故障时降级到本地缓存，避免服务完全不可用
+// IsBlacklisted 检查 token 是否在黑名单中。
+// Redis 故障时只信任本地“已撤销=true”缓存；负缓存绝不用于放行请求。
 func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, error) {
 	hash, err := hashToken(token)
 	if err != nil {
@@ -203,21 +235,11 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 
 	// 检查熔断器状态
 	if !b.cb.Allow() {
-		// 熔断器打开：尝试本地缓存降级
-		if entry, ok := b.localCache.Load(hash); ok {
-			cached, ok := entry.(localCacheEntry)
-			if !ok {
-				b.localCache.Delete(hash)
-				return true, fmt.Errorf("blacklist service unavailable (circuit breaker open)")
-			}
-			if time.Now().Before(cached.expiresAt) {
-				logger.L().Warn("circuit breaker open, using local cache fallback",
-					zap.String("operation", "IsBlacklisted"),
-				)
-				return cached.blacklisted, nil
-			}
-			// 缓存过期，原子清理（仅当值未被其他 goroutine 更新时才删除）
-			b.localCache.CompareAndDelete(hash, entry)
+		if blacklisted, ok := b.cachedRevocation(hash); ok {
+			logger.L().Warn("circuit breaker open, using local revocation cache",
+				zap.String("operation", "IsBlacklisted"),
+			)
+			return blacklisted, nil
 		}
 		// 无本地缓存可用：安全优先 - 拒绝请求
 		logger.L().Warn("circuit breaker open, no local cache, denying request (fail-closed)",
@@ -234,17 +256,8 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 			zap.String("circuit_state", b.cb.State().String()),
 		)
 
-		// Redis 错误时尝试本地缓存降级
-		if entry, ok := b.localCache.Load(hash); ok {
-			cached, ok := entry.(localCacheEntry)
-			if !ok {
-				b.localCache.Delete(hash)
-				return true, fmt.Errorf("blacklist service unavailable")
-			}
-			if time.Now().Before(cached.expiresAt) {
-				return cached.blacklisted, nil
-			}
-			b.localCache.CompareAndDelete(hash, entry)
+		if blacklisted, ok := b.cachedRevocation(hash); ok {
+			return blacklisted, nil
 		}
 
 		// 安全优先：无缓存时拒绝请求
@@ -254,138 +267,44 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 	b.cb.RecordSuccess()
 	blacklisted := exists > 0
 
-	// 更新本地缓存
-	b.localCache.Store(hash, localCacheEntry{
-		blacklisted: blacklisted,
-		expiresAt:   time.Now().Add(localCacheTTL),
-	})
+	if blacklisted {
+		b.localCache.Store(hash, localCacheEntry{
+			blacklisted: true,
+			expiresAt:   time.Now().Add(localCacheTTL),
+		})
+	} else {
+		b.localCache.Delete(hash)
+	}
 
 	return blacklisted, nil
 }
 
-// RevokeAllUserTokens 撤销用户的所有活跃 token。
-// 先 prune 已过期成员，再将剩余活跃 token 加入黑名单。
-func (b *Blacklist) RevokeAllUserTokens(ctx context.Context, userID string, blacklistExpiry time.Duration) error {
-	if !b.cb.Allow() {
-		return fmt.Errorf("RevokeAllUserTokens: blacklist service unavailable (circuit breaker open)")
+func (b *Blacklist) cachedRevocation(hash string) (bool, bool) {
+	entry, ok := b.localCache.Load(hash)
+	if !ok {
+		return false, false
 	}
 
-	key := userTokensPrefix + userID
-
-	// 先清理已过期成员
-	nowStr := fmt.Sprintf("%d", time.Now().Unix())
-	if err := b.rdb.ZRemRangeByScore(ctx, key, "-inf", nowStr).Err(); err != nil {
-		logger.L().Warn("RevokeAllUserTokens: failed to prune expired members",
-			zap.String("user_id", userID),
-			zap.Error(err),
-		)
+	cached, ok := entry.(localCacheEntry)
+	if !ok {
+		b.localCache.Delete(hash)
+		return false, false
 	}
-
-	// 获取剩余活跃成员
-	members, err := b.rdb.ZRange(ctx, key, 0, -1).Result()
-	if err != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("RevokeAllUserTokens: failed to get user tokens: %w", err)
+	if time.Now().After(cached.expiresAt) {
+		b.localCache.CompareAndDelete(hash, entry)
+		return false, false
 	}
-
-	if len(members) == 0 {
-		b.cb.RecordSuccess()
-		return nil
+	if !cached.blacklisted {
+		b.localCache.CompareAndDelete(hash, entry)
+		return false, false
 	}
-
-	pipe := b.rdb.Pipeline()
-	for _, member := range members {
-		tokenHash := extractHash(member)
-		pipe.Set(ctx, blacklistPrefix+tokenHash, "1", blacklistExpiry)
-	}
-	pipe.Del(ctx, key)
-
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("RevokeAllUserTokens: failed to execute pipeline: %w", err)
-	}
-	b.cb.RecordSuccess()
-
-	// 同步更新本地缓存，避免 IsBlacklisted 在 TTL 窗口内返回旧的 false
-	for _, member := range members {
-		tokenHash := extractHash(member)
-		b.localCache.Store(tokenHash, localCacheEntry{
-			blacklisted: true,
-			expiresAt:   time.Now().Add(localCacheTTL),
-		})
-	}
-
-	return nil
+	return true, true
 }
 
-// TrackUserToken 记录用户 token 到 ZSET（按过期时间戳排序）。
-// member 格式: "access:<hash>" 或 "refresh:<hash>"
-// score: token 过期的 Unix 时间戳
-// 每次写入时顺带清理已过期成员，防止集合无限增长。
-func (b *Blacklist) TrackUserToken(ctx context.Context, userID, token string, tokenType TokenType, expiresAt time.Time) error {
-	if !b.cb.Allow() {
-		return fmt.Errorf("TrackUserToken: blacklist service unavailable (circuit breaker open)")
-	}
-
-	tokenHash, err := hashToken(token)
-	if err != nil {
-		return fmt.Errorf("failed to hash token: %w", err)
-	}
-
-	key := userTokensPrefix + userID
-	member := string(tokenType) + ":" + tokenHash
-	score := float64(expiresAt.Unix())
-
-	pipe := b.rdb.Pipeline()
-	// 清理已过期成员
-	nowStr := fmt.Sprintf("%d", time.Now().Unix())
-	pipe.ZRemRangeByScore(ctx, key, "-inf", nowStr)
-	// 添加新成员
-	pipe.ZAdd(ctx, key, redis.Z{Score: score, Member: member})
-	// 设置安全网 TTL，防止 key 孤立
-	pipe.Expire(ctx, key, maxTrackingKeyTTL)
-
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("TrackUserToken: pipeline exec failed: %w", err)
-	}
-
-	b.cb.RecordSuccess()
-	return nil
-}
-
-// UntrackUserToken 从用户 token 集合中移除指定 token
-func (b *Blacklist) UntrackUserToken(ctx context.Context, userID, token string, tokenType TokenType) error {
-	if !b.cb.Allow() {
-		return fmt.Errorf("UntrackUserToken: blacklist service unavailable (circuit breaker open)")
-	}
-
-	tokenHash, err := hashToken(token)
-	if err != nil {
-		return fmt.Errorf("failed to hash token: %w", err)
-	}
-
-	member := string(tokenType) + ":" + tokenHash
-	if err := b.rdb.ZRem(ctx, userTokensPrefix+userID, member).Err(); err != nil {
-		b.cb.RecordFailure()
-		return fmt.Errorf("UntrackUserToken: ZRem failed: %w", err)
-	}
-	b.cb.RecordSuccess()
-	return nil
-}
+// RevokeAllUserTokens / TrackUserToken / UntrackUserToken 已随双轨 session 清理一并移除。
+// 全设备撤销通过 SessionStore.RevokeAll 完成，token 原文撤销通过 Add / AddByHash。
 
 // CircuitBreakerMetrics 获取熔断器指标（用于监控）
 func (b *Blacklist) CircuitBreakerMetrics() map[string]any {
 	return b.cb.Metrics()
-}
-
-// extractHash 从 ZSET member 中提取 token hash。
-// member 格式: "type:hash"。如果没有前缀（兼容旧数据），直接返回原值。
-func extractHash(member string) string {
-	if idx := strings.IndexByte(member, ':'); idx >= 0 {
-		return member[idx+1:]
-	}
-	return member
 }

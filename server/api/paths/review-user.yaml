@@ -32,6 +32,8 @@
                           type: integer
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -77,6 +79,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -113,6 +117,8 @@
                         total:
                           type: integer
       '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

@@ -1,11 +1,28 @@
 import type { ApiClient } from './client'
 import type { components } from '../types/api.gen'
+import type { PostReviewRequest, ReviewRatings } from '../types/business/review'
+import { normalizeReviewGrade } from '../constants/review'
 
-type PostReviewRequest = components['schemas']['PostReviewRequest']
 type UpdateReviewRequest = components['schemas']['UpdateReviewRequest']
 type VoteRequest = components['schemas']['VoteRequest']
 type ReportReviewRequest = components['schemas']['ReportReviewRequest']
 type ContentCheckRequest = components['schemas']['ContentCheckRequest']
+
+type ReviewUpdateInput = Omit<UpdateReviewRequest, 'grade' | 'ratings'> & {
+  grade?: string
+  ratings?: ReviewRatings
+}
+
+function toUpdateReviewRequest(data: ReviewUpdateInput): UpdateReviewRequest {
+  const grade = normalizeReviewGrade(data.grade)
+
+  return {
+    ...(data.title !== undefined && { title: data.title }),
+    ...(data.content !== undefined && { content: data.content }),
+    ...(grade !== undefined && { grade }),
+    ...(data.ratings !== undefined && { ratings: data.ratings }),
+  }
+}
 
 export const createReviewApi = (client: ApiClient) => ({
   getReviewStats: () =>
@@ -44,10 +61,10 @@ export const createReviewApi = (client: ApiClient) => ({
   createReview: (data: PostReviewRequest) =>
     client.POST('/api/v1/course/review/reviews', { body: data }),
 
-  updateReview: (id: string, data: UpdateReviewRequest) =>
+  updateReview: (id: string, data: ReviewUpdateInput) =>
     client.PUT('/api/v1/course/review/reviews/{reviewID}', {
       params: { path: { reviewID: id } },
-      body: data
+      body: toUpdateReviewRequest(data)
     }),
 
   deleteReview: (id: string) =>
@@ -68,5 +85,5 @@ export const createReviewApi = (client: ApiClient) => ({
     }),
 
   checkContent: (data: ContentCheckRequest) =>
-    client.POST('/api/v1/course/review/content/check', { body: data })
+    client.POST('/api/v1/course/review/content/check', { body: data }),
 })

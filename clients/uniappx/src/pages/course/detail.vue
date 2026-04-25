@@ -35,12 +35,13 @@ async function toggleReplies(reviewId: string) {
     return
   }
   expandedReview.value = reviewId
+  replyText.value = ''
   repliesLoading.value = true
   replies.value = []
   try {
     const result = await api.reply.getReplies(reviewId, { page: 1, pageSize: 50 })
     replies.value = unwrapListData<components['schemas']['Reply']>(result).list
-  } catch {
+  } catch (_error) { void _error;
     uni.showToast({ title: t('course.detail.repliesLoadFailed'), icon: 'none' })
   } finally {
     repliesLoading.value = false

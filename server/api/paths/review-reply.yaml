@@ -71,6 +71,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '429':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 

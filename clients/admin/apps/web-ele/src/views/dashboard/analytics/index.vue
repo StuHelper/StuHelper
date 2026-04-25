@@ -1,6 +1,10 @@
 <script lang="ts" setup>
-import type { AdminStats } from '#/api/admin';
 import type { AnalysisOverviewItem } from '@vben/common-ui';
+
+import type { AdminStats } from '#/api/admin';
+
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { AnalysisChartCard, AnalysisOverview } from '@vben/common-ui';
 import {
@@ -9,8 +13,6 @@ import {
   SvgCardIcon,
   SvgDownloadIcon,
 } from '@vben/icons';
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
 
 import {
   ElButton,
@@ -27,11 +29,26 @@ const loading = ref(true);
 const stats = ref<AdminStats | null>(null);
 
 const quickActions = [
-  { label: $t('admin.dashboard.quickActions.reviews'), path: '/content/reviews' },
-  { label: $t('admin.dashboard.quickActions.reports'), path: '/content/reports' },
-  { label: $t('admin.dashboard.quickActions.teachers'), path: '/content/teachers' },
-  { label: $t('admin.dashboard.quickActions.identity'), path: '/users/identity-review' },
-  { label: $t('admin.dashboard.quickActions.students'), path: '/users/student-verification' },
+  {
+    label: $t('admin.dashboard.quickActions.reviews'),
+    path: '/content/reviews',
+  },
+  {
+    label: $t('admin.dashboard.quickActions.reports'),
+    path: '/content/reports',
+  },
+  {
+    label: $t('admin.dashboard.quickActions.teachers'),
+    path: '/content/teachers',
+  },
+  {
+    label: $t('admin.dashboard.quickActions.identity'),
+    path: '/users/identity-review',
+  },
+  {
+    label: $t('admin.dashboard.quickActions.students'),
+    path: '/users/student-verification',
+  },
 ];
 
 const overviewItems = computed<AnalysisOverviewItem[]>(() => {
@@ -116,11 +133,15 @@ onMounted(fetchStats);
               v-for="item in 4"
               :key="item"
               class="h-28 rounded-xl bg-[var(--el-fill-color-lighter)]"
-            />
+            ></div>
           </div>
           <div class="grid gap-5 md:grid-cols-2">
-            <div class="h-56 rounded-xl bg-[var(--el-fill-color-lighter)]" />
-            <div class="h-56 rounded-xl bg-[var(--el-fill-color-lighter)]" />
+            <div
+              class="h-56 rounded-xl bg-[var(--el-fill-color-lighter)]"
+            ></div>
+            <div
+              class="h-56 rounded-xl bg-[var(--el-fill-color-lighter)]"
+            ></div>
           </div>
         </div>
       </template>

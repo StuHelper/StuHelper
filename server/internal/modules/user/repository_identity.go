@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -27,6 +25,38 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecor
 	)
 	if err != nil {
 		return fmt.Errorf("CreateIdentity: %w", err)
+	}
+	return nil
+}
+
+// UpdateIdentitySubmission 覆盖已驳回的实名认证提交内容，并重置审核状态。
+func (r *Repository) UpdateIdentitySubmission(ctx context.Context, identity *IdentityRecord) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE user_identities SET
+			doc_type = $2,
+			doc_number_enc = $3,
+			person_uid = $4,
+			real_name = $5,
+			verified = $6,
+			verify_method = $7,
+			reviewed_at = $8,
+			verified_at = $9,
+			doc_photo_front = $10,
+			doc_photo_back = $11,
+			doc_photo_selfie = $12,
+			rejection_reason = $13,
+			updated_at = NOW()
+		WHERE user_id = $1
+	`, identity.UserID, identity.DocType, identity.DocNumberEnc, identity.PersonUID, identity.RealName,
+		identity.Verified, identity.VerifyMethod, identity.ReviewedAt, identity.VerifiedAt,
+		identity.DocPhotoFront, identity.DocPhotoBack, identity.DocPhotoSelfie,
+		identity.RejectionReason,
+	)
+	if err != nil {
+		return fmt.Errorf("UpdateIdentitySubmission: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrIdentityNotFound
 	}
 	return nil
 }
@@ -56,40 +86,44 @@ func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64
 
 // ListIdentityReviewItems 分页查询实名认证审核列表（不含 doc_number_enc/person_uid）
 func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error) {
-	var qb strings.Builder
-	qb.WriteString(`
-		SELECT user_id, doc_type, real_name,
-		       verified, verify_method, reviewed_at, verified_at,
-		       doc_photo_front, doc_photo_back, doc_photo_selfie,
-		       rejection_reason, created_at, updated_at,
-		       COUNT(*) OVER() AS total
-		FROM user_identities
-		WHERE 1=1
-	`)
 	args := make([]any, 0, 4)
-	argIdx := 1
+	whereClause := ""
 
 	switch status {
 	case StatusPending:
-		qb.WriteString(` AND verified = false AND reviewed_at IS NULL`)
+		whereClause = ` WHERE verified = false AND reviewed_at IS NULL`
 	case StatusRejected:
-		qb.WriteString(` AND verified = false AND reviewed_at IS NOT NULL`)
+		whereClause = ` WHERE verified = false AND reviewed_at IS NOT NULL`
 	case StatusVerified:
-		qb.WriteString(` AND verified = true`)
+		whereClause = ` WHERE verified = true`
 	}
 
-	qb.WriteString(` ORDER BY created_at DESC`)
-	qb.WriteString(` LIMIT $` + strconv.Itoa(argIdx) + ` OFFSET $` + strconv.Itoa(argIdx+1))
-	args = append(args, pageSize, (page-1)*pageSize)
+	countQuery := `SELECT COUNT(*) FROM user_identities` + whereClause
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("ListIdentityReviewItems count: %w", err)
+	}
+	if total == 0 {
+		return []IdentityReviewItem{}, 0, nil
+	}
 
-	rows, err := r.db.Query(ctx, qb.String(), args...)
+	args = append(args, pageSize, (page-1)*pageSize)
+	rows, err := r.db.Query(ctx, `
+		SELECT user_id, doc_type, real_name,
+		       verified, verify_method, reviewed_at, verified_at,
+		       doc_photo_front, doc_photo_back, doc_photo_selfie,
+		       rejection_reason, created_at, updated_at
+		FROM user_identities
+	`+whereClause+`
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("ListIdentityReviewItems: %w", err)
+		return nil, 0, fmt.Errorf("ListIdentityReviewItems data: %w", err)
 	}
 	defer rows.Close()
 
 	list := make([]IdentityReviewItem, 0, pageSize)
-	var total int
 	for rows.Next() {
 		var item IdentityReviewItem
 		if err := rows.Scan(
@@ -97,7 +131,6 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 			&item.Verified, &item.VerifyMethod, &item.ReviewedAt, &item.VerifiedAt,
 			&item.DocPhotoFront, &item.DocPhotoBack, &item.DocPhotoSelfie,
 			&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
-			&total,
 		); err != nil {
 			return nil, 0, fmt.Errorf("ListIdentityReviewItems scan: %w", err)
 		}
@@ -119,7 +152,7 @@ func (r *Repository) UpdateIdentityReviewStatus(
 	verifiedAt *time.Time,
 	rejectionReason *string,
 ) error {
-	_, err := r.db.Exec(ctx, `
+	tag, err := r.db.Exec(ctx, `
 		UPDATE user_identities SET
 			verified = $2,
 			verify_method = $3,
@@ -131,6 +164,9 @@ func (r *Repository) UpdateIdentityReviewStatus(
 	`, userID, approved, verifyMethod, reviewedAt, verifiedAt, rejectionReason)
 	if err != nil {
 		return fmt.Errorf("UpdateIdentityReviewStatus: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrIdentityNotFound
 	}
 	return nil
 }

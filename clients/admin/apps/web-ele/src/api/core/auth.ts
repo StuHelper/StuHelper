@@ -1,8 +1,11 @@
-import { createAuthApi } from '@stuhelper/shared/api';
-import type { components } from '@stuhelper/shared';
+import type { components } from '@stuhelper/shared/types';
+
+import type { ApiCallResult } from '#/api/shared-result';
+
+import { createAuthApi, extractResultErrorCode } from '@stuhelper/shared/api';
 
 import { sharedApiClient, sharedBaseApiClient } from '#/api/shared-client';
-import { unwrapData, unwrapOptionalData } from '#/api/shared-result';
+import { unwrapData } from '#/api/shared-result';
 
 const authApi = createAuthApi(sharedApiClient);
 const baseAuthApi = createAuthApi(sharedBaseApiClient);
@@ -10,6 +13,45 @@ const baseAuthApi = createAuthApi(sharedBaseApiClient);
 export namespace AuthApi {
   export type LoginUrlResult = components['schemas']['LoginURLResponse'];
   export type MeResult = components['schemas']['UserInfo'];
+}
+
+export type SessionProbeResult =
+  | { kind: 'fatal_error'; message: string }
+  | { kind: 'forbidden' }
+  | { kind: 'ok'; me: AuthApi.MeResult }
+  | { kind: 'retryable_error'; message: string }
+  | { kind: 'unauthenticated' };
+
+export type LogoutResult =
+  | { kind: 'error'; message: string }
+  | { kind: 'ok' }
+  | { kind: 'unauthenticated' };
+
+function classifySessionProbe(
+  result: ApiCallResult<AuthApi.MeResult>,
+): SessionProbeResult {
+  if (result.data && 'data' in result.data && result.data.data) {
+    return { kind: 'ok', me: result.data.data as AuthApi.MeResult };
+  }
+
+  const status = result.response?.status;
+  const code = extractResultErrorCode(result);
+
+  if (status === 401 || code?.startsWith('A00101')) {
+    return { kind: 'unauthenticated' };
+  }
+  if (status === 403 || code === 'A0010200' || code === 'A0010201') {
+    return { kind: 'forbidden' };
+  }
+  if (status !== undefined && status >= 500) {
+    return { kind: 'retryable_error', message: 'admin.result.requestFailed' };
+  }
+  return { kind: 'fatal_error', message: 'admin.result.requestFailed' };
+}
+
+export function getAccountSettingsUrl(me: AuthApi.MeResult): string {
+  const value = (me as Record<string, unknown>).accountSettingsUrl;
+  return typeof value === 'string' ? value : '';
 }
 
 /**
@@ -36,12 +78,8 @@ export async function redirectToOIDCLogin(redirectPath?: string) {
  * 尝试获取当前会话（用 baseRequestClient，不触发 token 刷新）
  * 首次访问时没有 session，会 401，此时不应走刷新逻辑
  */
-export async function tryGetMe(): Promise<AuthApi.MeResult | null> {
-  try {
-    return unwrapOptionalData<AuthApi.MeResult>(await baseAuthApi.me());
-  } catch {
-    return null;
-  }
+export async function tryGetMe(): Promise<SessionProbeResult> {
+  return classifySessionProbe(await baseAuthApi.me());
 }
 
 /**
@@ -58,9 +96,22 @@ export async function refreshTokenApi() {
   return unwrapData(await authApi.refresh());
 }
 
+function classifyLogoutResult(result: ApiCallResult<unknown>): LogoutResult {
+  const status = result.response?.status;
+  const code = extractResultErrorCode(result);
+
+  if (!result.error && status !== undefined && status >= 200 && status < 300) {
+    return { kind: 'ok' };
+  }
+  if (status === 401 || code?.startsWith('A00101')) {
+    return { kind: 'unauthenticated' };
+  }
+  return { kind: 'error', message: 'admin.result.requestFailed' };
+}
+
 /**
  * 退出登录
  */
 export async function logoutApi() {
-  return unwrapData(await authApi.logout());
+  return classifyLogoutResult(await baseAuthApi.logout());
 }

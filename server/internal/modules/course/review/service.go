@@ -8,12 +8,15 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sanitizer"
 )
 
@@ -27,24 +30,24 @@ func maskHash(hash string) string {
 
 // 业务错误定义
 var (
-	ErrCourseNotFound       = errors.New("course not found")
-	ErrReviewNotFound       = errors.New("review not found")
-	ErrTeacherNotFound      = errors.New("teacher not found")
-	ErrAlreadyVoted         = errors.New("already voted")
-	ErrAlreadyReviewed      = errors.New("already reviewed this course")
-	ErrDangerousContent     = errors.New("content contains dangerous elements")
-	ErrSensitiveContent     = errors.New("content contains sensitive words")
-	ErrTitleEmpty           = errors.New("title cannot be empty after sanitization")
-	ErrContentEmpty         = errors.New("content cannot be empty after sanitization")
-	ErrInvalidRating        = errors.New("invalid rating value")
-	ErrRatingRequired       = errors.New("at least one rating dimension is required")
-	ErrNotReviewOwner       = errors.New("not the review owner")
-	ErrAlreadyReported      = errors.New("already reported this review")
-	ErrReportNotFound       = errors.New("report not found")
-	ErrDraftNotFound        = errors.New("draft not found")
-	ErrNotificationNotFound = errors.New("notification not found")
-	ErrInvalidAction        = errors.New("invalid action")
-	ErrInvalidTransition    = errors.New("invalid status transition")
+	ErrCourseNotFound        = errors.New("course not found")
+	ErrReviewNotFound        = errors.New("review not found")
+	ErrTeacherNotFound       = errors.New("teacher not found")
+	ErrAlreadyVoted          = errors.New("already voted")
+	ErrAlreadyReviewed       = errors.New("already reviewed this course")
+	ErrDangerousContent      = errors.New("content contains dangerous elements")
+	ErrSensitiveContent      = errors.New("content contains sensitive words")
+	ErrModerationUnavailable = errors.New("content moderation unavailable")
+	ErrTitleEmpty            = errors.New("title cannot be empty after sanitization")
+	ErrContentEmpty          = errors.New("content cannot be empty after sanitization")
+	ErrInvalidRating         = errors.New("invalid rating value")
+	ErrRatingRequired        = errors.New("at least one rating dimension is required")
+	ErrNotReviewOwner        = errors.New("not the review owner")
+	ErrAlreadyReported       = errors.New("already reported this review")
+	ErrReportNotFound        = errors.New("report not found")
+	ErrDraftNotFound         = errors.New("draft not found")
+	ErrInvalidAction         = errors.New("invalid action")
+	ErrInvalidTransition     = errors.New("invalid status transition")
 )
 
 // Service 评课服务层
@@ -53,17 +56,52 @@ type Service struct {
 	repo           *Repository
 	filter         *Filter
 	dimensionCache atomic.Value // map[string]string
-	notifSender    notification.Sender // nil-safe: skip notifications if not wired
+	fgaWriter      reviewFGAWriter
+	notifSender    notification.Sender
+	accessReader   ReviewAccessReader
+	accessPolicySF singleflight.Group
+	asyncCtx       context.Context
+	asyncLaunch    func(string, func(context.Context))
+}
+
+// ReviewAccessReader 访问控制策略数据源（由 user.Repository 实现）。
+type ReviewAccessReader interface {
+	ListReviewAccessSchoolConfigs(ctx context.Context) ([]reviewaccess.SchoolConfig, error)
+	ListReviewAccessSystemConfigs(ctx context.Context) ([]reviewaccess.SystemConfig, error)
+	GetReviewAccessSubject(ctx context.Context, externalID string) (*reviewaccess.Subject, error)
 }
 
 // NewService 创建评课服务
-func NewService(database *db.DB, repo *Repository, notifSender notification.Sender) *Service {
+func NewService(
+	database *db.DB,
+	repo *Repository,
+	notifSender notification.Sender,
+	fgaWriter reviewFGAWriter,
+	accessReader ReviewAccessReader,
+) *Service {
+	if database == nil {
+		panic("review.NewService: database must not be nil")
+	}
+	if repo == nil {
+		panic("review.NewService: repo must not be nil")
+	}
+	if fgaWriter == nil {
+		panic("review.NewService: fgaWriter must not be nil")
+	}
+	if notifSender == nil {
+		panic("review.NewService: notifSender must not be nil")
+	}
+	if accessReader == nil {
+		panic("review.NewService: accessReader must not be nil")
+	}
 	filter := NewFilter(repo)
 	s := &Service{
-		db:          database,
-		repo:        repo,
-		filter:      filter,
-		notifSender: notifSender,
+		db:           database,
+		repo:         repo,
+		filter:       filter,
+		fgaWriter:    fgaWriter,
+		notifSender:  notifSender,
+		accessReader: accessReader,
 	}
 	// 初始化时加载维度缓存
 	if err := s.refreshDimensionCache(context.Background()); err != nil {
@@ -90,23 +128,28 @@ func (s *Service) getDimensionNames() map[string]string {
 	return nil
 }
 
+// RefreshTeacherPublicStats 刷新公开教师统计物化视图。
+func (s *Service) RefreshTeacherPublicStats(ctx context.Context) error {
+	return s.repo.RefreshTeacherPublicStats(ctx)
+}
+
 // validTermID 学期 ID 格式校验：如 "2024-1"（春季）或 "2024-2"（秋季）
 var validTermIDFormat = regexp.MustCompile(`^\d{4}-[12]$`)
 
-// validateAndSanitizeReview 校验评分、清洗标题/内容、检测危险内容和敏感词。
-// 返回清洗后的 title、content、contentFlag（warn 级别敏感词标记，需管理员复核）。
-// block 级别的敏感词直接返回 error 拒绝发布。
+// validateAndSanitizeReview 校验评分、清洗标题/内容，并根据敏感词命中结果返回最终审核决策。
+// review 级别内容进入 pending_review；warn 级别内容保持 published 并打 content_flag；
+// block 级别内容直接拒绝。
 // validRatingKey 评分维度 key 仅允许小写字母、数字、下划线（对齐 DB VARCHAR(50)）
 var validRatingKey = regexp.MustCompile(`^[a-z][a-z0-9_]{0,49}$`)
 
-func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewRatings, title, content, termID string) (string, string, *string, error) {
+func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewRatings, title, content, termID string) (string, string, string, *string, error) {
 	// 校验 term_id 格式
 	if termID != "" && !validTermIDFormat.MatchString(termID) {
-		return "", "", nil, fmt.Errorf("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+		return "", "", "", nil, fmt.Errorf("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
 	}
 
 	if len(ratings) == 0 {
-		return "", "", nil, ErrRatingRequired
+		return "", "", "", nil, ErrRatingRequired
 	}
 
 	// 从缓存获取有效的评分维度 key 白名单
@@ -116,20 +159,20 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 		var err error
 		validKeys, err = s.repo.GetDimensionNames(ctx)
 		if err != nil {
-			return "", "", nil, fmt.Errorf("failed to load rating dimensions: %w", err)
+			return "", "", "", nil, fmt.Errorf("failed to load rating dimensions: %w", err)
 		}
 	}
 
 	for k, v := range ratings {
 		if !validRatingKey.MatchString(k) {
-			return "", "", nil, ErrInvalidRating
+			return "", "", "", nil, ErrInvalidRating
 		}
 		// 校验 key 是否在 rating_dimensions 表中存在
 		if _, ok := validKeys[k]; !ok {
-			return "", "", nil, fmt.Errorf("%w: unknown dimension key %q", ErrInvalidRating, k)
+			return "", "", "", nil, fmt.Errorf("%w: unknown dimension key %q", ErrInvalidRating, k)
 		}
 		if v < 1 || v > 5 {
-			return "", "", nil, ErrInvalidRating
+			return "", "", "", nil, ErrInvalidRating
 		}
 	}
 
@@ -137,28 +180,26 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 	content = sanitizer.SanitizeText(content)
 
 	if strings.TrimSpace(title) == "" {
-		return "", "", nil, ErrTitleEmpty
+		return "", "", "", nil, ErrTitleEmpty
 	}
 	if sanitizer.ContainsDangerousContent(title) || sanitizer.ContainsDangerousContent(content) {
-		return "", "", nil, ErrDangerousContent
+		return "", "", "", nil, ErrDangerousContent
 	}
 	if strings.TrimSpace(content) == "" {
-		return "", "", nil, ErrContentEmpty
+		return "", "", "", nil, ErrContentEmpty
 	}
 
-	checkResult := s.filter.CheckContent(ctx, title+" "+content)
-	// block 级别：拒绝发布
-	if !checkResult.IsValid && checkResult.Level == "block" {
-		return "", "", nil, ErrSensitiveContent
-	}
-	// warn 级别：允许发布，但打上 content_flag 标记供管理员复核
-	var contentFlag *string
-	if checkResult.Level == "warn" && checkResult.MatchCount > 0 {
-		flag := "warn"
-		contentFlag = &flag
+	checkResult, err := s.filter.CheckContent(ctx, title+" "+content)
+	if err != nil {
+		return "", "", "", nil, err
 	}
 
-	return title, content, contentFlag, nil
+	decision, err := buildReviewModerationDecision(checkResult)
+	if err != nil {
+		return "", "", "", nil, err
+	}
+
+	return title, content, decision.Status, decision.ContentFlag, nil
 }
 
 // GetCourseReviewsParams 获取课程评论参数
@@ -341,27 +382,68 @@ func (s *Service) GetReviewByID(ctx context.Context, reviewID string) (*Review, 
 }
 
 // CheckContent 检查内容是否包含敏感词
-func (s *Service) CheckContent(ctx context.Context, content string) *ContentCheckResult {
+func (s *Service) CheckContent(ctx context.Context, content string) (*ContentCheckResult, error) {
 	return s.filter.CheckContent(ctx, content)
 }
 
 // --- 内容标记管理 pass-through ---
 
-// ListFlaggedReviews 获取待复核评课列表（content_flag = 'warn'）
-func (s *Service) ListFlaggedReviews(ctx context.Context, limit, offset int) ([]Review, int, error) {
-	reviews, total, err := s.repo.ListFlaggedReviews(ctx, limit, offset)
+// ListFlaggedReviews 获取待人工复核评课列表（content_flag in warn/review）
+func (s *Service) ListFlaggedReviews(ctx context.Context, limit, offset int, schoolIDs ...int64) ([]Review, int, error) {
+	reviews, total, err := s.repo.ListFlaggedReviews(ctx, limit, offset, schoolIDs)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list flagged reviews: %w", err)
 	}
 	return reviews, total, nil
 }
 
-// ClearContentFlag 管理员复核通过，清除 content_flag
+// ClearContentFlag 管理员复核通过，必要时发布 pending_review 并清除 content_flag。
 func (s *Service) ClearContentFlag(ctx context.Context, reviewID, adminUserID string) error {
-	if err := s.repo.ClearContentFlag(ctx, reviewID, adminUserID); err != nil {
-		return fmt.Errorf("clear content flag %s: %w", reviewID, err)
+	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		status, contentFlag, courseID, teacherID, err := s.repo.GetReviewContentFlagStateTx(ctx, tx, reviewID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrReviewNotFound
+			}
+			return err
+		}
+		if contentFlag == nil || (*contentFlag != ContentFlagWarn && *contentFlag != ContentFlagReview) {
+			return ErrReviewNotFound
+		}
+		if err := s.repo.ClearContentFlagTx(ctx, tx, reviewID, adminUserID); err != nil {
+			return err
+		}
+		if status == StatusPendingReview && *contentFlag == ContentFlagReview {
+			if err := s.repo.UpdateReviewStatus(ctx, tx, reviewID, StatusPublished); err != nil {
+				return err
+			}
+			if err := s.repo.IncrementCourseReviewCount(ctx, tx, courseID); err != nil {
+				return err
+			}
+			return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
+		}
+		return nil
+	})
+}
+
+func (s *Service) GetReviewSchoolID(ctx context.Context, reviewID string) (int64, error) {
+	schoolID, err := s.repo.GetReviewSchoolID(ctx, reviewID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrReviewNotFound
 	}
-	return nil
+	return schoolID, err
+}
+
+func (s *Service) GetReportSchoolID(ctx context.Context, reportID string) (int64, error) {
+	schoolID, err := s.repo.GetReportSchoolID(ctx, reportID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrReportNotFound
+	}
+	return schoolID, err
+}
+
+func (s *Service) ListReviewSchoolIDs(ctx context.Context, reviewIDs []string) (map[string]int64, error) {
+	return s.repo.ListReviewSchoolIDs(ctx, reviewIDs)
 }
 
 // --- 敏感词管理 pass-through ---

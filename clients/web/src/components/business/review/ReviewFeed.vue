@@ -72,8 +72,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
-import type { Review } from '@/types/review'
-import { toReviews } from '@/types/review'
+import type { Review } from '@stuhelper/shared/review'
 import TabBar from '@/components/common/TabBar.vue'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -123,10 +122,10 @@ async function loadReviews(reset = false) {
   loading.value = true
   error.value = null
   try {
-    const res = await api.review.getLatestReviews({ page: page.value, pageSize, sort: activeSort.value as 'time' | 'likes' | 'rating' })
+    const pageData = await api.review.getLatestReviewsPage({ page: page.value, pageSize, sort: activeSort.value as 'time' | 'likes' | 'rating' })
     // 请求被取消或版本过期则忽略结果
     if (signal.aborted || currentVersion !== requestVersion) return
-    const list = toReviews(res.data?.data?.list || [])
+    const list = pageData.list
     if (reset) {
       reviews.value = list
     } else {
@@ -136,7 +135,7 @@ async function loadReviews(reset = false) {
     }
     hasMore.value = list.length >= pageSize
     page.value++
-  } catch {
+  } catch (_error) { void _error;
     if (signal.aborted || currentVersion !== requestVersion) return
     error.value = t('review.hub.loadFailed')
   } finally {

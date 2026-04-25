@@ -1,15 +1,17 @@
 package user
 
-import "context"
+import (
+	"context"
 
-// OTPGenerator generates and verifies OTP codes for phone binding.
+	authmodule "git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
+)
+
+// OTPGenerator 负责生成并校验手机绑定所需的 OTP。
 type OTPGenerator interface {
-	Generate(ctx context.Context, phone string) (code string, err error)
+	IssueCode(ctx context.Context, phone string, smsSender authmodule.PhoneSMSSender) error
+	CooldownSeconds() int
 	Verify(ctx context.Context, phone, code string) error
-	Cleanup(ctx context.Context, phone string) error
 }
 
-// SMSSender sends SMS messages (e.g. OTP codes) to a phone number.
-type SMSSender interface {
-	Send(ctx context.Context, phone, content string) error
-}
+// SMSSender 负责向手机号发送短信，例如 OTP 验证码。
+type SMSSender = authmodule.PhoneSMSSender

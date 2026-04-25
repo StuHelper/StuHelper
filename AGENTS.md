@@ -23,16 +23,23 @@ make check-drift       # 生成代码是否过期
 pnpm install
 pnpm type-check && pnpm lint
 pnpm test:web && pnpm test:e2e
-pnpm build:web && pnpm build:admin
+pnpm build:web && pnpm build:admin && pnpm build:uni:h5
+
+# 机器人 (bots/koishi)
+cd bots/koishi
+corepack yarn install
+corepack yarn dev
+corepack yarn workspaces list
 ```
 
 ## 技术栈
 
 | 层 | 技术 |
 |----|------|
-| 后端 | Go 1.26+ / Gin / pgx / PostgreSQL 17 / Redis 7 |
+| 后端 | Go 1.26+ / Gin / pgx / PostgreSQL 18 / Redis 8 |
 | 前端 | Vue 3.5+ / TypeScript 5+ / Vite 6+ / Element Plus / Pinia |
 | 管理后台 | Vben Admin 5（Element Plus 变体） |
+| 机器人 | Koishi 工作区 / NapCat（外部部署） |
 | 认证 | Zitadel OIDC |
 | 资源授权 | OpenFGA |
 | 契约 | OpenAPI 3.1 → Go + TypeScript 生成 |
@@ -91,11 +98,11 @@ SQL 只写在 Repository，业务判断只放在 Service，响应统一通过 `r
 ```
 server/api/openapi.yaml
   ├── server/internal/api/gen/        (Go)
-  └── clients/shared/src/types/api.gen.ts (TS)
+  └── clients/shared/src/types/api.gen.ts (TS source)
         ↓
-      clients/shared/src/api/*
+      clients/shared/dist/*           (package exports)
         ↓
-      web / admin 各自封装
+      web / admin / uniappx 各自封装
 ```
 
 改接口：先改 OpenAPI → `make generate` → 再改实现。
@@ -128,6 +135,8 @@ StuHelper/
 │   ├── admin/               # 独立管理后台
 │   ├── shared/              # 共享 API / 类型
 │   └── uniappx/             # 实验性跨端
+├── bots/
+│   └── koishi/              # Koishi 机器人插件工作区
 ├── infra/                   # Docker、观测、运维脚本
 └── docs/                    # 项目文档
 ```
@@ -137,14 +146,16 @@ StuHelper/
 | 目标 | 入口 |
 |------|------|
 | 快速开始 | [docs/QUICKSTART.md](docs/QUICKSTART.md) |
-| 后端规范 | [docs/BACKEND.md](docs/BACKEND.md) |
-| 前端规范 | [docs/FRONTEND.md](docs/FRONTEND.md) |
+| 后端规范 | [docs/guides/backend-development.md](docs/guides/backend-development.md) |
+| 前端规范 | [docs/guides/frontend-development.md](docs/guides/frontend-development.md) |
 | 产品规格 | [docs/product-specs/index.md](docs/product-specs/index.md) |
-| 设计文档 | [docs/design-docs/index.md](docs/design-docs/index.md) |
-| 运维发布 | [docs/operations/README.md](docs/operations/README.md) |
-| API 参考 | [docs/references/api-overview.md](docs/references/api-overview.md) |
-| 数据库参考 | [docs/references/database.md](docs/references/database.md) |
-| 错误码参考 | [docs/references/error-codes.md](docs/references/error-codes.md) |
+| 设计文档 | [docs/design/](docs/design/) |
+| 文档治理 | [docs/design/documentation-governance.md](docs/design/documentation-governance.md) |
+| 文档维护 | [docs/guides/documentation-maintenance.md](docs/guides/documentation-maintenance.md) |
+| 运维发布 | [docs/guides/](docs/guides/) |
+| API 参考 | [docs/reference/api-overview.md](docs/reference/api-overview.md) |
+| 数据库参考 | [docs/reference/database.md](docs/reference/database.md) |
+| 错误码参考 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
 
 ## 开发铁律
 
@@ -156,4 +167,4 @@ StuHelper/
 - 前端 API 统一使用 `clients/shared`
 - 配置通过环境变量读取，不硬编码
 
-工程原则详见 [docs/design-docs/core-beliefs.md](docs/design-docs/core-beliefs.md)。
+工程原则详见 [docs/design/core-beliefs.md](docs/design/core-beliefs.md)。

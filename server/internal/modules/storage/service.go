@@ -1,0 +1,187 @@
+package storage
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+)
+
+type Service struct {
+	repo     *Repository
+	registry *Registry
+	cfg      config.ObjectStorageConfig
+}
+
+func NewService(repo *Repository, cfg config.ObjectStorageConfig) *Service {
+	if repo == nil {
+		panic("storage.NewService: repo must not be nil")
+	}
+	return &Service{
+		repo:     repo,
+		registry: NewRegistry(cfg),
+		cfg:      cfg,
+	}
+}
+
+func (s *Service) EnsureDefaultMount(ctx context.Context) error {
+	return s.repo.UpsertRuntimeDefaultMount(ctx, s.cfg)
+}
+
+func (s *Service) ListMounts(ctx context.Context) ([]Mount, error) {
+	items, err := s.repo.ListMounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		driver, err := s.registry.Get(items[i].Driver)
+		if err == nil {
+			items[i].Capabilities = driver.Capabilities()
+		}
+	}
+	return items, nil
+}
+
+func (s *Service) CreateMount(ctx context.Context, req CreateMountRequest) (*Mount, error) {
+	driver, err := s.registry.Get(req.Driver)
+	if err != nil {
+		return nil, err
+	}
+	mount, err := s.repo.CreateMount(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	mount.Capabilities = driver.Capabilities()
+	return mount, nil
+}
+
+func (s *Service) CheckMountHealth(ctx context.Context, mountID int64) (*Mount, error) {
+	mount, err := s.repo.GetMountByID(ctx, mountID)
+	if err != nil {
+		return nil, err
+	}
+	item, healthErr, err := s.probeMountHealth(ctx, mount)
+	if err != nil {
+		return nil, err
+	}
+	if healthErr != nil {
+		return item, nil
+	}
+	return item, nil
+}
+
+func (s *Service) ValidateMountByKey(ctx context.Context, mountKey string) (*Mount, error) {
+	mount, err := s.repo.GetMountByKey(ctx, normalizeMountKey(mountKey))
+	if err != nil {
+		return nil, err
+	}
+	if !mount.Enabled {
+		return nil, ErrMountDisabled
+	}
+	item, healthErr, err := s.probeMountHealth(ctx, mount)
+	if err != nil {
+		return nil, err
+	}
+	if healthErr != nil {
+		return item, healthErr
+	}
+	return item, nil
+}
+
+func (s *Service) Put(ctx context.Context, mountKey, objectKey string, content []byte, contentType string) (*Mount, *StoredObject, error) {
+	mount, driver, err := s.getMountDriver(ctx, mountKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	stored, err := driver.Put(ctx, *mount, objectKey, content, contentType)
+	if err != nil {
+		return nil, nil, err
+	}
+	return mount, stored, nil
+}
+
+func (s *Service) Delete(ctx context.Context, mountID int64, objectKey string) error {
+	mount, err := s.repo.GetMountByID(ctx, mountID)
+	if err != nil {
+		return err
+	}
+	driver, err := s.registry.Get(mount.Driver)
+	if err != nil {
+		return err
+	}
+	return driver.Delete(ctx, *mount, objectKey)
+}
+
+func (s *Service) GetDownloadURL(ctx context.Context, mountID int64, objectKey string) (string, error) {
+	mount, err := s.repo.GetMountByID(ctx, mountID)
+	if err != nil {
+		return "", err
+	}
+	driver, err := s.registry.Get(mount.Driver)
+	if err != nil {
+		return "", err
+	}
+	return driver.GetDownloadURL(ctx, *mount, objectKey)
+}
+
+func (s *Service) GetDownloadURLByMountKey(ctx context.Context, mountKey, objectKey string) (string, error) {
+	mount, driver, err := s.getMountDriver(ctx, mountKey)
+	if err != nil {
+		return "", err
+	}
+	return driver.GetDownloadURL(ctx, *mount, objectKey)
+}
+
+func (s *Service) getMountDriver(ctx context.Context, mountKey string) (*Mount, Driver, error) {
+	mount, err := s.repo.GetMountByKey(ctx, normalizeMountKey(mountKey))
+	if err != nil {
+		return nil, nil, err
+	}
+	if !mount.Enabled {
+		return nil, nil, ErrMountDisabled
+	}
+	driver, err := s.registry.Get(mount.Driver)
+	if err != nil {
+		return nil, nil, err
+	}
+	return mount, driver, nil
+}
+
+func (s *Service) probeMountHealth(ctx context.Context, mount *Mount) (*Mount, error, error) {
+	driver, err := s.registry.Get(mount.Driver)
+	if err != nil {
+		return nil, nil, err
+	}
+	status := "healthy"
+	var (
+		message   *string
+		healthErr error
+	)
+	if err := driver.HealthCheck(ctx, *mount); err != nil {
+		status = "unhealthy"
+		value := err.Error()
+		message = &value
+		healthErr = err
+	}
+	if err := s.repo.UpdateMountHealth(ctx, mount.ID, status, message); err != nil {
+		return nil, nil, err
+	}
+	item, err := s.repo.GetMountByID(ctx, mount.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return item, healthErr, nil
+}
+
+func normalizeMountKey(mountKey string) string {
+	key := strings.TrimSpace(mountKey)
+	if key == "" {
+		return DefaultMountKey
+	}
+	return key
+}
+
+func timeDurationSeconds(value int) time.Duration {
+	return time.Duration(value) * time.Second
+}

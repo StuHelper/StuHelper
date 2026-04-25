@@ -1,7 +1,8 @@
 # StuHelper Server Makefile
 
 .PHONY: help tidy fmt lint test test-coverage build run clean security ci \
-       bundle-spec lint-spec generate generate-go generate-ts check-drift \
+       bundle-spec lint-spec generate generate-go generate-ts check-drift check-drift-go check-drift-ts check-drift-all \
+       check-doc-sync check-coverage-threshold \
        migrate-up migrate-down-one migrate-status migrate-verify seed-dev
 
 # 默认目标
@@ -12,9 +13,10 @@ BINARY_NAME := stuhelper
 BUILD_DIR := bin
 COVERAGE_FILE := coverage.out
 REDOCLY_VERSION := 2.21.1
-REDOCLY := pnpm --package=@redocly/cli@$(REDOCLY_VERSION) dlx redocly
+REDOCLY := npx --yes @redocly/cli@$(REDOCLY_VERSION)
 MIGRATE_VERSION := v4.18.3
 MIGRATE := go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+MIGRATE_RUNTIME := go run ./cmd/migrate-runtime
 
 define require_database_url
 	@test -n "$(DATABASE_URL)" || (echo "ERROR: DATABASE_URL is required" && exit 1)
@@ -38,6 +40,8 @@ help:
 	@echo "  generate-go   - regenerate Go types and server interface"
 	@echo "  generate-ts   - regenerate frontend TypeScript types"
 	@echo "  generate      - bundle spec + regenerate all code (Go + TS)"
+	@echo "  check-doc-sync - verify docs/reference/api-overview.md prefixes still cover bundled OpenAPI paths"
+	@echo "  check-coverage-threshold - enforce minimum coverage for key packages"
 	@echo ""
 	@echo "CI/CD:"
 	@echo "  ci            - run all CI checks (lint, test, build, drift check)"
@@ -77,7 +81,7 @@ run:
 	go run ./cmd/stuhelper
 
 security:
-	go run github.com/securego/gosec/v2/cmd/gosec@latest -exclude-generated ./...
+	go run github.com/securego/gosec/v2/cmd/gosec@v2.22.4 -exclude-generated ./...
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -98,21 +102,35 @@ generate-go: bundle-spec
 	go generate ./internal/api/gen/...
 
 generate-ts: bundle-spec
-	cd ../clients && pnpm run api:generate
+	cd ../clients && npx --yes pnpm@10.32.1 run api:generate
 
 generate: generate-go generate-ts
 	@echo "All code generation complete."
 
 # ── CI Drift Detection ──
 
-check-drift: generate
-	@git diff --exit-code -- internal/api/gen/ ../clients/shared/src/types/api.gen.ts || (echo "ERROR: Generated code is out of sync with OpenAPI spec. Run 'make generate' and commit." && exit 1)
+check-drift: check-drift-all
+
+check-drift-go: generate-go
+	@git diff --exit-code -- internal/api/gen/ || (echo "ERROR: Generated Go code is out of sync with OpenAPI spec. Run 'make generate-go' and commit." && exit 1)
+
+check-drift-ts:
+	cd ../clients && npx --yes pnpm@10.32.1 run check:api-drift
+
+check-drift-all: check-drift-go check-drift-ts
+
+check-doc-sync: bundle-spec
+	node --test scripts/check-api-overview-sync.test.mjs
+	node scripts/check-api-overview-sync.mjs
+
+check-coverage-threshold:
+	bash scripts/check-coverage-threshold.sh
 
 # ── Database Migrations ──
 
 migrate-up:
 	$(call require_database_url)
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+	$(MIGRATE_RUNTIME)
 
 migrate-down-one:
 	$(call require_database_url)
@@ -124,9 +142,9 @@ migrate-status:
 
 migrate-verify:
 	$(call require_database_url)
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+	$(MIGRATE_RUNTIME)
 	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" down 1
-	$(MIGRATE) -path migrations -database "$(DATABASE_URL)" up
+	$(MIGRATE_RUNTIME)
 
 seed-dev:
 	$(call require_database_url)

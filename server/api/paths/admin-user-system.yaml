@@ -108,7 +108,8 @@
         in: query
         description: 按学校筛选
         schema:
-          type: string
+          type: integer
+          format: int64
       - $ref: '../components/parameters/common.yaml#/PageParam'
       - $ref: '../components/parameters/common.yaml#/PageSizeParam'
     responses:
@@ -229,7 +230,8 @@
         required: true
         description: 学校 ID
         schema:
-          type: string
+          type: integer
+          format: int64
     requestBody:
       required: true
       content:

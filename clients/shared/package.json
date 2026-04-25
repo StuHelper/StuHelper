@@ -2,17 +2,77 @@
   "name": "@stuhelper/shared",
   "version": "1.0.0",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./api": "./src/api/index.ts",
-    "./types": "./src/types/index.ts",
-    "./utils": "./src/utils/index.ts",
-    "./constants": "./src/constants/index.ts"
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./api": {
+      "source": "./src/api/index.ts",
+      "types": "./dist/api/index.d.ts",
+      "import": "./dist/api/index.js"
+    },
+    "./types": {
+      "source": "./src/types/index.ts",
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./business": {
+      "source": "./src/types/business/index.ts",
+      "types": "./dist/types/business/index.d.ts",
+      "import": "./dist/types/business/index.js"
+    },
+    "./course": {
+      "source": "./src/course.ts",
+      "types": "./dist/course.d.ts",
+      "import": "./dist/course.js"
+    },
+    "./review": {
+      "source": "./src/review.ts",
+      "types": "./dist/review.d.ts",
+      "import": "./dist/review.js"
+    },
+    "./draft": {
+      "source": "./src/draft.ts",
+      "types": "./dist/draft.d.ts",
+      "import": "./dist/draft.js"
+    },
+    "./reply": {
+      "source": "./src/reply.ts",
+      "types": "./dist/reply.d.ts",
+      "import": "./dist/reply.js"
+    },
+    "./utils": {
+      "source": "./src/utils/index.ts",
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
+    },
+    "./constants": {
+      "source": "./src/constants/index.ts",
+      "types": "./dist/constants/index.d.ts",
+      "import": "./dist/constants/index.js"
+    },
+    "./presentation": {
+      "source": "./src/presentation/index.ts",
+      "types": "./dist/presentation/index.d.ts",
+      "import": "./dist/presentation/index.js"
+    },
+    "./notification": {
+      "source": "./src/notification.ts",
+      "types": "./dist/notification.d.ts",
+      "import": "./dist/notification.js"
+    }
   },
   "scripts": {
-    "type-check": "tsc --noEmit"
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

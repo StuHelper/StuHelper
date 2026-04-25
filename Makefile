@@ -1,6 +1,12 @@
-.PHONY: help dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod
+.PHONY: help dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs
 
 .DEFAULT_GOAL := help
+
+PROD_ENV_FILE := $(CURDIR)/.env.prod.shared
+PROD_SECRETS_ENV_FILE := $(CURDIR)/.env.prod.secrets.local
+PROD_GENERATED_ENV_FILE := $(CURDIR)/.env.prod.generated
+PROD_GENERATED_SECRET_ENV_FILE := $(CURDIR)/.env.prod.generated.secrets
+PROD_RUNTIME_ENV := ENV_FILE="$(PROD_ENV_FILE)" SECRETS_ENV_FILE="$(PROD_SECRETS_ENV_FILE)" GENERATED_ENV_FILE="$(PROD_GENERATED_ENV_FILE)" GENERATED_SECRET_ENV_FILE="$(PROD_GENERATED_SECRET_ENV_FILE)"
 
 help:
 	@echo "StuHelper automation entrypoints"
@@ -25,9 +31,9 @@ help:
 	@echo "  make obs-smoke  - run observability smoke checks"
 	@echo ""
 	@echo "Production:"
-	@echo "  make prod-init   - generate production shared/secrets env files"
+	@echo "  make prod-init   - generate production shared/secrets env skeletons with required placeholders"
 	@echo "  make prod-render - render generated observability configs"
-	@echo "  make prod-deploy - build, bootstrap, deploy, and smoke-check prod stack"
+	@echo "  make prod-deploy - pull pinned production images, bootstrap, deploy, and smoke-check prod stack"
 	@echo "  make prod-rollback - rollback to the previous successful production tag"
 	@echo "  make deploy      - alias for prod-deploy"
 	@echo "  make deploy-bundle - create CI/remote deploy bundle tarball"
@@ -51,7 +57,7 @@ dev-up:
 	./infra/ops/dev-up.sh
 
 dev-docker-up:
-	./infra/ops/dev-docker-up.sh
+	DEV_UP_MODE=dockerized ./infra/ops/dev-up.sh
 
 dev-down:
 	./infra/ops/dev-down.sh
@@ -87,10 +93,10 @@ obs-smoke:
 	./infra/ops/observability-smoke-check.sh
 
 prod-init:
-	ENV_FILE="$(CURDIR)/.env.prod.shared" SECRETS_ENV_FILE="$(CURDIR)/.env.prod.secrets.local" GENERATED_ENV_FILE="$(CURDIR)/.env.prod.generated" ./infra/ops/init-prod-env.sh
+	$(PROD_RUNTIME_ENV) ./infra/ops/init-prod-env.sh
 
 prod-render:
-	ENV_FILE="$(CURDIR)/.env.prod.shared" SECRETS_ENV_FILE="$(CURDIR)/.env.prod.secrets.local" GENERATED_ENV_FILE="$(CURDIR)/.env.prod.generated" ./infra/ops/render-observability.sh prod
+	$(PROD_RUNTIME_ENV) ./infra/ops/render-observability.sh prod
 
 deploy-bundle:
 	./infra/ops/build-deploy-bundle.sh
@@ -98,20 +104,20 @@ deploy-bundle:
 deploy: prod-deploy
 
 prod-deploy:
-	ENV_FILE="$(CURDIR)/.env.prod.shared" SECRETS_ENV_FILE="$(CURDIR)/.env.prod.secrets.local" GENERATED_ENV_FILE="$(CURDIR)/.env.prod.generated" ./infra/ops/prod-deploy.sh
+	$(PROD_RUNTIME_ENV) ./infra/ops/prod-deploy.sh
 
 prod-rollback:
-	ENV_FILE="$(CURDIR)/.env.prod.shared" SECRETS_ENV_FILE="$(CURDIR)/.env.prod.secrets.local" GENERATED_ENV_FILE="$(CURDIR)/.env.prod.generated" ./infra/ops/prod-rollback.sh
+	$(PROD_RUNTIME_ENV) ./infra/ops/prod-rollback.sh
 
 prod-down:
-	ENV_FILE="$(CURDIR)/.env.prod.shared" SECRETS_ENV_FILE="$(CURDIR)/.env.prod.secrets.local" GENERATED_ENV_FILE="$(CURDIR)/.env.prod.generated" ./infra/ops/prod-down.sh
+	$(PROD_RUNTIME_ENV) ./infra/ops/prod-down.sh
 
 prod-reset:
-	ENV_FILE="$(CURDIR)/.env.prod.shared" SECRETS_ENV_FILE="$(CURDIR)/.env.prod.secrets.local" GENERATED_ENV_FILE="$(CURDIR)/.env.prod.generated" REMOVE_VOLUMES=true ./infra/ops/prod-down.sh
+	$(PROD_RUNTIME_ENV) REMOVE_VOLUMES=true ./infra/ops/prod-down.sh
 
 prod-smoke:
-	ENV_FILE="$(CURDIR)/.env.prod.shared" SECRETS_ENV_FILE="$(CURDIR)/.env.prod.secrets.local" GENERATED_ENV_FILE="$(CURDIR)/.env.prod.generated" ./infra/ops/smoke-check.sh && \
-	ENV_FILE="$(CURDIR)/.env.prod.shared" SECRETS_ENV_FILE="$(CURDIR)/.env.prod.secrets.local" GENERATED_ENV_FILE="$(CURDIR)/.env.prod.generated" ./infra/ops/observability-smoke-check.sh
+	$(PROD_RUNTIME_ENV) ./infra/ops/smoke-check.sh && \
+	$(PROD_RUNTIME_ENV) ./infra/ops/observability-smoke-check.sh
 
 ansible-bootstrap:
 	cd infra/ansible && ansible-playbook -i inventory/production.ini playbooks/bootstrap.yml
@@ -127,3 +133,7 @@ ansible-rollback-staging:
 
 ansible-rollback-prod:
 	cd infra/ansible && ansible-playbook -i inventory/production.ini playbooks/rollback.yml -e env_name=production
+
+check-docs:
+	node --test scripts/check-docs-hygiene.test.mjs
+	bash scripts/check-docs-hygiene.sh

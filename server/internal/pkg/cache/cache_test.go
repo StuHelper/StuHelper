@@ -7,29 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
 // setupTestRedis creates a miniredis instance and returns a connected client.
-func setupTestRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
+func setupTestRedis(t *testing.T) (*redis.Client, *redisfixture.Fixture) {
 	t.Helper()
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		mr.Close()
-	})
-
-	client := redis.NewClient(&redis.Options{
-		Addr: mr.Addr(),
-	})
-	t.Cleanup(func() {
-		_ = client.Close()
-	})
-
-	return client, mr
+	fixture := redisfixture.Start(t)
+	return fixture.Client, fixture
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +159,7 @@ func TestGetInt_Miss(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSet_TTLExpiry(t *testing.T) {
-	client, mr := setupTestRedis(t)
+	client, fixture := setupTestRedis(t)
 	h := NewHelper(client)
 	ctx := context.Background()
 
@@ -181,7 +170,7 @@ func TestSet_TTLExpiry(t *testing.T) {
 	assert.True(t, ok)
 
 	// Fast-forward past TTL
-	mr.FastForward(3 * time.Second)
+	fixture.Server.FastForward(3 * time.Second)
 
 	_, ok = h.GetRaw(ctx, "ttl:1")
 	assert.False(t, ok)
@@ -285,6 +274,23 @@ func TestGetVersion_EvictsWhenOverLimit(t *testing.T) {
 	h.vmu.RUnlock()
 
 	assert.LessOrEqual(t, count, 3, "local version cache should not exceed maxVersionEntries")
+}
+
+func TestGetVersion_OverflowKeepsNewestEntry(t *testing.T) {
+	client, _ := setupTestRedis(t)
+	h := NewHelperWithMaxVersions(client, 1)
+	ctx := context.Background()
+
+	require.NoError(t, client.Set(ctx, VersionKey("alpha"), "7", time.Minute).Err())
+	require.NoError(t, client.Set(ctx, VersionKey("beta"), "9", time.Minute).Err())
+
+	assert.Equal(t, "7", h.GetVersion(ctx, "alpha"))
+	assert.Equal(t, "9", h.GetVersion(ctx, "beta"))
+
+	h.vmu.RLock()
+	defer h.vmu.RUnlock()
+	assert.Len(t, h.versions, 1)
+	assert.Equal(t, "9", h.versions[VersionKey("beta")].version)
 }
 
 // ---------------------------------------------------------------------------

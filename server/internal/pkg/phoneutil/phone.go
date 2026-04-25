@@ -5,11 +5,20 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"regexp"
 	"strings"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
+
+// mainlandPhonePattern 中国大陆手机号正则（号段 13x-19x，共 11 位）
+var mainlandPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
+
+// IsValidMainlandPhone 判断是否为合法的中国大陆手机号。
+func IsValidMainlandPhone(phone string) bool {
+	return mainlandPhonePattern.MatchString(phone)
+}
 
 const phoneLookupScope = "phone_lookup:"
 

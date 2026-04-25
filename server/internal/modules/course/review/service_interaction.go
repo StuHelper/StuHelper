@@ -191,9 +191,14 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 	params.Content = sanitizer.SanitizeText(params.Content)
 
 	// 敏感词检查
-	checkResult := s.filter.CheckContent(ctx, params.Content)
-	if !checkResult.IsValid {
-		return nil, ErrSensitiveContent
+	checkResult, err := s.filter.CheckContent(ctx, params.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	replyStatus, err := buildReplyModerationStatus(checkResult)
+	if err != nil {
+		return nil, err
 	}
 
 	var replyID string
@@ -207,15 +212,28 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 		if !exists {
 			return ErrReviewNotFound
 		}
+		if params.ParentID != nil {
+			belongs, err := s.repo.ReplyBelongsToReviewTx(ctx, tx, *params.ParentID, params.ReviewID)
+			if err != nil {
+				return err
+			}
+			if !belongs {
+				return ErrReplyNotFound
+			}
+		}
 
 		replyID, replyTS, err = s.repo.CreateReply(ctx, tx, CreateReplyParams{
 			ReviewID: params.ReviewID,
 			ParentID: params.ParentID,
 			UserHash: params.UserHash,
 			Content:  params.Content,
+			Status:   replyStatus,
 		})
 		if err != nil {
 			return err
+		}
+		if !isPublicReviewStatus(replyStatus) {
+			return nil
 		}
 		return s.repo.IncrementReplyCount(ctx, tx, params.ReviewID)
 	}); err != nil {
@@ -228,8 +246,10 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 	}
 
 	// 发送回复通知给评价作者
-	if s.notifSender != nil {
-		go s.sendReplyNotification(context.Background(), params.ReviewID, params.UserHash)
+	if isPublicReviewStatus(replyStatus) {
+		s.dispatchNotification(ctx, func(notifCtx context.Context) {
+			s.sendReplyNotification(notifCtx, params.ReviewID, params.UserHash)
+		})
 	}
 
 	return &CreateReplyResult{
@@ -239,7 +259,7 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 			ParentID:  params.ParentID,
 			Content:   params.Content,
 			LikeCount: 0,
-			Status:    StatusPublished,
+			Status:    replyStatus,
 			IsOwner:   true,
 			CreatedAt: replyTS.CreatedAt,
 			UpdatedAt: replyTS.UpdatedAt,
@@ -312,54 +332,11 @@ func (s *Service) DeleteReply(ctx context.Context, params DeleteReplyParams) err
 		if err := s.repo.SoftDeleteReply(ctx, tx, params.ReplyID); err != nil {
 			return err
 		}
-		return s.repo.DecrementReplyCount(ctx, tx, reviewID)
+		if isPublicReviewStatus(status) {
+			return s.repo.DecrementReplyCount(ctx, tx, reviewID)
+		}
+		return nil
 	})
-}
-
-// GetNotificationsParams 获取通知列表参数
-type GetNotificationsParams struct {
-	UserID   int64
-	Page     int
-	PageSize int
-}
-
-// GetNotificationsResult 获取通知列表结果
-type GetNotificationsResult struct {
-	List   []Notification
-	Total  int
-	Unread int
-}
-
-// GetNotifications 获取通知列表
-func (s *Service) GetNotifications(ctx context.Context, params GetNotificationsParams) (*GetNotificationsResult, error) {
-	pageSize := httputil.ClampPageSize(params.PageSize)
-	offset := httputil.SafeOffset(params.Page, pageSize)
-	result, err := s.repo.ListNotifications(ctx, params.UserID, pageSize, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GetNotificationsResult{List: result.List, Total: result.Total, Unread: result.Unread}, nil
-}
-
-// GetUnreadNotificationCount 获取未读通知数量
-func (s *Service) GetUnreadNotificationCount(ctx context.Context, userID int64) (int, error) {
-	return s.repo.CountUnreadNotifications(ctx, userID)
-}
-
-// MarkNotificationRead 标记通知已读
-func (s *Service) MarkNotificationRead(ctx context.Context, id string, userID int64) error {
-	return s.repo.MarkNotificationRead(ctx, id, userID)
-}
-
-// MarkAllNotificationsRead 标记所有通知已读
-func (s *Service) MarkAllNotificationsRead(ctx context.Context, userID int64) error {
-	return s.repo.MarkAllNotificationsRead(ctx, userID)
-}
-
-// ResolveInternalUserID 根据认证上下文中的 external_id 解析内部用户 ID。
-func (s *Service) ResolveInternalUserID(ctx context.Context, externalID string) (int64, error) {
-	return s.repo.GetInternalUserIDByExternalID(ctx, externalID)
 }
 
 // sendReplyNotification 异步发送回复通知给评价作者
@@ -368,7 +345,7 @@ func (s *Service) sendReplyNotification(ctx context.Context, reviewID, replierHa
 	if err != nil || review == nil {
 		return
 	}
-	// Don't notify self
+	// 自己回复自己时不发送通知
 	if review.UserHash == replierHash {
 		return
 	}

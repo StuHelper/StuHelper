@@ -7,9 +7,11 @@ import (
 )
 
 // NewServiceForTest 创建用于测试的 Token 管理服务。
-// Zitadel 架构下 Token Service 不再验证 JWT，只管理黑名单和 TTL。
+// 此函数仅供 _test.go 文件调用，不应被生产代码引用。
 func NewServiceForTest(rdb *redis.Client) *Service {
-	_ = crypto.InitHMACKey("test-token-helper-secret", false) //nolint:errcheck // 测试初始化，幂等
+	if err := crypto.InitHMACKey("test-token-helper-secret", false); err != nil {
+		panic("NewServiceForTest: InitHMACKey: " + err.Error())
+	}
 
 	svc, err := NewService(ServiceConfig{
 		RedisClient: rdb,

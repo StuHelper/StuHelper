@@ -7,9 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -50,13 +52,13 @@ func (h *Handler) handleGetUserSurface(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{
-		"displayName":        surface.DisplayName,
-		"avatarURL":          surface.AvatarURL,
-		"identityStatus":     surface.IdentityStatus,
-		"verificationStatus": surface.VerificationStatus,
-		"phoneBound":         surface.PhoneBound,
-		"capabilities":       surface.Capabilities,
+	response.Success(c, userSurfaceResponse{
+		DisplayName:        surface.DisplayName,
+		AvatarURL:          surface.AvatarURL,
+		IdentityStatus:     surface.IdentityStatus,
+		VerificationStatus: surface.VerificationStatus,
+		PhoneBound:         surface.PhoneBound,
+		Capabilities:       nonNilStrings(surface.Capabilities),
 	})
 }
 
@@ -83,19 +85,11 @@ func (h *Handler) handleSubmitIdentity(c *gin.Context) {
 
 	identity, err := h.service.SubmitIdentity(c.Request.Context(), userID, SubmitIdentityRequest(req))
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrIdentityAlreadyVerified):
-			response.Conflict(c, "identity already verified", errs.ErrIdentityAlreadyVerified)
-		case errors.Is(err, ErrIdentityAlreadyExists):
-			response.Conflict(c, "identity already submitted", errs.ErrIdentityAlreadyExists)
-		case errors.Is(err, ErrPhotoRequired):
-			response.BadRequest(c, "photo upload required for non-mainland documents", errs.ErrIdentityPhotoRequired)
-		case errors.Is(err, ErrIdentityPhotoInvalidRef):
-			response.BadRequest(c, "invalid identity photo reference")
-		default:
-			logger.FromGin(c).Error("failed to submit identity", zap.Error(err))
-			response.InternalError(c, "failed to submit identity")
+		if respondSubmitIdentityError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to submit identity", zap.Error(err))
+		response.InternalError(c, "failed to submit identity")
 		return
 	}
 
@@ -123,24 +117,18 @@ func (h *Handler) handleUploadIdentityPhoto(c *gin.Context) {
 
 	key, err := h.service.UploadIdentityPhoto(c.Request.Context(), userID, UploadIdentityPhotoRequest(req))
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrIdentityPhotoStoreDisabled):
+		if errors.Is(err, ErrIdentityPhotoStoreDisabled) {
 			logger.FromGin(c).Error("identity photo storage is not configured", zap.Error(err))
-			response.InternalError(c, "identity photo upload is not available")
-		case errors.Is(err, ErrIdentityPhotoTooLarge):
-			response.BadRequest(c, "identity photo is too large")
-		case errors.Is(err, ErrIdentityPhotoInvalidType):
-			response.BadRequest(c, "identity photo content type is invalid")
-		case errors.Is(err, ErrIdentityPhotoInvalidData), errors.Is(err, ErrIdentityPhotoInvalidRef):
-			response.BadRequest(c, "identity photo data is invalid")
-		default:
-			logger.FromGin(c).Error("failed to upload identity photo", zap.Error(err))
-			response.InternalError(c, "failed to upload identity photo")
 		}
+		if respondUploadIdentityPhotoError(c, err) {
+			return
+		}
+		logger.FromGin(c).Error("failed to upload identity photo", zap.Error(err))
+		response.InternalError(c, "failed to upload identity photo")
 		return
 	}
 
-	response.Created(c, gin.H{"key": key})
+	response.Created(c, uploadIdentityPhotoResponse{Key: key})
 }
 
 func (h *Handler) handleGetProfile(c *gin.Context) {
@@ -164,7 +152,7 @@ func (h *Handler) handleGetProfile(c *gin.Context) {
 }
 
 type verifyStudentHTTPRequest struct {
-	SchoolID       string         `json:"schoolID" binding:"required,max=10"`
+	SchoolID       int64          `json:"schoolID" binding:"required,min=1"`
 	StudentID      string         `json:"studentID" binding:"omitempty,max=50"`
 	Password       string         `json:"password" binding:"omitempty,max=200"`
 	ManualFormData map[string]any `json:"manualFormData"`
@@ -185,41 +173,11 @@ func (h *Handler) handleVerifyStudent(c *gin.Context) {
 
 	profile, err := h.service.VerifyStudent(c.Request.Context(), userID, VerifyStudentRequest(req))
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrIdentityRequired):
-			response.Forbidden(c, "identity verification required before student verification", errs.ErrForbidden)
-		case errors.Is(err, ErrProfileAlreadyVerified):
-			response.Conflict(c, "student profile already verified", errs.ErrProfileAlreadyVerified)
-		case errors.Is(err, ErrProfilePendingReview):
-			response.Conflict(c, "student profile is pending review", errs.ErrProfilePendingReview)
-		case errors.Is(err, ErrSchoolNotFound):
-			response.NotFound(c, "school not found", errs.ErrProfileSchoolNotFound)
-		case errors.Is(err, ErrSchoolDisabled):
-			response.BadRequest(c, "school verification is not enabled", errs.ErrProfileSchoolDisabled)
-		case errors.Is(err, ErrConsentRequired):
-			response.BadRequest(c, "consent is required for verification", errs.ErrProfileConsentRequired)
-		case errors.Is(err, ErrStudentIDRequired):
-			response.BadRequest(c, "student ID is required for this verification method")
-		case errors.Is(err, ErrPasswordRequired):
-			response.BadRequest(c, "password is required for this verification method")
-		case errors.Is(err, ErrManualFieldRequired):
-			response.BadRequest(c, "required form field is missing")
-		case errors.Is(err, ErrManualFieldInvalid):
-			response.BadRequest(c, "form field validation failed")
-		case errors.Is(err, ErrInvalidAcademicDBTable):
-			response.BadRequest(c, "school academic table configuration is invalid", errs.ErrProfileAcademicTable)
-		case errors.Is(err, ErrAcademicTableNotConfigured):
-			response.BadRequest(c, "school academic table is not configured", errs.ErrAcademicTableNotConfigured)
-		case errors.Is(err, ErrSchoolLDAPConfigMissing):
-			response.BadRequest(c, "school LDAP configuration is missing", errs.ErrSchoolLDAPConfigMissing)
-		case errors.Is(err, ErrLDAPConfigInvalid):
-			response.BadRequest(c, "school LDAP configuration is invalid", errs.ErrLDAPConfigInvalid)
-		case errors.Is(err, ErrLDAPFailed):
-			response.BadRequest(c, "LDAP verification failed, please check your credentials", errs.ErrProfileLDAPFailed)
-		default:
-			logger.FromGin(c).Error("failed to verify student", zap.Error(err))
-			response.InternalError(c, "failed to verify student")
+		if respondVerifyStudentError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to verify student", zap.Error(err))
+		response.InternalError(c, "failed to verify student")
 		return
 	}
 
@@ -250,36 +208,28 @@ func (h *Handler) handleRequestBindPhoneOTP(c *gin.Context) {
 		return
 	}
 	phone := strings.TrimSpace(req.Phone)
-	if !phonePattern.MatchString(phone) {
+	if !phoneutil.IsValidMainlandPhone(phone) {
 		response.BadRequest(c, "invalid phone number format")
 		return
 	}
 
-	code, err := h.otpService.Generate(c.Request.Context(), phone)
-	if err != nil {
-		msg := err.Error()
-		if strings.Contains(msg, "cooldown") || strings.Contains(msg, "wait") {
+	if err := h.otpService.IssueCode(c.Request.Context(), phone, h.smsService); err != nil {
+		if errors.Is(err, auth.ErrOTPPhoneRateLimited) {
+			response.RateLimitExceeded(c, "too many verification code requests for this phone number")
+			return
+		}
+		if errors.Is(err, auth.ErrOTPCooldown) {
 			response.RateLimitExceeded(c, "please wait before requesting a new code")
 			return
 		}
-		logger.FromGin(c).Error("failed to generate OTP for bind phone", zap.Error(err))
+		logger.FromGin(c).Error("failed to send bind phone OTP", zap.Error(err))
 		response.InternalError(c, "failed to send verification code")
 		return
 	}
 
-	internationalPhone := "+86" + phone
-	if err := h.smsService.Send(c.Request.Context(), internationalPhone, code); err != nil {
-		if cleanupErr := h.otpService.Cleanup(c.Request.Context(), phone); cleanupErr != nil {
-			logger.FromGin(c).Warn("failed to cleanup OTP after SMS send failure", zap.Error(cleanupErr))
-		}
-		logger.FromGin(c).Error("failed to send SMS for bind phone", zap.Error(err))
-		response.InternalError(c, "failed to send verification code")
-		return
-	}
-
-	response.Success(c, gin.H{
-		"message":  "verification code sent",
-		"cooldown": 60,
+	response.Success(c, bindPhoneOTPResponse{
+		Message:  "verification code sent",
+		Cooldown: h.otpService.CooldownSeconds(),
 	})
 }
 
@@ -296,7 +246,7 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 	}
 
 	phone := strings.TrimSpace(req.Phone)
-	if !phonePattern.MatchString(phone) {
+	if !phoneutil.IsValidMainlandPhone(phone) {
 		response.BadRequest(c, "invalid phone number format")
 		return
 	}
@@ -307,15 +257,14 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 	}
 
 	if err := h.otpService.Verify(c.Request.Context(), phone, req.OTPCode); err != nil {
-		msg := err.Error()
 		switch {
-		case strings.Contains(msg, "expired"):
+		case errors.Is(err, auth.ErrOTPExpired):
 			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
 			return
-		case strings.Contains(msg, "too many"), strings.Contains(msg, "attempts"):
+		case errors.Is(err, auth.ErrOTPMaxAttempts):
 			response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
 			return
-		case strings.Contains(msg, "invalid"):
+		case errors.Is(err, auth.ErrOTPInvalidCode):
 			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
 			return
 		}
@@ -326,16 +275,7 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 
 	err := h.service.BindPhone(c.Request.Context(), userID, phone)
 	if err != nil {
-		if errors.Is(err, ErrInvalidPhoneFormat) {
-			response.BadRequest(c, "invalid phone number format")
-			return
-		}
-		if errors.Is(err, ErrPhoneAlreadyBound) {
-			response.Conflict(c, "phone number already bound")
-			return
-		}
-		if errors.Is(err, ErrProfileNotFound) {
-			response.NotFound(c, "student profile not found", errs.ErrProfileNotFound)
+		if respondBindPhoneError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to bind phone", zap.Error(err))
@@ -343,7 +283,7 @@ func (h *Handler) handleBindPhone(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"message": "phone number updated"})
+	response.Success(c, messageResponse{Message: "phone number updated"})
 }
 
 func (h *Handler) handleGetAcademicInfo(c *gin.Context) {
@@ -363,48 +303,36 @@ func (h *Handler) handleGetAcademicInfo(c *gin.Context) {
 		return
 	}
 
-	schoolID := ""
+	var schoolID int64
 	if profile.SchoolID != nil {
 		schoolID = *profile.SchoolID
 	}
 
 	student, err := h.service.GetAcademicInfo(c.Request.Context(), schoolID, *profile.ActiveStudentID)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrSchoolNotFound):
-			response.NotFound(c, "school configuration not found", errs.ErrProfileSchoolNotFound)
-			return
-		case errors.Is(err, ErrSchoolDisabled):
-			response.BadRequest(c, "school verification channel disabled", errs.ErrProfileSchoolDisabled)
-			return
-		case errors.Is(err, ErrAcademicTableNotConfigured):
-			response.BadRequest(c, "academic table is not configured", errs.ErrAcademicTableNotConfigured)
-			return
-		case errors.Is(err, ErrInvalidAcademicDBTable):
-			response.BadRequest(c, "academic table configuration is invalid", errs.ErrProfileAcademicTable)
-			return
-		default:
-			logger.FromGin(c).Error("failed to get academic info", zap.Error(err))
-			response.InternalError(c, "failed to get academic information")
+		if respondAcademicInfoError(c, err) {
 			return
 		}
+		logger.FromGin(c).Error("failed to get academic info", zap.Error(err))
+		response.InternalError(c, "failed to get academic information")
+		return
 	}
 	if student == nil {
 		response.NotFound(c, "academic record not found")
 		return
 	}
 
-	response.Success(c, gin.H{
-		"xh":     student.XH,
-		"xm":     student.XM,
-		"yxdm":   student.YXDM,
-		"zydm":   student.ZYDM,
-		"bjdm":   student.BJDM,
-		"xznj":   student.XZNJ,
-		"rxnj":   student.RXNJ,
-		"pyccdm": student.PYCCDM,
-		"sjh":    student.SJH,
-		"dzxx":   student.DZXX,
+	response.Success(c, academicInfoResponse{
+		XH:     student.XH,
+		XM:     student.XM,
+		YXDM:   student.YXDM,
+		ZYDM:   student.ZYDM,
+		BJDM:   student.BJDM,
+		XZNJ:   student.XZNJ,
+		RXNJ:   student.RXNJ,
+		PYCCDM: student.PYCCDM,
+		SJH:    student.SJH,
+		DZXX:   student.DZXX,
 	})
 }
 
@@ -416,12 +344,12 @@ func (h *Handler) handleListSchools(c *gin.Context) {
 		return
 	}
 
-	list := make([]gin.H, 0, len(schools))
+	list := make([]schoolConfigPublicResponse, 0, len(schools))
 	for i := range schools {
 		item, err := schoolConfigPublicToJSON(&schools[i])
 		if err != nil {
 			logger.FromGin(c).Error("failed to serialize school config",
-				zap.String("school_id", schools[i].SchoolID),
+				zap.Int64("school_id", schools[i].SchoolID),
 				zap.Error(err),
 			)
 			response.InternalError(c, "failed to list schools")

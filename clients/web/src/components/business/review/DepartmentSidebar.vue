@@ -71,9 +71,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Department, Course, CourseCategory } from '@/types/course'
+import type { Department, Course, CourseCategory } from '@stuhelper/shared/course'
 import CourseListItem from './CourseListItem.vue'
-import { buildDepartmentCoursesQuery, buildDepartmentListQuery } from '@/utils/filterQueryBuilders'
 
 const route = useRoute()
 
@@ -112,7 +111,7 @@ async function loadCategories() {
   try {
     const res = await api.course.getCategories()
     categories.value = res.data?.data || []
-  } catch {
+  } catch (_error) { void _error;
     categories.value = []
   }
 }
@@ -120,13 +119,14 @@ async function loadCategories() {
 async function loadDepartments() {
   deptLoading.value = true
   try {
+    const normalizedCategory = activeCategory.value.trim()
     const res = await api.course.getDepartments(
-      buildDepartmentListQuery(activeCategory.value)
+      normalizedCategory ? { category: normalizedCategory } : {}
     )
     departments.value = res.data?.data || []
     // 清空展开状态
-    expandedDepts.value.clear()
-  } catch {
+    expandedDepts.value = new Set()
+  } catch (_error) { void _error;
     departments.value = []
   } finally {
     deptLoading.value = false
@@ -146,11 +146,13 @@ function selectCategory(catId: string) {
 
 async function toggleDept(id: number) {
   if (expandedDepts.value.has(id)) {
-    expandedDepts.value.delete(id)
+    const next = new Set(expandedDepts.value)
+    next.delete(id)
+    expandedDepts.value = next
     return
   }
 
-  expandedDepts.value.add(id)
+  expandedDepts.value = new Set([...expandedDepts.value, id])
 
   // 已有缓存则不重新请求
   if (deptCourses.value.has(id)) return
@@ -160,14 +162,20 @@ async function toggleDept(id: number) {
   const version = categoryVersion
   loadingDepts.value = new Set([...loadingDepts.value, id])
   try {
+    const normalizedCategory = activeCategory.value.trim()
     const res = await api.course.getCourses(
-      buildDepartmentCoursesQuery(id, activeCategory.value)
+      {
+        page: 1,
+        pageSize: 100,
+        departmentID: id,
+        ...(normalizedCategory ? { category: normalizedCategory } : {}),
+      }
     )
     // 仅当分类未切换时才写入缓存
     if (version === categoryVersion) {
       deptCourses.value.set(id, res.data?.data?.list || [])
     }
-  } catch {
+  } catch (_error) { void _error;
     if (version === categoryVersion) {
       deptCourses.value.set(id, [])
     }

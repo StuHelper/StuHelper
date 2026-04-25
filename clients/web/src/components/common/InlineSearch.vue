@@ -88,7 +88,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Search } from 'lucide-vue-next'
 import { api } from '@/api'
-import type { Course } from '@/types/course'
+import type { Course } from '@stuhelper/shared/course'
 
 interface RecentItem {
   id: number
@@ -158,7 +158,7 @@ watch(query, (val) => {
     } catch (err) {
       // 被取消的请求不更新状态（API 客户端会将 AbortError 包装为 ApiError）
       if (controller.signal.aborted) return
-      console.warn('[InlineSearch] Search failed:', err)
+      if (import.meta.env.DEV) { console.warn('[InlineSearch] Search failed:', err) }
       if (query.value.trim() === trimmed) {
         results.value = []
       }
@@ -237,7 +237,7 @@ function loadRecent(): RecentItem[] {
     return parsed.filter((item): item is RecentItem =>
       typeof item === 'object' && item !== null && typeof item.name === 'string' && typeof item.id === 'number'
     ).slice(0, MAX_RECENT)
-  } catch {
+  } catch (_error) { void _error;
     return []
   }
 }
@@ -247,13 +247,20 @@ function saveRecent(item: RecentItem) {
   recentSearches.value = updated
   try {
     localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
-  } catch {
+  } catch (_error) { void _error;
     // localStorage 不可用时静默忽略
   }
 }
 
 // Cmd+K / Ctrl+K 全局快捷键聚焦搜索框
 function handleGlobalKeydown(e: KeyboardEvent) {
+  // Cmd+K / Ctrl+K works from any context (including editable fields)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault()
+    inputRef.value?.focus()
+    return
+  }
+
   const target = e.target as HTMLElement | null
   const isEditable = target instanceof HTMLInputElement
     || target instanceof HTMLTextAreaElement

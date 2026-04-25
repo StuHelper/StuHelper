@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col items-center justify-center py-8 px-4 text-center">
+  <div role="status" class="flex flex-col items-center justify-center py-8 px-4 text-center">
     <div class="w-16 h-16 text-text-muted mb-4 opacity-30">
       <slot name="icon">
         <svg class="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">

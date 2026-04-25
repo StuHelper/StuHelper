@@ -1,98 +1,60 @@
 <script lang="ts" setup>
-import type { VbenFormSchema } from '@vben/common-ui';
-import type { BasicOption } from '@vben/types';
+import { computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 
-import { computed, markRaw } from 'vue';
+import { preferences } from '@vben/preferences';
 
-import { AuthenticationLogin, SliderCaptcha, z } from '@vben/common-ui';
-import { $t } from '@vben/locales';
-
+import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'Login' });
 
+const route = useRoute();
 const authStore = useAuthStore();
 
-const MOCK_USER_OPTIONS: BasicOption[] = [
-  {
-    label: 'Super',
-    value: 'vben',
-  },
-  {
-    label: 'Admin',
-    value: 'admin',
-  },
-  {
-    label: 'User',
-    value: 'jack',
-  },
-];
+const isForbidden = computed(() => route.query.error === 'forbidden');
 
-const formSchema = computed((): VbenFormSchema[] => {
-  return [
-    {
-      component: 'VbenSelect',
-      componentProps: {
-        options: MOCK_USER_OPTIONS,
-        placeholder: $t('authentication.selectAccount'),
-      },
-      fieldName: 'selectAccount',
-      label: $t('authentication.selectAccount'),
-      rules: z
-        .string()
-        .min(1, { message: $t('authentication.selectAccount') })
-        .optional()
-        .default('vben'),
-    },
-    {
-      component: 'VbenInput',
-      componentProps: {
-        placeholder: $t('authentication.usernameTip'),
-      },
-      dependencies: {
-        trigger(values, form) {
-          if (values.selectAccount) {
-            const findUser = MOCK_USER_OPTIONS.find(
-              (item) => item.value === values.selectAccount,
-            );
-            if (findUser) {
-              form.setValues({
-                password: '123456',
-                username: findUser.value,
-              });
-            }
-          }
-        },
-        triggerFields: ['selectAccount'],
-      },
-      fieldName: 'username',
-      label: $t('authentication.username'),
-      rules: z.string().min(1, { message: $t('authentication.usernameTip') }),
-    },
-    {
-      component: 'VbenInputPassword',
-      componentProps: {
-        placeholder: $t('authentication.password'),
-      },
-      fieldName: 'password',
-      label: $t('authentication.password'),
-      rules: z.string().min(1, { message: $t('authentication.passwordTip') }),
-    },
-    {
-      component: markRaw(SliderCaptcha),
-      fieldName: 'captcha',
-      rules: z.boolean().refine((value) => value, {
-        message: $t('authentication.verifyRequiredTip'),
-      }),
-    },
-  ];
+// OIDC 完成后必须落到真实后台路由，不能回到 /auth/login，
+// 这样守卫才能执行 initSession() 并重新判断权限。
+// 优先使用深链传入的 ?redirect=，否则回到后台首页。
+const postLoginPath = computed(
+  () => (route.query.redirect as string) || preferences.app.defaultHomePath,
+);
+
+onMounted(async () => {
+  if (!isForbidden.value) {
+    await authStore.redirectToLogin(postLoginPath.value);
+  }
 });
+
+async function handleTryDifferentAccount() {
+  // 先清掉当前被拒绝的会话，再重新发起登录。
+  await authStore.logout(false);
+  await authStore.redirectToLogin(preferences.app.defaultHomePath);
+}
 </script>
 
 <template>
-  <AuthenticationLogin
-    :form-schema="formSchema"
-    :loading="authStore.loginLoading"
-    @submit="authStore.authLogin"
-  />
+  <div v-if="isForbidden" class="flex h-full items-center justify-center">
+    <div class="text-center">
+      <p class="text-destructive mb-2 text-2xl font-bold">
+        {{ $t('authentication.accessDenied') }}
+      </p>
+      <p class="text-muted-foreground mb-6 text-sm">
+        {{ $t('authentication.accessDeniedDesc') }}
+      </p>
+      <button
+        class="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm"
+        @click="handleTryDifferentAccount"
+      >
+        {{ $t('authentication.tryDifferentAccount') }}
+      </button>
+    </div>
+  </div>
+
+  <div v-else class="flex h-full items-center justify-center">
+    <p class="text-muted-foreground animate-pulse text-lg">
+      Redirecting to login...
+    </p>
+  </div>
 </template>

@@ -1,16 +1,13 @@
 package review
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
@@ -38,10 +35,8 @@ func (h *Handler) SaveDraft(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
@@ -56,15 +51,11 @@ func (h *Handler) SaveDraft(c *gin.Context) {
 		Ratings:   req.Ratings,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrCourseNotFound):
-			response.NotFound(c, "course not found", errs.ErrCourseNotFound)
-		case errors.Is(err, ErrDangerousContent):
-			response.BadRequest(c, "content contains potentially dangerous elements")
-		default:
-			logger.FromGin(c).Error("failed to save draft", zap.Error(err))
-			response.InternalError(c, "failed to save draft")
+		if respondSaveDraftError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to save draft", zap.Error(err))
+		response.InternalError(c, "failed to save draft")
 		return
 	}
 
@@ -79,21 +70,18 @@ func (h *Handler) GetDraft(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 
 	draft, err := h.service.GetDraft(c.Request.Context(), userHash, courseID)
 	if err != nil {
-		if errors.Is(err, ErrDraftNotFound) {
-			response.NotFound(c, "draft not found", errs.ErrDraftNotFound)
-		} else {
-			logger.FromGin(c).Error("failed to get draft", zap.Error(err))
-			response.InternalError(c, "failed to get draft")
+		if respondGetDraftError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to get draft", zap.Error(err))
+		response.InternalError(c, "failed to get draft")
 		return
 	}
 
@@ -108,10 +96,8 @@ func (h *Handler) DeleteDraft(c *gin.Context) {
 		return
 	}
 
-	userID := middleware.GetUserID(c)
-	userHash, err := httputil.HashUserID(userID)
-	if err != nil {
-		response.InternalError(c, "failed to hash user identity")
+	_, userHash, ok := h.resolveRequiredUserHash(c)
+	if !ok {
 		return
 	}
 

@@ -17,31 +17,40 @@ import (
 
 // Handler 认证处理器
 type Handler struct {
+	svc                  *Service
 	oidcClient           *oidc.Client
 	tokenService         *token.Service
 	tokenConfig          config.TokenConfig
 	redisClient          *redis.Client
 	refreshLimiter       *middleware.RedisRateLimiter
 	phoneLimiter         *middleware.RedisRateLimiter
-	userSyncRepo         UserSyncRepo
 	allowedRedirectHosts map[string]struct{}
 	defaultRedirectURL   string
 	otpService           *OTPService
 	smsService           *sms.Service
+	oidcIssuer           string
+}
+
+type HandlerConfig struct {
+	Token       config.TokenConfig
+	CORSOrigins []string
+	OIDCIssuer  string
 }
 
 // NewHandler 创建认证处理器
 func NewHandler(
-	cfg *config.Config,
+	cfg HandlerConfig,
 	tokenService *token.Service,
 	rdb *redis.Client,
 	oidcClient *oidc.Client,
 	userSyncRepo UserSyncRepo,
 	smsService *sms.Service,
 ) *Handler {
+	svc := NewService(cfg.Token, tokenService, userSyncRepo)
+
 	// 从 CORS_ORIGINS 构建允许的重定向地址白名单
-	redirectHosts := buildAllowedRedirectHosts(cfg.App.CORSOrigins)
-	defaultRedirect := buildDefaultRedirectURL(cfg.App.CORSOrigins)
+	redirectHosts := buildAllowedRedirectHosts(cfg.CORSOrigins)
+	defaultRedirect := buildDefaultRedirectURL(cfg.CORSOrigins)
 
 	var otpSvc *OTPService
 	if smsService != nil {
@@ -49,17 +58,18 @@ func NewHandler(
 	}
 
 	return &Handler{
+		svc:                  svc,
 		oidcClient:           oidcClient,
 		tokenService:         tokenService,
 		tokenConfig:          cfg.Token,
 		redisClient:          rdb,
-		userSyncRepo:         userSyncRepo,
 		refreshLimiter:       middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
 		phoneLimiter:         middleware.NewRedisRateLimiter(rdb, 5, time.Minute),
 		allowedRedirectHosts: redirectHosts,
 		defaultRedirectURL:   defaultRedirect,
 		otpService:           otpSvc,
 		smsService:           smsService,
+		oidcIssuer:           cfg.OIDCIssuer,
 	}
 }
 
@@ -76,15 +86,18 @@ func buildAllowedRedirectHosts(corsOrigins []string) map[string]struct{} {
 	return hosts
 }
 
-// buildDefaultRedirectURL 从 CORS_ORIGINS 取第一个作为默认重定向地址
+// buildDefaultRedirectURL 从 CORS_ORIGINS 取第一个作为默认重定向地址。
+// CORS_ORIGINS 由 config.validate() 强制要求在所有环境（含 dev）非空，
+// 因此此处无需 localhost 兜底——若调用时仍为空即配置异常，立刻 panic 以便
+// fail-fast 暴露。
 func buildDefaultRedirectURL(corsOrigins []string) string {
-	if len(corsOrigins) > 0 {
-		origin := strings.TrimRight(strings.TrimSpace(corsOrigins[0]), "/")
+	for _, raw := range corsOrigins {
+		origin := strings.TrimRight(strings.TrimSpace(raw), "/")
 		if origin != "" {
 			return origin
 		}
 	}
-	return "http://localhost:3000"
+	panic("auth.buildDefaultRedirectURL: CORS_ORIGINS must be configured (config.validate() should have caught this)")
 }
 
 // RegisterPublicRoutes 注册不需要 CSRF 保护的公开路由。
@@ -96,6 +109,8 @@ func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 		phone.POST("/request-otp", middleware.RateLimitMiddleware(h.phoneLimiter), h.RequestPhoneOTP)
 		phone.POST("/verify-otp", middleware.RateLimitMiddleware(h.phoneLimiter), h.VerifyPhoneOTP)
 	}
+	// 原生 App 令牌交换：无 cookie / 无 CSRF，用一次性 state 做防重放
+	r.POST("/auth/exchange-native", middleware.RateLimitMiddleware(h.refreshLimiter), h.ExchangeNative)
 }
 
 // RegisterRoutes 注册认证路由

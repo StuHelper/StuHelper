@@ -1,4 +1,4 @@
--- TD-04: 认证方式与审批策略解耦
+-- 为学校认证配置增加审批策略字段
 -- 新增 approval_policy 字段，控制认证结果是否需要人工审核
 -- 值：auto（认证通过即批准）、manual（认证通过后仍需人工审核）
 ALTER TABLE school_configs ADD COLUMN IF NOT EXISTS approval_policy VARCHAR(20) NOT NULL DEFAULT 'auto';

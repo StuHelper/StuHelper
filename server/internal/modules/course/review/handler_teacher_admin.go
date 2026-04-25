@@ -1,14 +1,11 @@
 package review
 
 import (
-	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -85,8 +82,7 @@ func (h *Handler) UpdateTeacher(c *gin.Context) {
 	}
 
 	if err := h.service.UpdateTeacher(c.Request.Context(), id, req.Name, req.DepartmentID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "teacher not found", errs.ErrTeacherNotFound)
+		if respondTeacherLookupError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to update teacher", zap.Error(err))
@@ -110,8 +106,7 @@ func (h *Handler) DeleteTeacher(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteTeacher(c.Request.Context(), id); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "teacher not found", errs.ErrTeacherNotFound)
+		if respondTeacherLookupError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to delete teacher", zap.Error(err))

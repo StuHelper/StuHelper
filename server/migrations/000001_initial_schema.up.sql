@@ -1,9 +1,8 @@
 -- StuHelper baseline schema migration
--- Source snapshot: server/scripts/init.sql
+-- Historical baseline extracted into migration 000001; numbered migrations are the only schema authority.
 -- Note: Production schema evolution must go through numbered migrations in this directory.
 
 -- StuHelper 数据库初始化脚本（全量）
--- 使用方法: psql -U stuhelper -d stuhelper -f init.sql
 -- 包含: 用户表、课程表、评课社区全部业务表
 -- ID 策略: 用户可见实体 (courses/teachers/departments) 使用 BIGSERIAL，内部业务表使用 UUIDv7 (VARCHAR(36))
 
@@ -22,7 +21,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_external_id ON users(external_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
 -- ============================================
@@ -150,12 +148,12 @@ CREATE INDEX IF NOT EXISTS idx_reviews_teacher_id ON reviews(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_user_hash ON reviews(user_hash);
 CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
 CREATE INDEX IF NOT EXISTS idx_reviews_term_id ON reviews(term_id);
--- L-58: 此索引可能被 idx_reviews_course_status_created 和 idx_reviews_user_hash_created 覆盖，
+-- 此索引用于全局按时间倒序查询评课列表。
 -- 仅在全局按时间排序（不带 course_id/user_hash 过滤）时有用。
 -- 建议上线后用 EXPLAIN ANALYZE 验证实际查询是否命中此索引，若未命中可考虑移除。
 CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_avg_rating ON reviews(avg_rating DESC);
--- M-113: 索引列顺序 (course_id, status, created_at DESC) 经过优化：
+-- 该索引服务于按课程、状态、时间倒序查询的主读路径。
 -- course_id 等值过滤在前（高选择性），status 等值过滤居中，created_at DESC 用于排序避免 filesort。
 -- 此顺序匹配主查询 WHERE course_id=? AND status='published' ORDER BY created_at DESC。
 CREATE INDEX IF NOT EXISTS idx_reviews_course_status_created ON reviews(course_id, status, created_at DESC);
@@ -247,9 +245,9 @@ CREATE TABLE IF NOT EXISTS review_reports (
 CREATE INDEX IF NOT EXISTS idx_review_reports_review_id ON review_reports(review_id);
 CREATE INDEX IF NOT EXISTS idx_review_reports_status ON review_reports(status);
 CREATE INDEX IF NOT EXISTS idx_review_reports_created_at ON review_reports(created_at DESC);
--- M-35: 支持按 review_id + reporter_hash 快速查询是否已举报（去重检查）
+-- 该索引用于按评课与举报人快速检查重复举报。
 CREATE INDEX IF NOT EXISTS idx_review_reports_review_reporter ON review_reports(review_id, reporter_hash);
--- M-36: 支持管理后台按状态+时间排序查询举报列表
+-- 该索引用于管理后台按状态与时间倒序查询举报列表。
 CREATE INDEX IF NOT EXISTS idx_review_reports_status_created ON review_reports(status, created_at DESC);
 
 -- ============================================
@@ -310,7 +308,7 @@ CREATE TABLE IF NOT EXISTS review_replies (
     CONSTRAINT fk_review_replies_parent FOREIGN KEY (parent_id)
         REFERENCES review_replies(id) ON DELETE CASCADE,
     CONSTRAINT chk_review_replies_status CHECK (status IN ('published', 'hidden', 'deleted')),
-    CONSTRAINT chk_review_replies_content_length CHECK (LENGTH(TRIM(content)) >= 1 AND char_length(content) <= 5000)
+    CONSTRAINT chk_review_replies_content_length CHECK (char_length(btrim(content)) >= 1 AND char_length(content) <= 5000)
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_replies_review_id ON review_replies(review_id);
@@ -337,7 +335,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_hash ON notifications(user_has
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(user_hash, is_read);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_hash, created_at DESC);
--- M-38: 支持「未读通知列表」查询 WHERE user_hash=? AND is_read=false ORDER BY created_at DESC
+-- 该索引用于按用户读取未读通知并按时间倒序展示。
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read_created ON notifications(user_hash, is_read, created_at DESC);
 
 -- ============================================
@@ -520,6 +518,23 @@ CREATE TABLE IF NOT EXISTS academic.buaa_students (
 CREATE INDEX IF NOT EXISTS idx_buaa_students_sfzjh ON academic.buaa_students(sfzjh);
 CREATE INDEX IF NOT EXISTS idx_buaa_students_yxdm ON academic.buaa_students(yxdm);
 CREATE INDEX IF NOT EXISTS idx_buaa_students_rxnj ON academic.buaa_students(rxnj);
+
+COMMENT ON COLUMN academic.buaa_students.xh IS '学号 (student number)';
+COMMENT ON COLUMN academic.buaa_students.xm IS '姓名 (full name)';
+COMMENT ON COLUMN academic.buaa_students.sfzjlxdm IS '身份证件类型代码 (ID document type code)';
+COMMENT ON COLUMN academic.buaa_students.sfzjh IS '身份证件号 (ID document number)';
+COMMENT ON COLUMN academic.buaa_students.yxdm IS '院系代码 (department code)';
+COMMENT ON COLUMN academic.buaa_students.zydm IS '专业代码 (major code)';
+COMMENT ON COLUMN academic.buaa_students.bjdm IS '班级代码 (class code)';
+COMMENT ON COLUMN academic.buaa_students.xznj IS '学制年限/学制年级 (program duration / grade system code)';
+COMMENT ON COLUMN academic.buaa_students.rxnj IS '入学年级 (enrollment grade)';
+COMMENT ON COLUMN academic.buaa_students.pyccdm IS '培养层次代码 (education level code)';
+COMMENT ON COLUMN academic.buaa_students.xslbdm IS '学生类别代码 (student category code)';
+COMMENT ON COLUMN academic.buaa_students.sjh IS '手机号 (mobile phone number)';
+COMMENT ON COLUMN academic.buaa_students.dzxx IS '电子邮箱 (email address)';
+COMMENT ON COLUMN academic.buaa_students.xjztdm IS '学籍状态代码 (student status code)';
+COMMENT ON COLUMN academic.buaa_students.sfzx IS '是否在校 (on-campus status flag)';
+COMMENT ON COLUMN academic.buaa_students.sfzj IS '是否在籍 (registered status flag)';
 
 -- ============================================
 -- 25. 插入默认评分维度数据

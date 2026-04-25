@@ -9,6 +9,7 @@ Thumbs.db
 *~
 .run/
 .tools/
+.worktrees/
 
 # ==================== IDE ====================
 .idea/
@@ -21,6 +22,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+.deploy/
 credentials.json
 secrets.yaml
 config.local.*
@@ -69,7 +71,7 @@ coverage.xml
 *.dylib
 *.test
 *.out
-# go.work  # 注释掉：项目使用 go.work 管理 workspace
+# Go workspace files are local-only for this repository.
 vendor/
 server/stuhelper
 server/tmp/
@@ -80,16 +82,23 @@ docker-compose.override.yml
 infra/zitadel/bootstrap/*.pat
 infra/generated/*
 !infra/generated/.gitkeep
-!infra/generated/observability/
+infra/generated/observability/*
 !infra/generated/observability/.gitkeep
-!infra/generated/observability/prometheus/
+infra/generated/observability/prometheus/*
 !infra/generated/observability/prometheus/.gitkeep
-!infra/generated/observability/alertmanager/
+infra/generated/observability/alertmanager/*
 !infra/generated/observability/alertmanager/.gitkeep
-!infra/generated/postgres/
+infra/generated/postgres/*
 !infra/generated/postgres/.gitkeep
-!infra/generated/postgres/wal-archive/
+infra/generated/postgres/wal-archive/*
 !infra/generated/postgres/wal-archive/.gitkeep
+!infra/generated/zitadel/
+infra/generated/zitadel/*
+!infra/generated/zitadel/.gitkeep
+infra/ansible/inventory/*.ini
+!infra/ansible/inventory/*.example.ini
+go.work
+go.work.sum
 
 # ==================== 数据库与缓存 ====================
 *.db

@@ -329,12 +329,12 @@ function toggle(index: number): void {
   expanded[index] = !expanded[index]
 }
 
-/* ── Transition hooks for smooth accordion expand/collapse ── */
+/* ── 手风琴展开与收起过渡钩子 ── */
 function onEnter(el: Element): void {
   const htmlEl = el as HTMLElement
   htmlEl.style.height = '0'
   htmlEl.style.overflow = 'hidden'
-  // Force reflow so the initial height:0 is applied before transition starts
+  // 强制重排，确保初始 height:0 先落到页面上
   void htmlEl.offsetHeight
   htmlEl.style.height = `${htmlEl.scrollHeight}px`
 }
@@ -349,14 +349,14 @@ function onLeave(el: Element): void {
   const htmlEl = el as HTMLElement
   htmlEl.style.height = `${htmlEl.scrollHeight}px`
   htmlEl.style.overflow = 'hidden'
-  // Force reflow so the current height is applied before transitioning to 0
+  // 强制重排，确保当前高度先落到页面上再过渡到 0
   void htmlEl.offsetHeight
   htmlEl.style.height = '0'
 }
 </script>
 
 <style scoped>
-/* Accordion expand/collapse transition */
+/* 手风琴展开收起过渡 */
 .accordion-enter-active,
 .accordion-leave-active {
   transition: height 0.3s ease;

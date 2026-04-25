@@ -2,10 +2,13 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
-	"math/rand/v2"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -32,8 +35,18 @@ const retryBaseDelay = 100 * time.Millisecond
 // jitteredRetryDelay 返回带随机抖动的重试延迟，防止惊群效应
 func jitteredRetryDelay() time.Duration {
 	jitter := float64(retryBaseDelay) * 0.5
-	delta := rand.Float64()*2*jitter - jitter //nolint:gosec // G404: jitter for retry delay, not cryptographic
+	delta := cryptoRandFloat64()*2*jitter - jitter
 	return retryBaseDelay + time.Duration(delta)
+}
+
+// cryptoRandFloat64 使用 crypto/rand 生成 [0, 1) 范围的 float64
+func cryptoRandFloat64() float64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		logger.L().Warn("crypto/rand unavailable, falling back to time-based jitter seed", zap.Error(err))
+		return float64(time.Now().UnixNano()&((1<<53)-1)) / (1 << 53)
+	}
+	return float64(binary.LittleEndian.Uint64(b[:])>>11) / (1 << 53)
 }
 
 // DB 封装 pgxpool.Pool，提供带超时的查询方法
@@ -42,6 +55,7 @@ type DB struct {
 	timeout   time.Duration
 	stopCh    chan struct{}
 	closeOnce sync.Once
+	wg        sync.WaitGroup
 }
 
 // NewDB 创建带超时的数据库封装
@@ -51,7 +65,11 @@ func NewDB(pool *pgxpool.Pool, timeout time.Duration) *DB {
 		timeout: timeout,
 		stopCh:  make(chan struct{}),
 	}
-	go d.collectPoolMetrics()
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		d.collectPoolMetrics()
+	}()
 	return d
 }
 
@@ -116,9 +134,22 @@ type RowWithCancel struct {
 	span   trace.Span
 }
 
+func (r *RowWithCancel) release() {
+	r.row = nil
+	r.cancel = nil
+	r.db = nil
+	r.ctx = nil
+	r.sql = ""
+	r.args = nil
+	r.span = nil
+	r.start = time.Time{}
+}
+
 // Scan 扫描行数据，完成后自动取消 context
 // 对瞬时连接错误自动重试一次
 func (r *RowWithCancel) Scan(dest ...any) error {
+	defer r.release()
+
 	err := r.row.Scan(dest...)
 	duration := time.Since(r.start).Seconds()
 	metrics.DBQueryDuration.WithLabelValues("query_row", "").Observe(duration)
@@ -133,7 +164,9 @@ func (r *RowWithCancel) Scan(dest ...any) error {
 		metrics.DBQueryDuration.WithLabelValues("query_row", "retry").Observe(duration)
 	}
 
-	r.cancel()
+	if r.cancel != nil {
+		r.cancel()
+	}
 	status := "ok"
 	if err != nil {
 		status = "error"
@@ -216,12 +249,18 @@ func (d *DB) Ping(ctx context.Context) error {
 func (d *DB) Close() {
 	d.closeOnce.Do(func() {
 		close(d.stopCh)
+		d.wg.Wait()
 		d.pool.Close()
 	})
 }
 
 // collectPoolMetrics 定期采集连接池指标
 func (d *DB) collectPoolMetrics() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "db: collectPoolMetrics goroutine panicked: %v\n", r)
+		}
+	}()
 	// 启动时立即采集一次，避免前 15 秒无指标
 	stat := d.pool.Stat()
 	metrics.DBConnectionsActive.Set(float64(stat.AcquiredConns()))
@@ -306,14 +345,18 @@ func (d *DB) WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx)
 	}()
 
 	if err := fn(ctx, tx); err != nil {
-		if rbErr := tx.Rollback(ctx); rbErr != nil {
+		rbCtx, rbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer rbCancel()
+		if rbErr := tx.Rollback(rbCtx); rbErr != nil {
 			logger.L().Warn("tx rollback failed",
 				zap.Error(rbErr))
 		}
 		return err
 	}
 
-	return tx.Commit(ctx)
+	commitCtx, commitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer commitCancel()
+	return tx.Commit(commitCtx)
 }
 
 // isConnectionError 判断是否为瞬时连接错误（网络断开、连接重置等），

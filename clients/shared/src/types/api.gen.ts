@@ -85,7 +85,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 处理 OIDC 回调并重定向回前端 */
+        /**
+         * 处理 OIDC 回调并完成 302 跳转
+         * @description 服务端消费一次性 state 后完成 OIDC code exchange。
+         *     - Web/H5 state：写入会话 cookie，然后 302 到前端页面
+         *     - Native state：不写 cookie，而是 302 到 `stuhelper://auth/callback?...` deep link 交回 App
+         */
         get: operations["handleCallback"];
         put?: never;
         post?: never;
@@ -104,7 +109,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 刷新 Access Token */
+        /**
+         * 刷新 Access Token
+         * @description 支持两种传递 refresh token 的方式：
+         *     - **Web 浏览器**：通过 HttpOnly cookie 自动携带（cookieAuth）
+         *     - **原生 App**：通过请求体 JSON 传递（无 cookie 环境）
+         *
+         *     原生 App 请求时，响应额外包含 accessToken 和 refreshToken 字段，
+         *     供客户端更新本地存储。
+         *     如果 token 来源于 `/api/v1/auth/exchange-native`，客户端还必须在请求头
+         *     `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID，以便服务端在
+         *     refresh rotation 时继续追踪同一 session family。
+         */
         post: operations["refreshToken"];
         delete?: never;
         options?: never;
@@ -138,7 +154,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 登出当前设备 */
+        /**
+         * 登出当前设备
+         * @description 浏览器请求通过服务端 `session_id` cookie 定位会话。
+         *     原生 OIDC 客户端如果没有 `session_id` cookie，必须在请求头
+         *     `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID。
+         */
         post: operations["logout"];
         delete?: never;
         options?: never;
@@ -191,6 +212,237 @@ export interface paths {
         put?: never;
         /** 验证手机验证码并登录 */
         post: operations["verifyPhoneOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/exchange-native": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 原生 App 令牌交换（用一次性 state 换取 token）
+         * @description 原生 App 完成浏览器 SSO 后，通过 deep link 回传 code + state，
+         *     由本端点完成 code → token 交换并以 JSON 返回（不写 cookie）。
+         *     PKCE `code_verifier` 只保存在服务端 Redis，并随 state 一次性消费，客户端无需传递。
+         */
+        post: operations["exchangeNative"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取教务学期列表 */
+        get: operations["listAcademicTerms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/offerings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询开课列表 */
+        get: operations["listAcademicOfferings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/offerings/{offeringID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取开课详情 */
+        get: operations["getAcademicOffering"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/me/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取我的课程 */
+        get: operations["listMyAcademicCourses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/academics/me/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取我的课表 */
+        get: operations["listMyAcademicSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/academics/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管理员查看导入源 */
+        get: operations["listAcademicSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/academics/import-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管理员查看导入作业 */
+        get: operations["listAcademicImportJobs"];
+        put?: never;
+        /** 管理员触发一次导入 */
+        post: operations["triggerAcademicImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询共享资源列表 */
+        get: operations["listResources"];
+        put?: never;
+        /** 创建共享资源 */
+        post: operations["createResource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/resources/{resourceID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取共享资源详情 */
+        get: operations["getResource"];
+        put?: never;
+        post?: never;
+        /** 删除共享资源 */
+        delete: operations["deleteResource"];
+        options?: never;
+        head?: never;
+        /** 更新共享资源元数据 */
+        patch: operations["updateResource"];
+        trace?: never;
+    };
+    "/api/v1/resources/{resourceID}/download-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取共享资源下载链接 */
+        get: operations["getResourceDownloadURL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/storage/mounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 管理员查看存储挂载点 */
+        get: operations["listStorageMounts"];
+        put?: never;
+        /** 管理员创建存储挂载点 */
+        post: operations["createStorageMount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/storage/mounts/{mountID}/health-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 管理员触发挂载点健康检查 */
+        post: operations["checkStorageMountHealth"];
         delete?: never;
         options?: never;
         head?: never;
@@ -257,6 +509,23 @@ export interface paths {
         };
         /** 获取课程列表 */
         get: operations["getCourses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/course/courses/grouped": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按院系分组获取全部课程（课程目录页专用） */
+        get: operations["getCoursesGrouped"];
         put?: never;
         post?: never;
         delete?: never;
@@ -965,12 +1234,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 批量更新评论状态 */
-        post: operations["batchUpdateReviews"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** 批量更新评论状态 */
+        patch: operations["batchUpdateReviews"];
         trace?: never;
     };
     "/api/v1/course/review/admin/reviews/{reviewID}/edit": {
@@ -1148,6 +1417,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user/qq-binding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前用户 QQ 绑定状态 */
+        get: operations["getUserQQBinding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user/qq-binding/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 生成当前用户的 QQ 绑定码 */
+        post: operations["createUserQQBindingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/profile": {
         parameters: {
             query?: never;
@@ -1259,6 +1562,40 @@ export interface paths {
         };
         /** 获取当前用户聚合信息 */
         get: operations["getUserSurface"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/qq-binding/consume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人消费 QQ 绑定码并建立绑定关系 */
+        post: operations["consumeQQBindingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/qq-users/{qqID}/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 机器人按 QQ 号查询绑定与学生认证状态 */
+        get: operations["getQQVerificationStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1493,6 +1830,11 @@ export interface components {
             capabilityGrants: components["schemas"]["CapabilityGrant"][];
             /** @description 当前用户是否拥有至少一个可直接进入现有后台界面的全局能力 */
             canAccessAdmin: boolean;
+            /**
+             * Format: uri
+             * @description 身份提供方账户设置页，用于修改密码等账号安全设置
+             */
+            accountSettingsUrl?: string;
         };
         Course: {
             /** Format: int64 */
@@ -1544,6 +1886,12 @@ export interface components {
             courseCount: number;
             departmentCount: number;
         };
+        DepartmentGroup: {
+            /** Format: int64 */
+            departmentID: number;
+            departmentName: string;
+            courses: components["schemas"]["Course"][];
+        };
         Review: {
             /** Format: uuid */
             id: string;
@@ -1557,13 +1905,19 @@ export interface components {
             termName?: string;
             title: string;
             content: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings: components["schemas"]["ReviewRatings"];
             likeCount: number;
             dislikeCount: number;
             replyCount: number;
             /** @enum {string} */
-            status: "published" | "hidden" | "deleted";
+            status: "published" | "pending_review" | "hidden" | "deleted";
+            /**
+             * @description 内容审核标记；review 表示待人工复核，warn 表示已发布但需关注
+             * @enum {string}
+             */
+            contentFlag?: "warn" | "review" | "cleared";
             /** @description 屏蔽原因（仅 hidden 状态时存在） */
             moderationReason?: string | null;
             /** Format: date-time */
@@ -1583,14 +1937,16 @@ export interface components {
             termID: string;
             title: string;
             content: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings: components["schemas"]["ReviewRatings"];
         };
         UpdateReviewRequest: {
             title?: string;
-            content: string;
-            grade?: string;
-            ratings: components["schemas"]["ReviewRatings"];
+            content?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
+            ratings?: components["schemas"]["ReviewRatings"];
         };
         VoteRequest: {
             /** @enum {string} */
@@ -1632,7 +1988,8 @@ export interface components {
             termID?: string;
             title?: string;
             content?: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings?: components["schemas"]["ReviewRatings"];
             /** Format: date-time */
             updatedAt: string;
@@ -1645,7 +2002,8 @@ export interface components {
             termID?: string;
             title?: string;
             content?: string;
-            grade?: string;
+            /** @enum {string} */
+            grade?: "A+" | "A" | "A-" | "B+" | "B" | "B-" | "C+" | "C" | "C-" | "D" | "F";
             ratings?: components["schemas"]["ReviewRatings"];
         };
         ContentCheckRequest: {
@@ -1758,15 +2116,19 @@ export interface components {
         Notification: {
             /** Format: uuid */
             id: string;
-            /** @enum {string} */
-            type: "reply" | "vote" | "system";
+            type: components["schemas"]["NotificationType"];
             title: string;
             content?: string;
-            relatedType?: string;
-            relatedID?: string;
+            payload?: components["schemas"]["NotificationPayload"];
+            /** @description 触发通知的业务模块（canonical wire field） */
+            sourceModule?: string;
+            /** @description 触发通知的资源 ID（canonical wire field） */
+            sourceId?: string;
+            /** @description 前端可直接跳转的目标地址（canonical wire field） */
+            sourceUrl?: string;
             /**
              * Format: int64
-             * @description 关联课程ID，用于前端精准跳转
+             * @description 关联课程 ID，用于前端精准跳转
              */
             courseID?: number;
             isRead: boolean;
@@ -1800,13 +2162,19 @@ export interface components {
             note?: string;
         };
         AdminUpdateReviewRequest: {
-            /** @enum {string} */
+            /**
+             * @description restore 对 pending_review 状态表示审核通过并发布
+             * @enum {string}
+             */
             action: "hide" | "restore" | "delete";
             reason?: string;
         };
         BatchUpdateReviewsRequest: {
             ids: string[];
-            /** @enum {string} */
+            /**
+             * @description restore 对 pending_review 状态表示审核通过并发布
+             * @enum {string}
+             */
             action: "hide" | "restore" | "delete";
         };
         BatchUpdateResult: {
@@ -1930,12 +2298,6 @@ export interface components {
             reviewedAt?: string | null;
             /** Format: date-time */
             verifiedAt?: string | null;
-            /** @description 已上传到对象存储的正面照片 key */
-            docPhotoFront?: string | null;
-            /** @description 已上传到对象存储的背面照片 key */
-            docPhotoBack?: string | null;
-            /** @description 已上传到对象存储的手持证件照 key */
-            docPhotoSelfie?: string | null;
             rejectionReason?: string | null;
             /** Format: date-time */
             createdAt: string;
@@ -1954,7 +2316,8 @@ export interface components {
         UserProfile: {
             /** Format: int64 */
             userID: number;
-            schoolID?: string | null;
+            /** Format: int64 */
+            schoolID?: number | null;
             studentIDs?: string[] | null;
             activeStudentID?: string | null;
             /** @enum {string} */
@@ -1977,7 +2340,8 @@ export interface components {
             updatedAt: string;
         };
         SubmitStudentVerificationRequest: {
-            schoolID: string;
+            /** Format: int64 */
+            schoolID: number;
             studentID?: string;
             password?: string;
             /** @description manual 模式动态表单提交数据 */
@@ -1992,7 +2356,8 @@ export interface components {
             otpCode: string;
         };
         SchoolConfig: {
-            schoolID: string;
+            /** Format: int64 */
+            schoolID: number;
             schoolName: string;
             /** @enum {string} */
             verificationMethod: "ldap" | "manual";
@@ -2036,7 +2401,8 @@ export interface components {
             value: string;
         };
         AdminSchoolConfig: {
-            schoolID: string;
+            /** Format: int64 */
+            schoolID: number;
             schoolName: string;
             /** @enum {string} */
             verificationMethod: "ldap" | "manual";
@@ -2072,11 +2438,209 @@ export interface components {
             phoneBound: boolean;
             capabilities: string[];
         };
+        QQBinding: {
+            /** Format: int64 */
+            userID: number;
+            qqID: string;
+            qqNickname?: string | null;
+            /** Format: date-time */
+            boundAt: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        QQBindingCode: {
+            code: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        ConsumeQQBindingRequest: {
+            code: string;
+            qqID: string;
+            qqNickname?: string | null;
+        };
+        QQVerificationStatus: {
+            qqID: string;
+            /** Format: int64 */
+            userID?: number | null;
+            qqNickname?: string | null;
+            /** Format: date-time */
+            boundAt?: string | null;
+            /** @enum {string} */
+            verificationState: "unbound" | "bound_unverified" | "verified";
+            /** @enum {string} */
+            profileVerificationStatus: "unverified" | "pending" | "verified" | "rejected";
+            studentVerified: boolean;
+        };
         CapabilityGrant: {
             name: string;
             scopeSchoolIDs?: string[];
             scopeRoles?: string[];
             global: boolean;
+        };
+        AcademicTerm: {
+            /** Format: int64 */
+            id: number;
+            code: string;
+            name: string;
+            /** Format: date */
+            startDate?: string;
+            /** Format: date */
+            endDate?: string;
+            isCurrent: boolean;
+        };
+        AcademicScheduleSlot: {
+            weekday: number;
+            startPeriod: number;
+            endPeriod: number;
+            location: string;
+            building?: string;
+            weeksText: string;
+        };
+        AcademicOffering: {
+            /** Format: int64 */
+            id: number;
+            termCode: string;
+            termName: string;
+            courseCode: string;
+            courseName: string;
+            sectionCode: string;
+            schoolName?: string;
+            departmentName?: string;
+            campus?: string;
+            teacherNames: string[];
+            schedules?: components["schemas"]["AcademicScheduleSlot"][];
+        };
+        AcademicSource: {
+            /** Format: int64 */
+            id: number;
+            key: string;
+            name: string;
+            provider: string;
+            enabled: boolean;
+        };
+        AcademicImportJob: {
+            /** Format: int64 */
+            id: number;
+            sourceKey: string;
+            sourceName: string;
+            provider: string;
+            /** @enum {string} */
+            status: "pending" | "running" | "succeeded" | "failed";
+            triggerMode: string;
+            requestedByUserID?: string;
+            stats: {
+                [key: string]: unknown;
+            };
+            errorMessage?: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: date-time */
+            finishedAt?: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AcademicImportRequest: {
+            sourceKey: string;
+        };
+        ResourceBinding: {
+            type: string;
+            value: string;
+        };
+        ResourceVersion: {
+            /** Format: int64 */
+            id: number;
+            versionNo: number;
+            /** Format: int64 */
+            mountID: number;
+            objectKey: string;
+            filename: string;
+            contentType: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ResourceItem: {
+            /** Format: int64 */
+            id: number;
+            ownerUserID?: string;
+            title: string;
+            description?: string;
+            category?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            tags: string[];
+            bindings: components["schemas"]["ResourceBinding"][];
+            latestVersion: components["schemas"]["ResourceVersion"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateResourceRequest: {
+            title: string;
+            description?: string;
+            category?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            tags: string[];
+            bindings: components["schemas"]["ResourceBinding"][];
+            filename: string;
+            contentType: string;
+            /** @description 文件 base64 内容，支持标准 Base64 或 data URL 形式 */
+            dataBase64: string;
+            mountKey?: string;
+        };
+        UpdateResourceRequest: {
+            title: string;
+            description?: string;
+            category?: string;
+            /** @enum {string} */
+            visibility: "public" | "private";
+            tags: string[];
+            bindings: components["schemas"]["ResourceBinding"][];
+        };
+        ResourceDownloadURL: {
+            /** Format: uri */
+            url: string;
+        };
+        StorageCapabilitySet: {
+            put: boolean;
+            delete: boolean;
+            stat: boolean;
+            presignedDownload: boolean;
+        };
+        StorageMount: {
+            /** Format: int64 */
+            id: number;
+            key: string;
+            name: string;
+            driver: string;
+            bucket?: string;
+            basePath: string;
+            credentialSource: string;
+            enabled: boolean;
+            lastHealthStatus?: string;
+            lastHealthError?: string;
+            /** Format: date-time */
+            lastHealthCheckedAt?: string;
+            capabilities: components["schemas"]["StorageCapabilitySet"];
+        };
+        CreateStorageMountRequest: {
+            key: string;
+            name: string;
+            /** @description 当前已实现 `s3` 驱动；未来可扩展 openlist-like 家族 */
+            driver: string;
+            bucket?: string;
+            basePath: string;
+            enabled: boolean;
+        };
+        /** @enum {string} */
+        NotificationType: "reply" | "like" | "vote" | "review_hidden" | "review_restored" | "report_resolved" | "identity_approved" | "identity_rejected" | "student_approved" | "student_rejected" | "system";
+        NotificationPayload: {
+            [key: string]: unknown;
         };
         FavoriteStatusData: {
             favorited: boolean;
@@ -2115,7 +2679,8 @@ export interface components {
         AdminStudentVerificationItem: {
             /** Format: int64 */
             userID: number;
-            schoolID?: string | null;
+            /** Format: int64 */
+            schoolID?: number | null;
             studentIDs?: string[] | null;
             activeStudentID?: string | null;
             manualFormData?: {
@@ -2145,7 +2710,6 @@ export interface components {
             baseDN?: string | null;
             systemBindDN?: string | null;
             useTLS: boolean;
-            insecureSkipVerify: boolean;
             hasSystemBindPassword: boolean;
         };
         SchoolLDAPConfigInput: {
@@ -2154,7 +2718,6 @@ export interface components {
             systemBindDN?: string;
             systemBindPassword?: string;
             useTLS?: boolean;
-            insecureSkipVerify?: boolean;
         };
         SystemConfig: {
             key: string;
@@ -2196,6 +2759,14 @@ export interface components {
         ReportIDPath: string;
         /** @description 敏感词 ID */
         SensitiveWordIDPath: string;
+        /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
+        NativeSessionIDHeader: string;
+        /** @description 开课实例 ID */
+        OfferingIDPath: number;
+        /** @description 资源 ID */
+        ResourceIDPath: number;
+        /** @description 存储挂载点 ID */
+        MountIDPath: number;
     };
     requestBodies: never;
     headers: never;
@@ -2218,11 +2789,13 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @example ok */
-                        status: string;
-                        /** Format: date-time */
-                        timestamp: string;
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            /** @example ok */
+                            status: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
                     };
                 };
             };
@@ -2250,23 +2823,25 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        status: "ok" | "degraded";
-                        /** @description 各依赖检查结果（仅开发环境返回） */
-                        checks?: {
-                            [key: string]: {
-                                status?: string;
-                                latency?: string;
-                                error?: string;
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            /** @enum {string} */
+                            status: "ok" | "degraded";
+                            /** @description 各依赖检查结果（仅开发环境返回） */
+                            checks?: {
+                                [key: string]: {
+                                    status?: string;
+                                    latency?: string;
+                                    error?: string;
+                                };
                             };
+                            /** @description 系统信息（仅开发环境返回） */
+                            info?: {
+                                [key: string]: unknown;
+                            };
+                            /** Format: date-time */
+                            timestamp: string;
                         };
-                        /** @description 系统信息（仅开发环境返回） */
-                        info?: {
-                            [key: string]: unknown;
-                        };
-                        /** Format: date-time */
-                        timestamp: string;
                     };
                 };
             };
@@ -2283,12 +2858,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @example degraded */
-                        status: string;
-                        /** Format: date-time */
-                        timestamp: string;
-                    };
+                    "application/json": components["schemas"]["ErrorResponseBody"];
                 };
             };
         };
@@ -2296,8 +2866,10 @@ export interface operations {
     getLoginURL: {
         parameters: {
             query?: {
-                /** @description 登录完成后的前端回跳地址（绝对 URL） */
+                /** @description 登录完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。 */
                 redirect?: string;
+                /** @description 登录发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。 */
+                platform?: "web" | "native";
             };
             header?: never;
             path?: never;
@@ -2327,8 +2899,10 @@ export interface operations {
     getSignupURL: {
         parameters: {
             query?: {
-                /** @description 注册完成后的前端回跳地址（绝对 URL） */
+                /** @description 注册完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。 */
                 redirect?: string;
+                /** @description 注册发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。 */
+                platform?: "web" | "native";
             };
             header?: never;
             path?: never;
@@ -2367,10 +2941,10 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 登录成功，写入 Cookie 后重定向到前端页面 */
+            /** @description 登录成功后的重定向；Web/H5 返回前端 URL，native 返回 `stuhelper://auth/callback?...` deep link */
             302: {
                 headers: {
-                    /** @description 前端回跳地址 */
+                    /** @description Web/H5 为前端回跳地址；native 为 App deep link */
                     Location?: string;
                     [name: string]: unknown;
                 };
@@ -2384,11 +2958,22 @@ export interface operations {
     refreshToken: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
+                "X-Stuhelper-Session-ID"?: components["parameters"]["NativeSessionIDHeader"];
+            };
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        /** @description 原生 App 通过请求体传递 refresh token（Web 浏览器通过 cookie 自动携带，无需此字段） */
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 原生 App 的 refresh token */
+                    refreshToken?: string;
+                };
+            };
+        };
         responses: {
             /** @description Token 刷新成功 */
             200: {
@@ -2400,6 +2985,10 @@ export interface operations {
                         data: {
                             message: string;
                             expiresIn: number;
+                            /** @description 仅原生 App 请求时返回 */
+                            accessToken?: string;
+                            /** @description 仅原生 App 请求时返回 */
+                            refreshToken?: string;
                         };
                     };
                 };
@@ -2436,7 +3025,10 @@ export interface operations {
     logout: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
+                "X-Stuhelper-Session-ID"?: components["parameters"]["NativeSessionIDHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2555,6 +3147,542 @@ export interface operations {
             503: components["responses"]["ErrorResponse"];
         };
     };
+    exchangeNative: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description OIDC authorization code */
+                    code: string;
+                    /** @description 登录时生成的一次性 state（同时用于服务端查找并消费 PKCE verifier） */
+                    state: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 令牌交换成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            accessToken: string;
+                            refreshToken: string;
+                            /** @description 原生会话唯一标识；refresh 时用于保留 token family 追踪语义 */
+                            sessionID: string;
+                            expiresIn: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAcademicTerms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 学期列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicTerm"][];
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAcademicOfferings: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+                termCode?: string;
+                schoolName?: string;
+                departmentName?: string;
+                query?: string;
+                teacherName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 开课列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicOffering"][];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAcademicOffering: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 开课实例 ID */
+                offeringID: components["parameters"]["OfferingIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 开课详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AcademicOffering"];
+                    };
+                };
+            };
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    listMyAcademicCourses: {
+        parameters: {
+            query?: {
+                termCode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 我的课程列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicOffering"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listMyAcademicSchedule: {
+        parameters: {
+            query?: {
+                termCode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 我的课表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicOffering"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAcademicSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 导入源列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicSource"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAcademicImportJobs: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 导入作业列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["AcademicImportJob"][];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    triggerAcademicImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcademicImportRequest"];
+            };
+        };
+        responses: {
+            /** @description 导入作业创建成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AcademicImportJob"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    listResources: {
+        parameters: {
+            query?: {
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+                query?: string;
+                tag?: string;
+                bindingType?: string;
+                bindingValue?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 资源列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["ResourceItem"][];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
+    createResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateResourceRequest"];
+            };
+        };
+        responses: {
+            /** @description 资源创建成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ResourceItem"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    getResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                resourceID: components["parameters"]["ResourceIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 资源详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ResourceItem"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    deleteResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                resourceID: components["parameters"]["ResourceIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 删除结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                resourceID: components["parameters"]["ResourceIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateResourceRequest"];
+            };
+        };
+        responses: {
+            /** @description 更新后的资源详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ResourceItem"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    getResourceDownloadURL: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                resourceID: components["parameters"]["ResourceIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 下载链接 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ResourceDownloadURL"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    listStorageMounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 存储挂载点列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["StorageMount"][];
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    createStorageMount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStorageMountRequest"];
+            };
+        };
+        responses: {
+            /** @description 存储挂载点创建成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StorageMount"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    checkStorageMountHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 存储挂载点 ID */
+                mountID: components["parameters"]["MountIDPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 健康检查结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StorageMount"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
     getDepartments: {
         parameters: {
             query?: {
@@ -2662,6 +3790,32 @@ export interface operations {
                         data: {
                             list: components["schemas"]["Course"][];
                             total: number;
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getCoursesGrouped: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 按院系分组的课程列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            groups: components["schemas"]["DepartmentGroup"][];
                         };
                     };
                 };
@@ -3043,6 +4197,7 @@ export interface operations {
             409: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     updateReview: {
@@ -3078,6 +4233,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     deleteReview: {
@@ -3142,6 +4298,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     reportReview: {
@@ -3247,6 +4404,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     deleteReply: {
@@ -3388,6 +4546,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     listTeachers: {
@@ -3416,15 +4575,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        code?: string;
-                        data?: {
-                            list?: components["schemas"]["TeacherSummary"][];
-                            total?: number;
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            list: components["schemas"]["TeacherSummary"][];
+                            total: number;
                         };
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
         };
     };
     listHotTeachers: {
@@ -3444,14 +4604,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        code?: string;
-                        data?: {
-                            list?: components["schemas"]["TeacherSummary"][];
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            list: components["schemas"]["TeacherSummary"][];
                         };
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
         };
     };
     getUserReviews: {
@@ -3484,6 +4645,7 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getUserVotes: {
@@ -3518,6 +4680,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getUserFavorites: {
@@ -3550,6 +4713,7 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getNotifications: {
@@ -3756,15 +4920,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -3841,15 +5001,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 取消收藏成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -3922,12 +5078,13 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     listAllReviews: {
         parameters: {
             query?: {
-                status?: "published" | "hidden" | "deleted" | "all";
+                status?: "published" | "pending_review" | "hidden" | "deleted" | "all";
                 /** @description 页码 */
                 page?: components["parameters"]["PageParam"];
                 /** @description 每页数量 */
@@ -4182,7 +5339,7 @@ export interface operations {
             query?: {
                 /** @description 导出格式。json 和 ndjson 均返回 NDJSON 流（每行一个 JSON 对象） */
                 format?: "json" | "ndjson" | "csv";
-                status?: "all" | "published" | "hidden" | "deleted";
+                status?: "all" | "published" | "pending_review" | "hidden" | "deleted";
             };
             header?: never;
             path?: never;
@@ -4320,17 +5477,12 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
-            400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
@@ -4449,15 +5601,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
@@ -4546,6 +5694,56 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getUserQQBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 用户 QQ 绑定信息 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["QQBinding"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    createUserQQBindingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description QQ 绑定码已生成 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["QQBindingCode"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -4743,6 +5941,68 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
         };
     };
+    consumeQQBindingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsumeQQBindingRequest"];
+            };
+        };
+        responses: {
+            /** @description QQ 绑定成功并返回当前认证状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            binding: components["schemas"]["QQBinding"];
+                            verificationState: components["schemas"]["QQVerificationStatus"];
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getQQVerificationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                qqID: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description QQ 账号绑定与认证状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["QQVerificationStatus"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
     listIdentityVerifications: {
         parameters: {
             query?: {
@@ -4816,7 +6076,7 @@ export interface operations {
             query?: {
                 status?: "pending" | "verified" | "rejected" | "all";
                 /** @description 按学校筛选 */
-                schoolID?: string;
+                schoolID?: number;
                 /** @description 页码 */
                 page?: components["parameters"]["PageParam"];
                 /** @description 每页数量 */
@@ -4912,7 +6172,7 @@ export interface operations {
             header?: never;
             path: {
                 /** @description 学校 ID */
-                schoolID: string;
+                schoolID: number;
             };
             cookie?: never;
         };

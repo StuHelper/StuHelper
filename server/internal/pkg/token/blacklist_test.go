@@ -5,38 +5,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/circuitbreaker"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
-func setupTestRedis(t *testing.T) (*redis.Client, func()) {
-	mr, err := miniredis.Run()
-	require.NoError(t, err)
-
-	client := redis.NewClient(&redis.Options{
-		Addr: mr.Addr(),
-	})
-
-	cleanup := func() {
-		_ = client.Close()
-		mr.Close()
-	}
-
-	return client, cleanup
+func setupTestRedis(t *testing.T) *redisfixture.Fixture {
+	t.Helper()
+	return redisfixture.Start(t)
 }
 
 func TestBlacklist_Add(t *testing.T) {
 	// 初始化 HMAC key（Blacklist 内部使用 crypto.HMACHash）
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
 
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
-
-	bl := NewBlacklist(client)
+	fixture := setupTestRedis(t)
+	bl := NewBlacklist(fixture.Client)
 	ctx := context.Background()
 
 	err := bl.Add(ctx, "test-token", time.Hour)
@@ -52,10 +39,8 @@ func TestBlacklist_IsBlacklisted(t *testing.T) {
 	// 显式初始化 HMAC key，确保单独运行时不依赖其他测试的副作用
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
 
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
-
-	bl := NewBlacklist(client)
+	fixture := setupTestRedis(t)
+	bl := NewBlacklist(fixture.Client)
 	ctx := context.Background()
 
 	// 未加入黑名单的 token
@@ -75,10 +60,8 @@ func TestBlacklist_IsBlacklisted(t *testing.T) {
 func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
 
-	client, cleanup := setupTestRedis(t)
-	defer cleanup()
-
-	bl := NewBlacklist(client)
+	fixture := setupTestRedis(t)
+	bl := NewBlacklist(fixture.Client)
 	ctx := context.Background()
 
 	consumed, err := bl.TryConsumeRefreshToken(ctx, "refresh-token", time.Hour)
@@ -102,4 +85,54 @@ func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {
 	consumed, err = bl.TryConsumeRefreshToken(ctx, "refresh-token", time.Hour)
 	require.NoError(t, err)
 	assert.True(t, consumed)
+}
+
+func TestBlacklist_IsBlacklisted_DeniesWhenCircuitOpenAndOnlyNegativeCacheExists(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	bl := &Blacklist{
+		cb: circuitbreaker.NewNamed("token_blacklist_test", circuitbreaker.Config{
+			FailureThreshold: 1,
+			SuccessThreshold: 1,
+			Timeout:          time.Hour,
+		}),
+		stopCh: make(chan struct{}),
+	}
+
+	hash, err := hashToken("stale-negative-cache-token")
+	require.NoError(t, err)
+	bl.localCache.Store(hash, localCacheEntry{
+		blacklisted: false,
+		expiresAt:   time.Now().Add(time.Minute),
+	})
+	bl.cb.RecordFailure()
+
+	blacklisted, err := bl.IsBlacklisted(context.Background(), "stale-negative-cache-token")
+	require.Error(t, err)
+	assert.True(t, blacklisted)
+}
+
+func TestBlacklist_IsBlacklisted_AllowsPositiveRevocationCacheWhenCircuitOpen(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
+
+	bl := &Blacklist{
+		cb: circuitbreaker.NewNamed("token_blacklist_test_positive", circuitbreaker.Config{
+			FailureThreshold: 1,
+			SuccessThreshold: 1,
+			Timeout:          time.Hour,
+		}),
+		stopCh: make(chan struct{}),
+	}
+
+	hash, err := hashToken("cached-revoked-token")
+	require.NoError(t, err)
+	bl.localCache.Store(hash, localCacheEntry{
+		blacklisted: true,
+		expiresAt:   time.Now().Add(time.Minute),
+	})
+	bl.cb.RecordFailure()
+
+	blacklisted, err := bl.IsBlacklisted(context.Background(), "cached-revoked-token")
+	require.NoError(t, err)
+	assert.True(t, blacklisted)
 }

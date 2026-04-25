@@ -66,7 +66,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
 import { api } from '@/api'
 import { ApiError } from '@/api/errors'
-import type { components } from '@stuhelper/shared'
+import type { components } from '@stuhelper/shared/types'
 
 type AcademicStudentInfo = components['schemas']['AcademicStudentInfo']
 type ErrorState = 'forbidden' | 'not-found' | 'unknown' | null

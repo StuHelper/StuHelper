@@ -10,8 +10,11 @@ require_cmd openssl
 load_env
 
 POSTGRES_TLS_DIR="${POSTGRES_TLS_DIR:-${REPO_ROOT}/infra/generated/postgres}"
+CA_KEY="${POSTGRES_TLS_DIR}/ca.key"
+CA_CERT="${POSTGRES_TLS_DIR}/ca.crt"
 SERVER_KEY="${POSTGRES_TLS_DIR}/server.key"
 SERVER_CERT="${POSTGRES_TLS_DIR}/server.crt"
+SERVER_CSR="${POSTGRES_TLS_DIR}/server.csr"
 COMMON_NAME="${POSTGRES_SSL_COMMON_NAME:-postgres}"
 SAN_LIST="${POSTGRES_SSL_SAN_LIST:-DNS:postgres,DNS:localhost,IP:127.0.0.1}"
 
@@ -22,23 +25,44 @@ if [[ "${POSTGRES_ENABLE_SSL:-off}" != "on" ]]; then
   exit 0
 fi
 
-if [[ -f "${SERVER_KEY}" && -f "${SERVER_CERT}" ]]; then
+if [[ -f "${CA_KEY}" && -f "${CA_CERT}" && -f "${SERVER_KEY}" && -f "${SERVER_CERT}" ]]; then
   log "PostgreSQL TLS material already exists: ${POSTGRES_TLS_DIR}"
   exit 0
 fi
 
+extfile="$(mktemp)"
+trap 'rm -f "${extfile}" "${SERVER_CSR}"' EXIT
+printf 'subjectAltName=%s\n' "${SAN_LIST}" >"${extfile}"
+
+openssl genrsa -out "${CA_KEY}" 4096 >/dev/null 2>&1
 openssl req \
   -x509 \
+  -new \
   -nodes \
-  -newkey rsa:4096 \
+  -key "${CA_KEY}" \
   -sha256 \
-  -days 825 \
+  -days 3650 \
+  -subj "/CN=${COMMON_NAME}-ca" \
+  -out "${CA_CERT}" >/dev/null 2>&1
+
+openssl genrsa -out "${SERVER_KEY}" 4096 >/dev/null 2>&1
+openssl req \
+  -new \
+  -key "${SERVER_KEY}" \
   -subj "/CN=${COMMON_NAME}" \
-  -addext "subjectAltName=${SAN_LIST}" \
-  -keyout "${SERVER_KEY}" \
-  -out "${SERVER_CERT}"
+  -out "${SERVER_CSR}" >/dev/null 2>&1
+openssl x509 \
+  -req \
+  -in "${SERVER_CSR}" \
+  -CA "${CA_CERT}" \
+  -CAkey "${CA_KEY}" \
+  -CAcreateserial \
+  -out "${SERVER_CERT}" \
+  -days 825 \
+  -sha256 \
+  -extfile "${extfile}" >/dev/null 2>&1
 
-chmod 600 "${SERVER_KEY}"
-chmod 644 "${SERVER_CERT}"
+chmod 600 "${CA_KEY}" "${SERVER_KEY}"
+chmod 644 "${CA_CERT}" "${SERVER_CERT}"
 
-log "generated PostgreSQL TLS certificate at ${POSTGRES_TLS_DIR}"
+log "generated PostgreSQL CA/server TLS material at ${POSTGRES_TLS_DIR}"

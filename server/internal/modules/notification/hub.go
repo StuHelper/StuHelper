@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -24,6 +25,8 @@ type SendParams struct {
 	Type         string
 	Title        string
 	Body         string
+	Content      string
+	Payload      json.RawMessage
 	SourceModule string
 	SourceID     string
 	SourceURL    string
@@ -32,26 +35,32 @@ type SendParams struct {
 
 // Notification 通知实体
 type Notification struct {
-	ID           string  `json:"id"`
-	UserID       int64   `json:"userId"`
-	Type         string  `json:"type"`
-	Title        string  `json:"title"`
-	Body         string  `json:"body"`
-	SourceModule string  `json:"sourceModule"`
-	SourceID     string  `json:"sourceId"`
-	SourceURL    *string `json:"sourceUrl,omitempty"`
-	CourseID     *int64  `json:"courseID,omitempty"`
-	IsRead       bool    `json:"isRead"`
-	CreatedAt    string  `json:"createdAt"`
+	ID           string          `json:"id"`
+	UserID       int64           `json:"userId"`
+	Type         string          `json:"type"`
+	Title        string          `json:"title"`
+	Body         string          `json:"body,omitempty"`
+	Content      string          `json:"content,omitempty"`
+	Payload      json.RawMessage `json:"payload,omitempty"`
+	SourceModule string          `json:"sourceModule"`
+	SourceID     string          `json:"sourceId"`
+	SourceURL    *string         `json:"sourceUrl,omitempty"`
+	CourseID     *int64          `json:"courseID,omitempty"`
+	IsRead       bool            `json:"isRead"`
+	CreatedAt    string          `json:"createdAt"`
 }
 
 // Hub 管理 SSE 连接和 Redis Pub/Sub
 type Hub struct {
 	rdb         *redis.Client
 	mu          sync.RWMutex
-	connections map[int64]map[chan SSEEvent]struct{} // userID -> set of channels
+	connections map[int64]*userConnections // userID -> ordered connections
 	stopCh      chan struct{}
 	stopOnce    sync.Once
+}
+
+type userConnections struct {
+	order []chan SSEEvent
 }
 
 // SSEEvent SSE 推送事件
@@ -60,23 +69,38 @@ type SSEEvent struct {
 	Data  any    `json:"data"`
 }
 
+// maxConnsPerUser 每个用户允许的最大 SSE 并发连接数。
+// 超出限制时关闭最早建立的连接，防止资源耗尽。
+const maxConnsPerUser = 5
+
+// sseBufferSize 为单连接缓冲少量突发事件。
+// 取 32 足以覆盖未读数 + 列表刷新等短时 burst，同时避免慢客户端无限积压。
+const sseBufferSize = 32
+
 // NewHub 创建通知 Hub
 func NewHub(rdb *redis.Client) *Hub {
 	return &Hub{
 		rdb:         rdb,
-		connections: make(map[int64]map[chan SSEEvent]struct{}),
+		connections: make(map[int64]*userConnections),
 		stopCh:      make(chan struct{}),
 	}
 }
 
-// Subscribe 注册 SSE 连接
+// Subscribe 注册 SSE 连接。
+// 当同一用户的连接数达到 maxConnsPerUser 时，按订阅顺序驱逐最老的现有连接。
 func (h *Hub) Subscribe(userID int64) chan SSEEvent {
-	ch := make(chan SSEEvent, 32)
+	ch := make(chan SSEEvent, sseBufferSize)
 	h.mu.Lock()
 	if h.connections[userID] == nil {
-		h.connections[userID] = make(map[chan SSEEvent]struct{})
+		h.connections[userID] = &userConnections{}
 	}
-	h.connections[userID][ch] = struct{}{}
+	uc := h.connections[userID]
+	if len(uc.order) >= maxConnsPerUser {
+		victim := uc.order[0]
+		uc.order = uc.order[1:]
+		close(victim)
+	}
+	uc.order = append(uc.order, ch)
 	h.mu.Unlock()
 	return ch
 }
@@ -85,13 +109,15 @@ func (h *Hub) Subscribe(userID int64) chan SSEEvent {
 func (h *Hub) Unsubscribe(userID int64, ch chan SSEEvent) {
 	h.mu.Lock()
 	if conns, ok := h.connections[userID]; ok {
-		delete(conns, ch)
-		if len(conns) == 0 {
+		removed := conns.remove(ch)
+		if len(conns.order) == 0 {
 			delete(h.connections, userID)
+		}
+		if removed {
+			close(ch)
 		}
 	}
 	h.mu.Unlock()
-	close(ch)
 }
 
 // Broadcast 向用户的所有连接推送事件
@@ -99,7 +125,11 @@ func (h *Hub) Broadcast(userID int64, event SSEEvent) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for ch := range h.connections[userID] {
+	conns := h.connections[userID]
+	if conns == nil {
+		return
+	}
+	for _, ch := range conns.order {
 		select {
 		case ch <- event:
 		default:
@@ -112,13 +142,17 @@ func (h *Hub) Broadcast(userID int64, event SSEEvent) {
 	}
 }
 
-// StartRedisSubscriber 启动 Redis Pub/Sub 订阅
-// 监听 notify:* 频道，收到消息后广播给对应用户的 SSE 连接
-func (h *Hub) StartRedisSubscriber(ctx context.Context) {
+// StartRedisSubscriber 启动 Redis Pub/Sub 订阅。
+// 调用方可传入 start 以统一托管 goroutine 生命周期。
+func (h *Hub) StartRedisSubscriber(ctx context.Context, start func(string, func(context.Context))) {
 	pubsub := h.rdb.PSubscribe(ctx, "notify:*")
 
-	go func() {
-		defer pubsub.Close()
+	run := func(ctx context.Context) {
+		defer func() {
+			if err := pubsub.Close(); err != nil {
+				logger.L().Warn("failed to close notification pubsub", zap.Error(err))
+			}
+		}()
 		ch := pubsub.Channel()
 		for {
 			select {
@@ -126,22 +160,35 @@ func (h *Hub) StartRedisSubscriber(ctx context.Context) {
 				return
 			case <-h.stopCh:
 				return
-			case msg, ok := <-ch:
-				if !ok {
-					return
+				case msg, ok := <-ch:
+					if !ok {
+						return
+					}
+					var userID int64
+					if _, err := fmt.Sscanf(msg.Channel, "notify:%d", &userID); err != nil {
+						continue
+					}
+					payload, err := decodeNotificationPubSubPayload(msg.Payload)
+					if err != nil {
+						logger.L().Warn("failed to decode notification pubsub payload",
+							zap.Int64("user_id", userID),
+							zap.Error(err),
+						)
+						continue
+					}
+					h.Broadcast(userID, SSEEvent{
+						Event: "notification",
+						Data:  payload,
+					})
 				}
-				// 频道格式: notify:{userID}
-				var userID int64
-				if _, err := fmt.Sscanf(msg.Channel, "notify:%d", &userID); err != nil {
-					continue
-				}
-				h.Broadcast(userID, SSEEvent{
-					Event: "notification",
-					Data:  msg.Payload,
-				})
 			}
 		}
-	}()
+
+	if start == nil {
+		go run(ctx)
+		return
+	}
+	start("notification redis subscriber", run)
 }
 
 // Stop 停止 Hub
@@ -149,4 +196,23 @@ func (h *Hub) Stop() {
 	h.stopOnce.Do(func() {
 		close(h.stopCh)
 	})
+}
+
+func (u *userConnections) remove(ch chan SSEEvent) bool {
+	for i, existing := range u.order {
+		if existing != ch {
+			continue
+		}
+		u.order = append(u.order[:i], u.order[i+1:]...)
+		return true
+	}
+	return false
+}
+
+func decodeNotificationPubSubPayload(raw string) (any, error) {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
 }

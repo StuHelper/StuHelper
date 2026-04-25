@@ -1,87 +1,52 @@
 import type { ApiClient } from '@stuhelper/shared/api'
+import {
+  AUTH_REFRESH_PATH,
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+  NATIVE_SESSION_ID_HEADER,
+  appendQuery,
+  buildSecurityHeaders,
+  createSessionApiClient,
+  executeSessionRefresh,
+  normalizeSchemaPath,
+  serializePath,
+  type HttpMethod,
+  type RefreshSessionData,
+  type RequestInitShape,
+} from '@stuhelper/shared/api'
 import type { ApiCallResult } from './result'
+import {
+  isNativeRuntime,
+  readNativeAccessToken,
+  readNativeRefreshToken,
+  readNativeSessionID,
+  updateNativeTokensAfterRefresh,
+} from './native-session'
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 type RequestBody = UniNamespace.RequestOptions['data']
 
-type RequestInitShape = {
-  params?: {
-    path?: Record<string, unknown>
-    query?: Record<string, unknown>
-    header?: Record<string, unknown>
-  }
-  body?: unknown
-  signal?: AbortSignal
-}
-
-type PerformRequestOptions = {
-  skipRefresh?: boolean
-}
-
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
-const API_VERSION_PREFIX = '/api/v1'
-const CSRF_COOKIE_NAME = 'csrf_token'
-const CSRF_HEADER_NAME = 'X-CSRF-Token'
 const CSRF_STORAGE_KEY = 'stuhelper:csrf-token'
 const H5 = typeof window !== 'undefined' && typeof window.location?.origin === 'string'
-const AUTH_REFRESH_PATH = '/api/v1/auth/refresh'
-const AUTO_REFRESH_EXCLUDED_PATHS = new Set([
-  '/api/v1/auth/login',
-  '/api/v1/auth/signup',
+const SESSION_BOUND_AUTH_PATHS = new Set<string>([
   AUTH_REFRESH_PATH,
   '/api/v1/auth/logout',
-  '/api/v1/auth/logout-all',
-  '/api/v1/auth/phone/request-otp',
-  '/api/v1/auth/phone/verify-otp',
 ])
 
-let refreshPromise: Promise<boolean> | null = null
+class CSRFTokenStorageError extends Error {
+  cause: unknown
 
-function serializePath(schemaPath: string, pathParams?: Record<string, unknown>): string {
-  return schemaPath.replace(/\{([^}]+)\}/g, (_match, key) => {
-    const value = pathParams?.[key]
-    return encodeURIComponent(value == null ? '' : String(value))
-  })
-}
-
-function appendQuery(path: string, query?: Record<string, unknown>): string {
-  if (!query) return path
-
-  const pairs: string[] = []
-  for (const [key, value] of Object.entries(query)) {
-    if (value == null || value === '') continue
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (item == null || item === '') continue
-        pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(item))}`)
-      }
-      continue
-    }
-    pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+  constructor(action: 'persist' | 'read', cause: unknown) {
+    super(`failed to ${action} csrf token`)
+    this.name = 'CSRFTokenStorageError'
+    this.cause = cause
   }
-
-  if (pairs.length === 0) return path
-  return `${path}${path.includes('?') ? '&' : '?'}${pairs.join('&')}`
-}
-
-function normalizeSchemaPath(schemaPath: string): string {
-  const trimmedBase = API_BASE_URL.replace(/\/$/, '')
-  if (trimmedBase.endsWith(API_VERSION_PREFIX) && schemaPath.startsWith(`${API_VERSION_PREFIX}/`)) {
-    return schemaPath.slice(API_VERSION_PREFIX.length)
-  }
-  return schemaPath
 }
 
 function stripRelativeBasePrefix(baseUrl: string, path: string): string {
   if (!baseUrl) return path
-
-  if (path === baseUrl) {
-    return '/'
-  }
-
-  if (!path.startsWith(baseUrl)) {
-    return path
-  }
+  if (path === baseUrl) return '/'
+  if (!path.startsWith(baseUrl)) return path
 
   const remainder = path.slice(baseUrl.length)
   return remainder.startsWith('/') ? remainder : `/${remainder}`
@@ -98,7 +63,7 @@ function readCookie(name: string): string | null {
 
     try {
       return decodeURIComponent(cookie.slice(target.length))
-    } catch {
+    } catch (_error) { void _error;
       return null
     }
   }
@@ -114,11 +79,10 @@ function readStoredCSRFToken(): string | null {
     }
 
     if (typeof localStorage !== 'undefined') {
-      const value = localStorage.getItem(CSRF_STORAGE_KEY)
-      return value || null
+      return localStorage.getItem(CSRF_STORAGE_KEY) || null
     }
-  } catch {
-    // ignore storage access failures
+  } catch (error) {
+    throw new CSRFTokenStorageError('read', error)
   }
 
   return null
@@ -136,14 +100,14 @@ function writeStoredCSRFToken(token: string): void {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(CSRF_STORAGE_KEY, token)
     }
-  } catch {
-    // ignore storage access failures
+  } catch (error) {
+    throw new CSRFTokenStorageError('persist', error)
   }
 }
 
 function readHeader(
   headers: Record<string, unknown> | undefined,
-  name: string
+  name: string,
 ): string | null {
   if (!headers) return null
 
@@ -164,22 +128,29 @@ function persistCSRFToken(headers?: Record<string, unknown>) {
   }
 }
 
-function resolveCSRFToken(): string | null {
-  return readCookie(CSRF_COOKIE_NAME) ?? readStoredCSRFToken()
+function injectNativeSessionHeader(schemaPath: string, headers: Record<string, string>): void {
+  if (!isNativeRuntime()) return
+  if (!SESSION_BOUND_AUTH_PATHS.has(schemaPath)) return
+  if (headers[NATIVE_SESSION_ID_HEADER]) return
+
+  const sessionID = readNativeSessionID()
+  if (sessionID) {
+    headers[NATIVE_SESSION_ID_HEADER] = sessionID
+  }
 }
 
-function needsCSRF(method: string): boolean {
-  return !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
+function resolveCSRFToken(): string | null {
+  return readCookie(CSRF_COOKIE_NAME) ?? readStoredCSRFToken()
 }
 
 function resolveRequestURL(
   schemaPath: string,
   pathParams?: Record<string, unknown>,
-  query?: Record<string, unknown>
+  query?: Record<string, unknown>,
 ): string {
   const normalizedPath = appendQuery(
-    serializePath(normalizeSchemaPath(schemaPath), pathParams),
-    query
+    serializePath(normalizeSchemaPath(API_BASE_URL, schemaPath), pathParams),
+    query,
   )
   const trimmedBase = API_BASE_URL.replace(/\/$/, '')
 
@@ -199,7 +170,7 @@ function normalizeBody(data: unknown): unknown {
   if (typeof data !== 'string') return data
   try {
     return JSON.parse(data)
-  } catch {
+  } catch (_error) { void _error;
     return data
   }
 }
@@ -215,7 +186,7 @@ function normalizeRequestBody(data: unknown): RequestBody {
 
 function createResponse(status: number, headers?: Record<string, unknown>): Response {
   const normalizedHeaders = Object.fromEntries(
-    Object.entries(headers ?? {}).map(([key, value]) => [key.toLowerCase(), String(value)])
+    Object.entries(headers ?? {}).map(([key, value]) => [key.toLowerCase(), String(value)]),
   )
 
   return {
@@ -232,7 +203,7 @@ function createResponse(status: number, headers?: Record<string, unknown>): Resp
 function buildSuccessResult<T>(
   status: number,
   data: unknown,
-  headers?: Record<string, unknown>
+  headers?: Record<string, unknown>,
 ): ApiCallResult<T> {
   persistCSRFToken(headers)
   return {
@@ -244,17 +215,13 @@ function buildSuccessResult<T>(
 function buildErrorResult<T>(
   status: number,
   data: unknown,
-  headers?: Record<string, unknown>
+  headers?: Record<string, unknown>,
 ): ApiCallResult<T> {
   persistCSRFToken(headers)
   return {
     error: normalizeBody(data),
     response: createResponse(status, headers),
   }
-}
-
-function shouldAutoRefresh(schemaPath: string, status: number, options?: PerformRequestOptions): boolean {
-  return status === 401 && !options?.skipRefresh && !AUTO_REFRESH_EXCLUDED_PATHS.has(schemaPath)
 }
 
 function toTransportErrorResult<T>(error: unknown): ApiCallResult<T> {
@@ -264,58 +231,39 @@ function toTransportErrorResult<T>(error: unknown): ApiCallResult<T> {
   }
 }
 
-async function refreshSession(): Promise<boolean> {
-  if (!refreshPromise) {
-    refreshPromise = performRequest<unknown>('POST', AUTH_REFRESH_PATH, undefined, { skipRefresh: true })
-      .then((result) => {
-        const status = result.response?.status ?? 0
-        return !result.error && status >= 200 && status < 300
-      })
-      .catch(() => false)
-      .finally(() => {
-        refreshPromise = null
-      })
-  }
-  return refreshPromise
-}
-
 function performRequest<T>(
   method: HttpMethod,
   schemaPath: string,
-  init?: unknown,
-  options?: PerformRequestOptions,
+  init?: RequestInitShape,
 ): Promise<ApiCallResult<T>> {
-  const requestInit = (init ?? {}) as RequestInitShape
   let url: string
   try {
-    url = resolveRequestURL(
-      schemaPath,
-      requestInit.params?.path,
-      requestInit.params?.query
-    )
+    url = resolveRequestURL(schemaPath, init?.params?.path, init?.params?.query)
   } catch (error) {
     return Promise.reject(error)
   }
-  const headers: Record<string, string> = {}
 
-  for (const [key, value] of Object.entries(requestInit.params?.header ?? {})) {
+  const requestHeaders: Record<string, string> = {}
+  for (const [key, value] of Object.entries(init?.params?.header ?? {})) {
     if (value == null) continue
-    headers[key] = String(value)
+    requestHeaders[key] = String(value)
   }
-
-  if (requestInit.body !== undefined && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json'
+  if (init?.body !== undefined && !requestHeaders['Content-Type']) {
+    requestHeaders['Content-Type'] = 'application/json'
   }
+  let headers: Record<string, string>
+  try {
+    injectNativeSessionHeader(schemaPath, requestHeaders)
+    headers = buildSecurityHeaders(method, requestHeaders, {
+      csrfToken: resolveCSRFToken(),
+    })
 
-  if (needsCSRF(method)) {
-    const csrfToken = resolveCSRFToken()
-    if (!csrfToken) {
-      return Promise.resolve({
-        error: new Error('CSRF token unavailable'),
-        response: createResponse(0),
-      })
+    const nativeToken = readNativeAccessToken()
+    if (nativeToken && !headers.Authorization) {
+      headers.Authorization = `Bearer ${nativeToken}`
     }
-    headers[CSRF_HEADER_NAME] = csrfToken
+  } catch (error) {
+    return Promise.reject(error)
   }
 
   return new Promise((resolve) => {
@@ -332,49 +280,42 @@ function performRequest<T>(
     }
 
     const requestTask = uni.request({
-      url,
-      method,
-      data: normalizeRequestBody(requestInit.body),
-      header: headers,
-      timeout: 15000,
-      withCredentials: true,
-      success: (response) => {
-        const status = typeof response.statusCode === 'number' ? response.statusCode : 0
-        if (status >= 200 && status < 300) {
-          finish(
-            buildSuccessResult<T>(
-              status,
-              response.data,
-              response.header as Record<string, unknown>
-            )
-          )
-          return
-        }
-        const errorResult = buildErrorResult<T>(
-          status,
-          response.data,
-          response.header as Record<string, unknown>
-        )
-        if (shouldAutoRefresh(schemaPath, status, options)) {
-          void refreshSession().then((refreshed) => {
-            if (!refreshed) {
-              finish(errorResult)
-              return
-            }
-            void performRequest<T>(method, schemaPath, init, { skipRefresh: true })
-              .then(finish)
-              .catch((error) => finish(toTransportErrorResult<T>(error)))
-          })
-          return
-        }
-        finish(errorResult)
-      },
+      data: normalizeRequestBody(init?.body),
       fail: (error) => {
         finish(toTransportErrorResult<T>(error))
       },
+      header: headers,
+      method: method as unknown as UniNamespace.RequestOptions['method'],
+      success: (response) => {
+        try {
+          const status = typeof response.statusCode === 'number' ? response.statusCode : 0
+          if (status >= 200 && status < 300) {
+            finish(
+              buildSuccessResult<T>(
+                status,
+                response.data,
+                response.header as Record<string, unknown>,
+              ),
+            )
+            return
+          }
+          finish(
+            buildErrorResult<T>(
+              status,
+              response.data,
+              response.header as Record<string, unknown>,
+            ),
+          )
+        } catch (error) {
+          finish(toTransportErrorResult<T>(error))
+        }
+      },
+      timeout: 15000,
+      url,
+      withCredentials: true,
     }) as UniNamespace.RequestTask
 
-    const signal = requestInit.signal
+    const signal = init?.signal
     if (!signal) return
 
     const abort = () => {
@@ -397,14 +338,38 @@ function performRequest<T>(
   })
 }
 
-const GET = ((schemaPath: string, init?: unknown) => performRequest('GET', schemaPath, init)) as ApiClient['GET']
-const POST = ((schemaPath: string, init?: unknown) => performRequest('POST', schemaPath, init)) as ApiClient['POST']
-const PUT = ((schemaPath: string, init?: unknown) => performRequest('PUT', schemaPath, init)) as ApiClient['PUT']
-const DELETE = ((schemaPath: string, init?: unknown) => performRequest('DELETE', schemaPath, init)) as ApiClient['DELETE']
+async function refreshSession() {
+  let body: unknown
+  if (isNativeRuntime()) {
+    const refreshToken = readNativeRefreshToken()
+    if (!refreshToken) {
+      return { kind: 'unauthorized' } as const
+    }
+    body = { refreshToken }
+  }
 
-export const apiClient: ApiClient = {
-  GET,
-  POST,
-  PUT,
-  DELETE,
+  return executeSessionRefresh({
+    body,
+    onSuccess(payload) {
+      if (isNativeRuntime() && payload.accessToken) {
+        updateNativeTokensAfterRefresh({
+          accessToken: payload.accessToken,
+          expiresIn: payload.expiresIn,
+          refreshToken: payload.refreshToken,
+        })
+      }
+    },
+    request: (init) => performRequest<RefreshSessionData>('POST', AUTH_REFRESH_PATH, init),
+  })
 }
+
+export const apiClient: ApiClient = createSessionApiClient(
+  {
+    refresh: refreshSession,
+    request: performRequest,
+  },
+  {
+    enableRefresh: true,
+    reauthenticateOnUnauthorized: false,
+  },
+)

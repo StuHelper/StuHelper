@@ -180,16 +180,42 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 			APIUrl:               "http://openfga:8080",
 		},
 		RateLimit: ReviewRateLimitConfig{
-			PostLimit:   5,
-			VoteLimit:   30,
-			ReportLimit: 10,
-			ReplyLimit:  10,
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
 		},
 	}
 
 	err := c.validate(nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "OTEL_ENABLED must be true in production")
+}
+
+func TestValidate_ProductionRequiresBotServiceToken(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Bot.ServiceToken = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "BOT_SERVICE_TOKEN is required in production")
+}
+
+func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.Bot.ServiceToken = ""
+
+	err := c.validate(nil)
+
+	require.NoError(t, err)
 }
 
 func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
@@ -207,7 +233,126 @@ func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
 	assert.Contains(t, err.Error(), "OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1")
 }
 
-func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
+func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
+	c := &Config{
+		App: AppConfig{
+			Env:             "development",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"http://localhost:3000"},
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{
+			DocAESActiveKeyID: 1,
+			DocAESKeys: map[uint8][]byte{
+				1: make([]byte, 32),
+			},
+		},
+		Database: DatabaseConfig{
+			QueryTimeout: 5,
+			MaxConns:     20,
+			MinConns:     2,
+		},
+		Token: TokenConfig{
+			AccessTokenTTL:  300,
+			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		ObjectStorage: ObjectStorageConfig{
+			PresignTTL: 600,
+		},
+		Zitadel: ZitadelConfig{
+			Issuer:       "https://sso.example.com",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
+			ProjectID:    "project-id",
+		},
+		OpenFGA: OpenFGAConfig{
+			StoreID:              "store-id",
+			AuthorizationModelID: "model-id",
+			APIUrl:               "http://openfga:8080",
+		},
+		RateLimit: ReviewRateLimitConfig{
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
+		},
+		SMS: SMSConfig{
+			Enabled: true,
+		},
+	}
+
+	err := c.validate(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SMS_SECRET_ID is required when SMS_ENABLED=true")
+	assert.Contains(t, err.Error(), "SMS_INTERNAL_KEY is required when SMS_ENABLED=true")
+}
+
+func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
+	c := &Config{
+		App: AppConfig{
+			Env:             "development",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"http://localhost:3000"},
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{
+			DocAESActiveKeyID: 1,
+			DocAESKeys: map[uint8][]byte{
+				1: make([]byte, 32),
+			},
+		},
+		Database: DatabaseConfig{
+			QueryTimeout: 5,
+			MaxConns:     20,
+			MinConns:     2,
+		},
+		Token: TokenConfig{
+			AccessTokenTTL:  300,
+			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		ObjectStorage: ObjectStorageConfig{
+			PresignTTL: 600,
+		},
+		Zitadel: ZitadelConfig{
+			Issuer:       "https://sso.example.com",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
+			ProjectID:    "project-id",
+		},
+		OpenFGA: OpenFGAConfig{
+			StoreID:              "store-id",
+			AuthorizationModelID: "model-id",
+			APIUrl:               "http://openfga:8080",
+		},
+		RateLimit: ReviewRateLimitConfig{
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
+		},
+		SMS: SMSConfig{
+			Enabled: false,
+		},
+	}
+
+	require.NoError(t, c.validate(nil))
+}
+
+func TestValidate_RequiresCORSOriginsInDevelopment(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
 			Env:             "development",
@@ -228,6 +373,10 @@ func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
 		Token: TokenConfig{
 			AccessTokenTTL:  300,
 			RefreshTokenTTL: 604800,
+			CookieSecure:    true,
+		},
+		ObjectStorage: ObjectStorageConfig{
+			PresignTTL: 600,
 		},
 		Zitadel: ZitadelConfig{
 			Issuer:       "https://sso.example.com",
@@ -237,30 +386,32 @@ func TestValidate_LDAPRequiresSupportingFields(t *testing.T) {
 			ProjectID:    "project-id",
 		},
 		RateLimit: ReviewRateLimitConfig{
-			PostLimit:   5,
-			VoteLimit:   30,
-			ReportLimit: 10,
-			ReplyLimit:  10,
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
 		},
-		LDAP: LDAPConfig{
-			URL: "ldaps://ldap.example.com:636",
+		SMS: SMSConfig{
+			Enabled: false,
 		},
 	}
 
 	err := c.validate(nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LDAP_BASE_DN is required when LDAP_URL is set")
-	assert.Contains(t, err.Error(), "LDAP_SYSTEM_BIND_DN is required when LDAP_URL is set")
-	assert.Contains(t, err.Error(), "LDAP_SYSTEM_BIND_PASSWORD is required when LDAP_URL is set")
+	assert.Contains(t, err.Error(), "CORS_ORIGINS is required")
 }
 
-func TestValidate_ProductionRejectsLDAPInsecureSkipVerify(t *testing.T) {
+func TestValidate_RequiresOpenFGAInDevelopment(t *testing.T) {
 	c := &Config{
 		App: AppConfig{
-			Env:             "production",
+			Env:             "development",
 			HMACSecret:      "0123456789abcdef0123456789abcdef",
-			CORSOrigins:     []string{"https://stuhelper.example.com"},
-			TrustedProxies:  []string{"10.0.0.0/8"},
+			CORSOrigins:     []string{"http://localhost:3000"},
 			MetricsPassword: "metrics-password",
 		},
 		Security: SecurityConfig{
@@ -270,20 +421,17 @@ func TestValidate_ProductionRejectsLDAPInsecureSkipVerify(t *testing.T) {
 			},
 		},
 		Database: DatabaseConfig{
-			URL:          "postgres://user:pass@db:5432/stuhelper?sslmode=verify-full",
 			QueryTimeout: 5,
 			MaxConns:     20,
 			MinConns:     2,
-			SSLMode:      "verify-full",
 		},
 		Token: TokenConfig{
 			AccessTokenTTL:  300,
 			RefreshTokenTTL: 604800,
 			CookieSecure:    true,
 		},
-		Redis: RedisConfig{
-			Password:   "redis-password",
-			TLSEnabled: true,
+		ObjectStorage: ObjectStorageConfig{
+			PresignTTL: 600,
 		},
 		Zitadel: ZitadelConfig{
 			Issuer:       "https://sso.example.com",
@@ -292,41 +440,52 @@ func TestValidate_ProductionRejectsLDAPInsecureSkipVerify(t *testing.T) {
 			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
 			ProjectID:    "project-id",
 		},
-		OpenFGA: OpenFGAConfig{
-			StoreID:              "store-id",
-			AuthorizationModelID: "model-id",
-			APIUrl:               "http://openfga:8080",
-		},
 		RateLimit: ReviewRateLimitConfig{
-			PostLimit:   5,
-			VoteLimit:   30,
-			ReportLimit: 10,
-			ReplyLimit:  10,
+			PostLimit:       5,
+			VoteLimit:       30,
+			ReportLimit:     10,
+			ReplyLimit:      10,
+			WriteLimit:      10,
+			SearchAnonLimit: 5,
+			SearchUserLimit: 60,
+			BatchAnonLimit:  5,
+			BatchUserLimit:  60,
 		},
-		ObjectStorage: ObjectStorageConfig{
-			Endpoint:        "https://s3.example.com",
-			Bucket:          "stuhelper-identity",
-			AccessKeyID:     "access-key",
-			SecretAccessKey: "secret-key",
-			PresignTTL:      600,
-		},
-		Observability: ObservabilityConfig{
-			Enabled:          true,
-			ServiceName:      "stuhelper-backend",
-			OTLPEndpoint:     "http://alloy:4318",
-			TraceSampleRatio: 0.2,
-		},
-		LDAP: LDAPConfig{
-			URL:                "ldap://ldap.example.com:389",
-			BaseDN:             "ou=people,dc=example,dc=com",
-			SystemBindDN:       "cn=svc,dc=example,dc=com",
-			SystemBindPassword: "bind-password",
-			UseTLS:             true,
-			InsecureSkipVerify: true,
+		SMS: SMSConfig{
+			Enabled: false,
 		},
 	}
 
 	err := c.validate(nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LDAP_INSECURE_SKIP_VERIFY must be false in production")
+	assert.Contains(t, err.Error(), "OPENFGA_STORE_ID is required")
+	assert.Contains(t, err.Error(), "OPENFGA_MODEL_ID is required")
+	assert.Contains(t, err.Error(), "OPENFGA_API_URL is required")
+}
+
+func validProductionConfigForTest() *Config {
+	return &Config{
+		App: AppConfig{
+			Env:             "production",
+			HMACSecret:      "0123456789abcdef0123456789abcdef",
+			CORSOrigins:     []string{"https://stuhelper.example.com"},
+			TrustedProxies:  []string{"10.0.0.0/8"},
+			MetricsPassword: "metrics-password",
+		},
+		Security: SecurityConfig{DocAESActiveKeyID: 1, DocAESKeys: map[uint8][]byte{1: make([]byte, 32)}},
+		Database: DatabaseConfig{URL: "postgres://user:pass@db:5432/stuhelper?sslmode=verify-full", QueryTimeout: 5, MaxConns: 20, MinConns: 2, SSLMode: "verify-full", SSLRootCert: "/run/secrets/postgres-ca.crt"},
+		Token:    TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 604800, CookieSecure: true},
+		Redis:    RedisConfig{Password: "redis-password", TLSEnabled: true, TLSCAFile: "/run/secrets/redis-ca.crt"},
+		ObjectStorage: ObjectStorageConfig{
+			Endpoint: "https://s3.example.com", Bucket: "stuhelper", AccessKeyID: "access", SecretAccessKey: "secret", UseSSL: true, PresignTTL: 600,
+		},
+		Zitadel: ZitadelConfig{Issuer: "https://sso.example.com", ClientID: "client-id", ClientSecret: "client-secret", RedirectURI: "https://api.example.com/api/v1/auth/callback", ProjectID: "project-id"},
+		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
+		Observability: ObservabilityConfig{
+			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,
+		},
+		RateLimit: ReviewRateLimitConfig{PostLimit: 5, VoteLimit: 30, ReportLimit: 10, ReplyLimit: 10, WriteLimit: 10, SearchAnonLimit: 5, SearchUserLimit: 60, BatchAnonLimit: 5, BatchUserLimit: 60},
+		SMS:       SMSConfig{Enabled: false},
+		Bot:       BotConfig{ServiceToken: "bot-service-token"},
+	}
 }

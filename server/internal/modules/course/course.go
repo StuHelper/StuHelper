@@ -153,6 +153,27 @@ func (h *Handler) GetCourses(c *gin.Context) {
 	response.Success(c, gin.H{"list": result.List, "total": result.Total})
 }
 
+// GetCoursesGrouped 按院系分组返回课程目录
+func (h *Handler) GetCoursesGrouped(c *gin.Context) {
+	cacheKey := "course:courses:grouped"
+	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
+		response.Success(c, cached)
+		return
+	}
+
+	groups, err := h.service.GetCoursesGrouped(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, "failed to get grouped courses")
+		return
+	}
+
+	data := gin.H{"groups": groups}
+	if cacheErr := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); cacheErr != nil {
+		logger.FromGin(c).Warn("缓存写入失败", zap.Error(cacheErr))
+	}
+	response.Success(c, data)
+}
+
 // SearchCourses 搜索课程
 func (h *Handler) SearchCourses(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
@@ -242,7 +263,7 @@ func (h *Handler) GetCourse(c *gin.Context) {
 	}
 
 	if userHash != "" {
-		favorited, favErr := h.service.repo.FavoriteExists(ctx, userHash, courseID)
+		favorited, favErr := h.service.FavoriteExists(ctx, userHash, courseID)
 		if favErr != nil {
 			logger.FromGin(c).Warn("failed to check favorite status", zap.Error(favErr))
 		} else {
@@ -299,7 +320,7 @@ func (h *Handler) annotateFavorites(c *gin.Context, userHash string, courses []C
 	for i := range courses {
 		ids[i] = courses[i].ID
 	}
-	favSet, err := h.service.repo.BatchFavoritedCourseIDs(c.Request.Context(), userHash, ids)
+	favSet, err := h.service.BatchFavoritedCourseIDs(c.Request.Context(), userHash, ids)
 	if err != nil {
 		logger.FromGin(c).Warn("failed to batch check favorites", zap.Error(err))
 		return

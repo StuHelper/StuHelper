@@ -1,0 +1,114 @@
+{
+  "terms": [
+    {
+      "externalId": "term-2026-spring",
+      "code": "2026-SPRING",
+      "name": "2026 春",
+      "startDate": "2026-02-23",
+      "endDate": "2026-06-28",
+      "isCurrent": true
+    }
+  ],
+  "courses": [
+    {
+      "externalId": "course-cs3002",
+      "code": "CS3002",
+      "name": "计算机网络",
+      "departmentCode": "CS",
+      "departmentName": "计算机学院",
+      "credit": 3.5
+    },
+    {
+      "externalId": "course-ma1002",
+      "code": "MA1002",
+      "name": "线性代数",
+      "departmentCode": "MA",
+      "departmentName": "数学科学学院",
+      "credit": 3
+    }
+  ],
+  "teachers": [
+    {
+      "externalId": "teacher-ma",
+      "name": "马天宇",
+      "departmentName": "计算机学院"
+    },
+    {
+      "externalId": "teacher-chen",
+      "name": "陈晓峰",
+      "departmentName": "数学科学学院"
+    }
+  ],
+  "offerings": [
+    {
+      "externalId": "offering-cs3002-a",
+      "termExternalId": "term-2026-spring",
+      "courseExternalId": "course-cs3002",
+      "sectionCode": "A01",
+      "schoolName": "北京航空航天大学",
+      "departmentName": "计算机学院",
+      "campus": "学院路校区",
+      "enrollmentLimit": 120,
+      "teacherExternalIds": ["teacher-ma"],
+      "schedules": [
+        {
+          "weekday": 2,
+          "startPeriod": 3,
+          "endPeriod": 4,
+          "location": "新主楼 G305",
+          "building": "新主楼",
+          "weeksText": "1-16"
+        },
+        {
+          "weekday": 4,
+          "startPeriod": 1,
+          "endPeriod": 2,
+          "location": "新主楼 G305",
+          "building": "新主楼",
+          "weeksText": "1-16"
+        }
+      ]
+    },
+    {
+      "externalId": "offering-ma1002-b",
+      "termExternalId": "term-2026-spring",
+      "courseExternalId": "course-ma1002",
+      "sectionCode": "B02",
+      "schoolName": "北京航空航天大学",
+      "departmentName": "数学科学学院",
+      "campus": "学院路校区",
+      "enrollmentLimit": 90,
+      "teacherExternalIds": ["teacher-chen"],
+      "schedules": [
+        {
+          "weekday": 1,
+          "startPeriod": 1,
+          "endPeriod": 2,
+          "location": "沙河校区 教三 201",
+          "building": "教三",
+          "weeksText": "1-16"
+        }
+      ]
+    }
+  ],
+  "memberships": [
+    {
+      "offeringExternalId": "offering-cs3002-a",
+      "externalUserId": "oidc-user-1",
+      "studentId": "23373301",
+      "role": "student"
+    },
+    {
+      "offeringExternalId": "offering-cs3002-a",
+      "externalUserId": "oidc_user_001",
+      "studentId": "20260001",
+      "role": "student"
+    },
+    {
+      "offeringExternalId": "offering-ma1002-b",
+      "externalUserId": "oidc-user-1",
+      "studentId": "23373301",
+      "role": "student"
+    }
+  ]
+}

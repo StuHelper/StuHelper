@@ -2,7 +2,6 @@ import { apiClient } from "./client";
 import {
     createAuthApi,
     createCourseApi,
-    createReviewApi,
     createUserApi,
     createIdentityApi,
     createUserAdminApi,
@@ -13,12 +12,13 @@ import {
     createReplyApi,
     NOTIFICATION_STREAM_PATH,
 } from "@stuhelper/shared/api";
+import { createReviewAppApi } from "./review";
 
 // 导出统一的 API 对象
 export const api = {
     auth: createAuthApi(apiClient),
     course: createCourseApi(apiClient),
-    review: createReviewApi(apiClient),
+    review: createReviewAppApi(apiClient),
     user: createUserApi(apiClient),
     identity: createIdentityApi(apiClient),
     userAdmin: createUserAdminApi(apiClient),
@@ -30,5 +30,5 @@ export const api = {
 };
 
 // 导出类型
-export type { components } from "@stuhelper/shared";
+export type { components } from "@stuhelper/shared/types";
 export { NOTIFICATION_STREAM_PATH };

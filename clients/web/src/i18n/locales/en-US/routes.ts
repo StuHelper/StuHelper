@@ -32,6 +32,7 @@ export default {
   identityVerification: 'Identity Verification',
   studentVerification: 'Student Verification',
   phoneBinding: 'Phone Binding',
+  qqBinding: 'QQ Binding',
   academicInfo: 'Academic Info',
   search: 'Advanced Search',
   courseAbout: 'About Course Reviews',

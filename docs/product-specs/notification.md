@@ -1,33 +1,32 @@
+---
+type: product-spec
+audience: product, backend-dev
+status: current
+authoritative-source: server/api/openapi.yaml
+last-verified: 2026-04-19
+---
+
 # 通知中心
 
-> 状态：现行，双轨逐步统一中
+> 状态：现行，通知实现已统一收口到 `notification` 模块，对外沿用评课用户命名空间
 
 ## 现状
-
-### 轨道 A：前端主要链路
 
 OpenAPI 和 `clients/shared` 使用的接口：
 
 - `GET /api/v1/course/review/user/notifications`
+- `GET /api/v1/course/review/user/notifications/stream`
 - `GET /api/v1/course/review/user/notifications/unread-count`
 - `PUT /api/v1/course/review/user/notifications/{notificationID}/read`
 - `PUT /api/v1/course/review/user/notifications/read-all`
 
-### 轨道 B：独立通知模块
+统一入口：`/api/v1/course/review/user/notifications/*`。该路径前缀是稳定的对外命名空间，不代表代码归属仍在 `review` 模块。
 
-后端已注册的运行时路由：
-
-- `GET /api/v1/notifications`
-- `GET /api/v1/notifications/unread-count`
-- `PUT /api/v1/notifications/:id/read`
-- `PUT /api/v1/notifications/read-all`
-- `GET /api/v1/notifications/stream`（SSE）
-
-目标：统一通知入口，`user_id` 归属键，Redis Pub/Sub 广播，SSE 推送。
+运行时实现统一由 `notification` 模块负责：通知写入、列表查询、已读更新、未读数统计、Redis Pub/Sub 广播和 SSE 推送都在同一模块内闭环。
 
 ## 数据模型
 
-`notifications` 表核心字段：`user_id` / `type` / `title` / `body` / `source_module` / `source_id` / `source_url` / `is_read`
+`notifications` 表核心字段：`user_id` / `type` / `title` / `body` / `payload`（JSONB） / `source_module` / `source_id` / `source_url` / `source_course_id`（int64） / `is_read`
 
 数据库层已迁移到独立通知模块结构。
 
@@ -39,16 +38,12 @@ OpenAPI 和 `clients/shared` 使用的接口：
 
 ## 通知类型
 
-`reply` / `review_hidden` / `review_restored` / `report_resolved` / `identity_approved` / `identity_rejected` / `student_approved` / `student_rejected`
-
-## 统一方向
-
-前端、OpenAPI、Shared API 统一到 `/api/v1/notifications/*`。
+`reply` / `like` / `review_hidden` / `review_restored` / `report_resolved` / `identity_approved` / `identity_rejected` / `student_approved` / `student_rejected` / `system`
 
 ## 代码入口
 
 | 组件 | 位置 |
 |------|------|
-| 独立通知模块 | `server/internal/modules/notification/` |
-| 评课旧通知 | `server/internal/modules/course/review/review_notification.go` |
-| Web 通知封装 | `clients/shared/src/api/notification.ts` |
+| 通知模块 | `server/internal/modules/notification/` |
+| 评课域通知发送方 | `server/internal/modules/course/review/service_review_write.go` / `service_interaction.go` |
+| Shared 通知封装 | `clients/shared/src/api/notification.ts` |

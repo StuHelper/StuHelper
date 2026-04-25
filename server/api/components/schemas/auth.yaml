@@ -83,3 +83,7 @@ UserInfo:
     canAccessAdmin:
       type: boolean
       description: 当前用户是否拥有至少一个可直接进入现有后台界面的全局能力
+    accountSettingsUrl:
+      type: string
+      format: uri
+      description: 身份提供方账户设置页，用于修改密码等账号安全设置

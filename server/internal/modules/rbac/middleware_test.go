@@ -15,44 +15,11 @@ import (
 
 func init() { gin.SetMode(gin.TestMode) }
 
-// setupCapabilityContext creates a gin context with capabilities pre-injected
-// (simulating what AuthMiddleware does after token verification).
-func setupCapabilityContext(capabilities []string) (*gin.Context, *httptest.ResponseRecorder) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-	capSet := make(map[string]struct{}, len(capabilities))
-	for _, cap := range capabilities {
-		capSet[cap] = struct{}{}
-	}
-	c.Set(middleware.CtxKeyCapabilitySet, capSet)
-	c.Set(middleware.CtxKeyCapabilities, capabilities)
-	return c, w
-}
-
 func TestRequireCapability_Allowed(t *testing.T) {
-	c, w := setupCapabilityContext([]string{"admin:reviews:manage", "admin:logs:view"})
 	called := false
 
 	handler := RequireCapability("admin:reviews:manage")
-	c.Set("_gin_handler_index", 0) // needed for c.Next()
-	// Build a simple handler chain
-	engine := gin.New()
-	engine.GET("/test", handler, func(c *gin.Context) {
-		called = true
-		c.Status(http.StatusOK)
-	})
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	// inject capabilities into request context via middleware
-	engine.Use(func(c *gin.Context) {
-		capSet := make(map[string]struct{})
-		capSet["admin:reviews:manage"] = struct{}{}
-		capSet["admin:logs:view"] = struct{}{}
-		c.Set(middleware.CtxKeyCapabilitySet, capSet)
-		c.Next()
-	})
-	// Rebuild with middleware first
 	engine2 := gin.New()
 	engine2.Use(func(c *gin.Context) {
 		capSet := make(map[string]struct{})
@@ -66,7 +33,7 @@ func TestRequireCapability_Allowed(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	w = httptest.NewRecorder()
+	w := httptest.NewRecorder()
 	engine2.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

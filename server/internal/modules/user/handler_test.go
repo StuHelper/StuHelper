@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +18,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	appmiddleware "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
 )
 
 func init() {
@@ -34,26 +36,42 @@ func ptr[T any](value T) *T {
 
 func setupAdminHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engine {
 	t.Helper()
+	return setupAdminHandlerTestRouterWithRole(t, repo, []string{"super_admin"}, nil)
+}
+
+func setupAdminHandlerTestRouterWithRole(
+	t *testing.T,
+	repo *mockRepo,
+	roles []string,
+	orgScopedRoles map[string][]string,
+) *gin.Engine {
+	t.Helper()
 
 	if repo == nil {
 		repo = &mockRepo{}
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	h := NewHandler(svc, nil, nil, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 	r := gin.New()
 	api := r.Group("/api/v1")
 	admin := api.Group("/admin")
-	// 模拟 AuthMiddleware 注入用户信息和全部能力
+	// 模拟 AuthMiddleware 注入用户信息和能力快照
 	admin.Use(func(c *gin.Context) {
 		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
-		caps := capability.ExpandRoles([]string{"super_admin"})
-		c.Set(appmiddleware.CtxKeyCapabilities, caps)
+		snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, orgScopedRoles))
+		c.Set(appmiddleware.CtxKeyRoles, roles)
+		if orgScopedRoles != nil {
+			c.Set(appmiddleware.CtxKeyOrgScopedRoles, orgScopedRoles)
+		}
+		c.Set(appmiddleware.CtxKeyCapabilities, snapshot.Capabilities)
+		c.Set(appmiddleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+		c.Set(appmiddleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
 		// HasCapability 从 CtxKeyCapabilitySet (map) 做 O(1) 查找
-		capSet := make(map[string]struct{}, len(caps))
-		for _, cap := range caps {
+		capSet := make(map[string]struct{}, len(snapshot.Capabilities))
+		for _, cap := range snapshot.Capabilities {
 			capSet[cap] = struct{}{}
 		}
 		c.Set(appmiddleware.CtxKeyCapabilitySet, capSet)
@@ -71,15 +89,20 @@ func setupAdminHandlerTestRouter(t *testing.T) *gin.Engine {
 
 func setupUserHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engine {
 	t.Helper()
+	return setupUserHandlerTestRouterWithServiceOptions(t, repo)
+}
+
+func setupUserHandlerTestRouterWithServiceOptions(t *testing.T, repo *mockRepo, opts ...ServiceOption) *gin.Engine {
+	t.Helper()
 
 	if repo == nil {
 		repo = &mockRepo{}
 	}
 
-	svc, err := NewService(repo, nil, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{}, opts...)
 	require.NoError(t, err)
 
-	h := NewHandler(svc, nil, nil, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 	r := gin.New()
 	api := r.Group("/api/v1")
 	authMW := func(c *gin.Context) {
@@ -89,6 +112,57 @@ func setupUserHandlerTestRouterWithRepo(t *testing.T, repo *mockRepo) *gin.Engin
 	h.RegisterRoutes(api, authMW)
 
 	return r
+}
+
+func setupUserHandlerTestRouterWithRuntimeDeps(
+	t *testing.T,
+	repo *mockRepo,
+	rdb *redis.Client,
+	otpService OTPGenerator,
+	smsService SMSSender,
+	opts ...ServiceOption,
+) *gin.Engine {
+	t.Helper()
+
+	if repo == nil {
+		repo = &mockRepo{}
+	}
+
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{}, opts...)
+	require.NoError(t, err)
+
+	h := NewHandler(svc, rdb, otpService, smsService)
+	r := gin.New()
+	api := r.Group("/api/v1")
+	authMW := func(c *gin.Context) {
+		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
+		c.Next()
+	}
+	h.RegisterRoutes(api, authMW)
+	return r
+}
+
+type stubBindPhoneOTPGenerator struct {
+	issueCalls int
+}
+
+func (s *stubBindPhoneOTPGenerator) IssueCode(_ context.Context, _ string, _ SMSSender) error {
+	s.issueCalls++
+	return nil
+}
+
+func (s *stubBindPhoneOTPGenerator) CooldownSeconds() int {
+	return 60
+}
+
+func (s *stubBindPhoneOTPGenerator) Verify(context.Context, string, string) error {
+	return nil
+}
+
+type stubBindPhoneSMSSender struct{}
+
+func (stubBindPhoneSMSSender) Send(context.Context, string, string) error {
+	return nil
 }
 
 func TestHandleAdminReviewIdentity_AllowsBlankRejectionReason(t *testing.T) {
@@ -274,9 +348,9 @@ func TestHandleAdminListIdentities_DefaultsStatusToPending(t *testing.T) {
 func TestHandleAdminListStudentVerifications_DefaultsStatusToPending(t *testing.T) {
 	var capturedStatus string
 	repo := &mockRepo{
-		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
 			capturedStatus = status
-			assert.Empty(t, schoolID)
+			assert.Nil(t, schoolID)
 			return []Profile{}, 0, nil
 		},
 	}
@@ -288,6 +362,40 @@ func TestHandleAdminListStudentVerifications_DefaultsStatusToPending(t *testing.
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, StatusPending, capturedStatus)
+}
+
+func TestHandleAdminListStudentVerifications_ScopedAdminRequiresSchoolIDForMultipleScopes(t *testing.T) {
+	repo := &mockRepo{}
+	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
+		"school_admin": {"10006", "10007"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandleAdminListStudentVerifications_ScopedAdminAllowsInScopeSchool(t *testing.T) {
+	var capturedSchoolID *int64
+	repo := &mockRepo{
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
+			capturedSchoolID = schoolID
+			return []Profile{}, 0, nil
+		},
+	}
+	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
+		"school_admin": {"10006"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/student-verifications?schoolID=10006", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, capturedSchoolID)
+	assert.Equal(t, int64(10006), *capturedSchoolID)
 }
 
 func TestHandleAdminListIdentities_AllStatusClearsRepositoryFilter(t *testing.T) {
@@ -311,9 +419,9 @@ func TestHandleAdminListIdentities_AllStatusClearsRepositoryFilter(t *testing.T)
 func TestHandleAdminListStudentVerifications_AllStatusClearsRepositoryFilter(t *testing.T) {
 	var capturedStatus string
 	repo := &mockRepo{
-		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
 			capturedStatus = status
-			assert.Empty(t, schoolID)
+			assert.Nil(t, schoolID)
 			return []Profile{}, 0, nil
 		},
 	}
@@ -338,11 +446,11 @@ func TestHandleAdminListIdentities_RejectsUnverifiedStatus(t *testing.T) {
 
 func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T) {
 	repo := &mockRepo{
-		onListProfilesByStatus: func(_ context.Context, status, schoolID string, _, _ int) ([]Profile, int, error) {
+		onListProfilesByStatus: func(_ context.Context, status string, schoolID *int64, _, _ int) ([]Profile, int, error) {
 			assert.Equal(t, StatusPending, status)
 			return []Profile{{
 				UserID:             7,
-				SchoolID:           ptr("10006"),
+				SchoolID:           ptr(int64(10006)),
 				VerificationStatus: StatusPending,
 				VerificationMethod: ptr(VerifyMethodManual),
 				ManualFormData:     json.RawMessage(`{"studentID":"20240001","department":"计算机学院"}`),
@@ -371,7 +479,7 @@ func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T
 }
 
 func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
-	getProfileCalls := 0
+	var createdProfile *Profile
 	repo := &mockRepo{
 		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
 			assert.Equal(t, "external-user-123", externalID)
@@ -381,10 +489,10 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 			assert.Equal(t, int64(42), userID)
 			return &IdentityStatus{UserID: userID, Verified: true}, nil
 		},
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			assert.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			assert.Equal(t, int64(10006), schoolID)
 			return &SchoolConfig{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodManual,
 				ApprovalPolicy:     "manual",
@@ -395,14 +503,15 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 		onCreateProfile: func(_ context.Context, profile *Profile) error {
 			assert.Equal(t, StatusPending, profile.VerificationStatus)
 			assert.Equal(t, []string{"20240001"}, profile.StudentIDs)
+			copied := *profile
+			createdProfile = &copied
 			return nil
 		},
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
-			getProfileCalls++
-			if getProfileCalls == 1 {
+			if createdProfile == nil {
 				return nil, nil
 			}
-			schoolID := "10006"
+			schoolID := int64(10006)
 			method := VerifyMethodManual
 			activeStudentID := "20240001"
 			return &Profile{
@@ -420,7 +529,7 @@ func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/user/profile/verify",
-		strings.NewReader(`{"schoolID":"10006","manualFormData":{"studentID":"20240001"},"consent":true}`),
+		strings.NewReader(`{"schoolID":10006,"manualFormData":{"studentID":"20240001"},"consent":true}`),
 	)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -444,9 +553,9 @@ func TestHandleVerifyStudent_LDAPMissingStudentIDReturns400(t *testing.T) {
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 42, Verified: true}, nil
 		},
-		onGetSchoolConfig: func(_ context.Context, _ string) (*SchoolConfig, error) {
+		onGetSchoolConfig: func(_ context.Context, _ int64) (*SchoolConfig, error) {
 			return &SchoolConfig{
-				SchoolID:           "ldap",
+				SchoolID:           20001,
 				SchoolName:         "LDAP 学校",
 				VerificationMethod: VerifyMethodLDAP,
 				Enabled:            true,
@@ -468,6 +577,103 @@ func TestHandleVerifyStudent_LDAPMissingStudentIDReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestHandleGetUserSurface_NormalizesNilCapabilitiesToEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
+			assert.Equal(t, "external-user-123", externalID)
+			return 42, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/me", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	data := resp["data"].(map[string]any)
+	capabilities := data["capabilities"].([]any)
+	assert.Empty(t, capabilities)
+}
+
+func TestHandleGetProfile_NormalizesNilStudentIDsToEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			assert.Equal(t, int64(42), userID)
+			return &Profile{
+				UserID:             userID,
+				VerificationStatus: StatusPending,
+			}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/profile", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	data := resp["data"].(map[string]any)
+	studentIDs := data["studentIDs"].([]any)
+	assert.Empty(t, studentIDs)
+}
+
+func TestHandleRequestBindPhoneOTP_IsRateLimitedPerUserEndpoint(t *testing.T) {
+	fixture := redisfixture.Start(t)
+	otp := &stubBindPhoneOTPGenerator{}
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRuntimeDeps(
+		t,
+		repo,
+		fixture.Client,
+		otp,
+		stubBindPhoneSMSSender{},
+	)
+
+	body := strings.NewReader(`{"phone":"13800138000"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone/otp", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 1, otp.issueCalls)
+
+	for i := 0; i < bindPhoneOTPUserLimitPerMinute-1; i++ {
+		body = strings.NewReader(`{"phone":"13900139000"}`)
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone/otp", body)
+		req.Header.Set("Content-Type", "application/json")
+		w = httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+
+	body = strings.NewReader(`{"phone":"13700137000"}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone/otp", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Equal(t, bindPhoneOTPUserLimitPerMinute, otp.issueCalls)
+}
+
 func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	now := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
 	repo := &mockRepo{
@@ -475,7 +681,7 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 			academicTable := "academic.buaa_students"
 			consentText := "授权说明"
 			return []SchoolConfig{{
-				SchoolID:           "10006",
+				SchoolID:           10006,
 				SchoolName:         "北航",
 				VerificationMethod: VerifyMethodLDAP,
 				LDAPConfig:         json.RawMessage(`{"url":"ldaps://ldap.example:636","baseDN":"ou=users,dc=example,dc=com","systemBindDN":"cn=system,dc=example,dc=com","systemBindPassword":"secret","useTLS":true,"insecureSkipVerify":false}`),
@@ -502,7 +708,7 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	items := resp["data"].([]any)
 	require.Len(t, items, 1)
 	item := items[0].(map[string]any)
-	assert.Equal(t, "10006", item["schoolID"])
+	assert.Equal(t, float64(10006), item["schoolID"])
 	assert.Equal(t, "北航", item["schoolName"])
 	assert.NotContains(t, item, "SchoolID")
 	assert.NotContains(t, item, "LDAPConfig")
@@ -517,16 +723,47 @@ func TestHandleAdminListSchoolConfigs_MapsToSpecShape(t *testing.T) {
 	assert.Equal(t, "学号", firstField["label"])
 }
 
+func TestHandleAdminListSchoolConfigs_NormalizesNilManualFormFieldsToEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onListAllSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{{
+				SchoolID:           10006,
+				SchoolName:         "北航",
+				VerificationMethod: VerifyMethodManual,
+				ApprovalPolicy:     "manual",
+				Enabled:            true,
+			}}, nil
+		},
+	}
+
+	r := setupAdminHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/school-configs", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	items := resp["data"].([]any)
+	require.Len(t, items, 1)
+	item := items[0].(map[string]any)
+	manualFormFields := item["manualFormFields"].([]any)
+	assert.Empty(t, manualFormFields)
+}
+
 func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t *testing.T) {
 	existing := &SchoolConfig{
-		SchoolID:           "10006",
+		SchoolID:           10006,
 		SchoolName:         "北航",
 		VerificationMethod: VerifyMethodLDAP,
 		Enabled:            true,
 	}
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			assert.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			assert.Equal(t, int64(10006), schoolID)
 			copied := *existing
 			return &copied, nil
 		},
@@ -554,14 +791,14 @@ func TestHandleAdminUpdateSchoolConfig_InvalidAcademicTableReturnsBusinessCode(t
 
 func TestHandleAdminUpdateSchoolConfig_MissingLDAPConfigReturnsBusinessCode(t *testing.T) {
 	existing := &SchoolConfig{
-		SchoolID:           "10006",
+		SchoolID:           10006,
 		SchoolName:         "北航",
 		VerificationMethod: VerifyMethodManual,
 		Enabled:            false,
 	}
 	repo := &mockRepo{
-		onGetSchoolConfig: func(_ context.Context, schoolID string) (*SchoolConfig, error) {
-			assert.Equal(t, "10006", schoolID)
+		onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
+			assert.Equal(t, int64(10006), schoolID)
 			copied := *existing
 			return &copied, nil
 		},
@@ -587,11 +824,30 @@ func TestHandleAdminUpdateSchoolConfig_MissingLDAPConfigReturnsBusinessCode(t *t
 	assert.Equal(t, string(errs.ErrSchoolLDAPConfigMissing), resp.Error.Code)
 }
 
+func TestHandleAdminUpdateSchoolConfig_ScopedAdminOutOfScopeReturns403(t *testing.T) {
+	repo := &mockRepo{}
+	r := setupAdminHandlerTestRouterWithRole(t, repo, []string{"school_admin"}, map[string][]string{
+		"school_admin": {"10006"},
+	})
+
+	req := httptest.NewRequest(
+		http.MethodPut,
+		"/api/v1/admin/school-configs/10007",
+		strings.NewReader(`{"enabled":true}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
 func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
 	repo := &mockRepo{
 		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
 			return []SchoolConfig{{
-				SchoolID:           "manual",
+				SchoolID:           20002,
 				SchoolName:         "人工审核学校",
 				VerificationMethod: VerifyMethodManual,
 				ManualFormFields:   json.RawMessage(`[{"key":"studentID","label":"学号","type":"text","required":true}]`),
@@ -618,6 +874,36 @@ func TestHandleListSchools_ManualIncludesManualFormFields(t *testing.T) {
 	require.Len(t, manualFormFields, 1)
 	firstField := manualFormFields[0].(map[string]any)
 	assert.Equal(t, "studentID", firstField["key"])
+}
+
+func TestHandleListSchools_ManualWithoutFieldsReturnsEmptySlice(t *testing.T) {
+	repo := &mockRepo{
+		onListSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {
+			return []SchoolConfig{{
+				SchoolID:           20002,
+				SchoolName:         "人工审核学校",
+				VerificationMethod: VerifyMethodManual,
+				Enabled:            true,
+			}}, nil
+		},
+	}
+
+	r := setupUserHandlerTestRouterWithRepo(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/schools", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	list := resp["data"].([]any)
+	require.Len(t, list, 1)
+	item := list[0].(map[string]any)
+	manualFormFields := item["manualFormFields"].([]any)
+	assert.Empty(t, manualFormFields)
 }
 
 func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {
@@ -653,6 +939,18 @@ func TestHandleAdminListSystemConfigs_MapsToSpecShape(t *testing.T) {
 	assert.Equal(t, "演示配置", item["description"])
 	assert.NotContains(t, item, "Key")
 	assert.NotContains(t, item, "UpdatedAt")
+}
+
+func TestHandleAdminListSystemConfigs_ScopedAdminForbidden(t *testing.T) {
+	r := setupAdminHandlerTestRouterWithRole(t, nil, []string{"school_admin"}, map[string][]string{
+		"school_admin": {"10006"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system-configs", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestHandleAdminUpdateSystemConfig_InvalidReviewPreviewPercentReturns400(t *testing.T) {

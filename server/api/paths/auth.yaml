@@ -8,10 +8,17 @@
       - name: redirect
         in: query
         required: false
-        description: 登录完成后的前端回跳地址（绝对 URL）
+        description: 登录完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。
         schema:
           type: string
-          format: uri
+          format: uri-reference
+      - name: platform
+        in: query
+        required: false
+        description: 登录发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。
+        schema:
+          type: string
+          enum: [web, native]
     responses:
       '200':
         description: 返回 Zitadel OIDC 授权 URL 和 state
@@ -47,10 +54,17 @@
       - name: redirect
         in: query
         required: false
-        description: 注册完成后的前端回跳地址（绝对 URL）
+        description: 注册完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。
         schema:
           type: string
-          format: uri
+          format: uri-reference
+      - name: platform
+        in: query
+        required: false
+        description: 注册发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。
+        schema:
+          type: string
+          enum: [web, native]
     responses:
       '200':
         description: 返回 Zitadel OIDC 授权 URL 和 state
@@ -80,7 +94,11 @@
   get:
     tags: [Auth]
     operationId: handleCallback
-    summary: 处理 OIDC 回调并重定向回前端
+    summary: 处理 OIDC 回调并完成 302 跳转
+    description: |
+      服务端消费一次性 state 后完成 OIDC code exchange。
+      - Web/H5 state：写入会话 cookie，然后 302 到前端页面
+      - Native state：不写 cookie，而是 302 到 `stuhelper://auth/callback?...` deep link 交回 App
     security: []
     parameters:
       - name: code
@@ -95,13 +113,13 @@
           type: string
     responses:
       '302':
-        description: 登录成功，写入 Cookie 后重定向到前端页面
+        description: 登录成功后的重定向；Web/H5 返回前端 URL，native 返回 `stuhelper://auth/callback?...` deep link
         headers:
           Location:
-            description: 前端回跳地址
+            description: Web/H5 为前端回跳地址；native 为 App deep link
             schema:
               type: string
-              format: uri
+              format: uri-reference
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
@@ -114,8 +132,32 @@
     tags: [Auth]
     operationId: refreshToken
     summary: 刷新 Access Token
+    description: |
+      支持两种传递 refresh token 的方式：
+      - **Web 浏览器**：通过 HttpOnly cookie 自动携带（cookieAuth）
+      - **原生 App**：通过请求体 JSON 传递（无 cookie 环境）
+
+      原生 App 请求时，响应额外包含 accessToken 和 refreshToken 字段，
+      供客户端更新本地存储。
+      如果 token 来源于 `/api/v1/auth/exchange-native`，客户端还必须在请求头
+      `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID，以便服务端在
+      refresh rotation 时继续追踪同一 session family。
     security:
-      - cookieAuth: []
+      - cookieAuth: []   # Web 浏览器：refresh_token 通过 cookie 自动携带
+      - {}               # 原生 App：refresh token 通过请求体传递，无需 cookie
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/NativeSessionIDHeader'
+    requestBody:
+      description: 原生 App 通过请求体传递 refresh token（Web 浏览器通过 cookie 自动携带，无需此字段）
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              refreshToken:
+                type: string
+                description: 原生 App 的 refresh token
     responses:
       '200':
         description: Token 刷新成功
@@ -135,6 +177,12 @@
                           type: string
                         expiresIn:
                           type: integer
+                        accessToken:
+                          type: string
+                          description: 仅原生 App 请求时返回
+                        refreshToken:
+                          type: string
+                          description: 仅原生 App 请求时返回
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -173,9 +221,15 @@
     tags: [Auth]
     operationId: logout
     summary: 登出当前设备
+    description: |
+      浏览器请求通过服务端 `session_id` cookie 定位会话。
+      原生 OIDC 客户端如果没有 `session_id` cookie，必须在请求头
+      `X-Stuhelper-Session-ID` 中回传交换时获得的 session ID。
     security:
       - cookieAuth: []
       - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/common.yaml#/NativeSessionIDHeader'
     responses:
       '200':
         description: 登出成功
@@ -314,4 +368,59 @@
       '429':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/auth/exchange-native:
+  post:
+    tags: [Auth]
+    operationId: exchangeNative
+    summary: 原生 App 令牌交换（用一次性 state 换取 token）
+    description: |
+      原生 App 完成浏览器 SSO 后，通过 deep link 回传 code + state，
+      由本端点完成 code → token 交换并以 JSON 返回（不写 cookie）。
+      PKCE `code_verifier` 只保存在服务端 Redis，并随 state 一次性消费，客户端无需传递。
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, state]
+            properties:
+              code:
+                type: string
+                description: OIDC authorization code
+              state:
+                type: string
+                description: 登录时生成的一次性 state（同时用于服务端查找并消费 PKCE verifier）
+    responses:
+      '200':
+        description: 令牌交换成功
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [accessToken, refreshToken, sessionID, expiresIn]
+                      properties:
+                        accessToken:
+                          type: string
+                        refreshToken:
+                          type: string
+                        sessionID:
+                          type: string
+                          description: 原生会话唯一标识；refresh 时用于保留 token family 追踪语义
+                        expiresIn:
+                          type: integer
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

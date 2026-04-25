@@ -13,6 +13,7 @@
  * 详见 docs/reference/error-codes.md
  */
 import i18n from '@/i18n'
+import { defaultHttpStatusErrorCode } from '@stuhelper/shared/api'
 
 // 错误严重级别
 export type ErrorSeverity = 'info' | 'warning' | 'error' | 'critical'
@@ -94,20 +95,66 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError
 }
 
+// 从未知错误对象中提取 HTTP 状态码
+export function getErrorStatus(error: unknown): number | undefined {
+  if (error instanceof ApiError) return error.status
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const status = (error as { status?: unknown }).status
+    return typeof status === 'number' ? status : undefined
+  }
+  return undefined
+}
+
 // 后端未返回 code 时的 HTTP 状态码兜底映射
 export function httpStatusToDefaultCode(status: number): string {
-  const map: Record<number, string> = {
-    400: 'A0000400',
-    401: 'A0010100',
-    403: 'A0010200',
-    404: 'A0000404',
-    409: 'A0000409',
-    422: 'A0000422',
-    429: 'A0000429',
-    500: 'B0000001',
-    502: 'C0000001',
-    503: 'B0000004',
-    504: 'B0000006',
+  return defaultHttpStatusErrorCode(status)
+}
+
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    const { t, te } = i18n.global
+    const key = `errors.${error.code}`
+
+    if (te(key)) {
+      const localized = t(key).trim()
+      return localized || fallback
+    }
+
+    return fallback
   }
-  return map[status] || 'B0000001'
+  return fallback
+}
+
+export function classifyApiError<TType extends string>(
+  error: unknown,
+  options: {
+    networkType: TType
+    apiType: TType
+    unknownType: TType
+    networkMessage?: string
+    fallbackMessage: string
+  },
+): { type: TType, message: string } {
+  if (error instanceof ApiError) {
+    if (isNetworkError(error.code)) {
+      return {
+        type: options.networkType,
+        message: options.networkMessage ?? i18n.global.t('errors.NETWORK_ERROR'),
+      }
+    }
+    return {
+      type: options.apiType,
+      message: error.getUserMessage(),
+    }
+  }
+  if (error instanceof Error) {
+    return {
+      type: options.unknownType,
+      message: error.message,
+    }
+  }
+  return {
+    type: options.unknownType,
+    message: options.fallbackMessage,
+  }
 }

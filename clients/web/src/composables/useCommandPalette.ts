@@ -2,7 +2,7 @@
  * 命令面板状态管理
  * Cmd+K / Ctrl+K 触发全局搜索
  */
-import { ref, onUnmounted } from 'vue'
+import { onScopeDispose, ref } from 'vue'
 
 const isOpen = ref(false)
 const searchQuery = ref('')
@@ -64,7 +64,7 @@ function removeListener() {
 
 export function useCommandPalette() {
   addListener()
-  onUnmounted(removeListener)
+  onScopeDispose(removeListener)
 
   return {
     isOpen,

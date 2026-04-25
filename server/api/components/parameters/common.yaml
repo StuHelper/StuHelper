@@ -88,3 +88,38 @@ SensitiveWordIDPath:
   schema:
     type: string
     format: uuid
+
+NativeSessionIDHeader:
+  name: X-Stuhelper-Session-ID
+  in: header
+  required: false
+  description: 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪
+  schema:
+    type: string
+
+OfferingIDPath:
+  name: offeringID
+  in: path
+  required: true
+  description: 开课实例 ID
+  schema:
+    type: integer
+    format: int64
+
+MountIDPath:
+  name: mountID
+  in: path
+  required: true
+  description: 存储挂载点 ID
+  schema:
+    type: integer
+    format: int64
+
+ResourceIDPath:
+  name: resourceID
+  in: path
+  required: true
+  description: 资源 ID
+  schema:
+    type: integer
+    format: int64

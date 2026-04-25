@@ -412,12 +412,12 @@ FROM dist_overall;
 -- ============================================
 -- 10. 开发环境：测试用学籍数据
 -- ============================================
-INSERT INTO academic.buaa_students (xh, xm, sfzjlxdm, sfzjh, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh, dzxx, xjztdm, sfzx, sfzj) VALUES
-    ('20211001', '张三', '1', '110101200301010011', '001', '0812', '210101', '4', '2021', '01', '01', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
-    ('20211002', '李四', '1', '110101200301020022', '001', '0812', '210101', '4', '2021', '01', '01', '13800138002', 'lisi@buaa.edu.cn', '01', '1', '1'),
-    ('20211003', '王五', '1', '110101200301030033', '003', '0502', '210301', '4', '2021', '01', '01', '13800138003', 'wangwu@buaa.edu.cn', '01', '1', '1'),
-    ('20241001', '张三', '1', '110101200301010011', '001', '0812', '241001', '1', '2024', '02', '02', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
-    ('20211004', 'John Smith', 'A', 'H12345678', '001', '0812', '210102', '4', '2021', '01', '01', NULL, 'john@buaa.edu.cn', '01', '1', '1')
+INSERT INTO academic.buaa_students (xh, xm, sfzjlxdm, sfzjh_enc, sfzjh_hash, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh, dzxx, xjztdm, sfzx, sfzj) VALUES
+    ('20211001', '张三', '1', convert_to('110101200301010011', 'UTF8'), NULL, '001', '0812', '210101', '4', '2021', '01', '01', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
+    ('20211002', '李四', '1', convert_to('110101200301020022', 'UTF8'), NULL, '001', '0812', '210101', '4', '2021', '01', '01', '13800138002', 'lisi@buaa.edu.cn', '01', '1', '1'),
+    ('20211003', '王五', '1', convert_to('110101200301030033', 'UTF8'), NULL, '003', '0502', '210301', '4', '2021', '01', '01', '13800138003', 'wangwu@buaa.edu.cn', '01', '1', '1'),
+    ('20241001', '张三', '1', convert_to('110101200301010011', 'UTF8'), NULL, '001', '0812', '241001', '1', '2024', '02', '02', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
+    ('20211004', 'John Smith', 'A', convert_to('H12345678', 'UTF8'), NULL, '001', '0812', '210102', '4', '2021', '01', '01', NULL, 'john@buaa.edu.cn', '01', '1', '1')
 ON CONFLICT (xh) DO NOTHING;
 
 -- ============================================
@@ -429,8 +429,8 @@ SELECT id, 'MAINLAND_ID', '\x00'::bytea, 'test_person_uid_001', '测试用户', 
 FROM users WHERE username = 'test_admin'
 ON CONFLICT (user_id) DO NOTHING;
 
-INSERT INTO user_profiles (user_id, school_id, student_ids, active_student_id, verification_status, verification_method, phone, phone_verified, consent_given_at, verified_at)
-SELECT id, '10006', '["20211001"]'::jsonb, '20211001', 'verified', 'ldap', '138****8001', TRUE, NOW(), NOW()
+INSERT INTO user_profiles (user_id, school_id, student_ids, active_student_id, verification_status, verification_method, consent_given_at, verified_at)
+SELECT id, 10006, '["20211001"]'::jsonb, '20211001', 'verified', 'ldap', NOW(), NOW()
 FROM users WHERE username = 'test_admin'
 ON CONFLICT (user_id) DO NOTHING;
 

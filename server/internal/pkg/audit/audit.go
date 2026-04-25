@@ -1,12 +1,16 @@
 package audit
 
 import (
+	"context"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
+
+const defaultAdminOperationRetentionDays = 90
 
 // EventType 审计事件类型
 type EventType string
@@ -39,6 +43,7 @@ const (
 	// 管理员操作
 	EventAdminReviewHide    EventType = "admin.review_hide"
 	EventAdminReviewDelete  EventType = "admin.review_delete"
+	EventAdminReviewRestore EventType = "admin.review_restore"
 	EventAdminReportResolve EventType = "admin.report_resolve"
 	EventAdminConfigChange  EventType = "admin.config_change"
 	EventAdminUserBan       EventType = "admin.user_ban"
@@ -52,73 +57,147 @@ const (
 	EventSystemError        EventType = "system.error"
 )
 
-// Event 审计事件
+// Event 审计事件统一 envelope。
 type Event struct {
-	Type      EventType
-	UserID    string
-	Username  string
-	IP        string
-	UserAgent string
-	RequestID string
-	Resource  string
-	Action    string
-	Result    string
-	Duration  time.Duration
-	Details   map[string]any
-	Timestamp time.Time
+	Type          EventType
+	Category      string
+	ActorType     string
+	UserID        string
+	Username      string
+	IP            string
+	UserAgent     string
+	RequestID     string
+	TraceID       string
+	Resource      string
+	ResourceType  string
+	ResourceID    string
+	ScopeSchoolID string
+	Action        string
+	Result        string
+	Reason        string
+	Before        any
+	After         any
+	Duration      time.Duration
+	Details       map[string]any
+	Timestamp     time.Time
 }
 
-// Log 记录审计日志
-func Log(e Event) {
-	if e.Timestamp.IsZero() {
-		e.Timestamp = time.Now()
+func EventFromContext(ctx context.Context, event Event) Event {
+	if ctx == nil {
+		return normalizeEvent(event)
 	}
+	sc := trace.SpanContextFromContext(ctx)
+	if sc.IsValid() && event.TraceID == "" {
+		event.TraceID = sc.TraceID().String()
+	}
+	return normalizeEvent(event)
+}
+
+// Log 记录审计日志，并在配置仓储后持久化到 audit_events。
+func Log(e Event) {
+	e = normalizeEvent(e)
 
 	fields := []zap.Field{
 		zap.String("audit_type", string(e.Type)),
+		zap.String("audit_category", e.Category),
+		zap.String("actor_type", e.ActorType),
 		zap.String("user_id", e.UserID),
 		zap.String("username", logger.MaskSensitiveData(e.Username)),
 		zap.String("ip", logger.MaskIP(e.IP)),
 		zap.String("user_agent", e.UserAgent),
 		zap.String("request_id", e.RequestID),
-		zap.String("resource", e.Resource),
+		zap.String("trace_id", e.TraceID),
+		zap.String("resource_type", e.ResourceType),
+		zap.String("resource_id", e.ResourceID),
 		zap.String("action", e.Action),
 		zap.String("result", e.Result),
+		zap.String("reason", e.Reason),
 		zap.Time("timestamp", e.Timestamp),
 	}
 
+	if e.ScopeSchoolID != "" {
+		fields = append(fields, zap.String("scope_school_id", e.ScopeSchoolID))
+	}
 	if e.Duration > 0 {
 		fields = append(fields, zap.Duration("duration", e.Duration))
 	}
-
+	if e.Before != nil {
+		fields = append(fields, zap.Any("before", e.Before))
+	}
+	if e.After != nil {
+		fields = append(fields, zap.Any("after", e.After))
+	}
 	if len(e.Details) > 0 {
 		fields = append(fields, zap.Any("details", e.Details))
 	}
 
 	logger.L().Info("audit_log", fields...)
+
+	repo := configuredRepository()
+	if repo == nil {
+		return
+	}
+	if err := repo.WriteEvent(context.Background(), e); err != nil {
+		logger.L().Warn("persist audit event failed", zap.Error(err))
+	}
 }
 
 // LogSuccess 记录成功的审计事件
 func LogSuccess(eventType EventType, userID, username, ip, userAgent, requestID string) {
 	Log(Event{
-		Type:      eventType,
-		UserID:    userID,
-		Username:  username,
-		IP:        ip,
-		UserAgent: userAgent,
-		RequestID: requestID,
-		Result:    "success",
+		Type:         eventType,
+		ActorType:    "user",
+		UserID:       userID,
+		Username:     username,
+		IP:           ip,
+		UserAgent:    userAgent,
+		RequestID:    requestID,
+		ResourceType: defaultResourceType(eventType),
+		Action:       defaultAction(eventType),
+		Result:       "success",
 	})
 }
 
 // LogFailure 记录失败的审计事件
 func LogFailure(eventType EventType, ip, userAgent, requestID, reason string) {
 	Log(Event{
-		Type:      eventType,
-		IP:        ip,
-		UserAgent: userAgent,
-		RequestID: requestID,
-		Result:    "failure",
-		Details:   map[string]any{"reason": reason},
+		Type:         eventType,
+		ActorType:    "user",
+		IP:           ip,
+		UserAgent:    userAgent,
+		RequestID:    requestID,
+		ResourceType: defaultResourceType(eventType),
+		Action:       defaultAction(eventType),
+		Result:       "failure",
+		Reason:       reason,
+		Details:      map[string]any{"reason": reason},
 	})
+}
+
+func defaultResourceType(eventType EventType) string {
+	switch eventType {
+	case EventUserLogin, EventUserLoginFailed, EventUserLogout, EventUserLogoutAll:
+		return "auth.session"
+	case EventTokenRefresh, EventTokenRevoked:
+		return "auth.token"
+	default:
+		return "system"
+	}
+}
+
+func defaultAction(eventType EventType) string {
+	switch eventType {
+	case EventUserLogin, EventUserLoginFailed:
+		return "login"
+	case EventUserLogout:
+		return "logout"
+	case EventUserLogoutAll:
+		return "logout_all"
+	case EventTokenRefresh:
+		return "refresh"
+	case EventTokenRevoked:
+		return "revoke"
+	default:
+		return "unknown"
+	}
 }

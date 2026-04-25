@@ -41,7 +41,7 @@ ensure_dev_default() {
 
 placeholder_or_empty() {
   local value="${1:-}"
-  [[ -z "${value}" || "${value}" == *"REPLACE_WITH_"* || "${value}" == "ChangeMeBeforeProduction" ]]
+  [[ -z "${value}" || "${value}" == *"REPLACE_WITH_"* || "${value}" == "ChangeMeBeforeProduction" || "${value}" == "RUN_MAKE_DEV_INIT" ]]
 }
 
 future_iso_timestamp() {
@@ -53,11 +53,26 @@ PY
 
 load_env
 
-if placeholder_or_empty "${POSTGRES_PASSWORD:-}"; then
-  upsert_env_file "${ENV_FILE}" "POSTGRES_PASSWORD" "dev123"
+if placeholder_or_empty "${POSTGRES_PASSWORD:-}" || [[ "${POSTGRES_PASSWORD:-}" == "dev123" ]]; then
+  upsert_env_file "${ENV_FILE}" "POSTGRES_PASSWORD" "dev-postgres-$(random_hex 12)"
 fi
-if placeholder_or_empty "${REDIS_PASSWORD:-}"; then
-  upsert_env_file "${ENV_FILE}" "REDIS_PASSWORD" "dev123"
+if placeholder_or_empty "${REDIS_PASSWORD:-}" || [[ "${REDIS_PASSWORD:-}" == "dev123" ]]; then
+  upsert_env_file "${ENV_FILE}" "REDIS_PASSWORD" "dev-redis-$(random_hex 12)"
+fi
+if placeholder_or_empty "${STUHELPER_APP_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "dev-app-$(random_hex 12)"
+fi
+if placeholder_or_empty "${ZITADEL_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "ZITADEL_DB_PASSWORD" "dev-zitadel-$(random_hex 12)"
+fi
+if placeholder_or_empty "${OPENFGA_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "OPENFGA_DB_PASSWORD" "dev-openfga-$(random_hex 12)"
+fi
+if placeholder_or_empty "${STUHELPER_BACKUP_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "STUHELPER_BACKUP_DB_PASSWORD" "dev-backup-$(random_hex 12)"
+fi
+if placeholder_or_empty "${STUHELPER_REPLICATION_DB_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "STUHELPER_REPLICATION_DB_PASSWORD" "dev-repl-$(random_hex 12)"
 fi
 if placeholder_or_empty "${HMAC_SECRET:-}"; then
   upsert_env_file "${ENV_FILE}" "HMAC_SECRET" "$(random_hex 32)"
@@ -66,7 +81,7 @@ if placeholder_or_empty "${DOC_AES_KEYS:-}"; then
   upsert_env_file "${ENV_FILE}" "DOC_AES_ACTIVE_KEY_ID" "1"
   upsert_env_file "${ENV_FILE}" "DOC_AES_KEYS" "1:$(random_hex 32)"
 fi
-if placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
+if [[ "${SMS_ENABLED:-false}" == "true" ]] && placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
   upsert_env_file "${ENV_FILE}" "SMS_INTERNAL_KEY" "$(random_hex 16)"
 fi
 if placeholder_or_empty "${METRICS_PASSWORD:-}"; then
@@ -74,6 +89,12 @@ if placeholder_or_empty "${METRICS_PASSWORD:-}"; then
 fi
 if placeholder_or_empty "${GRAFANA_ADMIN_PASSWORD:-}"; then
   upsert_env_file "${ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "dev-grafana-$(random_hex 8)"
+fi
+if placeholder_or_empty "${MINIO_ROOT_USER:-}"; then
+  upsert_env_file "${ENV_FILE}" "MINIO_ROOT_USER" "dev-minio-root"
+fi
+if placeholder_or_empty "${MINIO_ROOT_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "MINIO_ROOT_PASSWORD" "dev-minio-root-$(random_hex 12)"
 fi
 if placeholder_or_empty "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
   upsert_env_file "${ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "dev-minio-$(random_hex 12)"
@@ -90,11 +111,19 @@ fi
 
 ensure_value "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev"
 ensure_value "APP_ENV" "${APP_ENV:-}" "development"
-ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable"
+load_env
+
+ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable"
 ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"
+ensure_dev_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
+ensure_dev_default "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off" "on"
+ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "60s"
 ensure_value "REDIS_HOST" "${REDIS_HOST:-}" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
+ensure_value "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true"
+ensure_value "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
 ensure_value "ZITADEL_EXTERNALPORT" "${ZITADEL_EXTERNALPORT:-}" "8085"
+ensure_value "TRAEFIK_HTTP_PORT" "${TRAEFIK_HTTP_PORT:-}" "8085"
 ensure_dev_default "ZITADEL_DOMAIN" "${ZITADEL_DOMAIN:-}" "localhost" "host.docker.internal"
 ensure_value "ZITADEL_PUBLIC_SCHEME" "${ZITADEL_PUBLIC_SCHEME:-}" "http"
 ensure_dev_default "ZITADEL_ISSUER" "${ZITADEL_ISSUER:-}" "http://localhost:8085" "http://host.docker.internal:8085"
@@ -117,8 +146,15 @@ ensure_value "OBJECT_STORAGE_FORCE_PATH_STYLE" "${OBJECT_STORAGE_FORCE_PATH_STYL
 ensure_value "OBJECT_STORAGE_PRESIGN_TTL" "${OBJECT_STORAGE_PRESIGN_TTL:-}" "600"
 ensure_value "PROMETHEUS_RETENTION_TIME" "${PROMETHEUS_RETENTION_TIME:-}" "15d"
 ensure_value "PROMETHEUS_RETENTION_SIZE" "${PROMETHEUS_RETENTION_SIZE:-}" "20GB"
-ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "7"
-ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "14"
-ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "7"
+ensure_value "BACKUP_LOGICAL_RETENTION_DAYS" "${BACKUP_LOGICAL_RETENTION_DAYS:-}" "14"
+ensure_value "BACKUP_BASE_RETENTION_DAYS" "${BACKUP_BASE_RETENTION_DAYS:-}" "30"
+ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "14"
+ensure_value "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "stuhelper/backend:dev-placeholder"
+ensure_value "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "stuhelper/frontend:dev-placeholder"
+ensure_value "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "stuhelper/admin:dev-placeholder"
+
+"${SCRIPT_DIR}/render-redis-tls.sh"
+"${SCRIPT_DIR}/render-redis-acl.sh"
+"${SCRIPT_DIR}/render-zitadel-secrets.sh"
 
 log "development environment file is ready: ${ENV_FILE}"

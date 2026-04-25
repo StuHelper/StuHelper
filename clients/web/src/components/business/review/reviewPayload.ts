@@ -1,3 +1,6 @@
+import { isReviewGrade } from '@stuhelper/shared/constants'
+import type { PostReviewRequest, ReviewRatings } from '@stuhelper/shared/review'
+
 export interface CreateReviewPayloadInput {
   courseID: number
   teacherID?: number
@@ -5,14 +8,17 @@ export interface CreateReviewPayloadInput {
   title: string
   content: string
   grade?: string
-  ratings: Record<string, number>
+  ratings: ReviewRatings
 }
 
-export function buildCreateReviewPayload(input: CreateReviewPayloadInput): CreateReviewPayloadInput {
+export function buildCreateReviewPayload(input: CreateReviewPayloadInput): PostReviewRequest {
   const termID = input.termID?.trim()
   if (!termID) {
     throw new Error('termID is required')
   }
+
+  const grade = input.grade?.trim()
+  const gradeFields = grade && isReviewGrade(grade) ? { grade } : {}
 
   return {
     courseID: input.courseID,
@@ -20,7 +26,7 @@ export function buildCreateReviewPayload(input: CreateReviewPayloadInput): Creat
     termID,
     title: input.title,
     content: input.content,
-    ...(input.grade !== undefined && { grade: input.grade }),
+    ...gradeFields,
     ratings: input.ratings,
   }
 }

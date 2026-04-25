@@ -103,7 +103,7 @@ func (s *Service) GetTeacherRatingStats(ctx context.Context, teacherID int64) (*
 }
 
 // groupRatingStats 按学期分组统计评分数据
-func (s *Service) groupRatingStats(stats []TeacherRatingStats, dimensions []RatingDimension, resp *TeacherRatingStatsResponse) map[string]*DimensionStats {
+func (s *Service) groupRatingStats(stats []TeacherRatingStats, dimensions []RatingDimension, resp *TeacherRatingStatsResponse) {
 	dimNameMap := make(map[string]string, len(dimensions))
 	for _, d := range dimensions {
 		dimNameMap[d.Key] = d.Name
@@ -163,8 +163,6 @@ func (s *Service) groupRatingStats(stats []TeacherRatingStats, dimensions []Rati
 	sort.Slice(resp.ByTerm, func(i, j int) bool {
 		return resp.ByTerm[i].TermID < resp.ByTerm[j].TermID
 	})
-
-	return overallStats
 }
 
 // buildRatingStats 构建平均分和评分趋势

@@ -34,3 +34,16 @@ func RequireAnyCapability(capNames ...string) gin.HandlerFunc {
 		c.Abort()
 	}
 }
+
+// RequireGlobalCapability 要求当前用户持有全局能力授权。
+// 作用域能力（例如 school_admin 的 school-scoped grant）不会通过此检查。
+func RequireGlobalCapability(capName string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !middleware.HasGlobalCapability(c, capName) {
+			response.Forbidden(c, "insufficient permissions", errs.ErrPermissionDenied)
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}

@@ -142,7 +142,7 @@ function loadPosition() {
             if (!isValidPosition(parsed)) return;
             position.value = clampPosition(parsed.x, parsed.y);
         }
-    } catch {
+    } catch (_error) { void _error;
         /* ignore malformed data */
     }
 }
@@ -154,7 +154,7 @@ function savePosition() {
     saveTimer = setTimeout(() => {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(position.value));
-        } catch {
+        } catch (_error) { void _error;
             /* ignore */
         }
         saveTimer = null;

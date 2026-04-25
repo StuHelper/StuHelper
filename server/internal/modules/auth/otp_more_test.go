@@ -1,0 +1,195 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
+)
+
+type stubPhoneSMSSender func(ctx context.Context, phone, content string) error
+
+func (s stubPhoneSMSSender) Send(ctx context.Context, phone, content string) error {
+	return s(ctx, phone, content)
+}
+
+func newOTPServiceForTest(t *testing.T) (*OTPService, *redisfixture.Fixture) {
+	t.Helper()
+	require.NoError(t, crypto.InitHMACKey("test-auth-otp-secret-32-chars-long!", false))
+	fixture := redisfixture.Start(t)
+	return NewOTPService(fixture.Client), fixture
+}
+
+func TestOTPService_RateLimitAndCooldownHelpers(t *testing.T) {
+	svc, _ := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138000"
+
+	assert.Equal(t, int(otpCooldown.Seconds()), OTPCooldownSeconds())
+
+	for i := 0; i < otpPhoneLimit; i++ {
+		require.NoError(t, svc.CheckPhoneRateLimit(ctx, phone))
+	}
+	err := svc.CheckPhoneRateLimit(ctx, phone)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPPhoneRateLimited)
+
+	code, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	require.Len(t, code, otpLength)
+
+	_, err = svc.Generate(ctx, phone)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPCooldown)
+}
+
+func TestOTPService_CleanupCodeOnlyAndVerifySuccess(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138000"
+
+	_, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+
+	codeKey := otpCodePrefix + phoneKey
+	cooldownKey := otpCooldownPrefix + phoneKey
+	attemptsKey := otpAttemptsPrefix + phoneKey
+	assert.True(t, fixture.Server.Exists(codeKey))
+	assert.True(t, fixture.Server.Exists(cooldownKey))
+
+	require.NoError(t, svc.CleanupCodeOnly(ctx, phone))
+	assert.False(t, fixture.Server.Exists(codeKey))
+	assert.True(t, fixture.Server.Exists(cooldownKey))
+
+	fixture.Server.FastForward(otpCooldown)
+	code, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	require.NoError(t, svc.Verify(ctx, phone, code))
+	assert.False(t, fixture.Server.Exists(codeKey))
+	assert.False(t, fixture.Server.Exists(attemptsKey))
+}
+
+func TestOTPService_VerifyMaxAttemptsAndGenerateNumericCode(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138000"
+	code, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	wrong := "000000"
+	if wrong == code {
+		wrong = "999999"
+	}
+	for i := 0; i < otpMaxAttempts; i++ {
+		err = svc.Verify(ctx, phone, wrong)
+		require.Error(t, err)
+		if i < otpMaxAttempts-1 {
+			assert.ErrorIs(t, err, ErrOTPInvalidCode)
+		}
+	}
+	err = svc.Verify(ctx, phone, wrong)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPMaxAttempts)
+
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+	assert.False(t, fixture.Server.Exists(otpCodePrefix+phoneKey))
+
+	numeric, err := generateNumericCode(otpLength)
+	require.NoError(t, err)
+	require.Len(t, numeric, otpLength)
+	for _, ch := range numeric {
+		assert.True(t, ch >= '0' && ch <= '9')
+	}
+}
+
+func TestOTPService_IssueCode(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138000"
+	var gotPhone string
+	var gotCode string
+
+	require.NoError(t, svc.IssueCode(ctx, phone, stubPhoneSMSSender(func(_ context.Context, smsPhone, content string) error {
+		gotPhone = smsPhone
+		gotCode = content
+		return nil
+	})))
+
+	assert.Equal(t, "+86"+phone, gotPhone)
+	require.Len(t, gotCode, otpLength)
+	assert.Equal(t, OTPCooldownSeconds(), svc.CooldownSeconds())
+
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+	assert.True(t, fixture.Server.Exists(otpCodePrefix+phoneKey))
+	assert.True(t, fixture.Server.Exists(otpCooldownPrefix+phoneKey))
+}
+
+func TestOTPService_IssueCode_SendFailureCleansCodeOnly(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138000"
+	sendErr := errors.New("sms down")
+
+	err := svc.IssueCode(ctx, phone, stubPhoneSMSSender(func(_ context.Context, _, _ string) error {
+		return sendErr
+	}))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, sendErr)
+
+	phoneKey, hashErr := phoneutil.HashLookup(phone)
+	require.NoError(t, hashErr)
+	assert.False(t, fixture.Server.Exists(otpCodePrefix+phoneKey))
+	assert.True(t, fixture.Server.Exists(otpCooldownPrefix+phoneKey))
+}
+
+func TestOTPService_IssueCode_CooldownDoesNotConsumeHourlyQuota(t *testing.T) {
+	svc, _ := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138001"
+
+	require.NoError(t, svc.IssueCode(ctx, phone, stubPhoneSMSSender(func(_ context.Context, _, _ string) error {
+		return nil
+	})))
+
+	err := svc.IssueCode(ctx, phone, stubPhoneSMSSender(func(_ context.Context, _, _ string) error {
+		return nil
+	}))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPCooldown)
+
+	for i := 0; i < otpPhoneLimit-1; i++ {
+		require.NoError(t, svc.CheckPhoneRateLimit(ctx, phone))
+	}
+	err = svc.CheckPhoneRateLimit(ctx, phone)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPPhoneRateLimited)
+}
+
+func TestOTPService_IssueCode_SendFailureDoesNotConsumeHourlyQuota(t *testing.T) {
+	svc, _ := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138002"
+	sendErr := errors.New("sms down")
+
+	err := svc.IssueCode(ctx, phone, stubPhoneSMSSender(func(_ context.Context, _, _ string) error {
+		return sendErr
+	}))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, sendErr)
+
+	for i := 0; i < otpPhoneLimit; i++ {
+		require.NoError(t, svc.CheckPhoneRateLimit(ctx, phone))
+	}
+	err = svc.CheckPhoneRateLimit(ctx, phone)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrOTPPhoneRateLimited)
+}

@@ -21,6 +21,7 @@ type Client struct {
 	rdb       *redis.Client
 	stopCh    chan struct{}
 	closeOnce sync.Once
+	wg        sync.WaitGroup
 	lastStats redis.PoolStats
 }
 
@@ -28,6 +29,7 @@ type Client struct {
 func NewClient(cfg config.RedisConfig) (*Client, error) {
 	opts := &redis.Options{
 		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+		Username:        cfg.Username,
 		Password:        cfg.Password,
 		DB:              cfg.DB,
 		PoolSize:        cfg.PoolSize,
@@ -62,7 +64,11 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 	}
 
 	client := &Client{rdb: rdb, stopCh: make(chan struct{})}
-	go client.collectPoolMetrics()
+	client.wg.Add(1)
+	go func() {
+		defer client.wg.Done()
+		client.collectPoolMetrics()
+	}()
 	return client, nil
 }
 
@@ -76,6 +82,7 @@ func (c *Client) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
 		close(c.stopCh)
+		c.wg.Wait()
 		err = c.rdb.Close()
 	})
 	return err
@@ -125,8 +132,8 @@ func addCounterDelta(counter interface{ Add(float64) }, current, previous uint32
 // configureRedisTLS 配置 Redis TLS
 func configureRedisTLS(cfg config.RedisConfig) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: cfg.TLSInsecure, //nolint:gosec // configurable for testing
+		MinVersion: tls.VersionTLS12,
+		ServerName: cfg.Host,
 	}
 
 	// 加载 CA 证书

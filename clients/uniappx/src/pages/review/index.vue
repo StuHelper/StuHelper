@@ -7,6 +7,7 @@ import { assertMutationSuccess, unwrapListData } from '@/api/result'
 import { setPageTitle, translate } from '@/i18n'
 import { useAuthStore } from '@/stores/auth'
 import { averageRating, formatShortDate, truncateText } from '@/utils/format'
+import { DEFAULT_PAGE_SIZE } from '@/config/pagination'
 
 type VoteType = 'like' | 'dislike'
 const LOCAL_VOTES_STORAGE_KEY = 'stuhelper:uniappx:review-votes'
@@ -22,13 +23,22 @@ const localVotes = ref<Record<string, VoteType | null>>(loadLocalVotes())
 const page = ref(1)
 const hasMore = ref(true)
 
+const VALID_VOTE_VALUES = new Set<string | null>(['like', 'dislike', null])
+
 function loadLocalVotes(): Record<string, VoteType | null> {
   try {
     const raw = uni.getStorageSync(LOCAL_VOTES_STORAGE_KEY)
     if (typeof raw !== 'string' || !raw) return {}
-    const parsed = JSON.parse(raw) as Record<string, VoteType | null>
-    return typeof parsed === 'object' && parsed !== null ? parsed : {}
-  } catch {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    const result: Record<string, VoteType | null> = {}
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof key === 'string' && VALID_VOTE_VALUES.has(value as string | null)) {
+        result[key] = value as VoteType | null
+      }
+    }
+    return result
+  } catch (_error) { void _error;
     return {}
   }
 }
@@ -36,7 +46,7 @@ function loadLocalVotes(): Record<string, VoteType | null> {
 function persistLocalVotes() {
   try {
     uni.setStorageSync(LOCAL_VOTES_STORAGE_KEY, JSON.stringify(localVotes.value))
-  } catch {
+  } catch (_error) { void _error;
     // ignore storage failures
   }
 }
@@ -46,10 +56,10 @@ async function loadReviews() {
   page.value = 1
   hasMore.value = true
   try {
-    const result = await api.review.getLatestReviews({ page: 1, pageSize: 20, sort: sort.value })
+    const result = await api.review.getLatestReviews({ page: 1, pageSize: DEFAULT_PAGE_SIZE, sort: sort.value })
     const data = unwrapListData<components['schemas']['Review']>(result)
     reviews.value = data.list
-    hasMore.value = data.list.length >= 20
+    hasMore.value = data.list.length >= DEFAULT_PAGE_SIZE
   } catch (error) {
     uni.showToast({
       title: error instanceof Error ? error.message : t('review.index.loadFailed'),
@@ -65,11 +75,11 @@ async function loadMore() {
   loadingMore.value = true
   try {
     page.value++
-    const result = await api.review.getLatestReviews({ page: page.value, pageSize: 20, sort: sort.value })
+    const result = await api.review.getLatestReviews({ page: page.value, pageSize: DEFAULT_PAGE_SIZE, sort: sort.value })
     const data = unwrapListData<components['schemas']['Review']>(result)
     reviews.value = [...reviews.value, ...data.list]
     hasMore.value = data.list.length >= 20
-  } catch {
+  } catch (_error) { void _error;
     page.value = Math.max(1, page.value - 1)
   } finally {
     loadingMore.value = false

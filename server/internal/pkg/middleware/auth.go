@@ -20,15 +20,26 @@ import (
 
 // 上下文键名常量
 const (
-	CtxKeyUserID        = "user_id"
-	CtxKeyUsername      = "username"
-	CtxKeyEmail         = "email"
-	CtxKeyDisplayName   = "display_name"
-	CtxKeyAvatar        = "avatar"
-	CtxKeyRoles         = "roles"
-	CtxKeyCapabilities  = "capabilities"
-	CtxKeyCapabilitySet = "capability_set" // map[string]struct{} — O(1) 查找
+	CtxKeyUserID             = "user_id"
+	CtxKeyUsername           = "username"
+	CtxKeyEmail              = "email"
+	CtxKeyDisplayName        = "display_name"
+	CtxKeyAvatar             = "avatar"
+	CtxKeyRoles              = "roles"
+	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — Zitadel 多租户作用域
+	CtxKeyCapabilities       = "capabilities"
+	CtxKeyGlobalCapabilities = "global_capabilities"
+	CtxKeyCapabilityGrants   = "capability_grants"
+	CtxKeyCapabilitySet      = "capability_set"       // map[string]struct{} — O(1) 查找
+	CtxKeyAuthBackendFailure = "auth_backend_failure" // OptionalAuth 后端故障诊断标记
 )
+
+// OptionalAuthConfig 可选认证中间件的配置。
+// Cookie 无效时中间件需要清理浏览器端 cookie，为此需要 cookie 的 domain/secure 属性。
+type OptionalAuthConfig struct {
+	CookieDomain string
+	CookieSecure bool
+}
 
 // Cookie 名称常量
 const (
@@ -57,6 +68,7 @@ type authResult struct {
 	userID, username, email, displayName string
 	avatar                               *string
 	roles                                []string
+	orgScopedRoles                       map[string][]string
 }
 
 // resolveToken 从请求中提取、验证并解析 Token。
@@ -112,12 +124,13 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			return nil, fmt.Errorf("invalid token: %w", verifyErr)
 		}
 		return &authResult{
-			userID:      claims.GetUserID(),
-			username:    claims.GetUsername(),
-			email:       claims.GetEmail(),
-			displayName: claims.GetDisplayName(),
-			avatar:      claims.GetAvatar(),
-			roles:       claims.Roles,
+			userID:         claims.GetUserID(),
+			username:       claims.GetUsername(),
+			email:          claims.GetEmail(),
+			displayName:    claims.GetDisplayName(),
+			avatar:         claims.GetAvatar(),
+			roles:          claims.Roles,
+			orgScopedRoles: claims.OrgScopedRoles,
 		}, nil
 
 	case tokenSourceBearer:
@@ -130,11 +143,12 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			return nil, errTokenRevoked
 		}
 		return &authResult{
-			userID:      result.Sub,
-			username:    result.Username,
-			email:       result.Email,
-			displayName: result.Name,
-			roles:       result.Roles,
+			userID:         result.Sub,
+			username:       result.Username,
+			email:          result.Email,
+			displayName:    result.Name,
+			roles:          result.Roles,
+			orgScopedRoles: result.OrgScopedRoles,
 		}, nil
 	}
 
@@ -164,22 +178,91 @@ func AuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.Ha
 	}
 }
 
-// OptionalAuthMiddleware 可选认证中间件：成功则注入用户上下文，失败则静默跳过。
-func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.HandlerFunc {
+// OptionalAuthMiddleware 可选认证中间件。
+// 四分支处理：
+//  1. 无 token → 匿名继续。
+//  2. Cookie token 无效/已撤销 → 清 cookie + 记录日志 + 匿名继续
+//     （cookie 由浏览器自动附带，不应因过期 cookie 把公开页面打成 401）。
+//  3. Bearer token 无效/已撤销 → 返回 401（bearer 是主动认证请求）。
+//  4. 后端故障（黑名单/Redis 不可用）→ 注入诊断标记到 context 供
+//     handler 按路由敏感度决定是否拒绝，匿名继续。
+func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service, cfg OptionalAuthConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if result, err := resolveToken(c, oidcClient, tokenService); err == nil {
-			setClaimsToContext(c, result)
+		_, source := getTokenWithSource(c)
+		if source == tokenSourceNone {
+			c.Next()
+			return
 		}
-		c.Next()
+
+		result, err := resolveToken(c, oidcClient, tokenService)
+		if err == nil {
+			setClaimsToContext(c, result)
+			c.Next()
+			return
+		}
+
+		switch {
+		case errors.Is(err, errBlacklistFail):
+			// 后端故障：不应把故障降级为匿名；注入标记由路由决定
+			logger.FromGin(c).Warn("optional auth: blacklist backend unavailable", zap.Error(err))
+			c.Set(CtxKeyAuthBackendFailure, true)
+			c.Next()
+
+		case errors.Is(err, errTokenRevoked):
+			if source == tokenSourceBearer {
+				response.Unauthorized(c, "token has been revoked", errs.ErrTokenRevoked)
+				c.Abort()
+				return
+			}
+			// Cookie 被撤销：清除 + 匿名继续
+			logger.FromGin(c).Debug("optional auth: clearing revoked cookie token")
+			clearAuthCookies(c, cfg)
+			c.Next()
+
+		default:
+			// token 无效或已过期
+			if source == tokenSourceBearer {
+				response.Unauthorized(c, "invalid or expired token", errs.ErrTokenInvalid)
+				c.Abort()
+				return
+			}
+			logger.FromGin(c).Debug("optional auth: clearing invalid cookie token", zap.Error(err))
+			clearAuthCookies(c, cfg)
+			c.Next()
+		}
 	}
+}
+
+// RequireHealthyOptionalAuth 在 optional auth 之后执行。
+// 如果请求携带了认证态，但认证后端故障导致无法可靠判定身份，则返回 503，
+// 避免业务路由把真实故障静默降级成匿名访问。
+func RequireHealthyOptionalAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !c.GetBool(CtxKeyAuthBackendFailure) {
+			c.Next()
+			return
+		}
+
+		response.ServiceUnavailable(c, "authentication service temporarily unavailable", errs.ErrServiceUnavailable)
+		c.Abort()
+	}
+}
+
+// clearAuthCookies 把 access / refresh cookie 清除（MaxAge=-1）。
+// 浏览器匹配通过 (name, domain, path) 三元组——这里用 handler_cookies.go
+// 写入时使用的同一路径组合。
+func clearAuthCookies(c *gin.Context, cfg OptionalAuthConfig) {
+	c.SetCookie(CookieAccessToken, "", -1, "/", cfg.CookieDomain, cfg.CookieSecure, true)
+	c.SetCookie(CookieRefreshToken, "", -1, "/api/v1/auth", cfg.CookieDomain, cfg.CookieSecure, true)
 }
 
 // setClaimsToContext 将用户信息、角色和能力集合注入 Gin context。
 // 同时构建 capability set（map）供 HasCapability 进行 O(1) 查找。
 func setClaimsToContext(c *gin.Context, auth *authResult) {
-	capabilities := capability.ExpandRoles(auth.roles)
-	capSet := make(map[string]struct{}, len(capabilities))
-	for _, cap := range capabilities {
+	grants := capability.ExpandRoleGrants(auth.roles, auth.orgScopedRoles)
+	snapshot := capability.BuildUserAccessSnapshot(grants)
+	capSet := make(map[string]struct{}, len(snapshot.Capabilities))
+	for _, cap := range snapshot.Capabilities {
 		capSet[cap] = struct{}{}
 	}
 
@@ -193,7 +276,12 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 		c.Set(CtxKeyAvatar, "")
 	}
 	c.Set(CtxKeyRoles, auth.roles)
-	c.Set(CtxKeyCapabilities, capabilities)
+	if auth.orgScopedRoles != nil {
+		c.Set(CtxKeyOrgScopedRoles, auth.orgScopedRoles)
+	}
+	c.Set(CtxKeyCapabilities, snapshot.Capabilities)
+	c.Set(CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+	c.Set(CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
 	c.Set(CtxKeyCapabilitySet, capSet)
 }
 
@@ -242,12 +330,61 @@ func GetCapabilities(c *gin.Context) []string {
 	return nil
 }
 
+func GetGlobalCapabilities(c *gin.Context) []string {
+	if val, exists := c.Get(CtxKeyGlobalCapabilities); exists {
+		if caps, ok := val.([]string); ok {
+			return caps
+		}
+	}
+	return nil
+}
+
+func GetCapabilityGrants(c *gin.Context) []capability.Grant {
+	if val, exists := c.Get(CtxKeyCapabilityGrants); exists {
+		if grants, ok := val.([]capability.Grant); ok {
+			return grants
+		}
+	}
+	return nil
+}
+
 // HasCapability 检查当前用户是否具有指定能力（O(1) map 查找）
-func HasCapability(c *gin.Context, cap string) bool {
+func HasCapability(c *gin.Context, capabilityName string) bool {
 	if val, exists := c.Get(CtxKeyCapabilitySet); exists {
 		if set, ok := val.(map[string]struct{}); ok {
-			_, found := set[cap]
+			_, found := set[capabilityName]
 			return found
+		}
+	}
+	return false
+}
+
+func HasGlobalCapability(c *gin.Context, capabilityName string) bool {
+	return capability.HasGlobalGrant(GetCapabilityGrants(c), capabilityName)
+}
+
+func HasCapabilityInSchool(c *gin.Context, capabilityName, schoolID string) bool {
+	return capability.HasGrantInSchool(GetCapabilityGrants(c), capabilityName, schoolID)
+}
+
+// HasRoleInOrg 检查当前用户是否在指定 orgID 上拥有指定角色（Zitadel 多租户作用域）。
+// 仅 cookie-OIDC 登录路径填充 scope；手机登录与 Bearer introspection 返回
+// false。orgID 为空时判定"是否在任意 org 拥有此角色"。
+func HasRoleInOrg(c *gin.Context, role, orgID string) bool {
+	if val, exists := c.Get(CtxKeyOrgScopedRoles); exists {
+		if scoped, ok := val.(map[string][]string); ok {
+			orgs, has := scoped[role]
+			if !has {
+				return false
+			}
+			if orgID == "" {
+				return len(orgs) > 0
+			}
+			for _, o := range orgs {
+				if o == orgID {
+					return true
+				}
+			}
 		}
 	}
 	return false
@@ -256,6 +393,13 @@ func HasCapability(c *gin.Context, cap string) bool {
 // IsAuthenticated 检查当前请求是否已认证
 func IsAuthenticated(c *gin.Context) bool {
 	return GetUserID(c) != ""
+}
+
+// GetAccessToken 从请求中提取 access token（优先级：Authorization Header > Cookie）。
+// 用于 Logout 等需要获取当前 token 原始值的场景。
+func GetAccessToken(c *gin.Context) string {
+	accessToken, _ := getTokenWithSource(c)
+	return accessToken
 }
 
 // getContextString 从上下文获取字符串值
@@ -277,9 +421,9 @@ func getTokenWithSource(c *gin.Context) (string, tokenSource) {
 	if authHeader != "" {
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-			token := strings.TrimSpace(parts[1])
-			if token != "" {
-				return token, tokenSourceBearer
+			accessToken := strings.TrimSpace(parts[1])
+			if accessToken != "" {
+				return accessToken, tokenSourceBearer
 			}
 		}
 	}

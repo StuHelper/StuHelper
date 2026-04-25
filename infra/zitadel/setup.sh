@@ -21,6 +21,8 @@ PAT_FILE="${PAT_FILE:-}"
 PAT="${ZITADEL_MANAGEMENT_PAT:-}"
 STACK_NAME_VALUE="${STACK_NAME:-${COMPOSE_PROJECT_NAME:-stuhelper}}"
 BOOTSTRAP_VOLUME="${BOOTSTRAP_VOLUME:-${STACK_NAME_VALUE}-zitadel-bootstrap}"
+ZITADEL_SECRET_OUTPUT_FILE="${ZITADEL_SECRET_OUTPUT_FILE:-}"
+ZITADEL_PRINT_CLIENT_SECRET="${ZITADEL_PRINT_CLIENT_SECRET:-false}"
 
 # OIDC Application 配置
 APP_NAME="stuhelper-web"
@@ -51,6 +53,11 @@ if [[ -z "$PAT" ]]; then
 fi
 
 AUTH_HEADER="Authorization: Bearer $PAT"
+
+if [[ -n "${ZITADEL_SECRET_OUTPUT_FILE}" ]]; then
+  : > "${ZITADEL_SECRET_OUTPUT_FILE}"
+  chmod 600 "${ZITADEL_SECRET_OUTPUT_FILE}"
+fi
 
 # ── 工具函数 ─────────────────────────────────────────────
 zitadel_api() {
@@ -159,7 +166,9 @@ for i in "${!ROLES[@]}"; do
     if [[ "$ERROR_CODE" == "6" ]]; then
       echo "  角色 ${ROLE_KEY} 已存在，跳过"
     else
-      echo "  警告: 创建角色 ${ROLE_KEY} 失败: ${ROLE_RESPONSE}"
+      echo "ERROR: 创建角色 ${ROLE_KEY} 失败" >&2
+      echo "API 响应: ${ROLE_RESPONSE}" >&2
+      exit 1
     fi
   else
     echo "  角色 ${ROLE_KEY} 创建成功"
@@ -248,7 +257,9 @@ if echo "$ADMIN_GRANT_RESPONSE" | jq -e '.code' >/dev/null 2>&1; then
   if [[ "$ERROR_CODE" == "6" ]]; then
     echo "  默认管理员已具备 super_admin 角色，跳过"
   else
-    echo "  警告: 默认管理员授权失败: ${ADMIN_GRANT_RESPONSE}"
+    echo "ERROR: 默认管理员授权失败" >&2
+    echo "API 响应: ${ADMIN_GRANT_RESPONSE}" >&2
+    exit 1
   fi
 else
   echo "  默认管理员已授予 super_admin 角色"
@@ -264,7 +275,14 @@ echo "请将以下配置添加到 .env 文件:"
 echo ""
 echo "ZITADEL_PROJECT_ID=${PROJECT_ID}"
 echo "ZITADEL_CLIENT_ID=${CLIENT_ID}"
-echo "ZITADEL_CLIENT_SECRET=${CLIENT_SECRET}"
+if [[ -n "${ZITADEL_SECRET_OUTPUT_FILE}" ]]; then
+  printf 'ZITADEL_CLIENT_SECRET=%s\n' "${CLIENT_SECRET}" >> "${ZITADEL_SECRET_OUTPUT_FILE}"
+  echo "ZITADEL_CLIENT_SECRET 已写入 ${ZITADEL_SECRET_OUTPUT_FILE}" >&2
+elif [[ "${ZITADEL_PRINT_CLIENT_SECRET}" == "true" ]]; then
+  echo "ZITADEL_CLIENT_SECRET=${CLIENT_SECRET}"
+else
+  echo "ZITADEL_CLIENT_SECRET 未输出到 stdout。设置 ZITADEL_SECRET_OUTPUT_FILE=/path/to/file 或 ZITADEL_PRINT_CLIENT_SECRET=true 可显式获取。" >&2
+fi
 echo ""
 echo "Zitadel Console: ${ZITADEL_URL}/ui/console"
-echo "登录账号: ${ADMIN_LOGIN_NAME} / Admin1234!"
+echo "登录账号: ${ADMIN_LOGIN_NAME} / ${ZITADEL_ADMIN_PASSWORD:-<configured externally>}"

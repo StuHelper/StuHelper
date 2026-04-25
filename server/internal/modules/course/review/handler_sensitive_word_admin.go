@@ -6,10 +6,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -109,8 +107,7 @@ func (h *Handler) UpdateSensitiveWord(c *gin.Context) {
 	}
 
 	if err := h.service.UpdateSensitiveWord(c.Request.Context(), wordID, req.Word, req.Category, req.Level, req.IsActive); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "sensitive word not found", errs.ErrSensitiveWordNotFound)
+		if respondSensitiveWordAdminError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to update sensitive word", zap.Error(err))
@@ -132,8 +129,7 @@ func (h *Handler) DeleteSensitiveWord(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteSensitiveWord(c.Request.Context(), wordID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "sensitive word not found", errs.ErrSensitiveWordNotFound)
+		if respondSensitiveWordAdminError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to delete sensitive word", zap.Error(err))

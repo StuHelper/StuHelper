@@ -1,49 +1,68 @@
+.openapi_contract_node_setup: &openapi_contract_node_setup
+  - apt-get update
+  - apt-get install -y curl ca-certificates gnupg
+  - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+  - apt-get install -y nodejs
+  - corepack enable
+  - corepack prepare pnpm@10 --activate
+
+.go_job:
+  image: golang:1.26-bookworm
+  variables:
+    GOMODCACHE: $CI_PROJECT_DIR/.cache/go/pkg/mod
+    GOCACHE: $CI_PROJECT_DIR/.cache/go/build
+  cache:
+    key:
+      files:
+      - server/go.sum
+    paths:
+    - .cache/go/pkg/mod
+    - .cache/go/build
 backend_lint:
   stage: lint
-  image: golang:1.26-bookworm
   script:
-    - cd server
-    - go install github.com/golangci-lint/golangci-lint/cmd/golangci-lint@v1.62.0
-    - make lint
+  - cd server
+  - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+  - make lint
 
+  extends: .go_job
 backend_security:
   stage: lint
-  image: golang:1.26-bookworm
   script:
-    - cd server
-    - go install github.com/securego/gosec/v2/cmd/gosec@v2.22.0
-    - make security
+  - cd server
+  - go install github.com/securego/gosec/v2/cmd/gosec@v2.22.4
+  - make security
 
+  extends: .go_job
 backend_vulnerability_scan:
   stage: security
-  image: golang:1.26-bookworm
   script:
-    - cd server
-    - go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-    - govulncheck ./...
+  - cd server
+  - go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+  - govulncheck ./...
 
+  extends: .go_job
 openapi_contract:
   stage: lint
-  image: golang:1.26-bookworm
+  before_script: *openapi_contract_node_setup
   script:
-    - apt-get update
-    - apt-get install -y curl ca-certificates gnupg
-    - curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
-    - apt-get install -y nodejs
-    - corepack enable
-    - corepack prepare pnpm@10 --activate
-    - cd server
-    - make lint-spec
-    - make check-drift
+  - cd server
+  - make lint-spec
+  - make check-drift-go
+  - make check-doc-sync
+  - cd ../clients
+  - pnpm install --frozen-lockfile
+  - pnpm run check:api-drift
+  - pnpm run check:capabilities-drift
 
+  extends: .go_job
 backend_test:
   stage: test
-  image: golang:1.26-bookworm
   services:
-    - name: postgres:18
-      alias: postgres
-    - name: redis:8
-      alias: redis
+  - name: postgres:18
+    alias: postgres
+  - name: redis:8
+    alias: redis
   variables:
     POSTGRES_DB: test
     POSTGRES_USER: test
@@ -54,38 +73,38 @@ backend_test:
     REDIS_PASSWORD: ""
     PGPASSWORD: test
   script:
-    - apt-get update
-    - apt-get install -y postgresql-client
-    - cd server
-    - psql -h postgres -U test -d test -f scripts/init.sql
-    - go test -v -race -timeout=10m -coverprofile=coverage.out ./...
+  - cd server
+  - make migrate-up
+  - go test -v -race -timeout=10m -coverprofile=coverage.out ./...
+  - make check-coverage-threshold
   artifacts:
     when: always
     paths:
-      - server/coverage.out
+    - server/coverage.out
 
+  extends: .go_job
 migration_verify:
   stage: test
-  image: golang:1.26-bookworm
   services:
-    - name: postgres:18
-      alias: postgres
+  - name: postgres:18
+    alias: postgres
   variables:
     POSTGRES_DB: test
     POSTGRES_USER: test
     POSTGRES_PASSWORD: test
     DATABASE_URL: postgres://test:test@postgres:5432/test?sslmode=disable
   script:
-    - cd server
-    - make migrate-verify
+  - cd server
+  - make migrate-verify
 
+  extends: .go_job
 backend_build:
   stage: build
-  image: golang:1.26-bookworm
   script:
-    - cd server
-    - make build
+  - cd server
+  - make build
   artifacts:
     when: always
     paths:
-      - server/bin/stuhelper
+    - server/bin/stuhelper
+  extends: .go_job

@@ -3,7 +3,8 @@
  * 支持亮色/暗色/跟随系统三种模式
  */
 import { defineStore } from 'pinia'
-import { ref, computed, watch, onScopeDispose } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { safeOnScopeDispose } from '@/stores/safeScopeDispose'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -14,7 +15,7 @@ const VALID_MODES: ThemeMode[] = ['light', 'dark', 'system']
 function safeGetStorageItem(key: string): string | null {
   try {
     return localStorage.getItem(key)
-  } catch {
+  } catch (_error) { void _error;
     return null
   }
 }
@@ -23,7 +24,7 @@ function safeGetStorageItem(key: string): string | null {
 function safeSetStorageItem(key: string, value: string): void {
   try {
     localStorage.setItem(key, value)
-  } catch {
+  } catch (_error) { void _error;
     // 隐私模式或存储已满，降级为内存存储
   }
 }
@@ -70,7 +71,7 @@ export const useThemeStore = defineStore('theme', () => {
     systemDark.value = e.matches
   }
   mql.addEventListener('change', onMqlChange)
-  onScopeDispose(() => {
+  safeOnScopeDispose(() => {
     mql.removeEventListener('change', onMqlChange)
   })
 

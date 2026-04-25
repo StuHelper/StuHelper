@@ -32,13 +32,16 @@ var tracer = otel.Tracer("git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga
 const DefaultWriteTimeout = 10 * time.Second
 
 // NewClient 创建 OpenFGA 客户端。
-// 当 StoreID 为空时返回 nil（FGA 未配置），调用方应判空处理。
+// OpenFGA 是运行时必需依赖，缺少关键配置时直接返回错误。
 func NewClient(cfg config.OpenFGAConfig) (*Client, error) {
 	if cfg.StoreID == "" {
-		return nil, nil //nolint:nilnil // nil 表示 FGA 未配置，非错误
+		return nil, fmt.Errorf("fga: StoreID is required")
 	}
 	if cfg.APIUrl == "" {
-		return nil, fmt.Errorf("fga: APIUrl is required when StoreID is set")
+		return nil, fmt.Errorf("fga: APIUrl is required")
+	}
+	if cfg.AuthorizationModelID == "" {
+		return nil, fmt.Errorf("fga: AuthorizationModelID is required")
 	}
 
 	fgaClient, err := client.NewSdkClient(&client.ClientConfiguration{
@@ -64,8 +67,28 @@ type Tuple struct {
 	Object   string // 如 "review:100"
 }
 
+// validateTupleField 验证 FGA tuple 字段格式（type:id）
+func validateTupleField(field, name string) error {
+	if field == "" {
+		return fmt.Errorf("fga: %s must not be empty", name)
+	}
+	if strings.ContainsAny(field, "\x00\n\r") {
+		return fmt.Errorf("fga: %s contains invalid characters", name)
+	}
+	return nil
+}
+
 // Check 检查用户对资源是否具有指定关系（权限）
 func (c *Client) Check(ctx context.Context, user, relation, object string) (bool, error) {
+	if err := validateTupleField(user, "user"); err != nil {
+		return false, err
+	}
+	if err := validateTupleField(relation, "relation"); err != nil {
+		return false, err
+	}
+	if err := validateTupleField(object, "object"); err != nil {
+		return false, err
+	}
 	start := time.Now()
 	ctx, span := c.startSpan(ctx, "check", relation, object)
 	defer span.End()
@@ -98,6 +121,15 @@ func (c *Client) WriteTuples(ctx context.Context, tuples []Tuple) error {
 
 	writes := make([]openfga.TupleKey, len(tuples))
 	for i, t := range tuples {
+		if err := validateTupleField(t.User, "user"); err != nil {
+			return err
+		}
+		if err := validateTupleField(t.Relation, "relation"); err != nil {
+			return err
+		}
+		if err := validateTupleField(t.Object, "object"); err != nil {
+			return err
+		}
 		writes[i] = openfga.TupleKey{
 			User:     t.User,
 			Relation: t.Relation,
@@ -146,6 +178,41 @@ func (c *Client) DeleteTuples(ctx context.Context, tuples []Tuple) error {
 		return fmt.Errorf("fga: delete tuples failed: %w", err)
 	}
 	return nil
+}
+
+// ReadTuples 读取指定对象/关系的现有 tuples，用于幂等重建投影。
+func (c *Client) ReadTuples(ctx context.Context, object, relation string) ([]Tuple, error) {
+	if err := validateTupleField(object, "object"); err != nil {
+		return nil, err
+	}
+	if err := validateTupleField(relation, "relation"); err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+	ctx, span := c.startSpan(ctx, "read", relation, object)
+	defer span.End()
+
+	body := client.ClientReadRequest{
+		Object:   openfga.PtrString(object),
+		Relation: openfga.PtrString(relation),
+	}
+	resp, err := c.fga.Read(ctx).Body(body).Execute()
+	metrics.ObserveExternalRequest("openfga", "read_tuples", start, err)
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, fmt.Errorf("fga: read tuples failed for %s#%s: %w", object, relation, err)
+	}
+
+	result := make([]Tuple, 0, len(resp.Tuples))
+	for _, tuple := range resp.Tuples {
+		result = append(result, Tuple{
+			User:     tuple.Key.GetUser(),
+			Relation: tuple.Key.GetRelation(),
+			Object:   tuple.Key.GetObject(),
+		})
+	}
+	return result, nil
 }
 
 // WriteReviewRelations 评课发布时写入完整关系链

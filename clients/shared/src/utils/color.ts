@@ -11,7 +11,7 @@
 export function withAlpha(color: string, alpha: number): string {
   const trimmed = color.trim()
 
-  // M-03: hex 格式: #rrggbb 或 #rgb，使用严格的 hex 字符校验
+  // hex 格式只接受合法的 3/4/6/8 位十六进制字符
   const hexMatch = trimmed.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
   const matchedHex = hexMatch?.[1]
   if (matchedHex) {

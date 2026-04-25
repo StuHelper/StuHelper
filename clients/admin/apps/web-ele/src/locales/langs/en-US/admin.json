@@ -85,11 +85,14 @@
       "rating": "Rating",
       "status": {
         "published": "Published",
+        "pendingReview": "Pending Review",
         "hidden": "Hidden",
         "deleted": "Deleted"
       },
       "hide": "Hide",
+      "approve": "Approve",
       "restore": "Restore",
+      "confirmApprove": "Approve and publish this review?",
       "confirmHide": "Hide this review?",
       "confirmDelete": "Delete this review?"
     },
@@ -305,7 +308,10 @@
       "confirmPassword": "Confirm Password",
       "confirmPasswordPlaceholder": "Re-enter new password",
       "passwordMismatch": "The two passwords do not match",
-      "updated": "Password updated successfully"
+      "updated": "Password updated successfully",
+      "managedExternally": "Managed by identity provider",
+      "managedExternallyDesc": "Password changes are handled by the external identity provider. Use the link below to open the account settings page.",
+      "goToAccountSettings": "Open account settings"
     },
     "security": {
       "accountPassword": {
@@ -399,6 +405,10 @@
         "title": "Good morning, {name}. Let's start the day!",
         "description": "Sunny today, 20℃ - 32℃!"
       },
+      "placeholderTitle": "Workspace widgets are not ready yet",
+      "placeholderDescription": "Use analytics and moderation pages for live operational data until this workspace is integrated with real services.",
+      "placeholderPrimaryAction": "Open analytics",
+      "placeholderSecondaryAction": "Open reviews",
       "cards": {
         "projects": "Projects",
         "trends": "Latest Activity",

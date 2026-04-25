@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
+import { persistSSOState } from '@/auth/sso-state'
 import { api } from '@/api'
 import { unwrapData } from '@/api/result'
 import { translate } from '@/i18n'
@@ -83,21 +84,26 @@ async function handleSSOLogin() {
   if (ssoLoading.value) return
   ssoLoading.value = true
   try {
-    const result = await api.auth.login(redirect.value || '/pages/user/index')
+    // 原生 App 需要传 platform=native，服务端会标记该 state 走 deep link 回调流程
+    const redirectPath = redirect.value || '/pages/user/index'
+    const platform = isNativeApp ? 'native' : undefined
+    const result = await api.auth.login(redirectPath, platform)
     const data = unwrapData<{ url: string; state: string }>(result)
     if (!data.url) throw new Error(t('auth.login.ssoInitFailed'))
 
     if (isNativeApp) {
-      // Native: open system browser for SSO (supports password managers, saved sessions)
+      // 暂存 state 到本地，deep link 回调时用于校验
+      persistSSOState(data.state)
+      // 原生：打开系统浏览器完成 SSO（支持密码管理器、已保存的会话）
       plus.runtime.openURL(data.url)
       return
     }
     if (supportsSso) {
-      // H5/WebView: direct redirect
+      // H5/WebView：直接跳转
       window.location.href = data.url
       return
     }
-    // Fallback: SSO unavailable
+    // 兜底：SSO 不可用
     uni.showToast({ title: t('auth.login.ssoUnavailable'), icon: 'none' })
   } catch (error) {
     uni.showToast({

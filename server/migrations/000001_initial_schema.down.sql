@@ -1,7 +1,7 @@
 -- StuHelper baseline schema rollback
 -- WARNING: destructive. For local reset or controlled rollback only.
 BEGIN;
-DROP TABLE IF EXISTS academic CASCADE;
+DROP SCHEMA IF EXISTS academic CASCADE;
 DROP TABLE IF EXISTS system_configs CASCADE;
 DROP TABLE IF EXISTS user_profiles CASCADE;
 DROP TABLE IF EXISTS user_identities CASCADE;

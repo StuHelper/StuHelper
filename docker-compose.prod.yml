@@ -1,0 +1,129 @@
+# StuHelper Docker Compose overlay: production application services
+# 与 docker-compose.yml 和 docker-compose.observability.yml 一起使用。
+
+services:
+  app:
+    profiles: [prod]
+    image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
+    container_name: ${STACK_NAME:-stuhelper}-app
+    env_file:
+    - ${ENV_FILE_PATH:-.env}
+    - ${SECRETS_ENV_FILE_PATH:-.env.prod.secrets.local}
+    - ${GENERATED_ENV_FILE_PATH:-.env.generated}
+    - ${GENERATED_SECRET_ENV_FILE_PATH:-.env.prod.generated.secrets}
+    environment:
+      APP_ENV: production
+      LOG_FORMAT: json
+      DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
+      DB_SSL_ROOT_CERT: /tls/ca.crt
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: ${REDIS_USERNAME:-stuhelper_app}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
+      REDIS_TLS_CA: /redis-tls/ca.crt
+      ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET:?ZITADEL_CLIENT_SECRET is required}
+      ZITADEL_MANAGEMENT_PAT: ${ZITADEL_MANAGEMENT_PAT:?ZITADEL_MANAGEMENT_PAT is required}
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: stuhelper-backend
+      OTEL_SERVICE_NAMESPACE: stuhelper
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_TRACE_SAMPLE_RATIO: ${OTEL_TRACE_SAMPLE_RATIO:-0.2}
+    volumes:
+    - ./infra/generated/postgres:/tls:ro
+    - ./infra/generated/redis:/redis-tls:ro
+    ports:
+    - "127.0.0.1:8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      alloy:
+        condition: service_healthy
+      proxy:
+        condition: service_healthy
+      openfga:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+
+        reservations:
+          cpus: '0.50'
+          memory: 512M
+    networks:
+    - backend
+    - observability
+    security_opt:
+    - no-new-privileges:true
+  frontend:
+    profiles: [prod]
+    image: ${FRONTEND_IMAGE_REF:?FRONTEND_IMAGE_REF is required}
+    container_name: ${STACK_NAME:-stuhelper}-frontend
+    ports:
+    - "127.0.0.1:3000:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+    networks:
+    - frontend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+    read_only: true
+    tmpfs:
+    - /tmp
+    - /var/cache/nginx
+    - /var/run
+    security_opt:
+    - no-new-privileges:true
+  admin:
+    profiles: [prod]
+    image: ${ADMIN_IMAGE_REF:?ADMIN_IMAGE_REF is required}
+    container_name: ${STACK_NAME:-stuhelper}-admin
+    ports:
+    - "127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}:8080"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+
+    networks:
+    - frontend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+    read_only: true
+    tmpfs:
+    - /tmp
+    - /var/cache/nginx
+    - /var/run
+    security_opt:
+    - no-new-privileges:true

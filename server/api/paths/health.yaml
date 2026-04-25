@@ -11,15 +11,21 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [status, timestamp]
-              properties:
-                status:
-                  type: string
-                  example: ok
-                timestamp:
-                  type: string
-                  format: date-time
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [status, timestamp]
+                      properties:
+                        status:
+                          type: string
+                          example: ok
+                        timestamp:
+                          type: string
+                          format: date-time
       '404':
         description: 路径不存在
 
@@ -36,31 +42,37 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [status, timestamp]
-              properties:
-                status:
-                  type: string
-                  enum: [ok, degraded]
-                checks:
-                  type: object
-                  description: 各依赖检查结果（仅开发环境返回）
-                  additionalProperties:
-                    type: object
-                    properties:
-                      status:
-                        type: string
-                      latency:
-                        type: string
-                      error:
-                        type: string
-                info:
-                  type: object
-                  description: 系统信息（仅开发环境返回）
-                  additionalProperties: true
-                timestamp:
-                  type: string
-                  format: date-time
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [status, timestamp]
+                      properties:
+                        status:
+                          type: string
+                          enum: [ok, degraded]
+                        checks:
+                          type: object
+                          description: 各依赖检查结果（仅开发环境返回）
+                          additionalProperties:
+                            type: object
+                            properties:
+                              status:
+                                type: string
+                              latency:
+                                type: string
+                              error:
+                                type: string
+                        info:
+                          type: object
+                          description: 系统信息（仅开发环境返回）
+                          additionalProperties: true
+                        timestamp:
+                          type: string
+                          format: date-time
       '404':
         description: 路径不存在
       '503':
@@ -68,12 +80,4 @@
         content:
           application/json:
             schema:
-              type: object
-              required: [status, timestamp]
-              properties:
-                status:
-                  type: string
-                  example: degraded
-                timestamp:
-                  type: string
-                  format: date-time
+              $ref: '../components/schemas/common.yaml#/ErrorResponseBody'

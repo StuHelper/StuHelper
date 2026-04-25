@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
 
 	reviewmodule "git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/routeassert"
 )
 
-func TestRegisterRoutes_UsesOpenAPIPathParamNames(t *testing.T) {
+func TestCourseRegisterRoutes_UsesOpenAPIPathParamNames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
@@ -22,15 +22,5 @@ func TestRegisterRoutes_UsesOpenAPIPathParamNames(t *testing.T) {
 
 	h.RegisterRoutes(api, noOp, noOp)
 
-	assertCourseRouteExists(t, r.Routes(), http.MethodGet, "/api/v1/course/courses/:courseID")
-}
-
-func assertCourseRouteExists(t *testing.T, routes gin.RoutesInfo, method, path string) {
-	t.Helper()
-	for _, route := range routes {
-		if route.Method == method && route.Path == path {
-			return
-		}
-	}
-	assert.Failf(t, "missing route", "expected route %s %s to be registered", method, path)
+	routeassert.Exists(t, r.Routes(), http.MethodGet, "/api/v1/course/courses/:courseID")
 }

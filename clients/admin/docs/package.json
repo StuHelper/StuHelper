@@ -19,19 +19,19 @@
     "@vben/locales": "workspace:*",
     "@vben/plugins": "workspace:*",
     "@vben/styles": "workspace:*",
-    "ant-design-vue": "catalog:",
+    "ant-design-vue": "catalog:conflicts_ant-design-vue_h4_2_6",
     "lucide-vue-next": "catalog:",
-    "medium-zoom": "catalog:",
+    "medium-zoom": "catalog:conflicts_medium-zoom_h1_1_0",
     "reka-ui": "catalog:",
-    "vitepress-plugin-group-icons": "catalog:"
+    "vitepress-plugin-group-icons": "catalog:conflicts_vitepress-plugin-group-icons_h1_7_5"
   },
   "devDependencies": {
-    "@nolebase/vitepress-plugin-git-changelog": "catalog:",
+    "@nolebase/vitepress-plugin-git-changelog": "catalog:conflicts_@nolebase/vitepress-plugin-git-changelog_h2_18_2",
     "@tailwindcss/vite": "catalog:",
     "@vben/tailwind-config": "workspace:*",
     "@vben/vite-config": "workspace:*",
-    "@vite-pwa/vitepress": "catalog:",
-    "vitepress": "catalog:",
+    "@vite-pwa/vitepress": "catalog:conflicts_@vite-pwa/vitepress_h1_1_0",
+    "vitepress": "catalog:conflicts_vitepress_h1_6_4",
     "vue": "catalog:"
   }
 }

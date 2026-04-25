@@ -5,15 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+load_remote_deploy_config
 require_cmd docker
 
-[[ -n "${REGISTRY:-}" ]] || die "REGISTRY is required"
-[[ -n "${REGISTRY_USERNAME:-}" ]] || die "REGISTRY_USERNAME is required"
-[[ -n "${REGISTRY_PASSWORD:-}" ]] || die "REGISTRY_PASSWORD is required"
+docker_registry_login
 
-echo "${REGISTRY_PASSWORD}" | docker login "${REGISTRY}" --username "${REGISTRY_USERNAME}" --password-stdin >/dev/null
-
-export SKIP_BUILD=true
 "${SCRIPT_DIR}/prod-rollback.sh"
 
 docker image prune -f >/dev/null 2>&1 || true

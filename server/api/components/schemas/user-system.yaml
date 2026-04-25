@@ -67,21 +67,6 @@ AdminIdentityReviewItem:
         - string
         - "null"
       format: date-time
-    docPhotoFront:
-      type:
-        - string
-        - "null"
-      description: 已上传到对象存储的正面照片 key
-    docPhotoBack:
-      type:
-        - string
-        - "null"
-      description: 已上传到对象存储的背面照片 key
-    docPhotoSelfie:
-      type:
-        - string
-        - "null"
-      description: 已上传到对象存储的手持证件照 key
     rejectionReason:
       type:
         - string
@@ -137,8 +122,12 @@ SubmitIdentityRequest:
       enum: [MAINLAND_ID, HK_MACAU, TW, PASSPORT]
     docNumber:
       type: string
+      minLength: 1
+      maxLength: 50
     realName:
       type: string
+      minLength: 1
+      maxLength: 100
     docPhotoFront:
       type:
         - string
@@ -161,8 +150,9 @@ UserProfile:
       format: int64
     schoolID:
       type:
-        - string
+        - integer
         - "null"
+      format: int64
     studentIDs:
       type:
         - array
@@ -223,8 +213,9 @@ AdminStudentVerificationItem:
       format: int64
     schoolID:
       type:
-        - string
+        - integer
         - "null"
+      format: int64
     studentIDs:
       type:
         - array
@@ -286,7 +277,9 @@ SubmitStudentVerificationRequest:
   required: [schoolID, consent]
   properties:
     schoolID:
-      type: string
+      type: integer
+      format: int64
+      minimum: 1
     studentID:
       type: string
     password:
@@ -335,8 +328,13 @@ BindPhoneRequest:
   properties:
     phone:
       type: string
+      pattern: '^1[3-9]\d{9}$'
+      minLength: 11
+      maxLength: 11
     otpCode:
       type: string
+      minLength: 6
+      maxLength: 6
       description: 短信验证码（6位）
 
 SchoolConfig:
@@ -344,7 +342,8 @@ SchoolConfig:
   required: [schoolID, schoolName, verificationMethod, enabled]
   properties:
     schoolID:
-      type: string
+      type: integer
+      format: int64
     schoolName:
       type: string
     verificationMethod:
@@ -365,7 +364,7 @@ SchoolConfig:
 
 SchoolLDAPConfigView:
   type: object
-  required: [useTLS, insecureSkipVerify, hasSystemBindPassword]
+  required: [useTLS, hasSystemBindPassword]
   properties:
     url:
       type:
@@ -380,8 +379,6 @@ SchoolLDAPConfigView:
         - string
         - "null"
     useTLS:
-      type: boolean
-    insecureSkipVerify:
       type: boolean
     hasSystemBindPassword:
       type: boolean
@@ -398,187 +395,6 @@ SchoolLDAPConfigInput:
     systemBindPassword:
       type: string
     useTLS:
-      type: boolean
-    insecureSkipVerify:
-      type: boolean
-
-Role:
-  type: object
-  required: [id, name, displayName, isSystem, createdAt, updatedAt]
-  properties:
-    id:
-      type: integer
-      format: int64
-    name:
-      type: string
-    displayName:
-      type: string
-    description:
-      type: string
-    isSystem:
-      type: boolean
-    createdAt:
-      type: string
-      format: date-time
-    updatedAt:
-      type: string
-      format: date-time
-
-Permission:
-  type: object
-  required: [id, name, module, action, displayName, createdAt]
-  properties:
-    id:
-      type: integer
-      format: int64
-    name:
-      type: string
-    module:
-      type: string
-    action:
-      type: string
-    displayName:
-      type: string
-    scopeSchoolIDs:
-      type:
-        - array
-        - "null"
-      items:
-        type: string
-    scopeRoles:
-      type:
-        - array
-        - "null"
-      items:
-        type: string
-    createdAt:
-      type: string
-      format: date-time
-
-UserGroup:
-  type: object
-  required: [id, name, displayName, memberCount, createdAt, updatedAt]
-  properties:
-    id:
-      type: integer
-      format: int64
-    name:
-      type: string
-    displayName:
-      type: string
-    description:
-      type: string
-    memberCount:
-      type: integer
-    createdBy:
-      type: integer
-      format: int64
-    createdAt:
-      type: string
-      format: date-time
-    updatedAt:
-      type: string
-      format: date-time
-
-CreateRoleRequest:
-  type: object
-  required: [name, displayName]
-  properties:
-    name:
-      type: string
-    displayName:
-      type: string
-    description:
-      type: string
-
-UpdateRoleRequest:
-  type: object
-  properties:
-    displayName:
-      type: string
-    description:
-      type: string
-
-CreateUserGroupRequest:
-  type: object
-  required: [name, displayName]
-  properties:
-    name:
-      type: string
-    displayName:
-      type: string
-    description:
-      type: string
-
-UpdateUserGroupRequest:
-  type: object
-  properties:
-    displayName:
-      type: string
-    description:
-      type: string
-
-AssignRolePermissionsRequest:
-  type: object
-  required: [permissionIDs]
-  properties:
-    permissionIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-    clearAll:
-      type: boolean
-      description: 显式确认清空角色全部权限；仅当 permissionIDs 为空时生效
-
-RolePermissionIDsResponse:
-  type: object
-  required: [permissionIDs]
-  properties:
-    permissionIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-
-AssignUserRolesRequest:
-  type: object
-  required: [roleIDs]
-  properties:
-    roleIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-
-AssignGroupMembersRequest:
-  type: object
-  required: [userIDs]
-  properties:
-    userIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-
-AssignGroupPermissionsRequest:
-  type: object
-  required: [permissionIDs]
-  properties:
-    permissionIDs:
-      type: array
-      items:
-        type: integer
-        format: int64
-
-SetUserPermissionRequest:
-  type: object
-  required: [permissionID, granted]
-  properties:
-    permissionID:
-      type: integer
-      format: int64
-    granted:
       type: boolean
 
 ReviewIdentityRequest:
@@ -662,53 +478,13 @@ AcademicStudentInfo:
       type: string
       description: Email address
 
-EffectivePermission:
-  type: object
-  required: [permissionID, name, module, action, granted, source]
-  properties:
-    permissionID:
-      type: integer
-      format: int64
-    name:
-      type: string
-    module:
-      type: string
-    action:
-      type: string
-    granted:
-      type: boolean
-    source:
-      type: string
-      enum: [role, group, override]
-      description: 权限来源
-
-GroupMember:
-  type: object
-  required: [userID, username]
-  properties:
-    userID:
-      type: integer
-      format: int64
-    username:
-      type: string
-    email:
-      type:
-        - string
-        - "null"
-    avatarURL:
-      type:
-        - string
-        - "null"
-    joinedAt:
-      type: string
-      format: date-time
-
 AdminSchoolConfig:
   type: object
   required: [schoolID, schoolName, verificationMethod, approvalPolicy, enabled, createdAt]
   properties:
     schoolID:
-      type: string
+      type: integer
+      format: int64
     schoolName:
       type: string
     verificationMethod:
@@ -764,19 +540,84 @@ UpdateSchoolConfigRequest:
     enabled:
       type: boolean
 
-UserPermissionOverride:
+QQBinding:
   type: object
-  required: [userID, permissionID, permissionName, granted]
+  required: [userID, qqID, boundAt, createdAt, updatedAt]
   properties:
     userID:
       type: integer
       format: int64
-    permissionID:
-      type: integer
-      format: int64
-    permissionName:
+    qqID:
       type: string
-    granted:
+    qqNickname:
+      type:
+        - string
+        - "null"
+    boundAt:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+QQBindingCode:
+  type: object
+  required: [code, expiresAt]
+  properties:
+    code:
+      type: string
+    expiresAt:
+      type: string
+      format: date-time
+
+ConsumeQQBindingRequest:
+  type: object
+  required: [code, qqID]
+  properties:
+    code:
+      type: string
+      minLength: 1
+      maxLength: 32
+    qqID:
+      type: string
+      minLength: 1
+      maxLength: 64
+    qqNickname:
+      type:
+        - string
+        - "null"
+      maxLength: 255
+
+QQVerificationStatus:
+  type: object
+  required: [qqID, verificationState, profileVerificationStatus, studentVerified]
+  properties:
+    qqID:
+      type: string
+    userID:
+      type:
+        - integer
+        - "null"
+      format: int64
+    qqNickname:
+      type:
+        - string
+        - "null"
+    boundAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    verificationState:
+      type: string
+      enum: [unbound, bound_unverified, verified]
+    profileVerificationStatus:
+      type: string
+      enum: [unverified, pending, verified, rejected]
+    studentVerified:
       type: boolean
 
 UserSurface:

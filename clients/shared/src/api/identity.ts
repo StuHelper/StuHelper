@@ -31,6 +31,12 @@ export const createIdentityApi = (client: ApiClient) => ({
   requestBindPhoneOTP: (phone: string) =>
     client.POST('/api/v1/user/profile/bind-phone/otp', { body: { phone } }),
 
+  getQQBinding: () =>
+    client.GET('/api/v1/user/qq-binding'),
+
+  createQQBindingCode: () =>
+    client.POST('/api/v1/user/qq-binding/code'),
+
   getAcademicInfo: () =>
     client.GET('/api/v1/user/profile/academic-info'),
 

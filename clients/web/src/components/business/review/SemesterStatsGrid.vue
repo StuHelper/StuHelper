@@ -52,7 +52,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { CourseRatingStatsResponse, TermRatingStats } from '@/types/course'
+import type { CourseRatingStatsResponse, TermRatingStats } from '@stuhelper/shared/course'
+import { getRatingColor } from '@/design-system/rating'
 
 const props = defineProps<{
   ratingStats: CourseRatingStatsResponse | null
@@ -65,12 +66,5 @@ const terms = computed(() => props.ratingStats?.byTerm || [])
 // 从第一个维度取 ratingCount（同一学期各维度 ratingCount 相同）
 function getTermRatingCount(term: TermRatingStats): number {
   return term.dimensions?.[0]?.ratingCount ?? 0
-}
-
-function getRatingColor(rating: number): string {
-  if (rating >= 4) return 'var(--color-rating-5)'
-  if (rating >= 3) return 'var(--color-rating-4)'
-  if (rating >= 2) return 'var(--color-rating-3)'
-  return 'var(--color-rating-1)'
 }
 </script>

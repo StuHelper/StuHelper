@@ -23,4 +23,4 @@ export const api = {
   user: createUserApi(apiClient),
 }
 
-export type { components } from '@stuhelper/shared'
+export type { components, operations } from '@stuhelper/shared/types'

@@ -35,7 +35,7 @@ export function useToast(): UseToastReturn {
 
   function show(message: string, type: ToastType = 'info', duration = 3000) {
     const id = ++nextID
-    toasts.value.push({ id, type, message, duration })
+    toasts.value = [...toasts.value, { id, type, message, duration }]
 
     if (duration > 0) {
       const timer = setTimeout(() => {
@@ -56,8 +56,7 @@ export function useToast(): UseToastReturn {
       clearTimeout(timer)
       timers.delete(id)
     }
-    const idx = toasts.value.findIndex((t) => t.id === id)
-    if (idx !== -1) toasts.value.splice(idx, 1)
+    toasts.value = toasts.value.filter(t => t.id !== id)
   }
 
   // 清理所有活跃 timer

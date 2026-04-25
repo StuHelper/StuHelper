@@ -21,6 +21,9 @@ export const createCourseApi = (client: ApiClient) => ({
             },
         }),
 
+    getCoursesGrouped: () =>
+        client.GET('/api/v1/course/courses/grouped', {}),
+
     searchCourses: (query: string, params?: number | Omit<CourseSearchParams, 'q'>, options?: { signal?: AbortSignal }) => {
         const normalized =
             typeof params === 'number'

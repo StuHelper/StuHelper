@@ -103,7 +103,9 @@ export default {
     teacherNone: '暂无教师数据',
     termLabel: '学期',
     termPlaceholder: '请选择学期',
-    termMissing: '请选择学期'
+    termMissing: '请选择学期',
+    ratingLoadFailed: '评分维度加载失败，请稍后重试',
+    ratingUnavailable: '暂无可用评分维度'
   },
   rating: {
     overall: '综合评分',

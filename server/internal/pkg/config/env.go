@@ -7,9 +7,10 @@ import (
 	"strings"
 )
 
-// getEnv 获取环境变量，如果不存在则返回默认值
+// getEnv 获取环境变量，如果未设置则返回默认值。
+// 使用 LookupEnv 区分"未设置"和"显式设为空字符串"。
 func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
+	if value, exists := os.LookupEnv(key); exists {
 		return value
 	}
 	return defaultValue
@@ -41,6 +42,25 @@ func getEnvInt(key string, defaultValue int, parseErrs *[]string) int {
 	}
 	if intValue, err := strconv.Atoi(val); err == nil {
 		return intValue
+	}
+
+	errMsg := fmt.Sprintf("invalid integer value for %s: %s", key, val)
+	*parseErrs = append(*parseErrs, errMsg)
+	return defaultValue
+}
+
+// getEnvInt32 获取 int32 类型的环境变量
+func getEnvInt32(key string, defaultValue int32, parseErrs *[]string) int32 {
+	val := os.Getenv(key)
+	if val == "" {
+		if _, exists := os.LookupEnv(key); exists {
+			*parseErrs = append(*parseErrs, fmt.Sprintf("%s is set but empty, using default %d", key, defaultValue))
+		}
+		return defaultValue
+	}
+	intValue, err := strconv.ParseInt(val, 10, 32)
+	if err == nil {
+		return int32(intValue)
 	}
 
 	errMsg := fmt.Sprintf("invalid integer value for %s: %s", key, val)

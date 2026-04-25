@@ -1,5 +1,6 @@
+import type { components } from '@stuhelper/shared/types';
+
 import { createUserAdminApi } from '@stuhelper/shared/api';
-import type { components } from '@stuhelper/shared';
 
 import { sharedApiClient } from '#/api/shared-client';
 import { unwrapData, unwrapListData } from '#/api/shared-result';
@@ -38,13 +39,16 @@ export async function getStudentVerificationList(params: {
   schoolId?: string;
   status?: 'all' | 'pending' | 'rejected' | 'verified';
 }) {
-  const schoolID = params.schoolId?.trim();
+  const schoolID =
+    params.schoolId && params.schoolId.trim() !== ''
+      ? Number(params.schoolId)
+      : undefined;
 
   return unwrapListData<StudentVerification>(
     await userAdminApi.listStudentVerifications({
       page: params.page,
       pageSize: params.pageSize,
-      ...(schoolID ? { schoolID } : {}),
+      ...(schoolID === undefined || Number.isNaN(schoolID) ? {} : { schoolID }),
       status: params.status,
     }),
   );
@@ -54,9 +58,7 @@ export async function reviewStudentVerification(
   userId: number,
   data: { approved: boolean; rejectionReason?: string },
 ) {
-  return unwrapData(
-    await userAdminApi.reviewStudentVerification(userId, data),
-  );
+  return unwrapData(await userAdminApi.reviewStudentVerification(userId, data));
 }
 
 export async function getSchoolConfigList() {
@@ -64,7 +66,7 @@ export async function getSchoolConfigList() {
 }
 
 export async function updateSchoolConfig(
-  schoolId: string,
+  schoolId: number,
   data: UpdateSchoolConfigPayload,
 ) {
   return unwrapData(await userAdminApi.updateSchoolConfig(schoolId, data));

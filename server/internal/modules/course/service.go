@@ -7,9 +7,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 // 业务错误定义
@@ -19,18 +17,29 @@ var (
 
 // Service 课程服务层
 type Service struct {
-	db   *db.DB
 	repo *Repository
 	log  *zap.Logger
 }
 
 // NewService 创建课程服务
-func NewService(database *db.DB, repo *Repository) *Service {
-	return &Service{
-		db:   database,
-		repo: repo,
-		log:  logger.L(),
+func NewService(repo *Repository, log *zap.Logger) *Service {
+	if log == nil {
+		log = zap.NewNop()
 	}
+	return &Service{
+		repo: repo,
+		log:  log,
+	}
+}
+
+// FavoriteExists 检查单个课程是否被用户收藏
+func (s *Service) FavoriteExists(ctx context.Context, userHash string, courseID int64) (bool, error) {
+	return s.repo.FavoriteExists(ctx, userHash, courseID)
+}
+
+// BatchFavoritedCourseIDs 批量查询用户已收藏的课程 ID 集合
+func (s *Service) BatchFavoritedCourseIDs(ctx context.Context, userHash string, courseIDs []int64) (map[int64]bool, error) {
+	return s.repo.BatchFavoritedCourseIDs(ctx, userHash, courseIDs)
 }
 
 // GetDepartments 获取院系列表
@@ -94,10 +103,10 @@ type SearchCoursesParams struct {
 
 // SearchCourses 搜索课程
 func (s *Service) SearchCourses(ctx context.Context, params SearchCoursesParams) (*ListCoursesResult, error) {
-	pattern := "%" + httputil.EscapeLikePattern(params.Query) + "%"
+	query := params.Query
 
 	offset := httputil.SafeOffset(params.Page, params.PageSize)
-	list, total, err := s.repo.SearchCourses(ctx, pattern, params.PageSize, offset)
+	list, total, err := s.repo.SearchCourses(ctx, query, params.PageSize, offset)
 	if err != nil {
 		s.log.Error("failed to search courses", zap.String("query", params.Query), zap.Error(err))
 		return nil, err
@@ -122,6 +131,16 @@ func (s *Service) GetCourse(ctx context.Context, id int64) (*Course, error) {
 // GetCourseCategories 获取课程分类列表
 func (s *Service) GetCourseCategories(ctx context.Context) ([]CourseCategory, error) {
 	return s.repo.ListCourseCategories(ctx)
+}
+
+// GetCoursesGrouped 按院系分组返回全部课程（面向课程目录页）
+func (s *Service) GetCoursesGrouped(ctx context.Context) ([]DepartmentGroup, error) {
+	groups, err := s.repo.ListCoursesGroupedByDepartment(ctx)
+	if err != nil {
+		s.log.Error("获取按院系分组课程失败", zap.Error(err))
+		return nil, err
+	}
+	return groups, nil
 }
 
 // StatsResult 统计结果

@@ -90,3 +90,6 @@ await api.identity.verifyStudent({
 1. 先改 OpenAPI，再改代码
 2. 页面只从 `api` 对象调接口
 3. 不手写重复类型
+4. 默认不直接 `fetch`
+   - 允许例外：OIDC callback 浏览器跳转、`sendBeacon` / `keepalive` 上报、浏览器/框架基础设施请求
+   - 例外调用点必须写注释说明原因

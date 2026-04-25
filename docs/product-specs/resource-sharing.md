@@ -1,0 +1,62 @@
+---
+type: product-spec
+audience: product, backend-dev
+status: current
+authoritative-source: server/api/openapi.yaml
+last-verified: 2026-04-19
+---
+
+# 资源共享
+
+## 目标
+
+定义 `resource` 业务模块。该模块提供资源元数据、标签、绑定、检索和下载入口，用于课程、学期、学校和公共空间中的资源共享。
+
+## 边界
+
+### 包含
+
+- 资源条目
+- 资源版本
+- 资源标签
+- 资源绑定
+- 上传、列表、详情、更新、删除、下载链接
+
+### 不包含
+
+- 实验附件
+- 作业附件
+- 提交物与批改反馈附件
+- 面向不存在业务的通用文件中心
+
+## 核心对象
+
+- `resource_items`
+- `resource_versions`
+- `resource_bindings`
+- `resource_tags`
+
+## 业务约束
+
+- 资源本体是业务元数据，不是底层对象 key
+- 资源与存储对象解耦
+- 版本优先采用 `resource item + version`
+- 绑定通过业务语义表示，不把课程、学校等信息硬编码进对象路径
+
+## 最小 API
+
+- 创建资源
+- 查询资源列表
+- 查询资源详情
+- 更新资源元数据
+- 删除资源
+- 获取下载链接
+
+## 过滤能力
+
+- 关键字
+- 标签
+- 绑定类型
+- 课程
+- 学校
+- 学期

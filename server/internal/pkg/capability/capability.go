@@ -30,9 +30,8 @@ const (
 	ReviewListBrief = "review:list:brief"
 )
 
-// RoleCapabilities 角色 → 能力静态映射。
-// 这是权限模型的核心配置，修改需要 code review。
-var RoleCapabilities = map[string][]string{
+// RoleCapabilities 角色到能力的静态映射。
+var roleCapabilities = map[string][]string{
 	"super_admin": {
 		AdminDashboardView, AdminReviewsManage, AdminReportsManage,
 		AdminTeachersManage, AdminSensitiveWordsManage, AdminLogsView,
@@ -42,11 +41,8 @@ var RoleCapabilities = map[string][]string{
 		UserSystemRead, UserSystemUpdate,
 	},
 	"school_admin": {
-		AdminDashboardView, AdminReviewsManage, AdminReportsManage,
-		AdminTeachersManage, AdminSensitiveWordsManage, AdminLogsView,
-		UserIdentityRead, UserIdentityReview,
 		UserStudentRead, UserStudentReview,
-		UserSchoolRead, UserSystemRead,
+		UserSchoolRead, UserSchoolUpdate,
 	},
 	"moderator": {
 		AdminReviewsManage, AdminReportsManage, AdminTeachersManage,
@@ -59,15 +55,56 @@ var RoleCapabilities = map[string][]string{
 	},
 }
 
+// GetRoleCapabilities returns a defensive copy of the role-to-capabilities mapping.
+func GetRoleCapabilities() map[string][]string {
+	out := make(map[string][]string, len(roleCapabilities))
+	for role, caps := range roleCapabilities {
+		cp := make([]string, len(caps))
+		copy(cp, caps)
+		out[role] = cp
+	}
+	return out
+}
+
 // ExpandRoles 将角色列表展开为去重排序的能力列表（纯内存操作，零 DB 查询）
 func ExpandRoles(roles []string) []string {
 	var all []string
 	for _, role := range roles {
-		if caps, ok := RoleCapabilities[role]; ok {
+		if caps, ok := roleCapabilities[role]; ok {
 			all = append(all, caps...)
 		}
 	}
 	return Normalize(all)
+}
+
+// ExpandRoleGrants 将角色列表展开为带 scope 的能力授权。
+// 当前只有 school_admin 需要绑定 school scope；其余角色保持全局授权。
+func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Grant {
+	grants := make([]Grant, 0, len(roles))
+	for _, role := range roles {
+		caps, ok := roleCapabilities[role]
+		if !ok {
+			continue
+		}
+		switch role {
+		case "school_admin":
+			schoolIDs := normalizeScope(orgScopedRoles[role])
+			if len(schoolIDs) == 0 {
+				continue
+			}
+			for _, capName := range caps {
+				grants = append(grants, Grant{
+					Name:           capName,
+					ScopeSchoolIDs: schoolIDs,
+				})
+			}
+		default:
+			for _, capName := range caps {
+				grants = append(grants, Grant{Name: capName})
+			}
+		}
+	}
+	return BuildUserAccessSnapshot(grants).CapabilityGrants
 }
 
 // AdminEntryCapabilities 拥有任一即可进入管理后台
@@ -216,4 +253,30 @@ func BuildUserAccessSnapshot(grants []Grant) UserAccessSnapshot {
 
 func CanAccessAdmin(capabilities []string) bool {
 	return HasAny(capabilities, AdminEntryCapabilities...)
+}
+
+func HasGlobalGrant(grants []Grant, expected string) bool {
+	for _, grant := range grants {
+		if grant.Name == expected && grant.Global {
+			return true
+		}
+	}
+	return false
+}
+
+func HasGrantInSchool(grants []Grant, expected, schoolID string) bool {
+	for _, grant := range grants {
+		if grant.Name != expected {
+			continue
+		}
+		if grant.Global {
+			return true
+		}
+		for _, scopedSchoolID := range grant.ScopeSchoolIDs {
+			if scopedSchoolID == schoolID {
+				return true
+			}
+		}
+	}
+	return false
 }

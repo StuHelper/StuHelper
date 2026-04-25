@@ -4,13 +4,11 @@
       class="fixed top-0 left-0 right-0 z-[var(--z-sticky)] transition-all duration-200 ease-smooth bg-bg-glass backdrop-blur-lg backdrop-saturate-150"
       :class="isScrolled && 'bg-bg-glass-heavy backdrop-blur-xl border-b border-white/15 dark:border-white/8 shadow-sm'"
     >
-      <!-- 第一行：Logo + 搜索(宽屏) + 写测评 + 通知 + 头像 -->
       <div class="max-w-[var(--max-width)] mx-auto h-[var(--navbar-height)] flex items-center gap-4 px-6 max-md:px-4 max-md:gap-3">
         <router-link to="/" class="no-underline shrink-0">
           <span class="font-display text-xl font-extrabold tracking-tight gradient-text">StuHelper</span>
         </router-link>
 
-        <!-- 宽屏搜索框（contents 让 div 对 flex 布局透明） -->
         <div class="contents max-tablet:hidden">
           <InlineSearch />
         </div>
@@ -27,18 +25,24 @@
 
         <div class="flex-1" />
 
-        <!-- 右侧：语言切换 + 通知铃铛 + 头像/登录 -->
         <LocaleSwitcher />
         <NotificationBell v-if="authStore.isAuthenticated" />
 
         <div
           v-if="authStore.isAuthenticated"
-          class="relative"
           ref="userMenuRef"
+          class="relative"
         >
           <button
+            ref="userMenuButtonRef"
+            type="button"
             class="w-8 h-8 rounded-full cursor-pointer overflow-hidden shrink-0 bg-gradient-to-br from-primary to-accent p-0.5"
-            @click="userMenuOpen = !userMenuOpen"
+            aria-haspopup="menu"
+            :aria-controls="USER_MENU_ID"
+            :aria-expanded="userMenuOpen"
+            :aria-label="t('nav.user')"
+            @click="toggleUserMenu"
+            @keydown="handleMenuButtonKeydown"
           >
             <img
               v-if="authStore.user?.avatar"
@@ -61,9 +65,17 @@
           </span>
           <div
             v-if="userMenuOpen"
+            :id="USER_MENU_ID"
+            role="menu"
+            :aria-label="t('nav.user')"
             class="absolute right-0 top-full mt-1.5 w-48 bg-bg-card rounded-lg shadow-md py-1 z-[var(--z-dropdown)] animate-fade-in"
+            @keydown="handleUserMenuKeydown"
           >
             <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              data-user-menu-item
               class="flex items-center gap-2 w-full px-3 py-2 text-sm text-text-secondary transition-colors duration-fast hover:bg-bg-hover hover:text-text-primary"
               @click="goToUser"
             >
@@ -71,6 +83,10 @@
               {{ t('nav.profile') }}
             </button>
             <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              data-user-menu-item
               class="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors duration-fast hover:bg-bg-hover"
               :class="verificationStore.identityVerified ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
               @click="goTo('identity-verification')"
@@ -80,6 +96,10 @@
               <span v-if="verificationStore.identityVerified" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.identity.verified') }}</span>
             </button>
             <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              data-user-menu-item
               class="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors duration-fast hover:bg-bg-hover"
               :class="verificationStore.studentVerified ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
               @click="goTo('student-verification')"
@@ -88,18 +108,39 @@
               {{ t('nav.studentVerification') }}
               <span v-if="verificationStore.studentVerified" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.student.verified') }}</span>
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              data-user-menu-item
+              class="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors duration-fast hover:bg-bg-hover"
+              :class="verificationStore.qqBound ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
+              @click="goTo('qq-binding')"
+            >
+              <Bot class="size-4" />
+              {{ t('nav.qqBinding') }}
+              <span v-if="verificationStore.qqBound" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.qq.bound') }}</span>
+            </button>
             <template v-if="showAdminEntry">
               <div class="h-px bg-border mx-2 my-0.5" />
-              <a
-                href="/admin/"
-                class="flex items-center gap-2 w-full px-3 py-2 text-sm text-accent font-medium transition-colors duration-fast hover:bg-accent/10 no-underline"
+              <button
+                type="button"
+                role="menuitem"
+                tabindex="-1"
+                data-user-menu-item
+                class="flex items-center gap-2 w-full px-3 py-2 text-sm text-accent font-medium transition-colors duration-fast hover:bg-accent/10"
+                @click="goToAdmin"
               >
                 <Settings class="size-4" />
                 {{ t('nav.adminConsole') }}
-              </a>
+              </button>
             </template>
             <div class="h-px bg-border mx-2 my-0.5" />
             <button
+              type="button"
+              role="menuitem"
+              tabindex="-1"
+              data-user-menu-item
               class="flex items-center gap-2 w-full px-3 py-2 text-sm text-danger transition-colors duration-fast hover:bg-danger/10"
               @click="handleLogout"
             >
@@ -118,7 +159,6 @@
         </router-link>
       </div>
 
-      <!-- 第二行：窄屏搜索框 -->
       <div class="hidden max-tablet:block px-4 pb-2">
         <InlineSearch />
       </div>
@@ -135,15 +175,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { PenLine, LogOut, User, ShieldCheck, GraduationCap, Settings } from 'lucide-vue-next'
+import { Bot, GraduationCap, LogOut, PenLine, Settings, ShieldCheck, User } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import { canShowAdminEntry } from '@/utils/adminAccess'
 import { useVerificationStore } from '@/stores/verification'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { useToast } from '@/composables/useToast'
-import { canAccessAdmin } from '@stuhelper/shared/constants'
 import FloatingModuleNav from './FloatingModuleNav.vue'
 import InlineSearch from '@/components/common/InlineSearch.vue'
 import NotificationBell from '@/components/common/NotificationBell.vue'
@@ -151,24 +191,27 @@ import CommandPalette from '@/components/common/CommandPalette.vue'
 import Toast from '@/components/common/Toast.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 
+const USER_MENU_ID = 'app-shell-user-menu'
+
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const verificationStore = useVerificationStore()
 const toast = useToast()
-const { openPostModal } = useReviewPost()
+const { ensureCanPostReview, openPostModal } = useReviewPost()
 
 const isReviewRoute = computed(() =>
   route.path.startsWith('/review') ||
   route.path.startsWith('/courses') ||
-  route.path.startsWith('/teachers')
+  route.path.startsWith('/teachers'),
 )
 
 const isScrolled = ref(false)
 const userMenuOpen = ref(false)
 const userMenuRef = ref<HTMLElement | null>(null)
-// 滚动节流，避免高频触发
+const userMenuButtonRef = ref<HTMLButtonElement | null>(null)
+const userMenuItems = ref<HTMLElement[]>([])
 let scrollTicking = false
 
 const avatarInitial = computed(() => {
@@ -176,31 +219,154 @@ const avatarInitial = computed(() => {
   return name.charAt(0).toUpperCase()
 })
 
-const showAdminEntry = computed(() =>
-  canAccessAdmin(authStore.globalCapabilities)
-)
+const showAdminEntry = computed(() => canShowAdminEntry(authStore.user))
+
+function syncUserMenuItems() {
+  userMenuItems.value = userMenuRef.value
+    ? Array.from(userMenuRef.value.querySelectorAll<HTMLElement>('[data-user-menu-item]'))
+    : []
+}
+
+function focusUserMenuItem(index: number) {
+  const items = userMenuItems.value
+  if (items.length === 0) {
+    return
+  }
+
+  const normalizedIndex = (index + items.length) % items.length
+  items[normalizedIndex]?.focus()
+}
+
+async function openUserMenu(focusIndex?: number) {
+  if (!userMenuOpen.value) {
+    userMenuOpen.value = true
+    await nextTick()
+  }
+
+  syncUserMenuItems()
+
+  if (focusIndex !== undefined) {
+    focusUserMenuItem(focusIndex)
+  }
+}
+
+function closeUserMenu(restoreFocus = false) {
+  userMenuOpen.value = false
+  userMenuItems.value = []
+
+  if (restoreFocus) {
+    void nextTick(() => {
+      userMenuButtonRef.value?.focus()
+    })
+  }
+}
+
+async function toggleUserMenu() {
+  if (userMenuOpen.value) {
+    closeUserMenu()
+    return
+  }
+
+  await openUserMenu()
+}
+
+async function handleMenuButtonKeydown(event: KeyboardEvent) {
+  switch (event.key) {
+    case 'ArrowDown': {
+      event.preventDefault()
+      await openUserMenu(0)
+      break
+    }
+    case 'ArrowUp': {
+      event.preventDefault()
+      await openUserMenu(userMenuItems.value.length - 1)
+      break
+    }
+    case 'Enter':
+    case ' ': {
+      event.preventDefault()
+      await toggleUserMenu()
+      break
+    }
+    case 'Escape': {
+      event.preventDefault()
+      closeUserMenu(true)
+      break
+    }
+  }
+}
+
+function handleUserMenuKeydown(event: KeyboardEvent) {
+  const items = userMenuItems.value
+  if (items.length === 0) {
+    return
+  }
+
+  const currentIndex = items.findIndex((item) => item === document.activeElement)
+
+  switch (event.key) {
+    case 'ArrowDown': {
+      event.preventDefault()
+      focusUserMenuItem(currentIndex < 0 ? 0 : currentIndex + 1)
+      break
+    }
+    case 'ArrowUp': {
+      event.preventDefault()
+      focusUserMenuItem(currentIndex < 0 ? items.length - 1 : currentIndex - 1)
+      break
+    }
+    case 'Home': {
+      event.preventDefault()
+      focusUserMenuItem(0)
+      break
+    }
+    case 'End': {
+      event.preventDefault()
+      focusUserMenuItem(items.length - 1)
+      break
+    }
+    case 'Escape': {
+      event.preventDefault()
+      closeUserMenu(true)
+      break
+    }
+    case 'Tab': {
+      closeUserMenu()
+      break
+    }
+  }
+}
 
 function goToUser() {
-  userMenuOpen.value = false
+  closeUserMenu()
   router.push('/user/reviews')
 }
 
 function goTo(routeName: string) {
-  userMenuOpen.value = false
+  closeUserMenu()
   router.push({ name: routeName })
 }
 
-function handleWriteReview() {
+function goToAdmin() {
+  closeUserMenu()
+  window.location.assign('/admin/')
+}
+
+async function handleWriteReview() {
+  if (!(await ensureCanPostReview())) {
+    return
+  }
+
   const courseID = typeof route.params.id === 'string' ? Number(route.params.id) : NaN
   if (route.path.startsWith('/courses/') && Number.isFinite(courseID) && courseID > 0) {
-    router.push({ name: 'course-review-post', params: { id: courseID } })
+    await router.push({ name: 'course-review-post', params: { id: courseID } })
     return
   }
   openPostModal()
 }
 
 async function handleLogout() {
-  userMenuOpen.value = false
+  closeUserMenu()
   const result = await authStore.logout()
   if (result.ok) {
     router.push('/')
@@ -211,9 +377,9 @@ async function handleLogout() {
   }
 }
 
-function onClickOutside(e: MouseEvent) {
-  if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
-    userMenuOpen.value = false
+function onClickOutside(event: MouseEvent) {
+  if (userMenuRef.value && !userMenuRef.value.contains(event.target as Node)) {
+    closeUserMenu()
   }
 }
 
@@ -227,12 +393,9 @@ function handleScroll() {
 }
 
 onMounted(() => {
-  // 初始化时同步滚动状态，防止页面刷新后状态不一致
   isScrolled.value = window.scrollY > 10
-  // passive 已设置
   window.addEventListener('scroll', handleScroll, { passive: true })
   document.addEventListener('click', onClickOutside, true)
-  // Bootstrap verification status for authenticated users
   if (authStore.isAuthenticated) {
     void verificationStore.fetchStatus().catch((error) => {
       if (import.meta.env.DEV) {
@@ -247,3 +410,28 @@ onUnmounted(() => {
   document.removeEventListener('click', onClickOutside, true)
 })
 </script>
+
+<style scoped>
+.has-new .bell-btn svg {
+  animation: bellShake 0.5s ease;
+}
+
+@keyframes bellShake {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(15deg); }
+  75% { transform: rotate(-15deg); }
+}
+
+.dropdown-enter-active {
+  transition: all var(--duration-slow) var(--ease-spring);
+}
+.dropdown-leave-active {
+  transition: all var(--duration-base) var(--ease-out);
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.95);
+}
+</style>

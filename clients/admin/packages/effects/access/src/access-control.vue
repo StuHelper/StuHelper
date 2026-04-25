@@ -1,9 +1,6 @@
 <!--
- Access control component for fine-grained access control.
- TODO: 可以扩展更完善的功能：
- 1. 支持多个权限码，只要有一个权限码满足即可 或者 多个权限码全部满足
- 2. 支持多个角色，只要有一个角色满足即可 或者 多个角色全部满足
- 3. 支持自定义权限码和角色的判断逻辑
+ 访问控制组件。
+ 当前实现根据 `type` 选择按角色或按权限码判断，并在满足条件时渲染插槽。
 -->
 <script lang="ts" setup>
 import { computed } from 'vue';
@@ -37,11 +34,13 @@ const { hasAccessByCodes, hasAccessByRoles } = useAccess();
 
 const hasAuth = computed(() => {
   const { codes, type } = props;
+  if (codes.length === 0) {
+    return true;
+  }
   return type === 'role' ? hasAccessByRoles(codes) : hasAccessByCodes(codes);
 });
 </script>
 
 <template>
-  <slot v-if="!codes"></slot>
-  <slot v-else-if="hasAuth"></slot>
+  <slot v-if="hasAuth"></slot>
 </template>

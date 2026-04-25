@@ -10,16 +10,24 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 )
 
-// ListAdminTeachers 获取教师列表（管理员，含院系名和评论数）
+// ListAdminTeachers 获取教师列表（管理员，含院系名和评论数）。
+// 使用 CTE 预聚合评论数，避免 correlated subquery 对每行执行 COUNT。
 func (r *Repository) ListAdminTeachers(ctx context.Context, search string, departmentID int64, limit, offset int) ([]AdminTeacher, int, error) {
 	var qb strings.Builder
 	qb.WriteString(`
+		WITH review_counts AS (
+			SELECT teacher_id, COUNT(*) AS review_count
+			FROM reviews
+			WHERE status != 'deleted'
+			GROUP BY teacher_id
+		)
 		SELECT t.id, t.name, t.department_id, d.name,
-		       (SELECT COUNT(*) FROM reviews rv WHERE rv.teacher_id = t.id AND rv.status != 'deleted') AS review_count,
+		       COALESCE(rc.review_count, 0) AS review_count,
 		       t.created_at,
 		       COUNT(*) OVER() AS total
 		FROM teachers t
 		LEFT JOIN departments d ON d.id = t.department_id
+		LEFT JOIN review_counts rc ON rc.teacher_id = t.id
 		WHERE 1=1
 	`)
 

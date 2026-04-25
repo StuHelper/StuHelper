@@ -3,12 +3,25 @@
   hosts: stuhelper
   become: true
   vars:
-    deploy_user: "{{ ansible_user | default('stuhelper') }}"
+    deploy_user: "{{ ansible_user }}"
     deploy_group: "{{ deploy_user }}"
-    deploy_app_dir: "{{ deploy_app_dir | default('/opt/stuhelper') }}"
+    deploy_app_dir: "{{ deploy_app_dir }}"
     configure_ufw: "{{ configure_ufw | default(true) }}"
-    allow_http_ports: "{{ allow_http_ports | default('80,443') }}"
+    allow_http_ports: "{{ allow_http_ports }}"
     deploy_ssh_pubkey: "{{ deploy_ssh_pubkey | default('') }}"
+  pre_tasks:
+    - name: Assert required bootstrap variables are explicitly declared
+      ansible.builtin.assert:
+        that:
+          - ansible_user is defined
+          - ansible_user | length > 0
+          - deploy_app_dir is defined
+          - deploy_app_dir | length > 0
+          - allow_http_ports is defined
+          - allow_http_ports | length > 0
+        fail_msg: >-
+          bootstrap inventory must explicitly set ansible_user, deploy_app_dir,
+          and allow_http_ports; avoid hidden defaults during host bootstrap.
   tasks:
     - name: Run bootstrap script
       ansible.builtin.script: >-
@@ -20,4 +33,3 @@
         CONFIGURE_UFW: "{{ configure_ufw | ternary('true', 'false') }}"
         ALLOW_HTTP_PORTS: "{{ allow_http_ports }}"
         DEPLOY_SSH_PUBKEY: "{{ deploy_ssh_pubkey }}"
-

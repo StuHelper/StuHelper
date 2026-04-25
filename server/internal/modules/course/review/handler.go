@@ -3,22 +3,17 @@ package review
 import (
 	"context"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -26,35 +21,56 @@ import (
 
 // Handler 评课社区处理器
 type Handler struct {
-	db             *db.DB
-	cache          *cache.Helper
-	service        *Service
-	userRepo       *user.Repository
-	fga            *fga.Client
-	postLimiter    *middleware.RedisRateLimiter
-	voteLimiter    *middleware.RedisRateLimiter
-	reportLimiter  *middleware.RedisRateLimiter
-	replyLimiter   *middleware.RedisRateLimiter
-	writeLimiter   *middleware.RedisRateLimiter
-	accessPolicyMu sync.Mutex
+	cache             *cache.Helper
+	service           *Service
+	fga               AuthorizationProvider
+	postLimiter       *middleware.RedisRateLimiter
+	voteLimiter       *middleware.RedisRateLimiter
+	reportLimiter     *middleware.RedisRateLimiter
+	replyLimiter      *middleware.RedisRateLimiter
+	writeLimiter      *middleware.RedisRateLimiter
+	searchAnonLimiter *middleware.RedisRateLimiter
+	searchUserLimiter *middleware.RedisRateLimiter
+	batchAnonLimiter  *middleware.RedisRateLimiter
+	batchUserLimiter  *middleware.RedisRateLimiter
 }
 
 // NewHandler 创建处理器
-func NewHandler(database *db.DB, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, fgaClient *fga.Client, notifSender notification.Sender) *Handler {
-	repo := NewRepository(database)
-	svc := NewService(database, repo, notifSender)
-	return &Handler{
-		db:            database,
-		cache:         cache.NewHelper(rdb),
-		service:       svc,
-		userRepo:      user.NewRepository(database),
-		fga:           fgaClient,
-		postLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.PostLimit, time.Minute),
-		voteLimiter:   middleware.NewRedisRateLimiter(rdb, rlCfg.VoteLimit, time.Minute),
-		reportLimiter: middleware.NewRedisRateLimiter(rdb, rlCfg.ReportLimit, time.Minute),
-		replyLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.ReplyLimit, time.Minute),
-		writeLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.WriteLimit, time.Minute),
+func NewHandler(cacheHelper *cache.Helper, service *Service, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, authorizer AuthorizationProvider) *Handler {
+	if cacheHelper == nil {
+		panic("review.NewHandler: cacheHelper must not be nil")
 	}
+	if service == nil {
+		panic("review.NewHandler: service must not be nil")
+	}
+	if rdb == nil {
+		panic("review.NewHandler: redis client must not be nil")
+	}
+	authorizer = normalizeAuthorizationProvider(authorizer)
+	return &Handler{
+		cache:             cacheHelper,
+		service:           service,
+		fga:               authorizer,
+		postLimiter:       middleware.NewRedisRateLimiter(rdb, rlCfg.PostLimit, time.Minute),
+		voteLimiter:       middleware.NewRedisRateLimiter(rdb, rlCfg.VoteLimit, time.Minute),
+		reportLimiter:     middleware.NewRedisRateLimiter(rdb, rlCfg.ReportLimit, time.Minute),
+		replyLimiter:      middleware.NewRedisRateLimiter(rdb, rlCfg.ReplyLimit, time.Minute),
+		writeLimiter:      middleware.NewRedisRateLimiter(rdb, rlCfg.WriteLimit, time.Minute),
+		searchAnonLimiter: middleware.NewRedisRateLimiter(rdb, rlCfg.SearchAnonLimit, time.Minute),
+		searchUserLimiter: middleware.NewRedisRateLimiter(rdb, rlCfg.SearchUserLimit, time.Minute),
+		batchAnonLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.BatchAnonLimit, time.Minute),
+		batchUserLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.BatchUserLimit, time.Minute),
+	}
+}
+
+// StartBackgroundJobs 启动评课后台任务（如 FGA 同步队列）。
+func (h *Handler) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
+	h.service.StartBackgroundJobs(ctx, start)
+}
+
+// RefreshTeacherPublicStats 刷新公开教师统计物化视图。
+func (h *Handler) RefreshTeacherPublicStats(ctx context.Context) error {
+	return h.service.RefreshTeacherPublicStats(ctx)
 }
 
 // RegisterRoutes 注册评课社区路由
@@ -70,10 +86,20 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	r.GET("/courses/:courseID/teachers", h.GetCourseTeachers)
 
 	// 测评（使用 optionalAuth：已登录用户看完整内容，未登录用户看脱敏内容）
-	r.GET("/courses/:courseID/reviews", optionalAuthMiddleware, h.GetCourseReviews)
-	r.GET("/reviews/latest", optionalAuthMiddleware, h.GetLatestReviews)
-	r.GET("/reviews/search", optionalAuthMiddleware, h.SearchReviews)
-	r.GET("/reviews/batch", optionalAuthMiddleware, h.GetBatchCourseReviews)
+	r.GET("/courses/:courseID/reviews", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.GetCourseReviews)
+	r.GET("/reviews/latest", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.GetLatestReviews)
+	r.GET("/reviews/search",
+		optionalAuthMiddleware,
+		middleware.RequireHealthyOptionalAuth(),
+		middleware.ProgressiveEndpointRateLimitMiddleware(h.searchAnonLimiter, h.searchUserLimiter, "review-search"),
+		h.SearchReviews,
+	)
+	r.GET("/reviews/batch",
+		optionalAuthMiddleware,
+		middleware.RequireHealthyOptionalAuth(),
+		middleware.ProgressiveEndpointRateLimitMiddleware(h.batchAnonLimiter, h.batchUserLimiter, "review-batch"),
+		h.GetBatchCourseReviews,
+	)
 	r.POST("/reviews", authMiddleware, middleware.EndpointRateLimitMiddleware(h.postLimiter, "post-review"), h.PostReview)
 	r.PUT("/reviews/:reviewID", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "update-review"), h.UpdateReview)
 	r.DELETE("/reviews/:reviewID", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "delete-review"), h.DeleteReview)
@@ -105,10 +131,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 		userGroup.GET("/reviews", h.GetUserReviews)
 		userGroup.GET("/votes", h.GetUserVotes)
 		userGroup.GET("/favorites", h.GetUserFavorites)
-		userGroup.GET("/notifications", h.GetNotifications)
-		userGroup.GET("/notifications/unread-count", h.GetUnreadCount)
-		userGroup.PUT("/notifications/:notificationID/read", h.MarkNotificationRead)
-		userGroup.PUT("/notifications/read-all", h.MarkAllNotificationsRead)
 	}
 
 	// 草稿（需要认证）
@@ -125,12 +147,12 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 	admin := r.Group("/admin")
 	admin.Use(authMiddleware, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
 	{
-		admin.GET("/reports", rbac.RequireCapability(capability.AdminReportsManage), h.ListReports)
-		admin.PUT("/reports/:reportID", rbac.RequireCapability(capability.AdminReportsManage), h.ProcessReport)
-		admin.GET("/reviews", rbac.RequireCapability(capability.AdminReviewsManage), h.ListAllReviews)
-		admin.PUT("/reviews/:reviewID", rbac.RequireCapability(capability.AdminReviewsManage), h.AdminUpdateReview)
-		admin.POST("/reviews/:reviewID/edit", rbac.RequireCapability(capability.AdminReviewsManage), h.AdminEditReviewContent)
-		admin.POST("/reviews/batch", rbac.RequireCapability(capability.AdminReviewsManage), h.BatchUpdateReviews)
+		admin.GET("/reports", requireModerationRole(), h.ListReports)
+		admin.PUT("/reports/:reportID", requireModerationRole(), h.ProcessReport)
+		admin.GET("/reviews", requireModerationRole(), h.ListAllReviews)
+		admin.PUT("/reviews/:reviewID", requireModerationRole(), h.AdminUpdateReview)
+		admin.POST("/reviews/:reviewID/edit", requireSchoolAdminRole(), h.AdminEditReviewContent)
+		admin.PATCH("/reviews/batch", requireModerationRole(), h.BatchUpdateReviews)
 		admin.GET("/stats", rbac.RequireCapability(capability.AdminDashboardView), h.GetAdminStats)
 		admin.GET("/logs", rbac.RequireCapability(capability.AdminLogsView), h.GetOperationLogs)
 		admin.GET("/export", rbac.RequireCapability(capability.AdminReviewsManage), h.ExportReviews)
@@ -145,8 +167,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 		admin.PUT("/sensitive-words/:sensitiveWordID", rbac.RequireCapability(capability.AdminSensitiveWordsManage), h.UpdateSensitiveWord)
 		admin.DELETE("/sensitive-words/:sensitiveWordID", rbac.RequireCapability(capability.AdminSensitiveWordsManage), h.DeleteSensitiveWord)
 
-		admin.GET("/content-flags", rbac.RequireCapability(capability.AdminReviewsManage), h.ListFlaggedReviews)
-		admin.PUT("/content-flags/:reviewID/clear", rbac.RequireCapability(capability.AdminReviewsManage), h.ClearContentFlag)
+		admin.GET("/content-flags", requireModerationRole(), h.ListFlaggedReviews)
+		admin.PUT("/content-flags/:reviewID/clear", requireModerationRole(), h.ClearContentFlag)
 	}
 }
 
@@ -159,16 +181,19 @@ func (h *Handler) CleanupOldLogs(ctx context.Context) (int64, error) {
 
 // logAdminOp 记录管理员操作日志的辅助函数，提取 gin context 中的公共字段
 func (h *Handler) logAdminOp(c *gin.Context, action, resourceType, resourceID string, oldValue, newValue any) {
+	event := audit.EventFromGin(c, audit.Event{})
 	if err := h.service.LogOperation(c.Request.Context(), LogOperationParams{
-		AdminUserID:   middleware.GetUserID(c),
-		AdminUsername: middleware.GetUsername(c),
+		AdminUserID:   event.UserID,
+		AdminUsername: event.Username,
 		Action:        action,
 		ResourceType:  resourceType,
 		ResourceID:    resourceID,
 		OldValue:      oldValue,
 		NewValue:      newValue,
-		IPAddress:     c.ClientIP(),
-		UserAgent:     httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
+		RequestID:     event.RequestID,
+		TraceID:       event.TraceID,
+		IPAddress:     event.IP,
+		UserAgent:     event.UserAgent,
 	}); err != nil {
 		logger.FromGin(c).Warn("failed to log operation", zap.Error(err))
 	}

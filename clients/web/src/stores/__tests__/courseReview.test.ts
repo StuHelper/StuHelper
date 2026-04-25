@@ -14,8 +14,10 @@ vi.mock('@/api', () => ({
 }))
 
 vi.mock('@/api/errors', () => ({
-  isApiError: () => false,
-  isNetworkError: () => false,
+  classifyApiError: (error: unknown, options: { unknownType: string, fallbackMessage: string }) => ({
+    type: options.unknownType,
+    message: error instanceof Error ? error.message : options.fallbackMessage,
+  }),
 }))
 
 vi.mock('@/i18n', () => ({

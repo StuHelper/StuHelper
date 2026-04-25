@@ -2,9 +2,11 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
 
@@ -24,6 +26,7 @@ type CreateParams struct {
 	Type         string
 	Title        string
 	Body         string
+	Payload      json.RawMessage
 	SourceModule string
 	SourceID     string
 	SourceURL    *string
@@ -51,9 +54,9 @@ func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error)
 		return "", fmt.Errorf("notification create generate id: %w", err)
 	}
 	_, err = r.db.Exec(ctx, `
-		INSERT INTO notifications (id, user_id, type, title, body, source_module, source_id, source_url, source_course_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, newID, p.UserID, p.Type, p.Title, p.Body, p.SourceModule, p.SourceID, p.SourceURL, p.CourseID)
+		INSERT INTO notifications (id, user_id, type, title, body, payload, source_module, source_id, source_url, source_course_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, newID, p.UserID, p.Type, p.Title, p.Body, payloadOrEmptyJSON(p.Payload), p.SourceModule, p.SourceID, p.SourceURL, p.CourseID)
 	if err != nil {
 		return "", fmt.Errorf("notification create: %w", err)
 	}
@@ -62,35 +65,51 @@ func (r *Repository) Create(ctx context.Context, p CreateParams) (string, error)
 
 // List 获取通知列表
 func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error) {
-	offset := (p.Page - 1) * p.PageSize
+	offset := httputil.SafeOffset(p.Page, p.PageSize)
+	result := &ListResult{List: make([]Notification, 0, p.PageSize)}
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*), COUNT(*) FILTER (WHERE is_read = false)
+		FROM notifications
+		WHERE user_id = $1
+	`, p.UserID).Scan(&result.Total, &result.Unread); err != nil {
+		return nil, fmt.Errorf("notification list count: %w", err)
+	}
+	if result.Total == 0 {
+		return result, nil
+	}
+
 	rows, err := r.db.Query(ctx, `
-		SELECT id, type, title, body, source_module, source_id, source_url, source_course_id, is_read, created_at,
-		       COUNT(*) OVER() AS total,
-		       SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) OVER() AS unread
+		SELECT id, type, title, body, payload, source_module, source_id, source_url, source_course_id, is_read, created_at
 		FROM notifications
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`, p.UserID, p.PageSize, offset)
 	if err != nil {
-		return nil, fmt.Errorf("notification list: %w", err)
+		return nil, fmt.Errorf("notification list data: %w", err)
 	}
 	defer rows.Close()
 
-	result := &ListResult{List: make([]Notification, 0, p.PageSize)}
 	for rows.Next() {
 		var n Notification
 		if err := rows.Scan(
-			&n.ID, &n.Type, &n.Title, &n.Body,
+			&n.ID, &n.Type, &n.Title, &n.Body, &n.Payload,
 			&n.SourceModule, &n.SourceID, &n.SourceURL, &n.CourseID,
 			&n.IsRead, &n.CreatedAt,
-			&result.Total, &result.Unread,
 		); err != nil {
 			return nil, fmt.Errorf("notification list scan: %w", err)
 		}
+		n.Content = n.Body
 		result.List = append(result.List, n)
 	}
 	return result, rows.Err()
+}
+
+func payloadOrEmptyJSON(payload json.RawMessage) json.RawMessage {
+	if len(payload) == 0 {
+		return json.RawMessage(`{}`)
+	}
+	return payload
 }
 
 // CountUnread 统计未读通知数量

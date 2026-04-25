@@ -21,6 +21,7 @@
         in: query
         schema:
           type: string
+          pattern: '^\d{4}-[12]$'
         description: 按学期筛选
       - name: teacherID
         in: query
@@ -130,6 +131,7 @@
         in: query
         schema:
           type: string
+          pattern: '^\d{4}-[12]$'
         description: 按学期筛选（YYYY-S）
       - name: sort
         in: query
@@ -260,6 +262,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '429':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -301,6 +305,8 @@
       '404':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
@@ -371,6 +377,8 @@
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '429':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

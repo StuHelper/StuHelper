@@ -1,15 +1,13 @@
 package review
 
 import (
-	"errors"
+	"context"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
@@ -59,9 +57,12 @@ func (h *Handler) GetCourseReviews(c *gin.Context) {
 		return
 	}
 
-	facts := h.resolveReviewAccessFactsForRequest(c)
+	facts, ok := h.resolveReviewAccessFactsForRequest(c)
+	if !ok {
+		return
+	}
 	stripped := stripReviewsForResponse(result.List, facts)
-	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total, page, pageSize))
 }
 
 // GetLatestReviews 获取最新测评
@@ -83,9 +84,12 @@ func (h *Handler) GetLatestReviews(c *gin.Context) {
 		return
 	}
 
-	facts := h.resolveReviewAccessFactsForRequest(c)
+	facts, ok := h.resolveReviewAccessFactsForRequest(c)
+	if !ok {
+		return
+	}
 	stripped := stripReviewsForResponse(result.List, facts)
-	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total, page, pageSize))
 }
 
 // SearchReviews 搜索测评（支持课程名/课号、院系、教师、学期等条件）
@@ -134,9 +138,12 @@ func (h *Handler) SearchReviews(c *gin.Context) {
 		return
 	}
 
-	facts := h.resolveReviewAccessFactsForRequest(c)
+	facts, ok := h.resolveReviewAccessFactsForRequest(c)
+	if !ok {
+		return
+	}
 	stripped := stripReviewsForResponse(result.List, facts)
-	response.Success(c, buildPaginatedReviewListData(stripped, result.Total))
+	response.Success(c, buildPaginatedReviewListData(stripped, result.Total, page, pageSize))
 }
 
 // GetBatchCourseReviews 批量获取多个课程的测评列表
@@ -189,35 +196,23 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 		return
 	}
 
-	facts := h.resolveReviewAccessFactsForRequest(c)
-	response.Success(c, buildGroupedReviewListData(courseIDs, result, facts))
+	facts, ok := h.resolveReviewAccessFactsForRequest(c)
+	if !ok {
+		return
+	}
+	response.Success(c, buildGroupedReviewListData(courseIDs, result, facts, pageSize))
 }
 
 // GetStats 获取评课统计数据
 func (h *Handler) GetStats(c *gin.Context) {
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:stats", "all")
-	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
-
-	result, err := h.service.GetStats(c.Request.Context())
-	if err != nil {
-		logger.FromGin(c).Error("failed to load stats", zap.Error(err))
-		response.InternalError(c, "failed to load stats")
-		return
-	}
-
-	data := gin.H{
-		"courseCount":     result.CourseCount,
-		"reviewCount":     result.ReviewCount,
-		"departmentCount": result.DepartmentCount,
-		"userCount":       result.UserCount,
-	}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, data)
+	respondWithCachedData(h, c, "review:stats", "all", h.service.GetStats, func(result *StatsResult) any {
+		return gin.H{
+			"courseCount":     result.CourseCount,
+			"reviewCount":     result.ReviewCount,
+			"departmentCount": result.DepartmentCount,
+			"userCount":       result.UserCount,
+		}
+	}, "failed to load stats", "failed to load stats", nil)
 }
 
 // GetRatingTrend 获取课程评分趋势
@@ -228,25 +223,11 @@ func (h *Handler) GetRatingTrend(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-	cacheKey := h.cache.BuildVersionedKey(ctx, "review:rating_trend", strconv.FormatInt(courseID, 10))
-	if cached, ok := h.cache.GetRaw(ctx, cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
-
-	trend, err := h.service.GetRatingTrend(ctx, courseID)
-	if err != nil {
-		logger.FromGin(c).Error("failed to load rating trend", zap.Error(err))
-		response.InternalError(c, "failed to load rating trend")
-		return
-	}
-
-	data := gin.H{"trend": trend}
-	if err := h.cache.Set(ctx, cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, data)
+	respondWithCachedData(h, c, "review:rating_trend", strconv.FormatInt(courseID, 10), func(ctx context.Context) ([]RatingTrendItem, error) {
+		return h.service.GetRatingTrend(ctx, courseID)
+	}, func(trend []RatingTrendItem) any {
+		return gin.H{"trend": trend}
+	}, "failed to load rating trend", "failed to load rating trend", nil)
 }
 
 // GetHotCourses 获取热门课程排行
@@ -264,24 +245,11 @@ func (h *Handler) GetHotCourses(c *gin.Context) {
 		limit = 20
 	}
 
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:hot", "period="+period+":limit="+strconv.Itoa(limit))
-	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
-
-	list, err := h.service.GetHotCourses(c.Request.Context(), period, limit)
-	if err != nil {
-		logger.FromGin(c).Error("failed to load hot courses", zap.Error(err))
-		response.InternalError(c, "failed to load hot courses")
-		return
-	}
-
-	data := gin.H{"list": list}
-	if err := h.cache.Set(c.Request.Context(), cacheKey, data, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, data)
+	respondWithCachedData(h, c, "review:hot", "period="+period+":limit="+strconv.Itoa(limit), func(ctx context.Context) ([]HotCourse, error) {
+		return h.service.GetHotCourses(ctx, period, limit)
+	}, func(list []HotCourse) any {
+		return gin.H{"list": list}
+	}, "failed to load hot courses", "failed to load hot courses", nil)
 }
 
 // GetCourseTeachers 获取课程的授课教师列表
@@ -292,26 +260,14 @@ func (h *Handler) GetCourseTeachers(c *gin.Context) {
 		return
 	}
 
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:course_teachers", strconv.FormatInt(courseID, 10))
-	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
-
-	list, err := h.service.GetCourseTeachers(c.Request.Context(), courseID)
-	if err != nil {
-		logger.FromGin(c).Error("failed to load course teachers", zap.Error(err))
-		response.InternalError(c, "failed to load course teachers")
-		return
-	}
-	if list == nil {
-		list = []CourseTeacherStats{}
-	}
-
-	if err := h.cache.Set(c.Request.Context(), cacheKey, list, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, list)
+	respondWithCachedData(h, c, "review:course_teachers", strconv.FormatInt(courseID, 10), func(ctx context.Context) ([]CourseTeacherStats, error) {
+		return h.service.GetCourseTeachers(ctx, courseID)
+	}, func(list []CourseTeacherStats) any {
+		if list == nil {
+			return []CourseTeacherStats{}
+		}
+		return list
+	}, "failed to load course teachers", "failed to load course teachers", nil)
 }
 
 // GetTeacherRatingStats 获取教师评分统计
@@ -322,26 +278,7 @@ func (h *Handler) GetTeacherRatingStats(c *gin.Context) {
 		return
 	}
 
-	cacheKey := h.cache.BuildVersionedKey(c.Request.Context(), "review:teacher_stats", "teacherID="+c.Param("teacherID"))
-	if cached, ok := h.cache.GetRaw(c.Request.Context(), cacheKey); ok {
-		response.Success(c, cached)
-		return
-	}
-
-	stats, err := h.service.GetTeacherRatingStats(c.Request.Context(), teacherID)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrTeacherNotFound):
-			response.NotFound(c, "teacher not found", errs.ErrTeacherNotFound)
-		default:
-			logger.FromGin(c).Error("failed to load teacher stats", zap.Error(err))
-			response.InternalError(c, "failed to load teacher stats")
-		}
-		return
-	}
-
-	if err := h.cache.Set(c.Request.Context(), cacheKey, stats, cache.JitteredTTL(cache.DefaultTTL)); err != nil {
-		logger.FromGin(c).Warn("failed to set cache", zap.Error(err))
-	}
-	response.Success(c, stats)
+	respondWithCachedData(h, c, "review:teacher_stats", "teacherID="+c.Param("teacherID"), func(ctx context.Context) (*TeacherRatingStatsResponse, error) {
+		return h.service.GetTeacherRatingStats(ctx, teacherID)
+	}, nil, "failed to load teacher stats", "failed to load teacher stats", respondTeacherLookupError)
 }

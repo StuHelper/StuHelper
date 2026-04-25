@@ -53,8 +53,8 @@ func applySecurityHeaders(c *gin.Context, includeHSTS bool) {
 	}
 }
 
-// auditedBody wraps http.MaxBytesReader to log when the body limit is exceeded,
-// covering the case where Content-Length is absent and the early check is bypassed.
+// auditedBody 包装 http.MaxBytesReader，在请求体超限时补充日志。
+// 这能覆盖缺少 Content-Length、从而绕过前置大小检查的场景。
 type auditedBody struct {
 	io.ReadCloser
 	logged   bool

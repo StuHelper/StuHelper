@@ -1,48 +1,100 @@
+# Zitadel IAM 路由
+#
+# 优先级约定（与 services.dynamic.yaml 协调）：
+#   Zitadel 路由:  800–1100（本文件，确保 IAM 端点不被应用路由覆盖）
+#   应用路由:      500–700（见 services.dynamic.yaml）
+#
+# Zitadel 需要处理的路径：
+#   /zitadel.* /oidc/* /oauth/* /saml/* — gRPC-Web, OIDC, OAuth, SAML 端点
+#   /ui/v2/login/*                       — Login V2 前端
+#   /ui/console/*                        — Zitadel Admin Console
+#   /.well-known/*                       — OIDC 发现端点
+#
+# 注意：/api/* 路由已移至 services.dynamic.yaml 由 backend 独占。
+# Zitadel REST API 仍可通过原生路径访问（/management/v1/*, /auth/v1/* 等），
+# 无需 /api 前缀别名。
+
 http:
   middlewares:
-    zitadel-strip-api:
-      stripPrefix:
-        prefixes:
-          - /api
-    zitadel-root-rewrite:
-      replacePath:
-        path: /ui/v2/login/
+    iam-edge-rate-limit:
+      rateLimit:
+        average: 60
+        burst: 120
+        period: 1s
 
   routers:
-    zitadel-root-web:
-      rule: "Path(`/`)"
-      entryPoints:
-        - web
-      middlewares:
-        - zitadel-root-rewrite
-      service: zitadel-login
-      priority: 400
-
+    # Zitadel Login V2 前端
     zitadel-login-web:
       rule: "PathPrefix(`/ui/v2/login`)"
       entryPoints:
         - web
-      service: zitadel-login
-      priority: 250
-
-    zitadel-api-alias-web:
-      rule: "PathPrefix(`/api`)"
-      entryPoints:
-        - web
+        - websecure
       middlewares:
-        - zitadel-strip-api
-      service: zitadel-api
-      priority: 200
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
+      service: zitadel-login
+      priority: 1100
 
-    zitadel-canonical-web:
-      rule: "PathPrefix(`/`) && !PathPrefix(`/ui/v2/login`) && !PathPrefix(`/api`) && !Path(`/`)"
+    # Zitadel OIDC / OAuth / SAML / well-known 端点
+    zitadel-oidc-web:
+      rule: "PathPrefix(`/oidc`) || PathPrefix(`/oauth`) || PathPrefix(`/saml`) || PathPrefix(`/.well-known`)"
       entryPoints:
         - web
+        - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
       service: zitadel-api
-      priority: 100
+      priority: 1000
+
+    # Zitadel Admin Console
+    zitadel-console-web:
+      rule: "PathPrefix(`/ui/console`)"
+      entryPoints:
+        - web
+        - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
+      service: zitadel-api
+      priority: 950
+
+    # Zitadel gRPC-Web 和内部 API（/zitadel.*, /caos.*, /google.* 等 protobuf 服务）
+    zitadel-grpc-web:
+      rule: "PathPrefix(`/zitadel.`) || PathPrefix(`/caos.`) || PathPrefix(`/google.`) || PathPrefix(`/grpc.`)"
+      entryPoints:
+        - web
+        - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
+      service: zitadel-api
+      priority: 900
+
+    # Zitadel REST API 原生路径（/management/*, /auth/*, /admin/* 命名空间）
+    # 优先级 850：高于 backend /api/*（700），低于 OIDC/gRPC
+    # 注意：/admin/* 与 Vben Admin 前端（600）存在路径重叠。
+    # Zitadel 的 /admin/v1/* REST API 由此路由处理（850 > 600），
+    # Vben Admin 的 /admin/ 静态资源由 services.dynamic.yaml 处理。
+    zitadel-rest-web:
+      rule: "PathPrefix(`/management`) || PathPrefix(`/auth/v1`)"
+      entryPoints:
+        - web
+        - websecure
+      middlewares:
+        - security-headers
+        - gzip-compress
+        - iam-edge-rate-limit
+      service: zitadel-api
+      priority: 850
 
   services:
     zitadel-api:
+      # 单机 Docker Compose 内网使用 h2c；跨主机或零信任网络请改为 TLS 上游。
       loadBalancer:
         servers:
           - url: h2c://zitadel-api:8080
@@ -50,4 +102,3 @@ http:
       loadBalancer:
         servers:
           - url: http://zitadel-login:3000
-

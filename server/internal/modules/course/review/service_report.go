@@ -13,17 +13,19 @@ import (
 
 // ReportReviewParams 举报评论参数
 type ReportReviewParams struct {
-	ReviewID    string
-	UserHash    string
-	Reason      string
-	Description string
+	ReviewID               string
+	UserHash               string
+	ReporterExternalUserID string
+	Reason                 string
+	Description            string
 }
 
 // ListReportsParams 获取举报列表参数
 type ListReportsParams struct {
-	Status   string
-	Page     int
-	PageSize int
+	Status    string
+	Page      int
+	PageSize  int
+	SchoolIDs []int64
 }
 
 // ListReportsResult 获取举报列表结果
@@ -82,7 +84,17 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 			Reason:       params.Reason,
 			Description:  params.Description,
 		})
-		return err
+		if err != nil {
+			if isUniqueConstraintViolation(err, "uq_review_reports_user") {
+				return ErrAlreadyReported
+			}
+			return err
+		}
+		schoolID, err := s.repo.GetReviewSchoolIDTx(ctx, tx, params.ReviewID)
+		if err != nil {
+			return err
+		}
+		return s.enqueueReportFGASyncTx(ctx, tx, reportID, params.ReporterExternalUserID, params.ReviewID, schoolID)
 	})
 	return reportID, err
 }
@@ -95,7 +107,7 @@ func (s *Service) ListReports(ctx context.Context, params ListReportsParams) (*L
 	}
 	pageSize := httputil.ClampPageSize(params.PageSize)
 	offset := httputil.SafeOffset(params.Page, pageSize)
-	list, total, err := s.repo.ListReports(ctx, status, pageSize, offset)
+	list, total, err := s.repo.ListReports(ctx, status, pageSize, offset, params.SchoolIDs)
 	if err != nil {
 		return nil, err
 	}

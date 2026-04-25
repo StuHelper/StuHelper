@@ -15,15 +15,20 @@ import {
   ElTag,
 } from 'element-plus';
 
-import { $t } from '#/locales';
 import {
   getStudentVerificationList,
   reviewStudentVerification,
 } from '#/api/admin';
+import { $t } from '#/locales';
+import { useAuthStore } from '#/store/auth';
+
+const STUDENT_REVIEW_CAPABILITY = 'user:student:review';
 
 const loading = ref(false);
+const actionLoading = ref(false);
 const items = ref<StudentVerification[]>([]);
 const total = ref(0);
+const authStore = useAuthStore();
 const query = reactive({
   page: 1,
   pageSize: 20,
@@ -31,13 +36,25 @@ const query = reactive({
   schoolId: '',
 });
 
+function normalizeScopedSchoolId() {
+  const schoolId = authStore.resolveScopedSchoolId(
+    STUDENT_REVIEW_CAPABILITY,
+    query.schoolId,
+  );
+  if (schoolId !== query.schoolId) {
+    query.schoolId = schoolId;
+  }
+}
+
 async function fetchData() {
+  normalizeScopedSchoolId();
   loading.value = true;
   try {
     const data = await getStudentVerificationList(query);
     items.value = data.items;
     total.value = data.total;
-  } catch {
+  } catch (_error) {
+    void _error;
     items.value = [];
     total.value = 0;
   } finally {
@@ -45,14 +62,21 @@ async function fetchData() {
   }
 }
 
-async function handleApprove(userId: number) {
-  await reviewStudentVerification(userId, { approved: true });
-  await fetchData();
-}
+async function handleReview(userId: number, approved: boolean) {
+  if (actionLoading.value) {
+    return;
+  }
 
-async function handleReject(userId: number) {
-  await reviewStudentVerification(userId, { approved: false });
-  await fetchData();
+  actionLoading.value = true;
+  try {
+    await reviewStudentVerification(userId, { approved });
+    await fetchData();
+  } catch (_error) {
+    void _error;
+    // 失败提示已由 unwrapData 统一处理。
+  } finally {
+    actionLoading.value = false;
+  }
 }
 
 type TagType = 'danger' | 'info' | 'success' | 'warning';
@@ -73,12 +97,12 @@ const statusLabel = (status: string) => {
 const verificationMethodLabel = (
   method: StudentVerification['verificationMethod'],
 ) => {
-  return method ? $t(`admin.users.studentVerification.method.${method}`) : $t('admin.common.notSet');
+  return method
+    ? $t(`admin.users.studentVerification.method.${method}`)
+    : $t('admin.common.notSet');
 };
 
-onMounted(() => {
-  void fetchData();
-});
+onMounted(fetchData);
 </script>
 
 <template>
@@ -91,9 +115,18 @@ onMounted(() => {
         @change="fetchData"
       >
         <ElOption :label="$t('admin.common.all')" value="all" />
-        <ElOption :label="$t('admin.users.studentVerification.status.pending')" value="pending" />
-        <ElOption :label="$t('admin.users.studentVerification.status.verified')" value="verified" />
-        <ElOption :label="$t('admin.users.studentVerification.status.rejected')" value="rejected" />
+        <ElOption
+          :label="$t('admin.users.studentVerification.status.pending')"
+          value="pending"
+        />
+        <ElOption
+          :label="$t('admin.users.studentVerification.status.verified')"
+          value="verified"
+        />
+        <ElOption
+          :label="$t('admin.users.studentVerification.status.rejected')"
+          value="rejected"
+        />
       </ElSelect>
       <ElInput
         v-model="query.schoolId"
@@ -103,43 +136,85 @@ onMounted(() => {
         @clear="fetchData"
         @keyup.enter="fetchData"
       />
-      <ElButton type="primary" @click="fetchData">{{ $t('admin.common.query') }}</ElButton>
+      <ElButton type="primary" @click="fetchData">
+        {{ $t('admin.common.query') }}
+      </ElButton>
     </div>
 
     <ElTable v-loading="loading" :data="items" stripe>
-      <ElTableColumn :label="$t('admin.users.studentVerification.userId')" prop="userID" width="80" />
-      <ElTableColumn :label="$t('admin.users.studentVerification.schoolId')" min-width="140" prop="schoolID" />
-      <ElTableColumn :label="$t('admin.users.studentVerification.activeStudentId')" prop="activeStudentID" width="140" />
-      <ElTableColumn :label="$t('admin.users.studentVerification.statusLabel')" width="100">
+      <ElTableColumn
+        :label="$t('admin.users.studentVerification.userId')"
+        prop="userID"
+        width="80"
+      />
+      <ElTableColumn
+        :label="$t('admin.users.studentVerification.schoolId')"
+        min-width="140"
+        prop="schoolID"
+      />
+      <ElTableColumn
+        :label="$t('admin.users.studentVerification.activeStudentId')"
+        prop="activeStudentID"
+        width="140"
+      />
+      <ElTableColumn
+        :label="$t('admin.users.studentVerification.statusLabel')"
+        width="100"
+      >
         <template #default="{ row }">
           <ElTag :type="statusTag(row.verificationStatus)" size="small">
             {{ statusLabel(row.verificationStatus) }}
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.users.studentVerification.methodLabel')" width="100">
+      <ElTableColumn
+        :label="$t('admin.users.studentVerification.methodLabel')"
+        width="100"
+      >
         <template #default="{ row }">
           {{ verificationMethodLabel(row.verificationMethod) }}
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.users.studentVerification.createdAt')" prop="createdAt" width="170" />
-      <ElTableColumn fixed="right" :label="$t('admin.common.actions')" width="140">
+      <ElTableColumn
+        :label="$t('admin.users.studentVerification.createdAt')"
+        prop="createdAt"
+        width="170"
+      />
+      <ElTableColumn
+        fixed="right"
+        :label="$t('admin.common.actions')"
+        width="140"
+      >
         <template #default="{ row }">
           <template v-if="row.verificationStatus === 'pending'">
             <ElPopconfirm
               :title="$t('admin.users.studentVerification.confirmApprove')"
-              @confirm="handleApprove(row.userID)"
+              @confirm="handleReview(row.userID, true)"
             >
               <template #reference>
-                <ElButton link size="small" type="success">{{ $t('admin.users.studentVerification.approve') }}</ElButton>
+                <ElButton
+                  link
+                  size="small"
+                  type="success"
+                  :disabled="actionLoading"
+                >
+                  {{ $t('admin.users.studentVerification.approve') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
             <ElPopconfirm
               :title="$t('admin.users.studentVerification.confirmReject')"
-              @confirm="handleReject(row.userID)"
+              @confirm="handleReview(row.userID, false)"
             >
               <template #reference>
-                <ElButton link size="small" type="danger">{{ $t('admin.users.studentVerification.reject') }}</ElButton>
+                <ElButton
+                  link
+                  size="small"
+                  type="danger"
+                  :disabled="actionLoading"
+                >
+                  {{ $t('admin.users.studentVerification.reject') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
           </template>

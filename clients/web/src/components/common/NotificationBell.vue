@@ -1,5 +1,5 @@
 <template>
-  <div class="notification-bell relative" :class="{ 'has-new': hasUnread }">
+  <div ref="rootRef" class="notification-bell relative" :class="{ 'has-new': hasUnread }">
     <button
       class="bell-btn relative flex items-center justify-center w-9 h-9 bg-transparent border-none text-text-muted cursor-pointer rounded-sm transition-colors duration-fast hover:text-text-primary"
       :aria-label="t('user.notification.bell')"
@@ -48,52 +48,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bell } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
 import NotificationList from './NotificationList.vue'
+import { useNotificationBellController } from './useNotificationBellController'
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useNotificationStore()
-const showPanel = ref(false)
-
-const notifications = computed(() => store.notifications.slice(0, 5))
-const unreadCount = computed(() => store.unreadCount)
-const hasUnread = computed(() => store.hasUnread)
-const loading = computed(() => store.loading)
-
-const togglePanel = () => {
-  showPanel.value = !showPanel.value
-  if (showPanel.value && notifications.value.length === 0) {
-    store.fetchNotifications(1, 5)
-  }
-}
-
-const handleMarkAllRead = () => {
-  store.markAllAsRead()
-}
-
-const handleNotificationClick = (id: string) => {
-  store.markAsRead(id)
-}
-
-// 点击外部关闭
-const handleClickOutside = (e: MouseEvent) => {
-  const target = e.target as HTMLElement
-  if (!target.closest('.notification-bell')) {
-    showPanel.value = false
-  }
-}
+const rootRef = ref<HTMLElement | null>(null)
+const {
+  showPanel,
+  notifications,
+  unreadCount,
+  hasUnread,
+  loading,
+  togglePanel,
+  handleMarkAllRead,
+  handleNotificationClick,
+  handleDocumentClick,
+  start,
+  stop,
+} = useNotificationBellController({
+  rootRef,
+  store,
+  router,
+})
 
 onMounted(() => {
-  store.connectSSE()
-  document.addEventListener('click', handleClickOutside)
+  start()
+  document.addEventListener('click', handleDocumentClick)
 })
 
 onUnmounted(() => {
-  store.stopPolling()
-  document.removeEventListener('click', handleClickOutside)
+  stop()
+  document.removeEventListener('click', handleDocumentClick)
 })
 </script>
 

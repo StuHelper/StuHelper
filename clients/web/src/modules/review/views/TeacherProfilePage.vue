@@ -113,7 +113,7 @@ use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 import { api } from '@/api'
 import { useThemeStore } from '@/stores/theme'
 import RatingCircle from '@/components/common/RatingCircle.vue'
-import { withAlpha } from '@/utils/color'
+import { withAlpha } from '@stuhelper/shared/utils'
 import { User, BookOpen, MessageSquare, TrendingUp, Star } from 'lucide-vue-next'
 
 interface TeacherCourse {
@@ -189,7 +189,7 @@ const fetchTeacher = async () => {
   try {
     const res = await api.rating.getTeacherStats(teacherID.value)
     teacher.value = res.data?.data as TeacherDetail
-  } catch {
+  } catch (_error) { void _error;
     // 加载失败时 teacher 保持 null，UI 显示错误状态
   } finally {
     loading.value = false

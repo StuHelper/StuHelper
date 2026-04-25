@@ -3,9 +3,7 @@
   "extends": "@vben/tsconfig/web-app.json",
   "compilerOptions": {
     "paths": {
-      "#/*": ["./src/*"],
-      "@stuhelper/shared": ["../../../shared/src/index.ts"],
-      "@stuhelper/shared/*": ["../../../shared/src/*"]
+      "#/*": ["./src/*"]
     }
   },
   "references": [{ "path": "./tsconfig.node.json" }],

@@ -3,6 +3,8 @@ import type { SystemConfig } from '#/api/admin';
 
 import { onMounted, reactive, ref } from 'vue';
 
+import { useAccessStore } from '@vben/stores';
+
 import {
   ElButton,
   ElDialog,
@@ -14,10 +16,8 @@ import {
   ElTableColumn,
 } from 'element-plus';
 
-import { useAccessStore } from '@vben/stores';
-
-import { $t } from '#/locales';
 import { getSystemConfigList, updateSystemConfig } from '#/api/admin';
+import { $t } from '#/locales';
 
 const loading = ref(false);
 const configs = ref<SystemConfig[]>([]);
@@ -71,7 +71,11 @@ onMounted(fetchData);
 <template>
   <div class="p-4">
     <ElTable v-loading="loading" :data="configs" stripe>
-      <ElTableColumn :label="$t('admin.users.systemConfig.key')" min-width="160" prop="key" />
+      <ElTableColumn
+        :label="$t('admin.users.systemConfig.key')"
+        min-width="160"
+        prop="key"
+      />
       <ElTableColumn
         :label="$t('admin.users.systemConfig.value')"
         min-width="200"
@@ -87,7 +91,11 @@ onMounted(fetchData);
           {{ row.description || $t('admin.common.unavailable') }}
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.common.updatedAt')" prop="updatedAt" width="170" />
+      <ElTableColumn
+        :label="$t('admin.common.updatedAt')"
+        prop="updatedAt"
+        width="170"
+      />
       <ElTableColumn
         v-if="canUpdateSystemConfig()"
         fixed="right"
@@ -125,8 +133,14 @@ onMounted(fetchData);
         </ElFormItem>
       </ElForm>
       <template #footer>
-        <ElButton @click="dialogVisible = false">{{ $t('admin.common.cancel') }}</ElButton>
-        <ElButton v-if="canUpdateSystemConfig()" type="primary" @click="handleSubmit">
+        <ElButton @click="dialogVisible = false">
+          {{ $t('admin.common.cancel') }}
+        </ElButton>
+        <ElButton
+          v-if="canUpdateSystemConfig()"
+          type="primary"
+          @click="handleSubmit"
+        >
           {{ $t('admin.common.save') }}
         </ElButton>
       </template>

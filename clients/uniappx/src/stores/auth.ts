@@ -1,13 +1,21 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { components } from '@/api'
+import type { components, operations } from '@/api'
 import { api } from '@/api'
-import { assertMutationSuccess, extractErrorMessage, unwrapData, unwrapOptionalData } from '@/api/result'
+import {
+  clearNativeTokens,
+  isNativeRuntime,
+  readNativeAccessToken,
+  readNativeTokens,
+  writeNativeTokens,
+} from '@/api/native-session'
+import { assertMutationSuccess, unwrapData, unwrapOptionalData } from '@/api/result'
 import { translate } from '@/i18n'
 
 type CurrentUser = components['schemas']['UserInfo']
 type RequestPhoneOTPResult = { message: string; cooldown: number }
 type VerifyPhoneOTPResult = { user: CurrentUser; expiresIn: number }
+type ExchangeNativeResult = operations['exchangeNative']['responses'][200]['content']['application/json']['data']
 
 type UniPageLike = {
   options?: Record<string, string | undefined>
@@ -15,7 +23,6 @@ type UniPageLike = {
 }
 
 const BOOTSTRAP_STALE_MS = 60_000
-
 function buildCurrentRouteRedirect(): string {
   try {
     const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as UniPageLike[]
@@ -31,7 +38,7 @@ function buildCurrentRouteRedirect(): string {
       : []
 
     return `/${currentPage.route}${query.length > 0 ? `?${query.join('&')}` : ''}`
-  } catch {
+  } catch (_error) { void _error;
     return '/pages/user/index'
   }
 }
@@ -55,6 +62,7 @@ export const useAuthStore = defineStore('auth', () => {
   function clearSession() {
     user.value = null
     lastBootstrapAt.value = 0
+    clearNativeTokens()
   }
 
   async function bootstrapSession(force = false) {
@@ -65,13 +73,36 @@ export const useAuthStore = defineStore('auth', () => {
     if (loading.value) return
     loading.value = true
     try {
+      // 原生 App：检查本地 token 是否存在且未过期
+      if (isNativeRuntime()) {
+        const tokens = readNativeTokens()
+        if (!tokens) {
+          // 本地没有完整 native 会话——标记为未登录
+          user.value = null
+          lastBootstrapAt.value = Date.now()
+          initialized.value = true
+          return
+        }
+      }
+
       const result = await api.auth.me()
       user.value = unwrapOptionalData<CurrentUser>(result)
-    } catch {
-      user.value = null
-    } finally {
       lastBootstrapAt.value = Date.now()
       initialized.value = true
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status
+        ?? (error as { response?: { status?: number } })?.response?.status
+      if (status === 401 || status === 403) {
+        user.value = null
+        lastBootstrapAt.value = Date.now()
+        initialized.value = true
+        // 原生 App 401 说明 token 失效，清除本地存储
+        if (isNativeRuntime()) clearNativeTokens()
+        return
+      }
+      // 网络错误 / 超时 / 5xx / 原生存储故障：保持未初始化并向上暴露
+      throw error
+    } finally {
       loading.value = false
     }
   }
@@ -84,9 +115,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function verifyPhoneOTP(phone: string, code: string): Promise<VerifyPhoneOTPResult> {
     const result = await api.auth.verifyPhoneOTP(phone, code)
     const data = unwrapData<VerifyPhoneOTPResult>(result)
-    user.value = data.user
+    setUser(data.user)
     initialized.value = true
-    lastBootstrapAt.value = Date.now()
     return data
   }
 
@@ -95,9 +125,46 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession()
   }
 
+  /** 原生 App SSO 回调：用授权码 + state 换取 token 并持久化 */
+  async function exchangeNativeCode(code: string, state: string): Promise<void> {
+    const result = await api.auth.exchangeNative(code, state)
+    const data = unwrapData<ExchangeNativeResult>(result)
+
+    // 持久化 token 到本地存储
+    writeNativeTokens({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      sessionID: data.sessionID,
+      expiresAt: Date.now() + data.expiresIn * 1000,
+    })
+
+    // 立即拉取用户信息
+    await bootstrapSession(true)
+  }
+
+  /** 检查原生 App 是否持有有效 token */
+  function hasNativeToken(): boolean {
+    if (!isNativeRuntime()) return false
+    return readNativeTokens() !== null
+  }
+
+  /** 获取原生 App 的 access token（供请求头注入） */
+  function getNativeAccessToken(): string | null {
+    if (!isNativeRuntime()) return null
+    return readNativeAccessToken()
+  }
+
   async function requireAuth(message = translate('auth.requireLogin')) {
     if (isAuthenticated.value) return true
-    await bootstrapSession()
+    try {
+      await bootstrapSession()
+    } catch (error) {
+      uni.showToast({
+        title: error instanceof Error ? error.message : translate('common.retryLater'),
+        icon: 'none',
+      })
+      return false
+    }
     if (isAuthenticated.value) return true
     uni.showToast({ title: message, icon: 'none' })
     uni.navigateTo({ url: `/pages/auth/login?redirect=${encodeURIComponent(buildCurrentRouteRedirect())}` })
@@ -115,8 +182,10 @@ export const useAuthStore = defineStore('auth', () => {
     bootstrapSession,
     requestPhoneOTP,
     verifyPhoneOTP,
+    exchangeNativeCode,
+    hasNativeToken,
+    getNativeAccessToken,
     logout,
     requireAuth,
-    errorMessage: extractErrorMessage,
   }
 })

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -38,6 +39,8 @@ const (
 type oidcStatePayload struct {
 	RedirectURL  string `json:"redirectURL"`
 	CodeVerifier string `json:"codeVerifier"`
+	// Native 标记该 state 来自原生 App（deep link 回调流程）
+	Native bool `json:"native,omitempty"`
 }
 
 // GetLoginURL 生成 OIDC 授权 URL
@@ -54,6 +57,7 @@ func (h *Handler) GetSignupURL(c *gin.Context) {
 
 func (h *Handler) respondWithAuthURL(c *gin.Context) {
 	redirect := strings.TrimSpace(c.Query("redirect"))
+	isNative := strings.TrimSpace(c.Query("platform")) == "native"
 
 	state, err := generateNonce()
 	if err != nil {
@@ -64,13 +68,16 @@ func (h *Handler) respondWithAuthURL(c *gin.Context) {
 
 	authURL, verifier := h.oidcClient.GetAuthURL(state)
 
-	if err := h.storeOIDCState(c.Request.Context(), state, redirect, verifier); err != nil {
+	if err := h.storeOIDCState(c.Request.Context(), state, redirect, verifier, isNative); err != nil {
 		logger.FromGin(c).Error("failed to persist oidc state", zap.Error(err))
 		response.InternalError(c, "failed to generate login URL")
 		return
 	}
 
-	h.setOIDCStateCookie(c, state)
+	// 原生 App 不依赖 cookie 做 state 绑定，改用 Redis 单次消费
+	if !isNative {
+		h.setOIDCStateCookie(c, state)
+	}
 	response.Success(c, gin.H{"url": authURL, "state": state})
 }
 
@@ -88,13 +95,36 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	}
 
 	// 服务端一次性 state 校验（Redis + HttpOnly cookie 绑定浏览器）
-	redirect, codeVerifier, err := h.consumeOIDCState(c, state)
+	redirect, codeVerifier, isNative, err := h.consumeOIDCState(c, state)
 	if err != nil {
 		logger.FromGin(c).Warn("OIDC state verification failed", zap.Error(err))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid state")
 		response.BadRequest(c, "invalid or expired state parameter")
 		return
 	}
+
+	// 原生 App 流程：将 code + state 通过 deep link 回传给 App，
+	// App 再调用 /exchange-native 完成 token 交换。
+	// code_verifier 留在 Redis（exchange-native 消费），避免暴露给客户端。
+	if isNative {
+		h.handleNativeCallbackRedirect(c, code, state)
+		return
+	}
+
+	h.handleWebCallback(c, ctx, code, redirect, codeVerifier, requestID)
+}
+
+// handleNativeCallbackRedirect 将授权码通过 deep link 回传给原生 App
+func (h *Handler) handleNativeCallbackRedirect(c *gin.Context, code, state string) {
+	deepLink := fmt.Sprintf("stuhelper://auth/callback?code=%s&state=%s",
+		url.QueryEscape(code),
+		url.QueryEscape(state),
+	)
+	c.Redirect(http.StatusFound, deepLink)
+}
+
+// handleWebCallback 处理 Web/H5 的标准 OIDC 回调流程
+func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, code, redirect, codeVerifier, requestID string) {
 
 	// 用授权码 + PKCE code_verifier 交换 Token
 	oauthToken, err := h.oidcClient.ExchangeCode(ctx, code, codeVerifier)
@@ -122,19 +152,41 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	// 同步本地 shadow user
-	if h.userSyncRepo != nil {
-		if syncErr := h.userSyncRepo.UpsertUser(ctx, UserSyncInput{
-			ExternalID: claims.GetUserID(),
-			Username:   claims.GetUsername(),
-			Email:      claims.GetEmail(),
-			AvatarURL:  claims.GetAvatar(),
-		}); syncErr != nil {
-			logger.FromGin(c).Warn("user sync failed, skipping",
-				zap.String("user_id", claims.GetUserID()),
-				zap.Error(syncErr),
-			)
-		}
+	// 同步本地 shadow user；登录成功必须意味着内部主体已经就绪。
+	if syncErr := h.svc.SyncOIDCUser(ctx, UserSyncInput{
+		ExternalID: claims.GetUserID(),
+		Username:   claims.GetUsername(),
+		Email:      claims.GetEmail(),
+		AvatarURL:  claims.GetAvatar(),
+	}); syncErr != nil {
+		logger.FromGin(c).Error("user sync failed",
+			zap.String("user_id", claims.GetUserID()),
+			zap.Error(syncErr),
+		)
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "user sync failed")
+		response.InternalError(c, "authentication failed")
+		return
+	}
+
+	// 创建服务端 Session（Token Family），跟踪 token 对
+	// 必须在写入 Cookie 之前完成：未跟踪的 token 无法被 LogoutAll 撤销
+	sessionID, sidErr := token.GenerateSessionID()
+	if sidErr != nil {
+		logger.FromGin(c).Error("failed to generate session id", zap.Error(sidErr))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session id generation failed")
+		response.InternalError(c, "authentication failed")
+		return
+	}
+	deviceInfo := c.Request.UserAgent()
+	sessInfo, sessErr := h.svc.CreateSession(ctx, sessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc", deviceInfo)
+	if sessErr != nil {
+		logger.FromGin(c).Error("failed to create session",
+			zap.String("user_id", claims.GetUserID()),
+			zap.Error(sessErr),
+		)
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session creation failed")
+		response.InternalError(c, "authentication failed")
+		return
 	}
 
 	// 将 ID Token 作为 access_token 写入 Cookie
@@ -142,26 +194,8 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 		response.InternalError(c, "authentication failed")
 		return
 	}
-
-	// 跟踪用户 Token，支持 LogoutAll 批量撤销
-	if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-		ctx, claims.GetUserID(), rawIDToken, token.TokenTypeAccess, time.Now().Add(h.tokenService.GetAccessTokenTTL()),
-	); trackErr != nil {
-		logger.FromGin(c).Warn("failed to track user token",
-			zap.String("user_id", claims.GetUserID()),
-			zap.Error(trackErr),
-		)
-	}
-	if oauthToken.RefreshToken != "" {
-		if trackErr := h.tokenService.GetBlacklist().TrackUserToken(
-			ctx, claims.GetUserID(), oauthToken.RefreshToken, token.TokenTypeRefresh, time.Now().Add(h.tokenService.GetRefreshTokenTTL()),
-		); trackErr != nil {
-			logger.FromGin(c).Warn("failed to track refresh token",
-				zap.String("user_id", claims.GetUserID()),
-				zap.Error(trackErr),
-			)
-		}
-	}
+	// OIDC ID Token 无法携带自定义 sid claim，通过独立 cookie 传递 session ID
+	h.setSessionCookie(c, sessInfo.SessionID)
 
 	audit.LogSuccess(audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), requestID)
 
@@ -170,16 +204,14 @@ func (h *Handler) HandleCallback(c *gin.Context) {
 	c.Redirect(http.StatusFound, redirectTarget)
 }
 
-func (h *Handler) storeOIDCState(ctx context.Context, state, redirect, codeVerifier string) error {
+func (h *Handler) storeOIDCState(ctx context.Context, state, redirect, codeVerifier string, native bool) error {
 	if state == "" {
 		return fmt.Errorf("empty state")
-	}
-	if h.redisClient == nil {
-		return fmt.Errorf("redis client not configured")
 	}
 	payload := oidcStatePayload{
 		RedirectURL:  redirect,
 		CodeVerifier: codeVerifier,
+		Native:       native,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -188,43 +220,97 @@ func (h *Handler) storeOIDCState(ctx context.Context, state, redirect, codeVerif
 	return h.redisClient.Set(ctx, oidcStateRedisPrefix+state, data, stateMaxAge).Err()
 }
 
-func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string, error) {
+func (h *Handler) consumeOIDCState(c *gin.Context, state string) (string, string, bool, error) {
 	if state == "" {
 		h.clearOIDCStateCookie(c)
-		return "", "", fmt.Errorf("empty state")
-	}
-	if h.redisClient == nil {
-		h.clearOIDCStateCookie(c)
-		return "", "", fmt.Errorf("redis client not configured")
+		return "", "", false, fmt.Errorf("empty state")
 	}
 
-	cookieState, err := c.Cookie(oidcStateCookieName)
-	if err != nil || cookieState == "" {
-		h.clearOIDCStateCookie(c)
-		return "", "", fmt.Errorf("state cookie missing")
-	}
-	if cookieState != state {
-		h.clearOIDCStateCookie(c)
-		return "", "", fmt.Errorf("state cookie mismatch")
-	}
-
-	raw, err := h.redisClient.GetDel(c.Request.Context(), oidcStateRedisPrefix+state).Result()
+	raw, err := h.redisClient.Get(c.Request.Context(), oidcStateRedisPrefix+state).Result()
 	if err != nil {
 		h.clearOIDCStateCookie(c)
 		if errors.Is(err, redis.Nil) {
-			return "", "", fmt.Errorf("state expired or already used")
+			return "", "", false, fmt.Errorf("state expired or already used")
 		}
-		return "", "", err
+		return "", "", false, err
+	}
+
+	redirectURL, codeVerifier, isNative, err := decodeOIDCStatePayload(raw)
+	if err != nil {
+		h.clearOIDCStateCookie(c)
+		return "", "", false, err
+	}
+
+	if isNative {
+		if err := h.deleteOIDCState(c.Request.Context(), state); err != nil {
+			return "", "", true, err
+		}
+		if err := h.storeNativeCodeVerifier(c.Request.Context(), state, codeVerifier); err != nil {
+			return "", "", true, fmt.Errorf("failed to persist code_verifier for native exchange: %w", err)
+		}
+		return redirectURL, codeVerifier, true, nil
+	}
+
+	if err := h.validateOIDCStateCookie(c, state); err != nil {
+		h.clearOIDCStateCookie(c)
+		return "", "", false, err
+	}
+	if err := h.deleteOIDCState(c.Request.Context(), state); err != nil {
+		h.clearOIDCStateCookie(c)
+		return "", "", false, err
 	}
 
 	h.clearOIDCStateCookie(c)
+	return redirectURL, codeVerifier, false, nil
+}
 
+const nativeCodeVerifierPrefix = "auth:native:verifier:"
+
+// storeNativeCodeVerifier 将 code_verifier 暂存到 Redis，供 ExchangeNative 端点消费
+func (h *Handler) storeNativeCodeVerifier(ctx context.Context, state, codeVerifier string) error {
+	return h.redisClient.Set(ctx, nativeCodeVerifierPrefix+state, codeVerifier, stateMaxAge).Err()
+}
+
+// consumeNativeCodeVerifier 从 Redis 取出并删除 code_verifier（一次性消费）
+func (h *Handler) consumeNativeCodeVerifier(ctx context.Context, state string) (string, error) {
+	raw, err := h.redisClient.GetDel(ctx, nativeCodeVerifierPrefix+state).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return "", fmt.Errorf("native code_verifier expired or already used")
+		}
+		return "", err
+	}
+	return raw, nil
+}
+
+func decodeOIDCStatePayload(raw string) (string, string, bool, error) {
 	var payload oidcStatePayload
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		// 兼容：旧格式纯 redirect 字符串
-		return raw, "", nil
+		return raw, "", false, nil
 	}
-	return payload.RedirectURL, payload.CodeVerifier, nil
+	return payload.RedirectURL, payload.CodeVerifier, payload.Native, nil
+}
+
+func (h *Handler) validateOIDCStateCookie(c *gin.Context, state string) error {
+	cookieState, err := c.Cookie(oidcStateCookieName)
+	if err != nil || cookieState == "" {
+		return fmt.Errorf("state cookie missing")
+	}
+	if subtle.ConstantTimeCompare([]byte(cookieState), []byte(state)) != 1 {
+		return fmt.Errorf("state cookie mismatch")
+	}
+	return nil
+}
+
+func (h *Handler) deleteOIDCState(ctx context.Context, state string) error {
+	deleted, err := h.redisClient.Del(ctx, oidcStateRedisPrefix+state).Result()
+	if err != nil {
+		return err
+	}
+	if deleted == 0 {
+		return fmt.Errorf("state expired or already used")
+	}
+	return nil
 }
 
 func (h *Handler) setOIDCStateCookie(c *gin.Context, state string) {
@@ -250,6 +336,105 @@ func (h *Handler) clearOIDCStateCookie(c *gin.Context) {
 		Secure:   h.tokenConfig.CookieSecure,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// exchangeNativeRequest 原生 App 令牌交换请求体
+type exchangeNativeRequest struct {
+	Code  string `json:"code"  binding:"required"`
+	State string `json:"state" binding:"required"`
+}
+
+// ExchangeNative 原生 App 令牌交换端点
+// 原生 App 通过 deep link 收到 code + state 后，调用此端点用授权码换取 token。
+// code_verifier 存储在服务端 Redis，客户端无需知晓，安全性更高。
+func (h *Handler) ExchangeNative(c *gin.Context) {
+	var req exchangeNativeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	requestID := middleware.GetRequestID(c)
+	ctx := c.Request.Context()
+
+	// 消费一次性 code_verifier
+	codeVerifier, err := h.consumeNativeCodeVerifier(ctx, req.State)
+	if err != nil {
+		logger.FromGin(c).Warn("native exchange: code_verifier lookup failed",
+			zap.String("state", req.State), zap.Error(err))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "invalid or expired native state")
+		response.BadRequest(c, "invalid or expired state parameter")
+		return
+	}
+
+	// 用授权码 + PKCE code_verifier 交换 Token
+	oauthToken, err := h.oidcClient.ExchangeCode(ctx, req.Code, codeVerifier)
+	if err != nil {
+		logger.FromGin(c).Error("native exchange: OIDC code exchange failed", zap.Error(err))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "code exchange error")
+		response.Unauthorized(c, "authentication failed", errs.ErrOAuthFailed)
+		return
+	}
+
+	// 提取并验证 ID Token
+	rawIDToken := oidc.ExtractIDToken(oauthToken)
+	if rawIDToken == "" {
+		logger.FromGin(c).Error("native exchange: no id_token in OAuth response")
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "missing id_token")
+		response.InternalError(c, "authentication failed")
+		return
+	}
+
+	claims, err := h.oidcClient.VerifyIDToken(ctx, rawIDToken)
+	if err != nil {
+		logger.FromGin(c).Error("native exchange: ID token verification failed", zap.Error(err))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "id_token verification error")
+		response.InternalError(c, "authentication failed")
+		return
+	}
+
+	// 同步本地 shadow user
+	if syncErr := h.svc.SyncOIDCUser(ctx, UserSyncInput{
+		ExternalID: claims.GetUserID(),
+		Username:   claims.GetUsername(),
+		Email:      claims.GetEmail(),
+		AvatarURL:  claims.GetAvatar(),
+	}); syncErr != nil {
+		logger.FromGin(c).Error("native exchange: user sync failed",
+			zap.String("user_id", claims.GetUserID()), zap.Error(syncErr))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "user sync failed")
+		response.InternalError(c, "authentication failed")
+		return
+	}
+
+	// 创建服务端 Session（Token Family）。原生客户端没有 cookie，
+	// 下面把 sessionID 写入响应体，客户端须在 refresh / logout 时通过
+	// X-Stuhelper-Session-ID header 回传，以保留 Token Family 追踪语义。
+	nativeSessionID, nativeSidErr := token.GenerateSessionID()
+	if nativeSidErr != nil {
+		logger.FromGin(c).Error("native exchange: failed to generate session id", zap.Error(nativeSidErr))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session id generation failed")
+		response.InternalError(c, "authentication failed")
+		return
+	}
+	deviceInfo := c.Request.UserAgent()
+	if _, sessErr := h.svc.CreateSession(ctx, nativeSessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc-native", deviceInfo); sessErr != nil {
+		logger.FromGin(c).Error("native exchange: failed to create session",
+			zap.String("user_id", claims.GetUserID()), zap.Error(sessErr))
+		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session creation failed")
+		response.InternalError(c, "authentication failed")
+		return
+	}
+
+	audit.LogSuccess(audit.EventUserLogin, claims.GetUserID(), claims.GetUsername(), c.ClientIP(), c.Request.UserAgent(), requestID)
+
+	// 返回 token 给原生 App（JSON body 而非 cookie）
+	response.Success(c, gin.H{
+		"accessToken":  rawIDToken,
+		"refreshToken": oauthToken.RefreshToken,
+		"sessionID":    nativeSessionID,
+		"expiresIn":    h.currentAccessTokenTTLSeconds(),
 	})
 }
 

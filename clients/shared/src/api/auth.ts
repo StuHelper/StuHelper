@@ -3,22 +3,49 @@ import type { operations } from '../types/api.gen'
 
 type RequestPhoneOTPResponse = operations['requestPhoneOTP']['responses'][200]['content']['application/json']['data']
 type VerifyPhoneOTPResponse = operations['verifyPhoneOTP']['responses'][200]['content']['application/json']['data']
+type NativeSessionHeader = NonNullable<operations['refreshToken']['parameters']['header']>
+
+export const NATIVE_SESSION_ID_HEADER = 'X-Stuhelper-Session-ID' as const
+
+export interface NativeSessionRequestOptions {
+  sessionID?: NativeSessionHeader[typeof NATIVE_SESSION_ID_HEADER]
+}
+
+function withNativeSessionHeader(sessionID?: NativeSessionRequestOptions['sessionID']) {
+  if (!sessionID) return undefined
+
+  return {
+    params: {
+      header: {
+        [NATIVE_SESSION_ID_HEADER]: sessionID,
+      },
+    },
+  }
+}
 
 export const createAuthApi = (client: ApiClient) => ({
-  login: (redirect?: string) =>
-    client.GET('/api/v1/auth/login', redirect ? { params: { query: { redirect } } } : undefined),
+  login: (redirect?: string, platform?: string) => {
+    const query: Record<string, string> = {}
+    if (redirect) query.redirect = redirect
+    if (platform) query.platform = platform
+    return client.GET('/api/v1/auth/login', Object.keys(query).length > 0 ? { params: { query } } : undefined)
+  },
 
-  signup: (redirect?: string) =>
-    client.GET('/api/v1/auth/signup', redirect ? { params: { query: { redirect } } } : undefined),
+  signup: (redirect?: string, platform?: string) => {
+    const query: Record<string, string> = {}
+    if (redirect) query.redirect = redirect
+    if (platform) query.platform = platform
+    return client.GET('/api/v1/auth/signup', Object.keys(query).length > 0 ? { params: { query } } : undefined)
+  },
 
-  refresh: () =>
-    client.POST('/api/v1/auth/refresh'),
+  refresh: (options?: NativeSessionRequestOptions) =>
+    client.POST('/api/v1/auth/refresh', withNativeSessionHeader(options?.sessionID)),
 
   me: () =>
     client.GET('/api/v1/auth/me'),
 
-  logout: () =>
-    client.POST('/api/v1/auth/logout'),
+  logout: (options?: NativeSessionRequestOptions) =>
+    client.POST('/api/v1/auth/logout', withNativeSessionHeader(options?.sessionID)),
 
   logoutAll: () =>
     client.POST('/api/v1/auth/logout-all'),
@@ -28,6 +55,9 @@ export const createAuthApi = (client: ApiClient) => ({
 
   verifyPhoneOTP: (phone: string, code: string) =>
     client.POST('/api/v1/auth/phone/verify-otp', { body: { phone, code } }),
+
+  exchangeNative: (code: string, state: string) =>
+    client.POST('/api/v1/auth/exchange-native', { body: { code, state } }),
 })
 
 export type {

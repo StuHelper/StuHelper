@@ -43,7 +43,7 @@ export const userManager = {
         return null
       }
       return parsed
-    } catch {
+    } catch (_error) { void _error;
       localStorage.removeItem(USER_KEY)
       return null
     }

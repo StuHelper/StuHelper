@@ -1,13 +1,15 @@
 package user
 
 import (
-	"errors"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -30,21 +32,12 @@ func (h *Handler) handleAdminListIdentities(c *gin.Context) {
 		return
 	}
 
-	items := make([]gin.H, 0, len(list))
+	items := make([]identityReviewItemResponse, 0, len(list))
 	for i := range list {
-		resolved, err := h.service.ResolveIdentityReviewItemAssets(c.Request.Context(), &list[i])
-		if err != nil {
-			logger.FromGin(c).Error("failed to resolve identity photo URLs",
-				zap.Int64("user_id", list[i].UserID),
-				zap.Error(err),
-			)
-			response.InternalError(c, "failed to list identities")
-			return
-		}
-		items = append(items, identityReviewItemToJSON(resolved))
+		items = append(items, identityReviewItemToJSON(&list[i]))
 	}
 
-	response.Success(c, gin.H{"list": items, "total": total})
+	response.Success(c, pagedListResponse[identityReviewItemResponse]{List: items, Total: total})
 }
 
 type reviewIdentityHTTPRequest struct {
@@ -67,29 +60,25 @@ func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
 
 	err = h.service.ReviewIdentity(c.Request.Context(), userID, *req.Approved, derefOptionalString(req.RejectionReason))
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrIdentityNotFound):
-			response.NotFound(c, "identity not found", errs.ErrIdentityNotFound)
-		default:
-			logger.FromGin(c).Error("failed to review identity",
-				zap.Int64("target_user_id", userID),
-				zap.Error(err),
-			)
-			response.InternalError(c, "failed to review identity")
+		if respondAdminReviewIdentityError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to review identity",
+			zap.Int64("target_user_id", userID),
+			zap.Error(err),
+		)
+		response.InternalError(c, "failed to review identity")
 		return
 	}
 
-	audit.Log(audit.Event{
-		Type:      audit.EventDataUpdate,
-		UserID:    middleware.GetUserID(c),
-		Username:  middleware.GetUsername(c),
-		IP:        c.ClientIP(),
-		UserAgent: httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
-		RequestID: middleware.GetRequestID(c),
-		Resource:  "identity_review",
-		Action:    map[bool]string{true: "approve", false: "reject"}[*req.Approved],
-		Result:    "success",
+	audit.LogFromGin(c, audit.Event{
+		Type:         audit.EventDataUpdate,
+		Category:     "admin_operation",
+		Resource:     "identity_review",
+		ResourceType: "identity_review",
+		ResourceID:   strconv.FormatInt(userID, 10),
+		Action:       map[bool]string{true: "approve", false: "reject"}[*req.Approved],
+		Result:       "success",
 		Details: map[string]any{
 			"target_user_id":   userID,
 			"approved":         *req.Approved,
@@ -97,7 +86,7 @@ func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
 		},
 	})
 
-	response.Success(c, gin.H{"message": "identity reviewed"})
+	response.Success(c, messageResponse{Message: "identity reviewed"})
 }
 
 func (h *Handler) handleAdminListStudentVerifications(c *gin.Context) {
@@ -106,17 +95,29 @@ func (h *Handler) handleAdminListStudentVerifications(c *gin.Context) {
 		response.BadRequest(c, "invalid status")
 		return
 	}
-	schoolID := c.Query("schoolID")
+	var schoolID *int64
+	if raw := strings.TrimSpace(c.Query("schoolID")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed <= 0 {
+			response.BadRequest(c, "invalid school ID")
+			return
+		}
+		schoolID = &parsed
+	}
+	resolvedSchoolID, ok := resolveScopedAdminSchoolID(c, capability.UserStudentRead, schoolID)
+	if !ok {
+		return
+	}
 	page, pageSize := httputil.ParsePage(c)
 
-	list, total, err := h.service.ListProfiles(c.Request.Context(), status, schoolID, page, pageSize)
+	list, total, err := h.service.ListProfiles(c.Request.Context(), status, resolvedSchoolID, page, pageSize)
 	if err != nil {
 		logger.FromGin(c).Error("failed to list student verifications", zap.Error(err))
 		response.InternalError(c, "failed to list student verifications")
 		return
 	}
 
-	items := make([]gin.H, 0, len(list))
+	items := make([]adminStudentVerificationResponse, 0, len(list))
 	for i := range list {
 		item, err := adminStudentVerificationToJSON(&list[i])
 		if err != nil {
@@ -130,7 +131,7 @@ func (h *Handler) handleAdminListStudentVerifications(c *gin.Context) {
 		items = append(items, item)
 	}
 
-	response.Success(c, gin.H{"list": items, "total": total})
+	response.Success(c, pagedListResponse[adminStudentVerificationResponse]{List: items, Total: total})
 }
 
 type reviewStudentVerificationHTTPRequest struct {
@@ -150,35 +151,43 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 		response.BadRequest(c, "invalid request parameters")
 		return
 	}
-
-	err = h.service.ReviewStudentVerification(c.Request.Context(), userID, *req.Approved, derefOptionalString(req.RejectionReason))
+	profileSchoolID, err := h.service.GetProfileSchoolID(c.Request.Context(), userID)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrProfileNotFound):
-			response.NotFound(c, "student profile not found", errs.ErrProfileNotFound)
-		default:
-			logger.FromGin(c).Error("failed to review student verification",
-				zap.Int64("target_user_id", userID),
-				zap.Error(err),
-			)
-			response.InternalError(c, "failed to review student verification")
+		if respondAdminReviewStudentVerificationError(c, err) {
+			return
 		}
+		logger.FromGin(c).Error("failed to resolve student profile school scope",
+			zap.Int64("target_user_id", userID),
+			zap.Error(err),
+		)
+		response.InternalError(c, "failed to review student verification")
+		return
+	}
+	if !ensureAdminSchoolAccess(c, capability.UserStudentReview, profileSchoolID) {
 		return
 	}
 
-	// 同步 FGA user_profile 关系 tuple，避免旧 school 关系残留
-	h.reconcileFGAUserProfileTuples(c, userID, *req.Approved)
+	err = h.service.ReviewStudentVerification(c.Request.Context(), userID, *req.Approved, derefOptionalString(req.RejectionReason))
+	if err != nil {
+		if respondAdminReviewStudentVerificationError(c, err) {
+			return
+		}
+		logger.FromGin(c).Error("failed to review student verification",
+			zap.Int64("target_user_id", userID),
+			zap.Error(err),
+		)
+		response.InternalError(c, "failed to review student verification")
+		return
+	}
 
-	audit.Log(audit.Event{
-		Type:      audit.EventDataUpdate,
-		UserID:    middleware.GetUserID(c),
-		Username:  middleware.GetUsername(c),
-		IP:        c.ClientIP(),
-		UserAgent: httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
-		RequestID: middleware.GetRequestID(c),
-		Resource:  "student_verification_review",
-		Action:    map[bool]string{true: "approve", false: "reject"}[*req.Approved],
-		Result:    "success",
+	audit.LogFromGin(c, audit.Event{
+		Type:         audit.EventDataUpdate,
+		Category:     "admin_operation",
+		Resource:     "student_verification_review",
+		ResourceType: "student_verification_review",
+		ResourceID:   strconv.FormatInt(userID, 10),
+		Action:       map[bool]string{true: "approve", false: "reject"}[*req.Approved],
+		Result:       "success",
 		Details: map[string]any{
 			"target_user_id":   userID,
 			"approved":         *req.Approved,
@@ -186,7 +195,7 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 		},
 	})
 
-	response.Success(c, gin.H{"message": "student verification reviewed"})
+	response.Success(c, messageResponse{Message: "student verification reviewed"})
 }
 
 func (h *Handler) handleAdminListSchoolConfigs(c *gin.Context) {
@@ -197,12 +206,16 @@ func (h *Handler) handleAdminListSchoolConfigs(c *gin.Context) {
 		return
 	}
 
-	items := make([]gin.H, 0, len(configs))
+	items := make([]adminSchoolConfigResponse, 0, len(configs))
 	for i := range configs {
+		if !middleware.HasGlobalCapability(c, capability.UserSchoolRead) &&
+			!middleware.HasCapabilityInSchool(c, capability.UserSchoolRead, strconv.FormatInt(configs[i].SchoolID, 10)) {
+			continue
+		}
 		item, err := adminSchoolConfigToJSON(&configs[i])
 		if err != nil {
 			logger.FromGin(c).Error("failed to serialize school config",
-				zap.String("school_id", configs[i].SchoolID),
+				zap.Int64("school_id", configs[i].SchoolID),
 				zap.Error(err),
 			)
 			response.InternalError(c, "failed to list school configs")
@@ -226,9 +239,12 @@ type updateSchoolConfigHTTPRequest struct {
 }
 
 func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
-	schoolID := c.Param("schoolID")
-	if schoolID == "" {
+	schoolID, parseErr := strconv.ParseInt(c.Param("schoolID"), 10, 64)
+	if parseErr != nil || schoolID <= 0 {
 		response.BadRequest(c, "invalid school ID")
+		return
+	}
+	if !ensureAdminSchoolAccess(c, capability.UserSchoolUpdate, &schoolID) {
 		return
 	}
 
@@ -241,53 +257,28 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 	input := UpdateSchoolConfigInput(req)
 
 	if err := h.service.UpdateSchoolConfig(c.Request.Context(), schoolID, input); err != nil {
-		if errors.Is(err, ErrSchoolNotFound) {
-			response.NotFound(c, "school config not found", errs.ErrProfileSchoolNotFound)
-			return
+		if shouldWarnAdminSchoolConfigError(err) {
+			logger.FromGin(c).Warn("invalid school config update", zap.Error(err))
 		}
-		if errors.Is(err, ErrInvalidManualFieldConfig) {
-			logger.FromGin(c).Warn("invalid manual field config", zap.Error(err))
-			response.BadRequest(c, "invalid manual form field configuration")
-			return
-		}
-		if errors.Is(err, ErrAcademicTableNotConfigured) {
-			logger.FromGin(c).Warn("academic db table not configured", zap.Error(err))
-			response.BadRequest(c, "academic db table is required for enabled LDAP schools", errs.ErrAcademicTableNotConfigured)
-			return
-		}
-		if errors.Is(err, ErrInvalidAcademicDBTable) {
-			logger.FromGin(c).Warn("invalid academic db table config", zap.Error(err))
-			response.BadRequest(c, "invalid academic db table configuration", errs.ErrProfileAcademicTable)
-			return
-		}
-		if errors.Is(err, ErrSchoolLDAPConfigMissing) {
-			logger.FromGin(c).Warn("missing school ldap config", zap.Error(err))
-			response.BadRequest(c, "school LDAP configuration is required for enabled LDAP schools", errs.ErrSchoolLDAPConfigMissing)
-			return
-		}
-		if errors.Is(err, ErrLDAPConfigInvalid) {
-			logger.FromGin(c).Warn("invalid school ldap config", zap.Error(err))
-			response.BadRequest(c, "school LDAP configuration is invalid", errs.ErrLDAPConfigInvalid)
+		if respondAdminUpdateSchoolConfigError(c, err) {
 			return
 		}
 		logger.FromGin(c).Error("failed to update school config",
-			zap.String("school_id", schoolID),
+			zap.Int64("school_id", schoolID),
 			zap.Error(err),
 		)
 		response.InternalError(c, "failed to update school config")
 		return
 	}
 
-	audit.Log(audit.Event{
-		Type:      audit.EventAdminConfigChange,
-		UserID:    middleware.GetUserID(c),
-		Username:  middleware.GetUsername(c),
-		IP:        c.ClientIP(),
-		UserAgent: httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
-		RequestID: middleware.GetRequestID(c),
-		Resource:  "school_config",
-		Action:    "update",
-		Result:    "success",
+	audit.LogFromGin(c, audit.Event{
+		Type:         audit.EventAdminConfigChange,
+		Category:     "admin_operation",
+		Resource:     "school_config",
+		ResourceType: "school_config",
+		ResourceID:   strconv.FormatInt(schoolID, 10),
+		Action:       "update",
+		Result:       "success",
 		Details: map[string]any{
 			"school_id": schoolID,
 			"fields": map[string]bool{
@@ -303,7 +294,7 @@ func (h *Handler) handleAdminUpdateSchoolConfig(c *gin.Context) {
 		},
 	})
 
-	response.Success(c, gin.H{"message": "school config updated"})
+	response.Success(c, messageResponse{Message: "school config updated"})
 }
 
 func derefOptionalString(value *string) string {
@@ -311,6 +302,71 @@ func derefOptionalString(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func resolveScopedAdminSchoolID(c *gin.Context, capabilityName string, requested *int64) (*int64, bool) {
+	if middleware.HasGlobalCapability(c, capabilityName) {
+		return requested, true
+	}
+
+	allowedSchoolIDs := scopedSchoolIDsForCapability(c, capabilityName)
+	if len(allowedSchoolIDs) == 0 {
+		response.Forbidden(c, "insufficient permissions", errs.ErrPermissionDenied)
+		return nil, false
+	}
+
+	if requested != nil {
+		if ensureAdminSchoolAccess(c, capabilityName, requested) {
+			return requested, true
+		}
+		return nil, false
+	}
+
+	if len(allowedSchoolIDs) == 1 {
+		schoolID := allowedSchoolIDs[0]
+		return &schoolID, true
+	}
+
+	response.BadRequest(c, "schoolID is required for scoped admin access")
+	return nil, false
+}
+
+func ensureAdminSchoolAccess(c *gin.Context, capabilityName string, schoolID *int64) bool {
+	if middleware.HasGlobalCapability(c, capabilityName) {
+		return true
+	}
+	if schoolID == nil || *schoolID <= 0 {
+		response.Forbidden(c, "insufficient permissions", errs.ErrPermissionDenied)
+		return false
+	}
+	if !middleware.HasCapabilityInSchool(c, capabilityName, strconv.FormatInt(*schoolID, 10)) {
+		response.Forbidden(c, "insufficient permissions", errs.ErrPermissionDenied)
+		return false
+	}
+	return true
+}
+
+func scopedSchoolIDsForCapability(c *gin.Context, capabilityName string) []int64 {
+	seen := make(map[int64]struct{})
+	allowed := make([]int64, 0)
+	for _, grant := range middleware.GetCapabilityGrants(c) {
+		if grant.Name != capabilityName || grant.Global {
+			continue
+		}
+		for _, rawSchoolID := range grant.ScopeSchoolIDs {
+			parsed, err := strconv.ParseInt(rawSchoolID, 10, 64)
+			if err != nil || parsed <= 0 {
+				continue
+			}
+			if _, exists := seen[parsed]; exists {
+				continue
+			}
+			seen[parsed] = struct{}{}
+			allowed = append(allowed, parsed)
+		}
+	}
+	sort.Slice(allowed, func(i, j int) bool { return allowed[i] < allowed[j] })
+	return allowed
 }
 
 func (h *Handler) handleAdminListSystemConfigs(c *gin.Context) {
@@ -321,7 +377,7 @@ func (h *Handler) handleAdminListSystemConfigs(c *gin.Context) {
 		return
 	}
 
-	items := make([]gin.H, 0, len(configs))
+	items := make([]systemConfigResponse, 0, len(configs))
 	for i := range configs {
 		items = append(items, systemConfigToJSON(&configs[i]))
 	}
@@ -347,20 +403,11 @@ func (h *Handler) handleAdminUpdateSystemConfig(c *gin.Context) {
 	}
 
 	if err := h.service.UpdateSystemConfig(c.Request.Context(), key, req.Value); err != nil {
-		if errors.Is(err, ErrSystemConfigNotFound) {
-			logger.FromGin(c).Warn("system config not found",
+		if respondAdminUpdateSystemConfigError(c, err) {
+			logger.FromGin(c).Warn("system config update rejected",
 				zap.String("config_key", key),
 				zap.Error(err),
 			)
-			response.NotFound(c, "system config not found", errs.ErrSystemConfigNotFound)
-			return
-		}
-		if errors.Is(err, ErrInvalidSystemConfigValue) {
-			logger.FromGin(c).Warn("invalid system config value",
-				zap.String("config_key", key),
-				zap.Error(err),
-			)
-			response.BadRequest(c, "invalid system config value", errs.ErrInvalidParam)
 			return
 		}
 		logger.FromGin(c).Error("failed to update system config",
@@ -371,20 +418,18 @@ func (h *Handler) handleAdminUpdateSystemConfig(c *gin.Context) {
 		return
 	}
 
-	audit.Log(audit.Event{
-		Type:      audit.EventAdminConfigChange,
-		UserID:    middleware.GetUserID(c),
-		Username:  middleware.GetUsername(c),
-		IP:        c.ClientIP(),
-		UserAgent: httputil.TruncateUserAgent(c.GetHeader("User-Agent")),
-		RequestID: middleware.GetRequestID(c),
-		Resource:  "system_config",
-		Action:    "update",
-		Result:    "success",
+	audit.LogFromGin(c, audit.Event{
+		Type:         audit.EventAdminConfigChange,
+		Category:     "admin_operation",
+		Resource:     "system_config",
+		ResourceType: "system_config",
+		ResourceID:   key,
+		Action:       "update",
+		Result:       "success",
 		Details: map[string]any{
 			"key": key,
 		},
 	})
 
-	response.Success(c, gin.H{"message": "system config updated"})
+	response.Success(c, messageResponse{Message: "system config updated"})
 }

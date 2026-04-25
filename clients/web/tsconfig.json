@@ -1,12 +1,14 @@
 {
   "extends": "../shared/tsconfig.json",
   "compilerOptions": {
+    "ignoreDeprecations": "5.0",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@stuhelper/shared": ["../shared/src"],
-      "@cimom/vben-effects-common-ui": ["./src/types/vben-effects-common-ui"]
+      "@cimom/vben-effects-common-ui": ["./src/types/vben-effects-common-ui"],
+      "@stuhelper/shared": ["../shared/src/index.ts"],
+      "@stuhelper/shared/*": ["../shared/src/*"]
     },
     "types": ["vite/client", "node"],
     "strict": true,
@@ -15,5 +17,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*", "*.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/**/__tests__/**"]
 }

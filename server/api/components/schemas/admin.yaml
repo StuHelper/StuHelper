@@ -53,6 +53,7 @@ AdminUpdateReviewRequest:
     action:
       type: string
       enum: [hide, restore, delete]
+      description: restore 对 pending_review 状态表示审核通过并发布
     reason:
       type: string
       maxLength: 500
@@ -71,6 +72,7 @@ BatchUpdateReviewsRequest:
     action:
       type: string
       enum: [hide, restore, delete]
+      description: restore 对 pending_review 状态表示审核通过并发布
 
 BatchUpdateResult:
   type: object

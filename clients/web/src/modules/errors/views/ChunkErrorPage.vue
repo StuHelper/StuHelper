@@ -1,15 +1,15 @@
 <template>
-  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,-apple-system,sans-serif;background:#f8fafc">
-    <div style="text-align:center;max-width:400px">
-      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 24px">
+  <div class="min-h-screen flex items-center justify-center p-6 bg-bg-base font-sans">
+    <div class="text-center max-w-[400px]">
+      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-6 text-text-muted">
         <circle cx="12" cy="12" r="10" />
         <line x1="12" y1="8" x2="12" y2="12" />
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
-      <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 12px">{{ t('errors.loadError.title') }}</h1>
-      <p style="font-size:14px;color:#64748b;margin:0 0 24px">{{ t('errors.loadError.description') }}</p>
+      <h1 class="text-xl font-bold text-text-primary mb-3">{{ t('errors.loadError.title') }}</h1>
+      <p class="text-sm text-text-secondary mb-6">{{ t('errors.loadError.description') }}</p>
       <button
-        style="display:inline-flex;align-items:center;gap:8px;padding:10px 24px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;font-size:14px;font-weight:500;border:none;border-radius:9999px;cursor:pointer"
+        class="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-br from-indigo-500 to-violet-500 text-white text-sm font-medium border-none rounded-full cursor-pointer hover:opacity-90 transition-opacity"
         @click="reload"
       >
         {{ t('errors.loadError.reload') }}

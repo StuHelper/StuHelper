@@ -10,12 +10,13 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
-// ListFlaggedReviews 获取待复核评课列表（触发了 warn 级敏感词但未被人工复核）
+// ListFlaggedReviews 获取待复核评课列表（包括 warn/review 两类内容标记）
 func (h *Handler) ListFlaggedReviews(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	offset := httputil.SafeOffset(page, pageSize)
+	scope := resolveModerationScope(c)
 
-	list, total, err := h.service.ListFlaggedReviews(c.Request.Context(), pageSize, offset)
+	list, total, err := h.service.ListFlaggedReviews(c.Request.Context(), pageSize, offset, scope.schoolIDs()...)
 	if err != nil {
 		logger.FromGin(c).Error("failed to list flagged reviews", zap.Error(err))
 		response.InternalError(c, "failed to list flagged reviews")
@@ -25,16 +26,22 @@ func (h *Handler) ListFlaggedReviews(c *gin.Context) {
 	response.Success(c, gin.H{"list": list, "total": total})
 }
 
-// ClearContentFlag 管理员复核通过，标记 content_flag = cleared
+// ClearContentFlag 管理员复核通过；review 标记会同步发布 pending_review
 func (h *Handler) ClearContentFlag(c *gin.Context) {
-	reviewID := c.Param("reviewID")
-	if reviewID == "" {
+	reviewID, err := httputil.ParseUUIDParam(c, "reviewID")
+	if err != nil {
 		response.BadRequest(c, "invalid review id")
+		return
+	}
+	if !h.authorizeReviewModeration(c, reviewID) {
 		return
 	}
 
 	adminUserID := middleware.GetUserID(c)
 	if err := h.service.ClearContentFlag(c.Request.Context(), reviewID, adminUserID); err != nil {
+		if respondClearContentFlagError(c, err) {
+			return
+		}
 		logger.FromGin(c).Error("failed to clear content flag", zap.Error(err))
 		response.InternalError(c, "failed to clear content flag")
 		return

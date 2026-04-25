@@ -14,7 +14,10 @@ onMounted(() => {
   renderEcharts({
     legend: {
       bottom: 0,
-      data: [$t('admin.dashboard.analytics.visitsData.legend.visits'), $t('admin.dashboard.analytics.visitsData.legend.trend')],
+      data: [
+        $t('admin.dashboard.analytics.visitsData.legend.visits'),
+        $t('admin.dashboard.analytics.visitsData.legend.trend'),
+      ],
     },
     radar: {
       indicator: [
@@ -31,7 +34,9 @@ onMounted(() => {
           name: $t('admin.dashboard.analytics.visitsData.indicators.client'),
         },
         {
-          name: $t('admin.dashboard.analytics.visitsData.indicators.thirdParty'),
+          name: $t(
+            'admin.dashboard.analytics.visitsData.indicators.thirdParty',
+          ),
         },
         {
           name: $t('admin.dashboard.analytics.visitsData.indicators.other'),

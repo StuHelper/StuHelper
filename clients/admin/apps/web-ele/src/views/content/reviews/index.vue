@@ -14,16 +14,22 @@ import {
   ElTag,
 } from 'element-plus';
 
-import { $t } from '#/locales';
 import { getReviewList, updateReview } from '#/api/admin';
+import { $t } from '#/locales';
 
 const loading = ref(false);
+const actionLoading = ref(false);
 const reviews = ref<Review[]>([]);
 const total = ref(0);
 const query = reactive({
   page: 1,
   pageSize: 20,
-  status: 'all' as 'all' | 'deleted' | 'hidden' | 'published',
+  status: 'all' as
+    | 'all'
+    | 'deleted'
+    | 'hidden'
+    | 'pending_review'
+    | 'published',
 });
 
 function averageRating(ratings: Record<string, number>) {
@@ -48,14 +54,29 @@ async function handleAction(
   reviewId: string,
   action: 'delete' | 'hide' | 'restore',
 ) {
-  await updateReview(reviewId, { action });
-  await fetchData();
+  if (actionLoading.value) {
+    return;
+  }
+
+  actionLoading.value = true;
+  try {
+    await updateReview(reviewId, { action });
+    await fetchData();
+  } catch (_error) {
+    void _error;
+    // 失败提示已由 unwrapData 统一处理。
+  } finally {
+    actionLoading.value = false;
+  }
 }
 
-const statusTag = (status: string): 'danger' | 'success' | 'warning' => {
-  const map: Record<string, 'danger' | 'success' | 'warning'> = {
+const statusTag = (
+  status: string,
+): 'danger' | 'info' | 'success' | 'warning' => {
+  const map: Record<string, 'danger' | 'info' | 'success' | 'warning'> = {
     published: 'success',
-    hidden: 'warning',
+    pending_review: 'warning',
+    hidden: 'info',
     deleted: 'danger',
   };
   return map[status] || 'warning';
@@ -74,22 +95,48 @@ onMounted(fetchData);
         @change="fetchData"
       >
         <ElOption :label="$t('admin.common.all')" value="all" />
-        <ElOption :label="$t('admin.content.reviews.status.published')" value="published" />
-        <ElOption :label="$t('admin.content.reviews.status.hidden')" value="hidden" />
-        <ElOption :label="$t('admin.content.reviews.status.deleted')" value="deleted" />
+        <ElOption
+          :label="$t('admin.content.reviews.status.published')"
+          value="published"
+        />
+        <ElOption
+          :label="$t('admin.content.reviews.status.pendingReview')"
+          value="pending_review"
+        />
+        <ElOption
+          :label="$t('admin.content.reviews.status.hidden')"
+          value="hidden"
+        />
+        <ElOption
+          :label="$t('admin.content.reviews.status.deleted')"
+          value="deleted"
+        />
       </ElSelect>
-      <ElButton type="primary" @click="fetchData">{{ $t('admin.common.query') }}</ElButton>
+      <ElButton type="primary" @click="fetchData">
+        {{ $t('admin.common.query') }}
+      </ElButton>
     </div>
 
     <ElTable v-loading="loading" :data="reviews" stripe>
       <ElTableColumn :label="$t('admin.common.id')" prop="id" width="70" />
-      <ElTableColumn :label="$t('admin.content.reviews.course')" min-width="120" prop="courseName" />
-      <ElTableColumn :label="$t('admin.content.reviews.teacher')" min-width="120">
+      <ElTableColumn
+        :label="$t('admin.content.reviews.course')"
+        min-width="120"
+        prop="courseName"
+      />
+      <ElTableColumn
+        :label="$t('admin.content.reviews.teacher')"
+        min-width="120"
+      >
         <template #default="{ row }">
           {{ row.teacherName || $t('admin.content.reviews.teacherUnlinked') }}
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.common.title')" min-width="140" prop="title" />
+      <ElTableColumn
+        :label="$t('admin.common.title')"
+        min-width="140"
+        prop="title"
+      />
       <ElTableColumn
         :label="$t('admin.common.content')"
         min-width="200"
@@ -107,23 +154,58 @@ onMounted(fetchData);
             {{
               row.status === 'published'
                 ? $t('admin.content.reviews.status.published')
-                : row.status === 'hidden'
-                  ? $t('admin.content.reviews.status.hidden')
-                  : $t('admin.content.reviews.status.deleted')
+                : row.status === 'pending_review'
+                  ? $t('admin.content.reviews.status.pendingReview')
+                  : row.status === 'hidden'
+                    ? $t('admin.content.reviews.status.hidden')
+                    : $t('admin.content.reviews.status.deleted')
             }}
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn :label="$t('admin.common.createdAt')" prop="createdAt" width="170" />
-      <ElTableColumn fixed="right" :label="$t('admin.common.actions')" width="180">
+      <ElTableColumn
+        :label="$t('admin.common.createdAt')"
+        prop="createdAt"
+        width="170"
+      />
+      <ElTableColumn
+        fixed="right"
+        :label="$t('admin.common.actions')"
+        width="180"
+      >
         <template #default="{ row }">
-          <template v-if="row.status === 'published'">
+          <template
+            v-if="row.status === 'published' || row.status === 'pending_review'"
+          >
+            <ElPopconfirm
+              v-if="row.status === 'pending_review'"
+              :title="$t('admin.content.reviews.confirmApprove')"
+              @confirm="handleAction(row.id, 'restore')"
+            >
+              <template #reference>
+                <ElButton
+                  link
+                  size="small"
+                  type="success"
+                  :disabled="actionLoading"
+                >
+                  {{ $t('admin.content.reviews.approve') }}
+                </ElButton>
+              </template>
+            </ElPopconfirm>
             <ElPopconfirm
               :title="$t('admin.content.reviews.confirmHide')"
               @confirm="handleAction(row.id, 'hide')"
             >
               <template #reference>
-                <ElButton link size="small" type="warning">{{ $t('admin.content.reviews.hide') }}</ElButton>
+                <ElButton
+                  link
+                  size="small"
+                  type="warning"
+                  :disabled="actionLoading"
+                >
+                  {{ $t('admin.content.reviews.hide') }}
+                </ElButton>
               </template>
             </ElPopconfirm>
           </template>
@@ -132,6 +214,7 @@ onMounted(fetchData);
               link
               size="small"
               type="success"
+              :disabled="actionLoading"
               @click="handleAction(row.id, 'restore')"
             >
               {{ $t('admin.content.reviews.restore') }}
@@ -143,7 +226,14 @@ onMounted(fetchData);
             @confirm="handleAction(row.id, 'delete')"
           >
             <template #reference>
-              <ElButton link size="small" type="danger">{{ $t('admin.common.delete') }}</ElButton>
+              <ElButton
+                link
+                size="small"
+                type="danger"
+                :disabled="actionLoading"
+              >
+                {{ $t('admin.common.delete') }}
+              </ElButton>
             </template>
           </ElPopconfirm>
         </template>

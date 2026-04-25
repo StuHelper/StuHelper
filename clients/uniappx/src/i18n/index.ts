@@ -16,6 +16,7 @@ type UniRuntime = {
 
 const STORAGE_KEY = 'stuhelper:uniappx:locale'
 const DEFAULT_LOCALE: SupportedLocale = 'zh-CN'
+const reportedDiagnostics = new Set<string>()
 const messages: Record<SupportedLocale, TranslationDictionary> = {
   'en-US': enUSMessages,
   'zh-CN': zhCNMessages,
@@ -32,13 +33,29 @@ function normalizeLocale(value?: string | null): SupportedLocale {
   return value.toLowerCase().startsWith('en') ? 'en-US' : 'zh-CN'
 }
 
+function emitLocaleDiagnostic(key: string, message: string, error: unknown) {
+  if (reportedDiagnostics.has(key)) return
+  reportedDiagnostics.add(key)
+  console.warn(`[uniappx:i18n] ${message}`, error)
+}
+
+function shouldIgnoreTabBarSyncError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+  const normalized = message.toLowerCase()
+  return normalized.includes('tabbar')
+    || normalized.includes('not tabbar page')
+    || normalized.includes('tab bar')
+    || normalized.includes('not support')
+}
+
 function readStoredLocale(): SupportedLocale | null {
   const runtime = getUniRuntime()
   if (!runtime) return null
   try {
     const value = runtime.getStorageSync(STORAGE_KEY)
     return typeof value === 'string' && value ? normalizeLocale(value) : null
-  } catch {
+  } catch (error) {
+    emitLocaleDiagnostic('i18n_locale_storage_read_error', 'failed to read stored locale, falling back to system locale', error)
     return null
   }
 }
@@ -50,14 +67,15 @@ function readSystemLocale(): SupportedLocale {
     if (typeof runtime.getLocale === 'function') {
       return normalizeLocale(runtime.getLocale())
     }
-  } catch {
-    // ignore system locale access failure
+  } catch (error) {
+    emitLocaleDiagnostic('i18n_locale_runtime_error', 'failed to read runtime locale, falling back to system info', error)
   }
 
   try {
     const system = runtime.getSystemInfoSync()
     return normalizeLocale(system.language)
-  } catch {
+  } catch (error) {
+    emitLocaleDiagnostic('i18n_locale_system_info_error', 'failed to read system locale, falling back to default locale', error)
     return DEFAULT_LOCALE
   }
 }
@@ -80,8 +98,8 @@ export function setLocale(locale: SupportedLocale) {
   if (!runtime) return
   try {
     runtime.setStorageSync(STORAGE_KEY, locale)
-  } catch {
-    // ignore storage failure
+  } catch (error) {
+    emitLocaleDiagnostic('i18n_locale_storage_write_error', 'failed to persist locale, keeping in-memory locale only', error)
   }
   syncAppChrome()
 }
@@ -107,8 +125,8 @@ export function setPageTitle(key: string, params?: TranslationParams) {
   if (!runtime) return
   try {
     runtime.setNavigationBarTitle({ title: translate(key, params) })
-  } catch {
-    // ignore title update failure
+  } catch (error) {
+    emitLocaleDiagnostic('i18n_nav_title_error', 'failed to update navigation title', error)
   }
 }
 
@@ -126,8 +144,9 @@ export function syncAppChrome() {
   tabs.forEach((text, index) => {
     try {
       runtime.setTabBarItem({ index, text })
-    } catch {
-      // ignore when tabbar is unavailable
+    } catch (error) {
+      if (shouldIgnoreTabBarSyncError(error)) return
+      emitLocaleDiagnostic('i18n_tabbar_sync_error', `failed to sync tab bar label at index ${index}`, error)
     }
   })
 }

@@ -4,13 +4,16 @@ import {
     type RouteRecordRaw,
 } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import { useReviewPost } from "@/composables/useReviewPost";
 import { isTokenExpired } from "@/utils/auth";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
 import {
-    hasAnyCapability,
+    REVIEW_CREATE,
 } from "@stuhelper/shared/constants";
+import {
+    hasRequiredRouteCapabilityAccess,
+    resolveProtectedRouteAuthFailure,
+} from "@/router/auth-guard-decision";
 // 静态导入，确保 chunk load 失败时仍可渲染
 import ChunkErrorPage from "@/modules/errors/views/ChunkErrorPage.vue";
 import NotFoundPage from "@/modules/errors/views/NotFoundPage.vue";
@@ -37,7 +40,7 @@ function isChunkLoadError(error: unknown): boolean {
     );
 }
 
-// chunk load 失败时自动重载一次
+// chunk 加载失败时自动重载一次
 const CHUNK_RELOAD_KEY = "stuhelper_chunk_reload_attempted";
 
 function lazyLoad(loader: () => Promise<unknown>) {
@@ -45,20 +48,20 @@ function lazyLoad(loader: () => Promise<unknown>) {
         loader().catch((err) => {
             if (!isChunkLoadError(err)) throw err;
 
-            // 首次 chunk 失败 → 重新抛出，让 router.onError 处理（它有目标路由信息）
+            // 首次 chunk 失败时重新抛出，让 router.onError 处理目标路由
             const hasAttempted = sessionStorage.getItem(CHUNK_RELOAD_KEY);
             if (!hasAttempted) {
                 throw err;
             }
 
-            // 已重载过仍失败 → 渲染静态错误页作为最终兜底
+            // 已重载过仍失败时，渲染静态错误页
             sessionStorage.removeItem(CHUNK_RELOAD_KEY);
             return { default: ChunkErrorPage };
         });
 }
 
 const routes: RouteRecordRaw[] = [
-    // Auth routes
+    // 认证相关路由
     {
         path: "/login",
         name: "login",
@@ -74,7 +77,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.authCallback", guest: true, layout: "none" },
     },
 
-    // Homepage (new fancy design)
+    // 首页
     {
         path: "/",
         name: "home",
@@ -110,7 +113,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.terms" },
     },
 
-    // Course hub (old homepage)
+    // 课程入口
     {
         path: "/course",
         name: "course-hub",
@@ -120,7 +123,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.teachingHub" },
     },
 
-    // Review module
+    // 评测模块
     {
         path: "/review",
         name: "review",
@@ -159,10 +162,14 @@ const routes: RouteRecordRaw[] = [
         component: lazyLoad(
             () => import("@/modules/review/views/PostReviewPage.vue"),
         ),
-        meta: { titleKey: "routes.postReview", requiresAuth: true },
+        meta: {
+            titleKey: "routes.postReview",
+            requiresAuth: true,
+            requiredCapabilities: [REVIEW_CREATE],
+        },
     },
 
-    // Advanced search
+    // 搜索页
     {
         path: "/search",
         name: "search",
@@ -172,7 +179,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.search" },
     },
 
-    // Course review about page
+    // 评测说明页
     {
         path: "/course/about",
         name: "course-about",
@@ -182,7 +189,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.courseAbout" },
     },
 
-    // Teacher profile
+    // 教师相关页面
     {
         path: "/teachers",
         name: "teacher-hub",
@@ -200,7 +207,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.teacherProfile" },
     },
 
-    // User center
+    // 用户中心
     {
         path: "/user",
         redirect: { name: "user-reviews" },
@@ -235,7 +242,7 @@ const routes: RouteRecordRaw[] = [
         redirect: { name: "user-reviews" },
     },
 
-    // Verification pages
+    // 认证与资料页面
     {
         path: "/user/identity-verification",
         name: "identity-verification",
@@ -261,6 +268,14 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.phoneBinding", requiresAuth: true },
     },
     {
+        path: "/user/qq-binding",
+        name: "qq-binding",
+        component: lazyLoad(
+            () => import("@/modules/user/views/QQBindingPage.vue"),
+        ),
+        meta: { titleKey: "routes.qqBinding", requiresAuth: true },
+    },
+    {
         path: "/user/academic-info",
         name: "academic-info",
         component: lazyLoad(
@@ -269,7 +284,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.academicInfo", requiresAuth: true },
     },
 
-    // Notifications
+    // 通知中心
     {
         path: "/notifications",
         name: "notifications",
@@ -279,7 +294,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.notifications", requiresAuth: true },
     },
 
-    // Redirects
+    // 兼容旧链接的重定向
     {
         path: "/review/courses/:id",
         redirect: (to) => `/courses/${to.params.id}/reviews`,
@@ -321,7 +336,7 @@ router.beforeEach(async (to) => {
 
     const authStore = useAuthStore();
 
-    // Update page meta — prefer titleKey (i18n) over hardcoded title
+    // 优先使用 titleKey 更新页面标题，其次退回静态 title
     const matchedTitleRoute = [...to.matched]
         .reverse()
         .find(
@@ -334,13 +349,27 @@ router.beforeEach(async (to) => {
         : matchedTitleRoute?.meta.title;
     updatePageMeta({ title: resolvedTitle });
 
+    const needsResolvedSession =
+        Boolean(to.meta.requiresAuth) ||
+        Boolean(to.meta.guest) ||
+        to.matched.some((route) =>
+            Array.isArray(route.meta.requiredCapabilities) &&
+            route.meta.requiredCapabilities.length > 0,
+        );
+
+    if (needsResolvedSession && !authStore.bootstrapCompleted) {
+        await authStore.bootstrapSession();
+    }
+
     let refreshFailed = false;
     if (authStore.isAuthenticated && isTokenExpired()) {
         try {
             await authStore.refreshSession();
         } catch (err) {
             refreshFailed = true;
-            console.warn("[Router] session refresh failed during navigation:", err);
+            if (import.meta.env.DEV) {
+                console.warn("[Router] session refresh failed during navigation:", err);
+            }
         }
     }
 
@@ -353,16 +382,21 @@ router.beforeEach(async (to) => {
                 : [];
             return requiredCapabilities.length > 0;
         });
-
-    if (refreshFailed && requiresAuthRoute) {
-        return {
-            name: "login",
-            query: { redirect: to.fullPath },
-            replace: true,
-        };
+    const authFailureDecision = resolveProtectedRouteAuthFailure({
+        redirect: to.fullPath,
+        refreshFailed,
+        requiresAuthRoute,
+        sessionBootstrapFailed:
+            needsResolvedSession &&
+            !authStore.bootstrapCompleted &&
+            !authStore.isAuthenticated,
+        stillAuthenticated: authStore.isAuthenticated,
+    });
+    if (authFailureDecision !== null) {
+        return authFailureDecision;
     }
 
-    // Auth guards
+    // 登录守卫
     if (to.meta.requiresAuth && !isAuthenticated) {
         return { name: "login", query: { redirect: to.fullPath } };
     }
@@ -374,7 +408,10 @@ router.beforeEach(async (to) => {
     );
     if (
         requiredCapabilities.length > 0 &&
-        !hasAnyCapability(authStore.globalCapabilities, requiredCapabilities)
+        !hasRequiredRouteCapabilityAccess(
+            authStore.user?.capabilities ?? [],
+            requiredCapabilities,
+        )
     ) {
         return { name: "home" };
     }
@@ -395,13 +432,11 @@ router.beforeEach(async (to) => {
 });
 
 router.afterEach(() => {
-    const { showPostModal, closePostModal } = useReviewPost();
-    if (showPostModal.value) closePostModal();
     // 导航成功说明 chunk 加载正常，清除重试标记
     sessionStorage.removeItem(CHUNK_RELOAD_KEY);
 });
 
-// chunk load 首次失败时，用目标路由 fullPath 重载（而非 reload 当前页）
+// chunk 首次加载失败时，用目标路由 fullPath 重载，而不是直接刷新当前页
 router.onError((err, to) => {
     if (!isChunkLoadError(err)) return;
     const hasAttempted = sessionStorage.getItem(CHUNK_RELOAD_KEY);

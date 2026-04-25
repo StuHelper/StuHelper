@@ -4,8 +4,14 @@
       v-if="visible"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       @click.self="emit('close')"
+      @keydown.escape="emit('close')"
     >
-      <div class="bg-bg-card rounded-xl shadow-xl w-full max-w-md mx-4 p-6 animate-fade-in-up">
+      <div
+        role="dialog"
+        aria-modal="true"
+        :aria-label="t('review.admin.moderateTitle')"
+        class="bg-bg-card rounded-xl shadow-xl w-full max-w-md mx-4 p-6 animate-fade-in-up"
+      >
         <h3 class="text-lg font-bold text-text-primary mb-4">{{ t('review.admin.moderateTitle') }}</h3>
 
         <label class="block text-sm text-text-secondary mb-1.5">
@@ -40,10 +46,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
   reviewID: string
 }>()
@@ -56,6 +62,15 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const reason = ref('')
 const submitting = ref(false)
+
+// Body scroll lock when dialog is visible
+watch(() => props.visible, (isVisible) => {
+  if (isVisible) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+  }
+}, { immediate: true })
 
 function handleConfirm() {
   emit('confirm', reason.value)

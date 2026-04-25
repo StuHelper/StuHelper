@@ -6,10 +6,16 @@
         <div class="w-[160px] h-7 rounded-full shimmer-bg animate-shimmer bg-[length:200%_100%]"></div>
       </div>
     </div>
+    <div v-else-if="loadFailed" class="px-2 py-3 text-sm text-danger">
+      {{ t('review.post.ratingLoadFailed') }}
+    </div>
+    <div v-else-if="resolvedDimensions.length === 0" class="px-2 py-3 text-sm text-text-muted">
+      {{ t('review.post.ratingUnavailable') }}
+    </div>
 
     <template v-else>
       <div
-        v-for="dim in dimensions"
+        v-for="dim in resolvedDimensions"
         :key="dim.key"
         class="flex items-center justify-between py-1.5 px-2 rounded-lg transition-all duration-200 ease-out hover:bg-bg-secondary"
       >
@@ -40,15 +46,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { api } from '@/api'
-import type { RatingDimension, RatingValue } from '@/types/course'
-import type { ReviewRatings } from '@/types/review'
+import type { RatingDimension, RatingValue } from '@stuhelper/shared/course'
+import type { ReviewRatings } from '@stuhelper/shared/review'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: ReviewRatings
-}>()
+  dimensions?: RatingDimension[]
+  loading?: boolean
+  loadFailed?: boolean
+}>(), {
+  dimensions: () => [],
+  loading: false,
+  loadFailed: false,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: ReviewRatings]
@@ -56,8 +68,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const loading = ref(true)
-const dimensions = ref<RatingDimension[]>([])
+const resolvedDimensions = computed(() => props.dimensions)
 const hoverKey = ref('')
 const hoverValue = ref(0)
 
@@ -130,18 +141,7 @@ const handleHoverEnd = () => {
   hoverValue.value = 0
 }
 
-onMounted(async () => {
-  try {
-    const res = await api.rating.getDimensions()
-    dimensions.value = (res.data?.data || []).filter((d: RatingDimension) => d.isActive)
-  } catch {
-    // 评分维度加载失败，UI 显示空状态
-  } finally {
-    loading.value = false
-  }
-})
-
-defineExpose({ dimensions })
+defineExpose({ dimensions: resolvedDimensions })
 </script>
 
 <style scoped>

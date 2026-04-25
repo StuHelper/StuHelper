@@ -40,7 +40,7 @@ type Review struct {
 	DislikeCount         int           `json:"dislikeCount"`
 	ReplyCount           int           `json:"replyCount"`
 	Status               string        `json:"status"`
-	ContentFlag          *string       `json:"contentFlag,omitempty"` // warn / cleared / nil
+	ContentFlag          *string       `json:"contentFlag,omitempty"` // warn / review / cleared / nil
 	ContentFlagClearedAt *time.Time    `json:"contentFlagClearedAt,omitempty"`
 	ContentFlagClearedBy *string       `json:"-"`
 	ModerationReason     *string       `json:"moderationReason,omitempty"`
@@ -176,20 +176,6 @@ type Reply struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// Notification 通知
-type Notification struct {
-	ID          string    `json:"id"`
-	UserHash    string    `json:"-"`
-	Type        string    `json:"type"`
-	Title       string    `json:"title"`
-	Content     string    `json:"content,omitempty"`
-	RelatedType string    `json:"relatedType,omitempty"`
-	RelatedID   string    `json:"relatedID,omitempty"`
-	CourseID    *int64    `json:"courseID,omitempty"`
-	IsRead      bool      `json:"isRead"`
-	CreatedAt   time.Time `json:"createdAt"`
-}
-
 // TeacherRatingStats 教师评分统计
 type TeacherRatingStats struct {
 	ID           string          `json:"id"`
@@ -259,7 +245,7 @@ type SensitiveWord struct {
 	ID        string    `json:"id"`
 	Word      string    `json:"word"`
 	Category  string    `json:"category"`
-	Level     string    `json:"level"` // block, warn
+	Level     string    `json:"level"` // block, warn, review
 	IsActive  bool      `json:"isActive"`
 	CreatedAt time.Time `json:"createdAt"`
 }

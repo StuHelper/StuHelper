@@ -1,10 +1,11 @@
-import path from 'node:path';
+import process from 'node:process';
 
 import { defineConfig } from '@vben/vite-config';
 
 import ElementPlus from 'unplugin-element-plus/vite';
 
-const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080';
+const devProxyTarget =
+  process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080';
 
 export default defineConfig(async () => {
   return {
@@ -15,11 +16,6 @@ export default defineConfig(async () => {
           format: 'esm',
         }),
       ],
-      resolve: {
-        alias: {
-          '@stuhelper/shared': path.resolve(__dirname, '../../../shared/src'),
-        },
-      },
       server: {
         proxy: {
           '/api': {

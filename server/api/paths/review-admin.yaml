@@ -80,6 +80,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -96,7 +98,7 @@
         in: query
         schema:
           type: string
-          enum: [published, hidden, deleted, all]
+          enum: [published, pending_review, hidden, deleted, all]
           default: all
       - $ref: '../components/parameters/common.yaml#/PageParam'
       - $ref: '../components/parameters/common.yaml#/PageSizeParam'
@@ -242,7 +244,7 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/course/review/admin/reviews/batch:
-  post:
+  patch:
     tags: [Admin]
     operationId: batchUpdateReviews
     summary: 批量更新评论状态
@@ -404,7 +406,7 @@
         in: query
         schema:
           type: string
-          enum: [all, published, hidden, deleted]
+          enum: [all, published, pending_review, hidden, deleted]
           default: all
     responses:
       '200':
@@ -558,20 +560,8 @@
     parameters:
       - $ref: '../components/parameters/common.yaml#/TeacherIDPath'
     responses:
-      '200':
+      '204':
         description: 删除成功
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
-                - type: object
-                  required: [data]
-                  properties:
-                    data:
-                      $ref: '../components/schemas/common.yaml#/MessageData'
-      '400':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
@@ -712,18 +702,8 @@
     parameters:
       - $ref: '../components/parameters/common.yaml#/SensitiveWordIDPath'
     responses:
-      '200':
+      '204':
         description: 删除成功
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
-                - type: object
-                  required: [data]
-                  properties:
-                    data:
-                      $ref: '../components/schemas/common.yaml#/MessageData'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

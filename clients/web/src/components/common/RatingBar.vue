@@ -13,6 +13,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { getScaledRatingColor } from '@/design-system/rating'
 
 const props = defineProps<{
   label: string
@@ -31,12 +32,5 @@ const displayValue = computed(() =>
     : props.value.toFixed(1)
 )
 
-const fillColor = computed(() => {
-  const ratio = props.value / max.value
-  if (ratio >= 0.8) return 'var(--color-rating-5)'
-  if (ratio >= 0.6) return 'var(--color-rating-4)'
-  if (ratio >= 0.4) return 'var(--color-rating-3)'
-  if (ratio >= 0.2) return 'var(--color-rating-2)'
-  return 'var(--color-rating-1)'
-})
+const fillColor = computed(() => getScaledRatingColor(props.value, max.value))
 </script>

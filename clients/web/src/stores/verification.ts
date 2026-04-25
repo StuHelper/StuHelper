@@ -1,10 +1,13 @@
 /**
  * 认证状态管理（实名认证 + 学生认证）
  */
-import { defineStore } from "pinia";
-import { ref, computed } from "vue";
-import type { components } from "@stuhelper/shared";
+import { defineStore, getActivePinia } from "pinia";
+import { computed, ref } from "vue";
+import type { components } from "@stuhelper/shared/types";
 import { api } from "@/api";
+import { getErrorStatus } from "@/api/errors";
+import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
+import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
 type IdentityInfo = components["schemas"]["UserIdentity"];
 type ProfileInfo = components["schemas"]["UserProfile"];
@@ -15,19 +18,20 @@ type UploadIdentityPhotoRequest =
 type SubmitStudentVerificationRequest =
     components["schemas"]["SubmitStudentVerificationRequest"];
 type BindPhoneRequest = components["schemas"]["BindPhoneRequest"];
-
-function getErrorStatus(error: unknown): number | undefined {
-    if (typeof error === 'object' && error !== null && 'status' in error) {
-        const status = (error as { status?: unknown }).status;
-        return typeof status === 'number' ? status : undefined;
-    }
-    return undefined;
-}
+type QQBindingInfo = components["schemas"]["QQBinding"];
+type QQBindingCodeInfo = components["schemas"]["QQBindingCode"];
 
 export const useVerificationStore = defineStore("verification", () => {
+    const pinia = getActivePinia();
+    if (!pinia) {
+        throw new Error("verification store requires an active Pinia instance");
+    }
+
     // 状态
     const identity = ref<IdentityInfo | null>(null);
     const profile = ref<ProfileInfo | null>(null);
+    const qqBinding = ref<QQBindingInfo | null>(null);
+    const qqBindingCode = ref<QQBindingCodeInfo | null>(null);
     const schools = ref<SchoolConfig[]>([]);
     const loading = ref(false);
 
@@ -36,32 +40,24 @@ export const useVerificationStore = defineStore("verification", () => {
     const studentVerified = computed(
         () => profile.value?.verificationStatus === "verified",
     );
+    const qqBound = computed(() => qqBinding.value !== null);
     const canViewFullReviews = computed(() => studentVerified.value);
 
     // 并行获取实名认证和学生认证状态
     const fetchStatus = async () => {
         loading.value = true;
         try {
-            const [identityRes, profileRes] = await Promise.allSettled([
-                api.identity.getIdentity(),
-                api.identity.getProfile(),
+            const [identityData, profileData, qqBindingData] = await Promise.all([
+                loadNullableResource(() => api.identity.getIdentity()),
+                loadNullableResource(() => api.identity.getProfile()),
+                loadNullableResource(() => api.identity.getQQBinding()),
             ]);
 
-            // 404 表示用户尚未提交，视为 null
-            if (identityRes.status === "fulfilled") {
-                identity.value = identityRes.value.data?.data ?? null;
-            } else if (getErrorStatus(identityRes.reason) === 404) {
-                identity.value = null;
-            } else {
-                throw identityRes.reason;
-            }
-
-            if (profileRes.status === "fulfilled") {
-                profile.value = profileRes.value.data?.data ?? null;
-            } else if (getErrorStatus(profileRes.reason) === 404) {
-                profile.value = null;
-            } else {
-                throw profileRes.reason;
+            identity.value = identityData;
+            profile.value = profileData;
+            qqBinding.value = qqBindingData;
+            if (qqBindingData) {
+                qqBindingCode.value = null;
             }
         } finally {
             loading.value = false;
@@ -101,33 +97,57 @@ export const useVerificationStore = defineStore("verification", () => {
     // 绑定手机
     const bindPhone = async (data: BindPhoneRequest) => {
         await api.identity.bindPhone(data);
-        // 刷新 profile 以反映手机号变化
-        try {
-            const profileRes = await api.identity.getProfile();
-            profile.value = profileRes.data?.data ?? null;
-        } catch {
-            // ignore refresh errors
+        // 绑定成功后必须刷新 profile；刷新失败应显式抛出，避免 UI 误判为已绑定。
+        const profileRes = await api.identity.getProfile();
+        profile.value = profileRes.data?.data ?? null;
+    };
+
+    const fetchQQBinding = async () => {
+        qqBinding.value = await loadNullableResource(() => api.identity.getQQBinding());
+        if (qqBinding.value) {
+            qqBindingCode.value = null;
         }
+        return qqBinding.value;
+    };
+
+    const createQQBindingCode = async () => {
+        const res = await api.identity.createQQBindingCode();
+        qqBindingCode.value = res.data?.data ?? null;
+        return qqBindingCode.value;
     };
 
     // 重置状态（setup store 不支持 $reset）
     const reset = () => {
         identity.value = null;
         profile.value = null;
+        qqBinding.value = null;
+        qqBindingCode.value = null;
         schools.value = [];
         loading.value = false;
     };
 
+    const unregisterSessionReset = registerSessionResetHandler(
+        "verification",
+        reset,
+        pinia,
+    );
+    safeOnScopeDispose(unregisterSessionReset);
+
     return {
         identity,
         profile,
+        qqBinding,
+        qqBindingCode,
         schools,
         loading,
         identityVerified,
         studentVerified,
+        qqBound,
         canViewFullReviews,
         fetchStatus,
+        fetchQQBinding,
         fetchSchools,
+        createQQBindingCode,
         submitIdentity,
         uploadIdentityPhoto,
         verifyStudent,
@@ -136,3 +156,17 @@ export const useVerificationStore = defineStore("verification", () => {
         reset,
     };
 });
+
+async function loadNullableResource<T>(
+    loader: () => Promise<{ data?: { data?: T } }>,
+): Promise<T | null> {
+    try {
+        const response = await loader();
+        return response.data?.data ?? null;
+    } catch (error) {
+        if (getErrorStatus(error) === 404) {
+            return null;
+        }
+        throw error;
+    }
+}

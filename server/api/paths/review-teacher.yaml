@@ -3,6 +3,7 @@
     tags: [Review]
     operationId: listTeachers
     summary: 获取教师列表（公开，支持搜索和分页）
+    security: []
     parameters:
       - name: q
         in: query
@@ -29,25 +30,32 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                code:
-                  type: string
-                data:
-                  type: object
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/review.yaml#/TeacherSummary'
-                    total:
-                      type: integer
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/TeacherSummary'
+                        total:
+                          type: integer
+      "400":
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      "500":
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/course/review/teachers/hot:
   get:
     tags: [Review]
     operationId: listHotTeachers
     summary: 获取热门教师列表
+    security: []
     parameters:
       - name: limit
         in: query
@@ -60,14 +68,20 @@
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                code:
-                  type: string
-                data:
-                  type: object
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
                   properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '../components/schemas/review.yaml#/TeacherSummary'
+                    data:
+                      type: object
+                      required: [list]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/review.yaml#/TeacherSummary'
+      "400":
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      "500":
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

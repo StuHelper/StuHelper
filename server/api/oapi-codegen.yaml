@@ -1,14 +1,18 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/v2.6.0/configuration-schema.json
 # oapi-codegen 配置
-# 从 bundled OpenAPI spec 生成 Gin server + models
+# 从 bundled OpenAPI spec 生成 models only。
+# 说明：
+# 1. Handler 继续使用贴近 HTTP 绑定/错误映射的本地 DTO，不直接耦合 generated schema 类型；
+# 2. 生成产物的主要职责是 embedded spec + 运行时 OpenAPI request validation + 跨端契约漂移检测；
+# 3. 因此这里显式关闭 gin-server / strict-server 生成。
 package: gen
 generate:
   models: true
-  gin-server: true
+  gin-server: false
   strict-server: false
   embedded-spec: true
 output: internal/api/gen/server.gen.go
 output-options:
-  skip-prune: true
+  skip-prune: false
   overlay:
     path: api/oapi-codegen-overlay.yaml

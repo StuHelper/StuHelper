@@ -1,52 +1,17 @@
 /**
  * 测评相关类型定义
+ *
+ * 仅保留 OpenAPI wire contract 别名和 API 补充类型。
+ * normalizer / guard / UI 接口已迁至 presentation/review.ts。
  */
-import type { RatingValue } from './course'
+import type { components } from '../api.gen'
 
-// 动态评分类型
-export type ReviewRatings = Record<string, RatingValue>
+// ---- OpenAPI 别名 ----
 
-// 测评
-export interface Review {
-  id: string
-  courseID: number
-  courseName?: string
-  teacherID?: number | null
-  teacherName?: string
-  termID: string
-  termName?: string
-  title: string
-  content: string
-  grade?: string
-  ratings: ReviewRatings
-  likeCount: number
-  dislikeCount: number
-  replyCount: number
-  status: 'published' | 'hidden' | 'deleted'
-  moderationReason?: string | null
-  createdAt: string
-  updatedAt?: string
-}
+export type Review = components['schemas']['Review']
+export type PostReviewRequest = components['schemas']['PostReviewRequest']
 
-// 发布测评参数
-export interface PostReviewParams {
-  courseID: number
-  teacherID?: number
-  termID?: string
-  title?: string
-  content: string
-  grade?: string
-  ratings: ReviewRatings
-}
+// ---- 前端补充类型 ----
 
-// 类型守卫：检查是否为有效的评分对象
-export function isValidRatings(
-  ratings: unknown,
-  requiredKeys: string[]
-): ratings is ReviewRatings {
-  if (!ratings || typeof ratings !== 'object') return false
-  const obj = ratings as Record<string, unknown>
-  return requiredKeys.every(
-    key => key in obj && typeof obj[key] === 'number' && obj[key] >= 1 && obj[key] <= 5
-  )
-}
+/** 动态评分（维度 key → 分值），与 OpenAPI ReviewRatings 一致 */
+export type ReviewRatings = components['schemas']['ReviewRatings']

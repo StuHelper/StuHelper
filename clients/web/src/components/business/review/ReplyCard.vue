@@ -23,7 +23,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { Reply } from '@/types/reply'
+import type { Reply } from '@stuhelper/shared/reply'
 import { formatRelativeTime } from '@/utils/date'
 
 const { t, locale } = useI18n()

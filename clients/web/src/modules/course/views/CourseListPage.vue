@@ -6,9 +6,7 @@ import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import CourseThemeProvider from '@/modules/course/theme/CourseThemeProvider.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import { api } from '@/api'
-import type { components } from '@stuhelper/shared/types'
-
-type Course = components['schemas']['Course']
+import type { Course } from '@stuhelper/shared/types/business/course'
 
 interface DepartmentGroup {
   name: string
@@ -57,63 +55,18 @@ function navigateToCourse(courseId: number): void {
   void router.push(`/courses/${courseId}/reviews`)
 }
 
-function groupByDepartment(courses: readonly Course[]): DepartmentGroup[] {
-  const map = new Map<string, Course[]>()
-
-  for (const course of courses) {
-    const dept = course.departmentName ?? t('review.filters.all')
-    const existing = map.get(dept)
-    if (existing) {
-      existing.push(course)
-    } else {
-      map.set(dept, [course])
-    }
-  }
-
-  const groups: DepartmentGroup[] = []
-  for (const [name, items] of map) {
-    groups.push({ name, courses: items, expanded: true })
-  }
-
-  groups.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
-
-  return groups
-}
-
 async function fetchCourses(): Promise<void> {
   loading.value = true
   error.value = null
   try {
-    const pageSize = 100
-    const firstPageResponse = await api.course.getCourses({
-      page: 1,
-      pageSize,
-      sort: 'name',
-    })
-    const firstPageData = firstPageResponse.data?.data
-    const firstPageItems: Course[] = firstPageData?.list ?? []
-    const total = firstPageData?.total ?? firstPageItems.length
-    const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
-    const remainingResponses = totalPages > 1
-      ? await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, index) =>
-            api.course.getCourses({
-              page: index + 2,
-              pageSize,
-              sort: 'name',
-            }),
-          ),
-        )
-      : []
-
-    const courses: Course[] = [
-      ...firstPageItems,
-      ...remainingResponses.flatMap((response) => response.data?.data?.list ?? []),
-    ]
-
-    departmentGroups.value = groupByDepartment(courses)
-  } catch {
+    const res = await api.course.getCoursesGrouped()
+    const groups = res.data?.data?.groups ?? []
+    departmentGroups.value = groups.map((g) => ({
+      name: g.departmentName ?? t('review.filters.all'),
+      courses: g.courses ?? [],
+      expanded: true,
+    }))
+  } catch (_error) { void _error;
     error.value = t('review.courseList.loadFailed')
     departmentGroups.value = []
   } finally {
@@ -167,84 +120,62 @@ onMounted(() => {
       <!-- Loading state -->
       <div
         v-if="loading"
-        class="flex flex-col gap-3 px-4 py-4"
-        role="status"
-        aria-busy="true"
+        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6"
       >
-        <SkeletonCard v-for="i in 5" :key="i" variant="course" />
+        <SkeletonCard v-for="i in 9" :key="i" />
       </div>
 
       <!-- Error state -->
-      <div
-        v-else-if="error"
-        class="px-6 py-16 text-center text-destructive"
-      >
-        <p class="text-lg font-medium">{{ error }}</p>
+      <div v-else-if="error" class="flex flex-col items-center justify-center py-20 text-text-secondary">
+        <p class="mb-4">{{ error }}</p>
         <button
-          class="mt-4 rounded-lg bg-primary px-6 py-2 text-white transition-colors hover:bg-primary/90"
+          class="rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90 cursor-pointer"
           @click="fetchCourses"
         >
-          {{ t('review.hub.retry') }}
+          {{ t('common.retry') }}
         </button>
       </div>
 
       <!-- Empty state -->
-      <div
-        v-else-if="departmentGroups.length === 0"
-        class="px-6 py-16 text-center text-text-secondary"
-      >
-        <p class="text-lg">{{ t('review.courseList.noCourses') }}</p>
+      <div v-else-if="departmentGroups.length === 0" class="flex items-center justify-center py-20 text-text-secondary">
+        {{ t('review.courseList.empty') }}
       </div>
 
-      <!-- Department list -->
-      <div v-else class="space-y-3 px-4 py-4">
+      <!-- Department groups -->
+      <div v-else class="p-6 space-y-4">
         <div
-          v-for="(group, index) in departmentGroups"
+          v-for="(group, groupIndex) in departmentGroups"
           :key="group.name"
-          class="bg-bg-card rounded-xl shadow-card overflow-hidden stagger-item"
-          :style="{ animationDelay: `${Math.min(index, 10) * 60}ms` }"
+          class="rounded-xl bg-bg-card border border-border-light overflow-hidden"
         >
-          <!-- Department header -->
-          <div
-            class="flex items-center justify-between bg-bg-elevated px-4 py-3 cursor-pointer select-none transition-colors hover:bg-bg-hover"
-            role="button"
-            tabindex="0"
-            @click="toggleDepartment(index)"
-            @keydown.enter="toggleDepartment(index)"
-            @keydown.space.prevent="toggleDepartment(index)"
+          <button
+            class="flex w-full items-center justify-between px-5 py-3 cursor-pointer hover:bg-bg-elevated/50 transition-colors"
+            @click="toggleDepartment(groupIndex)"
           >
-            <div class="flex items-center gap-3">
-              <span class="text-base font-semibold text-text-primary">
-                {{ group.name }}
-              </span>
-              <span class="text-xs text-text-tertiary">
-                {{ t('review.courseList.courseCount', { count: group.courses.length }) }}
-              </span>
-            </div>
-            <component
-              :is="group.expanded ? ChevronUp : ChevronDown"
-              :size="18"
-              class="text-text-secondary transition-colors"
+            <span class="text-base font-semibold text-text-primary">
+              {{ group.name }}
+              <span class="ml-2 text-sm font-normal text-text-tertiary">({{ group.courses.length }})</span>
+            </span>
+            <ChevronDown
+              :size="16"
+              class="text-text-tertiary transition-transform"
+              :class="{ 'rotate-180': !group.expanded }"
             />
-          </div>
+          </button>
 
-          <!-- Course items -->
-          <div v-if="group.expanded" class="px-2 pb-2 pt-1">
+          <div v-show="group.expanded" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 px-5 pb-4">
             <div
               v-for="course in group.courses"
               :key="course.id"
-              class="flex items-center justify-between rounded-lg bg-bg-elevated/50 px-4 py-2.5 my-1 cursor-pointer transition-all hover:bg-bg-hover hover:translate-x-0.5"
-              role="button"
-              tabindex="0"
+              class="flex items-center justify-between rounded-lg border border-border-light px-4 py-3 cursor-pointer hover:bg-bg-elevated transition-colors"
               @click="navigateToCourse(course.id)"
-              @keydown.enter="navigateToCourse(course.id)"
-              @keydown.space.prevent="navigateToCourse(course.id)"
             >
-              <span class="text-sm text-text-primary">
-                {{ course.name }}
-              </span>
-              <span class="whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-                {{ t('review.courseList.reviewCount', { count: course.reviewCount }) }}
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-text-primary truncate">{{ course.name }}</p>
+                <p v-if="course.code" class="text-xs text-text-tertiary mt-0.5">{{ course.code }}</p>
+              </div>
+              <span class="ml-3 shrink-0 text-xs text-text-secondary">
+                {{ course.reviewCount }} {{ t('review.courseList.reviews') }}
               </span>
             </div>
           </div>

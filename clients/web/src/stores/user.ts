@@ -1,124 +1,159 @@
 /**
  * 用户中心状态管理
  */
-import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
-import type { FavoriteCourse } from '@/types/course'
-import { api } from '@/api'
+import { ref, type Ref } from "vue";
+import { defineStore, getActivePinia } from "pinia";
+import type { FavoriteCourse } from "@stuhelper/shared/course";
+import { api } from "@/api";
+import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
+import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
 
-
-// 通用分页获取辅助函数
 async function fetchPaginated<T>(
-  apiFn: (page: number, pageSize: number) => Promise<{ data?: { data?: { list: T[]; total: number } } }>,
-  listRef: Ref<T[]>,
-  totalRef: Ref<number>,
-  loadingRef: Ref<boolean>,
-  errorRef: Ref<string | null>,
-  page: number,
-  pageSize: number
+    apiFn: (
+        page: number,
+        pageSize: number,
+    ) => Promise<{ data?: { data?: { list: T[]; total: number } } }>,
+    listRef: Ref<T[]>,
+    totalRef: Ref<number>,
+    loadingRef: Ref<boolean>,
+    errorRef: Ref<string | null>,
+    page: number,
+    pageSize: number,
+    keySelector?: (item: T) => number | string | undefined,
 ) {
-  loadingRef.value = true
-  errorRef.value = null
-  try {
-    const res = await apiFn(page, pageSize)
-    const items = res.data?.data?.list || []
-    if (page === 1) {
-      listRef.value = items
-    } else {
-      listRef.value = [...listRef.value, ...items]
+    loadingRef.value = true;
+    errorRef.value = null;
+    try {
+        const res = await apiFn(page, pageSize);
+        const items = res.data?.data?.list || [];
+        if (page === 1) {
+            listRef.value = items;
+        } else if (!keySelector) {
+            listRef.value = [...listRef.value, ...items];
+        } else {
+            const existingKeys = new Set(
+                listRef.value
+                    .map((item) => keySelector(item))
+                    .filter((key): key is number | string => key !== undefined),
+            );
+            const newItems = items.filter((item) => {
+                const key = keySelector(item);
+                return key === undefined || !existingKeys.has(key);
+            });
+            listRef.value = [...listRef.value, ...newItems];
+        }
+        totalRef.value = res.data?.data?.total || 0;
+    } catch (err) {
+        errorRef.value = err instanceof Error ? err.message : String(err);
+        throw err;
+    } finally {
+        loadingRef.value = false;
     }
-    totalRef.value = res.data?.data?.total || 0
-  } catch (err) {
-    errorRef.value = err instanceof Error ? err.message : String(err)
-    throw err
-  } finally {
-    loadingRef.value = false
-  }
 }
 
-export const useUserStore = defineStore('user', () => {
-  // 我的收藏
-  const myFavorites = ref<FavoriteCourse[]>([])
-  const myFavoritesTotal = ref(0)
-  const myFavoritesLoading = ref(false)
-  const myFavoritesError = ref<string | null>(null)
-
-  // 收藏状态缓存：true=已收藏, false=未收藏, undefined=未知（未加载）
-  const favoriteStatus = ref<Partial<Record<number, boolean>>>({})
-
-  // 获取我的收藏
-  const fetchMyFavorites = async (page = 1, pageSize = 10) => {
-    await fetchPaginated(api.user.getMyFavorites, myFavorites, myFavoritesTotal, myFavoritesLoading, myFavoritesError, page, pageSize)
-    // 更新收藏状态缓存
-    const updated = { ...favoriteStatus.value }
-    for (const c of myFavorites.value) {
-      updated[c.id] = true
+export const useUserStore = defineStore("user", () => {
+    const pinia = getActivePinia();
+    if (!pinia) {
+        throw new Error("user store requires an active Pinia instance");
     }
-    favoriteStatus.value = updated
-  }
 
-  // 切换收藏状态
-  const toggleFavorite = async (courseID: number) => {
-    const current = favoriteStatus.value[courseID] ?? false
+    const myFavorites = ref<FavoriteCourse[]>([]);
+    const myFavoritesTotal = ref(0);
+    const myFavoritesLoading = ref(false);
+    const myFavoritesError = ref<string | null>(null);
 
-    // 乐观更新
-    favoriteStatus.value = { ...favoriteStatus.value, [courseID]: !current }
+    const favoriteStatus = ref<Partial<Record<number, boolean>>>({});
 
-    try {
-      if (current) {
-        await api.user.removeFavorite(courseID)
-      } else {
-        await api.user.addFavorite(courseID)
-      }
-    } catch (err) {
-      // 回滚
-      favoriteStatus.value = { ...favoriteStatus.value, [courseID]: current }
-      throw err
-    }
-  }
+    const fetchMyFavorites = async (page = 1, pageSize = 10) => {
+        await fetchPaginated(
+            api.user.getMyFavorites,
+            myFavorites,
+            myFavoritesTotal,
+            myFavoritesLoading,
+            myFavoritesError,
+            page,
+            pageSize,
+            (course) => course.id,
+        );
 
-  // 返回值：true=已收藏, false=未收藏, undefined=未知
-  const isFavorited = (courseID: number): boolean | undefined => {
-    return favoriteStatus.value[courseID]
-  }
+        const updated = { ...favoriteStatus.value };
+        for (const course of myFavorites.value) {
+            updated[course.id] = true;
+        }
+        favoriteStatus.value = updated;
+    };
 
-  // 设置服务端已知的收藏状态（由 course detail / list 响应推送）
-  const setFavoriteStatus = (courseID: number, status: boolean) => {
-    favoriteStatus.value = { ...favoriteStatus.value, [courseID]: status }
-  }
+    const toggleFavorite = async (courseID: number) => {
+        const current = favoriteStatus.value[courseID] ?? false;
 
-  // 按需加载未知的收藏状态
-  const ensureFavoriteStatus = async (courseID: number) => {
-    if (favoriteStatus.value[courseID] !== undefined) return
-    try {
-      const res = await api.user.getFavoriteStatus(courseID)
-      const favorited = res.data?.data?.favorited ?? false
-      favoriteStatus.value = { ...favoriteStatus.value, [courseID]: favorited }
-    } catch {
-      // 加载失败保持未知状态
-    }
-  }
+        favoriteStatus.value = {
+            ...favoriteStatus.value,
+            [courseID]: !current,
+        };
 
-  // 重置状态（setup store 不支持 $reset）
-  const reset = () => {
-    myFavorites.value = []
-    myFavoritesTotal.value = 0
-    myFavoritesLoading.value = false
-    myFavoritesError.value = null
-    favoriteStatus.value = {}
-  }
+        try {
+            if (current) {
+                await api.user.removeFavorite(courseID);
+            } else {
+                await api.user.addFavorite(courseID);
+            }
+        } catch (err) {
+            favoriteStatus.value = {
+                ...favoriteStatus.value,
+                [courseID]: current,
+            };
+            throw err;
+        }
+    };
 
-  return {
-    myFavorites,
-    myFavoritesTotal,
-    myFavoritesLoading,
-    myFavoritesError,
-    favoriteStatus,
-    fetchMyFavorites,
-    toggleFavorite,
-    isFavorited,
-    setFavoriteStatus,
-    ensureFavoriteStatus,
-    reset
-  }
-})
+    const isFavorited = (courseID: number): boolean | undefined => {
+        return favoriteStatus.value[courseID];
+    };
+
+    const setFavoriteStatus = (courseID: number, status: boolean) => {
+        favoriteStatus.value = { ...favoriteStatus.value, [courseID]: status };
+    };
+
+    const ensureFavoriteStatus = async (courseID: number) => {
+        if (favoriteStatus.value[courseID] !== undefined) return;
+        try {
+            const res = await api.user.getFavoriteStatus(courseID);
+            const favorited = res.data?.data?.favorited ?? false;
+            favoriteStatus.value = {
+                ...favoriteStatus.value,
+                [courseID]: favorited,
+            };
+        } catch (_error) { void _error;
+            // 加载失败保持未知状态
+        }
+    };
+
+    const reset = () => {
+        myFavorites.value = [];
+        myFavoritesTotal.value = 0;
+        myFavoritesLoading.value = false;
+        myFavoritesError.value = null;
+        favoriteStatus.value = {};
+    };
+
+    const unregisterSessionReset = registerSessionResetHandler(
+        "user",
+        reset,
+        pinia,
+    );
+    safeOnScopeDispose(unregisterSessionReset);
+
+    return {
+        myFavorites,
+        myFavoritesTotal,
+        myFavoritesLoading,
+        myFavoritesError,
+        favoriteStatus,
+        fetchMyFavorites,
+        toggleFavorite,
+        isFavorited,
+        setFavoriteStatus,
+        ensureFavoriteStatus,
+        reset,
+    };
+});

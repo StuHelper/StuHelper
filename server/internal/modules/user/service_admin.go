@@ -4,16 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/ldap"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
-
-type academicTableValidationRepo interface {
-	ValidateAcademicDBTable(ctx context.Context, tableName string) error
-}
 
 // GetInternalUserID 根据外部ID获取内部用户ID
 func (s *Service) GetInternalUserID(ctx context.Context, externalID string) (int64, error) {
@@ -67,8 +66,28 @@ func (s *Service) ReviewIdentity(ctx context.Context, userID int64, approved boo
 }
 
 // ListProfiles 分页查询学生认证档案（管理端）
-func (s *Service) ListProfiles(ctx context.Context, status, schoolID string, page, pageSize int) ([]Profile, int, error) {
-	return s.repo.ListProfilesByStatus(ctx, status, schoolID, page, pageSize)
+func (s *Service) ListProfiles(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error) {
+	list, total, err := s.repo.ListProfilesByStatus(ctx, status, schoolID, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range list {
+		if err := s.hydrateProfilePhone(&list[i]); err != nil {
+			return nil, 0, fmt.Errorf("ListProfiles hydrate profile phone: %w", err)
+		}
+	}
+	return list, total, nil
+}
+
+func (s *Service) GetProfileSchoolID(ctx context.Context, userID int64) (*int64, error) {
+	profile, err := s.repo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetProfileSchoolID get: %w", err)
+	}
+	if profile == nil {
+		return nil, ErrProfileNotFound
+	}
+	return profile.SchoolID, nil
 }
 
 // ReviewStudentVerification 管理员审核学生认证（通过/驳回）
@@ -99,14 +118,15 @@ func (s *Service) ReviewStudentVerification(ctx context.Context, userID int64, a
 		}
 	}
 
-	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
-		return err
-	}
-
-	// 同步 Zitadel 角色：通过 → 添加 verified_student，驳回 → 移除
-	s.syncRole(ctx, userID, "verified_student", approved)
-
-	return nil
+	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if err := s.repo.UpdateProfileTx(ctx, tx, profile); err != nil {
+			return fmt.Errorf("ReviewStudentVerification update profile tx: %w", err)
+		}
+		if err := s.enqueueVerificationProjectionTx(ctx, tx, userID, profile.VerificationStatus); err != nil {
+			return fmt.Errorf("ReviewStudentVerification enqueue projections: %w", err)
+		}
+		return nil
+	})
 }
 
 // ListAllSchoolConfigs 获取所有学校配置（含禁用，管理端用）
@@ -116,7 +136,7 @@ func (s *Service) ListAllSchoolConfigs(ctx context.Context) ([]SchoolConfig, err
 
 // UpdateSchoolConfig 更新学校认证配置
 // 使用合并更新语义，保持未提供字段的现有值。
-func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID string, input UpdateSchoolConfigInput) error {
+func (s *Service) UpdateSchoolConfig(ctx context.Context, schoolID int64, input UpdateSchoolConfigInput) error {
 	config, err := s.repo.GetSchoolConfig(ctx, schoolID)
 	if err != nil {
 		return fmt.Errorf("UpdateSchoolConfig get existing: %w", err)
@@ -203,9 +223,6 @@ func mergeSchoolLDAPConfig(existing json.RawMessage, input *SchoolLDAPConfigInpu
 	if input.UseTLS != nil {
 		settings.UseTLS = *input.UseTLS
 	}
-	if input.InsecureSkipVerify != nil {
-		settings.InsecureSkipVerify = *input.InsecureSkipVerify
-	}
 
 	settings = normalizeSchoolLDAPSettings(settings)
 	if isEmptySchoolLDAPSettings(settings) {
@@ -229,10 +246,8 @@ func (s *Service) validateSchoolConfig(ctx context.Context, config *SchoolConfig
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
 		}
-		if validator, ok := s.repo.(academicTableValidationRepo); ok {
-			if err := validator.ValidateAcademicDBTable(ctx, normalizedTable); err != nil {
-				return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
-			}
+		if err := s.repo.ValidateAcademicDBTable(ctx, normalizedTable); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidAcademicDBTable, err)
 		}
 	}
 
@@ -275,6 +290,11 @@ func (s *Service) UpdateSystemConfig(ctx context.Context, key, value string) err
 		return err
 	}
 
+	if systemconfig.AffectsAuthTokenPolicy(key) {
+		if err := applyAuthTokenPolicySnapshotValue(value); err != nil {
+			return err
+		}
+	}
 	if systemconfig.AffectsReviewAccessPolicy(key) {
 		systemconfig.InvalidateReviewAccessPolicySnapshot()
 	}
@@ -282,6 +302,9 @@ func (s *Service) UpdateSystemConfig(ctx context.Context, key, value string) err
 }
 
 func (s *Service) validateSystemConfigValue(ctx context.Context, key, value string) error {
+	if len(value) > 10240 {
+		return fmt.Errorf("%w: %s value exceeds maximum length of 10KB", ErrInvalidSystemConfigValue, key)
+	}
 	switch key {
 	case systemconfig.ReviewAccessSchoolIDsKey:
 		schoolIDs, err := systemconfig.ParseStringList(value)
@@ -319,11 +342,7 @@ func (s *Service) validateReviewAccessSchoolIDs(ctx context.Context, schoolIDs [
 
 	allowed := make(map[string]struct{}, len(schools))
 	for _, school := range schools {
-		trimmed := strings.TrimSpace(school.SchoolID)
-		if trimmed == "" {
-			continue
-		}
-		allowed[trimmed] = struct{}{}
+		allowed[strconv.FormatInt(school.SchoolID, 10)] = struct{}{}
 	}
 
 	invalid := make([]string, 0)

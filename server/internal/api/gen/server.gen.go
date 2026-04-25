@@ -8,22 +8,44 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"fmt"
-	"net/http"
 	"net/url"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/gin-gonic/gin"
-	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const (
-	BearerAuthScopes = "bearerAuth.Scopes"
-	CookieAuthScopes = "cookieAuth.Scopes"
+	BearerAuthScopes       = "bearerAuth.Scopes"
+	CookieAuthScopes       = "cookieAuth.Scopes"
+	ServiceTokenAuthScopes = "serviceTokenAuth.Scopes"
 )
+
+// Defines values for AcademicImportJobStatus.
+const (
+	AcademicImportJobStatusFailed    AcademicImportJobStatus = "failed"
+	AcademicImportJobStatusPending   AcademicImportJobStatus = "pending"
+	AcademicImportJobStatusRunning   AcademicImportJobStatus = "running"
+	AcademicImportJobStatusSucceeded AcademicImportJobStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the AcademicImportJobStatus enum.
+func (e AcademicImportJobStatus) Valid() bool {
+	switch e {
+	case AcademicImportJobStatusFailed:
+		return true
+	case AcademicImportJobStatusPending:
+		return true
+	case AcademicImportJobStatusRunning:
+		return true
+	case AcademicImportJobStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for AdminIdentityReviewItemDocType.
 const (
@@ -229,6 +251,24 @@ func (e ContentCheckResultLevel) Valid() bool {
 	}
 }
 
+// Defines values for CreateResourceRequestVisibility.
+const (
+	CreateResourceRequestVisibilityPrivate CreateResourceRequestVisibility = "private"
+	CreateResourceRequestVisibilityPublic  CreateResourceRequestVisibility = "public"
+)
+
+// Valid indicates whether the value is a known member of the CreateResourceRequestVisibility enum.
+func (e CreateResourceRequestVisibility) Valid() bool {
+	switch e {
+	case CreateResourceRequestVisibilityPrivate:
+		return true
+	case CreateResourceRequestVisibilityPublic:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateSensitiveWordRequestLevel.
 const (
 	CreateSensitiveWordRequestLevelBlock  CreateSensitiveWordRequestLevel = "block"
@@ -291,19 +331,88 @@ func (e ManualFieldDescriptorType) Valid() bool {
 
 // Defines values for NotificationType.
 const (
-	NotificationTypeReply  NotificationType = "reply"
-	NotificationTypeSystem NotificationType = "system"
-	NotificationTypeVote   NotificationType = "vote"
+	NotificationTypeIdentityApproved NotificationType = "identity_approved"
+	NotificationTypeIdentityRejected NotificationType = "identity_rejected"
+	NotificationTypeLike             NotificationType = "like"
+	NotificationTypeReply            NotificationType = "reply"
+	NotificationTypeReportResolved   NotificationType = "report_resolved"
+	NotificationTypeReviewHidden     NotificationType = "review_hidden"
+	NotificationTypeReviewRestored   NotificationType = "review_restored"
+	NotificationTypeStudentApproved  NotificationType = "student_approved"
+	NotificationTypeStudentRejected  NotificationType = "student_rejected"
+	NotificationTypeSystem           NotificationType = "system"
+	NotificationTypeVote             NotificationType = "vote"
 )
 
 // Valid indicates whether the value is a known member of the NotificationType enum.
 func (e NotificationType) Valid() bool {
 	switch e {
+	case NotificationTypeIdentityApproved:
+		return true
+	case NotificationTypeIdentityRejected:
+		return true
+	case NotificationTypeLike:
+		return true
 	case NotificationTypeReply:
+		return true
+	case NotificationTypeReportResolved:
+		return true
+	case NotificationTypeReviewHidden:
+		return true
+	case NotificationTypeReviewRestored:
+		return true
+	case NotificationTypeStudentApproved:
+		return true
+	case NotificationTypeStudentRejected:
 		return true
 	case NotificationTypeSystem:
 		return true
 	case NotificationTypeVote:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostReviewRequestGrade.
+const (
+	PostReviewRequestGradeA  PostReviewRequestGrade = "A+"
+	PostReviewRequestGradeA1 PostReviewRequestGrade = "A"
+	PostReviewRequestGradeA2 PostReviewRequestGrade = "A-"
+	PostReviewRequestGradeB  PostReviewRequestGrade = "B+"
+	PostReviewRequestGradeB1 PostReviewRequestGrade = "B"
+	PostReviewRequestGradeB2 PostReviewRequestGrade = "B-"
+	PostReviewRequestGradeC  PostReviewRequestGrade = "C+"
+	PostReviewRequestGradeC1 PostReviewRequestGrade = "C"
+	PostReviewRequestGradeC2 PostReviewRequestGrade = "C-"
+	PostReviewRequestGradeD  PostReviewRequestGrade = "D"
+	PostReviewRequestGradeF  PostReviewRequestGrade = "F"
+)
+
+// Valid indicates whether the value is a known member of the PostReviewRequestGrade enum.
+func (e PostReviewRequestGrade) Valid() bool {
+	switch e {
+	case PostReviewRequestGradeA:
+		return true
+	case PostReviewRequestGradeA1:
+		return true
+	case PostReviewRequestGradeA2:
+		return true
+	case PostReviewRequestGradeB:
+		return true
+	case PostReviewRequestGradeB1:
+		return true
+	case PostReviewRequestGradeB2:
+		return true
+	case PostReviewRequestGradeC:
+		return true
+	case PostReviewRequestGradeC1:
+		return true
+	case PostReviewRequestGradeC2:
+		return true
+	case PostReviewRequestGradeD:
+		return true
+	case PostReviewRequestGradeF:
 		return true
 	default:
 		return false
@@ -325,6 +434,51 @@ func (e ProcessReportRequestAction) Valid() bool {
 	case Hide:
 		return true
 	case Reject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QQVerificationStatusProfileVerificationStatus.
+const (
+	QQVerificationStatusProfileVerificationStatusPending    QQVerificationStatusProfileVerificationStatus = "pending"
+	QQVerificationStatusProfileVerificationStatusRejected   QQVerificationStatusProfileVerificationStatus = "rejected"
+	QQVerificationStatusProfileVerificationStatusUnverified QQVerificationStatusProfileVerificationStatus = "unverified"
+	QQVerificationStatusProfileVerificationStatusVerified   QQVerificationStatusProfileVerificationStatus = "verified"
+)
+
+// Valid indicates whether the value is a known member of the QQVerificationStatusProfileVerificationStatus enum.
+func (e QQVerificationStatusProfileVerificationStatus) Valid() bool {
+	switch e {
+	case QQVerificationStatusProfileVerificationStatusPending:
+		return true
+	case QQVerificationStatusProfileVerificationStatusRejected:
+		return true
+	case QQVerificationStatusProfileVerificationStatusUnverified:
+		return true
+	case QQVerificationStatusProfileVerificationStatusVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QQVerificationStatusVerificationState.
+const (
+	QQVerificationStatusVerificationStateBoundUnverified QQVerificationStatusVerificationState = "bound_unverified"
+	QQVerificationStatusVerificationStateUnbound         QQVerificationStatusVerificationState = "unbound"
+	QQVerificationStatusVerificationStateVerified        QQVerificationStatusVerificationState = "verified"
+)
+
+// Valid indicates whether the value is a known member of the QQVerificationStatusVerificationState enum.
+func (e QQVerificationStatusVerificationState) Valid() bool {
+	switch e {
+	case QQVerificationStatusVerificationStateBoundUnverified:
+		return true
+	case QQVerificationStatusVerificationStateUnbound:
+		return true
+	case QQVerificationStatusVerificationStateVerified:
 		return true
 	default:
 		return false
@@ -358,11 +512,96 @@ func (e ReportReviewRequestReason) Valid() bool {
 	}
 }
 
+// Defines values for ResourceItemVisibility.
+const (
+	ResourceItemVisibilityPrivate ResourceItemVisibility = "private"
+	ResourceItemVisibilityPublic  ResourceItemVisibility = "public"
+)
+
+// Valid indicates whether the value is a known member of the ResourceItemVisibility enum.
+func (e ResourceItemVisibility) Valid() bool {
+	switch e {
+	case ResourceItemVisibilityPrivate:
+		return true
+	case ResourceItemVisibilityPublic:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewContentFlag.
+const (
+	ReviewContentFlagCleared ReviewContentFlag = "cleared"
+	ReviewContentFlagReview  ReviewContentFlag = "review"
+	ReviewContentFlagWarn    ReviewContentFlag = "warn"
+)
+
+// Valid indicates whether the value is a known member of the ReviewContentFlag enum.
+func (e ReviewContentFlag) Valid() bool {
+	switch e {
+	case ReviewContentFlagCleared:
+		return true
+	case ReviewContentFlagReview:
+		return true
+	case ReviewContentFlagWarn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewGrade.
+const (
+	ReviewGradeA  ReviewGrade = "A+"
+	ReviewGradeA1 ReviewGrade = "A"
+	ReviewGradeA2 ReviewGrade = "A-"
+	ReviewGradeB  ReviewGrade = "B+"
+	ReviewGradeB1 ReviewGrade = "B"
+	ReviewGradeB2 ReviewGrade = "B-"
+	ReviewGradeC  ReviewGrade = "C+"
+	ReviewGradeC1 ReviewGrade = "C"
+	ReviewGradeC2 ReviewGrade = "C-"
+	ReviewGradeD  ReviewGrade = "D"
+	ReviewGradeF  ReviewGrade = "F"
+)
+
+// Valid indicates whether the value is a known member of the ReviewGrade enum.
+func (e ReviewGrade) Valid() bool {
+	switch e {
+	case ReviewGradeA:
+		return true
+	case ReviewGradeA1:
+		return true
+	case ReviewGradeA2:
+		return true
+	case ReviewGradeB:
+		return true
+	case ReviewGradeB1:
+		return true
+	case ReviewGradeB2:
+		return true
+	case ReviewGradeC:
+		return true
+	case ReviewGradeC1:
+		return true
+	case ReviewGradeC2:
+		return true
+	case ReviewGradeD:
+		return true
+	case ReviewGradeF:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReviewStatus.
 const (
-	ReviewStatusDeleted   ReviewStatus = "deleted"
-	ReviewStatusHidden    ReviewStatus = "hidden"
-	ReviewStatusPublished ReviewStatus = "published"
+	ReviewStatusDeleted       ReviewStatus = "deleted"
+	ReviewStatusHidden        ReviewStatus = "hidden"
+	ReviewStatusPendingReview ReviewStatus = "pending_review"
+	ReviewStatusPublished     ReviewStatus = "published"
 )
 
 // Valid indicates whether the value is a known member of the ReviewStatus enum.
@@ -372,7 +611,54 @@ func (e ReviewStatus) Valid() bool {
 		return true
 	case ReviewStatusHidden:
 		return true
+	case ReviewStatusPendingReview:
+		return true
 	case ReviewStatusPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewDraftGrade.
+const (
+	ReviewDraftGradeA  ReviewDraftGrade = "A+"
+	ReviewDraftGradeA1 ReviewDraftGrade = "A"
+	ReviewDraftGradeA2 ReviewDraftGrade = "A-"
+	ReviewDraftGradeB  ReviewDraftGrade = "B+"
+	ReviewDraftGradeB1 ReviewDraftGrade = "B"
+	ReviewDraftGradeB2 ReviewDraftGrade = "B-"
+	ReviewDraftGradeC  ReviewDraftGrade = "C+"
+	ReviewDraftGradeC1 ReviewDraftGrade = "C"
+	ReviewDraftGradeC2 ReviewDraftGrade = "C-"
+	ReviewDraftGradeD  ReviewDraftGrade = "D"
+	ReviewDraftGradeF  ReviewDraftGrade = "F"
+)
+
+// Valid indicates whether the value is a known member of the ReviewDraftGrade enum.
+func (e ReviewDraftGrade) Valid() bool {
+	switch e {
+	case ReviewDraftGradeA:
+		return true
+	case ReviewDraftGradeA1:
+		return true
+	case ReviewDraftGradeA2:
+		return true
+	case ReviewDraftGradeB:
+		return true
+	case ReviewDraftGradeB1:
+		return true
+	case ReviewDraftGradeB2:
+		return true
+	case ReviewDraftGradeC:
+		return true
+	case ReviewDraftGradeC1:
+		return true
+	case ReviewDraftGradeC2:
+		return true
+	case ReviewDraftGradeD:
+		return true
+	case ReviewDraftGradeF:
 		return true
 	default:
 		return false
@@ -421,6 +707,51 @@ func (e ReviewReportStatus) Valid() bool {
 	case ReviewReportStatusRejected:
 		return true
 	case ReviewReportStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SaveDraftRequestGrade.
+const (
+	SaveDraftRequestGradeA  SaveDraftRequestGrade = "A+"
+	SaveDraftRequestGradeA1 SaveDraftRequestGrade = "A"
+	SaveDraftRequestGradeA2 SaveDraftRequestGrade = "A-"
+	SaveDraftRequestGradeB  SaveDraftRequestGrade = "B+"
+	SaveDraftRequestGradeB1 SaveDraftRequestGrade = "B"
+	SaveDraftRequestGradeB2 SaveDraftRequestGrade = "B-"
+	SaveDraftRequestGradeC  SaveDraftRequestGrade = "C+"
+	SaveDraftRequestGradeC1 SaveDraftRequestGrade = "C"
+	SaveDraftRequestGradeC2 SaveDraftRequestGrade = "C-"
+	SaveDraftRequestGradeD  SaveDraftRequestGrade = "D"
+	SaveDraftRequestGradeF  SaveDraftRequestGrade = "F"
+)
+
+// Valid indicates whether the value is a known member of the SaveDraftRequestGrade enum.
+func (e SaveDraftRequestGrade) Valid() bool {
+	switch e {
+	case SaveDraftRequestGradeA:
+		return true
+	case SaveDraftRequestGradeA1:
+		return true
+	case SaveDraftRequestGradeA2:
+		return true
+	case SaveDraftRequestGradeB:
+		return true
+	case SaveDraftRequestGradeB1:
+		return true
+	case SaveDraftRequestGradeB2:
+		return true
+	case SaveDraftRequestGradeC:
+		return true
+	case SaveDraftRequestGradeC1:
+		return true
+	case SaveDraftRequestGradeC2:
+		return true
+	case SaveDraftRequestGradeD:
+		return true
+	case SaveDraftRequestGradeF:
 		return true
 	default:
 		return false
@@ -478,6 +809,69 @@ const (
 func (e SuccessResponseSuccess) Valid() bool {
 	switch e {
 	case True:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateResourceRequestVisibility.
+const (
+	Private UpdateResourceRequestVisibility = "private"
+	Public  UpdateResourceRequestVisibility = "public"
+)
+
+// Valid indicates whether the value is a known member of the UpdateResourceRequestVisibility enum.
+func (e UpdateResourceRequestVisibility) Valid() bool {
+	switch e {
+	case Private:
+		return true
+	case Public:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateReviewRequestGrade.
+const (
+	A  UpdateReviewRequestGrade = "A+"
+	A1 UpdateReviewRequestGrade = "A"
+	A2 UpdateReviewRequestGrade = "A-"
+	B  UpdateReviewRequestGrade = "B+"
+	B1 UpdateReviewRequestGrade = "B"
+	B2 UpdateReviewRequestGrade = "B-"
+	C  UpdateReviewRequestGrade = "C+"
+	C1 UpdateReviewRequestGrade = "C"
+	C2 UpdateReviewRequestGrade = "C-"
+	D  UpdateReviewRequestGrade = "D"
+	F  UpdateReviewRequestGrade = "F"
+)
+
+// Valid indicates whether the value is a known member of the UpdateReviewRequestGrade enum.
+func (e UpdateReviewRequestGrade) Valid() bool {
+	switch e {
+	case A:
+		return true
+	case A1:
+		return true
+	case A2:
+		return true
+	case B:
+		return true
+	case B1:
+		return true
+	case B2:
+		return true
+	case C:
+		return true
+	case C1:
+		return true
+	case C2:
+		return true
+	case D:
+		return true
+	case F:
 		return true
 	default:
 		return false
@@ -766,6 +1160,42 @@ func (e ListStudentVerificationsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetLoginURLParamsPlatform.
+const (
+	GetLoginURLParamsPlatformNative GetLoginURLParamsPlatform = "native"
+	GetLoginURLParamsPlatformWeb    GetLoginURLParamsPlatform = "web"
+)
+
+// Valid indicates whether the value is a known member of the GetLoginURLParamsPlatform enum.
+func (e GetLoginURLParamsPlatform) Valid() bool {
+	switch e {
+	case GetLoginURLParamsPlatformNative:
+		return true
+	case GetLoginURLParamsPlatformWeb:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetSignupURLParamsPlatform.
+const (
+	GetSignupURLParamsPlatformNative GetSignupURLParamsPlatform = "native"
+	GetSignupURLParamsPlatformWeb    GetSignupURLParamsPlatform = "web"
+)
+
+// Valid indicates whether the value is a known member of the GetSignupURLParamsPlatform enum.
+func (e GetSignupURLParamsPlatform) Valid() bool {
+	switch e {
+	case GetSignupURLParamsPlatformNative:
+		return true
+	case GetSignupURLParamsPlatformWeb:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetCoursesParamsSort.
 const (
 	GetCoursesParamsSortCredits     GetCoursesParamsSort = "credits"
@@ -810,10 +1240,11 @@ func (e ExportReviewsParamsFormat) Valid() bool {
 
 // Defines values for ExportReviewsParamsStatus.
 const (
-	ExportReviewsParamsStatusAll       ExportReviewsParamsStatus = "all"
-	ExportReviewsParamsStatusDeleted   ExportReviewsParamsStatus = "deleted"
-	ExportReviewsParamsStatusHidden    ExportReviewsParamsStatus = "hidden"
-	ExportReviewsParamsStatusPublished ExportReviewsParamsStatus = "published"
+	ExportReviewsParamsStatusAll           ExportReviewsParamsStatus = "all"
+	ExportReviewsParamsStatusDeleted       ExportReviewsParamsStatus = "deleted"
+	ExportReviewsParamsStatusHidden        ExportReviewsParamsStatus = "hidden"
+	ExportReviewsParamsStatusPendingReview ExportReviewsParamsStatus = "pending_review"
+	ExportReviewsParamsStatusPublished     ExportReviewsParamsStatus = "published"
 )
 
 // Valid indicates whether the value is a known member of the ExportReviewsParamsStatus enum.
@@ -824,6 +1255,8 @@ func (e ExportReviewsParamsStatus) Valid() bool {
 	case ExportReviewsParamsStatusDeleted:
 		return true
 	case ExportReviewsParamsStatusHidden:
+		return true
+	case ExportReviewsParamsStatusPendingReview:
 		return true
 	case ExportReviewsParamsStatusPublished:
 		return true
@@ -858,10 +1291,11 @@ func (e ListReportsParamsStatus) Valid() bool {
 
 // Defines values for ListAllReviewsParamsStatus.
 const (
-	ListAllReviewsParamsStatusAll       ListAllReviewsParamsStatus = "all"
-	ListAllReviewsParamsStatusDeleted   ListAllReviewsParamsStatus = "deleted"
-	ListAllReviewsParamsStatusHidden    ListAllReviewsParamsStatus = "hidden"
-	ListAllReviewsParamsStatusPublished ListAllReviewsParamsStatus = "published"
+	ListAllReviewsParamsStatusAll           ListAllReviewsParamsStatus = "all"
+	ListAllReviewsParamsStatusDeleted       ListAllReviewsParamsStatus = "deleted"
+	ListAllReviewsParamsStatusHidden        ListAllReviewsParamsStatus = "hidden"
+	ListAllReviewsParamsStatusPendingReview ListAllReviewsParamsStatus = "pending_review"
+	ListAllReviewsParamsStatusPublished     ListAllReviewsParamsStatus = "published"
 )
 
 // Valid indicates whether the value is a known member of the ListAllReviewsParamsStatus enum.
@@ -872,6 +1306,8 @@ func (e ListAllReviewsParamsStatus) Valid() bool {
 	case ListAllReviewsParamsStatusDeleted:
 		return true
 	case ListAllReviewsParamsStatusHidden:
+		return true
+	case ListAllReviewsParamsStatusPendingReview:
 		return true
 	case ListAllReviewsParamsStatusPublished:
 		return true
@@ -924,19 +1360,19 @@ func (e GetCourseReviewsParamsSort) Valid() bool {
 
 // Defines values for GetHotCoursesParamsPeriod.
 const (
-	GetHotCoursesParamsPeriodAll   GetHotCoursesParamsPeriod = "all"
-	GetHotCoursesParamsPeriodMonth GetHotCoursesParamsPeriod = "month"
-	GetHotCoursesParamsPeriodWeek  GetHotCoursesParamsPeriod = "week"
+	All   GetHotCoursesParamsPeriod = "all"
+	Month GetHotCoursesParamsPeriod = "month"
+	Week  GetHotCoursesParamsPeriod = "week"
 )
 
 // Valid indicates whether the value is a known member of the GetHotCoursesParamsPeriod enum.
 func (e GetHotCoursesParamsPeriod) Valid() bool {
 	switch e {
-	case GetHotCoursesParamsPeriodAll:
+	case All:
 		return true
-	case GetHotCoursesParamsPeriodMonth:
+	case Month:
 		return true
-	case GetHotCoursesParamsPeriodWeek:
+	case Week:
 		return true
 	default:
 		return false
@@ -1029,16 +1465,16 @@ func (e ListTeachersParamsSort) Valid() bool {
 
 // Defines values for GetUserVotesParamsVoteType.
 const (
-	GetUserVotesParamsVoteTypeDislike GetUserVotesParamsVoteType = "dislike"
-	GetUserVotesParamsVoteTypeLike    GetUserVotesParamsVoteType = "like"
+	Dislike GetUserVotesParamsVoteType = "dislike"
+	Like    GetUserVotesParamsVoteType = "like"
 )
 
 // Valid indicates whether the value is a known member of the GetUserVotesParamsVoteType enum.
 func (e GetUserVotesParamsVoteType) Valid() bool {
 	switch e {
-	case GetUserVotesParamsVoteTypeDislike:
+	case Dislike:
 		return true
-	case GetUserVotesParamsVoteTypeLike:
+	case Like:
 		return true
 	default:
 		return false
@@ -1118,6 +1554,64 @@ type APIError struct {
 	Message string                  `json:"message"`
 }
 
+// AcademicImportJob defines model for AcademicImportJob.
+type AcademicImportJob struct {
+	CreatedAt         time.Time               `json:"createdAt"`
+	ErrorMessage      *string                 `json:"errorMessage,omitempty"`
+	FinishedAt        *time.Time              `json:"finishedAt,omitempty"`
+	Id                int64                   `json:"id"`
+	Provider          string                  `json:"provider"`
+	RequestedByUserID *string                 `json:"requestedByUserID,omitempty"`
+	SourceKey         string                  `json:"sourceKey"`
+	SourceName        string                  `json:"sourceName"`
+	StartedAt         *time.Time              `json:"startedAt,omitempty"`
+	Stats             map[string]interface{}  `json:"stats"`
+	Status            AcademicImportJobStatus `json:"status"`
+	TriggerMode       string                  `json:"triggerMode"`
+}
+
+// AcademicImportJobStatus defines model for AcademicImportJob.Status.
+type AcademicImportJobStatus string
+
+// AcademicImportRequest defines model for AcademicImportRequest.
+type AcademicImportRequest struct {
+	SourceKey string `json:"sourceKey"`
+}
+
+// AcademicOffering defines model for AcademicOffering.
+type AcademicOffering struct {
+	Campus         *string                 `json:"campus,omitempty"`
+	CourseCode     string                  `json:"courseCode"`
+	CourseName     string                  `json:"courseName"`
+	DepartmentName *string                 `json:"departmentName,omitempty"`
+	Id             int64                   `json:"id"`
+	Schedules      *[]AcademicScheduleSlot `json:"schedules,omitempty"`
+	SchoolName     *string                 `json:"schoolName,omitempty"`
+	SectionCode    string                  `json:"sectionCode"`
+	TeacherNames   []string                `json:"teacherNames"`
+	TermCode       string                  `json:"termCode"`
+	TermName       string                  `json:"termName"`
+}
+
+// AcademicScheduleSlot defines model for AcademicScheduleSlot.
+type AcademicScheduleSlot struct {
+	Building    *string `json:"building,omitempty"`
+	EndPeriod   int     `json:"endPeriod"`
+	Location    string  `json:"location"`
+	StartPeriod int     `json:"startPeriod"`
+	Weekday     int     `json:"weekday"`
+	WeeksText   string  `json:"weeksText"`
+}
+
+// AcademicSource defines model for AcademicSource.
+type AcademicSource struct {
+	Enabled  bool   `json:"enabled"`
+	Id       int64  `json:"id"`
+	Key      string `json:"key"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
+}
+
 // AcademicStudentInfo defines model for AcademicStudentInfo.
 type AcademicStudentInfo struct {
 	// Bjdm Class code
@@ -1151,6 +1645,16 @@ type AcademicStudentInfo struct {
 	Zydm *string `json:"zydm,omitempty"`
 }
 
+// AcademicTerm defines model for AcademicTerm.
+type AcademicTerm struct {
+	Code      string              `json:"code"`
+	EndDate   *openapi_types.Date `json:"endDate,omitempty"`
+	Id        int64               `json:"id"`
+	IsCurrent bool                `json:"isCurrent"`
+	Name      string              `json:"name"`
+	StartDate *openapi_types.Date `json:"startDate,omitempty"`
+}
+
 // AdminEditReviewRequest defines model for AdminEditReviewRequest.
 type AdminEditReviewRequest struct {
 	Content string  `json:"content"`
@@ -1160,16 +1664,7 @@ type AdminEditReviewRequest struct {
 
 // AdminIdentityReviewItem defines model for AdminIdentityReviewItem.
 type AdminIdentityReviewItem struct {
-	CreatedAt time.Time `json:"createdAt"`
-
-	// DocPhotoBack 已上传到对象存储的背面照片 key
-	DocPhotoBack *string `json:"docPhotoBack,omitempty"`
-
-	// DocPhotoFront 已上传到对象存储的正面照片 key
-	DocPhotoFront *string `json:"docPhotoFront,omitempty"`
-
-	// DocPhotoSelfie 已上传到对象存储的手持证件照 key
-	DocPhotoSelfie  *string                              `json:"docPhotoSelfie,omitempty"`
+	CreatedAt       time.Time                            `json:"createdAt"`
 	DocType         AdminIdentityReviewItemDocType       `json:"docType"`
 	RealName        string                               `json:"realName"`
 	RejectionReason *string                              `json:"rejectionReason,omitempty"`
@@ -1212,7 +1707,7 @@ type AdminSchoolConfig struct {
 	Enabled            bool                                `json:"enabled"`
 	LdapConfig         *SchoolLDAPConfigView               `json:"ldapConfig,omitempty"`
 	ManualFormFields   *[]ManualFieldDescriptor            `json:"manualFormFields,omitempty"`
-	SchoolID           string                              `json:"schoolID"`
+	SchoolID           int64                               `json:"schoolID"`
 	SchoolName         string                              `json:"schoolName"`
 	VerificationMethod AdminSchoolConfigVerificationMethod `json:"verificationMethod"`
 }
@@ -1260,7 +1755,7 @@ type AdminStudentVerificationItem struct {
 	PhoneVerified      *bool                                           `json:"phoneVerified,omitempty"`
 	RejectionReason    *string                                         `json:"rejectionReason,omitempty"`
 	ReviewedAt         *time.Time                                      `json:"reviewedAt,omitempty"`
-	SchoolID           *string                                         `json:"schoolID,omitempty"`
+	SchoolID           *int64                                          `json:"schoolID,omitempty"`
 	StudentIDs         *[]string                                       `json:"studentIDs,omitempty"`
 	UpdatedAt          time.Time                                       `json:"updatedAt"`
 	UserID             int64                                           `json:"userID"`
@@ -1287,11 +1782,12 @@ type AdminTeacher struct {
 
 // AdminUpdateReviewRequest defines model for AdminUpdateReviewRequest.
 type AdminUpdateReviewRequest struct {
+	// Action restore 对 pending_review 状态表示审核通过并发布
 	Action AdminUpdateReviewRequestAction `json:"action"`
 	Reason *string                        `json:"reason,omitempty"`
 }
 
-// AdminUpdateReviewRequestAction defines model for AdminUpdateReviewRequest.Action.
+// AdminUpdateReviewRequestAction restore 对 pending_review 状态表示审核通过并发布
 type AdminUpdateReviewRequestAction string
 
 // BatchUpdateResult defines model for BatchUpdateResult.
@@ -1302,11 +1798,12 @@ type BatchUpdateResult struct {
 
 // BatchUpdateReviewsRequest defines model for BatchUpdateReviewsRequest.
 type BatchUpdateReviewsRequest struct {
+	// Action restore 对 pending_review 状态表示审核通过并发布
 	Action BatchUpdateReviewsRequestAction `json:"action"`
 	Ids    []openapi_types.UUID            `json:"ids"`
 }
 
-// BatchUpdateReviewsRequestAction defines model for BatchUpdateReviewsRequest.Action.
+// BatchUpdateReviewsRequestAction restore 对 pending_review 状态表示审核通过并发布
 type BatchUpdateReviewsRequestAction string
 
 // BindPhoneRequest defines model for BindPhoneRequest.
@@ -1316,19 +1813,19 @@ type BindPhoneRequest struct {
 	Phone   string `json:"phone"`
 }
 
-// CallbackResponse defines model for CallbackResponse.
-type CallbackResponse struct {
-	// ExpiresIn Access token TTL in seconds
-	ExpiresIn int      `json:"expiresIn"`
-	User      UserInfo `json:"user"`
-}
-
 // CapabilityGrant defines model for CapabilityGrant.
 type CapabilityGrant struct {
 	Global         bool      `json:"global"`
 	Name           string    `json:"name"`
 	ScopeRoles     *[]string `json:"scopeRoles,omitempty"`
 	ScopeSchoolIDs *[]string `json:"scopeSchoolIDs,omitempty"`
+}
+
+// ConsumeQQBindingRequest defines model for ConsumeQQBindingRequest.
+type ConsumeQQBindingRequest struct {
+	Code       string  `json:"code"`
+	QqID       string  `json:"qqID"`
+	QqNickname *string `json:"qqNickname,omitempty"`
 }
 
 // ContentCheckRequest defines model for ContentCheckRequest.
@@ -1400,6 +1897,25 @@ type CreateReplyRequest struct {
 	ParentID *openapi_types.UUID `json:"parentID,omitempty"`
 }
 
+// CreateResourceRequest defines model for CreateResourceRequest.
+type CreateResourceRequest struct {
+	Bindings    []ResourceBinding `json:"bindings"`
+	Category    *string           `json:"category,omitempty"`
+	ContentType string            `json:"contentType"`
+
+	// DataBase64 文件 base64 内容，支持标准 Base64 或 data URL 形式
+	DataBase64  string                          `json:"dataBase64"`
+	Description *string                         `json:"description,omitempty"`
+	Filename    string                          `json:"filename"`
+	MountKey    *string                         `json:"mountKey,omitempty"`
+	Tags        []string                        `json:"tags"`
+	Title       string                          `json:"title"`
+	Visibility  CreateResourceRequestVisibility `json:"visibility"`
+}
+
+// CreateResourceRequestVisibility defines model for CreateResourceRequest.Visibility.
+type CreateResourceRequestVisibility string
+
 // CreateSensitiveWordRequest defines model for CreateSensitiveWordRequest.
 type CreateSensitiveWordRequest struct {
 	Category *string                          `json:"category,omitempty"`
@@ -1409,6 +1925,18 @@ type CreateSensitiveWordRequest struct {
 
 // CreateSensitiveWordRequestLevel defines model for CreateSensitiveWordRequest.Level.
 type CreateSensitiveWordRequestLevel string
+
+// CreateStorageMountRequest defines model for CreateStorageMountRequest.
+type CreateStorageMountRequest struct {
+	BasePath string  `json:"basePath"`
+	Bucket   *string `json:"bucket,omitempty"`
+
+	// Driver 当前已实现 `s3` 驱动；未来可扩展 openlist-like 家族
+	Driver  string `json:"driver"`
+	Enabled bool   `json:"enabled"`
+	Key     string `json:"key"`
+	Name    string `json:"name"`
+}
 
 // CreateTeacherRequest defines model for CreateTeacherRequest.
 type CreateTeacherRequest struct {
@@ -1424,6 +1952,13 @@ type Department struct {
 	SchoolID  *int64  `json:"schoolID,omitempty"`
 	ShortName *string `json:"shortName,omitempty"`
 	SortOrder *int    `json:"sortOrder,omitempty"`
+}
+
+// DepartmentGroup defines model for DepartmentGroup.
+type DepartmentGroup struct {
+	Courses        []Course `json:"courses"`
+	DepartmentID   int64    `json:"departmentID"`
+	DepartmentName string   `json:"departmentName"`
 }
 
 // DimensionStats defines model for DimensionStats.
@@ -1484,13 +2019,6 @@ type IdentityPhotoUploadResult struct {
 	UpdatedAt       *time.Time `json:"updatedAt,omitempty"`
 }
 
-// LoginURLResponse defines model for LoginURLResponse.
-type LoginURLResponse struct {
-	// State OAuth state parameter for CSRF protection
-	State string `json:"state"`
-	Url   string `json:"url"`
-}
-
 // ManualFieldDescriptor defines model for ManualFieldDescriptor.
 type ManualFieldDescriptor struct {
 	// Key 动态字段唯一标识
@@ -1520,25 +2048,36 @@ type MessageData struct {
 type Notification struct {
 	Content *string `json:"content,omitempty"`
 
-	// CourseID 关联课程ID，用于前端精准跳转
-	CourseID    *int64             `json:"courseID,omitempty"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	Id          openapi_types.UUID `json:"id"`
-	IsRead      bool               `json:"isRead"`
-	RelatedID   *string            `json:"relatedID,omitempty"`
-	RelatedType *string            `json:"relatedType,omitempty"`
-	Title       string             `json:"title"`
-	Type        NotificationType   `json:"type"`
+	// CourseID 关联课程 ID，用于前端精准跳转
+	CourseID  *int64               `json:"courseID,omitempty"`
+	CreatedAt time.Time            `json:"createdAt"`
+	Id        openapi_types.UUID   `json:"id"`
+	IsRead    bool                 `json:"isRead"`
+	Payload   *NotificationPayload `json:"payload,omitempty"`
+
+	// SourceId 触发通知的资源 ID（canonical wire field）
+	SourceId *string `json:"sourceId,omitempty"`
+
+	// SourceModule 触发通知的业务模块（canonical wire field）
+	SourceModule *string `json:"sourceModule,omitempty"`
+
+	// SourceUrl 前端可直接跳转的目标地址（canonical wire field）
+	SourceUrl *string          `json:"sourceUrl,omitempty"`
+	Title     string           `json:"title"`
+	Type      NotificationType `json:"type"`
 }
 
-// NotificationType defines model for Notification.Type.
+// NotificationPayload defines model for NotificationPayload.
+type NotificationPayload map[string]interface{}
+
+// NotificationType defines model for NotificationType.
 type NotificationType string
 
 // PostReviewRequest defines model for PostReviewRequest.
 type PostReviewRequest struct {
-	Content  string  `json:"content"`
-	CourseID int64   `json:"courseID"`
-	Grade    *string `json:"grade,omitempty"`
+	Content  string                  `json:"content"`
+	CourseID int64                   `json:"courseID"`
+	Grade    *PostReviewRequestGrade `json:"grade,omitempty"`
 
 	// Ratings Map of dimension key to rating value (1-5)
 	Ratings   ReviewRatings `json:"ratings"`
@@ -1546,6 +2085,9 @@ type PostReviewRequest struct {
 	TermID    string        `json:"termID"`
 	Title     string        `json:"title"`
 }
+
+// PostReviewRequestGrade defines model for PostReviewRequest.Grade.
+type PostReviewRequestGrade string
 
 // ProcessReportRequest defines model for ProcessReportRequest.
 type ProcessReportRequest struct {
@@ -1555,6 +2097,39 @@ type ProcessReportRequest struct {
 
 // ProcessReportRequestAction defines model for ProcessReportRequest.Action.
 type ProcessReportRequestAction string
+
+// QQBinding defines model for QQBinding.
+type QQBinding struct {
+	BoundAt    time.Time `json:"boundAt"`
+	CreatedAt  time.Time `json:"createdAt"`
+	QqID       string    `json:"qqID"`
+	QqNickname *string   `json:"qqNickname,omitempty"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+	UserID     int64     `json:"userID"`
+}
+
+// QQBindingCode defines model for QQBindingCode.
+type QQBindingCode struct {
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// QQVerificationStatus defines model for QQVerificationStatus.
+type QQVerificationStatus struct {
+	BoundAt                   *time.Time                                    `json:"boundAt,omitempty"`
+	ProfileVerificationStatus QQVerificationStatusProfileVerificationStatus `json:"profileVerificationStatus"`
+	QqID                      string                                        `json:"qqID"`
+	QqNickname                *string                                       `json:"qqNickname,omitempty"`
+	StudentVerified           bool                                          `json:"studentVerified"`
+	UserID                    *int64                                        `json:"userID,omitempty"`
+	VerificationState         QQVerificationStatusVerificationState         `json:"verificationState"`
+}
+
+// QQVerificationStatusProfileVerificationStatus defines model for QQVerificationStatus.ProfileVerificationStatus.
+type QQVerificationStatusProfileVerificationStatus string
+
+// QQVerificationStatusVerificationState defines model for QQVerificationStatus.VerificationState.
+type QQVerificationStatusVerificationState string
 
 // RatingDimension defines model for RatingDimension.
 type RatingDimension struct {
@@ -1574,11 +2149,6 @@ type RatingTrendItem struct {
 	AvgRating float64 `json:"avgRating"`
 	TermID    string  `json:"termID"`
 	TermName  string  `json:"termName"`
-}
-
-// RefreshResponse defines model for RefreshResponse.
-type RefreshResponse struct {
-	ExpiresIn int `json:"expiresIn"`
 }
 
 // Reply defines model for Reply.
@@ -1603,14 +2173,58 @@ type ReportReviewRequest struct {
 // ReportReviewRequestReason defines model for ReportReviewRequest.Reason.
 type ReportReviewRequestReason string
 
+// ResourceBinding defines model for ResourceBinding.
+type ResourceBinding struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+// ResourceDownloadURL defines model for ResourceDownloadURL.
+type ResourceDownloadURL struct {
+	Url string `json:"url"`
+}
+
+// ResourceItem defines model for ResourceItem.
+type ResourceItem struct {
+	Bindings      []ResourceBinding      `json:"bindings"`
+	Category      *string                `json:"category,omitempty"`
+	CreatedAt     time.Time              `json:"createdAt"`
+	Description   *string                `json:"description,omitempty"`
+	Id            int64                  `json:"id"`
+	LatestVersion ResourceVersion        `json:"latestVersion"`
+	OwnerUserID   *string                `json:"ownerUserID,omitempty"`
+	Tags          []string               `json:"tags"`
+	Title         string                 `json:"title"`
+	UpdatedAt     time.Time              `json:"updatedAt"`
+	Visibility    ResourceItemVisibility `json:"visibility"`
+}
+
+// ResourceItemVisibility defines model for ResourceItem.Visibility.
+type ResourceItemVisibility string
+
+// ResourceVersion defines model for ResourceVersion.
+type ResourceVersion struct {
+	ContentType string    `json:"contentType"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Filename    string    `json:"filename"`
+	Id          int64     `json:"id"`
+	MountID     int64     `json:"mountID"`
+	ObjectKey   string    `json:"objectKey"`
+	SizeBytes   int64     `json:"sizeBytes"`
+	VersionNo   int       `json:"versionNo"`
+}
+
 // Review defines model for Review.
 type Review struct {
-	Content      string             `json:"content"`
+	Content string `json:"content"`
+
+	// ContentFlag 内容审核标记；review 表示待人工复核，warn 表示已发布但需关注
+	ContentFlag  *ReviewContentFlag `json:"contentFlag,omitempty"`
 	CourseID     int64              `json:"courseID"`
 	CourseName   *string            `json:"courseName,omitempty"`
 	CreatedAt    time.Time          `json:"createdAt"`
 	DislikeCount int                `json:"dislikeCount"`
-	Grade        *string            `json:"grade,omitempty"`
+	Grade        *ReviewGrade       `json:"grade,omitempty"`
 	Id           openapi_types.UUID `json:"id"`
 	LikeCount    int                `json:"likeCount"`
 
@@ -1629,6 +2243,12 @@ type Review struct {
 	UpdatedAt   *time.Time    `json:"updatedAt,omitempty"`
 }
 
+// ReviewContentFlag 内容审核标记；review 表示待人工复核，warn 表示已发布但需关注
+type ReviewContentFlag string
+
+// ReviewGrade defines model for Review.Grade.
+type ReviewGrade string
+
 // ReviewStatus defines model for Review.Status.
 type ReviewStatus string
 
@@ -1636,7 +2256,7 @@ type ReviewStatus string
 type ReviewDraft struct {
 	Content  *string            `json:"content,omitempty"`
 	CourseID int64              `json:"courseID"`
-	Grade    *string            `json:"grade,omitempty"`
+	Grade    *ReviewDraftGrade  `json:"grade,omitempty"`
 	Id       openapi_types.UUID `json:"id"`
 
 	// Ratings Map of dimension key to rating value (1-5)
@@ -1646,6 +2266,9 @@ type ReviewDraft struct {
 	Title     *string        `json:"title,omitempty"`
 	UpdatedAt time.Time      `json:"updatedAt"`
 }
+
+// ReviewDraftGrade defines model for ReviewDraft.Grade.
+type ReviewDraftGrade string
 
 // ReviewIdentityRequest defines model for ReviewIdentityRequest.
 type ReviewIdentityRequest struct {
@@ -1694,9 +2317,9 @@ type ReviewStudentVerificationRequest struct {
 
 // SaveDraftRequest defines model for SaveDraftRequest.
 type SaveDraftRequest struct {
-	Content  *string `json:"content,omitempty"`
-	CourseID int64   `json:"courseID"`
-	Grade    *string `json:"grade,omitempty"`
+	Content  *string                `json:"content,omitempty"`
+	CourseID int64                  `json:"courseID"`
+	Grade    *SaveDraftRequestGrade `json:"grade,omitempty"`
 
 	// Ratings Map of dimension key to rating value (1-5)
 	Ratings   *ReviewRatings `json:"ratings,omitempty"`
@@ -1705,12 +2328,15 @@ type SaveDraftRequest struct {
 	Title     *string        `json:"title,omitempty"`
 }
 
+// SaveDraftRequestGrade defines model for SaveDraftRequest.Grade.
+type SaveDraftRequestGrade string
+
 // SchoolConfig defines model for SchoolConfig.
 type SchoolConfig struct {
 	ConsentText        *string                        `json:"consentText,omitempty"`
 	Enabled            bool                           `json:"enabled"`
 	ManualFormFields   *[]ManualFieldDescriptor       `json:"manualFormFields,omitempty"`
-	SchoolID           string                         `json:"schoolID"`
+	SchoolID           int64                          `json:"schoolID"`
 	SchoolName         string                         `json:"schoolName"`
 	VerificationMethod SchoolConfigVerificationMethod `json:"verificationMethod"`
 }
@@ -1721,7 +2347,6 @@ type SchoolConfigVerificationMethod string
 // SchoolLDAPConfigInput defines model for SchoolLDAPConfigInput.
 type SchoolLDAPConfigInput struct {
 	BaseDN             *string `json:"baseDN,omitempty"`
-	InsecureSkipVerify *bool   `json:"insecureSkipVerify,omitempty"`
 	SystemBindDN       *string `json:"systemBindDN,omitempty"`
 	SystemBindPassword *string `json:"systemBindPassword,omitempty"`
 	Url                *string `json:"url,omitempty"`
@@ -1732,10 +2357,33 @@ type SchoolLDAPConfigInput struct {
 type SchoolLDAPConfigView struct {
 	BaseDN                *string `json:"baseDN,omitempty"`
 	HasSystemBindPassword bool    `json:"hasSystemBindPassword"`
-	InsecureSkipVerify    bool    `json:"insecureSkipVerify"`
 	SystemBindDN          *string `json:"systemBindDN,omitempty"`
 	Url                   *string `json:"url,omitempty"`
 	UseTLS                bool    `json:"useTLS"`
+}
+
+// StorageCapabilitySet defines model for StorageCapabilitySet.
+type StorageCapabilitySet struct {
+	Delete            bool `json:"delete"`
+	PresignedDownload bool `json:"presignedDownload"`
+	Put               bool `json:"put"`
+	Stat              bool `json:"stat"`
+}
+
+// StorageMount defines model for StorageMount.
+type StorageMount struct {
+	BasePath            string               `json:"basePath"`
+	Bucket              *string              `json:"bucket,omitempty"`
+	Capabilities        StorageCapabilitySet `json:"capabilities"`
+	CredentialSource    string               `json:"credentialSource"`
+	Driver              string               `json:"driver"`
+	Enabled             bool                 `json:"enabled"`
+	Id                  int64                `json:"id"`
+	Key                 string               `json:"key"`
+	LastHealthCheckedAt *time.Time           `json:"lastHealthCheckedAt,omitempty"`
+	LastHealthError     *string              `json:"lastHealthError,omitempty"`
+	LastHealthStatus    *string              `json:"lastHealthStatus,omitempty"`
+	Name                string               `json:"name"`
 }
 
 // SubmitIdentityRequest defines model for SubmitIdentityRequest.
@@ -1758,7 +2406,7 @@ type SubmitStudentVerificationRequest struct {
 	// ManualFormData manual 模式动态表单提交数据
 	ManualFormData *map[string]interface{} `json:"manualFormData,omitempty"`
 	Password       *string                 `json:"password,omitempty"`
-	SchoolID       string                  `json:"schoolID"`
+	SchoolID       int64                   `json:"schoolID"`
 	StudentID      *string                 `json:"studentID,omitempty"`
 }
 
@@ -1777,9 +2425,6 @@ type SystemConfig struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 	Value       string    `json:"value"`
 }
-
-// SystemConfigSchema defines model for SystemConfigSchema.
-type SystemConfigSchema = SystemConfig
 
 // TeacherCourse defines model for TeacherCourse.
 type TeacherCourse struct {
@@ -1833,15 +2478,31 @@ type UnreadCountData struct {
 	Count int `json:"count"`
 }
 
+// UpdateResourceRequest defines model for UpdateResourceRequest.
+type UpdateResourceRequest struct {
+	Bindings    []ResourceBinding               `json:"bindings"`
+	Category    *string                         `json:"category,omitempty"`
+	Description *string                         `json:"description,omitempty"`
+	Tags        []string                        `json:"tags"`
+	Title       string                          `json:"title"`
+	Visibility  UpdateResourceRequestVisibility `json:"visibility"`
+}
+
+// UpdateResourceRequestVisibility defines model for UpdateResourceRequest.Visibility.
+type UpdateResourceRequestVisibility string
+
 // UpdateReviewRequest defines model for UpdateReviewRequest.
 type UpdateReviewRequest struct {
-	Content string  `json:"content"`
-	Grade   *string `json:"grade,omitempty"`
+	Content *string                   `json:"content,omitempty"`
+	Grade   *UpdateReviewRequestGrade `json:"grade,omitempty"`
 
 	// Ratings Map of dimension key to rating value (1-5)
-	Ratings ReviewRatings `json:"ratings"`
-	Title   *string       `json:"title,omitempty"`
+	Ratings *ReviewRatings `json:"ratings,omitempty"`
+	Title   *string        `json:"title,omitempty"`
 }
+
+// UpdateReviewRequestGrade defines model for UpdateReviewRequest.Grade.
+type UpdateReviewRequestGrade string
 
 // UpdateSchoolConfigRequest defines model for UpdateSchoolConfigRequest.
 type UpdateSchoolConfigRequest struct {
@@ -1917,7 +2578,9 @@ type UserIdentityVerifyMethod string
 
 // UserInfo defines model for UserInfo.
 type UserInfo struct {
-	Avatar *string `json:"avatar,omitempty"`
+	// AccountSettingsUrl 身份提供方账户设置页，用于修改密码等账号安全设置
+	AccountSettingsUrl *string `json:"accountSettingsUrl,omitempty"`
+	Avatar             *string `json:"avatar,omitempty"`
 
 	// CanAccessAdmin 当前用户是否拥有至少一个可直接进入现有后台界面的全局能力
 	CanAccessAdmin bool `json:"canAccessAdmin"`
@@ -1953,7 +2616,7 @@ type UserProfile struct {
 	PhoneVerified      *bool                          `json:"phoneVerified,omitempty"`
 	RejectionReason    *string                        `json:"rejectionReason,omitempty"`
 	ReviewedAt         *time.Time                     `json:"reviewedAt,omitempty"`
-	SchoolID           *string                        `json:"schoolID,omitempty"`
+	SchoolID           *int64                         `json:"schoolID,omitempty"`
 	StudentIDs         *[]string                      `json:"studentIDs,omitempty"`
 	UpdatedAt          time.Time                      `json:"updatedAt"`
 	UserID             int64                          `json:"userID"`
@@ -1998,8 +2661,17 @@ type CourseIDPath = int64
 // DraftCourseIDPath defines model for DraftCourseIDPath.
 type DraftCourseIDPath = int64
 
+// MountIDPath defines model for MountIDPath.
+type MountIDPath = int64
+
+// NativeSessionIDHeader defines model for NativeSessionIDHeader.
+type NativeSessionIDHeader = string
+
 // NotificationIDPath defines model for NotificationIDPath.
 type NotificationIDPath = openapi_types.UUID
+
+// OfferingIDPath defines model for OfferingIDPath.
+type OfferingIDPath = int64
 
 // PageParam defines model for PageParam.
 type PageParam = int
@@ -2013,6 +2685,9 @@ type ReplyIDPath = openapi_types.UUID
 // ReportIDPath defines model for ReportIDPath.
 type ReportIDPath = openapi_types.UUID
 
+// ResourceIDPath defines model for ResourceIDPath.
+type ResourceIDPath = int64
+
 // ReviewIDPath defines model for ReviewIDPath.
 type ReviewIDPath = openapi_types.UUID
 
@@ -2024,6 +2699,39 @@ type TeacherIDPath = int64
 
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse = ErrorResponseBody
+
+// ListMyAcademicCoursesParams defines parameters for ListMyAcademicCourses.
+type ListMyAcademicCoursesParams struct {
+	TermCode *string `form:"termCode,omitempty" json:"termCode,omitempty"`
+}
+
+// ListMyAcademicScheduleParams defines parameters for ListMyAcademicSchedule.
+type ListMyAcademicScheduleParams struct {
+	TermCode *string `form:"termCode,omitempty" json:"termCode,omitempty"`
+}
+
+// ListAcademicOfferingsParams defines parameters for ListAcademicOfferings.
+type ListAcademicOfferingsParams struct {
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize       *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	TermCode       *string        `form:"termCode,omitempty" json:"termCode,omitempty"`
+	SchoolName     *string        `form:"schoolName,omitempty" json:"schoolName,omitempty"`
+	DepartmentName *string        `form:"departmentName,omitempty" json:"departmentName,omitempty"`
+	Query          *string        `form:"query,omitempty" json:"query,omitempty"`
+	TeacherName    *string        `form:"teacherName,omitempty" json:"teacherName,omitempty"`
+}
+
+// ListAcademicImportJobsParams defines parameters for ListAcademicImportJobs.
+type ListAcademicImportJobsParams struct {
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
 
 // ListIdentityVerificationsParams defines parameters for ListIdentityVerifications.
 type ListIdentityVerificationsParams struct {
@@ -2044,7 +2752,7 @@ type ListStudentVerificationsParams struct {
 	Status *ListStudentVerificationsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
 
 	// SchoolID 按学校筛选
-	SchoolID *string `form:"schoolID,omitempty" json:"schoolID,omitempty"`
+	SchoolID *int64 `form:"schoolID,omitempty" json:"schoolID,omitempty"`
 
 	// Page 页码
 	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
@@ -2062,10 +2770,31 @@ type HandleCallbackParams struct {
 	State string `form:"state" json:"state"`
 }
 
+// ExchangeNativeJSONBody defines parameters for ExchangeNative.
+type ExchangeNativeJSONBody struct {
+	// Code OIDC authorization code
+	Code string `json:"code"`
+
+	// State 登录时生成的一次性 state（同时用于服务端查找并消费 PKCE verifier）
+	State string `json:"state"`
+}
+
 // GetLoginURLParams defines parameters for GetLoginURL.
 type GetLoginURLParams struct {
-	// Redirect 登录完成后的前端回跳地址（绝对 URL）
+	// Redirect 登录完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。
 	Redirect *string `form:"redirect,omitempty" json:"redirect,omitempty"`
+
+	// Platform 登录发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。
+	Platform *GetLoginURLParamsPlatform `form:"platform,omitempty" json:"platform,omitempty"`
+}
+
+// GetLoginURLParamsPlatform defines parameters for GetLoginURL.
+type GetLoginURLParamsPlatform string
+
+// LogoutParams defines parameters for Logout.
+type LogoutParams struct {
+	// XStuhelperSessionID 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪
+	XStuhelperSessionID *NativeSessionIDHeader `json:"X-Stuhelper-Session-ID,omitempty"`
 }
 
 // RequestPhoneOTPJSONBody defines parameters for RequestPhoneOTP.
@@ -2081,11 +2810,29 @@ type VerifyPhoneOTPJSONBody struct {
 	Phone string `json:"phone"`
 }
 
+// RefreshTokenJSONBody defines parameters for RefreshToken.
+type RefreshTokenJSONBody struct {
+	// RefreshToken 原生 App 的 refresh token
+	RefreshToken *string `json:"refreshToken,omitempty"`
+}
+
+// RefreshTokenParams defines parameters for RefreshToken.
+type RefreshTokenParams struct {
+	// XStuhelperSessionID 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪
+	XStuhelperSessionID *NativeSessionIDHeader `json:"X-Stuhelper-Session-ID,omitempty"`
+}
+
 // GetSignupURLParams defines parameters for GetSignupURL.
 type GetSignupURLParams struct {
-	// Redirect 注册完成后的前端回跳地址（绝对 URL）
+	// Redirect 注册完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。
 	Redirect *string `form:"redirect,omitempty" json:"redirect,omitempty"`
+
+	// Platform 注册发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。
+	Platform *GetSignupURLParamsPlatform `form:"platform,omitempty" json:"platform,omitempty"`
 }
+
+// GetSignupURLParamsPlatform defines parameters for GetSignupURL.
+type GetSignupURLParamsPlatform string
 
 // GetCoursesParams defines parameters for GetCourses.
 type GetCoursesParams struct {
@@ -2390,10 +3137,26 @@ type ReportWebVitalsJSONBodyName string
 // ReportWebVitalsJSONBodyRating defines parameters for ReportWebVitals.
 type ReportWebVitalsJSONBodyRating string
 
+// ListResourcesParams defines parameters for ListResources.
+type ListResourcesParams struct {
+	// Page 页码
+	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
+
+	// PageSize 每页数量
+	PageSize     *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	Query        *string        `form:"query,omitempty" json:"query,omitempty"`
+	Tag          *string        `form:"tag,omitempty" json:"tag,omitempty"`
+	BindingType  *string        `form:"bindingType,omitempty" json:"bindingType,omitempty"`
+	BindingValue *string        `form:"bindingValue,omitempty" json:"bindingValue,omitempty"`
+}
+
 // RequestBindPhoneOTPJSONBody defines parameters for RequestBindPhoneOTP.
 type RequestBindPhoneOTPJSONBody struct {
 	Phone string `json:"phone"`
 }
+
+// TriggerAcademicImportJSONRequestBody defines body for TriggerAcademicImport for application/json ContentType.
+type TriggerAcademicImportJSONRequestBody = AcademicImportRequest
 
 // ReviewIdentityVerificationJSONRequestBody defines body for ReviewIdentityVerification for application/json ContentType.
 type ReviewIdentityVerificationJSONRequestBody = ReviewIdentityRequest
@@ -2401,17 +3164,29 @@ type ReviewIdentityVerificationJSONRequestBody = ReviewIdentityRequest
 // UpdateSchoolConfigJSONRequestBody defines body for UpdateSchoolConfig for application/json ContentType.
 type UpdateSchoolConfigJSONRequestBody = UpdateSchoolConfigRequest
 
+// CreateStorageMountJSONRequestBody defines body for CreateStorageMount for application/json ContentType.
+type CreateStorageMountJSONRequestBody = CreateStorageMountRequest
+
 // ReviewStudentVerificationJSONRequestBody defines body for ReviewStudentVerification for application/json ContentType.
 type ReviewStudentVerificationJSONRequestBody = ReviewStudentVerificationRequest
 
 // UpdateSystemConfigJSONRequestBody defines body for UpdateSystemConfig for application/json ContentType.
 type UpdateSystemConfigJSONRequestBody = UpdateSystemConfigRequest
 
+// ExchangeNativeJSONRequestBody defines body for ExchangeNative for application/json ContentType.
+type ExchangeNativeJSONRequestBody ExchangeNativeJSONBody
+
 // RequestPhoneOTPJSONRequestBody defines body for RequestPhoneOTP for application/json ContentType.
 type RequestPhoneOTPJSONRequestBody RequestPhoneOTPJSONBody
 
 // VerifyPhoneOTPJSONRequestBody defines body for VerifyPhoneOTP for application/json ContentType.
 type VerifyPhoneOTPJSONRequestBody VerifyPhoneOTPJSONBody
+
+// RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
+type RefreshTokenJSONRequestBody RefreshTokenJSONBody
+
+// ConsumeQQBindingCodeJSONRequestBody defines body for ConsumeQQBindingCode for application/json ContentType.
+type ConsumeQQBindingCodeJSONRequestBody = ConsumeQQBindingRequest
 
 // ProcessReportJSONRequestBody defines body for ProcessReport for application/json ContentType.
 type ProcessReportJSONRequestBody = ProcessReportRequest
@@ -2464,6 +3239,12 @@ type ReportFrontendErrorJSONRequestBody ReportFrontendErrorJSONBody
 // ReportWebVitalsJSONRequestBody defines body for ReportWebVitals for application/json ContentType.
 type ReportWebVitalsJSONRequestBody ReportWebVitalsJSONBody
 
+// CreateResourceJSONRequestBody defines body for CreateResource for application/json ContentType.
+type CreateResourceJSONRequestBody = CreateResourceRequest
+
+// UpdateResourceJSONRequestBody defines body for UpdateResource for application/json ContentType.
+type UpdateResourceJSONRequestBody = UpdateResourceRequest
+
 // SubmitIdentityJSONRequestBody defines body for SubmitIdentity for application/json ContentType.
 type SubmitIdentityJSONRequestBody = SubmitIdentityRequest
 
@@ -2479,3208 +3260,269 @@ type RequestBindPhoneOTPJSONRequestBody RequestBindPhoneOTPJSONBody
 // SubmitStudentVerificationJSONRequestBody defines body for SubmitStudentVerification for application/json ContentType.
 type SubmitStudentVerificationJSONRequestBody = SubmitStudentVerificationRequest
 
-// ServerInterface represents all server handlers.
-type ServerInterface interface {
-	// 获取实名认证审核列表
-	// (GET /api/v1/admin/identities)
-	ListIdentityVerifications(c *gin.Context, params ListIdentityVerificationsParams)
-	// 审核实名认证
-	// (PUT /api/v1/admin/identities/{userID})
-	ReviewIdentityVerification(c *gin.Context, userID int64)
-	// 获取学校配置列表
-	// (GET /api/v1/admin/school-configs)
-	ListSchoolConfigs(c *gin.Context)
-	// 更新学校配置
-	// (PUT /api/v1/admin/school-configs/{schoolID})
-	UpdateSchoolConfig(c *gin.Context, schoolID string)
-	// 获取学生认证审核列表
-	// (GET /api/v1/admin/student-verifications)
-	ListStudentVerifications(c *gin.Context, params ListStudentVerificationsParams)
-	// 审核学生认证
-	// (PUT /api/v1/admin/student-verifications/{userID})
-	ReviewStudentVerification(c *gin.Context, userID int64)
-	// 获取系统配置列表
-	// (GET /api/v1/admin/system-configs)
-	ListSystemConfigs(c *gin.Context)
-	// 更新系统配置
-	// (PUT /api/v1/admin/system-configs/{key})
-	UpdateSystemConfig(c *gin.Context, key string)
-	// 处理 OIDC 回调并重定向回前端
-	// (GET /api/v1/auth/callback)
-	HandleCallback(c *gin.Context, params HandleCallbackParams)
-	// 获取 SSO 登录 URL
-	// (GET /api/v1/auth/login)
-	GetLoginURL(c *gin.Context, params GetLoginURLParams)
-	// 登出当前设备
-	// (POST /api/v1/auth/logout)
-	Logout(c *gin.Context)
-	// 全设备登出
-	// (POST /api/v1/auth/logout-all)
-	LogoutAll(c *gin.Context)
-	// 获取当前用户信息
-	// (GET /api/v1/auth/me)
-	GetCurrentUser(c *gin.Context)
-	// 发送手机验证码
-	// (POST /api/v1/auth/phone/request-otp)
-	RequestPhoneOTP(c *gin.Context)
-	// 验证手机验证码并登录
-	// (POST /api/v1/auth/phone/verify-otp)
-	VerifyPhoneOTP(c *gin.Context)
-	// 刷新 Access Token
-	// (POST /api/v1/auth/refresh)
-	RefreshToken(c *gin.Context)
-	// 获取 SSO 注册 URL
-	// (GET /api/v1/auth/signup)
-	GetSignupURL(c *gin.Context, params GetSignupURLParams)
-	// 获取课程分类列表
-	// (GET /api/v1/course/categories)
-	GetCourseCategories(c *gin.Context)
-	// 获取课程列表
-	// (GET /api/v1/course/courses)
-	GetCourses(c *gin.Context, params GetCoursesParams)
-	// 搜索课程
-	// (GET /api/v1/course/courses/search)
-	SearchCourses(c *gin.Context, params SearchCoursesParams)
-	// 获取课程详情
-	// (GET /api/v1/course/courses/{courseID})
-	GetCourse(c *gin.Context, courseID CourseIDPath)
-	// 获取院系列表
-	// (GET /api/v1/course/departments)
-	GetDepartments(c *gin.Context, params GetDepartmentsParams)
-	// 获取待复核内容标记列表
-	// (GET /api/v1/course/review/admin/content-flags)
-	ListFlaggedReviews(c *gin.Context, params ListFlaggedReviewsParams)
-	// 清除测评内容标记
-	// (PUT /api/v1/course/review/admin/content-flags/{reviewID}/clear)
-	ClearContentFlag(c *gin.Context, reviewID ReviewIDPath)
-	// 导出评论数据
-	// (GET /api/v1/course/review/admin/export)
-	ExportReviews(c *gin.Context, params ExportReviewsParams)
-	// 获取操作日志
-	// (GET /api/v1/course/review/admin/logs)
-	GetOperationLogs(c *gin.Context, params GetOperationLogsParams)
-	// 获取举报列表
-	// (GET /api/v1/course/review/admin/reports)
-	ListReports(c *gin.Context, params ListReportsParams)
-	// 处理举报
-	// (PUT /api/v1/course/review/admin/reports/{reportID})
-	ProcessReport(c *gin.Context, reportID ReportIDPath)
-	// 获取所有评论（管理员）
-	// (GET /api/v1/course/review/admin/reviews)
-	ListAllReviews(c *gin.Context, params ListAllReviewsParams)
-	// 批量更新评论状态
-	// (POST /api/v1/course/review/admin/reviews/batch)
-	BatchUpdateReviews(c *gin.Context)
-	// 管理员更新评论状态
-	// (PUT /api/v1/course/review/admin/reviews/{reviewID})
-	AdminUpdateReview(c *gin.Context, reviewID ReviewIDPath)
-	// 管理员编辑评论内容
-	// (POST /api/v1/course/review/admin/reviews/{reviewID}/edit)
-	AdminEditReviewContent(c *gin.Context, reviewID ReviewIDPath)
-	// 获取敏感词列表
-	// (GET /api/v1/course/review/admin/sensitive-words)
-	ListSensitiveWords(c *gin.Context, params ListSensitiveWordsParams)
-	// 新增敏感词
-	// (POST /api/v1/course/review/admin/sensitive-words)
-	CreateSensitiveWord(c *gin.Context)
-	// 删除敏感词
-	// (DELETE /api/v1/course/review/admin/sensitive-words/{sensitiveWordID})
-	DeleteSensitiveWord(c *gin.Context, sensitiveWordID SensitiveWordIDPath)
-	// 更新敏感词
-	// (PUT /api/v1/course/review/admin/sensitive-words/{sensitiveWordID})
-	UpdateSensitiveWord(c *gin.Context, sensitiveWordID SensitiveWordIDPath)
-	// 获取管理统计
-	// (GET /api/v1/course/review/admin/stats)
-	GetAdminStats(c *gin.Context)
-	// 获取教师列表（管理员）
-	// (GET /api/v1/course/review/admin/teachers)
-	ListAdminTeachers(c *gin.Context, params ListAdminTeachersParams)
-	// 新增教师
-	// (POST /api/v1/course/review/admin/teachers)
-	CreateTeacher(c *gin.Context)
-	// 删除教师
-	// (DELETE /api/v1/course/review/admin/teachers/{teacherID})
-	DeleteTeacher(c *gin.Context, teacherID TeacherIDPath)
-	// 更新教师
-	// (PUT /api/v1/course/review/admin/teachers/{teacherID})
-	UpdateTeacher(c *gin.Context, teacherID TeacherIDPath)
-	// 内容安全检查（敏感词）
-	// (POST /api/v1/course/review/content/check)
-	CheckContent(c *gin.Context)
-	// 取消课程收藏
-	// (DELETE /api/v1/course/review/courses/{courseID}/favorites)
-	RemoveFavorite(c *gin.Context, courseID CourseIDPath)
-	// 获取当前用户对课程的收藏状态
-	// (GET /api/v1/course/review/courses/{courseID}/favorites)
-	GetFavoriteStatus(c *gin.Context, courseID CourseIDPath)
-	// 添加课程收藏
-	// (POST /api/v1/course/review/courses/{courseID}/favorites)
-	AddFavorite(c *gin.Context, courseID CourseIDPath)
-	// 获取课程评分统计（雷达图数据）
-	// (GET /api/v1/course/review/courses/{courseID}/rating-stats)
-	GetCourseRatingStats(c *gin.Context, courseID CourseIDPath)
-	// 获取课程评分趋势
-	// (GET /api/v1/course/review/courses/{courseID}/rating-trend)
-	GetRatingTrend(c *gin.Context, courseID CourseIDPath)
-	// 获取课程测评列表（支持可选认证）
-	// (GET /api/v1/course/review/courses/{courseID}/reviews)
-	GetCourseReviews(c *gin.Context, courseID CourseIDPath, params GetCourseReviewsParams)
-	// 获取课程的授课教师列表
-	// (GET /api/v1/course/review/courses/{courseID}/teachers)
-	GetCourseTeachers(c *gin.Context, courseID CourseIDPath)
-	// 保存草稿
-	// (POST /api/v1/course/review/drafts)
-	SaveDraft(c *gin.Context)
-	// 删除草稿
-	// (DELETE /api/v1/course/review/drafts/{courseID})
-	DeleteDraft(c *gin.Context, courseID DraftCourseIDPath)
-	// 获取草稿
-	// (GET /api/v1/course/review/drafts/{courseID})
-	GetDraft(c *gin.Context, courseID DraftCourseIDPath)
-	// 获取热门课程排行
-	// (GET /api/v1/course/review/rankings/hot)
-	GetHotCourses(c *gin.Context, params GetHotCoursesParams)
-	// 获取评分维度配置
-	// (GET /api/v1/course/review/rating-dimensions)
-	GetRatingDimensions(c *gin.Context)
-	// 删除回复
-	// (DELETE /api/v1/course/review/replies/{replyID})
-	DeleteReply(c *gin.Context, replyID ReplyIDPath)
-	// 发布测评
-	// (POST /api/v1/course/review/reviews)
-	PostReview(c *gin.Context)
-	// 批量获取多个课程的测评列表（支持可选认证）
-	// (GET /api/v1/course/review/reviews/batch)
-	GetBatchCourseReviews(c *gin.Context, params GetBatchCourseReviewsParams)
-	// 获取最新测评（支持可选认证）
-	// (GET /api/v1/course/review/reviews/latest)
-	GetLatestReviews(c *gin.Context, params GetLatestReviewsParams)
-	// 搜索测评（支持课程、院系、教师、学期筛选）
-	// (GET /api/v1/course/review/reviews/search)
-	SearchReviews(c *gin.Context, params SearchReviewsParams)
-	// 删除测评
-	// (DELETE /api/v1/course/review/reviews/{reviewID})
-	DeleteReview(c *gin.Context, reviewID ReviewIDPath)
-	// 更新测评
-	// (PUT /api/v1/course/review/reviews/{reviewID})
-	UpdateReview(c *gin.Context, reviewID ReviewIDPath)
-	// 获取回复列表
-	// (GET /api/v1/course/review/reviews/{reviewID}/replies)
-	GetReplies(c *gin.Context, reviewID ReviewIDPath, params GetRepliesParams)
-	// 创建回复
-	// (POST /api/v1/course/review/reviews/{reviewID}/replies)
-	CreateReply(c *gin.Context, reviewID ReviewIDPath)
-	// 举报测评
-	// (POST /api/v1/course/review/reviews/{reviewID}/reports)
-	ReportReview(c *gin.Context, reviewID ReviewIDPath)
-	// 投票（点赞/踩，支持切换和取消）
-	// (POST /api/v1/course/review/reviews/{reviewID}/votes)
-	VoteReview(c *gin.Context, reviewID ReviewIDPath)
-	// 获取评课统计数据
-	// (GET /api/v1/course/review/stats)
-	GetReviewStats(c *gin.Context)
-	// 获取教师列表（公开，支持搜索和分页）
-	// (GET /api/v1/course/review/teachers)
-	ListTeachers(c *gin.Context, params ListTeachersParams)
-	// 获取热门教师列表
-	// (GET /api/v1/course/review/teachers/hot)
-	ListHotTeachers(c *gin.Context, params ListHotTeachersParams)
-	// 获取教师评分统计
-	// (GET /api/v1/course/review/teachers/{teacherID}/stats)
-	GetTeacherRatingStats(c *gin.Context, teacherID TeacherIDPath)
-	// 获取用户收藏列表
-	// (GET /api/v1/course/review/user/favorites)
-	GetUserFavorites(c *gin.Context, params GetUserFavoritesParams)
-	// 获取通知列表
-	// (GET /api/v1/course/review/user/notifications)
-	GetNotifications(c *gin.Context, params GetNotificationsParams)
-	// 标记所有通知已读
-	// (PUT /api/v1/course/review/user/notifications/read-all)
-	MarkAllNotificationsRead(c *gin.Context)
-	// 通知 SSE 实时推送
-	// (GET /api/v1/course/review/user/notifications/stream)
-	StreamNotifications(c *gin.Context)
-	// 获取未读通知数量
-	// (GET /api/v1/course/review/user/notifications/unread-count)
-	GetUnreadCount(c *gin.Context)
-	// 标记通知已读
-	// (PUT /api/v1/course/review/user/notifications/{notificationID}/read)
-	MarkNotificationRead(c *gin.Context, notificationID NotificationIDPath)
-	// 获取用户评论列表
-	// (GET /api/v1/course/review/user/reviews)
-	GetUserReviews(c *gin.Context, params GetUserReviewsParams)
-	// 获取用户点赞列表
-	// (GET /api/v1/course/review/user/votes)
-	GetUserVotes(c *gin.Context, params GetUserVotesParams)
-	// 获取学习中心统计
-	// (GET /api/v1/course/stats)
-	GetCourseStats(c *gin.Context)
-	// 获取学期列表
-	// (GET /api/v1/course/terms)
-	GetTerms(c *gin.Context)
-	// Report frontend errors
-	// (POST /api/v1/metrics/frontend-errors)
-	ReportFrontendError(c *gin.Context)
-	// Report Web Vitals metrics
-	// (POST /api/v1/metrics/vitals)
-	ReportWebVitals(c *gin.Context)
-	// 获取当前用户实名认证状态
-	// (GET /api/v1/user/identity)
-	GetUserIdentity(c *gin.Context)
-	// 提交实名认证
-	// (POST /api/v1/user/identity)
-	SubmitIdentity(c *gin.Context)
-	// 上传实名认证证件照片
-	// (POST /api/v1/user/identity/uploads)
-	UploadIdentityPhoto(c *gin.Context)
-	// 获取当前用户聚合信息
-	// (GET /api/v1/user/me)
-	GetUserSurface(c *gin.Context)
-	// 获取当前用户学生认证状态
-	// (GET /api/v1/user/profile)
-	GetUserProfile(c *gin.Context)
-	// 获取已认证用户的学籍信息
-	// (GET /api/v1/user/profile/academic-info)
-	GetAcademicInfo(c *gin.Context)
-	// 绑定手机号
-	// (POST /api/v1/user/profile/bind-phone)
-	BindPhone(c *gin.Context)
-	// 请求绑定手机验证码
-	// (POST /api/v1/user/profile/bind-phone/otp)
-	RequestBindPhoneOTP(c *gin.Context)
-	// 提交学生认证
-	// (POST /api/v1/user/profile/verify)
-	SubmitStudentVerification(c *gin.Context)
-	// 获取可用学校列表
-	// (GET /api/v1/user/schools)
-	ListSchools(c *gin.Context)
-	// 存活探针
-	// (GET /health/live)
-	HealthLive(c *gin.Context)
-	// 就绪探针
-	// (GET /health/ready)
-	HealthReady(c *gin.Context)
-}
-
-// ServerInterfaceWrapper converts contexts to parameters.
-type ServerInterfaceWrapper struct {
-	Handler            ServerInterface
-	HandlerMiddlewares []MiddlewareFunc
-	ErrorHandler       func(*gin.Context, error, int)
-}
-
-type MiddlewareFunc func(c *gin.Context)
-
-// ListIdentityVerifications operation middleware
-func (siw *ServerInterfaceWrapper) ListIdentityVerifications(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListIdentityVerificationsParams
-
-	// ------------- Optional query parameter "status" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListIdentityVerifications(c, params)
-}
-
-// ReviewIdentityVerification operation middleware
-func (siw *ServerInterfaceWrapper) ReviewIdentityVerification(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "userID" -------------
-	var userID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userID", c.Param("userID"), &userID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ReviewIdentityVerification(c, userID)
-}
-
-// ListSchoolConfigs operation middleware
-func (siw *ServerInterfaceWrapper) ListSchoolConfigs(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListSchoolConfigs(c)
-}
-
-// UpdateSchoolConfig operation middleware
-func (siw *ServerInterfaceWrapper) UpdateSchoolConfig(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "schoolID" -------------
-	var schoolID string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "schoolID", c.Param("schoolID"), &schoolID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter schoolID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateSchoolConfig(c, schoolID)
-}
-
-// ListStudentVerifications operation middleware
-func (siw *ServerInterfaceWrapper) ListStudentVerifications(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListStudentVerificationsParams
-
-	// ------------- Optional query parameter "status" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "schoolID" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "schoolID", c.Request.URL.Query(), &params.SchoolID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter schoolID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListStudentVerifications(c, params)
-}
-
-// ReviewStudentVerification operation middleware
-func (siw *ServerInterfaceWrapper) ReviewStudentVerification(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "userID" -------------
-	var userID int64
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userID", c.Param("userID"), &userID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ReviewStudentVerification(c, userID)
-}
-
-// ListSystemConfigs operation middleware
-func (siw *ServerInterfaceWrapper) ListSystemConfigs(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListSystemConfigs(c)
-}
-
-// UpdateSystemConfig operation middleware
-func (siw *ServerInterfaceWrapper) UpdateSystemConfig(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "key" -------------
-	var key string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateSystemConfig(c, key)
-}
-
-// HandleCallback operation middleware
-func (siw *ServerInterfaceWrapper) HandleCallback(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params HandleCallbackParams
-
-	// ------------- Required query parameter "code" -------------
-
-	if paramValue := c.Query("code"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument code is required, but not found"), http.StatusBadRequest)
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "code", c.Request.URL.Query(), &params.Code, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter code: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Required query parameter "state" -------------
-
-	if paramValue := c.Query("state"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument state is required, but not found"), http.StatusBadRequest)
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "state", c.Request.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter state: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HandleCallback(c, params)
-}
-
-// GetLoginURL operation middleware
-func (siw *ServerInterfaceWrapper) GetLoginURL(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetLoginURLParams
-
-	// ------------- Optional query parameter "redirect" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "redirect", c.Request.URL.Query(), &params.Redirect, runtime.BindQueryParameterOptions{Type: "string", Format: "uri"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter redirect: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetLoginURL(c, params)
-}
-
-// Logout operation middleware
-func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.Logout(c)
-}
-
-// LogoutAll operation middleware
-func (siw *ServerInterfaceWrapper) LogoutAll(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.LogoutAll(c)
-}
-
-// GetCurrentUser operation middleware
-func (siw *ServerInterfaceWrapper) GetCurrentUser(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetCurrentUser(c)
-}
-
-// RequestPhoneOTP operation middleware
-func (siw *ServerInterfaceWrapper) RequestPhoneOTP(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.RequestPhoneOTP(c)
-}
-
-// VerifyPhoneOTP operation middleware
-func (siw *ServerInterfaceWrapper) VerifyPhoneOTP(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.VerifyPhoneOTP(c)
-}
-
-// RefreshToken operation middleware
-func (siw *ServerInterfaceWrapper) RefreshToken(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.RefreshToken(c)
-}
-
-// GetSignupURL operation middleware
-func (siw *ServerInterfaceWrapper) GetSignupURL(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetSignupURLParams
-
-	// ------------- Optional query parameter "redirect" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "redirect", c.Request.URL.Query(), &params.Redirect, runtime.BindQueryParameterOptions{Type: "string", Format: "uri"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter redirect: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetSignupURL(c, params)
-}
-
-// GetCourseCategories operation middleware
-func (siw *ServerInterfaceWrapper) GetCourseCategories(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetCourseCategories(c)
-}
-
-// GetCourses operation middleware
-func (siw *ServerInterfaceWrapper) GetCourses(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetCoursesParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "q" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "departmentID" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "departmentID", c.Request.URL.Query(), &params.DepartmentID, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "category" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetCourses(c, params)
-}
-
-// SearchCourses operation middleware
-func (siw *ServerInterfaceWrapper) SearchCourses(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params SearchCoursesParams
-
-	// ------------- Required query parameter "q" -------------
-
-	if paramValue := c.Query("q"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument q is required, but not found"), http.StatusBadRequest)
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.SearchCourses(c, params)
-}
-
-// GetCourse operation middleware
-func (siw *ServerInterfaceWrapper) GetCourse(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID CourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetCourse(c, courseID)
-}
-
-// GetDepartments operation middleware
-func (siw *ServerInterfaceWrapper) GetDepartments(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetDepartmentsParams
-
-	// ------------- Optional query parameter "category" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetDepartments(c, params)
-}
-
-// ListFlaggedReviews operation middleware
-func (siw *ServerInterfaceWrapper) ListFlaggedReviews(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListFlaggedReviewsParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListFlaggedReviews(c, params)
-}
-
-// ClearContentFlag operation middleware
-func (siw *ServerInterfaceWrapper) ClearContentFlag(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ClearContentFlag(c, reviewID)
-}
-
-// ExportReviews operation middleware
-func (siw *ServerInterfaceWrapper) ExportReviews(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ExportReviewsParams
-
-	// ------------- Optional query parameter "format" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "format", c.Request.URL.Query(), &params.Format, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter format: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "status" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ExportReviews(c, params)
-}
-
-// GetOperationLogs operation middleware
-func (siw *ServerInterfaceWrapper) GetOperationLogs(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetOperationLogsParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetOperationLogs(c, params)
-}
-
-// ListReports operation middleware
-func (siw *ServerInterfaceWrapper) ListReports(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListReportsParams
-
-	// ------------- Optional query parameter "status" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListReports(c, params)
-}
-
-// ProcessReport operation middleware
-func (siw *ServerInterfaceWrapper) ProcessReport(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reportID" -------------
-	var reportID ReportIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reportID", c.Param("reportID"), &reportID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reportID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ProcessReport(c, reportID)
-}
-
-// ListAllReviews operation middleware
-func (siw *ServerInterfaceWrapper) ListAllReviews(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListAllReviewsParams
-
-	// ------------- Optional query parameter "status" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListAllReviews(c, params)
-}
-
-// BatchUpdateReviews operation middleware
-func (siw *ServerInterfaceWrapper) BatchUpdateReviews(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.BatchUpdateReviews(c)
-}
-
-// AdminUpdateReview operation middleware
-func (siw *ServerInterfaceWrapper) AdminUpdateReview(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.AdminUpdateReview(c, reviewID)
-}
-
-// AdminEditReviewContent operation middleware
-func (siw *ServerInterfaceWrapper) AdminEditReviewContent(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.AdminEditReviewContent(c, reviewID)
-}
-
-// ListSensitiveWords operation middleware
-func (siw *ServerInterfaceWrapper) ListSensitiveWords(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListSensitiveWordsParams
-
-	// ------------- Optional query parameter "category" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "level" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "level", c.Request.URL.Query(), &params.Level, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter level: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListSensitiveWords(c, params)
-}
-
-// CreateSensitiveWord operation middleware
-func (siw *ServerInterfaceWrapper) CreateSensitiveWord(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CreateSensitiveWord(c)
-}
-
-// DeleteSensitiveWord operation middleware
-func (siw *ServerInterfaceWrapper) DeleteSensitiveWord(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "sensitiveWordID" -------------
-	var sensitiveWordID SensitiveWordIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "sensitiveWordID", c.Param("sensitiveWordID"), &sensitiveWordID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sensitiveWordID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteSensitiveWord(c, sensitiveWordID)
-}
-
-// UpdateSensitiveWord operation middleware
-func (siw *ServerInterfaceWrapper) UpdateSensitiveWord(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "sensitiveWordID" -------------
-	var sensitiveWordID SensitiveWordIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "sensitiveWordID", c.Param("sensitiveWordID"), &sensitiveWordID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sensitiveWordID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateSensitiveWord(c, sensitiveWordID)
-}
-
-// GetAdminStats operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminStats(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetAdminStats(c)
-}
-
-// ListAdminTeachers operation middleware
-func (siw *ServerInterfaceWrapper) ListAdminTeachers(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListAdminTeachersParams
-
-	// ------------- Optional query parameter "search" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", c.Request.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter search: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "departmentID" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "departmentID", c.Request.URL.Query(), &params.DepartmentID, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListAdminTeachers(c, params)
-}
-
-// CreateTeacher operation middleware
-func (siw *ServerInterfaceWrapper) CreateTeacher(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CreateTeacher(c)
-}
-
-// DeleteTeacher operation middleware
-func (siw *ServerInterfaceWrapper) DeleteTeacher(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "teacherID" -------------
-	var teacherID TeacherIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "teacherID", c.Param("teacherID"), &teacherID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teacherID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteTeacher(c, teacherID)
-}
-
-// UpdateTeacher operation middleware
-func (siw *ServerInterfaceWrapper) UpdateTeacher(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "teacherID" -------------
-	var teacherID TeacherIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "teacherID", c.Param("teacherID"), &teacherID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teacherID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateTeacher(c, teacherID)
-}
-
-// CheckContent operation middleware
-func (siw *ServerInterfaceWrapper) CheckContent(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CheckContent(c)
-}
-
-// RemoveFavorite operation middleware
-func (siw *ServerInterfaceWrapper) RemoveFavorite(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID CourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.RemoveFavorite(c, courseID)
-}
-
-// GetFavoriteStatus operation middleware
-func (siw *ServerInterfaceWrapper) GetFavoriteStatus(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID CourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetFavoriteStatus(c, courseID)
-}
-
-// AddFavorite operation middleware
-func (siw *ServerInterfaceWrapper) AddFavorite(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID CourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.AddFavorite(c, courseID)
-}
-
-// GetCourseRatingStats operation middleware
-func (siw *ServerInterfaceWrapper) GetCourseRatingStats(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID CourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetCourseRatingStats(c, courseID)
-}
-
-// GetRatingTrend operation middleware
-func (siw *ServerInterfaceWrapper) GetRatingTrend(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID CourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetRatingTrend(c, courseID)
-}
-
-// GetCourseReviews operation middleware
-func (siw *ServerInterfaceWrapper) GetCourseReviews(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID CourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetCourseReviewsParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "termID" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "termID", c.Request.URL.Query(), &params.TermID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter termID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "teacherID" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "teacherID", c.Request.URL.Query(), &params.TeacherID, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teacherID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetCourseReviews(c, courseID, params)
-}
-
-// GetCourseTeachers operation middleware
-func (siw *ServerInterfaceWrapper) GetCourseTeachers(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID CourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetCourseTeachers(c, courseID)
-}
-
-// SaveDraft operation middleware
-func (siw *ServerInterfaceWrapper) SaveDraft(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.SaveDraft(c)
-}
-
-// DeleteDraft operation middleware
-func (siw *ServerInterfaceWrapper) DeleteDraft(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID DraftCourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteDraft(c, courseID)
-}
-
-// GetDraft operation middleware
-func (siw *ServerInterfaceWrapper) GetDraft(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "courseID" -------------
-	var courseID DraftCourseIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "courseID", c.Param("courseID"), &courseID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetDraft(c, courseID)
-}
-
-// GetHotCourses operation middleware
-func (siw *ServerInterfaceWrapper) GetHotCourses(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetHotCoursesParams
-
-	// ------------- Optional query parameter "period" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "period", c.Request.URL.Query(), &params.Period, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter period: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "limit" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetHotCourses(c, params)
-}
-
-// GetRatingDimensions operation middleware
-func (siw *ServerInterfaceWrapper) GetRatingDimensions(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetRatingDimensions(c)
-}
-
-// DeleteReply operation middleware
-func (siw *ServerInterfaceWrapper) DeleteReply(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "replyID" -------------
-	var replyID ReplyIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "replyID", c.Param("replyID"), &replyID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter replyID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteReply(c, replyID)
-}
-
-// PostReview operation middleware
-func (siw *ServerInterfaceWrapper) PostReview(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.PostReview(c)
-}
-
-// GetBatchCourseReviews operation middleware
-func (siw *ServerInterfaceWrapper) GetBatchCourseReviews(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetBatchCourseReviewsParams
-
-	// ------------- Required query parameter "courseIDs" -------------
-
-	if paramValue := c.Query("courseIDs"); paramValue != "" {
-
-	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument courseIDs is required, but not found"), http.StatusBadRequest)
-		return
-	}
-
-	err = runtime.BindQueryParameterWithOptions("form", false, true, "courseIDs", c.Request.URL.Query(), &params.CourseIDs, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter courseIDs: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetBatchCourseReviews(c, params)
-}
-
-// GetLatestReviews operation middleware
-func (siw *ServerInterfaceWrapper) GetLatestReviews(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetLatestReviewsParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetLatestReviews(c, params)
-}
-
-// SearchReviews operation middleware
-func (siw *ServerInterfaceWrapper) SearchReviews(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params SearchReviewsParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "q" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "departmentID" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "departmentID", c.Request.URL.Query(), &params.DepartmentID, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "teacherName" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "teacherName", c.Request.URL.Query(), &params.TeacherName, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teacherName: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "termID" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "termID", c.Request.URL.Query(), &params.TermID, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter termID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.SearchReviews(c, params)
-}
-
-// DeleteReview operation middleware
-func (siw *ServerInterfaceWrapper) DeleteReview(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteReview(c, reviewID)
-}
-
-// UpdateReview operation middleware
-func (siw *ServerInterfaceWrapper) UpdateReview(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateReview(c, reviewID)
-}
-
-// GetReplies operation middleware
-func (siw *ServerInterfaceWrapper) GetReplies(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetRepliesParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetReplies(c, reviewID, params)
-}
-
-// CreateReply operation middleware
-func (siw *ServerInterfaceWrapper) CreateReply(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CreateReply(c, reviewID)
-}
-
-// ReportReview operation middleware
-func (siw *ServerInterfaceWrapper) ReportReview(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ReportReview(c, reviewID)
-}
-
-// VoteReview operation middleware
-func (siw *ServerInterfaceWrapper) VoteReview(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "reviewID" -------------
-	var reviewID ReviewIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "reviewID", c.Param("reviewID"), &reviewID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter reviewID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.VoteReview(c, reviewID)
-}
-
-// GetReviewStats operation middleware
-func (siw *ServerInterfaceWrapper) GetReviewStats(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetReviewStats(c)
-}
-
-// ListTeachers operation middleware
-func (siw *ServerInterfaceWrapper) ListTeachers(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListTeachersParams
-
-	// ------------- Optional query parameter "q" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", c.Request.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "departmentID" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "departmentID", c.Request.URL.Query(), &params.DepartmentID, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter departmentID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", c.Request.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sort: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListTeachers(c, params)
-}
-
-// ListHotTeachers operation middleware
-func (siw *ServerInterfaceWrapper) ListHotTeachers(c *gin.Context) {
-
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListHotTeachersParams
-
-	// ------------- Optional query parameter "limit" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListHotTeachers(c, params)
-}
-
-// GetTeacherRatingStats operation middleware
-func (siw *ServerInterfaceWrapper) GetTeacherRatingStats(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "teacherID" -------------
-	var teacherID TeacherIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "teacherID", c.Param("teacherID"), &teacherID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "integer", Format: "int64"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter teacherID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetTeacherRatingStats(c, teacherID)
-}
-
-// GetUserFavorites operation middleware
-func (siw *ServerInterfaceWrapper) GetUserFavorites(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetUserFavoritesParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUserFavorites(c, params)
-}
-
-// GetNotifications operation middleware
-func (siw *ServerInterfaceWrapper) GetNotifications(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetNotificationsParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetNotifications(c, params)
-}
-
-// MarkAllNotificationsRead operation middleware
-func (siw *ServerInterfaceWrapper) MarkAllNotificationsRead(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.MarkAllNotificationsRead(c)
-}
-
-// StreamNotifications operation middleware
-func (siw *ServerInterfaceWrapper) StreamNotifications(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.StreamNotifications(c)
-}
-
-// GetUnreadCount operation middleware
-func (siw *ServerInterfaceWrapper) GetUnreadCount(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUnreadCount(c)
-}
-
-// MarkNotificationRead operation middleware
-func (siw *ServerInterfaceWrapper) MarkNotificationRead(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "notificationID" -------------
-	var notificationID NotificationIDPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "notificationID", c.Param("notificationID"), &notificationID, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter notificationID: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.MarkNotificationRead(c, notificationID)
-}
-
-// GetUserReviews operation middleware
-func (siw *ServerInterfaceWrapper) GetUserReviews(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetUserReviewsParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUserReviews(c, params)
-}
-
-// GetUserVotes operation middleware
-func (siw *ServerInterfaceWrapper) GetUserVotes(c *gin.Context) {
-
-	var err error
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetUserVotesParams
-
-	// ------------- Optional query parameter "page" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "pageSize" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "pageSize", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageSize: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "voteType" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "voteType", c.Request.URL.Query(), &params.VoteType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter voteType: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUserVotes(c, params)
-}
-
-// GetCourseStats operation middleware
-func (siw *ServerInterfaceWrapper) GetCourseStats(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetCourseStats(c)
-}
-
-// GetTerms operation middleware
-func (siw *ServerInterfaceWrapper) GetTerms(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetTerms(c)
-}
-
-// ReportFrontendError operation middleware
-func (siw *ServerInterfaceWrapper) ReportFrontendError(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ReportFrontendError(c)
-}
-
-// ReportWebVitals operation middleware
-func (siw *ServerInterfaceWrapper) ReportWebVitals(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ReportWebVitals(c)
-}
-
-// GetUserIdentity operation middleware
-func (siw *ServerInterfaceWrapper) GetUserIdentity(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUserIdentity(c)
-}
-
-// SubmitIdentity operation middleware
-func (siw *ServerInterfaceWrapper) SubmitIdentity(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.SubmitIdentity(c)
-}
-
-// UploadIdentityPhoto operation middleware
-func (siw *ServerInterfaceWrapper) UploadIdentityPhoto(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UploadIdentityPhoto(c)
-}
-
-// GetUserSurface operation middleware
-func (siw *ServerInterfaceWrapper) GetUserSurface(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUserSurface(c)
-}
-
-// GetUserProfile operation middleware
-func (siw *ServerInterfaceWrapper) GetUserProfile(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetUserProfile(c)
-}
-
-// GetAcademicInfo operation middleware
-func (siw *ServerInterfaceWrapper) GetAcademicInfo(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetAcademicInfo(c)
-}
-
-// BindPhone operation middleware
-func (siw *ServerInterfaceWrapper) BindPhone(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.BindPhone(c)
-}
-
-// RequestBindPhoneOTP operation middleware
-func (siw *ServerInterfaceWrapper) RequestBindPhoneOTP(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.RequestBindPhoneOTP(c)
-}
-
-// SubmitStudentVerification operation middleware
-func (siw *ServerInterfaceWrapper) SubmitStudentVerification(c *gin.Context) {
-
-	c.Set(CookieAuthScopes, []string{})
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.SubmitStudentVerification(c)
-}
-
-// ListSchools operation middleware
-func (siw *ServerInterfaceWrapper) ListSchools(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListSchools(c)
-}
-
-// HealthLive operation middleware
-func (siw *ServerInterfaceWrapper) HealthLive(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HealthLive(c)
-}
-
-// HealthReady operation middleware
-func (siw *ServerInterfaceWrapper) HealthReady(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HealthReady(c)
-}
-
-// GinServerOptions provides options for the Gin server.
-type GinServerOptions struct {
-	BaseURL      string
-	Middlewares  []MiddlewareFunc
-	ErrorHandler func(*gin.Context, error, int)
-}
-
-// RegisterHandlers creates http.Handler with routing matching OpenAPI spec.
-func RegisterHandlers(router gin.IRouter, si ServerInterface) {
-	RegisterHandlersWithOptions(router, si, GinServerOptions{})
-}
-
-// RegisterHandlersWithOptions creates http.Handler with additional options
-func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options GinServerOptions) {
-	errorHandler := options.ErrorHandler
-	if errorHandler == nil {
-		errorHandler = func(c *gin.Context, err error, statusCode int) {
-			c.JSON(statusCode, gin.H{"msg": err.Error()})
-		}
-	}
-
-	wrapper := ServerInterfaceWrapper{
-		Handler:            si,
-		HandlerMiddlewares: options.Middlewares,
-		ErrorHandler:       errorHandler,
-	}
-
-	router.GET(options.BaseURL+"/api/v1/admin/identities", wrapper.ListIdentityVerifications)
-	router.PUT(options.BaseURL+"/api/v1/admin/identities/:userID", wrapper.ReviewIdentityVerification)
-	router.GET(options.BaseURL+"/api/v1/admin/school-configs", wrapper.ListSchoolConfigs)
-	router.PUT(options.BaseURL+"/api/v1/admin/school-configs/:schoolID", wrapper.UpdateSchoolConfig)
-	router.GET(options.BaseURL+"/api/v1/admin/student-verifications", wrapper.ListStudentVerifications)
-	router.PUT(options.BaseURL+"/api/v1/admin/student-verifications/:userID", wrapper.ReviewStudentVerification)
-	router.GET(options.BaseURL+"/api/v1/admin/system-configs", wrapper.ListSystemConfigs)
-	router.PUT(options.BaseURL+"/api/v1/admin/system-configs/:key", wrapper.UpdateSystemConfig)
-	router.GET(options.BaseURL+"/api/v1/auth/callback", wrapper.HandleCallback)
-	router.GET(options.BaseURL+"/api/v1/auth/login", wrapper.GetLoginURL)
-	router.POST(options.BaseURL+"/api/v1/auth/logout", wrapper.Logout)
-	router.POST(options.BaseURL+"/api/v1/auth/logout-all", wrapper.LogoutAll)
-	router.GET(options.BaseURL+"/api/v1/auth/me", wrapper.GetCurrentUser)
-	router.POST(options.BaseURL+"/api/v1/auth/phone/request-otp", wrapper.RequestPhoneOTP)
-	router.POST(options.BaseURL+"/api/v1/auth/phone/verify-otp", wrapper.VerifyPhoneOTP)
-	router.POST(options.BaseURL+"/api/v1/auth/refresh", wrapper.RefreshToken)
-	router.GET(options.BaseURL+"/api/v1/auth/signup", wrapper.GetSignupURL)
-	router.GET(options.BaseURL+"/api/v1/course/categories", wrapper.GetCourseCategories)
-	router.GET(options.BaseURL+"/api/v1/course/courses", wrapper.GetCourses)
-	router.GET(options.BaseURL+"/api/v1/course/courses/search", wrapper.SearchCourses)
-	router.GET(options.BaseURL+"/api/v1/course/courses/:courseID", wrapper.GetCourse)
-	router.GET(options.BaseURL+"/api/v1/course/departments", wrapper.GetDepartments)
-	router.GET(options.BaseURL+"/api/v1/course/review/admin/content-flags", wrapper.ListFlaggedReviews)
-	router.PUT(options.BaseURL+"/api/v1/course/review/admin/content-flags/:reviewID/clear", wrapper.ClearContentFlag)
-	router.GET(options.BaseURL+"/api/v1/course/review/admin/export", wrapper.ExportReviews)
-	router.GET(options.BaseURL+"/api/v1/course/review/admin/logs", wrapper.GetOperationLogs)
-	router.GET(options.BaseURL+"/api/v1/course/review/admin/reports", wrapper.ListReports)
-	router.PUT(options.BaseURL+"/api/v1/course/review/admin/reports/:reportID", wrapper.ProcessReport)
-	router.GET(options.BaseURL+"/api/v1/course/review/admin/reviews", wrapper.ListAllReviews)
-	router.POST(options.BaseURL+"/api/v1/course/review/admin/reviews/batch", wrapper.BatchUpdateReviews)
-	router.PUT(options.BaseURL+"/api/v1/course/review/admin/reviews/:reviewID", wrapper.AdminUpdateReview)
-	router.POST(options.BaseURL+"/api/v1/course/review/admin/reviews/:reviewID/edit", wrapper.AdminEditReviewContent)
-	router.GET(options.BaseURL+"/api/v1/course/review/admin/sensitive-words", wrapper.ListSensitiveWords)
-	router.POST(options.BaseURL+"/api/v1/course/review/admin/sensitive-words", wrapper.CreateSensitiveWord)
-	router.DELETE(options.BaseURL+"/api/v1/course/review/admin/sensitive-words/:sensitiveWordID", wrapper.DeleteSensitiveWord)
-	router.PUT(options.BaseURL+"/api/v1/course/review/admin/sensitive-words/:sensitiveWordID", wrapper.UpdateSensitiveWord)
-	router.GET(options.BaseURL+"/api/v1/course/review/admin/stats", wrapper.GetAdminStats)
-	router.GET(options.BaseURL+"/api/v1/course/review/admin/teachers", wrapper.ListAdminTeachers)
-	router.POST(options.BaseURL+"/api/v1/course/review/admin/teachers", wrapper.CreateTeacher)
-	router.DELETE(options.BaseURL+"/api/v1/course/review/admin/teachers/:teacherID", wrapper.DeleteTeacher)
-	router.PUT(options.BaseURL+"/api/v1/course/review/admin/teachers/:teacherID", wrapper.UpdateTeacher)
-	router.POST(options.BaseURL+"/api/v1/course/review/content/check", wrapper.CheckContent)
-	router.DELETE(options.BaseURL+"/api/v1/course/review/courses/:courseID/favorites", wrapper.RemoveFavorite)
-	router.GET(options.BaseURL+"/api/v1/course/review/courses/:courseID/favorites", wrapper.GetFavoriteStatus)
-	router.POST(options.BaseURL+"/api/v1/course/review/courses/:courseID/favorites", wrapper.AddFavorite)
-	router.GET(options.BaseURL+"/api/v1/course/review/courses/:courseID/rating-stats", wrapper.GetCourseRatingStats)
-	router.GET(options.BaseURL+"/api/v1/course/review/courses/:courseID/rating-trend", wrapper.GetRatingTrend)
-	router.GET(options.BaseURL+"/api/v1/course/review/courses/:courseID/reviews", wrapper.GetCourseReviews)
-	router.GET(options.BaseURL+"/api/v1/course/review/courses/:courseID/teachers", wrapper.GetCourseTeachers)
-	router.POST(options.BaseURL+"/api/v1/course/review/drafts", wrapper.SaveDraft)
-	router.DELETE(options.BaseURL+"/api/v1/course/review/drafts/:courseID", wrapper.DeleteDraft)
-	router.GET(options.BaseURL+"/api/v1/course/review/drafts/:courseID", wrapper.GetDraft)
-	router.GET(options.BaseURL+"/api/v1/course/review/rankings/hot", wrapper.GetHotCourses)
-	router.GET(options.BaseURL+"/api/v1/course/review/rating-dimensions", wrapper.GetRatingDimensions)
-	router.DELETE(options.BaseURL+"/api/v1/course/review/replies/:replyID", wrapper.DeleteReply)
-	router.POST(options.BaseURL+"/api/v1/course/review/reviews", wrapper.PostReview)
-	router.GET(options.BaseURL+"/api/v1/course/review/reviews/batch", wrapper.GetBatchCourseReviews)
-	router.GET(options.BaseURL+"/api/v1/course/review/reviews/latest", wrapper.GetLatestReviews)
-	router.GET(options.BaseURL+"/api/v1/course/review/reviews/search", wrapper.SearchReviews)
-	router.DELETE(options.BaseURL+"/api/v1/course/review/reviews/:reviewID", wrapper.DeleteReview)
-	router.PUT(options.BaseURL+"/api/v1/course/review/reviews/:reviewID", wrapper.UpdateReview)
-	router.GET(options.BaseURL+"/api/v1/course/review/reviews/:reviewID/replies", wrapper.GetReplies)
-	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:reviewID/replies", wrapper.CreateReply)
-	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:reviewID/reports", wrapper.ReportReview)
-	router.POST(options.BaseURL+"/api/v1/course/review/reviews/:reviewID/votes", wrapper.VoteReview)
-	router.GET(options.BaseURL+"/api/v1/course/review/stats", wrapper.GetReviewStats)
-	router.GET(options.BaseURL+"/api/v1/course/review/teachers", wrapper.ListTeachers)
-	router.GET(options.BaseURL+"/api/v1/course/review/teachers/hot", wrapper.ListHotTeachers)
-	router.GET(options.BaseURL+"/api/v1/course/review/teachers/:teacherID/stats", wrapper.GetTeacherRatingStats)
-	router.GET(options.BaseURL+"/api/v1/course/review/user/favorites", wrapper.GetUserFavorites)
-	router.GET(options.BaseURL+"/api/v1/course/review/user/notifications", wrapper.GetNotifications)
-	router.PUT(options.BaseURL+"/api/v1/course/review/user/notifications/read-all", wrapper.MarkAllNotificationsRead)
-	router.GET(options.BaseURL+"/api/v1/course/review/user/notifications/stream", wrapper.StreamNotifications)
-	router.GET(options.BaseURL+"/api/v1/course/review/user/notifications/unread-count", wrapper.GetUnreadCount)
-	router.PUT(options.BaseURL+"/api/v1/course/review/user/notifications/:notificationID/read", wrapper.MarkNotificationRead)
-	router.GET(options.BaseURL+"/api/v1/course/review/user/reviews", wrapper.GetUserReviews)
-	router.GET(options.BaseURL+"/api/v1/course/review/user/votes", wrapper.GetUserVotes)
-	router.GET(options.BaseURL+"/api/v1/course/stats", wrapper.GetCourseStats)
-	router.GET(options.BaseURL+"/api/v1/course/terms", wrapper.GetTerms)
-	router.POST(options.BaseURL+"/api/v1/metrics/frontend-errors", wrapper.ReportFrontendError)
-	router.POST(options.BaseURL+"/api/v1/metrics/vitals", wrapper.ReportWebVitals)
-	router.GET(options.BaseURL+"/api/v1/user/identity", wrapper.GetUserIdentity)
-	router.POST(options.BaseURL+"/api/v1/user/identity", wrapper.SubmitIdentity)
-	router.POST(options.BaseURL+"/api/v1/user/identity/uploads", wrapper.UploadIdentityPhoto)
-	router.GET(options.BaseURL+"/api/v1/user/me", wrapper.GetUserSurface)
-	router.GET(options.BaseURL+"/api/v1/user/profile", wrapper.GetUserProfile)
-	router.GET(options.BaseURL+"/api/v1/user/profile/academic-info", wrapper.GetAcademicInfo)
-	router.POST(options.BaseURL+"/api/v1/user/profile/bind-phone", wrapper.BindPhone)
-	router.POST(options.BaseURL+"/api/v1/user/profile/bind-phone/otp", wrapper.RequestBindPhoneOTP)
-	router.POST(options.BaseURL+"/api/v1/user/profile/verify", wrapper.SubmitStudentVerification)
-	router.GET(options.BaseURL+"/api/v1/user/schools", wrapper.ListSchools)
-	router.GET(options.BaseURL+"/health/live", wrapper.HealthLive)
-	router.GET(options.BaseURL+"/health/ready", wrapper.HealthReady)
-}
-
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"AA==",
+	"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",
+	"MHdVAQIA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

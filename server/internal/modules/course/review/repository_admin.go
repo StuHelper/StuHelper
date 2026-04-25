@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -10,13 +11,14 @@ import (
 
 // allowedStatuses 允许的 status 参数白名单
 var allowedStatuses = map[string]bool{
-	"all":       true,
-	"published": true,
-	"hidden":    true,
-	"deleted":   true,
-	"pending":   true,
-	"resolved":  true,
-	"rejected":  true,
+	"all":            true,
+	"published":      true,
+	"pending_review": true,
+	"hidden":         true,
+	"deleted":        true,
+	"pending":        true,
+	"resolved":       true,
+	"rejected":       true,
 }
 
 // validateStatus 校验 status 参数是否在白名单内，不合法时回退为 fallback
@@ -29,7 +31,7 @@ func validateStatus(status, fallback string) string {
 
 // ListAllReviews 获取所有评论（管理员，含总数）
 // 使用 strings.Builder 重构 SQL 构建逻辑，参数绑定更清晰
-func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, offset int) ([]Review, int, error) {
+func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, offset int, schoolIDs []int64) ([]Review, int, error) {
 	status = validateStatus(status, "all")
 
 	var qb strings.Builder
@@ -46,16 +48,23 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 	`)
 
 	var args []interface{}
-	needFilter := status != "" && status != "all"
-
-	if needFilter {
-		qb.WriteString(` WHERE r.status = $1`)
-		qb.WriteString(` ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`)
-		args = []interface{}{status, limit, offset}
-	} else {
-		qb.WriteString(` ORDER BY r.created_at DESC LIMIT $1 OFFSET $2`)
-		args = []interface{}{limit, offset}
+	hasWhere := false
+	if len(schoolIDs) > 0 {
+		qb.WriteString(` WHERE c.school_id = ANY($1)`)
+		args = append(args, schoolIDs)
+		hasWhere = true
 	}
+	if status != "" && status != "all" {
+		if hasWhere {
+			qb.WriteString(` AND`)
+		} else {
+			qb.WriteString(` WHERE`)
+		}
+		qb.WriteString(` r.status = $` + strconv.Itoa(len(args)+1))
+		args = append(args, status)
+	}
+	qb.WriteString(` ORDER BY r.created_at DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2))
+	args = append(args, limit, offset)
 
 	rows, err := r.db.Query(ctx, qb.String(), args...)
 	if err != nil {
@@ -66,10 +75,13 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 }
 
 // GetAdminStats 获取管理统计（条件聚合，reviews 单次扫描 + reports 单次扫描）
-// 性能优化依赖以下索引（应在 init.sql 中创建）：
+// 性能优化依赖以下索引（应在权威 migrations 中创建）：
 //   - reviews: idx_reviews_status (status) — 加速 FILTER 条件聚合
 //   - reviews: idx_reviews_created_at (created_at) — 加速 today/week 过滤
 //   - review_reports: idx_review_reports_status (status) — 加速 pending 计数
+//
+// Handler 层会通过 review:admin:stats 版本化缓存键缓存该结果，
+// 典型 TTL 约 30s。写操作后会通过 invalidateReviewAggregateCaches 失效。
 func (r *Repository) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 	var stats AdminStats
 	// reviews 表：6 个计数合并为单次全表扫描 + FILTER 条件聚合
@@ -109,7 +121,7 @@ func (r *Repository) GetAdminStats(ctx context.Context) (*AdminStats, error) {
 	return &stats, nil
 }
 
-// maxBatchDBSize 数据库层批量操作的最大数量上限（L-36: 纵深防御，防止绕过 handler 直接调用）
+// maxBatchDBSize 数据库层批量操作的最大数量上限，避免绕过 handler 后一次更新过多记录。
 const maxBatchDBSize = 1000
 
 // BatchUpdateReviewStatusTx 批量更新评论状态（事务内执行）。

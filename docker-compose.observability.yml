@@ -1,0 +1,389 @@
+# StuHelper Docker Compose overlay: observability
+# 与 docker-compose.yml 一起使用；公共网络/卷/secret 仍定义在主文件。
+
+services:
+  alloy:
+    profiles: [observability, prod]
+    image: grafana/alloy:${GRAFANA_ALLOY_VERSION:-v1.10.2}
+    container_name: ${STACK_NAME:-stuhelper}-alloy
+    command:
+    - run
+    - --server.http.listen-addr=0.0.0.0:12345
+    - --storage.path=/var/lib/alloy/data
+    - /etc/alloy/config.alloy
+    ports:
+    - "127.0.0.1:${ALLOY_HTTP_PORT:-12345}:12345"
+    - "127.0.0.1:${OTEL_GRPC_PORT:-4317}:4317"
+    - "127.0.0.1:${OTEL_HTTP_PORT:-4318}:4318"
+    volumes:
+    - ./infra/observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    - alloy_data:/var/lib/alloy/data
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/bin/bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/12345 && printf 'GET /-/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - backend
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    read_only: true
+    tmpfs:
+    - /tmp
+    security_opt:
+    - no-new-privileges:true
+  prometheus:
+    profiles: [observability, prod]
+    image: prom/prometheus:${PROMETHEUS_VERSION:-v3.5.0}
+    container_name: ${STACK_NAME:-stuhelper}-prometheus
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --web.enable-lifecycle
+    - --web.enable-remote-write-receiver
+    - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-15d}
+    - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-20GB}
+    ports:
+    - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+    - ./infra/generated/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - ./infra/observability/prometheus/rules:/etc/prometheus/rules:ro
+    - prometheus_data:/prometheus
+    depends_on:
+      alertmanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+    security_opt:
+    - no-new-privileges:true
+  alertmanager:
+    profiles: [observability, prod]
+    image: prom/alertmanager:${ALERTMANAGER_VERSION:-v0.28.1}
+    container_name: ${STACK_NAME:-stuhelper}-alertmanager
+    command:
+    - --config.file=/etc/alertmanager/alertmanager.yml
+    - --storage.path=/alertmanager
+    ports:
+    - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+    - ./infra/generated/observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    - alertmanager_data:/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    security_opt:
+    - no-new-privileges:true
+  loki:
+    profiles: [observability, prod]
+    image: grafana/loki:${LOKI_VERSION:-3.5.5}
+    container_name: ${STACK_NAME:-stuhelper}-loki
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    ports:
+    - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+    volumes:
+    - ./infra/observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
+    - loki_data:/loki
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    security_opt:
+    - no-new-privileges:true
+  tempo:
+    profiles: [observability, prod]
+    image: grafana/tempo:${TEMPO_VERSION:-2.8.2}
+    container_name: ${STACK_NAME:-stuhelper}-tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+    - "127.0.0.1:${TEMPO_HTTP_PORT:-3200}:3200"
+    volumes:
+    - ./infra/observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+    - tempo_data:/var/tempo
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    security_opt:
+    - no-new-privileges:true
+  grafana:
+    profiles: [observability, prod]
+    image: grafana/grafana:${GRAFANA_VERSION:-12.1.1}
+    container_name: ${STACK_NAME:-stuhelper}-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_METRICS_ENABLED: "true"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3003}
+    ports:
+    - "127.0.0.1:${GRAFANA_PORT:-3003}:3000"
+    volumes:
+    - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      alertmanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    security_opt:
+    - no-new-privileges:true
+  node-exporter:
+    profiles: [observability, prod]
+    image: prom/node-exporter:${NODE_EXPORTER_VERSION:-v1.9.1}
+    container_name: ${STACK_NAME:-stuhelper}-node-exporter
+    command:
+    - --path.rootfs=/host
+    volumes:
+    - /:/host:ro,rslave
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    read_only: true
+    tmpfs:
+    - /tmp
+    security_opt:
+    - no-new-privileges:true
+  cadvisor:
+    profiles: [observability]
+    image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION:-v0.52.1}
+    container_name: ${STACK_NAME:-stuhelper}-cadvisor
+    security_opt:
+    - no-new-privileges:true
+    devices:
+    - /dev/kmsg:/dev/kmsg
+    volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:ro
+    - /sys:/sys:ro
+    - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+    - "127.0.0.1:${CADVISOR_PORT:-8088}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/metrics"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+  postgres-exporter:
+    profiles: [observability, prod]
+    image: quay.io/prometheuscommunity/postgres-exporter:${POSTGRES_EXPORTER_VERSION:-v0.17.1}
+    container_name: ${STACK_NAME:-stuhelper}-postgres-exporter
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
+      DATA_SOURCE_USER: stuhelper_backup
+      DATA_SOURCE_PASS: ${STUHELPER_BACKUP_DB_PASSWORD}
+    volumes:
+    - ./infra/generated/postgres:/tls:ro
+    ports:
+    - "127.0.0.1:${POSTGRES_EXPORTER_PORT:-9187}:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9187/metrics"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - backend
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    read_only: true
+    tmpfs:
+    - /tmp
+    security_opt:
+    - no-new-privileges:true
+  redis-exporter:
+    profiles: [observability, prod]
+    image: oliver006/redis_exporter:${REDIS_EXPORTER_VERSION:-v1.76.0}
+    container_name: ${STACK_NAME:-stuhelper}-redis-exporter
+    environment:
+      REDIS_ADDR: rediss://${REDIS_EXPORTER_USERNAME:-stuhelper_metrics}:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+      REDIS_EXPORTER_TLS_CA_CERT_FILE: /tls/ca.crt
+    volumes:
+    - ./infra/generated/redis:/tls:ro
+    ports:
+    - "127.0.0.1:${REDIS_EXPORTER_PORT:-9121}:9121"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/redis_exporter", "--version"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - backend
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    read_only: true
+    tmpfs:
+    - /tmp
+    security_opt:
+    - no-new-privileges:true
+  blackbox-exporter:
+    profiles: [observability, prod]
+    image: quay.io/prometheus/blackbox-exporter:${BLACKBOX_EXPORTER_VERSION:-v0.27.0}
+    container_name: ${STACK_NAME:-stuhelper}-blackbox-exporter
+    command:
+    - --config.file=/etc/blackbox/blackbox.yml
+    ports:
+    - "127.0.0.1:${BLACKBOX_EXPORTER_PORT:-9115}:9115"
+    volumes:
+    - ./infra/observability/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9115/metrics"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    read_only: true
+    tmpfs:
+    - /tmp
+    security_opt:
+    - no-new-privileges:true
+  alert-webhook-sink:
+    profiles: [prod]
+    image: mendhak/http-https-echo:${ALERT_WEBHOOK_SINK_VERSION:-35}
+    container_name: ${STACK_NAME:-stuhelper}-alert-webhook-sink
+    environment:
+      HTTP_PORT: 8080
+    restart: unless-stopped
+
+    networks:
+    - observability
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    read_only: true
+    tmpfs:
+    - /tmp
+    security_opt:
+    - no-new-privileges:true

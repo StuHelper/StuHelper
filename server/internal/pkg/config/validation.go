@@ -72,19 +72,28 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Observability.Enabled && c.Observability.OTLPEndpoint == "" {
 		errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_ENABLED=true")
 	}
+	if len(c.App.CORSOrigins) == 0 {
+		errs = append(errs, "CORS_ORIGINS is required")
+	}
 
-	if c.LDAP.URL != "" {
-		if c.LDAP.BaseDN == "" {
-			errs = append(errs, "LDAP_BASE_DN is required when LDAP_URL is set")
+	if c.SMS.Enabled {
+		if c.SMS.SecretID == "" {
+			errs = append(errs, "SMS_SECRET_ID is required when SMS_ENABLED=true")
 		}
-		if c.LDAP.SystemBindDN == "" {
-			errs = append(errs, "LDAP_SYSTEM_BIND_DN is required when LDAP_URL is set")
+		if c.SMS.SecretKey == "" {
+			errs = append(errs, "SMS_SECRET_KEY is required when SMS_ENABLED=true")
 		}
-		if c.LDAP.SystemBindPassword == "" {
-			errs = append(errs, "LDAP_SYSTEM_BIND_PASSWORD is required when LDAP_URL is set")
+		if c.SMS.AppID == "" {
+			errs = append(errs, "SMS_APP_ID is required when SMS_ENABLED=true")
 		}
-		if c.App.Env == "production" && c.LDAP.InsecureSkipVerify {
-			errs = append(errs, "LDAP_INSECURE_SKIP_VERIFY must be false in production")
+		if c.SMS.SignName == "" {
+			errs = append(errs, "SMS_SIGN_NAME is required when SMS_ENABLED=true")
+		}
+		if c.SMS.TemplateID == "" {
+			errs = append(errs, "SMS_TEMPLATE_ID is required when SMS_ENABLED=true")
+		}
+		if c.SMS.InternalKey == "" {
+			errs = append(errs, "SMS_INTERNAL_KEY is required when SMS_ENABLED=true")
 		}
 	}
 
@@ -94,9 +103,6 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 		if !c.Token.CookieSecure {
 			errs = append(errs, "TOKEN_COOKIE_SECURE must be true in production")
-		}
-		if len(c.App.CORSOrigins) == 0 {
-			errs = append(errs, "CORS_ORIGINS is required in production")
 		}
 		if len(c.App.TrustedProxies) == 0 {
 			errs = append(errs, "TRUSTED_PROXIES is required in production for secure IP detection")
@@ -119,6 +125,9 @@ func (c *Config) validate(parseErrs []string) error {
 		if c.ObjectStorage.SecretAccessKey == "" {
 			errs = append(errs, "OBJECT_STORAGE_SECRET_ACCESS_KEY is required in production")
 		}
+		if c.Bot.ServiceToken == "" {
+			errs = append(errs, "BOT_SERVICE_TOKEN is required in production")
+		}
 		if !c.Observability.Enabled {
 			errs = append(errs, "OTEL_ENABLED must be true in production")
 		}
@@ -126,24 +135,29 @@ func (c *Config) validate(parseErrs []string) error {
 			errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required in production")
 		}
 
-		switch c.Database.SSLMode {
-		case "", "disable":
-			errs = append(errs, "DB_SSL_MODE must be 'require', 'verify-ca', or 'verify-full' in production")
-		case "require":
-			fmt.Fprintf(os.Stderr, "WARNING: DB_SSL_MODE=require skips certificate verification (MITM risk). Consider 'verify-ca' or 'verify-full' for production.\n")
+		if c.Database.SSLMode != "verify-full" {
+			errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
+		}
+		if c.Database.SSLRootCert == "" {
+			errs = append(errs, "DB_SSL_ROOT_CERT is required in production")
 		}
 		if !c.Redis.TLSEnabled {
-			fmt.Fprintf(os.Stderr, "WARNING: Redis TLS is disabled in production. Ensure Redis is in a secure internal network.\n")
+			errs = append(errs, "REDIS_TLS_ENABLED must be true in production")
 		}
-		if c.Redis.TLSEnabled && c.Redis.TLSInsecure {
-			errs = append(errs, "REDIS_TLS_INSECURE must not be true in production (certificate verification required)")
+		if c.Redis.TLSCAFile == "" {
+			errs = append(errs, "REDIS_TLS_CA is required in production")
 		}
-		if len(parseErrs) > 0 {
-			errs = append(errs, parseErrs...)
+		if !c.ObjectStorage.UseSSL {
+			errs = append(errs, "OBJECT_STORAGE_USE_SSL must be true in production")
 		}
-	} else if len(parseErrs) > 0 {
-		fmt.Fprintf(os.Stderr, "WARNING: %d config parse error(s) detected (using defaults): %s\n",
-			len(parseErrs), strings.Join(parseErrs, "; "))
+	}
+
+	if len(parseErrs) > 0 {
+		errs = append(errs, parseErrs...)
+	}
+
+	if c.App.Env != "production" && c.App.Env != "development" && !c.Token.CookieSecure {
+		errs = append(errs, "TOKEN_COOKIE_SECURE can only be false in development")
 	}
 
 	// Zitadel OIDC 配置校验
@@ -163,17 +177,15 @@ func (c *Config) validate(parseErrs []string) error {
 		errs = append(errs, "ZITADEL_PROJECT_ID is required")
 	}
 
-	// OpenFGA 配置校验（生产环境必须完整配置，防止授权结果随模型发布漂移）
-	if c.App.Env == "production" && c.OpenFGA.StoreID != "" {
-		if c.OpenFGA.AuthorizationModelID == "" {
-			errs = append(errs, "OPENFGA_MODEL_ID is required in production when FGA is enabled")
-		}
-		if c.OpenFGA.APIUrl == "" {
-			errs = append(errs, "OPENFGA_API_URL is required in production when FGA is enabled")
-		}
+	// OpenFGA 是应用运行时必需依赖，所有环境都需要完整配置。
+	if c.OpenFGA.StoreID == "" {
+		errs = append(errs, "OPENFGA_STORE_ID is required")
 	}
-	if c.App.Env == "production" && c.OpenFGA.StoreID == "" {
-		errs = append(errs, "OPENFGA_STORE_ID is required in production")
+	if c.OpenFGA.AuthorizationModelID == "" {
+		errs = append(errs, "OPENFGA_MODEL_ID is required")
+	}
+	if c.OpenFGA.APIUrl == "" {
+		errs = append(errs, "OPENFGA_API_URL is required")
 	}
 
 	const maxRateLimit = 100000
@@ -188,6 +200,21 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 	if c.RateLimit.ReplyLimit <= 0 || c.RateLimit.ReplyLimit > maxRateLimit {
 		errs = append(errs, fmt.Sprintf("REVIEW_RATE_REPLY_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.ReplyLimit))
+	}
+	if c.RateLimit.WriteLimit <= 0 || c.RateLimit.WriteLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_WRITE_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.WriteLimit))
+	}
+	if c.RateLimit.SearchAnonLimit <= 0 || c.RateLimit.SearchAnonLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_SEARCH_ANON_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.SearchAnonLimit))
+	}
+	if c.RateLimit.SearchUserLimit <= 0 || c.RateLimit.SearchUserLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_SEARCH_USER_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.SearchUserLimit))
+	}
+	if c.RateLimit.BatchAnonLimit <= 0 || c.RateLimit.BatchAnonLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_BATCH_ANON_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.BatchAnonLimit))
+	}
+	if c.RateLimit.BatchUserLimit <= 0 || c.RateLimit.BatchUserLimit > maxRateLimit {
+		errs = append(errs, fmt.Sprintf("REVIEW_RATE_BATCH_USER_LIMIT must be between 1 and %d (got %d)", maxRateLimit, c.RateLimit.BatchUserLimit))
 	}
 
 	if len(errs) > 0 {

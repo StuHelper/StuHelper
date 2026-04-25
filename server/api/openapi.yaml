@@ -13,11 +13,21 @@ servers:
   - url: https://api.stuhelper.com
     description: Production
 
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+
 tags:
   - name: Health
     description: 健康检查
   - name: Auth
     description: 认证与授权
+  - name: Academics
+    description: 教务数据导入与展示
+  - name: Resource
+    description: 校园资源共享
+  - name: Storage
+    description: 存储挂载与驱动管理
   - name: Course
     description: 课程实体
   - name: Review
@@ -32,6 +42,8 @@ tags:
     description: 收藏
   - name: User
     description: 用户中心
+  - name: Bot
+    description: 机器人内部接口
   - name: Identity
     description: 实名认证
   - name: Profile
@@ -67,6 +79,38 @@ paths:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1request-otp"
   /api/v1/auth/phone/verify-otp:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1verify-otp"
+  /api/v1/auth/exchange-native:
+    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1exchange-native"
+
+  # ── Academics ──
+  /api/v1/academics/terms:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1terms"
+  /api/v1/academics/offerings:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1offerings"
+  /api/v1/academics/offerings/{offeringID}:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1offerings~1{offeringID}"
+  /api/v1/academics/me/courses:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1me~1courses"
+  /api/v1/academics/me/schedule:
+    $ref: "paths/academics.yaml#/~1api~1v1~1academics~1me~1schedule"
+  /api/v1/admin/academics/sources:
+    $ref: "paths/academics.yaml#/~1api~1v1~1admin~1academics~1sources"
+  /api/v1/admin/academics/import-jobs:
+    $ref: "paths/academics.yaml#/~1api~1v1~1admin~1academics~1import-jobs"
+
+  # ── Resource ──
+  /api/v1/resources:
+    $ref: "paths/resource.yaml#/~1api~1v1~1resources"
+  /api/v1/resources/{resourceID}:
+    $ref: "paths/resource.yaml#/~1api~1v1~1resources~1{resourceID}"
+  /api/v1/resources/{resourceID}/download-url:
+    $ref: "paths/resource.yaml#/~1api~1v1~1resources~1{resourceID}~1download-url"
+
+  # ── Storage ──
+  /api/v1/admin/storage/mounts:
+    $ref: "paths/storage.yaml#/~1api~1v1~1admin~1storage~1mounts"
+  /api/v1/admin/storage/mounts/{mountID}/health-check:
+    $ref: "paths/storage.yaml#/~1api~1v1~1admin~1storage~1mounts~1{mountID}~1health-check"
 
   # ── Course Entity ──
   /api/v1/course/departments:
@@ -77,6 +121,8 @@ paths:
     $ref: "paths/course.yaml#/~1api~1v1~1course~1categories"
   /api/v1/course/courses:
     $ref: "paths/course.yaml#/~1api~1v1~1course~1courses"
+  /api/v1/course/courses/grouped:
+    $ref: "paths/course.yaml#/~1api~1v1~1course~1courses~1grouped"
   /api/v1/course/courses/search:
     $ref: "paths/course.yaml#/~1api~1v1~1course~1courses~1search"
   /api/v1/course/courses/{courseID}:
@@ -201,6 +247,10 @@ paths:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity"
   /api/v1/user/identity/uploads:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity~1uploads"
+  /api/v1/user/qq-binding:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1qq-binding"
+  /api/v1/user/qq-binding/code:
+    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1qq-binding~1code"
   /api/v1/user/profile:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile"
   /api/v1/user/profile/verify:
@@ -215,6 +265,12 @@ paths:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1schools"
   /api/v1/user/me:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1me"
+
+  # ── Bot: User Binding ──
+  /api/v1/bot/qq-binding/consume:
+    $ref: "paths/bot-user.yaml#/~1api~1v1~1bot~1qq-binding~1consume"
+  /api/v1/bot/qq-users/{qqID}/verification:
+    $ref: "paths/bot-user.yaml#/~1api~1v1~1bot~1qq-users~1{qqID}~1verification"
 
   # ── Admin: User System ──
   /api/v1/admin/identities:
@@ -292,6 +348,8 @@ components:
       $ref: "components/security.yaml#/securitySchemes/cookieAuth"
     bearerAuth:
       $ref: "components/security.yaml#/securitySchemes/bearerAuth"
+    serviceTokenAuth:
+      $ref: "components/security.yaml#/securitySchemes/serviceTokenAuth"
 
   responses:
     ErrorResponse:
@@ -331,6 +389,8 @@ components:
       $ref: "components/schemas/course.yaml#/FavoriteCourse"
     CourseStats:
       $ref: "components/schemas/course.yaml#/CourseStats"
+    DepartmentGroup:
+      $ref: "components/schemas/course.yaml#/DepartmentGroup"
 
     # Review
     Review:
@@ -449,6 +509,14 @@ components:
       $ref: "components/schemas/user-system.yaml#/UpdateSchoolConfigRequest"
     UserSurface:
       $ref: "components/schemas/user-system.yaml#/UserSurface"
+    QQBinding:
+      $ref: "components/schemas/user-system.yaml#/QQBinding"
+    QQBindingCode:
+      $ref: "components/schemas/user-system.yaml#/QQBindingCode"
+    ConsumeQQBindingRequest:
+      $ref: "components/schemas/user-system.yaml#/ConsumeQQBindingRequest"
+    QQVerificationStatus:
+      $ref: "components/schemas/user-system.yaml#/QQVerificationStatus"
 
   parameters:
     PageParam:

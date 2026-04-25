@@ -1,3 +1,11 @@
+---
+type: guide
+audience: all
+status: current
+authoritative-source: this file
+last-verified: 2026-04-19
+---
+
 # 快速开始
 
 ## 前置要求
@@ -5,6 +13,7 @@
 - Docker + Docker Compose
 - Go 1.26+
 - Node.js 24+ / pnpm 10+
+- Python 3（运维脚本、环境渲染、远程部署前置检查依赖）
 
 ## 一键启动
 
@@ -60,10 +69,32 @@ cd clients
 pnpm install
 pnpm dev:web        # 主站
 pnpm dev:admin      # 管理后台
+pnpm dev:uni        # UniApp X H5
 pnpm type-check && pnpm lint
 pnpm test:web && pnpm test:e2e
-pnpm build:web && pnpm build:admin
+pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
+
+## Koishi 工作区
+
+```bash
+cd bots/koishi
+corepack yarn install
+corepack yarn build
+corepack yarn test:unit
+corepack yarn test:startup
+corepack yarn test
+corepack yarn dev
+```
+
+说明：
+
+- Koishi 工作区与主站开发环境分离启动。
+- 本地 `koishi.yml` 固定监听 `5140`；启动烟雾验证会先释放已占用的 `5140` 端口。
+- `STUHELPER_CONSOLE_ADMIN_PASSWORD` 必须在启动前提供非空值；`bots/koishi/koishi.yml` 和 `stuhelper-core` 都会依赖它作为 Console 管理员密码。
+- NapCat 保持外部部署；本地单元测试不依赖真实 OneBot。
+- Koishi Console 已挂载 StuHelper 自定义群管页面，访问路径为 `/stuhelper`。
+- 机器人开发说明见 [guides/koishi-development.md](guides/koishi-development.md)。
 
 ## 手动拆分启动
 
@@ -96,6 +127,8 @@ make prod-down     # 停止
 - `.env.prod.secrets.local`
 - `.env.prod.generated`
 
+并且会以 `.env.prod.example` 为唯一基线生成生产 skeleton，保留生产占位符，不再从开发 `.env.example` 派生 `localhost` / `http` / 本地告警接收器等默认值。
+
 ## GitLab 发布
 
 - `develop` → staging 自动部署 + `verify_staging`
@@ -107,7 +140,7 @@ make prod-down     # 停止
 sudo bash infra/ops/bootstrap-ubuntu2404.sh
 ```
 
-这个脚本会一起装好 Docker / Compose、部署目录、备份目录和 PostgreSQL 逻辑备份 / base backup timer。
+这个脚本会一起装好 Docker / Compose、部署目录、备份目录、`.deploy/remote.env`、Vault token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。
 
 Ansible 入口：
 
@@ -119,7 +152,8 @@ make ansible-deploy-prod
 
 ## 下一步
 
-- [BACKEND.md](BACKEND.md) — 后端规范
-- [FRONTEND.md](FRONTEND.md) — 前端规范
+- [guides/backend-development.md](guides/backend-development.md) — 后端规范
+- [guides/frontend-development.md](guides/frontend-development.md) — 前端规范
+- [guides/koishi-development.md](guides/koishi-development.md) — 机器人工作区
 - [product-specs/index.md](product-specs/index.md) — 业务域规格
-- [operations/README.md](operations/README.md) — 运维文档
+- [guides/](guides/) — 运维文档

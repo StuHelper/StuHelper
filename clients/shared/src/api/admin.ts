@@ -14,7 +14,7 @@ export const createAdminApi = (client: ApiClient) => ({
   getStats: () =>
     client.GET('/api/v1/course/review/admin/stats'),
 
-  getReviews: (params?: { status?: 'published' | 'hidden' | 'deleted' | 'all'; page?: number; pageSize?: number }) =>
+  getReviews: (params?: { status?: 'published' | 'pending_review' | 'hidden' | 'deleted' | 'all'; page?: number; pageSize?: number }) =>
     client.GET('/api/v1/course/review/admin/reviews', { params: { query: params } }),
 
   updateReview: (id: string, data: AdminUpdateReviewRequest) =>
@@ -24,7 +24,7 @@ export const createAdminApi = (client: ApiClient) => ({
     client.POST('/api/v1/course/review/admin/reviews/{reviewID}/edit', { params: { path: { reviewID: id } }, body: data }),
 
   batchUpdateReviews: (data: BatchUpdateReviewsRequest) =>
-    client.POST('/api/v1/course/review/admin/reviews/batch', { body: data }),
+    client.PATCH('/api/v1/course/review/admin/reviews/batch', { body: data }),
 
   getReports: (params?: { status?: 'pending' | 'resolved' | 'rejected' | 'all'; page?: number; pageSize?: number }) =>
     client.GET('/api/v1/course/review/admin/reports', { params: { query: params } }),
@@ -35,7 +35,7 @@ export const createAdminApi = (client: ApiClient) => ({
   getLogs: (params?: { page?: number; pageSize?: number }) =>
     client.GET('/api/v1/course/review/admin/logs', { params: { query: params } }),
 
-  exportReviews: (params?: { format?: 'json' | 'ndjson' | 'csv'; status?: 'all' | 'published' | 'hidden' | 'deleted' }) =>
+  exportReviews: (params?: { format?: 'json' | 'ndjson' | 'csv'; status?: 'all' | 'published' | 'pending_review' | 'hidden' | 'deleted' }) =>
     client.GET('/api/v1/course/review/admin/export', { params: { query: params } }),
 
   getTeachers: (params?: { page?: number; pageSize?: number; search?: string; departmentID?: number }) =>

@@ -16,16 +16,17 @@ import (
 
 // PostReviewParams 发布评论参数
 type PostReviewParams struct {
-	CourseID  int64
-	TeacherID *int64
-	TermID    string
-	Title     string
-	Content   string
-	Grade     string
-	Ratings   ReviewRatings
-	UserHash  string
-	IPAddress string
-	RequestID string
+	CourseID             int64
+	TeacherID            *int64
+	TermID               string
+	Title                string
+	Content              string
+	Grade                string
+	Ratings              ReviewRatings
+	UserHash             string
+	AuthorExternalUserID string
+	IPAddress            string
+	RequestID            string
 }
 
 // PostReviewResult 发布评论结果
@@ -44,10 +45,10 @@ type VoteReviewParams struct {
 type UpdateReviewParams struct {
 	ReviewID string
 	UserHash string
-	Title    string
-	Content  string
-	Grade    string
-	Ratings  ReviewRatings
+	Title    *string
+	Content  *string
+	Grade    *string
+	Ratings  *ReviewRatings
 }
 
 // DeleteReviewParams 删除评论参数
@@ -60,7 +61,8 @@ type DeleteReviewParams struct {
 func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*PostReviewResult, error) {
 	var err error
 	var contentFlag *string
-	params.Title, params.Content, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
+	var status string
+	params.Title, params.Content, status, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, params.TermID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +89,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		}
 
 		if params.TeacherID != nil {
-			teacherExists, err := s.repo.TeacherExistsTx(ctx, tx, *params.TeacherID)
+			teacherExists, err := s.repo.TeacherBelongsToCourseSchoolTx(ctx, tx, *params.TeacherID, params.CourseID)
 			if err != nil {
 				return err
 			}
@@ -114,39 +116,62 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 			Grade:       params.Grade,
 			Ratings:     ratingsData,
 			UserHash:    params.UserHash,
+			Status:      status,
 			ContentFlag: contentFlag,
 		})
 		if err != nil {
+			if isUniqueConstraintViolation(err, "idx_reviews_user_course") {
+				return ErrAlreadyReviewed
+			}
 			return err
 		}
 		review = *created
+		if !isPublicReviewStatus(review.Status) {
+			schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
+			if err != nil {
+				return err
+			}
+			return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, params.AuthorExternalUserID, params.CourseID, schoolID)
+		}
 		if err := s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID); err != nil {
 			return err
 		}
-		return s.refreshReviewTargetTx(ctx, tx, params.CourseID, params.TeacherID)
+		if err := s.refreshReviewTargetTx(ctx, tx, params.CourseID, params.TeacherID); err != nil {
+			return err
+		}
+		schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
+		if err != nil {
+			return err
+		}
+		return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, params.AuthorExternalUserID, params.CourseID, schoolID)
 	}); err != nil {
 		return nil, err
 	}
 
-	audit.Log(audit.Event{
-		Type:      audit.EventDataCreate,
-		UserID:    maskHash(params.UserHash),
-		IP:        params.IPAddress,
-		RequestID: params.RequestID,
-		Resource:  "review",
-		Action:    "post_review",
-		Result:    "success",
+	audit.Log(audit.EventFromContext(ctx, audit.Event{
+		Type:         audit.EventDataCreate,
+		UserID:       maskHash(params.UserHash),
+		IP:           params.IPAddress,
+		RequestID:    params.RequestID,
+		Resource:     "review",
+		ResourceType: "review",
+		ResourceID:   reviewID,
+		Action:       "post_review",
+		Result:       "success",
 		Details: map[string]interface{}{
 			"review_id": reviewID,
 			"course_id": params.CourseID,
+			"status":    review.Status,
 		},
-	})
+	}))
 
 	return &PostReviewResult{Review: review}, nil
 }
 
 // VoteReview 投票
-func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error {
+func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int64, error) {
+	var courseID int64
+	var shouldNotifyLike bool
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
 		if err != nil {
@@ -154,6 +179,11 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 		}
 		if !exists {
 			return ErrReviewNotFound
+		}
+
+		courseID, err = s.repo.GetReviewCourseIDTx(ctx, tx, params.ReviewID)
+		if err != nil {
+			return err
 		}
 
 		existing, err := s.repo.GetVoteType(ctx, tx, params.ReviewID, params.UserHash)
@@ -171,6 +201,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 				return nil
 			}
 			if params.VoteType == "like" {
+				shouldNotifyLike = true
 				return s.repo.IncrementLikeCount(ctx, tx, params.ReviewID)
 			}
 			return s.repo.IncrementDislikeCount(ctx, tx, params.ReviewID)
@@ -189,6 +220,7 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 				return err
 			}
 			if params.VoteType == "like" {
+				shouldNotifyLike = true
 				if err := s.repo.DecrementDislikeCount(ctx, tx, params.ReviewID); err != nil {
 					return err
 				}
@@ -201,56 +233,108 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) error
 		}
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// 仅在新增 upvote 时通知评价作者
-	if s.notifSender != nil && params.VoteType == "like" {
-		go s.sendVoteNotification(context.Background(), params.ReviewID, params.UserHash)
+	if shouldNotifyLike {
+		s.dispatchNotification(ctx, func(notifCtx context.Context) {
+			s.sendVoteNotification(notifCtx, params.ReviewID, params.UserHash)
+		})
 	}
-	return nil
+	return courseID, nil
 }
 
 // UpdateReview 更新评论
 func (s *Service) UpdateReview(ctx context.Context, params UpdateReviewParams) error {
-	var err error
-	var contentFlag *string
-	params.Title, params.Content, contentFlag, err = s.validateAndSanitizeReview(ctx, params.Ratings, params.Title, params.Content, "")
-	if err != nil {
-		return err
-	}
-
-	ratingsData, err := json.Marshal(params.Ratings)
-	if err != nil {
-		return err
-	}
-
 	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		ownerHash, courseID, teacherID, status, err := s.repo.GetReviewOwnerCourseTeacherStatusTx(ctx, tx, params.ReviewID)
+		state, err := s.repo.GetReviewUpdateStateTx(ctx, tx, params.ReviewID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrReviewNotFound
 			}
 			return err
 		}
-		if status != StatusPublished {
+		if state.status != StatusPublished && state.status != StatusPendingReview {
 			return ErrReviewNotFound
 		}
-		if ownerHash != params.UserHash {
+		if state.userHash != params.UserHash {
 			return ErrNotReviewOwner
+		}
+
+		title, content, grade, ratings := mergeReviewUpdate(state, params)
+		sanitizedTitle, sanitizedContent, nextStatus, contentFlag, err := s.validateAndSanitizeReview(ctx, ratings, title, content, "")
+		if err != nil {
+			return err
+		}
+		ratingsData, err := json.Marshal(ratings)
+		if err != nil {
+			return err
 		}
 
 		if err := s.repo.Update(ctx, tx, UpdateParams{
 			ID:          params.ReviewID,
-			Title:       params.Title,
-			Content:     params.Content,
-			Grade:       params.Grade,
+			Title:       sanitizedTitle,
+			Content:     sanitizedContent,
+			Grade:       grade,
 			Ratings:     ratingsData,
+			Status:      nextStatus,
 			ContentFlag: contentFlag,
 		}); err != nil {
 			return err
 		}
-		return s.refreshReviewTargetTx(ctx, tx, courseID, teacherID)
+
+		wasPublic := isPublicReviewStatus(state.status)
+		isPublic := isPublicReviewStatus(nextStatus)
+		switch {
+		case wasPublic && !isPublic:
+			if err := s.repo.DecrementCourseReviewCount(ctx, tx, state.courseID); err != nil {
+				return err
+			}
+		case !wasPublic && isPublic:
+			if err := s.repo.IncrementCourseReviewCount(ctx, tx, state.courseID); err != nil {
+				return err
+			}
+		}
+
+		if wasPublic || isPublic {
+			return s.refreshReviewTargetTx(ctx, tx, state.courseID, state.teacherID)
+		}
+		return nil
 	})
+}
+
+func mergeReviewUpdate(state reviewUpdateState, params UpdateReviewParams) (string, string, string, ReviewRatings) {
+	title := state.title
+	if params.Title != nil {
+		title = *params.Title
+	}
+
+	content := state.content
+	if params.Content != nil {
+		content = *params.Content
+	}
+
+	grade := state.grade
+	if params.Grade != nil {
+		grade = *params.Grade
+	}
+
+	ratings := cloneReviewRatings(state.ratings)
+	if params.Ratings != nil {
+		ratings = cloneReviewRatings(*params.Ratings)
+	}
+	return title, content, grade, ratings
+}
+
+func cloneReviewRatings(source ReviewRatings) ReviewRatings {
+	if len(source) == 0 {
+		return ReviewRatings{}
+	}
+	cloned := make(ReviewRatings, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 // DeleteReview 删除评论

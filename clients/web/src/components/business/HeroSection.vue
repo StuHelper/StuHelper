@@ -125,4 +125,14 @@ const { t } = useI18n()
     font-size: 1rem;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-subtitle,
+  .hero-cta-1,
+  .hero-cta-2 {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
 </style>

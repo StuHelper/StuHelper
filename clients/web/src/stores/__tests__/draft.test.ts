@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { SaveDraftParams } from '@/types/draft'
+import type { SaveDraftParams } from '@stuhelper/shared/draft'
 
 const mockSaveDraft = vi.fn()
 const mockGetDraft = vi.fn()
@@ -16,7 +16,7 @@ vi.mock('@/api', () => ({
   },
 }))
 
-vi.mock('@/types/course', () => ({
+vi.mock('@stuhelper/shared/course', () => ({
   isValidRating: (v: unknown) => typeof v === 'number' && v >= 1 && v <= 5,
 }))
 

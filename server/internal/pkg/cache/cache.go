@@ -3,8 +3,8 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"math/rand/v2"
+	"errors"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -14,6 +14,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/singleflightx"
 )
 
 const (
@@ -28,6 +29,13 @@ const (
 	// jitterFraction TTL 抖动比例（±15%）
 	jitterFraction = 0.15
 )
+
+// incrExpireScript 原子执行 INCR + EXPIRE，避免 Expire 失败导致 key 永不过期
+var incrExpireScript = redis.NewScript(`
+	local v = redis.call('INCR', KEYS[1])
+	redis.call('EXPIRE', KEYS[1], ARGV[1])
+	return v
+`)
 
 // versionEntry 版本号本地缓存条目
 type versionEntry struct {
@@ -69,8 +77,15 @@ func NewHelperWithMaxVersions(client *redis.Client, maxVersions int) *Helper {
 // 在 base ± jitterFraction 范围内随机浮动
 func JitteredTTL(base time.Duration) time.Duration {
 	jitter := float64(base) * jitterFraction
-	delta := rand.Float64()*2*jitter - jitter //nolint:gosec // G404: jitter for cache TTL, not cryptographic
+	delta := randFloat64()*2*jitter - jitter
 	return base + time.Duration(delta)
+}
+
+// randFloat64 使用非安全随机源生成 [0, 1) 范围的 float64。
+//
+//nolint:gosec // TTL jitter 只需要低成本随机性，不参与任何安全决策。
+func randFloat64() float64 {
+	return rand.Float64()
 }
 
 // Client 返回底层 Redis 客户端（用于需要直接访问的场景）
@@ -78,9 +93,9 @@ func (h *Helper) Client() *redis.Client {
 	return h.client
 }
 
-// GetRaw returns the cached value as pre-serialized JSON bytes.
-// Unlike Get, this avoids double-deserialization and the float64 precision issue.
-// The returned json.RawMessage can be passed directly to response.Success.
+// GetRaw 直接返回缓存中的 JSON 字节。
+// 相比 Get，它避免了重复反序列化以及 float64 精度丢失问题。
+// 返回的 json.RawMessage 可直接传给 response.Success。
 func (h *Helper) GetRaw(ctx context.Context, key string) (json.RawMessage, bool) {
 	if h.client == nil {
 		return nil, false
@@ -271,7 +286,7 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 	h.vmu.RUnlock()
 
 	// 本地缓存未命中，通过 singleflight 去重并发 Redis 查询
-	result, err, _ := h.sf.Do("version:"+vk, func() (any, error) {
+	version, err := singleflightx.DoValue(&h.sf, "version:"+vk, func() (string, error) {
 		// 二次检查本地缓存（可能在等待期间被其他请求填充）
 		h.vmu.RLock()
 		if entry, ok := h.versions[vk]; ok && time.Now().Before(entry.expiresAt) {
@@ -282,7 +297,7 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 
 		version, err := h.client.Get(ctx, vk).Result()
 		if err != nil {
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				return "0", nil
 			}
 			// 非 key-not-found 错误，记录日志并返回默认值
@@ -297,40 +312,20 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 	if err != nil {
 		return "0"
 	}
-
-	version, _ := result.(string) //nolint:errcheck // redis result, empty string handled below
 	if version == "" {
 		version = "0"
 	}
 
 	// 写入本地缓存
 	h.vmu.Lock()
+	if _, exists := h.versions[vk]; !exists && len(h.versions) >= h.maxVersionEntries {
+		// 本地版本缓存只是 Redis 命中的短时优化，达到上限时直接重置即可。
+		// 这样避免为了淘汰一个条目而按 map 大小 O(N) 扫描整张表。
+		h.versions = make(map[string]versionEntry, h.maxVersionEntries)
+	}
 	h.versions[vk] = versionEntry{
 		version:   version,
 		expiresAt: time.Now().Add(versionLocalTTL),
-	}
-	// 超过上限时清理：先删过期条目，仍超限则淘汰最旧条目
-	if len(h.versions) > h.maxVersionEntries {
-		now := time.Now()
-		for k, e := range h.versions {
-			if now.After(e.expiresAt) {
-				delete(h.versions, k)
-			}
-		}
-		// 清理过期条目后仍超限，强制淘汰最旧条目
-		for len(h.versions) > h.maxVersionEntries {
-			var oldestKey string
-			var oldestTime time.Time
-			for k, e := range h.versions {
-				if oldestKey == "" || e.expiresAt.Before(oldestTime) {
-					oldestKey = k
-					oldestTime = e.expiresAt
-				}
-			}
-			if oldestKey != "" {
-				delete(h.versions, oldestKey)
-			}
-		}
 	}
 	h.vmu.Unlock()
 
@@ -353,11 +348,6 @@ func (h *Helper) InvalidateByVersion(ctx context.Context, prefix string) error {
 	versionKey := VersionKey(prefix)
 
 	// 使用 Lua 脚本原子执行 INCR + EXPIRE，避免 Expire 失败导致 key 永不过期
-	incrExpireScript := redis.NewScript(`
-		local v = redis.call('INCR', KEYS[1])
-		redis.call('EXPIRE', KEYS[1], ARGV[1])
-		return v
-	`)
 	newVersion, err := incrExpireScript.Run(ctx, h.client, []string{versionKey}, int(VersionKeyTTL.Seconds())).Int64()
 	if err != nil {
 		logger.L().Warn("failed to increment cache version",
@@ -390,7 +380,7 @@ func GetOrSet[T any](h *Helper, ctx context.Context, key string, ttl time.Durati
 	}
 
 	// 缓存未命中，通过 singleflight 去重并发加载
-	result, err, _ := h.sf.Do(key, func() (any, error) {
+	val, err := singleflightx.DoValue(&h.sf, key, func() (T, error) {
 		// 再次检查缓存（可能在等待期间被其他请求填充）
 		if val, ok := GetAs[T](h, ctx, key); ok {
 			return val, nil
@@ -401,7 +391,7 @@ func GetOrSet[T any](h *Helper, ctx context.Context, key string, ttl time.Durati
 		if err != nil {
 			// 加载失败时移除 singleflight 缓存，允许后续请求重试
 			h.sf.Forget(key)
-			return nil, err
+			return zero, err
 		}
 
 		// 写入缓存（使用带抖动的 TTL）
@@ -416,11 +406,6 @@ func GetOrSet[T any](h *Helper, ctx context.Context, key string, ttl time.Durati
 	})
 	if err != nil {
 		return zero, err
-	}
-
-	val, ok := result.(T)
-	if !ok {
-		return zero, fmt.Errorf("GetOrSet: expected %T, got %T for key %s", zero, result, key)
 	}
 	return val, nil
 }

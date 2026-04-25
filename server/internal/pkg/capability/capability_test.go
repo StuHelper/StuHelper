@@ -62,6 +62,39 @@ func TestCanAccessAdmin(t *testing.T) {
 	assert.False(t, CanAccessAdmin(ExpandRoles([]string{"verified_student"})))
 }
 
+func TestExpandRoleGrants_SchoolAdminUsesScopedSchoolIDs(t *testing.T) {
+	grants := ExpandRoleGrants([]string{"school_admin"}, map[string][]string{
+		"school_admin": {"1002", "1001", "1002"},
+	})
+	snapshot := BuildUserAccessSnapshot(grants)
+
+	assert.Empty(t, snapshot.GlobalCapabilities)
+	assert.Contains(t, snapshot.Capabilities, UserStudentRead)
+	assert.Contains(t, snapshot.Capabilities, UserSchoolUpdate)
+	for _, grant := range snapshot.CapabilityGrants {
+		assert.False(t, grant.Global)
+		assert.Equal(t, []string{"1001", "1002"}, grant.ScopeSchoolIDs)
+	}
+}
+
+func TestExpandRoleGrants_SchoolAdminWithoutOrgScopeGetsNoGrant(t *testing.T) {
+	snapshot := BuildUserAccessSnapshot(ExpandRoleGrants([]string{"school_admin"}, nil))
+	assert.Empty(t, snapshot.Capabilities)
+	assert.Empty(t, snapshot.CapabilityGrants)
+}
+
+func TestHasGrantInSchool(t *testing.T) {
+	grants := []Grant{
+		{Name: UserStudentRead, ScopeSchoolIDs: []string{"1001"}},
+		{Name: UserSystemRead, Global: true},
+	}
+	assert.True(t, HasGrantInSchool(grants, UserStudentRead, "1001"))
+	assert.False(t, HasGrantInSchool(grants, UserStudentRead, "1002"))
+	assert.True(t, HasGrantInSchool(grants, UserSystemRead, "9999"))
+	assert.True(t, HasGlobalGrant(grants, UserSystemRead))
+	assert.False(t, HasGlobalGrant(grants, UserStudentRead))
+}
+
 func TestNormalize_DeduplicatesAndSorts(t *testing.T) {
 	result := Normalize([]string{"c", "a", "b", "a", "", "c"})
 	assert.Equal(t, []string{"a", "b", "c"}, result)

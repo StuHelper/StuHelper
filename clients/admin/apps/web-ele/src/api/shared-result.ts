@@ -1,62 +1,23 @@
+import type { ApiCallResult, ApiEnvelope } from '@stuhelper/shared/api';
+
+import {
+  extractOptionalResultData,
+  extractResultData,
+  extractResultErrorCode,
+  extractResultList,
+  readResultStatus,
+} from '@stuhelper/shared/api';
 import { ElMessage } from 'element-plus';
 
 import { $t } from '#/locales';
 
-export interface ApiEnvelope<T> {
-  success?: boolean;
-  data?: T;
-  error?: unknown;
-  message?: string;
-  code?: string;
-}
-
-export interface ApiCallResult<T = unknown> {
-  data?: ApiEnvelope<T>;
-  error?: unknown;
-  response?: {
-    status?: number;
-  };
-}
-
-function readErrorMessage(value: unknown): string | null {
-  if (typeof value === 'string') {
-    return value.trim() || null;
-  }
-
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const message = record.message;
-  if (typeof message === 'string' && message.trim()) {
-    return message;
-  }
-
-  const error = record.error;
-  if (typeof error === 'string' && error.trim()) {
-    return error;
-  }
-
-  return null;
-}
+export type { ApiCallResult, ApiEnvelope };
 
 export function extractErrorMessage(result: ApiCallResult<unknown>): string {
-  const dataError = readErrorMessage(result.data?.error);
-  if (dataError) {
-    return dataError;
-  }
+  const code = extractResultErrorCode(result);
+  const status = readResultStatus(result);
 
-  if (result.data?.message) {
-    return result.data.message;
-  }
-
-  const runtimeError = readErrorMessage(result.error);
-  if (runtimeError) {
-    return runtimeError;
-  }
-
-  if (result.response?.status === 401) {
+  if (status === 401 || code?.startsWith('A00101')) {
     return $t('admin.result.authExpired');
   }
 
@@ -64,8 +25,9 @@ export function extractErrorMessage(result: ApiCallResult<unknown>): string {
 }
 
 export function unwrapData<T>(result: ApiCallResult<T>): T {
-  if (result.data && 'data' in result.data && result.data.data !== undefined) {
-    return result.data.data as T;
+  const payload = extractResultData(result);
+  if (payload !== undefined) {
+    return payload;
   }
 
   const message = extractErrorMessage(result);
@@ -74,11 +36,13 @@ export function unwrapData<T>(result: ApiCallResult<T>): T {
 }
 
 export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
-  if (result.data && 'data' in result.data) {
-    return (result.data.data ?? null) as null | T;
+  const payload = extractOptionalResultData(result);
+  if (payload !== undefined) {
+    return payload;
   }
 
-  if (result.response?.status === 401 || result.response?.status === 404) {
+  const status = readResultStatus(result);
+  if (status === 401 || status === 404) {
     return null;
   }
 
@@ -88,12 +52,17 @@ export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
 }
 
 export function unwrapListData<T>(
-  result: ApiCallResult<{ list?: T[]; total?: number }>,
-): { items: T[]; total: number } {
-  const payload = unwrapData(result);
+  result: ApiCallResult<{ items?: T[]; list?: T[]; total?: number }>,
+): {
+  items: T[];
+  total: number;
+} {
+  const payload = extractResultList(result);
+  if (payload) {
+    return { items: payload.list, total: payload.total };
+  }
 
-  return {
-    items: Array.isArray(payload.list) ? payload.list : [],
-    total: typeof payload.total === 'number' ? payload.total : 0,
-  };
+  const message = extractErrorMessage(result);
+  ElMessage.error(message);
+  throw new Error(message);
 }

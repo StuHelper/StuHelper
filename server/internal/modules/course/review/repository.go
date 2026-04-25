@@ -42,10 +42,17 @@ func (r *Repository) CourseExistsTx(ctx context.Context, tx pgx.Tx, courseID int
 	return exists, err
 }
 
-// TeacherExistsTx 在事务内检查教师是否存在（H-23）
-func (r *Repository) TeacherExistsTx(ctx context.Context, tx pgx.Tx, teacherID int64) (bool, error) {
+// TeacherBelongsToCourseSchoolTx 在事务内检查教师是否与课程归属同一学校。
+func (r *Repository) TeacherBelongsToCourseSchoolTx(ctx context.Context, tx pgx.Tx, teacherID int64, courseID int64) (bool, error) {
 	var exists bool
-	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM teachers WHERE id = $1)`, teacherID).Scan(&exists)
+	err := tx.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM teachers t
+			JOIN courses c ON c.school_id = t.school_id
+			WHERE t.id = $1 AND c.id = $2
+		)
+	`, teacherID, courseID).Scan(&exists)
 	return exists, err
 }
 
@@ -108,28 +115,6 @@ func (r *Repository) GetPortalStats(ctx context.Context) (courseCount, reviewCou
 	return
 }
 
-// ListByCourse 获取课程评论列表
-func (r *Repository) ListByCourse(ctx context.Context, courseID int64, limit, offset int) ([]Review, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
-		       r.title, r.content, r.grade, r.ratings,
-		       r.like_count, r.dislike_count,
-		       r.reply_count,
-		       r.status, r.moderation_reason, r.created_at, r.updated_at
-		FROM reviews r
-		LEFT JOIN courses c ON c.id = r.course_id
-		LEFT JOIN teachers t ON t.id = r.teacher_id
-		WHERE r.course_id = $1 AND r.status = 'published'
-		ORDER BY r.created_at DESC
-		LIMIT $2 OFFSET $3
-	`, courseID, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanReviews(rows)
-}
-
 // ListLatest 获取最新评论列表（含总数）
 func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort string) ([]Review, int, error) {
 	// SQL 注入安全保证：orderClause 的值 **仅** 来自 allowedSortOrders 硬编码 map，
@@ -139,13 +124,22 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 		orderClause = allowedSortOrders[SortTime]
 	}
 
+	var total int
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM reviews WHERE status = 'published'
+	`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return []Review{}, 0, nil
+	}
+
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
-		       r.status, r.moderation_reason, r.created_at, r.updated_at,
-		       COUNT(*) OVER() AS total
+		       r.status, r.moderation_reason, r.created_at, r.updated_at
 		FROM reviews r
 		LEFT JOIN courses c ON c.id = r.course_id
 		LEFT JOIN teachers t ON t.id = r.teacher_id
@@ -157,7 +151,11 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanReviewsWithTotal(rows)
+	list, err := scanReviews(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }
 
 // CreateParams 创建评论参数
@@ -171,6 +169,7 @@ type CreateParams struct {
 	Grade       string
 	Ratings     []byte
 	UserHash    string
+	Status      string
 	ContentFlag *string
 }
 
@@ -184,11 +183,11 @@ func (r *Repository) Create(ctx context.Context, tx pgx.Tx, p CreateParams) erro
 			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($8) WHERE value ~ '^\d+(\.\d+)?$'), 0),
 			$9,$10,$11,NOW())
 	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
-		p.Content, p.Grade, p.Ratings, p.UserHash, "published", p.ContentFlag)
+		p.Content, p.Grade, p.Ratings, p.UserHash, p.Status, p.ContentFlag)
 	return err
 }
 
-// CreateReturning 创建评论并通过 RETURNING 返回完整记录（H-16: 避免创建后查询失败导致孤儿记录）
+// CreateReturning 创建评论并通过 RETURNING 返回完整记录。
 func (r *Repository) CreateReturning(ctx context.Context, tx pgx.Tx, p CreateParams) (*Review, error) {
 	var review Review
 	err := tx.QueryRow(ctx, `
@@ -201,7 +200,7 @@ func (r *Repository) CreateReturning(ctx context.Context, tx pgx.Tx, p CreatePar
 		RETURNING id, course_id, teacher_id, term_id, title, content, grade,
 			ratings, like_count, dislike_count, reply_count, status, content_flag, created_at, updated_at
 	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
-		p.Content, p.Grade, p.Ratings, p.UserHash, "published", p.ContentFlag,
+		p.Content, p.Grade, p.Ratings, p.UserHash, p.Status, p.ContentFlag,
 	).Scan(
 		&review.ID, &review.CourseID, &review.TeacherID, &review.TermID,
 		&review.Title, &review.Content, &review.Grade, &review.Ratings,

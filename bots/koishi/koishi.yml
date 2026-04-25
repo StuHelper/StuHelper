@@ -1,0 +1,30 @@
+plugins:
+  group:server:
+    server:chm356:
+      port: 5140
+      maxPort: 5140
+  group:basic:
+    commands:339hfb: {}
+    help:3hh4h8: {}
+    http:8iyqxs: {}
+    locales:x35hpb: {}
+  group:console:
+    actions:ibf4cy: {}
+    auth:au7h3x:
+      admin:
+        enabled: true
+        username: admin
+        password: ${{ env.STUHELPER_CONSOLE_ADMIN_PASSWORD }}
+    config:ktowud: {}
+    console:4j5qqj:
+      open: true
+    logger:fftuua: {}
+  group:storage:
+    database-sqlite:q4tbt0:
+      path: data/koishi.db
+  group:stuhelper:
+    stuhelper-core:q1wm1r: {}
+  group:develop:
+    $if: env.NODE_ENV === 'development'
+    hmr:nepc4u:
+      root: .
