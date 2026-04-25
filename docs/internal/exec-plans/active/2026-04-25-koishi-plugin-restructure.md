@@ -12,9 +12,11 @@ last-verified: 2026-04-25
 > 范围：仅限 `bots/koishi/`；不动 `server/`、`clients/`、`infra/`。
 > 关联决策：[adr/0006-koishi-core-ui-as-single-webui-entry.md](../../../adr/0006-koishi-core-ui-as-single-webui-entry.md)
 
-## 1. 背景与现状
+## 1. 背景与基线
 
-### 1.1 三套插件代码并存
+### 1.1 P1 前基线：三套插件代码并存
+
+下表记录 P1 清理前的仓库状态，作为删除 `stuhelper-console` / `stuhelper-platform` 的决策依据；P1 完成后这两个实验包不再保留在 `bots/koishi/plugins/`。
 
 | 插件 | 路径 | LOC（client，非测试） | koishi.yml 是否加载 | 角色 |
 |------|------|---------------------|---------------------|------|
@@ -28,7 +30,7 @@ last-verified: 2026-04-25
 - `bots/koishi/plugins/stuhelper-core/client/composables/use-console-pages.ts` 的 `VIEW_COMPONENTS` 映射列出当前真实 11 个 view：dashboard / config / warns / blacklist / identity / review / roles / logs / chat / subscriptions / settings
 - `stuhelper-console` 仅覆盖 dashboard / enforcement / identity / policy / audit 5 个分区，缺失 chat / warns / blacklist / subscriptions / settings 等真实功能
 
-### 1.2 三个插件都注册 `/stuhelper`
+### 1.2 P1 前风险：三个插件都注册 `/stuhelper`
 
 - `stuhelper-core/client/index.ts` 的 `ctx.page({ path: '/stuhelper', authority: 4, ... })`
 - `stuhelper-console/client/index.ts` 的 `ctx.page({ path: '/stuhelper', ... })`（无 authority）
@@ -528,7 +530,7 @@ stuhelper-admin:
 |------|------|---------|----|
 | P0a Playwright 基础设施 | 已完成 | 2026-04-25 | (本分支单 commit) |
 | P0b 登录 fixture + 11 view smoke | 已完成（含 codex 复核 H1/M1/M2/M3/M4 加固） | 2026-04-25 | (本分支两个 commit：基线 + 加固) |
-| P1 删除未启用 UI 包 | 未开始 | - | - |
+| P1 删除未启用 UI 包 | 已完成 | 2026-04-25 | (本分支单 commit) |
 | P2 core UI 内部清理 | 未开始 | - | - |
 | P3 core 入口拆分 | 未开始 | - | - |
 | P4a Runtime registry + adapter | 未开始 | - | - |

@@ -5279,18 +5279,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"koishi-plugin-stuhelper-console@workspace:*, koishi-plugin-stuhelper-console@workspace:plugins/stuhelper-console":
-  version: 0.0.0-use.local
-  resolution: "koishi-plugin-stuhelper-console@workspace:plugins/stuhelper-console"
-  dependencies:
-    "@koishijs/client": "npm:^5.30.4"
-    "@koishijs/console": "npm:^5.30.11"
-    "@stuhelper/koishi-moderation-core": "workspace:*"
-    "@stuhelper/koishi-shared": "workspace:*"
-    koishi: "npm:^4.18.7"
-  languageName: unknown
-  linkType: soft
-
 "koishi-plugin-stuhelper-core@workspace:plugins/stuhelper-core":
   version: 0.0.0-use.local
   resolution: "koishi-plugin-stuhelper-core@workspace:plugins/stuhelper-core"
@@ -5302,7 +5290,6 @@ __metadata:
     koishi: "npm:^4.18.7"
     koishi-plugin-stuhelper-admin: "workspace:*"
     koishi-plugin-stuhelper-binding: "workspace:*"
-    koishi-plugin-stuhelper-console: "workspace:*"
     koishi-plugin-stuhelper-group-guard: "workspace:*"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -5315,18 +5302,6 @@ __metadata:
     "@stuhelper/koishi-moderation-core": "workspace:*"
     "@stuhelper/koishi-shared": "workspace:*"
     koishi: "npm:^4.18.7"
-  languageName: unknown
-  linkType: soft
-
-"koishi-plugin-stuhelper-platform@workspace:plugins/stuhelper-platform":
-  version: 0.0.0-use.local
-  resolution: "koishi-plugin-stuhelper-platform@workspace:plugins/stuhelper-platform"
-  dependencies:
-    "@koishijs/client": "npm:^5.30.4"
-    "@koishijs/console": "npm:^5.30.11"
-    "@stuhelper/koishi-shared": "workspace:*"
-    koishi: "npm:^4.18.7"
-    koishi-plugin-stuhelper-group-guard: "workspace:*"
   languageName: unknown
   linkType: soft
 

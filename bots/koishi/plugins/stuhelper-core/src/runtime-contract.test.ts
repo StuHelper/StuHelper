@@ -19,7 +19,6 @@ test('Koishi 本地工作区包使用构建产物作为运行时入口', async (
   await assertPackageRuntimeEntry('packages/shared/package.json')
   await assertPackageRuntimeEntry('plugins/stuhelper-admin/package.json')
   await assertPackageRuntimeEntry('plugins/stuhelper-binding/package.json')
-  await assertPackageRuntimeEntry('plugins/stuhelper-console/package.json')
   await assertPackageRuntimeEntry('plugins/stuhelper-core/package.json')
   await assertPackageRuntimeEntry('plugins/stuhelper-group-guard/package.json')
   await assertKoishiRuntimeConfig('koishi.yml')

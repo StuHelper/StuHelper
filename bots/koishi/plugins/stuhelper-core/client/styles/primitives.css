@@ -1,7 +1,7 @@
 /**
  * StuHelper 群管中心 — Primitives
  *
- * 从 stuhelper-console 吸收的非 IA 绑定组件样式。
+ * 群管中心共享 primitive 组件样式。
  * 不包含 sidebar / admin-shell / workspace-header —— 这些与左侧栏布局耦合，T2 不引入。
  *
  * 使用约束：

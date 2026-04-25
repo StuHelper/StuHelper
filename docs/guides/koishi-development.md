@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev, ops
 status: current
 authoritative-source: bots/koishi/ + server/api/openapi.yaml
-last-verified: 2026-04-24
+last-verified: 2026-04-25
 ---
 
 # Koishi 机器人开发
@@ -21,11 +21,9 @@ last-verified: 2026-04-24
 | `packages/shared` | 平台 API 客户端、共享配置与基础类型 |
 | `packages/moderation-core` | 群管领域模型、SQLite 表、规则引擎、动作服务；内部统一使用 `guildId`、`memberId` 等平台无关命名 |
 | `plugins/stuhelper-core` | 当前入口插件，承载完整群管中心页面、控制台 API、旧群管能力装配与 WebSocket 交互 |
-| `plugins/stuhelper-platform` | 实验性平台化包，承载模块注册、状态、配置、权限、群策略、审计与 WebUI 出口，当前不作为运行入口加载 |
 | `plugins/stuhelper-binding` | 私聊 `绑定 <code>` 命令，消费平台绑定码 |
 | `plugins/stuhelper-group-guard` | 入群准入、关键词/复读处理、撤回留痕、举报、骰子和抽禁言；待认证成员记录会绑定 `platform + botSelfId`，扫描时按原 bot 路由动作 |
 | `plugins/stuhelper-admin` | 提供 `群审状态`、`群审警告`、`群审复核`、`群审禁言`、`群审踢人申请`、`群审拉黑申请` 等文本管理员命令 |
-| `plugins/stuhelper-console` | 旧控制台实现，当前运行配置不加载 |
 
 ## 本地命令
 
@@ -62,7 +60,7 @@ corepack yarn workspaces list
 
 ### StuHelper 群管中心配置
 
-当前 StuHelper 群管页面由 `stuhelper-core` 提供，保留重构前的群管中心能力。`stuhelper-platform` 暂不作为运行入口加载。
+当前 StuHelper 群管页面由 `stuhelper-core` 提供，保留重构前的群管中心能力。
 
 群管配置来源包括：
 
