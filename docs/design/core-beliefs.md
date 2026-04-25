@@ -53,7 +53,7 @@ Repository 只管数据
 
 ## 8. 计划是版本化工件
 
-- 活跃计划：`docs/internal/exec-plans/active/`（当前为空）
+- 活跃计划：`docs/internal/exec-plans/active/`
 - 归档计划：`docs/internal/exec-plans/archived/`
 - 执行计划索引：`docs/internal/exec-plans/README.md`
 

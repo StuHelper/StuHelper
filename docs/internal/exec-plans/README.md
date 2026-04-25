@@ -3,7 +3,7 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-04-25
 ---
 
 # 执行计划（内部）
@@ -12,7 +12,7 @@ last-verified: 2026-04-19
 
 | 目录 | 用途 |
 |------|------|
-| `active/` | 当前推进中的计划（当前为空） |
+| `active/` | 当前推进中的计划 |
 | `archived/` | 已完成或已废弃的历史计划 |
 | `completed/` | 已完成事项与闭环记录 |
 
@@ -20,7 +20,7 @@ last-verified: 2026-04-19
 
 ## 活跃计划
 
-当前无活跃计划。
+- [active/2026-04-25-koishi-plugin-restructure.md](active/2026-04-25-koishi-plugin-restructure.md) — `bots/koishi/` 插件架构重构（保留 core UI、删除未用 console/platform、内部拆 server）
 
 ## 归档
 

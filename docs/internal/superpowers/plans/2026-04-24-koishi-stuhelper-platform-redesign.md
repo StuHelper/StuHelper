@@ -1,10 +1,12 @@
 ---
 type: internal
-audience: koishi-dev, maintainers
-status: in-progress
+audience: maintainers
+status: archived
 authoritative-source: this file
-last-verified: 2026-04-24
+last-verified: 2026-04-25
 ---
+
+> **Superseded by [ADR-0006](../../../adr/0006-koishi-core-ui-as-single-webui-entry.md)** (2026-04-25). 本计划提议把 `stuhelper-platform` 作为唯一入口；该方向已被否决。当前决策是保留 `stuhelper-core` 作为唯一 WebUI 入口、删除 `stuhelper-platform` 与 `stuhelper-console`、内部拆 server。执行计划见 [exec-plans/active/2026-04-25-koishi-plugin-restructure.md](../../exec-plans/active/2026-04-25-koishi-plugin-restructure.md)。本文件保留为历史方案记录。
 
 # Koishi StuHelper Platform Redesign Implementation Plan
 
