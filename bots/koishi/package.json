@@ -37,14 +37,16 @@
     "start": "koishi start",
     "test:unit": "tsx --test packages/**/src/**/*.test.ts plugins/**/src/**/*.test.ts plugins/**/client/**/*.test.ts",
     "test:startup": "node scripts/startup-smoke.mjs",
+    "test:ui": "node scripts/ui-smoke.mjs",
     "workspaces:list": "yarn workspaces list",
-    "test": "yarn build && yarn test:unit && yarn test:startup"
+    "test": "yarn build && yarn test:unit && yarn test:startup && yarn test:ui"
   },
   "devDependencies": {
     "@koishijs/client": "^5.30.4",
     "@koishijs/plugin-hmr": "^1.2.9",
     "@koishijs/plugin-mock": "^2.6.6",
     "@koishijs/scripts": "^4.6.1",
+    "@playwright/test": "latest",
     "@types/node": "^22.7.5",
     "@types/react": "^18.2.70",
     "cross-env": "^7.0.3",

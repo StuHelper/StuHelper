@@ -84,35 +84,61 @@ last-verified: 2026-04-25
 
 ## 4. 阶段计划
 
-### P0 验证基线
+### P0a Playwright 基础设施
 
 #### 目标
-建立可重复的"当前状态可用"基线，作为 P1-P6 的回归参照。
+建立 Playwright 测试基础设施，验证"启动 koishi → 浏览器访问 → spec 跑完 → 关闭"全链路工作；不涉及业务页面登录与 SPA 路由。
 
 #### 工作内容
 
-1. 新增 `bots/koishi/e2e/stuhelper-views.spec.ts`：
-   - 访问 `/stuhelper`
-   - 测试 fixture 通过 ENV 注入测试专用 admin 密码（`STUHELPER_CONSOLE_ADMIN_PASSWORD`），登录 Koishi Console
-   - 依次点击 11 个导航项
-   - 断言主区域出现对应 view 容器、无前端错误（`page.on('pageerror')` 监听）
-2. 新增 `bots/koishi/scripts/ui-smoke.mjs`：拉起 koishi → 跑 Playwright spec → 关闭
-3. 在 `bots/koishi/package.json` 增加 `test:ui` script
-4. 显式增加 `@playwright/test` 到 `bots/koishi` 自身 `devDependencies`，不复用 `clients/` 的 Playwright 版本
-5. 新增 `bots/koishi/playwright.config.ts`，与 `clients/` 配置完全隔离
+1. 新增 `bots/koishi/playwright.config.ts`，与 `clients/` 配置完全隔离（独立 testDir、独立浏览器存储）
+2. 新增 `bots/koishi/e2e/smoke.spec.ts`：最小 spec，访问 Koishi Console 首页根路径，断言页面 title 包含 "Koishi"，无 `pageerror`
+3. 新增 `bots/koishi/scripts/ui-smoke.mjs`：复用 `startup-smoke.mjs` 的临时配置 + 端口释放 + spawn 模式；启动 koishi 后等待 console 监听就绪，spawn `playwright test`，结束后 SIGTERM 关闭 koishi 进程组
+4. 在 `bots/koishi/package.json` 增加 `"@playwright/test": "latest"` 到 `devDependencies`（与 `clients/` 完全独立，不通过 monorepo hoist）
+5. 在 `bots/koishi/package.json` 增加 `"test:ui": "node scripts/ui-smoke.mjs"` script
 6. CI 入口 `yarn test` 改为 `yarn build && yarn test:unit && yarn test:startup && yarn test:ui`
 
 #### 退出标准
 
-- `yarn test:ui` 在干净 checkout + 测试 ENV 下能稳定通过 3 次
+- `corepack yarn install` 干净，新依赖落入 `bots/koishi/yarn.lock`
+- `corepack yarn test:ui` 在本地稳定通过 3 次
+- 关闭 koishi 进程组干净（无端口残留）
+- 所有现有 `test:unit`、`test:startup` 仍通过
+
+#### 风险与回滚
+
+- Playwright 浏览器下载阻塞 CI → 在 P0a PR 描述中说明首次运行需 `npx playwright install chromium`
+- Koishi Console 启动时 WebSocket 异步连接 → `ui-smoke.mjs` 等待 stdout 中"server listening"日志后才启动 spec
+- 回滚：单 PR revert
+
+---
+
+### P0b 登录 fixture + 11 view smoke
+
+#### 目标
+在 P0a 基础设施之上，建立 11 个 view 的端到端导航回归基线，作为 P1-P6 的护栏。
+
+#### 工作内容
+
+1. 新增 `bots/koishi/e2e/fixtures/login.ts`：登录 fixture，访问 Koishi Console 登录页 → 输入 admin 用户名 + ENV 注入的 `STUHELPER_CONSOLE_ADMIN_PASSWORD` → 提交 → 等待跳转完成
+2. 新增 `bots/koishi/e2e/stuhelper-views.spec.ts`：
+   - 使用登录 fixture
+   - 访问 `/stuhelper`
+   - 依次点击 11 个 sidebar 导航项（dashboard / config / warns / blacklist / identity / review / roles / logs / chat / subscriptions / settings）
+   - 每个 view 断言：对应组件容器出现、`page.on('pageerror')` 无错误
+3. 删除 P0a 阶段的 `e2e/smoke.spec.ts` 临时 spec（被业务 spec 替代）
+
+#### 退出标准
+
+- `corepack yarn test:ui` 在本地稳定通过 3 次
 - 11 个 view 全部可达且无前端错误
 - CI 跑通
 
 #### 风险与回滚
 
-- Playwright 版本与 koishi 内嵌的 puppeteer 冲突 → P0 内独立分支验证版本组合
-- 认证 fixture 跨平台行为不一致 → 用 ENV 注入而非 cookie 模拟，保持 fixture 简单
-- 回滚：直接 revert PR
+- Koishi auth 登录是 WebSocket socket event 而非传统 HTTP cookie → 优先走 UI 输入登录路径；如 SPA 登录页 selector 不稳定，退路是 `page.evaluate()` 直接发 `login/password` socket event
+- SPA 路由切换异步加载组件导致断言提前 → 用 `expect(locator).toBeVisible()` 等待，禁用 hard `waitForTimeout`
+- 回滚：单 PR revert（保留 P0a 基础设施）
 
 ---
 
@@ -488,7 +514,8 @@ stuhelper-admin:
 
 | 阶段 | 状态 | 完成日期 | PR |
 |------|------|---------|----|
-| P0 验证基线 | 未开始 | - | - |
+| P0a Playwright 基础设施 | 已完成 | 2026-04-25 | (本分支单 commit) |
+| P0b 登录 fixture + 11 view smoke | 进行中 | - | - |
 | P1 删除未启用 UI 包 | 未开始 | - | - |
 | P2 core UI 内部清理 | 未开始 | - | - |
 | P3 core 入口拆分 | 未开始 | - | - |
