@@ -93,6 +93,6 @@ export function useConsoleNavigation(win = window): ConsoleNavigationController 
     pushState,
     jumpTo,
     isCompact: computed(() => viewportWidth.value < 960),
-    isOverflowMode: computed(() => viewportWidth.value >= 960 && viewportWidth.value < 1280),
+    isOverflowMode: computed(() => viewportWidth.value >= 960 && viewportWidth.value < 1500),
   }
 }
