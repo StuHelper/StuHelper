@@ -62,10 +62,10 @@ async function loginAndWarmUp(page: Page): Promise<void> {
   // 登录成功后 store.user 被设置，watcher 跳转到 /profile
   await expect(page).toHaveURL(/\/profile($|\?)/, { timeout: 10_000 })
 
-  // SPA 路由 warm-up：Koishi 通过 ctx.console.addEntry 把 /stuhelper 路由
-  // 异步推到客户端 Vue Router；登录后第一次访问 /stuhelper 可能与路由注册
-  // 产生竞态。先访问 /stuhelper 等壳出现，证明路由已注册并接管渲染。
-  await page.goto('/stuhelper', { waitUntil: 'domcontentloaded' })
+  // SPA 路由 warm-up：Koishi 通过 ctx.console.addEntry 把 /stuhelper 入口异步推到
+  // 客户端。先等待侧边栏 entry 出现，再通过 Koishi 自己的 router link 进入页面，
+  // 避免直接 page.goto('/stuhelper') 抢在 entry 注册前触发 profile fallback。
+  await page.locator('a[href="/stuhelper"]').first().click()
   await expect(page.locator('.stuhelperGroupCenter-app')).toBeVisible({ timeout: 15_000 })
   // 等顶部导航完整渲染，证明 stuhelper-core 客户端 entry 已挂载
   await expect(page.locator('.nav-tab').first()).toBeVisible({ timeout: 10_000 })

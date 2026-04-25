@@ -95,7 +95,7 @@ last-verified: 2026-04-25
 
 1. 新增 `bots/koishi/playwright.config.ts`，与 `clients/` 配置完全隔离（独立 testDir、独立浏览器存储）
 2. 新增 `bots/koishi/e2e/smoke.spec.ts`：最小 spec，访问 Koishi Console 首页根路径，断言页面 title 包含 "Koishi"，无 `pageerror`
-3. 新增 `bots/koishi/scripts/ui-smoke.mjs`：复用 `startup-smoke.mjs` 的临时配置 + 端口释放 + spawn 模式；启动 koishi 后等待 console 监听就绪，spawn `playwright test`，结束后 SIGTERM 关闭 koishi 进程组
+3. 新增 `bots/koishi/scripts/ui-smoke.mjs`：复用 `startup-smoke.mjs` 的临时配置 + 端口释放 + spawn 模式；先执行 `yarn build` 刷新 production `dist/`，再启动 koishi 并等待 console 监听就绪，spawn `playwright test`，结束后 SIGTERM 关闭 koishi 进程组
 4. 在 `bots/koishi/package.json` 增加 `"@playwright/test": "latest"` 到 `devDependencies`（与 `clients/` 完全独立，不通过 monorepo hoist）
 5. 在 `bots/koishi/package.json` 增加 `"test:ui": "node scripts/ui-smoke.mjs"` script
 6. CI 入口 `yarn test` 改为 `yarn build && yarn test:unit && yarn test:startup && yarn test:ui`
@@ -111,6 +111,7 @@ last-verified: 2026-04-25
 
 - Playwright 浏览器下载阻塞 CI → 在 P0a PR 描述中说明首次运行需 `npx playwright install chromium`
 - Koishi Console 启动时 WebSocket 异步连接 → `ui-smoke.mjs` 等待 stdout 中"server listening"日志后才启动 spec
+- `test:ui` 使用 production browser entry，`dist/` 是 ignored 产物 → `ui-smoke.mjs` 启动前强制 `yarn build`，避免源码与浏览器执行 bundle 不同步
 - 回滚：单 PR revert
 
 ---
@@ -122,11 +123,11 @@ last-verified: 2026-04-25
 
 #### 工作内容
 
-1. 新增 `bots/koishi/e2e/fixtures/auth.ts`：worker-scoped 登录 fixture，访问 Koishi Console 登录页 → 输入 admin 用户名 + ENV 注入的 `STUHELPER_CONSOLE_ADMIN_PASSWORD` → 提交 → 等待跳转完成 → warm-up `/stuhelper` 路由
+1. 新增 `bots/koishi/e2e/fixtures/auth.ts`：worker-scoped 登录 fixture，访问 Koishi Console 登录页 → 输入 admin 用户名 + ENV 注入的 `STUHELPER_CONSOLE_ADMIN_PASSWORD` → 提交 → 等待跳转完成 → 等待 Koishi 侧边栏 `/stuhelper` entry 出现并通过 router link warm-up 页面
 2. 新增 `bots/koishi/e2e/stuhelper-views.spec.ts`：
    - 使用 `auth.ts` 登录 fixture 共享已登录的 Koishi Console page
    - 通过 TopNavigation 依次点击 11 个 view（dashboard / config / warns / blacklist / identity / review / roles / logs / chat / subscriptions / settings），不通过 `page.goto` 重载 SPA
-   - 每个 view 断言：URL 包含目标 `view=<id>`、view-specific anchor 出现、`pageerror` 与 console error/warning 均无未放行输出
+   - 每个 view 断言：URL hash 包含目标 view id、view-specific anchor 出现、`pageerror` 与 console error/warning 均无未放行输出
 3. 删除 P0a 阶段的 `e2e/smoke.spec.ts` 临时 spec（被业务 spec 替代）
 
 #### 退出标准

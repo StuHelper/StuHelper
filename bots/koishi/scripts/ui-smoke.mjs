@@ -13,6 +13,7 @@ import { load, dump } from 'js-yaml'
  * 与 startup-smoke 的差异：
  * - 此处用临时 SQLite 路径，避免污染 bots/koishi/data/koishi.db（P0b 登录 fixture 需要干净 DB）
  * - 全程跟踪 koishi 子进程的 close 状态，子进程提前退出时立即抛错而非等监听超时
+ * - 启动 Koishi 前先构建 workspace，保证 ignored 的 production dist 与源码同步
  */
 
 const SMOKE_PORT = Number.parseInt(process.env.STUHELPER_UI_SMOKE_PORT ?? '5140', 10)
@@ -30,6 +31,7 @@ let playwrightExitCode = 1
 
 try {
   await releasePort(SMOKE_PORT)
+  buildWorkspace()
 
   koishiChild = spawn('corepack', ['yarn', 'exec', 'koishi', 'start', tempConfigPath], {
     cwd,
@@ -93,6 +95,13 @@ try {
 
 if (playwrightExitCode !== 0) {
   process.exit(playwrightExitCode)
+}
+
+function buildWorkspace() {
+  execFileSync('corepack', ['yarn', 'build'], {
+    cwd,
+    stdio: 'inherit',
+  })
 }
 
 function runPlaywright() {
