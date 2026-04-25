@@ -45,6 +45,8 @@
       ],
       "@stuhelper/koishi-moderation-core": ["packages/moderation-core/src"],
       "@stuhelper/koishi-moderation-core/*": ["packages/moderation-core/src/*"],
+      "koishi-plugin-stuhelper-platform": ["plugins/stuhelper-platform/src"],
+      "koishi-plugin-stuhelper-platform/*": ["plugins/stuhelper-platform/src/*"],
       "@minatojs/driver-*": ["external/minato/packages/*/src"],
       "@minatojs/*": ["external/minato/packages/*/src"],
       "@satorijs/adapter-*": ["external/satori/adapters/*/src"],

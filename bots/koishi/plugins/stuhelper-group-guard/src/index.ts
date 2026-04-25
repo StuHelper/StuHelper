@@ -30,10 +30,17 @@ export type Config = StuhelperGroupGuardPluginConfig
 export const Config: Schema<Config> = createGroupGuardPluginConfigSchema()
 
 export function apply(ctx: Context, config: Config) {
+  registerGroupGuardRuntimeModels(ctx)
+  startGroupGuardRuntime(ctx, config)
+}
+
+export function registerGroupGuardRuntimeModels(ctx: Context) {
   registerGuardMemberModel(ctx)
   registerGuardPolicyModels(ctx)
   registerModerationModels(ctx)
+}
 
+export function startGroupGuardRuntime(ctx: Context, config: Config) {
   const logger = createPluginLogger(ctx, 'group-guard')
   const platform = createPlatformClient(config.platform)
   const guardStore = new GuardMemberStore(ctx)
