@@ -120,18 +120,17 @@ last-verified: 2026-04-25
 
 #### 工作内容
 
-1. 新增 `bots/koishi/e2e/fixtures/login.ts`：登录 fixture，访问 Koishi Console 登录页 → 输入 admin 用户名 + ENV 注入的 `STUHELPER_CONSOLE_ADMIN_PASSWORD` → 提交 → 等待跳转完成
+1. 新增 `bots/koishi/e2e/fixtures/auth.ts`：worker-scoped 登录 fixture，访问 Koishi Console 登录页 → 输入 admin 用户名 + ENV 注入的 `STUHELPER_CONSOLE_ADMIN_PASSWORD` → 提交 → 等待跳转完成 → warm-up `/stuhelper` 路由
 2. 新增 `bots/koishi/e2e/stuhelper-views.spec.ts`：
-   - 使用登录 fixture
-   - 访问 `/stuhelper`
-   - 依次点击 11 个 sidebar 导航项（dashboard / config / warns / blacklist / identity / review / roles / logs / chat / subscriptions / settings）
-   - 每个 view 断言：对应组件容器出现、`page.on('pageerror')` 无错误
+   - 使用 `auth.ts` 登录 fixture 共享已登录的 Koishi Console page
+   - 通过 TopNavigation 依次点击 11 个 view（dashboard / config / warns / blacklist / identity / review / roles / logs / chat / subscriptions / settings），不通过 `page.goto` 重载 SPA
+   - 每个 view 断言：URL 包含目标 `view=<id>`、view-specific anchor 出现、`pageerror` 与 console error/warning 均无未放行输出
 3. 删除 P0a 阶段的 `e2e/smoke.spec.ts` 临时 spec（被业务 spec 替代）
 
 #### 退出标准
 
 - `corepack yarn test:ui` 在本地**严格 12/12 通过 10 次连续**（加固原因见下）
-- 11 个 view 全部可达且无前端错误（pageerror + console.error/warning，allowlist 必须 view-specific 显式声明）
+- 11 个 view 全部可达且无前端错误（pageerror + console.error/warning，allowlist 必须窄范围显式声明）
 - 至少 2 个**负面用例**验证断言敏感度：
   - 故意改 anchor 文本 → spec 必须 fail
   - 故意改 view ID（让 nav click 找不到对应 button）→ spec 必须 fail
