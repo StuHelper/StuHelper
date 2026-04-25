@@ -1162,14 +1162,6 @@ onMounted(() => {
   font-family: 'SF Mono', 'Consolas', monospace;
 }
 
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* Settings Content */
 .settings-content {
   flex: 1;

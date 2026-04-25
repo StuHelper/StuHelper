@@ -330,23 +330,6 @@ function noticeId(): string {
 </script>
 
 <style scoped>
-.sh-warns__toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sh-s-2);
-  padding: 0 10px;
-  min-height: 32px;
-  border-radius: var(--sh-r-2);
-  background: var(--sh-surface-1);
-  border: 1px solid var(--sh-border);
-}
-
-.sh-warns__toggle-label {
-  font-size: var(--sh-t-meta);
-  color: var(--sh-fg-2);
-  font-weight: var(--sh-w-medium);
-}
-
 .sh-sub-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

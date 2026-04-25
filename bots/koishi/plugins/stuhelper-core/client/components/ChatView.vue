@@ -1420,14 +1420,6 @@ const handleAvatarError = (e: Event, isSession = false) => {
   cursor: not-allowed;
 }
 
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 /* Scrollbar - 简洁细窄 */
 ::-webkit-scrollbar {
   width: 5px;

@@ -317,50 +317,6 @@ function metricIntent(index: number, value: number): string {
 </script>
 
 <style scoped>
-.sh-workspace-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--sh-s-4);
-  padding: var(--sh-s-5) var(--sh-s-6);
-  background: var(--sh-surface-0);
-  border: 1px solid var(--sh-border);
-  border-radius: var(--sh-r-3);
-  box-shadow: var(--sh-shadow-card);
-}
-
-.sh-workspace-head__copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sh-s-2);
-  min-width: 0;
-}
-
-.sh-workspace-head__title {
-  font-size: var(--sh-t-heading);
-  font-weight: var(--sh-w-semibold);
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-}
-
-.sh-workspace-head__description {
-  font-size: var(--sh-t-body);
-  color: var(--sh-fg-2);
-  line-height: var(--sh-l-normal);
-  max-width: 64ch;
-}
-
-.sh-workspace-head__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sh-s-2);
-  margin-top: var(--sh-s-1);
-}
-
-.sh-workspace-head__actions {
-  flex-shrink: 0;
-}
-
 .sh-identity-toolbar {
   gap: var(--sh-s-3);
   padding: 0;
@@ -375,53 +331,9 @@ function metricIntent(index: number, value: number): string {
   flex-basis: 320px;
 }
 
-.sh-lane__body {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  text-align: left;
-}
-
-.sh-lane__row--interactive {
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--sh-border);
-  color: var(--sh-fg);
-  cursor: pointer;
-  padding: 10px 14px;
-  transition: background var(--sh-dur-fast) var(--sh-ease);
-  width: 100%;
-}
-
-.sh-lane__row--interactive:last-child {
-  border-bottom: none;
-}
-
-.sh-lane__row--interactive:hover {
-  background: var(--sh-surface-hover);
-}
-
-.sh-lane__row--active {
-  background: var(--sh-primary-soft);
-  box-shadow: inset 2px 0 0 var(--sh-primary);
-}
-
-.sh-lane__chevron {
-  color: var(--sh-fg-3);
-  font-size: var(--sh-t-title);
-  line-height: 1;
-}
-
 .sh-table__stack {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-@media (max-width: 1080px) {
-  .sh-workspace-head {
-    flex-direction: column;
-  }
 }
 </style>

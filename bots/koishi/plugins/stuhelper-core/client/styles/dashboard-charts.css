@@ -1,0 +1,129 @@
+/* ── Dashboard chart cards ───────────────────────────────── */
+
+.chart-card {
+  background: var(--k-card-bg);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--k-color-border);
+  transition: border-color 0.15s ease;
+  height: 100%;
+  min-height: 320px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-card:hover {
+  border-color: var(--fg3);
+}
+
+.chart-card .card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+  color: var(--fg1);
+  font-weight: 500;
+}
+
+.trend-card .card-header {
+  margin-bottom: 1rem;
+}
+
+.chart-card .card-header h3 {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.chart-subtitle {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--fg3);
+  background: var(--bg3);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--sh-font-mono);
+}
+
+.horizontal-bar-chart {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.h-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  margin: 0 -6px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.h-bar-item:hover {
+  background: var(--k-hover-bg);
+}
+
+.h-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 85px;
+  flex-shrink: 0;
+}
+
+.h-bar-rank {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--bg3);
+  color: var(--fg3);
+  font-size: 0.6rem;
+  font-family: var(--sh-font-mono);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.h-bar-item:nth-child(1) .h-bar-rank {
+  background: #b5892c;
+  color: #1e1e20;
+}
+
+.h-bar-item:nth-child(2) .h-bar-rank {
+  background: #8b949e;
+  color: #1e1e20;
+}
+
+.h-bar-item:nth-child(3) .h-bar-rank {
+  background: #8b5a2b;
+  color: #fff;
+}
+
+.h-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg3);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.h-bar-fill {
+  height: 100%;
+  background: var(--k-color-primary);
+  border-radius: 1px;
+  transition: width 0.4s ease;
+}
+
+.h-bar-count {
+  min-width: 32px;
+  font-size: 0.7rem;
+  font-family: var(--sh-font-mono);
+  font-weight: 500;
+  color: var(--fg3);
+  text-align: right;
+}

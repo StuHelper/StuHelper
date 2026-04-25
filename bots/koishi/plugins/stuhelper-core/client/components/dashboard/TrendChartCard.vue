@@ -1,5 +1,5 @@
 <template>
-  <div class="card chart-card trend-card">
+  <div class="chart-card trend-card">
     <div class="card-header">
       <k-icon name="stuhelperGroupCenter:octicons.graph" />
       <h3>命令趋势</h3>
@@ -61,50 +61,6 @@ const getBarHeight = (count: number, max: number) => {
 </script>
 
 <style scoped>
-/* GitHub Dimmed 风格趋势图表卡片 - 使用 Koishi 变量 */
-.card {
-  background: var(--k-card-bg);
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--k-color-border);
-  transition: border-color 0.15s ease;
-  height: 100%;
-  min-height: 320px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-}
-
-.card:hover {
-  border-color: var(--fg3);
-}
-
-/* 卡片头部 */
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  color: var(--fg1);
-  font-weight: 500;
-}
-
-.card-header h3 {
-  margin: 0;
-  font-size: 0.875rem;
-}
-
-.chart-subtitle {
-  margin-left: auto;
-  font-size: 0.7rem;
-  font-weight: 400;
-  color: var(--fg3);
-  background: var(--bg3);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: var(--sh-font-mono);
-}
-
 .chart-container {
   flex: 1;
   display: flex;
@@ -192,13 +148,5 @@ const getBarHeight = (count: number, max: number) => {
   color: var(--fg3);
   padding-top: 0.5rem;
   border-top: 1px solid var(--k-color-divider);
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 </style>

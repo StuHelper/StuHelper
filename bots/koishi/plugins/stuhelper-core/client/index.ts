@@ -5,6 +5,7 @@ import GroupIcon from './icons/group.vue'
 import { icons as customIcons, Octicons } from './icons'
 import './styles/tokens.css'
 import './styles/primitives.css'
+import './styles/dashboard-charts.css'
 
 const USED_OCTICONS = [
   'apps',

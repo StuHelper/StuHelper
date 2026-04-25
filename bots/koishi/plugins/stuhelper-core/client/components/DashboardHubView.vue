@@ -294,63 +294,6 @@ function activityDotClass(item: DashboardActivityRow): string {
 </script>
 
 <style scoped>
-.sh-dashboard__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--sh-s-4);
-  padding: var(--sh-s-5) var(--sh-s-6);
-  background: var(--sh-surface-0);
-  border: 1px solid var(--sh-border);
-  border-radius: var(--sh-r-3);
-  box-shadow: var(--sh-shadow-card);
-}
-
-.sh-dashboard__head-copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sh-s-2);
-  min-width: 0;
-}
-
-.sh-dashboard__title {
-  font-size: var(--sh-t-heading);
-  font-weight: var(--sh-w-semibold);
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-}
-
-.sh-dashboard__description {
-  font-size: var(--sh-t-body);
-  color: var(--sh-fg-2);
-  line-height: var(--sh-l-normal);
-  max-width: 64ch;
-}
-
-.sh-dashboard__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sh-s-2);
-  margin-top: var(--sh-s-1);
-}
-
-.sh-meta-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 10px;
-  border-radius: var(--sh-r-full);
-  border: 1px solid var(--sh-border);
-  background: var(--sh-surface-1);
-  color: var(--sh-fg-2);
-  font-size: var(--sh-t-meta);
-  font-weight: var(--sh-w-medium);
-}
-
-.sh-dashboard__actions {
-  flex-shrink: 0;
-}
-
 .sh-dashboard__charts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -368,57 +311,14 @@ function activityDotClass(item: DashboardActivityRow): string {
   min-width: 0;
 }
 
-.sh-lane__body {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  text-align: left;
-}
-
-.sh-lane__row--interactive {
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--sh-border);
-  color: var(--sh-fg);
-  cursor: pointer;
-  padding: 10px 14px;
-  transition: background var(--sh-dur-fast) var(--sh-ease);
-  width: 100%;
-}
-
-.sh-lane__row--interactive:last-child {
-  border-bottom: none;
-}
-
-.sh-lane__row--interactive:hover {
-  background: var(--sh-surface-hover);
-}
-
 .sh-lane__row--interactive:focus-visible {
   outline: none;
   background: var(--sh-primary-soft);
 }
 
-.sh-lane__chevron {
-  color: var(--sh-fg-3);
-  font-size: var(--sh-t-title);
-  line-height: 1;
-}
-
 @media (max-width: 1080px) {
   .sh-dashboard__charts {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sh-dashboard__head {
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 720px) {
-  .sh-dashboard__head {
-    padding: var(--sh-s-4) var(--sh-s-5);
   }
 }
 </style>

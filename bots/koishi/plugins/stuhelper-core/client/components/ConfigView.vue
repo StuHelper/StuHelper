@@ -1095,14 +1095,6 @@ onMounted(() => {
   font-size: 0.875rem;
 }
 
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 .config-list {
   flex: 1;
   overflow-y: auto;

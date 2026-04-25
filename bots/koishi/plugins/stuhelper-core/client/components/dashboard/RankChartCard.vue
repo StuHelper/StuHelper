@@ -1,5 +1,5 @@
 <template>
-  <div class="card chart-card rank-card">
+  <div class="chart-card rank-card">
     <div class="card-header">
       <k-icon :name="resolvedIcon" />
       <h3>{{ title }}</h3>
@@ -68,49 +68,6 @@ const getBarHeight = (count: number, max: number) => {
 </script>
 
 <style scoped>
-/* GitHub Dimmed 风格排行卡片 - 使用 Koishi 变量 */
-.card {
-  background: var(--k-card-bg);
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--k-color-border);
-  transition: border-color 0.15s ease;
-  height: 100%;
-  min-height: 320px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-}
-
-.card:hover {
-  border-color: var(--fg3);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.875rem;
-  color: var(--fg1);
-  font-weight: 500;
-}
-
-.card-header h3 {
-  margin: 0;
-  font-size: 0.875rem;
-}
-
-.chart-subtitle {
-  margin-left: auto;
-  font-size: 0.7rem;
-  font-weight: 400;
-  color: var(--fg3);
-  background: var(--bg3);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: var(--sh-font-mono);
-}
-
 .chart-container {
   flex: 1;
   display: flex;
@@ -125,65 +82,6 @@ const getBarHeight = (count: number, max: number) => {
   padding: 1rem 0;
 }
 
-.horizontal-bar-chart {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/* 列表项 - hover 效果 */
-.h-bar-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  margin: 0 -6px;
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
-}
-
-.h-bar-item:hover {
-  background: var(--k-hover-bg);
-}
-
-.h-bar-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 85px;
-  flex-shrink: 0;
-}
-
-/* 排名徽章 - 克制的颜色 */
-.h-bar-rank {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  background: var(--bg3);
-  color: var(--fg3);
-  font-size: 0.6rem;
-  font-family: var(--sh-font-mono);
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 前三名 - 暗色调金银铜 */
-.h-bar-item:nth-child(1) .h-bar-rank {
-  background: #b5892c;
-  color: #1e1e20;
-}
-.h-bar-item:nth-child(2) .h-bar-rank {
-  background: #8b949e;
-  color: #1e1e20;
-}
-.h-bar-item:nth-child(3) .h-bar-rank {
-  background: #8b5a2b;
-  color: #fff;
-}
-
 .h-bar-name {
   font-size: 0.75rem;
   color: var(--fg2);
@@ -193,46 +91,11 @@ const getBarHeight = (count: number, max: number) => {
   max-width: 60px;
 }
 
-/* 进度条轨道 */
-.h-bar-track {
-  flex: 1;
-  height: 6px;
-  background: var(--bg3);
-  border-radius: 1px;
-  overflow: hidden;
-}
-
-/* 进度条填充 - 直角风格 */
-.h-bar-fill {
-  height: 100%;
-  background: var(--k-color-primary);
-  border-radius: 1px;
-  transition: width 0.4s ease;
-}
-
 /* 群聊和用户使用克制的 Koishi 颜色 */
 .h-bar-fill.guild {
   background: var(--k-color-success);
 }
 .h-bar-fill.user {
   background: var(--k-color-warning);
-}
-
-/* 数值 - 等宽字体 */
-.h-bar-count {
-  min-width: 32px;
-  font-size: 0.7rem;
-  font-family: var(--sh-font-mono);
-  font-weight: 500;
-  color: var(--fg3);
-  text-align: right;
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 </style>

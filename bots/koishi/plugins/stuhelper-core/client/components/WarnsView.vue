@@ -379,66 +379,10 @@ function noticeId(): string {
 </script>
 
 <style scoped>
-.sh-warns__toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sh-s-2);
-  padding: 0 10px;
-  min-height: 32px;
-  border-radius: var(--sh-r-2);
-  background: var(--sh-surface-1);
-  border: 1px solid var(--sh-border);
-}
-
-.sh-warns__toggle-label {
-  font-size: var(--sh-t-meta);
-  color: var(--sh-fg-2);
-  font-weight: var(--sh-w-medium);
-}
-
 .sh-warns__user {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-}
-
-.sh-lane__row--interactive {
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--sh-border);
-  color: var(--sh-fg);
-  cursor: pointer;
-  padding: 10px 14px;
-  transition: background var(--sh-dur-fast) var(--sh-ease);
-  width: 100%;
-  text-align: left;
-}
-
-.sh-lane__row--interactive:last-child {
-  border-bottom: none;
-}
-
-.sh-lane__row--interactive:hover {
-  background: var(--sh-surface-hover);
-}
-
-.sh-lane__row--active {
-  background: var(--sh-primary-soft);
-  box-shadow: inset 2px 0 0 var(--sh-primary);
-}
-
-.sh-lane__chevron {
-  color: var(--sh-fg-3);
-  font-size: var(--sh-t-title);
-  line-height: 1;
-}
-
-.sh-lane__body {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  text-align: left;
 }
 </style>
