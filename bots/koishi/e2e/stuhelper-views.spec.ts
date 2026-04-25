@@ -10,7 +10,7 @@ import type { ConsoleMessage, Page } from '@playwright/test'
  *   引发 Koishi page 注册异步竞态（P0b 第一版 40% flake 的根因）
  * - 第一个 test 验证 nav click 切换 URL 工作
  * - 11 个 per-view test 各自 click 目标 view 的 nav button，断言：
- *     - URL 落定后包含 view=<id>
+ *     - URL 落定后 hash 包含 view id
  *     - view-specific anchor 元素出现（防"渲染错 view 但壳还在"）
  *     - 无 pageerror、无 console.error/warning（按 allowlist 过滤）
  *
@@ -72,7 +72,8 @@ const CONSOLE_ALLOWLIST: readonly RegExp[] = [
   //
   // 观察版本：@koishijs/plugin-console 5.30.4 + koishi 4.18.7（2026-04-25）。
   //
-  // 范围：仅放过 path 等于 /stuhelper 或 /stuhelper?<query>。其他路径下同类
+  // 范围：仅放过 path 等于 /stuhelper 或 /stuhelper?<query>。hash 不参与 path
+  // 匹配；其他路径下同类
   // No match 仍会失败，保留对真实路由错误的灵敏度。
   /^\[Vue Router warn\]: No match found for location with path "\/stuhelper(\?[^"]*)?"$/,
 ]
@@ -82,11 +83,11 @@ test('TopNavigation click switches between views', async ({ loggedInPage: page }
 
   // 先点击第一个 view（dashboard），让导航有一个稳定起点
   await clickNavTab(page, VIEWS[0].label)
-  await expect(page).toHaveURL(/[?&]view=dashboard($|&)/, { timeout: 5_000 })
+  await expect(page).toHaveURL(/#dashboard($|\?)/, { timeout: 5_000 })
 
   // 切到第二个 view，验证 nav 真的能切
   await clickNavTab(page, VIEWS[1].label)
-  await expect(page).toHaveURL(/[?&]view=config($|&)/, { timeout: 5_000 })
+  await expect(page).toHaveURL(/#config($|\?)/, { timeout: 5_000 })
 
   tracker.assertClean()
 })
@@ -97,8 +98,8 @@ for (const view of VIEWS) {
 
     await clickNavTab(page, view.label)
 
-    // URL 断言抓"切换没成功"场景：如果 nav click 失败 URL 不会包含 view=<id>
-    await expect(page).toHaveURL(new RegExp(`[?&]view=${view.id}($|&)`), { timeout: 5_000 })
+    // URL 断言抓"切换没成功"场景：如果 nav click 失败 URL hash 不会包含 view id
+    await expect(page).toHaveURL(new RegExp(`#${view.id}($|\\?)`), { timeout: 5_000 })
 
     // view-specific anchor 抓"渲染错 view 但壳还在"场景：
     // useConsolePages.resolve() 对未知 view 静默 fallback 到 dashboard，

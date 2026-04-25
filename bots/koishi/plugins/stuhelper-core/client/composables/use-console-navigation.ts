@@ -1,9 +1,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 
 import {
-  createConsoleQuery,
-  mergeConsoleQuery,
-  parseConsoleQuery,
+  mergeConsoleLocation,
+  parseConsoleLocation,
   type ConsoleNavigationState,
 } from '../models/navigation'
 import type { ConsoleViewId } from '../models/views'
@@ -29,11 +28,11 @@ const EMPTY_CONTEXT: Omit<ConsoleNavigationState, 'view'> = {
 }
 
 export function useConsoleNavigation(win = window): ConsoleNavigationController {
-  const state = ref(parseConsoleQuery(new URLSearchParams(win.location.search)))
+  const state = ref(parseConsoleLocation(new URL(win.location.href)))
   const viewportWidth = ref(win.innerWidth)
 
   const syncFromLocation = () => {
-    state.value = parseConsoleQuery(new URLSearchParams(win.location.search))
+    state.value = parseConsoleLocation(new URL(win.location.href))
   }
 
   const syncViewportWidth = () => {
@@ -45,7 +44,7 @@ export function useConsoleNavigation(win = window): ConsoleNavigationController 
     method: 'pushState' | 'replaceState',
   ) => {
     state.value = nextState
-    const nextUrl = mergeConsoleQuery(new URL(win.location.href), nextState)
+    const nextUrl = mergeConsoleLocation(new URL(win.location.href), nextState)
     win.history[method]({}, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
   }
 
@@ -71,17 +70,18 @@ export function useConsoleNavigation(win = window): ConsoleNavigationController 
 
   onMounted(() => {
     win.addEventListener('popstate', syncFromLocation)
+    win.addEventListener('hashchange', syncFromLocation)
     win.addEventListener('resize', syncViewportWidth)
 
-    const normalized = createConsoleQuery(state.value).toString()
-    const current = new URLSearchParams(win.location.search).toString()
-    if (normalized !== current) {
+    const normalized = mergeConsoleLocation(new URL(win.location.href), state.value)
+    if (normalized.href !== win.location.href) {
       updateHistory(state.value, 'replaceState')
     }
   })
 
   onBeforeUnmount(() => {
     win.removeEventListener('popstate', syncFromLocation)
+    win.removeEventListener('hashchange', syncFromLocation)
     win.removeEventListener('resize', syncViewportWidth)
   })
 

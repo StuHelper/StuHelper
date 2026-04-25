@@ -37,6 +37,27 @@ export function parseConsoleQuery(params: URLSearchParams): ConsoleNavigationSta
   }
 }
 
+export function parseConsoleHash(hash: string): ConsoleNavigationState | null {
+  const fragment = hash.startsWith('#') ? hash.slice(1) : hash
+  if (!fragment) return null
+  if (fragment.startsWith('?') || fragment.startsWith('view=')) {
+    return parseConsoleQuery(new URLSearchParams(fragment.replace(/^\?/, '')))
+  }
+
+  const separatorIndex = fragment.indexOf('?')
+  const rawView = separatorIndex >= 0 ? fragment.slice(0, separatorIndex) : fragment
+  const view = rawView.replace(/^\/+/, '')
+  if (!isConsoleViewId(view)) return null
+
+  const params = new URLSearchParams(separatorIndex >= 0 ? fragment.slice(separatorIndex + 1) : '')
+  params.set('view', view)
+  return parseConsoleQuery(params)
+}
+
+export function parseConsoleLocation(url: URL): ConsoleNavigationState {
+  return parseConsoleHash(url.hash) ?? parseConsoleQuery(url.searchParams)
+}
+
 export function createConsoleQuery(state: ConsoleNavigationState) {
   const params = new URLSearchParams()
   params.set('view', state.view)
@@ -51,7 +72,22 @@ export function createConsoleQuery(state: ConsoleNavigationState) {
   return params
 }
 
-export function mergeConsoleQuery(currentUrl: URL, state: ConsoleNavigationState) {
+export function createConsoleHash(state: ConsoleNavigationState) {
+  const params = new URLSearchParams()
+  appendNullableQuery(params, 'workspace', state.workspace)
+  appendNullableQuery(params, 'guildId', state.guildId)
+  appendNullableQuery(params, 'memberId', state.memberId)
+  appendNullableQuery(params, 'itemId', state.itemId)
+  appendNullableQuery(params, 'tab', state.tab)
+  if (state.keyword) {
+    params.set('keyword', state.keyword)
+  }
+
+  const query = params.toString()
+  return query ? `#${state.view}?${query}` : `#${state.view}`
+}
+
+export function mergeConsoleLocation(currentUrl: URL, state: ConsoleNavigationState) {
   const nextUrl = new URL(currentUrl.href)
   const merged = new URLSearchParams()
 
@@ -62,11 +98,8 @@ export function mergeConsoleQuery(currentUrl: URL, state: ConsoleNavigationState
     merged.append(key, value)
   })
 
-  createConsoleQuery(state).forEach((value, key) => {
-    merged.append(key, value)
-  })
-
   nextUrl.search = merged.toString()
+  nextUrl.hash = createConsoleHash(state)
   return nextUrl
 }
 
