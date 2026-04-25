@@ -7,6 +7,32 @@ import { icons as customIcons, Octicons } from './icons'
 import './styles/tokens.css'
 import './styles/primitives.css'
 
+const USED_OCTICONS = [
+  'apps',
+  'bar-chart',
+  'chevron-down',
+  'discussion',
+  'gear',
+  'graph',
+  'log',
+  'people',
+  'person',
+  'personadd',
+  'sub',
+  'three-bars',
+  'tools',
+  'warning',
+  'x',
+] as const
+
+function registerOcticon(name: string) {
+  if (!Octicons.paths[name]) {
+    throw new Error(`Missing Octicon path: ${name}`)
+  }
+
+  icons.register(`stuhelperGroupCenter:octicons.${name}`, Octicons.create(name))
+}
+
 // 注册自定义图标
 icons.register('stuhelperGroupCenter', GroupIcon)
 icons.register('stuhelperGroupCenter:logo', LogoIcon)
@@ -38,14 +64,10 @@ icons.register('stuhelperGroupCenter:bar-chart-2', customIcons.barChart2)
 icons.register('stuhelperGroupCenter:trending-up', customIcons.trendingUp)
 icons.register('stuhelperGroupCenter:clock', customIcons.clock)
 
-// 注册所有 GitHub Octicons 图标
-// 使用方式: <k-icon name="stuhelperGroupCenter:octicons.tag" />
-for (const [name, component] of Object.entries(Octicons.getAll())) {
-  icons.register(`stuhelperGroupCenter:octicons.${name}`, component)
+// 注册当前 UI 实际使用的 GitHub Octicons 图标。
+for (const name of USED_OCTICONS) {
+  registerOcticon(name)
 }
-
-// 为了兼容，mark 现在指向 octicons.tag
-icons.register('stuhelperGroupCenter:mark', Octicons.create('tag'))
 
 export default (ctx: Context) => {
   ctx.page({
