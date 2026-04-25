@@ -28,11 +28,11 @@ test('platform package uses runtime build outputs and browser assets', async () 
   assert.equal(manifest.koishi?.browser, true)
 })
 
-test('koishi config loads only the StuHelper platform entry', async () => {
+test('koishi config restores the StuHelper group center entry', async () => {
   const content = await readWorkspaceFile('koishi.yml')
 
-  assert.match(content, /\n\s+stuhelper-platform:[^\n]*: \{\}/)
-  assert.doesNotMatch(content, /\n\s+stuhelper-core:[^\n]*:/)
+  assert.match(content, /\n\s+stuhelper-core:[^\n]*: \{\}/)
+  assert.doesNotMatch(content, /\n\s+stuhelper-platform:[^\n]*:/)
   assert.doesNotMatch(content, /\n\s+stuhelper-group-guard:[^\n]*:/)
   assert.doesNotMatch(content, /\n\s+stuhelper-console:[^\n]*:/)
 })

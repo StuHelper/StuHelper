@@ -10,15 +10,16 @@
 
 ## 当前包与入口
 
-`koishi.yml` 当前只加载 `stuhelper-platform`。其他 StuHelper 包保留为模块运行时、迁移来源或历史包，不再作为入口配置加载。
+`koishi.yml` 当前加载 `stuhelper-core`，保留重构前的完整群管中心页面与功能入口。`stuhelper-platform` 保留为实验性平台化包，不作为当前运行入口加载。
 
 - `packages/shared`：共享配置、日志、平台客户端与基础类型。
 - `packages/moderation-core`：群管领域模型、SQLite 表、规则引擎与动作服务。
-- `plugins/stuhelper-platform`：入口插件，提供模块注册、状态、配置、权限、群策略、审计与 WebUI 出口。
+- `plugins/stuhelper-core`：当前入口插件，承载完整群管中心页面、控制台 API、旧群管能力装配与 WebSocket 交互。
+- `plugins/stuhelper-platform`：实验性平台化包，提供模块注册、状态、配置、权限、群策略、审计与 WebUI 出口，当前不作为运行入口加载。
 - `plugins/stuhelper-binding`：处理私聊 `绑定 <code>` 命令，消费平台绑定码并建立 QQ 绑定。
 - `plugins/stuhelper-group-guard`：处理入群准入、关键词命中、撤回留痕、举报流和娱乐命令。
 - `plugins/stuhelper-admin`：提供文本管理员命令，用于查看待认证成员、查询警告、查看复核队列、批量禁言以及提交踢人/拉黑复核申请。
-- `plugins/stuhelper-console`：旧控制台实现，当前运行配置不再加载。
+- `plugins/stuhelper-console`：旧控制台实现，当前运行配置不加载。
 
 ## 本地命令
 
@@ -44,4 +45,4 @@ corepack yarn workspaces list
 - 绑定插件测试会验证私聊绑定命令和群聊误用提示。
 - 群管插件测试会验证入群禁言、提醒、认证后解禁、超时踢出、关键词处理、模板/群绑定策略解析与撤回留痕。
 - 控制台测试会验证高风险批量操作改走人工复核、复核执行、举报报表聚合，以及模板/群绑定保存事件写入 SQLite。
-- 启动烟雾验证会真实拉起一次 Koishi，确认 `stuhelper-platform` 与内置群守卫模块可启动，并固定监听 `5140`。
+- 启动烟雾验证会真实拉起一次 Koishi，确认 `stuhelper-core` 群管中心、Console API 与内置群守卫能力可启动，并固定监听 `5140`。

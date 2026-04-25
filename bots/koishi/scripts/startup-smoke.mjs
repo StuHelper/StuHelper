@@ -42,11 +42,12 @@ try {
 
   const exitCode = await waitForExit(child)
 
-  assert.match(output, /loader apply plugin stuhelper-platform:/, 'Koishi 启动时没有加载 stuhelper-platform。')
-  assert.match(output, /stuhelper:group-guard 群管插件已加载/, 'stuhelper-platform 没有启动群守卫模块。')
-  assert.doesNotMatch(output, /loader apply plugin stuhelper-core:/, 'Koishi 启动时仍加载旧 stuhelper-core。')
+  assert.match(output, /loader apply plugin stuhelper-core:/, 'Koishi 启动时没有加载 stuhelper-core。')
+  assert.match(output, /StuHelper 群管中心插件已加载/, 'stuhelper-core 没有完成新的群管中心装配。')
+  assert.match(output, /WebSocket API registered/, 'stuhelper-core 没有完成 console API 注入与注册。')
+  assert.doesNotMatch(output, /loader apply plugin stuhelper-platform:/, 'Koishi 启动时仍加载新 stuhelper-platform。')
   assert.doesNotMatch(output, /loader apply plugin stuhelper-console:/, 'Koishi 启动时仍加载旧 stuhelper-console。')
-  assert.doesNotMatch(output, /启动文件监视器失败/, 'StuHelper 启动时错误地监视不存在的 settings.json。')
+  assert.doesNotMatch(output, /启动文件监视器失败/, 'stuhelper-core 仍然在首次启动时错误地监视不存在的 settings.json。')
   assert.match(output, new RegExp(`server listening at http://127\\.0\\.0\\.1:${SMOKE_PORT}`), 'Koishi 控制台没有在烟雾端口完成监听。')
   assert.doesNotMatch(output, /ERR_UNSUPPORTED_DIR_IMPORT/, 'Koishi 仍然存在目录导入错误。')
   assert.doesNotMatch(output, /ERR_MODULE_NOT_FOUND/, 'Koishi 仍然存在模块解析错误。')
