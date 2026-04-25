@@ -1858,7 +1858,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@playwright/test@npm:latest":
+"@playwright/test@npm:1.59.1":
   version: 1.59.1
   resolution: "@playwright/test@npm:1.59.1"
   dependencies:
@@ -5406,7 +5406,7 @@ __metadata:
     "@koishijs/plugin-server-temp": "npm:^1.5.0"
     "@koishijs/plugin-status": "npm:^7.4.10"
     "@koishijs/scripts": "npm:^4.6.1"
-    "@playwright/test": "npm:latest"
+    "@playwright/test": "npm:1.59.1"
     "@types/node": "npm:^22.7.5"
     "@types/react": "npm:^18.2.70"
     cross-env: "npm:^7.0.3"

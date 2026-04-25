@@ -9,15 +9,23 @@ import { load, dump } from 'js-yaml'
 /**
  * P0a UI smoke 启动器。复用 startup-smoke.mjs 的端口释放 + 临时配置 + spawn 模式；
  * 等 koishi 输出 "server listening" 后启动 Playwright；spec 跑完后 SIGTERM 关闭进程组。
+ *
+ * 与 startup-smoke 的差异：
+ * - 此处用临时 SQLite 路径，避免污染 bots/koishi/data/koishi.db（P0b 登录 fixture 需要干净 DB）
+ * - 全程跟踪 koishi 子进程的 close 状态，子进程提前退出时立即抛错而非等监听超时
  */
 
 const SMOKE_PORT = Number.parseInt(process.env.STUHELPER_UI_SMOKE_PORT ?? '5140', 10)
 const STARTUP_LISTEN_TIMEOUT_MS = 30_000
+const SHUTDOWN_TIMEOUT_MS = 5_000
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tempConfigDir = await createTempConfigDir()
 const tempConfigPath = await writeSmokeConfig(tempConfigDir)
 
 let koishiChild
+let koishiClosed = false
+let koishiExitCode = null
+let koishiExitSignal = null
 let playwrightExitCode = 1
 
 try {
@@ -35,6 +43,13 @@ try {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
+  // 立即注册 close 监听，避免子进程在 finally 阶段之前就退出导致后续 once('close') 永久挂起
+  koishiChild.once('close', (code, signal) => {
+    koishiClosed = true
+    koishiExitCode = code
+    koishiExitSignal = signal
+  })
+
   let listening = false
 
   koishiChild.stdout.on('data', (chunk) => {
@@ -49,13 +64,24 @@ try {
     process.stderr.write(chunk.toString())
   })
 
-  await waitFor(() => listening, STARTUP_LISTEN_TIMEOUT_MS, 'koishi 控制台未在超时内监听 5140')
+  await waitFor(
+    () => {
+      if (koishiClosed) {
+        throw new Error(
+          `koishi 进程在监听就绪前提前退出（exitCode=${koishiExitCode}, signal=${koishiExitSignal}）`,
+        )
+      }
+      return listening
+    },
+    STARTUP_LISTEN_TIMEOUT_MS,
+    'koishi 控制台未在超时内监听 5140',
+  )
 
   playwrightExitCode = await runPlaywright()
 } finally {
   if (koishiChild?.pid) {
     stopProcessGroup(koishiChild.pid)
-    await waitForExit(koishiChild)
+    await waitForExit()
   }
   await rm(tempConfigDir, { recursive: true, force: true })
 }
@@ -105,10 +131,33 @@ function stopProcessGroup(pid) {
   }
 }
 
-function waitForExit(childProcess) {
-  return new Promise((resolveExit) => {
-    childProcess.once('close', () => resolveExit())
-  })
+function killProcessGroup(pid) {
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch (error) {
+    if (!isMissingProcessError(error)) {
+      throw error
+    }
+  }
+}
+
+async function waitForExit() {
+  if (koishiClosed) return
+  const deadline = Date.now() + SHUTDOWN_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    if (koishiClosed) return
+    await sleep(100)
+  }
+  // SIGTERM 没让 koishi 在超时内退出，升级到 SIGKILL 兜底，避免本脚本永久挂起
+  if (koishiChild?.pid) {
+    killProcessGroup(koishiChild.pid)
+  }
+  const killDeadline = Date.now() + 1_000
+  while (Date.now() < killDeadline) {
+    if (koishiClosed) return
+    await sleep(50)
+  }
+  process.stderr.write('[ui-smoke] WARN: koishi child did not exit after SIGKILL\n')
 }
 
 function isMissingProcessError(error) {
@@ -173,6 +222,8 @@ async function writeSmokeConfig(tempDir) {
   const plugins = config.plugins
   plugins['group:server']['server:chm356'].port = SMOKE_PORT
   plugins['group:server']['server:chm356'].maxPort = SMOKE_PORT
+  // 用临时目录隔离 SQLite，避免 admin 账户/会话残留污染下次 smoke 与开发数据库
+  plugins['group:storage']['database-sqlite:q4tbt0'].path = join(tempDir, 'koishi.db')
   const targetPath = join(tempDir, 'koishi.yml')
   await writeFile(targetPath, dump(config))
   return targetPath
