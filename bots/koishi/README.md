@@ -8,15 +8,17 @@
 - `bots/koishi/` 负责 QQ 机器人运行时、群管逻辑与管理员命令。
 - NapCat 作为外部部署的 OneBot 适配层，不在本目录内实现。
 
-## 当前插件
+## 当前包与入口
+
+`koishi.yml` 当前只加载 `stuhelper-platform`。其他 StuHelper 包保留为模块运行时、迁移来源或历史包，不再作为入口配置加载。
 
 - `packages/shared`：共享配置、日志、平台客户端与基础类型。
 - `packages/moderation-core`：群管领域模型、SQLite 表、规则引擎与动作服务。
-- `plugins/stuhelper-core`：入口插件，统一装配其余 StuHelper 插件。
+- `plugins/stuhelper-platform`：入口插件，提供模块注册、状态、配置、权限、群策略、审计与 WebUI 出口。
 - `plugins/stuhelper-binding`：处理私聊 `绑定 <code>` 命令，消费平台绑定码并建立 QQ 绑定。
 - `plugins/stuhelper-group-guard`：处理入群准入、关键词命中、撤回留痕、举报流和娱乐命令。
 - `plugins/stuhelper-admin`：提供文本管理员命令，用于查看待认证成员、查询警告、查看复核队列、批量禁言以及提交踢人/拉黑复核申请。
-- `plugins/stuhelper-console`：扩展 Koishi Console，提供群管总览、举报面板、批量操作、人工复核、关键词规则、群模板/群绑定、成员角色和命令权限面板。
+- `plugins/stuhelper-console`：旧控制台实现，当前运行配置不再加载。
 
 ## 本地命令
 
@@ -32,7 +34,7 @@ corepack yarn workspaces list
 
 启动前要求：
 
-- `STUHELPER_CONSOLE_ADMIN_PASSWORD` 必须为非空值；`koishi.yml` 会把它作为 Koishi Console 管理员密码，`stuhelper-core` 也会在启动期显式校验。
+- `STUHELPER_CONSOLE_ADMIN_PASSWORD` 必须为非空值；`koishi.yml` 会把它作为 Koishi Console 管理员密码。
 - 本地可直接 `export STUHELPER_CONSOLE_ADMIN_PASSWORD=dev-console-admin-password`，或把同名变量写入仓库根目录 `.env` / 生产环境变量文件。
 
 ## 自动化验证
@@ -42,4 +44,4 @@ corepack yarn workspaces list
 - 绑定插件测试会验证私聊绑定命令和群聊误用提示。
 - 群管插件测试会验证入群禁言、提醒、认证后解禁、超时踢出、关键词处理、模板/群绑定策略解析与撤回留痕。
 - 控制台测试会验证高风险批量操作改走人工复核、复核执行、举报报表聚合，以及模板/群绑定保存事件写入 SQLite。
-- 启动烟雾验证会真实拉起一次 Koishi，确认 `stuhelper-core` 装配链可启动，并固定监听 `5140`。
+- 启动烟雾验证会真实拉起一次 Koishi，确认 `stuhelper-platform` 与内置群守卫模块可启动，并固定监听 `5140`。

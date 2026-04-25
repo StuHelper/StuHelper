@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev, ops
 status: current
 authoritative-source: bots/koishi/ + server/api/openapi.yaml
-last-verified: 2026-04-19
+last-verified: 2026-04-24
 ---
 
 # Koishi 机器人开发
@@ -18,13 +18,13 @@ last-verified: 2026-04-19
 
 | 位置 | 职责 |
 |------|------|
-| `packages/shared` | 平台 API 客户端、共享配置、基础类型；其中 `console` 配置用于控制自定义 Console 页面启停与标题 |
+| `packages/shared` | 平台 API 客户端、共享配置与基础类型 |
 | `packages/moderation-core` | 群管领域模型、SQLite 表、规则引擎、动作服务；内部统一使用 `guildId`、`memberId` 等平台无关命名 |
-| `plugins/stuhelper-core` | 入口插件，统一装配其余插件 |
+| `plugins/stuhelper-platform` | 入口插件，统一承载模块注册、状态、配置、权限、群策略、审计与 WebUI 出口 |
 | `plugins/stuhelper-binding` | 私聊 `绑定 <code>` 命令，消费平台绑定码 |
 | `plugins/stuhelper-group-guard` | 入群准入、关键词/复读处理、撤回留痕、举报、骰子和抽禁言；待认证成员记录会绑定 `platform + botSelfId`，扫描时按原 bot 路由动作 |
 | `plugins/stuhelper-admin` | 提供 `群审状态`、`群审警告`、`群审复核`、`群审禁言`、`群审踢人申请`、`群审拉黑申请` 等文本管理员命令 |
-| `plugins/stuhelper-console` | 基于 Koishi Console 的群管工作台，提供总览、批量成员操作、复核、举报面板、关键词规则、群模板/群绑定、角色和命令权限面板 |
+| `plugins/stuhelper-console` | 旧控制台实现，当前运行配置不再加载 |
 
 ## 本地命令
 
@@ -55,21 +55,19 @@ corepack yarn workspaces list
 - 文件：`bots/koishi/koishi.yml`
 - 当前工作区固定监听 `5140`，由 `port: 5140` 与 `maxPort: 5140` 双重约束
 - `scripts/startup-smoke.mjs` 会在烟雾验证前先清理占用 `5140` 的进程，避免端口漂移到其他值
-- `koishi.yml` 通过 `stuhelper-core` 装配 `stuhelper-console`，页面会挂载到 Koishi Console
-- `STUHELPER_CONSOLE_ADMIN_PASSWORD` 是 Koishi Console 的管理员密码，必须通过环境变量提供且不能为空；`stuhelper-core` 会在启动期显式校验
+- `koishi.yml` 通过 `stuhelper-platform` 装配新增平台 WebUI，页面会挂载到 Koishi Console
+- `STUHELPER_CONSOLE_ADMIN_PASSWORD` 是 Koishi Console 的管理员密码，必须通过环境变量提供且不能为空
 - 本地 SQLite 默认位于 `bots/koishi/data/koishi.db`
 
-### StuHelper 插件配置
+### StuHelper 平台配置
 
-当前插件配置由 `stuhelper-core` 聚合，主要分组包括：
+当前 StuHelper 群管配置由 `stuhelper-platform` 的 WebUI 管理，Koishi 配置只负责加载平台插件和基础运行依赖。平台首版管理内容包括：
 
-- `platform`：StuHelper 后端 API 地址与服务令牌
-- `binding`：QQ 绑定命令字和绑定码参数
-- `guard`：目标群、入群禁言、宽限期和提醒文案
-- `moderation`：关键词规则、复读阈值、警告表达式、防撤回行为
-- `fun`：骰子与抽禁言玩法参数
-- `ai`：举报 AI 审核接口配置
-- `console`：自定义控制台页面开关与标题
+- 模块启停
+- 模块配置
+- 群策略
+- 权限策略
+- 审计记录
 
 权威定义见：
 

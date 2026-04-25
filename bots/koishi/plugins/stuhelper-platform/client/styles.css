@@ -1,0 +1,258 @@
+.sh-platform-shell {
+  height: 100%;
+  overflow: hidden;
+}
+
+.sh-platform__scroll {
+  height: 100%;
+}
+
+.sh-platform__view {
+  min-height: 100%;
+}
+
+.sh-platform {
+  --sh-s-1: 4px;
+  --sh-s-2: 8px;
+  --sh-s-3: 12px;
+  --sh-s-4: 16px;
+  --sh-s-5: 20px;
+  --sh-s-6: 24px;
+  --sh-r-1: 4px;
+  --sh-r-2: 6px;
+  --sh-r-3: 8px;
+  --sh-width-max: 1120px;
+  --sh-shell-gap: 48px;
+  --sh-button-height: 32px;
+  --sh-textarea-min-height: 360px;
+  --sh-disabled-opacity: 0.56;
+  --sh-mono-field-size: 13px;
+  --sh-mono-field-line: 1.6;
+  --sh-line-thin: 1px;
+  --sh-line-active: 2px;
+  --sh-t-caption: 12px;
+  --sh-t-body: 13px;
+  --sh-t-section: 14px;
+  --sh-t-title: 18px;
+  --sh-w-medium: 500;
+  --sh-w-semibold: 600;
+  --sh-font-ui:
+    'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --sh-font-mono:
+    'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  --sh-surface-0: var(--k-card-bg, var(--bg1, #ffffff));
+  --sh-surface-1: var(--bg2, rgba(0, 0, 0, 0.02));
+  --sh-surface-hover: var(--hover-bg, rgba(0, 0, 0, 0.04));
+  --sh-border: var(--k-color-divider, rgba(0, 0, 0, 0.08));
+  --sh-border-strong: var(--k-color-border, rgba(0, 0, 0, 0.16));
+  --sh-fg: var(--fg0, var(--fg1, #1a1a1a));
+  --sh-fg-1: var(--fg1, #444);
+  --sh-fg-2: var(--fg2, #808080);
+  --sh-primary: var(--k-color-primary, var(--primary, #5c6ac4));
+  --sh-primary-soft: color-mix(in oklch, var(--sh-primary) 12%, transparent);
+  --sh-primary-fg: var(--primary-fg, #ffffff);
+  width: min(var(--sh-width-max), calc(100% - var(--sh-shell-gap)));
+  margin: 0 auto;
+  padding: var(--sh-s-6) 0;
+  color: var(--sh-fg);
+  font-family: var(--sh-font-ui);
+  font-size: var(--sh-t-body);
+}
+
+.sh-platform *,
+.sh-platform *::before,
+.sh-platform *::after {
+  box-sizing: border-box;
+}
+
+.sh-platform h1,
+.sh-platform h2,
+.sh-platform p {
+  margin: 0;
+}
+
+.sh-platform h1 {
+  font-size: var(--sh-t-title);
+  font-weight: var(--sh-w-semibold);
+}
+
+.sh-platform h2 {
+  font-size: var(--sh-t-section);
+  font-weight: var(--sh-w-semibold);
+}
+
+.sh-platform p {
+  color: var(--sh-fg-1);
+}
+
+.sh-platform code {
+  color: var(--sh-fg-2);
+  font-family: var(--sh-font-mono);
+  font-size: var(--sh-t-caption);
+}
+
+.sh-platform__header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sh-s-4);
+  margin-bottom: var(--sh-s-4);
+}
+
+.sh-platform__tabs {
+  display: flex;
+  gap: var(--sh-s-1);
+  margin-bottom: var(--sh-s-4);
+  overflow-x: auto;
+  border-bottom: var(--sh-line-thin) solid var(--sh-border);
+}
+
+.sh-platform__tab,
+.sh-platform__button,
+.sh-platform__module-main {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.sh-platform__tab {
+  padding: var(--sh-s-3) var(--sh-s-4);
+  border-bottom: var(--sh-line-active) solid transparent;
+  color: var(--sh-fg-1);
+  cursor: pointer;
+}
+
+.sh-platform__tab.is-active {
+  border-bottom-color: var(--sh-primary);
+  color: var(--sh-fg);
+  font-weight: var(--sh-w-medium);
+}
+
+.sh-platform__button {
+  min-height: var(--sh-button-height);
+  padding: 0 var(--sh-s-3);
+  border: var(--sh-line-thin) solid var(--sh-primary);
+  border-radius: var(--sh-r-2);
+  background: var(--sh-primary);
+  color: var(--sh-primary-fg);
+  cursor: pointer;
+}
+
+.sh-platform__button--ghost {
+  border-color: var(--sh-border-strong);
+  background: var(--sh-surface-0);
+  color: var(--sh-fg);
+}
+
+.sh-platform__button:disabled {
+  cursor: not-allowed;
+  opacity: var(--sh-disabled-opacity);
+}
+
+.sh-platform__message {
+  margin-bottom: var(--sh-s-4);
+  padding: var(--sh-s-3);
+  border: var(--sh-line-thin) solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-1);
+}
+
+.sh-platform__message--error {
+  color: var(--sh-fg);
+}
+
+.sh-platform__panel {
+  border: var(--sh-line-thin) solid var(--sh-border);
+  border-radius: var(--sh-r-3);
+  background: var(--sh-surface-0);
+  padding: var(--sh-s-4);
+}
+
+.sh-platform__panel-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sh-s-4);
+  margin-bottom: var(--sh-s-4);
+}
+
+.sh-platform__actions {
+  display: flex;
+  gap: var(--sh-s-2);
+}
+
+.sh-platform__module-list {
+  display: grid;
+  gap: var(--sh-s-3);
+}
+
+.sh-platform__module {
+  display: grid;
+  gap: var(--sh-s-2);
+  padding: var(--sh-s-3);
+  border: var(--sh-line-thin) solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+}
+
+.sh-platform__module.is-active {
+  border-color: var(--sh-primary);
+  background: var(--sh-primary-soft);
+}
+
+.sh-platform__module-main {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  font-weight: var(--sh-w-medium);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sh-platform__textarea {
+  display: block;
+  width: 100%;
+  min-height: var(--sh-textarea-min-height);
+  resize: vertical;
+  border: var(--sh-line-thin) solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-1);
+  color: var(--sh-fg);
+  font: var(--sh-mono-field-size) / var(--sh-mono-field-line) var(--sh-font-mono);
+  padding: var(--sh-s-3);
+}
+
+.sh-platform__rows {
+  display: grid;
+  gap: var(--sh-s-2);
+}
+
+.sh-platform__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sh-s-3);
+  align-items: center;
+  padding: var(--sh-s-3);
+  border: var(--sh-line-thin) solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+}
+
+.sh-platform__row--stacked {
+  grid-template-columns: 1fr;
+}
+
+.sh-platform__row span:first-child {
+  font-weight: var(--sh-w-medium);
+}
+
+.sh-platform__row span:not(:first-child) {
+  color: var(--sh-fg-1);
+}
+
+.sh-platform__empty {
+  color: var(--sh-fg-2);
+}
