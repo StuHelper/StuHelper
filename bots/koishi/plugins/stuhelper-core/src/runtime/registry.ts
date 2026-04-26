@@ -1,6 +1,5 @@
 import {
   AIModule,
-  AntiRecallModule,
   KeywordModule,
   MemberManageModule,
   OrderManageModule,
@@ -8,6 +7,7 @@ import {
   SubscriptionModule,
   WarnModule,
 } from '../core/modules'
+import { antirecallRuntimeModule } from '../core/modules/antirecall.module'
 import { antirepeatRuntimeModule } from '../core/modules/antirepeat.module'
 import { authRuntimeModule } from '../core/modules/auth.module'
 import { banmeRuntimeModule } from '../core/modules/banme.module'
@@ -42,7 +42,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   repeatRuntimeModule,
   diceRuntimeModule,
   banmeRuntimeModule,
-  { id: 'antirecall', ModuleType: AntiRecallModule },
+  antirecallRuntimeModule,
   { id: 'ai', ModuleType: AIModule },
   configRuntimeModule,
   logRuntimeModule,
