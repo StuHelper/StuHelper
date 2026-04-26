@@ -2,7 +2,6 @@ import {
   AIModule,
   AntiRecallModule,
   AuthModule,
-  GetAuthModule,
   KeywordModule,
   LogModule,
   MemberManageModule,
@@ -19,6 +18,7 @@ import { banmeRuntimeModule } from '../core/modules/banme.module'
 import { configRuntimeModule } from '../core/modules/config.module'
 import { diceRuntimeModule } from '../core/modules/dice.module'
 import { eventRuntimeModule } from '../core/modules/event.module'
+import { getauthRuntimeModule } from '../core/modules/getauth.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
@@ -49,7 +49,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'subscription', ModuleType: SubscriptionModule },
   helpRuntimeModule,
   { id: 'report', ModuleType: ReportModule },
-  { id: 'getauth', ModuleType: GetAuthModule },
+  getauthRuntimeModule,
   { id: 'auth', ModuleType: AuthModule },
   eventRuntimeModule,
   statusRuntimeModule,

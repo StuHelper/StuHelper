@@ -146,3 +146,17 @@ test('message manage runtime module is native instead of adapted BaseModule', ()
   assert.equal(instance.meta.name, 'manage-message')
   assert.ok(!(instance instanceof BaseModule))
 })
+
+test('getauth runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'getauth')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: {} as any,
+    config: {} as any,
+  })
+
+  assert.equal(instance.meta.name, 'getauth')
+  assert.ok(!(instance instanceof BaseModule))
+})

@@ -153,7 +153,7 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|messageManageRuntimeModule|antirepeatRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|messageManageRuntimeModule|getauthRuntimeModule|antirepeatRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
     ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
@@ -351,6 +351,27 @@ test('P4b-8 message manage module must be native runtime module', async () => {
   )
 })
 
+test('P4b-9 getauth module must be native runtime module', async () => {
+  const getauthModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/getauth.module.ts')
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+
+  assert.doesNotMatch(
+    getauthModule,
+    /extends BaseModule/,
+    'GetAuthModule 已进入 P4b-9，不能继续继承 BaseModule。',
+  )
+  assert.doesNotMatch(
+    getauthModule,
+    /from '\.\/base\.module'/,
+    'GetAuthModule 已进入 P4b-9，不能继续依赖 BaseModule 文件。',
+  )
+  assert.doesNotMatch(
+    registry,
+    /id: 'getauth', ModuleType: GetAuthModule/,
+    'GetAuthModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
+  )
+})
+
 test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.example'))
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.prod.example'))
@@ -376,6 +397,7 @@ function toModuleClassName(runtimeModule: string): string {
     .replace('banmeRuntimeModule', 'BanmeModule')
     .replace('configRuntimeModule', 'ConfigModule')
     .replace('messageManageRuntimeModule', 'MessageManageModule')
+    .replace('getauthRuntimeModule', 'GetAuthModule')
     .replace('antirepeatRuntimeModule', 'AntirepeatModule')
     .replace('eventRuntimeModule', 'EventModule')
     .replace('statusRuntimeModule', 'StatusModule')
