@@ -535,7 +535,7 @@ stuhelper-admin:
 | P2 core UI 内部清理 | 已完成 | 2026-04-26 | (本分支多个 commit) |
 | P3 core 入口拆分 | 已完成 | 2026-04-26 | `20e40472` |
 | P4a Runtime registry + adapter | 已完成 | 2026-04-26 | (本分支单 commit) |
-| P4b 逐个原生 RuntimeModule | 进行中（P4b-1 HelpModule、P4b-2 DiceModule、P4b-3 BanmeModule、P4b-4 ConfigModule、P4b-5 StatusModule、P4b-6 EventModule、P4b-7 AntirepeatModule、P4b-8 MessageManageModule、P4b-9 GetAuthModule、P4b-10 crossGroupModule、P4b-11 AuthModule、P4b-12 RepeatModule、P4b-13 WelcomeModule、P4b-14 LogModule、P4b-15 AntiRecallModule、P4b-16 SubscriptionModule 已完成） | - | (本分支 P4b commits) |
+| P4b 逐个原生 RuntimeModule | 进行中（P4b-1 HelpModule、P4b-2 DiceModule、P4b-3 BanmeModule、P4b-4 ConfigModule、P4b-5 StatusModule、P4b-6 EventModule、P4b-7 AntirepeatModule、P4b-8 MessageManageModule、P4b-9 GetAuthModule、P4b-10 crossGroupModule、P4b-11 AuthModule、P4b-12 RepeatModule、P4b-13 WelcomeModule、P4b-14 LogModule、P4b-15 AntiRecallModule、P4b-16 SubscriptionModule、P4b-17 MemberManageModule 已完成） | - | (本分支 P4b commits) |
 | P5a 配置传递验证 | 未开始 | - | - |
 | P5 三插件显式装载 | 未开始 | - | - |
 | P6 删除 legacy-wrapper | 未开始 | - | - |

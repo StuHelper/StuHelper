@@ -1,7 +1,6 @@
 import {
   AIModule,
   KeywordModule,
-  MemberManageModule,
   OrderManageModule,
   ReportModule,
   WarnModule,
@@ -17,6 +16,7 @@ import { eventRuntimeModule } from '../core/modules/event.module'
 import { getauthRuntimeModule } from '../core/modules/getauth.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
 import { logRuntimeModule } from '../core/modules/log.module'
+import { memberManageRuntimeModule } from '../core/modules/memberManage.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
 import { repeatRuntimeModule } from '../core/modules/repeat.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
@@ -34,7 +34,7 @@ type RuntimeModuleRegistration = BaseModuleRegistration | RuntimeModule<RuntimeM
 const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'warn', ModuleType: WarnModule },
   { id: 'keyword', ModuleType: KeywordModule },
-  { id: 'manage-member', ModuleType: MemberManageModule },
+  memberManageRuntimeModule,
   messageManageRuntimeModule,
   { id: 'manage-order', ModuleType: OrderManageModule },
   antirepeatRuntimeModule,

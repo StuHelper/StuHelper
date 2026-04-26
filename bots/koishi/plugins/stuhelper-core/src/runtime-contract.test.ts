@@ -153,7 +153,7 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|messageManageRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
     ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
@@ -519,6 +519,27 @@ test('P4b-16 subscription module must be native runtime module', async () => {
   )
 })
 
+test('P4b-17 member manage module must be native runtime module', async () => {
+  const memberManageModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/memberManage.module.ts')
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+
+  assert.doesNotMatch(
+    memberManageModule,
+    /extends BaseModule/,
+    'MemberManageModule 已进入 P4b-17，不能继续继承 BaseModule。',
+  )
+  assert.doesNotMatch(
+    memberManageModule,
+    /from '\.\/base\.module'/,
+    'MemberManageModule 已进入 P4b-17，不能继续依赖 BaseModule 文件。',
+  )
+  assert.doesNotMatch(
+    registry,
+    /id: 'manage-member', ModuleType: MemberManageModule/,
+    'MemberManageModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
+  )
+})
+
 test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.example'))
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.prod.example'))
@@ -543,6 +564,7 @@ function toModuleClassName(runtimeModule: string): string {
     .replace('diceRuntimeModule', 'DiceModule')
     .replace('banmeRuntimeModule', 'BanmeModule')
     .replace('configRuntimeModule', 'ConfigModule')
+    .replace('memberManageRuntimeModule', 'MemberManageModule')
     .replace('messageManageRuntimeModule', 'MessageManageModule')
     .replace('getauthRuntimeModule', 'GetAuthModule')
     .replace('authRuntimeModule', 'AuthModule')
