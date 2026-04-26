@@ -33,14 +33,38 @@ test('P5 loads split StuHelper plugins explicitly from koishi.yml', async () => 
   assert.doesNotMatch(config, /&platform_config|\*platform_config/, 'P5 must not use YAML anchors.')
 })
 
-test('P5 legacy setup no longer loads split StuHelper plugins from core', async () => {
-  const setup = await readWorkspaceFile('plugins/stuhelper-core/src/setup/register-legacy-plugins.ts')
-  const wrapper = await readWorkspaceFile('plugins/stuhelper-core/src/legacy/legacy-wrapper.ts')
+test('P6 removes old wrapper setup from stuhelper-core', async () => {
+  const entry = await readWorkspaceFile('plugins/stuhelper-core/src/index.ts')
+  const setupPath = 'plugins/stuhelper-core/src/setup/register-' + 'legacy-plugins.ts'
+  const wrapperPath = 'plugins/stuhelper-core/src/legacy/' + 'legacy-' + 'wrapper.ts'
 
-  assert.doesNotMatch(setup, /applyLegacyFeatures|ctx\.plugin|new Logger/)
-  assert.doesNotMatch(wrapper, /ctx\.plugin|koishi-plugin-stuhelper-(binding|group-guard|admin)/)
+  assert.doesNotMatch(entry, new RegExp('register' + 'Legacy' + 'Plugins'))
+  await assert.rejects(readWorkspaceFile(setupPath), /ENOENT/)
+  await assert.rejects(readWorkspaceFile(wrapperPath), /ENOENT/)
+})
+
+test('P6 core config schema only keeps fields used by core runtime', async () => {
+  const schema = await readWorkspaceFile('packages/shared/src/config/index.ts')
+  const types = await readWorkspaceFile('packages/shared/src/types/index.ts')
+  const coreSchemaBody = extractCoreBlock(schema, 'createCoreConfigSchema')
+  const coreTypeBody = extractCoreBlock(types, 'StuhelperCoreConfig')
+
+  assert.match(coreSchemaBody, /platform: createPlatformConfigSchema\(\)/)
+  assert.match(coreSchemaBody, /guard: createGuardConfigSchema\(\)/)
+  assert.match(coreSchemaBody, /console: createConsoleConfigSchema\(\)/)
+  assert.doesNotMatch(coreSchemaBody, /binding|admin|scheduler|moderation|fun|ai/)
+  assert.match(coreTypeBody, /platform: StuhelperPlatformConfig/)
+  assert.match(coreTypeBody, /guard: StuhelperGuardConfig/)
+  assert.match(coreTypeBody, /console: StuhelperConsoleConfig/)
+  assert.doesNotMatch(coreTypeBody, /binding|admin|scheduler|moderation|fun|ai/)
 })
 
 async function readWorkspaceFile(relativePath: string) {
   return readFile(join(workspaceRoot, relativePath), 'utf8')
+}
+
+function extractCoreBlock(content: string, name: string) {
+  const match = content.match(new RegExp(`${name}[\\s\\S]*?\\{([\\s\\S]*?)\\n\\}`))
+  assert.ok(match, `${name} block not found`)
+  return match[1]
 }

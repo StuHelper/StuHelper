@@ -37,7 +37,7 @@ test('stuhelper-core 入口只表达装配顺序', async () => {
   )
   assert.match(
     content,
-    /export function apply\(ctx: Context, config: Config\) {\s+registerCoreService\(ctx\)\s+registerConsoleEntry\(ctx\)\s+registerConsoleApi\(ctx, config\)\s+registerBackgroundJobs\(ctx\)\s+registerRuntimeModules\(ctx\)\s+registerLegacyPlugins\(ctx, config\)\s+}/,
+    /export function apply\(ctx: Context, config: Config\) {\s+registerCoreService\(ctx\)\s+registerConsoleEntry\(ctx\)\s+registerConsoleApi\(ctx, config\)\s+registerBackgroundJobs\(ctx\)\s+registerRuntimeModules\(ctx\)\s+}/,
     'apply() 必须保持 P3 约定的装配顺序。',
   )
 })
@@ -49,7 +49,6 @@ test('stuhelper-core 装配函数保持统一签名', async () => {
     ['setup/register-console-api.ts', 'registerConsoleApi'],
     ['setup/register-background-jobs.ts', 'registerBackgroundJobs'],
     ['setup/register-runtime-modules.ts', 'registerRuntimeModules'],
-    ['setup/register-legacy-plugins.ts', 'registerLegacyPlugins'],
   ]
 
   for (const [relativePath, functionName] of setupFunctions) {

@@ -81,14 +81,8 @@ export interface StuhelperAIConfig {
 
 export interface StuhelperCoreConfig {
   platform: StuhelperPlatformConfig
-  binding: StuhelperBindingConfig
   guard: StuhelperGuardConfig
-  admin: StuhelperAdminConfig
-  scheduler: StuhelperSchedulerConfig
-  moderation: StuhelperModerationConfig
-  fun: StuhelperFunConfig
   console: StuhelperConsoleConfig
-  ai: StuhelperAIConfig
 }
 
 export interface StuhelperBindingPluginConfig {

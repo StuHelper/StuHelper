@@ -124,14 +124,8 @@ export function createAIConfigSchema(): Schema<StuhelperAIConfig> {
 export function createCoreConfigSchema(): Schema<StuhelperCoreConfig> {
   return Schema.object({
     platform: createPlatformConfigSchema(),
-    binding: createBindingConfigSchema().deprecated(),
     guard: createGuardConfigSchema(),
-    admin: createAdminConfigSchema().deprecated(),
-    scheduler: createSchedulerConfigSchema().deprecated(),
-    moderation: createModerationConfigSchema().deprecated(),
-    fun: createFunConfigSchema().deprecated(),
     console: createConsoleConfigSchema(),
-    ai: createAIConfigSchema().deprecated(),
   })
 }
 

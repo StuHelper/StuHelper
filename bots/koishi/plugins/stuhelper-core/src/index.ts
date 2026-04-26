@@ -9,7 +9,6 @@ import { registerBackgroundJobs } from './setup/register-background-jobs'
 import { registerConsoleApi } from './setup/register-console-api'
 import { registerConsoleEntry } from './setup/register-console-entry'
 import { registerCoreService } from './setup/register-core-service'
-import { registerLegacyPlugins } from './setup/register-legacy-plugins'
 import { registerRuntimeModules } from './setup/register-runtime-modules'
 
 // 插件元信息
@@ -36,7 +35,6 @@ export function apply(ctx: Context, config: Config) {
   registerConsoleApi(ctx, config)
   registerBackgroundJobs(ctx)
   registerRuntimeModules(ctx)
-  registerLegacyPlugins(ctx, config)
 }
 
 export default {
