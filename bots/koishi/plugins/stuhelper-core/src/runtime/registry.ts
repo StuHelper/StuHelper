@@ -3,7 +3,6 @@ import {
   AntiRecallModule,
   AntirepeatModule,
   AuthModule,
-  EventModule,
   GetAuthModule,
   KeywordModule,
   LogModule,
@@ -20,6 +19,7 @@ import {
 import { banmeRuntimeModule } from '../core/modules/banme.module'
 import { configRuntimeModule } from '../core/modules/config.module'
 import { diceRuntimeModule } from '../core/modules/dice.module'
+import { eventRuntimeModule } from '../core/modules/event.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
 import {
@@ -51,7 +51,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'report', ModuleType: ReportModule },
   { id: 'getauth', ModuleType: GetAuthModule },
   { id: 'auth', ModuleType: AuthModule },
-  { id: 'event', ModuleType: EventModule },
+  eventRuntimeModule,
   statusRuntimeModule,
   { id: 'manage-cross-group', ModuleType: crossGroupModule },
 ]
