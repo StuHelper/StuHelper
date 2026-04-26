@@ -59,9 +59,9 @@ The P4a registry order intentionally matches the P3 `MODULE_CLASSES` order.
 - `help` does not need to run after every command module for initialization safety because it reads
   `auth.getCommandsByModule()` when the help command executes, but keeping the current order avoids
   changing observable command grouping behavior.
-- `help`, `dice`, `banme`, `config`, `status`, `event`, `antirepeat`, `manage-message`, and
-  `getauth` have been migrated to native `RuntimeModule` implementations in P4b-1 through
-  P4b-9; the remaining rows still use `BaseModuleAdapter`.
+- `help`, `dice`, `banme`, `config`, `status`, `event`, `antirepeat`, `manage-message`,
+  `getauth`, and `manage-cross-group` have been migrated to native `RuntimeModule`
+  implementations in P4b-1 through P4b-10; the remaining rows still use `BaseModuleAdapter`.
 - `log`, `keyword`, `repeat`, `ai`, and `subscription` install listeners, middleware, or timers.
   P4b native modules must preserve their dispose behavior instead of relying on silent fallback
   cleanup. The migrated `event` module preserves listener and interval registration through the

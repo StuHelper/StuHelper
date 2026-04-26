@@ -11,11 +11,11 @@ import {
   SubscriptionModule,
   WarnModule,
   WelcomeModule,
-  crossGroupModule,
 } from '../core/modules'
 import { antirepeatRuntimeModule } from '../core/modules/antirepeat.module'
 import { banmeRuntimeModule } from '../core/modules/banme.module'
 import { configRuntimeModule } from '../core/modules/config.module'
+import { crossGroupRuntimeModule } from '../core/modules/crossGroupManage.module'
 import { diceRuntimeModule } from '../core/modules/dice.module'
 import { eventRuntimeModule } from '../core/modules/event.module'
 import { getauthRuntimeModule } from '../core/modules/getauth.module'
@@ -53,7 +53,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'auth', ModuleType: AuthModule },
   eventRuntimeModule,
   statusRuntimeModule,
-  { id: 'manage-cross-group', ModuleType: crossGroupModule },
+  crossGroupRuntimeModule,
 ]
 
 const RUNTIME_MODULES = MODULE_REGISTRATIONS.map(createOrderedRuntimeModule)
