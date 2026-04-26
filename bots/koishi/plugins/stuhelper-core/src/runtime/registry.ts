@@ -8,7 +8,6 @@ import {
   ReportModule,
   SubscriptionModule,
   WarnModule,
-  WelcomeModule,
 } from '../core/modules'
 import { antirepeatRuntimeModule } from '../core/modules/antirepeat.module'
 import { authRuntimeModule } from '../core/modules/auth.module'
@@ -22,6 +21,7 @@ import { helpRuntimeModule } from '../core/modules/help.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
 import { repeatRuntimeModule } from '../core/modules/repeat.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
+import { welcomeRuntimeModule } from '../core/modules/welcome.module'
 import {
   adaptBaseModule,
   type BaseModuleDefinition,
@@ -38,7 +38,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   messageManageRuntimeModule,
   { id: 'manage-order', ModuleType: OrderManageModule },
   antirepeatRuntimeModule,
-  { id: 'welcome', ModuleType: WelcomeModule },
+  welcomeRuntimeModule,
   repeatRuntimeModule,
   diceRuntimeModule,
   banmeRuntimeModule,
