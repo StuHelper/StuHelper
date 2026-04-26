@@ -153,7 +153,7 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule)/g),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule)/g),
     ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
@@ -225,6 +225,27 @@ test('P4b-2 dice module must be native runtime module', async () => {
   )
 })
 
+test('P4b-3 banme module must be native runtime module', async () => {
+  const banmeModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/banme.module.ts')
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+
+  assert.doesNotMatch(
+    banmeModule,
+    /extends BaseModule/,
+    'BanmeModule 已进入 P4b-3，不能继续继承 BaseModule。',
+  )
+  assert.doesNotMatch(
+    banmeModule,
+    /from '\.\/base\.module'/,
+    'BanmeModule 已进入 P4b-3，不能继续依赖 BaseModule 文件。',
+  )
+  assert.doesNotMatch(
+    registry,
+    /id: 'banme', ModuleType: BanmeModule/,
+    'BanmeModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
+  )
+})
+
 test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.example'))
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.prod.example'))
@@ -247,6 +268,7 @@ function toModuleClassName(runtimeModule: string): string {
   return runtimeModule
     .replace('helpRuntimeModule', 'HelpModule')
     .replace('diceRuntimeModule', 'DiceModule')
+    .replace('banmeRuntimeModule', 'BanmeModule')
 }
 
 test('stuhelper-core 不应通过覆盖 ctx.console.addListener 注入 authority', async () => {
