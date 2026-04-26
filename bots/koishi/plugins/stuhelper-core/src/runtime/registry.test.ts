@@ -118,3 +118,17 @@ test('event runtime module is native instead of adapted BaseModule', () => {
   assert.equal(instance.meta.name, 'event')
   assert.ok(!(instance instanceof BaseModule))
 })
+
+test('antirepeat runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'antirepeat')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: { groupConfig: {} } as any,
+    config: { antiRepeat: { threshold: 5 } } as any,
+  })
+
+  assert.equal(instance.meta.name, 'antirepeat')
+  assert.ok(!(instance instanceof BaseModule))
+})

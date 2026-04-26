@@ -3,73 +3,174 @@
  * - antirepeat: 复读管理
  */
 
-import { Context } from 'koishi'
-import { BaseModule, ModuleMeta } from './base.module'
-import { Config, MuteRecord } from '../../types'
-import { parseUserId, parseTimeString, formatDuration } from '../../utils'
+import type { Context, Session } from 'koishi'
 
-export class AntirepeatModule extends BaseModule {
-  readonly meta: ModuleMeta = {
+import type { DataManager } from '../data'
+import type { Config, GroupConfig } from '../../types'
+import { registerRuntimeCommand } from '../../runtime/command'
+import type {
+  RuntimeModule,
+  RuntimeModuleInstance,
+  RuntimeModuleMeta,
+  RuntimeModuleState,
+} from '../../runtime/types'
+
+const DEFAULT_ANTIREPEAT_THRESHOLD = 5
+const MIN_ANTIREPEAT_THRESHOLD = 3
+
+interface AntirepeatLogEntry {
+  readonly session: Session
+  readonly target: string
+  readonly result: string
+  readonly success?: boolean
+}
+
+export class AntirepeatModule implements RuntimeModuleInstance {
+  readonly meta: RuntimeModuleMeta = {
     name: 'antirepeat',
     description: '防复读命令模块',
-    version: '1.1'
+    version: '1.1',
   }
 
-  protected async onInit(): Promise<void> {
-     this.registerAntiRepeatCommand()
+  private _state: RuntimeModuleState = 'unloaded'
+  private _error: Error | null = null
+
+  constructor(
+    readonly ctx: Context,
+    readonly data: DataManager,
+    private readonly initialConfig: Config,
+  ) {}
+
+  get config(): Config {
+    try {
+      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
+    } catch {
+      return this.initialConfig
+    }
   }
 
-  /**
-   * antirepeat 命令 - 复读管理
-   */
-  private registerAntiRepeatCommand(): void {
-    this.registerCommand({
-      name: 'antirepeat',
-      desc: '复读管理',
-      args: '[threshold:number]',
-      permNode: 'antirepeat',
-      permDesc: '管理复读检测',
-      usage: '设置复读阈值并启用，0为关闭',
-      examples: ['antirepeat 5', 'antirepeat 0']
+  get state(): RuntimeModuleState {
+    return this._state
+  }
+
+  get error(): Error | null {
+    return this._error
+  }
+
+  async init(): Promise<void> {
+    this._state = 'loading'
+    try {
+      registerAntiRepeatCommand(this)
+      this._state = 'loaded'
+    } catch (error) {
+      this._state = 'error'
+      this._error = error as Error
+      throw error
+    }
+  }
+
+  async dispose(): Promise<void> {
+    this._state = 'unloaded'
+  }
+}
+
+function registerAntiRepeatCommand(host: AntirepeatModule): void {
+  registerRuntimeCommand(host.ctx, host.meta, {
+    name: 'antirepeat',
+    desc: '复读管理',
+    args: '[threshold:number]',
+    permNode: 'antirepeat',
+    permDesc: '管理复读检测',
+    usage: '设置复读阈值并启用，0为关闭',
+    examples: ['antirepeat 5', 'antirepeat 0'],
+  })
+    .action(async ({ session }, threshold) => {
+      return handleAntirepeatCommand(host, session, threshold)
     })
-      .action(async ({ session }, threshold) => {
-        if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
+}
 
-        const groupConfigs = this.data.groupConfig.getAll()
-        const groupConfig = groupConfigs[session.guildId] || {}
-        const antiRepeatConfig = (groupConfig as any).antiRepeat || {
-          enabled: false,
-          threshold: this.config.antiRepeat?.threshold || 5
-        }
+async function handleAntirepeatCommand(
+  host: AntirepeatModule,
+  session: Session,
+  threshold?: number,
+): Promise<string> {
+  if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
 
-        if (threshold === undefined) {
-          return `当前群复读配置：
-状态：${antiRepeatConfig.enabled ? '已启用' : '未启用'}
-阈值：${antiRepeatConfig.threshold} 条
+  const groupConfigs = host.data.groupConfig.getAll()
+  const groupConfig = groupConfigs[session.guildId] || {}
+  const antiRepeatConfig = groupConfig.antiRepeat || {
+    enabled: false,
+    threshold: host.config.antiRepeat?.threshold || DEFAULT_ANTIREPEAT_THRESHOLD,
+  }
+
+  if (threshold === undefined) {
+    return formatCurrentConfig(antiRepeatConfig)
+  }
+
+  if (threshold === 0) {
+    groupConfigs[session.guildId] = {
+      ...groupConfig,
+      antiRepeat: { enabled: false, threshold: antiRepeatConfig.threshold },
+    }
+    host.data.groupConfig.setAll(groupConfigs)
+    logAntirepeatAction(host, {
+      session,
+      target: session.guildId,
+      result: '成功：已关闭复读检测',
+    })
+    return '已关闭本群的复读检测喵~'
+  }
+
+  if (threshold < MIN_ANTIREPEAT_THRESHOLD) {
+    logAntirepeatAction(host, {
+      session,
+      target: session.guildId,
+      result: '失败：无效的阈值',
+      success: false,
+    })
+    return '喵呜...阈值至少要设置为3条以上喵...'
+  }
+
+  groupConfigs[session.guildId] = {
+    ...groupConfig,
+    antiRepeat: { enabled: true, threshold },
+  }
+  host.data.groupConfig.setAll(groupConfigs)
+  logAntirepeatAction(host, {
+    session,
+    target: session.guildId,
+    result: `成功：已设置阈值为 ${threshold} 并启用`,
+  })
+  return `已设置本群复读阈值为 ${threshold} 条并启用检测喵~`
+}
+
+function formatCurrentConfig(config: NonNullable<GroupConfig['antiRepeat']>): string {
+  return `当前群复读配置：
+状态：${config.enabled ? '已启用' : '未启用'}
+阈值：${config.threshold} 条
 使用方法：
 antirepeat 数字 - 设置复读阈值并启用（至少3条）
 antirepeat 0 - 关闭复读检测`
-        }
+}
 
-        if (threshold === 0) {
-          ;(groupConfig as any).antiRepeat = { enabled: false, threshold: antiRepeatConfig.threshold }
-          groupConfigs[session.guildId] = groupConfig
-          this.data.groupConfig.setAll(groupConfigs)
-          this.logCommand(session, 'antirepeat', session.guildId, '成功：已关闭复读检测')
-          return '已关闭本群的复读检测喵~'
-        }
-
-        if (threshold < 3) {
-          this.logCommand(session, 'antirepeat', session.guildId, '失败：无效的阈值', false)
-          return '喵呜...阈值至少要设置为3条以上喵...'
-        }
-
-        ;(groupConfig as any).antiRepeat = { enabled: true, threshold: threshold }
-        groupConfigs[session.guildId] = groupConfig
-        this.data.groupConfig.setAll(groupConfigs)
-        this.logCommand(session, 'antirepeat', session.guildId, `成功：已设置阈值为 ${threshold} 并启用`)
-        return `已设置本群复读阈值为 ${threshold} 条并启用检测喵~`
-      })
+function logAntirepeatAction(
+  host: AntirepeatModule,
+  entry: AntirepeatLogEntry,
+): void {
+  if (entry.success === false) {
+    entry.session['_commandFailed'] = true
   }
+  host.ctx.stuhelperGroupCenter.logCommand(
+    entry.session,
+    'antirepeat',
+    entry.target,
+    entry.result,
+  )
+}
 
+export const antirepeatRuntimeModule: RuntimeModule<AntirepeatModule> = {
+  id: 'antirepeat',
+  create(ctx, deps) {
+    return new AntirepeatModule(ctx, deps.data, deps.config)
+  },
 }

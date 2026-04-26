@@ -1,7 +1,6 @@
 import {
   AIModule,
   AntiRecallModule,
-  AntirepeatModule,
   AuthModule,
   GetAuthModule,
   KeywordModule,
@@ -16,6 +15,7 @@ import {
   WelcomeModule,
   crossGroupModule,
 } from '../core/modules'
+import { antirepeatRuntimeModule } from '../core/modules/antirepeat.module'
 import { banmeRuntimeModule } from '../core/modules/banme.module'
 import { configRuntimeModule } from '../core/modules/config.module'
 import { diceRuntimeModule } from '../core/modules/dice.module'
@@ -37,7 +37,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'manage-member', ModuleType: MemberManageModule },
   { id: 'manage-message', ModuleType: MessageManageModule },
   { id: 'manage-order', ModuleType: OrderManageModule },
-  { id: 'antirepeat', ModuleType: AntirepeatModule },
+  antirepeatRuntimeModule,
   { id: 'welcome', ModuleType: WelcomeModule },
   { id: 'repeat', ModuleType: RepeatModule },
   diceRuntimeModule,
