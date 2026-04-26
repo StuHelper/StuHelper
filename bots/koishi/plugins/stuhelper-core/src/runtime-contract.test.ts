@@ -141,14 +141,19 @@ test('stuhelper-core 后台任务和运行时模块保持 database/service 注�
     /moduleCtx\.on\('ready', async \(\) => \{/,
     'registerRuntimeModules 必须继续在 ready 事件里初始化模块。',
   )
+  assert.doesNotMatch(
+    runtime,
+    /new ModuleType\(/,
+    'registerRuntimeModules 不应再直接 new BaseModule，必须从 runtime registry 装配。',
+  )
 })
 
 test('stuhelper-core 运行时模块注册顺序不变', async () => {
-  const runtime = await readWorkspaceFile('plugins/stuhelper-core/src/setup/register-runtime-modules.ts')
-  const match = runtime.match(/export const MODULE_CLASSES: ModuleClass\[] = \[([\s\S]*?)\]/)
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+  const match = registry.match(/const BASE_MODULE_REGISTRATIONS: BaseModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/^\s+([A-Za-z0-9]+Module|crossGroupModule)(?:\s+as.*)?,/gm),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)/g),
     ([, moduleName]) => moduleName,
   )
 

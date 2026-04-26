@@ -532,9 +532,9 @@ stuhelper-admin:
 | P0a Playwright 基础设施 | 已完成 | 2026-04-25 | (本分支单 commit) |
 | P0b 登录 fixture + 11 view smoke | 已完成（含 codex 复核 H1/M1/M2/M3/M4 加固） | 2026-04-25 | (本分支两个 commit：基线 + 加固) |
 | P1 删除未启用 UI 包 | 已完成 | 2026-04-25 | (本分支单 commit) |
-| P2 core UI 内部清理 | 未开始 | - | - |
-| P3 core 入口拆分 | 未开始 | - | - |
-| P4a Runtime registry + adapter | 未开始 | - | - |
+| P2 core UI 内部清理 | 已完成 | 2026-04-26 | (本分支多个 commit) |
+| P3 core 入口拆分 | 已完成 | 2026-04-26 | `20e40472` |
+| P4a Runtime registry + adapter | 已完成 | 2026-04-26 | (本分支单 commit) |
 | P4b 逐个原生 RuntimeModule | 未开始 | - | - |
 | P5a 配置传递验证 | 未开始 | - | - |
 | P5 三插件显式装载 | 未开始 | - | - |
