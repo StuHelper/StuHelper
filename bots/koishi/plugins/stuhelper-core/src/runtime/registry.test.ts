@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { Context } from 'koishi'
+
+import { BaseModule } from '../core/modules'
 import { getRuntimeModules } from './registry'
 
 test('runtime registry keeps P3 module order', () => {
@@ -30,4 +33,18 @@ test('runtime registry keeps P3 module order', () => {
     'status',
     'manage-cross-group',
   ])
+})
+
+test('help runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'help')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: {} as any,
+    config: {} as any,
+  })
+
+  assert.equal(instance.meta.name, 'help')
+  assert.ok(!(instance instanceof BaseModule))
 })

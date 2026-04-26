@@ -150,11 +150,11 @@ test('stuhelper-core 后台任务和运行时模块保持 database/service 注�
 
 test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-  const match = registry.match(/const BASE_MODULE_REGISTRATIONS: BaseModuleRegistration\[] = \[([\s\S]*?)\]/)
+  const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)/g),
-    ([, moduleName]) => moduleName,
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule)/g),
+    ([, moduleName, runtimeModule]) => moduleName ?? runtimeModule.replace('helpRuntimeModule', 'HelpModule'),
   )
 
   assert.deepEqual(modules, [
@@ -181,6 +181,27 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
     'StatusModule',
     'crossGroupModule',
   ])
+})
+
+test('P4b-1 help module must be native runtime module', async () => {
+  const helpModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/help.module.ts')
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+
+  assert.doesNotMatch(
+    helpModule,
+    /extends BaseModule/,
+    'HelpModule 已进入 P4b-1，不能继续继承 BaseModule。',
+  )
+  assert.doesNotMatch(
+    helpModule,
+    /from '\.\/base\.module'/,
+    'HelpModule 已进入 P4b-1，不能继续依赖 BaseModule 文件。',
+  )
+  assert.doesNotMatch(
+    registry,
+    /id: 'help', ModuleType: HelpModule/,
+    'HelpModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
+  )
 })
 
 test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {

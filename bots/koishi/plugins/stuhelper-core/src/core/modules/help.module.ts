@@ -4,29 +4,54 @@
  */
 
 import { Context } from 'koishi'
-import { BaseModule, ModuleMeta } from './base.module'
-import { DataManager } from '../data'
-import { Config } from '../../types'
 import { parseTimeString, formatDuration } from '../../utils'
+import { registerRuntimeCommand } from '../../runtime/command'
+import type {
+  RuntimeModule,
+  RuntimeModuleInstance,
+  RuntimeModuleMeta,
+  RuntimeModuleState,
+} from '../../runtime/types'
 const pkg = require('../../../package.json')
 
-export class HelpModule extends BaseModule {
-  readonly meta: ModuleMeta = {
+export class HelpModule implements RuntimeModuleInstance {
+  readonly meta: RuntimeModuleMeta = {
     name: 'help',
     description: '帮助模块 - 提供帮助信息和工具命令'
   }
 
-  constructor(ctx: Context, data: DataManager, config: Config) {
-    super(ctx, data, config)
+  private _state: RuntimeModuleState = 'unloaded'
+  private _error: Error | null = null
+
+  constructor(private readonly ctx: Context) {}
+
+  get state(): RuntimeModuleState {
+    return this._state
   }
 
-  protected async onInit(): Promise<void> {
-    this.registerCommands()
+  get error(): Error | null {
+    return this._error
+  }
+
+  async init(): Promise<void> {
+    this._state = 'loading'
+    try {
+      this.registerCommands()
+      this._state = 'loaded'
+    } catch (error) {
+      this._state = 'error'
+      this._error = error as Error
+      throw error
+    }
+  }
+
+  async dispose(): Promise<void> {
+    this._state = 'unloaded'
   }
 
   private registerCommands(): void {
     // 主帮助命令
-    this.registerCommand({
+    registerRuntimeCommand(this.ctx, this.meta, {
       name: 'stuhelperGroupCenter',
       desc: '群管理帮助',
       permNode: 'stuhelperGroupCenter',
@@ -46,7 +71,7 @@ export class HelpModule extends BaseModule {
       })
 
     // 时间解析测试命令
-    this.registerCommand({
+    registerRuntimeCommand(this.ctx, this.meta, {
       name: 'parse-time',
       desc: '测试时间解析',
       args: '<expression:text>',
@@ -133,4 +158,11 @@ export class HelpModule extends BaseModule {
 
     return lines.join('\n')
   }
+}
+
+export const helpRuntimeModule: RuntimeModule<HelpModule> = {
+  id: 'help',
+  create(ctx) {
+    return new HelpModule(ctx)
+  },
 }

@@ -2,44 +2,24 @@
  * 模块基类
  * 所有功能模块都应继承此类
  */
-import { Argv, Command, Context, Session } from 'koishi'
+import { Command, Context, Session } from 'koishi'
 import type { DataManager } from '../data'
 import type { Config } from '../../types'
+import { registerRuntimeCommand } from '../../runtime/command'
+import type {
+  RuntimeCommandDef,
+  RuntimeModuleMeta,
+  RuntimeModuleState,
+} from '../../runtime/types'
 
 /** 模块元信息 */
-export interface ModuleMeta {
-  /** 模块名称 */
-  name: string
-  /** 模块描述 */
-  description: string
-  /** 模块版本 */
-  version?: string
-  /** 模块作者 */
-  author?: string
-}
+export type ModuleMeta = RuntimeModuleMeta
 
 /** 命令定义选项 */
-export interface CommandDef {
-  /** 命令名称（不包含模块前缀） */
-  name: string
-  /** 命令描述 */
-  desc: string
-  /** 参数定义（如 '<user:user> [count:number]'）*/
-  args?: string
-  /** 权限节点名称（默认使用命令名） */
-  permNode?: string
-  /** 权限节点描述（默认使用命令描述） */
-  permDesc?: string
-  /** 跳过权限检查（默认 false） */
-  skipAuth?: boolean
-  /** 使用方法说明（用于动态生成帮助） */
-  usage?: string
-  /** 命令示例 */
-  examples?: string[]
-}
+export type CommandDef = RuntimeCommandDef
 
 /** 模块状态 */
-export type ModuleState = 'unloaded' | 'loading' | 'loaded' | 'error'
+export type ModuleState = RuntimeModuleState
 
 export abstract class BaseModule {
   /** 模块元信息 */
@@ -149,55 +129,7 @@ export abstract class BaseModule {
    * 例如：warn 模块的 add 命令 → warn.add
    */
   protected registerCommand(def: CommandDef): Command {
-    const moduleName = this.meta.name
-    const cmdName = def.name
-    const cmdDef = def.args ? `${cmdName} ${def.args}` : cmdName
-
-    // 生成权限节点ID
-    const permNode = def.permNode || cmdName.replace(/\./g, '-')
-    const permId = `${moduleName}.${permNode}`
-    const permName = def.desc
-    const permDesc = def.permDesc || def.desc
-
-    // 在 AuthService 中注册权限节点
-    if (!def.skipAuth) {
-      this.ctx.stuhelperGroupCenter.auth.registerPermission(
-        permId,
-        permName,
-        permDesc,
-        this.meta.description // 使用模块描述作为分组
-      )
-    }
-
-    // 注册命令信息（用于动态生成帮助）
-    this.ctx.stuhelperGroupCenter.auth.registerCommand({
-      name: cmdName,
-      desc: def.desc,
-      args: def.args,
-      usage: def.usage,
-      examples: def.examples,
-      module: moduleName,
-      moduleDesc: this.meta.description,
-      permId: def.skipAuth ? undefined : permId,
-      skipAuth: def.skipAuth
-    })
-
-    // 创建 Koishi 命令
-    const command = this.ctx.command(cmdDef, def.desc)
-
-    // 添加权限检查中间件（除非跳过）
-    if (!def.skipAuth) {
-      command.before(async ({ session }) => {
-        if (!session) return
-
-        // 使用 AuthService 检查权限
-        if (!this.ctx.stuhelperGroupCenter.auth.check(session, permId)) {
-          return '你没有权限执行此操作喵...'
-        }
-      })
-    }
-
-    return command
+    return registerRuntimeCommand(this.ctx, this.meta, def)
   }
 
   /**

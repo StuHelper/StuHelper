@@ -4,11 +4,11 @@
  */
 import { Context, Service } from 'koishi'
 import { DataManager } from '../data'
-import { BaseModule } from '../modules'
 import { SettingsManager, PluginSettings } from '../settings'
 import { CacheService } from './cache.service'
 import { AuthService } from './auth.service'
 import type { Subscription } from '../../types'
+import type { RuntimeModuleInstance } from '../../runtime/types'
 import {
   collectWarmCacheTargets,
   formatShanghaiTimestamp,
@@ -42,7 +42,7 @@ export class StuhelperGroupCenterService extends Service {
   /** 数据管理器 */
   private _data: DataManager
   /** 功能模块注册表 */
-  private _modules: Map<string, BaseModule> = new Map()
+  private _modules: Map<string, RuntimeModuleInstance> = new Map()
   /** 设置管理器 */
   private _settingsManager: SettingsManager
   /** 缓存服务 */
@@ -91,7 +91,7 @@ export class StuhelperGroupCenterService extends Service {
   /**
    * 注册模块
    */
-  registerModule(module: BaseModule): void {
+  registerModule(module: RuntimeModuleInstance): void {
     const name = module.meta.name
     if (this._modules.has(name)) {
       this.serviceLogger.warn('模块 %s 已存在，将被覆盖', name)
@@ -103,14 +103,14 @@ export class StuhelperGroupCenterService extends Service {
   /**
    * 获取模块
    */
-  getModule<T extends BaseModule>(name: string): T | undefined {
+  getModule<T extends RuntimeModuleInstance>(name: string): T | undefined {
     return this._modules.get(name) as T | undefined
   }
 
   /**
    * 获取所有模块
    */
-  getAllModules(): BaseModule[] {
+  getAllModules(): RuntimeModuleInstance[] {
     return Array.from(this._modules.values())
   }
 

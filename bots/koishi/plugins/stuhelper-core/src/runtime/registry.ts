@@ -8,7 +8,6 @@ import {
   DiceModule,
   EventModule,
   GetAuthModule,
-  HelpModule,
   KeywordModule,
   LogModule,
   MemberManageModule,
@@ -21,29 +20,18 @@ import {
   WarnModule,
   WelcomeModule,
   crossGroupModule,
-  type BaseModule,
 } from '../core/modules'
+import { helpRuntimeModule } from '../core/modules/help.module'
 import {
   adaptBaseModule,
   type BaseModuleDefinition,
-  type ModuleDeps,
 } from './base-module-adapter'
-import type { Context } from 'koishi'
+import type { RuntimeModule, RuntimeModuleInstance } from './types'
 
 type BaseModuleRegistration = Omit<BaseModuleDefinition, 'order'>
+type RuntimeModuleRegistration = BaseModuleRegistration | RuntimeModule<RuntimeModuleInstance>
 
-export interface RuntimeModuleInstance {
-  init(): Promise<void> | void
-  dispose?(): Promise<void> | void
-}
-
-export interface RuntimeModule<TInstance extends RuntimeModuleInstance = RuntimeModuleInstance> {
-  readonly id: string
-  readonly order?: number
-  create(ctx: Context, deps: ModuleDeps): TInstance
-}
-
-const BASE_MODULE_REGISTRATIONS: BaseModuleRegistration[] = [
+const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'warn', ModuleType: WarnModule },
   { id: 'keyword', ModuleType: KeywordModule },
   { id: 'manage-member', ModuleType: MemberManageModule },
@@ -59,7 +47,7 @@ const BASE_MODULE_REGISTRATIONS: BaseModuleRegistration[] = [
   { id: 'config', ModuleType: ConfigModule },
   { id: 'log', ModuleType: LogModule },
   { id: 'subscription', ModuleType: SubscriptionModule },
-  { id: 'help', ModuleType: HelpModule },
+  helpRuntimeModule,
   { id: 'report', ModuleType: ReportModule },
   { id: 'getauth', ModuleType: GetAuthModule },
   { id: 'auth', ModuleType: AuthModule },
@@ -68,10 +56,9 @@ const BASE_MODULE_REGISTRATIONS: BaseModuleRegistration[] = [
   { id: 'manage-cross-group', ModuleType: crossGroupModule },
 ]
 
-const BASE_MODULES: BaseModuleDefinition[] = BASE_MODULE_REGISTRATIONS.map(withBaseModuleOrder)
-const RUNTIME_MODULES: RuntimeModule<BaseModule>[] = BASE_MODULES.map(adaptBaseModule)
+const RUNTIME_MODULES = MODULE_REGISTRATIONS.map(createOrderedRuntimeModule)
 
-export function getRuntimeModules(): readonly RuntimeModule<BaseModule>[] {
+export function getRuntimeModules(): readonly RuntimeModule<RuntimeModuleInstance>[] {
   return [...RUNTIME_MODULES].sort(compareRuntimeModules)
 }
 
@@ -79,6 +66,13 @@ function compareRuntimeModules(left: RuntimeModule, right: RuntimeModule) {
   return (left.order ?? 0) - (right.order ?? 0)
 }
 
-function withBaseModuleOrder(definition: BaseModuleRegistration, order: number): BaseModuleDefinition {
+function createOrderedRuntimeModule(
+  definition: RuntimeModuleRegistration,
+  order: number,
+): RuntimeModule<RuntimeModuleInstance> {
+  if ('ModuleType' in definition) {
+    return adaptBaseModule({ ...definition, order })
+  }
+
   return { ...definition, order }
 }
