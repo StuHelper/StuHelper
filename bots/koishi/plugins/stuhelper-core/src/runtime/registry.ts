@@ -12,7 +12,6 @@ import {
   OrderManageModule,
   RepeatModule,
   ReportModule,
-  StatusModule,
   SubscriptionModule,
   WarnModule,
   WelcomeModule,
@@ -22,6 +21,7 @@ import { banmeRuntimeModule } from '../core/modules/banme.module'
 import { configRuntimeModule } from '../core/modules/config.module'
 import { diceRuntimeModule } from '../core/modules/dice.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
+import { statusRuntimeModule } from '../core/modules/status.module'
 import {
   adaptBaseModule,
   type BaseModuleDefinition,
@@ -52,7 +52,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'getauth', ModuleType: GetAuthModule },
   { id: 'auth', ModuleType: AuthModule },
   { id: 'event', ModuleType: EventModule },
-  { id: 'status', ModuleType: StatusModule },
+  statusRuntimeModule,
   { id: 'manage-cross-group', ModuleType: crossGroupModule },
 ]
 

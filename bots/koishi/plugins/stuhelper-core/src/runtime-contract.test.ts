@@ -153,7 +153,7 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule)/g),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|statusRuntimeModule)/g),
     ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
@@ -267,6 +267,27 @@ test('P4b-4 config module must be native runtime module', async () => {
   )
 })
 
+test('P4b-5 status module must be native runtime module', async () => {
+  const statusModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/status.module.ts')
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+
+  assert.doesNotMatch(
+    statusModule,
+    /extends BaseModule/,
+    'StatusModule 已进入 P4b-5，不能继续继承 BaseModule。',
+  )
+  assert.doesNotMatch(
+    statusModule,
+    /from '\.\/base\.module'/,
+    'StatusModule 已进入 P4b-5，不能继续依赖 BaseModule 文件。',
+  )
+  assert.doesNotMatch(
+    registry,
+    /id: 'status', ModuleType: StatusModule/,
+    'StatusModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
+  )
+})
+
 test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.example'))
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.prod.example'))
@@ -291,6 +312,7 @@ function toModuleClassName(runtimeModule: string): string {
     .replace('diceRuntimeModule', 'DiceModule')
     .replace('banmeRuntimeModule', 'BanmeModule')
     .replace('configRuntimeModule', 'ConfigModule')
+    .replace('statusRuntimeModule', 'StatusModule')
 }
 
 test('stuhelper-core 不应通过覆盖 ctx.console.addListener 注入 authority', async () => {
