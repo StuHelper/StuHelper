@@ -1,6 +1,3 @@
-import {
-  ReportModule,
-} from '../core/modules'
 import { antirecallRuntimeModule } from '../core/modules/antirecall.module'
 import { antirepeatRuntimeModule } from '../core/modules/antirepeat.module'
 import { aiRuntimeModule } from '../core/modules/ai.module'
@@ -17,6 +14,7 @@ import { logRuntimeModule } from '../core/modules/log.module'
 import { memberManageRuntimeModule } from '../core/modules/memberManage.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
 import { orderManageRuntimeModule } from '../core/modules/orderManage.module'
+import { reportRuntimeModule } from '../core/modules/report.module'
 import { repeatRuntimeModule } from '../core/modules/repeat.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
 import { subscriptionRuntimeModule } from '../core/modules/subscription.module'
@@ -48,7 +46,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   logRuntimeModule,
   subscriptionRuntimeModule,
   helpRuntimeModule,
-  { id: 'report', ModuleType: ReportModule },
+  reportRuntimeModule,
   getauthRuntimeModule,
   authRuntimeModule,
   eventRuntimeModule,

@@ -61,8 +61,8 @@ The P4a registry order intentionally matches the P3 `MODULE_CLASSES` order.
   changing observable command grouping behavior.
 - `help`, `dice`, `banme`, `config`, `status`, `event`, `antirepeat`, `manage-message`,
   `getauth`, `manage-cross-group`, `auth`, `repeat`, `welcome`, `log`, `antirecall`, `subscription`,
-  `manage-member`, `manage-order`, `keyword`, `ai`, and `warn` have been migrated to native `RuntimeModule` implementations in P4b-1 through P4b-21; the remaining rows still use
-  `BaseModuleAdapter`.
+  `manage-member`, `manage-order`, `keyword`, `ai`, `warn`, and `report` have been migrated to native
+  `RuntimeModule` implementations in P4b-1 through P4b-22; no module row should use `BaseModuleAdapter`.
 - `log`, `keyword`, `repeat`, `ai`, and `subscription` install listeners, middleware, or timers.
   P4b native modules must preserve their dispose behavior instead of relying on silent fallback
   cleanup. The migrated `event` module preserves listener and interval registration through the

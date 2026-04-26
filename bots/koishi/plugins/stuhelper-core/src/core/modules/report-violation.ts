@@ -1,0 +1,258 @@
+import { Logger } from 'koishi'
+
+import { executeCommand } from '../../utils'
+import type { ReportModule } from './report.module'
+import type { ViolationAction, ViolationInfo } from './report-types'
+import { ViolationLevel } from './report-types'
+
+const logger = new Logger('stuhelperGroupCenter:report')
+const SHORT_CONTENT_MAX_LENGTH = 30
+const ERROR_MESSAGE_MAX_LENGTH = 50
+const SECONDS_PER_MINUTE = 60
+const MINUTES_PER_HOUR = 60
+const HOURS_PER_DAY = 24
+const SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
+const SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
+
+export interface ReportViolationInput {
+  readonly host: ReportModule
+  readonly session: any
+  readonly userId: string
+  readonly violation: ViolationInfo
+  readonly content: string
+  readonly verbose: boolean
+  readonly guildConfig: any
+}
+
+export async function handleReportViolation(input: ReportViolationInput): Promise<string> {
+  const originalUser = input.session.user
+  input.session.user = { ...originalUser, authority: Infinity, permissions: ['*'] }
+
+  try {
+    return await executeViolation(input)
+  } catch (error: any) {
+    return handleViolationFailure(input, error)
+  } finally {
+    input.session.user = originalUser
+  }
+}
+
+export function getViolationLevelText(level: ViolationLevel): string {
+  switch (level) {
+    case ViolationLevel.NONE: return '未'
+    case ViolationLevel.LOW: return '轻微'
+    case ViolationLevel.MEDIUM: return '中度'
+    case ViolationLevel.HIGH: return '严重'
+    case ViolationLevel.CRITICAL: return '极其严重'
+    default: return '未知'
+  }
+}
+
+async function executeViolation(input: ReportViolationInput): Promise<string> {
+  if (input.violation.level === ViolationLevel.NONE) return formatNoViolation(input)
+
+  const shouldAutoProcess = input.guildConfig
+    ? input.guildConfig.autoProcess
+    : input.host.config.report?.autoProcess
+  if (!shouldAutoProcess) return handleManualViolation(input)
+
+  const actionResults: string[] = []
+  for (const action of input.violation.action || []) {
+    await executeReportAction({ ...input, action, actionResults })
+  }
+
+  const result = formatProcessedViolation(input, actionResults)
+  await logReportHandling(input, actionResults).catch((error) => {
+    logger.error('记录举报处理日志失败:', error)
+  })
+  return result
+}
+
+function formatNoViolation(input: ReportViolationInput): string {
+  return input.verbose
+    ? `AI判断结果：该消息未违规\n理由：${input.violation.reason}`
+    : '该消息未被判定为违规内容。'
+}
+
+async function handleManualViolation(input: ReportViolationInput): Promise<string> {
+  const levelText = getViolationLevelText(input.violation.level)
+  await input.host.logCommand(input.session, 'report-no-action', input.userId, `${levelText}违规，管理员待处理`)
+  return input.verbose
+    ? `AI判断结果：${levelText}违规\n理由：${input.violation.reason}\n操作：自动处理功能已禁用，请管理员手动处理`
+    : `该消息被判定为${levelText}违规，请管理员手动处理。`
+}
+
+function formatProcessedViolation(input: ReportViolationInput, actionResults: string[]): string {
+  const levelText = getViolationLevelText(input.violation.level)
+  if ((input.violation.action || []).length === 0) {
+    return input.verbose
+      ? `AI判断结果：${levelText}违规\n理由：${input.violation.reason}\n操作：无需处理`
+      : `该消息被判定为${levelText}违规，无需处理。`
+  }
+
+  const actionText = actionResults.join('、')
+  return input.verbose
+    ? `AI判断结果：${levelText}违规\n理由：${input.violation.reason}\n操作：${actionText}`
+    : `已对用户 ${input.userId} 执行：${actionText}，${levelText}违规。`
+}
+
+async function logReportHandling(input: ReportViolationInput, actionResults: string[]): Promise<void> {
+  const levelText = getViolationLevelText(input.violation.level)
+  const actionText = formatActionText(input.violation.action)
+  const shortContent = shorten(input.content, SHORT_CONTENT_MAX_LENGTH)
+  await input.host.logCommand(input.session, 'report-handle', input.userId, `${levelText}违规，处理: ${actionText}，内容: ${shortContent}`)
+  await input.host.ctx.stuhelperGroupCenter.pushMessage(
+    input.session.bot,
+    `[举报] 群${input.session.guildId} 用户 ${input.userId} - ${levelText}违规\n内容: ${shortContent}\n处理: ${actionText}`,
+    'warning',
+  )
+}
+
+function formatActionText(actions: ViolationAction[]): string {
+  if (actions.length === 0) return '无操作'
+  return actions.map(formatAction).join('、')
+}
+
+function formatAction(action: ViolationAction): string {
+  switch (action.type) {
+    case 'ban': return `禁言${action.time}秒`
+    case 'warn': return `警告${action.count}次`
+    case 'kick': return '踢出群聊'
+    case 'kick_blacklist': return '踢出并拉黑'
+    default: return action.type
+  }
+}
+
+async function handleViolationFailure(input: ReportViolationInput, error: any): Promise<string> {
+  logger.error('执行违规处理失败:', error)
+  await logViolationFailure(input, error).catch((innerError) => {
+    logger.error('记录举报错误日志失败:', innerError)
+  })
+  const levelText = getViolationLevelText(input.violation.level)
+  return `AI已判定该消息${levelText}违规，但自动处理失败：${error.message}\n请联系管理员手动处理。`
+}
+
+async function logViolationFailure(input: ReportViolationInput, error: any): Promise<void> {
+  const levelText = getViolationLevelText(input.violation.level)
+  const message = shorten(error.message, ERROR_MESSAGE_MAX_LENGTH)
+  await input.host.logCommand(input.session, 'report-error', input.userId, `${levelText}违规处理失败: ${message}`)
+  await input.host.ctx.stuhelperGroupCenter.pushMessage(
+    input.session.bot,
+    `[举报失败] 用户 ${input.userId} - ${levelText}违规\n错误: ${message}`,
+    'warning',
+  )
+}
+
+async function executeReportAction(input: ReportViolationInput & {
+  readonly action: ViolationAction
+  readonly actionResults: string[]
+}): Promise<void> {
+  try {
+    await runReportAction(input)
+  } catch (error) {
+    logger.error(`执行操作失败: ${input.action.type}`, error)
+    input.actionResults.push(`${input.action.type}操作失败`)
+  }
+}
+
+async function runReportAction(input: ReportViolationInput & {
+  readonly action: ViolationAction
+  readonly actionResults: string[]
+}): Promise<void> {
+  const { action, actionResults, session, userId } = input
+  if (action.type === 'ban' && action.time && action.time > 0) {
+    await banUserBySeconds({ host: input.host, session, userId, seconds: action.time })
+    actionResults.push(`禁言${action.time}秒`)
+  } else if (action.type === 'warn' && action.count && action.count > 0) {
+    await warnUser({ host: input.host, session, userId, count: action.count })
+    actionResults.push(`警告${action.count}次`)
+  } else if (action.type === 'kick') {
+    await kickUser({ host: input.host, session, userId, addToBlacklist: false })
+    actionResults.push('踢出群聊')
+  } else if (action.type === 'kick_blacklist') {
+    await kickUser({ host: input.host, session, userId, addToBlacklist: true })
+    actionResults.push('踢出群聊并加入黑名单')
+  } else if (action.type !== 'ban' && action.type !== 'warn') {
+    logger.warn(`未知的操作类型: ${action.type}`)
+  }
+}
+
+async function warnUser(input: {
+  readonly host: ReportModule
+  readonly session: any
+  readonly userId: string
+  readonly count: number
+}): Promise<void> {
+  try {
+    const user = `${input.session.platform}:${input.userId}`
+    const result = await executeCommand(input.host.ctx, input.session, 'warn', [user, input.count.toString()], {}, true)
+    if (!result || (typeof result === 'string' && result.includes('失败'))) {
+      throw new Error(`警告执行失败: ${result || '未知错误'}`)
+    }
+  } catch (error: any) {
+    logger.error(`警告用户失败: ${error.message}`)
+    throw error
+  }
+}
+
+async function banUser(input: {
+  readonly host: ReportModule
+  readonly session: any
+  readonly userId: string
+  readonly duration: string
+}): Promise<void> {
+  try {
+    const result = await executeCommand(input.host.ctx, input.session, 'ban', [`${input.userId} ${input.duration}`], {}, true)
+    if (!result || (typeof result === 'string' && result.includes('失败'))) {
+      throw new Error(`禁言执行失败: ${result || '未知错误'}`)
+    }
+    logger.debug(`禁言执行结果: ${JSON.stringify(result)}`)
+  } catch (error: any) {
+    logger.error(`禁言用户失败: ${error.message}`)
+    throw error
+  }
+}
+
+async function banUserBySeconds(input: {
+  readonly host: ReportModule
+  readonly session: any
+  readonly userId: string
+  readonly seconds: number
+}): Promise<void> {
+  try {
+    await banUser({ ...input, duration: formatDurationSeconds(input.seconds) })
+  } catch (error: any) {
+    logger.error(`按秒数禁言用户失败: ${error.message}`)
+    throw error
+  }
+}
+
+async function kickUser(input: {
+  readonly host: ReportModule
+  readonly session: any
+  readonly userId: string
+  readonly addToBlacklist: boolean
+}): Promise<void> {
+  try {
+    const kickInput = input.addToBlacklist ? `${input.userId} -b` : input.userId
+    const result = await executeCommand(input.host.ctx, input.session, 'kick', [kickInput], {}, true)
+    if (!result || (typeof result === 'string' && result.includes('失败'))) {
+      throw new Error(`踢出执行失败: ${result || '未知错误'}`)
+    }
+    logger.debug(`踢出执行结果: ${JSON.stringify(result)}`)
+  } catch (error: any) {
+    logger.error(`踢出用户失败: ${error.message}`)
+    throw error
+  }
+}
+
+function formatDurationSeconds(seconds: number): string {
+  if (seconds < SECONDS_PER_MINUTE) return `${seconds}s`
+  if (seconds < SECONDS_PER_HOUR) return `${Math.floor(seconds / SECONDS_PER_MINUTE)}m`
+  if (seconds < SECONDS_PER_DAY) return `${Math.floor(seconds / SECONDS_PER_HOUR)}h`
+  return `${Math.floor(seconds / SECONDS_PER_DAY)}d`
+}
+
+function shorten(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.substring(0, maxLength)}...` : value
+}

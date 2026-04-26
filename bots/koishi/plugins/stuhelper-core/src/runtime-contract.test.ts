@@ -153,7 +153,7 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|keywordRuntimeModule|aiRuntimeModule|warnRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|keywordRuntimeModule|aiRuntimeModule|warnRuntimeModule|reportRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
     ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
@@ -205,6 +205,7 @@ const nativeModuleContracts = [
   ['P4b-19', 'KeywordModule', 'keyword.module.ts', /id: 'keyword', ModuleType: KeywordModule/],
   ['P4b-20', 'AIModule', 'ai.module.ts', /id: 'ai', ModuleType: AIModule/],
   ['P4b-21', 'WarnModule', 'warn.module.ts', /id: 'warn', ModuleType: WarnModule/],
+  ['P4b-22', 'ReportModule', 'report.module.ts', /id: 'report', ModuleType: ReportModule/],
 ] as const
 
 for (const [phase, className, fileName, adapterPattern] of nativeModuleContracts) {
@@ -260,6 +261,7 @@ function toModuleClassName(runtimeModule: string): string {
     .replace('keywordRuntimeModule', 'KeywordModule')
     .replace('aiRuntimeModule', 'AIModule')
     .replace('warnRuntimeModule', 'WarnModule')
+    .replace('reportRuntimeModule', 'ReportModule')
     .replace('getauthRuntimeModule', 'GetAuthModule')
     .replace('authRuntimeModule', 'AuthModule')
     .replace('crossGroupRuntimeModule', 'crossGroupModule')
