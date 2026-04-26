@@ -1,7 +1,6 @@
 import {
   AIModule,
   KeywordModule,
-  OrderManageModule,
   ReportModule,
   WarnModule,
 } from '../core/modules'
@@ -18,6 +17,7 @@ import { helpRuntimeModule } from '../core/modules/help.module'
 import { logRuntimeModule } from '../core/modules/log.module'
 import { memberManageRuntimeModule } from '../core/modules/memberManage.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
+import { orderManageRuntimeModule } from '../core/modules/orderManage.module'
 import { repeatRuntimeModule } from '../core/modules/repeat.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
 import { subscriptionRuntimeModule } from '../core/modules/subscription.module'
@@ -36,7 +36,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'keyword', ModuleType: KeywordModule },
   memberManageRuntimeModule,
   messageManageRuntimeModule,
-  { id: 'manage-order', ModuleType: OrderManageModule },
+  orderManageRuntimeModule,
   antirepeatRuntimeModule,
   welcomeRuntimeModule,
   repeatRuntimeModule,
