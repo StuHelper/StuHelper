@@ -1,6 +1,5 @@
 import {
   ReportModule,
-  WarnModule,
 } from '../core/modules'
 import { antirecallRuntimeModule } from '../core/modules/antirecall.module'
 import { antirepeatRuntimeModule } from '../core/modules/antirepeat.module'
@@ -21,6 +20,7 @@ import { orderManageRuntimeModule } from '../core/modules/orderManage.module'
 import { repeatRuntimeModule } from '../core/modules/repeat.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
 import { subscriptionRuntimeModule } from '../core/modules/subscription.module'
+import { warnRuntimeModule } from '../core/modules/warn.module'
 import { welcomeRuntimeModule } from '../core/modules/welcome.module'
 import {
   adaptBaseModule,
@@ -32,7 +32,7 @@ type BaseModuleRegistration = Omit<BaseModuleDefinition, 'order'>
 type RuntimeModuleRegistration = BaseModuleRegistration | RuntimeModule<RuntimeModuleInstance>
 
 const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
-  { id: 'warn', ModuleType: WarnModule },
+  warnRuntimeModule,
   keywordRuntimeModule,
   memberManageRuntimeModule,
   messageManageRuntimeModule,
