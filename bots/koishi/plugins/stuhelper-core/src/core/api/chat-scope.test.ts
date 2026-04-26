@@ -110,6 +110,30 @@ test('legacy subscription and cache APIs enforce the console scope', async () =>
   })
 })
 
+test('subscription remove uses the visible scoped subscription identity instead of raw list index', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001', '1003'])
+  service.data.subscriptions.set('list', [
+    { type: 'group', id: '2002', features: { hidden: true } },
+    { type: 'group', id: '1001', features: { visible: 1 } },
+    { type: 'group', id: '1003', features: { visible: 2 } },
+  ] as any)
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const subscriptions = await callListener(listeners, 'stuhelperGroupCenter/subscriptions/list', {})
+  assert.deepEqual((subscriptions.data || []).map((item: { id: string }) => item.id), ['1001', '1003'])
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/subscriptions/remove', { index: 1 })
+
+  assert.equal(result.success, true)
+  assert.deepEqual(
+    service.data.subscriptions.get('list').map((item: { id: string }) => item.id),
+    ['2002', '1001'],
+  )
+})
+
 test('legacy global APIs reject guild-scoped console users', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
@@ -121,11 +145,11 @@ test('legacy global APIs reject guild-scoped console users', async () => {
   await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/cache/refresh', {})
   await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/cache/stats', {})
   await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/chat/user-info', { userId: 'u2' })
-  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/subscriptions/update', {
-    index: 1,
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/subscriptions/update', {
+    index: 0,
     subscription: { type: 'group', id: '2002', features: {} },
   } as any)
-  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/subscriptions/remove', { index: 1 })
+  await assertRejectsNotFound(listeners, 'stuhelperGroupCenter/subscriptions/remove', { index: 1 })
 })
 
 test('legacy stats APIs filter guild data to the console scope', async () => {
@@ -236,6 +260,20 @@ async function assertRejectsGlobalScope(
 
   assert.equal(result.success, false)
   assert.match(result.error || '', /(requires global console scope|outside of the current console guild scope)/)
+}
+
+async function assertRejectsNotFound(
+  listeners: Map<string, Listener>,
+  event: string,
+  params: Record<string, unknown>,
+) {
+  const listener = listeners.get(event)
+  assert.ok(listener, `${event} listener should be registered`)
+
+  const result = await listener.call(createConsoleClient(), params)
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /订阅不存在/)
 }
 
 async function callListener(

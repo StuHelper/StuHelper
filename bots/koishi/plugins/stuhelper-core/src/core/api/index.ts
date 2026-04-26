@@ -14,6 +14,7 @@ import { deliverChatMessageToClients } from './chat-delivery'
 import {
   assertConsoleGuildAccess,
   assertGlobalConsoleScope,
+  hasConsoleGuildAccess,
   resolveRequiredConsoleGuildScope,
 } from './console-guild-scope'
 import {
@@ -152,6 +153,33 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       return
     }
     assertGlobalConsoleScope(scope, 'private subscription')
+  }
+  const hasSubscriptionScope = (scope: Awaited<ReturnType<typeof resolveConsoleScope>>, sub: Subscription) => {
+    if (sub.type === 'group') {
+      return hasConsoleGuildAccess(scope, sub.id)
+    }
+    return scope.kind === 'all'
+  }
+  const findScopedSubscriptionRawIndex = (
+    list: Subscription[],
+    scope: Awaited<ReturnType<typeof resolveConsoleScope>>,
+    scopedIndex: number,
+  ) => {
+    if (!Number.isInteger(scopedIndex) || scopedIndex < 0) {
+      return -1
+    }
+
+    let visibleIndex = 0
+    for (let rawIndex = 0; rawIndex < list.length; rawIndex++) {
+      if (!hasSubscriptionScope(scope, list[rawIndex])) {
+        continue
+      }
+      if (visibleIndex === scopedIndex) {
+        return rawIndex
+      }
+      visibleIndex++
+    }
+    return -1
   }
   const readBlacklistGuildId = (record: any) => typeof record?.guildId === 'string' ? record.guildId : undefined
 
@@ -766,13 +794,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     try {
       const scope = await resolveConsoleScope(this)
       const list = data.subscriptions.get('list') || []
-      const sub = list[params.index]
-      if (sub) {
-        assertSubscriptionScope(scope, sub)
-        list.splice(params.index, 1)
-        data.subscriptions.set('list', list)
-        await data.subscriptions.flush()
+      const rawIndex = findScopedSubscriptionRawIndex(list, scope, params.index)
+      if (rawIndex < 0) {
+        return error('订阅不存在')
       }
+      list.splice(rawIndex, 1)
+      data.subscriptions.set('list', list)
+      await data.subscriptions.flush()
       return success({ success: true })
     } catch (e) {
       return error(e instanceof Error ? e.message : '移除订阅失败')
@@ -785,12 +813,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       const scope = await resolveConsoleScope(this)
       assertSubscriptionScope(scope, params.subscription)
       const list = data.subscriptions.get('list') || []
-      if (params.index >= 0 && params.index < list.length) {
-        assertSubscriptionScope(scope, list[params.index])
-        list[params.index] = params.subscription
-        data.subscriptions.set('list', list)
-        await data.subscriptions.flush()
+      const rawIndex = findScopedSubscriptionRawIndex(list, scope, params.index)
+      if (rawIndex < 0) {
+        return error('订阅不存在')
       }
+      list[rawIndex] = params.subscription
+      data.subscriptions.set('list', list)
+      await data.subscriptions.flush()
       return success({ success: true })
     } catch (e) {
       return error(e instanceof Error ? e.message : '更新订阅失败')

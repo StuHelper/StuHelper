@@ -28,7 +28,7 @@ const VIEW_COMPONENTS = {
 } as const
 
 export function useConsolePages() {
-  const resolve = (view: ConsoleViewId) => VIEW_COMPONENTS[view] ?? DashboardHubView
+  const resolve = (view: ConsoleViewId) => VIEW_COMPONENTS[view]
 
   return {
     views: computed(() => VIEW_COMPONENTS),

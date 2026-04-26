@@ -96,7 +96,10 @@ async function buildClientScope(
   const scopedGuildIds = new Set<string>()
   for (const roleId of roleIds) {
     const role = rolesById.get(roleId)
-    if (!role || !role.guildIds || role.guildIds.length === 0) {
+    if (!role) {
+      throw new Error(`console role assignment references missing role: ${roleId}`)
+    }
+    if (!role.guildIds || role.guildIds.length === 0) {
       return { kind: 'all' } as const
     }
     role.guildIds.forEach((guildId) => scopedGuildIds.add(guildId))

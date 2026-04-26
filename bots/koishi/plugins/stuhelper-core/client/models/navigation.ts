@@ -27,7 +27,7 @@ const QUERY_KEYS = [
 export function parseConsoleQuery(params: URLSearchParams): ConsoleNavigationState {
   const rawView = params.get('view')
   return {
-    view: isConsoleViewId(rawView) ? rawView : DEFAULT_CONSOLE_VIEW,
+    view: parseConsoleView(rawView),
     workspace: readNullableQuery(params, 'workspace'),
     guildId: readNullableQuery(params, 'guildId'),
     memberId: readNullableQuery(params, 'memberId'),
@@ -47,7 +47,9 @@ export function parseConsoleHash(hash: string): ConsoleNavigationState | null {
   const separatorIndex = fragment.indexOf('?')
   const rawView = separatorIndex >= 0 ? fragment.slice(0, separatorIndex) : fragment
   const view = rawView.replace(/^\/+/, '')
-  if (!isConsoleViewId(view)) return null
+  if (!isConsoleViewId(view)) {
+    throw new Error(`unknown console view: ${view}`)
+  }
 
   const params = new URLSearchParams(separatorIndex >= 0 ? fragment.slice(separatorIndex + 1) : '')
   params.set('view', view)
@@ -119,4 +121,14 @@ function readNullableQuery(
 ) {
   const value = params.get(key)
   return value ? value : null
+}
+
+function parseConsoleView(value: string | null) {
+  if (!value) {
+    return DEFAULT_CONSOLE_VIEW
+  }
+  if (!isConsoleViewId(value)) {
+    throw new Error(`unknown console view: ${value}`)
+  }
+  return value
 }

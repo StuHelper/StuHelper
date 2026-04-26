@@ -48,7 +48,10 @@ export async function resolveConsoleGuildScope(
   const guildIds = new Set<string>()
   for (const roleId of roleIds) {
     const role = rolesById.get(roleId)
-    if (!role || !role.guildIds || role.guildIds.length === 0) {
+    if (!role) {
+      throw new Error(`console role assignment references missing role: ${roleId}`)
+    }
+    if (!role.guildIds || role.guildIds.length === 0) {
       return { kind: 'all' }
     }
     role.guildIds.forEach((guildId) => guildIds.add(guildId))

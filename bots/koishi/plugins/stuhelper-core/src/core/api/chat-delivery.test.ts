@@ -91,6 +91,29 @@ test('deliverChatMessageToClients treats empty or missing guildIds as global vis
   assert.deepEqual(sent.map((item) => item.clientId), ['global-role-admin'])
 })
 
+test('deliverChatMessageToClients rejects role assignments that reference missing roles', async () => {
+  const sent: Array<{ clientId: string; type: string; body: Record<string, unknown> }> = []
+  const clients = [createClient('stale-role-admin', 2, 4, sent)]
+
+  await assert.rejects(
+    deliverChatMessageToClients({
+      clients,
+      payload: {
+        id: 'msg-4',
+        guildId: '2002',
+        content: 'ops notice',
+      },
+      roles: [createRole('role-1001', ['1001'])],
+      getUserRoleIds: (userId) => ({
+        'onebot:2001': ['deleted-role'],
+      }[userId] ?? []),
+      listBindingsByAuthId: async () => [{ platform: 'onebot', pid: '2001' }],
+    }),
+    /console role assignment references missing role: deleted-role/,
+  )
+  assert.deepEqual(sent, [])
+})
+
 function createClient(
   id: string,
   authId: number,
