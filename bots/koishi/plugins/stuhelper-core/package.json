@@ -15,9 +15,6 @@
     "@stuhelper/koishi-moderation-core": "workspace:*",
     "@stuhelper/koishi-shared": "workspace:*",
     "koishi": "^4.18.7",
-    "koishi-plugin-stuhelper-admin": "workspace:*",
-    "koishi-plugin-stuhelper-binding": "workspace:*",
-    "koishi-plugin-stuhelper-group-guard": "workspace:*",
     "zod": "^3.25.76"
   },
   "koishi": {

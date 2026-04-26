@@ -23,7 +23,22 @@ plugins:
     database-sqlite:q4tbt0:
       path: data/koishi.db
   group:stuhelper:
-    stuhelper-core:q1wm1r: {}
+    stuhelper-core:q1wm1r:
+      platform:
+        baseUrl: ${{ env.STUHELPER_PLATFORM_BASE_URL }}
+        serviceToken: ${{ env.STUHELPER_PLATFORM_SERVICE_TOKEN }}
+    stuhelper-binding:binding:
+      platform:
+        baseUrl: ${{ env.STUHELPER_PLATFORM_BASE_URL }}
+        serviceToken: ${{ env.STUHELPER_PLATFORM_SERVICE_TOKEN }}
+    stuhelper-group-guard:guard:
+      platform:
+        baseUrl: ${{ env.STUHELPER_PLATFORM_BASE_URL }}
+        serviceToken: ${{ env.STUHELPER_PLATFORM_SERVICE_TOKEN }}
+    stuhelper-admin:admin:
+      platform:
+        baseUrl: ${{ env.STUHELPER_PLATFORM_BASE_URL }}
+        serviceToken: ${{ env.STUHELPER_PLATFORM_SERVICE_TOKEN }}
   group:develop:
     $if: env.NODE_ENV === 'development'
     hmr:nepc4u:

@@ -22,6 +22,8 @@ try {
       NODE_ENV: 'production',
       KOISHI_CONFIG_FILE: '',
       STUHELPER_CONSOLE_ADMIN_PASSWORD: 'startup-smoke-password',
+      STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? 'http://127.0.0.1:8080',
+      STUHELPER_PLATFORM_SERVICE_TOKEN: process.env.STUHELPER_PLATFORM_SERVICE_TOKEN ?? 'startup-smoke-service-token',
     },
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -43,7 +45,7 @@ try {
   const exitCode = await waitForExit(child)
 
   assert.match(output, /loader apply plugin stuhelper-core:/, 'Koishi 启动时没有加载 stuhelper-core。')
-  assert.match(output, /StuHelper 群管中心插件已加载/, 'stuhelper-core 没有完成新的群管中心装配。')
+  assert.match(output, /StuHelper 群管中心模块初始化完成/, 'stuhelper-core 没有完成新的群管中心装配。')
   assert.match(output, /WebSocket API registered/, 'stuhelper-core 没有完成 console API 注入与注册。')
   assert.doesNotMatch(output, /启动文件监视器失败/, 'stuhelper-core 仍然在首次启动时错误地监视不存在的 settings.json。')
   assert.match(output, new RegExp(`server listening at http://127\\.0\\.0\\.1:${SMOKE_PORT}`), 'Koishi 控制台没有在烟雾端口完成监听。')

@@ -545,7 +545,7 @@ stuhelper-admin:
 | P4a Runtime registry + adapter | 已完成 | 2026-04-26 | (本分支单 commit) |
 | P4b 逐个原生 RuntimeModule | 已完成（P4b-1 至 P4b-22 全部 native，并删除 BaseModule / adapter 兼容层） | 2026-04-26 | (本分支 P4b commits) |
 | P5a 配置传递验证 | 已完成（加载通过，Console 持久化不保留语义化 anchor；P5 走显式 ENV 派生退路） | 2026-04-26 | (本分支单 commit) |
-| P5 三插件显式装载 | 未开始 | - | - |
+| P5 三插件显式装载 | 已完成（`koishi.yml` 显式加载 core / binding / group-guard / admin；core 不再私下 `ctx.plugin()` 三个独立插件） | 2026-04-26 | (本分支单 commit) |
 | P6 删除 legacy-wrapper | 未开始 | - | - |
 
 每完成一个阶段，回到本表更新状态、日期与 PR 链接。

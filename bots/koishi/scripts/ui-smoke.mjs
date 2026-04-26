@@ -40,6 +40,8 @@ try {
       NODE_ENV: 'production',
       KOISHI_CONFIG_FILE: '',
       STUHELPER_CONSOLE_ADMIN_PASSWORD: process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD ?? 'ui-smoke-password',
+      STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? 'http://127.0.0.1:8080',
+      STUHELPER_PLATFORM_SERVICE_TOKEN: process.env.STUHELPER_PLATFORM_SERVICE_TOKEN ?? 'ui-smoke-service-token',
     },
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
