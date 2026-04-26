@@ -153,7 +153,7 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|messageManageRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|messageManageRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
     ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
@@ -498,6 +498,27 @@ test('P4b-15 antirecall module must be native runtime module', async () => {
   )
 })
 
+test('P4b-16 subscription module must be native runtime module', async () => {
+  const subscriptionModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/subscription.module.ts')
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+
+  assert.doesNotMatch(
+    subscriptionModule,
+    /extends BaseModule/,
+    'SubscriptionModule 已进入 P4b-16，不能继续继承 BaseModule。',
+  )
+  assert.doesNotMatch(
+    subscriptionModule,
+    /from '\.\/base\.module'/,
+    'SubscriptionModule 已进入 P4b-16，不能继续依赖 BaseModule 文件。',
+  )
+  assert.doesNotMatch(
+    registry,
+    /id: 'subscription', ModuleType: SubscriptionModule/,
+    'SubscriptionModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
+  )
+})
+
 test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.example'))
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.prod.example'))
@@ -531,6 +552,7 @@ function toModuleClassName(runtimeModule: string): string {
     .replace('repeatRuntimeModule', 'RepeatModule')
     .replace('logRuntimeModule', 'LogModule')
     .replace('antirecallRuntimeModule', 'AntiRecallModule')
+    .replace('subscriptionRuntimeModule', 'SubscriptionModule')
     .replace('eventRuntimeModule', 'EventModule')
     .replace('statusRuntimeModule', 'StatusModule')
 }

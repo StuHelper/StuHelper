@@ -244,3 +244,17 @@ test('antirecall runtime module is native instead of adapted BaseModule', () => 
   assert.equal(instance.meta.name, 'antirecall')
   assert.ok(!(instance instanceof BaseModule))
 })
+
+test('subscription runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'subscription')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: {} as any,
+    config: {} as any,
+  })
+
+  assert.equal(instance.meta.name, 'subscription')
+  assert.ok(!(instance instanceof BaseModule))
+})

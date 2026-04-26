@@ -4,7 +4,6 @@ import {
   MemberManageModule,
   OrderManageModule,
   ReportModule,
-  SubscriptionModule,
   WarnModule,
 } from '../core/modules'
 import { antirecallRuntimeModule } from '../core/modules/antirecall.module'
@@ -21,6 +20,7 @@ import { logRuntimeModule } from '../core/modules/log.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
 import { repeatRuntimeModule } from '../core/modules/repeat.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
+import { subscriptionRuntimeModule } from '../core/modules/subscription.module'
 import { welcomeRuntimeModule } from '../core/modules/welcome.module'
 import {
   adaptBaseModule,
@@ -46,7 +46,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'ai', ModuleType: AIModule },
   configRuntimeModule,
   logRuntimeModule,
-  { id: 'subscription', ModuleType: SubscriptionModule },
+  subscriptionRuntimeModule,
   helpRuntimeModule,
   { id: 'report', ModuleType: ReportModule },
   getauthRuntimeModule,
