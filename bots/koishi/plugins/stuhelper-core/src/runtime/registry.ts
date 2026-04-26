@@ -5,7 +5,6 @@ import {
   LogModule,
   MemberManageModule,
   OrderManageModule,
-  RepeatModule,
   ReportModule,
   SubscriptionModule,
   WarnModule,
@@ -21,6 +20,7 @@ import { eventRuntimeModule } from '../core/modules/event.module'
 import { getauthRuntimeModule } from '../core/modules/getauth.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
+import { repeatRuntimeModule } from '../core/modules/repeat.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
 import {
   adaptBaseModule,
@@ -39,7 +39,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'manage-order', ModuleType: OrderManageModule },
   antirepeatRuntimeModule,
   { id: 'welcome', ModuleType: WelcomeModule },
-  { id: 'repeat', ModuleType: RepeatModule },
+  repeatRuntimeModule,
   diceRuntimeModule,
   banmeRuntimeModule,
   { id: 'antirecall', ModuleType: AntiRecallModule },

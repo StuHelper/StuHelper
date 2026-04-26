@@ -1,7 +1,17 @@
-import { Context, Session } from 'koishi'
-import { BaseModule, ModuleMeta } from './base.module'
-import { DataManager } from '../data'
+import type { Context, Session } from 'koishi'
+
+import type { DataManager } from '../data'
+import type {
+  RuntimeModule,
+  RuntimeModuleInstance,
+  RuntimeModuleMeta,
+  RuntimeModuleState,
+} from '../../runtime/types'
 import { sleep } from '../../utils'
+
+const REPEAT_DELETE_DELAY_MS = 300
+const REPEAT_RECORD_TTL_MS = 60 * 60 * 1000
+const DEFAULT_REPEAT_THRESHOLD = 3
 
 /**
  * 复读记录接口
@@ -21,136 +31,185 @@ interface RepeatRecord {
  * 复读机检测模块
  * 检测并处理群内复读消息
  */
-export class RepeatModule extends BaseModule {
-  readonly meta: ModuleMeta = {
+export class RepeatModule implements RuntimeModuleInstance {
+  readonly meta: RuntimeModuleMeta = {
     name: 'repeat',
     description: '复读机检测模块',
-    version: '1.0.0'
+    version: '1.0.0',
   }
 
-  /** 复读记录映射表 */
-  private repeatMap = new Map<string, RepeatRecord>()
-
-  /** 清理定时器 */
+  private _state: RuntimeModuleState = 'unloaded'
+  private _error: Error | null = null
+  private readonly repeatMap = new Map<string, RepeatRecord>()
   private cleanupTimer: NodeJS.Timeout | null = null
 
-  protected async onInit(): Promise<void> {
-    this.registerMiddleware()
-    this.setupCleanupTask()
-    this.ctx.logger.info('[RepeatModule] initialized')
+  constructor(
+    readonly ctx: Context,
+    private readonly data: DataManager,
+  ) {}
+
+  get state(): RuntimeModuleState {
+    return this._state
   }
 
-  /**
-   * 注册复读检测中间件
-   */
-  private registerMiddleware(): void {
-    this.ctx.middleware(async (session, next) => {
-      if (!session.content || !session.guildId) return next()
-
-      const groupConfig = this.getGroupConfig(session.guildId)
-      const antiRepeatConfig = groupConfig?.antiRepeat
-      if (!antiRepeatConfig?.enabled) return next()
-
-      const currentContent = session.content
-      const currentMessageId = session.messageId
-      const currentGuildId = session.guildId
-      const currentUserId = session.userId
-
-      const record = this.repeatMap.get(currentGuildId)
-
-      // 如果是新内容或内容不同，重置记录
-      if (!record || record.content !== currentContent) {
-        this.repeatMap.set(currentGuildId, {
-          content: currentContent,
-          count: 1,
-          firstMessageId: currentMessageId,
-          messages: [{
-            id: currentMessageId,
-            userId: currentUserId,
-            timestamp: Date.now()
-          }]
-        })
-        return next()
-      }
-
-      // 累加复读计数
-      record.count++
-      record.messages.push({
-        id: currentMessageId,
-        userId: currentUserId,
-        timestamp: Date.now()
-      })
-
-      // 超过阈值，撤回消息
-      const threshold = antiRepeatConfig.threshold || 3
-      if (record.count > threshold) {
-        try {
-          this.log(session, 'antirepeat', 'messages',
-            `已删除 ${record.count - 1} 条复读消息`)
-
-          // 撤回除第一条以外的所有消息
-          for (let i = 1; i < record.messages.length; i++) {
-            const msg = record.messages[i]
-            try {
-              await session.bot.deleteMessage(session.channelId, msg.id)
-            } catch (e) {
-              this.ctx.logger.error(`[RepeatModule] 撤回消息 ${msg.id} 失败:`, e)
-            }
-            await sleep(300)
-          }
-
-          this.repeatMap.delete(currentGuildId)
-        } catch (e) {
-          this.ctx.logger.error('[RepeatModule] 处理复读消息时出错:', e)
-        }
-      }
-
-      return next()
-    })
+  get error(): Error | null {
+    return this._error
   }
 
-  /**
-   * 设置定期清理任务
-   */
-  private setupCleanupTask(): void {
-    // 每小时清理过期记录
-    this.cleanupTimer = setInterval(() => {
-      const now = Date.now()
-      for (const [guildId, record] of this.repeatMap.entries()) {
-        // 超过1小时未更新的记录将被清理
-        if (now - record.messages[record.messages.length - 1].timestamp > 3600000) {
-          this.repeatMap.delete(guildId)
-        }
-      }
-    }, 3600000)
-
-    // 插件卸载时清理定时器
-    this.ctx.on('dispose', () => {
-      if (this.cleanupTimer) {
-        clearInterval(this.cleanupTimer)
-        this.cleanupTimer = null
-      }
-    })
+  async init(): Promise<void> {
+    this._state = 'loading'
+    try {
+      registerMiddleware(this)
+      setupCleanupTask(this)
+      this.ctx.logger.info('[RepeatModule] initialized')
+      this._state = 'loaded'
+    } catch (error) {
+      this._state = 'error'
+      this._error = error as Error
+      throw error
+    }
   }
 
-  /**
-   * 获取复读记录映射表
-   */
+  async dispose(): Promise<void> {
+    this._state = 'unloaded'
+  }
+
   getRepeatMap(): Map<string, RepeatRecord> {
     return this.repeatMap
   }
 
-  /**
-   * 获取指定群组的复读记录
-   */
   getRepeatRecord(guildId: string): RepeatRecord | undefined {
     return this.repeatMap.get(guildId)
   }
 
-  /**
-   * 清除指定群组的复读记录
-   */
   clearRepeatRecord(guildId: string): void {
     this.repeatMap.delete(guildId)
   }
+
+  getGroupConfig(guildId: string) {
+    return this.data.groupConfig.get(guildId)
+  }
+
+  clearCleanupTimer(): void {
+    if (!this.cleanupTimer) return
+    clearInterval(this.cleanupTimer)
+    this.cleanupTimer = null
+  }
+
+  setCleanupTimer(timer: NodeJS.Timeout): void {
+    this.cleanupTimer = timer
+  }
+}
+
+function registerMiddleware(host: RepeatModule): void {
+  host.ctx.middleware(async (session, next) => {
+    if (!session.content || !session.guildId) return next()
+
+    const groupConfig = host.getGroupConfig(session.guildId)
+    const antiRepeatConfig = groupConfig?.antiRepeat
+    if (!antiRepeatConfig?.enabled) return next()
+
+    await handleRepeatSession(host, session, antiRepeatConfig.threshold)
+    return next()
+  })
+}
+
+async function handleRepeatSession(
+  host: RepeatModule,
+  session: Session,
+  threshold = DEFAULT_REPEAT_THRESHOLD,
+): Promise<void> {
+  if (!session.guildId || !session.content) return
+
+  const repeatMap = host.getRepeatMap()
+  const record = repeatMap.get(session.guildId)
+  if (!record || record.content !== session.content) {
+    repeatMap.set(session.guildId, createRepeatRecord(session, session.content))
+    return
+  }
+
+  record.count++
+  record.messages.push(createRepeatMessage(session))
+  if (record.count <= threshold) return
+
+  try {
+    logRepeatDeletion(host, session, record.count - 1)
+    await deleteRepeatedMessages(host, session, record)
+    repeatMap.delete(session.guildId)
+  } catch (error) {
+    host.ctx.logger.error('[RepeatModule] 处理复读消息时出错:', error)
+  }
+}
+
+function createRepeatRecord(session: Session, content: string): RepeatRecord {
+  return {
+    content,
+    count: 1,
+    firstMessageId: session.messageId,
+    messages: [createRepeatMessage(session)],
+  }
+}
+
+function createRepeatMessage(session: Session) {
+  return {
+    id: session.messageId,
+    userId: session.userId,
+    timestamp: Date.now(),
+  }
+}
+
+function logRepeatDeletion(
+  host: RepeatModule,
+  session: Session,
+  count: number,
+): void {
+  void host.ctx.stuhelperGroupCenter.logCommand(
+    session,
+    'antirepeat',
+    'messages',
+    `已删除 ${count} 条复读消息`,
+  )
+}
+
+async function deleteRepeatedMessages(
+  host: RepeatModule,
+  session: Session,
+  record: RepeatRecord,
+): Promise<void> {
+  for (let index = 1; index < record.messages.length; index++) {
+    const message = record.messages[index]
+    try {
+      await session.bot.deleteMessage(session.channelId, message.id)
+    } catch (error) {
+      host.ctx.logger.error(`[RepeatModule] 撤回消息 ${message.id} 失败:`, error)
+    }
+    await sleep(REPEAT_DELETE_DELAY_MS)
+  }
+}
+
+function setupCleanupTask(host: RepeatModule): void {
+  host.setCleanupTimer(setInterval(() => {
+    pruneExpiredRecords(host.getRepeatMap())
+  }, REPEAT_RECORD_TTL_MS))
+
+  host.ctx.on('dispose', () => {
+    host.clearCleanupTimer()
+  })
+}
+
+function pruneExpiredRecords(repeatMap: Map<string, RepeatRecord>): void {
+  const now = Date.now()
+  for (const [guildId, record] of repeatMap.entries()) {
+    const latestMessage = record.messages[record.messages.length - 1]
+    if (now - latestMessage.timestamp > REPEAT_RECORD_TTL_MS) {
+      repeatMap.delete(guildId)
+    }
+  }
+}
+
+export const repeatRuntimeModule: RuntimeModule<RepeatModule> = {
+  id: 'repeat',
+  create(ctx, deps) {
+    return new RepeatModule(ctx, deps.data)
+  },
 }

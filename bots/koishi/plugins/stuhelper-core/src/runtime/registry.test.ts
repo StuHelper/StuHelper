@@ -188,3 +188,17 @@ test('auth runtime module is native instead of adapted BaseModule', () => {
   assert.equal(instance.meta.name, 'auth')
   assert.ok(!(instance instanceof BaseModule))
 })
+
+test('repeat runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'repeat')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: { groupConfig: { get: () => undefined } } as any,
+    config: {} as any,
+  })
+
+  assert.equal(instance.meta.name, 'repeat')
+  assert.ok(!(instance instanceof BaseModule))
+})
