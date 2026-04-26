@@ -48,3 +48,17 @@ test('help runtime module is native instead of adapted BaseModule', () => {
   assert.equal(instance.meta.name, 'help')
   assert.ok(!(instance instanceof BaseModule))
 })
+
+test('dice runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'dice')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: { groupConfig: {} } as any,
+    config: {} as any,
+  })
+
+  assert.equal(instance.meta.name, 'dice')
+  assert.ok(!(instance instanceof BaseModule))
+})

@@ -153,8 +153,8 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule)/g),
-    ([, moduleName, runtimeModule]) => moduleName ?? runtimeModule.replace('helpRuntimeModule', 'HelpModule'),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule)/g),
+    ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
   assert.deepEqual(modules, [
@@ -204,6 +204,27 @@ test('P4b-1 help module must be native runtime module', async () => {
   )
 })
 
+test('P4b-2 dice module must be native runtime module', async () => {
+  const diceModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/dice.module.ts')
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+
+  assert.doesNotMatch(
+    diceModule,
+    /extends BaseModule/,
+    'DiceModule 已进入 P4b-2，不能继续继承 BaseModule。',
+  )
+  assert.doesNotMatch(
+    diceModule,
+    /from '\.\/base\.module'/,
+    'DiceModule 已进入 P4b-2，不能继续依赖 BaseModule 文件。',
+  )
+  assert.doesNotMatch(
+    registry,
+    /id: 'dice', ModuleType: DiceModule/,
+    'DiceModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
+  )
+})
+
 test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.example'))
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.prod.example'))
@@ -220,6 +241,12 @@ async function assertContainsConsoleAdminPassword(filePath: string) {
     /STUHELPER_CONSOLE_ADMIN_PASSWORD/,
     `${filePath} 必须说明 STUHELPER_CONSOLE_ADMIN_PASSWORD。`,
   )
+}
+
+function toModuleClassName(runtimeModule: string): string {
+  return runtimeModule
+    .replace('helpRuntimeModule', 'HelpModule')
+    .replace('diceRuntimeModule', 'DiceModule')
 }
 
 test('stuhelper-core 不应通过覆盖 ctx.console.addListener 注入 authority', async () => {

@@ -5,7 +5,6 @@ import {
   AuthModule,
   BanmeModule,
   ConfigModule,
-  DiceModule,
   EventModule,
   GetAuthModule,
   KeywordModule,
@@ -21,6 +20,7 @@ import {
   WelcomeModule,
   crossGroupModule,
 } from '../core/modules'
+import { diceRuntimeModule } from '../core/modules/dice.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
 import {
   adaptBaseModule,
@@ -40,7 +40,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'antirepeat', ModuleType: AntirepeatModule },
   { id: 'welcome', ModuleType: WelcomeModule },
   { id: 'repeat', ModuleType: RepeatModule },
-  { id: 'dice', ModuleType: DiceModule },
+  diceRuntimeModule,
   { id: 'banme', ModuleType: BanmeModule },
   { id: 'antirecall', ModuleType: AntiRecallModule },
   { id: 'ai', ModuleType: AIModule },
