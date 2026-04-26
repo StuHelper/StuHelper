@@ -18,7 +18,7 @@ Audit method:
 - Searched module files for `getModule`, `stuhelperGroupCenter`, `this.data`, `this.config`,
   `ctx.database`, `ctx.http`, `ctx.puppeteer`, event listeners, middleware, timers, and direct
   relative imports.
-- Treated `BaseModule` dependencies as common to all adapted modules: `Context`, `DataManager`,
+- Recorded the P4a `BaseModule` dependency baseline before migration: `Context`, `DataManager`,
   plugin `Config`, and `ctx.stuhelperGroupCenter.auth` for command permission registration.
 
 ## Registry Order
@@ -54,8 +54,7 @@ The P4a registry order intentionally matches the P3 `MODULE_CLASSES` order.
 
 - `report` must continue to load after `ai`; `ReportModule.callModeration()` calls
   `ctx.stuhelperGroupCenter.getModule<AIModule>('ai')`.
-- Modules that call `BaseModule.registerCommand()` depend on `StuhelperGroupCenterService.auth`,
-  not on `AuthModule`.
+- Modules that register commands depend on `StuhelperGroupCenterService.auth`, not on `AuthModule`.
 - `help` does not need to run after every command module for initialization safety because it reads
   `auth.getCommandsByModule()` when the help command executes, but keeping the current order avoids
   changing observable command grouping behavior.

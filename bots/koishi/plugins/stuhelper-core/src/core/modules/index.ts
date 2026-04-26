@@ -1,8 +1,6 @@
 /**
  * 模块层导出
  */
-export { BaseModule } from './base.module'
-export type { ModuleMeta, ModuleState } from './base.module'
 export { WarnModule } from './warn.module'
 export { KeywordModule } from './keyword.module'
 export { MemberManageModule } from './memberManage.module'

@@ -3,7 +3,6 @@ import test from 'node:test'
 
 import { Context } from 'koishi'
 
-import { BaseModule } from '../core/modules'
 import { getRuntimeModules } from './registry'
 
 test('runtime registry keeps P3 module order', () => {
@@ -61,7 +60,7 @@ const nativeRuntimeCases = [
 ] as const
 
 for (const [id, data, config] of nativeRuntimeCases) {
-  test(`${id} runtime module is native instead of adapted BaseModule`, () => {
+  test(`${id} runtime module creates a runtime instance`, () => {
     const module = getRuntimeModules().find(item => item.id === id)
     assert.ok(module)
 
@@ -72,6 +71,8 @@ for (const [id, data, config] of nativeRuntimeCases) {
     })
 
     assert.equal(instance.meta.name, id)
-    assert.ok(!(instance instanceof BaseModule))
+    assert.equal(instance.state, 'unloaded')
+    assert.equal(typeof instance.init, 'function')
+    assert.equal(typeof instance.dispose, 'function')
   })
 }

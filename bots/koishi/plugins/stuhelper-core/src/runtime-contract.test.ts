@@ -14,6 +14,10 @@ interface WorkspaceManifest {
 const currentDir = dirname(fileURLToPath(import.meta.url))
 const workspaceRoot = join(currentDir, '../../..')
 const repoRoot = join(workspaceRoot, '../..')
+const legacyBaseClassName = 'Base' + 'Module'
+const legacyAdapterPath = 'base-module-' + 'adapter'
+const legacyModuleTypeKey = 'Module' + 'Type'
+const legacyBasePath = 'base' + '.module'
 
 test('Koishi 本地工作区包使用构建产物作为运行时入口', async () => {
   await assertPackageRuntimeEntry('packages/shared/package.json')
@@ -97,6 +101,10 @@ async function readWorkspaceFile(relativePath: string) {
   return readFile(join(workspaceRoot, relativePath), 'utf8')
 }
 
+function legacyAdapterPattern(id: string, className: string): RegExp {
+  return new RegExp(`id: '${id}', ${legacyModuleTypeKey}: ${className}`)
+}
+
 test('stuhelper-core 控制台密码校验必须与 API 注册共享失败边界', async () => {
   const api = await readWorkspaceFile('plugins/stuhelper-core/src/setup/register-console-api.ts')
 
@@ -143,18 +151,18 @@ test('stuhelper-core 后台任务和运行时模块保持 database/service 注�
   )
   assert.doesNotMatch(
     runtime,
-    /new ModuleType\(/,
-    'registerRuntimeModules 不应再直接 new BaseModule，必须从 runtime registry 装配。',
+    new RegExp(`new ${legacyModuleTypeKey}\\(`),
+    'registerRuntimeModules 不应再直接 new 旧模块类，必须从 runtime registry 装配。',
   )
 })
 
 test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-  const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
+  const match = registry.match(/const MODULE_REGISTRATIONS:[^=]+ = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|keywordRuntimeModule|aiRuntimeModule|warnRuntimeModule|reportRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
-    ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
+    moduleBody.matchAll(/(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|keywordRuntimeModule|aiRuntimeModule|warnRuntimeModule|reportRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
+    ([, runtimeModule]) => toModuleClassName(runtimeModule),
   )
 
   assert.deepEqual(modules, [
@@ -183,29 +191,41 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   ])
 })
 
+test('P4 原生 RuntimeModule 收尾后不保留旧 adapter 兼容层', async () => {
+  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+  const modulesIndex = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/index.ts')
+  const registryLegacyPattern = new RegExp(`${legacyAdapterPath}|adapt${legacyBaseClassName}|${legacyModuleTypeKey}`)
+  const moduleIndexLegacyPattern = new RegExp(`${legacyBaseClassName}|${legacyBasePath}`)
+
+  assert.doesNotMatch(registry, registryLegacyPattern)
+  assert.doesNotMatch(modulesIndex, moduleIndexLegacyPattern)
+  await assert.rejects(readWorkspaceFile(`plugins/stuhelper-core/src/core/modules/${legacyBasePath}.ts`), /ENOENT/)
+  await assert.rejects(readWorkspaceFile(`plugins/stuhelper-core/src/runtime/${legacyAdapterPath}.ts`), /ENOENT/)
+})
+
 const nativeModuleContracts = [
-  ['P4b-1', 'HelpModule', 'help.module.ts', /id: 'help', ModuleType: HelpModule/],
-  ['P4b-2', 'DiceModule', 'dice.module.ts', /id: 'dice', ModuleType: DiceModule/],
-  ['P4b-3', 'BanmeModule', 'banme.module.ts', /id: 'banme', ModuleType: BanmeModule/],
-  ['P4b-4', 'ConfigModule', 'config.module.ts', /id: 'config', ModuleType: ConfigModule/],
-  ['P4b-5', 'StatusModule', 'status.module.ts', /id: 'status', ModuleType: StatusModule/],
-  ['P4b-6', 'EventModule', 'event.module.ts', /id: 'event', ModuleType: EventModule/],
-  ['P4b-7', 'AntirepeatModule', 'antirepeat.module.ts', /id: 'antirepeat', ModuleType: AntirepeatModule/],
-  ['P4b-8', 'MessageManageModule', 'messageManage.module.ts', /id: 'manage-message', ModuleType: MessageManageModule/],
-  ['P4b-9', 'GetAuthModule', 'getauth.module.ts', /id: 'getauth', ModuleType: GetAuthModule/],
-  ['P4b-10', 'crossGroupModule', 'crossGroupManage.module.ts', /id: 'manage-cross-group', ModuleType: crossGroupModule/],
-  ['P4b-11', 'AuthModule', 'auth.module.ts', /id: 'auth', ModuleType: AuthModule/],
-  ['P4b-12', 'RepeatModule', 'repeat.module.ts', /id: 'repeat', ModuleType: RepeatModule/],
-  ['P4b-13', 'WelcomeModule', 'welcome.module.ts', /id: 'welcome', ModuleType: WelcomeModule/],
-  ['P4b-14', 'LogModule', 'log.module.ts', /id: 'log', ModuleType: LogModule/],
-  ['P4b-15', 'AntiRecallModule', 'antirecall.module.ts', /id: 'antirecall', ModuleType: AntiRecallModule/],
-  ['P4b-16', 'SubscriptionModule', 'subscription.module.ts', /id: 'subscription', ModuleType: SubscriptionModule/],
-  ['P4b-17', 'MemberManageModule', 'memberManage.module.ts', /id: 'manage-member', ModuleType: MemberManageModule/],
-  ['P4b-18', 'OrderManageModule', 'orderManage.module.ts', /id: 'manage-order', ModuleType: OrderManageModule/],
-  ['P4b-19', 'KeywordModule', 'keyword.module.ts', /id: 'keyword', ModuleType: KeywordModule/],
-  ['P4b-20', 'AIModule', 'ai.module.ts', /id: 'ai', ModuleType: AIModule/],
-  ['P4b-21', 'WarnModule', 'warn.module.ts', /id: 'warn', ModuleType: WarnModule/],
-  ['P4b-22', 'ReportModule', 'report.module.ts', /id: 'report', ModuleType: ReportModule/],
+  ['P4b-1', 'HelpModule', 'help.module.ts', legacyAdapterPattern('help', 'HelpModule')],
+  ['P4b-2', 'DiceModule', 'dice.module.ts', legacyAdapterPattern('dice', 'DiceModule')],
+  ['P4b-3', 'BanmeModule', 'banme.module.ts', legacyAdapterPattern('banme', 'BanmeModule')],
+  ['P4b-4', 'ConfigModule', 'config.module.ts', legacyAdapterPattern('config', 'ConfigModule')],
+  ['P4b-5', 'StatusModule', 'status.module.ts', legacyAdapterPattern('status', 'StatusModule')],
+  ['P4b-6', 'EventModule', 'event.module.ts', legacyAdapterPattern('event', 'EventModule')],
+  ['P4b-7', 'AntirepeatModule', 'antirepeat.module.ts', legacyAdapterPattern('antirepeat', 'AntirepeatModule')],
+  ['P4b-8', 'MessageManageModule', 'messageManage.module.ts', legacyAdapterPattern('manage-message', 'MessageManageModule')],
+  ['P4b-9', 'GetAuthModule', 'getauth.module.ts', legacyAdapterPattern('getauth', 'GetAuthModule')],
+  ['P4b-10', 'crossGroupModule', 'crossGroupManage.module.ts', legacyAdapterPattern('manage-cross-group', 'crossGroupModule')],
+  ['P4b-11', 'AuthModule', 'auth.module.ts', legacyAdapterPattern('auth', 'AuthModule')],
+  ['P4b-12', 'RepeatModule', 'repeat.module.ts', legacyAdapterPattern('repeat', 'RepeatModule')],
+  ['P4b-13', 'WelcomeModule', 'welcome.module.ts', legacyAdapterPattern('welcome', 'WelcomeModule')],
+  ['P4b-14', 'LogModule', 'log.module.ts', legacyAdapterPattern('log', 'LogModule')],
+  ['P4b-15', 'AntiRecallModule', 'antirecall.module.ts', legacyAdapterPattern('antirecall', 'AntiRecallModule')],
+  ['P4b-16', 'SubscriptionModule', 'subscription.module.ts', legacyAdapterPattern('subscription', 'SubscriptionModule')],
+  ['P4b-17', 'MemberManageModule', 'memberManage.module.ts', legacyAdapterPattern('manage-member', 'MemberManageModule')],
+  ['P4b-18', 'OrderManageModule', 'orderManage.module.ts', legacyAdapterPattern('manage-order', 'OrderManageModule')],
+  ['P4b-19', 'KeywordModule', 'keyword.module.ts', legacyAdapterPattern('keyword', 'KeywordModule')],
+  ['P4b-20', 'AIModule', 'ai.module.ts', legacyAdapterPattern('ai', 'AIModule')],
+  ['P4b-21', 'WarnModule', 'warn.module.ts', legacyAdapterPattern('warn', 'WarnModule')],
+  ['P4b-22', 'ReportModule', 'report.module.ts', legacyAdapterPattern('report', 'ReportModule')],
 ] as const
 
 for (const [phase, className, fileName, adapterPattern] of nativeModuleContracts) {
@@ -215,18 +235,18 @@ for (const [phase, className, fileName, adapterPattern] of nativeModuleContracts
 
     assert.doesNotMatch(
       moduleSource,
-      /extends BaseModule/,
-      `${className} 已进入 ${phase}，不能继续继承 BaseModule。`,
+      new RegExp(`extends ${legacyBaseClassName}`),
+      `${className} 已进入 ${phase}，不能继续继承旧模块基类。`,
     )
     assert.doesNotMatch(
       moduleSource,
-      /from '\.\/base\.module'/,
-      `${className} 已进入 ${phase}，不能继续依赖 BaseModule 文件。`,
+      new RegExp(`from '\\./${legacyBasePath}'`),
+      `${className} 已进入 ${phase}，不能继续依赖旧模块基类文件。`,
     )
     assert.doesNotMatch(
       registry,
       adapterPattern,
-      `${className} 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。`,
+      `${className} 必须作为原生 RuntimeModule 注册，不能再通过旧 adapter 注册。`,
     )
   })
 }

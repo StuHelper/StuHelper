@@ -3,7 +3,7 @@
  *
  * 包含：
  * - 数据层：JsonDataStore, DataManager
- * - 模块层：BaseModule
+ * - 模块层：原生 RuntimeModule 实现
  * - 服务层：StuhelperGroupCenterService
  * - API层：WebSocket API
  */

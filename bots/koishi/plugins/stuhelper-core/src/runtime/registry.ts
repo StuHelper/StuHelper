@@ -20,16 +20,9 @@ import { statusRuntimeModule } from '../core/modules/status.module'
 import { subscriptionRuntimeModule } from '../core/modules/subscription.module'
 import { warnRuntimeModule } from '../core/modules/warn.module'
 import { welcomeRuntimeModule } from '../core/modules/welcome.module'
-import {
-  adaptBaseModule,
-  type BaseModuleDefinition,
-} from './base-module-adapter'
 import type { RuntimeModule, RuntimeModuleInstance } from './types'
 
-type BaseModuleRegistration = Omit<BaseModuleDefinition, 'order'>
-type RuntimeModuleRegistration = BaseModuleRegistration | RuntimeModule<RuntimeModuleInstance>
-
-const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
+const MODULE_REGISTRATIONS: RuntimeModule<RuntimeModuleInstance>[] = [
   warnRuntimeModule,
   keywordRuntimeModule,
   memberManageRuntimeModule,
@@ -54,7 +47,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   crossGroupRuntimeModule,
 ]
 
-const RUNTIME_MODULES = MODULE_REGISTRATIONS.map(createOrderedRuntimeModule)
+const RUNTIME_MODULES = MODULE_REGISTRATIONS.map(withOrder)
 
 export function getRuntimeModules(): readonly RuntimeModule<RuntimeModuleInstance>[] {
   return [...RUNTIME_MODULES].sort(compareRuntimeModules)
@@ -64,13 +57,9 @@ function compareRuntimeModules(left: RuntimeModule, right: RuntimeModule) {
   return (left.order ?? 0) - (right.order ?? 0)
 }
 
-function createOrderedRuntimeModule(
-  definition: RuntimeModuleRegistration,
+function withOrder(
+  definition: RuntimeModule<RuntimeModuleInstance>,
   order: number,
 ): RuntimeModule<RuntimeModuleInstance> {
-  if ('ModuleType' in definition) {
-    return adaptBaseModule({ ...definition, order })
-  }
-
   return { ...definition, order }
 }
