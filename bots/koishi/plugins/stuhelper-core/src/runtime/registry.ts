@@ -1,6 +1,5 @@
 import {
   AIModule,
-  KeywordModule,
   ReportModule,
   WarnModule,
 } from '../core/modules'
@@ -14,6 +13,7 @@ import { diceRuntimeModule } from '../core/modules/dice.module'
 import { eventRuntimeModule } from '../core/modules/event.module'
 import { getauthRuntimeModule } from '../core/modules/getauth.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
+import { keywordRuntimeModule } from '../core/modules/keyword.module'
 import { logRuntimeModule } from '../core/modules/log.module'
 import { memberManageRuntimeModule } from '../core/modules/memberManage.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
@@ -33,7 +33,7 @@ type RuntimeModuleRegistration = BaseModuleRegistration | RuntimeModule<RuntimeM
 
 const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'warn', ModuleType: WarnModule },
-  { id: 'keyword', ModuleType: KeywordModule },
+  keywordRuntimeModule,
   memberManageRuntimeModule,
   messageManageRuntimeModule,
   orderManageRuntimeModule,

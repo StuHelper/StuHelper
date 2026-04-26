@@ -153,7 +153,7 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|keywordRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
     ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
@@ -183,383 +183,50 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   ])
 })
 
-test('P4b-1 help module must be native runtime module', async () => {
-  const helpModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/help.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
+const nativeModuleContracts = [
+  ['P4b-1', 'HelpModule', 'help.module.ts', /id: 'help', ModuleType: HelpModule/],
+  ['P4b-2', 'DiceModule', 'dice.module.ts', /id: 'dice', ModuleType: DiceModule/],
+  ['P4b-3', 'BanmeModule', 'banme.module.ts', /id: 'banme', ModuleType: BanmeModule/],
+  ['P4b-4', 'ConfigModule', 'config.module.ts', /id: 'config', ModuleType: ConfigModule/],
+  ['P4b-5', 'StatusModule', 'status.module.ts', /id: 'status', ModuleType: StatusModule/],
+  ['P4b-6', 'EventModule', 'event.module.ts', /id: 'event', ModuleType: EventModule/],
+  ['P4b-7', 'AntirepeatModule', 'antirepeat.module.ts', /id: 'antirepeat', ModuleType: AntirepeatModule/],
+  ['P4b-8', 'MessageManageModule', 'messageManage.module.ts', /id: 'manage-message', ModuleType: MessageManageModule/],
+  ['P4b-9', 'GetAuthModule', 'getauth.module.ts', /id: 'getauth', ModuleType: GetAuthModule/],
+  ['P4b-10', 'crossGroupModule', 'crossGroupManage.module.ts', /id: 'manage-cross-group', ModuleType: crossGroupModule/],
+  ['P4b-11', 'AuthModule', 'auth.module.ts', /id: 'auth', ModuleType: AuthModule/],
+  ['P4b-12', 'RepeatModule', 'repeat.module.ts', /id: 'repeat', ModuleType: RepeatModule/],
+  ['P4b-13', 'WelcomeModule', 'welcome.module.ts', /id: 'welcome', ModuleType: WelcomeModule/],
+  ['P4b-14', 'LogModule', 'log.module.ts', /id: 'log', ModuleType: LogModule/],
+  ['P4b-15', 'AntiRecallModule', 'antirecall.module.ts', /id: 'antirecall', ModuleType: AntiRecallModule/],
+  ['P4b-16', 'SubscriptionModule', 'subscription.module.ts', /id: 'subscription', ModuleType: SubscriptionModule/],
+  ['P4b-17', 'MemberManageModule', 'memberManage.module.ts', /id: 'manage-member', ModuleType: MemberManageModule/],
+  ['P4b-18', 'OrderManageModule', 'orderManage.module.ts', /id: 'manage-order', ModuleType: OrderManageModule/],
+  ['P4b-19', 'KeywordModule', 'keyword.module.ts', /id: 'keyword', ModuleType: KeywordModule/],
+] as const
 
-  assert.doesNotMatch(
-    helpModule,
-    /extends BaseModule/,
-    'HelpModule 已进入 P4b-1，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    helpModule,
-    /from '\.\/base\.module'/,
-    'HelpModule 已进入 P4b-1，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'help', ModuleType: HelpModule/,
-    'HelpModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
+for (const [phase, className, fileName, adapterPattern] of nativeModuleContracts) {
+  test(`${phase} ${className} must be native runtime module`, async () => {
+    const moduleSource = await readWorkspaceFile(`plugins/stuhelper-core/src/core/modules/${fileName}`)
+    const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
 
-test('P4b-2 dice module must be native runtime module', async () => {
-  const diceModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/dice.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    diceModule,
-    /extends BaseModule/,
-    'DiceModule 已进入 P4b-2，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    diceModule,
-    /from '\.\/base\.module'/,
-    'DiceModule 已进入 P4b-2，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'dice', ModuleType: DiceModule/,
-    'DiceModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-3 banme module must be native runtime module', async () => {
-  const banmeModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/banme.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    banmeModule,
-    /extends BaseModule/,
-    'BanmeModule 已进入 P4b-3，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    banmeModule,
-    /from '\.\/base\.module'/,
-    'BanmeModule 已进入 P4b-3，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'banme', ModuleType: BanmeModule/,
-    'BanmeModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-4 config module must be native runtime module', async () => {
-  const configModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/config.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    configModule,
-    /extends BaseModule/,
-    'ConfigModule 已进入 P4b-4，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    configModule,
-    /from '\.\/base\.module'/,
-    'ConfigModule 已进入 P4b-4，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'config', ModuleType: ConfigModule/,
-    'ConfigModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-5 status module must be native runtime module', async () => {
-  const statusModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/status.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    statusModule,
-    /extends BaseModule/,
-    'StatusModule 已进入 P4b-5，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    statusModule,
-    /from '\.\/base\.module'/,
-    'StatusModule 已进入 P4b-5，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'status', ModuleType: StatusModule/,
-    'StatusModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-6 event module must be native runtime module', async () => {
-  const eventModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/event.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    eventModule,
-    /extends BaseModule/,
-    'EventModule 已进入 P4b-6，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    eventModule,
-    /from '\.\/base\.module'/,
-    'EventModule 已进入 P4b-6，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'event', ModuleType: EventModule/,
-    'EventModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-7 antirepeat module must be native runtime module', async () => {
-  const antirepeatModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/antirepeat.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    antirepeatModule,
-    /extends BaseModule/,
-    'AntirepeatModule 已进入 P4b-7，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    antirepeatModule,
-    /from '\.\/base\.module'/,
-    'AntirepeatModule 已进入 P4b-7，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'antirepeat', ModuleType: AntirepeatModule/,
-    'AntirepeatModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-8 message manage module must be native runtime module', async () => {
-  const messageManageModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/messageManage.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    messageManageModule,
-    /extends BaseModule/,
-    'MessageManageModule 已进入 P4b-8，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    messageManageModule,
-    /from '\.\/base\.module'/,
-    'MessageManageModule 已进入 P4b-8，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'manage-message', ModuleType: MessageManageModule/,
-    'MessageManageModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-9 getauth module must be native runtime module', async () => {
-  const getauthModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/getauth.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    getauthModule,
-    /extends BaseModule/,
-    'GetAuthModule 已进入 P4b-9，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    getauthModule,
-    /from '\.\/base\.module'/,
-    'GetAuthModule 已进入 P4b-9，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'getauth', ModuleType: GetAuthModule/,
-    'GetAuthModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-10 cross group module must be native runtime module', async () => {
-  const crossGroupModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/crossGroupManage.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    crossGroupModule,
-    /extends BaseModule/,
-    'crossGroupModule 已进入 P4b-10，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    crossGroupModule,
-    /from '\.\/base\.module'/,
-    'crossGroupModule 已进入 P4b-10，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'manage-cross-group', ModuleType: crossGroupModule/,
-    'crossGroupModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-11 auth module must be native runtime module', async () => {
-  const authModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/auth.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    authModule,
-    /extends BaseModule/,
-    'AuthModule 已进入 P4b-11，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    authModule,
-    /from '\.\/base\.module'/,
-    'AuthModule 已进入 P4b-11，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'auth', ModuleType: AuthModule/,
-    'AuthModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-12 repeat module must be native runtime module', async () => {
-  const repeatModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/repeat.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    repeatModule,
-    /extends BaseModule/,
-    'RepeatModule 已进入 P4b-12，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    repeatModule,
-    /from '\.\/base\.module'/,
-    'RepeatModule 已进入 P4b-12，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'repeat', ModuleType: RepeatModule/,
-    'RepeatModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-13 welcome module must be native runtime module', async () => {
-  const welcomeModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/welcome.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    welcomeModule,
-    /extends BaseModule/,
-    'WelcomeModule 已进入 P4b-13，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    welcomeModule,
-    /from '\.\/base\.module'/,
-    'WelcomeModule 已进入 P4b-13，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'welcome', ModuleType: WelcomeModule/,
-    'WelcomeModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-14 log module must be native runtime module', async () => {
-  const logModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/log.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    logModule,
-    /extends BaseModule/,
-    'LogModule 已进入 P4b-14，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    logModule,
-    /from '\.\/base\.module'/,
-    'LogModule 已进入 P4b-14，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'log', ModuleType: LogModule/,
-    'LogModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-15 antirecall module must be native runtime module', async () => {
-  const antiRecallModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/antirecall.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    antiRecallModule,
-    /extends BaseModule/,
-    'AntiRecallModule 已进入 P4b-15，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    antiRecallModule,
-    /from '\.\/base\.module'/,
-    'AntiRecallModule 已进入 P4b-15，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'antirecall', ModuleType: AntiRecallModule/,
-    'AntiRecallModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-16 subscription module must be native runtime module', async () => {
-  const subscriptionModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/subscription.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    subscriptionModule,
-    /extends BaseModule/,
-    'SubscriptionModule 已进入 P4b-16，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    subscriptionModule,
-    /from '\.\/base\.module'/,
-    'SubscriptionModule 已进入 P4b-16，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'subscription', ModuleType: SubscriptionModule/,
-    'SubscriptionModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-17 member manage module must be native runtime module', async () => {
-  const memberManageModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/memberManage.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    memberManageModule,
-    /extends BaseModule/,
-    'MemberManageModule 已进入 P4b-17，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    memberManageModule,
-    /from '\.\/base\.module'/,
-    'MemberManageModule 已进入 P4b-17，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'manage-member', ModuleType: MemberManageModule/,
-    'MemberManageModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
-
-test('P4b-18 order manage module must be native runtime module', async () => {
-  const orderManageModule = await readWorkspaceFile('plugins/stuhelper-core/src/core/modules/orderManage.module.ts')
-  const registry = await readWorkspaceFile('plugins/stuhelper-core/src/runtime/registry.ts')
-
-  assert.doesNotMatch(
-    orderManageModule,
-    /extends BaseModule/,
-    'OrderManageModule 已进入 P4b-18，不能继续继承 BaseModule。',
-  )
-  assert.doesNotMatch(
-    orderManageModule,
-    /from '\.\/base\.module'/,
-    'OrderManageModule 已进入 P4b-18，不能继续依赖 BaseModule 文件。',
-  )
-  assert.doesNotMatch(
-    registry,
-    /id: 'manage-order', ModuleType: OrderManageModule/,
-    'OrderManageModule 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。',
-  )
-})
+    assert.doesNotMatch(
+      moduleSource,
+      /extends BaseModule/,
+      `${className} 已进入 ${phase}，不能继续继承 BaseModule。`,
+    )
+    assert.doesNotMatch(
+      moduleSource,
+      /from '\.\/base\.module'/,
+      `${className} 已进入 ${phase}，不能继续依赖 BaseModule 文件。`,
+    )
+    assert.doesNotMatch(
+      registry,
+      adapterPattern,
+      `${className} 必须作为原生 RuntimeModule 注册，不能再通过 BaseModule adapter 注册。`,
+    )
+  })
+}
 
 test('Koishi 控制台管理员密码必须写入环境样板和入口文档', async () => {
   await assertContainsConsoleAdminPassword(join(repoRoot, '.env.example'))
@@ -588,6 +255,7 @@ function toModuleClassName(runtimeModule: string): string {
     .replace('memberManageRuntimeModule', 'MemberManageModule')
     .replace('messageManageRuntimeModule', 'MessageManageModule')
     .replace('orderManageRuntimeModule', 'OrderManageModule')
+    .replace('keywordRuntimeModule', 'KeywordModule')
     .replace('getauthRuntimeModule', 'GetAuthModule')
     .replace('authRuntimeModule', 'AuthModule')
     .replace('crossGroupRuntimeModule', 'crossGroupModule')

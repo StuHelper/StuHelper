@@ -35,254 +35,40 @@ test('runtime registry keeps P3 module order', () => {
   ])
 })
 
-test('help runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'help')
-  assert.ok(module)
+const nativeRuntimeCases = [
+  ['help', {}, {}],
+  ['dice', { groupConfig: {} }, {}],
+  ['banme', {}, { banme: {} }],
+  ['config', {}, {}],
+  ['status', {}, {}],
+  ['event', {}, {}],
+  ['antirepeat', { groupConfig: {} }, { antiRepeat: { threshold: 5 } }],
+  ['manage-message', {}, { setEssenceMsg: { enabled: true, authority: 3 } }],
+  ['getauth', {}, {}],
+  ['manage-cross-group', {}, {}],
+  ['auth', {}, {}],
+  ['repeat', { groupConfig: { get: () => undefined } }, {}],
+  ['welcome', {}, {}],
+  ['log', { dataPath: process.cwd() }, {}],
+  ['antirecall', {}, {}],
+  ['subscription', {}, {}],
+  ['manage-member', {}, {}],
+  ['manage-order', {}, {}],
+  ['keyword', {}, {}],
+] as const
 
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
+for (const [id, data, config] of nativeRuntimeCases) {
+  test(`${id} runtime module is native instead of adapted BaseModule`, () => {
+    const module = getRuntimeModules().find(item => item.id === id)
+    assert.ok(module)
+
+    const instance = module.create(new Context(), {
+      service: {} as any,
+      data: data as any,
+      config: config as any,
+    })
+
+    assert.equal(instance.meta.name, id)
+    assert.ok(!(instance instanceof BaseModule))
   })
-
-  assert.equal(instance.meta.name, 'help')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('dice runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'dice')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: { groupConfig: {} } as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'dice')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('banme runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'banme')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: { banme: {} } as any,
-  })
-
-  assert.equal(instance.meta.name, 'banme')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('config runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'config')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'config')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('status runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'status')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'status')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('event runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'event')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'event')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('antirepeat runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'antirepeat')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: { groupConfig: {} } as any,
-    config: { antiRepeat: { threshold: 5 } } as any,
-  })
-
-  assert.equal(instance.meta.name, 'antirepeat')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('message manage runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'manage-message')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: { setEssenceMsg: { enabled: true, authority: 3 } } as any,
-  })
-
-  assert.equal(instance.meta.name, 'manage-message')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('getauth runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'getauth')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'getauth')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('cross group runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'manage-cross-group')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'manage-cross-group')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('auth runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'auth')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'auth')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('repeat runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'repeat')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: { groupConfig: { get: () => undefined } } as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'repeat')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('welcome runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'welcome')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'welcome')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('log runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'log')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: { dataPath: process.cwd() } as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'log')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('antirecall runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'antirecall')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'antirecall')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('subscription runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'subscription')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'subscription')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('member manage runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'manage-member')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'manage-member')
-  assert.ok(!(instance instanceof BaseModule))
-})
-
-test('order manage runtime module is native instead of adapted BaseModule', () => {
-  const module = getRuntimeModules().find(item => item.id === 'manage-order')
-  assert.ok(module)
-
-  const instance = module.create(new Context(), {
-    service: {} as any,
-    data: {} as any,
-    config: {} as any,
-  })
-
-  assert.equal(instance.meta.name, 'manage-order')
-  assert.ok(!(instance instanceof BaseModule))
-})
+}
