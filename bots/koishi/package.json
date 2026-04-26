@@ -37,6 +37,7 @@
     "start": "koishi start",
     "test:unit": "tsx --test packages/**/src/**/*.test.ts plugins/**/src/**/*.test.ts plugins/**/client/**/*.test.ts",
     "test:startup": "node scripts/startup-smoke.mjs",
+    "test:p5a-config": "node scripts/config-anchor-verification.mjs",
     "test:ui": "node scripts/ui-smoke.mjs",
     "workspaces:list": "yarn workspaces list",
     "test": "yarn build && yarn test:unit && yarn test:startup && yarn test:ui"

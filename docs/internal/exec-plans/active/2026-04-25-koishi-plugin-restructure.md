@@ -436,6 +436,14 @@ stuhelper-admin:
 - 验证 2 在不同 koishi-plugin-config 版本下行为不同 → 在 P5a 中固定当前 lockfile 版本
 - 回滚：分支不合并
 
+#### 验证结果（2026-04-26）
+
+`corepack yarn test:p5a-config` 使用当前 lockfile 中的 `@koishijs/loader` 验证配置链路：
+
+- 加载验证：通过。`js-yaml` + Koishi `NodeLoader.readConfig()` 可以读取 `&platform_config` / `*platform_config`，并把 `STUHELPER_PLATFORM_BASE_URL` 与 `STUHELPER_PLATFORM_SERVICE_TOKEN` 插值到 `stuhelper-binding`、`stuhelper-group-guard`、`stuhelper-admin` 三个插件配置。
+- Console 持久化验证：失败。模拟 config 面板的插件级保存时，前端 JSON payload 会丢失 YAML 对象 identity；`loader.writeConfig()` 写回后不再保留语义化的 `&platform_config` / `*platform_config` 形式。
+- 结论：P5 不使用 YAML anchor，改走"三处显式重复 + 单一 ENV 占位符派生"。HMR anchor 路径因持久化验证已失败，不再作为 P5 方案继续推进；显式重复配置仍然通过同一组 ENV 占位符获得单一变更来源。
+
 ---
 
 ### P5 binding / group-guard / admin 显式装载
@@ -536,7 +544,7 @@ stuhelper-admin:
 | P3 core 入口拆分 | 已完成 | 2026-04-26 | `20e40472` |
 | P4a Runtime registry + adapter | 已完成 | 2026-04-26 | (本分支单 commit) |
 | P4b 逐个原生 RuntimeModule | 已完成（P4b-1 至 P4b-22 全部 native，并删除 BaseModule / adapter 兼容层） | 2026-04-26 | (本分支 P4b commits) |
-| P5a 配置传递验证 | 未开始 | - | - |
+| P5a 配置传递验证 | 已完成（加载通过，Console 持久化不保留语义化 anchor；P5 走显式 ENV 派生退路） | 2026-04-26 | (本分支单 commit) |
 | P5 三插件显式装载 | 未开始 | - | - |
 | P6 删除 legacy-wrapper | 未开始 | - | - |
 
