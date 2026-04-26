@@ -55,6 +55,7 @@ const nativeRuntimeCases = [
   ['manage-member', {}, {}],
   ['manage-order', {}, {}],
   ['keyword', {}, {}],
+  ['ai', { dataPath: process.cwd() }, {}],
 ] as const
 
 for (const [id, data, config] of nativeRuntimeCases) {

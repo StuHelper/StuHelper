@@ -153,7 +153,7 @@ test('stuhelper-core 运行时模块注册顺序不变', async () => {
   const match = registry.match(/const MODULE_REGISTRATIONS: RuntimeModuleRegistration\[] = \[([\s\S]*?)\]/)
   const moduleBody = match?.[1] ?? ''
   const modules = Array.from(
-    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|keywordRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
+    moduleBody.matchAll(/ModuleType:\s*([A-Za-z0-9]+Module|crossGroupModule)|(helpRuntimeModule|diceRuntimeModule|banmeRuntimeModule|configRuntimeModule|memberManageRuntimeModule|messageManageRuntimeModule|orderManageRuntimeModule|keywordRuntimeModule|aiRuntimeModule|getauthRuntimeModule|authRuntimeModule|crossGroupRuntimeModule|antirepeatRuntimeModule|welcomeRuntimeModule|repeatRuntimeModule|logRuntimeModule|antirecallRuntimeModule|subscriptionRuntimeModule|eventRuntimeModule|statusRuntimeModule)/g),
     ([, moduleName, runtimeModule]) => moduleName ?? toModuleClassName(runtimeModule),
   )
 
@@ -203,6 +203,7 @@ const nativeModuleContracts = [
   ['P4b-17', 'MemberManageModule', 'memberManage.module.ts', /id: 'manage-member', ModuleType: MemberManageModule/],
   ['P4b-18', 'OrderManageModule', 'orderManage.module.ts', /id: 'manage-order', ModuleType: OrderManageModule/],
   ['P4b-19', 'KeywordModule', 'keyword.module.ts', /id: 'keyword', ModuleType: KeywordModule/],
+  ['P4b-20', 'AIModule', 'ai.module.ts', /id: 'ai', ModuleType: AIModule/],
 ] as const
 
 for (const [phase, className, fileName, adapterPattern] of nativeModuleContracts) {
@@ -256,6 +257,7 @@ function toModuleClassName(runtimeModule: string): string {
     .replace('messageManageRuntimeModule', 'MessageManageModule')
     .replace('orderManageRuntimeModule', 'OrderManageModule')
     .replace('keywordRuntimeModule', 'KeywordModule')
+    .replace('aiRuntimeModule', 'AIModule')
     .replace('getauthRuntimeModule', 'GetAuthModule')
     .replace('authRuntimeModule', 'AuthModule')
     .replace('crossGroupRuntimeModule', 'crossGroupModule')

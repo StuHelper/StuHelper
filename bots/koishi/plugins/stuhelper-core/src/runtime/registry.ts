@@ -1,10 +1,10 @@
 import {
-  AIModule,
   ReportModule,
   WarnModule,
 } from '../core/modules'
 import { antirecallRuntimeModule } from '../core/modules/antirecall.module'
 import { antirepeatRuntimeModule } from '../core/modules/antirepeat.module'
+import { aiRuntimeModule } from '../core/modules/ai.module'
 import { authRuntimeModule } from '../core/modules/auth.module'
 import { banmeRuntimeModule } from '../core/modules/banme.module'
 import { configRuntimeModule } from '../core/modules/config.module'
@@ -43,7 +43,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   diceRuntimeModule,
   banmeRuntimeModule,
   antirecallRuntimeModule,
-  { id: 'ai', ModuleType: AIModule },
+  aiRuntimeModule,
   configRuntimeModule,
   logRuntimeModule,
   subscriptionRuntimeModule,
