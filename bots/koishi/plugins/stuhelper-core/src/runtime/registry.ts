@@ -1,7 +1,6 @@
 import {
   AIModule,
   AntiRecallModule,
-  AuthModule,
   KeywordModule,
   LogModule,
   MemberManageModule,
@@ -13,6 +12,7 @@ import {
   WelcomeModule,
 } from '../core/modules'
 import { antirepeatRuntimeModule } from '../core/modules/antirepeat.module'
+import { authRuntimeModule } from '../core/modules/auth.module'
 import { banmeRuntimeModule } from '../core/modules/banme.module'
 import { configRuntimeModule } from '../core/modules/config.module'
 import { crossGroupRuntimeModule } from '../core/modules/crossGroupManage.module'
@@ -50,7 +50,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   helpRuntimeModule,
   { id: 'report', ModuleType: ReportModule },
   getauthRuntimeModule,
-  { id: 'auth', ModuleType: AuthModule },
+  authRuntimeModule,
   eventRuntimeModule,
   statusRuntimeModule,
   crossGroupRuntimeModule,

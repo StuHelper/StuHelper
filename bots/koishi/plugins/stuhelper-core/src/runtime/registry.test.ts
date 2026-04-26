@@ -174,3 +174,17 @@ test('cross group runtime module is native instead of adapted BaseModule', () =>
   assert.equal(instance.meta.name, 'manage-cross-group')
   assert.ok(!(instance instanceof BaseModule))
 })
+
+test('auth runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'auth')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: {} as any,
+    config: {} as any,
+  })
+
+  assert.equal(instance.meta.name, 'auth')
+  assert.ok(!(instance instanceof BaseModule))
+})
