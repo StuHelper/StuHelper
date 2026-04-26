@@ -6,7 +6,6 @@ import {
   KeywordModule,
   LogModule,
   MemberManageModule,
-  MessageManageModule,
   OrderManageModule,
   RepeatModule,
   ReportModule,
@@ -21,6 +20,7 @@ import { configRuntimeModule } from '../core/modules/config.module'
 import { diceRuntimeModule } from '../core/modules/dice.module'
 import { eventRuntimeModule } from '../core/modules/event.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
+import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
 import {
   adaptBaseModule,
@@ -35,7 +35,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'warn', ModuleType: WarnModule },
   { id: 'keyword', ModuleType: KeywordModule },
   { id: 'manage-member', ModuleType: MemberManageModule },
-  { id: 'manage-message', ModuleType: MessageManageModule },
+  messageManageRuntimeModule,
   { id: 'manage-order', ModuleType: OrderManageModule },
   antirepeatRuntimeModule,
   { id: 'welcome', ModuleType: WelcomeModule },

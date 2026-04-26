@@ -132,3 +132,17 @@ test('antirepeat runtime module is native instead of adapted BaseModule', () => 
   assert.equal(instance.meta.name, 'antirepeat')
   assert.ok(!(instance instanceof BaseModule))
 })
+
+test('message manage runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'manage-message')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: {} as any,
+    config: { setEssenceMsg: { enabled: true, authority: 3 } } as any,
+  })
+
+  assert.equal(instance.meta.name, 'manage-message')
+  assert.ok(!(instance instanceof BaseModule))
+})
