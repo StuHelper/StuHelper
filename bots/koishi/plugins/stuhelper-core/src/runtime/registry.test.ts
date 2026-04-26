@@ -76,3 +76,49 @@ for (const [id, data, config] of nativeRuntimeCases) {
     assert.equal(typeof instance.dispose, 'function')
   })
 }
+
+const configDependentRuntimeCases = [
+  'warn',
+  'keyword',
+  'manage-member',
+  'manage-message',
+  'manage-order',
+  'antirepeat',
+  'welcome',
+  'banme',
+  'antirecall',
+  'ai',
+  'config',
+  'log',
+  'subscription',
+  'report',
+] as const
+
+test('runtime module config getters require the live stuhelperGroupCenter service', () => {
+  for (const id of configDependentRuntimeCases) {
+    const module = getRuntimeModules().find(item => item.id === id)
+    assert.ok(module, `${id} module should be registered`)
+
+    const instance = module.create(new Context(), {
+      service: {} as any,
+      data: createDataForRuntimeModule(id),
+      config: { marker: id } as any,
+    }) as any
+
+    assert.throws(
+      () => instance.config,
+      /stuhelperGroupCenter service is required/,
+      `${id} config getter should not fall back to constructor config`,
+    )
+  }
+})
+
+function createDataForRuntimeModule(id: string): any {
+  if (id === 'log' || id === 'ai') {
+    return { dataPath: process.cwd() }
+  }
+  if (id === 'antirepeat') {
+    return { groupConfig: {} }
+  }
+  return {}
+}

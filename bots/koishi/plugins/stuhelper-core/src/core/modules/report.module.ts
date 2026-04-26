@@ -11,6 +11,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import { setupReportCleanupTask } from './report-cleanup'
 import { registerReportConfigCommand } from './report-config-command'
 import { registerReportMessageListener } from './report-context'
@@ -50,16 +51,11 @@ export class ReportModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -173,6 +169,6 @@ export class ReportModule implements RuntimeModuleInstance {
 export const reportRuntimeModule: RuntimeModule<ReportModule> = {
   id: 'report',
   create(ctx, deps) {
-    return new ReportModule(ctx, deps.data, deps.config)
+    return new ReportModule(ctx, deps.data)
   },
 }

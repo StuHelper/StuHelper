@@ -10,7 +10,7 @@ import MockBot from '@koishijs/plugin-mock'
 import { Universal } from 'koishi'
 
 import { GUARD_MEMBER_TABLE, type GuardMemberRecord } from '@stuhelper/koishi-shared'
-import { MODERATION_REVIEW_TABLE, ModerationStore } from '@stuhelper/koishi-moderation-core'
+import { COMMAND_POLICY_IDS, MODERATION_REVIEW_TABLE, ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import adminPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
@@ -107,6 +107,39 @@ test('非管理员执行群审状态命令会被拒绝', async () => {
 
     const client = root.mock.client('20002', 'group-1')
     await client.shouldReply('群审状态', '权限不足。')
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('私聊显式群号也必须按目标群命令策略校验', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20003', 3)
+    await root.mock.initChannel('group-1')
+
+    const now = new Date('2026-04-19T09:00:00Z')
+    const moderationStore = new ModerationStore(root)
+    await moderationStore.upsertCommandPolicy({
+      commandId: COMMAND_POLICY_IDS.guardStatus,
+      minAuthority: 5,
+      roles: [],
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const client = root.mock.client('20003')
+    await client.shouldReply('群审状态 group-1', '命令权限不足。')
   } finally {
     runtime.dispose()
     await rm(tempDir, { recursive: true, force: true })

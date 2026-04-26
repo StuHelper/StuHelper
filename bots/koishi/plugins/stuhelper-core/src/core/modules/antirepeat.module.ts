@@ -14,6 +14,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 
 const DEFAULT_ANTIREPEAT_THRESHOLD = 5
 const MIN_ANTIREPEAT_THRESHOLD = 3
@@ -37,16 +38,11 @@ export class AntirepeatModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -171,6 +167,6 @@ function logAntirepeatAction(
 export const antirepeatRuntimeModule: RuntimeModule<AntirepeatModule> = {
   id: 'antirepeat',
   create(ctx, deps) {
-    return new AntirepeatModule(ctx, deps.data, deps.config)
+    return new AntirepeatModule(ctx, deps.data)
   },
 }

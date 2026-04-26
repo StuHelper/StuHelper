@@ -10,6 +10,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import { registerKeywordForbiddenCommand } from './keyword-forbidden-command'
 import { registerKeywordMiddleware } from './keyword-middleware'
 import { registerKeywordVerifyCommand } from './keyword-verify-command'
@@ -26,16 +27,11 @@ export class KeywordModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -120,6 +116,6 @@ export class KeywordModule implements RuntimeModuleInstance {
 export const keywordRuntimeModule: RuntimeModule<KeywordModule> = {
   id: 'keyword',
   create(ctx, deps) {
-    return new KeywordModule(ctx, deps.data, deps.config)
+    return new KeywordModule(ctx, deps.data)
   },
 }

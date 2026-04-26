@@ -1,23 +1,9 @@
 import * as fs from 'fs'
-import * as path from 'path'
 import { Context } from 'koishi'
 
 
 export const MIN_DURATION = 1000
 export const MAX_DURATION = 29 * 24 * 3600 * 1000 + 23 * 3600 * 1000 + 59 * 60 * 1000 + 59 * 1000
-
-/**
- * 读取数据文件
- * @param filePath 文件路径
- * @returns 解析后的JSON数据
- */
-export function readData(filePath: string): any {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'))
-  } catch {
-    return {}
-  }
-}
 
 /**
  * 保存数据到文件

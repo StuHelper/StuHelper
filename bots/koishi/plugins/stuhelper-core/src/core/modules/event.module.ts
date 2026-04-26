@@ -12,6 +12,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import {
   registerEventListeners,
   setupEventScheduledTasks,
@@ -28,16 +29,11 @@ export class EventModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -69,6 +65,6 @@ export class EventModule implements RuntimeModuleInstance {
 export const eventRuntimeModule: RuntimeModule<EventModule> = {
   id: 'event',
   create(ctx, deps) {
-    return new EventModule(ctx, deps.data, deps.config)
+    return new EventModule(ctx, deps.data)
   },
 }

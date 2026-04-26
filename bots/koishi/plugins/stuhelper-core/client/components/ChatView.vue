@@ -28,7 +28,7 @@
           @click="selectSession(session.key)"
         >
           <div class="session-icon">
-            <img v-if="session.avatar" :src="session.avatar" @error="handleAvatarError($event, true)" />
+            <img v-if="session.avatar" :src="session.avatar" @error="handleAvatarError" />
             <k-icon v-else :name="session.type === 'group' ? 'users' : 'user'" />
           </div>
           <div class="session-info">
@@ -49,7 +49,7 @@
         <div class="chat-header">
           <div class="header-info">
             <div class="header-icon">
-              <img v-if="currentSession.avatar" :src="currentSession.avatar" @error="handleAvatarError($event, true)" />
+              <img v-if="currentSession.avatar" :src="currentSession.avatar" @error="handleAvatarError" />
               <k-icon v-else :name="currentSession.type === 'group' ? 'users' : 'user'" />
             </div>
             <span class="header-name">{{ currentSession.name }}</span>
@@ -811,17 +811,9 @@ const formatTimeDetail = (ts: number) => {
   return new Date(ts).toLocaleString('zh-CN')
 }
 
-const handleAvatarError = (e: Event, isSession = false) => {
+const handleAvatarError = (e: Event) => {
   const img = e.target as HTMLImageElement
   img.style.display = 'none'
-  if (isSession) {
-    // Session icon fallback logic handled in template by v-if/v-else check?
-    // Actually if src errors, we might want to show the k-icon.
-    // But since v-else is not tied to @error, we need to manipulate DOM or state.
-    // Simple way: hide img, show sibling if it exists? No sibling in template for fallback.
-    // Better: set src to null? modifying prop is bad. modifying state?
-    // Let's just let it hide.
-  }
 }
 </script>
 

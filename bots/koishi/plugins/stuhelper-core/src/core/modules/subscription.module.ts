@@ -10,6 +10,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import { registerSubscriptionCommands } from './subscription-commands'
 import {
   checkMuteExpires,
@@ -35,16 +36,11 @@ export class SubscriptionModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -197,6 +193,6 @@ function getFeatureName(feature: keyof Subscription['features']): string {
 export const subscriptionRuntimeModule: RuntimeModule<SubscriptionModule> = {
   id: 'subscription',
   create(ctx, deps) {
-    return new SubscriptionModule(ctx, deps.data, deps.config)
+    return new SubscriptionModule(ctx, deps.data)
   },
 }

@@ -92,6 +92,7 @@ corepack yarn dev
 - Koishi 工作区与主站开发环境分离启动。
 - 本地 `koishi.yml` 固定监听 `5140`；启动烟雾验证会先释放已占用的 `5140` 端口。
 - `STUHELPER_CONSOLE_ADMIN_PASSWORD` 必须在启动前提供非空值；`bots/koishi/koishi.yml` 会依赖它作为 Console 管理员密码。
+- `STUHELPER_PLATFORM_BASE_URL` 和 `STUHELPER_PLATFORM_SERVICE_TOKEN` 是 Koishi 插件读取的后端连接配置；其中 service token 应与后端 `BOT_SERVICE_TOKEN` 一致。
 - NapCat 保持外部部署；本地单元测试不依赖真实 OneBot。
 - Koishi Console 已挂载 StuHelper 自定义群管页面，访问路径为 `/stuhelper`。
 - 机器人开发说明见 [guides/koishi-development.md](guides/koishi-development.md)。

@@ -27,30 +27,33 @@ export function registerAdminCommands(ctx: Context, deps: AdminCommandDeps) {
 function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审状态 [guildId:text]', '查看当前群待认证成员', { authority: 3 })
     .action(async ({ session }, guildId) => {
+      const targetGuildId = resolveGuildId(session, guildId)
       const denial = await ensureAdminCommandAccess(
         deps.moderationStore,
         session,
         COMMAND_POLICY_IDS.guardStatus,
+        targetGuildId,
       )
       if (denial) {
         return denial
       }
-      return formatPendingMembers(await listActiveGuardMembers(ctx, resolveGuildId(session, guildId)))
+      return formatPendingMembers(await listActiveGuardMembers(ctx, targetGuildId))
     })
 }
 
 function registerWarningCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审警告 <memberId:text> [guildId:text]', '查看成员当前警告次数', { authority: 3 })
     .action(async ({ session }, memberId, guildId) => {
+      const targetGuildId = resolveGuildId(session, guildId)
       const denial = await ensureAdminCommandAccess(
         deps.moderationStore,
         session,
         COMMAND_POLICY_IDS.guardWarnings,
+        targetGuildId,
       )
       if (denial) {
         return denial
       }
-      const targetGuildId = resolveGuildId(session, guildId)
       if (!targetGuildId || !memberId?.trim()) {
         return '请在群聊中执行，或显式传入群号和成员 ID。'
       }
@@ -61,15 +64,17 @@ function registerWarningCommand(ctx: Context, deps: AdminCommandDeps) {
 function registerReviewListCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审复核 [guildId:text]', '查看当前群待复核队列', { authority: 3 })
     .action(async ({ session }, guildId) => {
+      const targetGuildId = resolveGuildId(session, guildId)
       const denial = await ensureAdminCommandAccess(
         deps.moderationStore,
         session,
         COMMAND_POLICY_IDS.guardReviews,
+        targetGuildId,
       )
       if (denial) {
         return denial
       }
-      return formatPendingReviews(await deps.moderationStore.listPendingReviews(resolveGuildId(session, guildId)))
+      return formatPendingReviews(await deps.moderationStore.listPendingReviews(targetGuildId))
     })
 }
 
@@ -144,8 +149,13 @@ function registerBlockReviewCommand(ctx: Context, deps: AdminCommandDeps) {
     })
 }
 
-async function ensureAdminCommandAccess(store: ModerationStore, session: Session | undefined, commandId: string) {
-  const guildId = session?.guildId
+async function ensureAdminCommandAccess(
+  store: ModerationStore,
+  session: Session | undefined,
+  commandId: string,
+  targetGuildId = session?.guildId,
+) {
+  const guildId = targetGuildId
   if (!session || !guildId) {
     return
   }

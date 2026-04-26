@@ -10,6 +10,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import {
   registerAntiRecallEventListeners,
   scheduleAntiRecallCleanup,
@@ -44,16 +45,11 @@ export class AntiRecallModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -191,6 +187,6 @@ export class AntiRecallModule implements RuntimeModuleInstance {
 export const antirecallRuntimeModule: RuntimeModule<AntiRecallModule> = {
   id: 'antirecall',
   create(ctx, deps) {
-    return new AntiRecallModule(ctx, deps.data, deps.config)
+    return new AntiRecallModule(ctx, deps.data)
   },
 }

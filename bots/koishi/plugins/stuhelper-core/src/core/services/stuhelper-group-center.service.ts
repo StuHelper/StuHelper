@@ -124,6 +124,7 @@ export class StuhelperGroupCenterService extends Service {
         this.serviceLogger.info('模块 %s 初始化完成', name)
       } catch (error) {
         this.serviceLogger.error('模块 %s 初始化失败: %s', name, toErrorMessage(error))
+        throw error
       }
     }
 

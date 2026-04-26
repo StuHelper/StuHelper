@@ -34,6 +34,7 @@ corepack yarn workspaces list
 启动前要求：
 
 - `STUHELPER_CONSOLE_ADMIN_PASSWORD` 必须为非空值；`koishi.yml` 会把它作为 Koishi Console 管理员密码。
+- `STUHELPER_PLATFORM_BASE_URL` 指向 StuHelper 后端地址；`STUHELPER_PLATFORM_SERVICE_TOKEN` 是 Koishi 调用后端机器人接口时发送的 Bearer token，应与后端 `BOT_SERVICE_TOKEN` 保持一致。
 - 本地可直接 `export STUHELPER_CONSOLE_ADMIN_PASSWORD=dev-console-admin-password`，或把同名变量写入仓库根目录 `.env` / 生产环境变量文件。
 
 ## 自动化验证

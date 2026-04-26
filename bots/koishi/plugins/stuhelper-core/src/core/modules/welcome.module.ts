@@ -13,6 +13,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import { registerWelcomeCommands } from './welcome-commands'
 import { registerWelcomeEventListeners } from './welcome-events'
 
@@ -35,16 +36,11 @@ export class WelcomeModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -105,6 +101,6 @@ export class WelcomeModule implements RuntimeModuleInstance {
 export const welcomeRuntimeModule: RuntimeModule<WelcomeModule> = {
   id: 'welcome',
   create(ctx, deps) {
-    return new WelcomeModule(ctx, deps.data, deps.config)
+    return new WelcomeModule(ctx, deps.data)
   },
 }

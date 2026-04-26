@@ -258,6 +258,14 @@ test('Koishi 控制台管理员密码必须写入环境样板和入口文档', a
   await assertContainsConsoleAdminPassword(join(repoRoot, 'docs/guides/koishi-development.md'))
 })
 
+test('Koishi 平台凭据必须写入环境样板和入口文档', async () => {
+  await assertContainsPlatformEnv(join(repoRoot, '.env.example'))
+  await assertContainsPlatformEnv(join(repoRoot, '.env.prod.example'))
+  await assertContainsPlatformEnv(join(workspaceRoot, 'README.md'))
+  await assertContainsPlatformEnv(join(repoRoot, 'docs/QUICKSTART.md'))
+  await assertContainsPlatformEnv(join(repoRoot, 'docs/guides/koishi-development.md'))
+})
+
 async function assertContainsConsoleAdminPassword(filePath: string) {
   const content = await readFile(filePath, 'utf8')
 
@@ -265,6 +273,21 @@ async function assertContainsConsoleAdminPassword(filePath: string) {
     content,
     /STUHELPER_CONSOLE_ADMIN_PASSWORD/,
     `${filePath} 必须说明 STUHELPER_CONSOLE_ADMIN_PASSWORD。`,
+  )
+}
+
+async function assertContainsPlatformEnv(filePath: string) {
+  const content = await readFile(filePath, 'utf8')
+
+  assert.match(
+    content,
+    /STUHELPER_PLATFORM_BASE_URL/,
+    `${filePath} 必须说明 STUHELPER_PLATFORM_BASE_URL。`,
+  )
+  assert.match(
+    content,
+    /STUHELPER_PLATFORM_SERVICE_TOKEN/,
+    `${filePath} 必须说明 STUHELPER_PLATFORM_SERVICE_TOKEN。`,
   )
 }
 
@@ -302,5 +325,28 @@ test('stuhelper-core 不应通过覆盖 ctx.console.addListener 注入 authority
     content,
     /ctx\.console\.addListener\s*=/,
     'registerWebSocketAPI 不应再通过 monkey-patch 覆盖 ctx.console.addListener。',
+  )
+})
+
+test('stuhelper-core WebSocket API 不应保留空 catch 静默吞错', async () => {
+  const sourcePath = join(workspaceRoot, 'plugins/stuhelper-core/src/core/api/index.ts')
+  const content = await readFile(sourcePath, 'utf8')
+
+  assert.doesNotMatch(
+    content,
+    /catch\s*(?:\([^)]*\))?\s*\{\s*\}/,
+    'core/api/index.ts 的异常处理必须显式记录、返回错误或抛出，不能使用空 catch。',
+  )
+})
+
+test('BanmeModule 不应使用隐藏默认值兜底配置缺失', async () => {
+  const sourcePath = join(workspaceRoot, 'plugins/stuhelper-core/src/core/modules/banme.module.ts')
+  const content = await readFile(sourcePath, 'utf8')
+
+  assert.doesNotMatch(content, /FALLBACK_/, 'banme 配置缺失必须显式失败，不能用 FALLBACK_* 常量静默补值。')
+  assert.doesNotMatch(
+    content,
+    /config\.(baseMax|baseMin|growthRate)\s*\|\|/,
+    'banme 基础时长配置不能通过 || 回退到隐藏默认值。',
   )
 })

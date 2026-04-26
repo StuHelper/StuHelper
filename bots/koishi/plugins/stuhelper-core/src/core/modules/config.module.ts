@@ -16,6 +16,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import { registerConfigCommands } from './config-commands'
 
 export class ConfigModule implements RuntimeModuleInstance {
@@ -30,16 +31,11 @@ export class ConfigModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -88,6 +84,6 @@ export class ConfigModule implements RuntimeModuleInstance {
 export const configRuntimeModule: RuntimeModule<ConfigModule> = {
   id: 'config',
   create(ctx, deps) {
-    return new ConfigModule(ctx, deps.data, deps.config)
+    return new ConfigModule(ctx, deps.data)
   },
 }

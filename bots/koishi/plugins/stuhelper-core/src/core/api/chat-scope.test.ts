@@ -143,6 +143,71 @@ test('legacy stats APIs filter guild data to the console scope', async () => {
 
   const charts = await callListener(listeners, 'stuhelperGroupCenter/stats/charts', {})
   assert.deepEqual(charts.data.guildRank.map((item: { guildId: string }) => item.guildId), ['1001'])
+  assert.equal(charts.data.trend.reduce((sum: number, item: { count: number }) => sum + item.count, 0), 1)
+  assert.deepEqual(charts.data.distribution.map((item: { command: string }) => item.command), ['a'])
+  assert.deepEqual(charts.data.successRate, { success: 1, fail: 0 })
+  assert.deepEqual(charts.data.userRank.map((item: { userId: string }) => item.userId), ['u1'])
+})
+
+test('legacy settings APIs require global console scope', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/settings/get', {})
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/settings/update', { settings: {} })
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/settings/reset', {})
+})
+
+test('legacy log search filters records to the console scope', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const logs = await callListener(listeners, 'stuhelperGroupCenter/logs/search', {})
+  assert.equal(logs.data.total, 1)
+  assert.deepEqual(logs.data.list.map((item: { guildId: string }) => item.guildId), ['1001'])
+
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/logs/search', { guildId: '2002' })
+})
+
+test('legacy auth read APIs enforce the console scope', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const roles = await callListener(listeners, 'stuhelperGroupCenter/auth/user/get', { userId: 'target' })
+  assert.deepEqual(roles.data, ['scoped-role'])
+
+  await assertRejectsScope(listeners, 'stuhelperGroupCenter/auth/role/members', { roleId: 'other-role' })
+  await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/auth/users-by-authority', { authority: 4 })
+})
+
+test('role member import reports assignment failures instead of returning partial success', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  service.auth.assignRole = async (userId: string) => {
+    if (userId === 'bad-user') {
+      throw new Error('assignment failed for bad-user')
+    }
+  }
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/auth/role/import-members', {
+    roleId: 'scoped-role',
+    userIds: ['ok-user', 'bad-user'],
+  })
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /assignment failed for bad-user/)
 })
 
 async function assertRejectsScope(
@@ -201,7 +266,15 @@ function createContext(listeners: Map<string, Listener>) {
       },
     ],
     database: {
-      get: async () => [{ platform: 'onebot', pid: 'operator' }],
+      get: async (table: string) => {
+        if (table === 'binding') {
+          return [{ aid: 42, platform: 'onebot', pid: 'operator' }]
+        }
+        if (table === 'user') {
+          return [{ id: 7, name: 'authority-user' }]
+        }
+        return []
+      },
     },
     on() {},
     logger: () => ({
@@ -244,6 +317,9 @@ function createService(guildIds: string[]) {
         u1: { userId: 'u1', guildId: '1001', timestamp: 1 },
         u2: { userId: 'u2', guildId: '2002', timestamp: 1 },
       }),
+      authUsers: {
+        flush: async () => undefined,
+      },
       subscriptions: createMapStore({
         list: [
           { type: 'group', id: '1001', features: {} },
@@ -262,8 +338,20 @@ function createService(guildIds: string[]) {
         if (userId === 'onebot:operator' || userId === 'operator') {
           return ['scoped-role']
         }
+        if (userId === 'target') {
+          return ['scoped-role', 'other-role', 'global-role']
+        }
         return []
       },
+      getRoleMembers: (roleId: string) => {
+        const members: Record<string, string[]> = {
+          'scoped-role': ['u1'],
+          'other-role': ['u2'],
+          'global-role': ['u3'],
+        }
+        return members[roleId] || []
+      },
+      assignRole: async () => undefined,
     },
     cache: {
       getCachedData: () => ({ guilds: {}, members: {}, users: {} }),
@@ -284,6 +372,15 @@ function createService(guildIds: string[]) {
         ],
       },
     ],
+    settings: {
+      settings: {
+        openai: {
+          apiKey: 'secret',
+        },
+      },
+      update: async () => undefined,
+      reset: async () => undefined,
+    },
   }
 }
 

@@ -211,6 +211,8 @@ function toOpenUrl(value: string): string | null {
     if (url.protocol === 'http:' || url.protocol === 'https:') {
       return url.toString()
     }
-  } catch {}
+  } catch {
+    return null
+  }
   return null
 }

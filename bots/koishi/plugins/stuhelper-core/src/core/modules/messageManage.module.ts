@@ -17,6 +17,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 
 const DEFAULT_ESSENCE_AUTHORITY = 3
 const DEFAULT_ESSENCE_CONFIG: Config['setEssenceMsg'] = {
@@ -54,12 +55,11 @@ export class MessageManageModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -206,6 +206,6 @@ function getErrorMessage(error: unknown): string {
 export const messageManageRuntimeModule: RuntimeModule<MessageManageModule> = {
   id: 'manage-message',
   create(ctx, deps) {
-    return new MessageManageModule(ctx, deps.data, deps.config)
+    return new MessageManageModule(ctx, deps.data)
   },
 }

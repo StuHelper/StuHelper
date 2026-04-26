@@ -41,6 +41,13 @@ function error(message: string): ApiResponse {
   return { success: false, error: message }
 }
 
+function toApiErrorMessage(value: unknown): string {
+  if (value instanceof Error) {
+    return value.message
+  }
+  return String(value)
+}
+
 function buildQuotePayload(quote: any) {
   if (!quote?.messageId) {
     return undefined
@@ -102,11 +109,38 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     }
     return roles.filter((role) => role.guildIds?.some((guildId) => scope.guildIds.has(guildId)))
   }
+  const filterRoleIds = (roleIds: readonly string[], scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
+    const visibleRoleIds = new Set(filterRoles(service.auth.getRoles(), scope).map((role) => role.id))
+    return roleIds.filter((roleId) => visibleRoleIds.has(roleId))
+  }
+  const assertReadableRole = (scope: Awaited<ReturnType<typeof resolveConsoleScope>>, roleId: string) => {
+    const role = service.auth.getRoles().find((item) => item.id === roleId)
+    if (!role) {
+      throw new Error(`role not found: ${roleId}`)
+    }
+    if (scope.kind === 'all') {
+      return
+    }
+    if (!role.guildIds?.length) {
+      assertGlobalConsoleScope(scope, 'global role')
+      return
+    }
+    if (role.guildIds.some((guildId) => scope.guildIds.has(guildId))) {
+      return
+    }
+    assertConsoleGuildAccess(scope, role.guildIds[0], 'role')
+  }
   const filterSubscriptions = (subscriptions: Subscription[], scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
     if (scope.kind === 'all') {
       return subscriptions
     }
     return subscriptions.filter((sub) => sub.type === 'group' && scope.guildIds.has(sub.id))
+  }
+  const filterLogs = (logs: any[], scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
+    if (scope.kind === 'all') {
+      return logs
+    }
+    return logs.filter((log) => scope.guildIds.has(String(log.guildId || '')))
   }
   const parseWarnKey = (key: string) => {
     const [guildId, userId] = key.split(':')
@@ -252,12 +286,20 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取某用户的角色列表 */
-  addAuthorityListener('stuhelperGroupCenter/auth/user/get', async (params: { userId: string }) => {
-    return success(service.auth.getUserRoleIds(params.userId))
+  addAuthorityListener('stuhelperGroupCenter/auth/user/get', async function (params: { userId: string }) {
+    const scope = await resolveConsoleScope(this)
+    return success(filterRoleIds(service.auth.getUserRoleIds(params.userId), scope))
   })
 
   /** 获取角色的成员列表 */
-  addAuthorityListener('stuhelperGroupCenter/auth/role/members', async (params: { roleId: string, fetchNames?: boolean }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/role/members', async function (params: { roleId: string, fetchNames?: boolean }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      assertReadableRole(scope, params.roleId)
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '获取角色成员失败')
+    }
+
     const userIds = service.auth.getRoleMembers(params.roleId)
     
     if (params.fetchNames) {
@@ -313,10 +355,8 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       let imported = 0
       for (const userId of userIds) {
         if (userId && typeof userId === 'string') {
-          try {
-            await service.auth.assignRole(userId.trim(), roleId)
-            imported++
-          } catch {}
+          await service.auth.assignRole(userId.trim(), roleId)
+          imported++
         }
       }
 
@@ -328,8 +368,10 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 获取指定 authority 等级的用户列表 */
-  addAuthorityListener('stuhelperGroupCenter/auth/users-by-authority', async (params: { authority: number }) => {
+  addAuthorityListener('stuhelperGroupCenter/auth/users-by-authority', async function (params: { authority: number }) {
     try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'authority user query')
       const { authority } = params
       if (typeof authority !== 'number' || authority < 1 || authority > 5) {
         return error('无效的权限等级')
@@ -815,7 +857,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     const logModule = service.getAllModules().find(m => m.meta.name === 'log') as any
     if (!logModule) return error('Log module not found')
 
-    const logs = await logModule.getAllLogs()
+    const logs = filterLogs(await logModule.getAllLogs(), scope)
 
     // 1. 按日期统计命令使用趋势
     const dailyStats: Record<string, number> = {}
@@ -860,8 +902,6 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
         }
 
         // 群组统计
-        if (scope.kind !== 'all' && !scope.guildIds.has(String(log.guildId || ''))) return
-
         if (log.guildId) {
           guildStats[log.guildId] = (guildStats[log.guildId] || 0) + 1
         }
@@ -917,7 +957,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
 
   // ===== 日志检索 API =====
 
-  addAuthorityListener('stuhelperGroupCenter/logs/search', async (params: {
+  addAuthorityListener('stuhelperGroupCenter/logs/search', async function (params: {
     startTime?: string | number
     endTime?: string | number
     command?: string
@@ -927,59 +967,75 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     guildId?: string
     page?: number
     pageSize?: number
-  }) => {
-    const logModule = service.getAllModules().find(m => m.meta.name === 'log') as any
-    if (!logModule) return error('Log module not found')
-
-    // 获取所有日志进行检索
-    let logs = await logModule.getAllLogs()
-    
-    // 过滤
-    logs = logs.filter((log: any) => {
-      try {
-        const time = new Date(log.timestamp).getTime()
-        if (params.startTime && time < new Date(params.startTime).getTime()) return false
-        if (params.endTime && time > new Date(params.endTime).getTime()) return false
-        if (params.command && !String(log.command || '').toLowerCase().includes(params.command.toLowerCase())) return false
-      if (params.userId && String(log.userId) !== params.userId) return false
-      if (params.username && (!log.username || !String(log.username).toLowerCase().includes(params.username.toLowerCase()))) return false
-      if (params.details) {
-        const keyword = params.details.toLowerCase()
-        const matchResult = String(log.result || '').toLowerCase().includes(keyword)
-        const matchError = String(log.error || '').toLowerCase().includes(keyword)
-        const matchArgs = log.args?.some((arg: any) => String(arg).toLowerCase().includes(keyword))
-        const matchOptions = JSON.stringify(log.options || {}).toLowerCase().includes(keyword)
-        
-        if (!matchResult && !matchError && !matchArgs && !matchOptions) return false
+  }) {
+    try {
+      const scope = await resolveConsoleScope(this)
+      if (params.guildId) {
+        assertConsoleGuildAccess(scope, params.guildId, 'log search')
       }
-      if (params.guildId && String(log.guildId) !== params.guildId) return false
-      return true
-      } catch (e) {
-        // 如果单条日志处理出错，跳过该日志而不是导致整个请求失败
-        return false
-      }
-    })
 
-    // 分页
-    const page = params.page || 1
-    const pageSize = params.pageSize || 20
-    const total = logs.length
-    const list = logs.slice((page - 1) * pageSize, page * pageSize)
+      const logModule = service.getAllModules().find(m => m.meta.name === 'log') as any
+      if (!logModule) return error('Log module not found')
 
-    return success({ list, total, page, pageSize })
+      // 获取所有日志进行检索
+      let logs = filterLogs(await logModule.getAllLogs(), scope)
+
+      // 过滤
+      logs = logs.filter((log: any) => {
+        try {
+          const time = new Date(log.timestamp).getTime()
+          if (params.startTime && time < new Date(params.startTime).getTime()) return false
+          if (params.endTime && time > new Date(params.endTime).getTime()) return false
+          if (params.command && !String(log.command || '').toLowerCase().includes(params.command.toLowerCase())) return false
+          if (params.userId && String(log.userId) !== params.userId) return false
+          if (params.username && (!log.username || !String(log.username).toLowerCase().includes(params.username.toLowerCase()))) return false
+          if (params.details) {
+            const keyword = params.details.toLowerCase()
+            const matchResult = String(log.result || '').toLowerCase().includes(keyword)
+            const matchError = String(log.error || '').toLowerCase().includes(keyword)
+            const matchArgs = log.args?.some((arg: any) => String(arg).toLowerCase().includes(keyword))
+            const matchOptions = JSON.stringify(log.options || {}).toLowerCase().includes(keyword)
+
+            if (!matchResult && !matchError && !matchArgs && !matchOptions) return false
+          }
+          if (params.guildId && String(log.guildId) !== params.guildId) return false
+          return true
+        } catch (e) {
+          // 如果单条日志处理出错，跳过该日志而不是导致整个请求失败
+          return false
+        }
+      })
+
+      // 分页
+      const page = params.page || 1
+      const pageSize = params.pageSize || 20
+      const total = logs.length
+      const list = logs.slice((page - 1) * pageSize, page * pageSize)
+
+      return success({ list, total, page, pageSize })
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '检索日志失败')
+    }
   })
 
   // ===== 设置 API =====
 
   /** 获取插件设置 */
-  addAuthorityListener('stuhelperGroupCenter/settings/get', async () => {
-    // 获取当前设置
-    return success(service.settings.settings)
+  addAuthorityListener('stuhelperGroupCenter/settings/get', async function () {
+    try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'settings')
+      return success(service.settings.settings)
+    } catch (e) {
+      return error(e instanceof Error ? e.message : '获取设置失败')
+    }
   })
 
   /** 更新插件设置 */
-  addAuthorityListener('stuhelperGroupCenter/settings/update', async (params: { settings: any }) => {
+  addAuthorityListener('stuhelperGroupCenter/settings/update', async function (params: { settings: any }) {
     try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'settings')
       const { settings } = params
       
       // 检查 settings 是否有效
@@ -999,8 +1055,10 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   })
 
   /** 重置插件设置 */
-  addAuthorityListener('stuhelperGroupCenter/settings/reset', async () => {
+  addAuthorityListener('stuhelperGroupCenter/settings/reset', async function () {
     try {
+      const scope = await resolveConsoleScope(this)
+      assertGlobalConsoleScope(scope, 'settings')
       await service.settings.reset()
       ctx.logger('stuhelperGroupCenter').info('设置已重置为默认值')
       return success({ success: true })
@@ -1168,6 +1226,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       const scope = await resolveConsoleScope(this)
       assertConsoleGuildAccess(scope, guildId, 'chat guild info')
 
+      const failures: string[] = []
       for (const bot of ctx.bots) {
         try {
           const guild = await bot.getGuild(guildId)
@@ -1179,9 +1238,14 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
             }
             return success({ name: guild.name, avatar })
           }
-        } catch {}
+        } catch (e) {
+          const message = toApiErrorMessage(e)
+          failures.push(message)
+          ctx.logger('stuhelperGroupCenter').warn('获取群信息失败: %s', message)
+        }
       }
-      return error('无法获取群信息')
+      const suffix = failures.length > 0 ? `: ${failures[failures.length - 1]}` : ''
+      return error(`无法获取群信息${suffix}`)
     } catch (e) {
       return error(e instanceof Error ? e.message : '获取群信息失败')
     }
@@ -1195,6 +1259,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       const { userId } = params
       if (!userId) return error('缺少 userId 参数')
 
+      const failures: string[] = []
       for (const bot of ctx.bots) {
         try {
           const user = await bot.getUser(userId)
@@ -1206,9 +1271,14 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
             }
             return success({ name: user.name || user.nick || userId, avatar })
           }
-        } catch {}
+        } catch (e) {
+          const message = toApiErrorMessage(e)
+          failures.push(message)
+          ctx.logger('stuhelperGroupCenter').warn('获取用户信息失败: %s', message)
+        }
       }
-      return error('无法获取用户信息')
+      const suffix = failures.length > 0 ? `: ${failures[failures.length - 1]}` : ''
+      return error(`无法获取用户信息${suffix}`)
     } catch (e) {
       return error(e instanceof Error ? e.message : '获取用户信息失败')
     }
@@ -1262,9 +1332,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
       const { url, file } = params
       if (!url) return error('缺少 URL 参数')
 
-      // 尝试从 URL 中提取文件名（如果没有提供 file 参数）
       let fileToUse = file
-      
       if (!fileToUse) {
         try {
           const urlObj = new URL(url)
@@ -1274,30 +1342,30 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
           if (lastPart && (lastPart.includes('.') || /^[A-F0-9]{32}$/i.test(lastPart))) {
             fileToUse = lastPart
           }
-        } catch {}
+        } catch (e) {
+          ctx.logger('stuhelperGroupCenter').warn('解析图片 URL 失败: %s', toApiErrorMessage(e))
+        }
       }
 
-      // 使用 OneBot get_image API 获取图片
+      const imageErrors: string[] = []
       for (const bot of ctx.bots) {
         if (bot.platform === 'onebot' && (bot as any).internal?.getImage) {
           try {
             const fileParam = fileToUse || url
             const result = await (bot as any).internal.getImage(fileParam)
-            
-            // 优先使用返回的 base64
+
             if (result?.base64) {
               let mimeType = 'image/png'
               const fileName = result.file_name || result.file || ''
               if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) mimeType = 'image/jpeg'
               else if (fileName.endsWith('.gif')) mimeType = 'image/gif'
               else if (fileName.endsWith('.webp')) mimeType = 'image/webp'
-              
+
               const dataUrl = `data:${mimeType};base64,${result.base64}`
               const hash = crypto.createHash('md5').update(url).digest('hex')
               return success({ dataUrl, hash, mimeType, source: 'local-base64' })
             }
-            
-            // 其次使用返回的新 url
+
             if (result?.url && result.url !== url) {
               const newResponse = await fetch(result.url, {
                 headers: {
@@ -1314,29 +1382,37 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
                 return success({ dataUrl, hash, mimeType: contentType, source: 'local-url' })
               }
             }
-            
-            // 最后尝试读取本地文件
+
             if (result?.file) {
               try {
                 const fs = await import('fs/promises')
                 const localBuffer = await fs.readFile(result.file)
                 const base64 = localBuffer.toString('base64')
-                
+
                 let mimeType = 'image/png'
                 if (result.file.endsWith('.jpg') || result.file.endsWith('.jpeg')) mimeType = 'image/jpeg'
                 else if (result.file.endsWith('.gif')) mimeType = 'image/gif'
                 else if (result.file.endsWith('.webp')) mimeType = 'image/webp'
-                
+
                 const dataUrl = `data:${mimeType};base64,${base64}`
                 const hash = crypto.createHash('md5').update(url).digest('hex')
                 return success({ dataUrl, hash, mimeType, source: 'local-file' })
-              } catch {}
+              } catch (e) {
+                const message = toApiErrorMessage(e)
+                imageErrors.push(message)
+                ctx.logger('stuhelperGroupCenter').warn('读取 OneBot 本地图片失败: %s', message)
+              }
             }
-          } catch {}
+          } catch (e) {
+            const message = toApiErrorMessage(e)
+            imageErrors.push(message)
+            ctx.logger('stuhelperGroupCenter').warn('OneBot get_image 获取图片失败: %s', message)
+          }
         }
       }
-      
-      return error('无法获取图片')
+
+      const suffix = imageErrors.length > 0 ? `: ${imageErrors[imageErrors.length - 1]}` : ''
+      return error(`无法获取图片${suffix}`)
     } catch (e) {
       return error(e instanceof Error ? e.message : '获取图片失败')
     }
@@ -1361,7 +1437,9 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
           botLoginInfoCache.set(cacheKey, result)
           return result
         }
-      } catch {}
+      } catch (e) {
+        ctx.logger('stuhelperGroupCenter').warn('获取 bot 登录信息失败: %s', toApiErrorMessage(e))
+      }
     }
     
     // 回退到 bot.user
@@ -1406,7 +1484,9 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
               }).join('')
             }
           }
-        } catch {}
+        } catch (e) {
+          ctx.logger('stuhelperGroupCenter').warn('获取自身消息详情失败: %s', toApiErrorMessage(e))
+        }
       }
     }
     
@@ -1439,7 +1519,9 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
         try {
           const guild = await bot.getGuild(session.guildId)
           if (guild?.avatar) guildAvatar = guild.avatar
-        } catch {}
+        } catch (e) {
+          ctx.logger('stuhelperGroupCenter').warn('获取消息群头像失败: %s', toApiErrorMessage(e))
+        }
       }
     }
 
@@ -1484,30 +1566,33 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     // 尝试获取群名称 (如果缺失)
     let guildName = (session as any).guildName || (session.event?.guild?.name)
     if (!guildName && session.guildId) {
-       const bot = session.bot || ctx.bots.find(b => b.platform === session.platform)
-       if (bot) {
-         try {
-           const guild = await bot.getGuild(session.guildId)
-           if (guild?.name) guildName = guild.name
-         } catch {}
-       }
+      const bot = session.bot || ctx.bots.find(b => b.platform === session.platform)
+      if (bot) {
+        try {
+          const guild = await bot.getGuild(session.guildId)
+          if (guild?.name) guildName = guild.name
+        } catch (e) {
+          ctx.logger('stuhelperGroupCenter').warn('获取消息群名称失败: %s', toApiErrorMessage(e))
+        }
+      }
     }
 
     // 尝试解析 elements 中的 at 标签，补充名称
     const enrichedElements = await Promise.all(finalElements.map(async (el: any) => {
       if (el.type === 'at' && el.attrs?.id) {
-         if (!el.attrs.name) {
-             // 尝试获取被 at 用户的昵称
-             const bot = session.bot || ctx.bots.find(b => b.platform === session.platform)
-             if (bot && session.guildId) {
-               try {
-                 const member = await bot.getGuildMember(session.guildId, el.attrs.id)
-                 if (member?.nick || member?.user?.name) {
-                   el.attrs.name = member.nick || member.user.name
-                 }
-               } catch {}
-             }
-         }
+        if (!el.attrs.name) {
+          const bot = session.bot || ctx.bots.find(b => b.platform === session.platform)
+          if (bot && session.guildId) {
+            try {
+              const member = await bot.getGuildMember(session.guildId, el.attrs.id)
+              if (member?.nick || member?.user?.name) {
+                el.attrs.name = member.nick || member.user.name
+              }
+            } catch (e) {
+              ctx.logger('stuhelperGroupCenter').warn('获取 at 用户群名片失败: %s', toApiErrorMessage(e))
+            }
+          }
+        }
       }
       return el
     }))

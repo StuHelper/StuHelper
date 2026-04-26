@@ -10,6 +10,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import { registerOrderManageCommands } from './order-manage-commands'
 
 export class OrderManageModule implements RuntimeModuleInstance {
@@ -24,16 +25,11 @@ export class OrderManageModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {}
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -99,6 +95,6 @@ export class OrderManageModule implements RuntimeModuleInstance {
 export const orderManageRuntimeModule: RuntimeModule<OrderManageModule> = {
   id: 'manage-order',
   create(ctx, deps) {
-    return new OrderManageModule(ctx, deps.data, deps.config)
+    return new OrderManageModule(ctx, deps.data)
   },
 }

@@ -12,6 +12,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import { registerBanmeCommands } from './banme-commands'
 import {
   normalizeBanmeCommand,
@@ -26,9 +27,6 @@ const DEFAULT_BASE_PROBABILITY = 0.006
 const DEFAULT_SOFT_PITY = 74
 const DEFAULT_HARD_PITY = 90
 const SOFT_PITY_STEP = 0.06
-const FALLBACK_BASE_MAX_MINUTES = 10
-const FALLBACK_BASE_MIN_SECONDS = 1
-const FALLBACK_GROWTH_RATE = 2
 
 type JackpotResult = {
   readonly isJackpot: boolean
@@ -52,8 +50,7 @@ export class BanmeModule implements RuntimeModuleInstance {
 
   constructor(
     private readonly ctx: Context,
-    private readonly _data: DataManager,
-    private readonly initialConfig: Config,
+    private readonly _data: DataManager
   ) {
     this.similarChars = new SimilarCharsStore(SIMILAR_CHARS_PATH, this.ctx.logger)
   }
@@ -63,11 +60,7 @@ export class BanmeModule implements RuntimeModuleInstance {
   }
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -200,7 +193,7 @@ export class BanmeModule implements RuntimeModuleInstance {
 export const banmeRuntimeModule: RuntimeModule<BanmeModule> = {
   id: 'banme',
   create(ctx, deps) {
-    return new BanmeModule(ctx, deps.data, deps.config)
+    return new BanmeModule(ctx, deps.data)
   },
 }
 
@@ -263,12 +256,21 @@ function calculateMuteDuration(
     return parseTimeString(duration)
   }
 
-  const baseMaxMillis = (config.baseMax || FALLBACK_BASE_MAX_MINUTES) * 60 * 1000
-  const baseMinMillis = Math.max((config.baseMin || FALLBACK_BASE_MIN_SECONDS) * 1000, 1000)
-  const growthRate = config.growthRate || FALLBACK_GROWTH_RATE
+  const baseMax = requireBanmeNumber(config.baseMax, 'baseMax')
+  const baseMin = requireBanmeNumber(config.baseMin, 'baseMin')
+  const growthRate = requireBanmeNumber(config.growthRate, 'growthRate')
+  const baseMaxMillis = baseMax * 60 * 1000
+  const baseMinMillis = Math.max(baseMin * 1000, 1000)
   const additionalMinutes = Math.floor(Math.pow(record.count - 1, 1 / 3) * growthRate)
   const maxMilliseconds = Math.min(baseMaxMillis + (additionalMinutes * 60 * 1000), MAX_MUTE_MS)
   return Math.floor(Math.random() * (maxMilliseconds - baseMinMillis)) + baseMinMillis
+}
+
+function requireBanmeNumber(value: number | undefined, field: string): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    throw new Error(`banme.${field} 配置缺失或不是数字`)
+  }
+  return value
 }
 
 function formatSuccessLog(timeStr: string, jackpot: JackpotResult, record: BanMeRecord): string {

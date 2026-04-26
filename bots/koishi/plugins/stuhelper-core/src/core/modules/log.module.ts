@@ -15,6 +15,7 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
+import { getRequiredPluginConfig } from './module-config'
 import { registerCommandLogCommands } from './log-command-commands'
 import { registerLogEventListeners } from './log-events'
 import { registerOperationLogCommands } from './log-operation-commands'
@@ -66,19 +67,14 @@ export class LogModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager,
-    private readonly initialConfig: Config,
+    readonly data: DataManager
   ) {
     this.logPath = path.resolve(this.data.dataPath, 'stuhelperGroupCenter.log')
     this.commandLogPath = path.resolve(this.data.dataPath, 'command_logs.json')
   }
 
   get config(): Config {
-    try {
-      return this.ctx.stuhelperGroupCenter?.pluginConfig || this.initialConfig
-    } catch {
-      return this.initialConfig
-    }
+    return getRequiredPluginConfig(this.ctx)
   }
 
   get state(): RuntimeModuleState {
@@ -126,21 +122,19 @@ export class LogModule implements RuntimeModuleInstance {
   }
 
   readCommandLogs(): CommandLogRecord[] {
-    try {
-      const content = fs.readFileSync(this.commandLogPath, 'utf-8')
-      return JSON.parse(content) || []
-    } catch (error) {
-      console.error('读取命令日志失败:', error)
+    if (!fs.existsSync(this.commandLogPath)) {
       return []
     }
+    const content = fs.readFileSync(this.commandLogPath, 'utf-8')
+    const logs = JSON.parse(content)
+    if (!Array.isArray(logs)) {
+      throw new Error(`命令日志文件格式无效: ${this.commandLogPath}`)
+    }
+    return logs
   }
 
   saveCommandLogs(logs: CommandLogRecord[]): void {
-    try {
-      fs.writeFileSync(this.commandLogPath, JSON.stringify(logs, null, JSON_INDENT_SPACES), 'utf-8')
-    } catch (error) {
-      console.error('保存命令日志失败:', error)
-    }
+    fs.writeFileSync(this.commandLogPath, JSON.stringify(logs, null, JSON_INDENT_SPACES), 'utf-8')
   }
 
   loadStats(): void {
@@ -190,6 +184,6 @@ export class LogModule implements RuntimeModuleInstance {
 export const logRuntimeModule: RuntimeModule<LogModule> = {
   id: 'log',
   create(ctx, deps) {
-    return new LogModule(ctx, deps.data, deps.config)
+    return new LogModule(ctx, deps.data)
   },
 }
