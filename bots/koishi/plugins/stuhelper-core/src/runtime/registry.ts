@@ -2,7 +2,6 @@ import {
   AIModule,
   AntiRecallModule,
   KeywordModule,
-  LogModule,
   MemberManageModule,
   OrderManageModule,
   ReportModule,
@@ -18,6 +17,7 @@ import { diceRuntimeModule } from '../core/modules/dice.module'
 import { eventRuntimeModule } from '../core/modules/event.module'
 import { getauthRuntimeModule } from '../core/modules/getauth.module'
 import { helpRuntimeModule } from '../core/modules/help.module'
+import { logRuntimeModule } from '../core/modules/log.module'
 import { messageManageRuntimeModule } from '../core/modules/messageManage.module'
 import { repeatRuntimeModule } from '../core/modules/repeat.module'
 import { statusRuntimeModule } from '../core/modules/status.module'
@@ -45,7 +45,7 @@ const MODULE_REGISTRATIONS: RuntimeModuleRegistration[] = [
   { id: 'antirecall', ModuleType: AntiRecallModule },
   { id: 'ai', ModuleType: AIModule },
   configRuntimeModule,
-  { id: 'log', ModuleType: LogModule },
+  logRuntimeModule,
   { id: 'subscription', ModuleType: SubscriptionModule },
   helpRuntimeModule,
   { id: 'report', ModuleType: ReportModule },

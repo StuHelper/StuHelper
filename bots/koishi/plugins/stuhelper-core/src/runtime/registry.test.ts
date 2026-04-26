@@ -216,3 +216,17 @@ test('welcome runtime module is native instead of adapted BaseModule', () => {
   assert.equal(instance.meta.name, 'welcome')
   assert.ok(!(instance instanceof BaseModule))
 })
+
+test('log runtime module is native instead of adapted BaseModule', () => {
+  const module = getRuntimeModules().find(item => item.id === 'log')
+  assert.ok(module)
+
+  const instance = module.create(new Context(), {
+    service: {} as any,
+    data: { dataPath: process.cwd() } as any,
+    config: {} as any,
+  })
+
+  assert.equal(instance.meta.name, 'log')
+  assert.ok(!(instance instanceof BaseModule))
+})
