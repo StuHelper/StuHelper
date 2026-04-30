@@ -113,13 +113,13 @@
   height: var(--sh-cmd-h);
   font: var(--sh-w-semibold) var(--sh-t-title) / 1 var(--sh-font-mono);
   color: var(--sh-primary);
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .sh-rail__brand-name {
   font: var(--sh-w-semibold) var(--sh-t-body-lg) / 1.15 var(--sh-font-ui);
   color: var(--sh-fg);
-  letter-spacing: -0.014em;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   opacity: 0;
@@ -223,7 +223,7 @@
 .sh-rail__item-label {
   font-size: var(--sh-t-body);
   font-weight: var(--sh-w-medium);
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   opacity: 0;
@@ -651,7 +651,7 @@
   font-size: var(--sh-t-title);
   font-weight: var(--sh-w-semibold);
   color: var(--sh-fg);
-  letter-spacing: -0.014em;
+  letter-spacing: 0;
   line-height: 1.2;
   margin-top: 2px;
   white-space: nowrap;
@@ -814,7 +814,7 @@
   font-size: var(--sh-t-body);
   font-weight: var(--sh-w-semibold);
   color: var(--sh-fg);
-  letter-spacing: -0.008em;
+  letter-spacing: 0;
 }
 
 .sh-dock__action {

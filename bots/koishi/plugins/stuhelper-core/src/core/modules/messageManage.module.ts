@@ -3,13 +3,11 @@
  *
  * 包含消息管理类群管功能：
  * - delmsg: 撤回消息
- * - essence: 精华消息
  */
 
 import type { Context, Session } from 'koishi'
 
 import type { DataManager } from '../data'
-import type { Config } from '../../types'
 import { registerRuntimeCommand } from '../../runtime/command'
 import type {
   RuntimeModule,
@@ -17,31 +15,6 @@ import type {
   RuntimeModuleMeta,
   RuntimeModuleState,
 } from '../../runtime/types'
-import { getRequiredPluginConfig } from './module-config'
-
-const DEFAULT_ESSENCE_AUTHORITY = 3
-const DEFAULT_ESSENCE_CONFIG: Config['setEssenceMsg'] = {
-  enabled: false,
-  authority: DEFAULT_ESSENCE_AUTHORITY,
-}
-
-interface EssenceCommandInput {
-  readonly host: MessageManageModule
-  readonly session: Session
-  readonly options: {
-    readonly s?: boolean
-    readonly r?: boolean
-  }
-  readonly config: Config['setEssenceMsg']
-}
-
-interface CommandLogEntry {
-  readonly session: Session
-  readonly command: string
-  readonly target: string
-  readonly result: string
-  readonly success?: boolean
-}
 
 export class MessageManageModule implements RuntimeModuleInstance {
   readonly meta: RuntimeModuleMeta = {
@@ -58,10 +31,6 @@ export class MessageManageModule implements RuntimeModuleInstance {
     readonly data: DataManager
   ) {}
 
-  get config(): Config {
-    return getRequiredPluginConfig(this.ctx)
-  }
-
   get state(): RuntimeModuleState {
     return this._state
   }
@@ -74,7 +43,6 @@ export class MessageManageModule implements RuntimeModuleInstance {
     this._state = 'loading'
     try {
       registerDelMsgCommand(this)
-      registerEssenceCommand(this)
       this._state = 'loaded'
     } catch (error) {
       this._state = 'error'
@@ -99,108 +67,23 @@ function registerDelMsgCommand(host: MessageManageModule): void {
     .action(async ({ session }) => handleDelMsgCommand(session))
 }
 
-function registerEssenceCommand(host: MessageManageModule): void {
-  const essenceConfig = host.config.setEssenceMsg || DEFAULT_ESSENCE_CONFIG
-
-  registerRuntimeCommand(host.ctx, host.meta, {
-    name: 'essence',
-    desc: '精华消息管理',
-    permNode: 'essence',
-    permDesc: '管理精华消息',
-    usage: '-s 设置精华消息，-r 取消精华消息',
-    examples: ['essence -s (回复消息)', 'essence -r (回复消息)'],
-  })
-    .option('s', '-s 设置精华消息')
-    .option('r', '-r 取消精华消息')
-    .action(async ({ session, options }) => {
-      return handleEssenceCommand({
-        host,
-        session,
-        options,
-        config: essenceConfig,
-      })
-    })
-}
-
 async function handleDelMsgCommand(session: Session): Promise<string> {
   if (!session.quote) return '喵喵！请回复要撤回的消息呀~'
+  const messageId = resolveQuoteMessageId(session.quote)
+  if (!messageId) return '喵喵！无法读取被回复消息的 ID 呀~'
 
   try {
-    await session.bot.deleteMessage(session.channelId, session.quote.id)
+    await session.bot.deleteMessage(session.channelId, messageId)
     return ''
   } catch {
     return '呜呜...撤回失败了，可能太久了或者没有权限喵...'
   }
 }
 
-async function handleEssenceCommand(input: EssenceCommandInput): Promise<string> {
-  const { host, session, options, config } = input
-  if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
-  if (!config.enabled) return '喵呜...精华消息功能未启用...'
-  if (!session.quote) return '喵喵！请回复要操作的消息呀~'
-
-  try {
-    if (options.s) return await setEssenceMessage(host, session)
-    if (options.r) return await removeEssenceMessage(host, session)
-    return '请使用 -s 设置精华消息或 -r 取消精华消息'
-  } catch (error) {
-    logCommand(host, {
-      session,
-      command: 'essence',
-      target: session.quote?.messageId || 'none',
-      result: '失败：未知错误',
-      success: false,
-    })
-    return `出错啦喵...${getErrorMessage(error)}`
-  }
-}
-
-async function setEssenceMessage(
-  host: MessageManageModule,
-  session: Session,
-): Promise<string> {
-  await (session.bot as any).internal.setEssenceMsg(session.quote.messageId)
-  logCommand(host, {
-    session,
-    command: 'essence',
-    target: 'set',
-    result: `成功：已设置精华消息：${session.quote.messageId}`,
-  })
-  return '已经设置为精华消息啦喵~'
-}
-
-async function removeEssenceMessage(
-  host: MessageManageModule,
-  session: Session,
-): Promise<string> {
-  await (session.bot as any).internal.deleteEssenceMsg(session.quote.messageId)
-  logCommand(host, {
-    session,
-    command: 'essence',
-    target: 'remove',
-    result: `成功：已取消精华消息：${session.quote.messageId}`,
-  })
-  return '已经取消精华消息啦喵~'
-}
-
-function logCommand(
-  host: MessageManageModule,
-  entry: CommandLogEntry,
-): void {
-  if (entry.success === false) {
-    entry.session['_commandFailed'] = true
-  }
-  host.ctx.stuhelperGroupCenter.logCommand(
-    entry.session,
-    entry.command,
-    entry.target,
-    entry.result,
-  )
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return String(error)
+function resolveQuoteMessageId(quote: Session['quote']): string {
+  if (!quote) return ''
+  const value = quote.id || quote.messageId
+  return value ? String(value) : ''
 }
 
 export const messageManageRuntimeModule: RuntimeModule<MessageManageModule> = {

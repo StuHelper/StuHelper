@@ -43,10 +43,6 @@ declare module 'koishi' {
       keywords: string[]
       rejectMessage: string
     }
-    setEssenceMsg: {
-      enabled: boolean
-      authority: number
-    }
     setTitle: {
       enabled: boolean
       authority: number
@@ -131,11 +127,6 @@ export interface Config {
   guildRequest: {
     enabled: boolean
     rejectMessage: string
-  }
-  /** 精华消息设置 */
-  setEssenceMsg: {
-    enabled: boolean
-    authority: number
   }
   /** 头衔设置 */
   setTitle: {

@@ -130,6 +130,7 @@ async function handleSendCommand(
   silent: boolean,
 ): Promise<string> {
   if (!session.quote) return '喵喵！请回复要发送的消息呀~'
+  if (!groupId?.trim()) return '喵呜...请指定要发送到的群聊ID喵~'
 
   try {
     const content = silent
@@ -155,13 +156,14 @@ function buildSendLogEntry(
   groupId: string,
   silent: boolean,
 ): CommandLogEntry {
+  const quoteId = session.quote?.id || session.quote?.messageId || 'unknown'
   return {
     session,
     command: 'send',
     target: groupId,
     result: silent
-      ? `成功：已静默发送消息：${session.quote.messageId}`
-      : `成功：已发送消息：${session.quote.messageId}`,
+      ? `成功：已静默发送消息：${quoteId}`
+      : `成功：已发送消息：${quoteId}`,
   }
 }
 

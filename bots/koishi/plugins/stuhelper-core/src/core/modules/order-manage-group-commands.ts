@@ -1,7 +1,7 @@
 import type { Session } from 'koishi'
 
 import type { MuteRecord } from '../../types'
-import { formatDuration } from '../../utils'
+import { formatDuration, parseUserId } from '../../utils'
 import type { OrderManageModule } from './orderManage.module'
 
 interface NicknameCommandInput {
@@ -32,6 +32,11 @@ function registerWholeBanCommand(host: OrderManageModule, enabled: boolean): voi
 
 async function handleWholeBanCommand(host: OrderManageModule, session: Session, enabled: boolean): Promise<string> {
   const commandName = enabled ? 'ban-all' : 'unban-all'
+  if (!session.guildId) {
+    host.logCommand(session, commandName, 'none', '失败：缺少群号', false)
+    return '喵呜...这个命令只能在群里用喵~'
+  }
+
   try {
     await session.bot.internal.setGroupWholeBan(session.guildId, enabled)
     host.logCommand(session, commandName, session.guildId, enabled
@@ -99,8 +104,11 @@ async function handleNicknameCommand(input: NicknameCommandInput): Promise<strin
   const { host, session, user, nickname, group } = input
   if (!user) return '喵呜...请指定用户喵~'
 
-  const userId = String(user).split(':')[1]
+  const userId = resolveUserId(user)
   const guildId = group || session.guildId
+  if (!userId) return '喵呜...请指定正确的用户喵~'
+  if (!guildId) return '喵呜...请在群聊中执行，或显式传入群号喵~'
+
   try {
     if (nickname) {
       await session.bot.internal.setGroupCard(guildId, userId, nickname)
@@ -115,4 +123,11 @@ async function handleNicknameCommand(input: NicknameCommandInput): Promise<strin
     host.logCommand(session, 'nickname', userId, `失败：未知错误`, false)
     return `喵呜...设置昵称失败了：${error.message}`
   }
+}
+
+function resolveUserId(user: unknown): string {
+  const raw = String(user || '').trim()
+  if (!raw) return ''
+  const [, platformUserId] = raw.split(':')
+  return platformUserId || parseUserId(raw)
 }

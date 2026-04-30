@@ -1,6 +1,6 @@
 import type { Session } from 'koishi'
 
-import { formatDuration, parseTimeString } from '../../utils'
+import { formatDuration, parseTimeString, parseUserId } from '../../utils'
 import type { WarnModule } from './warn.module'
 
 interface WarnCommandInput {
@@ -43,7 +43,9 @@ async function handleWarnCommand(input: WarnCommandInput): Promise<string> {
   if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
   if (!user) return '请指定要警告的用户喵！'
 
-  const userId = String(user).split(':')[1]
+  const userId = parseUserId(user)
+  if (!userId) return '请指定正确的用户喵！'
+
   const warnCount = host.addWarn(session.guildId, userId, count)
   const groupConfig = host.getGroupConfig(session.guildId)
   const warnLimit = groupConfig?.warnLimit ?? host.config.warnLimit
@@ -102,7 +104,9 @@ async function handleClearWarnCommand(input: WarnCommandInput): Promise<string> 
   if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
   if (!user) return '请指定要清除警告的用户喵！'
 
-  const userId = String(user).split(':')[1]
+  const userId = parseUserId(user)
+  if (!userId) return '请指定正确的用户喵！'
+
   const guildWarns = host.data.warns.get(session.guildId)
   if (!guildWarns || !guildWarns[userId]) return `用户 ${userId} 在本群没有警告记录`
 
@@ -135,7 +139,11 @@ async function handleListWarnsCommand(input: WarnCommandInput): Promise<string> 
   if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
 
   const guildWarns = host.data.warns.get(session.guildId)
-  if (user) return formatUserWarns(guildWarns, String(user).split(':')[1])
+  if (user) {
+    const userId = parseUserId(user)
+    if (!userId) return '请指定正确的用户喵！'
+    return formatUserWarns(guildWarns, userId)
+  }
   if (!guildWarns || Object.keys(guildWarns).length === 0) return '本群暂无警告记录'
 
   const list = Object.entries(guildWarns)

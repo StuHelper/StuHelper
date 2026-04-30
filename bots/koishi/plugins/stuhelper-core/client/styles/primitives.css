@@ -64,7 +64,7 @@
 .sh-section__title {
   font-size: var(--sh-t-section);
   font-weight: var(--sh-w-semibold);
-  letter-spacing: -0.012em;
+  letter-spacing: 0;
   line-height: var(--sh-l-tight);
 }
 
@@ -148,7 +148,7 @@
   line-height: 1;
   font-weight: var(--sh-w-semibold);
   color: var(--sh-fg);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
   margin-top: var(--sh-s-1);
 }
@@ -384,7 +384,7 @@
 .sh-dashboard__title {
   font-size: var(--sh-t-heading);
   font-weight: var(--sh-w-semibold);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.15;
 }
 

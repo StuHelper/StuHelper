@@ -291,7 +291,7 @@ function kindLabel(kind: SearchResult['kind']): string {
   font-family: var(--sh-font-ui);
   font-size: var(--sh-t-body-lg);
   color: var(--sh-fg);
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
 }
 
 .sh-search__input::placeholder {
@@ -359,7 +359,7 @@ function kindLabel(kind: SearchResult['kind']): string {
   font-size: var(--sh-t-body);
   font-weight: var(--sh-w-medium);
   color: var(--sh-fg);
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

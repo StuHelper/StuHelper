@@ -879,7 +879,7 @@ const handleAvatarError = (e: Event) => {
   font-size: 13px;
   font-weight: 600;
   color: var(--fg1);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .status-indicator {

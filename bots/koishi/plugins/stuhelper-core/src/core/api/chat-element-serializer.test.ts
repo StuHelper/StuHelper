@@ -62,3 +62,12 @@ test('prependQuoteElement prepends a structured quote element to the existing el
   })
   assert.equal(elements[1]?.type, 'text')
 })
+
+test('prependQuoteElement accepts the canonical Satori quote id field', () => {
+  const elements = prependQuoteElement([], {
+    id: 'satori-msg-1',
+    messageId: 'deprecated-msg-1',
+  })
+
+  assert.deepEqual(elements[0]?.attrs, { id: 'satori-msg-1' })
+})

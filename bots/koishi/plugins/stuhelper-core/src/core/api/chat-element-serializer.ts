@@ -5,7 +5,8 @@ type ChatElement = {
 }
 
 type QuotePayload = {
-  messageId: string
+  id?: string
+  messageId?: string
   user?: string
   content?: string
 }
@@ -22,15 +23,20 @@ export function prependQuoteElement(
   elements: readonly ChatElement[] | undefined,
   quote?: QuotePayload,
 ): ChatElement[] {
-  if (!quote?.messageId) {
+  const messageId = resolveQuoteMessageId(quote)
+  if (!messageId) {
     return [...(elements ?? [])]
   }
 
-  const attrs: Record<string, string> = { id: quote.messageId }
+  const attrs: Record<string, string> = { id: messageId }
   if (quote.user) attrs.user = quote.user
   if (quote.content) attrs.content = quote.content
 
   return [{ type: 'quote', attrs }, ...(elements ?? [])]
+}
+
+function resolveQuoteMessageId(quote: QuotePayload | undefined): string {
+  return quote?.id || quote?.messageId || ''
 }
 
 export function serializeChatElements(elements: readonly ChatElement[]): string {

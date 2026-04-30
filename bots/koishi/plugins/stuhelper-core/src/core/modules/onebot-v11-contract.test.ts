@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+
+const currentDir = dirname(fileURLToPath(import.meta.url))
+const coreRoot = join(currentDir, '../..')
+
+test('runtime modules do not call non-standard OneBot essence-message actions', async () => {
+  const files = await Promise.all([
+    readCoreFile('core/modules/messageManage.module.ts'),
+    readCoreFile('core/settings/settings.manager.ts'),
+    readCoreFile('types/index.ts'),
+    readCoreFile('config.ts'),
+  ])
+
+  for (const content of files) {
+    assert.doesNotMatch(content, /setEssenceMsg|deleteEssenceMsg|essence|精华/)
+  }
+})
+
+test('OneBot group-management commands reject missing group ids before adapter calls', async () => {
+  const [memberCommands, orderBanCommands, orderGroupCommands] = await Promise.all([
+    readCoreFile('core/modules/member-manage-commands.ts'),
+    readCoreFile('core/modules/order-manage-ban-commands.ts'),
+    readCoreFile('core/modules/order-manage-group-commands.ts'),
+  ])
+
+  assert.match(memberCommands, /失败：缺少群号/)
+  assert.match(orderBanCommands, /失败：缺少群号/)
+  assert.match(orderGroupCommands, /失败：缺少群号/)
+})
+
+test('delmsg uses canonical quote id with legacy messageId fallback', async () => {
+  const content = await readCoreFile('core/modules/messageManage.module.ts')
+
+  assert.match(content, /resolveQuoteMessageId\(session\.quote\)/)
+  assert.match(content, /quote\.id \|\| quote\.messageId/)
+  assert.match(content, /deleteMessage\(session\.channelId, messageId\)/)
+})
+
+test('OneBot internal group admin calls fail explicitly when unsupported', async () => {
+  const content = await readCoreFile('core/modules/member-manage-commands.ts')
+
+  assert.match(content, /typeof internal\?\.setGroupAdmin !== 'function'/)
+  assert.match(content, /当前适配器不支持 OneBot set_group_admin/)
+  assert.doesNotMatch(content, /internal\?\.setGroupAdmin\([^)]*\)/)
+})
+
+async function readCoreFile(relativePath: string): Promise<string> {
+  return readFile(join(coreRoot, relativePath), 'utf8')
+}

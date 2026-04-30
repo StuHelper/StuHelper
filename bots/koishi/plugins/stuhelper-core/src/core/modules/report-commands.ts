@@ -115,7 +115,9 @@ function getCooldownMessage(input: ReportCommandInput, userAuthority: number): s
 async function loadReportTarget(input: ReportCommandInput): Promise<ReportTarget | string> {
   const quoteId = typeof input.session.quote === 'string'
     ? input.session.quote
-    : input.session.quote.id
+    : input.session.quote.id || input.session.quote.messageId
+  if (!quoteId) return quote(input.session) + '无法读取被举报消息的 ID。'
+
   const messageReportKey = `${input.session.guildId}:${quoteId}`
   const reportedRecord = input.host.reportedMessages[messageReportKey]
   if (reportedRecord) return quote(input.session) + `该消息已被举报过，处理结果: ${reportedRecord.result}`

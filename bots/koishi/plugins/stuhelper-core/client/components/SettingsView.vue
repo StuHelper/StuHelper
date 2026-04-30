@@ -338,31 +338,6 @@
           </div>
         </div>
 
-        <!-- Essence Message -->
-        <div v-show="activeSection === 'essence'" class="config-section">
-          <div class="section-header">
-            <h3 class="section-title">精华消息</h3>
-            <p class="section-desc">配置精华消息功能</p>
-          </div>
-          <div class="form-grid">
-            <div class="form-row">
-              <label class="form-label">启用功能</label>
-              <div class="form-control">
-                <label class="toggle-switch">
-                  <input type="checkbox" v-model="settings.setEssenceMsg.enabled" />
-                  <span class="toggle-track"></span>
-                </label>
-              </div>
-            </div>
-            <div class="form-row">
-              <label class="form-label">所需权限等级</label>
-              <div class="form-control">
-                <el-input-number v-model="settings.setEssenceMsg.authority" :min="1" :max="5" size="small" />
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- Title -->
         <div v-show="activeSection === 'title'" class="config-section">
           <div class="section-header">
@@ -706,7 +681,6 @@ const defaultSettings = {
     enabled: false,
     rejectMessage: '暂不接受入群邀请'
   },
-  setEssenceMsg: { enabled: true, authority: 3 },
   setTitle: { enabled: true, authority: 3, maxLength: 18 },
   antiRepeat: { enabled: false, threshold: 3 },
   openai: {
@@ -834,7 +808,6 @@ const sections = [
   { id: 'banme', label: '自我禁言', icon: 'stuhelperGroupCenter:octicons.person' },
   { id: 'friendRequest', label: '好友申请', icon: 'stuhelperGroupCenter:octicons.personadd' },
   { id: 'guildRequest', label: '入群邀请', icon: 'stuhelperGroupCenter:octicons.people' },
-  { id: 'essence', label: '精华消息', icon: 'stuhelperGroupCenter:octicons.apps' },
   { id: 'title', label: '头衔设置', icon: 'stuhelperGroupCenter:octicons.gear' },
   { id: 'antiRepeat', label: '反复读', icon: 'stuhelperGroupCenter:octicons.discussion' },
   { id: 'antiRecall', label: '防撤回', icon: 'stuhelperGroupCenter:octicons.log' },
@@ -944,7 +917,7 @@ onMounted(() => {
   font-weight: 500;
   color: var(--fg1);
   margin: 0;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .header-actions {

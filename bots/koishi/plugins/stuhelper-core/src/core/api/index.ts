@@ -54,16 +54,22 @@ function toApiErrorMessage(value: unknown): string {
 }
 
 function buildQuotePayload(quote: any) {
-  if (!quote?.messageId) {
+  const messageId = readMessageId(quote)
+  if (!messageId) {
     return undefined
   }
 
   const content = quote.content || readQuoteElementsPreview(quote.elements)
   return {
-    messageId: quote.messageId,
+    id: messageId,
+    messageId,
     user: quote.user?.name || quote.user?.id || '',
     content: content.slice(0, 100),
   }
+}
+
+function readMessageId(message: any) {
+  return message?.id || message?.messageId || ''
 }
 
 function readQuoteElementsPreview(elements: any[] | undefined): string {

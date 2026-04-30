@@ -45,10 +45,19 @@ function registerKickCommand(host: MemberManageModule): void {
 }
 
 async function handleKickCommand(host: MemberManageModule, session: Session, input: string): Promise<string> {
+  if (!input?.trim()) {
+    host.logCommand(session, 'kick', 'none', '失败：缺少必要参数', false)
+    return '喵呜...请输入正确的用户（@或QQ号）'
+  }
+
   const kickInput = parseKickInput(input, session.guildId)
   if (!kickInput.userId) {
     host.logCommand(session, 'kick', 'none', '失败：无法读取目标用户', false)
     return '喵呜...请输入正确的用户（@或QQ号）'
+  }
+  if (!kickInput.targetGroup) {
+    host.logCommand(session, 'kick', kickInput.userId, '失败：缺少群号', false)
+    return '喵呜...请在群聊中执行，或显式传入群号'
   }
 
   try {
@@ -79,14 +88,15 @@ function parseKickInput(input: string, defaultGuildId?: string): KickInput {
 }
 
 function splitKickArgs(input: string): string[] {
-  if (!input.includes('<at')) return input.split(' ')
+  const source = input.trim()
+  if (!source.includes('<at')) return source.split(/\s+/).filter(Boolean)
 
-  const atMatch = input.match(/<at[^>]+>/)
-  if (!atMatch) return input.split(' ')
+  const atMatch = source.match(/<at[^>]+>/)
+  if (!atMatch) return source.split(/\s+/).filter(Boolean)
 
   const atPart = atMatch[0]
-  const restPart = input.replace(atPart, '').trim()
-  return [atPart, ...restPart.split(' ')]
+  const restPart = source.replace(atPart, '').trim()
+  return [atPart, ...restPart.split(/\s+/)].filter(Boolean)
 }
 
 function resolveTargetUserId(target: string): string | null {
@@ -101,6 +111,13 @@ function resolveTargetUserId(target: string): string | null {
     return parseUserId(target)
   }
   return null
+}
+
+function resolveCommandUserId(user: unknown): string {
+  const raw = String(user || '').trim()
+  if (!raw) return ''
+  const [, platformUserId] = raw.split(':')
+  return platformUserId || resolveTargetUserId(raw) || ''
 }
 
 async function handleBlackKick(
@@ -141,11 +158,18 @@ function registerAdminCommand(host: MemberManageModule, enabled: boolean): void 
 async function handleAdminCommand(input: AdminCommandInput): Promise<string> {
   const { host, session, user, enabled } = input
   if (!user) return '请指定用户'
+  if (!session.guildId) return '请在群聊中执行该命令。'
 
   const commandName = enabled ? 'admin' : 'unadmin'
-  const userId = String(user).split(':')[1]
+  const userId = resolveCommandUserId(user)
+  if (!userId) return '请指定正确的用户'
+
   try {
-    await session.bot.internal?.setGroupAdmin(session.guildId, userId, enabled)
+    const internal = session.bot.internal
+    if (typeof internal?.setGroupAdmin !== 'function') {
+      throw new Error('当前适配器不支持 OneBot set_group_admin')
+    }
+    await internal.setGroupAdmin(session.guildId, userId, enabled)
     host.logCommand(session, commandName, userId, enabled ? '成功：已设置为管理员' : '成功：已取消管理员')
     return enabled ? `已将 ${userId} 设置为管理员喵~` : `已取消 ${userId} 的管理员权限喵~`
   } catch (error) {
@@ -176,7 +200,9 @@ async function handleTitleCommand(input: TitleCommandInput): Promise<string> {
   if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
   if (!titleConfig.enabled) return '喵呜...头衔功能未启用...'
 
-  const targetId = options.u ? String(options.u).split(':')[1] : session.userId
+  const targetId = options.u ? resolveCommandUserId(options.u) : session.userId
+  if (!targetId) return '请指定正确的用户'
+
   try {
     if (options.s) return await setSpecialTitle({ host, session, targetId, value: options.s, titleConfig })
     if (options.r) return await removeSpecialTitle(host, session, targetId)

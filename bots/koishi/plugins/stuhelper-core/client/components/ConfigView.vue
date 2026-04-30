@@ -988,7 +988,7 @@ function applyNavigationState(): void {
   font-weight: 600;
   color: var(--fg1);
   margin: 0;
-  letter-spacing: -0.25px;
+  letter-spacing: 0;
 }
 
 /* ========== Header Left & Search ========== */

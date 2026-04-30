@@ -139,7 +139,7 @@
 .stuhelperGroupCenter-portal h4 {
   margin: 0;
   font-weight: var(--sh-w-semibold);
-  letter-spacing: -0.012em;
+  letter-spacing: 0;
   color: var(--sh-fg);
 }
 

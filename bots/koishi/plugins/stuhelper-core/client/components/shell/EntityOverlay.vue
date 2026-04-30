@@ -503,7 +503,7 @@ function formatDate(value: string | null): string {
   font-size: var(--sh-t-stat);
   font-weight: var(--sh-w-semibold);
   color: var(--sh-fg);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 

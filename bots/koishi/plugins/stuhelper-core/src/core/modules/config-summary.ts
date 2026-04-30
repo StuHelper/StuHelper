@@ -45,7 +45,6 @@ export function showAllConfig(host: ConfigSummaryHost, session: Session): string
     formatAutoMuteSection(model),
     formatAntiRepeatSection(model),
     formatAiSection(model),
-    formatEssenceSection(model),
     formatTitleSection(model),
     formatWarnSection(model),
     formatBlacklistSection(model),
@@ -123,12 +122,6 @@ function formatAiSection(model: ConfigSummaryModel): string {
 使用模型：${model.config.openai?.model || 'gpt-3.5-turbo'}
 API地址：${model.config.openai?.apiUrl || 'https://api.openai.com/v1'}
 本群状态：${groupAiEnabled === undefined ? '跟随全局' : groupAiEnabled ? '已启用' : '已禁用'}`
-}
-
-function formatEssenceSection(model: ConfigSummaryModel): string {
-  return `=== 精华消息 ===
-状态：${model.config.setEssenceMsg.enabled ? '已启用' : '未启用'}
-权限要求：${model.config.setEssenceMsg.authority} 级`
 }
 
 function formatTitleSection(model: ConfigSummaryModel): string {

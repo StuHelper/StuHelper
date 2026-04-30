@@ -53,6 +53,10 @@ async function handleBanCommand(host: OrderManageModule, session: Session, input
     host.logCommand(session, 'ban', 'none', '失败：无法读取目标用户', false)
     return '喵呜...请输入正确的用户（@或QQ号）'
   }
+  if (!parsed.groupId) {
+    host.logCommand(session, 'ban', parsed.userId, '失败：缺少群号', false)
+    return '喵呜...请在群聊中执行，或显式传入群号'
+  }
 
   try {
     const milliseconds = parseTimeString(parsed.duration)
@@ -69,8 +73,9 @@ async function handleBanCommand(host: OrderManageModule, session: Session, input
 
 function parseBanInput(session: Session, rawInput: string): TargetInput {
   let input = rawInput
-  if (session.quote && input.endsWith(session.quote.content.toString())) {
-    input = input.slice(0, input.length - session.quote.content.length).trim()
+  const quoteContent = String(session.quote?.content ?? '')
+  if (quoteContent && input.endsWith(quoteContent)) {
+    input = input.slice(0, input.length - quoteContent.length).trim()
   }
   const args = splitTargetArgs(input)
   const [target, duration, groupId] = args
@@ -96,8 +101,10 @@ function registerStopCommand(host: OrderManageModule): void {
 
 async function handleStopCommand(host: OrderManageModule, session: Session, user: unknown): Promise<string> {
   if (!user) return '请指定用户'
+  if (!session.guildId) return '请在群聊中执行该命令。'
 
-  const userId = String(user).split(':')[1]
+  const userId = resolveCommandUserId(user)
+  if (!userId) return '请指定正确的用户'
   const guildMutes = host.data.mutes.getAll()[session.guildId] || {}
   const lastMute = guildMutes[userId] || { startTime: 0, duration: 0 }
   if (lastMute.startTime + lastMute.duration > Date.now()) {
@@ -141,6 +148,11 @@ async function handleUnbanCommand(host: OrderManageModule, session: Session, inp
   }
 
   const targetGroup = groupId || session.guildId
+  if (!targetGroup) {
+    host.logCommand(session, 'unban', userId, '失败：缺少群号', false)
+    return '喵呜...请在群聊中执行，或显式传入群号'
+  }
+
   try {
     await session.bot.muteGuildMember(targetGroup, userId, 0)
     host.recordMute(targetGroup, userId, 0)
@@ -152,27 +164,35 @@ async function handleUnbanCommand(host: OrderManageModule, session: Session, inp
   }
 }
 
-function splitTargetArgs(input: string): string[] {
-  if (!input.includes('<at')) return input.split(/\s+/)
+function splitTargetArgs(input: string | undefined): string[] {
+  const source = (input || '').trim()
+  if (!source.includes('<at')) return source.split(/\s+/).filter(Boolean)
 
-  const atMatch = input.match(/<at[^>]+>/)
-  if (!atMatch) return input.split(/\s+/)
+  const atMatch = source.match(/<at[^>]+>/)
+  if (!atMatch) return source.split(/\s+/).filter(Boolean)
 
   const atPart = atMatch[0]
-  const restPart = input.replace(atPart, '').trim()
-  return [atPart, ...restPart.split(/\s+/)]
+  const restPart = source.replace(atPart, '').trim()
+  return [atPart, ...restPart.split(/\s+/)].filter(Boolean)
 }
 
-function resolveTargetUserId(target: string): string | null {
+function resolveTargetUserId(target: string | undefined): string | null {
   try {
-    if (target.startsWith('<at')) {
+    if (target?.startsWith('<at')) {
       const match = target.match(/id="(\d+)"/)
       if (match) return match[1]
-    } else {
+    } else if (target) {
       return parseUserId(target)
     }
   } catch {
-    return parseUserId(target)
+    return parseUserId(target || '')
   }
   return null
+}
+
+function resolveCommandUserId(user: unknown): string {
+  const raw = String(user || '').trim()
+  if (!raw) return ''
+  const [, platformUserId] = raw.split(':')
+  return platformUserId || resolveTargetUserId(raw) || ''
 }

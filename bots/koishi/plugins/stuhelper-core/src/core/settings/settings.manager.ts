@@ -53,10 +53,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     enabled: false,
     rejectMessage: '暂不接受入群邀请'
   },
-  setEssenceMsg: {
-    enabled: true,
-    authority: 3
-  },
   setTitle: {
     enabled: true,
     authority: 3,
