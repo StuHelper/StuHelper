@@ -7,8 +7,12 @@ import { Context, h } from 'koishi'
 import type {} from '@koishijs/plugin-console'
 import { StuhelperGroupCenterService } from '../services/stuhelper-group-center.service'
 import type { Subscription, Role, WarnRecord } from '../../types'
-import * as crypto from 'crypto'
 import { createAuthority4ListenerRegistrar } from './authority-listener'
+import {
+  createChatImageAccessRegistry,
+  fetchOneBotImage,
+  type ChatImageFetchParams,
+} from './chat-image-fetch'
 import { prependQuoteElement, serializeChatElements } from './chat-element-serializer'
 import { deliverChatMessageToClients } from './chat-delivery'
 import {
@@ -93,6 +97,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
 
   const addAuthorityListener = createAuthority4ListenerRegistrar(ctx.console)
   const data = service.data
+  const chatImageAccess = createChatImageAccessRegistry()
   const resolveConsoleScope = (client: unknown) => resolveRequiredConsoleGuildScope(client as any, {
     roles: service.auth.getRoles(),
     getUserRoleIds: (userId: string) => service.auth.getUserRoleIds(userId),
@@ -1355,93 +1360,13 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     }
   })
 
-  /** 图片代理 - 使用 get_image API 获取图片 */
-  addAuthorityListener('stuhelperGroupCenter/image/fetch', async (params: { url: string, file?: string }) => {
+  /** 图片代理 - 使用 OneBot v11 get_image 的消息段 file 参数获取图片 */
+  addAuthorityListener('stuhelperGroupCenter/image/fetch', async function (params: ChatImageFetchParams) {
     try {
-      const { url, file } = params
-      if (!url) return error('缺少 URL 参数')
-
-      let fileToUse = file
-      if (!fileToUse) {
-        try {
-          const urlObj = new URL(url)
-          const urlPath = urlObj.pathname
-          const pathParts = urlPath.split('/')
-          const lastPart = pathParts[pathParts.length - 1]
-          if (lastPart && (lastPart.includes('.') || /^[A-F0-9]{32}$/i.test(lastPart))) {
-            fileToUse = lastPart
-          }
-        } catch (e) {
-          ctx.logger('stuhelperGroupCenter').warn('解析图片 URL 失败: %s', toApiErrorMessage(e))
-        }
-      }
-
-      const imageErrors: string[] = []
-      for (const bot of ctx.bots) {
-        if (bot.platform === 'onebot' && (bot as any).internal?.getImage) {
-          try {
-            const fileParam = fileToUse || url
-            const result = await (bot as any).internal.getImage(fileParam)
-
-            if (result?.base64) {
-              let mimeType = 'image/png'
-              const fileName = result.file_name || result.file || ''
-              if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) mimeType = 'image/jpeg'
-              else if (fileName.endsWith('.gif')) mimeType = 'image/gif'
-              else if (fileName.endsWith('.webp')) mimeType = 'image/webp'
-
-              const dataUrl = `data:${mimeType};base64,${result.base64}`
-              const hash = crypto.createHash('md5').update(url).digest('hex')
-              return success({ dataUrl, hash, mimeType, source: 'local-base64' })
-            }
-
-            if (result?.url && result.url !== url) {
-              const newResponse = await fetch(result.url, {
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                  'Referer': ''
-                }
-              })
-              if (newResponse.ok) {
-                const buffer = await newResponse.arrayBuffer()
-                const base64 = Buffer.from(buffer).toString('base64')
-                const contentType = newResponse.headers.get('content-type') || 'image/jpeg'
-                const dataUrl = `data:${contentType};base64,${base64}`
-                const hash = crypto.createHash('md5').update(url).digest('hex')
-                return success({ dataUrl, hash, mimeType: contentType, source: 'local-url' })
-              }
-            }
-
-            if (result?.file) {
-              try {
-                const fs = await import('fs/promises')
-                const localBuffer = await fs.readFile(result.file)
-                const base64 = localBuffer.toString('base64')
-
-                let mimeType = 'image/png'
-                if (result.file.endsWith('.jpg') || result.file.endsWith('.jpeg')) mimeType = 'image/jpeg'
-                else if (result.file.endsWith('.gif')) mimeType = 'image/gif'
-                else if (result.file.endsWith('.webp')) mimeType = 'image/webp'
-
-                const dataUrl = `data:${mimeType};base64,${base64}`
-                const hash = crypto.createHash('md5').update(url).digest('hex')
-                return success({ dataUrl, hash, mimeType, source: 'local-file' })
-              } catch (e) {
-                const message = toApiErrorMessage(e)
-                imageErrors.push(message)
-                ctx.logger('stuhelperGroupCenter').warn('读取 OneBot 本地图片失败: %s', message)
-              }
-            }
-          } catch (e) {
-            const message = toApiErrorMessage(e)
-            imageErrors.push(message)
-            ctx.logger('stuhelperGroupCenter').warn('OneBot get_image 获取图片失败: %s', message)
-          }
-        }
-      }
-
-      const suffix = imageErrors.length > 0 ? `: ${imageErrors[imageErrors.length - 1]}` : ''
-      return error(`无法获取图片${suffix}`)
+      const scope = await resolveConsoleScope(this)
+      const request = chatImageAccess.assertAllowed(params, scope)
+      const result = await fetchOneBotImage(ctx.bots, request, ctx.logger('stuhelperGroupCenter'))
+      return success(result)
     } catch (e) {
       return error(e instanceof Error ? e.message : '获取图片失败')
     }
@@ -1565,6 +1490,7 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     const finalElements = Array.isArray(elements) && elements.length > 0
       ? elements
       : (session.elements || (content ? h.parse(content) : []))
+    chatImageAccess.remember(finalElements, session.guildId)
 
     // 如果是自己发送的消息，补充作者信息
     let username = session.author?.name || session.author?.nick || session.userId
@@ -1653,15 +1579,11 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   }
 
   // 监听收到消息
-  ctx.on('message', (session) => {
-    broadcastMessage(session)
-  })
+  ctx.on('message', (session) => broadcastMessage(session))
   ctx.logger('stuhelperGroupCenter').info('Chat message listener registered')
 
   // 监听发送消息
-  ctx.on('send', (session) => {
-    broadcastMessage(session, true)
-  })
+  ctx.on('send', (session) => broadcastMessage(session, true))
 
 }
 

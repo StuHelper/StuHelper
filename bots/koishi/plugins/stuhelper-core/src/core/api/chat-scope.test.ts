@@ -4,6 +4,10 @@ import test from 'node:test'
 import { registerWebSocketAPI } from './index'
 
 type Listener = (params: any) => Promise<{ success: boolean; error?: string }>
+type EventHandler = (session: any) => Promise<void>
+
+const CHAT_IMAGE_URL = 'https://gchat.qpic.cn/gchatpic_new/1/2-3-ABC/0'
+const CHAT_IMAGE_FILE = '6B4DE3DFD1BD271E3297859D41C530F5.jpg'
 
 test('chat guild APIs reject guilds outside the console scope', async () => {
   const listeners = new Map<string, Listener>()
@@ -51,6 +55,107 @@ test('chat write APIs reject messages outside the console scope', async () => {
     guildId: '2002',
     messageId: 'msg-1',
   })
+})
+
+test('chat image fetch requires a delivered OneBot image file', async () => {
+  const listeners = new Map<string, Listener>()
+  const imageFetches: string[] = []
+  const ctx = createContext(listeners)
+  ctx.bots[0].internal = {
+    getImage: async (file: string) => {
+      imageFetches.push(file)
+      return { base64: 'AAAA', file_name: file }
+    },
+  }
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/image/fetch', {
+    url: CHAT_IMAGE_URL,
+    file: CHAT_IMAGE_FILE,
+  })
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /not attached to a delivered chat message/)
+  assert.deepEqual(imageFetches, [])
+})
+
+test('chat image fetch passes only the OneBot file identifier to get_image', async () => {
+  const listeners = new Map<string, Listener>()
+  const events = new Map<string, EventHandler[]>()
+  const imageFetches: string[] = []
+  const ctx = createContext(listeners, events)
+  ctx.bots[0].internal = {
+    getImage: async (file: string) => {
+      imageFetches.push(file)
+      return { base64: 'AAAA', file_name: file }
+    },
+  }
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+  await emit(events, 'message', createImageMessageSession('1001'))
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/image/fetch', {
+    url: CHAT_IMAGE_URL,
+    file: CHAT_IMAGE_FILE,
+  })
+
+  assert.equal(result.success, true)
+  assert.equal(result.data?.mimeType, 'image/jpeg')
+  assert.deepEqual(imageFetches, [CHAT_IMAGE_FILE])
+})
+
+test('chat image fetch enforces the guild scope recorded from delivered messages', async () => {
+  const listeners = new Map<string, Listener>()
+  const events = new Map<string, EventHandler[]>()
+  const imageFetches: string[] = []
+  const ctx = createContext(listeners, events)
+  ctx.bots[0].internal = {
+    getImage: async (file: string) => {
+      imageFetches.push(file)
+      return { base64: 'AAAA', file_name: file }
+    },
+  }
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+  await emit(events, 'message', createImageMessageSession('2002'))
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/image/fetch', {
+    url: CHAT_IMAGE_URL,
+    file: CHAT_IMAGE_FILE,
+  })
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /outside of the current console guild scope/)
+  assert.deepEqual(imageFetches, [])
+})
+
+test('chat image fetch does not derive OneBot file identifiers from URLs', async () => {
+  const listeners = new Map<string, Listener>()
+  const events = new Map<string, EventHandler[]>()
+  const imageFetches: string[] = []
+  const ctx = createContext(listeners, events)
+  ctx.bots[0].internal = {
+    getImage: async (file: string) => {
+      imageFetches.push(file)
+      return { base64: 'AAAA', file_name: file }
+    },
+  }
+  const service = createService(['1001'])
+
+  registerWebSocketAPI(ctx as any, service as any)
+  await emit(events, 'message', createImageMessageSession('1001'))
+
+  const result = await callListener(listeners, 'stuhelperGroupCenter/image/fetch', {
+    url: CHAT_IMAGE_URL,
+  })
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /image file is required/)
+  assert.deepEqual(imageFetches, [])
 })
 
 test('chat send rejects oversized content', async () => {
@@ -286,9 +391,13 @@ async function callListener(
   return listener.call(createConsoleClient(), params)
 }
 
-function createContext(listeners: Map<string, Listener>) {
+function createContext(
+  listeners: Map<string, Listener>,
+  events: Map<string, EventHandler[]> = new Map(),
+) {
   return {
     console: {
+      clients: {},
       addListener(event: string, callback: Listener) {
         listeners.set(event, callback)
       },
@@ -297,8 +406,10 @@ function createContext(listeners: Map<string, Listener>) {
       {
         platform: 'onebot',
         selfId: 'bot-1',
+        internal: undefined as undefined | { getImage(file: string): Promise<unknown> },
         getGuildMemberList: async () => ({ data: [] }),
         getGuild: async (guildId: string) => ({ id: guildId, name: `guild-${guildId}` }),
+        getGuildMember: async (_guildId: string, userId: string) => ({ user: { name: userId } }),
         sendMessage: async () => ['msg-1'],
         deleteMessage: async () => undefined,
       },
@@ -314,13 +425,46 @@ function createContext(listeners: Map<string, Listener>) {
         return []
       },
     },
-    on() {},
+    on(event: string, handler: EventHandler) {
+      const handlers = events.get(event) ?? []
+      handlers.push(handler)
+      events.set(event, handlers)
+    },
     logger: () => ({
       debug() {},
       error() {},
       info() {},
       warn() {},
     }),
+  }
+}
+
+async function emit(events: Map<string, EventHandler[]>, event: string, session: any) {
+  for (const handler of events.get(event) ?? []) {
+    await handler(session)
+  }
+}
+
+function createImageMessageSession(guildId: string) {
+  return {
+    platform: 'onebot',
+    selfId: 'bot-1',
+    guildId,
+    channelId: guildId,
+    messageId: `msg-${guildId}`,
+    timestamp: 1,
+    userId: 'u1',
+    author: { name: 'u1' },
+    content: '',
+    elements: [
+      {
+        type: 'img',
+        attrs: {
+          src: CHAT_IMAGE_URL,
+          file: CHAT_IMAGE_FILE,
+        },
+      },
+    ],
   }
 }
 

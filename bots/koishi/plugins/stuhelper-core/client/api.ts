@@ -166,7 +166,7 @@ export interface ImageProxyResult {
   data?: {
     dataUrl?: string
     direct?: boolean
-    source?: 'local' | 'proxy'
+    source?: string
   }
   error?: string
 }

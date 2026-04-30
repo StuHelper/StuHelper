@@ -35,7 +35,7 @@ async function fetchImage(url: string, file: string | undefined, cacheKey: strin
     const result = await imageApi.fetch(url, file)
     const resolved = resolveImageResult(result, url, file)
     imageCache.set(cacheKey, resolved ?? 'error')
-    if (resolved && result?.data?.source === 'local' && file) {
+    if (resolved && file) {
       imageCache.set(url, resolved)
     }
     return resolved

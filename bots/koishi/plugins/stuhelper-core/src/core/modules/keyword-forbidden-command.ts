@@ -163,7 +163,6 @@ function setForbiddenDuration(input: ForbiddenFlagInput): string {
 
 function setEchoFlag(input: ForbiddenFlagInput): string {
   const state = parseBooleanOption(input.value)
-  console.log('echo state', state)
   if (state === null) return '无效的值，请使用 true/false'
 
   ensureForbiddenConfig(input.host, input.groupConfig).echo = state
