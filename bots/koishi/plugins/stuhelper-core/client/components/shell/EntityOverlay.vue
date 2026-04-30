@@ -1,18 +1,19 @@
 <template>
   <Teleport to="body">
-    <div
-      class="sh-overlay__scrim"
-      :data-open="open ? 'true' : 'false'"
-      @click="close"
-    ></div>
-    <aside
-      class="sh-overlay"
-      :data-open="open ? 'true' : 'false'"
-      role="dialog"
-      aria-modal="true"
-      :aria-hidden="open ? 'false' : 'true'"
-    >
-      <template v-if="display">
+    <div class="stuhelperGroupCenter-portal">
+      <div
+        class="sh-overlay__scrim"
+        :data-open="open ? 'true' : 'false'"
+        @click="close"
+      ></div>
+      <aside
+        class="sh-overlay"
+        :data-open="open ? 'true' : 'false'"
+        role="dialog"
+        aria-modal="true"
+        :aria-hidden="open ? 'false' : 'true'"
+      >
+        <template v-if="display">
         <header class="sh-overlay__head">
           <div class="sh-overlay__head-copy">
             <span class="sh-overlay__kind">
@@ -216,8 +217,9 @@
             </section>
           </template>
         </div>
-      </template>
-    </aside>
+        </template>
+      </aside>
+    </div>
   </Teleport>
 </template>
 
@@ -326,7 +328,7 @@ const jumps = computed<readonly JumpDef[]>(() => {
 })
 
 async function loadProfile(target: EntityRef) {
-  const key = `${target.kind}:${target.id}:${target.guildId ?? ''}`
+  const key = entityKey(target)
   state.loading = true
   state.error = ''
   if (state.loadedKey !== key) {
@@ -338,15 +340,24 @@ async function loadProfile(target: EntityRef) {
       id: target.id,
       guildId: target.guildId,
     })
-    if (shell.entityTarget.value && shell.entityTarget.value.id === target.id) {
+    if (entityKey(shell.entityTarget.value) === key) {
       state.profile = profile
       state.loadedKey = key
     }
   } catch (cause) {
-    state.error = cause instanceof Error ? cause.message : '加载失败'
+    if (entityKey(shell.entityTarget.value) === key) {
+      state.error = cause instanceof Error ? cause.message : '加载失败'
+    }
   } finally {
-    state.loading = false
+    if (entityKey(shell.entityTarget.value) === key) {
+      state.loading = false
+    }
   }
+}
+
+function entityKey(target: EntityRef | null): string | null {
+  if (!target) return null
+  return `${target.kind}:${target.id}:${target.guildId ?? ''}`
 }
 
 function reload() {

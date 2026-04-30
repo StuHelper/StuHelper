@@ -102,7 +102,7 @@
                   {{ member.memberName || member.memberId }}
                 </div>
                 <div class="sh-lane__subtitle">
-                  <EntityChip kind="guild" :id="member.guildId" inline @click.stop />
+                  <EntityChip kind="guild" :id="member.guildId" inline />
                   · {{ member.profile?.verificationState || member.verificationState }}
                   · 截止 {{ formatTimestamp(member.deadlineAt) }}
                 </div>
@@ -224,7 +224,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { consolePageApi } from '../page-api'
@@ -240,6 +240,8 @@ import WorkspaceSection from './primitives/WorkspaceSection.vue'
 const props = defineProps<{
   navigation?: ConsoleNavigationController
 }>()
+
+const NAV_KEY_SEPARATOR = '|'
 
 const loading = ref(false)
 const error = ref('')
@@ -273,21 +275,47 @@ const detailCards = computed(() => model.value?.detailCards ?? [])
 
 loadData()
 
+watch(
+  () => navigationStateKey(),
+  () => {
+    const state = props.navigation?.state.value
+    if (state?.view !== 'identity' || !data.value) return
+    applyNavigationState()
+    syncSelection()
+  },
+)
+
 async function loadData() {
   loading.value = true
   error.value = ''
   try {
     data.value = await consolePageApi.identity()
-    selectedGuildId.value = props.navigation?.state.value.guildId || ''
-    keyword.value = props.navigation?.state.value.keyword || ''
-    const requestedId = props.navigation?.state.value.itemId || ''
-    selectedMemberId.value = requestedId || data.value.members[0]?.id || ''
+    applyNavigationState()
     syncSelection()
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : String(cause)
   } finally {
     loading.value = false
   }
+}
+
+function applyNavigationState() {
+  const state = props.navigation?.state.value
+  selectedGuildId.value = state?.guildId || ''
+  keyword.value = state?.keyword || state?.memberId || ''
+  selectedMemberId.value = state?.itemId || ''
+}
+
+function navigationStateKey(): string {
+  const state = props.navigation?.state.value
+  if (!state) return ''
+  return [
+    state.view,
+    state.guildId ?? '',
+    state.memberId ?? '',
+    state.itemId ?? '',
+    state.keyword,
+  ].join(NAV_KEY_SEPARATOR)
 }
 
 function selectMember(memberId: string) {

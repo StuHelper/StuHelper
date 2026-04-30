@@ -1,7 +1,11 @@
 <template>
   <Teleport to="body">
     <transition name="sh-search-fade">
-      <div v-if="shell.searchOpen.value" class="sh-search" @click.self="close">
+      <div
+        v-if="shell.searchOpen.value"
+        class="stuhelperGroupCenter-portal sh-search"
+        @click.self="close"
+      >
         <div class="sh-search__panel" role="dialog" aria-modal="true" aria-label="全站搜索">
           <div class="sh-search__head">
             <span class="sh-search__icon" aria-hidden="true">⌕</span>
@@ -14,7 +18,7 @@
               @keydown.down.prevent="moveFocus(1)"
               @keydown.up.prevent="moveFocus(-1)"
               @keydown.enter.prevent="executeActive"
-              @keydown.escape.prevent="close"
+              @keydown.escape.stop.prevent="close"
             />
             <span class="sh-cmd__kbd">Esc</span>
           </div>

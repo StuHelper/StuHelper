@@ -2,6 +2,7 @@ import type { ReviewPageData, ReviewWorkItem } from '../page-types'
 
 export interface ReviewModelOptions {
   workspace?: string | null
+  guildId?: string | null
   keyword?: string
   itemId?: string | null
 }
@@ -28,6 +29,9 @@ export function buildReviewModel(data: ReviewPageData, options: ReviewModelOptio
   const keyword = (options.keyword || '').trim().toLowerCase()
   const filteredItems = data.items.filter((item) => {
     if (workspace && item.kind !== workspace) {
+      return false
+    }
+    if (options.guildId && item.guildId !== options.guildId) {
       return false
     }
     if (!keyword) {

@@ -33,8 +33,13 @@ export interface RawWarnEntry {
 
 export interface RawBlacklistEntry {
   userId: string
+  guildId?: string
   timestamp: number
   reason?: string
+}
+
+export interface EntityProfileScope {
+  readonly guildIds: ReadonlySet<string> | null
 }
 
 export interface EntityPageServiceDeps {
@@ -49,57 +54,51 @@ export interface EntityPageServiceDeps {
   resolveUserName: UserNameLookup
 }
 
+interface ScopedEntityFacts {
+  readonly warnsByGuild: Record<string, Record<string, RawWarnEntry>>
+  readonly blacklistMap: Record<string, RawBlacklistEntry>
+  readonly guardRecords: GuardMemberRecord[]
+  readonly reviews: ReviewQueueRecord[]
+  readonly reports: ModerationReportRecord[]
+  readonly events: ModerationEventRecord[]
+}
+
 const RECENT_LIMIT = 10
 const EVENT_FETCH_LIMIT = 200
+const GLOBAL_ENTITY_SCOPE: EntityProfileScope = { guildIds: null }
 
 export class EntityPageService {
   constructor(private readonly deps: EntityPageServiceDeps) {}
 
-  async getProfile(query: EntityProfileQuery): Promise<EntityProfile> {
+  async getProfile(
+    query: EntityProfileQuery,
+    scope: EntityProfileScope = GLOBAL_ENTITY_SCOPE,
+  ): Promise<EntityProfile> {
     const id = query.id?.trim()
     if (!id) {
       throw new Error('entity profile: id is required')
     }
     if (query.kind === 'user') {
-      return this.getUserProfile(id, query.guildId?.trim() || undefined)
+      const contextGuildId = query.guildId?.trim() || undefined
+      assertScopeGuildAccess(scope, contextGuildId, 'entity profile guild context')
+      return this.getUserProfile(id, scope)
     }
+    assertScopeGuildAccess(scope, id, 'entity profile guild')
     return this.getGuildProfile(id)
   }
 
-  private async getUserProfile(userId: string, _contextGuildId?: string): Promise<UserEntityProfile> {
-    const [warnsByGuild, blacklistMap, guardRecords, reviews, reports, events] = await Promise.all([
-      this.deps.loadWarns(),
-      this.deps.loadBlacklist(),
-      this.deps.loadGuardRecords(),
-      this.deps.loadReviews(),
-      this.deps.loadReports(),
-      this.deps.loadEvents(EVENT_FETCH_LIMIT),
-    ])
-
-    const warns = collectUserWarns(warnsByGuild, userId, this.deps.resolveGuildName)
-    const blacklist = mapBlacklist(blacklistMap[userId])
-    const restricted = guardRecords
-      .filter((record) => record.memberId === userId)
-      .map((record) => toRestrictedFact(record, this.deps.resolveGuildName))
-      .sort(byJoinedDesc)
-      .slice(0, RECENT_LIMIT)
-    const userReviews = reviews
-      .filter((review) => review.memberId === userId)
-      .map((review) => toReviewFact(review, this.deps.resolveGuildName))
-      .sort(byCreatedDesc)
-      .slice(0, RECENT_LIMIT)
-    const userReports = reports
-      .filter((report) => report.targetMemberId === userId || report.reporterMemberId === userId)
-      .map((report) => toReportFact(report, this.deps.resolveGuildName))
-      .sort(byCreatedDesc)
-      .slice(0, RECENT_LIMIT)
-    const userEvents = events
-      .filter((event) => event.memberId === userId)
-      .map((event) => toEventFact(event, this.deps.resolveGuildName))
-      .sort(byCreatedDesc)
-      .slice(0, RECENT_LIMIT)
-
-    const userMeta = this.deps.resolveUserName(userId)
+  private async getUserProfile(userId: string, scope: EntityProfileScope): Promise<UserEntityProfile> {
+    const facts = await this.loadScopedFacts(scope)
+    const warns = collectUserWarns(facts.warnsByGuild, userId, this.deps.resolveGuildName)
+    const blacklist = mapBlacklist(facts.blacklistMap[userId], scope)
+    const restricted = collectUserRestricted(facts.guardRecords, userId, this.deps.resolveGuildName)
+    const userReviews = collectUserReviews(facts.reviews, userId, this.deps.resolveGuildName)
+    const userReports = collectUserReports(facts.reports, userId, this.deps.resolveGuildName)
+    const userEvents = collectUserEvents(facts.events, userId, this.deps.resolveGuildName)
+    const hasScopedFacts = hasUserFacts(warns, blacklist, restricted, userReviews, userReports, userEvents)
+    const userMeta = hasScopedFacts || scope.guildIds === null
+      ? this.deps.resolveUserName(userId)
+      : undefined
 
     return {
       kind: 'user',
@@ -121,6 +120,26 @@ export class EntityPageService {
       reviews: userReviews,
       reports: userReports,
       recentEvents: userEvents,
+    }
+  }
+
+  private async loadScopedFacts(scope: EntityProfileScope): Promise<ScopedEntityFacts> {
+    const [warnsByGuild, blacklistMap, guardRecords, reviews, reports, events] = await Promise.all([
+      this.deps.loadWarns(),
+      this.deps.loadBlacklist(),
+      this.deps.loadGuardRecords(),
+      this.deps.loadReviews(),
+      this.deps.loadReports(),
+      this.deps.loadEvents(EVENT_FETCH_LIMIT),
+    ])
+
+    return {
+      warnsByGuild: filterWarnsByScope(warnsByGuild, scope),
+      blacklistMap,
+      guardRecords: filterGuildRecords(guardRecords, scope),
+      reviews: filterGuildRecords(reviews, scope),
+      reports: filterGuildRecords(reports, scope),
+      events: filterGuildRecords(events, scope),
     }
   }
 
@@ -198,6 +217,15 @@ export class EntityPageService {
   }
 }
 
+function assertScopeGuildAccess(
+  scope: EntityProfileScope,
+  guildId: string | undefined,
+  resource: string,
+): void {
+  if (scope.guildIds === null || !guildId || scope.guildIds.has(guildId)) return
+  throw new Error(`${resource} is outside of the current console guild scope: ${guildId}`)
+}
+
 function collectUserWarns(
   warnsByGuild: Record<string, Record<string, RawWarnEntry>>,
   userId: string,
@@ -219,13 +247,113 @@ function collectUserWarns(
   return result.slice(0, RECENT_LIMIT)
 }
 
-function mapBlacklist(entry: RawBlacklistEntry | undefined): EntityBlacklistFact | null {
+function collectUserRestricted(
+  records: readonly GuardMemberRecord[],
+  userId: string,
+  resolveGuildName: GuildNameLookup,
+) {
+  return records
+    .filter((record) => record.memberId === userId)
+    .map((record) => toRestrictedFact(record, resolveGuildName))
+    .sort(byJoinedDesc)
+    .slice(0, RECENT_LIMIT)
+}
+
+function collectUserReviews(
+  reviews: readonly ReviewQueueRecord[],
+  userId: string,
+  resolveGuildName: GuildNameLookup,
+) {
+  return reviews
+    .filter((review) => review.memberId === userId)
+    .map((review) => toReviewFact(review, resolveGuildName))
+    .sort(byCreatedDesc)
+    .slice(0, RECENT_LIMIT)
+}
+
+function collectUserReports(
+  reports: readonly ModerationReportRecord[],
+  userId: string,
+  resolveGuildName: GuildNameLookup,
+) {
+  return reports
+    .filter((report) => report.targetMemberId === userId || report.reporterMemberId === userId)
+    .map((report) => toReportFact(report, resolveGuildName))
+    .sort(byCreatedDesc)
+    .slice(0, RECENT_LIMIT)
+}
+
+function collectUserEvents(
+  events: readonly ModerationEventRecord[],
+  userId: string,
+  resolveGuildName: GuildNameLookup,
+) {
+  return events
+    .filter((event) => event.memberId === userId)
+    .map((event) => toEventFact(event, resolveGuildName))
+    .sort(byCreatedDesc)
+    .slice(0, RECENT_LIMIT)
+}
+
+function hasUserFacts(
+  warns: readonly EntityWarnFact[],
+  blacklist: EntityBlacklistFact | null,
+  restricted: readonly EntityRestrictedFact[],
+  reviews: readonly EntityReviewFact[],
+  reports: readonly EntityReportFact[],
+  events: readonly EntityEventFact[],
+): boolean {
+  return Boolean(
+    warns.length ||
+    blacklist ||
+    restricted.length ||
+    reviews.length ||
+    reports.length ||
+    events.length
+  )
+}
+
+function mapBlacklist(
+  entry: RawBlacklistEntry | undefined,
+  scope: EntityProfileScope,
+): EntityBlacklistFact | null {
   if (!entry) return null
+  if (!hasBlacklistScopeAccess(entry, scope)) return null
   return {
     userId: entry.userId,
     reason: entry.reason ?? null,
     addedAt: entry.timestamp ? new Date(entry.timestamp).toISOString() : null,
   }
+}
+
+function hasBlacklistScopeAccess(
+  entry: RawBlacklistEntry,
+  scope: EntityProfileScope,
+): boolean {
+  if (scope.guildIds === null) return true
+  return typeof entry.guildId === 'string' && scope.guildIds.has(entry.guildId)
+}
+
+function filterWarnsByScope(
+  warnsByGuild: Record<string, Record<string, RawWarnEntry>>,
+  scope: EntityProfileScope,
+) {
+  if (scope.guildIds === null) return warnsByGuild
+  const guildIds = scope.guildIds
+  return Object.fromEntries(
+    Object.entries(warnsByGuild).filter(([guildId]) => guildIds.has(guildId)),
+  )
+}
+
+function filterGuildRecords<T extends { guildId?: string | null }>(
+  records: readonly T[],
+  scope: EntityProfileScope,
+): T[] {
+  if (scope.guildIds === null) return [...records]
+  const guildIds = scope.guildIds
+  return records.filter((record) => {
+    return typeof record.guildId === 'string' && guildIds.has(record.guildId)
+  })
 }
 
 function toRestrictedFact(record: GuardMemberRecord, resolveGuildName: GuildNameLookup): EntityRestrictedFact {

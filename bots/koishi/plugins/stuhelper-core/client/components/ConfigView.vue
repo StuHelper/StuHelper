@@ -675,10 +675,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { message } from '@koishijs/client'
 import { configApi } from '../api'
+import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import type { GroupConfig } from '../types'
+
+const props = defineProps<{
+  navigation?: ConsoleNavigationController
+}>()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -877,8 +882,22 @@ const copyGuildId = (guildId?: string) => {
 }
 
 onMounted(() => {
-  refreshConfigs()
+  void refreshConfigs().then(applyNavigationState)
 })
+
+watch(
+  () => props.navigation?.state.value,
+  (state) => {
+    if (state?.view !== 'config') return
+    applyNavigationState()
+  },
+)
+
+function applyNavigationState(): void {
+  const state = props.navigation?.state.value
+  if (state?.view !== 'config') return
+  searchQuery.value = state.keyword || state.guildId || ''
+}
 </script>
 
 <style scoped>

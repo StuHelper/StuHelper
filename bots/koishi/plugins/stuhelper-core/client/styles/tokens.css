@@ -11,7 +11,8 @@
  * - 语义色用 OKLCH；严重度只有 danger / warning / success / info / primary 五种。
  */
 
-.stuhelperGroupCenter-app {
+.stuhelperGroupCenter-app,
+.stuhelperGroupCenter-portal {
   /* ── Spacing (4-based) ─────────────────────────── */
   --sh-s-1: 4px;
   --sh-s-2: 8px;
@@ -121,14 +122,21 @@
 
 .stuhelperGroupCenter-app *,
 .stuhelperGroupCenter-app *::before,
-.stuhelperGroupCenter-app *::after {
+.stuhelperGroupCenter-app *::after,
+.stuhelperGroupCenter-portal *,
+.stuhelperGroupCenter-portal *::before,
+.stuhelperGroupCenter-portal *::after {
   box-sizing: border-box;
 }
 
 .stuhelperGroupCenter-app h1,
 .stuhelperGroupCenter-app h2,
 .stuhelperGroupCenter-app h3,
-.stuhelperGroupCenter-app h4 {
+.stuhelperGroupCenter-app h4,
+.stuhelperGroupCenter-portal h1,
+.stuhelperGroupCenter-portal h2,
+.stuhelperGroupCenter-portal h3,
+.stuhelperGroupCenter-portal h4 {
   margin: 0;
   font-weight: var(--sh-w-semibold);
   letter-spacing: -0.012em;
@@ -136,24 +144,30 @@
 }
 
 .stuhelperGroupCenter-app code,
-.stuhelperGroupCenter-app .sh-mono {
+.stuhelperGroupCenter-app .sh-mono,
+.stuhelperGroupCenter-portal code,
+.stuhelperGroupCenter-portal .sh-mono {
   font-family: var(--sh-font-mono);
   font-feature-settings: 'zero', 'ss01';
 }
 
-.stuhelperGroupCenter-app .sh-num {
+.stuhelperGroupCenter-app .sh-num,
+.stuhelperGroupCenter-portal .sh-num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum', 'zero';
 }
 
 .dark .stuhelperGroupCenter-app,
-html[data-theme='dark'] .stuhelperGroupCenter-app {
+.dark .stuhelperGroupCenter-portal,
+html[data-theme='dark'] .stuhelperGroupCenter-app,
+html[data-theme='dark'] .stuhelperGroupCenter-portal {
   --sh-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--sh-border);
   --sh-shadow-overlay: 0 16px 40px rgba(0, 0, 0, 0.5), 0 4px 10px rgba(0, 0, 0, 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stuhelperGroupCenter-app * {
+  .stuhelperGroupCenter-app *,
+  .stuhelperGroupCenter-portal * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }

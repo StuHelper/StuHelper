@@ -1,6 +1,14 @@
 <template>
   <header class="sh-cmd">
     <div class="sh-cmd__crumb">
+      <button
+        type="button"
+        class="sh-cmd__menu"
+        :title="shell.railExpanded.value ? '收起导航' : '展开导航'"
+        @click="shell.toggleRail()"
+      >
+        <k-icon name="stuhelperGroupCenter:octicons.three-bars" />
+      </button>
       <span class="sh-cmd__crumb-section">{{ crumb.section }}</span>
       <span class="sh-cmd__crumb-sep">/</span>
       <span class="sh-cmd__crumb-page">{{ crumb.page }}</span>

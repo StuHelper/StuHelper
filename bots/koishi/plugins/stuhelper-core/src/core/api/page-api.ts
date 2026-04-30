@@ -21,7 +21,7 @@ import {
   IdentityPageService,
   ReviewPageService,
 } from '../services'
-import type { EntityProfileQuery } from '../services/page-types'
+import type { EntityProfileQuery, EntityProfileScope } from '../services'
 import { IdentityProfileLookup } from './identity-profile-lookup'
 import {
   buildScopedConfigGovernancePageData,
@@ -230,6 +230,7 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
   }, { authority: 4 })
 
   ctx.console.addListener('stuhelperGroupCenter/page/entity-profile', async function (query: EntityProfileQuery) {
+    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx, options.service))
     if (!query || (query.kind !== 'user' && query.kind !== 'guild')) {
       throw new Error('entity profile: kind must be user or guild')
     }
@@ -241,8 +242,17 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
       kind: query.kind,
       id: trimmedId,
       guildId: typeof query.guildId === 'string' ? query.guildId.trim() || undefined : undefined,
-    })
+    }, toEntityProfileScope(scope))
   }, { authority: 4 })
+}
+
+function toEntityProfileScope(
+  scope: Awaited<ReturnType<typeof resolveRequiredConsoleGuildScope>>,
+): EntityProfileScope {
+  if (scope.kind === 'all') {
+    return { guildIds: null }
+  }
+  return { guildIds: scope.guildIds }
 }
 
 async function listGuardRecords(ctx: Context) {

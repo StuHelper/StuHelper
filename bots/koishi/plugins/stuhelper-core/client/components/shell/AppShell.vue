@@ -51,6 +51,7 @@ const pulse = usePulse()
 const activeComponent = computed(() => pages.resolve(navigation.state.value.view))
 
 function onKeydown(event: KeyboardEvent): void {
+  if (event.defaultPrevented) return
   const isMac = navigator.platform.toLowerCase().includes('mac')
   const meta = isMac ? event.metaKey : event.ctrlKey
   if (meta && event.key === 'k') {

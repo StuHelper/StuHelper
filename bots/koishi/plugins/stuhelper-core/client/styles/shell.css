@@ -53,11 +53,25 @@
 
 @media (max-width: 720px) {
   .sh-shell {
-    grid-template-columns: 0 minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'cmd'
+      'main';
   }
 
-  .sh-shell[data-rail-expanded='true'] {
-    grid-template-columns: var(--sh-rail-w-expanded) 0;
+  .sh-shell__rail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--sh-rail-w-expanded);
+    z-index: var(--sh-z-overlay);
+    transform: translateX(-100%);
+    transition: transform var(--sh-dur-base) var(--sh-ease);
+  }
+
+  .sh-shell[data-rail-expanded='true'] .sh-shell__rail {
+    transform: translateX(0);
   }
 
   .sh-shell__main {
@@ -312,6 +326,24 @@
   color: var(--sh-fg-2);
 }
 
+.sh-cmd__menu {
+  display: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-1);
+  color: var(--sh-fg-2);
+  cursor: pointer;
+}
+
+.sh-cmd__menu:hover {
+  border-color: var(--sh-border-strong);
+  background: var(--sh-surface-hover);
+  color: var(--sh-fg);
+}
+
 .sh-cmd__crumb-section {
   font: var(--sh-w-medium) var(--sh-t-caption) / 1 var(--sh-font-mono);
   letter-spacing: 0.16em;
@@ -474,6 +506,13 @@
 
   .sh-cmd__pulse-label {
     display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .sh-cmd__menu {
+    display: inline-grid;
+    flex: 0 0 auto;
   }
 }
 

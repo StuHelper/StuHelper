@@ -1,6 +1,7 @@
 <template>
   <el-drawer
     class="sh-drawer"
+    modal-class="stuhelperGroupCenter-portal"
     :model-value="open"
     :with-header="false"
     :append-to-body="true"

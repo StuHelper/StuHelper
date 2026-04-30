@@ -61,7 +61,7 @@
             <div class="sh-lane__body">
               <div class="sh-lane__title">{{ guildName(guildId) }}</div>
               <div class="sh-lane__subtitle">
-                <EntityChip kind="guild" :id="guildId" inline @click.stop />
+                <EntityChip kind="guild" :id="guildId" inline />
                 · {{ groupCount(guildId) }} 条记录
               </div>
             </div>
@@ -176,6 +176,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import { warnsApi } from '../api'
 import { useConfirm } from '../composables/use-confirm'
+import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { formatTimestamp } from '../models/formatters'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
@@ -202,6 +203,10 @@ interface ProcessedWarn {
   timestamp: number
 }
 
+const props = defineProps<{
+  navigation?: ConsoleNavigationController
+}>()
+
 const COLUMNS: QueueTableColumn[] = [
   { key: 'user', label: '用户' },
   { key: 'time', label: '时间', width: '180' },
@@ -214,6 +219,8 @@ const adding = ref(false)
 const fetchNames = ref(true)
 const addOpen = ref(false)
 const selectedGuildId = ref('')
+const guildFilter = ref('')
+const keyword = ref('')
 const notices = ref<NoticeItem[]>([])
 const lastSync = ref('')
 const groups = ref<Record<string, ProcessedWarn[]>>({})
@@ -225,12 +232,16 @@ const {
   cancel: cancelConfirm,
 } = useConfirm()
 
-const guildIds = computed(() => Object.keys(groups.value))
+const filteredGroups = computed(() => filterWarnGroups(groups.value, {
+  guildId: guildFilter.value,
+  keyword: keyword.value,
+}))
+const guildIds = computed(() => Object.keys(filteredGroups.value))
 const selectedGroup = computed(() =>
-  selectedGuildId.value ? groups.value[selectedGuildId.value] ?? null : null,
+  selectedGuildId.value ? filteredGroups.value[selectedGuildId.value] ?? null : null,
 )
 const totalRecords = computed(() =>
-  Object.values(groups.value).reduce((acc, list) => acc + list.length, 0),
+  Object.values(filteredGroups.value).reduce((acc, list) => acc + list.length, 0),
 )
 
 const rows = computed<QueueTableRow[]>(() => {
@@ -272,10 +283,19 @@ watch(guildIds, (ids) => {
     selectedGuildId.value = ''
     return
   }
-  if (!selectedGuildId.value || !groups.value[selectedGuildId.value]) {
+  applyNavigationState()
+  if (!selectedGuildId.value || !filteredGroups.value[selectedGuildId.value]) {
     selectedGuildId.value = ids[0]
   }
 })
+
+watch(
+  () => props.navigation?.state.value,
+  (state) => {
+    if (state?.view !== 'warns') return
+    applyNavigationState()
+  },
+)
 
 onMounted(refresh)
 
@@ -290,6 +310,7 @@ async function refresh() {
     }
     groups.value = next
     lastSync.value = formatTimestamp(Date.now())
+    applyNavigationState()
   } catch (cause) {
     pushError(cause, '加载警告记录失败')
   } finally {
@@ -378,7 +399,42 @@ function guildName(guildId: string): string {
 }
 
 function groupCount(guildId: string): number {
-  return groups.value[guildId]?.length ?? 0
+  return filteredGroups.value[guildId]?.length ?? 0
+}
+
+function applyNavigationState(): void {
+  const state = props.navigation?.state.value
+  if (state?.view !== 'warns') return
+  guildFilter.value = state.guildId || ''
+  keyword.value = state.keyword || ''
+  if (state.guildId) {
+    selectedGuildId.value = state.guildId
+  }
+}
+
+interface WarnGroupFilter {
+  readonly guildId: string
+  readonly keyword: string
+}
+
+function filterWarnGroups(
+  source: Record<string, ProcessedWarn[]>,
+  filter: WarnGroupFilter,
+): Record<string, ProcessedWarn[]> {
+  const query = filter.keyword.trim().toLowerCase()
+  return Object.fromEntries(
+    Object.entries(source)
+      .filter(([guildId]) => !filter.guildId || guildId === filter.guildId)
+      .map(([guildId, list]) => [guildId, list.filter((item) => matchesWarn(item, query))] as const)
+      .filter(([, list]) => list.length > 0),
+  )
+}
+
+function matchesWarn(item: ProcessedWarn, query: string): boolean {
+  if (!query) return true
+  return [item.userId, item.userName, item.guildId, item.guildName]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(query))
 }
 
 function severityDot(count: number): string {

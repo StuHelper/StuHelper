@@ -196,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { useConfirm, type ConfirmTone } from '../composables/use-confirm'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
@@ -215,10 +215,13 @@ const props = defineProps<{
   navigation?: ConsoleNavigationController
 }>()
 
+const NAV_KEY_SEPARATOR = '|'
+
 const loading = ref(false)
 const error = ref('')
 const data = ref<ReviewPageData | null>(null)
 const kindFilter = ref('')
+const guildFilter = ref('')
 const keyword = ref('')
 const selectedItemId = ref('')
 const reviewNote = ref('')
@@ -234,6 +237,7 @@ const model = computed(() => {
   if (!data.value) return null
   return buildReviewModel(data.value, {
     workspace: kindFilter.value,
+    guildId: guildFilter.value,
     keyword: keyword.value,
     itemId: selectedItemId.value,
   })
@@ -245,20 +249,48 @@ const relatedEvents = computed(() => model.value?.relatedEvents ?? [])
 
 loadData()
 
+watch(
+  () => navigationStateKey(),
+  () => {
+    const state = props.navigation?.state.value
+    if (state?.view !== 'review' || !data.value) return
+    applyNavigationState()
+    syncSelection()
+  },
+)
+
 async function loadData() {
   loading.value = true
   error.value = ''
   try {
     data.value = await consolePageApi.review()
-    kindFilter.value = props.navigation?.state.value.workspace || ''
-    keyword.value = props.navigation?.state.value.keyword || ''
-    selectedItemId.value = props.navigation?.state.value.itemId || data.value.items[0]?.id || ''
+    applyNavigationState()
     syncSelection()
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : String(cause)
   } finally {
     loading.value = false
   }
+}
+
+function applyNavigationState() {
+  const state = props.navigation?.state.value
+  kindFilter.value = state?.workspace || ''
+  guildFilter.value = state?.guildId || ''
+  keyword.value = state?.keyword || ''
+  selectedItemId.value = state?.itemId || ''
+}
+
+function navigationStateKey(): string {
+  const state = props.navigation?.state.value
+  if (!state) return ''
+  return [
+    state.view,
+    state.workspace ?? '',
+    state.guildId ?? '',
+    state.itemId ?? '',
+    state.keyword,
+  ].join(NAV_KEY_SEPARATOR)
 }
 
 function selectItem(itemId: string) {

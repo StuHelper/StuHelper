@@ -106,6 +106,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import { blacklistApi } from '../api'
 import { useConfirm } from '../composables/use-confirm'
+import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import type { BlacklistRecord } from '../types'
 import { formatTimestamp } from '../models/formatters'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
@@ -126,6 +127,10 @@ const COLUMNS: QueueTableColumn[] = [
   { key: 'time', label: '加入时间', width: '220' },
 ]
 
+const props = defineProps<{
+  navigation?: ConsoleNavigationController
+}>()
+
 const loading = ref(false)
 const adding = ref(false)
 const addOpen = ref(false)
@@ -140,9 +145,8 @@ const {
   cancel: cancelConfirm,
 } = useConfirm()
 
-const entries = computed(() =>
-  Object.entries(blacklist.value).map(([userId, record]) => ({ userId, record })),
-)
+const keyword = computed(() => props.navigation?.state.value.keyword.trim().toLowerCase() ?? '')
+const entries = computed(() => filterBlacklistEntries(blacklist.value, keyword.value))
 
 const rows = computed<QueueTableRow[]>(() =>
   entries.value.map(({ userId, record }) => ({
@@ -237,6 +241,18 @@ function formatUserId(id: string): string {
     if (match) return match[1]
   }
   return id
+}
+
+function filterBlacklistEntries(
+  records: Record<string, BlacklistRecord>,
+  query: string,
+) {
+  const entries = Object.entries(records).map(([userId, record]) => ({ userId, record }))
+  if (!query) return entries
+  return entries.filter(({ userId }) => {
+    return [userId, formatUserId(userId)]
+      .some((value) => value.toLowerCase().includes(query))
+  })
 }
 
 function pushSuccess(message: string) {

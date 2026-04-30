@@ -233,9 +233,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import { logsApi } from '../api'
+import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import type { LogRecord, LogSearchParams } from '../types'
 import { formatTimestamp } from '../models/formatters'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
@@ -246,6 +247,10 @@ import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
 import SeverityTag from './primitives/SeverityTag.vue'
 import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
+
+const props = defineProps<{
+  navigation?: ConsoleNavigationController
+}>()
 
 const loading = ref(false)
 const logs = ref<LogRecord[]>([])
@@ -273,7 +278,38 @@ const headerChips = computed<WorkspaceHeadChip[]>(() => {
   return chips
 })
 
-onMounted(runSearch)
+watch(
+  () => props.navigation?.state.value,
+  (state) => {
+    if (state?.view !== 'logs') return
+    if (applyNavigationState()) void runSearch()
+  },
+)
+
+onMounted(() => {
+  applyNavigationState()
+  void runSearch()
+})
+
+function applyNavigationState(): boolean {
+  const state = props.navigation?.state.value
+  if (!state || state.view !== 'logs') return false
+  const nextGuildId = state.guildId || undefined
+  const nextUserId = state.keyword || state.memberId || undefined
+  const guildChanged = updateSearchParam('guildId', nextGuildId)
+  const userChanged = updateSearchParam('userId', nextUserId)
+  return guildChanged || userChanged
+}
+
+function updateSearchParam<K extends keyof LogSearchParams>(
+  key: K,
+  value: LogSearchParams[K] | undefined,
+): boolean {
+  if (searchParams[key] === value) return false
+  searchParams[key] = value as LogSearchParams[K]
+  searchParams.page = 1
+  return true
+}
 
 async function runSearch() {
   loading.value = true

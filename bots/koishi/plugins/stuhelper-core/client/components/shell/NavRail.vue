@@ -81,6 +81,7 @@ const props = defineProps<{
 }>()
 
 const shell = useAppShell()
+const MOBILE_RAIL_BREAKPOINT = 720
 
 interface NavItem {
   readonly view: ConsoleViewId
@@ -140,6 +141,9 @@ const brandTitle = computed(() =>
 
 function select(view: ConsoleViewId): void {
   props.navigation.selectView(view)
+  if (props.navigation.viewportWidth.value <= MOBILE_RAIL_BREAKPOINT) {
+    shell.railExpanded.value = false
+  }
 }
 
 function badgeFor(view: ConsoleViewId): number {

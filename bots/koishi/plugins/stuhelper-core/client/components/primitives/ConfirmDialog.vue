@@ -1,6 +1,7 @@
 <template>
   <el-dialog
     class="sh-confirm"
+    modal-class="stuhelperGroupCenter-portal"
     :model-value="open"
     :append-to-body="true"
     :close-on-click-modal="false"

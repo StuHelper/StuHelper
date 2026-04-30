@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div
-      class="sh-dock"
+      class="stuhelperGroupCenter-portal sh-dock"
       role="dialog"
       aria-label="实时聊天"
       :data-open="shell.chatOpen.value ? 'true' : 'false'"

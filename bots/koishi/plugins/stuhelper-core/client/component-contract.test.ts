@@ -94,3 +94,45 @@ test('ChatView uses console API avatars instead of hard-coded QQ avatar URLs', (
   assert.doesNotMatch(source, /q1\.qlogo\.cn/)
   assert.match(source, /displayAvatar = info\.avatar/)
 })
+
+test('shell portals keep StuHelper design tokens when mounted under body', () => {
+  const searchSource = readClientFile('./components/shell/SearchPanel.vue')
+  const overlaySource = readClientFile('./components/shell/EntityOverlay.vue')
+  const dockSource = readClientFile('./components/shell/ChatDock.vue')
+  const confirmSource = readClientFile('./components/primitives/ConfirmDialog.vue')
+  const drawerSource = readClientFile('./components/primitives/Drawer.vue')
+
+  assert.match(searchSource, /class="stuhelperGroupCenter-portal sh-search"/)
+  assert.match(overlaySource, /class="stuhelperGroupCenter-portal"/)
+  assert.match(dockSource, /class="stuhelperGroupCenter-portal sh-dock"/)
+  assert.match(confirmSource, /modal-class="stuhelperGroupCenter-portal"/)
+  assert.match(drawerSource, /modal-class="stuhelperGroupCenter-portal"/)
+})
+
+test('EntityChip owns click propagation so row-level handlers do not also fire', () => {
+  const source = readClientFile('./components/primitives/EntityChip.vue')
+
+  assert.match(source, /:is="tag"/)
+  assert.match(source, /@click\.stop="handleClick"/)
+  assert.match(source, /@keydown\.enter\.stop\.prevent="handleClick"/)
+  assert.match(source, /const tag = computed\(\(\) => props\.inline \? 'span' : 'button'\)/)
+  assert.match(source, /event\.stopPropagation\(\)/)
+})
+
+test('SearchPanel escape does not bubble into the AppShell escape chain', () => {
+  const searchSource = readClientFile('./components/shell/SearchPanel.vue')
+  const shellSource = readClientFile('./components/shell/AppShell.vue')
+
+  assert.match(searchSource, /@keydown\.escape\.stop\.prevent="close"/)
+  assert.match(shellSource, /if \(event\.defaultPrevented\) return/)
+})
+
+test('mobile shell exposes a CommandBar rail toggle outside the collapsed rail', () => {
+  const commandSource = readClientFile('./components/shell/CommandBar.vue')
+  const styleSource = readClientFile('./styles/shell.css')
+
+  assert.match(commandSource, /class="sh-cmd__menu"/)
+  assert.match(commandSource, /@click="shell\.toggleRail\(\)"/)
+  assert.match(styleSource, /\.sh-shell__rail \{\s*position: fixed;/)
+  assert.match(styleSource, /\.sh-shell\[data-rail-expanded='true'\] \.sh-shell__rail/)
+})

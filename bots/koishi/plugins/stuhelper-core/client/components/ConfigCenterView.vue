@@ -45,7 +45,7 @@
     <ConsolePageSkeleton v-else-if="loading && !data" />
 
     <template v-else-if="data">
-      <LegacyConfigView v-if="currentWorkspace === 'guild-config'" />
+      <LegacyConfigView v-if="currentWorkspace === 'guild-config'" :navigation="props.navigation" />
 
       <div v-else class="sh-split sh-split--1-1">
         <WorkspaceSection
