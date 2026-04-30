@@ -4,26 +4,33 @@ import type { MemberGuardService } from './member-guard'
 import type { MessageGuardService } from './message-guard'
 import type { GuardBotRuntime } from './member-guard'
 
+interface EventLogger {
+  error(message: string, ...args: unknown[]): void
+}
+
 interface EventDeps {
   memberGuard: MemberGuardService
   messageGuard: MessageGuardService
+  logger: EventLogger
   scanIntervalSeconds: number
 }
 
 export function registerGroupGuardEvents(ctx: Context, deps: EventDeps) {
   ctx.on('guild-member-added', (session) => {
-    void deps.memberGuard.handleGuildMemberAdded(session)
+    return deps.memberGuard.handleGuildMemberAdded(session)
   })
 
   ctx.on('message', (session) => {
-    void deps.messageGuard.handleMessage(session)
+    return deps.messageGuard.handleMessage(session)
   })
 
   ctx.on('message-deleted', (session) => {
-    void deps.messageGuard.handleMessageDeleted(session)
+    return deps.messageGuard.handleMessageDeleted(session)
   })
 
   ctx.setInterval(() => {
-    void deps.memberGuard.scanPendingMembers(ctx.bots as GuardBotRuntime[])
+    return deps.memberGuard
+      .scanPendingMembers(ctx.bots as GuardBotRuntime[])
+      .catch((error) => deps.logger.error('group guard scheduled scan failed', error))
   }, deps.scanIntervalSeconds * 1000)
 }

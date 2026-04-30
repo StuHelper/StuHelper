@@ -70,6 +70,7 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
   registerGroupGuardEvents(ctx, {
     memberGuard,
     messageGuard,
+    logger,
     scanIntervalSeconds: config.scheduler.scanIntervalSeconds,
   })
 
