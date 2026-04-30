@@ -12,6 +12,7 @@ import LogsView from '../components/LogsView.vue'
 import ChatView from '../components/ChatView.vue'
 import SubscriptionView from '../components/SubscriptionView.vue'
 import SettingsView from '../components/SettingsView.vue'
+import SystemView from '../components/SystemView.vue'
 
 const VIEW_COMPONENTS = {
   dashboard: DashboardHubView,
@@ -25,6 +26,7 @@ const VIEW_COMPONENTS = {
   chat: ChatView,
   subscriptions: SubscriptionView,
   settings: SettingsView,
+  system: SystemView,
 } as const
 
 export function useConsolePages() {

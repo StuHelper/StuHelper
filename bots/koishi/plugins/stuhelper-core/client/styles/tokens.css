@@ -99,6 +99,19 @@
   --sh-row-h: 40px;
   --sh-control-h: 32px;
 
+  /* ── Shell (NavRail / CommandBar / Overlay / Dock) ── */
+  --sh-rail-w: 56px;
+  --sh-rail-w-expanded: 232px;
+  --sh-cmd-h: 44px;
+  --sh-overlay-w: 480px;
+  --sh-dock-w: 380px;
+  --sh-dock-h: 600px;
+  --sh-z-rail: 30;
+  --sh-z-cmd: 31;
+  --sh-z-overlay: 50;
+  --sh-z-dock: 55;
+  --sh-z-confirm: 60;
+
   color: var(--sh-fg);
   font-family: var(--sh-font-ui);
   font-size: var(--sh-t-body);

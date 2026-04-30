@@ -50,7 +50,7 @@
           :class="{ active: activeSection === section.id }"
           @click="activeSection = section.id"
         >
-          <k-icon :name="section" class="sidebar-icon" />
+          <k-icon :name="section.icon" class="sidebar-icon" />
           <span class="sidebar-label">{{ section.label }}</span>
         </div>
       </nav>
@@ -630,65 +630,6 @@
           </div>
         </div>
 
-        <!-- Cache -->
-        <div v-show="activeSection === 'cache'" class="config-section">
-          <div class="section-header">
-            <h3 class="section-title">缓存管理</h3>
-            <p class="section-desc">管理群组、用户和成员信息缓存，提升页面加载速度</p>
-          </div>
-
-          <div v-if="cacheLoading" class="loading-state">
-            <k-icon name="loader" class="spin" />
-            <span class="loading-text">Loading...</span>
-          </div>
-
-          <div v-else-if="cacheStats" class="cache-stats">
-            <div class="stat-row">
-              <span class="stat-label">群组缓存</span>
-              <span class="stat-value mono">{{ cacheStats.guilds }}</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">用户缓存</span>
-              <span class="stat-value mono">{{ cacheStats.users }}</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">成员缓存</span>
-              <span class="stat-value mono">{{ cacheStats.members }}</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">最后刷新</span>
-              <span class="stat-value mono">{{ cacheStats.lastFullRefreshTime }}</span>
-            </div>
-          </div>
-
-          <div class="cache-actions">
-            <button class="action-btn primary" @click="refreshCache" :disabled="cacheRefreshing">
-              <k-icon name="refresh-cw" class="btn-icon" :class="{ spin: cacheRefreshing }" />
-              <span>强制刷新</span>
-            </button>
-            <button class="action-btn" @click="clearCache">
-              <k-icon name="trash-2" class="btn-icon" />
-              <span>清空缓存</span>
-            </button>
-            <button class="action-btn" @click="loadCacheStats">
-              <k-icon name="bar-chart-2" class="btn-icon" />
-              <span>重新加载</span>
-            </button>
-          </div>
-
-          <div class="info-box">
-            <k-icon name="info" class="info-icon" />
-            <div class="info-content">
-              <p><strong>关于缓存:</strong></p>
-              <ul>
-                <li>缓存会在插件启动时自动预热，收集所有需要的群组和用户信息</li>
-                <li>缓存有效期为 7 天，过期后会自动从 Bot 重新获取最新信息</li>
-                <li>刷新缓存会强制更新所有已缓存的信息，适合在群组或用户信息变更后使用</li>
-                <li>清空缓存会删除所有缓存数据，下次访问时会重新获取</li>
-              </ul>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
     
@@ -724,9 +665,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { message } from '@koishijs/client'
-import { settingsApi, cacheApi, type CacheStats } from '../api'
+import { settingsApi } from '../api'
 
 // 默认配置结构
 const defaultSettings = {
@@ -886,20 +827,19 @@ const friendKeywordsText = computed({
 })
 
 const sections = [
-  { id: 'warn', label: '警告设置'},
-  { id: 'forbidden', label: '禁言关键词'},
-  { id: 'keywords', label: '入群审核'},
-  { id: 'dice', label: '掷骰子'},
-  { id: 'banme', label: '自我禁言'},
-  { id: 'friendRequest', label: '好友申请'},
-  { id: 'guildRequest', label: '入群邀请'},
-  { id: 'essence', label: '精华消息'},
-  { id: 'title', label: '头衔设置'},
-  { id: 'antiRepeat', label: '反复读'},
-  { id: 'antiRecall', label: '防撤回'},
-  { id: 'openai', label: 'AI功能'},
-  { id: 'report', label: '举报功能'},
-  { id: 'cache', label: '缓存管理'}
+  { id: 'warn', label: '警告设置', icon: 'stuhelperGroupCenter:octicons.warning' },
+  { id: 'forbidden', label: '禁言关键词', icon: 'stuhelperGroupCenter:octicons.x' },
+  { id: 'keywords', label: '入群审核', icon: 'stuhelperGroupCenter:octicons.personadd' },
+  { id: 'dice', label: '掷骰子', icon: 'stuhelperGroupCenter:octicons.tools' },
+  { id: 'banme', label: '自我禁言', icon: 'stuhelperGroupCenter:octicons.person' },
+  { id: 'friendRequest', label: '好友申请', icon: 'stuhelperGroupCenter:octicons.personadd' },
+  { id: 'guildRequest', label: '入群邀请', icon: 'stuhelperGroupCenter:octicons.people' },
+  { id: 'essence', label: '精华消息', icon: 'stuhelperGroupCenter:octicons.apps' },
+  { id: 'title', label: '头衔设置', icon: 'stuhelperGroupCenter:octicons.gear' },
+  { id: 'antiRepeat', label: '反复读', icon: 'stuhelperGroupCenter:octicons.discussion' },
+  { id: 'antiRecall', label: '防撤回', icon: 'stuhelperGroupCenter:octicons.log' },
+  { id: 'openai', label: 'AI功能', icon: 'stuhelperGroupCenter:octicons.graph' },
+  { id: 'report', label: '举报功能', icon: 'stuhelperGroupCenter:octicons.warning' },
 ]
 
 // 深度合并对象
@@ -971,66 +911,6 @@ const resetToDefault = async () => {
     message.success('已恢复默认设置，请保存以应用更改')
   }
 }
-
-// 缓存管理
-const cacheStats = ref<CacheStats | null>(null)
-const cacheLoading = ref(false)
-const cacheRefreshing = ref(false)
-
-const loadCacheStats = async () => {
-  cacheLoading.value = true
-  try {
-    cacheStats.value = await cacheApi.stats()
-  } catch (e: any) {
-    message.error(e.message || '获取缓存统计失败')
-  } finally {
-    cacheLoading.value = false
-  }
-}
-
-const refreshCache = async () => {
-  const confirmed = await showConfirm({
-    title: '刷新缓存',
-    message: '确定要强制刷新所有缓存吗？这可能需要一些时间。',
-    type: 'normal'
-  })
-  if (!confirmed) return
-  
-  cacheRefreshing.value = true
-  try {
-    const result = await cacheApi.refresh()
-    cacheStats.value = result.stats
-    message.success('缓存刷新完成')
-  } catch (e: any) {
-    message.error(e.message || '刷新缓存失败')
-  } finally {
-    cacheRefreshing.value = false
-  }
-}
-
-const clearCache = async () => {
-  const confirmed = await showConfirm({
-    title: '清空缓存',
-    message: '确定要清空所有缓存吗？',
-    type: 'danger'
-  })
-  if (!confirmed) return
-  
-  try {
-    await cacheApi.clear()
-    await loadCacheStats()
-    message.success('缓存已清空')
-  } catch (e: any) {
-    message.error(e.message || '清空缓存失败')
-  }
-}
-
-// 监听activeSection变化，切换到缓存管理时加载统计
-watch(activeSection, (newVal) => {
-  if (newVal === 'cache') {
-    loadCacheStats()
-  }
-})
 
 onMounted(() => {
   loadSettings()
@@ -1382,84 +1262,7 @@ onMounted(() => {
   border-bottom: 1px dashed var(--k-color-divider);
 }
 
-/* Cache Stats */
-.cache-stats {
-  background: var(--bg1);
-  border: 1px solid var(--k-color-border);
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 16px;
-}
 
-.stat-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--k-color-divider);
-}
-
-.stat-row:last-child {
-  border-bottom: none;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--fg2);
-}
-
-.stat-value {
-  font-size: 12px;
-  color: var(--k-color-primary-tint);
-  font-weight: 500;
-}
-
-.stat-value.mono {
-  font-family: 'SF Mono', 'Consolas', monospace;
-}
-
-.cache-actions {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-/* Info Box */
-.info-box {
-  display: flex;
-  gap: 10px;
-  padding: 12px;
-  background: var(--k-color-primary-fade);
-  border: 1px solid rgba(116, 89, 255, 0.2);
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--fg2);
-}
-
-.info-icon {
-  flex-shrink: 0;
-  color: var(--k-color-primary-tint);
-  margin-top: 2px;
-}
-
-.info-content p {
-  margin: 0 0 6px;
-}
-
-.info-content ul {
-  margin: 0;
-  padding-left: 16px;
-}
-
-.info-content li {
-  margin-bottom: 4px;
-  line-height: 1.5;
-}
-
-.info-content li:last-child {
-  margin-bottom: 0;
-}
 
 /* Save Bar - Discord 风格 */
 .save-bar {
@@ -1935,29 +1738,7 @@ onMounted(() => {
     padding: 0.75rem 1rem;
   }
 
-  /* 缓存统计卡片 */
-  .cache-stats {
-    padding: 0.75rem;
-  }
 
-  .stat-row {
-    padding: 0.375rem 0;
-  }
-
-  .stat-label,
-  .stat-value {
-    font-size: 0.75rem;
-  }
-
-  .cache-actions {
-    gap: 0.5rem;
-  }
-
-  /* 信息框 */
-  .info-box {
-    padding: 0.75rem;
-    font-size: 0.75rem;
-  }
 }
 
 @media (max-width: 480px) {

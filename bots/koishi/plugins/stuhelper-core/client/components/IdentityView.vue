@@ -102,7 +102,7 @@
                   {{ member.memberName || member.memberId }}
                 </div>
                 <div class="sh-lane__subtitle">
-                  <span class="sh-mono">{{ member.guildId }}</span>
+                  <EntityChip kind="guild" :id="member.guildId" inline @click.stop />
                   · {{ member.profile?.verificationState || member.verificationState }}
                   · 截止 {{ formatTimestamp(member.deadlineAt) }}
                 </div>
@@ -125,9 +125,18 @@
             <dt>成员</dt>
             <dd>{{ selectedMember.memberName || selectedMember.memberId }}</dd>
             <dt>成员 ID</dt>
-            <dd class="sh-mono">{{ selectedMember.memberId }}</dd>
+            <dd>
+              <EntityChip
+                kind="user"
+                :id="String(selectedMember.memberId)"
+                :name="selectedMember.memberName || undefined"
+                :guild-id="selectedMember.guildId || undefined"
+              />
+            </dd>
             <dt>所属群</dt>
-            <dd class="sh-mono">{{ selectedMember.guildId }}</dd>
+            <dd>
+              <EntityChip kind="guild" :id="String(selectedMember.guildId)" />
+            </dd>
             <dt>认证状态</dt>
             <dd>{{ detailCards[0]?.value || '—' }}</dd>
             <dt>绑定记录</dt>
@@ -157,15 +166,17 @@
           <el-table :data="data.recentReleases" row-key="id">
             <el-table-column label="成员" prop="memberName">
               <template #default="{ row }">
-                <div class="sh-table__stack">
-                  <div>{{ row.memberName || row.memberId }}</div>
-                  <div class="sh-table__id">{{ row.memberId }}</div>
-                </div>
+                <EntityChip
+                  kind="user"
+                  :id="String(row.memberId)"
+                  :name="row.memberName || undefined"
+                  :guild-id="row.guildId || undefined"
+                />
               </template>
             </el-table-column>
             <el-table-column label="群组">
               <template #default="{ row }">
-                <span class="sh-table__mono">{{ row.guildId }}</span>
+                <EntityChip kind="guild" :id="String(row.guildId)" />
               </template>
             </el-table-column>
             <el-table-column label="释放时间">
@@ -200,7 +211,9 @@
           >
             <span class="sh-lane__dot sh-lane__dot--danger"></span>
             <div class="sh-lane__body">
-              <div class="sh-lane__title sh-mono">{{ item.memberId }}</div>
+              <div class="sh-lane__title">
+                <EntityChip kind="user" :id="String(item.memberId)" />
+              </div>
               <div class="sh-lane__subtitle">{{ item.message }}</div>
             </div>
           </div>
@@ -220,6 +233,7 @@ import { formatTimestamp } from '../models/formatters'
 import { buildIdentityModel } from '../models/identity'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
+import EntityChip from './primitives/EntityChip.vue'
 import SeverityTag from './primitives/SeverityTag.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 

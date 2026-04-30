@@ -41,8 +41,8 @@
         actions-label="操作"
         @action="handleRowAction"
       >
-        <template #cell-user="{ value }">
-          <span class="sh-mono">{{ value.text }}</span>
+        <template #cell-user="{ row }">
+          <EntityChip kind="user" :id="String(row.id)" />
         </template>
       </QueueTable>
       <EmptyState
@@ -86,6 +86,17 @@
       </template>
     </Drawer>
 
+    <ConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :tone="confirmDialog.tone"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      @confirm="acceptConfirm"
+      @cancel="cancelConfirm"
+    />
+
     <NoticeStack :items="notices" @dismiss="dismissNotice" />
   </div>
 </template>
@@ -94,11 +105,14 @@
 import { computed, onMounted, ref } from 'vue'
 
 import { blacklistApi } from '../api'
+import { useConfirm } from '../composables/use-confirm'
 import type { BlacklistRecord } from '../types'
 import { formatTimestamp } from '../models/formatters'
+import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import Drawer from './primitives/Drawer.vue'
 import EmptyState from './primitives/EmptyState.vue'
+import EntityChip from './primitives/EntityChip.vue'
 import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
 import QueueTable, {
   type QueueTableColumn,
@@ -119,6 +133,12 @@ const draftUserId = ref('')
 const blacklist = ref<Record<string, BlacklistRecord>>({})
 const notices = ref<NoticeItem[]>([])
 const lastSync = ref('')
+const {
+  state: confirmDialog,
+  confirm,
+  accept: acceptConfirm,
+  cancel: cancelConfirm,
+} = useConfirm()
 
 const entries = computed(() =>
   Object.entries(blacklist.value).map(([userId, record]) => ({ userId, record })),
@@ -194,6 +214,14 @@ function handleRowAction(payload: { rowId: string; action: string }) {
 }
 
 async function removeUser(userId: string) {
+  const confirmed = await confirm({
+    title: '移除黑名单成员',
+    message: `确定要从黑名单移除 ${formatUserId(userId)} 吗？此操作会立即影响所有群组。`,
+    tone: 'danger',
+    confirmText: '移除',
+  })
+  if (!confirmed) return
+
   try {
     await blacklistApi.remove(userId)
     pushSuccess(`已从黑名单移除 ${formatUserId(userId)}`)
@@ -236,4 +264,3 @@ function noticeId(): string {
   return `notice-${Math.random().toString(36).slice(2, 8)}-${Date.now()}`
 }
 </script>
-

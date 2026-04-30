@@ -17,9 +17,11 @@ import type { StuhelperGroupCenterService } from '../services'
 import {
   ConfigGovernanceService,
   DashboardPageService,
+  EntityPageService,
   IdentityPageService,
   ReviewPageService,
 } from '../services'
+import type { EntityProfileQuery } from '../services/page-types'
 import { IdentityProfileLookup } from './identity-profile-lookup'
 import {
   buildScopedConfigGovernancePageData,
@@ -96,6 +98,38 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
     loadSupportedCommandIds: () => [...SUPPORTED_COMMAND_POLICY_IDS],
   }
   const configPage = new ConfigGovernanceService(configDeps)
+
+  const entityDeps = {
+    loadWarns: async () => {
+      const all = await options.service.data.warns.getAll()
+      return all as Record<string, Record<string, { count: number; timestamp: number }>>
+    },
+    loadBlacklist: async () => {
+      const all = await options.service.data.blacklist.getAll()
+      return all as Record<string, { userId: string; timestamp: number; reason?: string }>
+    },
+    loadGuardRecords: () => listGuardRecords(ctx),
+    loadReviews: () => moderationStore.listPendingReviews(),
+    loadReports: () => moderationStore.listOpenReports(),
+    loadEvents: (limit: number) => moderationStore.listRecentEvents(limit),
+    hasGuildConfig: async (guildId: string) => {
+      const all = await options.service.data.groupConfig.getAll()
+      return Boolean((all as Record<string, unknown>)[guildId])
+    },
+    resolveGuildName: (guildId: string) => {
+      const cache = options.service.cache.getCachedData()
+      const entry = cache.guilds[guildId]
+      if (!entry) return undefined
+      return { name: entry.name ?? null, avatar: entry.avatar ?? null }
+    },
+    resolveUserName: (userId: string) => {
+      const cache = options.service.cache.getCachedData()
+      const entry = cache.users[userId]
+      if (!entry) return undefined
+      return { name: entry.name ?? null, avatar: entry.avatar ?? null }
+    },
+  }
+  const entityPage = new EntityPageService(entityDeps)
 
   ctx.console.addListener('stuhelperGroupCenter/page/dashboard', async function () {
     const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx, options.service))
@@ -193,6 +227,21 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
       commandPolicies,
       supportedCommandIds: [...supportedCommandIds],
     }, scope)
+  }, { authority: 4 })
+
+  ctx.console.addListener('stuhelperGroupCenter/page/entity-profile', async function (query: EntityProfileQuery) {
+    if (!query || (query.kind !== 'user' && query.kind !== 'guild')) {
+      throw new Error('entity profile: kind must be user or guild')
+    }
+    const trimmedId = typeof query.id === 'string' ? query.id.trim() : ''
+    if (!trimmedId) {
+      throw new Error('entity profile: id is required')
+    }
+    return entityPage.getProfile({
+      kind: query.kind,
+      id: trimmedId,
+      guildId: typeof query.guildId === 'string' ? query.guildId.trim() || undefined : undefined,
+    })
   }, { authority: 4 })
 }
 

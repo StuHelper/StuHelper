@@ -133,6 +133,22 @@
               <dd class="sh-mono">{{ formatTimestamp(selectedItem.createdAt) }}</dd>
               <dt>原因</dt>
               <dd>{{ selectedItem.reason || '—' }}</dd>
+              <template v-if="selectedItem.guildId">
+                <dt>来源群</dt>
+                <dd>
+                  <EntityChip kind="guild" :id="String(selectedItem.guildId)" />
+                </dd>
+              </template>
+              <template v-if="selectedItem.memberId">
+                <dt>对象成员</dt>
+                <dd>
+                  <EntityChip
+                    kind="user"
+                    :id="String(selectedItem.memberId)"
+                    :guild-id="selectedItem.guildId || undefined"
+                  />
+                </dd>
+              </template>
               <dt>关联事件</dt>
               <dd>
                 {{ relatedEvents.map((item) => item.summary).join(' / ') || '暂无' }}
@@ -165,19 +181,33 @@
         </WorkspaceSection>
       </div>
     </template>
+
+    <ConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :tone="confirmDialog.tone"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      @confirm="acceptConfirm"
+      @cancel="cancelConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import { useConfirm, type ConfirmTone } from '../composables/use-confirm'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
 import { consolePageApi } from '../page-api'
 import type { ReviewPageData, ReviewWorkItem } from '../page-types'
 import { formatTimestamp } from '../models/formatters'
 import { buildReviewModel, REVIEW_ACTION_LABELS, REVIEW_KIND_LABELS } from '../models/review'
+import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import EmptyState from './primitives/EmptyState.vue'
+import EntityChip from './primitives/EntityChip.vue'
 import SeverityTag, { type TagIntent } from './primitives/SeverityTag.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
@@ -193,6 +223,12 @@ const keyword = ref('')
 const selectedItemId = ref('')
 const reviewNote = ref('')
 const actionLoading = ref(false)
+const {
+  state: confirmDialog,
+  confirm,
+  accept: acceptConfirm,
+  cancel: cancelConfirm,
+} = useConfirm()
 
 const model = computed(() => {
   if (!data.value) return null
@@ -253,13 +289,23 @@ function syncSelection() {
 }
 
 async function submitAction(action: ReviewWorkItem['availableActions'][number]) {
-  if (!selectedItem.value) return
+  const item = selectedItem.value
+  if (!item) return
+  const label = REVIEW_ACTION_LABELS[action]
+  const confirmed = await confirm({
+    title: '确认处置',
+    message: `确定要对 ${item.subjectLabel} 执行「${label}」吗？`,
+    tone: actionConfirmTone(action),
+    confirmText: label,
+  })
+  if (!confirmed) return
+
   actionLoading.value = true
   error.value = ''
   try {
     await consolePageApi.workItemAction({
-      kind: selectedItem.value.kind,
-      itemId: selectedItem.value.id,
+      kind: item.kind,
+      itemId: item.id,
       action,
       note: reviewNote.value || undefined,
     })
@@ -299,6 +345,13 @@ function actionButtonClass(index: number, action: string): string {
   }
   if (index === 0) return 'sh-button--primary'
   return 'sh-button--ghost'
+}
+
+function actionConfirmTone(action: string): ConfirmTone {
+  if (action === 'reject' || action === 'deny' || action === 'dismiss') {
+    return 'danger'
+  }
+  return 'normal'
 }
 </script>
 

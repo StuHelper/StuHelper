@@ -115,15 +115,22 @@
             </el-table-column>
             <el-table-column label="用户" width="170">
               <template #default="{ row }">
-                <div class="sh-logs__user">
-                  <div>{{ row.username || '—' }}</div>
-                  <div class="sh-table__id">{{ row.userId }}</div>
-                </div>
+                <EntityChip
+                  kind="user"
+                  :id="String(row.userId ?? '')"
+                  :name="row.username || undefined"
+                  :guild-id="row.guildId || undefined"
+                />
               </template>
             </el-table-column>
             <el-table-column label="群组" width="140">
               <template #default="{ row }">
-                <span v-if="row.guildId" class="sh-mono">{{ row.guildName || row.guildId }}</span>
+                <EntityChip
+                  v-if="row.guildId"
+                  kind="guild"
+                  :id="String(row.guildId)"
+                  :name="row.guildName || undefined"
+                />
                 <span v-else class="sh-logs__private">私聊</span>
               </template>
             </el-table-column>
@@ -234,6 +241,7 @@ import { formatTimestamp } from '../models/formatters'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import Drawer from './primitives/Drawer.vue'
 import EmptyState from './primitives/EmptyState.vue'
+import EntityChip from './primitives/EntityChip.vue'
 import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
 import SeverityTag from './primitives/SeverityTag.vue'
 import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'

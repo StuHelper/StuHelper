@@ -10,6 +10,7 @@ export const CONSOLE_VIEW_IDS = [
   'chat',
   'subscriptions',
   'settings',
+  'system',
 ] as const
 
 export type ConsoleViewId = (typeof CONSOLE_VIEW_IDS)[number]

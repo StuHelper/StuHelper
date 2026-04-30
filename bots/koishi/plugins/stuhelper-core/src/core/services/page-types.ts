@@ -179,3 +179,113 @@ export interface ConfigGovernancePageData {
   commandPolicies: SerializedCommandPolicy[]
   supportedCommandIds: string[]
 }
+
+export interface EntityProfileQuery {
+  kind: 'user' | 'guild'
+  id: string
+  /** Optional guild context when kind='user', used to bias which guild's data is foregrounded. */
+  guildId?: string
+}
+
+export interface EntityWarnFact {
+  guildId: string
+  guildName: string | null
+  userId: string
+  count: number
+}
+
+export interface EntityBlacklistFact {
+  userId: string
+  reason: string | null
+  addedAt: string | null
+}
+
+export interface EntityRestrictedFact {
+  guildId: string
+  guildName: string | null
+  memberId: string
+  status: 'pending' | 'released' | 'kicked'
+  joinedAt: string
+  deadlineAt: string
+}
+
+export interface EntityReviewFact {
+  id: string
+  guildId: string
+  guildName: string | null
+  memberId: string | null
+  status: string
+  actionType: string
+  reason: string
+  createdAt: string
+}
+
+export interface EntityReportFact {
+  id: string
+  guildId: string
+  guildName: string | null
+  targetMemberId: string
+  reporterMemberId: string
+  reason: string
+  status: string
+  createdAt: string
+}
+
+export interface EntityEventFact {
+  id: string
+  guildId: string
+  guildName: string | null
+  memberId: string | null
+  kind: string
+  severity: 'info' | 'warning' | 'high' | 'critical'
+  message: string
+  createdAt: string
+}
+
+export interface UserEntityProfileSummary {
+  activeWarnGuilds: number
+  totalWarns: number
+  blacklisted: boolean
+  pendingReviews: number
+  openReports: number
+  restrictedGuilds: number
+}
+
+export interface UserEntityProfile {
+  kind: 'user'
+  generatedAt: string
+  id: string
+  displayName: string | null
+  avatar: string | null
+  summary: UserEntityProfileSummary
+  warns: EntityWarnFact[]
+  blacklist: EntityBlacklistFact | null
+  restricted: EntityRestrictedFact[]
+  reviews: EntityReviewFact[]
+  reports: EntityReportFact[]
+  recentEvents: EntityEventFact[]
+}
+
+export interface GuildEntityProfileSummary {
+  configured: boolean
+  pendingMembers: number
+  warnedUsers: number
+  pendingReviews: number
+  openReports: number
+}
+
+export interface GuildEntityProfile {
+  kind: 'guild'
+  generatedAt: string
+  id: string
+  name: string | null
+  avatar: string | null
+  summary: GuildEntityProfileSummary
+  warns: EntityWarnFact[]
+  restricted: EntityRestrictedFact[]
+  reviews: EntityReviewFact[]
+  reports: EntityReportFact[]
+  recentEvents: EntityEventFact[]
+}
+
+export type EntityProfile = UserEntityProfile | GuildEntityProfile

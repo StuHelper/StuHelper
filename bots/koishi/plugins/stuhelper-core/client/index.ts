@@ -6,6 +6,7 @@ import { icons as customIcons, Octicons } from './icons'
 import './styles/tokens.css'
 import './styles/primitives.css'
 import './styles/dashboard-charts.css'
+import './styles/shell.css'
 
 const USED_OCTICONS = [
   'apps',

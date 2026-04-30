@@ -16,6 +16,8 @@ import type {
   IdentityPageData,
   ReviewPageData,
   ConfigGovernancePageData,
+  EntityProfile,
+  EntityProfileQuery,
   ReviewWorkItem,
   ModuleStateSnapshot,
 } from './core/services/page-types'
@@ -190,6 +192,7 @@ declare module '@koishijs/console' {
     'stuhelperGroupCenter/page/identity'(): Promise<IdentityPageData>
     'stuhelperGroupCenter/page/review'(): Promise<ReviewPageData>
     'stuhelperGroupCenter/page/config-governance'(): Promise<ConfigGovernancePageData>
+    'stuhelperGroupCenter/page/entity-profile'(query: EntityProfileQuery): Promise<EntityProfile>
 
     'stuhelperGroupCenter/action/review'(input: {
       reviewId: string

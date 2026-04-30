@@ -3,6 +3,8 @@ import { send } from '@koishijs/client'
 import type {
   ConfigGovernancePageData,
   DashboardPageData,
+  EntityProfile,
+  EntityProfileQuery,
   IdentityPageData,
   ReviewPageData,
   ReviewWorkItem,
@@ -24,6 +26,9 @@ export const consolePageApi = {
   },
   configGovernance() {
     return callPage<ConfigGovernancePageData>('stuhelperGroupCenter/page/config-governance')
+  },
+  entityProfile(query: EntityProfileQuery) {
+    return callPage<EntityProfile>('stuhelperGroupCenter/page/entity-profile', query as unknown as Record<string, unknown>)
   },
   reviewAction(input: { reviewId: string; action: 'execute' | 'reject'; note?: string }) {
     return callPage<string>('stuhelperGroupCenter/action/review', input)

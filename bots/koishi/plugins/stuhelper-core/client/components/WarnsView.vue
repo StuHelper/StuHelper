@@ -61,7 +61,7 @@
             <div class="sh-lane__body">
               <div class="sh-lane__title">{{ guildName(guildId) }}</div>
               <div class="sh-lane__subtitle">
-                <span class="sh-mono">{{ guildId }}</span>
+                <EntityChip kind="guild" :id="guildId" inline @click.stop />
                 · {{ groupCount(guildId) }} 条记录
               </div>
             </div>
@@ -91,10 +91,12 @@
           @action="handleRowAction"
         >
           <template #cell-user="{ row }">
-            <div class="sh-warns__user">
-              <div>{{ (row.cells.user as any).text }}</div>
-              <div class="sh-table__id">{{ (row.cells.user as any).secondary }}</div>
-            </div>
+            <EntityChip
+              kind="user"
+              :id="(row.cells.user as any).secondary"
+              :name="(row.cells.user as any).text"
+              :guild-id="selectedGuildId ?? undefined"
+            />
           </template>
           <template #cell-count="{ row }">
             <el-input-number
@@ -154,6 +156,17 @@
       </template>
     </Drawer>
 
+    <ConfirmDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :tone="confirmDialog.tone"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      @confirm="acceptConfirm"
+      @cancel="cancelConfirm"
+    />
+
     <NoticeStack :items="notices" @dismiss="dismissNotice" />
   </div>
 </template>
@@ -162,10 +175,13 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 import { warnsApi } from '../api'
+import { useConfirm } from '../composables/use-confirm'
 import { formatTimestamp } from '../models/formatters'
+import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
 import Drawer from './primitives/Drawer.vue'
 import EmptyState from './primitives/EmptyState.vue'
+import EntityChip from './primitives/EntityChip.vue'
 import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
 import QueueTable, {
   type QueueTableColumn,
@@ -202,6 +218,12 @@ const notices = ref<NoticeItem[]>([])
 const lastSync = ref('')
 const groups = ref<Record<string, ProcessedWarn[]>>({})
 const draft = reactive({ guildId: '', userId: '' })
+const {
+  state: confirmDialog,
+  confirm,
+  accept: acceptConfirm,
+  cancel: cancelConfirm,
+} = useConfirm()
 
 const guildIds = computed(() => Object.keys(groups.value))
 const selectedGroup = computed(() =>
@@ -321,6 +343,19 @@ async function submitAdd() {
 
 async function updateCount(key: string, next: number | undefined) {
   if (next === undefined) return
+  if (next <= 0) {
+    const confirmed = await confirm({
+      title: '清除警告记录',
+      message: '确定要清除这条警告记录吗？清零后该成员会从当前群组列表中移除。',
+      tone: 'danger',
+      confirmText: '清除',
+    })
+    if (!confirmed) {
+      await refresh()
+      return
+    }
+  }
+
   try {
     await warnsApi.update(key, next)
     pushSuccess(next <= 0 ? '警告已清除' : '警告次数已更新')

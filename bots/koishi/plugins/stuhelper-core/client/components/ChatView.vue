@@ -408,7 +408,7 @@ const loadGuildMembers = async (guildId: string) => {
     const result = await chatApi.getGuildMembers(guildId)
     members.value = result.members || []
   } catch (e) {
-    console.warn('Failed to load guild members:', e)
+    message.error('加载群成员失败: ' + errorMessage(e))
   } finally {
     loadingMembers.value = false
   }
@@ -621,12 +621,16 @@ const handleIncomingMessage = async (msg: ChatMessage) => {
       chatApi.getGuildInfo(msg.guildId).then(info => {
         if (info?.name) session!.name = info.name
         if (info?.avatar && !session!.avatar) session!.avatar = info.avatar
-      }).catch(() => {})
+      }).catch((e) => {
+        message.error('获取群资料失败: ' + errorMessage(e))
+      })
     } else if (!isGroup && !msg.username) {
       chatApi.getUserInfo(msg.userId).then(info => {
         if (info?.name) session!.name = `私聊 ${info.name}`
         if (info?.avatar && !session!.avatar) session!.avatar = info.avatar
-      }).catch(() => {})
+      }).catch((e) => {
+        message.error('获取用户资料失败: ' + errorMessage(e))
+      })
     }
   } else {
     // 移到顶部
@@ -685,21 +689,21 @@ const connectToChat = async () => {
   if (!targetId) return
   
   let displayName = connectForm.name.trim()
+  let displayAvatar = ''
   const isGroup = connectForm.type === 'group'
   
-  // 如果名称为空，尝试自动获取名称
-  if (!displayName) {
-    try {
-      if (isGroup) {
-        const info = await chatApi.getGuildInfo(targetId)
-        if (info?.name) displayName = info.name
-      } else {
-        const info = await chatApi.getUserInfo(targetId)
-        if (info?.name) displayName = info.name
-      }
-    } catch (e) {
-      console.warn('Failed to fetch info:', e)
+  try {
+    if (isGroup) {
+      const info = await chatApi.getGuildInfo(targetId)
+      if (!displayName && info?.name) displayName = info.name
+      if (info?.avatar) displayAvatar = info.avatar
+    } else {
+      const info = await chatApi.getUserInfo(targetId)
+      if (!displayName && info?.name) displayName = info.name
+      if (info?.avatar) displayAvatar = info.avatar
     }
+  } catch (e) {
+    message.error('获取会话信息失败: ' + errorMessage(e))
   }
   
   // 如果仍然没有名称，使用默认名称
@@ -726,9 +730,7 @@ const connectToChat = async () => {
       name: displayName,
       platform: connectForm.platform,
       guildId: isGroup ? targetId : undefined,
-      avatar: isGroup
-        ? `https://p.qlogo.cn/gh/${targetId}/${targetId}/640/`
-        : `https://q1.qlogo.cn/g?b=qq&nk=${targetId}&s=640`,
+      avatar: displayAvatar || undefined,
       messages: [],
       unread: 0
     }
@@ -737,6 +739,9 @@ const connectToChat = async () => {
     // 如果获取到了新名称，更新现有会话
     if (displayName && displayName !== session.name) {
       session.name = displayName
+    }
+    if (displayAvatar && displayAvatar !== session.avatar) {
+      session.avatar = displayAvatar
     }
   }
   
@@ -754,6 +759,10 @@ const scrollToBottom = () => {
   if (messageListRef.value) {
     messageListRef.value.scrollTop = messageListRef.value.scrollHeight
   }
+}
+
+const errorMessage = (cause: unknown) => {
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 const sendMessage = async () => {

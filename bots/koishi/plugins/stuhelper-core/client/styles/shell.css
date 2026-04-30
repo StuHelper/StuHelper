@@ -1,0 +1,836 @@
+/**
+ * StuHelper 群管中心 — Shell layout
+ *
+ * 包含：AppShell / NavRail / CommandBar / EntityOverlay / ChatDock / EntityChip
+ * 所有数值都来自 tokens.css；不允许出现硬编码颜色或像素。
+ */
+
+/* ── AppShell layout ────────────────────────────────────────── */
+
+.sh-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sh-rail-w) minmax(0, 1fr);
+  grid-template-rows: var(--sh-cmd-h) minmax(0, 1fr);
+  grid-template-areas:
+    'rail cmd'
+    'rail main';
+  height: 100vh;
+  min-height: 0;
+  background: var(--sh-surface-1);
+  color: var(--sh-fg);
+  font-family: var(--sh-font-ui);
+  transition: grid-template-columns var(--sh-dur-base) var(--sh-ease);
+}
+
+.sh-shell[data-rail-expanded='true'] {
+  grid-template-columns: var(--sh-rail-w-expanded) minmax(0, 1fr);
+}
+
+.sh-shell__rail {
+  grid-area: rail;
+  z-index: var(--sh-z-rail);
+}
+
+.sh-shell__cmd {
+  grid-area: cmd;
+  z-index: var(--sh-z-cmd);
+}
+
+.sh-shell__main {
+  grid-area: main;
+  overflow: auto;
+  padding: var(--sh-s-5) var(--sh-s-6);
+  min-width: 0;
+  background: var(--sh-surface-1);
+}
+
+@media (max-width: 1080px) {
+  .sh-shell__main {
+    padding: var(--sh-s-4) var(--sh-s-4);
+  }
+}
+
+@media (max-width: 720px) {
+  .sh-shell {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  .sh-shell[data-rail-expanded='true'] {
+    grid-template-columns: var(--sh-rail-w-expanded) 0;
+  }
+
+  .sh-shell__main {
+    padding: var(--sh-s-3) var(--sh-s-3);
+  }
+}
+
+/* ── NavRail ──────────────────────────────────────────────── */
+
+.sh-rail {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--sh-surface-0);
+  border-right: 1px solid var(--sh-border);
+  overflow: hidden;
+}
+
+.sh-rail__brand {
+  display: grid;
+  grid-template-columns: var(--sh-rail-w) 1fr;
+  align-items: center;
+  height: var(--sh-cmd-h);
+  border-bottom: 1px solid var(--sh-border);
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  border-left: 0;
+  border-top: 0;
+  border-right: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.sh-rail__brand-mark {
+  display: grid;
+  place-items: center;
+  width: var(--sh-rail-w);
+  height: var(--sh-cmd-h);
+  font: var(--sh-w-semibold) var(--sh-t-title) / 1 var(--sh-font-mono);
+  color: var(--sh-primary);
+  letter-spacing: -0.04em;
+}
+
+.sh-rail__brand-name {
+  font: var(--sh-w-semibold) var(--sh-t-body-lg) / 1.15 var(--sh-font-ui);
+  color: var(--sh-fg);
+  letter-spacing: -0.014em;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-rail__brand-version {
+  display: block;
+  font: var(--sh-w-regular) var(--sh-t-caption) / 1 var(--sh-font-mono);
+  color: var(--sh-fg-3);
+  margin-top: 3px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sh-shell[data-rail-expanded='true'] .sh-rail__brand-name {
+  opacity: 1;
+}
+
+.sh-rail__nav {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--sh-s-3) 0 var(--sh-s-4);
+}
+
+.sh-rail__section {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sh-s-2) 0;
+}
+
+.sh-rail__section + .sh-rail__section {
+  border-top: 1px solid var(--sh-border);
+  margin-top: var(--sh-s-1);
+  padding-top: var(--sh-s-3);
+}
+
+.sh-rail__section-label {
+  font: var(--sh-w-medium) var(--sh-t-caption) / 1 var(--sh-font-mono);
+  color: var(--sh-fg-3);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: var(--sh-s-1) var(--sh-s-4) var(--sh-s-2);
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--sh-dur-fast) var(--sh-ease);
+  height: 22px;
+}
+
+.sh-shell[data-rail-expanded='true'] .sh-rail__section-label {
+  opacity: 1;
+}
+
+.sh-rail__item {
+  display: grid;
+  grid-template-columns: var(--sh-rail-w) 1fr auto;
+  align-items: center;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sh-fg-2);
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition: background var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-rail__item:hover {
+  background: var(--sh-surface-hover);
+  color: var(--sh-fg);
+}
+
+.sh-rail__item--active {
+  background: var(--sh-primary-soft);
+  color: var(--sh-primary);
+}
+
+.sh-rail__item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--sh-primary);
+  border-radius: 0 var(--sh-r-1) var(--sh-r-1) 0;
+}
+
+.sh-rail__item-icon {
+  display: grid;
+  place-items: center;
+  width: var(--sh-rail-w);
+  height: 38px;
+  font-size: var(--sh-t-title);
+  flex-shrink: 0;
+}
+
+.sh-rail__item-label {
+  font-size: var(--sh-t-body);
+  font-weight: var(--sh-w-medium);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-rail__item-badge {
+  margin-right: var(--sh-s-3);
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--sh-r-full);
+  background: var(--sh-danger-soft);
+  color: var(--sh-danger);
+  font: var(--sh-w-semibold) var(--sh-t-caption) / 18px var(--sh-font-mono);
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-rail__item-badge[data-tone='warning'] {
+  background: var(--sh-warning-soft);
+  color: var(--sh-warning);
+}
+
+.sh-rail__item-badge[data-tone='primary'] {
+  background: var(--sh-primary-soft);
+  color: var(--sh-primary);
+}
+
+.sh-shell[data-rail-expanded='true'] .sh-rail__item-label,
+.sh-shell[data-rail-expanded='true'] .sh-rail__item-badge {
+  opacity: 1;
+}
+
+.sh-rail__foot {
+  border-top: 1px solid var(--sh-border);
+  padding: var(--sh-s-2) 0;
+}
+
+.sh-rail__pin {
+  display: grid;
+  grid-template-columns: var(--sh-rail-w) 1fr;
+  align-items: center;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sh-fg-3);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-size: var(--sh-t-meta);
+  transition: color var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-rail__pin:hover {
+  color: var(--sh-fg);
+}
+
+.sh-rail__pin-icon {
+  display: grid;
+  place-items: center;
+  width: var(--sh-rail-w);
+  height: 36px;
+  font-size: var(--sh-t-body);
+}
+
+.sh-rail__pin-label {
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-shell[data-rail-expanded='true'] .sh-rail__pin-label {
+  opacity: 1;
+}
+
+/* ── CommandBar ───────────────────────────────────────────── */
+
+.sh-cmd {
+  height: var(--sh-cmd-h);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 360px) auto;
+  gap: var(--sh-s-4);
+  align-items: center;
+  padding: 0 var(--sh-s-4) 0 var(--sh-s-5);
+  background: var(--sh-surface-0);
+  border-bottom: 1px solid var(--sh-border);
+}
+
+.sh-cmd__crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-s-2);
+  min-width: 0;
+  font-size: var(--sh-t-body);
+  color: var(--sh-fg-2);
+}
+
+.sh-cmd__crumb-section {
+  font: var(--sh-w-medium) var(--sh-t-caption) / 1 var(--sh-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sh-fg-3);
+}
+
+.sh-cmd__crumb-sep {
+  color: var(--sh-fg-3);
+  font-family: var(--sh-font-mono);
+}
+
+.sh-cmd__crumb-page {
+  font-weight: var(--sh-w-semibold);
+  color: var(--sh-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sh-cmd__search {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-s-2);
+  height: 30px;
+  padding: 0 var(--sh-s-3);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-1);
+  color: var(--sh-fg-3);
+  cursor: pointer;
+  transition: all var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-cmd__search:hover {
+  border-color: var(--sh-border-strong);
+  color: var(--sh-fg-2);
+}
+
+.sh-cmd__search-icon {
+  font-size: var(--sh-t-body);
+}
+
+.sh-cmd__search-text {
+  flex: 1;
+  font-size: var(--sh-t-meta);
+  text-align: left;
+}
+
+.sh-cmd__kbd {
+  display: inline-grid;
+  place-items: center;
+  height: 18px;
+  min-width: 22px;
+  padding: 0 5px;
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-1);
+  background: var(--sh-surface-0);
+  color: var(--sh-fg-2);
+  font: var(--sh-w-medium) 10px / 1 var(--sh-font-mono);
+}
+
+.sh-cmd__right {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-s-3);
+}
+
+.sh-cmd__pulse {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-s-1);
+  height: 28px;
+  padding: 0 var(--sh-s-3);
+  border-radius: var(--sh-r-2);
+  border: 1px solid var(--sh-border);
+  background: var(--sh-surface-0);
+  color: var(--sh-fg-2);
+  cursor: pointer;
+  font-size: var(--sh-t-meta);
+  transition: all var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-cmd__pulse:hover {
+  border-color: var(--sh-border-strong);
+  background: var(--sh-surface-hover);
+}
+
+.sh-cmd__pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--sh-r-full);
+  background: var(--sh-fg-3);
+}
+
+.sh-cmd__pulse[data-tone='primary'] .sh-cmd__pulse-dot { background: var(--sh-primary); }
+.sh-cmd__pulse[data-tone='warning'] .sh-cmd__pulse-dot { background: var(--sh-warning); }
+.sh-cmd__pulse[data-tone='danger']  .sh-cmd__pulse-dot { background: var(--sh-danger); }
+.sh-cmd__pulse[data-tone='success'] .sh-cmd__pulse-dot { background: var(--sh-success); }
+
+.sh-cmd__pulse[data-tone='warning'] {
+  border-color: color-mix(in oklch, var(--sh-warning) 28%, var(--sh-border));
+  background: color-mix(in oklch, var(--sh-warning-soft) 50%, var(--sh-surface-0));
+  color: var(--sh-fg);
+}
+
+.sh-cmd__pulse[data-tone='danger'] {
+  border-color: color-mix(in oklch, var(--sh-danger) 28%, var(--sh-border));
+  background: color-mix(in oklch, var(--sh-danger-soft) 50%, var(--sh-surface-0));
+  color: var(--sh-fg);
+}
+
+.sh-cmd__pulse-num {
+  font: var(--sh-w-semibold) var(--sh-t-body) / 1 var(--sh-font-mono);
+  color: var(--sh-fg);
+  font-variant-numeric: tabular-nums;
+  min-width: 14px;
+  text-align: right;
+}
+
+.sh-cmd__pulse-label {
+  color: var(--sh-fg-2);
+  font-size: var(--sh-t-meta);
+  margin-left: 4px;
+}
+
+.sh-cmd__chat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sh-s-2);
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-1);
+  border: 1px solid var(--sh-border);
+  color: var(--sh-fg-1);
+  cursor: pointer;
+  font-size: var(--sh-t-meta);
+  font-weight: var(--sh-w-medium);
+  transition: all var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-cmd__chat:hover,
+.sh-cmd__chat[data-active='true'] {
+  border-color: var(--sh-primary);
+  color: var(--sh-primary);
+  background: var(--sh-primary-soft);
+}
+
+@media (max-width: 1080px) {
+  .sh-cmd {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sh-s-3);
+    padding-left: var(--sh-s-4);
+  }
+
+  .sh-cmd__search {
+    display: none;
+  }
+
+  .sh-cmd__pulse-label {
+    display: none;
+  }
+}
+
+/* ── EntityChip ───────────────────────────────────────────── */
+
+.sh-entity {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--sh-r-2);
+  border: 1px solid transparent;
+  background: var(--sh-surface-1);
+  color: var(--sh-fg-1);
+  font-family: var(--sh-font-mono);
+  font-size: var(--sh-t-meta);
+  font-weight: var(--sh-w-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-entity::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: var(--sh-r-full);
+  background: var(--sh-fg-3);
+  flex-shrink: 0;
+}
+
+.sh-entity[data-kind='user']::before  { background: var(--sh-info); }
+.sh-entity[data-kind='guild']::before { background: var(--sh-primary); }
+
+.sh-entity:hover {
+  border-color: var(--sh-border-strong);
+  background: var(--sh-surface-hover);
+  color: var(--sh-fg);
+}
+
+.sh-entity:focus-visible {
+  outline: none;
+  border-color: var(--sh-primary);
+  box-shadow: 0 0 0 3px var(--sh-primary-soft);
+}
+
+.sh-entity__name {
+  font-family: var(--sh-font-ui);
+  color: var(--sh-fg);
+  margin-right: 2px;
+}
+
+.sh-entity__id {
+  color: var(--sh-fg-3);
+}
+
+.sh-entity--inline {
+  height: auto;
+  padding: 0 4px;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--sh-r-1);
+}
+
+.sh-entity--inline:hover {
+  background: var(--sh-surface-hover);
+}
+
+/* ── EntityOverlay ────────────────────────────────────────── */
+
+.sh-overlay {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--sh-overlay-w);
+  max-width: 100vw;
+  background: var(--sh-surface-0);
+  border-left: 1px solid var(--sh-border);
+  box-shadow: var(--sh-shadow-overlay);
+  display: flex;
+  flex-direction: column;
+  z-index: var(--sh-z-overlay);
+  transform: translateX(100%);
+  transition: transform var(--sh-dur-slow) var(--sh-ease);
+}
+
+.sh-overlay[data-open='true'] {
+  transform: translateX(0);
+}
+
+.sh-overlay__scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+  opacity: 0;
+  pointer-events: none;
+  z-index: calc(var(--sh-z-overlay) - 1);
+  transition: opacity var(--sh-dur-base) var(--sh-ease);
+}
+
+.sh-overlay__scrim[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sh-overlay__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sh-s-3);
+  padding: var(--sh-s-4) var(--sh-s-5);
+  border-bottom: 1px solid var(--sh-border);
+  background: var(--sh-surface-0);
+}
+
+.sh-overlay__head-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-overlay__kind {
+  font: var(--sh-w-medium) var(--sh-t-caption) / 1 var(--sh-font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sh-fg-3);
+}
+
+.sh-overlay__title {
+  font-size: var(--sh-t-title);
+  font-weight: var(--sh-w-semibold);
+  color: var(--sh-fg);
+  letter-spacing: -0.014em;
+  line-height: 1.2;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sh-overlay__id {
+  font-family: var(--sh-font-mono);
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-2);
+}
+
+.sh-overlay__close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--sh-fg-2);
+  cursor: pointer;
+  border-radius: var(--sh-r-2);
+  display: grid;
+  place-items: center;
+  font-size: var(--sh-t-body);
+  flex-shrink: 0;
+}
+
+.sh-overlay__close:hover {
+  background: var(--sh-surface-hover);
+  color: var(--sh-fg);
+}
+
+.sh-overlay__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--sh-s-4) var(--sh-s-5) var(--sh-s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-s-4);
+}
+
+.sh-overlay__section-title {
+  font: var(--sh-w-semibold) var(--sh-t-meta) / 1 var(--sh-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sh-fg-2);
+  margin-bottom: var(--sh-s-2);
+}
+
+.sh-overlay__jump-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sh-s-2);
+}
+
+.sh-overlay__jump {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sh-s-3);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-2);
+  background: var(--sh-surface-0);
+  color: var(--sh-fg);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--sh-dur-fast) var(--sh-ease);
+}
+
+.sh-overlay__jump:hover {
+  border-color: var(--sh-border-strong);
+  background: var(--sh-surface-hover);
+}
+
+.sh-overlay__jump-label {
+  font-size: var(--sh-t-body);
+  font-weight: var(--sh-w-medium);
+}
+
+.sh-overlay__jump-hint {
+  font-size: var(--sh-t-meta);
+  color: var(--sh-fg-2);
+}
+
+.sh-overlay__keylist {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--sh-s-3);
+  row-gap: 6px;
+  font-size: var(--sh-t-body);
+}
+
+.sh-overlay__keylist dt {
+  color: var(--sh-fg-2);
+  font-size: var(--sh-t-meta);
+  align-self: center;
+}
+
+.sh-overlay__keylist dd {
+  margin: 0;
+  color: var(--sh-fg);
+}
+
+@media (max-width: 720px) {
+  .sh-overlay {
+    width: 100vw;
+  }
+}
+
+/* ── ChatDock ─────────────────────────────────────────────── */
+
+.sh-dock {
+  position: fixed;
+  bottom: var(--sh-s-4);
+  right: var(--sh-s-4);
+  width: var(--sh-dock-w);
+  height: var(--sh-dock-h);
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - var(--sh-cmd-h) - 32px);
+  background: var(--sh-surface-0);
+  border: 1px solid var(--sh-border);
+  border-radius: var(--sh-r-3);
+  box-shadow: var(--sh-shadow-overlay);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: var(--sh-z-dock);
+  transform: translateY(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--sh-dur-base) var(--sh-ease),
+    opacity var(--sh-dur-base) var(--sh-ease);
+}
+
+.sh-dock[data-open='true'] {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sh-dock[data-minimized='true'] {
+  height: 44px;
+  width: 220px;
+}
+
+.sh-dock__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-s-2);
+  height: 44px;
+  padding: 0 var(--sh-s-3) 0 var(--sh-s-4);
+  border-bottom: 1px solid var(--sh-border);
+  background: var(--sh-surface-1);
+  cursor: grab;
+}
+
+.sh-dock__title {
+  flex: 1;
+  font-size: var(--sh-t-body);
+  font-weight: var(--sh-w-semibold);
+  color: var(--sh-fg);
+  letter-spacing: -0.008em;
+}
+
+.sh-dock__action {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--sh-fg-2);
+  cursor: pointer;
+  border-radius: var(--sh-r-2);
+  display: grid;
+  place-items: center;
+  font-size: var(--sh-t-body);
+}
+
+.sh-dock__action:hover {
+  background: var(--sh-surface-hover);
+  color: var(--sh-fg);
+}
+
+.sh-dock__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sh-dock[data-minimized='true'] .sh-dock__body {
+  display: none;
+}
+
+/* ChatView 内部用了 height:100% / position 之类，要让它在 dock 里能伸展 */
+.sh-dock__body > .chat-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 0;
+  border: 0;
+}
+
+@media (max-width: 720px) {
+  .sh-dock {
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100vw;
+    height: calc(100vh - var(--sh-cmd-h));
+    max-width: 100vw;
+    max-height: calc(100vh - var(--sh-cmd-h));
+    border-radius: var(--sh-r-3) var(--sh-r-3) 0 0;
+  }
+
+  .sh-dock[data-minimized='true'] {
+    width: 100vw;
+    height: 44px;
+    bottom: 0;
+  }
+}

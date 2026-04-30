@@ -48,3 +48,49 @@ test('ChatView uses a composite session key to avoid cross-platform collisions',
   assert.match(source, /return `\$\{params\.platform\}:\$\{params\.type\}:\$\{guildPart\}:\$\{params\.channelId\}`/)
   assert.match(source, /findSessionByKey\(sessionKey\)/)
 })
+
+test('dangerous moderation actions require shared confirmation before API mutation', () => {
+  const reviewSource = readClientFile('./components/ReviewView.vue')
+  const blacklistSource = readClientFile('./components/BlacklistView.vue')
+  const warnsSource = readClientFile('./components/WarnsView.vue')
+
+  assert.match(reviewSource, /<ConfirmDialog\b/)
+  assert.ok(
+    reviewSource.indexOf('const confirmed = await confirm(') < reviewSource.indexOf('await consolePageApi.workItemAction('),
+  )
+  assert.match(reviewSource, /if \(!confirmed\) return/)
+
+  assert.match(blacklistSource, /<ConfirmDialog\b/)
+  assert.ok(
+    blacklistSource.indexOf('const confirmed = await confirm(') < blacklistSource.indexOf('await blacklistApi.remove(userId)'),
+  )
+  assert.match(blacklistSource, /if \(!confirmed\) return/)
+
+  assert.match(warnsSource, /<ConfirmDialog\b/)
+  assert.ok(
+    warnsSource.indexOf('const confirmed = await confirm(') < warnsSource.indexOf('await warnsApi.update(key, next)'),
+  )
+  assert.match(warnsSource, /if \(!confirmed\) \{\s*await refresh\(\)\s*return\s*\}/)
+})
+
+test('SettingsView sidebar icon binding uses explicit string icon names', () => {
+  const source = readClientFile('./components/SettingsView.vue')
+
+  assert.doesNotMatch(source, /<k-icon :name="section"/)
+  assert.match(source, /<k-icon :name="section\.icon"/)
+  assert.match(source, /icon: 'stuhelperGroupCenter:octicons\./)
+})
+
+test('RolesView has no debug console output in browser code', () => {
+  const source = readClientFile('./components/RolesView.vue')
+
+  assert.doesNotMatch(source, /console\.(log|error|warn|info)\(/)
+})
+
+test('ChatView uses console API avatars instead of hard-coded QQ avatar URLs', () => {
+  const source = readClientFile('./components/ChatView.vue')
+
+  assert.doesNotMatch(source, /p\.qlogo\.cn/)
+  assert.doesNotMatch(source, /q1\.qlogo\.cn/)
+  assert.match(source, /displayAvatar = info\.avatar/)
+})

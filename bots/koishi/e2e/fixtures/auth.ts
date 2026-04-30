@@ -67,6 +67,6 @@ async function loginAndWarmUp(page: Page): Promise<void> {
   // 避免直接 page.goto('/stuhelper') 抢在 entry 注册前触发 profile fallback。
   await page.locator('a[href="/stuhelper"]').first().click()
   await expect(page.locator('.stuhelperGroupCenter-app')).toBeVisible({ timeout: 15_000 })
-  // 等顶部导航完整渲染，证明 stuhelper-core 客户端 entry 已挂载
-  await expect(page.locator('.nav-tab').first()).toBeVisible({ timeout: 10_000 })
+  // 等 NavRail 挂载，证明 stuhelper-core 客户端 AppShell 已渲染
+  await expect(page.locator('.sh-rail__item').first()).toBeVisible({ timeout: 10_000 })
 }

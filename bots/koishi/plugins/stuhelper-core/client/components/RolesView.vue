@@ -601,12 +601,9 @@ const doConfirm = () => {
 const fetchData = async () => {
   loading.value = true
   try {
-    console.log('[RolesView] Fetching roles and permissions...')
     roles.value = await authApi.getRoles()
     permissions.value = await authApi.getPermissions()
-    console.log('[RolesView] Loaded', roles.value.length, 'roles and', permissions.value.length, 'permissions')
   } catch (e) {
-    console.error('[RolesView] Failed to fetch data:', e)
     message.error('加载数据失败: ' + (e instanceof Error ? e.message : String(e)))
   } finally {
     loading.value = false
@@ -687,11 +684,8 @@ const groupedPermissions = computed(() => {
 // 方法
 const fetchRoleMembers = async (roleId: string) => {
   try {
-    console.log('[RolesView] Fetching members for role:', roleId)
     currentRoleMembers.value = await authApi.getRoleMembers(roleId, true)
-    console.log('[RolesView] Loaded', currentRoleMembers.value.length, 'members')
-  } catch (e) {
-    console.error('[RolesView] Failed to fetch role members:', e)
+  } catch {
     currentRoleMembers.value = []
   }
 }
@@ -716,7 +710,6 @@ const selectRole = async (role: Role) => {
   editingRole.value = normalizedRole
   // 同步 scopeMode
   scopeMode.value = (normalizedRole.guildIds && normalizedRole.guildIds.length > 0) ? 'guilds' : 'global'
-  console.log('[RolesView] Selected role:', normalizedRole, 'scopeMode:', scopeMode.value)
   activeTab.value = 'display'
   memberSearchQuery.value = '' // 重置成员搜索
   fetchRoleMembers(role.id)
@@ -733,7 +726,6 @@ const createRole = async () => {
     guildIds: []
   }
   try {
-    console.log('[RolesView] Creating new role:', newRole)
     await authApi.updateRole(newRole)
     await fetchData()
     // 从刷新后的列表中找到新角色
@@ -743,7 +735,6 @@ const createRole = async () => {
     }
     message.success('角色创建成功')
   } catch (e) {
-    console.error('[RolesView] Failed to create role:', e)
     message.error('创建角色失败: ' + (e instanceof Error ? e.message : String(e)))
   }
 }
@@ -752,7 +743,6 @@ const saveChanges = async () => {
   if (!currentRole.value) return
   
   try {
-    console.log('[RolesView] Saving role changes:', editingRole.value)
     await authApi.updateRole(editingRole.value)
     message.success('保存成功')
     await fetchData()
@@ -771,7 +761,6 @@ const saveChanges = async () => {
       scopeMode.value = (updated.guildIds && updated.guildIds.length > 0) ? 'guilds' : 'global'
     }
   } catch (e) {
-    console.error('[RolesView] Failed to save role:', e)
     message.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
   }
 }
@@ -839,7 +828,6 @@ const cloneRole = async () => {
   }
 
   try {
-    console.log('[RolesView] Cloning role:', currentRole.value.id, '->', newRole)
     await authApi.updateRole(newRole)
     message.success('克隆成功')
     await fetchData()
@@ -848,7 +836,6 @@ const cloneRole = async () => {
       await selectRole(created)
     }
   } catch (e) {
-    console.error('[RolesView] Failed to clone role:', e)
     message.error('克隆失败: ' + (e instanceof Error ? e.message : String(e)))
   }
 }
@@ -864,14 +851,12 @@ const deleteRole = async () => {
   if (!confirmed) return
   
   try {
-    console.log('[RolesView] Deleting role:', currentRole.value.id)
     await authApi.deleteRole(currentRole.value.id)
     message.success('删除成功')
     currentRole.value = null
     editingRole.value = createDefaultRole()
     await fetchData()
   } catch (e) {
-    console.error('[RolesView] Failed to delete role:', e)
     message.error('删除失败: ' + (e instanceof Error ? e.message : String(e)))
   }
 }
@@ -925,9 +910,6 @@ const isCoveredByWildcard = (nodeId: string): string | null => {
 }
 
 const togglePermission = (nodeId: string) => {
-  console.log('[RolesView] togglePermission called with:', nodeId)
-  console.log('[RolesView] Current editingRole:', JSON.stringify(editingRole.value))
-  
   // 确保 permissions 是数组
   const currentPerms = Array.isArray(editingRole.value.permissions)
     ? editingRole.value.permissions
@@ -937,11 +919,9 @@ const togglePermission = (nodeId: string) => {
   if (currentPerms.includes(nodeId)) {
     // 移除权限
     newPerms = currentPerms.filter(p => p !== nodeId)
-    console.log('[RolesView] Removing permission:', nodeId)
   } else {
     // 添加权限
     newPerms = [...currentPerms, nodeId]
-    console.log('[RolesView] Adding permission:', nodeId)
   }
   
   // 使用新的对象替换整个 editingRole 以确保响应式更新
@@ -949,24 +929,17 @@ const togglePermission = (nodeId: string) => {
     ...editingRole.value,
     permissions: newPerms
   }
-  
-  console.log('[RolesView] Updated permissions:', editingRole.value.permissions)
-  console.log('[RolesView] hasChanges:', hasChanges.value)
 }
 
 const clearPermissions = () => {
-  console.log('[RolesView] Clearing all permissions')
   editingRole.value = {
     ...editingRole.value,
     permissions: []
   }
-  console.log('[RolesView] Permissions cleared, hasChanges:', hasChanges.value)
 }
 
 // 成员操作
 const addMember = async () => {
-  console.log('[RolesView] addMember called, newMemberId:', newMemberId.value)
-  
   if (!newMemberId.value.trim()) {
     message.warning('请输入用户 ID')
     return
@@ -980,44 +953,36 @@ const addMember = async () => {
   const roleId = currentRole.value.id
   
   try {
-    console.log('[RolesView] Adding member:', userId, 'to role:', roleId)
     await authApi.assignRole(userId, roleId)
     message.success('添加成员成功')
     newMemberId.value = ''
     await fetchRoleMembers(roleId)
   } catch (e) {
-    console.error('[RolesView] Failed to add member:', e)
     message.error('添加成员失败: ' + (e instanceof Error ? e.message : String(e)))
   }
 }
 
 // 包装函数，用于处理按钮点击
 const handleAddMember = () => {
-  console.log('[RolesView] handleAddMember triggered')
   addMember()
 }
 
 const removeMember = async (userId: string) => {
-  console.log('[RolesView] removeMember called for:', userId)
-  
   if (!currentRole.value) return
   
   const roleId = currentRole.value.id
   
   try {
-    console.log('[RolesView] Removing member:', userId, 'from role:', roleId)
     await authApi.revokeRole(userId, roleId)
     message.success('移除成员成功')
     await fetchRoleMembers(roleId)
   } catch (e) {
-    console.error('[RolesView] Failed to remove member:', e)
     message.error('移除成员失败: ' + (e instanceof Error ? e.message : String(e)))
   }
 }
 
 // 包装函数，用于处理按钮点击
 const handleRemoveMember = (userId: string) => {
-  console.log('[RolesView] handleRemoveMember triggered for:', userId)
   removeMember(userId)
 }
 
@@ -1068,7 +1033,6 @@ const loadImportPreview = async () => {
     // 默认全选
     selectedImportIds.value = new Set(importPreviewMembers.value.map(m => m.id))
   } catch (e) {
-    console.error('[RolesView] Failed to load role members:', e)
     message.error('加载成员列表失败')
     importPreviewMembers.value = []
     selectedImportIds.value = new Set()
@@ -1087,7 +1051,6 @@ const loadAuthorityUsers = async () => {
     // 默认全选
     selectedImportIds.value = new Set(importPreviewMembers.value.map(m => m.id))
   } catch (e) {
-    console.error('[RolesView] Failed to load authority users:', e)
     message.error('加载用户列表失败')
     importPreviewMembers.value = []
     selectedImportIds.value = new Set()
@@ -1111,7 +1074,6 @@ const loadGuildAdmins = async () => {
     // 默认全选
     selectedImportIds.value = new Set(importPreviewMembers.value.map(m => m.id))
   } catch (e) {
-    console.error('[RolesView] Failed to load guild admins:', e)
     message.error('获取群管理员失败')
     importPreviewMembers.value = []
     selectedImportIds.value = new Set()
@@ -1132,7 +1094,6 @@ const doImportMembers = async () => {
     // 刷新成员列表
     await fetchRoleMembers(currentRole.value.id)
   } catch (e) {
-    console.error('[RolesView] Failed to import members:', e)
     message.error('导入失败: ' + (e instanceof Error ? e.message : String(e)))
   } finally {
     importLoading.value = false
