@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+REPO_DIR="$(cd -- "${SERVER_DIR}/.." && pwd)"
 SCAN_DIR="${SERVER_DIR}/internal"
 
 if [[ ! -d "${SCAN_DIR}" ]]; then
@@ -37,6 +38,27 @@ run_check_with_find() {
       exit 1
     fi
   done < <(find "${scan_root}" "$@" -print0)
+
+  report_violations "${label}" "${hits}" "${allowed}"
+}
+
+run_git_check() {
+  local label="$1" pattern="$2" allowed="$3"
+  shift 3
+  local hits="" rc=0
+
+  set +e
+  hits="$(cd "${REPO_DIR}" && git grep -lE "${pattern}" -- "$@" 2>/dev/null)"
+  rc=$?
+  set -e
+
+  if (( rc == 1 )); then
+    return
+  fi
+  if (( rc > 1 )); then
+    echo "ERROR: git grep failed (rc=${rc}) for ${label}" >&2
+    exit 1
+  fi
 
   report_violations "${label}" "${hits}" "${allowed}"
 }
@@ -80,3 +102,9 @@ run_check_non_test \
   'casdoor_subject|CasdoorSubject|casdoorSubject' \
   '^internal/modules/(auth|user)/' \
   "${SERVER_DIR}/internal/modules"
+
+run_git_check \
+  "tracked server/infra/env files must not reference retired Zitadel identifiers" \
+  'Zitadel|ZITADEL|zitadel|urn:zitadel' \
+  '^server/scripts/check-casdoor-boundary\.sh$' \
+  server infra .env.example .env.prod.example docker-compose.yml docker-compose.prod.yml Makefile .gitlab-ci.yml
