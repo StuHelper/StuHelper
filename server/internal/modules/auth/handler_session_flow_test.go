@@ -38,7 +38,13 @@ func newRefreshTestHandler(t *testing.T, repo UserSyncRepo) (*Handler, *token.Se
 
 	tokenCfg := config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}
 	svc := NewService(tokenCfg, tokenSvc, repo)
-	return &Handler{svc: svc, tokenService: tokenSvc, redisClient: fixture.Client, tokenConfig: tokenCfg}, tokenSvc
+	return &Handler{
+		svc:              svc,
+		tokenService:     tokenSvc,
+		redisClient:      fixture.Client,
+		tokenConfig:      tokenCfg,
+		authFailureGuard: NewAuthFailureGuard(fixture.Client),
+	}, tokenSvc
 }
 
 func marshalRefreshBody(t *testing.T, refreshToken string) *bytes.Buffer {

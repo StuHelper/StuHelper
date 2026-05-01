@@ -24,6 +24,7 @@ type Handler struct {
 	redisClient          *redis.Client
 	refreshLimiter       *middleware.RedisRateLimiter
 	phoneLimiter         *middleware.RedisRateLimiter
+	authFailureGuard     *AuthFailureGuard
 	allowedRedirectHosts map[string]struct{}
 	defaultRedirectURL   string
 	otpService           *OTPService
@@ -65,6 +66,7 @@ func NewHandler(
 		redisClient:          rdb,
 		refreshLimiter:       middleware.NewRedisRateLimiter(rdb, 10, time.Minute),
 		phoneLimiter:         middleware.NewRedisRateLimiter(rdb, 5, time.Minute),
+		authFailureGuard:     NewAuthFailureGuard(rdb),
 		allowedRedirectHosts: redirectHosts,
 		defaultRedirectURL:   defaultRedirect,
 		otpService:           otpSvc,

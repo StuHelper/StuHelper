@@ -44,6 +44,7 @@ func TestNewHandler_WiresDependencies(t *testing.T) {
 	assert.Contains(t, h.allowedRedirectHosts, "admin.example.com")
 	assert.NotNil(t, h.refreshLimiter)
 	assert.NotNil(t, h.phoneLimiter)
+	assert.NotNil(t, h.authFailureGuard)
 	assert.Nil(t, h.otpService)
 	assert.Equal(t, "https://sso.example.com", h.oidcIssuer)
 

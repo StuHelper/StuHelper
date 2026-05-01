@@ -44,7 +44,7 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 
 查询：`GET /api/v1/course/review/admin/logs`
 
-留存：90 天 + 每日清理。
+留存：管理员操作默认 90 天；IAM v2 高敏事件按 IAM v2 spec 的更长保留期执行。
 
 历史说明：旧表 `admin_operation_logs` 已迁入 `audit_events` 并从现行 schema 移除。
 
@@ -52,7 +52,7 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 
 | 模块 | 事件 |
 |------|------|
-| 认证 | `user.login` / `user.login_failed` / `user.logout` / `user.logout_all` / `token.refresh` / `token.revoked` |
+| 认证 | `user.login` / `user.login_failed` / `user.logout` / `user.logout_all` / `token.refresh` / `token.revoked` / `iam.auth.ip_locked` |
 | 数据操作 | `data.access` / `data.create` / `data.update` / `data.delete` / `data.export` |
 | 用户操作 | `user.review_post` / `user.review_edit` / `user.review_delete` / `user.vote` / `user.report` / `user.reply` / `user.favorite` |
 | 管理 | `admin.review_hide` / `admin.review_restore` / `admin.review_delete` / `admin.report_resolve` / `admin.config_change` / `admin.user_ban` / `admin.batch_operation` |
