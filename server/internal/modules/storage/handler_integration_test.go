@@ -93,6 +93,10 @@ func newStorageTestRouter(svc *Service) *gin.Engine {
 func storageAdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set(middleware.CtxKeyUserID, "admin-user")
+		c.Set(middleware.CtxKeyCapabilities, []string{
+			capability.UserSystemRead,
+			capability.UserSystemUpdate,
+		})
 		c.Set(middleware.CtxKeyCapabilitySet, map[string]struct{}{
 			capability.UserSystemRead:   {},
 			capability.UserSystemUpdate: {},

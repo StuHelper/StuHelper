@@ -1,7 +1,9 @@
 package rbac
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +13,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
 )
 
 func init() { gin.SetMode(gin.TestMode) }
@@ -22,10 +25,12 @@ func TestRequireCapability_Allowed(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	engine2 := gin.New()
 	engine2.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-1")
 		capSet := make(map[string]struct{})
 		capSet["admin:reviews:manage"] = struct{}{}
 		capSet["admin:logs:view"] = struct{}{}
 		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Set(middleware.CtxKeyCapabilities, []string{"admin:reviews:manage", "admin:logs:view"})
 		c.Next()
 	})
 	engine2.GET("/test", handler, func(c *gin.Context) {
@@ -43,9 +48,11 @@ func TestRequireCapability_Allowed(t *testing.T) {
 func TestRequireCapability_Denied(t *testing.T) {
 	engine := gin.New()
 	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-1")
 		capSet := make(map[string]struct{})
 		capSet["admin:logs:view"] = struct{}{}
 		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Set(middleware.CtxKeyCapabilities, []string{"admin:logs:view"})
 		c.Next()
 	})
 	called := false
@@ -69,6 +76,7 @@ func TestRequireCapability_Denied(t *testing.T) {
 func TestRequireCapability_EmptyCapabilities(t *testing.T) {
 	engine := gin.New()
 	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-1")
 		// no capabilities set at all — simulates unauthenticated or minimal user
 		c.Next()
 	})
@@ -87,9 +95,11 @@ func TestRequireCapability_EmptyCapabilities(t *testing.T) {
 func TestRequireAnyCapability_OneMatch(t *testing.T) {
 	engine := gin.New()
 	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-1")
 		capSet := make(map[string]struct{})
 		capSet["admin:logs:view"] = struct{}{}
 		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Set(middleware.CtxKeyCapabilities, []string{"admin:logs:view"})
 		c.Next()
 	})
 	called := false
@@ -111,9 +121,11 @@ func TestRequireAnyCapability_OneMatch(t *testing.T) {
 func TestRequireAnyCapability_NoMatch(t *testing.T) {
 	engine := gin.New()
 	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-1")
 		capSet := make(map[string]struct{})
 		capSet["review:list:brief"] = struct{}{}
 		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Set(middleware.CtxKeyCapabilities, []string{"review:list:brief"})
 		c.Next()
 	})
 	called := false
@@ -134,10 +146,12 @@ func TestRequireAnyCapability_NoMatch(t *testing.T) {
 func TestRequireAnyCapability_AllMatch(t *testing.T) {
 	engine := gin.New()
 	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-1")
 		capSet := make(map[string]struct{})
 		capSet["admin:reviews:manage"] = struct{}{}
 		capSet["admin:logs:view"] = struct{}{}
 		c.Set(middleware.CtxKeyCapabilitySet, capSet)
+		c.Set(middleware.CtxKeyCapabilities, []string{"admin:reviews:manage", "admin:logs:view"})
 		c.Next()
 	})
 	called := false
@@ -158,6 +172,10 @@ func TestRequireAnyCapability_AllMatch(t *testing.T) {
 
 func TestRequireAnyCapability_EmptyCapabilities(t *testing.T) {
 	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-1")
+		c.Next()
+	})
 	called := false
 	engine.GET("/test",
 		RequireAnyCapability("admin:reviews:manage"),
@@ -171,4 +189,37 @@ func TestRequireAnyCapability_EmptyCapabilities(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 	assert.False(t, called)
+}
+
+func TestRequireCapability_AuthorizerErrorReturns503(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "user-1")
+		c.Next()
+	})
+	called := false
+	handler := RequireCapabilityWithAuthorizer(errorAuthorizer{}, "admin:reviews:manage")
+	engine.GET("/test", handler, func(c *gin.Context) {
+		called = true
+	})
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.False(t, called)
+}
+
+type errorAuthorizer struct{}
+
+func (errorAuthorizer) Authorize(context.Context, authorization.Subject, authorization.Action, authorization.Resource) authorization.Decision {
+	return authorization.Decision{Allow: false, Reason: "dependency failed", Error: errors.New("dependency failed")}
+}
+
+func (e errorAuthorizer) BatchAuthorize(ctx context.Context, subject authorization.Subject, checks []authorization.Check) []authorization.Decision {
+	decisions := make([]authorization.Decision, len(checks))
+	for i, check := range checks {
+		decisions[i] = e.Authorize(ctx, subject, check.Action, check.Resource)
+	}
+	return decisions
 }
