@@ -12,7 +12,7 @@ import (
 
 var externalSyncOutboxStreams = []string{
 	outbox.StreamIAMCasdoorRoleSync,
-	outbox.StreamIAMCasdoorUserProjection,
+	outbox.StreamIAMOpenFGATupleSync,
 }
 
 func (r *Repository) UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error {
@@ -162,7 +162,7 @@ func externalSyncStreamForJobType(jobType string) (string, error) {
 	case externalSyncJobTypeVerifiedStudentRole:
 		return outbox.StreamIAMCasdoorRoleSync, nil
 	case externalSyncJobTypeUserProfileProjection:
-		return outbox.StreamIAMCasdoorUserProjection, nil
+		return outbox.StreamIAMOpenFGATupleSync, nil
 	default:
 		return "", fmt.Errorf("unsupported external sync job type: %s", jobType)
 	}

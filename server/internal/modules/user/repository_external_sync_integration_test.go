@@ -68,7 +68,7 @@ func TestExternalSyncOutbox_UpsertConflictResetsCompletedJob(t *testing.T) {
 	}
 
 	upsert(`{"userID":7,"approved":false}`)
-	assertExternalSyncStream(t, fixture, dedupeKey, outbox.StreamIAMCasdoorUserProjection)
+	assertExternalSyncStream(t, fixture, dedupeKey, outbox.StreamIAMOpenFGATupleSync)
 	jobs, err := repo.ClaimExternalSyncJobs(ctx, 10, time.Minute)
 	require.NoError(t, err)
 	require.Len(t, jobs, 1)
