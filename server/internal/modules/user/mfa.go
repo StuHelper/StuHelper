@@ -1,0 +1,129 @@
+package user
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+const (
+	MFAMethodTOTP     = "totp"
+	MFAMethodWebAuthn = "webauthn"
+)
+
+var (
+	ErrInvalidMFAMethod            = errors.New("invalid mfa method")
+	ErrMFAEnrollmentMethodRequired = errors.New("active mfa enrollment requires at least one method")
+)
+
+type MFAEnrollment struct {
+	UserID                int64
+	Active                bool
+	Methods               []string
+	RecoveryCodesIssuedAt *time.Time
+	ResetRequired         bool
+	LastEnrolledAt        *time.Time
+	LastDisabledAt        *time.Time
+	LastResetAt           *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type MFAEnrollmentUpsert struct {
+	UserID                int64
+	Active                bool
+	Methods               []string
+	RecoveryCodesIssuedAt *time.Time
+	ResetRequired         bool
+}
+
+func (r *Repository) UpsertMFAEnrollment(ctx context.Context, params MFAEnrollmentUpsert) error {
+	methods, err := normalizeMFAMethods(params.Methods, params.Active)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Exec(ctx, `
+		INSERT INTO user_mfa_enrollment (
+			user_id, active, methods, recovery_codes_issued_at, reset_required,
+			last_enrolled_at, last_disabled_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5,
+			CASE WHEN $2 THEN NOW() ELSE NULL END,
+			CASE WHEN $2 THEN NULL ELSE NOW() END,
+			NOW()
+		)
+		ON CONFLICT (user_id) DO UPDATE SET
+			active = EXCLUDED.active,
+			methods = EXCLUDED.methods,
+			recovery_codes_issued_at = EXCLUDED.recovery_codes_issued_at,
+			reset_required = EXCLUDED.reset_required,
+			last_enrolled_at = CASE WHEN EXCLUDED.active THEN NOW() ELSE user_mfa_enrollment.last_enrolled_at END,
+			last_disabled_at = CASE WHEN EXCLUDED.active THEN user_mfa_enrollment.last_disabled_at ELSE NOW() END,
+			updated_at = NOW()
+	`, params.UserID, params.Active, methods, params.RecoveryCodesIssuedAt, params.ResetRequired)
+	if err != nil {
+		return fmt.Errorf("UpsertMFAEnrollment: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) GetMFAEnrollment(ctx context.Context, userID int64) (*MFAEnrollment, error) {
+	var item MFAEnrollment
+	err := r.db.QueryRow(ctx, `
+		SELECT user_id, active, methods, recovery_codes_issued_at, reset_required,
+		       last_enrolled_at, last_disabled_at, last_reset_at, created_at, updated_at
+		FROM user_mfa_enrollment
+		WHERE user_id = $1
+	`, userID).Scan(
+		&item.UserID,
+		&item.Active,
+		&item.Methods,
+		&item.RecoveryCodesIssuedAt,
+		&item.ResetRequired,
+		&item.LastEnrolledAt,
+		&item.LastDisabledAt,
+		&item.LastResetAt,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("GetMFAEnrollment: %w", err)
+	}
+	return &item, nil
+}
+
+func normalizeMFAMethods(methods []string, active bool) ([]string, error) {
+	out := make([]string, 0, len(methods))
+	seen := make(map[string]struct{}, len(methods))
+	for _, method := range methods {
+		item := strings.ToLower(strings.TrimSpace(method))
+		if item == "" {
+			continue
+		}
+		if !validMFAMethod(item) {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidMFAMethod, item)
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
+	}
+	sort.Strings(out)
+	if active && len(out) == 0 {
+		return nil, ErrMFAEnrollmentMethodRequired
+	}
+	return out, nil
+}
+
+func validMFAMethod(method string) bool {
+	return method == MFAMethodTOTP || method == MFAMethodWebAuthn
+}

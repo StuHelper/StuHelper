@@ -3,14 +3,21 @@ package authorization
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 )
 
-type Service struct{}
+type Service struct {
+	now func() time.Time
+}
 
 func NewService() *Service {
-	return &Service{}
+	return newServiceWithClock(time.Now)
+}
+
+func newServiceWithClock(now func() time.Time) *Service {
+	return &Service{now: now}
 }
 
 func (s *Service) Authorize(ctx context.Context, subject Subject, action Action, resource Resource) Decision {
@@ -28,6 +35,10 @@ func (s *Service) Authorize(ctx context.Context, subject Subject, action Action,
 		return authorizeAnyCapability(subject, resource)
 	case ActionCapabilityRequireGlobal:
 		return authorizeGlobalCapability(subject, resource)
+	case ActionPrivilegedMFARequire:
+		return s.authorizePrivilegedMFA(subject, resource)
+	case ActionStepUpMFARequire:
+		return s.authorizeMFA(subject, resource)
 	default:
 		return deny(fmt.Sprintf("unsupported action %q", action), ErrUnsupportedAction)
 	}
@@ -77,4 +88,53 @@ func validateCapabilityResource(resource Resource) error {
 		return ErrInvalidResource
 	}
 	return nil
+}
+
+func (s *Service) authorizePrivilegedMFA(subject Subject, resource Resource) Decision {
+	if resource.Type != ResourceMFA {
+		return deny("mfa resource is invalid", ErrInvalidResource)
+	}
+	if !hasPrivilegedRole(subject.Roles) {
+		return allow("privileged mfa not required")
+	}
+	return s.authorizeMFA(subject, resource)
+}
+
+func (s *Service) authorizeMFA(subject Subject, resource Resource) Decision {
+	if resource.Type != ResourceMFA {
+		return deny("mfa resource is invalid", ErrInvalidResource)
+	}
+	if !subject.MFAEnrollmentActive {
+		return deny("mfa enrollment required", ErrMFAEnrollmentRequired)
+	}
+	if !mfaProofFresh(s.now(), subject.MFAProofVerifiedAt, stepUpWindow(resource)) {
+		return deny("step-up required", ErrStepUpRequired)
+	}
+	return allow("mfa proof accepted")
+}
+
+func hasPrivilegedRole(roles []string) bool {
+	for _, role := range roles {
+		if role == "super_admin" || role == "school_admin" {
+			return true
+		}
+	}
+	return false
+}
+
+func stepUpWindow(resource Resource) time.Duration {
+	if resource.StepUpWindow > 0 {
+		return resource.StepUpWindow
+	}
+	return DefaultStepUpWindow
+}
+
+func mfaProofFresh(now, verifiedAt time.Time, window time.Duration) bool {
+	if verifiedAt.IsZero() {
+		return false
+	}
+	if verifiedAt.After(now) {
+		return false
+	}
+	return !verifiedAt.Before(now.Add(-window))
 }
