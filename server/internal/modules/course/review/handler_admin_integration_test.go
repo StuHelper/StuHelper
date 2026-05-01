@@ -174,6 +174,7 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Process report through handler
+	seedUser(t, fixture, seedUserParams{ExternalID: "ext-handler-reporter", UserHash: "u-handler-reporter"})
 	var handlerReportID string
 	handlerReportID, err = svc.ReportReview(ctx, ReportReviewParams{ReviewID: reportableID, UserHash: "u-handler-reporter", ReporterExternalUserID: "ext-handler-reporter", Reason: "spam", Description: "handler report"})
 	require.NoError(t, err)
@@ -275,6 +276,7 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 	reviewB := "550e8400-e29b-41d4-a716-446655440222"
 	seedReviewWithRatings(t, fixture, reviewB, courseB, teacherB, "u-report-b", 4.1, StatusPublished, ReviewRatings{"teaching": 4}, "学校B评论", "学校B内容")
 
+	seedUser(t, fixture, seedUserParams{ExternalID: "ext-reporter-a", UserHash: "u-reporter-a"})
 	reportA, err := svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewA,
 		UserHash:               "u-reporter-a",
@@ -283,6 +285,7 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 		Description:            "学校A举报",
 	})
 	require.NoError(t, err)
+	seedUser(t, fixture, seedUserParams{ExternalID: "ext-reporter-b", UserHash: "u-reporter-b"})
 	reportB, err := svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewB,
 		UserHash:               "u-reporter-b",

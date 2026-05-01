@@ -178,11 +178,6 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, a
 	projectionCtx, cancel := context.WithTimeout(ctx, fga.DefaultWriteTimeout)
 	defer cancel()
 
-	externalID, err := s.repo.GetExternalID(projectionCtx, userID)
-	if err != nil {
-		return fmt.Errorf("get external ID: %w", err)
-	}
-
 	profile, err := s.repo.GetProfileByUserID(projectionCtx, userID)
 	if err != nil {
 		return fmt.Errorf("get profile: %w", err)
@@ -203,7 +198,7 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, a
 	}
 
 	tuples := []fga.Tuple{{
-		User:     "user:" + externalID,
+		User:     "user:" + strconv.FormatInt(userID, 10),
 		Relation: "owner",
 		Object:   profileObj,
 	}}

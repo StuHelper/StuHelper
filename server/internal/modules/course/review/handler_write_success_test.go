@@ -37,6 +37,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	viewerID := "writer-user-1"
 	viewerHash, err := httputil.HashUserID(viewerID)
 	require.NoError(t, err)
+	seedUser(t, fixture, seedUserParams{ExternalID: viewerID, UserHash: viewerHash})
 	seedReviewWithRatings(t, fixture, "550e8400-e29b-41d4-a716-446655440771", courseID, teacherID, "another-user-hash", 4.3, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "既有评论", "既有内容")
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)
 	require.NoError(t, err)

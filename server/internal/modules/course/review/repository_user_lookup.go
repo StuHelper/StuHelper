@@ -18,6 +18,16 @@ func (r *Repository) GetInternalUserIDByExternalID(ctx context.Context, external
 	return userID, nil
 }
 
+// GetInternalUserIDByExternalIDTx resolves the OIDC subject to users.id inside a business transaction.
+func (r *Repository) GetInternalUserIDByExternalIDTx(ctx context.Context, tx pgx.Tx, externalID string) (int64, error) {
+	var userID int64
+	err := tx.QueryRow(ctx, `SELECT id FROM users WHERE external_id = $1`, externalID).Scan(&userID)
+	if err != nil {
+		return 0, fmt.Errorf("GetInternalUserIDByExternalIDTx: %w", err)
+	}
+	return userID, nil
+}
+
 // GetUserIDByUserHash 根据 user_hash 解析内部用户 ID。
 // 未命中时返回 0，且不视为错误。
 func (r *Repository) GetUserIDByUserHash(ctx context.Context, userHash string) (int64, error) {

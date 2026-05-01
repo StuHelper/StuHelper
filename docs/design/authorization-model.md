@@ -3,7 +3,7 @@ type: design
 audience: backend-dev
 status: current
 authoritative-source: server/internal/pkg/capability/ + design/openfga-model.fga
-last-verified: 2026-04-19
+last-verified: 2026-05-02
 ---
 
 # 授权模型
@@ -12,7 +12,7 @@ last-verified: 2026-04-19
 
 ## 三层授权
 
-1. **角色** — Zitadel JWT claims：`super_admin` / `school_admin` / `moderator` / `verified_student` / `user`
+1. **角色** — Casdoor JWT claims：`super_admin` / `school_admin` / `section_admin` / `section_moderator` / `section_reviewer` / `verified_student` / `user`
 2. **能力（Capability）** — 后端把角色静态展开为能力字符串，零 DB 查询
 3. **业务事实 + OpenFGA** — 结合应用数据库状态和资源关系做最终判断
 

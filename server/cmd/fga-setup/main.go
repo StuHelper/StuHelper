@@ -6,7 +6,7 @@
 //
 // Actions:
 //  1. Creates an OpenFGA Store (if OPENFGA_STORE_ID is empty)
-//  2. Imports the authorization model from infra/openfga/model.fga
+//  2. Imports the authorization model from infra/openfga/model.json
 //  3. Writes initial ecosystem and school tuples
 //  4. Prints StoreID and ModelID for .env configuration
 //
@@ -29,7 +29,7 @@ import (
 func main() {
 	apiURL := envOrDefault("OPENFGA_API_URL", "http://localhost:8081")
 	storeID := os.Getenv("OPENFGA_STORE_ID")
-	modelPath := envOrDefault("FGA_MODEL_PATH", "infra/openfga/model.fga")
+	modelPath := envOrDefault("FGA_MODEL_PATH", "../infra/openfga/model.fga")
 	resolvedModelPath, err := resolveModelPath(modelPath)
 	if err != nil {
 		log.Fatalf("Invalid model path: %v", err)
@@ -71,15 +71,9 @@ func main() {
 
 	// 3. Read and import model
 	log.Printf("Importing model from %s...", resolvedModelPath)
-	// #nosec G304 -- resolveModelPath constrains the file to the current workspace.
-	modelContent, err := os.ReadFile(resolvedModelPath)
+	modelJSON, err := loadAuthorizationModel(resolvedModelPath)
 	if err != nil {
-		log.Fatalf("Failed to read model file: %v", err)
-	}
-
-	modelJSON, err := dslToJSON(string(modelContent))
-	if err != nil {
-		log.Fatalf("Failed to convert DSL to JSON: %v", err)
+		log.Fatalf("Failed to load authorization model: %v", err)
 	}
 
 	writeResp, err := fgaClient.WriteAuthorizationModel(ctx).Body(modelJSON).Execute()
@@ -146,139 +140,62 @@ func resolveModelPath(raw string) (string, error) {
 		return "", fmt.Errorf("resolve absolute path: %w", err)
 	}
 
-	relativePath, err := filepath.Rel(workingDir, absolutePath)
+	modelRoot := modelWorkspaceRoot(workingDir)
+	relativePath, err := filepath.Rel(modelRoot, absolutePath)
 	if err != nil {
 		return "", fmt.Errorf("resolve relative path: %w", err)
 	}
 	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("model path %q escapes working directory %q", raw, workingDir)
+		return "", fmt.Errorf("model path %q escapes workspace root %q", raw, modelRoot)
 	}
 
 	return absolutePath, nil
 }
 
-// dslToJSON is a simplified DSL-to-JSON converter for the OpenFGA model.
-// For production use, prefer the OpenFGA CLI: `openfga model write`
-func dslToJSON(dsl string) (client.ClientWriteAuthorizationModelRequest, error) {
-	// This is a placeholder — the OpenFGA Go SDK doesn't include DSL parsing.
-	// The recommended approach is to use the OpenFGA CLI to write models.
-	// For automated setup, we parse the JSON equivalent directly.
-	_ = dsl
-
-	// Return a hardcoded model matching infra/openfga/model.fga
-	// This is kept in sync manually. When the model changes, update here too.
-	model := buildModelFromCode()
-	return model, nil
+func modelWorkspaceRoot(workingDir string) string {
+	if filepath.Base(workingDir) == "server" {
+		return filepath.Dir(workingDir)
+	}
+	return workingDir
 }
 
-func buildModelFromCode() client.ClientWriteAuthorizationModelRequest {
-	var req client.ClientWriteAuthorizationModelRequest
-	modelJSON := `{
-		"schema_version": "1.1",
-		"type_definitions": [
-			{"type": "user"},
-			{
-				"type": "ecosystem",
-				"relations": {
-					"super_admin": {"this": {}}
-				},
-				"metadata": {
-					"relations": {
-						"super_admin": {"directly_related_user_types": [{"type": "user"}]}
-					}
-				}
-			},
-			{
-				"type": "school",
-				"relations": {
-					"parent": {"this": {}},
-					"admin": {"this": {}},
-					"reviewer": {"this": {}},
-					"volunteer": {"this": {}},
-					"effective_admin": {"union": {"child": [{"this": {}}, {"tupleToUserset": {"tupleset": {"relation": "parent"}, "computedUserset": {"relation": "super_admin"}}}]}}
-				},
-				"metadata": {
-					"relations": {
-						"parent": {"directly_related_user_types": [{"type": "ecosystem"}]},
-						"admin": {"directly_related_user_types": [{"type": "user"}]},
-						"reviewer": {"directly_related_user_types": [{"type": "user"}]},
-						"volunteer": {"directly_related_user_types": [{"type": "user"}]},
-						"effective_admin": {"directly_related_user_types": [{"type": "user"}]}
-					}
-				}
-			},
-			{
-				"type": "course",
-				"relations": {
-					"school": {"this": {}},
-					"owner": {"this": {}},
-					"teaching_assistant": {"this": {}},
-					"can_edit": {"union": {"child": [{"computedUserset": {"relation": "owner"}}, {"computedUserset": {"relation": "teaching_assistant"}}, {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}}]}},
-					"can_view": {"union": {"child": [{"computedUserset": {"relation": "owner"}}, {"computedUserset": {"relation": "teaching_assistant"}}, {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}}]}}
-				},
-				"metadata": {
-					"relations": {
-						"school": {"directly_related_user_types": [{"type": "school"}]},
-						"owner": {"directly_related_user_types": [{"type": "user"}]},
-						"teaching_assistant": {"directly_related_user_types": [{"type": "user"}]}
-					}
-				}
-			},
-			{
-				"type": "review",
-				"relations": {
-					"course": {"this": {}},
-					"school": {"this": {}},
-					"author": {"this": {}},
-					"can_edit": {"computedUserset": {"relation": "author"}},
-					"can_delete": {"union": {"child": [{"computedUserset": {"relation": "author"}}, {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "volunteer"}}}, {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}}]}},
-					"can_hide": {"union": {"child": [{"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "volunteer"}}}, {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}}]}},
-					"can_view_author_identity": {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}}
-				},
-				"metadata": {
-					"relations": {
-						"course": {"directly_related_user_types": [{"type": "course"}]},
-						"school": {"directly_related_user_types": [{"type": "school"}]},
-						"author": {"directly_related_user_types": [{"type": "user"}]}
-					}
-				}
-			},
-			{
-				"type": "report",
-				"relations": {
-					"review": {"this": {}},
-					"school": {"this": {}},
-					"reporter": {"this": {}},
-					"can_process": {"union": {"child": [{"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "volunteer"}}}, {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}}]}}
-				},
-				"metadata": {
-					"relations": {
-						"review": {"directly_related_user_types": [{"type": "review"}]},
-						"school": {"directly_related_user_types": [{"type": "school"}]},
-						"reporter": {"directly_related_user_types": [{"type": "user"}]}
-					}
-				}
-			},
-			{
-				"type": "user_profile",
-				"relations": {
-					"owner": {"this": {}},
-					"school": {"this": {}},
-					"can_view_own": {"computedUserset": {"relation": "owner"}},
-					"can_view_identity": {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}},
-					"can_review_verification": {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}}
-				},
-				"metadata": {
-					"relations": {
-						"owner": {"directly_related_user_types": [{"type": "user"}]},
-						"school": {"directly_related_user_types": [{"type": "school"}]}
-					}
-				}
-			}
-		]
-	}`
-	if err := json.Unmarshal([]byte(modelJSON), &req); err != nil {
-		log.Fatalf("Failed to parse hardcoded model JSON: %v", err)
+func loadAuthorizationModel(modelPath string) (client.ClientWriteAuthorizationModelRequest, error) {
+	jsonPath, err := authorizationModelJSONPath(modelPath)
+	if err != nil {
+		return client.ClientWriteAuthorizationModelRequest{}, err
 	}
-	return req
+
+	// #nosec G304 -- resolveModelPath constrains the base file to the current workspace;
+	// authorizationModelJSONPath only switches to a sibling .json file.
+	content, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return client.ClientWriteAuthorizationModelRequest{}, fmt.Errorf("read model JSON: %w", err)
+	}
+	return parseAuthorizationModelJSON(content)
+}
+
+func authorizationModelJSONPath(modelPath string) (string, error) {
+	switch ext := filepath.Ext(modelPath); ext {
+	case ".json":
+		return modelPath, nil
+	case ".fga":
+		jsonPath := strings.TrimSuffix(modelPath, ext) + ".json"
+		if _, err := os.Stat(jsonPath); err != nil {
+			return "", fmt.Errorf("OpenFGA Go setup requires JSON companion %q for DSL file %q: %w", jsonPath, modelPath, err)
+		}
+		return jsonPath, nil
+	default:
+		return "", fmt.Errorf("unsupported OpenFGA model extension %q; use .fga with a .json companion or pass .json", ext)
+	}
+}
+
+func parseAuthorizationModelJSON(content []byte) (client.ClientWriteAuthorizationModelRequest, error) {
+	var req client.ClientWriteAuthorizationModelRequest
+	if err := json.Unmarshal(content, &req); err != nil {
+		return client.ClientWriteAuthorizationModelRequest{}, fmt.Errorf("parse model JSON: %w", err)
+	}
+	if req.SchemaVersion == "" || len(req.TypeDefinitions) == 0 {
+		return client.ClientWriteAuthorizationModelRequest{}, fmt.Errorf("model JSON must include schema_version and type_definitions")
+	}
+	return req, nil
 }

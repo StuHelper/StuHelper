@@ -51,6 +51,14 @@ func reportRelationsSyncKey(reportID string) string {
 	return "report-relations:" + reportID
 }
 
+func (s *Service) resolveFGAUserIDTx(ctx context.Context, tx pgx.Tx, externalID string) (string, error) {
+	userID, err := s.repo.GetInternalUserIDByExternalIDTx(ctx, tx, externalID)
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatInt(userID, 10), nil
+}
+
 func (s *Service) enqueueReviewFGASyncTx(ctx context.Context, tx pgx.Tx, reviewID, authorUserID string, courseID, schoolID int64) error {
 	payload, err := json.Marshal(reviewRelationsSyncPayload{
 		ReviewID:     reviewID,

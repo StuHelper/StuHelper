@@ -62,7 +62,7 @@ func NewClient(cfg config.OpenFGAConfig) (*Client, error) {
 
 // Tuple 表示一条授权关系
 type Tuple struct {
-	User     string // 如 "user:abc-123"
+	User     string // 如 "user:123"，ID 部分使用 StuHelper users.id
 	Relation string // 如 "author", "can_delete"
 	Object   string // 如 "review:100"
 }
@@ -215,7 +215,7 @@ func (c *Client) ReadTuples(ctx context.Context, object, relation string) ([]Tup
 	return result, nil
 }
 
-// WriteReviewRelations 评课发布时写入完整关系链
+// WriteReviewRelations 评课发布时写入完整关系链，authorUserID 必须是内部 users.id。
 func (c *Client) WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error {
 	return c.WriteTuples(ctx, []Tuple{
 		{User: "user:" + authorUserID, Relation: "author", Object: "review:" + reviewID},
@@ -224,7 +224,7 @@ func (c *Client) WriteReviewRelations(ctx context.Context, reviewID, authorUserI
 	})
 }
 
-// WriteReportRelations 举报创建时写入完整关系链
+// WriteReportRelations 举报创建时写入完整关系链，reporterUserID 必须是内部 users.id。
 func (c *Client) WriteReportRelations(ctx context.Context, reportID, reporterUserID, reviewID, schoolID string) error {
 	return c.WriteTuples(ctx, []Tuple{
 		{User: "user:" + reporterUserID, Relation: "reporter", Object: "report:" + reportID},

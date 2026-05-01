@@ -120,6 +120,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	assert.GreaterOrEqual(t, teacherStats.ReviewCount, 2)
 	assert.NotEmpty(t, teacherStats.Courses)
 
+	seedUser(t, fixture, seedUserParams{ExternalID: "ext-u-post-1", UserHash: "u-post-1"})
 	posted, err := svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
 		TeacherID:            &teacherID,
@@ -161,6 +162,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, courseID, voteCourseID)
 
+	seedUser(t, fixture, seedUserParams{ExternalID: "ext-u-reporter-1", UserHash: "u-reporter-1"})
 	reportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: posted.Review.ID, UserHash: "u-reporter-1", ReporterExternalUserID: "ext-u-reporter-1", Reason: "spam", Description: "需要处理"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, reportID)
@@ -182,6 +184,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 3 WHERE id = $1`, courseID)
 	require.NoError(t, err)
 
+	seedUser(t, fixture, seedUserParams{ExternalID: "ext-u-reporter-hide", UserHash: "u-reporter-hide"})
 	hideReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: hideReviewID, UserHash: "u-reporter-hide", ReporterExternalUserID: "ext-u-reporter-hide", Reason: "abuse", Description: "需要隐藏"})
 	require.NoError(t, err)
 	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: hideReportID, Action: "hide", Note: "隐藏处理", ResolvedBy: "admin-2"}))
@@ -194,6 +197,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ReportStatusResolved, hideReport.Status)
 
+	seedUser(t, fixture, seedUserParams{ExternalID: "ext-u-reporter-delete", UserHash: "u-reporter-delete"})
 	deleteReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: deleteReviewID, UserHash: "u-reporter-delete", ReporterExternalUserID: "ext-u-reporter-delete", Reason: "illegal", Description: "需要删除"})
 	require.NoError(t, err)
 	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: deleteReportID, Action: "delete", Note: "删除处理", ResolvedBy: "admin-3"}))
@@ -225,6 +229,25 @@ func seedReviewWithRatings(t *testing.T, fixture *postgresfixture.Fixture, revie
 		)
 	`, reviewID, courseID, teacherID, userHash, title, content, string(ratingsJSON), avgRating, status)
 	require.NoError(t, err)
+}
+
+type seedUserParams struct {
+	ExternalID string
+	UserHash   string
+}
+
+func seedUser(t *testing.T, fixture *postgresfixture.Fixture, params seedUserParams) int64 {
+	t.Helper()
+	var userID int64
+	err := fixture.Pool.QueryRow(context.Background(), `
+		INSERT INTO users (external_id, username, email, user_hash)
+		VALUES ($1, $1, $2, NULLIF($3, ''))
+		ON CONFLICT (external_id) DO UPDATE SET
+			user_hash = COALESCE(EXCLUDED.user_hash, users.user_hash)
+		RETURNING id
+	`, params.ExternalID, params.ExternalID+"@example.test", params.UserHash).Scan(&userID)
+	require.NoError(t, err)
+	return userID
 }
 
 func TestReviewService_IntegrationInteractionPaths(t *testing.T) {

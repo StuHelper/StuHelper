@@ -71,7 +71,7 @@ func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 
 	assert.Equal(t, []fga.Tuple{{User: "school:99999", Relation: "school", Object: "user_profile:123"}}, fgaClient.deleteCalls[0])
 	assert.Equal(t, []fga.Tuple{
-		{User: "user:test-external-id", Relation: "owner", Object: "user_profile:123"},
+		{User: "user:123", Relation: "owner", Object: "user_profile:123"},
 		{User: "school:10006", Relation: "school", Object: "user_profile:123"},
 	}, fgaClient.writeCalls[0])
 }

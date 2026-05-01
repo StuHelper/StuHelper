@@ -78,6 +78,11 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 			return ErrAlreadyReported
 		}
 
+		reporterUserID, err := s.resolveFGAUserIDTx(ctx, tx, params.ReporterExternalUserID)
+		if err != nil {
+			return err
+		}
+
 		reportID, err = s.repo.CreateReportTx(ctx, tx, CreateReportParams{
 			ReviewID:     params.ReviewID,
 			ReporterHash: params.UserHash,
@@ -94,7 +99,7 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 		if err != nil {
 			return err
 		}
-		return s.enqueueReportFGASyncTx(ctx, tx, reportID, params.ReporterExternalUserID, params.ReviewID, schoolID)
+		return s.enqueueReportFGASyncTx(ctx, tx, reportID, reporterUserID, params.ReviewID, schoolID)
 	})
 	return reportID, err
 }

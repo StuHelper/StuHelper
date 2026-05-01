@@ -38,6 +38,7 @@ func TestReviewHandler_WriteErrorPaths(t *testing.T) {
 	selfUserID := "write-error-user"
 	selfHash, err := httputil.HashUserID(selfUserID)
 	require.NoError(t, err)
+	seedUser(t, fixture, seedUserParams{ExternalID: selfUserID, UserHash: selfHash})
 
 	duplicateReviewID := "550e8400-e29b-41d4-a716-446655440881"
 	otherReviewID := "550e8400-e29b-41d4-a716-446655440882"

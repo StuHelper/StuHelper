@@ -115,7 +115,6 @@ type Repo interface {
 	UpdateSystemConfig(ctx context.Context, key, value string) error
 
 	GetInternalUserID(ctx context.Context, externalID string) (int64, error)
-	GetExternalID(ctx context.Context, userID int64) (string, error)
 	GetAcademicStudentByXHFromTable(ctx context.Context, xh string, tableName string) (*AcademicStudent, error)
 	FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh string, tableName string) ([]AcademicStudent, error)
 	ValidateAcademicDBTable(ctx context.Context, tableName string) error

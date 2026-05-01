@@ -1,95 +1,72 @@
 model
   schema 1.1
 
-# ============================================
-# StuHelper 生态 - OpenFGA 授权模型
-# ============================================
+# StuHelper OpenFGA model.
 #
-# 关系链：ecosystem → school → course → review
-# 权限继承：super_admin → effective_admin → volunteer → author
-#
-# OpenFGA DSL 限制：只支持单层 `x from y`，不支持 `a.b` 链式 TTU。
-# 解决方法：每层通过中间 relation 把上层的 school 投影下来。
-#
-# 使用方法：
-#   openfga model write --store-id $STORE_ID --file model.fga
-# ============================================
+# User object IDs are StuHelper internal users.id values, not Casdoor subjects.
+# Every `x from y` is a single-layer TTU where y is a direct relation on the
+# current type. Keep infra/openfga/model.fga and infra/openfga/model.json
+# synchronized with this design copy; fga-setup imports the JSON companion
+# because the Go SDK does not parse DSL.
 
-# 用户类型（Zitadel 用户 ID）
 type user
-
-# ── 生态 ──
 
 type ecosystem
   relations
     define super_admin: [user]
 
-# ── 学校 ──
-
 type school
   relations
     define parent: [ecosystem]
     define admin: [user]
-    define reviewer: [user]
-    define volunteer: [user]
-    # 有效管理员 = 直接管理员 + 生态超管（单层 TTU: super_admin from parent）
     define effective_admin: admin or super_admin from parent
 
-# ── 课程 ──
+type section
+  relations
+    define school: [school]
+    define school_admin_proxy: effective_admin from school
+    define section_admin: [user] or school_admin_proxy
+    define section_moderator: [user] or section_admin
+    define section_reviewer: [user] or section_admin
 
 type course
   relations
     define school: [school]
     define owner: [user]
-    define teaching_assistant: [user]
-    # 单层 TTU: effective_admin from school ✅
-    define can_edit: owner or teaching_assistant or effective_admin from school
-    define can_view: owner or teaching_assistant or effective_admin from school
-
-# ── 评课 ──
-#
-# 关键设计：review 不能直接写 `volunteer from course.school`（链式 TTU 不合法）。
-# 解决方案：review 上增加 `school` 中间 relation，创建评课时同时写入：
-#   review:100 | course | course:42
-#   review:100 | school | school:buaa    ← 冗余但必要
-#   review:100 | author | user:C
+    define ta: [user]
+    define school_admin_proxy: effective_admin from school
+    define can_edit: owner or ta or school_admin_proxy
 
 type review
   relations
     define course: [course]
     define school: [school]
+    define section: [section]
     define author: [user]
-    # 编辑：仅作者
+    define school_admin_proxy: effective_admin from school
+    define section_moderator_proxy: section_moderator from section
     define can_edit: author
-    # 删除：作者 + 志愿者(从 school) + 有效管理员(从 school)
-    define can_delete: author or volunteer from school or effective_admin from school
-    # 隐藏：志愿者 + 有效管理员
-    define can_hide: volunteer from school or effective_admin from school
-    # 查看作者实名信息：仅有效管理员（志愿者不行）
-    define can_view_author_identity: effective_admin from school
-
-# ── 举报 ──
-#
-# 同理：report 也需要 school 中间 relation，避免三层链式。
-# 创建举报时写入：
-#   report:200 | review  | review:100
-#   report:200 | school  | school:buaa   ← 冗余但必要
-#   report:200 | reporter| user:E
+    define can_delete: author or section_moderator_proxy or school_admin_proxy
+    define can_hide: section_moderator_proxy or school_admin_proxy
 
 type report
   relations
     define review: [review]
     define school: [school]
+    define section: [section]
     define reporter: [user]
-    # 能处理举报：志愿者 + 有效管理员
-    define can_process: volunteer from school or effective_admin from school
-
-# ── 用户档案（控制实名信息可见性）──
+    define school_admin_proxy: effective_admin from school
+    define section_moderator_proxy: section_moderator from section
+    define can_process: section_moderator_proxy or school_admin_proxy
 
 type user_profile
   relations
     define owner: [user]
     define school: [school]
-    define can_view_own: owner
-    define can_view_identity: effective_admin from school
-    define can_review_verification: effective_admin from school
+    define school_admin_proxy: effective_admin from school
+    define can_view_identity: owner or school_admin_proxy
+
+type open_platform_app
+  relations
+    define developer: [user]
+    define approved_by: [user]

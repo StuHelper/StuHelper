@@ -106,6 +106,11 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 			return ErrAlreadyReviewed
 		}
 
+		authorUserID, err := s.resolveFGAUserIDTx(ctx, tx, params.AuthorExternalUserID)
+		if err != nil {
+			return err
+		}
+
 		created, err := s.repo.CreateReturning(ctx, tx, CreateParams{
 			ID:          reviewID,
 			CourseID:    params.CourseID,
@@ -131,7 +136,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 			if err != nil {
 				return err
 			}
-			return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, params.AuthorExternalUserID, params.CourseID, schoolID)
+			return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, authorUserID, params.CourseID, schoolID)
 		}
 		if err := s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID); err != nil {
 			return err
@@ -143,7 +148,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		if err != nil {
 			return err
 		}
-		return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, params.AuthorExternalUserID, params.CourseID, schoolID)
+		return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, authorUserID, params.CourseID, schoolID)
 	}); err != nil {
 		return nil, err
 	}

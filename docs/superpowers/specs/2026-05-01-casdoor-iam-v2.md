@@ -560,6 +560,16 @@ type review
     define can_delete: author or section_moderator_proxy or school_admin_proxy
     define can_hide: section_moderator_proxy or school_admin_proxy
 
+type report
+  relations
+    define review: [review]
+    define school: [school]
+    define section: [section]
+    define reporter: [user]
+    define school_admin_proxy: effective_admin from school
+    define section_moderator_proxy: section_moderator from section
+    define can_process: section_moderator_proxy or school_admin_proxy
+
 type user_profile
   relations
     define owner: [user]
@@ -574,7 +584,9 @@ type open_platform_app
     define approved_by: [user]
 ```
 
-**校验规则**：上文每一处 `from X` 中的 X 都是**当前 type 的直接 relation**（如 `effective_admin from school` 中 `school` 是 `section` / `course` / `review` / `user_profile` 上直接持有的关系），不是 `Y from Z` 链式。等价地，要让 review 知道学校管理员，必须直接给 review 加 `school: [school]`，不能写 `admin from school from course`。
+**校验规则**：上文每一处 `from X` 中的 X 都是**当前 type 的直接 relation**（如 `effective_admin from school` 中 `school` 是 `section` / `course` / `review` / `report` / `user_profile` 上直接持有的关系），不是 `Y from Z` 链式。等价地，要让 review 知道学校管理员，必须直接给 review 加 `school: [school]`，不能写 `admin from school from course`。
+
+**落地文件**：`infra/openfga/model.fga` 是人类可读 DSL；`infra/openfga/model.json` 是 `server/cmd/fga-setup` 导入 OpenFGA 的机器格式。两者必须同步修改，不允许再使用代码内硬编码模型。
 
 **注意**：`scope consent`（用户对应用的 scope 授权）**不在 OpenFGA 中建模**，因为 scope 是字符串属性，不是 OpenFGA 关系目标。Scope consent 由业务 DB 表 `open_platform_user_consent` 承载，由 `AuthorizationService` 在决策时查询。OpenFGA 只承载"应用 → 具体资源"的细粒度关系（详见 [`open-platform-v1.md`](./2026-05-01-open-platform-v1.md) §9）。
 

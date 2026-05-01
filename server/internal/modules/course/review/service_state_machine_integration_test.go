@@ -217,6 +217,7 @@ drainLoop:
 	assert.Equal(t, 1, reviewCount)
 
 	// ListReports 对未知状态回退到 StatusAll。
+	seedUser(t, fixture, seedUserParams{ExternalID: "ext-report-state", UserHash: "u-report-state"})
 	_, err = svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewID,
 		UserHash:               "u-report-state",

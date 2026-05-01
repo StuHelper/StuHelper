@@ -201,10 +201,6 @@ func (m *mockRepo) GetInternalUserID(ctx context.Context, externalID string) (in
 	return 0, nil
 }
 
-func (m *mockRepo) GetExternalID(_ context.Context, _ int64) (string, error) {
-	return "test-external-id", nil
-}
-
 func (m *mockRepo) WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error {
 	if m.onWithTx != nil {
 		return m.onWithTx(ctx, fn)
