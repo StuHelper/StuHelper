@@ -1,19 +1,19 @@
 #!/bin/bash
-# 为应用、备份、复制、Zitadel 和 OpenFGA 创建独立数据库/用户
+# 为应用、备份、复制、Casdoor 和 OpenFGA 创建独立数据库/用户
 set -e
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-EOSQL
     CREATE ROLE stuhelper_app LOGIN PASSWORD '${STUHELPER_APP_DB_PASSWORD}' CONNECTION LIMIT 30;
     CREATE ROLE stuhelper_backup LOGIN PASSWORD '${STUHELPER_BACKUP_DB_PASSWORD}' CONNECTION LIMIT 5;
     CREATE ROLE stuhelper_replication WITH LOGIN REPLICATION PASSWORD '${STUHELPER_REPLICATION_DB_PASSWORD}' CONNECTION LIMIT 5;
-    CREATE ROLE zitadel LOGIN PASSWORD '${ZITADEL_DB_PASSWORD}' CONNECTION LIMIT 20;
+    CREATE ROLE casdoor LOGIN PASSWORD '${CASDOOR_DB_PASSWORD}' CONNECTION LIMIT 20;
     CREATE ROLE openfga LOGIN PASSWORD '${OPENFGA_DB_PASSWORD}' CONNECTION LIMIT 20;
 
     GRANT pg_read_all_data TO stuhelper_backup;
     GRANT pg_read_all_settings TO stuhelper_backup;
     GRANT pg_read_all_stats TO stuhelper_backup;
 
-    CREATE DATABASE zitadel OWNER zitadel;
+    CREATE DATABASE casdoor OWNER casdoor;
     CREATE DATABASE openfga OWNER openfga;
 EOSQL
 

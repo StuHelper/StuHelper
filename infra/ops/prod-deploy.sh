@@ -95,9 +95,10 @@ require_nonempty TRUSTED_PROXIES "${TRUSTED_PROXIES:-}"
 require_nonempty CORS_ORIGINS "${CORS_ORIGINS:-}"
 require_nonempty HMAC_SECRET "${HMAC_SECRET:-}"
 require_nonempty DOC_AES_KEYS "${DOC_AES_KEYS:-}"
-require_nonempty ZITADEL_DOMAIN "${ZITADEL_DOMAIN:-}"
-require_nonempty ZITADEL_ISSUER "${ZITADEL_ISSUER:-}"
-require_nonempty ZITADEL_REDIRECT_URI "${ZITADEL_REDIRECT_URI:-}"
+require_nonempty CASDOOR_ISSUER "${CASDOOR_ISSUER:-}"
+require_nonempty CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}"
+require_nonempty CASDOOR_CLIENT_ID "${CASDOOR_CLIENT_ID:-}"
+require_nonempty CASDOOR_CLIENT_SECRET "${CASDOOR_CLIENT_SECRET:-}"
 require_nonempty WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}"
 require_nonempty ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}"
 require_nonempty WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
@@ -115,14 +116,12 @@ require_immutable_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
 
 reject_placeholder POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}" "dev123"
 reject_placeholder REDIS_PASSWORD "${REDIS_PASSWORD:-}" "dev123"
-reject_placeholder ZITADEL_ADMIN_PASSWORD "${ZITADEL_ADMIN_PASSWORD:-}" "Admin1234!" "REPLACE_WITH_ZITADEL_ADMIN_PASSWORD"
-reject_placeholder ZITADEL_MASTERKEY "${ZITADEL_MASTERKEY:-}" "StuHelperDevMasterKey123456789AB" "REPLACE_WITH_ZITADEL_MASTERKEY_32_CHARS"
-reject_placeholder LOGIN_CLIENT_PAT_EXPIRATION "${LOGIN_CLIENT_PAT_EXPIRATION:-}" "REPLACE_WITH_LOGIN_CLIENT_PAT_EXPIRATION_ISO8601"
 reject_placeholder GRAFANA_ADMIN_PASSWORD "${GRAFANA_ADMIN_PASSWORD:-}" "ChangeMeBeforeProduction"
 reject_placeholder CORS_ORIGINS "${CORS_ORIGINS:-}" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
-reject_placeholder ZITADEL_DOMAIN "${ZITADEL_DOMAIN:-}" "REPLACE_WITH_ZITADEL_DOMAIN"
-reject_placeholder ZITADEL_ISSUER "${ZITADEL_ISSUER:-}" "REPLACE_WITH_ZITADEL_ISSUER"
-reject_placeholder ZITADEL_REDIRECT_URI "${ZITADEL_REDIRECT_URI:-}" "REPLACE_WITH_ZITADEL_REDIRECT_URI"
+reject_placeholder CASDOOR_ISSUER "${CASDOOR_ISSUER:-}" "REPLACE_WITH_CASDOOR_ISSUER"
+reject_placeholder CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_REDIRECT_URI"
+reject_placeholder CASDOOR_CLIENT_ID "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID"
+reject_placeholder CASDOOR_CLIENT_SECRET "${CASDOOR_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_CLIENT_SECRET"
 reject_placeholder WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL"
 reject_placeholder ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL"
 reject_placeholder WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB_VITE_SSO_URL"
@@ -139,9 +138,8 @@ if [[ "${ALERTMANAGER_WEBHOOK_URL:-}" == "http://alert-webhook-sink:8080/alerts"
 fi
 
 reject_local_value CORS_ORIGINS "${CORS_ORIGINS:-}"
-reject_local_value ZITADEL_DOMAIN "${ZITADEL_DOMAIN:-}"
-reject_local_value ZITADEL_ISSUER "${ZITADEL_ISSUER:-}"
-reject_local_value ZITADEL_REDIRECT_URI "${ZITADEL_REDIRECT_URI:-}"
+reject_local_value CASDOOR_ISSUER "${CASDOOR_ISSUER:-}"
+reject_local_value CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}"
 reject_local_value WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}"
 reject_local_value ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}"
 reject_local_value WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
@@ -159,11 +157,7 @@ export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 "${SCRIPT_DIR}/render-postgres-tls.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"
-"${SCRIPT_DIR}/render-zitadel-secrets.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
-
-log "building Zitadel runtime images"
-build_zitadel_runtime_images
 
 log "pulling immutable production images for release ${TAG}"
 compose --profile prod pull app frontend admin
@@ -186,8 +180,7 @@ infra_services=(
 )
 
 authz_services=(
-  zitadel-api
-  zitadel-login
+  casdoor
   proxy
   openfga
 )

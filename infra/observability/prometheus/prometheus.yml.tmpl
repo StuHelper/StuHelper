@@ -72,8 +72,7 @@ scrape_configs:
           - http://app:8080/health/live
           - http://frontend/
           - http://admin:8080/
-          - http://zitadel-api:8080/debug/healthz
-          - http://zitadel-login:3000/ui/v2/login/healthy
+          - http://casdoor:8000/.well-known/openid-configuration
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

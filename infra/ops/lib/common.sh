@@ -21,7 +21,6 @@ SHARED_ENV_SECRET_REF="${SHARED_ENV_SECRET_REF:-}"
 SECRETS_ENV_SECRET_REF="${SECRETS_ENV_SECRET_REF:-}"
 GENERATED_ENV_SECRET_REF="${GENERATED_ENV_SECRET_REF:-}"
 GENERATED_OBS_DIR="${GENERATED_OBS_DIR:-${REPO_ROOT}/infra/generated/observability}"
-GENERATED_ZITADEL_DIR="${GENERATED_ZITADEL_DIR:-${REPO_ROOT}/infra/generated/zitadel}"
 DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${REPO_ROOT}/.deploy}"
 REMOTE_DEPLOY_CONFIG_FILE="${REMOTE_DEPLOY_CONFIG_FILE:-${DEPLOY_STATE_DIR}/remote.env}"
 # shellcheck source=secrets.sh
@@ -108,7 +107,7 @@ ensure_env_file() {
 }
 
 ensure_generated_files() {
-  mkdir -p "${GENERATED_OBS_DIR}/prometheus" "${GENERATED_OBS_DIR}/alertmanager" "${GENERATED_ZITADEL_DIR}"
+  mkdir -p "${GENERATED_OBS_DIR}/prometheus" "${GENERATED_OBS_DIR}/alertmanager"
   touch "${GENERATED_ENV_FILE}"
   touch "${GENERATED_SECRET_ENV_FILE}"
 }
@@ -250,23 +249,6 @@ compose() {
     ADMIN_IMAGE_REF="${ADMIN_IMAGE_REF:-}" \
     docker compose "${compose_files[@]}" --env-file "${ENV_FILE}" "$@"
   )
-}
-
-build_zitadel_runtime_images() {
-  local version="${ZITADEL_VERSION:-v4.13.0}"
-  local base_image="ghcr.io/zitadel/zitadel:${version}"
-
-  docker build \
-    --build-arg "ZITADEL_IMAGE=${base_image}" \
-    -f "${REPO_ROOT}/infra/zitadel/Dockerfile.init" \
-    -t "stuhelper/zitadel-init:${version}" \
-    "${REPO_ROOT}"
-
-  docker build \
-    --build-arg "ZITADEL_IMAGE=${base_image}" \
-    -f "${REPO_ROOT}/infra/zitadel/Dockerfile.runtime" \
-    -t "stuhelper/zitadel-api:${version}" \
-    "${REPO_ROOT}"
 }
 
 wait_for_http() {

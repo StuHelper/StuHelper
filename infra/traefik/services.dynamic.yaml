@@ -5,9 +5,8 @@
 #   /admin/*  → admin 前端 (Vben Admin)
 #   /         → web 前端 (Vue SPA)
 #
-# 优先级约定（与 zitadel.dynamic.yaml 协调）：
-#   Zitadel 路由: 800–1100（见 zitadel.dynamic.yaml）
-#   应用路由:     500–700（本文件）
+# 优先级约定：
+#   应用路由: 500–700（本文件）
 #
 # 注意：开发环境下 backend/frontend/admin 通过 dev-full 或 prod profile 启动。
 # 当对应容器不存在时，Traefik 会将这些 router 标记为不可用，不会影响其他路由。
@@ -66,7 +65,7 @@ http:
       priority: 600
 
     # / → web 前端（Vue SPA，catch-all）
-    # 优先级 500：最低应用路由，兜底所有非 API / 非 admin / 非 Zitadel 路径
+    # 优先级 500：最低应用路由，兜底所有非 API / 非 admin 路径
     frontend-web:
       rule: "PathPrefix(`/`)"
       entryPoints:

@@ -100,25 +100,15 @@ groups:
           summary: Frontend runtime errors are elevated
           description: Frontend runtime error reporting has exceeded 0.1 events/s for 15 minutes.
 
-      - alert: StuHelperZitadelApiProbeFailed
-        expr: probe_success{job="blackbox-http",instance="http://zitadel-api:8080/debug/healthz"} == 0
+      - alert: StuHelperCasdoorProbeFailed
+        expr: probe_success{job="blackbox-http",instance="http://casdoor:8000/.well-known/openid-configuration"} == 0
         for: 5m
         labels:
           severity: critical
           team: platform
         annotations:
-          summary: Zitadel API health probe failed
-          description: The Zitadel API health endpoint has failed blackbox probing for 5 minutes.
-
-      - alert: StuHelperZitadelLoginProbeFailed
-        expr: probe_success{job="blackbox-http",instance="http://zitadel-login:3000/ui/v2/login/healthy"} == 0
-        for: 5m
-        labels:
-          severity: critical
-          team: platform
-        annotations:
-          summary: Zitadel login probe failed
-          description: The Zitadel login UI health endpoint has failed blackbox probing for 5 minutes.
+          summary: Casdoor OIDC metadata probe failed
+          description: The Casdoor OIDC metadata endpoint has failed blackbox probing for 5 minutes.
 
       - alert: StuHelperOpenFGAGRPCProbeFailed
         expr: probe_success{job="blackbox-tcp",instance="openfga:8081"} == 0

@@ -21,17 +21,13 @@ ensure_node_toolchain
 load_env
 "${SCRIPT_DIR}/render-observability.sh" dev
 
-log "building Zitadel runtime images"
-build_zitadel_runtime_images
-
 base_services=(
   postgres
   redis
   minio
   migrate-dev
   seed-dev
-  zitadel-api
-  zitadel-login
+  casdoor
   proxy
   openfga-migrate
   openfga
@@ -64,7 +60,7 @@ if [[ "${dev_up_mode}" == "dockerized" ]]; then
   echo "  Web:        http://127.0.0.1:3000"
   echo "  Admin:      http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}/admin/"
   echo "  Backend:    http://127.0.0.1:8080"
-  echo "  Zitadel:    http://127.0.0.1:${ZITADEL_EXTERNALPORT:-8085}"
+  echo "  Casdoor:    http://127.0.0.1:${CASDOOR_EXTERNALPORT:-8085}"
   echo "  Generated:  ${GENERATED_ENV_FILE}"
   exit 0
 fi
@@ -91,7 +87,7 @@ WEB_DEV_PORT_SELECTED="$(pick_available_port "${WEB_DEV_PORT:-3000}" 30)"
 ADMIN_DEV_PORT_SELECTED="$(pick_available_port "${ADMIN_EXTERNAL_PORT:-3001}" 30 "${WEB_DEV_PORT_SELECTED}")"
 write_dev_runtime_env "${WEB_DEV_PORT_SELECTED}" "${ADMIN_DEV_PORT_SELECTED}"
 
-wait_for_http "Zitadel OIDC metadata" "http://localhost:${ZITADEL_EXTERNALPORT:-8085}/.well-known/openid-configuration" 90 2
+wait_for_http "Casdoor OIDC metadata" "http://localhost:${CASDOOR_EXTERNALPORT:-8085}/.well-known/openid-configuration" 90 2
 
 backend_cmd="
   cd '${REPO_ROOT}/server' && \
@@ -104,7 +100,7 @@ backend_cmd="
   export REDIS_PASSWORD='${REDIS_PASSWORD}' && \
   export REDIS_TLS_ENABLED='true' && \
   export REDIS_TLS_CA='${REPO_ROOT}/infra/generated/redis/ca.crt' && \
-  export ZITADEL_INTERNAL_ADDRESS='' && \
+  export CASDOOR_INTERNAL_ADDRESS='' && \
   export OPENFGA_API_URL='http://localhost:8081' && \
   exec '${AIR_BIN}' -c .air.toml
 "
@@ -144,6 +140,6 @@ log "development stack is ready"
 echo "  Web:        http://localhost:${WEB_DEV_PORT_SELECTED}"
 echo "  Admin:      http://localhost:${ADMIN_DEV_PORT_SELECTED}/admin/"
 echo "  Backend:    http://localhost:8080"
-echo "  Zitadel:    http://localhost:${ZITADEL_EXTERNALPORT:-8085}"
+echo "  Casdoor:    http://localhost:${CASDOOR_EXTERNALPORT:-8085}"
 echo "  Logs:       ${DEV_LOG_DIR}"
 echo "  Generated:  ${GENERATED_ENV_FILE}"

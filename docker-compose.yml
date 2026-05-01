@@ -3,50 +3,21 @@
 # 架构：Traefik (edge proxy) → 所有 HTTP 服务
 #
 # Traefik 动态路由文件（infra/traefik/）:
-#   zitadel.dynamic.yaml  — Zitadel IAM 路由（优先级 800–1100）
 #   services.dynamic.yaml — 应用服务路由（优先级 500–700）
 #   tls.dynamic.yaml      — TLS 选项（生产环境启用 ACME 时加载）
 #
 # 路由优先级总览:
-#   /ui/v2/login/*  (1100) → zitadel-login
-#   /oidc/* 等      (1000) → zitadel-api（OIDC/OAuth/SAML/well-known）
-#   /ui/console/*   (950)  → zitadel-api（Zitadel Admin Console）
-#   /zitadel.* 等   (900)  → zitadel-api（gRPC-Web protobuf）
-#   /management/*   (850)  → zitadel-api（REST API 原生路径）
 #   /api/*          (700)  → backend（Go 服务，strip /api）
 #   /admin/*        (600)  → admin 前端（Vben Admin）
 #   /               (500)  → web 前端（Vue SPA，catch-all）
+#
+# Casdoor SSO 默认通过 CASDOOR_EXTERNALPORT 直接暴露，生产可在边缘层用独立
+# sso 域名转发到 casdoor:8000，避免与应用 /api 路由冲突。
 #
 # 使用方式:
 #   开发（仅基础设施）:  docker compose -f docker-compose.yml up -d --wait
 #   可观测性 overlay:    docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability up -d --wait
 #   生产部署:            docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod up -d --wait
-
-x-zitadel-common-env: &zitadel-common-env
-  ZITADEL_PORT: 8080
-  ZITADEL_EXTERNALDOMAIN: ${ZITADEL_DOMAIN:-localhost}
-  ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8085}
-  ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
-  ZITADEL_TLS_ENABLED: "false"
-  ZITADEL_DATABASE_POSTGRES_DSN: postgresql://zitadel:${ZITADEL_DB_PASSWORD}@postgres:5432/zitadel?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
-  ZITADEL_FIRSTINSTANCE_ORG_NAME: stuhelper-platform
-  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin
-  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?ZITADEL_ADMIN_PASSWORD is required}
-  ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
-  ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: admin-api
-  ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: "Admin API Service Account"
-  ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: ${LOGIN_CLIENT_PAT_EXPIRATION:?LOGIN_CLIENT_PAT_EXPIRATION is required}
-  ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin.pat
-  ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
-  ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
-  ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: "Automatically Initialized IAM_LOGIN_CLIENT"
-  ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: ${LOGIN_CLIENT_PAT_EXPIRATION:?LOGIN_CLIENT_PAT_EXPIRATION is required}
-  ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
-  ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/"
-  ZITADEL_OIDC_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?authRequest="
-  ZITADEL_OIDC_DEFAULTLOGOUTURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/logout?post_logout_redirect="
-  ZITADEL_SAML_DEFAULTLOGINURLV2: "${ZITADEL_PUBLIC_SCHEME:-http}://${ZITADEL_DOMAIN:-localhost}:${ZITADEL_EXTERNALPORT:-8085}/ui/v2/login/login?samlRequest="
-  ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED: ${ZITADEL_ACCESS_LOG_STDOUT_ENABLED:-true}
 
 services:
   proxy:
@@ -86,11 +57,6 @@ services:
     volumes:
     - ./infra/traefik:/etc/traefik/dynamic:ro
     - acme_data:/acme
-    depends_on:
-      zitadel-api:
-        condition: service_healthy
-      zitadel-login:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/ping"]
       interval: 10s
@@ -100,7 +66,6 @@ services:
     networks:
     - frontend
     - backend
-    - zitadel-internal
     deploy:
       resources:
         limits:
@@ -138,7 +103,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-stuhelper}
       PGDATA: ${POSTGRES_PGDATA:-/var/lib/postgresql/data}
       STUHELPER_APP_DB_PASSWORD: ${STUHELPER_APP_DB_PASSWORD:?STUHELPER_APP_DB_PASSWORD is required}
-      ZITADEL_DB_PASSWORD: ${ZITADEL_DB_PASSWORD:?ZITADEL_DB_PASSWORD is required}
+      CASDOOR_DB_PASSWORD: ${CASDOOR_DB_PASSWORD:?CASDOOR_DB_PASSWORD is required}
       OPENFGA_DB_PASSWORD: ${OPENFGA_DB_PASSWORD:?OPENFGA_DB_PASSWORD is required}
       STUHELPER_BACKUP_DB_PASSWORD: ${STUHELPER_BACKUP_DB_PASSWORD:?STUHELPER_BACKUP_DB_PASSWORD is required}
       STUHELPER_REPLICATION_DB_PASSWORD: ${STUHELPER_REPLICATION_DB_PASSWORD:?STUHELPER_REPLICATION_DB_PASSWORD is required}
@@ -380,61 +345,31 @@ services:
           memory: 256M
     security_opt:
     - no-new-privileges:true
-  zitadel-init:
-    build:
-      context: .
-      dockerfile: infra/zitadel/Dockerfile.init
-      args:
-        ZITADEL_IMAGE: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION:-v4.13.0}
-    image: stuhelper/zitadel-init:${ZITADEL_VERSION:-v4.13.0}
-    container_name: ${STACK_NAME:-stuhelper}-zitadel-init
-    restart: "no"
-    security_opt:
-    - no-new-privileges:true
-    environment:
-      <<: *zitadel-common-env
-    volumes:
-    - zitadel_bootstrap:/zitadel/bootstrap:rw
-    - ./infra/generated/postgres:/tls:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-    networks:
-    - backend
-    - zitadel-internal
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-    secrets:
-    - zitadel_masterkey
-  zitadel-api:
-    container_name: ${STACK_NAME:-stuhelper}-zitadel-api
+  casdoor:
+    image: casbin/casdoor:${CASDOOR_VERSION:-3.31.1}
+    container_name: ${STACK_NAME:-stuhelper}-casdoor
     restart: unless-stopped
     security_opt:
     - no-new-privileges:true
     environment:
-      <<: *zitadel-common-env
-    healthcheck:
-      test: ["CMD", "/app/zitadel", "ready"]
-      interval: 10s
-      timeout: 30s
-      retries: 12
-      start_period: 20s
+      GIN_MODE: release
+      appname: casdoor
+      httpport: "8000"
+      runmode: prod
+      driverName: postgres
+      dataSourceName: "user=casdoor password=${CASDOOR_DB_PASSWORD} host=postgres port=5432 sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable} dbname=casdoor sslrootcert=/tls/ca.crt"
+      dbName: casdoor
+      origin: ${CASDOOR_ISSUER:-http://localhost:8085}
+    ports:
+    - "127.0.0.1:${CASDOOR_EXTERNALPORT:-8085}:8000"
     volumes:
-    - zitadel_bootstrap:/zitadel/bootstrap:rw
     - ./infra/generated/postgres:/tls:ro
     depends_on:
       postgres:
         condition: service_healthy
-      zitadel-init:
-        condition: service_completed_successfully
 
     networks:
     - backend
-    - zitadel-internal
     deploy:
       resources:
         limits:
@@ -443,50 +378,6 @@ services:
         reservations:
           cpus: '0.50'
           memory: 512M
-    build:
-      context: .
-      dockerfile: infra/zitadel/Dockerfile.runtime
-      args:
-        ZITADEL_IMAGE: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION:-v4.13.0}
-    image: stuhelper/zitadel-api:${ZITADEL_VERSION:-v4.13.0}
-    secrets:
-    - zitadel_masterkey
-  zitadel-login:
-    image: ghcr.io/zitadel/zitadel-login:${ZITADEL_VERSION:-v4.13.0}
-    container_name: ${STACK_NAME:-stuhelper}-zitadel-login
-    restart: unless-stopped
-    environment:
-      ZITADEL_API_URL: http://zitadel-api:8080
-      NEXT_PUBLIC_BASE_PATH: /ui/v2/login
-      ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
-      CUSTOM_REQUEST_HEADERS: "Host:${ZITADEL_DOMAIN:-localhost},X-Forwarded-Proto:${ZITADEL_PUBLIC_SCHEME:-http}"
-      # 禁用 Google Fonts，中国大陆无法访问 fonts.googleapis.com
-      NEXT_FONT_GOOGLE_DISABLED: "true"
-    healthcheck:
-      test: ["CMD", "/bin/sh", "-c", "node /app/healthcheck.mjs http://localhost:3000/ui/v2/login/healthy"]
-      interval: 10s
-      timeout: 30s
-      retries: 12
-      start_period: 20s
-    volumes:
-    - zitadel_bootstrap:/zitadel/bootstrap:ro
-    depends_on:
-      zitadel-api:
-        condition: service_healthy
-    networks:
-    - frontend
-    - zitadel-internal
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-    read_only: true
-    tmpfs:
-    - /tmp
-    - /var/tmp
-    security_opt:
-    - no-new-privileges:true
   openfga-migrate:
     image: openfga/openfga:v1.8.12
     container_name: ${STACK_NAME:-stuhelper}-openfga-migrate
@@ -688,8 +579,6 @@ volumes:
     name: ${STACK_NAME:-stuhelper}-redis-data
   minio_data:
     name: ${STACK_NAME:-stuhelper}-minio-data
-  zitadel_bootstrap:
-    name: ${STACK_NAME:-stuhelper}-zitadel-bootstrap
   acme_data:
     name: ${STACK_NAME:-stuhelper}-acme-data
   frontend_dev_node_modules:
@@ -721,9 +610,3 @@ networks:
   observability:
     name: ${STACK_NAME:-stuhelper}-observability
     driver: bridge
-  zitadel-internal:
-    name: ${STACK_NAME:-stuhelper}-zitadel-internal
-    driver: bridge
-secrets:
-  zitadel_masterkey:
-    file: ./infra/generated/zitadel/masterkey

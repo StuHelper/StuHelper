@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=lib/retired-idp-env.sh
+source "${SCRIPT_DIR}/lib/retired-idp-env.sh"
 
 require_cmd python3
 
@@ -27,6 +29,7 @@ fi
 ensure_env_file
 ensure_secrets_env_file
 ensure_generated_files
+remove_retired_idp_env_files "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}"
 
 ensure_value() {
   local key="$1"
@@ -71,13 +74,6 @@ placeholder_or_empty() {
   [[ -z "${value}" || "${value}" == *"REPLACE_WITH_"* || "${value}" == "ChangeMeBeforeProduction" ]]
 }
 
-future_iso_timestamp() {
-  python3 - <<'PY'
-from datetime import datetime, timedelta, timezone
-print((datetime.now(timezone.utc) + timedelta(days=180)).replace(microsecond=0).isoformat().replace("+00:00", "Z"))
-PY
-}
-
 load_env
 
 if placeholder_or_empty "${POSTGRES_PASSWORD:-}" || [[ "${POSTGRES_PASSWORD:-}" == "dev123" ]]; then
@@ -89,8 +85,8 @@ fi
 if placeholder_or_empty "${STUHELPER_APP_DB_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "prod-app-$(random_hex 16)"
 fi
-if placeholder_or_empty "${ZITADEL_DB_PASSWORD:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "ZITADEL_DB_PASSWORD" "prod-zitadel-$(random_hex 16)"
+if placeholder_or_empty "${CASDOOR_DB_PASSWORD:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_DB_PASSWORD" "prod-casdoor-$(random_hex 16)"
 fi
 if placeholder_or_empty "${OPENFGA_DB_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-openfga-$(random_hex 16)"
@@ -129,16 +125,6 @@ fi
 if placeholder_or_empty "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-minio-backup-$(random_hex 16)"
 fi
-if [[ -z "${ZITADEL_MASTERKEY:-}" || "${ZITADEL_MASTERKEY:-}" == "StuHelperDevMasterKey123456789AB" ]]; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "ZITADEL_MASTERKEY" "$(random_hex 16)"
-fi
-if [[ -z "${ZITADEL_ADMIN_PASSWORD:-}" || "${ZITADEL_ADMIN_PASSWORD:-}" == "Admin1234!" ]]; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "ZITADEL_ADMIN_PASSWORD" "ProdAdmin!$(random_hex 6)"
-fi
-if placeholder_or_empty "${LOGIN_CLIENT_PAT_EXPIRATION:-}" || [[ "${LOGIN_CLIENT_PAT_EXPIRATION:-}" == "2040-01-01T00:00:00Z" ]]; then
-  upsert_env_file "${ENV_FILE}" "LOGIN_CLIENT_PAT_EXPIRATION" "$(future_iso_timestamp)"
-fi
-
 load_env
 
 ensure_prod_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-prod" "stuhelper-dev" "stuhelper"
@@ -168,13 +154,14 @@ ensure_value "OTEL_SERVICE_NAMESPACE" "${OTEL_SERVICE_NAMESPACE:-}" "stuhelper"
 ensure_prod_default "OTEL_EXPORTER_OTLP_ENDPOINT" "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" "http://alloy:4318" "http://localhost:4318"
 ensure_value "OTEL_EXPORTER_OTLP_INSECURE" "${OTEL_EXPORTER_OTLP_INSECURE:-}" "true"
 ensure_prod_default "TOKEN_COOKIE_SECURE" "${TOKEN_COOKIE_SECURE:-}" "true" "false"
-ensure_value "ZITADEL_EXTERNALPORT" "${ZITADEL_EXTERNALPORT:-}" "8085"
-ensure_prod_default "ZITADEL_DOMAIN" "${ZITADEL_DOMAIN:-}" "REPLACE_WITH_ZITADEL_DOMAIN" "localhost"
-ensure_prod_default "ZITADEL_PUBLIC_SCHEME" "${ZITADEL_PUBLIC_SCHEME:-}" "https" "http"
-ensure_prod_default "ZITADEL_EXTERNALSECURE" "${ZITADEL_EXTERNALSECURE:-}" "true" "false"
-ensure_prod_default "ZITADEL_ISSUER" "${ZITADEL_ISSUER:-}" "REPLACE_WITH_ZITADEL_ISSUER" "http://localhost:8085" "http://localhost"
-ensure_prod_default "ZITADEL_INTERNAL_ADDRESS" "${ZITADEL_INTERNAL_ADDRESS:-}" "" "host.docker.internal:8085"
-ensure_prod_default "ZITADEL_REDIRECT_URI" "${ZITADEL_REDIRECT_URI:-}" "REPLACE_WITH_ZITADEL_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
+ensure_value "CASDOOR_EXTERNALPORT" "${CASDOOR_EXTERNALPORT:-}" "8085"
+ensure_value "CASDOOR_VERSION" "${CASDOOR_VERSION:-}" "3.31.1"
+ensure_prod_default "CASDOOR_ISSUER" "${CASDOOR_ISSUER:-}" "REPLACE_WITH_CASDOOR_ISSUER" "http://localhost:8085" "http://localhost"
+ensure_prod_default "CASDOOR_INTERNAL_ADDRESS" "${CASDOOR_INTERNAL_ADDRESS:-}" "" "host.docker.internal:8085" "casdoor:8000"
+ensure_prod_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
+ensure_prod_default "CASDOOR_CLIENT_ID" "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID" "stuhelper-web"
+ensure_value "CASDOOR_ORGANIZATION" "${CASDOOR_ORGANIZATION:-}" "stuhelper"
+ensure_value "CASDOOR_ROLES_CLAIM" "${CASDOOR_ROLES_CLAIM:-}" "roles"
 ensure_prod_default "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL" "http://localhost:3000"
 ensure_prod_default "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL" "http://localhost:3001"
 ensure_prod_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
@@ -212,7 +199,5 @@ ensure_prod_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN
 "${SCRIPT_DIR}/render-postgres-tls.sh"
 "${SCRIPT_DIR}/render-redis-tls.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"
-"${SCRIPT_DIR}/render-zitadel-secrets.sh"
-
 log "production environment file is ready: ${ENV_FILE}"
 log "generated runtime file path: ${GENERATED_ENV_FILE}"
