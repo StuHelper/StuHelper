@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,4 +50,75 @@ func TestRepository_WriteListAndCleanupAdminOperations(t *testing.T) {
 	deleted, err := repo.CleanupAdminOperations(ctx, 90)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, deleted)
+}
+
+func TestRepository_CleanupAdminOperationsPreservesIAMEvents(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	require.NoError(t, repo.WriteEvent(ctx, staleAdminEvent(EventAdminConfigChange)))
+	require.NoError(t, repo.WriteEvent(ctx, staleAdminEvent(EventType("iam.role.grant"))))
+
+	deleted, err := repo.CleanupAdminOperations(ctx, 90)
+	require.NoError(t, err)
+
+	assert.EqualValues(t, 1, deleted)
+	assert.EqualValues(t, 1, countEvents(t, fixture, "event_type LIKE 'iam.%'"))
+}
+
+func TestRepository_CleanupIAMEventsUsesTieredRetention(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	require.NoError(t, repo.WriteEvent(ctx, staleAuditEvent(EventUserLogin, 91)))
+	require.NoError(t, repo.WriteEvent(ctx, staleAuditEvent(EventUserLoginFailed, 366)))
+	require.NoError(t, repo.WriteEvent(ctx, staleAdminEventWithAge(EventType("iam.casdoor.admin_api"), 366)))
+	require.NoError(t, repo.WriteEvent(ctx, staleAdminEventWithAge(EventType("iam.role.grant"), 400)))
+	require.NoError(t, repo.WriteEvent(ctx, staleAdminEventWithAge(EventType("iam.role.revoke"), 1100)))
+
+	deleted, err := repo.CleanupIAMEvents(ctx, IAMRetentionPolicy{})
+	require.NoError(t, err)
+
+	assert.EqualValues(t, 4, deleted)
+	assert.EqualValues(t, 1, countEvents(t, fixture, "event_type = 'iam.role.grant'"))
+}
+
+func staleAuditEvent(eventType EventType, ageDays int) Event {
+	return Event{
+		Type:      eventType,
+		Category:  "audit",
+		ActorType: "user",
+		UserID:    "user-1",
+		Action:    "test",
+		Result:    "success",
+		Timestamp: time.Now().AddDate(0, 0, -ageDays),
+	}
+}
+
+func staleAdminEvent(eventType EventType) Event {
+	return staleAdminEventWithAge(eventType, 120)
+}
+
+func staleAdminEventWithAge(eventType EventType, ageDays int) Event {
+	return Event{
+		Type:         eventType,
+		Category:     "admin_operation",
+		ActorType:    "admin",
+		UserID:       "admin-1",
+		Action:       "test",
+		ResourceType: "iam",
+		ResourceID:   "resource-1",
+		Result:       "success",
+		Timestamp:    time.Now().AddDate(0, 0, -ageDays),
+	}
+}
+
+func countEvents(t *testing.T, fixture *postgresfixture.Fixture, condition string) int64 {
+	t.Helper()
+	var count int64
+	row := fixture.Pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM audit_events WHERE "+condition)
+	require.NoError(t, row.Scan(&count))
+	return count
 }

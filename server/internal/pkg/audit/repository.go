@@ -113,6 +113,7 @@ func (r *Repository) CleanupAdminOperations(ctx context.Context, retentionDays i
 	result, err := r.db.Exec(ctx, `
 		DELETE FROM audit_events
 		WHERE category = $1
+		  AND event_type NOT LIKE 'iam.%'
 		  AND created_at < NOW() - make_interval(days => $2)
 	`, adminOperationCategory, retentionDays)
 	if err != nil {
