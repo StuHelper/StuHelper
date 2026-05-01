@@ -58,3 +58,8 @@ run_check \
   "business code must not import OpenFGA SDK directly" \
   'github\.com/openfga/go-sdk' \
   '^internal/(pkg/fga|platform/authorization)/'
+
+run_check \
+  "backend internal Go code must not reference retired Zitadel identifiers" \
+  'Zitadel|ZITADEL|zitadel|urn:zitadel' \
+  '^$'
