@@ -75,13 +75,13 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 		response.ServiceUnavailable(c, "phone login is not configured")
 		return
 	}
-	if !h.requireAuthIPAllowed(c) {
+	if !h.requireAuthAllowed(c, phone) {
 		return
 	}
 	if !h.verifyPhoneOTPCode(c, phone, code) {
 		return
 	}
-	if !h.clearAuthFailures(c) {
+	if !h.clearAuthFailures(c, phone) {
 		return
 	}
 	h.completePhoneLogin(c, phone, middleware.GetRequestID(c))
@@ -108,23 +108,23 @@ func bindVerifyPhoneOTPRequest(c *gin.Context) (string, string, bool) {
 
 func (h *Handler) verifyPhoneOTPCode(c *gin.Context, phone, code string) bool {
 	if err := h.otpService.Verify(c.Request.Context(), phone, code); err != nil {
-		return h.handlePhoneOTPVerifyError(c, err)
+		return h.handlePhoneOTPVerifyError(c, phone, err)
 	}
 	return true
 }
 
-func (h *Handler) handlePhoneOTPVerifyError(c *gin.Context, err error) bool {
+func (h *Handler) handlePhoneOTPVerifyError(c *gin.Context, phone string, err error) bool {
 	switch {
 	case errors.Is(err, ErrOTPInvalidCode):
-		if h.recordAuthFailure(c) {
+		if h.recordAuthFailure(c, phone) {
 			response.Unauthorized(c, "invalid verification code", errs.ErrPhoneOTPFailed)
 		}
 	case errors.Is(err, ErrOTPExpired):
-		if h.recordAuthFailure(c) {
+		if h.recordAuthFailure(c, phone) {
 			response.Unauthorized(c, "verification code expired", errs.ErrPhoneOTPExpired)
 		}
 	case errors.Is(err, ErrOTPMaxAttempts):
-		if h.recordAuthFailure(c) {
+		if h.recordAuthFailure(c, phone) {
 			response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
 		}
 	default:
@@ -207,49 +207,6 @@ func (h *Handler) writePhoneLoginSuccess(c *gin.Context, user *PhoneUser, roles 
 		},
 		"expiresIn": h.currentAccessTokenTTLSeconds(),
 	})
-}
-
-func (h *Handler) requireAuthIPAllowed(c *gin.Context) bool {
-	err := h.authFailureGuard.EnsureAllowed(c.Request.Context(), c.ClientIP())
-	return h.handleAuthFailureGuardError(c, err)
-}
-
-func (h *Handler) recordAuthFailure(c *gin.Context) bool {
-	err := h.authFailureGuard.RecordFailure(c.Request.Context(), c.ClientIP())
-	if errors.Is(err, ErrAuthIPLocked) {
-		audit.Log(audit.Event{
-			Type:         audit.EventType("iam.auth.ip_locked"),
-			Category:     "audit",
-			ActorType:    "system",
-			IP:           c.ClientIP(),
-			UserAgent:    c.Request.UserAgent(),
-			RequestID:    middleware.GetRequestID(c),
-			ResourceType: "auth.ip",
-			ResourceID:   c.ClientIP(),
-			Action:       "lock",
-			Result:       "failure",
-			Reason:       "too many failed authentication attempts",
-		})
-	}
-	return h.handleAuthFailureGuardError(c, err)
-}
-
-func (h *Handler) clearAuthFailures(c *gin.Context) bool {
-	err := h.authFailureGuard.ClearFailures(c.Request.Context(), c.ClientIP())
-	return h.handleAuthFailureGuardError(c, err)
-}
-
-func (h *Handler) handleAuthFailureGuardError(c *gin.Context, err error) bool {
-	switch {
-	case err == nil:
-		return true
-	case errors.Is(err, ErrAuthIPLocked):
-		response.RateLimitExceeded(c, "too many authentication attempts")
-	default:
-		logger.FromGin(c).Error("auth failure guard error", zap.Error(err))
-		response.ServiceUnavailable(c, "authentication guard unavailable")
-	}
-	return false
 }
 
 // maskPhone 隐藏手机号中间四位

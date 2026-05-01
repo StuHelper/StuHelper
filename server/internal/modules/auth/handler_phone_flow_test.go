@@ -44,7 +44,7 @@ func TestVerifyPhoneOTP_SuccessAndFailures(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "verification code expired")
 }
 
-func TestVerifyPhoneOTP_InvalidCodeAndMaxAttempts(t *testing.T) {
+func TestVerifyPhoneOTP_InvalidCodeSoftLocksAccount(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newRefreshTestHandler(t, &fakeUserSyncRepo{})
 	h.otpService = NewOTPService(h.redisClient)
@@ -69,14 +69,14 @@ func TestVerifyPhoneOTP_InvalidCodeAndMaxAttempts(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusTooManyRequests, w.Code)
-	assert.Contains(t, w.Body.String(), "too many failed attempts")
+	assert.Contains(t, w.Body.String(), "too many authentication attempts")
 
 	w = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/otp/verify", bytes.NewReader(badBody))
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
-	assert.Contains(t, w.Body.String(), "verification code expired")
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Contains(t, w.Body.String(), "too many authentication attempts")
 }
 
 func TestVerifyPhoneOTP_RejectsLockedIPBeforeCheckingCode(t *testing.T) {
