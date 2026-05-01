@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
 
@@ -43,7 +44,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	assert.Equal(t, 0, reviewCount)
 
 	var outboxCount int
-	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM domain_event_outbox WHERE stream = 'review_fga_sync' AND dedupe_key = $1`, reviewRelationsSyncKey(posted.Review.ID)).Scan(&outboxCount)
+	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM domain_event_outbox WHERE stream = $1 AND dedupe_key = $2`, outbox.StreamIAMOpenFGATupleSync, reviewRelationsSyncKey(posted.Review.ID)).Scan(&outboxCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, outboxCount)
 

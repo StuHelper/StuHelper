@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
 
@@ -58,18 +59,18 @@ func TestReviewService_ProcessFGASyncBatchLifecycle(t *testing.T) {
 
 	var attemptCount int
 	var lastError string
-	err := fixture.Pool.QueryRow(ctx, `SELECT attempt_count, last_error FROM domain_event_outbox WHERE stream = 'review_fga_sync' AND dedupe_key = $1`, reviewRelationsSyncKey("review-sync-1")).Scan(&attemptCount, &lastError)
+	err := fixture.Pool.QueryRow(ctx, `SELECT attempt_count, last_error FROM domain_event_outbox WHERE stream = $1 AND dedupe_key = $2`, outbox.StreamIAMOpenFGATupleSync, reviewRelationsSyncKey("review-sync-1")).Scan(&attemptCount, &lastError)
 	require.NoError(t, err)
 	assert.Equal(t, 1, attemptCount)
 	assert.Contains(t, lastError, "transient review fga failure")
 
-	_, err = fixture.Pool.Exec(ctx, `UPDATE domain_event_outbox SET available_at = NOW() - INTERVAL '1 second' WHERE stream = 'review_fga_sync' AND dedupe_key = $1`, reviewRelationsSyncKey("review-sync-1"))
+	_, err = fixture.Pool.Exec(ctx, `UPDATE domain_event_outbox SET available_at = NOW() - INTERVAL '1 second' WHERE stream = $1 AND dedupe_key = $2`, outbox.StreamIAMOpenFGATupleSync, reviewRelationsSyncKey("review-sync-1"))
 	require.NoError(t, err)
 
 	require.NoError(t, svc.processFGASyncBatch(ctx))
 
 	var remaining int
-	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM domain_event_outbox WHERE stream = 'review_fga_sync' AND dedupe_key = $1 AND status <> 'completed'`, reviewRelationsSyncKey("review-sync-1")).Scan(&remaining)
+	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM domain_event_outbox WHERE stream = $1 AND dedupe_key = $2 AND status <> 'completed'`, outbox.StreamIAMOpenFGATupleSync, reviewRelationsSyncKey("review-sync-1")).Scan(&remaining)
 	require.NoError(t, err)
 	assert.Equal(t, 0, remaining)
 	assert.Equal(t, 2, writer.calls)

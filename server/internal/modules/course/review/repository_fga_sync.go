@@ -10,7 +10,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
 )
 
-const fgaSyncOutboxStream = "review_fga_sync"
+const fgaSyncOutboxStream = outbox.StreamIAMOpenFGATupleSync
 
 func (r *Repository) UpsertFGASyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error {
 	if err := outbox.UpsertJobTx(ctx, tx, fgaSyncOutboxStream, jobType, dedupeKey, payload); err != nil {

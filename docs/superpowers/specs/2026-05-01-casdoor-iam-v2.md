@@ -462,7 +462,7 @@ Authorize(subject, "profile.view_identity", profile)
 #### 6.5.2 Worker 机制
 
 - **基线**：沿用现有 polling worker（按 `pending` → `processing` → `completed` / `failed` 状态机）；
-- **轮询周期**：2 秒（与 `external_sync.go:23` `externalSyncPollInterval` / `service_fga_sync.go:21` `fgaSyncPollInterval` 一致）；
+- **轮询周期**：2 秒（统一由 `server/internal/pkg/outbox/streams.go` 的 `IAMWorkerConfig` 配置）；
 - **优化（可选）**：未来可引入 PostgreSQL `LISTEN/NOTIFY` 减少延迟，polling 作为兜底；不在 IAM v2 强制范围。
 
 #### 6.5.3 重试与 DLQ 语义
@@ -471,18 +471,17 @@ Authorize(subject, "profile.view_identity", profile)
 
 **v2 表达"已死信"的方式 — 必须改 worker 层（不是纯文档约定）**：
 
-> 现有通用 `ClaimJobs()`（`repository.go:138`）只判断 `status='failed' AND available_at <= NOW()`，不过滤 `attempt_count`。如果只是"claim 后由业务代码跳过"，超阈值行会每 2 秒反复被 claim → reject → alert，造成噪音风暴且永不停止。要让超阈值行真正"停止处理"，必须改 worker 层。**二选一**（exec-plan 决策）：
+> 现有通用 `ClaimJobs()`（`repository.go:138`）只判断 `status='failed' AND available_at <= NOW()`，不过滤 `attempt_count`。如果只是"claim 后由业务代码跳过"，超阈值行会每 2 秒反复被 claim → reject → alert，造成噪音风暴且永不停止。要让超阈值行真正"停止处理"，必须改 worker 层。
 
-- **方案 A：IAM stream 专用 claim query**——为 3 个 IAM stream（`iam_casdoor_role_sync` / `iam_casdoor_user_projection` / `iam_openfga_tuple_sync`）写独立 claim 函数（不复用通用 `ClaimJobs`），WHERE 条件加上 `AND attempt_count < $4`（max_attempts 参数）。优点：仅 IAM stream 受影响；缺点：与通用 outbox 行为分叉。
-- **方案 B：markRetry 达到 max_attempts 时延期**——`markJobRetry` 在 `attempt_count + 1 >= max_attempts` 时把 `available_at` 设为远未来（如 `NOW() + INTERVAL '100 years'`），状态保持 `failed`。后续 `ClaimJobs` 自然跳过。优点：复用通用 worker；缺点：所有 stream 共用此行为，需评估对其它 stream 的影响。
+**已选方案 B**：`WorkerConfig.MaxAttempts` 达到阈值时，worker 把 `available_at` 设为远未来（100 年），状态保持 `failed`。后续 `ClaimJobs` 自然跳过。该行为只对显式设置 `MaxAttempts` 的 worker 生效；IAM worker 统一通过 `outbox.IAMWorkerConfig` 设置，非 IAM worker（如 resource cleanup）保持旧语义。
 
-无论 A/B 哪种，超阈值事件**触发一次** Prometheus alert + 写审计，不重复触发。漂移对账任务（§6.5.4）按夜间扫描 `WHERE status='failed' AND attempt_count >= 5`（A 方案）或 `WHERE status='failed' AND available_at > NOW() + INTERVAL '1 year'`（B 方案）找出长期 failed 行，纳入人工修复队列。
+超阈值事件**触发一次**告警，不重复触发。漂移对账任务（§6.5.4）按夜间扫描 `WHERE status='failed' AND available_at > NOW() + INTERVAL '1 year'` 找出长期 failed 行，纳入人工修复队列。
 
 **v2 退避策略（沿用现行实现）**：
 
-- `RetryBaseBackoff` 配置为 5 秒（与 `service_fga_sync.go` 一致）；
+- `RetryBaseBackoff` 配置为 5 秒（统一由 `outbox.IAMWorkerConfig` 设置）；
 - 实际退避：`(attempt_count+1) * 5s`（attempt 0→5s、attempt 1→10s、attempt 2→15s、attempt 3→20s、attempt 4→25s）——`worker.go:103` 在 `markRetry` 之前用当前 `AttemptCount`，所以首次失败是 5s 不是 10s；
-- `MaxBackoff` cap 5 分钟（与 `external_sync.go:25` `externalSyncMaxBackoff` 一致）；
+- `MaxBackoff` cap 5 分钟（统一由 `outbox.IAMWorkerConfig` 设置）；
 - 如未来需要**指数退避**或**独立 terminal DLQ status**，必须改 worker 实现 + 加 schema migration，**不在 IAM v2 范围**。
 
 #### 6.5.4 Drift Reconciliation

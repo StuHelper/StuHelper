@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -16,11 +15,6 @@ import (
 const (
 	fgaSyncJobTypeReviewRelations = "review_relations"
 	fgaSyncJobTypeReportRelations = "report_relations"
-
-	fgaSyncBatchSize      = 16
-	fgaSyncPollInterval   = 2 * time.Second
-	fgaSyncLockStaleAfter = 2 * time.Minute
-	fgaSyncMaxBackoff     = 5 * time.Minute
 )
 
 type reviewFGAWriter interface {
@@ -96,14 +90,7 @@ func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, fu
 func (s *Service) runFGASyncWorker(ctx context.Context) {
 	outbox.RunPollingWorker(
 		ctx,
-		outbox.WorkerConfig{
-			Name:             "review FGA sync",
-			BatchSize:        fgaSyncBatchSize,
-			PollInterval:     fgaSyncPollInterval,
-			LockStaleAfter:   fgaSyncLockStaleAfter,
-			RetryBaseBackoff: 5 * time.Second,
-			MaxBackoff:       fgaSyncMaxBackoff,
-		},
+		outbox.IAMWorkerConfig("review FGA sync"),
 		s.repo.ClaimFGASyncJobs,
 		s.processFGASyncJob,
 		s.repo.MarkFGASyncJobDone,
@@ -118,13 +105,7 @@ func (s *Service) runFGASyncWorker(ctx context.Context) {
 func (s *Service) processFGASyncBatch(ctx context.Context) error {
 	return outbox.ProcessBatch(
 		ctx,
-		outbox.WorkerConfig{
-			Name:             "review FGA sync",
-			BatchSize:        fgaSyncBatchSize,
-			LockStaleAfter:   fgaSyncLockStaleAfter,
-			RetryBaseBackoff: 5 * time.Second,
-			MaxBackoff:       fgaSyncMaxBackoff,
-		},
+		outbox.IAMWorkerConfig("review FGA sync"),
 		s.repo.ClaimFGASyncJobs,
 		s.processFGASyncJob,
 		s.repo.MarkFGASyncJobDone,

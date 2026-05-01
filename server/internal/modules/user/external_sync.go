@@ -19,11 +19,8 @@ const (
 	externalSyncJobTypeUserProfileProjection = "user_profile_projection"
 	verifiedStudentRoleName                  = "verified_student"
 
-	externalSyncBatchSize      = 16
-	externalSyncPollInterval   = 2 * time.Second
-	externalSyncLockStaleAfter = 2 * time.Minute
-	externalSyncMaxBackoff     = 5 * time.Minute
-	roleSyncTimeout            = 15 * time.Second
+	externalSyncBatchSize = outbox.IAMWorkerBatchSize
+	roleSyncTimeout       = 15 * time.Second
 )
 
 type ExternalSyncJob struct {
@@ -99,14 +96,7 @@ func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, fu
 func (s *Service) runExternalSyncWorker(ctx context.Context) {
 	outbox.RunPollingWorker(
 		ctx,
-		outbox.WorkerConfig{
-			Name:             "user external sync",
-			BatchSize:        externalSyncBatchSize,
-			PollInterval:     externalSyncPollInterval,
-			LockStaleAfter:   externalSyncLockStaleAfter,
-			RetryBaseBackoff: 5 * time.Second,
-			MaxBackoff:       externalSyncMaxBackoff,
-		},
+		outbox.IAMWorkerConfig("user external sync"),
 		s.repo.ClaimExternalSyncJobs,
 		s.processExternalSyncJob,
 		s.repo.MarkExternalSyncJobDone,
@@ -121,13 +111,7 @@ func (s *Service) runExternalSyncWorker(ctx context.Context) {
 func (s *Service) processExternalSyncBatch(ctx context.Context) error {
 	return outbox.ProcessBatch(
 		ctx,
-		outbox.WorkerConfig{
-			Name:             "user external sync",
-			BatchSize:        externalSyncBatchSize,
-			LockStaleAfter:   externalSyncLockStaleAfter,
-			RetryBaseBackoff: 5 * time.Second,
-			MaxBackoff:       externalSyncMaxBackoff,
-		},
+		outbox.IAMWorkerConfig("user external sync"),
 		s.repo.ClaimExternalSyncJobs,
 		s.processExternalSyncJob,
 		s.repo.MarkExternalSyncJobDone,

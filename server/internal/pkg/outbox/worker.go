@@ -17,6 +17,7 @@ type WorkerConfig struct {
 	LockStaleAfter   time.Duration
 	RetryBaseBackoff time.Duration
 	MaxBackoff       time.Duration
+	MaxAttempts      int
 }
 
 type JobMeta struct {
@@ -76,6 +77,7 @@ func ProcessBatch[T any](
 		if err := process(ctx, job); err != nil {
 			jobMeta := meta(job)
 			nextAttempt := nextAttemptAt(cfg, jobMeta.AttemptCount)
+			terminalFailed := reachedMaxAttempts(cfg, jobMeta.AttemptCount)
 			if retryErr := markRetry(ctx, jobMeta.ID, nextAttempt, truncate(truncateError, err)); retryErr != nil {
 				logger.L().Error("failed to mark "+cfg.Name+" job retry",
 					zap.Int64("job_id", jobMeta.ID),
@@ -88,6 +90,7 @@ func ProcessBatch[T any](
 				zap.String("job_type", jobMeta.JobType),
 				zap.Int("attempt", jobMeta.AttemptCount+1),
 				zap.Time("next_attempt_at", nextAttempt),
+				zap.Bool("terminal_failed", terminalFailed),
 				zap.Error(err),
 			)
 			continue
@@ -102,11 +105,20 @@ func ProcessBatch[T any](
 }
 
 func nextAttemptAt(cfg WorkerConfig, attemptCount int) time.Time {
+	if reachedMaxAttempts(cfg, attemptCount) {
+		return time.Now().Add(longFailedDelay)
+	}
 	backoff := time.Duration(attemptCount+1) * cfg.RetryBaseBackoff
 	if cfg.MaxBackoff > 0 && backoff > cfg.MaxBackoff {
 		backoff = cfg.MaxBackoff
 	}
 	return time.Now().Add(backoff)
+}
+
+const longFailedDelay = 100 * 365 * 24 * time.Hour
+
+func reachedMaxAttempts(cfg WorkerConfig, attemptCount int) bool {
+	return cfg.MaxAttempts > 0 && attemptCount+1 >= cfg.MaxAttempts
 }
 
 func truncate(truncateError func(error) string, err error) string {
