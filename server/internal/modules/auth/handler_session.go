@@ -127,7 +127,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 	if blacklisted {
-		response.Unauthorized(c, "refresh token revoked", errs.ErrTokenRevoked)
+		h.rejectRefreshReuse(c, refreshTokenStr)
 		return
 	}
 
@@ -161,7 +161,7 @@ func (h *Handler) consumeRefreshToken(c *gin.Context, refreshToken string) (func
 		return nil, false
 	}
 	if !consumed {
-		response.Unauthorized(c, "refresh token revoked", errs.ErrTokenRevoked)
+		h.rejectRefreshReuse(c, refreshToken)
 		return nil, false
 	}
 

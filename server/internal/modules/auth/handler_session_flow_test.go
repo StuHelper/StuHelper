@@ -160,6 +160,42 @@ func TestRefreshToken_SelfSignedSuccess(t *testing.T) {
 	assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
 }
 
+func TestRefreshToken_SelfSignedReuseRevokesAllSessions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+
+	user := &PhoneUser{ExternalID: "phone-user-reuse", Username: "phone-user-reuse"}
+	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(user, []string{"user"}, "sid-reuse-a")
+	require.NoError(t, err)
+	_, err = h.svc.CreateSession(t.Context(), "sid-reuse-a", user.ExternalID, accessToken, refreshToken, "phone", "ios")
+	require.NoError(t, err)
+
+	otherAccess, otherRefresh, err := h.svc.SignPhoneTokenPair(user, []string{"user"}, "sid-reuse-b")
+	require.NoError(t, err)
+	_, err = h.svc.CreateSession(t.Context(), "sid-reuse-b", user.ExternalID, otherAccess, otherRefresh, "phone", "web")
+	require.NoError(t, err)
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh", marshalRefreshBody(t, refreshToken))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	req = httptest.NewRequest(http.MethodPost, "/refresh", marshalRefreshBody(t, refreshToken))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "refresh token reuse detected")
+
+	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), user.ExternalID)
+	require.NoError(t, err)
+	assert.Empty(t, sessions)
+}
+
 func TestRefreshToken_SelfSignedRejectsMissingUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newRefreshTestHandler(t, &missingExternalUserRepo{})

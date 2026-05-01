@@ -31,6 +31,8 @@ import (
 // ARGV[3] = new refresh token hash (empty string == keep current)
 // ARGV[4] = TTL seconds
 //
+// KEYS[2] = refresh token ref key for ARGV[3] (ignored when ARGV[3] is empty)
+//
 // 返回 1 表示成功，0 表示 session 不存在。
 const touchSessionScript = `
 local raw = redis.call('GET', KEYS[1])
@@ -44,6 +46,8 @@ if ARGV[2] ~= '' then
 end
 if ARGV[3] ~= '' then
     data['refreshTokenHash'] = ARGV[3]
+    local ref = {sessionID=data['sessionID'], userID=data['userID']}
+    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[4]))
 end
 redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[4]))
 return 1
@@ -115,6 +119,14 @@ func (s *SessionStore) Create(ctx context.Context, data SessionData) error {
 		return fmt.Errorf("session create: marshal: %w", err)
 	}
 
+	var refreshRef []byte
+	if data.RefreshTokenHash != "" {
+		refreshRef, err = marshalRefreshTokenRef(data)
+		if err != nil {
+			return fmt.Errorf("session create: %w", err)
+		}
+	}
+
 	pipe := s.rdb.Pipeline()
 	sessionKey := sessionPrefix + data.SessionID
 	userKey := userSessionsPrefix + data.UserID
@@ -122,6 +134,9 @@ func (s *SessionStore) Create(ctx context.Context, data SessionData) error {
 	pipe.Set(ctx, sessionKey, encoded, s.sessionTTL)
 	pipe.SAdd(ctx, userKey, data.SessionID)
 	pipe.Expire(ctx, userKey, s.sessionTTL)
+	if len(refreshRef) > 0 {
+		pipe.Set(ctx, refreshTokenRefKey(data.RefreshTokenHash), refreshRef, s.sessionTTL)
+	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("session create: redis pipeline: %w", err)
@@ -155,7 +170,7 @@ func (s *SessionStore) Touch(ctx context.Context, sessionID, newAccessHash, newR
 	now := time.Now().Unix()
 	res, err := touchSessionScriptObj.Run(
 		ctx, s.rdb,
-		[]string{sessionPrefix + sessionID},
+		[]string{sessionPrefix + sessionID, refreshTokenRefKey(newRefreshHash)},
 		now,
 		newAccessHash,
 		newRefreshHash,

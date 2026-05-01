@@ -79,6 +79,40 @@ func TestSessionStore_Touch(t *testing.T) {
 	assert.Equal(t, "new-acc", got.AccessTokenHash)
 	assert.Equal(t, "new-ref", got.RefreshTokenHash)
 	assert.GreaterOrEqual(t, got.LastActiveAt, got.CreatedAt)
+
+	oldRef, err := store.LookupRefreshTokenHash(ctx, "old-ref")
+	require.NoError(t, err)
+	require.NotNil(t, oldRef)
+	assert.Equal(t, "sess-002", oldRef.SessionID)
+	assert.Equal(t, "user-002", oldRef.UserID)
+
+	newRef, err := store.LookupRefreshTokenHash(ctx, "new-ref")
+	require.NoError(t, err)
+	require.NotNil(t, newRef)
+	assert.Equal(t, "sess-002", newRef.SessionID)
+	assert.Equal(t, "user-002", newRef.UserID)
+}
+
+func TestSessionStore_LookupRefreshTokenHashHash(t *testing.T) {
+	store, _, _ := newTestSessionStore(t)
+	ctx := context.Background()
+
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:        "sess-refresh-ref",
+		UserID:           "user-refresh-ref",
+		AccessTokenHash:  "acc-refresh-ref",
+		RefreshTokenHash: "ref-refresh-ref",
+	}))
+
+	ref, err := store.LookupRefreshTokenHash(ctx, "ref-refresh-ref")
+	require.NoError(t, err)
+	require.NotNil(t, ref)
+	assert.Equal(t, "sess-refresh-ref", ref.SessionID)
+	assert.Equal(t, "user-refresh-ref", ref.UserID)
+
+	missingRef, err := store.LookupRefreshTokenHash(ctx, "missing-ref")
+	require.NoError(t, err)
+	assert.Nil(t, missingRef)
 }
 
 func TestSessionStore_Revoke(t *testing.T) {

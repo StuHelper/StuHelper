@@ -140,7 +140,7 @@ func (s *OTPService) IssueCode(ctx context.Context, phone string, smsSender Phon
 		cleanupErr := s.CleanupCodeOnly(ctx, phone)
 		rollbackErr := s.rollbackPhoneRateLimit(ctx, phone)
 		if cleanupErr != nil || rollbackErr != nil {
-			var joined error = sendErr
+			joined := sendErr
 			if cleanupErr != nil {
 				joined = errors.Join(joined, fmt.Errorf("otp: cleanup code after send failure: %w", cleanupErr))
 			}
