@@ -2,7 +2,6 @@ package serviceaccount
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -117,41 +116,6 @@ func (v *Verifier) EnsureBootstrapCredential(ctx context.Context, input Bootstra
 	return result, nil
 }
 
-func (v *Verifier) Verify(ctx context.Context, rawToken, audience, scope string) error {
-	tokenHash, err := v.hashToken(strings.TrimSpace(rawToken))
-	if err != nil {
-		return err
-	}
-
-	var id int64
-	var audiences []string
-	var scopes []string
-	var expiresAt sql.NullTime
-	var revokedAt sql.NullTime
-	err = v.db.QueryRow(ctx, `
-		SELECT id, audience, scopes, expires_at, revoked_at
-		FROM bot_service_credentials
-		WHERE token_hash = $1
-	`, tokenHash).Scan(&id, &audiences, &scopes, &expiresAt, &revokedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrCredentialInvalid
-	}
-	if err != nil {
-		return fmt.Errorf("verify service account credential: %w", err)
-	}
-
-	if revokedAt.Valid || isExpired(expiresAt) {
-		return ErrCredentialInvalid
-	}
-	if !audienceAllowed(audiences, audience) || !slices.Contains(scopes, scope) {
-		return ErrCredentialForbidden
-	}
-	if err := v.touchLastUsed(ctx, id); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (v *Verifier) Revoke(ctx context.Context, name string) error {
 	normalizedName := strings.TrimSpace(name)
 	if normalizedName == "" {
@@ -200,18 +164,6 @@ func (v *Verifier) hashToken(rawToken string) (string, error) {
 	return tokenHash, nil
 }
 
-func (v *Verifier) touchLastUsed(ctx context.Context, id int64) error {
-	_, err := v.db.Exec(ctx, `
-		UPDATE bot_service_credentials
-		SET last_used_at = NOW(), updated_at = NOW()
-		WHERE id = $1
-	`, id)
-	if err != nil {
-		return fmt.Errorf("touch service account credential usage: %w", err)
-	}
-	return nil
-}
-
 func logBootstrapCredential(result BootstrapResult) {
 	if result.Status == BootstrapUnchanged {
 		return
@@ -258,8 +210,4 @@ func audienceAllowed(audiences []string, required string) bool {
 		}
 	}
 	return false
-}
-
-func isExpired(expiresAt sql.NullTime) bool {
-	return expiresAt.Valid && !expiresAt.Time.After(time.Now())
 }
