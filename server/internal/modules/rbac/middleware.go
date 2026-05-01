@@ -6,12 +6,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
 )
 
 var defaultAuthorizer authorization.AuthorizationService = authorization.NewService()
+
+const mfaStepUpAuditType audit.EventType = "iam.mfa.step_up"
 
 // RequireCapability 检查当前用户是否持有指定能力。
 // 能力入口统一委托 Authorization Service，保持业务 PDP 单一。
@@ -122,8 +125,70 @@ func ensureMFAWithAuthorizer(
 	action authorization.Action,
 	resource authorization.Resource,
 ) bool {
-	decision := authorizer.Authorize(c.Request.Context(), authorization.SubjectFromGin(c), action, resource)
+	subject := authorization.SubjectFromGin(c)
+	decision := authorizer.Authorize(c.Request.Context(), subject, action, resource)
+	logMFAGateDecision(c, subject, action, decision)
 	return !abortOnDeny(c, decision)
+}
+
+func logMFAGateDecision(
+	c *gin.Context,
+	subject authorization.Subject,
+	action authorization.Action,
+	decision authorization.Decision,
+) {
+	if !shouldAuditMFAGate(subject, action) {
+		return
+	}
+	audit.LogFromGin(c, mfaGateAuditEvent(c, action, decision))
+}
+
+func shouldAuditMFAGate(subject authorization.Subject, action authorization.Action) bool {
+	switch action {
+	case authorization.ActionStepUpMFARequire:
+		return true
+	case authorization.ActionPrivilegedMFARequire:
+		return subjectHasPrivilegedRole(subject)
+	default:
+		return false
+	}
+}
+
+func subjectHasPrivilegedRole(subject authorization.Subject) bool {
+	for _, role := range subject.Roles {
+		if role == "super_admin" || role == "school_admin" {
+			return true
+		}
+	}
+	return false
+}
+
+func mfaGateAuditEvent(c *gin.Context, action authorization.Action, decision authorization.Decision) audit.Event {
+	result := "failure"
+	if decision.Allow {
+		result = "success"
+	}
+	return audit.Event{
+		Type:         mfaStepUpAuditType,
+		Category:     "audit",
+		ResourceType: "iam.mfa",
+		ResourceID:   string(action),
+		Action:       "step_up",
+		Result:       result,
+		Reason:       mfaGateReason(decision),
+		Details: map[string]any{
+			"authorization_action": string(action),
+			"http_method":          c.Request.Method,
+			"route":                c.FullPath(),
+		},
+	}
+}
+
+func mfaGateReason(decision authorization.Decision) string {
+	if decision.Error != nil {
+		return decision.Error.Error()
+	}
+	return decision.Reason
 }
 
 func abortOnDeny(c *gin.Context, decision authorization.Decision) bool {
