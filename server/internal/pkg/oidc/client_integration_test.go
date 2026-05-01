@@ -25,7 +25,6 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 	require.NoError(t, err)
 	const clientID = "oidc-client"
 	const clientSecret = "oidc-secret"
-	const projectID = "project-oidc"
 
 	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "kid-1", Algorithm: string(jose.RS256), Use: "sig"}
 	var issuer string
@@ -43,9 +42,7 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 			"preferred_username": "oidc-user",
 			"email":              "oidc@example.com",
 			"picture":            "https://cdn.example.com/oidc.png",
-			"urn:zitadel:iam:org:project:" + projectID + ":roles": map[string]map[string]string{
-				"school_admin": {"school-1": "example.org"},
-			},
+			"roles":              []string{"school_admin"},
 		}).Serialize()
 		require.NoError(t, err)
 		return raw
@@ -85,9 +82,7 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 			"username": "oidc-user",
 			"email":    "oidc@example.com",
 			"name":     "OIDC User",
-			"urn:zitadel:iam:org:project:" + projectID + ":roles": map[string]map[string]string{
-				"school_admin": {"school-1": "example.org"},
-			},
+			"roles":    []string{"school_admin"},
 		})
 	})
 
@@ -98,7 +93,6 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
-		ProjectID:    projectID,
 	})
 	require.NoError(t, err)
 	return client, srv
@@ -121,7 +115,8 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	claims, err := client.VerifyIDToken(context.Background(), idToken)
 	require.NoError(t, err)
 	assert.Equal(t, "user-oidc-1", claims.GetUserID())
-	assert.True(t, claims.HasRoleInOrg("school_admin", "school-1"))
+	assert.Contains(t, claims.Roles, "school_admin")
+	assert.False(t, claims.HasRoleInOrg("school_admin", "school-1"))
 
 	refreshed, err := client.RefreshToken(context.Background(), "provider-refresh-token")
 	require.NoError(t, err)
@@ -131,7 +126,7 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Active)
 	assert.Contains(t, result.Roles, "school_admin")
-	assert.Contains(t, result.OrgScopedRoles["school_admin"], "school-1")
+	assert.Nil(t, result.OrgScopedRoles)
 
 	raw, err := marshalIDTokenClaims(mustVerifyIDToken(t, client, idToken))
 	require.NoError(t, err)

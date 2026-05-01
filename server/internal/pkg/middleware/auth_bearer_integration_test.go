@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 )
@@ -19,7 +18,6 @@ import (
 func newBearerOIDCClient(t *testing.T) (*oidc.Client, *httptest.Server) {
 	t.Helper()
 
-	const projectID = "project-middleware"
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
@@ -44,9 +42,7 @@ func newBearerOIDCClient(t *testing.T) (*oidc.Client, *httptest.Server) {
 			"username": "school-admin",
 			"email":    "school-admin@example.com",
 			"name":     "School Admin",
-			"urn:zitadel:iam:org:project:" + projectID + ":roles": map[string]map[string]string{
-				"school_admin": {"school-1": "school.example.com"},
-			},
+			"roles":    []string{"school_admin"},
 		})
 	})
 
@@ -55,13 +51,12 @@ func newBearerOIDCClient(t *testing.T) (*oidc.Client, *httptest.Server) {
 		ClientID:     "client-id",
 		ClientSecret: "client-secret",
 		RedirectURI:  "https://web.example.com/callback",
-		ProjectID:    projectID,
 	})
 	require.NoError(t, err)
 	return client, server
 }
 
-func TestAuthMiddleware_BearerPreservesOrgScopedRoles(t *testing.T) {
+func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tokenSvc := newTokenServiceForMiddlewareTest(t)
@@ -72,8 +67,8 @@ func TestAuthMiddleware_BearerPreservesOrgScopedRoles(t *testing.T) {
 	r.Use(AuthMiddleware(oidcClient, tokenSvc))
 	r.GET("/me", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"hasRole":     HasRoleInOrg(c, "school_admin", "school-1"),
-			"schoolGrant": HasCapabilityInSchool(c, capability.UserSchoolRead, "school-1"),
+			"roles":       GetRoles(c),
+			"hasOrgScope": HasRoleInOrg(c, "school_admin", "school-1"),
 		})
 	})
 
@@ -83,6 +78,6 @@ func TestAuthMiddleware_BearerPreservesOrgScopedRoles(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), `"hasRole":true`)
-	assert.Contains(t, w.Body.String(), `"schoolGrant":true`)
+	assert.Contains(t, w.Body.String(), `"school_admin"`)
+	assert.Contains(t, w.Body.String(), `"hasOrgScope":false`)
 }

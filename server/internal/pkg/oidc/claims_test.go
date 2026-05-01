@@ -7,52 +7,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseRolesFromRaw(t *testing.T) {
-	roles, scoped, err := ParseRolesFromRaw([]byte(`{"urn:zitadel:iam:org:project:test-project:roles":{"school_admin":{"1":"example.com"},"verified_student":{"1":"example.com"}}}`), "test-project")
-	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"school_admin", "verified_student"}, roles)
-	assert.ElementsMatch(t, []string{"1"}, scoped["school_admin"])
-	assert.ElementsMatch(t, []string{"1"}, scoped["verified_student"])
-}
-
-func TestParseRolesFromRaw_ScopedMultipleOrgs(t *testing.T) {
-	roles, scoped, err := ParseRolesFromRaw([]byte(`{"urn:zitadel:iam:org:project:test-project:roles":{"school_admin":{"1001":"a.example.com","1002":"b.example.com"}}}`), "test-project")
-	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"school_admin"}, roles)
-	assert.ElementsMatch(t, []string{"1001", "1002"}, scoped["school_admin"])
-}
-
-func TestParseRolesFromRaw_InvalidJSON(t *testing.T) {
-	_, _, err := ParseRolesFromRaw([]byte(`{"broken"`), "test-project")
-	require.Error(t, err)
-}
-
-func TestParseRolesFromRaw_InvalidRolesClaim(t *testing.T) {
-	_, _, err := ParseRolesFromRaw([]byte(`{"urn:zitadel:iam:org:project:test-project:roles":"bad"}`), "test-project")
-	require.Error(t, err)
-}
-
-func TestParseRolesFromRaw_InvalidFallbackRolesClaimReportsFallbackError(t *testing.T) {
-	_, _, err := ParseRolesFromRaw([]byte(`{"urn:zitadel:iam:org:project:test-project:roles":{"school_admin":[1,2]}}`), "test-project")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "map[string]interface {}")
-}
-
 func TestParseProviderRolesFromRaw_CasdoorFlatRoles(t *testing.T) {
-	roles, scoped, err := ParseProviderRolesFromRaw([]byte(`{"roles":["school_admin","verified_student","school_admin"]}`), "roles", "")
+	roles, scoped, err := ParseProviderRolesFromRaw([]byte(`{"roles":["school_admin","verified_student","school_admin"]}`), "roles")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"school_admin", "verified_student"}, roles)
 	assert.Nil(t, scoped)
 }
 
-func TestParseProviderRolesFromRaw_LegacyZitadelFallback(t *testing.T) {
-	raw := []byte(`{"urn:zitadel:iam:org:project:test-project:roles":{"school_admin":{"1001":"a.example.com"}}}`)
+func TestParseProviderRolesFromRaw_CustomRolesClaim(t *testing.T) {
+	raw := []byte(`{"stuhelper_roles":["super_admin","user"]}`)
 
-	roles, scoped, err := ParseProviderRolesFromRaw(raw, "roles", "test-project")
+	roles, scoped, err := ParseProviderRolesFromRaw(raw, "stuhelper_roles")
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"school_admin"}, roles)
-	assert.ElementsMatch(t, []string{"1001"}, scoped["school_admin"])
+	assert.Equal(t, []string{"super_admin", "user"}, roles)
+	assert.Nil(t, scoped)
+}
+
+func TestParseProviderRolesFromRaw_InvalidJSON(t *testing.T) {
+	_, _, err := ParseProviderRolesFromRaw([]byte(`{"broken"`), "roles")
+	require.Error(t, err)
+}
+
+func TestParseProviderRolesFromRaw_InvalidRolesClaim(t *testing.T) {
+	_, _, err := ParseProviderRolesFromRaw([]byte(`{"roles":"bad"}`), "roles")
+	require.Error(t, err)
+}
+
+func TestParseProviderRolesFromRaw_MissingRolesClaim(t *testing.T) {
+	roles, scoped, err := ParseProviderRolesFromRaw([]byte(`{"sub":"user-1"}`), "roles")
+	require.NoError(t, err)
+	assert.Empty(t, roles)
+	assert.Nil(t, scoped)
 }
 
 func TestClaims_HasRoleInOrg(t *testing.T) {

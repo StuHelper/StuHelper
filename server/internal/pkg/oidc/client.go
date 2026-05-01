@@ -26,7 +26,6 @@ type Client struct {
 	provider   *gooidc.Provider
 	verifier   *gooidc.IDTokenVerifier
 	oauth2Cfg  oauth2.Config
-	projectID  string
 	rolesClaim string
 	metricName string
 	httpClient *http.Client
@@ -61,7 +60,6 @@ func NewClient(ctx context.Context, cfg config.CasdoorConfig) (*Client, error) {
 		provider:   provider,
 		verifier:   verifier,
 		oauth2Cfg:  oauth2Cfg,
-		projectID:  cfg.ProjectID,
 		rolesClaim: defaultRolesClaim(cfg.RolesClaim),
 		metricName: "casdoor_oidc",
 		httpClient: httpClient,
@@ -110,7 +108,7 @@ func (c *Client) VerifyIDToken(ctx context.Context, rawIDToken string) (*Claims,
 	// 从原始 JSON 中提取 provider-specific 角色 claim
 	var rawJSON []byte
 	if rawJSON, err = marshalIDTokenClaims(idToken); err == nil {
-		roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim, c.projectID)
+		roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
 		if parseErr != nil {
 			logger.L().Warn("oidc: failed to parse roles from id_token", zap.Error(parseErr))
 		} else {
@@ -213,7 +211,7 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 	}
 
 	// 从原始 JSON 解析 provider-specific 角色 claim
-	roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim, c.projectID)
+	roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
 	if parseErr != nil {
 		logger.L().Warn("oidc: failed to parse roles from introspection response", zap.Error(parseErr))
 	} else {

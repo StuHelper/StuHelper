@@ -39,7 +39,6 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 
 	const clientID = "test-client-id"
 	const clientSecret = "test-client-secret"
-	const projectID = "project-1"
 	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "test-key", Algorithm: string(jose.RS256), Use: "sig"}
 
 	var issuer string
@@ -57,9 +56,7 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 			"email":              "oidc@example.com",
 			"email_verified":     true,
 			"picture":            "https://cdn.example.com/oidc.png",
-			"urn:zitadel:iam:org:project:" + projectID + ":roles": map[string]map[string]string{
-				"school_admin": {"school-1": "school-one"},
-			},
+			"roles":              []string{"school_admin"},
 		}).Serialize()
 		require.NoError(t, err)
 		return raw
@@ -105,7 +102,6 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
-		ProjectID:    projectID,
 	})
 	require.NoError(t, err)
 

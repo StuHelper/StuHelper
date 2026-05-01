@@ -117,9 +117,6 @@ type CasdoorConfig struct {
 	UserLookupClientSecret string
 	UserLookupApplication  string
 	UserLookupCertificate  string
-
-	// Legacy Zitadel role-claim fallback remains until all issued sessions are Casdoor-native.
-	ProjectID string
 }
 
 // OpenFGAConfig OpenFGA 关系型授权引擎配置
