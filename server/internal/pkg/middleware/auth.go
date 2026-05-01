@@ -26,7 +26,7 @@ const (
 	CtxKeyDisplayName        = "display_name"
 	CtxKeyAvatar             = "avatar"
 	CtxKeyRoles              = "roles"
-	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — Zitadel 多租户作用域
+	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — provider-scoped legacy roles
 	CtxKeyCapabilities       = "capabilities"
 	CtxKeyGlobalCapabilities = "global_capabilities"
 	CtxKeyCapabilityGrants   = "capability_grants"
@@ -73,7 +73,7 @@ type authResult struct {
 
 // resolveToken 从请求中提取、验证并解析 Token。
 // Cookie Token → 本地 JWKS 验证（高性能，适合浏览器客户端）
-// Bearer Token → Zitadel introspection 验证（即时吊销能力，适合 API 客户端）
+// Bearer Token → OIDC provider introspection 验证（即时吊销能力，适合 API 客户端）
 func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.Service) (*authResult, error) {
 	tokenString, source := getTokenWithSource(c)
 	if tokenString == "" {
@@ -117,7 +117,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			}, nil
 		}
 
-		// Zitadel OIDC ID Token（RS256）— 通过 JWKS 本地验证
+		// OIDC ID Token（RS256/ES256 由 provider 配置决定）— 通过 JWKS 本地验证
 		claims, verifyErr := oidcClient.VerifyIDToken(c.Request.Context(), tokenString)
 		if verifyErr != nil {
 			logger.L().Debug("OIDC token verification failed", zap.Error(verifyErr))
@@ -367,7 +367,7 @@ func HasCapabilityInSchool(c *gin.Context, capabilityName, schoolID string) bool
 	return capability.HasGrantInSchool(GetCapabilityGrants(c), capabilityName, schoolID)
 }
 
-// HasRoleInOrg 检查当前用户是否在指定 orgID 上拥有指定角色（Zitadel 多租户作用域）。
+// HasRoleInOrg 检查当前用户是否在指定 orgID 上拥有指定角色（provider-scoped legacy roles）。
 // 仅 cookie-OIDC 登录路径填充 scope；手机登录与 Bearer introspection 返回
 // false。orgID 为空时判定"是否在任意 org 拥有此角色"。
 func HasRoleInOrg(c *gin.Context, role, orgID string) bool {

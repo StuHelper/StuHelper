@@ -9,7 +9,7 @@ import (
 )
 
 // RegisterInternalHandler 注册内部 SMS 转发端点。
-// Zitadel Action 通过 HTTP 调用此端点发送验证码短信。
+// Casdoor Custom HTTP SMS Provider 通过 HTTP 调用此端点发送验证码短信。
 // 端点使用 InternalKey 做简单鉴权，生产环境应配合网络隔离。
 func (s *Service) RegisterInternalHandler(mux *http.ServeMux) {
 	mux.HandleFunc("POST /internal/sms/send", s.handleSend)

@@ -52,7 +52,7 @@ func NewService(cfg Config, logger *zap.Logger) *Service {
 	}
 }
 
-// SendRequest 内部 SMS 发送请求（Zitadel Action 调用）
+// SendRequest 内部 SMS 发送请求（Casdoor Custom HTTP SMS Provider 调用）
 type SendRequest struct {
 	Phone   string `json:"phone"`   // 国际格式：+8613800138000
 	Content string `json:"content"` // 验证码内容
