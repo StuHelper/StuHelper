@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
@@ -235,8 +236,51 @@ func TestReviewHandler_MoreValidationBranches(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
+	t.Run("batch hide of five reviews requires step-up proof", func(t *testing.T) {
+		h := &Handler{fga: NewFailClosedAuthorizationProvider()}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(batchStepUpRequestBody("hide")))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Set(middleware.CtxKeyUserID, "moderator-1")
+		middleware.SetMFAContext(c, middleware.MFAContext{EnrollmentActive: true})
+
+		h.BatchUpdateReviews(c)
+
+		assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+	})
+
 	t.Run("checkFGA returns false on provider error", func(t *testing.T) {
 		h := &Handler{fga: errorAuthorizationProvider{}}
 		assert.False(t, h.checkFGA(context.Background(), "user:1", "can_hide", "review:1"))
 	})
+}
+
+func batchStepUpRequestBody(action string) string {
+	return `{"ids":[` +
+		`"550e8400-e29b-41d4-a716-446655440001",` +
+		`"550e8400-e29b-41d4-a716-446655440002",` +
+		`"550e8400-e29b-41d4-a716-446655440003",` +
+		`"550e8400-e29b-41d4-a716-446655440004",` +
+		`"550e8400-e29b-41d4-a716-446655440005"` +
+		`],"action":"` + action + `"}`
+}
+
+func TestBatchReviewStepUpRequired(t *testing.T) {
+	assert.True(t, batchReviewStepUpRequired(BatchUpdateReviewsRequest{
+		IDs:    make([]string, batchStepUpThreshold),
+		Action: "hide",
+	}))
+	assert.True(t, batchReviewStepUpRequired(BatchUpdateReviewsRequest{
+		IDs:    make([]string, batchStepUpThreshold),
+		Action: "delete",
+	}))
+	assert.False(t, batchReviewStepUpRequired(BatchUpdateReviewsRequest{
+		IDs:    make([]string, batchStepUpThreshold),
+		Action: "restore",
+	}))
+	assert.False(t, batchReviewStepUpRequired(BatchUpdateReviewsRequest{
+		IDs:    make([]string, batchStepUpThreshold-1),
+		Action: "hide",
+	}))
 }

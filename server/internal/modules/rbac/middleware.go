@@ -92,11 +92,15 @@ func RequireStepUpMFA() gin.HandlerFunc {
 }
 
 func RequireStepUpMFAWithAuthorizer(authorizer authorization.AuthorizationService) gin.HandlerFunc {
-	return requireMFAWithAuthorizer(
-		authorizer,
-		authorization.ActionStepUpMFARequire,
-		authorization.StepUpMFAResource(0),
-	)
+	return requireMFAWithAuthorizer(authorizer, authorization.ActionStepUpMFARequire, authorization.StepUpMFAResource(0))
+}
+
+func EnsureStepUpMFA(c *gin.Context) bool {
+	return EnsureStepUpMFAWithAuthorizer(defaultAuthorizer, c)
+}
+
+func EnsureStepUpMFAWithAuthorizer(authorizer authorization.AuthorizationService, c *gin.Context) bool {
+	return ensureMFAWithAuthorizer(authorizer, c, authorization.ActionStepUpMFARequire, authorization.StepUpMFAResource(0))
 }
 
 func requireMFAWithAuthorizer(
@@ -105,12 +109,21 @@ func requireMFAWithAuthorizer(
 	resource authorization.Resource,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		decision := authorizer.Authorize(c.Request.Context(), authorization.SubjectFromGin(c), action, resource)
-		if abortOnDeny(c, decision) {
+		if !ensureMFAWithAuthorizer(authorizer, c, action, resource) {
 			return
 		}
 		c.Next()
 	}
+}
+
+func ensureMFAWithAuthorizer(
+	authorizer authorization.AuthorizationService,
+	c *gin.Context,
+	action authorization.Action,
+	resource authorization.Resource,
+) bool {
+	decision := authorizer.Authorize(c.Request.Context(), authorization.SubjectFromGin(c), action, resource)
+	return !abortOnDeny(c, decision)
 }
 
 func abortOnDeny(c *gin.Context, decision authorization.Decision) bool {

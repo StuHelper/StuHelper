@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
@@ -19,6 +20,8 @@ import (
 const (
 	// maxBatchSize 批量操作的最大数量上限
 	maxBatchSize = 100
+
+	batchStepUpThreshold = 5
 )
 
 // ListReports 获取举报列表
@@ -222,6 +225,9 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 	}
 
 	userID := middleware.GetUserID(c)
+	if batchReviewStepUpRequired(req) && !rbac.EnsureStepUpMFA(c) {
+		return
+	}
 	if !h.authorizeBatchReviewModeration(c, req.IDs) {
 		return
 	}
@@ -251,4 +257,8 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 		"message":  "batch update completed",
 		"affected": result.Affected,
 	})
+}
+
+func batchReviewStepUpRequired(req BatchUpdateReviewsRequest) bool {
+	return len(req.IDs) >= batchStepUpThreshold && (req.Action == "hide" || req.Action == "delete")
 }
