@@ -110,8 +110,9 @@ func TestMFADisableEnrollmentClearsRecoveryCodesAndAudits(t *testing.T) {
 	defer audit.ConfigureRepository(nil)
 
 	err = manager.DisableEnrollment(context.Background(), MFAEnrollmentAdminAction{
-		ActorUserID:  99,
-		TargetUserID: userID,
+		ActorUserID:    99,
+		TargetUserID:   userID,
+		TargetRoleKind: MFATargetRoleStandard,
 	})
 	require.NoError(t, err)
 
@@ -141,8 +142,9 @@ func TestMFAResetEnrollmentMarksResetRequiredClearsRecoveryCodesAndAudits(t *tes
 	defer audit.ConfigureRepository(nil)
 
 	err = manager.ResetEnrollment(context.Background(), MFAEnrollmentAdminAction{
-		ActorUserID:  99,
-		TargetUserID: userID,
+		ActorUserID:    99,
+		TargetUserID:   userID,
+		TargetRoleKind: MFATargetRoleStandard,
 	})
 	require.NoError(t, err)
 

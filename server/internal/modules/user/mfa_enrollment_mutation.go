@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -9,42 +10,130 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 )
 
+const privilegedMFAReviewerRole = "super_admin"
+
+var (
+	ErrMFATargetRoleInvalid    = errors.New("mfa target role kind is invalid")
+	ErrMFASelfDisableForbidden = errors.New("super admin cannot disable own mfa")
+	ErrMFAResetReviewRequired  = errors.New("super admin mfa reset requires another super admin reviewer")
+)
+
+type MFATargetRoleKind string
+
+const (
+	MFATargetRoleStandard   MFATargetRoleKind = "standard"
+	MFATargetRoleSuperAdmin MFATargetRoleKind = "super_admin"
+)
+
 type MFAEnrollmentAdminAction struct {
-	ActorUserID  int64
-	TargetUserID int64
+	ActorUserID    int64
+	TargetUserID   int64
+	TargetRoleKind MFATargetRoleKind
+	ReviewerUserID int64
+	ReviewerRoles  []string
 }
 
 func (m *MFARecoveryManager) DisableEnrollment(ctx context.Context, params MFAEnrollmentAdminAction) error {
-	return m.mutateEnrollment(ctx, mfaEnrollmentMutation{
-		ActorUserID:  params.ActorUserID,
-		TargetUserID: params.TargetUserID,
-		Action:       MFAEnrollmentChangeDisable,
-		AuditAction:  "disable",
+	mutation := mfaEnrollmentMutationFromAction(mfaEnrollmentMutationBuild{
+		Params:      params,
+		Action:      MFAEnrollmentChangeDisable,
+		AuditAction: "disable",
 	})
+	if err := validateMFAEnrollmentAdminAction(params); err != nil {
+		return m.rejectEnrollmentMutation(ctx, mutation, err)
+	}
+	if params.TargetRoleKind == MFATargetRoleSuperAdmin && params.ActorUserID == params.TargetUserID {
+		return m.rejectEnrollmentMutation(ctx, mutation, ErrMFASelfDisableForbidden)
+	}
+	return m.mutateEnrollment(ctx, mutation)
 }
 
 func (m *MFARecoveryManager) ResetEnrollment(ctx context.Context, params MFAEnrollmentAdminAction) error {
-	return m.mutateEnrollment(ctx, mfaEnrollmentMutation{
-		ActorUserID:   params.ActorUserID,
-		TargetUserID:  params.TargetUserID,
+	mutation := mfaEnrollmentMutationFromAction(mfaEnrollmentMutationBuild{
+		Params:        params,
 		Action:        MFAEnrollmentChangeReset,
-		ResetRequired: true,
 		AuditAction:   "reset",
+		ResetRequired: true,
 	})
+	if err := validateMFAEnrollmentAdminAction(params); err != nil {
+		return m.rejectEnrollmentMutation(ctx, mutation, err)
+	}
+	if err := validateMFAResetReview(params); err != nil {
+		return m.rejectEnrollmentMutation(ctx, mutation, err)
+	}
+	return m.mutateEnrollment(ctx, mutation)
 }
 
-type mfaEnrollmentMutation struct {
-	ActorUserID   int64
-	TargetUserID  int64
+type mfaEnrollmentMutationBuild struct {
+	Params        MFAEnrollmentAdminAction
 	Action        MFAEnrollmentChangeAction
-	ResetRequired bool
 	AuditAction   string
+	ResetRequired bool
 }
 
-func (m *MFARecoveryManager) mutateEnrollment(ctx context.Context, params mfaEnrollmentMutation) error {
+func mfaEnrollmentMutationFromAction(input mfaEnrollmentMutationBuild) mfaEnrollmentMutation {
+	params := input.Params
+	return mfaEnrollmentMutation{
+		ActorUserID:    params.ActorUserID,
+		TargetUserID:   params.TargetUserID,
+		TargetRoleKind: params.TargetRoleKind,
+		ReviewerUserID: params.ReviewerUserID,
+		Action:         input.Action,
+		ResetRequired:  input.ResetRequired,
+		AuditAction:    input.AuditAction,
+	}
+}
+
+func validateMFAEnrollmentAdminAction(params MFAEnrollmentAdminAction) error {
 	if params.ActorUserID <= 0 || params.TargetUserID <= 0 {
 		return ErrMFAUserInvalid
 	}
+	if !validMFATargetRoleKind(params.TargetRoleKind) {
+		return ErrMFATargetRoleInvalid
+	}
+	return nil
+}
+
+func validateMFAResetReview(params MFAEnrollmentAdminAction) error {
+	if params.TargetRoleKind != MFATargetRoleSuperAdmin {
+		return nil
+	}
+	if params.ReviewerUserID <= 0 || params.ReviewerUserID == params.ActorUserID {
+		return ErrMFAResetReviewRequired
+	}
+	if params.ReviewerUserID == params.TargetUserID {
+		return ErrMFAResetReviewRequired
+	}
+	if !hasMFARole(params.ReviewerRoles, privilegedMFAReviewerRole) {
+		return ErrMFAResetReviewRequired
+	}
+	return nil
+}
+
+func validMFATargetRoleKind(kind MFATargetRoleKind) bool {
+	return kind == MFATargetRoleStandard || kind == MFATargetRoleSuperAdmin
+}
+
+func hasMFARole(roles []string, expected string) bool {
+	for _, role := range roles {
+		if role == expected {
+			return true
+		}
+	}
+	return false
+}
+
+type mfaEnrollmentMutation struct {
+	ActorUserID    int64
+	TargetUserID   int64
+	TargetRoleKind MFATargetRoleKind
+	ReviewerUserID int64
+	Action         MFAEnrollmentChangeAction
+	ResetRequired  bool
+	AuditAction    string
+}
+
+func (m *MFARecoveryManager) mutateEnrollment(ctx context.Context, params mfaEnrollmentMutation) error {
 	changedAt := m.now().UTC()
 	err := m.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		if err := m.repo.UpdateMFAEnrollmentStateTx(ctx, tx, MFAEnrollmentStateChange{
@@ -61,6 +150,15 @@ func (m *MFARecoveryManager) mutateEnrollment(ctx context.Context, params mfaEnr
 	}
 	m.auditEnrollmentMutation(ctx, params, mfaEnrollmentAuditOutcome{Result: "success"})
 	return nil
+}
+
+func (m *MFARecoveryManager) rejectEnrollmentMutation(
+	ctx context.Context,
+	params mfaEnrollmentMutation,
+	err error,
+) error {
+	m.auditEnrollmentMutation(ctx, params, mfaEnrollmentAuditOutcome{Result: "failure", Reason: err.Error()})
+	return err
 }
 
 func (m *MFARecoveryManager) auditEnrollmentMutation(
@@ -87,5 +185,14 @@ func mfaEnrollmentMutationAuditEvent(params mfaEnrollmentMutation, outcome mfaEn
 		Action:       params.AuditAction,
 		Result:       outcome.Result,
 		Reason:       outcome.Reason,
+		Details:      mfaEnrollmentMutationDetails(params),
 	}
+}
+
+func mfaEnrollmentMutationDetails(params mfaEnrollmentMutation) map[string]any {
+	details := map[string]any{"target_role_kind": string(params.TargetRoleKind)}
+	if params.ReviewerUserID > 0 {
+		details["reviewer_user_id"] = fmt.Sprintf("%d", params.ReviewerUserID)
+	}
+	return details
 }
