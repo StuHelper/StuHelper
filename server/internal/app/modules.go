@@ -112,7 +112,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
 	botHandler.RegisterRoutes(api)
-	rt.registerAdminRoutes(api, userHandler, authHandler, authMW)
+	rt.registerAdminRoutes(api, userRepo, userHandler, authHandler, authMW)
 
 	courseHandler.StartBackgroundJobs(bgCtx, startBackgroundTask)
 

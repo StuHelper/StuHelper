@@ -55,12 +55,18 @@ func (rt *Runtime) registerUserRoutes(api *gin.RouterGroup, userHandler *user.Ha
 
 func (rt *Runtime) registerAdminRoutes(
 	api *gin.RouterGroup,
+	userRepo user.MFAContextRepository,
 	userHandler *user.Handler,
 	authHandler *auth.Handler,
 	authMW gin.HandlerFunc,
 ) {
 	adminGroup := api.Group("/admin")
-	adminGroup.Use(authMW, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
+	adminGroup.Use(
+		authMW,
+		user.MFAContextMiddleware(userRepo),
+		rbac.RequirePrivilegedMFA(),
+		rbac.RequireAnyCapability(capability.AdminEntryCapabilities...),
+	)
 	authHandler.RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
 }
