@@ -39,6 +39,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	startBackgroundTask := func(name string, run func(context.Context)) {
 		rt.startBackgroundTask(bgCtx, name, run)
 	}
+	rt.startAuditRetentionCleanup(bgCtx, startBackgroundTask)
 
 	smsSvc, err := rt.initSMSService()
 	if err != nil {
