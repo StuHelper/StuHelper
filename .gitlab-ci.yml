@@ -33,6 +33,7 @@ variables:
 
 include:
 - local: ".gitlab/server-ci.yml"
+- local: ".gitlab/package-ci.yml"
 - local: ".gitlab/cd.yml"
 
 .playwright_job:
@@ -196,6 +197,14 @@ frontend_sast:
   image: semgrep/semgrep:1.128.0
   script:
   - semgrep scan --config=p/vuejs --config=p/typescript --error clients/web/src clients/admin/apps/web-ele/src
+
+secret_scan:
+  stage: security
+  image:
+    name: ghcr.io/gitleaks/gitleaks:v8.24.3
+    entrypoint: [""]
+  script:
+  - bash scripts/check-secrets.sh
 
 container_scan_backend:
   extends: .trivy_scan_job
