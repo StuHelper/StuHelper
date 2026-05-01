@@ -341,7 +341,7 @@ func logBotCredentialBootstrap(result serviceaccount.BootstrapResult) {
 	}
 	audit.Log(audit.Event{
 		Type:         audit.EventType("iam.service_account." + string(result.Status)),
-		Category:     "audit",
+		Category:     "admin_operation",
 		ActorType:    "system",
 		ResourceType: "iam.service_account",
 		ResourceID:   result.Name,
