@@ -132,6 +132,7 @@ type Repo interface {
 	ClaimExternalSyncJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
 	MarkExternalSyncJobDone(ctx context.Context, jobID int64) error
 	MarkExternalSyncJobRetry(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
+	ListStudentRoleProjectionStates(ctx context.Context, limit int) ([]StudentRoleProjectionState, error)
 }
 
 type ldapAuthClient interface {

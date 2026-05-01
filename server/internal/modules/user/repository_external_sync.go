@@ -114,6 +114,36 @@ func (r *Repository) MarkExternalSyncJobRetry(ctx context.Context, jobID int64, 
 	return nil
 }
 
+func (r *Repository) ListStudentRoleProjectionStates(ctx context.Context, limit int) ([]StudentRoleProjectionState, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT user_id,
+		       verification_status = 'verified' AS approved
+		FROM user_profiles
+		ORDER BY user_id ASC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("ListStudentRoleProjectionStates: %w", err)
+	}
+	defer rows.Close()
+
+	states := make([]StudentRoleProjectionState, 0, limit)
+	for rows.Next() {
+		var state StudentRoleProjectionState
+		if err := rows.Scan(&state.UserID, &state.Approved); err != nil {
+			return nil, fmt.Errorf("ListStudentRoleProjectionStates scan: %w", err)
+		}
+		states = append(states, state)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ListStudentRoleProjectionStates rows: %w", err)
+	}
+	return states, nil
+}
+
 func mapExternalSyncJobs(jobs []outbox.Job) []ExternalSyncJob {
 	items := make([]ExternalSyncJob, 0, len(jobs))
 	for _, job := range jobs {

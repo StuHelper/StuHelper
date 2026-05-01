@@ -57,6 +57,7 @@ type mockRepo struct {
 	onClaimExternalSyncJobs                    func(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
 	onMarkExternalSyncJobDone                  func(ctx context.Context, jobID int64) error
 	onMarkExternalSyncJobRetry                 func(ctx context.Context, jobID int64, nextAttemptAt time.Time, lastError string) error
+	onListStudentRoleProjectionStates          func(ctx context.Context, limit int) ([]StudentRoleProjectionState, error)
 }
 
 func (m *mockRepo) GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error) {
@@ -262,6 +263,13 @@ func (m *mockRepo) MarkExternalSyncJobRetry(ctx context.Context, jobID int64, ne
 		return m.onMarkExternalSyncJobRetry(ctx, jobID, nextAttemptAt, lastError)
 	}
 	return nil
+}
+
+func (m *mockRepo) ListStudentRoleProjectionStates(ctx context.Context, limit int) ([]StudentRoleProjectionState, error) {
+	if m.onListStudentRoleProjectionStates != nil {
+		return m.onListStudentRoleProjectionStates(ctx, limit)
+	}
+	return nil, nil
 }
 
 // ---------------------------------------------------------------------------

@@ -173,3 +173,82 @@ func TestVerifyStudent_EnqueuesProjectionInsideTransaction(t *testing.T) {
 	assert.Contains(t, enqueued, externalSyncJobTypeUserProfileProjection+":"+userProfileProjectionKey(1))
 	assert.NotContains(t, enqueued, externalSyncJobTypeVerifiedStudentRole+":"+verifiedStudentRoleSyncKey(1))
 }
+
+func TestReconcileVerifiedStudentRoleProjectionRequeuesWithinLimit(t *testing.T) {
+	var enqueued []externalSyncTestJob
+	repo := &mockRepo{
+		onListStudentRoleProjectionStates: func(_ context.Context, limit int) ([]StudentRoleProjectionState, error) {
+			require.Equal(t, 101, limit)
+			return []StudentRoleProjectionState{{UserID: 42, Approved: true}, {UserID: 43}}, nil
+		},
+		onUpsertExternalSyncJobTx: func(_ context.Context, _ pgx.Tx, jobType, dedupeKey string, payload []byte) error {
+			enqueued = append(enqueued, externalSyncTestJob{jobType: jobType, dedupeKey: dedupeKey, payload: payload})
+			return nil
+		},
+	}
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	requeued, err := svc.ReconcileVerifiedStudentRoleProjection(context.Background(), 100)
+	require.NoError(t, err)
+	assert.Equal(t, 2, requeued)
+	require.Len(t, enqueued, 2)
+	assertExternalSyncTestJob(t, enqueued[0], 42, true)
+	assertExternalSyncTestJob(t, enqueued[1], 43, false)
+}
+
+func TestReconcileVerifiedStudentRoleProjectionStopsAboveThreshold(t *testing.T) {
+	txCalled := false
+	repo := &mockRepo{
+		onListStudentRoleProjectionStates: func(_ context.Context, limit int) ([]StudentRoleProjectionState, error) {
+			require.Equal(t, 101, limit)
+			return make([]StudentRoleProjectionState, 101), nil
+		},
+		onWithTx: func(context.Context, func(context.Context, pgx.Tx) error) error {
+			txCalled = true
+			return nil
+		},
+	}
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	requeued, err := svc.ReconcileVerifiedStudentRoleProjection(context.Background(), 100)
+	require.ErrorIs(t, err, ErrExternalSyncReconciliationThresholdExceeded)
+	assert.Equal(t, 0, requeued)
+	assert.False(t, txCalled)
+}
+
+func TestNextExternalSyncReconciliationDelay(t *testing.T) {
+	location := time.FixedZone("test", 8*60*60)
+	cases := []struct {
+		name string
+		now  time.Time
+		want time.Duration
+	}{
+		{name: "before window", now: time.Date(2026, 5, 2, 2, 30, 0, 0, location), want: 30 * time.Minute},
+		{name: "at window", now: time.Date(2026, 5, 2, 3, 0, 0, 0, location), want: 24 * time.Hour},
+		{name: "after window", now: time.Date(2026, 5, 2, 4, 0, 0, 0, location), want: 23 * time.Hour},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, nextExternalSyncReconciliationDelay(tc.now))
+		})
+	}
+}
+
+type externalSyncTestJob struct {
+	jobType   string
+	dedupeKey string
+	payload   []byte
+}
+
+func assertExternalSyncTestJob(t *testing.T, job externalSyncTestJob, userID int64, approved bool) {
+	t.Helper()
+	assert.Equal(t, externalSyncJobTypeVerifiedStudentRole, job.jobType)
+	assert.Equal(t, verifiedStudentRoleSyncKey(userID), job.dedupeKey)
+	var payload verifiedStudentRoleSyncPayload
+	require.NoError(t, json.Unmarshal(job.payload, &payload))
+	assert.Equal(t, userID, payload.UserID)
+	assert.Equal(t, verifiedStudentRoleName, payload.Role)
+	assert.Equal(t, approved, payload.Approved)
+}

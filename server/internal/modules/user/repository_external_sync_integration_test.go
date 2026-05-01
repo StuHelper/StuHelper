@@ -105,6 +105,28 @@ func TestExternalSyncOutbox_ClaimSplitsAcrossIAMStreams(t *testing.T) {
 	assert.Equal(t, 2, counts[externalSyncJobTypeUserProfileProjection])
 }
 
+func TestListStudentRoleProjectionStates(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB, []byte("test-hmac-key"))
+	ctx := context.Background()
+
+	verifiedID := insertExternalSyncUser(t, fixture, "verified")
+	rejectedID := insertExternalSyncUser(t, fixture, "rejected")
+	insertExternalSyncProfile(t, fixture, verifiedID, StatusVerified)
+	insertExternalSyncProfile(t, fixture, rejectedID, StatusRejected)
+
+	states, err := repo.ListStudentRoleProjectionStates(ctx, 10)
+	require.NoError(t, err)
+	assert.Equal(t, []StudentRoleProjectionState{
+		{UserID: verifiedID, Approved: true},
+		{UserID: rejectedID, Approved: false},
+	}, states)
+
+	limited, err := repo.ListStudentRoleProjectionStates(ctx, 1)
+	require.NoError(t, err)
+	assert.Equal(t, []StudentRoleProjectionState{{UserID: verifiedID, Approved: true}}, limited)
+}
+
 func upsertExternalSyncJob(t *testing.T, repo *Repository, ctx context.Context, jobType, dedupeKey string) {
 	t.Helper()
 	err := repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
@@ -119,4 +141,25 @@ func assertExternalSyncStream(t *testing.T, fixture *postgresfixture.Fixture, de
 	err := fixture.Pool.QueryRow(context.Background(), `SELECT stream FROM domain_event_outbox WHERE dedupe_key = $1`, dedupeKey).Scan(&got)
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
+}
+
+func insertExternalSyncUser(t *testing.T, fixture *postgresfixture.Fixture, suffix string) int64 {
+	t.Helper()
+	var userID int64
+	err := fixture.Pool.QueryRow(context.Background(), `
+		INSERT INTO users (casdoor_subject, username, email)
+		VALUES ($1, $2, $3)
+		RETURNING id
+	`, "sync-"+suffix, "sync-"+suffix, "sync-"+suffix+"@example.test").Scan(&userID)
+	require.NoError(t, err)
+	return userID
+}
+
+func insertExternalSyncProfile(t *testing.T, fixture *postgresfixture.Fixture, userID int64, status string) {
+	t.Helper()
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO user_profiles (user_id, verification_status)
+		VALUES ($1, $2)
+	`, userID, status)
+	require.NoError(t, err)
 }
