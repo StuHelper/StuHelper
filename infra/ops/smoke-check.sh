@@ -106,13 +106,13 @@ echo "── 指标与观测 ──"
 check_status "指标端点需认证" "${API_BASE_URL}/metrics" "401"
 
 # OIDC（可选）
-ZITADEL_ISSUER="${ZITADEL_ISSUER:-}"
-if [ -n "$ZITADEL_ISSUER" ]; then
+CASDOOR_ISSUER="${CASDOOR_ISSUER:-}"
+if [ -n "$CASDOOR_ISSUER" ]; then
   echo ""
   echo "── OIDC ──"
-  check_body "Zitadel well-known" "${ZITADEL_ISSUER}/.well-known/openid-configuration" '"issuer":'
+  check_body "Casdoor well-known" "${CASDOOR_ISSUER}/.well-known/openid-configuration" '"issuer":'
 else
-  echo "  ⚠️  ZITADEL_ISSUER 未设置，跳过 OIDC 检查"
+  echo "  ⚠️  CASDOOR_ISSUER 未设置，跳过 OIDC 检查"
   WARN=$((WARN + 1))
 fi
 
