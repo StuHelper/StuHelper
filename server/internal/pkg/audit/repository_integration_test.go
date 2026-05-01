@@ -74,7 +74,7 @@ func TestRepository_CleanupIAMEventsUsesTieredRetention(t *testing.T) {
 
 	require.NoError(t, repo.WriteEvent(ctx, staleAuditEvent(EventUserLogin, 91)))
 	require.NoError(t, repo.WriteEvent(ctx, staleAuditEvent(EventUserLoginFailed, 366)))
-	require.NoError(t, repo.WriteEvent(ctx, staleAdminEventWithAge(EventType("iam.casdoor.admin_api"), 366)))
+	require.NoError(t, repo.WriteEvent(ctx, staleAdminEventWithAge(EventType("iam.casdoor_admin_api.call"), 366)))
 	require.NoError(t, repo.WriteEvent(ctx, staleAdminEventWithAge(EventType("iam.role.grant"), 400)))
 	require.NoError(t, repo.WriteEvent(ctx, staleAdminEventWithAge(EventType("iam.role.revoke"), 1100)))
 

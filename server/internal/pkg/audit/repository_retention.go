@@ -18,11 +18,8 @@ const (
 		OR event_type LIKE 'iam.mfa.%'
 		OR event_type LIKE 'iam.token.%'
 	)`
-	casdoorAdminAPIIAMCondition = `(
-		event_type = 'iam.casdoor.admin_api'
-		OR event_type LIKE 'iam.casdoor_admin_api.%'
-	)`
-	highValueAdminIAMCondition = `(
+	casdoorAdminAPIIAMCondition = `event_type LIKE 'iam.casdoor_admin_api.%'`
+	highValueAdminIAMCondition  = `(
 		event_type LIKE 'iam.role.%'
 		OR event_type LIKE 'iam.service_account.%'
 		OR event_type LIKE 'iam.casdoor_app.%'

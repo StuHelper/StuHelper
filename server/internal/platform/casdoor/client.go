@@ -254,7 +254,7 @@ func casdoorAdminAuditEvent(credential Credential, operation string, err error) 
 		reason = err.Error()
 	}
 	return audit.Event{
-		Type:         audit.EventType("iam.casdoor.admin_api"),
+		Type:         audit.EventType("iam.casdoor_admin_api.call"),
 		Category:     "admin_operation",
 		ActorType:    "system",
 		UserID:       string(credential.Purpose),

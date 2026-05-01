@@ -21,7 +21,7 @@ func TestCasdoorAdminAuditEventRedactsCredentialsAndRecordsPurpose(t *testing.T)
 
 	event := casdoorAdminAuditEvent(credential, "update role users verified_student", nil)
 
-	assert.Equal(t, "iam.casdoor.admin_api", string(event.Type))
+	assert.Equal(t, "iam.casdoor_admin_api.call", string(event.Type))
 	assert.Equal(t, "admin_operation", event.Category)
 	assert.Equal(t, "system", event.ActorType)
 	assert.Equal(t, string(PurposeRoleSync), event.UserID)
