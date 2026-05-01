@@ -56,6 +56,17 @@ func (r *Repository) ConsumeMFARecoveryCodeTx(
 	return true, nil
 }
 
+func (r *Repository) DeleteMFARecoveryCodesTx(ctx context.Context, tx pgx.Tx, userID int64) error {
+	if userID <= 0 {
+		return ErrMFAUserInvalid
+	}
+	_, err := tx.Exec(ctx, `DELETE FROM user_mfa_recovery_codes WHERE user_id = $1`, userID)
+	if err != nil {
+		return fmt.Errorf("delete mfa recovery codes: %w", err)
+	}
+	return nil
+}
+
 func validateMFARecoveryHashes(userID int64, codeHashes []string) error {
 	if userID <= 0 || len(codeHashes) != mfaRecoveryCodeCount {
 		return ErrMFARecoveryCodeInvalid

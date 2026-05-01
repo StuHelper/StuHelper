@@ -24,14 +24,15 @@ const (
 
 var (
 	ErrMFARecoveryCodeInvalid = errors.New("mfa recovery code is invalid")
-	ErrMFARecoveryUserInvalid = errors.New("mfa recovery user id is invalid")
 )
 
 type MFARecoveryRepository interface {
 	WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
 	UpsertMFAEnrollmentTx(ctx context.Context, tx pgx.Tx, params MFAEnrollmentUpsert) error
+	UpdateMFAEnrollmentStateTx(ctx context.Context, tx pgx.Tx, params MFAEnrollmentStateChange) error
 	ReplaceMFARecoveryCodesTx(ctx context.Context, tx pgx.Tx, params MFARecoveryCodeReplace) error
 	ConsumeMFARecoveryCodeTx(ctx context.Context, tx pgx.Tx, params MFARecoveryCodeConsume) (bool, error)
+	DeleteMFARecoveryCodesTx(ctx context.Context, tx pgx.Tx, userID int64) error
 }
 
 type MFARecoveryCodeReplace struct {

@@ -46,10 +46,18 @@ func (m *mfaRecoveryFakeRepo) UpsertMFAEnrollmentTx(context.Context, pgx.Tx, MFA
 	return nil
 }
 
+func (m *mfaRecoveryFakeRepo) UpdateMFAEnrollmentStateTx(context.Context, pgx.Tx, MFAEnrollmentStateChange) error {
+	return nil
+}
+
 func (m *mfaRecoveryFakeRepo) ReplaceMFARecoveryCodesTx(context.Context, pgx.Tx, MFARecoveryCodeReplace) error {
 	return nil
 }
 
 func (m *mfaRecoveryFakeRepo) ConsumeMFARecoveryCodeTx(context.Context, pgx.Tx, MFARecoveryCodeConsume) (bool, error) {
 	return true, nil
+}
+
+func (m *mfaRecoveryFakeRepo) DeleteMFARecoveryCodesTx(context.Context, pgx.Tx, int64) error {
+	return nil
 }

@@ -20,6 +20,9 @@ const (
 var (
 	ErrInvalidMFAMethod            = errors.New("invalid mfa method")
 	ErrMFAEnrollmentMethodRequired = errors.New("active mfa enrollment requires at least one method")
+	ErrMFAEnrollmentNotFound       = errors.New("mfa enrollment not found")
+	ErrMFAUserInvalid              = errors.New("mfa user id is invalid")
+	ErrMFARecoveryUserInvalid      = ErrMFAUserInvalid
 )
 
 type MFAEnrollment struct {
@@ -43,6 +46,22 @@ type MFAEnrollmentUpsert struct {
 	ResetRequired         bool
 }
 
+type MFAEnrollmentChangeAction string
+
+const (
+	MFAEnrollmentChangeDisable MFAEnrollmentChangeAction = "disable"
+	MFAEnrollmentChangeReset   MFAEnrollmentChangeAction = "reset"
+)
+
+type MFAEnrollmentStateChange struct {
+	UserID        int64
+	Active        bool
+	Methods       []string
+	ResetRequired bool
+	ChangedAt     time.Time
+	Action        MFAEnrollmentChangeAction
+}
+
 func (r *Repository) UpsertMFAEnrollment(ctx context.Context, params MFAEnrollmentUpsert) error {
 	return upsertMFAEnrollment(ctx, mfaEnrollmentUpsertQuery{
 		Exec:   r.db.Exec,
@@ -57,6 +76,40 @@ func (r *Repository) UpsertMFAEnrollmentTx(ctx context.Context, tx pgx.Tx, param
 		Params: params,
 		Op:     "UpsertMFAEnrollmentTx",
 	})
+}
+
+func (r *Repository) UpdateMFAEnrollmentStateTx(ctx context.Context, tx pgx.Tx, params MFAEnrollmentStateChange) error {
+	if params.UserID <= 0 || !validMFAEnrollmentChange(params.Action) {
+		return ErrMFARecoveryUserInvalid
+	}
+	methods, err := normalizeMFAMethods(params.Methods, params.Active)
+	if err != nil {
+		return err
+	}
+	var userID int64
+	err = tx.QueryRow(ctx, `
+		UPDATE user_mfa_enrollment
+		SET active = $2,
+		    methods = $3,
+		    reset_required = $4,
+		    recovery_codes_issued_at = NULL,
+		    last_disabled_at = CASE WHEN $5 = 'disable' THEN $6 ELSE last_disabled_at END,
+		    last_reset_at = CASE WHEN $5 = 'reset' THEN $6 ELSE last_reset_at END,
+		    updated_at = NOW()
+		WHERE user_id = $1
+		RETURNING user_id
+	`, params.UserID, params.Active, methods, params.ResetRequired, params.Action, params.ChangedAt).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrMFAEnrollmentNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("UpdateMFAEnrollmentStateTx: %w", err)
+	}
+	return nil
+}
+
+func validMFAEnrollmentChange(action MFAEnrollmentChangeAction) bool {
+	return action == MFAEnrollmentChangeDisable || action == MFAEnrollmentChangeReset
 }
 
 type mfaEnrollmentExec func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)

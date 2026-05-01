@@ -92,6 +92,68 @@ func TestMFACompleteEnrollmentActivatesAndAudits(t *testing.T) {
 	assert.Equal(t, "success", events[0].Result)
 }
 
+func TestMFADisableEnrollmentClearsRecoveryCodesAndAudits(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB, []byte("test-mfa-recovery-hmac-material-32!"))
+	manager := newTestMFARecoveryManager(t, repo)
+	userID := seedMFAUser(t, fixture)
+
+	bundle, err := manager.CompleteEnrollment(context.Background(), MFAEnrollmentComplete{
+		UserID:  userID,
+		Methods: []string{"totp"},
+	})
+	require.NoError(t, err)
+	checks := mfaRecoveryDBChecks{fixture: fixture, userID: userID}
+	checks.assertStoredCodes(t, bundle.Codes)
+
+	audit.ConfigureRepository(audit.NewRepository(fixture.DB))
+	defer audit.ConfigureRepository(nil)
+
+	err = manager.DisableEnrollment(context.Background(), MFAEnrollmentAdminAction{
+		ActorUserID:  99,
+		TargetUserID: userID,
+	})
+	require.NoError(t, err)
+
+	assertMFAEnrollmentMutation(t, repo, userID, mfaMutationExpectation{
+		ResetRequired: false,
+		Disabled:      true,
+	})
+	checks.assertStoredCodeCount(t, 0)
+	assertMFAAuditEvent(t, fixture, "iam.mfa.disable", "success")
+}
+
+func TestMFAResetEnrollmentMarksResetRequiredClearsRecoveryCodesAndAudits(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB, []byte("test-mfa-recovery-hmac-material-32!"))
+	manager := newTestMFARecoveryManager(t, repo)
+	userID := seedMFAUser(t, fixture)
+
+	bundle, err := manager.CompleteEnrollment(context.Background(), MFAEnrollmentComplete{
+		UserID:  userID,
+		Methods: []string{"totp"},
+	})
+	require.NoError(t, err)
+	checks := mfaRecoveryDBChecks{fixture: fixture, userID: userID}
+	checks.assertStoredCodes(t, bundle.Codes)
+
+	audit.ConfigureRepository(audit.NewRepository(fixture.DB))
+	defer audit.ConfigureRepository(nil)
+
+	err = manager.ResetEnrollment(context.Background(), MFAEnrollmentAdminAction{
+		ActorUserID:  99,
+		TargetUserID: userID,
+	})
+	require.NoError(t, err)
+
+	assertMFAEnrollmentMutation(t, repo, userID, mfaMutationExpectation{
+		ResetRequired: true,
+		Reset:         true,
+	})
+	checks.assertStoredCodeCount(t, 0)
+	assertMFAAuditEvent(t, fixture, "iam.mfa.reset", "success")
+}
+
 func newTestMFARecoveryManager(t *testing.T, repo MFARecoveryRepository) *MFARecoveryManager {
 	t.Helper()
 	manager, err := NewMFARecoveryManager(repo, []byte("test-mfa-recovery-hmac-material-32!"))
@@ -126,6 +188,18 @@ func (c mfaRecoveryDBChecks) assertStoredCodes(t *testing.T, codes []string) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(codes)), storedCount)
 	assert.Zero(t, rawMatches)
+}
+
+func (c mfaRecoveryDBChecks) assertStoredCodeCount(t *testing.T, expected int) {
+	t.Helper()
+	var storedCount int64
+	err := c.fixture.Pool.QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM user_mfa_recovery_codes
+		WHERE user_id = $1
+	`, c.userID).Scan(&storedCount)
+	require.NoError(t, err)
+	assert.Equal(t, int64(expected), storedCount)
 }
 
 func (c mfaRecoveryDBChecks) assertIssuedAt(t *testing.T, issuedAt time.Time) {
@@ -177,4 +251,41 @@ func loadMFAAuditEvents(t *testing.T, fixture *postgresfixture.Fixture) []mfaRec
 	}
 	require.NoError(t, rows.Err())
 	return events
+}
+
+type mfaMutationExpectation struct {
+	ResetRequired bool
+	Disabled      bool
+	Reset         bool
+}
+
+func assertMFAEnrollmentMutation(
+	t *testing.T,
+	repo *Repository,
+	userID int64,
+	expected mfaMutationExpectation,
+) {
+	t.Helper()
+	enrollment, err := repo.GetMFAEnrollment(context.Background(), userID)
+	require.NoError(t, err)
+	require.NotNil(t, enrollment)
+	assert.False(t, enrollment.Active)
+	assert.Empty(t, enrollment.Methods)
+	assert.Equal(t, expected.ResetRequired, enrollment.ResetRequired)
+	assert.Nil(t, enrollment.RecoveryCodesIssuedAt)
+	assert.Equal(t, expected.Disabled, enrollment.LastDisabledAt != nil)
+	assert.Equal(t, expected.Reset, enrollment.LastResetAt != nil)
+}
+
+func assertMFAAuditEvent(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	eventType string,
+	result string,
+) {
+	t.Helper()
+	events := loadMFAAuditEvents(t, fixture)
+	require.Len(t, events, 1)
+	assert.Equal(t, eventType, events[0].EventType)
+	assert.Equal(t, result, events[0].Result)
 }
