@@ -74,7 +74,12 @@ func (h *Handler) RefreshTeacherPublicStats(ctx context.Context) error {
 }
 
 // RegisterRoutes 注册评课社区路由
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAuthMiddleware gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(
+	r *gin.RouterGroup,
+	authMiddleware gin.HandlerFunc,
+	optionalAuthMiddleware gin.HandlerFunc,
+	adminMiddlewares ...gin.HandlerFunc,
+) {
 	// 评分维度配置
 	r.GET("/rating-dimensions", h.GetRatingDimensions)
 
@@ -145,7 +150,9 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 
 	// 管理员路由组
 	admin := r.Group("/admin")
-	admin.Use(authMiddleware, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
+	adminRouteMiddlewares := append([]gin.HandlerFunc{authMiddleware}, adminMiddlewares...)
+	adminRouteMiddlewares = append(adminRouteMiddlewares, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
+	admin.Use(adminRouteMiddlewares...)
 	{
 		admin.GET("/reports", requireModerationRole(), h.ListReports)
 		admin.PUT("/reports/:reportID", requireModerationRole(), h.ProcessReport)

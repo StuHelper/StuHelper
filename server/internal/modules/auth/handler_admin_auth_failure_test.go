@@ -41,6 +41,23 @@ func TestUnlockAuthAccountClearsHardLock(t *testing.T) {
 	require.NoError(t, handler.authFailureGuard.EnsureAccountAllowed(t.Context(), phone))
 }
 
+func TestUnlockAuthAccountRequiresStepUpMFA(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := &Handler{}
+
+	router := gin.New()
+	router.Use(authAdminTestContextWithoutMFAProof())
+	admin := router.Group("/api/v1/admin")
+	handler.RegisterAdminRoutes(admin)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/account-locks/unlock", bytes.NewBufferString(`{"phone":"13800139100"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusPreconditionRequired, rec.Code)
+}
+
 func TestAuthAccountUnlockAuditEventMasksPhone(t *testing.T) {
 	event := authAccountUnlockAuditEvent("13800139101", errors.New("redis down"))
 
@@ -79,6 +96,23 @@ func authAdminTestContext() gin.HandlerFunc {
 			Name:   capability.UserSystemUpdate,
 			Global: true,
 		}})
+		middleware.SetMFAContext(c, middleware.MFAContext{
+			EnrollmentActive: true,
+			ProofVerifiedAt:  time.Now(),
+		})
+		c.Next()
+	}
+}
+
+func authAdminTestContextWithoutMFAProof() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "admin-user")
+		c.Set(middleware.CtxKeyUsername, "admin-root")
+		c.Set(middleware.CtxKeyCapabilityGrants, []capability.Grant{{
+			Name:   capability.UserSystemUpdate,
+			Global: true,
+		}})
+		middleware.SetMFAContext(c, middleware.MFAContext{EnrollmentActive: true})
 		c.Next()
 	}
 }

@@ -54,6 +54,22 @@ func TestHandleAdminListStudentVerifications_IncludesReviewMeta(t *testing.T) {
 	assert.Equal(t, reviewedAt.Format(time.RFC3339), item["reviewedAt"])
 }
 
+func TestHandleAdminListIdentitiesRequiresStepUpProof(t *testing.T) {
+	router := setupAdminHandlerTestRouterWithRoleAndProof(
+		t,
+		&mockRepo{},
+		[]string{"super_admin"},
+		nil,
+		time.Time{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/identities", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusPreconditionRequired, recorder.Code)
+}
+
 func TestHandleAdminListIdentities_IncludesReviewMeta(t *testing.T) {
 	reviewedAt := time.Date(2026, 3, 17, 16, 40, 0, 0, time.UTC)
 	photoFront := "identity/front.png"

@@ -46,6 +46,17 @@ func setupAdminHandlerTestRouterWithRole(
 	orgScopedRoles map[string][]string,
 ) *gin.Engine {
 	t.Helper()
+	return setupAdminHandlerTestRouterWithRoleAndProof(t, repo, roles, orgScopedRoles, time.Now())
+}
+
+func setupAdminHandlerTestRouterWithRoleAndProof(
+	t *testing.T,
+	repo *mockRepo,
+	roles []string,
+	orgScopedRoles map[string][]string,
+	proofAt time.Time,
+) *gin.Engine {
+	t.Helper()
 
 	if repo == nil {
 		repo = &mockRepo{}
@@ -69,6 +80,10 @@ func setupAdminHandlerTestRouterWithRole(
 		c.Set(appmiddleware.CtxKeyCapabilities, snapshot.Capabilities)
 		c.Set(appmiddleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
 		c.Set(appmiddleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
+		appmiddleware.SetMFAContext(c, appmiddleware.MFAContext{
+			EnrollmentActive: true,
+			ProofVerifiedAt:  proofAt,
+		})
 		// HasCapability 从 CtxKeyCapabilitySet (map) 做 O(1) 查找
 		capSet := make(map[string]struct{}, len(snapshot.Capabilities))
 		for _, cap := range snapshot.Capabilities {

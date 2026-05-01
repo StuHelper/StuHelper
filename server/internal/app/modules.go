@@ -61,6 +61,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 
 	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
+	adminMFA := adminMFAMiddlewares(userRepo)
 	notifHub := notification.NewHub(rt.redisClient.GetClient())
 	notifRepo := notification.NewRepository(rt.database)
 	notifService := notification.NewService(notifRepo, notifHub, rt.redisClient.GetClient())
@@ -70,7 +71,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	rt.addCleanup(notifHub.Stop)
 
 	courseHandler := rt.initCourseModule(fgaClient, notifService, userRepo)
-	courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
+	courseHandler.RegisterRoutes(api, authMW, optionalAuthMW, adminMFA...)
 
 	storageService := storage.NewService(storage.NewRepository(rt.database), rt.cfg.ObjectStorage)
 	if err := storageService.EnsureDefaultMount(bgCtx); err != nil {
@@ -87,7 +88,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	))
 	academicsHandler.RegisterRoutes(api, authMW)
 
-	storage.NewHandler(storageService).RegisterAdminRoutes(api, authMW)
+	storage.NewHandler(storageService).RegisterAdminRoutes(api, authMW, adminMFA...)
 
 	resourceService := resource.NewService(
 		resource.NewRepository(rt.database),

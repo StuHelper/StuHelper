@@ -22,9 +22,14 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) RegisterAdminRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
+func (h *Handler) RegisterAdminRoutes(
+	api *gin.RouterGroup,
+	authMW gin.HandlerFunc,
+	adminMiddlewares ...gin.HandlerFunc,
+) {
 	admin := api.Group("/admin/storage")
-	admin.Use(authMW)
+	middlewares := append([]gin.HandlerFunc{authMW}, adminMiddlewares...)
+	admin.Use(middlewares...)
 	admin.GET("/mounts", rbac.RequireCapability(capability.UserSystemRead), h.listMounts)
 	admin.POST("/mounts", rbac.RequireCapability(capability.UserSystemUpdate), h.createMount)
 	admin.POST("/mounts/:mountID/health-check", rbac.RequireCapability(capability.UserSystemUpdate), h.checkMountHealth)

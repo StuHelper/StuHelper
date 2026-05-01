@@ -85,12 +85,42 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMW gin.HandlerFunc) {
 
 // RegisterAdminRoutes 注册管理后台路由
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
-	admin.GET("/identities", rbac.RequireGlobalCapability(capability.UserIdentityRead), h.handleAdminListIdentities)
-	admin.PUT("/identities/:userID", rbac.RequireGlobalCapability(capability.UserIdentityReview), h.handleAdminReviewIdentity)
-	admin.GET("/student-verifications", rbac.RequireCapability(capability.UserStudentRead), h.handleAdminListStudentVerifications)
-	admin.PUT("/student-verifications/:userID", rbac.RequireCapability(capability.UserStudentReview), h.handleAdminReviewStudentVerification)
+	admin.GET(
+		"/identities",
+		rbac.RequireGlobalCapability(capability.UserIdentityRead),
+		rbac.RequireStepUpMFA(),
+		h.handleAdminListIdentities,
+	)
+	admin.PUT(
+		"/identities/:userID",
+		rbac.RequireGlobalCapability(capability.UserIdentityReview),
+		rbac.RequireStepUpMFA(),
+		h.handleAdminReviewIdentity,
+	)
+	admin.GET(
+		"/student-verifications",
+		rbac.RequireCapability(capability.UserStudentRead),
+		rbac.RequireStepUpMFA(),
+		h.handleAdminListStudentVerifications,
+	)
+	admin.PUT(
+		"/student-verifications/:userID",
+		rbac.RequireCapability(capability.UserStudentReview),
+		rbac.RequireStepUpMFA(),
+		h.handleAdminReviewStudentVerification,
+	)
 	admin.GET("/school-configs", rbac.RequireCapability(capability.UserSchoolRead), h.handleAdminListSchoolConfigs)
-	admin.PUT("/school-configs/:schoolID", rbac.RequireCapability(capability.UserSchoolUpdate), h.handleAdminUpdateSchoolConfig)
+	admin.PUT(
+		"/school-configs/:schoolID",
+		rbac.RequireCapability(capability.UserSchoolUpdate),
+		rbac.RequireStepUpMFA(),
+		h.handleAdminUpdateSchoolConfig,
+	)
 	admin.GET("/system-configs", rbac.RequireGlobalCapability(capability.UserSystemRead), h.handleAdminListSystemConfigs)
-	admin.PUT("/system-configs/:key", rbac.RequireGlobalCapability(capability.UserSystemUpdate), h.handleAdminUpdateSystemConfig)
+	admin.PUT(
+		"/system-configs/:key",
+		rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+		rbac.RequireStepUpMFA(),
+		h.handleAdminUpdateSystemConfig,
+	)
 }

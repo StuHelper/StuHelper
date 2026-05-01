@@ -39,7 +39,12 @@ func NewHandler(cacheHelper *cache.Helper, service *Service, reviewHandler *revi
 }
 
 // RegisterRoutes 注册学习中心路由
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAuthMiddleware gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(
+	r *gin.RouterGroup,
+	authMiddleware gin.HandlerFunc,
+	optionalAuthMiddleware gin.HandlerFunc,
+	adminMiddlewares ...gin.HandlerFunc,
+) {
 	course := r.Group("/course")
 	{
 		// 通用实体接口（课程、院系等）
@@ -54,7 +59,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMiddleware, optionalAut
 
 		// 评课社区子模块
 		reviewGroup := course.Group("/review")
-		h.reviewHandler.RegisterRoutes(reviewGroup, authMiddleware, optionalAuthMiddleware)
+		h.reviewHandler.RegisterRoutes(reviewGroup, authMiddleware, optionalAuthMiddleware, adminMiddlewares...)
 	}
 }
 

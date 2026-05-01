@@ -22,6 +22,7 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	admin.POST(
 		"/auth/account-locks/unlock",
 		rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+		rbac.RequireStepUpMFA(),
 		h.unlockAuthAccount,
 	)
 }
