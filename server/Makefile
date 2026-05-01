@@ -1,6 +1,6 @@
 # StuHelper Server Makefile
 
-.PHONY: help tidy fmt lint test test-coverage build run clean security ci \
+.PHONY: help tidy fmt lint test test-coverage build run clean security ci check-casdoor-boundary \
        bundle-spec lint-spec generate generate-go generate-ts check-drift check-drift-go check-drift-ts check-drift-all \
        check-doc-sync check-coverage-threshold \
        migrate-up migrate-down-one migrate-status migrate-verify seed-dev
@@ -29,6 +29,7 @@ help:
 	@echo "  tidy          - go mod tidy"
 	@echo "  fmt           - format code with gofmt and goimports"
 	@echo "  lint          - run golangci-lint"
+	@echo "  check-casdoor-boundary - enforce Casdoor/OpenFGA SDK import boundaries"
 	@echo "  test          - run tests"
 	@echo "  test-coverage - run tests with coverage"
 	@echo "  build         - build binary"
@@ -62,7 +63,10 @@ fmt:
 	gofmt -w .
 	@command -v goimports >/dev/null 2>&1 && goimports -w -local git.stuhelper.com/StuHelper/StuHelper . || true
 
-lint:
+check-casdoor-boundary:
+	bash scripts/check-casdoor-boundary.sh
+
+lint: check-casdoor-boundary
 	@command -v golangci-lint >/dev/null 2>&1 || { echo "ERROR: golangci-lint not found. Install: https://golangci-lint.run/welcome/install/"; exit 1; }
 	golangci-lint run --timeout 5m
 
