@@ -218,6 +218,33 @@ func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestValidate_ProductionRequiresCasdoorAdminCredentials(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Casdoor.RoleSyncClientSecret = ""
+	c.Casdoor.UserLookupApplication = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
+	assert.Contains(t, err.Error(), "CASDOOR_USER_LOOKUP_APPLICATION is required")
+}
+
+func TestValidate_DevelopmentRejectsPartialCasdoorRoleSyncCredential(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.Casdoor.RoleSyncClientID = "role-sync-client"
+	c.Casdoor.RoleSyncClientSecret = ""
+	c.Casdoor.RoleSyncApplication = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
+	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_APPLICATION is required")
+}
+
 func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
 	c := &Config{
 		Observability: ObservabilityConfig{
@@ -479,7 +506,19 @@ func validProductionConfigForTest() *Config {
 		ObjectStorage: ObjectStorageConfig{
 			Endpoint: "https://s3.example.com", Bucket: "stuhelper", AccessKeyID: "access", SecretAccessKey: "secret", UseSSL: true, PresignTTL: 600,
 		},
-		Casdoor: CasdoorConfig{Issuer: "https://sso.example.com", ClientID: "client-id", ClientSecret: "client-secret", RedirectURI: "https://api.example.com/api/v1/auth/callback", Organization: "stuhelper"},
+		Casdoor: CasdoorConfig{
+			Issuer:                 "https://sso.example.com",
+			ClientID:               "client-id",
+			ClientSecret:           "client-secret",
+			RedirectURI:            "https://api.example.com/api/v1/auth/callback",
+			Organization:           "stuhelper",
+			RoleSyncClientID:       "role-sync-client",
+			RoleSyncClientSecret:   "role-sync-secret",
+			RoleSyncApplication:    "stuhelper-role-sync",
+			UserLookupClientID:     "user-lookup-client",
+			UserLookupClientSecret: "user-lookup-secret",
+			UserLookupApplication:  "stuhelper-user-lookup",
+		},
 		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
 		Observability: ObservabilityConfig{
 			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,

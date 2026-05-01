@@ -23,14 +23,15 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
+	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 )
 
 func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error {
@@ -276,10 +277,10 @@ func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cip
 		photoStore = user.WithIdentityPhotoStorageService(storageService, storage.DefaultMountKey)
 	}
 
-	mgmtClient := oidc.NewManagementClient(rt.cfg.Casdoor)
-	roleSyncFn := oidc.BuildRoleSyncFunc(mgmtClient, func(ctx context.Context, userID int64) (string, error) {
-		return userRepo.GetExternalID(ctx, userID)
-	})
+	roleSyncFn, err := rt.initCasdoorRoleSync(userRepo)
+	if err != nil {
+		return nil, err
+	}
 
 	userService, err := user.NewService(
 		userRepo,
@@ -296,4 +297,53 @@ func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cip
 		return nil, fmt.Errorf("failed to load user system config snapshots: %w", err)
 	}
 	return userService, nil
+}
+
+func (rt *Runtime) initCasdoorRoleSync(userRepo *user.Repository) (user.RoleSyncFunc, error) {
+	client, err := rt.newCasdoorRoleSyncClient()
+	if err != nil {
+		return nil, err
+	}
+	return platformcasdoor.BuildRoleSyncFunc(client, userRepo.GetExternalID), nil
+}
+
+func (rt *Runtime) newCasdoorRoleSyncClient() (*platformcasdoor.RoleSyncClient, error) {
+	cfg := rt.cfg.Casdoor
+	if !casdoorRoleSyncConfigured(cfg) {
+		return nil, nil
+	}
+	client, err := platformcasdoor.NewRoleSyncClient(casdoorRoleSyncCredential(cfg), casdoorUserLookupCredential(cfg))
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Casdoor role sync client: %w", err)
+	}
+	return client, nil
+}
+
+func casdoorRoleSyncConfigured(cfg config.CasdoorConfig) bool {
+	return cfg.RoleSyncClientID != "" || cfg.RoleSyncClientSecret != "" ||
+		cfg.UserLookupClientID != "" || cfg.UserLookupClientSecret != ""
+}
+
+func casdoorRoleSyncCredential(cfg config.CasdoorConfig) platformcasdoor.Credential {
+	return platformcasdoor.Credential{
+		Purpose:      platformcasdoor.PurposeRoleSync,
+		Endpoint:     cfg.Issuer,
+		ClientID:     cfg.RoleSyncClientID,
+		ClientSecret: cfg.RoleSyncClientSecret,
+		Certificate:  cfg.RoleSyncCertificate,
+		Organization: cfg.Organization,
+		Application:  cfg.RoleSyncApplication,
+	}
+}
+
+func casdoorUserLookupCredential(cfg config.CasdoorConfig) platformcasdoor.Credential {
+	return platformcasdoor.Credential{
+		Purpose:      platformcasdoor.PurposeUserLookup,
+		Endpoint:     cfg.Issuer,
+		ClientID:     cfg.UserLookupClientID,
+		ClientSecret: cfg.UserLookupClientSecret,
+		Certificate:  cfg.UserLookupCertificate,
+		Organization: cfg.Organization,
+		Application:  cfg.UserLookupApplication,
+	}
 }

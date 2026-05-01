@@ -13,7 +13,11 @@ import (
 
 type AdminPurpose string
 
-const PurposeAppProvisioning AdminPurpose = "casdoor-admin-app-provisioning"
+const (
+	PurposeAppProvisioning AdminPurpose = "casdoor-admin-app-provisioning"
+	PurposeRoleSync        AdminPurpose = "casdoor-admin-role-sync"
+	PurposeUserLookup      AdminPurpose = "casdoor-admin-user-lookup"
+)
 
 var ErrOperationRejected = errors.New("casdoor operation rejected")
 
@@ -38,7 +42,18 @@ type applicationAPI interface {
 	DeleteApplication(*casdoorsdk.Application) (bool, error)
 }
 
+type roleAPI interface {
+	GetRole(string) (*casdoorsdk.Role, error)
+	UpdateRoleForColumns(*casdoorsdk.Role, []string) (bool, error)
+}
+
+type userAPI interface {
+	GetUserByUserId(string) (*casdoorsdk.User, error)
+}
+
 type sdkApplicationAPI struct{}
+type sdkRoleAPI struct{}
+type sdkUserAPI struct{}
 
 var sdkConfigMu sync.Mutex
 
@@ -47,7 +62,7 @@ func NewAppProvisioningClient(credential Credential) (*Client, error) {
 }
 
 func newClient(credential Credential, apps applicationAPI) (*Client, error) {
-	normalized, err := validateCredential(credential)
+	normalized, err := validateCredentialForPurpose(credential, PurposeAppProvisioning)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +70,13 @@ func newClient(credential Credential, apps applicationAPI) (*Client, error) {
 		return nil, errors.New("casdoor: application API is required")
 	}
 	return &Client{credential: normalized, apps: apps}, nil
+}
+
+func validateCredentialForPurpose(credential Credential, purpose AdminPurpose) (Credential, error) {
+	if credential.Purpose != purpose {
+		return Credential{}, fmt.Errorf("casdoor: credential purpose %q does not match %q", credential.Purpose, purpose)
+	}
+	return validateCredential(credential)
 }
 
 func (sdkApplicationAPI) AddApplication(app *casdoorsdk.Application) (bool, error) {
@@ -69,13 +91,27 @@ func (sdkApplicationAPI) DeleteApplication(app *casdoorsdk.Application) (bool, e
 	return casdoorsdk.DeleteApplication(app)
 }
 
+func (sdkRoleAPI) GetRole(name string) (*casdoorsdk.Role, error) {
+	return casdoorsdk.GetRole(name)
+}
+
+func (sdkRoleAPI) UpdateRoleForColumns(role *casdoorsdk.Role, columns []string) (bool, error) {
+	return casdoorsdk.UpdateRoleForColumns(role, columns)
+}
+
+func (sdkUserAPI) GetUserByUserId(subject string) (*casdoorsdk.User, error) {
+	return casdoorsdk.GetUserByUserId(subject)
+}
+
 func validateCredential(credential Credential) (Credential, error) {
 	credential.Endpoint = strings.TrimSpace(credential.Endpoint)
 	credential.ClientID = strings.TrimSpace(credential.ClientID)
 	credential.ClientSecret = strings.TrimSpace(credential.ClientSecret)
 	credential.Organization = strings.TrimSpace(credential.Organization)
 	credential.Application = strings.TrimSpace(credential.Application)
-	if credential.Purpose != PurposeAppProvisioning {
+	switch credential.Purpose {
+	case PurposeAppProvisioning, PurposeRoleSync, PurposeUserLookup:
+	default:
 		return Credential{}, fmt.Errorf("casdoor: unsupported admin purpose %q", credential.Purpose)
 	}
 	if credential.Endpoint == "" {
@@ -91,29 +127,42 @@ func validateCredential(credential Credential) (Credential, error) {
 }
 
 func (c *Client) call(ctx context.Context, operation string, fn func() (bool, error)) error {
+	return callWithCredential(ctx, c.credential, operation, fn)
+}
+
+func callWithCredential(ctx context.Context, credential Credential, operation string, fn func() (bool, error)) error {
+	return withSDKConfig(ctx, credential, operation, func() error {
+		ok, err := fn()
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %s", ErrOperationRejected, operation)
+		}
+		return nil
+	})
+}
+
+func withSDKConfig(ctx context.Context, credential Credential, operation string, fn func() error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	sdkConfigMu.Lock()
 	defer sdkConfigMu.Unlock()
-	c.initSDKConfig()
-	ok, err := fn()
-	if err != nil {
+	initSDKConfig(credential)
+	if err := fn(); err != nil {
 		return fmt.Errorf("casdoor: %s failed: %w", operation, err)
-	}
-	if !ok {
-		return fmt.Errorf("%w: %s", ErrOperationRejected, operation)
 	}
 	return nil
 }
 
-func (c *Client) initSDKConfig() {
+func initSDKConfig(credential Credential) {
 	casdoorsdk.InitConfig(
-		c.credential.Endpoint,
-		c.credential.ClientID,
-		c.credential.ClientSecret,
-		c.credential.Certificate,
-		c.credential.Organization,
-		c.credential.Application,
+		credential.Endpoint,
+		credential.ClientID,
+		credential.ClientSecret,
+		credential.Certificate,
+		credential.Organization,
+		credential.Application,
 	)
 }

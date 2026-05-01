@@ -154,7 +154,7 @@ type profileFGAClient interface {
 
 // RoleSyncFunc 角色同步回调。
 // 当用户认证状态变化时调用：approved=true 添加角色，approved=false 移除角色。
-// userID 是内部用户 ID（用于查询 external_id），role 是 Zitadel Project Role 名称。
+// userID 是内部 users.id，role 是 Casdoor 扁平角色名称。
 type RoleSyncFunc func(ctx context.Context, userID int64, role string, approved bool) error
 
 type ServiceOption func(*Service)

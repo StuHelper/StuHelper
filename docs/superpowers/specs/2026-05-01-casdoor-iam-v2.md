@@ -746,7 +746,7 @@ ZITADEL_CLIENT_ID       → CASDOOR_CLIENT_ID
 ZITADEL_CLIENT_SECRET   → CASDOOR_CLIENT_SECRET
 ZITADEL_REDIRECT_URI    → CASDOOR_REDIRECT_URI
 ZITADEL_PROJECT_ID      → CASDOOR_ORGANIZATION  # Casdoor 用 organization 而非 project
-ZITADEL_MANAGEMENT_PAT  → CASDOOR_CLIENT_SECRET (admin app) 或 CASDOOR_ADMIN_TOKEN
+ZITADEL_MANAGEMENT_PAT  → 拆分为 CASDOOR_ROLE_SYNC_* / CASDOOR_USER_LOOKUP_* / CASDOOR_APP_PROVISIONING_*（禁止万能 token）
 ZITADEL_PUBLIC_SCHEME   → 移除（不需要）
 ZITADEL_EXTERNALPORT    → CASDOOR_PORT (按 Casdoor 部署)
 ```
@@ -964,6 +964,7 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
   - `casdoor-admin-app-provisioning` — 仅 create/update/delete application；
   - `casdoor-admin-user-lookup` — 只读 user；
   - `casdoor-admin-bootstrap` — 仅 bootstrap 阶段使用，运行时不挂载；
+- 当前落地约束：`verified_student` role outbox worker 必须同时配置 `CASDOOR_ROLE_SYNC_*` 与 `CASDOOR_USER_LOOKUP_*` 两组凭据；role 更新与 user lookup 不共用 secret；
 - 每个 credential 配置最小 Casdoor 权限；
 - 每个 secret 独立轮换（不联动）；
 - 所有 Casdoor admin API 调用落审计：调用方 service account / 操作 / 目标 / 结果 / request_id（保留期见 §14.3）；

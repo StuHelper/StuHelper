@@ -176,6 +176,7 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Casdoor.Organization == "" {
 		errs = append(errs, "CASDOOR_ORGANIZATION is required")
 	}
+	errs = append(errs, validateCasdoorAdminCredentials(c.Casdoor, c.App.Env == "production")...)
 
 	// OpenFGA 是应用运行时必需依赖，所有环境都需要完整配置。
 	if c.OpenFGA.StoreID == "" {
@@ -222,4 +223,38 @@ func (c *Config) validate(parseErrs []string) error {
 	}
 
 	return nil
+}
+
+func validateCasdoorAdminCredentials(cfg CasdoorConfig, required bool) []string {
+	var errs []string
+	errs = append(errs, validateCasdoorCredentialSet(required || roleSyncCredentialConfigured(cfg),
+		"ROLE_SYNC", cfg.RoleSyncClientID, cfg.RoleSyncClientSecret, cfg.RoleSyncApplication)...)
+	errs = append(errs, validateCasdoorCredentialSet(required || userLookupCredentialConfigured(cfg),
+		"USER_LOOKUP", cfg.UserLookupClientID, cfg.UserLookupClientSecret, cfg.UserLookupApplication)...)
+	return errs
+}
+
+func roleSyncCredentialConfigured(cfg CasdoorConfig) bool {
+	return cfg.RoleSyncClientID != "" || cfg.RoleSyncClientSecret != "" || cfg.RoleSyncApplication != ""
+}
+
+func userLookupCredentialConfigured(cfg CasdoorConfig) bool {
+	return cfg.UserLookupClientID != "" || cfg.UserLookupClientSecret != "" || cfg.UserLookupApplication != ""
+}
+
+func validateCasdoorCredentialSet(required bool, prefix, clientID, clientSecret, application string) []string {
+	if !required {
+		return nil
+	}
+	var errs []string
+	if clientID == "" {
+		errs = append(errs, "CASDOOR_"+prefix+"_CLIENT_ID is required")
+	}
+	if clientSecret == "" {
+		errs = append(errs, "CASDOOR_"+prefix+"_CLIENT_SECRET is required")
+	}
+	if application == "" {
+		errs = append(errs, "CASDOOR_"+prefix+"_APPLICATION is required")
+	}
+	return errs
 }

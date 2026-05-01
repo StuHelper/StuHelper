@@ -138,7 +138,7 @@ func (r *Repository) GetInternalUserID(ctx context.Context, externalID string) (
 	return id, nil
 }
 
-// GetExternalID resolves users.id back to the current OIDC subject for the legacy role-sync adapter.
+// GetExternalID resolves users.id back to the current Casdoor subject for role sync.
 func (r *Repository) GetExternalID(ctx context.Context, userID int64) (string, error) {
 	var externalID string
 	err := r.db.QueryRow(ctx, `SELECT external_id FROM users WHERE id = $1`, userID).Scan(&externalID)
