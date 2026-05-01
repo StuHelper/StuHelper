@@ -56,10 +56,13 @@ type OTPService struct {
 	rdb *redis.Client
 }
 
-var otpAttemptsScript = redis.NewScript(`
+var otpFailureScript = redis.NewScript(`
 local attempts = redis.call("INCR", KEYS[1])
 if attempts == 1 then
   redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+if attempts >= tonumber(ARGV[2]) then
+  redis.call("DEL", KEYS[2], KEYS[1])
 end
 return attempts
 `)
@@ -253,19 +256,6 @@ func (s *OTPService) Verify(ctx context.Context, phone, code string) error {
 	attemptsKey := otpAttemptsPrefix + phoneKey
 	codeKey := otpCodePrefix + phoneKey
 
-	// 检查尝试次数（Lua 原子执行 INCR + 首次 EXPIRE）
-	attempts, err := otpAttemptsScript.Run(ctx, s.rdb, []string{attemptsKey}, otpTTL.Milliseconds()).Int64()
-	if err != nil {
-		return fmt.Errorf("otp: check attempts: %w", err)
-	}
-	if attempts > int64(otpMaxAttempts) {
-		// 超过最大尝试次数，删除验证码
-		if delErr := s.rdb.Del(ctx, codeKey).Err(); delErr != nil {
-			return fmt.Errorf("otp: delete code after max attempts: %w", delErr)
-		}
-		return ErrOTPMaxAttempts
-	}
-
 	// 获取存储的验证码
 	stored, err := s.rdb.Get(ctx, codeKey).Result()
 	if errors.Is(err, redis.Nil) {
@@ -276,6 +266,19 @@ func (s *OTPService) Verify(ctx context.Context, phone, code string) error {
 	}
 
 	if subtle.ConstantTimeCompare([]byte(stored), []byte(code)) != 1 {
+		attempts, attemptErr := otpFailureScript.Run(
+			ctx,
+			s.rdb,
+			[]string{attemptsKey, codeKey},
+			otpTTL.Milliseconds(),
+			otpMaxAttempts,
+		).Int64()
+		if attemptErr != nil {
+			return fmt.Errorf("otp: record failed attempt: %w", attemptErr)
+		}
+		if attempts >= int64(otpMaxAttempts) {
+			return ErrOTPMaxAttempts
+		}
 		return ErrOTPInvalidCode
 	}
 

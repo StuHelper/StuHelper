@@ -87,12 +87,10 @@ func TestOTPService_VerifyMaxAttemptsAndGenerateNumericCode(t *testing.T) {
 	if wrong == code {
 		wrong = "999999"
 	}
-	for i := 0; i < otpMaxAttempts; i++ {
+	for i := 0; i < otpMaxAttempts-1; i++ {
 		err = svc.Verify(ctx, phone, wrong)
 		require.Error(t, err)
-		if i < otpMaxAttempts-1 {
-			assert.ErrorIs(t, err, ErrOTPInvalidCode)
-		}
+		assert.ErrorIs(t, err, ErrOTPInvalidCode)
 	}
 	err = svc.Verify(ctx, phone, wrong)
 	require.Error(t, err)
@@ -108,6 +106,29 @@ func TestOTPService_VerifyMaxAttemptsAndGenerateNumericCode(t *testing.T) {
 	for _, ch := range numeric {
 		assert.True(t, ch >= '0' && ch <= '9')
 	}
+}
+
+func TestOTPService_VerifySuccessAfterPriorFailures(t *testing.T) {
+	svc, fixture := newOTPServiceForTest(t)
+	ctx := context.Background()
+	phone := "13800138003"
+	code, err := svc.Generate(ctx, phone)
+	require.NoError(t, err)
+	wrong := "000000"
+	if wrong == code {
+		wrong = "999999"
+	}
+
+	for i := 0; i < otpMaxAttempts-1; i++ {
+		err = svc.Verify(ctx, phone, wrong)
+		require.ErrorIs(t, err, ErrOTPInvalidCode)
+	}
+	require.NoError(t, svc.Verify(ctx, phone, code))
+
+	phoneKey, err := phoneutil.HashLookup(phone)
+	require.NoError(t, err)
+	assert.False(t, fixture.Server.Exists(otpCodePrefix+phoneKey))
+	assert.False(t, fixture.Server.Exists(otpAttemptsPrefix+phoneKey))
 }
 
 func TestOTPService_IssueCode(t *testing.T) {

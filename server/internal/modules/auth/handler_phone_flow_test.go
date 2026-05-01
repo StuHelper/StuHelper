@@ -56,7 +56,7 @@ func TestVerifyPhoneOTP_InvalidCodeAndMaxAttempts(t *testing.T) {
 	r.POST("/otp/verify", h.VerifyPhoneOTP)
 	badBody := []byte(`{"phone":"13800138001","code":"000000"}`)
 
-	for i := 0; i < otpMaxAttempts; i++ {
+	for i := 0; i < otpMaxAttempts-1; i++ {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/otp/verify", bytes.NewReader(badBody))
 		req.Header.Set("Content-Type", "application/json")
@@ -70,4 +70,11 @@ func TestVerifyPhoneOTP_InvalidCodeAndMaxAttempts(t *testing.T) {
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusTooManyRequests, w.Code)
 	assert.Contains(t, w.Body.String(), "too many failed attempts")
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/otp/verify", bytes.NewReader(badBody))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "verification code expired")
 }
