@@ -4,7 +4,6 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -14,7 +13,6 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
@@ -102,22 +100,8 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// 纵深防御：若 refresh token 来自 cookie，必须携带有效 CSRF token。
-	// 全局 CSRFMiddleware 对携带 Bearer Authorization 的请求放行，攻击者
-	// 同时诱导浏览器发送 Bearer header 和 cookie 时可绕过；refresh 是最敏感的
-	// 会话轮换入口，此处显式校验关闭该缺口。原生 App 通过 body 传递 refresh
-	// token，无需 cookie，不触发此校验。
-	if !fromBody {
-		cookieCSRF, err := c.Cookie(middleware.CSRFCookieName)
-		if err != nil || cookieCSRF == "" {
-			response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenMissing, "csrf token missing for cookie-based refresh")
-			return
-		}
-		headerCSRF := c.GetHeader(middleware.CSRFHeaderName)
-		if headerCSRF == "" || subtle.ConstantTimeCompare([]byte(headerCSRF), []byte(cookieCSRF)) != 1 {
-			response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenInvalid, "csrf token invalid for cookie-based refresh")
-			return
-		}
+	if !h.validateCookieRefreshCSRF(c, fromBody) {
+		return
 	}
 
 	// 检查 refresh token 是否已被吊销或已被并发请求消费
@@ -153,6 +137,24 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 	success = h.refreshOIDCToken(c, refreshTokenStr)
 }
 
+func (h *Handler) validateCookieRefreshCSRF(c *gin.Context, fromBody bool) bool {
+	if fromBody {
+		return true
+	}
+
+	cookieCSRF, err := c.Cookie(middleware.CSRFCookieName)
+	if err != nil || cookieCSRF == "" {
+		response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenMissing, "csrf token missing for cookie-based refresh")
+		return false
+	}
+	headerCSRF := c.GetHeader(middleware.CSRFHeaderName)
+	if headerCSRF == "" || subtle.ConstantTimeCompare([]byte(headerCSRF), []byte(cookieCSRF)) != 1 {
+		response.Error(c, http.StatusForbidden, errs.ErrCSRFTokenInvalid, "csrf token invalid for cookie-based refresh")
+		return false
+	}
+	return true
+}
+
 func (h *Handler) consumeRefreshToken(c *gin.Context, refreshToken string) (func(), bool) {
 	consumed, err := h.tokenService.GetBlacklist().TryConsumeRefreshToken(c.Request.Context(), refreshToken, h.tokenService.GetRefreshTokenTTL())
 	if err != nil {
@@ -170,160 +172,6 @@ func (h *Handler) consumeRefreshToken(c *gin.Context, refreshToken string) (func
 			logger.FromGin(c).Warn("failed to release refresh token reservation", zap.Error(err))
 		}
 	}, true
-}
-
-// refreshSelfSignedToken 处理自签名 JWT 的 refresh 逻辑
-func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string) bool {
-	hmacKey := crypto.GetHMACKey()
-	if len(hmacKey) == 0 {
-		logger.FromGin(c).Error("HMAC key not initialized for refresh")
-		h.clearTokenCookies(c)
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	oldClaims, err := token.VerifyJWTWithType(hmacKey, refreshTokenStr, token.JWTTokenTypeRefresh)
-	if err != nil {
-		logger.FromGin(c).Debug("self-signed refresh token verification failed", zap.Error(err))
-		h.clearTokenCookies(c)
-		response.Unauthorized(c, "invalid refresh token", errs.ErrRefreshTokenInvalid)
-		return false
-	}
-
-	accessTTL := h.currentAccessTokenTTL()
-	refreshTTL := time.Duration(h.tokenConfig.RefreshTokenTTL) * time.Second
-
-	exists, err := h.svc.UserExistsByCasdoorSubject(c.Request.Context(), oldClaims.Sub)
-	if err != nil {
-		logger.FromGin(c).Error("failed to verify phone-login user during refresh", zap.Error(err))
-		h.clearTokenCookies(c)
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-	if !exists {
-		logger.FromGin(c).Warn("phone-login refresh rejected for missing user", zap.String("user_id", oldClaims.Sub))
-		h.clearTokenCookies(c)
-		response.Unauthorized(c, "failed to refresh token", errs.ErrRefreshTokenInvalid)
-		return false
-	}
-
-	// Token Family：refresh 在同一 session 内轮换，继承 session ID
-	sessionID := oldClaims.Sid
-
-	newAccessClaims := token.JWTClaims{
-		Sub:         oldClaims.Sub,
-		Name:        oldClaims.Name,
-		Email:       oldClaims.Email,
-		DisplayName: oldClaims.DisplayName,
-		Avatar:      oldClaims.Avatar,
-		Roles:       oldClaims.Roles,
-		Typ:         token.JWTTokenTypeAccess,
-		Sid:         sessionID,
-	}
-
-	newAccessToken, err := token.SignJWT(hmacKey, newAccessClaims, accessTTL)
-	if err != nil {
-		logger.FromGin(c).Error("failed to sign new access JWT", zap.Error(err))
-		h.clearTokenCookies(c)
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	newRefreshClaims := token.JWTClaims{
-		Sub:         oldClaims.Sub,
-		Name:        oldClaims.Name,
-		Email:       oldClaims.Email,
-		DisplayName: oldClaims.DisplayName,
-		Avatar:      oldClaims.Avatar,
-		Roles:       oldClaims.Roles,
-		Typ:         token.JWTTokenTypeRefresh,
-		Sid:         sessionID,
-	}
-	newRefreshToken, err := token.SignJWT(hmacKey, newRefreshClaims, refreshTTL)
-	if err != nil {
-		logger.FromGin(c).Error("failed to sign new refresh JWT", zap.Error(err))
-		h.clearTokenCookies(c)
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	if err := h.setTokenCookies(c, newAccessToken, newRefreshToken); err != nil {
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	// 在同一 session 内轮换 token（黑名单旧 + 更新 session + 跟踪新）
-	if rotErr := h.svc.RotateSession(c.Request.Context(), sessionID, oldClaims.Sub, refreshTokenStr, newAccessToken, newRefreshToken); rotErr != nil {
-		logger.FromGin(c).Error("failed to rotate self-signed session",
-			zap.String("session_id", sessionID),
-			zap.Error(rotErr),
-		)
-		h.clearTokenCookies(c)
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	response.Success(c, h.buildRefreshResponse(c, newAccessToken, newRefreshToken))
-	return true
-}
-
-// refreshOIDCToken 处理 OIDC provider 的 refresh 逻辑
-func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool {
-	// 调 OIDC token endpoint 刷新
-	newToken, err := h.oidcClient.RefreshToken(c.Request.Context(), refreshTokenStr)
-	if err != nil {
-		logger.FromGin(c).Error("OIDC token refresh failed", zap.Error(err))
-		h.clearTokenCookies(c)
-		response.Unauthorized(c, "failed to refresh token", errs.ErrRefreshTokenInvalid)
-		return false
-	}
-
-	rawIDToken := oidc.ExtractIDToken(newToken)
-	if rawIDToken == "" {
-		logger.FromGin(c).Error("no id_token in refresh response")
-		h.clearTokenCookies(c)
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	// 验证新 ID Token 并提取用户信息
-	newClaims, err := h.oidcClient.VerifyIDToken(c.Request.Context(), rawIDToken)
-	if err != nil {
-		logger.FromGin(c).Error("new ID token verification failed after refresh", zap.Error(err))
-		h.clearTokenCookies(c)
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	if err := h.setTokenCookies(c, rawIDToken, newToken.RefreshToken); err != nil {
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	// OIDC token 没有 sid claim，native 客户端必须通过显式 session header 回传
-	// 受追踪的 session family。
-	oidcSessionID := h.getSessionID(c, "")
-	if oidcSessionID != "" {
-		h.setSessionCookie(c, oidcSessionID)
-	}
-	if rotErr := h.svc.RotateSession(c.Request.Context(), oidcSessionID, newClaims.GetUserID(), refreshTokenStr, rawIDToken, newToken.RefreshToken); rotErr != nil {
-		logger.FromGin(c).Error("failed to rotate OIDC session",
-			zap.String("session_id", oidcSessionID),
-			zap.Error(rotErr),
-		)
-		h.clearTokenCookies(c)
-		if errors.Is(rotErr, token.ErrSessionNotFound) ||
-			errors.Is(rotErr, errSessionUserMismatch) ||
-			errors.Is(rotErr, errSessionRefreshTokenMismatch) {
-			response.Unauthorized(c, "invalid native session id", errs.ErrTokenInvalid)
-			return false
-		}
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
-
-	response.Success(c, h.buildRefreshResponse(c, rawIDToken, newToken.RefreshToken))
-	return true
 }
 
 // extractSessionID 从 access token 中提取 session ID。

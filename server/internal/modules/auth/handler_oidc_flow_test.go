@@ -222,6 +222,29 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 	assert.NotEmpty(t, session.RefreshTokenHash)
 }
 
+func TestRefreshOIDCToken_RejectsMissingProviderRefreshRotation(t *testing.T) {
+	assertOIDCRefreshRotationUnavailable(t, func(issueIDToken func() string) map[string]any {
+		return map[string]any{
+			"access_token": "provider-access-token",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+			"id_token":     issueIDToken(),
+		}
+	})
+}
+
+func TestRefreshOIDCToken_RejectsSameProviderRefreshToken(t *testing.T) {
+	assertOIDCRefreshRotationUnavailable(t, func(issueIDToken func() string) map[string]any {
+		return map[string]any{
+			"access_token":  "provider-access-token",
+			"token_type":    "Bearer",
+			"refresh_token": "old-refresh-token",
+			"expires_in":    3600,
+			"id_token":      issueIDToken(),
+		}
+	})
+}
+
 func TestRefreshToken_NativeOIDCUsesSessionHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
@@ -395,6 +418,38 @@ func TestHandleWebCallback_InvalidIDToken(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "authentication failed")
+}
+
+func assertOIDCRefreshRotationUnavailable(
+	t *testing.T,
+	payloadFn func(issueIDToken func() string) map[string]any,
+) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	provider := newFakeOIDCProviderWithTokenPayload(t, payloadFn)
+	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-oidc-unrotated-refresh",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-unrotated-refresh"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token")
+	assert.False(t, ok)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), "refresh token rotation unavailable")
 }
 
 func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
