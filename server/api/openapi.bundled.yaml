@@ -539,6 +539,44 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '503':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/auth/account-locks/unlock:
+    post:
+      tags:
+        - Admin
+      operationId: unlockAuthAccount
+      summary: 解除认证失败账户锁
+      description: 仅允许具备全局 user:system:update 能力的管理员清除手机号维度的认证失败软锁 / 硬锁；审计日志只记录脱敏账户。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnlockAuthAccountRequest'
+      responses:
+        '200':
+          description: 账户锁已清除
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/auth/exchange-native:
     post:
       tags:
@@ -6347,6 +6385,15 @@ components:
             type: string
         global:
           type: boolean
+    UnlockAuthAccountRequest:
+      type: object
+      required:
+        - phone
+      properties:
+        phone:
+          type: string
+          pattern: ^1[3-9]\d{9}$
+          description: 需要解除认证失败锁定的手机号
     AcademicTerm:
       type: object
       required:

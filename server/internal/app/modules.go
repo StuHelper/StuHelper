@@ -15,21 +15,15 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/academics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
 	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
@@ -56,7 +50,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return fmt.Errorf("failed to initialize PII cipher: %w", err)
 	}
 
-	authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, smsSvc)
+	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, smsSvc)
 	if err != nil {
 		return err
 	}
@@ -118,7 +112,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
 	botHandler.RegisterRoutes(api)
-	rt.registerAdminRoutes(api, userHandler, authMW)
+	rt.registerAdminRoutes(api, userHandler, authHandler, authMW)
 
 	courseHandler.StartBackgroundJobs(bgCtx, startBackgroundTask)
 
@@ -137,77 +131,6 @@ func (rt *Runtime) configureAPICommonMiddleware(api *gin.RouterGroup) error {
 	}
 	api.Use(openapiValidationMW)
 	return nil
-}
-
-func (rt *Runtime) registerMetricsRoutes(api *gin.RouterGroup) {
-	metricsGroup := api.Group("/metrics")
-	metricsGroup.Use(metrics.OriginValidationMiddleware(rt.metricsAllowedOrigins()))
-	metricsGroup.POST("/vitals", metrics.VitalsHandler())
-	metricsGroup.POST("/frontend-errors", metrics.FrontendErrorHandler())
-}
-
-func (rt *Runtime) initAuthModule(api *gin.RouterGroup, bgCtx context.Context, piiCipher *pii.Cipher, smsSvc *sms.Service) (gin.HandlerFunc, gin.HandlerFunc, error) {
-	userSyncRepo := user.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey())
-	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
-
-	authHandler := auth.NewHandler(
-		auth.HandlerConfig{
-			Token:       rt.cfg.Token,
-			CORSOrigins: rt.cfg.App.CORSOrigins,
-			OIDCIssuer:  rt.cfg.Casdoor.Issuer,
-		},
-		rt.tokenService,
-		rt.redisClient.GetClient(),
-		rt.oidcClient,
-		userSyncRepo,
-		smsSvc,
-	)
-	authHandler.RegisterPublicRoutes(api)
-
-	api.Use(middleware.CSRFMiddleware())
-	authHandler.RegisterRoutes(api, rt.oidcClient, rt.tokenService)
-
-	authMW := middleware.AuthMiddleware(rt.oidcClient, rt.tokenService)
-	optionalAuthMW := middleware.OptionalAuthMiddleware(rt.oidcClient, rt.tokenService, middleware.OptionalAuthConfig{
-		CookieDomain: rt.cfg.Token.CookieDomain,
-		CookieSecure: rt.cfg.Token.CookieSecure,
-	})
-	return authMW, optionalAuthMW, nil
-}
-
-func (rt *Runtime) initCourseModule(authorizer review.AuthorizationProvider, notifSender notification.Sender, accessReader review.ReviewAccessReader) *course.Handler {
-	courseCache := cache.NewHelper(rt.redisClient.GetClient())
-	reviewRepo := review.NewRepository(rt.database)
-	reviewService := review.NewService(rt.database, reviewRepo, notifSender, authorizer, accessReader)
-	reviewHandler := review.NewHandler(courseCache, reviewService, rt.redisClient.GetClient(), rt.cfg.RateLimit, authorizer)
-
-	courseRepo := course.NewRepository(rt.database)
-	courseService := course.NewService(courseRepo, logger.L().Named("course_service"))
-	return course.NewHandler(courseCache, courseService, reviewHandler)
-}
-
-func (rt *Runtime) registerUserRoutes(api *gin.RouterGroup, userHandler *user.Handler, authMW gin.HandlerFunc) {
-	userHandler.RegisterRoutes(api, authMW)
-}
-
-func (rt *Runtime) registerAdminRoutes(api *gin.RouterGroup, userHandler *user.Handler, authMW gin.HandlerFunc) {
-	adminGroup := api.Group("/admin")
-	adminGroup.Use(authMW, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
-	userHandler.RegisterAdminRoutes(adminGroup)
-}
-
-func (rt *Runtime) metricsAllowedOrigins() []string {
-	if len(rt.cfg.App.CORSOrigins) > 0 {
-		return rt.cfg.App.CORSOrigins
-	}
-	if rt.isProduction {
-		return nil
-	}
-	return []string{
-		"http://localhost:3000",
-		"http://localhost:5173",
-		"http://localhost:4173",
-	}
 }
 
 func (rt *Runtime) initSMSService() (*sms.Service, error) {

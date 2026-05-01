@@ -119,6 +119,20 @@ func (g *AuthFailureGuard) ClearAccountFailures(ctx context.Context, account str
 	return nil
 }
 
+func (g *AuthFailureGuard) ClearAccountLock(ctx context.Context, account string) error {
+	if g == nil || g.rdb == nil {
+		return errors.New("auth failure guard is not configured")
+	}
+	softFailKey, softLockKey, hardFailKey, hardLockKey, err := authFailureAccountKeys(account)
+	if err != nil {
+		return err
+	}
+	if err := g.rdb.Del(ctx, softFailKey, softLockKey, hardFailKey, hardLockKey).Err(); err != nil {
+		return fmt.Errorf("auth failure guard: clear account lock: %w", err)
+	}
+	return nil
+}
+
 func (g *AuthFailureGuard) resolveAccountLock(ctx context.Context, hardLockKey string) error {
 	hardLocked, err := g.rdb.Exists(ctx, hardLockKey).Result()
 	if err != nil {
