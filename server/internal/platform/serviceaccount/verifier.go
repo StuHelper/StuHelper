@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 )
@@ -112,6 +113,7 @@ func (v *Verifier) EnsureBootstrapCredential(ctx context.Context, input Bootstra
 		return BootstrapResult{}, fmt.Errorf("bootstrap service account credential: %w", err)
 	}
 	result.Status = BootstrapStatus(status)
+	logBootstrapCredential(result)
 	return result, nil
 }
 
@@ -155,17 +157,20 @@ func (v *Verifier) Revoke(ctx context.Context, name string) error {
 	if normalizedName == "" {
 		return ErrCredentialNotConfigured
 	}
-	tag, err := v.db.Exec(ctx, `
+	var id int64
+	err := v.db.QueryRow(ctx, `
 		UPDATE bot_service_credentials
 		SET revoked_at = NOW(), updated_at = NOW()
 		WHERE name = $1 AND revoked_at IS NULL
-	`, normalizedName)
+		RETURNING id
+	`, normalizedName).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrCredentialInvalid
+	}
 	if err != nil {
 		return fmt.Errorf("revoke service account credential: %w", err)
 	}
-	if tag.RowsAffected() == 0 {
-		return ErrCredentialInvalid
-	}
+	audit.Log(serviceAccountCredentialAuditEvent(normalizedName, id, "revoked"))
 	return nil
 }
 
@@ -205,6 +210,29 @@ func (v *Verifier) touchLastUsed(ctx context.Context, id int64) error {
 		return fmt.Errorf("touch service account credential usage: %w", err)
 	}
 	return nil
+}
+
+func logBootstrapCredential(result BootstrapResult) {
+	if result.Status == BootstrapUnchanged {
+		return
+	}
+	audit.Log(serviceAccountCredentialAuditEvent(result.Name, result.ID, string(result.Status)))
+}
+
+func serviceAccountCredentialAuditEvent(name string, id int64, action string) audit.Event {
+	return audit.Event{
+		Type:         audit.EventType("iam.service_account." + action),
+		Category:     "admin_operation",
+		ActorType:    "system",
+		ResourceType: "iam.service_account",
+		ResourceID:   name,
+		Action:       action,
+		Result:       "success",
+		Details: map[string]any{
+			"credential_id": id,
+			"name":          name,
+		},
+	}
 }
 
 func compactNonEmpty(values []string) []string {
