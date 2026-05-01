@@ -159,7 +159,7 @@ func firstNonEmptyConfig(configs map[string]string, keys ...string) (string, boo
 
 // ResolveAccessFacts 解析当前用户的评课访问事实。
 // 由 Service 统一生产，Handler 不再自行拼装。
-func (s *Service) ResolveAccessFacts(ctx context.Context, externalID string, capabilities []string) (ReviewAccessFacts, error) {
+func (s *Service) ResolveAccessFacts(ctx context.Context, casdoorSubject string, capabilities []string) (ReviewAccessFacts, error) {
 	policy, err := s.getReviewAccessPolicy(ctx)
 	if err != nil {
 		return ReviewAccessFacts{}, err
@@ -170,7 +170,7 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, externalID string, cap
 		PreviewContentRunes: policy.PreviewContentRunes,
 		PreviewContentPct:   policy.PreviewContentPct,
 	}
-	if externalID == "" {
+	if casdoorSubject == "" {
 		return facts, nil
 	}
 
@@ -183,7 +183,7 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, externalID string, cap
 	canEditOwn := capability.Has(capabilities, capability.ReviewEditOwn)
 	canDeleteOwn := capability.Has(capabilities, capability.ReviewDeleteOwn)
 
-	subject, err := s.accessReader.GetReviewAccessSubject(ctx, externalID)
+	subject, err := s.accessReader.GetReviewAccessSubject(ctx, casdoorSubject)
 	if err != nil {
 		return facts, err
 	}
@@ -205,9 +205,9 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, externalID string, cap
 }
 
 func (h *Handler) resolveReviewAccessFactsForRequest(c *gin.Context) (ReviewAccessFacts, bool) {
-	externalID := middleware.GetUserID(c)
+	casdoorSubject := middleware.GetUserID(c)
 	capabilities := middleware.GetCapabilities(c)
-	facts, err := h.service.ResolveAccessFacts(c.Request.Context(), externalID, capabilities)
+	facts, err := h.service.ResolveAccessFacts(c.Request.Context(), casdoorSubject, capabilities)
 	if err == nil {
 		return facts, true
 	}

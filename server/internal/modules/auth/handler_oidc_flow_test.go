@@ -140,9 +140,9 @@ func (failingOIDCUserSyncRepo) UpsertUser(context.Context, UserSyncInput) error 
 	return errors.New("sync failed")
 }
 func (failingOIDCUserSyncRepo) UpsertByPhone(context.Context, string) (*PhoneUser, error) {
-	return &PhoneUser{ExternalID: "phone-user", Username: "phone-user"}, nil
+	return &PhoneUser{CasdoorSubject: "phone-user", Username: "phone-user"}, nil
 }
-func (failingOIDCUserSyncRepo) ExistsByExternalID(context.Context, string) (bool, error) {
+func (failingOIDCUserSyncRepo) ExistsByCasdoorSubject(context.Context, string) (bool, error) {
 	return true, nil
 }
 
@@ -158,7 +158,7 @@ func TestHandleWebCallback_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusFound, w.Code)
 	assert.Equal(t, "https://web.example.com/dashboard", w.Header().Get("Location"))
-	assert.Equal(t, "oidc-user-1", repo.upsertInput.ExternalID)
+	assert.Equal(t, "oidc-user-1", repo.upsertInput.CasdoorSubject)
 	assert.Equal(t, "oidc-tester", repo.upsertInput.Username)
 	assert.Equal(t, "oidc@example.com", repo.upsertInput.Email)
 	require.NotNil(t, repo.upsertInput.AvatarURL)
@@ -315,7 +315,7 @@ func TestExchangeNative_Success(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "accessToken")
 	assert.Contains(t, w.Body.String(), "refreshToken")
 	assert.Contains(t, w.Body.String(), "sessionID")
-	assert.Equal(t, "oidc-user-1", repo.upsertInput.ExternalID)
+	assert.Equal(t, "oidc-user-1", repo.upsertInput.CasdoorSubject)
 }
 
 func TestHandleWebCallback_MissingIDToken(t *testing.T) {

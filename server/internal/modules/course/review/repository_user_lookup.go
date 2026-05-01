@@ -8,22 +8,22 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// GetInternalUserIDByExternalID 根据外部用户 ID 查询内部 user_id。
-func (r *Repository) GetInternalUserIDByExternalID(ctx context.Context, externalID string) (int64, error) {
+// GetInternalUserIDByCasdoorSubject 根据外部用户 ID 查询内部 user_id。
+func (r *Repository) GetInternalUserIDByCasdoorSubject(ctx context.Context, casdoorSubject string) (int64, error) {
 	var userID int64
-	err := r.db.QueryRow(ctx, `SELECT id FROM users WHERE external_id = $1`, externalID).Scan(&userID)
+	err := r.db.QueryRow(ctx, `SELECT id FROM users WHERE casdoor_subject = $1`, casdoorSubject).Scan(&userID)
 	if err != nil {
-		return 0, fmt.Errorf("GetInternalUserIDByExternalID: %w", err)
+		return 0, fmt.Errorf("GetInternalUserIDByCasdoorSubject: %w", err)
 	}
 	return userID, nil
 }
 
-// GetInternalUserIDByExternalIDTx resolves the OIDC subject to users.id inside a business transaction.
-func (r *Repository) GetInternalUserIDByExternalIDTx(ctx context.Context, tx pgx.Tx, externalID string) (int64, error) {
+// GetInternalUserIDByCasdoorSubjectTx resolves the OIDC subject to users.id inside a business transaction.
+func (r *Repository) GetInternalUserIDByCasdoorSubjectTx(ctx context.Context, tx pgx.Tx, casdoorSubject string) (int64, error) {
 	var userID int64
-	err := tx.QueryRow(ctx, `SELECT id FROM users WHERE external_id = $1`, externalID).Scan(&userID)
+	err := tx.QueryRow(ctx, `SELECT id FROM users WHERE casdoor_subject = $1`, casdoorSubject).Scan(&userID)
 	if err != nil {
-		return 0, fmt.Errorf("GetInternalUserIDByExternalIDTx: %w", err)
+		return 0, fmt.Errorf("GetInternalUserIDByCasdoorSubjectTx: %w", err)
 	}
 	return userID, nil
 }

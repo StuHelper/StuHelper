@@ -6,20 +6,20 @@ import "errors"
 
 // Input 认证同步输入（OIDC / SSO 登录后写入 shadow user）。
 type Input struct {
-	ExternalID string
-	Username   string
-	Email      string
-	AvatarURL  *string
+	CasdoorSubject string
+	Username       string
+	Email          string
+	AvatarURL      *string
 }
 
 // PhoneUser 通过手机号查询到的用户信息
 type PhoneUser struct {
-	ID          int64
-	ExternalID  string
-	Username    string
-	Email       string
-	MaskedPhone string
-	AvatarURL   *string
+	ID             int64
+	CasdoorSubject string
+	Username       string
+	Email          string
+	MaskedPhone    string
+	AvatarURL      *string
 }
 
 // ErrPhoneUserNotFound 手机号对应的用户不存在

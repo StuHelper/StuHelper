@@ -136,9 +136,9 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 	// 创建服务端 Session —— 必须传入签发 JWT 时使用的同一 sessionID，
 	// 否则 JWT 中的 Sid claim 与 session store key 不一致，refresh/revoke 会失效。
 	deviceInfo := c.Request.UserAgent()
-	if _, sessErr := h.svc.CreateSession(c.Request.Context(), sessionID, user.ExternalID, accessToken, refreshToken, "phone", deviceInfo); sessErr != nil {
+	if _, sessErr := h.svc.CreateSession(c.Request.Context(), sessionID, user.CasdoorSubject, accessToken, refreshToken, "phone", deviceInfo); sessErr != nil {
 		logger.FromGin(c).Error("failed to create session",
-			zap.String("user_id", user.ExternalID),
+			zap.String("user_id", user.CasdoorSubject),
 			zap.Error(sessErr),
 		)
 		response.InternalError(c, "login failed")
@@ -160,7 +160,7 @@ func (h *Handler) VerifyPhoneOTP(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"user": gin.H{
-			"id":                 user.ExternalID,
+			"id":                 user.CasdoorSubject,
 			"name":               user.Username,
 			"displayName":        user.Username,
 			"email":              user.Email,

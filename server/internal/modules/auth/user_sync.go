@@ -17,5 +17,5 @@ type PhoneUser = usersync.PhoneUser
 type UserSyncRepo interface {
 	UpsertUser(ctx context.Context, input UserSyncInput) error
 	UpsertByPhone(ctx context.Context, phone string) (*PhoneUser, error)
-	ExistsByExternalID(ctx context.Context, externalID string) (bool, error)
+	ExistsByCasdoorSubject(ctx context.Context, casdoorSubject string) (bool, error)
 }

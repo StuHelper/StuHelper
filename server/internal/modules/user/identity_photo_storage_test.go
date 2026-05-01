@@ -92,8 +92,8 @@ func TestResolveIdentityReviewItemAssets_PresignsStoredKeys(t *testing.T) {
 
 func TestHandleUploadIdentityPhoto_Returns503WhenStoreUnavailable(t *testing.T) {
 	repo := &mockRepo{
-		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
-			assert.Equal(t, "external-user-123", externalID)
+		onGetInternalUserID: func(_ context.Context, casdoorSubject string) (int64, error) {
+			assert.Equal(t, "external-user-123", casdoorSubject)
 			return 42, nil
 		},
 	}
@@ -111,8 +111,8 @@ func TestHandleUploadIdentityPhoto_Returns503WhenStoreUnavailable(t *testing.T) 
 
 func TestHandleUploadIdentityPhoto_MapsStorageErrorsTo503(t *testing.T) {
 	repo := &mockRepo{
-		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
-			assert.Equal(t, "external-user-123", externalID)
+		onGetInternalUserID: func(_ context.Context, casdoorSubject string) (int64, error) {
+			assert.Equal(t, "external-user-123", casdoorSubject)
 			return 42, nil
 		},
 	}

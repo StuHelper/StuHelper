@@ -3,21 +3,21 @@ type: design
 audience: backend-dev, frontend-dev
 status: current
 authoritative-source: server/internal/modules/auth/
-last-verified: 2026-04-19
+last-verified: 2026-05-02
 ---
 
 # 认证与 SSO
 
-> 状态：现行。默认支持 Zitadel OIDC 登录；手机号验证码登录仅在 `SMS_ENABLED=true` 且短信凭据完整时启用。
+> 状态：现行。默认支持 Casdoor OIDC 登录；手机号验证码登录仅在 `SMS_ENABLED=true` 且短信凭据完整时启用。
 
 ## 登录方式
 
-### Zitadel OIDC（主要链路）
+### Casdoor OIDC（主要链路）
 
 ```
 前端请求 /api/v1/auth/login?redirect=...
 → 后端生成 state，写 Redis + HttpOnly state cookie
-→ 跳转 Zitadel
+→ 跳转 Casdoor
 → 回调 /api/v1/auth/callback?code=...&state=...
 → 校验 state（一次性验证后销毁）→ 交换 token → 写入 Cookie → 同步 shadow user
 → 302 回前端
@@ -33,7 +33,7 @@ POST /api/v1/auth/phone/verify-otp  → 验证 → 签发本地 JWT Cookie
 
 - 仅限中国大陆手机号
 - 有冷却和频率限制
-- 只授予 `user` 角色，管理角色仍需 Zitadel SSO
+- 只授予 `user` 角色，管理角色仍需 Casdoor SSO
 - 默认关闭；需要同时配置 `SMS_ENABLED=true`、`SMS_SECRET_ID`、`SMS_SECRET_KEY`、`SMS_APP_ID`、`SMS_SIGN_NAME`、`SMS_TEMPLATE_ID`、`SMS_INTERNAL_KEY`
 
 ## 端点
@@ -83,20 +83,19 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
 
 - `POST /api/v1/auth/exchange-native` 请求体：`{ code, state }`
 - 成功响应：`{ accessToken, refreshToken, sessionID, expiresIn }`
-- `sessionID` 目前仅用于 App 侧保留诊断/追踪信息；原生 refresh 端点当前**不会**回传 `sessionID`，因此：
-  - refresh 仍会对旧 refresh token 做 blacklist
-  - 但 native OIDC 流程的 session store touch 目前无法完全闭环
-  - 这属于当前实现限制，文档必须按现状说明，不能写成“已完全对齐 Web 会话轮换”
+- 原生 OIDC refresh 必须通过 `X-Stuhelper-Session-ID` 回传 `sessionID`；缺失或不匹配时拒绝 refresh。
+- refresh 会对旧 refresh token 做 blacklist，并在 session store 内更新新 token hash。
+- 旧 refresh token 再次提交会触发 reuse detection：吊销该用户全部 session 并记录审计。
 
 ## Shadow User
 
-OIDC 用户同步到本地 `users` 表：`external_id`、`username`、`email`、`avatar_url`。
+OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email`、`avatar_url`。
 
 手机号登录通过 `UpsertByPhone` 处理，保证业务侧始终有稳定锚点。
 
 ## 角色与能力
 
-- Zitadel Token 提供粗粒度角色
+- Casdoor JWT 提供粗粒度角色
 - 中间件静态展开为 capabilities
 - `/api/v1/auth/me` 返回：`roles`、`capabilities`、`globalCapabilities`、`canAccessAdmin`、`displayName`、`isPlatformAdmin`、`capabilityGrants`、`accountSettingsUrl`
 
@@ -106,7 +105,7 @@ OIDC 用户同步到本地 `users` 表：`external_id`、`username`、`email`、
 
 1. 前端发起 `/api/v1/auth/login?platform=native&redirect=...`
 2. 后端生成 state + PKCE code_verifier，state 标记 `native=true`
-3. 用户在系统浏览器完成 Zitadel 登录
+3. 用户在系统浏览器完成 Casdoor 登录
 4. 回调时后端识别 native state，将 `code` + `state` 通过 deep link（`stuhelper://auth/callback?code=...&state=...`）回传给 App
 5. App 调用 `POST /api/v1/auth/exchange-native`（body: `{code, state}`），后端用保存的 code_verifier 完成 OIDC 交换，返回 JSON token pair + `sessionID`
 

@@ -304,7 +304,7 @@ func (rt *Runtime) initCasdoorRoleSync(userRepo *user.Repository) (user.RoleSync
 	if err != nil {
 		return nil, err
 	}
-	return platformcasdoor.BuildRoleSyncFunc(client, userRepo.GetExternalID), nil
+	return platformcasdoor.BuildRoleSyncFunc(client, userRepo.GetCasdoorSubject), nil
 }
 
 func (rt *Runtime) newCasdoorRoleSyncClient() (*platformcasdoor.RoleSyncClient, error) {

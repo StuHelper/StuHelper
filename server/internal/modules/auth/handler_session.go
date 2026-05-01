@@ -193,7 +193,7 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	accessTTL := h.currentAccessTokenTTL()
 	refreshTTL := time.Duration(h.tokenConfig.RefreshTokenTTL) * time.Second
 
-	exists, err := h.svc.UserExistsByExternalID(c.Request.Context(), oldClaims.Sub)
+	exists, err := h.svc.UserExistsByCasdoorSubject(c.Request.Context(), oldClaims.Sub)
 	if err != nil {
 		logger.FromGin(c).Error("failed to verify phone-login user during refresh", zap.Error(err))
 		h.clearTokenCookies(c)

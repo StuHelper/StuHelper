@@ -294,8 +294,8 @@ func TestHandleAdminReviewStudentVerification_MissingApprovedReturns400(t *testi
 
 func TestHandleGetIdentity_PublicPayloadOmitsSensitiveFields(t *testing.T) {
 	repo := &mockRepo{
-		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
-			assert.Equal(t, "external-user-123", externalID)
+		onGetInternalUserID: func(_ context.Context, casdoorSubject string) (int64, error) {
+			assert.Equal(t, "external-user-123", casdoorSubject)
 			return 42, nil
 		},
 		onGetIdentityStatusByUserID: func(_ context.Context, userID int64) (*IdentityStatus, error) {
@@ -481,8 +481,8 @@ func TestHandleAdminListStudentVerifications_IncludesManualFormData(t *testing.T
 func TestHandleVerifyStudent_ManualAllowsEmptyCredentials(t *testing.T) {
 	var createdProfile *Profile
 	repo := &mockRepo{
-		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
-			assert.Equal(t, "external-user-123", externalID)
+		onGetInternalUserID: func(_ context.Context, casdoorSubject string) (int64, error) {
+			assert.Equal(t, "external-user-123", casdoorSubject)
 			return 42, nil
 		},
 		onGetIdentityStatusByUserID: func(_ context.Context, userID int64) (*IdentityStatus, error) {
@@ -579,8 +579,8 @@ func TestHandleVerifyStudent_LDAPMissingStudentIDReturns400(t *testing.T) {
 
 func TestHandleGetUserSurface_NormalizesNilCapabilitiesToEmptySlice(t *testing.T) {
 	repo := &mockRepo{
-		onGetInternalUserID: func(_ context.Context, externalID string) (int64, error) {
-			assert.Equal(t, "external-user-123", externalID)
+		onGetInternalUserID: func(_ context.Context, casdoorSubject string) (int64, error) {
+			assert.Equal(t, "external-user-123", casdoorSubject)
 			return 42, nil
 		},
 	}

@@ -89,7 +89,7 @@ SELECT setval('courses_id_seq', 23, true);
 -- ============================================
 -- 4. 用户数据
 -- ============================================
-INSERT INTO users (id, external_id, username, email) VALUES
+INSERT INTO users (id, casdoor_subject, username, email) VALUES
     (1, 'oidc_user_001', '匿名用户A', 'user_a@example.com'),
     (2, 'oidc_user_002', '匿名用户B', 'user_b@example.com'),
     (3, 'oidc_user_003', '匿名用户C', 'user_c@example.com'),
@@ -413,11 +413,11 @@ FROM dist_overall;
 -- 10. 开发环境：测试用学籍数据
 -- ============================================
 INSERT INTO academic.buaa_students (xh, xm, sfzjlxdm, sfzjh_enc, sfzjh_hash, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh, dzxx, xjztdm, sfzx, sfzj) VALUES
-    ('20211001', '张三', '1', convert_to('110101200301010011', 'UTF8'), NULL, '001', '0812', '210101', '4', '2021', '01', '01', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
-    ('20211002', '李四', '1', convert_to('110101200301020022', 'UTF8'), NULL, '001', '0812', '210101', '4', '2021', '01', '01', '13800138002', 'lisi@buaa.edu.cn', '01', '1', '1'),
-    ('20211003', '王五', '1', convert_to('110101200301030033', 'UTF8'), NULL, '003', '0502', '210301', '4', '2021', '01', '01', '13800138003', 'wangwu@buaa.edu.cn', '01', '1', '1'),
-    ('20241001', '张三', '1', convert_to('110101200301010011', 'UTF8'), NULL, '001', '0812', '241001', '1', '2024', '02', '02', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
-    ('20211004', 'John Smith', 'A', convert_to('H12345678', 'UTF8'), NULL, '001', '0812', '210102', '4', '2021', '01', '01', NULL, 'john@buaa.edu.cn', '01', '1', '1')
+    ('20211001', '张三', '1', NULL, NULL, '001', '0812', '210101', '4', '2021', '01', '01', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
+    ('20211002', '李四', '1', NULL, NULL, '001', '0812', '210101', '4', '2021', '01', '01', '13800138002', 'lisi@buaa.edu.cn', '01', '1', '1'),
+    ('20211003', '王五', '1', NULL, NULL, '003', '0502', '210301', '4', '2021', '01', '01', '13800138003', 'wangwu@buaa.edu.cn', '01', '1', '1'),
+    ('20241001', '张三', '1', NULL, NULL, '001', '0812', '241001', '1', '2024', '02', '02', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
+    ('20211004', 'John Smith', 'A', NULL, NULL, '001', '0812', '210102', '4', '2021', '01', '01', NULL, 'john@buaa.edu.cn', '01', '1', '1')
 ON CONFLICT (xh) DO NOTHING;
 
 -- ============================================
@@ -434,6 +434,6 @@ SELECT id, 10006, '["20211001"]'::jsonb, '20211001', 'verified', 'ldap', NOW(), 
 FROM users WHERE username = 'test_admin'
 ON CONFLICT (user_id) DO NOTHING;
 
--- 角色现由 Zitadel Project Roles + Go RoleCapabilities 管理，无需 DB 分配
+-- 角色现由 Casdoor flat roles + Go RoleCapabilities 管理，无需 DB 分配
 
 COMMIT;

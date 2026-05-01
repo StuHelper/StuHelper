@@ -15,8 +15,8 @@ import (
 )
 
 // GetInternalUserID 根据外部ID获取内部用户ID
-func (s *Service) GetInternalUserID(ctx context.Context, externalID string) (int64, error) {
-	return s.repo.GetInternalUserID(ctx, externalID)
+func (s *Service) GetInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
+	return s.repo.GetInternalUserID(ctx, casdoorSubject)
 }
 
 // ListIdentities 分页查询实名认证审核列表（管理端，不含敏感字段）

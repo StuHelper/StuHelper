@@ -156,15 +156,15 @@ func TestServiceMarkAllReadBroadcastsReadAllAndUnreadCount(t *testing.T) {
 	assert.True(t, sawUnreadCount)
 }
 
-func seedNotificationUser(t *testing.T, fixture *postgresfixture.Fixture, externalID string) int64 {
+func seedNotificationUser(t *testing.T, fixture *postgresfixture.Fixture, casdoorSubject string) int64 {
 	t.Helper()
 
 	var userID int64
 	err := fixture.Pool.QueryRow(context.Background(), `
-		INSERT INTO users (external_id, username, email, user_hash)
+		INSERT INTO users (casdoor_subject, username, email, user_hash)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id
-	`, externalID, externalID, externalID+"@example.com", "hash-"+externalID).Scan(&userID)
+	`, casdoorSubject, casdoorSubject, casdoorSubject+"@example.com", "hash-"+casdoorSubject).Scan(&userID)
 	require.NoError(t, err)
 	return userID
 }

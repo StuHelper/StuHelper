@@ -129,23 +129,23 @@ func (r *Repository) hashDocumentLookup(docNumber string) (string, error) {
 }
 
 // GetInternalUserID 根据外部ID获取内部用户ID
-func (r *Repository) GetInternalUserID(ctx context.Context, externalID string) (int64, error) {
+func (r *Repository) GetInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
 	var id int64
-	err := r.db.QueryRow(ctx, `SELECT id FROM users WHERE external_id = $1`, externalID).Scan(&id)
+	err := r.db.QueryRow(ctx, `SELECT id FROM users WHERE casdoor_subject = $1`, casdoorSubject).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("GetInternalUserID: %w", err)
 	}
 	return id, nil
 }
 
-// GetExternalID resolves users.id back to the current Casdoor subject for role sync.
-func (r *Repository) GetExternalID(ctx context.Context, userID int64) (string, error) {
-	var externalID string
-	err := r.db.QueryRow(ctx, `SELECT external_id FROM users WHERE id = $1`, userID).Scan(&externalID)
+// GetCasdoorSubject resolves users.id back to the current Casdoor subject for role sync.
+func (r *Repository) GetCasdoorSubject(ctx context.Context, userID int64) (string, error) {
+	var casdoorSubject string
+	err := r.db.QueryRow(ctx, `SELECT casdoor_subject FROM users WHERE id = $1`, userID).Scan(&casdoorSubject)
 	if err != nil {
-		return "", fmt.Errorf("GetExternalID: %w", err)
+		return "", fmt.Errorf("GetCasdoorSubject: %w", err)
 	}
-	return externalID, nil
+	return casdoorSubject, nil
 }
 
 func normalizeAcademicDBTableName(raw *string) (string, error) {

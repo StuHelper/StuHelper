@@ -47,7 +47,7 @@ type mockRepo struct {
 	onValidateAcademicDBTable                  func(ctx context.Context, tableName string) error
 	onListSystemConfigs                        func(ctx context.Context) ([]SystemConfig, error)
 	onUpdateSystemConfig                       func(ctx context.Context, key, value string) error
-	onGetInternalUserID                        func(ctx context.Context, externalID string) (int64, error)
+	onGetInternalUserID                        func(ctx context.Context, casdoorSubject string) (int64, error)
 	onWithTx                                   func(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
 	onGetProfileByUserIDTx                     func(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
 	onCreateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
@@ -194,9 +194,9 @@ func (m *mockRepo) UpdateSystemConfig(ctx context.Context, key, value string) er
 	return nil
 }
 
-func (m *mockRepo) GetInternalUserID(ctx context.Context, externalID string) (int64, error) {
+func (m *mockRepo) GetInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
 	if m.onGetInternalUserID != nil {
-		return m.onGetInternalUserID(ctx, externalID)
+		return m.onGetInternalUserID(ctx, casdoorSubject)
 	}
 	return 0, nil
 }

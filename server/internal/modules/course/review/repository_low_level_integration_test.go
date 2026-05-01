@@ -25,7 +25,7 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 
 	var internalUserID int64
 	err := fixture.Pool.QueryRow(ctx, `
-		INSERT INTO users (external_id, username, email)
+		INSERT INTO users (casdoor_subject, username, email)
 		VALUES ('ext-repo-1', 'repo-user', 'repo@example.com')
 		RETURNING id
 	`).Scan(&internalUserID)
@@ -58,7 +58,7 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "李老师", teacherName)
 
-	resolvedInternalID, err := repo.GetInternalUserIDByExternalID(ctx, "ext-repo-1")
+	resolvedInternalID, err := repo.GetInternalUserIDByCasdoorSubject(ctx, "ext-repo-1")
 	require.NoError(t, err)
 	assert.Equal(t, internalUserID, resolvedInternalID)
 

@@ -148,9 +148,9 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) error {
 	return nil
 }
 
-// ResolveInternalUserID 根据 external_id 解析内部用户 ID。
-func (s *Service) ResolveInternalUserID(ctx context.Context, externalID string) (int64, error) {
-	return s.repo.ResolveInternalUserID(ctx, externalID)
+// ResolveInternalUserID 根据 casdoor_subject 解析内部用户 ID。
+func (s *Service) ResolveInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
+	return s.repo.ResolveInternalUserID(ctx, casdoorSubject)
 }
 
 // publishToRedis 通过 Redis Pub/Sub 广播通知

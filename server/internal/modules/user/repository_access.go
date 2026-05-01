@@ -18,8 +18,8 @@ type ReviewAccessSubject struct {
 	IdentityVerified bool
 }
 
-// GetReviewAccessSubjectByExternalID 一次查询获取评课访问控制所需的用户事实。
-func (r *Repository) GetReviewAccessSubjectByExternalID(ctx context.Context, externalID string) (*ReviewAccessSubject, error) {
+// GetReviewAccessSubjectByCasdoorSubject 一次查询获取评课访问控制所需的用户事实。
+func (r *Repository) GetReviewAccessSubjectByCasdoorSubject(ctx context.Context, casdoorSubject string) (*ReviewAccessSubject, error) {
 	var subject ReviewAccessSubject
 	err := r.db.QueryRow(ctx, `
 		SELECT u.id,
@@ -29,8 +29,8 @@ func (r *Repository) GetReviewAccessSubjectByExternalID(ctx context.Context, ext
 		FROM users u
 		LEFT JOIN user_profiles up ON up.user_id = u.id
 		LEFT JOIN user_identities ui ON ui.user_id = u.id
-		WHERE u.external_id = $1
-	`, externalID).Scan(
+		WHERE u.casdoor_subject = $1
+	`, casdoorSubject).Scan(
 		&subject.InternalUserID,
 		&subject.SchoolID,
 		&subject.StudentVerified,
@@ -40,13 +40,13 @@ func (r *Repository) GetReviewAccessSubjectByExternalID(ctx context.Context, ext
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("GetReviewAccessSubjectByExternalID: %w", err)
+		return nil, fmt.Errorf("GetReviewAccessSubjectByCasdoorSubject: %w", err)
 	}
 	return &subject, nil
 }
 
-func (r *Repository) GetReviewAccessSubject(ctx context.Context, externalID string) (*reviewaccess.Subject, error) {
-	subject, err := r.GetReviewAccessSubjectByExternalID(ctx, externalID)
+func (r *Repository) GetReviewAccessSubject(ctx context.Context, casdoorSubject string) (*reviewaccess.Subject, error) {
+	subject, err := r.GetReviewAccessSubjectByCasdoorSubject(ctx, casdoorSubject)
 	if err != nil || subject == nil {
 		return nil, err
 	}

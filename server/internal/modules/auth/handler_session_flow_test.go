@@ -22,7 +22,7 @@ import (
 
 type missingExternalUserRepo struct{ fakeUserSyncRepo }
 
-func (missingExternalUserRepo) ExistsByExternalID(context.Context, string) (bool, error) {
+func (missingExternalUserRepo) ExistsByCasdoorSubject(context.Context, string) (bool, error) {
 	return false, nil
 }
 
@@ -103,15 +103,15 @@ func TestRefreshToken_SelfSignedSuccess(t *testing.T) {
 
 	avatar := "https://cdn.example.com/avatar.png"
 	phoneUser := &PhoneUser{
-		ExternalID: "phone-user-1",
-		Username:   "phone-user-1",
-		Email:      "phone-user-1@example.com",
-		AvatarURL:  &avatar,
+		CasdoorSubject: "phone-user-1",
+		Username:       "phone-user-1",
+		Email:          "phone-user-1@example.com",
+		AvatarURL:      &avatar,
 	}
 	sessionID := "sid-refresh-success"
 	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(phoneUser, []string{"user"}, sessionID)
 	require.NoError(t, err)
-	_, err = h.svc.CreateSession(t.Context(), sessionID, phoneUser.ExternalID, accessToken, refreshToken, "phone", "ios")
+	_, err = h.svc.CreateSession(t.Context(), sessionID, phoneUser.CasdoorSubject, accessToken, refreshToken, "phone", "ios")
 	require.NoError(t, err)
 
 	r := gin.New()
@@ -164,15 +164,15 @@ func TestRefreshToken_SelfSignedReuseRevokesAllSessions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
 
-	user := &PhoneUser{ExternalID: "phone-user-reuse", Username: "phone-user-reuse"}
+	user := &PhoneUser{CasdoorSubject: "phone-user-reuse", Username: "phone-user-reuse"}
 	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(user, []string{"user"}, "sid-reuse-a")
 	require.NoError(t, err)
-	_, err = h.svc.CreateSession(t.Context(), "sid-reuse-a", user.ExternalID, accessToken, refreshToken, "phone", "ios")
+	_, err = h.svc.CreateSession(t.Context(), "sid-reuse-a", user.CasdoorSubject, accessToken, refreshToken, "phone", "ios")
 	require.NoError(t, err)
 
 	otherAccess, otherRefresh, err := h.svc.SignPhoneTokenPair(user, []string{"user"}, "sid-reuse-b")
 	require.NoError(t, err)
-	_, err = h.svc.CreateSession(t.Context(), "sid-reuse-b", user.ExternalID, otherAccess, otherRefresh, "phone", "web")
+	_, err = h.svc.CreateSession(t.Context(), "sid-reuse-b", user.CasdoorSubject, otherAccess, otherRefresh, "phone", "web")
 	require.NoError(t, err)
 
 	r := gin.New()
@@ -191,7 +191,7 @@ func TestRefreshToken_SelfSignedReuseRevokesAllSessions(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "refresh token reuse detected")
 
-	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), user.ExternalID)
+	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), user.CasdoorSubject)
 	require.NoError(t, err)
 	assert.Empty(t, sessions)
 }
@@ -200,7 +200,7 @@ func TestRefreshToken_SelfSignedRejectsMissingUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newRefreshTestHandler(t, &missingExternalUserRepo{})
 
-	phoneUser := &PhoneUser{ExternalID: "phone-user-missing", Username: "phone-user-missing"}
+	phoneUser := &PhoneUser{CasdoorSubject: "phone-user-missing", Username: "phone-user-missing"}
 	sessionID := "sid-refresh-missing-user"
 	_, refreshToken, err := h.svc.SignPhoneTokenPair(phoneUser, []string{"user"}, sessionID)
 	require.NoError(t, err)
@@ -235,7 +235,7 @@ func TestRefreshToken_SelfSignedMissingSessionFailsRotation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
 
-	phoneUser := &PhoneUser{ExternalID: "phone-user-no-session", Username: "phone-user-no-session"}
+	phoneUser := &PhoneUser{CasdoorSubject: "phone-user-no-session", Username: "phone-user-no-session"}
 	_, refreshToken, err := h.svc.SignPhoneTokenPair(phoneUser, []string{"user"}, "sid-missing-session")
 	require.NoError(t, err)
 

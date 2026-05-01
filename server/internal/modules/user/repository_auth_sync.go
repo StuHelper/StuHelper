@@ -44,25 +44,25 @@ func NewUserSyncRepository(database *db.DB, phoneCipher pii.Encryptor, hmacKey [
 
 // UpsertUser 同步 OIDC / SSO 登录用户到本地 shadow user 表。
 func (r *UserSyncRepository) UpsertUser(ctx context.Context, input AuthSyncInput) error {
-	if input.ExternalID == "" || input.Username == "" {
-		return fmt.Errorf("UpsertUser: externalID and username are required")
+	if input.CasdoorSubject == "" || input.Username == "" {
+		return fmt.Errorf("UpsertUser: casdoorSubject and username are required")
 	}
 
-	userHash, err := crypto.HMACHashWithKey(input.ExternalID, r.hmacKey)
+	userHash, err := crypto.HMACHashWithKey(input.CasdoorSubject, r.hmacKey)
 	if err != nil {
 		return fmt.Errorf("UpsertUser: compute user_hash: %w", err)
 	}
 
 	_, err = r.db.Exec(ctx, `
-		INSERT INTO users (external_id, username, email, avatar_url, user_hash, created_at, updated_at)
+		INSERT INTO users (casdoor_subject, username, email, avatar_url, user_hash, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-		ON CONFLICT (external_id) DO UPDATE SET
+		ON CONFLICT (casdoor_subject) DO UPDATE SET
 			username = EXCLUDED.username,
 			email = COALESCE(EXCLUDED.email, users.email),
 			avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
 			user_hash = COALESCE(EXCLUDED.user_hash, users.user_hash),
 			updated_at = NOW()
-	`, input.ExternalID, input.Username, emptyToNil(input.Email), input.AvatarURL, userHash)
+	`, input.CasdoorSubject, input.Username, emptyToNil(input.Email), input.AvatarURL, userHash)
 	if err != nil {
 		return fmt.Errorf("UpsertUser: %w", err)
 	}
@@ -94,9 +94,9 @@ func (r *UserSyncRepository) FindByPhone(ctx context.Context, phone string) (*Ph
 	}
 
 	err = r.db.QueryRow(ctx, `
-		SELECT id, external_id, username, COALESCE(email, ''), avatar_url
+		SELECT id, casdoor_subject, username, COALESCE(email, ''), avatar_url
 		FROM users WHERE phone_hash = $1
-	`, phoneHash).Scan(&u.ID, &u.ExternalID, &u.Username, &u.Email, &u.AvatarURL)
+	`, phoneHash).Scan(&u.ID, &u.CasdoorSubject, &u.Username, &u.Email, &u.AvatarURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrPhoneUserNotFound
 	}
@@ -115,12 +115,12 @@ func isAuthSyncUniqueViolation(err error) bool {
 func (r *UserSyncRepository) loadPhoneUserForUpdate(ctx context.Context, tx pgx.Tx, phoneHash string) (*PhoneUser, error) {
 	var u PhoneUser
 	err := tx.QueryRow(ctx, `
-		SELECT id, external_id, username, COALESCE(email, ''), avatar_url
+		SELECT id, casdoor_subject, username, COALESCE(email, ''), avatar_url
 		FROM users
 		WHERE phone_hash = $1
 		LIMIT 1
 		FOR UPDATE
-	`, phoneHash).Scan(&u.ID, &u.ExternalID, &u.Username, &u.Email, &u.AvatarURL)
+	`, phoneHash).Scan(&u.ID, &u.CasdoorSubject, &u.Username, &u.Email, &u.AvatarURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -136,7 +136,7 @@ func (r *UserSyncRepository) upsertPhoneUserTx(ctx context.Context, tx pgx.Tx, p
 		return nil, fmt.Errorf("load phone user: %w", err)
 	}
 	if existing != nil {
-		userHash, hashErr := crypto.HMACHashWithKey(existing.ExternalID, r.hmacKey)
+		userHash, hashErr := crypto.HMACHashWithKey(existing.CasdoorSubject, r.hmacKey)
 		if hashErr != nil {
 			return nil, fmt.Errorf("compute user_hash for existing phone user: %w", hashErr)
 		}
@@ -154,20 +154,20 @@ func (r *UserSyncRepository) upsertPhoneUserTx(ctx context.Context, tx pgx.Tx, p
 		return existing, nil
 	}
 
-	externalID := "phone:" + uuid.NewString()
-	userHash, hashErr := crypto.HMACHashWithKey(externalID, r.hmacKey)
+	casdoorSubject := "phone:" + uuid.NewString()
+	userHash, hashErr := crypto.HMACHashWithKey(casdoorSubject, r.hmacKey)
 	if hashErr != nil {
 		return nil, fmt.Errorf("compute user_hash for new phone user: %w", hashErr)
 	}
 	username := "user_" + phone[len(phone)-4:]
 	created := &PhoneUser{MaskedPhone: phoneutil.Mask(phone)}
 	insertErr := tx.QueryRow(ctx, `
-		INSERT INTO users (external_id, username, phone_enc, phone_hash, user_hash, created_at, updated_at)
+		INSERT INTO users (casdoor_subject, username, phone_enc, phone_hash, user_hash, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-		RETURNING id, external_id, username, COALESCE(email, ''), avatar_url
-	`, externalID, username, phoneEnc, phoneHash, userHash).Scan(
+		RETURNING id, casdoor_subject, username, COALESCE(email, ''), avatar_url
+	`, casdoorSubject, username, phoneEnc, phoneHash, userHash).Scan(
 		&created.ID,
-		&created.ExternalID,
+		&created.CasdoorSubject,
 		&created.Username,
 		&created.Email,
 		&created.AvatarURL,
@@ -212,11 +212,11 @@ func (r *UserSyncRepository) UpsertByPhone(ctx context.Context, phone string) (*
 	return u, nil
 }
 
-// ExistsByExternalID 检查 external_id 对应的用户是否仍然存在。
-func (r *UserSyncRepository) ExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
+// ExistsByCasdoorSubject 检查 casdoor_subject 对应的用户是否仍然存在。
+func (r *UserSyncRepository) ExistsByCasdoorSubject(ctx context.Context, casdoorSubject string) (bool, error) {
 	var exists bool
-	if err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE external_id = $1)`, externalID).Scan(&exists); err != nil {
-		return false, fmt.Errorf("ExistsByExternalID: %w", err)
+	if err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE casdoor_subject = $1)`, casdoorSubject).Scan(&exists); err != nil {
+		return false, fmt.Errorf("ExistsByCasdoorSubject: %w", err)
 	}
 	return exists, nil
 }
@@ -236,7 +236,7 @@ func (r *UserSyncRepository) BackfillUserHashes(ctx context.Context) (int64, err
 	var totalCount int64
 
 	for {
-		rows, err := r.db.Query(ctx, `SELECT id, external_id FROM users WHERE user_hash IS NULL LIMIT $1`, batchSize)
+		rows, err := r.db.Query(ctx, `SELECT id, casdoor_subject FROM users WHERE user_hash IS NULL LIMIT $1`, batchSize)
 		if err != nil {
 			return totalCount, fmt.Errorf("BackfillUserHashes query: %w", err)
 		}
@@ -244,12 +244,12 @@ func (r *UserSyncRepository) BackfillUserHashes(ctx context.Context) (int64, err
 		var batchCount int64
 		for rows.Next() {
 			var id int64
-			var externalID string
-			if err := rows.Scan(&id, &externalID); err != nil {
+			var casdoorSubject string
+			if err := rows.Scan(&id, &casdoorSubject); err != nil {
 				rows.Close()
 				return totalCount, fmt.Errorf("BackfillUserHashes scan: %w", err)
 			}
-			hash, err := crypto.HMACHashWithKey(externalID, r.hmacKey)
+			hash, err := crypto.HMACHashWithKey(casdoorSubject, r.hmacKey)
 			if err != nil {
 				rows.Close()
 				return totalCount, fmt.Errorf("BackfillUserHashes hash user %d: %w", id, err)

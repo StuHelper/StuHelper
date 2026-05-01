@@ -68,7 +68,7 @@ type Service struct {
 type ReviewAccessReader interface {
 	ListReviewAccessSchoolConfigs(ctx context.Context) ([]reviewaccess.SchoolConfig, error)
 	ListReviewAccessSystemConfigs(ctx context.Context) ([]reviewaccess.SystemConfig, error)
-	GetReviewAccessSubject(ctx context.Context, externalID string) (*reviewaccess.Subject, error)
+	GetReviewAccessSubject(ctx context.Context, casdoorSubject string) (*reviewaccess.Subject, error)
 }
 
 // NewService 创建评课服务

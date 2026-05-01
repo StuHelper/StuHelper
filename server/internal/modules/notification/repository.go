@@ -124,10 +124,10 @@ func (r *Repository) CountUnread(ctx context.Context, userID int64) (int, error)
 	return count, nil
 }
 
-// ResolveInternalUserID 根据 external_id 查询内部 user_id。
-func (r *Repository) ResolveInternalUserID(ctx context.Context, externalID string) (int64, error) {
+// ResolveInternalUserID 根据 casdoor_subject 查询内部 user_id。
+func (r *Repository) ResolveInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
 	var userID int64
-	err := r.db.QueryRow(ctx, `SELECT id FROM users WHERE external_id = $1`, externalID).Scan(&userID)
+	err := r.db.QueryRow(ctx, `SELECT id FROM users WHERE casdoor_subject = $1`, casdoorSubject).Scan(&userID)
 	if err != nil {
 		return 0, fmt.Errorf("notification resolve internal user id: %w", err)
 	}

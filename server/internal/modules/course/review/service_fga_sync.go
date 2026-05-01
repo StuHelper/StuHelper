@@ -51,8 +51,8 @@ func reportRelationsSyncKey(reportID string) string {
 	return "report-relations:" + reportID
 }
 
-func (s *Service) resolveFGAUserIDTx(ctx context.Context, tx pgx.Tx, externalID string) (string, error) {
-	userID, err := s.repo.GetInternalUserIDByExternalIDTx(ctx, tx, externalID)
+func (s *Service) resolveFGAUserIDTx(ctx context.Context, tx pgx.Tx, casdoorSubject string) (string, error) {
+	userID, err := s.repo.GetInternalUserIDByCasdoorSubjectTx(ctx, tx, casdoorSubject)
 	if err != nil {
 		return "", err
 	}

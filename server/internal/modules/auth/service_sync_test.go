@@ -25,22 +25,22 @@ func (r *recordingUserSyncRepo) UpsertByPhone(_ context.Context, phone string) (
 	if r.user != nil {
 		return r.user, nil
 	}
-	return &PhoneUser{ExternalID: "phone-user-1", Username: "Phone User"}, nil
+	return &PhoneUser{CasdoorSubject: "phone-user-1", Username: "Phone User"}, nil
 }
 
-func (r *recordingUserSyncRepo) ExistsByExternalID(_ context.Context, externalID string) (bool, error) {
-	r.existsExternal = externalID
-	return externalID == "exists", nil
+func (r *recordingUserSyncRepo) ExistsByCasdoorSubject(_ context.Context, casdoorSubject string) (bool, error) {
+	r.existsExternal = casdoorSubject
+	return casdoorSubject == "exists", nil
 }
 
 func TestAuthService_UserSyncDelegation(t *testing.T) {
-	repo := &recordingUserSyncRepo{user: &PhoneUser{ExternalID: "phone-1", Username: "Phone Tester"}}
+	repo := &recordingUserSyncRepo{user: &PhoneUser{CasdoorSubject: "phone-1", Username: "Phone Tester"}}
 	svc, _ := newAuthServiceForTest(t)
 	svc.userSyncRepo = repo
 
 	ctx := context.Background()
 	avatar := "https://cdn.example.com/a.png"
-	input := UserSyncInput{ExternalID: "oidc-1", Username: "tester", Email: "tester@example.com", AvatarURL: &avatar}
+	input := UserSyncInput{CasdoorSubject: "oidc-1", Username: "tester", Email: "tester@example.com", AvatarURL: &avatar}
 	require.NoError(t, svc.SyncOIDCUser(ctx, input))
 	assert.Equal(t, input, repo.upsertInput)
 
@@ -48,9 +48,9 @@ func TestAuthService_UserSyncDelegation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "13800138000", repo.upsertPhone)
 	require.NotNil(t, user)
-	assert.Equal(t, "phone-1", user.ExternalID)
+	assert.Equal(t, "phone-1", user.CasdoorSubject)
 
-	exists, err := svc.UserExistsByExternalID(ctx, "exists")
+	exists, err := svc.UserExistsByCasdoorSubject(ctx, "exists")
 	require.NoError(t, err)
 	assert.True(t, exists)
 	assert.Equal(t, "exists", repo.existsExternal)

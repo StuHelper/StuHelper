@@ -77,7 +77,7 @@ func TestReviewService_IntegrationErrorBranches(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrReplyNotFound)
 
-	seedUser(t, fixture, seedUserParams{ExternalID: "ext-report", UserHash: "u-report"})
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-report", UserHash: "u-report"})
 	firstReportID, err := svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewID,
 		UserHash:               "u-report",

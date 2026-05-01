@@ -83,8 +83,8 @@ func TestResolveRequiredInternalUserID(t *testing.T) {
 		c, w := newContext()
 		c.Set(CtxKeyUserID, "external-1")
 
-		userID, ok := ResolveRequiredInternalUserID(c, func(_ context.Context, externalID string) (int64, error) {
-			assert.Equal(t, "external-1", externalID)
+		userID, ok := ResolveRequiredInternalUserID(c, func(_ context.Context, casdoorSubject string) (int64, error) {
+			assert.Equal(t, "external-1", casdoorSubject)
 			return 42, nil
 		}, "failed to resolve user")
 

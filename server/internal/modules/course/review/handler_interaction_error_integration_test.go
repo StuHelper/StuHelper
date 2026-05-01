@@ -37,7 +37,7 @@ func TestReviewHandler_InteractionErrorPaths(t *testing.T) {
 	selfUserID := "handler-error-user"
 	selfHash, err := httputil.HashUserID(selfUserID)
 	require.NoError(t, err)
-	seedUser(t, fixture, seedUserParams{ExternalID: selfUserID, UserHash: selfHash})
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: selfUserID, UserHash: selfHash})
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, selfHash, 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "已存在评论", "已存在评论内容")
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)
 	require.NoError(t, err)

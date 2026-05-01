@@ -68,13 +68,13 @@ func TestReviewService_StateTransitionsAndNotifications(t *testing.T) {
 
 	var ownerUserID int64
 	err := fixture.Pool.QueryRow(ctx, `
-		INSERT INTO users (external_id, username, email, user_hash)
+		INSERT INTO users (casdoor_subject, username, email, user_hash)
 		VALUES ('ext-owner-state', 'owner-state', 'owner-state@example.com', 'u-owner-state')
 		RETURNING id
 	`).Scan(&ownerUserID)
 	require.NoError(t, err)
 	_, err = fixture.Pool.Exec(ctx, `
-		INSERT INTO users (external_id, username, email, user_hash)
+		INSERT INTO users (casdoor_subject, username, email, user_hash)
 		VALUES ('ext-owner-flagged', 'owner-flagged', 'owner-flagged@example.com', 'u-owner-flagged')
 	`)
 	require.NoError(t, err)
@@ -217,7 +217,7 @@ drainLoop:
 	assert.Equal(t, 1, reviewCount)
 
 	// ListReports 对未知状态回退到 StatusAll。
-	seedUser(t, fixture, seedUserParams{ExternalID: "ext-report-state", UserHash: "u-report-state"})
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-report-state", UserHash: "u-report-state"})
 	_, err = svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewID,
 		UserHash:               "u-report-state",

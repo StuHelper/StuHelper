@@ -234,7 +234,7 @@ func sanitizeSSEEventName(event string) string {
 	return sanitized
 }
 
-// mustResolveUserID 从 context 解析 external_id，并换算为内部 user_id。
+// mustResolveUserID 从 context 解析 casdoor_subject，并换算为内部 user_id。
 func (h *Handler) mustResolveUserID(c *gin.Context) (int64, bool) {
 	return middleware.ResolveRequiredInternalUserID(c, h.service.ResolveInternalUserID, "failed to resolve user identity")
 }

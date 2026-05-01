@@ -218,7 +218,7 @@ func (s *Service) SignPhoneTokenPair(user *PhoneUser, roles []string, sessionID 
 	refreshTTL := time.Duration(s.tokenConfig.RefreshTokenTTL) * time.Second
 
 	accessClaims := token.JWTClaims{
-		Sub:         user.ExternalID,
+		Sub:         user.CasdoorSubject,
 		Name:        user.Username,
 		Email:       user.Email,
 		DisplayName: user.Username,
@@ -236,7 +236,7 @@ func (s *Service) SignPhoneTokenPair(user *PhoneUser, roles []string, sessionID 
 	}
 
 	refreshClaims := token.JWTClaims{
-		Sub:         user.ExternalID,
+		Sub:         user.CasdoorSubject,
 		Name:        user.Username,
 		Email:       user.Email,
 		DisplayName: user.Username,
@@ -266,9 +266,9 @@ func (s *Service) SyncPhoneUser(ctx context.Context, phone string) (*PhoneUser, 
 	return s.userSyncRepo.UpsertByPhone(ctx, phone)
 }
 
-// UserExistsByExternalID 检查用户是否存在（用于 refresh token 校验）。
-func (s *Service) UserExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
-	return s.userSyncRepo.ExistsByExternalID(ctx, externalID)
+// UserExistsByCasdoorSubject 检查用户是否存在（用于 refresh token 校验）。
+func (s *Service) UserExistsByCasdoorSubject(ctx context.Context, casdoorSubject string) (bool, error) {
+	return s.userSyncRepo.ExistsByCasdoorSubject(ctx, casdoorSubject)
 }
 
 // hashTokenForSession 生成 token 的 HMAC hash（用于 session 内存储）

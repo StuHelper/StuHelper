@@ -22,7 +22,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	teacherID := seedTeacher(t, fixture, 10006, "黄老师", departmentID)
 	courseID := seedCourse(t, fixture, 10006, departmentID, "有机化学")
 
-	seedUser(t, fixture, seedUserParams{ExternalID: "ext-u-pending-post", UserHash: "u-pending-post"})
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-pending-post", UserHash: "u-pending-post"})
 	posted, err := svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
 		TeacherID:            &teacherID,

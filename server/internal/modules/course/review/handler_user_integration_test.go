@@ -52,7 +52,7 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 	selfUserID := "user-self-1"
 	selfHash, err := httputil.HashUserID(selfUserID)
 	require.NoError(t, err)
-	seedUser(t, fixture, seedUserParams{ExternalID: selfUserID, UserHash: selfHash})
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: selfUserID, UserHash: selfHash})
 	reviewID := "550e8400-e29b-41d4-a716-446655440301"
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, selfHash, 4.4, StatusPublished, ReviewRatings{"teaching": 5}, "我的评论", "我自己的评论内容")
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)

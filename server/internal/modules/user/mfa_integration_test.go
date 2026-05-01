@@ -66,7 +66,7 @@ func seedMFAUser(t *testing.T, fixture *postgresfixture.Fixture) int64 {
 	t.Helper()
 	var userID int64
 	err := fixture.Pool.QueryRow(context.Background(), `
-		INSERT INTO users (external_id, username, email)
+		INSERT INTO users (casdoor_subject, username, email)
 		VALUES ('mfa-user', 'mfa-user', 'mfa-user@example.test')
 		RETURNING id
 	`).Scan(&userID)

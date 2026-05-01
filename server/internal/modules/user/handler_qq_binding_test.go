@@ -49,8 +49,8 @@ func setupQQBindingBotRouter(t *testing.T, repo Repo, serviceToken string) *gin.
 
 func TestHandleCreateQQBindingCode_ReturnsCreatedCode(t *testing.T) {
 	repo := newQQBindingMockRepo()
-	repo.onGetInternalUserID = func(_ context.Context, externalID string) (int64, error) {
-		assert.Equal(t, "external-user-123", externalID)
+	repo.onGetInternalUserID = func(_ context.Context, casdoorSubject string) (int64, error) {
+		assert.Equal(t, "external-user-123", casdoorSubject)
 		return 42, nil
 	}
 	repo.onUpsertQQBindingCode = func(_ context.Context, code *QQBindingCode) error {

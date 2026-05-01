@@ -18,10 +18,10 @@ type fakeUserSyncRepo struct{}
 
 func (f *fakeUserSyncRepo) UpsertUser(ctx context.Context, input UserSyncInput) error { return nil }
 func (f *fakeUserSyncRepo) UpsertByPhone(ctx context.Context, phone string) (*PhoneUser, error) {
-	return &PhoneUser{ExternalID: "phone-user", Username: "phone-user"}, nil
+	return &PhoneUser{CasdoorSubject: "phone-user", Username: "phone-user"}, nil
 }
-func (f *fakeUserSyncRepo) ExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
-	return externalID != "", nil
+func (f *fakeUserSyncRepo) ExistsByCasdoorSubject(ctx context.Context, casdoorSubject string) (bool, error) {
+	return casdoorSubject != "", nil
 }
 
 func newAuthServiceForTest(t *testing.T) (*Service, *token.Service) {
@@ -142,10 +142,10 @@ func TestSignPhoneTokenPairAndHelpers(t *testing.T) {
 	avatar := "https://cdn.example.com/avatar.png"
 
 	accessToken, refreshToken, err := svc.SignPhoneTokenPair(&PhoneUser{
-		ExternalID: "phone-user-1",
-		Username:   "phone-user",
-		Email:      "phone@example.com",
-		AvatarURL:  &avatar,
+		CasdoorSubject: "phone-user-1",
+		Username:       "phone-user",
+		Email:          "phone@example.com",
+		AvatarURL:      &avatar,
 	}, []string{"user"}, "sid-phone")
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
