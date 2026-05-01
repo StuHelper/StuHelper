@@ -113,6 +113,33 @@ fi
 if placeholder_or_empty "${CASDOOR_UNIAPP_CLIENT_SECRET:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_SECRET" "dev-casdoor-uniapp-$(random_hex 16)"
 fi
+if placeholder_or_empty "${CASDOOR_APP_PROVISIONING_CLIENT_ID:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_APP_PROVISIONING_CLIENT_ID" "casdoor-admin-app-provisioning"
+fi
+if placeholder_or_empty "${CASDOOR_APP_PROVISIONING_CLIENT_SECRET:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_APP_PROVISIONING_CLIENT_SECRET" "dev-casdoor-app-provisioning-$(random_hex 16)"
+fi
+if placeholder_or_empty "${CASDOOR_APP_PROVISIONING_APPLICATION:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_APP_PROVISIONING_APPLICATION" "casdoor-admin-app-provisioning"
+fi
+if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
+fi
+if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "dev-casdoor-role-sync-$(random_hex 16)"
+fi
+if placeholder_or_empty "${CASDOOR_ROLE_SYNC_APPLICATION:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
+fi
+if placeholder_or_empty "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
+fi
+if placeholder_or_empty "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_SECRET" "dev-casdoor-user-lookup-$(random_hex 16)"
+fi
+if placeholder_or_empty "${CASDOOR_USER_LOOKUP_APPLICATION:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
+fi
 
 ensure_value "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev"
 ensure_value "APP_ENV" "${APP_ENV:-}" "development"

@@ -16,10 +16,12 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, casdoor.PurposeBootstrap, settings.credential.Purpose)
 	assert.Equal(t, "https://sso.example.com", settings.credential.Endpoint)
 	assert.Equal(t, "stuhelper", settings.plan.Organization.Name)
-	require.Len(t, settings.plan.Applications, 3)
+	require.Len(t, settings.plan.Applications, 6)
 	assert.Equal(t, "stuhelper-web", settings.plan.Applications[0].Name)
 	assert.Equal(t, "stuhelper-admin", settings.plan.Applications[1].Name)
 	assert.Equal(t, "stuhelper-uniapp", settings.plan.Applications[2].Name)
+	assert.Equal(t, "casdoor-admin-app-provisioning", settings.plan.Applications[3].Name)
+	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[3].GrantTypes)
 	require.Len(t, settings.plan.Roles, 7)
 	assert.Equal(t, "super_admin", settings.plan.Roles[0].Name)
 	require.Len(t, settings.plan.Providers, 1)
@@ -59,27 +61,36 @@ func TestLoadSettingsRejectsInvalidProviderFlag(t *testing.T) {
 
 func completeEnv() map[string]string {
 	return map[string]string{
-		"CASDOOR_ISSUER":                    "https://sso.example.com",
-		"CASDOOR_BOOTSTRAP_CLIENT_ID":       "bootstrap-client",
-		"CASDOOR_BOOTSTRAP_CLIENT_SECRET":   "bootstrap-secret",
-		"CASDOOR_BOOTSTRAP_APPLICATION":     "casdoor-admin-bootstrap",
-		"CASDOOR_ORGANIZATION":              "stuhelper",
-		"CASDOOR_CLIENT_ID":                 "stuhelper-web",
-		"CASDOOR_CLIENT_SECRET":             "web-secret",
-		"CASDOOR_REDIRECT_URI":              "https://api.example.com/api/v1/auth/callback",
-		"CASDOOR_ADMIN_CLIENT_ID":           "stuhelper-admin",
-		"CASDOOR_ADMIN_CLIENT_SECRET":       "admin-secret",
-		"CASDOOR_ADMIN_REDIRECT_URI":        "https://api.example.com/api/v1/auth/callback",
-		"CASDOOR_UNIAPP_CLIENT_ID":          "stuhelper-uniapp",
-		"CASDOOR_UNIAPP_CLIENT_SECRET":      "uniapp-secret",
-		"CASDOOR_UNIAPP_REDIRECT_URI":       "https://api.example.com/api/v1/auth/callback",
-		"CASDOOR_SMS_PROVIDER_ENABLED":      "true",
-		"CASDOOR_SMS_PROVIDER_NAME":         "stuhelper-sms",
-		"CASDOOR_SMS_PROVIDER_DISPLAY_NAME": "StuHelper SMS",
-		"CASDOOR_SMS_PROVIDER_CATEGORY":     "SMS",
-		"CASDOOR_SMS_PROVIDER_TYPE":         "CustomHTTP",
-		"CASDOOR_SMS_PROVIDER_METHOD":       "POST",
-		"CASDOOR_SMS_PROVIDER_ENDPOINT":     "https://api.example.com/internal/sms/send",
+		"CASDOOR_ISSUER":                         "https://sso.example.com",
+		"CASDOOR_BOOTSTRAP_CLIENT_ID":            "bootstrap-client",
+		"CASDOOR_BOOTSTRAP_CLIENT_SECRET":        "bootstrap-secret",
+		"CASDOOR_BOOTSTRAP_APPLICATION":          "casdoor-admin-bootstrap",
+		"CASDOOR_ORGANIZATION":                   "stuhelper",
+		"CASDOOR_CLIENT_ID":                      "stuhelper-web",
+		"CASDOOR_CLIENT_SECRET":                  "web-secret",
+		"CASDOOR_REDIRECT_URI":                   "https://api.example.com/api/v1/auth/callback",
+		"CASDOOR_ADMIN_CLIENT_ID":                "stuhelper-admin",
+		"CASDOOR_ADMIN_CLIENT_SECRET":            "admin-secret",
+		"CASDOOR_ADMIN_REDIRECT_URI":             "https://api.example.com/api/v1/auth/callback",
+		"CASDOOR_UNIAPP_CLIENT_ID":               "stuhelper-uniapp",
+		"CASDOOR_UNIAPP_CLIENT_SECRET":           "uniapp-secret",
+		"CASDOOR_UNIAPP_REDIRECT_URI":            "https://api.example.com/api/v1/auth/callback",
+		"CASDOOR_APP_PROVISIONING_CLIENT_ID":     "casdoor-admin-app-provisioning",
+		"CASDOOR_APP_PROVISIONING_CLIENT_SECRET": "app-provisioning-secret",
+		"CASDOOR_APP_PROVISIONING_APPLICATION":   "casdoor-admin-app-provisioning",
+		"CASDOOR_ROLE_SYNC_CLIENT_ID":            "casdoor-admin-role-sync",
+		"CASDOOR_ROLE_SYNC_CLIENT_SECRET":        "role-sync-secret",
+		"CASDOOR_ROLE_SYNC_APPLICATION":          "casdoor-admin-role-sync",
+		"CASDOOR_USER_LOOKUP_CLIENT_ID":          "casdoor-admin-user-lookup",
+		"CASDOOR_USER_LOOKUP_CLIENT_SECRET":      "user-lookup-secret",
+		"CASDOOR_USER_LOOKUP_APPLICATION":        "casdoor-admin-user-lookup",
+		"CASDOOR_SMS_PROVIDER_ENABLED":           "true",
+		"CASDOOR_SMS_PROVIDER_NAME":              "stuhelper-sms",
+		"CASDOOR_SMS_PROVIDER_DISPLAY_NAME":      "StuHelper SMS",
+		"CASDOOR_SMS_PROVIDER_CATEGORY":          "SMS",
+		"CASDOOR_SMS_PROVIDER_TYPE":              "CustomHTTP",
+		"CASDOOR_SMS_PROVIDER_METHOD":            "POST",
+		"CASDOOR_SMS_PROVIDER_ENDPOINT":          "https://api.example.com/internal/sms/send",
 	}
 }
 

@@ -105,12 +105,12 @@ assert_env_value "${fresh_env}" "CASDOOR_UNIAPP_CLIENT_ID" "stuhelper-uniapp"
 assert_env_value "${fresh_env}" "CASDOOR_UNIAPP_REDIRECT_URI" "REPLACE_WITH_CASDOOR_UNIAPP_REDIRECT_URI"
 assert_env_value "${fresh_env}" "CASDOOR_SMS_PROVIDER_ENABLED" "true"
 assert_env_value "${fresh_env}" "CASDOOR_SMS_PROVIDER_ENDPOINT" "http://app:8080/internal/sms/send"
-assert_env_value "${fresh_env}" "CASDOOR_APP_PROVISIONING_CLIENT_ID" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
-assert_env_value "${fresh_env}" "CASDOOR_APP_PROVISIONING_APPLICATION" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
-assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_ID"
-assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_APPLICATION" "REPLACE_WITH_CASDOOR_ROLE_SYNC_APPLICATION"
-assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_ID"
-assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "REPLACE_WITH_CASDOOR_USER_LOOKUP_APPLICATION"
+assert_env_value "${fresh_env}" "CASDOOR_APP_PROVISIONING_CLIENT_ID" "casdoor-admin-app-provisioning"
+assert_env_value "${fresh_env}" "CASDOOR_APP_PROVISIONING_APPLICATION" "casdoor-admin-app-provisioning"
+assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
+assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
+assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
+assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
 assert_env_value "${fresh_env}" "WEB_PUBLIC_URL" "REPLACE_WITH_WEB_PUBLIC_URL"
 assert_env_value "${fresh_env}" "ADMIN_PUBLIC_URL" "REPLACE_WITH_ADMIN_PUBLIC_URL"
 assert_env_value "${fresh_env}" "WEB_VITE_API_URL" "/api"
@@ -134,6 +134,9 @@ assert_env_value "${fresh_bootstrap_env}" "CASDOOR_BOOTSTRAP_APPLICATION" "REPLA
 assert_file_contains "${fresh_secrets}" '^CASDOOR_CLIENT_SECRET=prod-casdoor-web-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_ADMIN_CLIENT_SECRET=prod-casdoor-admin-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_UNIAPP_CLIENT_SECRET=prod-casdoor-uniapp-[0-9a-f]+$'
+assert_file_contains "${fresh_secrets}" '^CASDOOR_APP_PROVISIONING_CLIENT_SECRET=prod-casdoor-app-provisioning-[0-9a-f]+$'
+assert_file_contains "${fresh_secrets}" '^CASDOOR_ROLE_SYNC_CLIENT_SECRET=prod-casdoor-role-sync-[0-9a-f]+$'
+assert_file_contains "${fresh_secrets}" '^CASDOOR_USER_LOOKUP_CLIENT_SECRET=prod-casdoor-user-lookup-[0-9a-f]+$'
 assert_file_not_contains "${fresh_env}" '^DATABASE_URL=.*@localhost:5432/.*sslmode=disable$'
 assert_file_not_contains "${fresh_env}" '^CASDOOR_INTERNAL_ADDRESS=host\.docker\.internal:8085$'
 assert_file_not_contains "${fresh_env}" '^ALERTMANAGER_WEBHOOK_URL=http://alert-webhook-sink:8080/alerts$'
@@ -175,8 +178,12 @@ assert_env_value "${legacy_env}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
 assert_env_value "${legacy_env}" "CASDOOR_ADMIN_REDIRECT_URI" "REPLACE_WITH_CASDOOR_ADMIN_REDIRECT_URI"
 assert_env_value "${legacy_env}" "CASDOOR_UNIAPP_CLIENT_ID" "stuhelper-uniapp"
 assert_env_value "${legacy_env}" "CASDOOR_UNIAPP_REDIRECT_URI" "REPLACE_WITH_CASDOOR_UNIAPP_REDIRECT_URI"
-assert_env_value "${legacy_env}" "CASDOOR_APP_PROVISIONING_CLIENT_ID" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
-assert_env_value "${legacy_env}" "CASDOOR_APP_PROVISIONING_APPLICATION" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
+assert_env_value "${legacy_env}" "CASDOOR_APP_PROVISIONING_CLIENT_ID" "casdoor-admin-app-provisioning"
+assert_env_value "${legacy_env}" "CASDOOR_APP_PROVISIONING_APPLICATION" "casdoor-admin-app-provisioning"
+assert_env_value "${legacy_env}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
+assert_env_value "${legacy_env}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
+assert_env_value "${legacy_env}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
+assert_env_value "${legacy_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
 assert_env_value "${legacy_env}" "WEB_PUBLIC_URL" "REPLACE_WITH_WEB_PUBLIC_URL"
 assert_env_value "${legacy_env}" "ADMIN_PUBLIC_URL" "REPLACE_WITH_ADMIN_PUBLIC_URL"
 assert_env_value "${legacy_env}" "WEB_VITE_API_URL" "/api"

@@ -98,7 +98,29 @@ func buildApplications(getenv envReader) ([]casdoor.ApplicationSpec, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []casdoor.ApplicationSpec{web, admin, uniapp}, nil
+	adminServices, err := buildAdminServiceApplications(getenv)
+	if err != nil {
+		return nil, err
+	}
+	apps := []casdoor.ApplicationSpec{web, admin, uniapp}
+	return append(apps, adminServices...), nil
+}
+
+func buildAdminServiceApplications(getenv envReader) ([]casdoor.ApplicationSpec, error) {
+	defs := []serviceAppEnv{
+		{prefix: "CASDOOR_APP_PROVISIONING", displayName: "StuHelper App Provisioning"},
+		{prefix: "CASDOOR_ROLE_SYNC", displayName: "StuHelper Role Sync"},
+		{prefix: "CASDOOR_USER_LOOKUP", displayName: "StuHelper User Lookup"},
+	}
+	apps := make([]casdoor.ApplicationSpec, 0, len(defs))
+	for _, def := range defs {
+		app, err := serviceAppSpec(getenv, def)
+		if err != nil {
+			return nil, err
+		}
+		apps = append(apps, app)
+	}
+	return apps, nil
 }
 
 func buildProviders(getenv envReader) ([]casdoor.ProviderSpec, error) {
@@ -138,6 +160,11 @@ type appEnv struct {
 	clientIDKey string
 	secretKey   string
 	redirectKey string
+}
+
+type serviceAppEnv struct {
+	prefix      string
+	displayName string
 }
 
 func webAppEnv() appEnv {
@@ -184,6 +211,32 @@ func appSpec(getenv envReader, env appEnv) (casdoor.ApplicationSpec, error) {
 		TokenFields:          []string{},
 		ExpireInHours:        defaultAccessTokenHours,
 		RefreshExpireInHours: defaultRefreshTokenHours,
+	}, nil
+}
+
+func serviceAppSpec(getenv envReader, env serviceAppEnv) (casdoor.ApplicationSpec, error) {
+	name, err := requiredValue(getenv, env.prefix+"_APPLICATION")
+	if err != nil {
+		return casdoor.ApplicationSpec{}, err
+	}
+	clientID, err := requiredValue(getenv, env.prefix+"_CLIENT_ID")
+	if err != nil {
+		return casdoor.ApplicationSpec{}, err
+	}
+	secret, err := requiredValue(getenv, env.prefix+"_CLIENT_SECRET")
+	if err != nil {
+		return casdoor.ApplicationSpec{}, err
+	}
+	return casdoor.ApplicationSpec{
+		Name:                 name,
+		DisplayName:          env.displayName,
+		ClientID:             clientID,
+		ClientSecret:         secret,
+		GrantTypes:           []string{"client_credentials"},
+		TokenFormat:          defaultTokenFormat,
+		TokenFields:          []string{},
+		ExpireInHours:        defaultAccessTokenHours,
+		RefreshExpireInHours: 0,
 	}, nil
 }
 

@@ -78,6 +78,22 @@ func TestApplicationValidationRequiresExplicitTokenFields(t *testing.T) {
 	assert.Contains(t, err.Error(), "token fields must be explicit")
 }
 
+func TestApplicationValidationAllowsClientCredentialsWithoutRedirect(t *testing.T) {
+	api := &fakeApplicationAPI{addOK: true}
+	client := newTestClient(t, api)
+	spec := validApplicationSpec()
+	spec.Name = "casdoor-admin-role-sync"
+	spec.GrantTypes = []string{"client_credentials"}
+	spec.RedirectURIs = nil
+
+	err := client.CreateApplication(context.Background(), spec)
+
+	require.NoError(t, err)
+	require.NotNil(t, api.added)
+	assert.Empty(t, api.added.RedirectUris)
+	assert.Equal(t, []string{"client_credentials"}, api.added.GrantTypes)
+}
+
 func TestApplicationOperationRejected(t *testing.T) {
 	client := newTestClient(t, &fakeApplicationAPI{addOK: false})
 

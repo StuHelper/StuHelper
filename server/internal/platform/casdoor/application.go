@@ -84,11 +84,11 @@ func normalizeApplicationSpec(spec ApplicationSpec) (ApplicationSpec, error) {
 	if err := validateApplicationRequiredFields(spec); err != nil {
 		return ApplicationSpec{}, err
 	}
-	redirects, err := normalizeRedirectURIs(spec.RedirectURIs)
+	grants, err := normalizeNonEmptyList("grant type", spec.GrantTypes)
 	if err != nil {
 		return ApplicationSpec{}, err
 	}
-	grants, err := normalizeNonEmptyList("grant type", spec.GrantTypes)
+	redirects, err := normalizeRedirectURIsForGrants(spec.RedirectURIs, grants)
 	if err != nil {
 		return ApplicationSpec{}, err
 	}
@@ -132,6 +132,26 @@ func normalizeRedirectURIs(values []string) ([]string, error) {
 		}
 	}
 	return redirects, nil
+}
+
+func normalizeRedirectURIsForGrants(values []string, grantTypes []string) ([]string, error) {
+	if applicationGrantRequiresRedirect(grantTypes) {
+		return normalizeRedirectURIs(values)
+	}
+	redirects, err := normalizeList("redirect URI", values)
+	if err != nil {
+		return nil, err
+	}
+	for _, redirect := range redirects {
+		if err := validateRedirectURI(redirect); err != nil {
+			return nil, err
+		}
+	}
+	return redirects, nil
+}
+
+func applicationGrantRequiresRedirect(grantTypes []string) bool {
+	return containsString(grantTypes, "authorization_code") || containsString(grantTypes, "implicit")
 }
 
 func validateRedirectURI(redirect string) error {

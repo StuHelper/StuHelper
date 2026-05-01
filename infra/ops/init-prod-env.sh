@@ -151,6 +151,15 @@ fi
 if placeholder_or_empty "${CASDOOR_UNIAPP_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_SECRET" "prod-casdoor-uniapp-$(random_hex 24)"
 fi
+if placeholder_or_empty "${CASDOOR_APP_PROVISIONING_CLIENT_SECRET:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_APP_PROVISIONING_CLIENT_SECRET" "prod-casdoor-app-provisioning-$(random_hex 24)"
+fi
+if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "prod-casdoor-role-sync-$(random_hex 24)"
+fi
+if placeholder_or_empty "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_SECRET" "prod-casdoor-user-lookup-$(random_hex 24)"
+fi
 load_env
 
 ensure_prod_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-prod" "stuhelper-dev" "stuhelper"
@@ -202,8 +211,12 @@ ensure_value "CASDOOR_SMS_PROVIDER_TYPE" "${CASDOOR_SMS_PROVIDER_TYPE:-}" "Custo
 ensure_value "CASDOOR_SMS_PROVIDER_METHOD" "${CASDOOR_SMS_PROVIDER_METHOD:-}" "POST"
 ensure_prod_default "CASDOOR_SMS_PROVIDER_ENDPOINT" "${CASDOOR_SMS_PROVIDER_ENDPOINT:-}" "http://app:8080/internal/sms/send" "http://host.docker.internal:8080/internal/sms/send"
 ensure_value "CASDOOR_EMAIL_PROVIDER_ENABLED" "${CASDOOR_EMAIL_PROVIDER_ENABLED:-}" "false"
-ensure_prod_default "CASDOOR_APP_PROVISIONING_CLIENT_ID" "${CASDOOR_APP_PROVISIONING_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
-ensure_prod_default "CASDOOR_APP_PROVISIONING_APPLICATION" "${CASDOOR_APP_PROVISIONING_APPLICATION:-}" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
+ensure_prod_default "CASDOOR_APP_PROVISIONING_CLIENT_ID" "${CASDOOR_APP_PROVISIONING_CLIENT_ID:-}" "casdoor-admin-app-provisioning" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
+ensure_prod_default "CASDOOR_APP_PROVISIONING_APPLICATION" "${CASDOOR_APP_PROVISIONING_APPLICATION:-}" "casdoor-admin-app-provisioning" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
+ensure_prod_default "CASDOOR_ROLE_SYNC_CLIENT_ID" "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_ID"
+ensure_prod_default "CASDOOR_ROLE_SYNC_APPLICATION" "${CASDOOR_ROLE_SYNC_APPLICATION:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_APPLICATION"
+ensure_prod_default "CASDOOR_USER_LOOKUP_CLIENT_ID" "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_ID"
+ensure_prod_default "CASDOOR_USER_LOOKUP_APPLICATION" "${CASDOOR_USER_LOOKUP_APPLICATION:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_APPLICATION"
 casdoor_bootstrap_env_file="$(resolve_env_path "${CASDOOR_BOOTSTRAP_ENV_FILE:-.env.casdoor-bootstrap.local}")"
 mkdir -p "$(dirname "${casdoor_bootstrap_env_file}")"
 touch "${casdoor_bootstrap_env_file}"
