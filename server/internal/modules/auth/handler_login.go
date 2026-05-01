@@ -50,7 +50,7 @@ func (h *Handler) GetLoginURL(c *gin.Context) {
 }
 
 // GetSignupURL 生成 OIDC 注册 URL。
-// 当前 Zitadel Login UI 内置注册入口，因此这里与登录 URL 复用同一授权地址。
+// 当前 Casdoor Login UI 内置注册入口，因此这里与登录 URL 复用同一授权地址。
 func (h *Handler) GetSignupURL(c *gin.Context) {
 	h.respondWithAuthURL(c)
 }
@@ -82,7 +82,7 @@ func (h *Handler) respondWithAuthURL(c *gin.Context) {
 }
 
 // HandleCallback 处理 OIDC 授权回调
-// Zitadel 登录后浏览器 302 到这里，Go 处理完后重定向回前端
+// OIDC 登录后浏览器 302 到这里，Go 处理完后重定向回前端
 func (h *Handler) HandleCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")

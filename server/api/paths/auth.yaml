@@ -21,7 +21,7 @@
           enum: [web, native]
     responses:
       '200':
-        description: 返回 Zitadel OIDC 授权 URL 和 state
+        description: 返回 Casdoor OIDC 授权 URL 和 state
         content:
           application/json:
             schema:
@@ -67,7 +67,7 @@
           enum: [web, native]
     responses:
       '200':
-        description: 返回 Zitadel OIDC 授权 URL 和 state
+        description: 返回 Casdoor OIDC 授权 URL 和 state
         content:
           application/json:
             schema:

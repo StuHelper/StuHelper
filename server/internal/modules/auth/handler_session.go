@@ -149,8 +149,8 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Zitadel OIDC refresh token
-	success = h.refreshZitadelToken(c, refreshTokenStr)
+	// OIDC provider refresh token
+	success = h.refreshOIDCToken(c, refreshTokenStr)
 }
 
 func (h *Handler) consumeRefreshToken(c *gin.Context, refreshToken string) (func(), bool) {
@@ -267,9 +267,9 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 	return true
 }
 
-// refreshZitadelToken 处理 Zitadel OIDC 的 refresh 逻辑
-func (h *Handler) refreshZitadelToken(c *gin.Context, refreshTokenStr string) bool {
-	// 调 Zitadel token endpoint 刷新
+// refreshOIDCToken 处理 OIDC provider 的 refresh 逻辑
+func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool {
+	// 调 OIDC token endpoint 刷新
 	newToken, err := h.oidcClient.RefreshToken(c.Request.Context(), refreshTokenStr)
 	if err != nil {
 		logger.FromGin(c).Error("OIDC token refresh failed", zap.Error(err))

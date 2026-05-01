@@ -181,7 +181,7 @@ func TestHandleWebCallback_Success(t *testing.T) {
 	assert.True(t, hasSession)
 }
 
-func TestRefreshZitadelToken_Success(t *testing.T) {
+func TestRefreshOIDCToken_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
 	ctx := context.Background()
@@ -195,7 +195,7 @@ func TestRefreshZitadelToken_Success(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-refresh"})
 	c.Request = req
 
-	ok := h.refreshZitadelToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token")
 	require.True(t, ok)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "token refreshed successfully")
@@ -356,7 +356,7 @@ func TestHandleWebCallback_UserSyncFailure(t *testing.T) {
 	assert.Empty(t, w.Header().Get("Location"))
 }
 
-func TestRefreshZitadelToken_MissingIDToken(t *testing.T) {
+func TestRefreshOIDCToken_MissingIDToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	provider := newFakeOIDCProviderWithTokenPayload(t, func(issueIDToken func() string) map[string]any {
 		return map[string]any{
@@ -372,7 +372,7 @@ func TestRefreshZitadelToken_MissingIDToken(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
 
-	ok := h.refreshZitadelToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token")
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
@@ -401,7 +401,7 @@ func TestHandleWebCallback_InvalidIDToken(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "authentication failed")
 }
 
-func TestRefreshZitadelToken_InvalidIDToken(t *testing.T) {
+func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	provider := newFakeOIDCProviderWithTokenPayload(t, func(issueIDToken func() string) map[string]any {
 		return map[string]any{
@@ -418,7 +418,7 @@ func TestRefreshZitadelToken_InvalidIDToken(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
 
-	ok := h.refreshZitadelToken(c, "old-refresh-token")
+	ok := h.refreshOIDCToken(c, "old-refresh-token")
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")

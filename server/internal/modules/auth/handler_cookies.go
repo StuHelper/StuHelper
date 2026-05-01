@@ -15,7 +15,7 @@ const refreshTokenCookiePath = "/api/v1/auth" //nolint:gosec // Cookie path lite
 const nativeSessionIDHeader = "X-Stuhelper-Session-ID"
 
 // sessionCookieName 服务端 session ID cookie
-// OIDC ID Token 由 Zitadel 签发，无法注入自定义 sid claim。
+// OIDC ID Token 由外部 provider 签发，无法注入自定义 sid claim。
 // 因此通过独立的 HttpOnly cookie 传递 session ID，确保 logout/refresh 都能定位到正确的 session。
 const sessionCookieName = "session_id"
 
