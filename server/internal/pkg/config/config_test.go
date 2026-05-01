@@ -220,14 +220,31 @@ func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
 
 func TestValidate_ProductionRequiresCasdoorAdminCredentials(t *testing.T) {
 	c := validProductionConfigForTest()
+	c.Casdoor.AppProvisioningClientID = ""
 	c.Casdoor.RoleSyncClientSecret = ""
 	c.Casdoor.UserLookupApplication = ""
 
 	err := c.validate(nil)
 
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CASDOOR_APP_PROVISIONING_CLIENT_ID is required")
 	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
 	assert.Contains(t, err.Error(), "CASDOOR_USER_LOOKUP_APPLICATION is required")
+}
+
+func TestValidate_DevelopmentRejectsPartialCasdoorAppProvisioningCredential(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.Casdoor.AppProvisioningClientID = "app-provisioning-client"
+	c.Casdoor.AppProvisioningClientSecret = ""
+	c.Casdoor.AppProvisioningApplication = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CASDOOR_APP_PROVISIONING_CLIENT_SECRET is required")
+	assert.Contains(t, err.Error(), "CASDOOR_APP_PROVISIONING_APPLICATION is required")
 }
 
 func TestValidate_DevelopmentRejectsPartialCasdoorRoleSyncCredential(t *testing.T) {
@@ -507,17 +524,20 @@ func validProductionConfigForTest() *Config {
 			Endpoint: "https://s3.example.com", Bucket: "stuhelper", AccessKeyID: "access", SecretAccessKey: "secret", UseSSL: true, PresignTTL: 600,
 		},
 		Casdoor: CasdoorConfig{
-			Issuer:                 "https://sso.example.com",
-			ClientID:               "client-id",
-			ClientSecret:           "client-secret",
-			RedirectURI:            "https://api.example.com/api/v1/auth/callback",
-			Organization:           "stuhelper",
-			RoleSyncClientID:       "role-sync-client",
-			RoleSyncClientSecret:   "role-sync-secret",
-			RoleSyncApplication:    "stuhelper-role-sync",
-			UserLookupClientID:     "user-lookup-client",
-			UserLookupClientSecret: "user-lookup-secret",
-			UserLookupApplication:  "stuhelper-user-lookup",
+			Issuer:                      "https://sso.example.com",
+			ClientID:                    "client-id",
+			ClientSecret:                "client-secret",
+			RedirectURI:                 "https://api.example.com/api/v1/auth/callback",
+			Organization:                "stuhelper",
+			AppProvisioningClientID:     "app-provisioning-client",
+			AppProvisioningClientSecret: "app-provisioning-secret",
+			AppProvisioningApplication:  "stuhelper-app-provisioning",
+			RoleSyncClientID:            "role-sync-client",
+			RoleSyncClientSecret:        "role-sync-secret",
+			RoleSyncApplication:         "stuhelper-role-sync",
+			UserLookupClientID:          "user-lookup-client",
+			UserLookupClientSecret:      "user-lookup-secret",
+			UserLookupApplication:       "stuhelper-user-lookup",
 		},
 		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
 		Observability: ObservabilityConfig{

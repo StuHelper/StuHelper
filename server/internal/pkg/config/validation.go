@@ -227,11 +227,17 @@ func (c *Config) validate(parseErrs []string) error {
 
 func validateCasdoorAdminCredentials(cfg CasdoorConfig, required bool) []string {
 	var errs []string
+	errs = append(errs, validateCasdoorCredentialSet(required || appProvisioningCredentialConfigured(cfg),
+		"APP_PROVISIONING", cfg.AppProvisioningClientID, cfg.AppProvisioningClientSecret, cfg.AppProvisioningApplication)...)
 	errs = append(errs, validateCasdoorCredentialSet(required || roleSyncCredentialConfigured(cfg),
 		"ROLE_SYNC", cfg.RoleSyncClientID, cfg.RoleSyncClientSecret, cfg.RoleSyncApplication)...)
 	errs = append(errs, validateCasdoorCredentialSet(required || userLookupCredentialConfigured(cfg),
 		"USER_LOOKUP", cfg.UserLookupClientID, cfg.UserLookupClientSecret, cfg.UserLookupApplication)...)
 	return errs
+}
+
+func appProvisioningCredentialConfigured(cfg CasdoorConfig) bool {
+	return cfg.AppProvisioningClientID != "" || cfg.AppProvisioningClientSecret != "" || cfg.AppProvisioningApplication != ""
 }
 
 func roleSyncCredentialConfigured(cfg CasdoorConfig) bool {

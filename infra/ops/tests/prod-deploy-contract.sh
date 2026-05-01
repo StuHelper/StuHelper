@@ -21,6 +21,20 @@ line_number() {
 load_env_line="$(line_number 'load_env')"
 render_redis_acl_line="$(line_number 'render-redis-acl.sh')"
 start_infra_line="$(line_number 'compose --profile prod up -d --wait "${infra_services[@]}"')"
+app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
+app_provisioning_reject_line="$(line_number 'reject_placeholder CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
+role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET')"
+user_lookup_require_line="$(line_number 'require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET')"
+
+if (( app_provisioning_reject_line <= app_provisioning_require_line )); then
+  fail "Casdoor app-provisioning placeholder rejection must run after non-empty validation"
+fi
+if (( role_sync_require_line <= app_provisioning_require_line )); then
+  fail "Casdoor role-sync validation should be grouped after app-provisioning validation"
+fi
+if (( user_lookup_require_line <= role_sync_require_line )); then
+  fail "Casdoor user-lookup validation should be grouped after role-sync validation"
+fi
 
 if (( render_redis_acl_line <= load_env_line )); then
   fail "render-redis-acl.sh must run after load_env so the latest REDIS_PASSWORD is available"

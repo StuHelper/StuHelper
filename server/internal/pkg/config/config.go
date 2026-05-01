@@ -102,21 +102,25 @@ type DatabaseConfig struct {
 
 // CasdoorConfig OIDC 认证配置。
 type CasdoorConfig struct {
-	Issuer                 string // OIDC 对外签发者地址，如 https://sso.stuhelper.com
-	InternalAddress        string // 可选：容器内访问 IDP 的拨号地址，如 host.docker.internal:8085
-	ClientID               string
-	ClientSecret           string
-	RedirectURI            string
-	Organization           string // Casdoor organization 名称
-	RolesClaim             string // 角色 claim 名称，默认 roles
-	RoleSyncClientID       string
-	RoleSyncClientSecret   string
-	RoleSyncApplication    string
-	RoleSyncCertificate    string
-	UserLookupClientID     string
-	UserLookupClientSecret string
-	UserLookupApplication  string
-	UserLookupCertificate  string
+	Issuer                      string // OIDC 对外签发者地址，如 https://sso.stuhelper.com
+	InternalAddress             string // 可选：容器内访问 IDP 的拨号地址，如 host.docker.internal:8085
+	ClientID                    string
+	ClientSecret                string
+	RedirectURI                 string
+	Organization                string // Casdoor organization 名称
+	RolesClaim                  string // 角色 claim 名称，默认 roles
+	AppProvisioningClientID     string
+	AppProvisioningClientSecret string
+	AppProvisioningApplication  string
+	AppProvisioningCertificate  string
+	RoleSyncClientID            string
+	RoleSyncClientSecret        string
+	RoleSyncApplication         string
+	RoleSyncCertificate         string
+	UserLookupClientID          string
+	UserLookupClientSecret      string
+	UserLookupApplication       string
+	UserLookupCertificate       string
 }
 
 // OpenFGAConfig OpenFGA 关系型授权引擎配置
@@ -230,21 +234,25 @@ func loadDatabaseConfig(parseErrs *[]string) DatabaseConfig {
 
 func loadCasdoorConfig() CasdoorConfig {
 	return CasdoorConfig{
-		Issuer:                 getEnv("CASDOOR_ISSUER", ""),
-		InternalAddress:        getEnv("CASDOOR_INTERNAL_ADDRESS", ""),
-		ClientID:               getEnv("CASDOOR_CLIENT_ID", ""),
-		ClientSecret:           getEnv("CASDOOR_CLIENT_SECRET", ""),
-		RedirectURI:            getEnv("CASDOOR_REDIRECT_URI", ""),
-		Organization:           getEnv("CASDOOR_ORGANIZATION", ""),
-		RolesClaim:             getEnv("CASDOOR_ROLES_CLAIM", "roles"),
-		RoleSyncClientID:       getEnv("CASDOOR_ROLE_SYNC_CLIENT_ID", ""),
-		RoleSyncClientSecret:   getEnv("CASDOOR_ROLE_SYNC_CLIENT_SECRET", ""),
-		RoleSyncApplication:    getEnv("CASDOOR_ROLE_SYNC_APPLICATION", ""),
-		RoleSyncCertificate:    getEnv("CASDOOR_ROLE_SYNC_CERTIFICATE", ""),
-		UserLookupClientID:     getEnv("CASDOOR_USER_LOOKUP_CLIENT_ID", ""),
-		UserLookupClientSecret: getEnv("CASDOOR_USER_LOOKUP_CLIENT_SECRET", ""),
-		UserLookupApplication:  getEnv("CASDOOR_USER_LOOKUP_APPLICATION", ""),
-		UserLookupCertificate:  getEnv("CASDOOR_USER_LOOKUP_CERTIFICATE", ""),
+		Issuer:                      getEnv("CASDOOR_ISSUER", ""),
+		InternalAddress:             getEnv("CASDOOR_INTERNAL_ADDRESS", ""),
+		ClientID:                    getEnv("CASDOOR_CLIENT_ID", ""),
+		ClientSecret:                getEnv("CASDOOR_CLIENT_SECRET", ""),
+		RedirectURI:                 getEnv("CASDOOR_REDIRECT_URI", ""),
+		Organization:                getEnv("CASDOOR_ORGANIZATION", ""),
+		RolesClaim:                  getEnv("CASDOOR_ROLES_CLAIM", "roles"),
+		AppProvisioningClientID:     getEnv("CASDOOR_APP_PROVISIONING_CLIENT_ID", ""),
+		AppProvisioningClientSecret: getEnv("CASDOOR_APP_PROVISIONING_CLIENT_SECRET", ""),
+		AppProvisioningApplication:  getEnv("CASDOOR_APP_PROVISIONING_APPLICATION", ""),
+		AppProvisioningCertificate:  getEnv("CASDOOR_APP_PROVISIONING_CERTIFICATE", ""),
+		RoleSyncClientID:            getEnv("CASDOOR_ROLE_SYNC_CLIENT_ID", ""),
+		RoleSyncClientSecret:        getEnv("CASDOOR_ROLE_SYNC_CLIENT_SECRET", ""),
+		RoleSyncApplication:         getEnv("CASDOOR_ROLE_SYNC_APPLICATION", ""),
+		RoleSyncCertificate:         getEnv("CASDOOR_ROLE_SYNC_CERTIFICATE", ""),
+		UserLookupClientID:          getEnv("CASDOOR_USER_LOOKUP_CLIENT_ID", ""),
+		UserLookupClientSecret:      getEnv("CASDOOR_USER_LOOKUP_CLIENT_SECRET", ""),
+		UserLookupApplication:       getEnv("CASDOOR_USER_LOOKUP_APPLICATION", ""),
+		UserLookupCertificate:       getEnv("CASDOOR_USER_LOOKUP_CERTIFICATE", ""),
 	}
 }
 
