@@ -124,7 +124,7 @@ func AuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.Ha
 			switch {
 			case errors.Is(err, errNoToken):
 				response.Unauthorized(c, "missing authentication token", errs.ErrTokenMissing)
-			case errors.Is(err, errBlacklistFail):
+			case authBackendUnavailable(err):
 				response.ServiceUnavailable(c, "service temporarily unavailable", errs.ErrServiceUnavailable)
 			case errors.Is(err, errTokenRevoked):
 				response.Unauthorized(c, "token has been revoked", errs.ErrTokenRevoked)
@@ -163,9 +163,9 @@ func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service
 		}
 
 		switch {
-		case errors.Is(err, errBlacklistFail):
+		case authBackendUnavailable(err):
 			// 后端故障：不应把故障降级为匿名；注入标记由路由决定
-			logger.FromGin(c).Warn("optional auth: blacklist backend unavailable", zap.Error(err))
+			logger.FromGin(c).Warn("optional auth: backend unavailable", zap.Error(err))
 			c.Set(CtxKeyAuthBackendFailure, true)
 			c.Next()
 
@@ -192,6 +192,10 @@ func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service
 			c.Next()
 		}
 	}
+}
+
+func authBackendUnavailable(err error) bool {
+	return errors.Is(err, errBlacklistFail) || errors.Is(err, oidc.ErrProviderUnavailable)
 }
 
 // RequireHealthyOptionalAuth 在 optional auth 之后执行。

@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	josejwt "github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 )
@@ -140,9 +142,117 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	assert.Contains(t, string(raw), "oidc-user")
 }
 
+func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(crand.Reader, 2048)
+	require.NoError(t, err)
+	rotatedKey, err := rsa.GenerateKey(crand.Reader, 2048)
+	require.NoError(t, err)
+
+	const clientID = "oidc-client"
+	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "kid-1", Algorithm: string(jose.RS256), Use: "sig"}
+	var issuer string
+	keysAvailable := true
+	issueIDToken := func(key *rsa.PrivateKey, kid string) string {
+		signer, err := jose.NewSigner(jose.SigningKey{
+			Algorithm: jose.RS256,
+			Key:       jose.JSONWebKey{Key: key, KeyID: kid},
+		}, nil)
+		require.NoError(t, err)
+		raw, err := josejwt.Signed(signer).Claims(map[string]any{
+			"iss": issuer,
+			"sub": "user-oidc-1",
+			"aud": clientID,
+			"exp": time.Now().Add(time.Hour).Unix(),
+			"iat": time.Now().Unix(),
+		}).Serialize()
+		require.NoError(t, err)
+		return raw
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 issuer,
+			"authorization_endpoint": issuer + "/authorize",
+			"token_endpoint":         issuer + "/token",
+			"jwks_uri":               issuer + "/keys",
+		})
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
+		if !keysAvailable {
+			http.Error(w, "jwks unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{jwk}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	issuer = srv.URL
+
+	client, err := NewClient(context.Background(), config.CasdoorConfig{
+		Issuer:      issuer,
+		ClientID:    clientID,
+		RedirectURI: "https://web.example.com/api/v1/auth/callback",
+	})
+	require.NoError(t, err)
+	_, err = client.VerifyIDToken(context.Background(), issueIDToken(privateKey, "kid-1"))
+	require.NoError(t, err)
+
+	keysAvailable = false
+	_, err = client.VerifyIDToken(context.Background(), issueIDToken(rotatedKey, "kid-2"))
+	require.ErrorIs(t, err, ErrProviderUnavailable)
+}
+
+func TestOIDCClientRemoteEndpointFailuresAreProviderUnavailable(t *testing.T) {
+	const clientID = "oidc-client"
+	const clientSecret = "oidc-secret"
+	var issuer string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 issuer,
+			"authorization_endpoint": issuer + "/authorize",
+			"token_endpoint":         issuer + "/token",
+			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
+		})
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{})
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "token endpoint unavailable", http.StatusServiceUnavailable)
+	})
+	mux.HandleFunc("/introspect", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "introspection unavailable", http.StatusServiceUnavailable)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	issuer = srv.URL
+
+	client, err := NewClient(context.Background(), config.CasdoorConfig{
+		Issuer:       issuer,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
+	})
+	require.NoError(t, err)
+	_, err = client.RefreshToken(context.Background(), "old-refresh-token")
+	require.ErrorIs(t, err, ErrProviderUnavailable)
+	_, err = client.IntrospectToken(context.Background(), "provider-access-token")
+	require.ErrorIs(t, err, ErrProviderUnavailable)
+}
+
 func mustVerifyIDToken(t *testing.T, client *Client, raw string) *gooidc.IDToken {
 	t.Helper()
 	idToken, err := client.verifier.Verify(context.Background(), raw)
 	require.NoError(t, err)
 	return idToken
+}
+
+func TestClassifyOAuthErrorLeavesClientErrorsAsCredentialFailures(t *testing.T) {
+	err := classifyOAuthError(&oauth2.RetrieveError{Response: &http.Response{StatusCode: http.StatusUnauthorized}})
+
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrProviderUnavailable))
 }

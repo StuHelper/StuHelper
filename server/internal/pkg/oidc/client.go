@@ -4,6 +4,7 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,9 +45,10 @@ func NewClient(ctx context.Context, cfg config.CasdoorConfig) (*Client, error) {
 		return nil, fmt.Errorf("oidc: failed to discover provider at %s: %w", cfg.Issuer, err)
 	}
 
-	verifier := provider.Verifier(&gooidc.Config{
-		ClientID: cfg.ClientID,
-	})
+	verifier, err := newProviderVerifier(ctx, provider, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("oidc: failed to initialize verifier: %w", err)
+	}
 
 	oauth2Cfg := oauth2.Config{
 		ClientID:     cfg.ClientID,
@@ -96,7 +98,7 @@ func (c *Client) ExchangeCode(ctx context.Context, code, codeVerifier string) (*
 func (c *Client) VerifyIDToken(ctx context.Context, rawIDToken string) (*Claims, error) {
 	idToken, err := c.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		return nil, fmt.Errorf("oidc: id_token verification failed: %w", err)
+		return nil, fmt.Errorf("oidc: id_token verification failed: %w", classifyVerifierError(err))
 	}
 
 	// 先解析标准字段
@@ -137,7 +139,7 @@ func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*oauth2
 	token, err := tokenSource.Token()
 	metrics.ObserveExternalRequest(c.metricName, "refresh_token", start, err)
 	if err != nil {
-		return nil, fmt.Errorf("oidc: token refresh failed: %w", err)
+		return nil, fmt.Errorf("oidc: token refresh failed: %w", classifyOAuthError(err))
 	}
 	return token, nil
 }
@@ -193,7 +195,7 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("oidc: introspect request failed: %w", err)
+		return nil, fmt.Errorf("oidc: introspect request failed: %w", errors.Join(ErrProviderUnavailable, err))
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
@@ -201,6 +203,9 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 		}
 	}()
 
+	if resp.StatusCode >= http.StatusInternalServerError {
+		return nil, fmt.Errorf("%w: oidc: introspect returned status %d", ErrProviderUnavailable, resp.StatusCode)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("oidc: introspect returned status %d", resp.StatusCode)
 	}

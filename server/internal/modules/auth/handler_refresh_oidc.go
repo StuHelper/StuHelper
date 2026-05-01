@@ -63,6 +63,10 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, oldRefreshToken string
 	newToken, err := h.oidcClient.RefreshToken(c.Request.Context(), oldRefreshToken)
 	if err != nil {
 		logger.FromGin(c).Error("OIDC token refresh failed", zap.Error(err))
+		if errors.Is(err, oidc.ErrProviderUnavailable) {
+			response.ServiceUnavailable(c, "refresh service temporarily unavailable")
+			return oidcRefreshPayload{}, false
+		}
 		h.clearTokenCookies(c)
 		response.Unauthorized(c, "failed to refresh token", errs.ErrRefreshTokenInvalid)
 		return oidcRefreshPayload{}, false
