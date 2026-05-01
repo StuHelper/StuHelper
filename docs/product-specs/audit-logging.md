@@ -52,7 +52,7 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 
 | 模块 | 事件 |
 |------|------|
-| 认证 | `user.login` / `user.login_failed` / `user.logout` / `user.logout_all` / `token.refresh` / `token.revoked` / `iam.auth.ip_locked` |
+| 认证 | `iam.auth.login` / `iam.auth.login_failed` / `iam.auth.logout` / `iam.auth.logout_all` / `iam.auth.ip_locked` / `iam.token.refresh` / `iam.token.revoked` |
 | 数据操作 | `data.access` / `data.create` / `data.update` / `data.delete` / `data.export` |
 | 用户操作 | `user.review_post` / `user.review_edit` / `user.review_delete` / `user.vote` / `user.report` / `user.reply` / `user.favorite` |
 | 管理 | `admin.review_hide` / `admin.review_restore` / `admin.review_delete` / `admin.report_resolve` / `admin.config_change` / `admin.user_ban` / `admin.batch_operation` |

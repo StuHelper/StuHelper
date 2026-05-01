@@ -17,12 +17,12 @@ type EventType string
 
 const (
 	// 认证相关
-	EventUserLogin       EventType = "user.login"
-	EventUserLoginFailed EventType = "user.login_failed"
-	EventUserLogout      EventType = "user.logout"
-	EventUserLogoutAll   EventType = "user.logout_all"
-	EventTokenRefresh    EventType = "token.refresh"
-	EventTokenRevoked    EventType = "token.revoked"
+	EventUserLogin       EventType = "iam.auth.login"
+	EventUserLoginFailed EventType = "iam.auth.login_failed"
+	EventUserLogout      EventType = "iam.auth.logout"
+	EventUserLogoutAll   EventType = "iam.auth.logout_all"
+	EventTokenRefresh    EventType = "iam.token.refresh" // #nosec G101 -- audit event type, not a secret.
+	EventTokenRevoked    EventType = "iam.token.revoked" // #nosec G101 -- audit event type, not a secret.
 
 	// 通用数据操作
 	EventDataAccess EventType = "data.access"
