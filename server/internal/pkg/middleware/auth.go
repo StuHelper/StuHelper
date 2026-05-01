@@ -3,35 +3,17 @@ package middleware
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"go.uber.org/zap"
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
-)
-
-// 上下文键名常量
-const (
-	CtxKeyUserID             = "user_id"
-	CtxKeyUsername           = "username"
-	CtxKeyEmail              = "email"
-	CtxKeyDisplayName        = "display_name"
-	CtxKeyAvatar             = "avatar"
-	CtxKeyRoles              = "roles"
-	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — provider-scoped legacy roles
-	CtxKeyCapabilities       = "capabilities"
-	CtxKeyGlobalCapabilities = "global_capabilities"
-	CtxKeyCapabilityGrants   = "capability_grants"
-	CtxKeyCapabilitySet      = "capability_set"       // map[string]struct{} — O(1) 查找
-	CtxKeyAuthBackendFailure = "auth_backend_failure" // OptionalAuth 后端故障诊断标记
 )
 
 // OptionalAuthConfig 可选认证中间件的配置。
@@ -41,35 +23,12 @@ type OptionalAuthConfig struct {
 	CookieSecure bool
 }
 
-// Cookie 名称常量
-const (
-	CookieAccessToken  = "access_token"
-	CookieRefreshToken = "refresh_token"
-)
-
-// tokenSource 标记 Token 来源
-type tokenSource int
-
-const (
-	tokenSourceNone   tokenSource = iota
-	tokenSourceCookie             // Cookie: 本地 JWKS 验证（快速）
-	tokenSourceBearer             // Bearer: introspection 验证（即时吊销）
-)
-
 // resolveToken 认证哨兵错误
 var (
 	errNoToken       = errors.New("missing token")
 	errTokenRevoked  = errors.New("token revoked")
 	errBlacklistFail = errors.New("blacklist unavailable")
 )
-
-// authResult 认证解析结果
-type authResult struct {
-	userID, username, email, displayName string
-	avatar                               *string
-	roles                                []string
-	orgScopedRoles                       map[string][]string
-}
 
 // resolveToken 从请求中提取、验证并解析 Token。
 // Cookie Token → 本地 JWKS 验证（高性能，适合浏览器客户端）
@@ -131,6 +90,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			avatar:         claims.GetAvatar(),
 			roles:          claims.Roles,
 			orgScopedRoles: claims.OrgScopedRoles,
+			mfaProofAt:     claims.MFAProofVerifiedAt(),
 		}, nil
 
 	case tokenSourceBearer:
@@ -149,6 +109,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			displayName:    result.Name,
 			roles:          result.Roles,
 			orgScopedRoles: result.OrgScopedRoles,
+			mfaProofAt:     result.MFAProofVerifiedAt(),
 		}, nil
 	}
 
@@ -254,183 +215,4 @@ func RequireHealthyOptionalAuth() gin.HandlerFunc {
 func clearAuthCookies(c *gin.Context, cfg OptionalAuthConfig) {
 	c.SetCookie(CookieAccessToken, "", -1, "/", cfg.CookieDomain, cfg.CookieSecure, true)
 	c.SetCookie(CookieRefreshToken, "", -1, "/api/v1/auth", cfg.CookieDomain, cfg.CookieSecure, true)
-}
-
-// setClaimsToContext 将用户信息、角色和能力集合注入 Gin context。
-// 同时构建 capability set（map）供 HasCapability 进行 O(1) 查找。
-func setClaimsToContext(c *gin.Context, auth *authResult) {
-	grants := capability.ExpandRoleGrants(auth.roles, auth.orgScopedRoles)
-	snapshot := capability.BuildUserAccessSnapshot(grants)
-	capSet := make(map[string]struct{}, len(snapshot.Capabilities))
-	for _, cap := range snapshot.Capabilities {
-		capSet[cap] = struct{}{}
-	}
-
-	c.Set(CtxKeyUserID, auth.userID)
-	c.Set(CtxKeyUsername, auth.username)
-	c.Set(CtxKeyEmail, auth.email)
-	c.Set(CtxKeyDisplayName, auth.displayName)
-	if auth.avatar != nil {
-		c.Set(CtxKeyAvatar, *auth.avatar)
-	} else {
-		c.Set(CtxKeyAvatar, "")
-	}
-	c.Set(CtxKeyRoles, auth.roles)
-	if auth.orgScopedRoles != nil {
-		c.Set(CtxKeyOrgScopedRoles, auth.orgScopedRoles)
-	}
-	c.Set(CtxKeyCapabilities, snapshot.Capabilities)
-	c.Set(CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
-	c.Set(CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
-	c.Set(CtxKeyCapabilitySet, capSet)
-}
-
-// GetUserID 从上下文获取用户 ID
-func GetUserID(c *gin.Context) string {
-	return getContextString(c, CtxKeyUserID)
-}
-
-// GetUsername 从上下文获取用户名
-func GetUsername(c *gin.Context) string {
-	return getContextString(c, CtxKeyUsername)
-}
-
-// GetEmail 从上下文获取邮箱
-func GetEmail(c *gin.Context) string {
-	return getContextString(c, CtxKeyEmail)
-}
-
-// GetDisplayName 从上下文获取显示名称
-func GetDisplayName(c *gin.Context) string {
-	return getContextString(c, CtxKeyDisplayName)
-}
-
-// GetAvatar 从上下文获取头像地址
-func GetAvatar(c *gin.Context) string {
-	return getContextString(c, CtxKeyAvatar)
-}
-
-// GetRoles 从上下文获取角色列表
-func GetRoles(c *gin.Context) []string {
-	if val, exists := c.Get(CtxKeyRoles); exists {
-		if roles, ok := val.([]string); ok {
-			return roles
-		}
-	}
-	return nil
-}
-
-// GetCapabilities 从上下文获取能力列表（slice 形式，用于序列化）
-func GetCapabilities(c *gin.Context) []string {
-	if val, exists := c.Get(CtxKeyCapabilities); exists {
-		if caps, ok := val.([]string); ok {
-			return caps
-		}
-	}
-	return nil
-}
-
-func GetGlobalCapabilities(c *gin.Context) []string {
-	if val, exists := c.Get(CtxKeyGlobalCapabilities); exists {
-		if caps, ok := val.([]string); ok {
-			return caps
-		}
-	}
-	return nil
-}
-
-func GetCapabilityGrants(c *gin.Context) []capability.Grant {
-	if val, exists := c.Get(CtxKeyCapabilityGrants); exists {
-		if grants, ok := val.([]capability.Grant); ok {
-			return grants
-		}
-	}
-	return nil
-}
-
-// HasCapability 检查当前用户是否具有指定能力（O(1) map 查找）
-func HasCapability(c *gin.Context, capabilityName string) bool {
-	if val, exists := c.Get(CtxKeyCapabilitySet); exists {
-		if set, ok := val.(map[string]struct{}); ok {
-			_, found := set[capabilityName]
-			return found
-		}
-	}
-	return false
-}
-
-func HasGlobalCapability(c *gin.Context, capabilityName string) bool {
-	return capability.HasGlobalGrant(GetCapabilityGrants(c), capabilityName)
-}
-
-func HasCapabilityInSchool(c *gin.Context, capabilityName, schoolID string) bool {
-	return capability.HasGrantInSchool(GetCapabilityGrants(c), capabilityName, schoolID)
-}
-
-// HasRoleInOrg 检查当前用户是否在指定 orgID 上拥有指定角色（provider-scoped legacy roles）。
-// 仅 cookie-OIDC 登录路径填充 scope；手机登录与 Bearer introspection 返回
-// false。orgID 为空时判定"是否在任意 org 拥有此角色"。
-func HasRoleInOrg(c *gin.Context, role, orgID string) bool {
-	if val, exists := c.Get(CtxKeyOrgScopedRoles); exists {
-		if scoped, ok := val.(map[string][]string); ok {
-			orgs, has := scoped[role]
-			if !has {
-				return false
-			}
-			if orgID == "" {
-				return len(orgs) > 0
-			}
-			for _, o := range orgs {
-				if o == orgID {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-// IsAuthenticated 检查当前请求是否已认证
-func IsAuthenticated(c *gin.Context) bool {
-	return GetUserID(c) != ""
-}
-
-// GetAccessToken 从请求中提取 access token（优先级：Authorization Header > Cookie）。
-// 用于 Logout 等需要获取当前 token 原始值的场景。
-func GetAccessToken(c *gin.Context) string {
-	accessToken, _ := getTokenWithSource(c)
-	return accessToken
-}
-
-// getContextString 从上下文获取字符串值
-func getContextString(c *gin.Context, key string) string {
-	if val, exists := c.Get(key); exists {
-		if s, ok := val.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-// getTokenWithSource 从请求中获取 access token 及其来源。
-// 优先级：Authorization Header > Cookie。
-// 当客户端显式携带 Bearer token 时，应优先按 API 客户端语义处理，
-// 避免浏览器 cookie 覆盖 bearerAuth 契约。
-func getTokenWithSource(c *gin.Context) (string, tokenSource) {
-	authHeader := c.GetHeader("Authorization")
-	if authHeader != "" {
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-			accessToken := strings.TrimSpace(parts[1])
-			if accessToken != "" {
-				return accessToken, tokenSourceBearer
-			}
-		}
-	}
-
-	if accessToken, err := c.Cookie(CookieAccessToken); err == nil && accessToken != "" {
-		return accessToken, tokenSourceCookie
-	}
-
-	return "", tokenSourceNone
 }

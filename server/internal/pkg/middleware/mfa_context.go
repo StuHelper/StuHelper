@@ -23,6 +23,13 @@ func SetMFAContext(c *gin.Context, ctx MFAContext) {
 	}
 }
 
+func SetMFAProofVerifiedAt(c *gin.Context, verifiedAt time.Time) {
+	if verifiedAt.IsZero() {
+		return
+	}
+	c.Set(CtxKeyMFAProofVerifiedAt, verifiedAt)
+}
+
 func GetMFAEnrollmentActive(c *gin.Context) bool {
 	value, exists := c.Get(CtxKeyMFAEnrollmentActive)
 	if !exists {
