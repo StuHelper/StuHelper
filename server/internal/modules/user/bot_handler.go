@@ -1,7 +1,8 @@
 package user
 
 import (
-	"crypto/subtle"
+	"context"
+	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -9,28 +10,42 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
+
+const bearerPrefix = "Bearer "
+
+type BotCredentialVerifier interface {
+	Verify(ctx context.Context, rawToken, audience, scope string) error
+}
 
 // BotHandler 提供机器人内部调用的用户绑定接口。
 type BotHandler struct {
-	service      *Service
-	serviceToken string
+	service            *Service
+	credentialVerifier BotCredentialVerifier
 }
 
 // NewBotHandler 创建机器人内部接口处理器。
-func NewBotHandler(service *Service, serviceToken string) *BotHandler {
+func NewBotHandler(service *Service, credentialVerifier BotCredentialVerifier) *BotHandler {
 	return &BotHandler{
-		service:      service,
-		serviceToken: strings.TrimSpace(serviceToken),
+		service:            service,
+		credentialVerifier: credentialVerifier,
 	}
 }
 
 // RegisterRoutes 注册机器人调用接口。
 func (h *BotHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	bot := rg.Group("/bot")
-	bot.Use(h.requireServiceToken())
-	bot.POST("/qq-binding/consume", h.handleConsumeQQBindingCode)
-	bot.GET("/qq-users/:qqID/verification", h.handleGetQQVerificationState)
+	bot.POST(
+		"/qq-binding/consume",
+		h.requireServiceCredential(serviceaccount.ScopeBotQQBindingConsume),
+		h.handleConsumeQQBindingCode,
+	)
+	bot.GET(
+		"/qq-users/:qqID/verification",
+		h.requireServiceCredential(serviceaccount.ScopeBotQQVerificationRead),
+		h.handleGetQQVerificationState,
+	)
 }
 
 type consumeQQBindingHTTPRequest struct {
@@ -67,8 +82,8 @@ func (h *BotHandler) handleConsumeQQBindingCode(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"binding":            qqBindingToJSON(binding),
-		"verificationState":  qqVerificationStatusToJSON(status),
+		"binding":           qqBindingToJSON(binding),
+		"verificationState": qqVerificationStatusToJSON(status),
 	})
 }
 
@@ -87,22 +102,50 @@ func (h *BotHandler) handleGetQQVerificationState(c *gin.Context) {
 	response.Success(c, qqVerificationStatusToJSON(status))
 }
 
-func (h *BotHandler) requireServiceToken() gin.HandlerFunc {
+func (h *BotHandler) requireServiceCredential(scope string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if h.serviceToken == "" {
+		if h.credentialVerifier == nil {
 			response.ServiceUnavailable(c, "bot service token is not configured")
 			c.Abort()
 			return
 		}
 
-		authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
-		expected := "Bearer " + h.serviceToken
-		if subtle.ConstantTimeCompare([]byte(authHeader), []byte(expected)) != 1 {
+		rawToken, ok := parseBearerToken(c.GetHeader("Authorization"))
+		if !ok {
 			response.Unauthorized(c, "unauthorized")
 			c.Abort()
 			return
 		}
 
+		err := h.credentialVerifier.Verify(c.Request.Context(), rawToken, c.FullPath(), scope)
+		if err != nil {
+			respondBotCredentialError(c, err)
+			return
+		}
 		c.Next()
 	}
+}
+
+func parseBearerToken(authHeader string) (string, bool) {
+	authHeader = strings.TrimSpace(authHeader)
+	if len(authHeader) <= len(bearerPrefix) || !strings.EqualFold(authHeader[:len(bearerPrefix)], bearerPrefix) {
+		return "", false
+	}
+	token := strings.TrimSpace(authHeader[len(bearerPrefix):])
+	return token, token != ""
+}
+
+func respondBotCredentialError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, serviceaccount.ErrCredentialNotConfigured):
+		response.ServiceUnavailable(c, "bot service token is not configured")
+	case errors.Is(err, serviceaccount.ErrCredentialInvalid):
+		response.Unauthorized(c, "unauthorized")
+	case errors.Is(err, serviceaccount.ErrCredentialForbidden):
+		response.Forbidden(c, "forbidden")
+	default:
+		logger.FromGin(c).Error("failed to verify bot service credential", zap.Error(err))
+		response.InternalError(c, "failed to verify bot service credential")
+	}
+	c.Abort()
 }

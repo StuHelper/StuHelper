@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
@@ -32,6 +34,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
 	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
 
 func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error {
@@ -108,7 +111,11 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		bindPhoneSMS = smsSvc
 	}
 	userHandler := user.NewHandler(userService, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
-	botHandler := user.NewBotHandler(userService, rt.cfg.Bot.ServiceToken)
+	botCredentialVerifier, err := rt.initBotCredentialVerifier(bgCtx)
+	if err != nil {
+		return err
+	}
+	botHandler := user.NewBotHandler(userService, botCredentialVerifier)
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
 	botHandler.RegisterRoutes(api)
@@ -305,6 +312,46 @@ func (rt *Runtime) initCasdoorRoleSync(userRepo *user.Repository) (user.RoleSync
 		return nil, err
 	}
 	return platformcasdoor.BuildRoleSyncFunc(client, userRepo.GetCasdoorSubject), nil
+}
+
+func (rt *Runtime) initBotCredentialVerifier(ctx context.Context) (*serviceaccount.Verifier, error) {
+	if strings.TrimSpace(rt.cfg.Bot.ServiceToken) == "" {
+		return nil, nil
+	}
+	verifier, err := serviceaccount.NewVerifier(rt.database, crypto.GetHMACKey())
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize bot service credential verifier: %w", err)
+	}
+	result, err := verifier.EnsureBootstrapCredential(ctx, serviceaccount.BootstrapCredential{
+		Name:     serviceaccount.KoishiRuntimeCredentialName,
+		RawToken: rt.cfg.Bot.ServiceToken,
+		Audience: []string{serviceaccount.AudienceBotAPI},
+		Scopes:   serviceaccount.KoishiRuntimeScopes(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to bootstrap bot service credential: %w", err)
+	}
+	logBotCredentialBootstrap(result)
+	return verifier, nil
+}
+
+func logBotCredentialBootstrap(result serviceaccount.BootstrapResult) {
+	if result.Status == serviceaccount.BootstrapUnchanged {
+		return
+	}
+	audit.Log(audit.Event{
+		Type:         audit.EventType("iam.service_account." + string(result.Status)),
+		Category:     "audit",
+		ActorType:    "system",
+		ResourceType: "iam.service_account",
+		ResourceID:   result.Name,
+		Action:       string(result.Status),
+		Result:       "success",
+		Details: map[string]any{
+			"credential_id": result.ID,
+			"name":          result.Name,
+		},
+	})
 }
 
 func (rt *Runtime) newCasdoorRoleSyncClient() (*platformcasdoor.RoleSyncClient, error) {

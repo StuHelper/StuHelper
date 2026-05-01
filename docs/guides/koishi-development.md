@@ -82,9 +82,9 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
 
 这两类接口都不是面向浏览器或普通用户的公开入口，而是面向机器人服务的内部接口：
 
-- 后端通过 `BOT_SERVICE_TOKEN` 控制访问
+- 后端通过 `bot_service_credentials` 中的 Koishi 机器凭据控制访问
 - Koishi 侧通过 `STUHELPER_PLATFORM_BASE_URL` 读取后端地址，通过 `STUHELPER_PLATFORM_SERVICE_TOKEN` 注入 `platform.serviceToken`，并发送 `Authorization: Bearer <token>`
-- 连接同一后端时，`STUHELPER_PLATFORM_SERVICE_TOKEN` 应与 `BOT_SERVICE_TOKEN` 保持一致
+- `BOT_SERVICE_TOKEN` 只用于后端启动时 bootstrap / rotation；认证路径不直接比较裸环境变量
 - 不应复用用户 JWT、Cookie 或前端访问令牌
 
 与机器人联动的用户自助入口仍在主站：

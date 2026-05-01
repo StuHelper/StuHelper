@@ -47,10 +47,10 @@ access / refresh token 已显式区分 `typ`。
 Koishi 与主站后端跨机通信时，不复用用户态会话，而是使用独立的服务令牌：
 
 - 接口范围：`/api/v1/bot/*`
-- 鉴权方式：`Authorization: Bearer <BOT_SERVICE_TOKEN>`
-- 后端配置项：`BOT_SERVICE_TOKEN`
-- 比较方式：服务端使用常量时间比较校验 Bearer token
-- 失败行为：未配置返回 `503`，令牌错误返回 `401`
+- 鉴权方式：`Authorization: Bearer <Koishi service credential>`
+- 后端配置项：`BOT_SERVICE_TOKEN` 只作为启动 bootstrap / rotation 输入；服务端会将其 HMAC 写入 `bot_service_credentials`
+- 校验方式：服务端按 token hash 查询 DB 凭据，并校验 audience `/api/v1/bot/*` 与路由 scope
+- 失败行为：未配置返回 `503`，令牌错误或已吊销返回 `401`，audience/scope 不匹配返回 `403`
 
 这类接口只提供给机器人运行时，不对浏览器、移动端或普通用户开放。
 

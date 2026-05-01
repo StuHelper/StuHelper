@@ -254,14 +254,14 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 
 #### 3.6.4 Koishi service token 升级路径
 
-> 现状（`server/internal/modules/user/bot_handler.go:90`）：`Authorization: Bearer <BOT_SERVICE_TOKEN>` + `subtle.ConstantTimeCompare`，**无 aud / scope / exp / kid / 元数据**。无法满足 §3.6.2 "token 必须带 aud" 约束。v2 必须升级，二选一：
+> 已选方案 B。`BOT_SERVICE_TOKEN` 只作为启动 bootstrap / rotation 输入；请求认证路径必须通过 `bot_service_credentials` 的 token hash、audience、scope、revoked/expired 状态校验，不允许回退到裸环境变量常量时间比较。
 
 | 方案 | 优点 | 缺点 |
 |------|------|------|
 | **A. 内部签名 JWT** — StuHelper 自签发（独立 keypair，不走 Casdoor），含 `aud=/api/v1/bot/*`、`scope`、`exp`、`kid` | 无状态校验；标准 OIDC 思路；与未来 mTLS / DPoP 衔接顺 | 需要 StuHelper 自管签名 key；JWKS endpoint 独立维护 |
 | **B. DB-backed opaque API key + 元数据表** — 引入 `bot_service_credentials` 表（`token_hash`、`aud`、`scope[]`、`created_at`、`rotated_at`、`revoked_at`、`last_used_at`）；中间件按 hash 查表 | schema 简单；轮换/吊销直接 SQL；现有 opaque 习惯延续 | 每请求一次 DB lookup（可加 Redis 缓存）；缺乏 OIDC 标准化优势 |
 
-**决策推迟到 IAM v2 exec-plan 阶段**——选 A 或 B 不影响主架构；任一都满足 §3.6.2 全部硬约束。spec 阶段只确立"不允许停留在 opaque 单值字符串"。
+**执行决策**：采用 **B. DB-backed opaque API key + 元数据表**。Koishi 仍发送 Bearer token，但服务端只接受已写入 `bot_service_credentials` 的 HMAC hash；每个 route 绑定最小 scope（如 `bot.qq_binding.consume` / `bot.qq_verification.read`），audience 固定到 `/api/v1/bot/*`，并支持轮换、吊销、过期和 `last_used_at` 记录。
 
 ## 4. Casdoor SDK 出口（白名单 + ban-list）
 
