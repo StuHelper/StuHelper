@@ -203,10 +203,10 @@ func normalizeOptionalString(value *string) *string {
 
 func newUnboundQQVerificationStatus(qqID string) *QQVerificationStatus {
 	return &QQVerificationStatus{
-		QQID:                    qqID,
-		VerificationState:       QQVerificationStateUnbound,
+		QQID:                      qqID,
+		VerificationState:         QQVerificationStateUnbound,
 		ProfileVerificationStatus: StatusUnverified,
-		StudentVerified:         false,
+		StudentVerified:           false,
 	}
 }
 
@@ -223,12 +223,12 @@ func buildQQVerificationStatus(binding *QQBinding, profile *Profile) *QQVerifica
 	}
 
 	return &QQVerificationStatus{
-		QQID:                    binding.QQID,
-		UserID:                  &binding.UserID,
-		QQNickname:              binding.QQNickname,
-		BoundAt:                 &binding.BoundAt,
-		VerificationState:       state,
+		QQID:                      binding.QQID,
+		UserID:                    &binding.UserID,
+		QQNickname:                binding.QQNickname,
+		BoundAt:                   &binding.BoundAt,
+		VerificationState:         state,
 		ProfileVerificationStatus: status,
-		StudentVerified:         verified,
+		StudentVerified:           verified,
 	}
 }

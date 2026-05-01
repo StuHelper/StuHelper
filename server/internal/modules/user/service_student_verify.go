@@ -142,7 +142,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 			return nil, ErrStudentNotFound
 		}
 
-		if academicStudent != nil && academicStudent.SFZJH != nil && *academicStudent.SFZJH != "" {
+		if academicStudent.SFZJH != nil && *academicStudent.SFZJH != "" {
 			docType := ""
 			if academicStudent.SFZJLXDM != nil {
 				docType = *academicStudent.SFZJLXDM

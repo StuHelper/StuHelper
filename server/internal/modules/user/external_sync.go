@@ -187,6 +187,10 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, a
 	}
 
 	profileObj := "user_profile:" + strconv.FormatInt(userID, 10)
+	existingOwnerTuples, err := s.profileFGA.ReadTuples(projectionCtx, profileObj, "owner")
+	if err != nil {
+		return fmt.Errorf("read existing owner tuples: %w", err)
+	}
 	existingSchoolTuples, err := s.profileFGA.ReadTuples(projectionCtx, profileObj, "school")
 	if err != nil {
 		return fmt.Errorf("read existing school tuples: %w", err)
@@ -197,11 +201,12 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64, a
 		}
 	}
 
-	tuples := []fga.Tuple{{
+	ownerTuple := fga.Tuple{
 		User:     "user:" + strconv.FormatInt(userID, 10),
 		Relation: "owner",
 		Object:   profileObj,
-	}}
+	}
+	tuples := fga.MissingTuples(existingOwnerTuples, []fga.Tuple{ownerTuple})
 	if approved {
 		if profile.SchoolID == nil {
 			return fmt.Errorf("verified profile %d has no school ID", userID)

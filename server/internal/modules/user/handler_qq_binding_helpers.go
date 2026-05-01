@@ -3,12 +3,12 @@ package user
 import "time"
 
 type qqBindingResponse struct {
-	UserID     int64      `json:"userID"`
-	QQID       string     `json:"qqID"`
-	QQNickname *string    `json:"qqNickname"`
-	BoundAt    time.Time  `json:"boundAt"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	UpdatedAt  time.Time  `json:"updatedAt"`
+	UserID     int64     `json:"userID"`
+	QQID       string    `json:"qqID"`
+	QQNickname *string   `json:"qqNickname"`
+	BoundAt    time.Time `json:"boundAt"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 type qqBindingCodeResponse struct {
@@ -17,13 +17,13 @@ type qqBindingCodeResponse struct {
 }
 
 type qqVerificationStatusResponse struct {
-	QQID                    string               `json:"qqID"`
-	UserID                  *int64               `json:"userID"`
-	QQNickname              *string              `json:"qqNickname"`
-	BoundAt                 *time.Time           `json:"boundAt"`
-	VerificationState       QQVerificationState  `json:"verificationState"`
-	ProfileVerificationStatus string             `json:"profileVerificationStatus"`
-	StudentVerified         bool                 `json:"studentVerified"`
+	QQID                      string              `json:"qqID"`
+	UserID                    *int64              `json:"userID"`
+	QQNickname                *string             `json:"qqNickname"`
+	BoundAt                   *time.Time          `json:"boundAt"`
+	VerificationState         QQVerificationState `json:"verificationState"`
+	ProfileVerificationStatus string              `json:"profileVerificationStatus"`
+	StudentVerified           bool                `json:"studentVerified"`
 }
 
 func qqBindingToJSON(binding *QQBinding) qqBindingResponse {
@@ -39,12 +39,12 @@ func qqBindingToJSON(binding *QQBinding) qqBindingResponse {
 
 func qqVerificationStatusToJSON(status *QQVerificationStatus) qqVerificationStatusResponse {
 	return qqVerificationStatusResponse{
-		QQID:                    status.QQID,
-		UserID:                  status.UserID,
-		QQNickname:              status.QQNickname,
-		BoundAt:                 status.BoundAt,
-		VerificationState:       status.VerificationState,
+		QQID:                      status.QQID,
+		UserID:                    status.UserID,
+		QQNickname:                status.QQNickname,
+		BoundAt:                   status.BoundAt,
+		VerificationState:         status.VerificationState,
 		ProfileVerificationStatus: status.ProfileVerificationStatus,
-		StudentVerified:         status.StudentVerified,
+		StudentVerified:           status.StudentVerified,
 	}
 }

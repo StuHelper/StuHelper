@@ -19,6 +19,7 @@ type fakeProfileFGAClient struct {
 	deleteCalls [][]fga.Tuple
 	writeCalls  [][]fga.Tuple
 	readTuples  []fga.Tuple
+	readByRel   map[string][]fga.Tuple
 	readErr     error
 	writeErr    error
 	deleteErr   error
@@ -28,6 +29,9 @@ func (f *fakeProfileFGAClient) ReadTuples(_ context.Context, object, relation st
 	f.readCalls = append(f.readCalls, struct{ object, relation string }{object: object, relation: relation})
 	if f.readErr != nil {
 		return nil, f.readErr
+	}
+	if f.readByRel != nil {
+		return append([]fga.Tuple(nil), f.readByRel[relation]...), nil
 	}
 	return append([]fga.Tuple(nil), f.readTuples...), nil
 }
@@ -65,15 +69,44 @@ func TestSyncUserProfileProjection_RebuildsOwnerAndCurrentSchool(t *testing.T) {
 
 	err = svc.syncUserProfileProjection(context.Background(), 123, true)
 	require.NoError(t, err)
-	require.Len(t, fgaClient.readCalls, 1)
+	require.Len(t, fgaClient.readCalls, 2)
 	require.Len(t, fgaClient.deleteCalls, 1)
 	require.Len(t, fgaClient.writeCalls, 1)
 
+	assert.Equal(t, "owner", fgaClient.readCalls[0].relation)
+	assert.Equal(t, "school", fgaClient.readCalls[1].relation)
 	assert.Equal(t, []fga.Tuple{{User: "school:99999", Relation: "school", Object: "user_profile:123"}}, fgaClient.deleteCalls[0])
 	assert.Equal(t, []fga.Tuple{
 		{User: "user:123", Relation: "owner", Object: "user_profile:123"},
 		{User: "school:10006", Relation: "school", Object: "user_profile:123"},
 	}, fgaClient.writeCalls[0])
+}
+
+func TestSyncUserProfileProjectionSkipsExistingOwnerTuple(t *testing.T) {
+	schoolID := int64(10006)
+	fgaClient := &fakeProfileFGAClient{
+		readByRel: map[string][]fga.Tuple{
+			"owner": {{User: "user:123", Relation: "owner", Object: "user_profile:123"}},
+		},
+	}
+	repo := &mockRepo{
+		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
+			return &Profile{UserID: userID, SchoolID: &schoolID, VerificationStatus: StatusVerified}, nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithProfileFGAClient(fgaClient),
+	)
+	require.NoError(t, err)
+
+	err = svc.syncUserProfileProjection(context.Background(), 123, false)
+	require.NoError(t, err)
+	assert.Empty(t, fgaClient.deleteCalls)
+	require.Len(t, fgaClient.writeCalls, 1)
+	assert.Empty(t, fgaClient.writeCalls[0])
 }
 
 func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
