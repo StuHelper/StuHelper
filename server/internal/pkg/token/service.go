@@ -10,7 +10,7 @@ import (
 )
 
 // Service Token 管理服务
-// Zitadel 架构下不再自行验证 JWT，验证由 OIDC 客户端的 VerifyIDToken 处理。
+// OIDC JWT 由 OIDC 客户端的 VerifyIDToken 处理。
 // 本服务管理 Token 黑名单（紧急吊销）、Session Store（Token Family）和 TTL 配置。
 type Service struct {
 	blacklist       *Blacklist

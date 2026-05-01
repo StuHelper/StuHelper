@@ -103,7 +103,7 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 			assert.Equal(t, int64(42), userID)
 			assert.Equal(t, verifiedStudentRoleName, role)
 			assert.True(t, approved)
-			return errors.New("zitadel unavailable")
+			return errors.New("casdoor unavailable")
 		}),
 	)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 	err = svc.processExternalSyncBatch(context.Background())
 	require.NoError(t, err)
 	assert.True(t, retryMarked)
-	assert.Contains(t, lastError, "zitadel unavailable")
+	assert.Contains(t, lastError, "casdoor unavailable")
 	assert.True(t, nextRetry.After(time.Now().Add(4*time.Second)))
 }
 

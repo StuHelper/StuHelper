@@ -227,8 +227,8 @@ func TestRedisPoolGauges(t *testing.T) {
 
 func TestExternalMetrics_Registration(t *testing.T) {
 	assert.NotPanics(t, func() {
-		ExternalRequestDuration.WithLabelValues("zitadel", "introspect", "ok").Observe(0.1)
-		ExternalRequestsTotal.WithLabelValues("zitadel", "introspect", "ok").Inc()
+		ExternalRequestDuration.WithLabelValues("casdoor_oidc", "introspect", "ok").Observe(0.1)
+		ExternalRequestsTotal.WithLabelValues("casdoor_oidc", "introspect", "ok").Inc()
 	})
 }
 

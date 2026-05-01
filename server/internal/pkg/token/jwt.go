@@ -1,5 +1,5 @@
 // Package token 的 jwt.go 提供自签名 JWT 创建和验证能力。
-// 用于手机验证码登录等不经过 Zitadel OIDC 流程的认证场景。
+// 用于手机验证码登录等不经过外部 OIDC 流程的认证场景。
 // 算法：HMAC-SHA256（HS256），签名密钥来自 HMAC_SECRET。
 package token
 
@@ -161,7 +161,7 @@ func VerifyJWTWithType(key []byte, tokenString string, expectedType JWTTokenType
 }
 
 // IsSelfSignedToken 快速检查 token 是否为自签名 JWT（不做完整验证）。
-// 通过检查 header 的 alg 字段判断：HS256 为自签名，RS256 为 Zitadel 签发。
+// 通过检查 header 的 alg 字段判断：HS256 为自签名，其它算法交给 OIDC verifier。
 func IsSelfSignedToken(tokenString string) bool {
 	parts := strings.SplitN(tokenString, ".", 3)
 	if len(parts) != 3 {

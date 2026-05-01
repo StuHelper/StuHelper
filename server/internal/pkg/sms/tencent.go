@@ -1,7 +1,7 @@
 // Package sms 提供短信发送能力，当前支持腾讯云短信 API。
 //
-// 用途：Zitadel 通用 HTTP SMS 提供商 → 本服务 → 腾讯云短信 API。
-// Zitadel 配置方式：Action → 发送 HTTP 请求到本服务的 /internal/sms/send 端点。
+// 用途：Casdoor Custom HTTP SMS Provider → 本服务 → 腾讯云短信 API。
+// Casdoor 配置方式：Custom HTTP Provider 发送 HTTP 请求到本服务的 /internal/sms/send 端点。
 package sms
 
 import (
