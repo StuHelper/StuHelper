@@ -98,7 +98,7 @@ make prod-deploy
 
 - API 5xx / 延迟
 - DB / Redis
-- OpenFGA / Zitadel / SMS 外部依赖
+- OpenFGA / Casdoor / SMS 外部依赖
 - 证件审核 / SSE 队列积压
 
 设置值班升级链路。

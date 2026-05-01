@@ -91,7 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * OIDC 登录：调用后端获取授权 URL，然后浏览器跳转到 Zitadel
+   * OIDC 登录：调用后端获取授权 URL，然后浏览器跳转到外部身份提供方
    */
   async function redirectToLogin(redirectPath?: string) {
     await redirectToOIDCLogin(redirectPath);
@@ -146,7 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
         return null;
       }
 
-      // StuHelper 使用基于 Cookie 的 Zitadel OIDC 会话。
+      // StuHelper 使用基于 Cookie 的 OIDC 会话。
       // Vben 默认 auth 流程仍要求存在一个 truthy token，因此这里用
       // `cookie-session` 作为占位值，仅用于通过其“已登录”守卫判断。
       const userInfo = mapMeToUserInfo(me);

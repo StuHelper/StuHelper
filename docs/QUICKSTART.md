@@ -24,8 +24,8 @@ make dev-up
 
 完成以下步骤：
 - 生成开发环境变量
-- 启动 PostgreSQL / Redis / Zitadel / OpenFGA / MinIO（Docker）
-- 初始化 Zitadel Project、OIDC App、Project Roles
+- 启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO（Docker）
+- 验证 Casdoor OIDC metadata，并使用 `.env` 中已配置的 OIDC App
 - 初始化 OpenFGA Store 和 Model
 - 初始化对象存储 bucket
 - 数据库迁移和开发 seed
@@ -48,7 +48,7 @@ make dev-reset    # 彻底清理（含 volume）
 | Web | http://127.0.0.1:3000 |
 | Admin | http://127.0.0.1:3001/admin/ |
 | API | http://127.0.0.1:8080 |
-| Zitadel | http://127.0.0.1:8085 |
+| Casdoor | http://127.0.0.1:8085 |
 | Grafana | http://127.0.0.1:3003（需 `make obs-up`） |
 
 ## 后端命令

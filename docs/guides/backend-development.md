@@ -78,7 +78,7 @@ server/
 
 ## 授权模型
 
-1. Zitadel Token → 粗粒度角色
+1. Casdoor JWT roles claim → 身份侧扁平角色
 2. 角色静态展开 → capability（零 DB 查询）
 3. 业务事实 + OpenFGA → 资源级判断
 
@@ -90,7 +90,7 @@ server/
 |------|------|
 | PostgreSQL | 业务数据 |
 | Redis | 缓存、限流、token 黑名单 |
-| Zitadel | OIDC / 角色同步 |
+| Casdoor | OIDC / 角色目录投影 |
 | OpenFGA | 资源关系授权 |
 | Tencent SMS | 手机 OTP（仅当 `SMS_ENABLED=true`） |
 | OpenTelemetry | trace / metrics / logs |

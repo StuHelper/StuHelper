@@ -21,8 +21,8 @@ make dev-up
 `make dev-up` 会自动完成：
 
 1. 初始化本地 `.env`（补齐可运行的开发密钥与默认值）
-2. 启动 PostgreSQL / Redis / Zitadel / OpenFGA / MinIO / migration / seed（Docker）
-3. 自动初始化 Zitadel Project、OIDC App、Project Roles
+2. 启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO / migration / seed（Docker）
+3. 验证 Casdoor OIDC metadata，并使用 `.env` 中已配置的 OIDC App
 4. 自动初始化 OpenFGA Store、Model、基础 tuples
 5. 自动初始化对象存储 bucket
 6. 生成 `.env.generated`
@@ -100,7 +100,7 @@ make prod-deploy
 2. 渲染 Prometheus / Alertmanager 生成配置
 3. 拉取 / 启动 backend / frontend / admin 生产镜像
 4. 启动基础设施、认证、授权、对象存储、可观测性组件
-5. 自动初始化 Zitadel / OpenFGA 派生配置
+5. 验证 Casdoor OIDC App 配置并初始化 OpenFGA 派生配置
 6. 自动初始化对象存储 bucket
 7. 启动 `app` / `frontend` / `admin`
 8. 执行业务 Smoke Check + Observability Smoke Check

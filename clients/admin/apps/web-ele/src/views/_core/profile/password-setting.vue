@@ -9,13 +9,13 @@ import { useAuthStore } from '#/store';
 const authStore = useAuthStore();
 
 // URL comes from the backend /auth/me response — the backend derives it
-// from the Zitadel issuer config, so the frontend never needs to know
+// from the OIDC issuer config, so the frontend never needs to know
 // where the identity provider lives.
-const zitadelAccountUrl = computed(() => authStore.accountSettingsUrl);
+const accountSettingsUrl = computed(() => authStore.accountSettingsUrl);
 
-function handleGoToZitadel() {
-  if (zitadelAccountUrl.value) {
-    window.open(zitadelAccountUrl.value, '_blank');
+function handleGoToAccountSettings() {
+  if (accountSettingsUrl.value) {
+    window.open(accountSettingsUrl.value, '_blank');
   }
 }
 </script>
@@ -32,9 +32,9 @@ function handleGoToZitadel() {
           {{ $t('admin.profile.password.managedExternallyDesc') }}
         </p>
         <a
-          v-if="zitadelAccountUrl"
+          v-if="accountSettingsUrl"
           class="text-primary cursor-pointer underline"
-          @click="handleGoToZitadel"
+          @click="handleGoToAccountSettings"
         >
           {{ $t('admin.profile.password.goToAccountSettings') }}
         </a>

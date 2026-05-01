@@ -17,7 +17,7 @@ last-verified: 2026-04-19
 | PostgreSQL | 业务数据 | `server/migrations/*.sql` |
 | Redis | 会话、黑名单、限流、缓存、通知广播 | 代码使用处（无独立 schema） |
 | 对象存储（MinIO/S3） | 证件照、资源文件 | 统一经 `storage` abstraction 访问 |
-| Zitadel | 身份平面（账号、OIDC 会话、粗粒度角色） | Zitadel 管理端 |
+| Casdoor | 身份平面（账号、OIDC 会话、扁平角色目录） | Casdoor 管理端 |
 | OpenFGA | 资源关系授权 | [`docs/design/openfga-model.fga`](../design/openfga-model.fga) |
 
 ## 业务平面索引
@@ -37,7 +37,7 @@ last-verified: 2026-04-19
 
 这些约束写在这里是因为它们**跨多张表**，不是单个 migration 能完整表达：
 
-- `users` 是 shadow user 表：业务外键锚点 + 最小用户画像缓存，身份真源是 Zitadel。
+- `users` 是 shadow user 表：业务外键锚点 + 最小用户画像缓存，身份真源是 Casdoor。
 - `domain_event_outbox` 是统一 outbox：`stream + dedupe_key` 唯一键；`pending / processing / completed / failed` 状态机；后台 worker 按 stream 消费，主事务不直连外部系统。
 - `audit_events.category = 'admin_operation'` 收口所有管理员操作的审计留痕。
 - 能力由角色静态展开，**不落本地 RBAC 表**；资源级权限由 OpenFGA 承担。详见 [design/authorization-model.md](../design/authorization-model.md)。

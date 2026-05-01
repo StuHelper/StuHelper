@@ -57,7 +57,7 @@ server/api/openapi.bundled.yaml
 
 ```
 LoginPage → /api/v1/auth/login
-  → 跳转 Zitadel
+  → 跳转 Casdoor
   → OIDC 回调 /api/v1/auth/callback
   → 后端写入 Cookie
   → AuthCallbackPage + auth store 拉 /api/v1/auth/me

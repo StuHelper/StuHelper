@@ -40,7 +40,7 @@ corepack yarn workspaces list
 | 前端 | Vue 3.5+ / TypeScript 5+ / Vite 6+ / Element Plus / Pinia |
 | 管理后台 | Vben Admin 5（Element Plus 变体） |
 | 机器人 | Koishi 工作区 / NapCat（外部部署） |
-| 认证 | Zitadel OIDC |
+| 认证 | Casdoor OIDC |
 | 资源授权 | OpenFGA |
 | 契约 | OpenAPI 3.1 → Go + TypeScript 生成 |
 | 部署 | Docker Compose / GitLab CI/CD |
@@ -62,7 +62,7 @@ corepack yarn workspaces list
 Web ──┐             ┌── PostgreSQL
 Admin ─┼── Go API ──┼── Redis
 SSO ───┘      │     └── 对象存储 (MinIO/S3)
-              ├── Zitadel (OIDC)
+              ├── Casdoor (OIDC)
               ├── OpenFGA (资源授权)
               └── Grafana LGTM (观测)
 ```
@@ -89,7 +89,7 @@ SQL 只写在 Repository，业务判断只放在 Service，响应统一通过 `r
 
 ## 授权模型
 
-1. **Zitadel 角色** — Token claims 提供粗粒度角色
+1. **Casdoor 角色 claim** — Token claims 提供身份侧扁平角色输入
 2. **Capability** — 后端静态展开，零 DB 查询
 3. **OpenFGA** — 资源级关系判断（谁能操作哪条 review/report）
 
@@ -111,7 +111,7 @@ server/api/openapi.yaml
 
 | 数据 | 存储 |
 |------|------|
-| 身份与登录 | Zitadel |
+| 身份与登录 | Casdoor |
 | 业务数据 | PostgreSQL |
 | 缓存 / 黑名单 / 限流 | Redis |
 | 资源关系 | OpenFGA |

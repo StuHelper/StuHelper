@@ -29,6 +29,7 @@ const TOP_LEVEL_ALLOWED = new Set([
   'docs/internal',
   'docs/product-specs',
   'docs/reference',
+  'docs/superpowers',
 ]);
 const LONG_TERM_ASSET_ALLOWLIST = new Set(['docs/design/openfga-model.fga']);
 const RETIRED_PATH_PATTERNS = [

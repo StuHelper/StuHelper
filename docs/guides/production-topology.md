@@ -21,9 +21,10 @@ last-verified: 2026-04-19
 [Traefik Edge Proxy :443/:80]  ← 仓库内，负责 TLS 终止与路由
     ├── /api/*          → backend (Go, :8080)
     ├── /admin/*        → admin 前端 (Nginx, :80)
-    ├── /               → web 前端 (Nginx, :80)
-    ├── /ui/v2/login/*  → zitadel-login (:3000)
-    └── 其他 Zitadel    → zitadel-api (:8080)
+    └── /               → web 前端 (Nginx, :80)
+
+[sso.stuhelper.com / CASDOOR_EXTERNALPORT]
+    └── Casdoor SSO     → casdoor (:8000)
 ```
 
 ## 外部机器人链路
@@ -102,4 +103,4 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 1. 基础设施就绪（API health、Web、Admin）
 2. 公开业务端点（院系、课程、认证）
 3. 观测链路（Grafana、指标端点）
-4. OIDC 连通性（Zitadel well-known）
+4. OIDC 连通性（Casdoor well-known）

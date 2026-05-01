@@ -31,7 +31,7 @@ access / refresh token 已显式区分 `typ`。
 - Redis 黑名单用于紧急吊销
 - `logout` 撤销当前设备
 - `logout-all` 撤销全部已跟踪 token
-- 浏览器 Cookie 中的 Zitadel OIDC access token 走 **本地 JWKS 验证**，不会为每个请求额外查询 session store
+- 浏览器 Cookie 中的 Casdoor JWT access token 走 **本地 JWKS 验证**，不会为每个请求额外查询 session store
 - 即时吊销模型明确收口为：**blacklist + 5 分钟 access TTL + refresh 轮换**；`refresh` 仍会触达 session store，浏览器写请求不引入每请求 Redis RTT
 
 ## 手机号登录

@@ -2877,7 +2877,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 返回 Zitadel OIDC 授权 URL 和 state */
+            /** @description 返回 Casdoor OIDC 授权 URL 和 state */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2910,7 +2910,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 返回 Zitadel OIDC 授权 URL 和 state */
+            /** @description 返回 Casdoor OIDC 授权 URL 和 state */
             200: {
                 headers: {
                     [name: string]: unknown;

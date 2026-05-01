@@ -1,9 +1,10 @@
 ---
 type: design
-audience: maintainers, backend-dev, security-review, product
-status: deferred-design
+audience: maintainers, backend-dev, product
+status: draft
 authoritative-source: this file for open-platform v1 target
 created: 2026-05-01
+last-verified: 2026-05-02
 prerequisites:
   - 2026-05-01-casdoor-iam-v2.md (must land first)
 related:

@@ -234,15 +234,14 @@ TRAEFIK_TLS_REDIRECT_TARGET=
 
 3. 应用层面需要配置受信代理：
    - 设置 `TRUSTED_PROXIES` 为 LB 的内网 IP
-   - Zitadel 的 `ZITADEL_PUBLIC_SCHEME=https`、`ZITADEL_EXTERNALSECURE=true`
+   - `CASDOOR_ISSUER` 使用外部 HTTPS 地址，并与 `WEB_VITE_SSO_URL` 保持一致
 
 ### TLS 终止检查清单
 
 发布前确认：
 
-- [ ] `ZITADEL_PUBLIC_SCHEME` 与实际 scheme 一致（http/https）
-- [ ] `ZITADEL_EXTERNALSECURE` 与实际 scheme 一致
-- [ ] `ZITADEL_EXTERNALPORT` 与实际端口一致（ACME 模式下通常为 443）
+- [ ] `CASDOOR_ISSUER` 与实际 scheme、host、端口一致
+- [ ] `CASDOOR_EXTERNALPORT` 与本机暴露端口一致
 - [ ] `CORS_ORIGINS` 使用正确的 scheme 和端口
 - [ ] `WEB_VITE_SSO_URL` 使用正确的 scheme
 - [ ] `TOKEN_COOKIE_SECURE=true`（生产必须）

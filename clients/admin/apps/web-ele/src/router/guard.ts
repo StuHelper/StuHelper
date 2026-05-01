@@ -36,8 +36,8 @@ function setupCommonGuard(router: Router) {
 /**
  * 权限访问守卫配置
  *
- * StuHelper 适配：使用 Zitadel OIDC SSO，无 token 时尝试从 /auth/me 获取会话，
- * 失败则重定向到 Zitadel 登录页（不走 Vben 内置登录页）。
+ * StuHelper 适配：使用外部 OIDC SSO，无 token 时尝试从 /auth/me 获取会话，
+ * 失败则重定向到 OIDC 登录页（不走 Vben 内置登录页）。
  */
 function setupAccessGuard(router: Router) {
   router.beforeEach(async (to, from) => {
@@ -84,7 +84,7 @@ function setupAccessGuard(router: Router) {
           };
         }
 
-        // 会话不存在，重定向到 Zitadel OIDC 登录
+        // 会话不存在，重定向到 OIDC 登录
         authStore.redirectToLogin(to.fullPath);
         return false;
       }

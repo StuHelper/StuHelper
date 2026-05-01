@@ -25,7 +25,7 @@ export function mapMeToUserInfo(me: AuthApi.MeResult): UserInfo {
     avatar: me.avatar ?? '',
     desc: '',
     // Vestigial from Vben's built-in auth pattern. This project uses
-    // cookie-based OIDC auth via Zitadel, so token is always empty.
+    // cookie-based OIDC auth, so token is always empty.
     token: '',
     roles: me.roles,
     homePath: preferences.app.defaultHomePath,

@@ -15,7 +15,7 @@ make dev-init
 make dev-up
 ```
 
-自动启动 PostgreSQL / Redis / Zitadel / OpenFGA / MinIO，执行迁移和 seed，启动热重载（后端 `air`，前端 `Vite`）。
+自动启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO，执行迁移和 seed，启动热重载（后端 `air`，前端 `Vite`）。
 
 前置工具：Docker / Docker Compose、Go 1.26+、Node.js 24+ / pnpm 10+、Python 3（供环境渲染与运维脚本使用）。
 
@@ -44,7 +44,7 @@ corepack yarn workspaces list
 | Web | http://127.0.0.1:3000 |
 | Admin | http://127.0.0.1:3001/admin/ |
 | API | http://127.0.0.1:8080 |
-| Zitadel | http://127.0.0.1:8085 |
+| Casdoor | http://127.0.0.1:8085 |
 
 ## 全 Docker 开发
 
@@ -87,7 +87,7 @@ make ansible-rollback-prod      # Ansible 回滚
 | 管理后台 | Vben Admin（Element Plus 变体） |
 | 数据库 | PostgreSQL 18 / Redis 8 |
 | 对象存储 | S3 兼容（默认 MinIO） |
-| 认证 | Zitadel OIDC |
+| 认证 | Casdoor OIDC |
 | 资源授权 | OpenFGA |
 | 契约 | OpenAPI 3.1 |
 | 部署 | Docker Compose / GitLab CI/CD |

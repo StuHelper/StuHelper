@@ -10,13 +10,13 @@ last-verified: 2026-04-19
 
 ## 前置条件
 - [ ] 后端已启动（docker compose up -d --wait）
-- [ ] Zitadel OIDC 已配置且 well-known 可达
+- [ ] Casdoor OIDC 已配置且 well-known 可达
 - [ ] uniappx 已配置 stuhelper:// scheme
 
 ## 登录流程
 - [ ] 点击登录 → 调用 /api/v1/auth/login?platform=native → 获取授权 URL + state
-- [ ] 打开系统浏览器跳转授权 URL → Zitadel 登录页正常显示
-- [ ] 登录成功后 Zitadel 302 回 /api/v1/auth/callback?code=xxx&state=yyy
+- [ ] 打开系统浏览器跳转授权 URL → Casdoor 登录页正常显示
+- [ ] 登录成功后 Casdoor 302 回 /api/v1/auth/callback?code=xxx&state=yyy
 - [ ] 后端检测 native state → 302 重定向到 stuhelper://auth/callback?code=xxx&state=yyy
 - [ ] App.vue 拦截 deep link → 跳转 /pages/auth/callback
 - [ ] callback.vue 校验 state → 调用 authStore.exchangeNativeCode(code, state)

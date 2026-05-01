@@ -23,7 +23,7 @@ StuHelper 当前最成熟的能力并不是完整教务，而是：
 - 通知
 - 后台治理
 
-代码库已经具备单体 Go API、OpenAPI-first、Zitadel OIDC、OpenFGA、Redis、S3/MinIO、可观测性和 CI/CD 基础。真正缺口不是实验 / 作业 / 评分域，而是新产品边界下的教务读模型、资源共享、可插拔存储、统一审计和外部依赖治理。
+代码库已经具备单体 Go API、OpenAPI-first、Casdoor OIDC、OpenFGA、Redis、S3/MinIO、可观测性和 CI/CD 基础。真正缺口不是实验 / 作业 / 评分域，而是新产品边界下的教务读模型、资源共享、可插拔存储、统一审计和外部依赖治理。
 
 ## 决策
 

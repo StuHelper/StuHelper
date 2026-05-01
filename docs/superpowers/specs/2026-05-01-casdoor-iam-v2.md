@@ -1,9 +1,10 @@
 ---
 type: design
-audience: maintainers, backend-dev, infra-dev, security-review
-status: proposed
+audience: maintainers, backend-dev, ops
+status: draft
 authoritative-source: this file for the StuHelper IAM v2 target architecture
 created: 2026-05-01
+last-verified: 2026-05-02
 supersedes: 2026-05-01-casdoor-open-platform-iam-design.md
 related:
   - 2026-05-01-open-platform-v1.md (deferred follow-up)
