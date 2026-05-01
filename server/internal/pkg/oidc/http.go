@@ -12,7 +12,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/observability"
 )
 
-func newOIDCHTTPClient(cfg config.ZitadelConfig, clientName string) *http.Client {
+func newOIDCHTTPClient(cfg config.CasdoorConfig, clientName string) *http.Client {
 	transport := &http.Transport{
 		DialContext:           (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 		TLSHandshakeTimeout:   5 * time.Second,

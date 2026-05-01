@@ -50,7 +50,7 @@ func newBearerOIDCClient(t *testing.T) (*oidc.Client, *httptest.Server) {
 		})
 	})
 
-	client, err := oidc.NewClient(context.Background(), config.ZitadelConfig{
+	client, err := oidc.NewClient(context.Background(), config.CasdoorConfig{
 		Issuer:       server.URL,
 		ClientID:     "client-id",
 		ClientSecret: "client-secret",

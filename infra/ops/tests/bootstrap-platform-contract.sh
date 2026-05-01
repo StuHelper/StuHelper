@@ -39,7 +39,6 @@ fi
 assert_contains "${ZITADEL_SETUP_SCRIPT}" 'ZITADEL_SECRET_OUTPUT_FILE='
 assert_not_contains "${ZITADEL_SETUP_SCRIPT}" '^echo "ZITADEL_CLIENT_SECRET='
 
-assert_contains "${COMPOSE_PROD_FILE}" 'ZITADEL_CLIENT_SECRET: \$\{ZITADEL_CLIENT_SECRET:\?ZITADEL_CLIENT_SECRET is required\}'
-assert_contains "${COMPOSE_PROD_FILE}" 'ZITADEL_MANAGEMENT_PAT: \$\{ZITADEL_MANAGEMENT_PAT:\?ZITADEL_MANAGEMENT_PAT is required\}'
+assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_CLIENT_SECRET: \$\{CASDOOR_CLIENT_SECRET:\?CASDOOR_CLIENT_SECRET is required\}'
 
 echo "[bootstrap-platform-contract] all assertions passed"

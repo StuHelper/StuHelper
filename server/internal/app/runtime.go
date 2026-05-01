@@ -211,7 +211,7 @@ func (rt *Runtime) initCoreServices() error {
 	rt.tokenService = tokenService
 	rt.addCleanup(tokenService.Close)
 
-	oidcClient, err := oidc.NewClient(context.Background(), rt.cfg.Zitadel)
+	oidcClient, err := oidc.NewClient(context.Background(), rt.cfg.Casdoor)
 	if err != nil {
 		return fmt.Errorf("failed to initialize OIDC client: %w", err)
 	}

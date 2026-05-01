@@ -38,6 +38,23 @@ func TestParseRolesFromRaw_InvalidFallbackRolesClaimReportsFallbackError(t *test
 	assert.Contains(t, err.Error(), "map[string]interface {}")
 }
 
+func TestParseProviderRolesFromRaw_CasdoorFlatRoles(t *testing.T) {
+	roles, scoped, err := ParseProviderRolesFromRaw([]byte(`{"roles":["school_admin","verified_student","school_admin"]}`), "roles", "")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"school_admin", "verified_student"}, roles)
+	assert.Nil(t, scoped)
+}
+
+func TestParseProviderRolesFromRaw_LegacyZitadelFallback(t *testing.T) {
+	raw := []byte(`{"urn:zitadel:iam:org:project:test-project:roles":{"school_admin":{"1001":"a.example.com"}}}`)
+
+	roles, scoped, err := ParseProviderRolesFromRaw(raw, "roles", "test-project")
+
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"school_admin"}, roles)
+	assert.ElementsMatch(t, []string{"1001"}, scoped["school_admin"])
+}
+
 func TestClaims_HasRoleInOrg(t *testing.T) {
 	c := &Claims{
 		OrgScopedRoles: map[string][]string{

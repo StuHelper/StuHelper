@@ -5,7 +5,7 @@ type Config struct {
 	App           AppConfig
 	Database      DatabaseConfig
 	Redis         RedisConfig
-	Zitadel       ZitadelConfig
+	Casdoor       CasdoorConfig
 	OpenFGA       OpenFGAConfig
 	ObjectStorage ObjectStorageConfig
 	Token         TokenConfig
@@ -100,16 +100,20 @@ type DatabaseConfig struct {
 	SSLKey          string
 }
 
-// ZitadelConfig Zitadel OIDC 认证配置
-type ZitadelConfig struct {
+// CasdoorConfig OIDC 认证配置。
+type CasdoorConfig struct {
 	Issuer          string // OIDC 对外签发者地址，如 https://sso.stuhelper.com
-	InternalAddress string // 可选：容器内访问 Zitadel 的拨号地址，如 host.docker.internal:8085
+	InternalAddress string // 可选：容器内访问 IDP 的拨号地址，如 host.docker.internal:8085
 	ClientID        string
 	ClientSecret    string
 	RedirectURI     string
-	ProjectID       string // 用于解析 Token 中的角色 claim
-	OrgID           string // 默认组织 ID
-	ManagementPAT   string // Service Account PAT，用于 Management API（角色同步等）
+	Organization    string // Casdoor organization 名称
+	RolesClaim      string // 角色 claim 名称，默认 roles
+
+	// Legacy Zitadel fields remain until the management client is removed in a later migration slice.
+	ProjectID     string
+	OrgID         string
+	ManagementPAT string
 }
 
 // OpenFGAConfig OpenFGA 关系型授权引擎配置
@@ -167,7 +171,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		App:           loadAppConfig(&parseErrs),
 		Database:      loadDatabaseConfig(&parseErrs),
-		Zitadel:       loadZitadelConfig(),
+		Casdoor:       loadCasdoorConfig(),
 		OpenFGA:       loadOpenFGAConfig(),
 		ObjectStorage: loadObjectStorageConfig(&parseErrs),
 		Redis:         loadRedisConfig(&parseErrs),
@@ -221,16 +225,15 @@ func loadDatabaseConfig(parseErrs *[]string) DatabaseConfig {
 	}
 }
 
-func loadZitadelConfig() ZitadelConfig {
-	return ZitadelConfig{
-		Issuer:          getEnv("ZITADEL_ISSUER", ""),
-		InternalAddress: getEnv("ZITADEL_INTERNAL_ADDRESS", ""),
-		ClientID:        getEnv("ZITADEL_CLIENT_ID", ""),
-		ClientSecret:    getEnv("ZITADEL_CLIENT_SECRET", ""),
-		RedirectURI:     getEnv("ZITADEL_REDIRECT_URI", ""),
-		ProjectID:       getEnv("ZITADEL_PROJECT_ID", ""),
-		OrgID:           getEnv("ZITADEL_ORG_ID", ""),
-		ManagementPAT:   getEnv("ZITADEL_MANAGEMENT_PAT", ""),
+func loadCasdoorConfig() CasdoorConfig {
+	return CasdoorConfig{
+		Issuer:          getEnv("CASDOOR_ISSUER", ""),
+		InternalAddress: getEnv("CASDOOR_INTERNAL_ADDRESS", ""),
+		ClientID:        getEnv("CASDOOR_CLIENT_ID", ""),
+		ClientSecret:    getEnv("CASDOOR_CLIENT_SECRET", ""),
+		RedirectURI:     getEnv("CASDOOR_REDIRECT_URI", ""),
+		Organization:    getEnv("CASDOOR_ORGANIZATION", ""),
+		RolesClaim:      getEnv("CASDOOR_ROLES_CLAIM", "roles"),
 	}
 }
 

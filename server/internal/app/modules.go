@@ -147,7 +147,7 @@ func (rt *Runtime) initAuthModule(api *gin.RouterGroup, bgCtx context.Context, p
 		auth.HandlerConfig{
 			Token:       rt.cfg.Token,
 			CORSOrigins: rt.cfg.App.CORSOrigins,
-			OIDCIssuer:  rt.cfg.Zitadel.Issuer,
+			OIDCIssuer:  rt.cfg.Casdoor.Issuer,
 		},
 		rt.tokenService,
 		rt.redisClient.GetClient(),
@@ -205,7 +205,7 @@ func (rt *Runtime) metricsAllowedOrigins() []string {
 
 func (rt *Runtime) initSMSService() (*sms.Service, error) {
 	if !rt.cfg.SMS.Enabled {
-		logger.L().Info("SMS service disabled (SMS_ENABLED=false), phone login and Zitadel SMS callback unavailable")
+		logger.L().Info("SMS service disabled (SMS_ENABLED=false), phone login and Casdoor SMS callback unavailable")
 		return nil, nil
 	}
 
@@ -276,7 +276,7 @@ func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cip
 		photoStore = user.WithIdentityPhotoStorageService(storageService, storage.DefaultMountKey)
 	}
 
-	mgmtClient := oidc.NewManagementClient(rt.cfg.Zitadel)
+	mgmtClient := oidc.NewManagementClient(rt.cfg.Casdoor)
 	roleSyncFn := oidc.BuildRoleSyncFunc(mgmtClient, func(ctx context.Context, userID int64) (string, error) {
 		return userRepo.GetExternalID(ctx, userID)
 	})

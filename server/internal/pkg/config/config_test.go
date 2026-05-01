@@ -167,12 +167,12 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 		Redis: RedisConfig{
 			Password: "redis-password",
 		},
-		Zitadel: ZitadelConfig{
+		Casdoor: CasdoorConfig{
 			Issuer:       "https://sso.example.com",
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
 			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
-			ProjectID:    "project-id",
+			Organization: "stuhelper",
 		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
@@ -260,12 +260,12 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 		ObjectStorage: ObjectStorageConfig{
 			PresignTTL: 600,
 		},
-		Zitadel: ZitadelConfig{
+		Casdoor: CasdoorConfig{
 			Issuer:       "https://sso.example.com",
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
 			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
-			ProjectID:    "project-id",
+			Organization: "stuhelper",
 		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
@@ -321,12 +321,12 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 		ObjectStorage: ObjectStorageConfig{
 			PresignTTL: 600,
 		},
-		Zitadel: ZitadelConfig{
+		Casdoor: CasdoorConfig{
 			Issuer:       "https://sso.example.com",
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
 			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
-			ProjectID:    "project-id",
+			Organization: "stuhelper",
 		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
@@ -378,12 +378,12 @@ func TestValidate_RequiresCORSOriginsInDevelopment(t *testing.T) {
 		ObjectStorage: ObjectStorageConfig{
 			PresignTTL: 600,
 		},
-		Zitadel: ZitadelConfig{
+		Casdoor: CasdoorConfig{
 			Issuer:       "https://sso.example.com",
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
 			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
-			ProjectID:    "project-id",
+			Organization: "stuhelper",
 		},
 		RateLimit: ReviewRateLimitConfig{
 			PostLimit:       5,
@@ -433,12 +433,12 @@ func TestValidate_RequiresOpenFGAInDevelopment(t *testing.T) {
 		ObjectStorage: ObjectStorageConfig{
 			PresignTTL: 600,
 		},
-		Zitadel: ZitadelConfig{
+		Casdoor: CasdoorConfig{
 			Issuer:       "https://sso.example.com",
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
 			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
-			ProjectID:    "project-id",
+			Organization: "stuhelper",
 		},
 		RateLimit: ReviewRateLimitConfig{
 			PostLimit:       5,
@@ -479,7 +479,7 @@ func validProductionConfigForTest() *Config {
 		ObjectStorage: ObjectStorageConfig{
 			Endpoint: "https://s3.example.com", Bucket: "stuhelper", AccessKeyID: "access", SecretAccessKey: "secret", UseSSL: true, PresignTTL: 600,
 		},
-		Zitadel: ZitadelConfig{Issuer: "https://sso.example.com", ClientID: "client-id", ClientSecret: "client-secret", RedirectURI: "https://api.example.com/api/v1/auth/callback", ProjectID: "project-id"},
+		Casdoor: CasdoorConfig{Issuer: "https://sso.example.com", ClientID: "client-id", ClientSecret: "client-secret", RedirectURI: "https://api.example.com/api/v1/auth/callback", Organization: "stuhelper"},
 		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
 		Observability: ObservabilityConfig{
 			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,

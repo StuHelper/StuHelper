@@ -160,21 +160,21 @@ func (c *Config) validate(parseErrs []string) error {
 		errs = append(errs, "TOKEN_COOKIE_SECURE can only be false in development")
 	}
 
-	// Zitadel OIDC 配置校验
-	if c.Zitadel.Issuer == "" {
-		errs = append(errs, "ZITADEL_ISSUER is required")
+	// Casdoor OIDC 配置校验
+	if c.Casdoor.Issuer == "" {
+		errs = append(errs, "CASDOOR_ISSUER is required")
 	}
-	if c.Zitadel.ClientID == "" {
-		errs = append(errs, "ZITADEL_CLIENT_ID is required")
+	if c.Casdoor.ClientID == "" {
+		errs = append(errs, "CASDOOR_CLIENT_ID is required")
 	}
-	if c.Zitadel.ClientSecret == "" {
-		errs = append(errs, "ZITADEL_CLIENT_SECRET is required")
+	if c.Casdoor.ClientSecret == "" {
+		errs = append(errs, "CASDOOR_CLIENT_SECRET is required")
 	}
-	if c.Zitadel.RedirectURI == "" {
-		errs = append(errs, "ZITADEL_REDIRECT_URI is required")
+	if c.Casdoor.RedirectURI == "" {
+		errs = append(errs, "CASDOOR_REDIRECT_URI is required")
 	}
-	if c.Zitadel.ProjectID == "" {
-		errs = append(errs, "ZITADEL_PROJECT_ID is required")
+	if c.Casdoor.Organization == "" {
+		errs = append(errs, "CASDOOR_ORGANIZATION is required")
 	}
 
 	// OpenFGA 是应用运行时必需依赖，所有环境都需要完整配置。

@@ -100,7 +100,7 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 	issuer = srv.URL
 	t.Cleanup(srv.Close)
 
-	client, err := oidcpkg.NewClient(context.Background(), config.ZitadelConfig{
+	client, err := oidcpkg.NewClient(context.Background(), config.CasdoorConfig{
 		Issuer:       issuer,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,

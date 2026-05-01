@@ -33,12 +33,12 @@ func validConfigForValidation() *Config {
 		ObjectStorage: ObjectStorageConfig{
 			PresignTTL: 600,
 		},
-		Zitadel: ZitadelConfig{
+		Casdoor: CasdoorConfig{
 			Issuer:       "https://sso.example.com",
 			ClientID:     "client-id",
 			ClientSecret: "client-secret",
 			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
-			ProjectID:    "project-id",
+			Organization: "stuhelper",
 		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",

@@ -43,7 +43,7 @@ func TestNewOIDCHTTPClient_RewritesIssuerToInternalAddress(t *testing.T) {
 	parsed, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	cfg := config.ZitadelConfig{
+	cfg := config.CasdoorConfig{
 		Issuer:          "http://issuer.example.test:" + parsed.Port(),
 		InternalAddress: "127.0.0.1",
 	}

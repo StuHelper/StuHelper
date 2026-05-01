@@ -34,7 +34,7 @@ var ErrManagementPATNotConfigured = errors.New("zitadel management PAT is not co
 
 // NewManagementClient 创建 Management API 客户端。
 // pat 为空时返回 nil（未配置，角色同步禁用）。
-func NewManagementClient(cfg config.ZitadelConfig) *ManagementClient {
+func NewManagementClient(cfg config.CasdoorConfig) *ManagementClient {
 	if cfg.ManagementPAT == "" {
 		return nil
 	}

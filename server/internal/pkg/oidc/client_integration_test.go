@@ -93,7 +93,7 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 
 	srv := httptest.NewServer(mux)
 	issuer = srv.URL
-	client, err := NewClient(context.Background(), config.ZitadelConfig{
+	client, err := NewClient(context.Background(), config.CasdoorConfig{
 		Issuer:       issuer,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,

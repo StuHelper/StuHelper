@@ -1,4 +1,4 @@
-// Package oidc 封装标准 OIDC 客户端，用于 Zitadel SSO 认证。
+// Package oidc 封装标准 OIDC 客户端。
 package oidc
 
 import (
@@ -27,13 +27,15 @@ type Client struct {
 	verifier   *gooidc.IDTokenVerifier
 	oauth2Cfg  oauth2.Config
 	projectID  string
+	rolesClaim string
+	metricName string
 	httpClient *http.Client
 }
 
-// NewClient 基于 Zitadel 配置创建 OIDC 客户端。
+// NewClient 基于 Casdoor 配置创建 OIDC 客户端。
 // 自动发现 issuer 的 OIDC 配置（JWKS、授权端点、Token 端点等）。
-func NewClient(ctx context.Context, cfg config.ZitadelConfig) (*Client, error) {
-	httpClient := newOIDCHTTPClient(cfg, "zitadel_oidc")
+func NewClient(ctx context.Context, cfg config.CasdoorConfig) (*Client, error) {
+	httpClient := newOIDCHTTPClient(cfg, "casdoor_oidc")
 
 	// 将自定义 HTTP 客户端注入到 OIDC Provider 发现过程
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
@@ -52,7 +54,7 @@ func NewClient(ctx context.Context, cfg config.ZitadelConfig) (*Client, error) {
 		ClientSecret: cfg.ClientSecret,
 		RedirectURL:  cfg.RedirectURI,
 		Endpoint:     provider.Endpoint(),
-		Scopes:       []string{gooidc.ScopeOpenID, "profile", "email", "offline_access", "urn:zitadel:iam:org:project:id:zitadel:aud"},
+		Scopes:       []string{gooidc.ScopeOpenID, "profile", "email", "offline_access"},
 	}
 
 	return &Client{
@@ -60,6 +62,8 @@ func NewClient(ctx context.Context, cfg config.ZitadelConfig) (*Client, error) {
 		verifier:   verifier,
 		oauth2Cfg:  oauth2Cfg,
 		projectID:  cfg.ProjectID,
+		rolesClaim: defaultRolesClaim(cfg.RolesClaim),
+		metricName: "casdoor_oidc",
 		httpClient: httpClient,
 	}, nil
 }
@@ -83,7 +87,7 @@ func (c *Client) ExchangeCode(ctx context.Context, code, codeVerifier string) (*
 		opts = append(opts, oauth2.VerifierOption(codeVerifier))
 	}
 	token, err := c.oauth2Cfg.Exchange(ctx, code, opts...)
-	metrics.ObserveExternalRequest("zitadel_oidc", "exchange_code", start, err)
+	metrics.ObserveExternalRequest(c.metricName, "exchange_code", start, err)
 	if err != nil {
 		return nil, fmt.Errorf("oidc: code exchange failed: %w", err)
 	}
@@ -103,10 +107,10 @@ func (c *Client) VerifyIDToken(ctx context.Context, rawIDToken string) (*Claims,
 		return nil, fmt.Errorf("oidc: failed to parse claims: %w", err)
 	}
 
-	// 从原始 JSON 中提取 Zitadel 项目角色（动态 claim key 无法用 struct tag 解析）
+	// 从原始 JSON 中提取 provider-specific 角色 claim
 	var rawJSON []byte
 	if rawJSON, err = marshalIDTokenClaims(idToken); err == nil {
-		roles, scoped, parseErr := ParseRolesFromRaw(rawJSON, c.projectID)
+		roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim, c.projectID)
 		if parseErr != nil {
 			logger.L().Warn("oidc: failed to parse roles from id_token", zap.Error(parseErr))
 		} else {
@@ -133,7 +137,7 @@ func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*oauth2
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
 	tokenSource := c.oauth2Cfg.TokenSource(ctx, &oauth2.Token{RefreshToken: refreshToken})
 	token, err := tokenSource.Token()
-	metrics.ObserveExternalRequest("zitadel_oidc", "refresh_token", start, err)
+	metrics.ObserveExternalRequest(c.metricName, "refresh_token", start, err)
 	if err != nil {
 		return nil, fmt.Errorf("oidc: token refresh failed: %w", err)
 	}
@@ -151,20 +155,20 @@ type IntrospectionResult struct {
 	OrgScopedRoles map[string][]string `json:"-"`
 }
 
-// IntrospectToken 调用 Zitadel Token 内省端点验证 Bearer token。
-// 用于 Bearer token 的即时吊销验证（Zitadel 端吊销后立即生效）。
+// IntrospectToken 调用 OIDC Token 内省端点验证 Bearer token。
+// 用于 Bearer token 的即时吊销验证（IDP 端吊销后立即生效）。
 // Cookie 端仍用本地 JWKS 验证（性能优先），Bearer 端用 introspection（安全优先）。
 func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *IntrospectionResult, err error) {
 	start := time.Now()
 	defer func() {
-		metrics.ObserveExternalRequest("zitadel_oidc", "introspect_token", start, err)
+		metrics.ObserveExternalRequest(c.metricName, "introspect_token", start, err)
 	}()
 	// 发现 introspection 端点
 	var providerCfg struct {
 		IntrospectionEndpoint string `json:"introspection_endpoint"`
 	}
 	if err := c.provider.Claims(&providerCfg); err != nil || providerCfg.IntrospectionEndpoint == "" {
-		// Fallback: Zitadel 标准路径
+		// Fallback: common OIDC introspection path
 		providerCfg.IntrospectionEndpoint = fallbackIntrospectionEndpoint(c.oauth2Cfg.Endpoint.TokenURL)
 		if providerCfg.IntrospectionEndpoint == "" {
 			return nil, fmt.Errorf("oidc: introspection endpoint unavailable")
@@ -208,8 +212,8 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 		return &result, nil
 	}
 
-	// 从原始 JSON 解析 Zitadel 项目角色
-	roles, scoped, parseErr := ParseRolesFromRaw(rawJSON, c.projectID)
+	// 从原始 JSON 解析 provider-specific 角色 claim
+	roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim, c.projectID)
 	if parseErr != nil {
 		logger.L().Warn("oidc: failed to parse roles from introspection response", zap.Error(parseErr))
 	} else {

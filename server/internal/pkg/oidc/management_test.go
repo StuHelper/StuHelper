@@ -19,11 +19,11 @@ import (
 
 func TestNewManagementClient(t *testing.T) {
 	t.Run("nil when PAT missing", func(t *testing.T) {
-		assert.Nil(t, NewManagementClient(config.ZitadelConfig{}))
+		assert.Nil(t, NewManagementClient(config.CasdoorConfig{}))
 	})
 
 	t.Run("builds client when PAT configured", func(t *testing.T) {
-		cfg := config.ZitadelConfig{
+		cfg := config.CasdoorConfig{
 			Issuer:        "https://issuer.example.com",
 			ManagementPAT: "test-pat",
 			ProjectID:     "project-1",
