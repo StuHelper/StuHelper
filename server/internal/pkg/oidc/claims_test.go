@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,4 +62,20 @@ func TestClaims_HasRoleInOrg_NilSafe(t *testing.T) {
 
 	c2 := &Claims{}
 	assert.False(t, c2.HasRoleInOrg("school_admin", "1001"))
+}
+
+func TestClaims_MFAProofVerifiedAtRequiresMFAAMRAndAuthTime(t *testing.T) {
+	authTime := time.Date(2026, 5, 2, 10, 30, 0, 0, time.UTC)
+	claims := &Claims{AMR: []string{"pwd", "totp"}, AuthTime: authTime.Unix()}
+
+	assert.Equal(t, authTime, claims.MFAProofVerifiedAt())
+	assert.True(t, HasMFAAMR([]string{" PWD ", "WebAuthn"}))
+	assert.True(t, MFAProofVerifiedAt([]string{"mfa"}, authTime.Unix()).Equal(authTime))
+	assert.True(t, MFAProofVerifiedAt([]string{"pwd"}, authTime.Unix()).IsZero())
+	assert.True(t, MFAProofVerifiedAt([]string{"totp"}, 0).IsZero())
+}
+
+func TestClaims_MFAProofVerifiedAtNilSafe(t *testing.T) {
+	var claims *Claims
+	assert.True(t, claims.MFAProofVerifiedAt().IsZero())
 }

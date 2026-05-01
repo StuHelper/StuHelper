@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
+	"time"
 )
 
 // Claims OIDC ID Token 解析后的用户信息
@@ -11,12 +13,14 @@ import (
 //
 //nolint:revive // 保持与 OIDC 标准 claims 命名一致
 type Claims struct {
-	Sub               string `json:"sub"`
-	Name              string `json:"name"`
-	PreferredUsername string `json:"preferred_username"`
-	Email             string `json:"email"`
-	EmailVerified     bool   `json:"email_verified"`
-	Picture           string `json:"picture"`
+	Sub               string   `json:"sub"`
+	Name              string   `json:"name"`
+	PreferredUsername string   `json:"preferred_username"`
+	Email             string   `json:"email"`
+	EmailVerified     bool     `json:"email_verified"`
+	Picture           string   `json:"picture"`
+	AMR               []string `json:"amr,omitempty"`
+	AuthTime          int64    `json:"auth_time,omitempty"`
 
 	// 解析后的角色列表（如 ["school_admin", "verified_student"]）
 	Roles []string
@@ -56,6 +60,13 @@ func (c *Claims) GetAvatar() *string {
 		return nil
 	}
 	return &c.Picture
+}
+
+func (c *Claims) MFAProofVerifiedAt() time.Time {
+	if c == nil {
+		return time.Time{}
+	}
+	return MFAProofVerifiedAt(c.AMR, c.AuthTime)
 }
 
 // HasRoleInOrg 检查用户是否在指定 orgID 上拥有指定角色。
@@ -155,4 +166,41 @@ func dedupeRoles(roles []string) []string {
 		out = append(out, role)
 	}
 	return out
+}
+
+const (
+	amrMFA      = "mfa"
+	amrOTP      = "otp"
+	amrTOTP     = "totp"
+	amrWebAuthn = "webauthn"
+	amrFIDO     = "fido"
+	amrFIDO2    = "fido2"
+	amrHWK      = "hwk"
+)
+
+var mfaAMRMethods = map[string]struct{}{
+	amrMFA:      {},
+	amrOTP:      {},
+	amrTOTP:     {},
+	amrWebAuthn: {},
+	amrFIDO:     {},
+	amrFIDO2:    {},
+	amrHWK:      {},
+}
+
+func MFAProofVerifiedAt(amr []string, authTime int64) time.Time {
+	if authTime <= 0 || !HasMFAAMR(amr) {
+		return time.Time{}
+	}
+	return time.Unix(authTime, 0).UTC()
+}
+
+func HasMFAAMR(amr []string) bool {
+	for _, method := range amr {
+		normalized := strings.ToLower(strings.TrimSpace(method))
+		if _, ok := mfaAMRMethods[normalized]; ok {
+			return true
+		}
+	}
+	return false
 }

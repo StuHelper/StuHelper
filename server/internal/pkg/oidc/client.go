@@ -149,8 +149,17 @@ type IntrospectionResult struct {
 	Username       string              `json:"username"`
 	Email          string              `json:"email"`
 	Name           string              `json:"name"`
+	AMR            []string            `json:"amr,omitempty"`
+	AuthTime       int64               `json:"auth_time,omitempty"`
 	Roles          []string            `json:"-"` // 从原始 JSON 解析
 	OrgScopedRoles map[string][]string `json:"-"`
+}
+
+func (r *IntrospectionResult) MFAProofVerifiedAt() time.Time {
+	if r == nil {
+		return time.Time{}
+	}
+	return MFAProofVerifiedAt(r.AMR, r.AuthTime)
 }
 
 // IntrospectToken 调用 OIDC Token 内省端点验证 Bearer token。

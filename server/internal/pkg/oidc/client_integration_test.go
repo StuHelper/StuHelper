@@ -42,6 +42,8 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 			"preferred_username": "oidc-user",
 			"email":              "oidc@example.com",
 			"picture":            "https://cdn.example.com/oidc.png",
+			"amr":                []string{"pwd", "totp"},
+			"auth_time":          time.Now().Add(-time.Minute).Unix(),
 			"roles":              []string{"school_admin"},
 		}).Serialize()
 		require.NoError(t, err)
@@ -77,12 +79,14 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 	mux.HandleFunc("/introspect", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"active":   true,
-			"sub":      "user-oidc-1",
-			"username": "oidc-user",
-			"email":    "oidc@example.com",
-			"name":     "OIDC User",
-			"roles":    []string{"school_admin"},
+			"active":    true,
+			"sub":       "user-oidc-1",
+			"username":  "oidc-user",
+			"email":     "oidc@example.com",
+			"name":      "OIDC User",
+			"amr":       []string{"pwd", "totp"},
+			"auth_time": time.Now().Add(-time.Minute).Unix(),
+			"roles":     []string{"school_admin"},
 		})
 	})
 
@@ -116,6 +120,8 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "user-oidc-1", claims.GetUserID())
 	assert.Contains(t, claims.Roles, "school_admin")
+	assert.Contains(t, claims.AMR, "totp")
+	assert.False(t, claims.MFAProofVerifiedAt().IsZero())
 	assert.False(t, claims.HasRoleInOrg("school_admin", "school-1"))
 
 	refreshed, err := client.RefreshToken(context.Background(), "provider-refresh-token")
@@ -126,6 +132,7 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Active)
 	assert.Contains(t, result.Roles, "school_admin")
+	assert.False(t, result.MFAProofVerifiedAt().IsZero())
 	assert.Nil(t, result.OrgScopedRoles)
 
 	raw, err := marshalIDTokenClaims(mustVerifyIDToken(t, client, idToken))
