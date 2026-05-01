@@ -96,9 +96,9 @@ func (c *Client) EnsureApplication(ctx context.Context, spec ApplicationSpec) er
 		return err
 	}
 	if existing == nil {
-		return c.CreateApplication(ctx, spec)
+		return c.createApplication(ctx, app)
 	}
-	return c.UpdateApplication(ctx, spec)
+	return c.updateApplication(ctx, app, existing)
 }
 
 func (c *Client) EnsureRole(ctx context.Context, spec RoleSpec) error {

@@ -17,6 +17,7 @@ const (
 	casdoorApplicationActionCreate = "created"
 	casdoorApplicationActionUpdate = "updated"
 	casdoorApplicationActionDelete = "deleted"
+	casdoorApplicationActionRotate = "secret_rotated"
 )
 
 type ApplicationSpec struct {
@@ -37,14 +38,7 @@ func (c *Client) CreateApplication(ctx context.Context, spec ApplicationSpec) er
 	if err != nil {
 		return err
 	}
-	err = c.call(ctx, "create application "+app.Name, func() (bool, error) {
-		return c.apps.AddApplication(app)
-	})
-	if err != nil {
-		return err
-	}
-	auditCasdoorApplication(ctx, c.credential, app.Name, casdoorApplicationActionCreate)
-	return nil
+	return c.createApplication(ctx, app)
 }
 
 func (c *Client) UpdateApplication(ctx context.Context, spec ApplicationSpec) error {
@@ -52,14 +46,11 @@ func (c *Client) UpdateApplication(ctx context.Context, spec ApplicationSpec) er
 	if err != nil {
 		return err
 	}
-	err = c.call(ctx, "update application "+app.Name, func() (bool, error) {
-		return c.apps.UpdateApplication(app)
-	})
+	existing, err := c.getApplication(ctx, app.Name)
 	if err != nil {
 		return err
 	}
-	auditCasdoorApplication(ctx, c.credential, app.Name, casdoorApplicationActionUpdate)
-	return nil
+	return c.updateApplication(ctx, app, existing)
 }
 
 func (c *Client) DeleteApplication(ctx context.Context, name string) error {
@@ -76,6 +67,49 @@ func (c *Client) DeleteApplication(ctx context.Context, name string) error {
 	}
 	auditCasdoorApplication(ctx, c.credential, name, casdoorApplicationActionDelete)
 	return nil
+}
+
+func (c *Client) createApplication(ctx context.Context, app *casdoorsdk.Application) error {
+	err := c.call(ctx, "create application "+app.Name, func() (bool, error) {
+		return c.apps.AddApplication(app)
+	})
+	if err != nil {
+		return err
+	}
+	auditCasdoorApplication(ctx, c.credential, app.Name, casdoorApplicationActionCreate)
+	return nil
+}
+
+func (c *Client) updateApplication(
+	ctx context.Context,
+	app *casdoorsdk.Application,
+	existing *casdoorsdk.Application,
+) error {
+	err := c.call(ctx, "update application "+app.Name, func() (bool, error) {
+		return c.apps.UpdateApplication(app)
+	})
+	if err != nil {
+		return err
+	}
+	action := casdoorApplicationAuditAction(existing, app)
+	auditCasdoorApplication(ctx, c.credential, app.Name, action)
+	return nil
+}
+
+func casdoorApplicationAuditAction(existing, desired *casdoorsdk.Application) string {
+	if applicationSecretRotated(existing, desired) {
+		return casdoorApplicationActionRotate
+	}
+	return casdoorApplicationActionUpdate
+}
+
+func applicationSecretRotated(existing, desired *casdoorsdk.Application) bool {
+	if existing == nil || desired == nil {
+		return false
+	}
+	oldSecret := strings.TrimSpace(existing.ClientSecret)
+	newSecret := strings.TrimSpace(desired.ClientSecret)
+	return oldSecret != "" && newSecret != "" && oldSecret != newSecret
 }
 
 func auditCasdoorApplication(ctx context.Context, credential Credential, appName string, action string) {

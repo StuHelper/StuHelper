@@ -40,8 +40,28 @@ func TestUpdateApplicationDelegatesToSDK(t *testing.T) {
 	err := client.UpdateApplication(context.Background(), validApplicationSpec())
 
 	require.NoError(t, err)
+	assert.Equal(t, "third-party-demo", api.gotName)
 	require.NotNil(t, api.updated)
 	assert.Equal(t, "third-party-demo", api.updated.Name)
+}
+
+func TestCasdoorApplicationAuditActionDetectsSecretRotation(t *testing.T) {
+	desired := &casdoorsdk.Application{Name: "third-party-demo", ClientSecret: "new-secret"}
+
+	action := casdoorApplicationAuditAction(
+		&casdoorsdk.Application{Name: "third-party-demo", ClientSecret: "old-secret"},
+		desired,
+	)
+	assert.Equal(t, casdoorApplicationActionRotate, action)
+
+	action = casdoorApplicationAuditAction(
+		&casdoorsdk.Application{Name: "third-party-demo", ClientSecret: ""},
+		desired,
+	)
+	assert.Equal(t, casdoorApplicationActionUpdate, action)
+
+	action = casdoorApplicationAuditAction(nil, desired)
+	assert.Equal(t, casdoorApplicationActionUpdate, action)
 }
 
 func TestDeleteApplicationUsesOwnedApplicationKey(t *testing.T) {
