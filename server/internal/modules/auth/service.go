@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
@@ -17,25 +15,35 @@ import (
 // Service 认证业务逻辑层，封装 session 生命周期管理和登录编排。
 // Handler 层只负责 HTTP 协议关切（cookie、redirect、response 格式化）。
 type Service struct {
-	tokenService *token.Service
-	tokenConfig  config.TokenConfig
-	userSyncRepo UserSyncRepo
+	tokenService   *token.Service
+	tokenConfig    config.TokenConfig
+	userSyncRepo   UserSyncRepo
+	providerTokens providerTokenCoordinator
 }
 
 // NewService 创建认证业务逻辑服务。
 // 开发期采用 fail-fast：关键依赖缺失直接 panic，而不是把“不可能状态”带进热路径。
-func NewService(tokenConfig config.TokenConfig, tokenService *token.Service, userSyncRepo UserSyncRepo) *Service {
+func NewService(
+	tokenConfig config.TokenConfig,
+	tokenService *token.Service,
+	userSyncRepo UserSyncRepo,
+	opts ...ServiceOption,
+) *Service {
 	if tokenService == nil {
 		panic("auth.NewService: tokenService is required")
 	}
 	if userSyncRepo == nil {
 		panic("auth.NewService: userSyncRepo is required")
 	}
-	return &Service{
+	svc := &Service{
 		tokenService: tokenService,
 		tokenConfig:  tokenConfig,
 		userSyncRepo: userSyncRepo,
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 // SessionInfo 登录成功后返回的 session 信息
@@ -67,14 +75,19 @@ func (s *Service) CreateSession(ctx context.Context, sessionID, userID, accessTo
 			return nil, fmt.Errorf("create session: hash refresh token: %w", err)
 		}
 	}
+	providerRefreshTokenEnc, err := s.encryptProviderRefreshToken(loginMethod, refreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("create session: %w", err)
+	}
 
 	sessionData := token.SessionData{
-		SessionID:        sessionID,
-		UserID:           userID,
-		AccessTokenHash:  accessHash,
-		RefreshTokenHash: refreshHash,
-		LoginMethod:      loginMethod,
-		DeviceInfo:       deviceInfo,
+		SessionID:               sessionID,
+		UserID:                  userID,
+		AccessTokenHash:         accessHash,
+		RefreshTokenHash:        refreshHash,
+		ProviderRefreshTokenEnc: providerRefreshTokenEnc,
+		LoginMethod:             loginMethod,
+		DeviceInfo:              deviceInfo,
 	}
 
 	if err := s.tokenService.GetSessionStore().Create(ctx, sessionData); err != nil {
@@ -103,10 +116,14 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 	if sessionID == "" {
 		return fmt.Errorf("rotate session: sessionID is required")
 	}
-	if err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
+	session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
 		userID:       userID,
 		refreshToken: oldRefreshToken,
-	}); err != nil {
+	})
+	if err != nil {
+		return fmt.Errorf("rotate session: %w", err)
+	}
+	if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
 		return fmt.Errorf("rotate session: %w", err)
 	}
 
@@ -121,8 +138,17 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 			return fmt.Errorf("rotate session: hash new refresh token: %w", err)
 		}
 	}
+	providerRefreshTokenEnc, err := s.encryptProviderRefreshToken(session.LoginMethod, newRefreshToken)
+	if err != nil {
+		return fmt.Errorf("rotate session: %w", err)
+	}
 
-	if touchErr := s.tokenService.GetSessionStore().Touch(ctx, sessionID, newAccessHash, newRefreshHash); touchErr != nil {
+	update := token.SessionTouchUpdate{
+		AccessTokenHash:         newAccessHash,
+		RefreshTokenHash:        newRefreshHash,
+		ProviderRefreshTokenEnc: providerRefreshTokenEnc,
+	}
+	if touchErr := s.tokenService.GetSessionStore().Touch(ctx, sessionID, update); touchErr != nil {
 		return fmt.Errorf("rotate session: touch session: %w", touchErr)
 	}
 	return nil
@@ -135,14 +161,18 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 // 若调用方持有 token 原文（例如 session ID 无法解析），直接按 token 原文加黑名单作兜底。
 func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessToken, refreshToken string) error {
 	if sessionID != "" {
-		if err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
+		session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{
 			userID:       userID,
 			accessToken:  accessToken,
 			refreshToken: refreshToken,
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("revoke session: %w", err)
 		}
-		_, err := s.tokenService.GetSessionStore().Revoke(
+		if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
+			return fmt.Errorf("revoke session: %w", err)
+		}
+		_, err = s.tokenService.GetSessionStore().Revoke(
 			ctx, sessionID,
 			s.tokenService.GetBlacklist(),
 			s.tokenService.GetAccessTokenTTL(),
@@ -179,23 +209,30 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 	return nil
 }
 
-func (s *Service) verifyTrackedSession(ctx context.Context, sessionID string, expectation trackedSessionExpectation) error {
+func (s *Service) verifyTrackedSession(
+	ctx context.Context,
+	sessionID string,
+	expectation trackedSessionExpectation,
+) (*token.SessionData, error) {
 	session, err := loadTrackedSession(ctx, s.tokenService.GetSessionStore(), sessionID)
 	if err != nil {
 		if errors.Is(err, token.ErrSessionNotFound) {
-			return err
+			return nil, err
 		}
-		return fmt.Errorf("load session: %w", err)
+		return nil, fmt.Errorf("load session: %w", err)
 	}
 	if err := validateTrackedSession(session, expectation); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return session, nil
 }
 
 // RevokeAllSessions 撤销用户的全部 session（全设备登出）。
 // 仅依赖 session store；不再回退到旧 token 跟踪系统。
 func (s *Service) RevokeAllSessions(ctx context.Context, userID string) error {
+	if err := s.revokeProviderRefreshTokensForUser(ctx, userID); err != nil {
+		return fmt.Errorf("revoke all sessions: %w", err)
+	}
 	if err := s.tokenService.GetSessionStore().RevokeAll(
 		ctx, userID,
 		s.tokenService.GetBlacklist(),
@@ -205,73 +242,4 @@ func (s *Service) RevokeAllSessions(ctx context.Context, userID string) error {
 		return fmt.Errorf("revoke all sessions: %w", err)
 	}
 	return nil
-}
-
-// SignPhoneTokenPair 为手机登录用户签发自签名 JWT 对（含 session ID）
-func (s *Service) SignPhoneTokenPair(user *PhoneUser, roles []string, sessionID string) (accessToken, refreshToken string, err error) {
-	hmacKey := crypto.GetHMACKey()
-	if len(hmacKey) == 0 {
-		return "", "", fmt.Errorf("HMAC key not initialized")
-	}
-
-	accessTTL := s.tokenService.GetAccessTokenTTL()
-	refreshTTL := time.Duration(s.tokenConfig.RefreshTokenTTL) * time.Second
-
-	accessClaims := token.JWTClaims{
-		Sub:         user.CasdoorSubject,
-		Name:        user.Username,
-		Email:       user.Email,
-		DisplayName: user.Username,
-		Roles:       roles,
-		Typ:         token.JWTTokenTypeAccess,
-		Sid:         sessionID,
-	}
-	if user.AvatarURL != nil {
-		accessClaims.Avatar = *user.AvatarURL
-	}
-
-	accessToken, err = token.SignJWT(hmacKey, accessClaims, accessTTL)
-	if err != nil {
-		return "", "", fmt.Errorf("sign access JWT: %w", err)
-	}
-
-	refreshClaims := token.JWTClaims{
-		Sub:         user.CasdoorSubject,
-		Name:        user.Username,
-		Email:       user.Email,
-		DisplayName: user.Username,
-		Roles:       roles,
-		Typ:         token.JWTTokenTypeRefresh,
-		Sid:         sessionID,
-	}
-	if user.AvatarURL != nil {
-		refreshClaims.Avatar = *user.AvatarURL
-	}
-	refreshToken, err = token.SignJWT(hmacKey, refreshClaims, refreshTTL)
-	if err != nil {
-		return "", "", fmt.Errorf("sign refresh JWT: %w", err)
-	}
-
-	return accessToken, refreshToken, nil
-}
-
-// SyncOIDCUser 同步 OIDC 登录的用户到本地 shadow user 表。
-// 登录成功必须意味着内部主体已就绪。
-func (s *Service) SyncOIDCUser(ctx context.Context, input UserSyncInput) error {
-	return s.userSyncRepo.UpsertUser(ctx, input)
-}
-
-// SyncPhoneUser 通过手机号查找或创建用户。
-func (s *Service) SyncPhoneUser(ctx context.Context, phone string) (*PhoneUser, error) {
-	return s.userSyncRepo.UpsertByPhone(ctx, phone)
-}
-
-// UserExistsByCasdoorSubject 检查用户是否存在（用于 refresh token 校验）。
-func (s *Service) UserExistsByCasdoorSubject(ctx context.Context, casdoorSubject string) (bool, error) {
-	return s.userSyncRepo.ExistsByCasdoorSubject(ctx, casdoorSubject)
-}
-
-// hashTokenForSession 生成 token 的 HMAC hash（用于 session 内存储）
-func hashTokenForSession(tokenStr string) (string, error) {
-	return crypto.HMACHash(tokenStr)
 }

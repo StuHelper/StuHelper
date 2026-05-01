@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
@@ -33,9 +34,10 @@ type Handler struct {
 }
 
 type HandlerConfig struct {
-	Token       config.TokenConfig
-	CORSOrigins []string
-	OIDCIssuer  string
+	Token               config.TokenConfig
+	CORSOrigins         []string
+	OIDCIssuer          string
+	ProviderTokenCipher pii.EncryptDecryptor
 }
 
 // NewHandler 创建认证处理器
@@ -47,7 +49,7 @@ func NewHandler(
 	userSyncRepo UserSyncRepo,
 	smsService *sms.Service,
 ) *Handler {
-	svc := NewService(cfg.Token, tokenService, userSyncRepo)
+	svc := NewService(cfg.Token, tokenService, userSyncRepo, providerTokenRevocationOptions(oidcClient, cfg)...)
 
 	// 从 CORS_ORIGINS 构建允许的重定向地址白名单
 	redirectHosts := buildAllowedRedirectHosts(cfg.CORSOrigins)
@@ -73,6 +75,13 @@ func NewHandler(
 		smsService:           smsService,
 		oidcIssuer:           cfg.OIDCIssuer,
 	}
+}
+
+func providerTokenRevocationOptions(oidcClient *oidc.Client, cfg HandlerConfig) []ServiceOption {
+	if oidcClient == nil || cfg.ProviderTokenCipher == nil {
+		return nil
+	}
+	return []ServiceOption{WithProviderRefreshTokenRevocation(oidcClient, cfg.ProviderTokenCipher)}
 }
 
 // buildAllowedRedirectHosts 从 CORS_ORIGINS 提取允许的重定向 host

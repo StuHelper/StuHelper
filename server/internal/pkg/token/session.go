@@ -29,7 +29,8 @@ import (
 // ARGV[1] = new lastActiveAt unix timestamp (string)
 // ARGV[2] = new access token hash (empty string == keep current)
 // ARGV[3] = new refresh token hash (empty string == keep current)
-// ARGV[4] = TTL seconds
+// ARGV[4] = provider refresh token ciphertext (empty string == keep current)
+// ARGV[5] = TTL seconds
 //
 // KEYS[2] = refresh token ref key for ARGV[3] (ignored when ARGV[3] is empty)
 //
@@ -47,9 +48,12 @@ end
 if ARGV[3] ~= '' then
     data['refreshTokenHash'] = ARGV[3]
     local ref = {sessionID=data['sessionID'], userID=data['userID']}
-    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[4]))
+    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[5]))
 end
-redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[4]))
+if ARGV[4] ~= '' then
+    data['providerRefreshTokenEnc'] = ARGV[4]
+end
+redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[5]))
 return 1
 `
 
@@ -74,10 +78,18 @@ type SessionData struct {
 	LastActiveAt     int64  `json:"lastActiveAt"`
 	AccessTokenHash  string `json:"accessTokenHash"`
 	RefreshTokenHash string `json:"refreshTokenHash,omitempty"`
+	// ProviderRefreshTokenEnc stores an encrypted provider refresh token.
+	ProviderRefreshTokenEnc string `json:"providerRefreshTokenEnc,omitempty"`
 	// DeviceInfo 可选的设备信息（UA / IP / 平台标识）
 	DeviceInfo string `json:"deviceInfo,omitempty"`
 	// LoginMethod 登录方式（oidc / phone）
 	LoginMethod string `json:"loginMethod,omitempty"`
+}
+
+type SessionTouchUpdate struct {
+	AccessTokenHash         string
+	RefreshTokenHash        string
+	ProviderRefreshTokenEnc string
 }
 
 // SessionStore 管理服务端 session 生命周期
@@ -166,14 +178,15 @@ func (s *SessionStore) Get(ctx context.Context, sessionID string) (*SessionData,
 // 造成的 read-modify-write 竞态——两个 refresh 同时命中时互相覆盖，会让已
 // 轮换的 token hash 失去追踪，使旧 token 绕过黑名单。session 不存在时返回
 // ErrSessionNotFound。
-func (s *SessionStore) Touch(ctx context.Context, sessionID, newAccessHash, newRefreshHash string) error {
+func (s *SessionStore) Touch(ctx context.Context, sessionID string, update SessionTouchUpdate) error {
 	now := time.Now().Unix()
 	res, err := touchSessionScriptObj.Run(
 		ctx, s.rdb,
-		[]string{sessionPrefix + sessionID, refreshTokenRefKey(newRefreshHash)},
+		[]string{sessionPrefix + sessionID, refreshTokenRefKey(update.RefreshTokenHash)},
 		now,
-		newAccessHash,
-		newRefreshHash,
+		update.AccessTokenHash,
+		update.RefreshTokenHash,
+		update.ProviderRefreshTokenEnc,
 		int(s.sessionTTL.Seconds()),
 	).Int64()
 	if err != nil {
@@ -252,78 +265,4 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 		return fmt.Errorf("session revoke all: delete user sessions set: %w", err)
 	}
 	return nil
-}
-
-// ListUserSessions 列出用户的所有活跃 session（用于"管理登录设备"等 UI）。
-func (s *SessionStore) ListUserSessions(ctx context.Context, userID string) ([]SessionData, error) {
-	sessionIDs, err := s.rdb.SMembers(ctx, userSessionsPrefix+userID).Result()
-	if err != nil {
-		return nil, fmt.Errorf("list user sessions: %w", err)
-	}
-	if len(sessionIDs) == 0 {
-		return []SessionData{}, nil
-	}
-
-	keys := make([]string, 0, len(sessionIDs))
-	for _, sid := range sessionIDs {
-		keys = append(keys, sessionPrefix+sid)
-	}
-
-	values, err := s.rdb.MGet(ctx, keys...).Result()
-	if err != nil {
-		return nil, fmt.Errorf("list user sessions mget: %w", err)
-	}
-
-	sessions := make([]SessionData, 0, len(sessionIDs))
-	staleSessionIDs := make([]string, 0)
-	for i, raw := range values {
-		sid := sessionIDs[i]
-		if raw == nil {
-			staleSessionIDs = append(staleSessionIDs, sid)
-			continue
-		}
-
-		var payload string
-		switch value := raw.(type) {
-		case string:
-			payload = value
-		case []byte:
-			payload = string(value)
-		default:
-			logger.L().Warn("list user sessions: unexpected session payload type",
-				zap.String("session_id", sid),
-				zap.String("type", fmt.Sprintf("%T", raw)),
-			)
-			staleSessionIDs = append(staleSessionIDs, sid)
-			continue
-		}
-
-		var data SessionData
-		if unmarshalErr := json.Unmarshal([]byte(payload), &data); unmarshalErr != nil {
-			logger.L().Warn("list user sessions: failed to decode session payload",
-				zap.String("session_id", sid),
-				zap.Error(unmarshalErr),
-			)
-			staleSessionIDs = append(staleSessionIDs, sid)
-			continue
-		}
-
-		sessions = append(sessions, data)
-	}
-
-	if len(staleSessionIDs) > 0 {
-		staleMembers := make([]interface{}, 0, len(staleSessionIDs))
-		for _, sid := range staleSessionIDs {
-			staleMembers = append(staleMembers, sid)
-		}
-		if err := s.rdb.SRem(ctx, userSessionsPrefix+userID, staleMembers...).Err(); err != nil {
-			logger.L().Warn("list user sessions: failed to remove stale session references",
-				zap.String("user_id", userID),
-				zap.Int("stale_count", len(staleSessionIDs)),
-				zap.Error(err),
-			)
-		}
-	}
-
-	return sessions, nil
 }

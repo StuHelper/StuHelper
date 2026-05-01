@@ -71,7 +71,10 @@ func TestSessionStore_Touch(t *testing.T) {
 	require.NoError(t, store.Create(ctx, data))
 
 	time.Sleep(10 * time.Millisecond)
-	err := store.Touch(ctx, "sess-002", "new-acc", "new-ref")
+	err := store.Touch(ctx, "sess-002", SessionTouchUpdate{
+		AccessTokenHash:  "new-acc",
+		RefreshTokenHash: "new-ref",
+	})
 	require.NoError(t, err)
 
 	got, err := store.Get(ctx, "sess-002")

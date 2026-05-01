@@ -26,9 +26,10 @@ func (rt *Runtime) initAuthModule(
 
 	authHandler := auth.NewHandler(
 		auth.HandlerConfig{
-			Token:       rt.cfg.Token,
-			CORSOrigins: rt.cfg.App.CORSOrigins,
-			OIDCIssuer:  rt.cfg.Casdoor.Issuer,
+			Token:               rt.cfg.Token,
+			CORSOrigins:         rt.cfg.App.CORSOrigins,
+			OIDCIssuer:          rt.cfg.Casdoor.Issuer,
+			ProviderTokenCipher: piiCipher,
 		},
 		rt.tokenService,
 		rt.redisClient.GetClient(),
