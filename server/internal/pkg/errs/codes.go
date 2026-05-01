@@ -66,6 +66,8 @@ const (
 	ErrAccessDenied     ErrorCode = "A0010201" // 访问被拒绝
 	ErrCSRFTokenInvalid ErrorCode = "A0010202" // CSRF Token 无效
 	ErrCSRFTokenMissing ErrorCode = "A0010203" // CSRF Token 缺失
+	ErrMFARequired      ErrorCode = "A0010204" // 需要注册 MFA
+	ErrStepUpRequired   ErrorCode = "A0010205" // 需要重新完成 MFA 验证
 
 	// OAuth 相关 (0300-0399)
 	ErrOAuthFailed       ErrorCode = "A0010300" // OAuth 认证失败

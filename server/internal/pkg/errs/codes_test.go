@@ -38,6 +38,8 @@ func allErrorCodes() map[string]ErrorCode {
 		"ErrAccessDenied":        ErrAccessDenied,
 		"ErrCSRFTokenInvalid":    ErrCSRFTokenInvalid,
 		"ErrCSRFTokenMissing":    ErrCSRFTokenMissing,
+		"ErrMFARequired":         ErrMFARequired,
+		"ErrStepUpRequired":      ErrStepUpRequired,
 		"ErrOAuthFailed":         ErrOAuthFailed,
 		"ErrOAuthStateInvalid":   ErrOAuthStateInvalid,
 		"ErrOAuthCodeInvalid":    ErrOAuthCodeInvalid,

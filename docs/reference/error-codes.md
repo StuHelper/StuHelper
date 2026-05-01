@@ -80,6 +80,8 @@ last-verified: 2026-04-19
 | A0010201 | 403 | ErrAccessDenied | 访问拒绝 |
 | A0010202 | 403 | ErrCSRFTokenInvalid | CSRF Token 无效 |
 | A0010203 | 403 | ErrCSRFTokenMissing | CSRF Token 缺失 |
+| A0010204 | 403 | ErrMFARequired | 需要注册 MFA |
+| A0010205 | 412 | ErrStepUpRequired | 需要重新完成 MFA 验证 |
 | A0010300 | 401 | ErrOAuthFailed | OAuth 失败 |
 | A0010301 | 401 | ErrOAuthStateInvalid | OAuth State 无效 |
 | A0010302 | 401 | ErrOAuthCodeInvalid | 授权码无效 |

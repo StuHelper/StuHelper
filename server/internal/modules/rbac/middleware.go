@@ -1,6 +1,9 @@
 package rbac
 
 import (
+	"errors"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
@@ -72,13 +75,56 @@ func RequireGlobalCapabilityWithAuthorizer(authorizer authorization.Authorizatio
 	}
 }
 
+func RequirePrivilegedMFA() gin.HandlerFunc {
+	return RequirePrivilegedMFAWithAuthorizer(defaultAuthorizer)
+}
+
+func RequirePrivilegedMFAWithAuthorizer(authorizer authorization.AuthorizationService) gin.HandlerFunc {
+	return requireMFAWithAuthorizer(
+		authorizer,
+		authorization.ActionPrivilegedMFARequire,
+		authorization.PrivilegedMFAResource(0),
+	)
+}
+
+func RequireStepUpMFA() gin.HandlerFunc {
+	return RequireStepUpMFAWithAuthorizer(defaultAuthorizer)
+}
+
+func RequireStepUpMFAWithAuthorizer(authorizer authorization.AuthorizationService) gin.HandlerFunc {
+	return requireMFAWithAuthorizer(
+		authorizer,
+		authorization.ActionStepUpMFARequire,
+		authorization.StepUpMFAResource(0),
+	)
+}
+
+func requireMFAWithAuthorizer(
+	authorizer authorization.AuthorizationService,
+	action authorization.Action,
+	resource authorization.Resource,
+) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		decision := authorizer.Authorize(c.Request.Context(), authorization.SubjectFromGin(c), action, resource)
+		if abortOnDeny(c, decision) {
+			return
+		}
+		c.Next()
+	}
+}
+
 func abortOnDeny(c *gin.Context, decision authorization.Decision) bool {
 	if decision.Allow {
 		return false
 	}
-	if decision.Error != nil {
+	switch {
+	case errors.Is(decision.Error, authorization.ErrMFAEnrollmentRequired):
+		response.Forbidden(c, "mfa enrollment required", errs.ErrMFARequired)
+	case errors.Is(decision.Error, authorization.ErrStepUpRequired):
+		response.Error(c, http.StatusPreconditionRequired, errs.ErrStepUpRequired, "step-up required")
+	case decision.Error != nil:
 		response.ServiceUnavailable(c, "authorization service temporarily unavailable", errs.ErrServiceUnavailable)
-	} else {
+	default:
 		response.Forbidden(c, "insufficient permissions", errs.ErrPermissionDenied)
 	}
 	c.Abort()

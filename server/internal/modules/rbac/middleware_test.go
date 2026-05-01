@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
@@ -208,6 +210,80 @@ func TestRequireCapability_AuthorizerErrorReturns503(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.False(t, called)
+}
+
+func TestRequirePrivilegedMFARequiresEnrollment(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "admin-1")
+		c.Set(middleware.CtxKeyRoles, []string{"super_admin"})
+		c.Next()
+	})
+	called := false
+	engine.GET("/test", RequirePrivilegedMFA(), func(c *gin.Context) {
+		called = true
+	})
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.False(t, called)
+	assertErrorCode(t, w, errs.ErrMFARequired)
+}
+
+func TestRequireStepUpMFARequiresFreshProof(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "reviewer-1")
+		middleware.SetMFAContext(c, middleware.MFAContext{EnrollmentActive: true})
+		c.Next()
+	})
+	called := false
+	engine.GET("/test", RequireStepUpMFA(), func(c *gin.Context) {
+		called = true
+	})
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+	assert.False(t, called)
+	assertErrorCode(t, w, errs.ErrStepUpRequired)
+}
+
+func TestRequirePrivilegedMFAAllowsFreshProof(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "school-admin-1")
+		c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
+		middleware.SetMFAContext(c, middleware.MFAContext{
+			EnrollmentActive: true,
+			ProofVerifiedAt:  time.Now(),
+		})
+		c.Next()
+	})
+	called := false
+	engine.GET("/test", RequirePrivilegedMFA(), func(c *gin.Context) {
+		called = true
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, called)
+}
+
+func assertErrorCode(t *testing.T, w *httptest.ResponseRecorder, code errs.ErrorCode) {
+	t.Helper()
+	var resp response.Response
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	if assert.NotNil(t, resp.Error) {
+		assert.Equal(t, string(code), resp.Error.Code)
+	}
 }
 
 type errorAuthorizer struct{}
