@@ -48,6 +48,7 @@ var (
 	ErrDraftNotFound         = errors.New("draft not found")
 	ErrInvalidAction         = errors.New("invalid action")
 	ErrInvalidTransition     = errors.New("invalid status transition")
+	ErrUserIdentityRequired  = errors.New("internal user identity required")
 )
 
 // Service 评课服务层
@@ -68,7 +69,7 @@ type Service struct {
 type ReviewAccessReader interface {
 	ListReviewAccessSchoolConfigs(ctx context.Context) ([]reviewaccess.SchoolConfig, error)
 	ListReviewAccessSystemConfigs(ctx context.Context) ([]reviewaccess.SystemConfig, error)
-	GetReviewAccessSubject(ctx context.Context, casdoorSubject string) (*reviewaccess.Subject, error)
+	GetReviewAccessSubject(ctx context.Context, externalSubject string) (*reviewaccess.Subject, error)
 }
 
 // NewService 创建评课服务

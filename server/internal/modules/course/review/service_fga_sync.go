@@ -51,10 +51,9 @@ func reportRelationsSyncKey(reportID string) string {
 	return "report-relations:" + reportID
 }
 
-func (s *Service) resolveFGAUserIDTx(ctx context.Context, tx pgx.Tx, casdoorSubject string) (string, error) {
-	userID, err := s.repo.GetInternalUserIDByCasdoorSubjectTx(ctx, tx, casdoorSubject)
-	if err != nil {
-		return "", err
+func formatFGAUserID(userID int64) (string, error) {
+	if userID <= 0 {
+		return "", ErrUserIdentityRequired
 	}
 	return strconv.FormatInt(userID, 10), nil
 }

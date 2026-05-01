@@ -67,15 +67,15 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return fmt.Errorf("failed to create FGA client: %w", err)
 	}
 
+	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
 	notifHub := notification.NewHub(rt.redisClient.GetClient())
 	notifRepo := notification.NewRepository(rt.database)
 	notifService := notification.NewService(notifRepo, notifHub, rt.redisClient.GetClient())
-	notifHandler := notification.NewHandler(notifService, notifHub)
+	notifHandler := notification.NewHandler(notifService, notifHub, userRepo.GetInternalUserID)
 	notifHandler.RegisterRoutes(api, authMW)
 	notifHub.StartRedisSubscriber(bgCtx, startBackgroundTask)
 	rt.addCleanup(notifHub.Stop)
 
-	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
 	courseHandler := rt.initCourseModule(fgaClient, notifService, userRepo)
 	courseHandler.RegisterRoutes(api, authMW, optionalAuthMW)
 

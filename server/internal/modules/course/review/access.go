@@ -26,6 +26,7 @@ const (
 
 type ReviewAccessFacts struct {
 	Authenticated       bool
+	InternalUserID      int64
 	CanManageReviews    bool
 	CanViewFull         bool
 	CanPostReview       bool
@@ -159,7 +160,7 @@ func firstNonEmptyConfig(configs map[string]string, keys ...string) (string, boo
 
 // ResolveAccessFacts 解析当前用户的评课访问事实。
 // 由 Service 统一生产，Handler 不再自行拼装。
-func (s *Service) ResolveAccessFacts(ctx context.Context, casdoorSubject string, capabilities []string) (ReviewAccessFacts, error) {
+func (s *Service) ResolveAccessFacts(ctx context.Context, externalSubject string, capabilities []string) (ReviewAccessFacts, error) {
 	policy, err := s.getReviewAccessPolicy(ctx)
 	if err != nil {
 		return ReviewAccessFacts{}, err
@@ -170,7 +171,7 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, casdoorSubject string,
 		PreviewContentRunes: policy.PreviewContentRunes,
 		PreviewContentPct:   policy.PreviewContentPct,
 	}
-	if casdoorSubject == "" {
+	if externalSubject == "" {
 		return facts, nil
 	}
 
@@ -183,7 +184,7 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, casdoorSubject string,
 	canEditOwn := capability.Has(capabilities, capability.ReviewEditOwn)
 	canDeleteOwn := capability.Has(capabilities, capability.ReviewDeleteOwn)
 
-	subject, err := s.accessReader.GetReviewAccessSubject(ctx, casdoorSubject)
+	subject, err := s.accessReader.GetReviewAccessSubject(ctx, externalSubject)
 	if err != nil {
 		return facts, err
 	}
@@ -191,6 +192,7 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, casdoorSubject string,
 		return facts, nil
 	}
 
+	facts.InternalUserID = subject.InternalUserID
 	facts.SchoolID = int64PtrToStringPtr(subject.SchoolID)
 	facts.StudentVerified = subject.StudentVerified &&
 		subject.SchoolID != nil &&
@@ -205,9 +207,9 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, casdoorSubject string,
 }
 
 func (h *Handler) resolveReviewAccessFactsForRequest(c *gin.Context) (ReviewAccessFacts, bool) {
-	casdoorSubject := middleware.GetUserID(c)
+	externalSubject := middleware.GetUserID(c)
 	capabilities := middleware.GetCapabilities(c)
-	facts, err := h.service.ResolveAccessFacts(c.Request.Context(), casdoorSubject, capabilities)
+	facts, err := h.service.ResolveAccessFacts(c.Request.Context(), externalSubject, capabilities)
 	if err == nil {
 		return facts, true
 	}

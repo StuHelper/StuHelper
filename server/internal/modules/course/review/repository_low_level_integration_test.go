@@ -58,10 +58,6 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "李老师", teacherName)
 
-	resolvedInternalID, err := repo.GetInternalUserIDByCasdoorSubject(ctx, "ext-repo-1")
-	require.NoError(t, err)
-	assert.Equal(t, internalUserID, resolvedInternalID)
-
 	resolvedByHash, err := repo.GetUserIDByUserHash(ctx, "u-repo-1")
 	require.NoError(t, err)
 	assert.Equal(t, internalUserID, resolvedByHash)

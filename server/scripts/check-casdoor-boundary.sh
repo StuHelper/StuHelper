@@ -12,6 +12,17 @@ fi
 
 run_check() {
   local label="$1" pattern="$2" allowed="$3"
+  run_check_with_find "${label}" "${pattern}" "${allowed}" "${SCAN_DIR}" -type f -name '*.go'
+}
+
+run_check_non_test() {
+  local label="$1" pattern="$2" allowed="$3" scan_root="$4"
+  run_check_with_find "${label}" "${pattern}" "${allowed}" "${scan_root}" -type f -name '*.go' '!' -name '*_test.go'
+}
+
+run_check_with_find() {
+  local label="$1" pattern="$2" allowed="$3" scan_root="$4"
+  shift 4
   local hits="" file="" rel="" rc=0
 
   while IFS= read -r -d '' file; do
@@ -25,7 +36,7 @@ run_check() {
       echo "ERROR: grep failed (rc=${rc}) when scanning ${file}" >&2
       exit 1
     fi
-  done < <(find "${SCAN_DIR}" -type f -name '*.go' -print0)
+  done < <(find "${scan_root}" "$@" -print0)
 
   report_violations "${label}" "${hits}" "${allowed}"
 }
@@ -63,3 +74,9 @@ run_check \
   "backend internal Go code must not reference retired Zitadel identifiers" \
   'Zitadel|ZITADEL|zitadel|urn:zitadel' \
   '^$'
+
+run_check_non_test \
+  "business modules must not use Casdoor subject as a business identity" \
+  'casdoor_subject|CasdoorSubject|casdoorSubject' \
+  '^internal/modules/(auth|user)/' \
+  "${SERVER_DIR}/internal/modules"

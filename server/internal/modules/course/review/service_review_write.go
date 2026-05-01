@@ -24,7 +24,7 @@ type PostReviewParams struct {
 	Grade                string
 	Ratings              ReviewRatings
 	UserHash             string
-	AuthorExternalUserID string
+	AuthorInternalUserID int64
 	IPAddress            string
 	RequestID            string
 }
@@ -106,7 +106,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 			return ErrAlreadyReviewed
 		}
 
-		authorUserID, err := s.resolveFGAUserIDTx(ctx, tx, params.AuthorExternalUserID)
+		authorUserID, err := formatFGAUserID(params.AuthorInternalUserID)
 		if err != nil {
 			return err
 		}

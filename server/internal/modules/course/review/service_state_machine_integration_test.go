@@ -217,11 +217,11 @@ drainLoop:
 	assert.Equal(t, 1, reviewCount)
 
 	// ListReports 对未知状态回退到 StatusAll。
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-report-state", UserHash: "u-report-state"})
+	reporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-report-state", UserHash: "u-report-state"})
 	_, err = svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewID,
 		UserHash:               "u-report-state",
-		ReporterExternalUserID: "ext-report-state",
+		ReporterInternalUserID: reporterID,
 		Reason:                 "spam",
 		Description:            "需要处理",
 	})

@@ -120,7 +120,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	assert.GreaterOrEqual(t, teacherStats.ReviewCount, 2)
 	assert.NotEmpty(t, teacherStats.Courses)
 
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-post-1", UserHash: "u-post-1"})
+	postUserID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-post-1", UserHash: "u-post-1"})
 	posted, err := svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
 		TeacherID:            &teacherID,
@@ -130,7 +130,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 		Grade:                "A",
 		Ratings:              ReviewRatings{"teaching": 5, "difficulty": 4},
 		UserHash:             "u-post-1",
-		AuthorExternalUserID: "ext-u-post-1",
+		AuthorInternalUserID: postUserID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, StatusPublished, posted.Review.Status)
@@ -144,7 +144,7 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 		Grade:                "A",
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-post-1",
-		AuthorExternalUserID: "ext-u-post-1",
+		AuthorInternalUserID: postUserID,
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrAlreadyReviewed)
@@ -162,8 +162,8 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, courseID, voteCourseID)
 
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-reporter-1", UserHash: "u-reporter-1"})
-	reportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: posted.Review.ID, UserHash: "u-reporter-1", ReporterExternalUserID: "ext-u-reporter-1", Reason: "spam", Description: "需要处理"})
+	reporterUserID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-reporter-1", UserHash: "u-reporter-1"})
+	reportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: posted.Review.ID, UserHash: "u-reporter-1", ReporterInternalUserID: reporterUserID, Reason: "spam", Description: "需要处理"})
 	require.NoError(t, err)
 	assert.NotEmpty(t, reportID)
 
@@ -184,8 +184,8 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 3 WHERE id = $1`, courseID)
 	require.NoError(t, err)
 
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-reporter-hide", UserHash: "u-reporter-hide"})
-	hideReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: hideReviewID, UserHash: "u-reporter-hide", ReporterExternalUserID: "ext-u-reporter-hide", Reason: "abuse", Description: "需要隐藏"})
+	hideReporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-reporter-hide", UserHash: "u-reporter-hide"})
+	hideReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: hideReviewID, UserHash: "u-reporter-hide", ReporterInternalUserID: hideReporterID, Reason: "abuse", Description: "需要隐藏"})
 	require.NoError(t, err)
 	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: hideReportID, Action: "hide", Note: "隐藏处理", ResolvedBy: "admin-2"}))
 
@@ -197,8 +197,8 @@ func TestReviewService_IntegrationReadAndWritePaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ReportStatusResolved, hideReport.Status)
 
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-reporter-delete", UserHash: "u-reporter-delete"})
-	deleteReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: deleteReviewID, UserHash: "u-reporter-delete", ReporterExternalUserID: "ext-u-reporter-delete", Reason: "illegal", Description: "需要删除"})
+	deleteReporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-reporter-delete", UserHash: "u-reporter-delete"})
+	deleteReportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: deleteReviewID, UserHash: "u-reporter-delete", ReporterInternalUserID: deleteReporterID, Reason: "illegal", Description: "需要删除"})
 	require.NoError(t, err)
 	require.NoError(t, svc.ProcessReport(ctx, ProcessReportParams{ReportID: deleteReportID, Action: "delete", Note: "删除处理", ResolvedBy: "admin-3"}))
 
@@ -405,6 +405,7 @@ func TestPostReviewRejectsTeacherFromDifferentSchool(t *testing.T) {
 	courseID := seedCourse(t, fixture, 10006, courseDepartmentID, "跨校校验课程")
 	teacherID := seedTeacher(t, fixture, 20002, "跨校教师", teacherDepartmentID)
 
+	crossSchoolAuthorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-cross-school-teacher", UserHash: "u-cross-school-teacher"})
 	_, err := svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
 		TeacherID:            &teacherID,
@@ -414,7 +415,7 @@ func TestPostReviewRejectsTeacherFromDifferentSchool(t *testing.T) {
 		Grade:                "A",
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-cross-school-teacher",
-		AuthorExternalUserID: "ext-cross-school-teacher",
+		AuthorInternalUserID: crossSchoolAuthorID,
 	})
 
 	require.Error(t, err)

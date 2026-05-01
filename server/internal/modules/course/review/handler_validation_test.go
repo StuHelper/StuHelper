@@ -94,6 +94,7 @@ func newFactAwareHandler(canPost, canEdit, canDelete bool) *Handler {
 	subjectSchoolID := int64(1001)
 	return &Handler{
 		service: &Service{accessReader: fakeAccessReader{subject: &reviewaccess.Subject{
+			InternalUserID:   42,
 			SchoolID:         &subjectSchoolID,
 			StudentVerified:  true,
 			IdentityVerified: true,

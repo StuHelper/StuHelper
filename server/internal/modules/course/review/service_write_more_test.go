@@ -22,7 +22,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 	teacherID := seedTeacher(t, fixture, 10006, "黄老师", departmentID)
 	courseID := seedCourse(t, fixture, 10006, departmentID, "有机化学")
 
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-pending-post", UserHash: "u-pending-post"})
+	pendingAuthorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-u-pending-post", UserHash: "u-pending-post"})
 	posted, err := svc.PostReview(ctx, PostReviewParams{
 		CourseID:             courseID,
 		TeacherID:            &teacherID,
@@ -32,7 +32,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 		Grade:                "A",
 		Ratings:              ReviewRatings{"teaching": 5, "difficulty": 4},
 		UserHash:             "u-pending-post",
-		AuthorExternalUserID: "ext-u-pending-post",
+		AuthorInternalUserID: pendingAuthorID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, StatusPendingReview, posted.Review.Status)
@@ -58,7 +58,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 		Grade:                "A",
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-missing-course",
-		AuthorExternalUserID: "ext-u-missing-course",
+		AuthorInternalUserID: pendingAuthorID,
 	})
 	require.ErrorIs(t, err, ErrCourseNotFound)
 
@@ -72,7 +72,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 		Grade:                "A",
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-missing-teacher",
-		AuthorExternalUserID: "ext-u-missing-teacher",
+		AuthorInternalUserID: pendingAuthorID,
 	})
 	require.ErrorIs(t, err, ErrTeacherNotFound)
 
@@ -122,7 +122,7 @@ func TestReviewService_PostReviewPendingAndWriteEarlyReturns(t *testing.T) {
 		Grade:                "A",
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-owner-write",
-		AuthorExternalUserID: "ext-u-owner-write",
+		AuthorInternalUserID: pendingAuthorID,
 	})
 	require.ErrorIs(t, err, ErrAlreadyReviewed)
 

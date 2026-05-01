@@ -15,7 +15,7 @@ import (
 type ReportReviewParams struct {
 	ReviewID               string
 	UserHash               string
-	ReporterExternalUserID string
+	ReporterInternalUserID int64
 	Reason                 string
 	Description            string
 }
@@ -78,7 +78,7 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 			return ErrAlreadyReported
 		}
 
-		reporterUserID, err := s.resolveFGAUserIDTx(ctx, tx, params.ReporterExternalUserID)
+		reporterUserID, err := formatFGAUserID(params.ReporterInternalUserID)
 		if err != nil {
 			return err
 		}

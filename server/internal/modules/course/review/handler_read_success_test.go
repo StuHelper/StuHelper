@@ -26,7 +26,7 @@ func TestReviewHandler_ReadSuccessPaths(t *testing.T) {
 	schoolID := int64(10006)
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, fakeAccessReader{
 		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
-		subject: &reviewaccess.Subject{SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
+		subject: &reviewaccess.Subject{InternalUserID: 42, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
 	})
 	h := newReviewAdminHandler(t, svc)
 	ctx := context.Background()

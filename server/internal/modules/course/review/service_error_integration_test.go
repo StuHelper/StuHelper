@@ -77,11 +77,11 @@ func TestReviewService_IntegrationErrorBranches(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrReplyNotFound)
 
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-report", UserHash: "u-report"})
+	reporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-report", UserHash: "u-report"})
 	firstReportID, err := svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewID,
 		UserHash:               "u-report",
-		ReporterExternalUserID: "ext-report",
+		ReporterInternalUserID: reporterID,
 		Reason:                 "spam",
 		Description:            "需要处理",
 	})
@@ -91,7 +91,7 @@ func TestReviewService_IntegrationErrorBranches(t *testing.T) {
 	_, err = svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewID,
 		UserHash:               "u-report",
-		ReporterExternalUserID: "ext-report",
+		ReporterInternalUserID: reporterID,
 		Reason:                 "spam",
 		Description:            "重复举报",
 	})

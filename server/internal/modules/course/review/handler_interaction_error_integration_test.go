@@ -37,7 +37,11 @@ func TestReviewHandler_InteractionErrorPaths(t *testing.T) {
 	selfUserID := "handler-error-user"
 	selfHash, err := httputil.HashUserID(selfUserID)
 	require.NoError(t, err)
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: selfUserID, UserHash: selfHash})
+	selfInternalID := seedUser(t, fixture, seedUserParams{CasdoorSubject: selfUserID, UserHash: selfHash})
+	svc.accessReader = fakeAccessReader{
+		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
+		subject: &reviewaccess.Subject{InternalUserID: selfInternalID, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
+	}
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, selfHash, 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "已存在评论", "已存在评论内容")
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)
 	require.NoError(t, err)
@@ -94,7 +98,7 @@ func TestReviewHandler_InteractionErrorPaths(t *testing.T) {
 	_, err = svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reviewID,
 		UserHash:               selfHash,
-		ReporterExternalUserID: selfUserID,
+		ReporterInternalUserID: selfInternalID,
 		Reason:                 "spam",
 		Description:            "首次举报",
 	})

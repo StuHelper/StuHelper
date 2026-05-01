@@ -39,8 +39,12 @@ func (h *Handler) PostReview(c *gin.Context) {
 		return
 	}
 
-	userID, userHash, ok := h.resolveRequiredUserHash(c)
+	_, userHash, ok := h.resolveRequiredUserHash(c)
 	if !ok {
+		return
+	}
+	if facts.InternalUserID <= 0 {
+		response.Forbidden(c, "user has not completed provisioning", errs.ErrUserNotFound)
 		return
 	}
 
@@ -56,7 +60,7 @@ func (h *Handler) PostReview(c *gin.Context) {
 		Grade:                req.Grade,
 		Ratings:              req.Ratings,
 		UserHash:             userHash,
-		AuthorExternalUserID: userID,
+		AuthorInternalUserID: facts.InternalUserID,
 		IPAddress:            c.ClientIP(),
 		RequestID:            requestIDStr,
 	})
@@ -227,15 +231,23 @@ func (h *Handler) ReportReview(c *gin.Context) {
 		return
 	}
 
-	userID, userHash, ok := h.resolveRequiredUserHash(c)
+	_, userHash, ok := h.resolveRequiredUserHash(c)
 	if !ok {
+		return
+	}
+	facts, ok := h.resolveReviewAccessFactsForRequest(c)
+	if !ok {
+		return
+	}
+	if facts.InternalUserID <= 0 {
+		response.Forbidden(c, "user has not completed provisioning", errs.ErrUserNotFound)
 		return
 	}
 
 	_, err = h.service.ReportReview(c.Request.Context(), ReportReviewParams{
 		ReviewID:               reviewID,
 		UserHash:               userHash,
-		ReporterExternalUserID: userID,
+		ReporterInternalUserID: facts.InternalUserID,
 		Reason:                 req.Reason,
 		Description:            req.Description,
 	})

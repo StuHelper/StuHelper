@@ -92,7 +92,7 @@ func TestResolveAccessFacts(t *testing.T) {
 	svc := &Service{accessReader: fakeAccessReader{
 		schools: []reviewaccess.SchoolConfig{{SchoolID: 1001}},
 		configs: []reviewaccess.SystemConfig{{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: `16`}},
-		subject: &reviewaccess.Subject{SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
+		subject: &reviewaccess.Subject{InternalUserID: 42, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
 	}}
 
 	facts, err := svc.ResolveAccessFacts(context.Background(), "external-1", []string{
@@ -109,6 +109,7 @@ func TestResolveAccessFacts(t *testing.T) {
 	assert.True(t, facts.CanPostReview)
 	assert.True(t, facts.CanEditOwn)
 	assert.True(t, facts.CanDeleteOwn)
+	assert.Equal(t, int64(42), facts.InternalUserID)
 	assert.Equal(t, 16, facts.PreviewTitleRunes)
 	require.NotNil(t, facts.SchoolID)
 	assert.Equal(t, "1001", *facts.SchoolID)

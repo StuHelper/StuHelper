@@ -38,7 +38,11 @@ func TestReviewHandler_WriteErrorPaths(t *testing.T) {
 	selfUserID := "write-error-user"
 	selfHash, err := httputil.HashUserID(selfUserID)
 	require.NoError(t, err)
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: selfUserID, UserHash: selfHash})
+	selfInternalID := seedUser(t, fixture, seedUserParams{CasdoorSubject: selfUserID, UserHash: selfHash})
+	svc.accessReader = fakeAccessReader{
+		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
+		subject: &reviewaccess.Subject{InternalUserID: selfInternalID, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
+	}
 
 	duplicateReviewID := "550e8400-e29b-41d4-a716-446655440881"
 	otherReviewID := "550e8400-e29b-41d4-a716-446655440882"
@@ -85,7 +89,7 @@ func TestReviewHandler_WriteErrorPaths(t *testing.T) {
 	_, err = svc.ReportReview(ctx, ReportReviewParams{
 		ReviewID:               reportReviewID,
 		UserHash:               selfHash,
-		ReporterExternalUserID: selfUserID,
+		ReporterInternalUserID: selfInternalID,
 		Reason:                 "spam",
 		Description:            "首次举报",
 	})

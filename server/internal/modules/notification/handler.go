@@ -19,13 +19,23 @@ import (
 
 // Handler 通知 HTTP 处理器
 type Handler struct {
-	service *Service
-	hub     *Hub
+	service       *Service
+	hub           *Hub
+	resolveUserID middleware.InternalUserIDResolver
 }
 
 // NewHandler 创建通知处理器
-func NewHandler(service *Service, hub *Hub) *Handler {
-	return &Handler{service: service, hub: hub}
+func NewHandler(service *Service, hub *Hub, resolveUserID middleware.InternalUserIDResolver) *Handler {
+	if service == nil {
+		panic("notification.NewHandler: service must not be nil")
+	}
+	if hub == nil {
+		panic("notification.NewHandler: hub must not be nil")
+	}
+	if resolveUserID == nil {
+		panic("notification.NewHandler: resolveUserID must not be nil")
+	}
+	return &Handler{service: service, hub: hub, resolveUserID: resolveUserID}
 }
 
 // RegisterRoutes 注册通知路由。
@@ -234,7 +244,7 @@ func sanitizeSSEEventName(event string) string {
 	return sanitized
 }
 
-// mustResolveUserID 从 context 解析 casdoor_subject，并换算为内部 user_id。
+// mustResolveUserID 从认证上下文解析内部 user_id。
 func (h *Handler) mustResolveUserID(c *gin.Context) (int64, bool) {
-	return middleware.ResolveRequiredInternalUserID(c, h.service.ResolveInternalUserID, "failed to resolve user identity")
+	return middleware.ResolveRequiredInternalUserID(c, h.resolveUserID, "failed to resolve user identity")
 }

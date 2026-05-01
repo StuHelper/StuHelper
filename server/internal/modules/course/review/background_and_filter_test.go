@@ -50,7 +50,7 @@ func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 	writer := &recordingReviewFGAWriter{}
 	svc := NewService(fixture.DB, repo, noopReviewSender2{}, writer, fakeAccessReader{
 		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
-		subject: &reviewaccess.Subject{SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
+		subject: &reviewaccess.Subject{InternalUserID: 42, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
 	})
 	ctx := context.Background()
 

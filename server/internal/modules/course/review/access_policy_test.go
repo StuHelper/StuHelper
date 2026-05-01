@@ -82,6 +82,7 @@ func TestResolveAccessFacts_RequiresCapabilityAndVerificationFacts(t *testing.T)
 	service := &Service{
 		accessReader: fakeReviewAccessReader{
 			subject: &reviewaccess.Subject{
+				InternalUserID:   42,
 				IdentityVerified: true,
 				StudentVerified:  true,
 				SchoolID:         int64Ptr(10006),

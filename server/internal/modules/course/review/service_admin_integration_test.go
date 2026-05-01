@@ -61,8 +61,8 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 2 WHERE id = $1`, otherCourseID)
 	require.NoError(t, err)
 
-	seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-reporter-admin", UserHash: "u-reporter-admin"})
-	reportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: publishedID, UserHash: "u-reporter-admin", ReporterExternalUserID: "ext-reporter-admin", Reason: "spam", Description: "待处理"})
+	reporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-reporter-admin", UserHash: "u-reporter-admin"})
+	reportID, err := svc.ReportReview(ctx, ReportReviewParams{ReviewID: publishedID, UserHash: "u-reporter-admin", ReporterInternalUserID: reporterID, Reason: "spam", Description: "待处理"})
 	require.NoError(t, err)
 	require.NotEmpty(t, reportID)
 
