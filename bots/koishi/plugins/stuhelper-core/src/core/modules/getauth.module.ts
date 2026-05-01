@@ -135,24 +135,58 @@ async function readMemberStatus(
   session: Session,
   userId: string,
 ): Promise<MemberStatus> {
-  if (!session.guildId || !session.bot.internal?.getGroupMemberInfo) {
+  if (!session.guildId) {
     return { role: '未知', muteLine: '未禁言' }
+  }
+
+  const [role, muteLine] = await Promise.all([
+    readUniversalMemberRole(session, userId),
+    readOneBotMuteLine(session, userId),
+  ])
+  return { role, muteLine }
+}
+
+async function readUniversalMemberRole(session: Session, userId: string): Promise<string> {
+  if (!session.guildId) {
+    return '未知'
+  }
+
+  try {
+    const member = await session.bot.getGuildMember(session.guildId, userId)
+    return formatUniversalMemberRole(member)
+  } catch {
+    return '未知'
+  }
+}
+
+async function readOneBotMuteLine(session: Session, userId: string): Promise<string> {
+  if (!session.guildId || !session.bot.internal?.getGroupMemberInfo) {
+    return '未禁言'
   }
 
   try {
     const info = await session.bot.internal.getGroupMemberInfo(session.guildId, userId, false)
-    return formatMemberStatus(info)
+    return formatMuteLine(info?.shut_up_timestamp)
   } catch {
-    return { role: '未知', muteLine: '未禁言' }
+    return '未禁言'
   }
 }
 
-function formatMemberStatus(info: any): MemberStatus {
-  if (!info) return { role: '未知', muteLine: '未禁言' }
+function formatUniversalMemberRole(member: any): string {
+  const roles = Array.isArray(member?.roles)
+    ? member.roles.map(formatRoleName).filter(Boolean)
+    : []
+  return roles.join(', ') || member?.title || '未知'
+}
 
-  const role = typeof info.role !== 'undefined' ? info.role : '未知'
-  const timestamp = Number(info.shut_up_timestamp) || 0
-  if (timestamp <= 0) return { role, muteLine: '未禁言' }
+function formatRoleName(role: any): string {
+  if (typeof role === 'string') return role
+  return role?.name || role?.id || ''
+}
+
+function formatMuteLine(value: unknown): string {
+  const timestamp = Number(value) || 0
+  if (timestamp <= 0) return '未禁言'
 
   const timestampMs = timestamp > UNIX_MILLISECONDS_THRESHOLD
     ? timestamp
@@ -162,8 +196,7 @@ function formatMemberStatus(info: any): MemberStatus {
   const muteLine = remaining > 0
     ? `禁言至 ${endTime}(剩余 ${formatDuration(remaining)})`
     : `已解除禁言(原到期：${endTime})`
-
-  return { role, muteLine }
+  return muteLine
 }
 
 async function resolveAuthorityLevel(

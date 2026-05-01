@@ -23,12 +23,6 @@ export interface EventRuntimeHost {
   readonly config: Config
 }
 
-export interface RequestData {
-  flag: string
-  sub_type: string
-  comment?: string
-}
-
 export type EventSession = Session & {
   readonly guildId: string
   readonly userId: string
@@ -36,12 +30,18 @@ export type EventSession = Session & {
 
 export interface GroupRequest {
   readonly session: EventSession
-  readonly data: RequestData
   readonly failureLog: string
 }
 
-export function requestDataOf(session: EventSession): RequestData {
-  return (session.event as { _data: RequestData })._data
+export function requestCommentOf(session: EventSession): string {
+  return session.content || ''
+}
+
+export function requestIdOf(session: EventSession): string {
+  if (!session.messageId) {
+    throw new Error('request event missing message id')
+  }
+  return session.messageId
 }
 
 export function botInternal(session: EventSession): any {

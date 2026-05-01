@@ -48,6 +48,40 @@ test('OneBot internal group admin calls fail explicitly when unsupported', async
   assert.doesNotMatch(content, /internal\?\.setGroupAdmin\([^)]*\)/)
 })
 
+test('whole-guild mute uses Koishi universal channel mute API', async () => {
+  const content = await readCoreFile('core/modules/order-manage-group-commands.ts')
+
+  assert.match(content, /session\.bot\.muteChannel\(/)
+  assert.doesNotMatch(content, /setGroupWholeBan/)
+})
+
+test('request approvals use Koishi universal request APIs', async () => {
+  const handlers = await readCoreFile('core/modules/event-handlers.ts')
+  const support = await readCoreFile('core/modules/event-support.ts')
+
+  assert.match(handlers, /session\.bot\.handleFriendRequest\(/)
+  assert.match(handlers, /session\.bot\.handleGuildRequest\(/)
+  assert.match(handlers, /session\.bot\.handleGuildMemberRequest\(/)
+  assert.doesNotMatch(handlers, /setFriendAddRequest|setGroupAddRequest/)
+  assert.doesNotMatch(support, /session\.event as \{ _data/)
+})
+
+test('console chat prefers Koishi universal login and message APIs', async () => {
+  const content = await readCoreFile('core/api/index.ts')
+
+  assert.match(content, /bot\.getLogin\(/)
+  assert.match(content, /bot\.getMessage\(/)
+  assert.doesNotMatch(content, /getLoginInfo/)
+  assert.doesNotMatch(content, /internal\?\.getMsg|internal\.getMsg/)
+})
+
+test('getauth reads standard guild member data before OneBot-only details', async () => {
+  const content = await readCoreFile('core/modules/getauth.module.ts')
+
+  assert.match(content, /session\.bot\.getGuildMember\(/)
+  assert.match(content, /readOneBotMuteLine/)
+})
+
 async function readCoreFile(relativePath: string): Promise<string> {
   return readFile(join(coreRoot, relativePath), 'utf8')
 }

@@ -1381,19 +1381,22 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   // 缓存 bot 登录信息，避免重复请求
   const botLoginInfoCache = new Map<string, { userId: string; nickname: string }>()
 
-  // 获取 bot 登录信息（使用 get_login_info API）
+  // 获取 bot 登录信息（优先使用 Koishi 通用 API）
   const getBotLoginInfo = async (bot: any): Promise<{ userId: string; nickname: string } | null> => {
     const cacheKey = `${bot.platform}:${bot.selfId}`
     if (botLoginInfoCache.has(cacheKey)) {
       return botLoginInfoCache.get(cacheKey)!
     }
-    
-    // 尝试使用 OneBot get_login_info API
-    if (bot.platform === 'onebot' && bot.internal?.getLoginInfo) {
+
+    if (typeof bot.getLogin === 'function') {
       try {
-        const info = await bot.internal.getLoginInfo()
-        if (info?.user_id && info?.nickname) {
-          const result = { userId: String(info.user_id), nickname: info.nickname }
+        const login = await bot.getLogin()
+        const user = login?.user || bot.user
+        if (user?.id || user?.name) {
+          const result = {
+            userId: String(user.id || bot.selfId),
+            nickname: String(user.name || user.nick || user.username || user.id || bot.selfId),
+          }
           botLoginInfoCache.set(cacheKey, result)
           return result
         }
@@ -1420,30 +1423,16 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     let content = session.content
     let elements = session.elements
     
-    // 如果是自己发送的消息，通过 get_msg API 获取内容
-    if (isSelf && session.messageId) {
+    // 如果是自己发送的消息，通过 Koishi getMessage API 获取内容
+    const messageChannelId = session.channelId || session.guildId
+    if (isSelf && session.messageId && messageChannelId) {
       const bot = session.bot || ctx.bots.find(b => b.selfId === session.selfId)
-      
-      if (bot?.platform === 'onebot' && (bot as any).internal?.getMsg) {
+
+      if (typeof bot?.getMessage === 'function') {
         try {
-          const msgInfo = await (bot as any).internal.getMsg(session.messageId)
-          if (msgInfo) {
-            // 优先使用 raw_message (CQ 码格式)
-            if (msgInfo.raw_message) {
-              content = msgInfo.raw_message
-              elements = h.parse(content)
-            } else if (Array.isArray(msgInfo.message)) {
-              // 数组格式消息段
-              elements = msgInfo.message.map((seg: any) => ({
-                type: seg.type,
-                attrs: seg.data || {}
-              }))
-              content = elements.map((el: any) => {
-                if (el.type === 'text') return el.attrs?.text || el.attrs?.content || ''
-                return `[${el.type}]`
-              }).join('')
-            }
-          }
+          const message = await bot.getMessage(messageChannelId, session.messageId)
+          if (message?.content) content = message.content
+          if (Array.isArray(message?.elements)) elements = message.elements
         } catch (e) {
           ctx.logger('stuhelperGroupCenter').warn('获取自身消息详情失败: %s', toApiErrorMessage(e))
         }

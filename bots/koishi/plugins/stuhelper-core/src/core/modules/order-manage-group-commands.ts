@@ -38,7 +38,7 @@ async function handleWholeBanCommand(host: OrderManageModule, session: Session, 
   }
 
   try {
-    await session.bot.internal.setGroupWholeBan(session.guildId, enabled)
+    await session.bot.muteChannel(session.channelId || session.guildId, session.guildId, enabled)
     host.logCommand(session, commandName, session.guildId, enabled
       ? `成功：已开启全体禁言，群号 ${session.guildId}`
       : `成功：已解除全体禁言，群号 ${session.guildId}`)
