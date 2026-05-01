@@ -47,7 +47,7 @@ func TestMFARecoveryCodesPersistAuditWithoutPlaintextCode(t *testing.T) {
 	err = manager.ConsumeRecoveryCode(context.Background(), userID, "invalid-code")
 	require.ErrorIs(t, err, ErrMFARecoveryCodeInvalid)
 
-	events := loadMFARecoveryAuditEvents(t, fixture)
+	events := loadMFAAuditEvents(t, fixture)
 	require.Len(t, events, 3)
 	assert.Equal(t, "iam.mfa.recovery_codes_issue", events[0].EventType)
 	assert.Equal(t, "success", events[0].Result)
@@ -58,6 +58,38 @@ func TestMFARecoveryCodesPersistAuditWithoutPlaintextCode(t *testing.T) {
 	for _, event := range events {
 		assert.NotContains(t, event.Details, bundle.Codes[0])
 	}
+}
+
+func TestMFACompleteEnrollmentActivatesAndAudits(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB, []byte("test-mfa-recovery-hmac-material-32!"))
+	manager := newTestMFARecoveryManager(t, repo)
+	userID := seedMFAUser(t, fixture)
+
+	audit.ConfigureRepository(audit.NewRepository(fixture.DB))
+	defer audit.ConfigureRepository(nil)
+
+	bundle, err := manager.CompleteEnrollment(context.Background(), MFAEnrollmentComplete{
+		UserID:  userID,
+		Methods: []string{"totp"},
+	})
+	require.NoError(t, err)
+
+	enrollment, err := repo.GetMFAEnrollment(context.Background(), userID)
+	require.NoError(t, err)
+	require.NotNil(t, enrollment)
+	assert.True(t, enrollment.Active)
+	assert.Equal(t, []string{MFAMethodTOTP}, enrollment.Methods)
+	assert.NotNil(t, enrollment.RecoveryCodesIssuedAt)
+
+	checks := mfaRecoveryDBChecks{fixture: fixture, userID: userID}
+	checks.assertStoredCodes(t, bundle.Codes)
+	checks.assertIssuedAt(t, bundle.IssuedAt)
+
+	events := loadMFAAuditEvents(t, fixture)
+	require.Len(t, events, 1)
+	assert.Equal(t, "iam.mfa.enroll", events[0].EventType)
+	assert.Equal(t, "success", events[0].Result)
 }
 
 func newTestMFARecoveryManager(t *testing.T, repo MFARecoveryRepository) *MFARecoveryManager {
@@ -126,12 +158,12 @@ type mfaRecoveryAuditRow struct {
 	Details   string
 }
 
-func loadMFARecoveryAuditEvents(t *testing.T, fixture *postgresfixture.Fixture) []mfaRecoveryAuditRow {
+func loadMFAAuditEvents(t *testing.T, fixture *postgresfixture.Fixture) []mfaRecoveryAuditRow {
 	t.Helper()
 	rows, err := fixture.Pool.Query(context.Background(), `
 		SELECT event_type, result, COALESCE(details::text, '')
 		FROM audit_events
-		WHERE event_type LIKE 'iam.mfa.recovery%'
+		WHERE event_type LIKE 'iam.mfa.%'
 		ORDER BY created_at ASC, id ASC
 	`)
 	require.NoError(t, err)

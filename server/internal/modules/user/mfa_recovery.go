@@ -29,6 +29,7 @@ var (
 
 type MFARecoveryRepository interface {
 	WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
+	UpsertMFAEnrollmentTx(ctx context.Context, tx pgx.Tx, params MFAEnrollmentUpsert) error
 	ReplaceMFARecoveryCodesTx(ctx context.Context, tx pgx.Tx, params MFARecoveryCodeReplace) error
 	ConsumeMFARecoveryCodeTx(ctx context.Context, tx pgx.Tx, params MFARecoveryCodeConsume) (bool, error)
 }
@@ -196,12 +197,19 @@ func mfaRecoveryAuditEvent(input mfaRecoveryAuditInput) audit.Event {
 		Category:     "audit",
 		ActorType:    "user",
 		UserID:       fmt.Sprintf("%d", input.UserID),
-		ResourceType: "iam.mfa.recovery_code",
+		ResourceType: mfaAuditResourceType(input.Action),
 		ResourceID:   fmt.Sprintf("user:%d", input.UserID),
 		Action:       input.Action,
 		Result:       input.Result,
 		Reason:       input.Reason,
 	}
+}
+
+func mfaAuditResourceType(action string) string {
+	if action == "recovery_code_use" || action == "recovery_codes_issue" {
+		return "iam.mfa.recovery_code"
+	}
+	return "iam.mfa"
 }
 
 func generateMFARecoveryCode() (string, error) {

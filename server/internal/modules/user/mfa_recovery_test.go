@@ -42,6 +42,10 @@ func (m *mfaRecoveryFakeRepo) WithTx(ctx context.Context, fn func(context.Contex
 	return fn(ctx, nil)
 }
 
+func (m *mfaRecoveryFakeRepo) UpsertMFAEnrollmentTx(context.Context, pgx.Tx, MFAEnrollmentUpsert) error {
+	return nil
+}
+
 func (m *mfaRecoveryFakeRepo) ReplaceMFARecoveryCodesTx(context.Context, pgx.Tx, MFARecoveryCodeReplace) error {
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
@@ -43,11 +44,36 @@ type MFAEnrollmentUpsert struct {
 }
 
 func (r *Repository) UpsertMFAEnrollment(ctx context.Context, params MFAEnrollmentUpsert) error {
+	return upsertMFAEnrollment(ctx, mfaEnrollmentUpsertQuery{
+		Exec:   r.db.Exec,
+		Params: params,
+		Op:     "UpsertMFAEnrollment",
+	})
+}
+
+func (r *Repository) UpsertMFAEnrollmentTx(ctx context.Context, tx pgx.Tx, params MFAEnrollmentUpsert) error {
+	return upsertMFAEnrollment(ctx, mfaEnrollmentUpsertQuery{
+		Exec:   tx.Exec,
+		Params: params,
+		Op:     "UpsertMFAEnrollmentTx",
+	})
+}
+
+type mfaEnrollmentExec func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+
+type mfaEnrollmentUpsertQuery struct {
+	Exec   mfaEnrollmentExec
+	Params MFAEnrollmentUpsert
+	Op     string
+}
+
+func upsertMFAEnrollment(ctx context.Context, query mfaEnrollmentUpsertQuery) error {
+	params := query.Params
 	methods, err := normalizeMFAMethods(params.Methods, params.Active)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.Exec(ctx, `
+	_, err = query.Exec(ctx, `
 		INSERT INTO user_mfa_enrollment (
 			user_id, active, methods, recovery_codes_issued_at, reset_required,
 			last_enrolled_at, last_disabled_at, updated_at
@@ -67,7 +93,7 @@ func (r *Repository) UpsertMFAEnrollment(ctx context.Context, params MFAEnrollme
 			updated_at = NOW()
 	`, params.UserID, params.Active, methods, params.RecoveryCodesIssuedAt, params.ResetRequired)
 	if err != nil {
-		return fmt.Errorf("UpsertMFAEnrollment: %w", err)
+		return fmt.Errorf("%s: %w", query.Op, err)
 	}
 	return nil
 }
