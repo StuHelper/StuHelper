@@ -80,7 +80,6 @@ server/tmp/
 # ==================== Docker ====================
 docker-compose.override.yml
 .docker/
-infra/zitadel/bootstrap/*.pat
 infra/generated/*
 !infra/generated/.gitkeep
 infra/generated/observability/*
@@ -93,9 +92,6 @@ infra/generated/postgres/*
 !infra/generated/postgres/.gitkeep
 infra/generated/postgres/wal-archive/*
 !infra/generated/postgres/wal-archive/.gitkeep
-!infra/generated/zitadel/
-infra/generated/zitadel/*
-!infra/generated/zitadel/.gitkeep
 infra/ansible/inventory/*.ini
 !infra/ansible/inventory/*.example.ini
 go.work
