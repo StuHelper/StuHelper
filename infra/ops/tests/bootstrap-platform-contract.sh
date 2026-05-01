@@ -28,6 +28,10 @@ assert_not_contains() {
 }
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_CLIENT_ID must be configured before platform bootstrap'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'go run \./cmd/casdoor-bootstrap'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_BOOTSTRAP_CLIENT_SECRET'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_ADMIN_CLIENT_SECRET'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'Casdoor bootstrap skipped because CASDOOR_BOOTSTRAP_ENABLED is not true'
 retired_idp_prefix='ZITA''DEL_'
 assert_not_contains "${BOOTSTRAP_SCRIPT}" "${retired_idp_prefix}"
 if grep -Fqx "printf '%s\\n' \"\${FGA_OUTPUT}\"" "${BOOTSTRAP_SCRIPT}"; then

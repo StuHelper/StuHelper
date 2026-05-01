@@ -101,6 +101,18 @@ fi
 if placeholder_or_empty "${CASDOOR_CLIENT_SECRET:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_CLIENT_SECRET" "dev-casdoor-client-$(random_hex 16)"
 fi
+if placeholder_or_empty "${CASDOOR_ADMIN_CLIENT_ID:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
+fi
+if placeholder_or_empty "${CASDOOR_ADMIN_CLIENT_SECRET:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_ADMIN_CLIENT_SECRET" "dev-casdoor-admin-$(random_hex 16)"
+fi
+if placeholder_or_empty "${CASDOOR_UNIAPP_CLIENT_ID:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_ID" "stuhelper-uniapp"
+fi
+if placeholder_or_empty "${CASDOOR_UNIAPP_CLIENT_SECRET:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_SECRET" "dev-casdoor-uniapp-$(random_hex 16)"
+fi
 
 ensure_value "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev"
 ensure_value "APP_ENV" "${APP_ENV:-}" "development"
@@ -123,6 +135,18 @@ ensure_value "CASDOOR_INTERNAL_ADDRESS" "${CASDOOR_INTERNAL_ADDRESS:-}" "casdoor
 ensure_value "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback"
 ensure_value "CASDOOR_ORGANIZATION" "${CASDOOR_ORGANIZATION:-}" "stuhelper"
 ensure_value "CASDOOR_ROLES_CLAIM" "${CASDOOR_ROLES_CLAIM:-}" "roles"
+ensure_value "CASDOOR_BOOTSTRAP_ENABLED" "${CASDOOR_BOOTSTRAP_ENABLED:-}" "false"
+ensure_value "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" ".env.casdoor-bootstrap.local"
+ensure_value "CASDOOR_ADMIN_REDIRECT_URI" "${CASDOOR_ADMIN_REDIRECT_URI:-}" "${CASDOOR_REDIRECT_URI:-http://localhost:8080/api/v1/auth/callback}"
+ensure_value "CASDOOR_UNIAPP_REDIRECT_URI" "${CASDOOR_UNIAPP_REDIRECT_URI:-}" "${CASDOOR_REDIRECT_URI:-http://localhost:8080/api/v1/auth/callback}"
+ensure_value "CASDOOR_SMS_PROVIDER_ENABLED" "${CASDOOR_SMS_PROVIDER_ENABLED:-}" "false"
+ensure_value "CASDOOR_SMS_PROVIDER_NAME" "${CASDOOR_SMS_PROVIDER_NAME:-}" "stuhelper-sms"
+ensure_value "CASDOOR_SMS_PROVIDER_DISPLAY_NAME" "${CASDOOR_SMS_PROVIDER_DISPLAY_NAME:-}" "StuHelper-SMS"
+ensure_value "CASDOOR_SMS_PROVIDER_CATEGORY" "${CASDOOR_SMS_PROVIDER_CATEGORY:-}" "SMS"
+ensure_value "CASDOOR_SMS_PROVIDER_TYPE" "${CASDOOR_SMS_PROVIDER_TYPE:-}" "CustomHTTP"
+ensure_value "CASDOOR_SMS_PROVIDER_METHOD" "${CASDOOR_SMS_PROVIDER_METHOD:-}" "POST"
+ensure_value "CASDOOR_SMS_PROVIDER_ENDPOINT" "${CASDOOR_SMS_PROVIDER_ENDPOINT:-}" "http://host.docker.internal:8080/internal/sms/send"
+ensure_value "CASDOOR_EMAIL_PROVIDER_ENABLED" "${CASDOOR_EMAIL_PROVIDER_ENABLED:-}" "false"
 ensure_value "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "http://localhost:3000"
 ensure_value "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "http://localhost:${ADMIN_EXTERNAL_PORT:-3001}"
 ensure_value "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" ""

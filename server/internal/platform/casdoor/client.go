@@ -14,6 +14,7 @@ import (
 type AdminPurpose string
 
 const (
+	PurposeBootstrap       AdminPurpose = "casdoor-admin-bootstrap"
 	PurposeAppProvisioning AdminPurpose = "casdoor-admin-app-provisioning"
 	PurposeRoleSync        AdminPurpose = "casdoor-admin-role-sync"
 	PurposeUserLookup      AdminPurpose = "casdoor-admin-user-lookup"
@@ -34,9 +35,13 @@ type Credential struct {
 type Client struct {
 	credential Credential
 	apps       applicationAPI
+	roles      roleAPI
+	orgs       organizationAPI
+	providers  providerAPI
 }
 
 type applicationAPI interface {
+	GetApplication(string) (*casdoorsdk.Application, error)
 	AddApplication(*casdoorsdk.Application) (bool, error)
 	UpdateApplication(*casdoorsdk.Application) (bool, error)
 	DeleteApplication(*casdoorsdk.Application) (bool, error)
@@ -44,6 +49,7 @@ type applicationAPI interface {
 
 type roleAPI interface {
 	GetRole(string) (*casdoorsdk.Role, error)
+	AddRole(*casdoorsdk.Role) (bool, error)
 	UpdateRoleForColumns(*casdoorsdk.Role, []string) (bool, error)
 }
 
@@ -51,14 +57,32 @@ type userAPI interface {
 	GetUserByUserId(string) (*casdoorsdk.User, error)
 }
 
+type organizationAPI interface {
+	GetOrganization(string) (*casdoorsdk.Organization, error)
+	AddOrganization(*casdoorsdk.Organization) (bool, error)
+	UpdateOrganization(*casdoorsdk.Organization) (bool, error)
+}
+
+type providerAPI interface {
+	GetProvider(string) (*casdoorsdk.Provider, error)
+	AddProvider(*casdoorsdk.Provider) (bool, error)
+	UpdateProvider(*casdoorsdk.Provider) (bool, error)
+}
+
 type sdkApplicationAPI struct{}
 type sdkRoleAPI struct{}
 type sdkUserAPI struct{}
+type sdkOrganizationAPI struct{}
+type sdkProviderAPI struct{}
 
 var sdkConfigMu sync.Mutex
 
 func NewAppProvisioningClient(credential Credential) (*Client, error) {
 	return newClient(credential, sdkApplicationAPI{})
+}
+
+func NewBootstrapClient(credential Credential) (*Client, error) {
+	return newBootstrapClient(credential, sdkApplicationAPI{}, sdkRoleAPI{}, sdkOrganizationAPI{}, sdkProviderAPI{})
 }
 
 func newClient(credential Credential, apps applicationAPI) (*Client, error) {
@@ -72,11 +96,26 @@ func newClient(credential Credential, apps applicationAPI) (*Client, error) {
 	return &Client{credential: normalized, apps: apps}, nil
 }
 
+func newBootstrapClient(credential Credential, apps applicationAPI, roles roleAPI, orgs organizationAPI, providers providerAPI) (*Client, error) {
+	normalized, err := validateCredentialForPurpose(credential, PurposeBootstrap)
+	if err != nil {
+		return nil, err
+	}
+	if apps == nil || roles == nil || orgs == nil || providers == nil {
+		return nil, errors.New("casdoor: bootstrap APIs are required")
+	}
+	return &Client{credential: normalized, apps: apps, roles: roles, orgs: orgs, providers: providers}, nil
+}
+
 func validateCredentialForPurpose(credential Credential, purpose AdminPurpose) (Credential, error) {
 	if credential.Purpose != purpose {
 		return Credential{}, fmt.Errorf("casdoor: credential purpose %q does not match %q", credential.Purpose, purpose)
 	}
 	return validateCredential(credential)
+}
+
+func (sdkApplicationAPI) GetApplication(name string) (*casdoorsdk.Application, error) {
+	return casdoorsdk.GetApplication(name)
 }
 
 func (sdkApplicationAPI) AddApplication(app *casdoorsdk.Application) (bool, error) {
@@ -95,12 +134,40 @@ func (sdkRoleAPI) GetRole(name string) (*casdoorsdk.Role, error) {
 	return casdoorsdk.GetRole(name)
 }
 
+func (sdkRoleAPI) AddRole(role *casdoorsdk.Role) (bool, error) {
+	return casdoorsdk.AddRole(role)
+}
+
 func (sdkRoleAPI) UpdateRoleForColumns(role *casdoorsdk.Role, columns []string) (bool, error) {
 	return casdoorsdk.UpdateRoleForColumns(role, columns)
 }
 
 func (sdkUserAPI) GetUserByUserId(subject string) (*casdoorsdk.User, error) {
 	return casdoorsdk.GetUserByUserId(subject)
+}
+
+func (sdkOrganizationAPI) GetOrganization(name string) (*casdoorsdk.Organization, error) {
+	return casdoorsdk.GetOrganization(name)
+}
+
+func (sdkOrganizationAPI) AddOrganization(org *casdoorsdk.Organization) (bool, error) {
+	return casdoorsdk.AddOrganization(org)
+}
+
+func (sdkOrganizationAPI) UpdateOrganization(org *casdoorsdk.Organization) (bool, error) {
+	return casdoorsdk.UpdateOrganization(org)
+}
+
+func (sdkProviderAPI) GetProvider(name string) (*casdoorsdk.Provider, error) {
+	return casdoorsdk.GetProvider(name)
+}
+
+func (sdkProviderAPI) AddProvider(provider *casdoorsdk.Provider) (bool, error) {
+	return casdoorsdk.AddProvider(provider)
+}
+
+func (sdkProviderAPI) UpdateProvider(provider *casdoorsdk.Provider) (bool, error) {
+	return casdoorsdk.UpdateProvider(provider)
 }
 
 func validateCredential(credential Credential) (Credential, error) {
@@ -110,7 +177,7 @@ func validateCredential(credential Credential) (Credential, error) {
 	credential.Organization = strings.TrimSpace(credential.Organization)
 	credential.Application = strings.TrimSpace(credential.Application)
 	switch credential.Purpose {
-	case PurposeAppProvisioning, PurposeRoleSync, PurposeUserLookup:
+	case PurposeBootstrap, PurposeAppProvisioning, PurposeRoleSync, PurposeUserLookup:
 	default:
 		return Credential{}, fmt.Errorf("casdoor: unsupported admin purpose %q", credential.Purpose)
 	}

@@ -36,6 +36,9 @@ fi
 if ! printf '%s\n' "${app_block}" | grep -Eq '\$\{GENERATED_SECRET_ENV_FILE_PATH:-\.env\.prod\.generated\.secrets\}'; then
   fail "app env_file must inject the generated secret env file placeholder"
 fi
+if printf '%s\n' "${app_block}" | grep -Eq 'CASDOOR_BOOTSTRAP_CLIENT_SECRET'; then
+  fail "app service must not receive one-shot Casdoor bootstrap credentials"
+fi
 
 assert_contains "${COMMON_LIB_FILE}" 'SECRETS_ENV_FILE_PATH="\$\{SECRETS_ENV_FILE\}"'
 assert_contains "${COMMON_LIB_FILE}" 'GENERATED_SECRET_ENV_FILE_PATH="\$\{GENERATED_SECRET_ENV_FILE\}"'

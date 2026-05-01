@@ -88,6 +88,8 @@ trap cleanup EXIT
 fresh_dir="$(run_init_prod_env)"
 cleanup_dirs+=("${fresh_dir}")
 fresh_env="${fresh_dir}/.env.prod.shared"
+fresh_secrets="${fresh_dir}/.env.prod.secrets.local"
+fresh_bootstrap_env="${fresh_dir}/.env.casdoor-bootstrap.local"
 
 assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
 assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置样板$'
@@ -95,6 +97,14 @@ assert_env_value "${fresh_env}" "CORS_ORIGINS" "REPLACE_WITH_PRODUCTION_CORS_ORI
 assert_env_value "${fresh_env}" "CASDOOR_ISSUER" "REPLACE_WITH_CASDOOR_ISSUER"
 assert_env_value "${fresh_env}" "CASDOOR_REDIRECT_URI" "REPLACE_WITH_CASDOOR_REDIRECT_URI"
 assert_env_value "${fresh_env}" "CASDOOR_CLIENT_ID" "REPLACE_WITH_CASDOOR_CLIENT_ID"
+assert_env_value "${fresh_env}" "CASDOOR_BOOTSTRAP_ENABLED" "true"
+assert_env_value "${fresh_env}" "CASDOOR_BOOTSTRAP_ENV_FILE" ".env.casdoor-bootstrap.local"
+assert_env_value "${fresh_env}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
+assert_env_value "${fresh_env}" "CASDOOR_ADMIN_REDIRECT_URI" "REPLACE_WITH_CASDOOR_ADMIN_REDIRECT_URI"
+assert_env_value "${fresh_env}" "CASDOOR_UNIAPP_CLIENT_ID" "stuhelper-uniapp"
+assert_env_value "${fresh_env}" "CASDOOR_UNIAPP_REDIRECT_URI" "REPLACE_WITH_CASDOOR_UNIAPP_REDIRECT_URI"
+assert_env_value "${fresh_env}" "CASDOOR_SMS_PROVIDER_ENABLED" "true"
+assert_env_value "${fresh_env}" "CASDOOR_SMS_PROVIDER_ENDPOINT" "http://app:8080/internal/sms/send"
 assert_env_value "${fresh_env}" "CASDOOR_APP_PROVISIONING_CLIENT_ID" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
 assert_env_value "${fresh_env}" "CASDOOR_APP_PROVISIONING_APPLICATION" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
 assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_ID"
@@ -117,6 +127,13 @@ assert_env_value "${fresh_env}" "BACKEND_IMAGE_REF" "REPLACE_WITH_BACKEND_IMAGE_
 assert_env_value "${fresh_env}" "FRONTEND_IMAGE_REF" "REPLACE_WITH_FRONTEND_IMAGE_REF"
 assert_env_value "${fresh_env}" "ADMIN_IMAGE_REF" "REPLACE_WITH_ADMIN_IMAGE_REF"
 assert_file_exists "${fresh_dir}/.env.prod.generated.secrets"
+assert_file_exists "${fresh_bootstrap_env}"
+assert_env_value "${fresh_bootstrap_env}" "CASDOOR_BOOTSTRAP_CLIENT_ID" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_ID"
+assert_env_value "${fresh_bootstrap_env}" "CASDOOR_BOOTSTRAP_CLIENT_SECRET" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_SECRET"
+assert_env_value "${fresh_bootstrap_env}" "CASDOOR_BOOTSTRAP_APPLICATION" "REPLACE_WITH_CASDOOR_BOOTSTRAP_APPLICATION"
+assert_file_contains "${fresh_secrets}" '^CASDOOR_CLIENT_SECRET=prod-casdoor-web-[0-9a-f]+$'
+assert_file_contains "${fresh_secrets}" '^CASDOOR_ADMIN_CLIENT_SECRET=prod-casdoor-admin-[0-9a-f]+$'
+assert_file_contains "${fresh_secrets}" '^CASDOOR_UNIAPP_CLIENT_SECRET=prod-casdoor-uniapp-[0-9a-f]+$'
 assert_file_not_contains "${fresh_env}" '^DATABASE_URL=.*@localhost:5432/.*sslmode=disable$'
 assert_file_not_contains "${fresh_env}" '^CASDOOR_INTERNAL_ADDRESS=host\.docker\.internal:8085$'
 assert_file_not_contains "${fresh_env}" '^ALERTMANAGER_WEBHOOK_URL=http://alert-webhook-sink:8080/alerts$'
@@ -152,6 +169,12 @@ assert_env_value "${legacy_env}" "CASDOOR_ISSUER" "REPLACE_WITH_CASDOOR_ISSUER"
 assert_env_value "${legacy_env}" "CASDOOR_INTERNAL_ADDRESS" ""
 assert_env_value "${legacy_env}" "CASDOOR_REDIRECT_URI" "REPLACE_WITH_CASDOOR_REDIRECT_URI"
 assert_env_value "${legacy_env}" "CASDOOR_CLIENT_ID" "REPLACE_WITH_CASDOOR_CLIENT_ID"
+assert_env_value "${legacy_env}" "CASDOOR_BOOTSTRAP_ENABLED" "true"
+assert_env_value "${legacy_env}" "CASDOOR_BOOTSTRAP_ENV_FILE" ".env.casdoor-bootstrap.local"
+assert_env_value "${legacy_env}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
+assert_env_value "${legacy_env}" "CASDOOR_ADMIN_REDIRECT_URI" "REPLACE_WITH_CASDOOR_ADMIN_REDIRECT_URI"
+assert_env_value "${legacy_env}" "CASDOOR_UNIAPP_CLIENT_ID" "stuhelper-uniapp"
+assert_env_value "${legacy_env}" "CASDOOR_UNIAPP_REDIRECT_URI" "REPLACE_WITH_CASDOOR_UNIAPP_REDIRECT_URI"
 assert_env_value "${legacy_env}" "CASDOOR_APP_PROVISIONING_CLIENT_ID" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
 assert_env_value "${legacy_env}" "CASDOOR_APP_PROVISIONING_APPLICATION" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
 assert_env_value "${legacy_env}" "WEB_PUBLIC_URL" "REPLACE_WITH_WEB_PUBLIC_URL"
@@ -170,6 +193,10 @@ assert_env_value "${legacy_env}" "BACKEND_IMAGE_REF" "REPLACE_WITH_BACKEND_IMAGE
 assert_env_value "${legacy_env}" "FRONTEND_IMAGE_REF" "REPLACE_WITH_FRONTEND_IMAGE_REF"
 assert_env_value "${legacy_env}" "ADMIN_IMAGE_REF" "REPLACE_WITH_ADMIN_IMAGE_REF"
 assert_file_exists "${legacy_dir}/.env.prod.generated.secrets"
+assert_file_exists "${legacy_dir}/.env.casdoor-bootstrap.local"
+assert_env_value "${legacy_dir}/.env.casdoor-bootstrap.local" "CASDOOR_BOOTSTRAP_CLIENT_ID" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_ID"
+assert_env_value "${legacy_dir}/.env.casdoor-bootstrap.local" "CASDOOR_BOOTSTRAP_CLIENT_SECRET" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_SECRET"
+assert_env_value "${legacy_dir}/.env.casdoor-bootstrap.local" "CASDOOR_BOOTSTRAP_APPLICATION" "REPLACE_WITH_CASDOOR_BOOTSTRAP_APPLICATION"
 assert_file_not_contains "${legacy_env}" "^${retired_idp_prefix}"
 assert_file_not_contains "${legacy_env}" "^${retired_pat_key}="
 assert_file_not_contains "${legacy_dir}/.env.prod.secrets.local" "^${retired_idp_prefix}"

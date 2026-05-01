@@ -1,0 +1,225 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
+)
+
+const (
+	defaultAccessTokenHours  = 1
+	defaultRefreshTokenHours = 24
+	defaultTokenFormat       = "JWT"
+)
+
+type envReader func(string) string
+
+type bootstrapSettings struct {
+	credential casdoor.Credential
+	plan       casdoor.BootstrapPlan
+}
+
+func loadSettings(getenv envReader) (bootstrapSettings, error) {
+	credential, err := buildCredential(getenv)
+	if err != nil {
+		return bootstrapSettings{}, err
+	}
+	plan, err := buildPlan(getenv, credential.Organization)
+	if err != nil {
+		return bootstrapSettings{}, err
+	}
+	return bootstrapSettings{credential: credential, plan: plan}, nil
+}
+
+func buildCredential(getenv envReader) (casdoor.Credential, error) {
+	endpoint, err := requiredFirst(getenv, "CASDOOR_BOOTSTRAP_ENDPOINT", "CASDOOR_ISSUER")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	clientID, err := requiredValue(getenv, "CASDOOR_BOOTSTRAP_CLIENT_ID")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	clientSecret, err := requiredValue(getenv, "CASDOOR_BOOTSTRAP_CLIENT_SECRET")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	organization, err := requiredValue(getenv, "CASDOOR_ORGANIZATION")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	application, err := requiredValue(getenv, "CASDOOR_BOOTSTRAP_APPLICATION")
+	if err != nil {
+		return casdoor.Credential{}, err
+	}
+	return casdoor.Credential{
+		Purpose:      casdoor.PurposeBootstrap,
+		Endpoint:     endpoint,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Certificate:  strings.TrimSpace(getenv("CASDOOR_BOOTSTRAP_CERTIFICATE")),
+		Organization: organization,
+		Application:  application,
+	}, nil
+}
+
+func buildPlan(getenv envReader, orgName string) (casdoor.BootstrapPlan, error) {
+	apps, err := buildApplications(getenv)
+	if err != nil {
+		return casdoor.BootstrapPlan{}, err
+	}
+	providers, err := buildProviders(getenv)
+	if err != nil {
+		return casdoor.BootstrapPlan{}, err
+	}
+	return casdoor.BootstrapPlan{
+		Organization: casdoor.OrganizationSpec{
+			Name:               orgName,
+			DisplayName:        valueOrDefault(getenv("CASDOOR_ORGANIZATION_DISPLAY_NAME"), "StuHelper"),
+			DefaultApplication: "stuhelper-web",
+		},
+		Applications: apps,
+		Roles:        flatRoleCatalog(),
+		Providers:    providers,
+	}, nil
+}
+
+func buildApplications(getenv envReader) ([]casdoor.ApplicationSpec, error) {
+	web, err := appSpec(getenv, webAppEnv())
+	if err != nil {
+		return nil, err
+	}
+	admin, err := appSpec(getenv, prefixedAppEnv("CASDOOR_ADMIN", "stuhelper-admin", "StuHelper Admin"))
+	if err != nil {
+		return nil, err
+	}
+	uniapp, err := appSpec(getenv, prefixedAppEnv("CASDOOR_UNIAPP", "stuhelper-uniapp", "StuHelper UniApp"))
+	if err != nil {
+		return nil, err
+	}
+	return []casdoor.ApplicationSpec{web, admin, uniapp}, nil
+}
+
+func buildProviders(getenv envReader) ([]casdoor.ProviderSpec, error) {
+	var providers []casdoor.ProviderSpec
+	sms, ok, err := providerSpec(getenv, "CASDOOR_SMS_PROVIDER")
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		providers = append(providers, sms)
+	}
+	email, ok, err := providerSpec(getenv, "CASDOOR_EMAIL_PROVIDER")
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		providers = append(providers, email)
+	}
+	return providers, nil
+}
+
+func flatRoleCatalog() []casdoor.RoleSpec {
+	return []casdoor.RoleSpec{
+		{Name: "super_admin", DisplayName: "Super Admin", Description: "Global StuHelper administrator"},
+		{Name: "school_admin", DisplayName: "School Admin", Description: "School-scoped administrator projection"},
+		{Name: "section_admin", DisplayName: "Section Admin", Description: "Section administrator projection"},
+		{Name: "section_moderator", DisplayName: "Section Moderator", Description: "Section moderation projection"},
+		{Name: "section_reviewer", DisplayName: "Section Reviewer", Description: "Section review projection"},
+		{Name: "verified_student", DisplayName: "Verified Student", Description: "Verified student projection"},
+		{Name: "user", DisplayName: "User", Description: "Default authenticated user projection"},
+	}
+}
+
+type appEnv struct {
+	name        string
+	displayName string
+	clientIDKey string
+	secretKey   string
+	redirectKey string
+}
+
+func webAppEnv() appEnv {
+	return appEnv{
+		name:        "stuhelper-web",
+		displayName: "StuHelper Web",
+		clientIDKey: "CASDOOR_CLIENT_ID",
+		secretKey:   "CASDOOR_CLIENT_SECRET", // #nosec G101 -- env key name, not a secret value.
+		redirectKey: "CASDOOR_REDIRECT_URI",
+	}
+}
+
+func prefixedAppEnv(prefix, name, displayName string) appEnv {
+	return appEnv{
+		name:        name,
+		displayName: displayName,
+		clientIDKey: prefix + "_CLIENT_ID",
+		secretKey:   prefix + "_CLIENT_SECRET",
+		redirectKey: prefix + "_REDIRECT_URI",
+	}
+}
+
+func appSpec(getenv envReader, env appEnv) (casdoor.ApplicationSpec, error) {
+	redirects, err := requiredList(getenv, env.redirectKey)
+	if err != nil {
+		return casdoor.ApplicationSpec{}, err
+	}
+	clientID, err := requiredValue(getenv, env.clientIDKey)
+	if err != nil {
+		return casdoor.ApplicationSpec{}, err
+	}
+	secret, err := requiredValue(getenv, env.secretKey)
+	if err != nil {
+		return casdoor.ApplicationSpec{}, err
+	}
+	return casdoor.ApplicationSpec{
+		Name:                 env.name,
+		DisplayName:          env.displayName,
+		ClientID:             clientID,
+		ClientSecret:         secret,
+		RedirectURIs:         redirects,
+		GrantTypes:           []string{"authorization_code", "refresh_token"},
+		TokenFormat:          defaultTokenFormat,
+		TokenFields:          []string{},
+		ExpireInHours:        defaultAccessTokenHours,
+		RefreshExpireInHours: defaultRefreshTokenHours,
+	}, nil
+}
+
+func requiredValue(getenv envReader, key string) (string, error) {
+	value := required(getenv, key)
+	if value == "" {
+		return "", fmt.Errorf("%s is required", key)
+	}
+	return value, nil
+}
+
+func required(getenv envReader, key string) string {
+	return strings.TrimSpace(getenv(key))
+}
+
+func requiredFirst(getenv envReader, keys ...string) (string, error) {
+	for _, key := range keys {
+		if value := required(getenv, key); value != "" {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("one of %s is required", strings.Join(keys, ", "))
+}
+
+func requiredList(getenv envReader, key string) ([]string, error) {
+	value := required(getenv, key)
+	if value == "" {
+		return nil, fmt.Errorf("%s is required", key)
+	}
+	return strings.Split(value, ","), nil
+}
+
+func valueOrDefault(raw, fallback string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return fallback
+	}
+	return value
+}

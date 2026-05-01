@@ -3,7 +3,7 @@ type: guide
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-05-02
 ---
 
 # 快速开始
@@ -25,7 +25,7 @@ make dev-up
 完成以下步骤：
 - 生成开发环境变量
 - 启动 PostgreSQL / Redis / Casdoor / OpenFGA / MinIO（Docker）
-- 验证 Casdoor OIDC metadata，并使用 `.env` 中已配置的 OIDC App
+- 验证 Casdoor OIDC metadata；生产路径会用独立 bootstrap 凭据幂等创建 Casdoor organization / first-party applications / flat roles / providers
 - 初始化 OpenFGA Store 和 Model
 - 初始化对象存储 bucket
 - 数据库迁移和开发 seed

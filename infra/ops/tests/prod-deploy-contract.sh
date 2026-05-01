@@ -19,13 +19,25 @@ line_number() {
 }
 
 load_env_line="$(line_number 'load_env')"
+source_bootstrap_line="$(line_number 'source_casdoor_bootstrap_env # load bootstrap credential env')"
 render_redis_acl_line="$(line_number 'render-redis-acl.sh')"
 start_infra_line="$(line_number 'compose --profile prod up -d --wait "${infra_services[@]}"')"
+bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
+bootstrap_reject_line="$(line_number 'reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 app_provisioning_reject_line="$(line_number 'reject_placeholder CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET')"
 user_lookup_require_line="$(line_number 'require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET')"
 
+if (( source_bootstrap_line <= load_env_line )); then
+  fail "Casdoor bootstrap env must be sourced after load_env"
+fi
+if (( bootstrap_require_line <= source_bootstrap_line )); then
+  fail "Casdoor bootstrap credentials must be validated after sourcing bootstrap env"
+fi
+if (( bootstrap_reject_line <= bootstrap_require_line )); then
+  fail "Casdoor bootstrap placeholder rejection must run after non-empty validation"
+fi
 if (( app_provisioning_reject_line <= app_provisioning_require_line )); then
   fail "Casdoor app-provisioning placeholder rejection must run after non-empty validation"
 fi

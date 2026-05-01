@@ -129,6 +129,8 @@ func validCredential() Credential {
 }
 
 type fakeApplicationAPI struct {
+	gotName  string
+	existing *casdoorsdk.Application
 	added    *casdoorsdk.Application
 	updated  *casdoorsdk.Application
 	deleted  *casdoorsdk.Application
@@ -136,6 +138,11 @@ type fakeApplicationAPI struct {
 	updateOK bool
 	deleteOK bool
 	addErr   error
+}
+
+func (f *fakeApplicationAPI) GetApplication(name string) (*casdoorsdk.Application, error) {
+	f.gotName = name
+	return f.existing, nil
 }
 
 func (f *fakeApplicationAPI) AddApplication(app *casdoorsdk.Application) (bool, error) {

@@ -74,6 +74,23 @@ placeholder_or_empty() {
   [[ -z "${value}" || "${value}" == *"REPLACE_WITH_"* || "${value}" == "ChangeMeBeforeProduction" ]]
 }
 
+resolve_env_path() {
+  local raw="$1"
+  case "${raw}" in
+    /*) printf '%s\n' "${raw}" ;;
+    *) printf '%s/%s\n' "$(dirname "${ENV_FILE}")" "${raw}" ;;
+  esac
+}
+
+ensure_bootstrap_env_value() {
+  local file="$1"
+  local key="$2"
+  local desired="$3"
+  if ! grep -Eq "^${key}=" "${file}"; then
+    upsert_env_file "${file}" "${key}" "${desired}"
+  fi
+}
+
 load_env
 
 if placeholder_or_empty "${POSTGRES_PASSWORD:-}" || [[ "${POSTGRES_PASSWORD:-}" == "dev123" ]]; then
@@ -125,6 +142,15 @@ fi
 if placeholder_or_empty "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-minio-backup-$(random_hex 16)"
 fi
+if placeholder_or_empty "${CASDOOR_CLIENT_SECRET:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_CLIENT_SECRET" "prod-casdoor-web-$(random_hex 24)"
+fi
+if placeholder_or_empty "${CASDOOR_ADMIN_CLIENT_SECRET:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_ADMIN_CLIENT_SECRET" "prod-casdoor-admin-$(random_hex 24)"
+fi
+if placeholder_or_empty "${CASDOOR_UNIAPP_CLIENT_SECRET:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_SECRET" "prod-casdoor-uniapp-$(random_hex 24)"
+fi
 load_env
 
 ensure_prod_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-prod" "stuhelper-dev" "stuhelper"
@@ -162,8 +188,29 @@ ensure_prod_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "REPLACE_
 ensure_prod_default "CASDOOR_CLIENT_ID" "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID" "stuhelper-web"
 ensure_value "CASDOOR_ORGANIZATION" "${CASDOOR_ORGANIZATION:-}" "stuhelper"
 ensure_value "CASDOOR_ROLES_CLAIM" "${CASDOOR_ROLES_CLAIM:-}" "roles"
+ensure_prod_default "CASDOOR_BOOTSTRAP_ENABLED" "${CASDOOR_BOOTSTRAP_ENABLED:-}" "true" "false"
+ensure_value "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" ".env.casdoor-bootstrap.local"
+ensure_value "CASDOOR_ADMIN_CLIENT_ID" "${CASDOOR_ADMIN_CLIENT_ID:-}" "stuhelper-admin"
+ensure_prod_default "CASDOOR_ADMIN_REDIRECT_URI" "${CASDOOR_ADMIN_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_ADMIN_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
+ensure_value "CASDOOR_UNIAPP_CLIENT_ID" "${CASDOOR_UNIAPP_CLIENT_ID:-}" "stuhelper-uniapp"
+ensure_prod_default "CASDOOR_UNIAPP_REDIRECT_URI" "${CASDOOR_UNIAPP_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_UNIAPP_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
+ensure_prod_default "CASDOOR_SMS_PROVIDER_ENABLED" "${CASDOOR_SMS_PROVIDER_ENABLED:-}" "true" "false"
+ensure_value "CASDOOR_SMS_PROVIDER_NAME" "${CASDOOR_SMS_PROVIDER_NAME:-}" "stuhelper-sms"
+ensure_value "CASDOOR_SMS_PROVIDER_DISPLAY_NAME" "${CASDOOR_SMS_PROVIDER_DISPLAY_NAME:-}" "StuHelper-SMS"
+ensure_value "CASDOOR_SMS_PROVIDER_CATEGORY" "${CASDOOR_SMS_PROVIDER_CATEGORY:-}" "SMS"
+ensure_value "CASDOOR_SMS_PROVIDER_TYPE" "${CASDOOR_SMS_PROVIDER_TYPE:-}" "CustomHTTP"
+ensure_value "CASDOOR_SMS_PROVIDER_METHOD" "${CASDOOR_SMS_PROVIDER_METHOD:-}" "POST"
+ensure_prod_default "CASDOOR_SMS_PROVIDER_ENDPOINT" "${CASDOOR_SMS_PROVIDER_ENDPOINT:-}" "http://app:8080/internal/sms/send" "http://host.docker.internal:8080/internal/sms/send"
+ensure_value "CASDOOR_EMAIL_PROVIDER_ENABLED" "${CASDOOR_EMAIL_PROVIDER_ENABLED:-}" "false"
 ensure_prod_default "CASDOOR_APP_PROVISIONING_CLIENT_ID" "${CASDOOR_APP_PROVISIONING_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
 ensure_prod_default "CASDOOR_APP_PROVISIONING_APPLICATION" "${CASDOOR_APP_PROVISIONING_APPLICATION:-}" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
+casdoor_bootstrap_env_file="$(resolve_env_path "${CASDOOR_BOOTSTRAP_ENV_FILE:-.env.casdoor-bootstrap.local}")"
+mkdir -p "$(dirname "${casdoor_bootstrap_env_file}")"
+touch "${casdoor_bootstrap_env_file}"
+ensure_bootstrap_env_value "${casdoor_bootstrap_env_file}" "CASDOOR_BOOTSTRAP_CLIENT_ID" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_ID"
+ensure_bootstrap_env_value "${casdoor_bootstrap_env_file}" "CASDOOR_BOOTSTRAP_CLIENT_SECRET" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_SECRET"
+ensure_bootstrap_env_value "${casdoor_bootstrap_env_file}" "CASDOOR_BOOTSTRAP_APPLICATION" "REPLACE_WITH_CASDOOR_BOOTSTRAP_APPLICATION"
+ensure_bootstrap_env_value "${casdoor_bootstrap_env_file}" "CASDOOR_BOOTSTRAP_CERTIFICATE" ""
 ensure_prod_default "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL" "http://localhost:3000"
 ensure_prod_default "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL" "http://localhost:3001"
 ensure_prod_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""

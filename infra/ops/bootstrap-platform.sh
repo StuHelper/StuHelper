@@ -17,6 +17,8 @@ require_cmd python3
 load_env
 STACK_NAME_VALUE="${STACK_NAME:-${COMPOSE_PROJECT_NAME:-stuhelper}}"
 DOCKER_NETWORK_NAME="${DOCKER_NETWORK_NAME:-${STACK_NAME_VALUE}-backend}"
+CASDOOR_BOOTSTRAP_ENV_FILE="${CASDOOR_BOOTSTRAP_ENV_FILE:-${REPO_ROOT}/.env.casdoor-bootstrap.local}"
+CASDOOR_BOOTSTRAP_ENABLED="${CASDOOR_BOOTSTRAP_ENABLED:-false}"
 
 wait_for_casdoor() {
   local url="${CASDOOR_ISSUER:-http://localhost:8085}/.well-known/openid-configuration"
@@ -38,6 +40,137 @@ wait_for_casdoor
 [[ -n "${CASDOOR_CLIENT_ID:-}" ]] || die "CASDOOR_CLIENT_ID must be configured before platform bootstrap"
 [[ -n "${CASDOOR_CLIENT_SECRET:-}" ]] || die "CASDOOR_CLIENT_SECRET must be configured before platform bootstrap"
 log "using configured Casdoor OIDC application ${CASDOOR_CLIENT_ID}"
+
+source_casdoor_bootstrap_env() {
+  local file
+  case "${CASDOOR_BOOTSTRAP_ENV_FILE}" in
+    /*) file="${CASDOOR_BOOTSTRAP_ENV_FILE}" ;;
+    *) file="$(dirname "${ENV_FILE}")/${CASDOOR_BOOTSTRAP_ENV_FILE}" ;;
+  esac
+  if [[ -f "${file}" ]]; then
+    # shellcheck disable=SC1090
+    source "${file}"
+  fi
+}
+
+casdoor_bootstrap_required() {
+  [[ "${MODE}" == "prod" || "${CASDOOR_BOOTSTRAP_ENABLED}" == "true" ]]
+}
+
+require_casdoor_bootstrap_config() {
+  local key
+  for key in \
+    CASDOOR_BOOTSTRAP_CLIENT_ID \
+    CASDOOR_BOOTSTRAP_CLIENT_SECRET \
+    CASDOOR_BOOTSTRAP_APPLICATION \
+    CASDOOR_CLIENT_ID \
+    CASDOOR_CLIENT_SECRET \
+    CASDOOR_REDIRECT_URI \
+    CASDOOR_ADMIN_CLIENT_ID \
+    CASDOOR_ADMIN_CLIENT_SECRET \
+    CASDOOR_ADMIN_REDIRECT_URI \
+    CASDOOR_UNIAPP_CLIENT_ID \
+    CASDOOR_UNIAPP_CLIENT_SECRET \
+    CASDOOR_UNIAPP_REDIRECT_URI \
+    CASDOOR_ORGANIZATION; do
+    [[ -n "${!key:-}" ]] || die "${key} must be configured before Casdoor bootstrap"
+  done
+}
+
+casdoor_internal_endpoint() {
+  local address="${CASDOOR_INTERNAL_ADDRESS:-casdoor:8000}"
+  case "${address}" in
+    http://*|https://*) printf '%s\n' "${address}" ;;
+    *) printf 'http://%s\n' "${address}" ;;
+  esac
+}
+
+run_casdoor_bootstrap_with_go() {
+  (
+    cd "${REPO_ROOT}/server" && \
+    CASDOOR_BOOTSTRAP_ENDPOINT="${CASDOOR_BOOTSTRAP_ENDPOINT:-${CASDOOR_ISSUER:-http://localhost:8085}}" \
+    go run ./cmd/casdoor-bootstrap
+  )
+}
+
+run_casdoor_bootstrap_with_docker() {
+  local endpoint
+  local -a env_args
+  local key
+  endpoint="${CASDOOR_BOOTSTRAP_ENDPOINT:-$(casdoor_internal_endpoint)}"
+  env_args=(-e "CASDOOR_BOOTSTRAP_ENDPOINT=${endpoint}")
+  for key in "${CASDOOR_BOOTSTRAP_ENV_KEYS[@]}"; do
+    env_args+=(-e "${key}=${!key:-}")
+  done
+  docker run --rm \
+    --network "${DOCKER_NETWORK_NAME}" \
+    -v "${REPO_ROOT}:/workspace" \
+    -w /workspace/server \
+    "${env_args[@]}" \
+    golang:1.26-bookworm \
+    go run ./cmd/casdoor-bootstrap
+}
+
+CASDOOR_BOOTSTRAP_ENV_KEYS=(
+  CASDOOR_BOOTSTRAP_CLIENT_ID
+  CASDOOR_BOOTSTRAP_CLIENT_SECRET
+  CASDOOR_BOOTSTRAP_APPLICATION
+  CASDOOR_BOOTSTRAP_CERTIFICATE
+  CASDOOR_ORGANIZATION
+  CASDOOR_ORGANIZATION_DISPLAY_NAME
+  CASDOOR_CLIENT_ID
+  CASDOOR_CLIENT_SECRET
+  CASDOOR_REDIRECT_URI
+  CASDOOR_ADMIN_CLIENT_ID
+  CASDOOR_ADMIN_CLIENT_SECRET
+  CASDOOR_ADMIN_REDIRECT_URI
+  CASDOOR_UNIAPP_CLIENT_ID
+  CASDOOR_UNIAPP_CLIENT_SECRET
+  CASDOOR_UNIAPP_REDIRECT_URI
+  CASDOOR_SMS_PROVIDER_ENABLED
+  CASDOOR_SMS_PROVIDER_NAME
+  CASDOOR_SMS_PROVIDER_DISPLAY_NAME
+  CASDOOR_SMS_PROVIDER_CATEGORY
+  CASDOOR_SMS_PROVIDER_TYPE
+  CASDOOR_SMS_PROVIDER_SUB_TYPE
+  CASDOOR_SMS_PROVIDER_METHOD
+  CASDOOR_SMS_PROVIDER_PROVIDER_URL
+  CASDOOR_SMS_PROVIDER_ENDPOINT
+  CASDOOR_SMS_PROVIDER_HOST
+  CASDOOR_SMS_PROVIDER_PORT
+  CASDOOR_SMS_PROVIDER_DISABLE_SSL
+  CASDOOR_SMS_PROVIDER_TITLE
+  CASDOOR_SMS_PROVIDER_CONTENT
+  CASDOOR_SMS_PROVIDER_METADATA
+  CASDOOR_EMAIL_PROVIDER_ENABLED
+  CASDOOR_EMAIL_PROVIDER_NAME
+  CASDOOR_EMAIL_PROVIDER_DISPLAY_NAME
+  CASDOOR_EMAIL_PROVIDER_CATEGORY
+  CASDOOR_EMAIL_PROVIDER_TYPE
+  CASDOOR_EMAIL_PROVIDER_SUB_TYPE
+  CASDOOR_EMAIL_PROVIDER_METHOD
+  CASDOOR_EMAIL_PROVIDER_PROVIDER_URL
+  CASDOOR_EMAIL_PROVIDER_ENDPOINT
+  CASDOOR_EMAIL_PROVIDER_HOST
+  CASDOOR_EMAIL_PROVIDER_PORT
+  CASDOOR_EMAIL_PROVIDER_DISABLE_SSL
+  CASDOOR_EMAIL_PROVIDER_TITLE
+  CASDOOR_EMAIL_PROVIDER_CONTENT
+  CASDOOR_EMAIL_PROVIDER_METADATA
+)
+
+source_casdoor_bootstrap_env
+if casdoor_bootstrap_required; then
+  require_casdoor_bootstrap_config
+  log "bootstrapping Casdoor organization, applications, roles, and providers"
+  if command -v go >/dev/null 2>&1; then
+    run_casdoor_bootstrap_with_go
+  else
+    run_casdoor_bootstrap_with_docker
+  fi
+else
+  warn "Casdoor bootstrap skipped because CASDOOR_BOOTSTRAP_ENABLED is not true"
+fi
 
 log "bootstrapping OpenFGA store and model"
 if command -v go >/dev/null 2>&1; then

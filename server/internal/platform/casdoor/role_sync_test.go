@@ -125,6 +125,7 @@ func newRoleSyncTestClient(t *testing.T, roles *fakeRoleAPI, users *fakeUserAPI)
 
 type fakeRoleAPI struct {
 	role      *casdoorsdk.Role
+	added     *casdoorsdk.Role
 	updated   *casdoorsdk.Role
 	columns   []string
 	updateErr error
@@ -137,6 +138,11 @@ func (f *fakeRoleAPI) GetRole(name string) (*casdoorsdk.Role, error) {
 	role := *f.role
 	role.Users = append([]string(nil), f.role.Users...)
 	return &role, nil
+}
+
+func (f *fakeRoleAPI) AddRole(role *casdoorsdk.Role) (bool, error) {
+	f.added = role
+	return true, nil
 }
 
 func (f *fakeRoleAPI) UpdateRoleForColumns(role *casdoorsdk.Role, columns []string) (bool, error) {
