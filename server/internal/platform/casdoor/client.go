@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 )
 
 type AdminPurpose string
@@ -214,13 +216,19 @@ func withSDKConfig(ctx context.Context, credential Credential, operation string,
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	sdkConfigMu.Lock()
-	defer sdkConfigMu.Unlock()
-	initSDKConfig(credential)
-	if err := fn(); err != nil {
+	err := runWithSDKConfig(credential, fn)
+	auditAdminCall(credential, operation, err)
+	if err != nil {
 		return fmt.Errorf("casdoor: %s failed: %w", operation, err)
 	}
 	return nil
+}
+
+func runWithSDKConfig(credential Credential, fn func() error) error {
+	sdkConfigMu.Lock()
+	defer sdkConfigMu.Unlock()
+	initSDKConfig(credential)
+	return fn()
 }
 
 func initSDKConfig(credential Credential) {
@@ -232,4 +240,34 @@ func initSDKConfig(credential Credential) {
 		credential.Organization,
 		credential.Application,
 	)
+}
+
+func auditAdminCall(credential Credential, operation string, err error) {
+	audit.Log(casdoorAdminAuditEvent(credential, operation, err))
+}
+
+func casdoorAdminAuditEvent(credential Credential, operation string, err error) audit.Event {
+	result := "success"
+	reason := ""
+	if err != nil {
+		result = "failure"
+		reason = err.Error()
+	}
+	return audit.Event{
+		Type:         audit.EventType("iam.casdoor.admin_api"),
+		Category:     "admin_operation",
+		ActorType:    "system",
+		UserID:       string(credential.Purpose),
+		ResourceType: "casdoor.admin_api",
+		ResourceID:   operation,
+		Action:       operation,
+		Result:       result,
+		Reason:       reason,
+		Details: map[string]any{
+			"purpose":      string(credential.Purpose),
+			"organization": credential.Organization,
+			"application":  credential.Application,
+			"client_id":    credential.ClientID,
+		},
+	}
 }
