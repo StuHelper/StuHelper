@@ -727,7 +727,7 @@ StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
 | `server/internal/pkg/oidc/management.go` | **删除** | Zitadel Management API client；Casdoor SDK 替代 |
 | `server/internal/pkg/oidc/client.go:55` | 修改 | 移除 `urn:zitadel:iam:org:project:id:zitadel:aud` scope；改为 Casdoor scope（按 Casdoor 文档配置）|
 | `server/internal/pkg/oidc/client.go:106-115` | 修改 | 移除 `ParseRolesFromRaw` 中的 Zitadel 项目角色解析；改为 Casdoor JWT 的 `roles` claim 解析 |
-| `server/internal/pkg/oidc/claims.go` | 修改 | `Claims.OrgScopedRoles` 字段语义变更：不再是 Zitadel org-scoped role，改为扁平 role + OpenFGA tuple |
+| `server/internal/pkg/oidc/claims.go` | 修改 | `Claims.OrgScopedRoles` 不再从 Zitadel org-scoped role claim 解析；仅作为 StuHelper 内部 school-scope grant 载体，最终来源必须是 DB/OpenFGA 投影 |
 | `server/internal/pkg/oidc/` 其余 | 保留并 provider-neutral 化 | 标准 OIDC discovery / auth code+PKCE / token exchange / refresh / introspection 是协议层，可复用 |
 | `server/internal/app/runtime.go:214` | 修改 | `oidc.NewClient(ctx, rt.cfg.Zitadel)` → `oidc.NewClient(ctx, rt.cfg.Casdoor)` |
 | `server/internal/app/modules.go:146` | 修改 | issuer 配置切到 Casdoor |
@@ -1125,7 +1125,7 @@ OpenFGA 是资源关系权威，但仅作为 Authorization Service 内部依赖�
 - Casdoor Email Provider：<https://casdoor.ai/docs/provider/email/overview/>
 - Casdoor 数据初始化：<https://casdoor.org/docs/deployment/data-initialization/>
 - Casdoor Go SDK：<https://github.com/casdoor/casdoor-go-sdk>
-- 现行授权模型（待退役）：[`docs/design/authorization-model.md`](../../design/authorization-model.md)
-- 现行认证模型（待重写）：[`docs/design/auth-and-session.md`](../../design/auth-and-session.md)
-- 现行安全模型（待修订）：[`docs/design/security-model.md`](../../design/security-model.md)
+- 现行授权模型：[`docs/design/authorization-model.md`](../../design/authorization-model.md)
+- 现行认证模型：[`docs/design/auth-and-session.md`](../../design/auth-and-session.md)
+- 现行安全模型：[`docs/design/security-model.md`](../../design/security-model.md)
 - OpenFGA Zanzibar 风格 ReBAC：<https://openfga.dev/docs/concepts>

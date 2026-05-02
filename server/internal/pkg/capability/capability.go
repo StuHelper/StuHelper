@@ -82,7 +82,7 @@ func ExpandRoles(roles []string) []string {
 }
 
 // ExpandRoleGrants 将角色列表展开为带 scope 的能力授权。
-// 当前只有 school_admin 需要绑定 school scope；其余角色保持全局授权。
+// school_admin 和 section_* 角色必须绑定 school scope；super_admin 与普通用户角色保持全局授权。
 func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Grant {
 	grants := make([]Grant, 0, len(roles))
 	for _, role := range roles {

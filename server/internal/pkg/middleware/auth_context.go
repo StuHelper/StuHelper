@@ -16,7 +16,7 @@ const (
 	CtxKeyDisplayName        = "display_name"
 	CtxKeyAvatar             = "avatar"
 	CtxKeyRoles              = "roles"
-	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — provider-scoped legacy roles
+	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — StuHelper school-scoped role grants
 	CtxKeyCapabilities       = "capabilities"
 	CtxKeyGlobalCapabilities = "global_capabilities"
 	CtxKeyCapabilityGrants   = "capability_grants"
@@ -149,9 +149,9 @@ func HasCapabilityInSchool(c *gin.Context, capabilityName, schoolID string) bool
 	return capability.HasGrantInSchool(GetCapabilityGrants(c), capabilityName, schoolID)
 }
 
-// HasRoleInOrg 检查当前用户是否在指定 orgID 上拥有指定角色（provider-scoped legacy roles）。
+// HasRoleInOrg 检查当前用户是否在指定 schoolID 上拥有指定 school-scoped role grant。
 // 仅 cookie-OIDC 登录路径填充 scope；手机登录与 Bearer introspection 返回
-// false。orgID 为空时判定"是否在任意 org 拥有此角色"。
+// false。orgID 为空时判定"是否在任意 school 拥有此角色"。
 func HasRoleInOrg(c *gin.Context, role, orgID string) bool {
 	if val, exists := c.Get(CtxKeyOrgScopedRoles); exists {
 		if scoped, ok := val.(map[string][]string); ok {

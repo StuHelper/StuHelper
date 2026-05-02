@@ -144,7 +144,7 @@ func (h *Handler) completePhoneLogin(c *gin.Context, phone, requestID string) {
 
 	// 手机登录只授予基础 "user" 角色。
 	// 设计决策：手机验证码登录用于快速访问，不授予管理权限。
-	// 需要 admin/moderator 等高级角色的用户应使用 Casdoor SSO 登录，
+	// 需要 super_admin / school_admin / section_* 等高级角色的用户应使用 Casdoor SSO 登录，
 	// 角色由 Casdoor token claims 提供。
 	roles := []string{phoneLoginRole}
 	accessToken, refreshToken, ok := h.issuePhoneSession(c, user, roles)

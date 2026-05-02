@@ -25,9 +25,9 @@ type Claims struct {
 	// 解析后的角色列表（如 ["school_admin", "verified_student"]）
 	Roles []string
 
-	// OrgScopedRoles 保留 legacy 角色的组织作用域：roleName → 授予该角色的 orgID 列表。
-	// 用于多租户授权判定（resource.school_id 必须匹配 token 中对应 role 的 scope）。
-	// 例：{"school_admin": ["1001", "1002"]} 表示该用户在 org 1001 和 1002 上是 school_admin。
+	// OrgScopedRoles 是 StuHelper 内部的 school-scope grant 载体：roleName → schoolID 列表。
+	// Casdoor roles claim 保持扁平；学校作用域必须来自 DB/OpenFGA 投影，不能从 role 名嵌入解析。
+	// 例：{"school_admin": ["1001", "1002"]} 表示该用户在学校 1001 和 1002 上拥有 school_admin grant。
 	OrgScopedRoles map[string][]string
 }
 
