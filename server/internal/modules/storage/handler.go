@@ -30,9 +30,9 @@ func (h *Handler) RegisterAdminRoutes(
 	admin := api.Group("/admin/storage")
 	middlewares := append([]gin.HandlerFunc{authMW}, adminMiddlewares...)
 	admin.Use(middlewares...)
-	admin.GET("/mounts", rbac.RequireCapability(capability.UserSystemRead), h.listMounts)
-	admin.POST("/mounts", rbac.RequireCapability(capability.UserSystemUpdate), h.createMount)
-	admin.POST("/mounts/:mountID/health-check", rbac.RequireCapability(capability.UserSystemUpdate), h.checkMountHealth)
+	admin.GET("/mounts", rbac.RequireGlobalCapability(capability.UserSystemRead), h.listMounts)
+	admin.POST("/mounts", rbac.RequireGlobalCapability(capability.UserSystemUpdate), h.createMount)
+	admin.POST("/mounts/:mountID/health-check", rbac.RequireGlobalCapability(capability.UserSystemUpdate), h.checkMountHealth)
 }
 
 func (h *Handler) listMounts(c *gin.Context) {

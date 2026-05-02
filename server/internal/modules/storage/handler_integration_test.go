@@ -82,6 +82,19 @@ func TestStorageHandlers_Return404ForMissingMountHealthCheck(t *testing.T) {
 	assert.Equal(t, "storage mount not found", envelope.Error.Message)
 }
 
+func TestStorageAdminRoutesRequireGlobalSystemCapability(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	api := router.Group("/api/v1")
+	NewHandler(nil).RegisterAdminRoutes(api, scopedSystemCapabilityMiddleware())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/storage/mounts", nil)
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusForbidden, resp.Code)
+}
+
 func newStorageTestRouter(svc *Service) *gin.Engine {
 	router := gin.New()
 	api := router.Group("/api/v1")
@@ -92,17 +105,40 @@ func newStorageTestRouter(svc *Service) *gin.Engine {
 
 func storageAdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		snapshot := capability.BuildUserAccessSnapshot([]capability.Grant{
+			{Name: capability.UserSystemRead},
+			{Name: capability.UserSystemUpdate},
+		})
 		c.Set(middleware.CtxKeyUserID, "admin-user")
-		c.Set(middleware.CtxKeyCapabilities, []string{
-			capability.UserSystemRead,
-			capability.UserSystemUpdate,
-		})
-		c.Set(middleware.CtxKeyCapabilitySet, map[string]struct{}{
-			capability.UserSystemRead:   {},
-			capability.UserSystemUpdate: {},
-		})
+		c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)
+		c.Set(middleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+		c.Set(middleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
+		c.Set(middleware.CtxKeyCapabilitySet, capabilitySet(snapshot.Capabilities))
 		c.Next()
 	}
+}
+
+func scopedSystemCapabilityMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		snapshot := capability.BuildUserAccessSnapshot([]capability.Grant{{
+			Name:           capability.UserSystemRead,
+			ScopeSchoolIDs: []string{"10006"},
+		}})
+		c.Set(middleware.CtxKeyUserID, "scoped-admin")
+		c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)
+		c.Set(middleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+		c.Set(middleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
+		c.Set(middleware.CtxKeyCapabilitySet, capabilitySet(snapshot.Capabilities))
+		c.Next()
+	}
+}
+
+func capabilitySet(capabilities []string) map[string]struct{} {
+	capSet := make(map[string]struct{}, len(capabilities))
+	for _, capName := range capabilities {
+		capSet[capName] = struct{}{}
+	}
+	return capSet
 }
 
 func marshalStorageRequest(t *testing.T, req CreateMountRequest) []byte {
