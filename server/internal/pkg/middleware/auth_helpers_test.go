@@ -21,6 +21,7 @@ func TestSetClaimsToContextAndGetters(t *testing.T) {
 	avatar := "https://cdn.example.com/avatar.png"
 	setClaimsToContext(c, &authResult{
 		userID:      "user-1",
+		appID:       "stuhelper-web",
 		username:    "tester",
 		email:       "tester@example.com",
 		displayName: "Tester",
@@ -32,6 +33,7 @@ func TestSetClaimsToContextAndGetters(t *testing.T) {
 	})
 
 	assert.Equal(t, "user-1", GetUserID(c))
+	assert.Equal(t, "stuhelper-web", GetAppID(c))
 	assert.Equal(t, "tester", GetUsername(c))
 	assert.Equal(t, "tester@example.com", GetEmail(c))
 	assert.Equal(t, "Tester", GetDisplayName(c))

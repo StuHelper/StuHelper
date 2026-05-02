@@ -128,6 +128,7 @@ func (c *Client) VerifyIDToken(ctx context.Context, rawIDToken string) (*Claims,
 	// 从原始 JSON 中提取 provider-specific 角色 claim
 	var rawJSON []byte
 	if rawJSON, err = marshalIDTokenClaims(idToken); err == nil {
+		claims.AppID = appIDFromRawClaims(rawJSON)
 		roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
 		if parseErr != nil {
 			logger.L().Warn("oidc: failed to parse roles from id_token", zap.Error(parseErr))
@@ -171,8 +172,16 @@ type IntrospectionResult struct {
 	Name           string              `json:"name"`
 	AMR            []string            `json:"amr,omitempty"`
 	AuthTime       int64               `json:"auth_time,omitempty"`
+	AppID          string              `json:"-"`
 	Roles          []string            `json:"-"` // 从原始 JSON 解析
 	OrgScopedRoles map[string][]string `json:"-"`
+}
+
+func (r *IntrospectionResult) GetAppID() string {
+	if r == nil {
+		return ""
+	}
+	return r.AppID
 }
 
 func (r *IntrospectionResult) MFAProofVerifiedAt() time.Time {
@@ -241,6 +250,8 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 	if !result.Active {
 		return &result, nil
 	}
+
+	result.AppID = appIDFromRawClaims(rawJSON)
 
 	// 从原始 JSON 解析 provider-specific 角色 claim
 	roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)

@@ -9,6 +9,7 @@ import (
 func SubjectFromGin(c *gin.Context) Subject {
 	return Subject{
 		UserID:              middleware.GetUserID(c),
+		AppID:               middleware.GetAppID(c),
 		Roles:               middleware.GetRoles(c),
 		Capabilities:        middleware.GetCapabilities(c),
 		CapabilityGrants:    middleware.GetCapabilityGrants(c),

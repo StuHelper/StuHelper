@@ -21,6 +21,7 @@ type Claims struct {
 	Picture           string   `json:"picture"`
 	AMR               []string `json:"amr,omitempty"`
 	AuthTime          int64    `json:"auth_time,omitempty"`
+	AppID             string   `json:"-"`
 
 	// 解析后的角色列表（如 ["school_admin", "verified_student"]）
 	Roles []string
@@ -34,6 +35,13 @@ type Claims struct {
 // GetUserID 返回 OIDC subject（唯一用户标识）
 func (c *Claims) GetUserID() string {
 	return c.Sub
+}
+
+func (c *Claims) GetAppID() string {
+	if c == nil {
+		return ""
+	}
+	return c.AppID
 }
 
 // GetUsername 返回用户名
@@ -155,6 +163,56 @@ func dedupeRoles(roles []string) []string {
 		}
 		seen[role] = struct{}{}
 		out = append(out, role)
+	}
+	return out
+}
+
+func appIDFromRawClaims(rawJSON []byte) string {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rawJSON, &raw); err != nil {
+		return ""
+	}
+	if appID := claimString(raw["azp"]); appID != "" {
+		return appID
+	}
+	if appID := claimString(raw["client_id"]); appID != "" {
+		return appID
+	}
+	audiences := claimStringList(raw["aud"])
+	if len(audiences) == 1 {
+		return audiences[0]
+	}
+	return ""
+}
+
+func claimString(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func claimStringList(raw json.RawMessage) []string {
+	if single := claimString(raw); single != "" {
+		return []string{single}
+	}
+	var values []string
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return nil
+	}
+	return nonEmptyStrings(values)
+}
+
+func nonEmptyStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			out = append(out, trimmed)
+		}
 	}
 	return out
 }

@@ -83,6 +83,7 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"active":    true,
+			"client_id": "oidc-client",
 			"sub":       "user-oidc-1",
 			"username":  "oidc-user",
 			"email":     "oidc@example.com",
@@ -122,6 +123,7 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	claims, err := client.VerifyIDToken(context.Background(), idToken)
 	require.NoError(t, err)
 	assert.Equal(t, "user-oidc-1", claims.GetUserID())
+	assert.Equal(t, "oidc-client", claims.GetAppID())
 	assert.Contains(t, claims.Roles, "school_admin")
 	assert.Contains(t, claims.AMR, "totp")
 	assert.False(t, claims.MFAProofVerifiedAt().IsZero())
@@ -134,6 +136,7 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	result, err := client.IntrospectToken(context.Background(), "provider-access-token")
 	require.NoError(t, err)
 	assert.True(t, result.Active)
+	assert.Equal(t, "oidc-client", result.GetAppID())
 	assert.Contains(t, result.Roles, "school_admin")
 	assert.False(t, result.MFAProofVerifiedAt().IsZero())
 	assert.Nil(t, result.OrgScopedRoles)

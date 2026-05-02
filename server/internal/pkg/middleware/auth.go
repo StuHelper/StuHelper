@@ -90,6 +90,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 		}
 		return &authResult{
 			userID:         claims.GetUserID(),
+			appID:          claims.GetAppID(),
 			username:       claims.GetUsername(),
 			email:          claims.GetEmail(),
 			displayName:    claims.GetDisplayName(),
@@ -110,6 +111,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 		}
 		return &authResult{
 			userID:         result.Sub,
+			appID:          result.GetAppID(),
 			username:       result.Username,
 			email:          result.Email,
 			displayName:    result.Name,

@@ -86,3 +86,38 @@ func TestClaims_MFAProofVerifiedAtNilSafe(t *testing.T) {
 	var claims *Claims
 	assert.True(t, claims.MFAProofVerifiedAt().IsZero())
 }
+
+func TestAppIDFromRawClaims(t *testing.T) {
+	tests := []struct {
+		name     string
+		raw      string
+		expected string
+	}{
+		{
+			name:     "aud string",
+			raw:      `{"aud":"stuhelper-web"}`,
+			expected: "stuhelper-web",
+		},
+		{
+			name:     "authorized party wins for multi audience",
+			raw:      `{"aud":["stuhelper-web","stuhelper-admin"],"azp":"stuhelper-admin"}`,
+			expected: "stuhelper-admin",
+		},
+		{
+			name:     "client id introspection fallback",
+			raw:      `{"client_id":"third-party-client"}`,
+			expected: "third-party-client",
+		},
+		{
+			name:     "ambiguous multi audience without authorized party",
+			raw:      `{"aud":["stuhelper-web","stuhelper-admin"]}`,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, appIDFromRawClaims([]byte(tt.raw)))
+		})
+	}
+}

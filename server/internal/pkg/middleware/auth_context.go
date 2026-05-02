@@ -13,6 +13,7 @@ import (
 // 上下文键名常量
 const (
 	CtxKeyUserID             = "user_id"
+	CtxKeyAppID              = "app_id"
 	CtxKeyUsername           = "username"
 	CtxKeyEmail              = "email"
 	CtxKeyDisplayName        = "display_name"
@@ -28,11 +29,11 @@ const (
 
 // authResult 认证解析结果
 type authResult struct {
-	userID, username, email, displayName string
-	avatar                               *string
-	roles                                []string
-	orgScopedRoles                       map[string][]string
-	mfaProofAt                           time.Time
+	userID, appID, username, email, displayName string
+	avatar                                      *string
+	roles                                       []string
+	orgScopedRoles                              map[string][]string
+	mfaProofAt                                  time.Time
 }
 
 func withResolvedRoleScopes(ctx context.Context, auth *authResult, resolver RoleScopeResolver) (*authResult, error) {
@@ -73,6 +74,7 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 	}
 
 	c.Set(CtxKeyUserID, auth.userID)
+	c.Set(CtxKeyAppID, auth.appID)
 	c.Set(CtxKeyUsername, auth.username)
 	c.Set(CtxKeyEmail, auth.email)
 	c.Set(CtxKeyDisplayName, auth.displayName)
@@ -99,6 +101,10 @@ func setAvatarContext(c *gin.Context, avatar *string) {
 // GetUserID 从上下文获取用户 ID
 func GetUserID(c *gin.Context) string {
 	return getContextString(c, CtxKeyUserID)
+}
+
+func GetAppID(c *gin.Context) string {
+	return getContextString(c, CtxKeyAppID)
 }
 
 // GetUsername 从上下文获取用户名
