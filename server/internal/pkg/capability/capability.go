@@ -70,15 +70,10 @@ func GetRoleCapabilities() map[string][]string {
 	return out
 }
 
-// ExpandRoles 将角色列表展开为去重排序的能力列表（纯内存操作，零 DB 查询）
+// ExpandRoles 将角色列表展开为无需 scope 的全局能力列表。
+// scoped admin 角色必须走 ExpandRoleGrants，否则不能被当作全局 capability。
 func ExpandRoles(roles []string) []string {
-	var all []string
-	for _, role := range roles {
-		if caps, ok := roleCapabilities[role]; ok {
-			all = append(all, caps...)
-		}
-	}
-	return Normalize(all)
+	return BuildUserAccessSnapshot(ExpandRoleGrants(roles, nil)).Capabilities
 }
 
 // ExpandRoleGrants 将角色列表展开为带 scope 的能力授权。
