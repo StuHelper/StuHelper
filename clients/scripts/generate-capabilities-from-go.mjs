@@ -63,12 +63,38 @@ const adminEntryBlock = extractBlock('var AdminEntryCapabilities = []string{')
 const adminEntries = [...adminEntryBlock.matchAll(/([A-Za-z0-9_]+)/g)].map(([, name]) => name).filter(Boolean)
 
 const roleCapabilitiesBlock = extractBlock('var roleCapabilities = map[string][]string{')
-const roleEntries = [...roleCapabilitiesBlock.matchAll(/"([^"]+)"\s*:\s*\{([\s\S]*?)\n\s*\},?/g)].map(
-  ([, role, body]) => ({
-    role,
-    capabilities: [...body.matchAll(/([A-Za-z0-9_]+)/g)].map(([, capability]) => capability),
-  }),
-)
+
+function extractIdentifiers(body) {
+  return [...body.matchAll(/\b([A-Za-z0-9_]+)\b/g)].map(([, name]) => name)
+}
+
+function parseRoleCapabilities(block) {
+  const entries = []
+  const lines = block.split('\n')
+  for (let index = 0; index < lines.length; index += 1) {
+    const start = lines[index].match(/^\s*"([^"]+)"\s*:\s*\{(.*)$/)
+    if (!start) continue
+
+    const [, role, rest] = start
+    let body = ''
+    const inlineEnd = rest.indexOf('}')
+    if (inlineEnd !== -1) {
+      body = rest.slice(0, inlineEnd)
+    } else {
+      const parts = []
+      index += 1
+      for (; index < lines.length; index += 1) {
+        if (/^\s*\}/.test(lines[index])) break
+        parts.push(lines[index])
+      }
+      body = parts.join('\n')
+    }
+    entries.push({ role, capabilities: extractIdentifiers(body) })
+  }
+  return entries
+}
+
+const roleEntries = parseRoleCapabilities(roleCapabilitiesBlock)
 
 const header = `/**
  * AUTO-GENERATED FILE. DO NOT EDIT.

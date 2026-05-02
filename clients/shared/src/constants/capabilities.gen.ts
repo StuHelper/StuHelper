@@ -67,12 +67,14 @@ export const ADMIN_ENTRY_CAPABILITIES = [
   USER_SYSTEM_UPDATE,
 ] as const
 
-export const ROLE_NAMES = ["super_admin", "school_admin", "moderator", "verified_student", "user"] as const
+export const ROLE_NAMES = ["super_admin", "school_admin", "section_admin", "section_moderator", "section_reviewer", "verified_student", "user"] as const
 
 export const ROLE_CAPABILITIES = {
   "super_admin": [ADMIN_DASHBOARD_VIEW, ADMIN_REVIEWS_MANAGE, ADMIN_REPORTS_MANAGE, ADMIN_TEACHERS_MANAGE, ADMIN_SENSITIVE_WORDS_MANAGE, ADMIN_LOGS_VIEW, USER_IDENTITY_READ, USER_IDENTITY_REVIEW, USER_STUDENT_READ, USER_STUDENT_REVIEW, USER_SCHOOL_READ, USER_SCHOOL_UPDATE, USER_SYSTEM_READ, USER_SYSTEM_UPDATE],
   "school_admin": [USER_STUDENT_READ, USER_STUDENT_REVIEW, USER_SCHOOL_READ, USER_SCHOOL_UPDATE],
-  "moderator": [ADMIN_REVIEWS_MANAGE, ADMIN_REPORTS_MANAGE, ADMIN_TEACHERS_MANAGE],
+  "section_admin": [ADMIN_REVIEWS_MANAGE, ADMIN_REPORTS_MANAGE, ADMIN_TEACHERS_MANAGE],
+  "section_moderator": [ADMIN_REVIEWS_MANAGE, ADMIN_REPORTS_MANAGE],
+  "section_reviewer": [],
   "verified_student": [REVIEW_LIST_FULL, REVIEW_CREATE, REVIEW_EDIT_OWN, REVIEW_DELETE_OWN],
   "user": [REVIEW_LIST_BRIEF],
 } as const
