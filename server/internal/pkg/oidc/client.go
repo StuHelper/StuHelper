@@ -77,6 +77,21 @@ func (c *Client) GetAuthURL(state string) (string, string) {
 	return authURL, verifier
 }
 
+// GetStepUpAuthURL 生成 OIDC step-up 重认证 URL。
+// 仅请求 provider 重新认证并要求 MFA；是否产生可用 mfa proof 仍取决于 provider 是否签发 amr/auth_time。
+func (c *Client) GetStepUpAuthURL(state string) (string, string) {
+	verifier := oauth2.GenerateVerifier()
+	authURL := c.oauth2Cfg.AuthCodeURL(
+		state,
+		oauth2.AccessTypeOffline,
+		oauth2.S256ChallengeOption(verifier),
+		oauth2.SetAuthURLParam("prompt", "login"),
+		oauth2.SetAuthURLParam("max_age", "0"),
+		oauth2.SetAuthURLParam("acr_values", "mfa"),
+	)
+	return authURL, verifier
+}
+
 // ExchangeCode 用授权码 + PKCE code_verifier 交换 Token。
 // codeVerifier 为空时退化为无 PKCE 的交换（兼容测试场景）。
 func (c *Client) ExchangeCode(ctx context.Context, code, codeVerifier string) (*oauth2.Token, error) {

@@ -78,6 +78,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/step-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取 MFA step-up 重认证 URL
+         * @description 已登录会话在访问敏感操作收到 `412 step_up_required` 后调用本端点。
+         *     服务端生成带 `prompt=login`、`max_age=0`、`acr_values=mfa` 的 Casdoor OIDC authorize URL，
+         *     并复用 `/api/v1/auth/callback` 完成真实 code exchange 和新 token 写入。
+         *
+         *     本端点只发起真实 OIDC reauth，不签发本地伪 `mfa_proof`。如果 Casdoor 未签发可用
+         *     `amr` / `auth_time` claim，后续 MFA gate 仍会 fail-closed。
+         */
+        get: operations["getStepUpURL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/callback": {
         parameters: {
             query?: never;
@@ -212,6 +237,26 @@ export interface paths {
         put?: never;
         /** 验证手机验证码并登录 */
         post: operations["verifyPhoneOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/account-locks/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 解除认证失败账户锁
+         * @description 仅允许具备全局 user:system:update 能力的管理员清除手机号维度的认证失败软锁 / 硬锁；审计日志只记录脱敏账户。
+         */
+        post: operations["unlockAuthAccount"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2479,6 +2524,10 @@ export interface components {
             scopeRoles?: string[];
             global: boolean;
         };
+        UnlockAuthAccountRequest: {
+            /** @description 需要解除认证失败锁定的手机号 */
+            phone: string;
+        };
         AcademicTerm: {
             /** Format: int64 */
             id: number;
@@ -2929,6 +2978,35 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    getStepUpURL: {
+        parameters: {
+            query?: {
+                /** @description step-up 完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。 */
+                redirect?: string;
+                /** @description step-up 发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。 */
+                platform?: "web" | "native";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 返回 Casdoor OIDC step-up 授权 URL 和 state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["LoginURLResponse"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
     handleCallback: {
         parameters: {
             query: {
@@ -3144,6 +3222,36 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    unlockAuthAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnlockAuthAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description 账户锁已清除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
         };
     };

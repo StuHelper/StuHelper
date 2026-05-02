@@ -56,29 +56,7 @@ func (h *Handler) GetSignupURL(c *gin.Context) {
 }
 
 func (h *Handler) respondWithAuthURL(c *gin.Context) {
-	redirect := strings.TrimSpace(c.Query("redirect"))
-	isNative := strings.TrimSpace(c.Query("platform")) == "native"
-
-	state, err := generateNonce()
-	if err != nil {
-		logger.FromGin(c).Error("failed to generate state", zap.Error(err))
-		response.InternalError(c, "failed to generate login URL")
-		return
-	}
-
-	authURL, verifier := h.oidcClient.GetAuthURL(state)
-
-	if err := h.storeOIDCState(c.Request.Context(), state, redirect, verifier, isNative); err != nil {
-		logger.FromGin(c).Error("failed to persist oidc state", zap.Error(err))
-		response.InternalError(c, "failed to generate login URL")
-		return
-	}
-
-	// 原生 App 不依赖 cookie 做 state 绑定，改用 Redis 单次消费
-	if !isNative {
-		h.setOIDCStateCookie(c, state)
-	}
-	response.Success(c, gin.H{"url": authURL, "state": state})
+	h.respondWithAuthURLProvider(c, h.oidcClient.GetAuthURL)
 }
 
 // HandleCallback 处理 OIDC 授权回调

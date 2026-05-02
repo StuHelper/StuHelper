@@ -64,6 +64,24 @@ func TestGetSignupURL_ReturnsAuthURL(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"state"`)
 }
 
+func TestGetStepUpURL_ReturnsReauthURL(t *testing.T) {
+	h, _ := newTestHandler(t)
+
+	r := gin.New()
+	r.GET("/auth/step-up", h.GetStepUpURL)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/step-up", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"url"`)
+	assert.Contains(t, w.Body.String(), `"state"`)
+	assert.Contains(t, w.Body.String(), "prompt=login")
+	assert.Contains(t, w.Body.String(), "max_age=0")
+	assert.Contains(t, w.Body.String(), "acr_values=mfa")
+}
+
 func TestGetLoginURL_StoresStateInRedis(t *testing.T) {
 	h, fixture := newTestHandler(t)
 

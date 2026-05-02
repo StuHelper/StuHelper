@@ -24,6 +24,7 @@ func TestRegisterRoutes_UsesOpenAPIAuthPaths(t *testing.T) {
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/auth/exchange-native")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/auth/login")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/auth/signup")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/auth/step-up")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/auth/callback")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/auth/refresh")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/auth/me")

@@ -35,6 +35,13 @@ func TestClaimsAccessorsAndStubClientHelpers(t *testing.T) {
 	assert.Contains(t, authURL, "state-123")
 	assert.NotEmpty(t, verifier)
 
+	stepUpURL, stepUpVerifier := client.GetStepUpAuthURL("step-up-state")
+	assert.Contains(t, stepUpURL, "prompt=login")
+	assert.Contains(t, stepUpURL, "max_age=0")
+	assert.Contains(t, stepUpURL, "acr_values=mfa")
+	assert.Contains(t, stepUpURL, "step-up-state")
+	assert.NotEmpty(t, stepUpVerifier)
+
 	tokenWithID := (&oauth2.Token{}).WithExtra(map[string]any{"id_token": "id-token-value"})
 	assert.Equal(t, "id-token-value", ExtractIDToken(tokenWithID))
 	assert.Empty(t, ExtractIDToken((&oauth2.Token{}).WithExtra(map[string]any{"id_token": 123})))

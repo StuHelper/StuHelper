@@ -134,6 +134,7 @@ func (h *Handler) RegisterRoutesWithAuthMiddleware(r *gin.RouterGroup, authMW gi
 	{
 		auth.GET("/login", h.GetLoginURL)
 		auth.GET("/signup", h.GetSignupURL)
+		auth.GET("/step-up", authMW, h.GetStepUpURL)
 		auth.GET("/callback", h.HandleCallback)
 		auth.POST("/refresh", middleware.RateLimitMiddleware(h.refreshLimiter), h.RefreshToken)
 		auth.GET("/me", authMW, h.GetCurrentUser)

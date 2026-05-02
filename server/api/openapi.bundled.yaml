@@ -244,6 +244,60 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/auth/step-up:
+    get:
+      tags:
+        - Auth
+      operationId: getStepUpURL
+      summary: 获取 MFA step-up 重认证 URL
+      description: |
+        已登录会话在访问敏感操作收到 `412 step_up_required` 后调用本端点。
+        服务端生成带 `prompt=login`、`max_age=0`、`acr_values=mfa` 的 Casdoor OIDC authorize URL，
+        并复用 `/api/v1/auth/callback` 完成真实 code exchange 和新 token 写入。
+
+        本端点只发起真实 OIDC reauth，不签发本地伪 `mfa_proof`。如果 Casdoor 未签发可用
+        `amr` / `auth_time` claim，后续 MFA gate 仍会 fail-closed。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: redirect
+          in: query
+          required: false
+          description: step-up 完成后的前端回跳地址；支持以 `/` 开头的站内相对路径，或命中服务端 allowlist 的绝对 URL。
+          schema:
+            type: string
+            format: uri-reference
+        - name: platform
+          in: query
+          required: false
+          description: step-up 发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。
+          schema:
+            type: string
+            enum:
+              - web
+              - native
+            x-enum-varnames:
+              - GetStepUpURLParamsPlatformWeb
+              - GetStepUpURLParamsPlatformNative
+      responses:
+        '200':
+          description: 返回 Casdoor OIDC step-up 授权 URL 和 state
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LoginURLResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/auth/callback:
     get:
       tags:

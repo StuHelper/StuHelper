@@ -180,7 +180,7 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 - admin 入口要求：`user_mfa_enrollment.active = true` + 当前 session 有有效 `mfa_proof`；
 - §3.5.2 敏感操作要求：`user_mfa_enrollment.active = true` + `mfa_proof.verified_at >= now - 5min`；
 - `mfa_proof` 来源二选一：
-  - Casdoor capability C2/C3/C4/C5/C6 全部实测通过时：JWT `amr` 包含 MFA 方法，且 `auth_time` 满足 5 分钟窗口；
+  - Casdoor capability C2/C3/C4/C5/C6 全部实测通过时：前端调用 `GET /api/v1/auth/step-up` 获取带 `prompt=login` / `max_age=0` / `acr_values=mfa` 的 OIDC reauth URL；callback 完成后，JWT `amr` 包含 MFA 方法，且 `auth_time` 满足 5 分钟窗口；
   - 任一 capability 不满足时：StuHelper 本地 `/api/v1/auth/step-up` challenge 签发 5 分钟 grace proof（Redis 或签名短 token，绑定 `user_id` / `session_id` / `aud` / `nonce`）。
 
 **强制规则（capability 无关）**：
