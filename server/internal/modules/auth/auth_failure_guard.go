@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -133,9 +134,13 @@ func authLockIPKey(ip string) (string, error) {
 }
 
 func normalizeAuthIP(ip string) (string, error) {
-	normalized := strings.TrimSpace(ip)
-	if normalized == "" {
+	raw := strings.TrimSpace(ip)
+	if raw == "" {
 		return "", errors.New("auth failure guard: IP is required")
 	}
-	return normalized, nil
+	addr, err := netip.ParseAddr(raw)
+	if err != nil {
+		return "", fmt.Errorf("auth failure guard: invalid IP: %w", err)
+	}
+	return addr.String(), nil
 }

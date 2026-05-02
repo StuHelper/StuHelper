@@ -52,6 +52,22 @@ func TestAuthFailureGuardClearFailuresKeepsLockState(t *testing.T) {
 	require.ErrorIs(t, guard.EnsureAllowed(ctx, ip), ErrAuthIPLocked)
 }
 
+func TestNormalizeAuthIPCanonicalizesIPv6(t *testing.T) {
+	shortForm, err := normalizeAuthIP(" ::1 ")
+	require.NoError(t, err)
+
+	longForm, err := normalizeAuthIP("0:0:0:0:0:0:0:1")
+	require.NoError(t, err)
+
+	require.Equal(t, "::1", shortForm)
+	require.Equal(t, shortForm, longForm)
+}
+
+func TestNormalizeAuthIPRejectsInvalidIP(t *testing.T) {
+	_, err := normalizeAuthIP("not-an-ip")
+	require.Error(t, err)
+}
+
 func TestAuthFailureGuardSoftLocksAccountAfterThreshold(t *testing.T) {
 	require.NoError(t, crypto.InitHMACKey("test-auth-failure-account-secret!", false))
 	fixture := redisfixture.Start(t)
