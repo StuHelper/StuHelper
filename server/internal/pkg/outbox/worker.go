@@ -2,6 +2,7 @@ package outbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -74,6 +75,7 @@ func ProcessBatch[T any](
 		return fmt.Errorf("claim %s jobs: %w", cfg.Name, err)
 	}
 
+	var batchErr error
 	for _, job := range jobs {
 		if err := process(ctx, job); err != nil {
 			jobMeta := meta(job)
@@ -100,10 +102,16 @@ func ProcessBatch[T any](
 
 		jobMeta := meta(job)
 		if err := markDone(ctx, jobMeta.ID); err != nil {
-			return fmt.Errorf("mark %s job done: %w", cfg.Name, err)
+			batchErr = errors.Join(batchErr, fmt.Errorf("mark %s job done: %w", cfg.Name, err))
+			metrics.ObserveOutboxJobFailure(cfg.Name, jobMeta.JobType, false)
+			logger.L().Error("failed to mark "+cfg.Name+" job done",
+				zap.Int64("job_id", jobMeta.ID),
+				zap.String("job_type", jobMeta.JobType),
+				zap.Error(err),
+			)
 		}
 	}
-	return nil
+	return batchErr
 }
 
 func nextAttemptAt(cfg WorkerConfig, attemptCount int) time.Time {
