@@ -2,15 +2,12 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	gozap "go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/academics"
@@ -42,7 +39,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 	rt.startAuditRetentionCleanup(bgCtx, startBackgroundTask)
 
-	smsSvc, err := rt.initSMSService()
+	smsSvc, err := rt.initSMSService(r)
 	if err != nil {
 		return err
 	}
@@ -141,7 +138,7 @@ func (rt *Runtime) configureAPICommonMiddleware(api *gin.RouterGroup) error {
 	return nil
 }
 
-func (rt *Runtime) initSMSService() (*sms.Service, error) {
+func (rt *Runtime) initSMSService(r *gin.Engine) (*sms.Service, error) {
 	if !rt.cfg.SMS.Enabled {
 		logger.L().Info("SMS service disabled (SMS_ENABLED=false), phone login and Casdoor SMS callback unavailable")
 		return nil, nil
@@ -157,35 +154,15 @@ func (rt *Runtime) initSMSService() (*sms.Service, error) {
 		InternalKey: rt.cfg.SMS.InternalKey,
 	}, logger.L())
 
+	registerSMSInternalRoute(r, smsSvc)
+	logger.L().Info("SMS internal route registered", gozap.String("path", "/internal/sms/send"))
+	return smsSvc, nil
+}
+
+func registerSMSInternalRoute(r *gin.Engine, smsSvc *sms.Service) {
 	smsMux := http.NewServeMux()
 	smsSvc.RegisterInternalHandler(smsMux)
-	smsSrv := &http.Server{
-		Addr:              "127.0.0.1:" + rt.cfg.SMS.InternalPort,
-		Handler:           otelhttp.NewHandler(smsMux, "sms_internal"),
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-	}
-	listenCfg := net.ListenConfig{}
-	listener, err := listenCfg.Listen(context.Background(), "tcp", smsSrv.Addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start SMS internal server: %w", err)
-	}
-	go func() {
-		logger.L().Info("SMS internal server starting", gozap.String("addr", smsSrv.Addr))
-		if serveErr := smsSrv.Serve(listener); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			logger.L().Error("SMS internal server error", gozap.Error(serveErr))
-		}
-	}()
-	rt.addCleanup(func() {
-		smsCtx, smsCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer smsCancel()
-		if shutdownErr := smsSrv.Shutdown(smsCtx); shutdownErr != nil {
-			logger.L().Warn("SMS server shutdown error", gozap.Error(shutdownErr))
-		}
-	})
-
-	return smsSvc, nil
+	r.POST("/internal/sms/send", gin.WrapH(smsMux))
 }
 
 // warnPendingUserHashBackfill 在启动时检查是否仍有未回填的 user_hash 记录。

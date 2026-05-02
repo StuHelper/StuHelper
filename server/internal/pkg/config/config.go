@@ -132,15 +132,14 @@ type OpenFGAConfig struct {
 
 // SMSConfig 腾讯云短信配置
 type SMSConfig struct {
-	Enabled      bool
-	SecretID     string
-	SecretKey    string
-	AppID        string
-	SignName     string
-	TemplateID   string
-	Region       string
-	InternalKey  string // 内部调用鉴权密钥
-	InternalPort string // 内部 HTTP 端口（SMS 转发服务）
+	Enabled     bool
+	SecretID    string
+	SecretKey   string
+	AppID       string
+	SignName    string
+	TemplateID  string
+	Region      string
+	InternalKey string // 内部调用鉴权密钥
 }
 
 // BotConfig 机器人内部调用配置。
@@ -332,15 +331,14 @@ func loadReviewRateLimitConfig(parseErrs *[]string) ReviewRateLimitConfig {
 
 func loadSMSConfig(parseErrs *[]string) SMSConfig {
 	return SMSConfig{
-		Enabled:      getEnvBool("SMS_ENABLED", false, parseErrs),
-		SecretID:     getEnv("SMS_SECRET_ID", ""),
-		SecretKey:    getEnv("SMS_SECRET_KEY", ""),
-		AppID:        getEnv("SMS_APP_ID", ""),
-		SignName:     getEnv("SMS_SIGN_NAME", ""),
-		TemplateID:   getEnv("SMS_TEMPLATE_ID", ""),
-		Region:       getEnv("SMS_REGION", "ap-beijing"),
-		InternalKey:  getEnv("SMS_INTERNAL_KEY", ""),
-		InternalPort: getEnv("SMS_INTERNAL_PORT", "9090"),
+		Enabled:     getEnvBool("SMS_ENABLED", false, parseErrs),
+		SecretID:    getEnv("SMS_SECRET_ID", ""),
+		SecretKey:   getEnv("SMS_SECRET_KEY", ""),
+		AppID:       getEnv("SMS_APP_ID", ""),
+		SignName:    getEnv("SMS_SIGN_NAME", ""),
+		TemplateID:  getEnv("SMS_TEMPLATE_ID", ""),
+		Region:      getEnv("SMS_REGION", "ap-beijing"),
+		InternalKey: getEnv("SMS_INTERNAL_KEY", ""),
 	}
 }
 
