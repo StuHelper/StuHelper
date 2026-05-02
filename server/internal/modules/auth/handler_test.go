@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -104,6 +105,32 @@ func TestGetLoginURL_StoresStateInRedis(t *testing.T) {
 	assert.True(t, found, "OIDC state should be stored in Redis")
 }
 
+func TestGetLoginURL_StoresRequestedApplicationInState(t *testing.T) {
+	h, fixture := newTestHandler(t)
+
+	r := gin.New()
+	r.GET("/auth/login", h.GetLoginURL)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/login?app=admin", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var envelope struct {
+		Data struct {
+			State string `json:"state"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &envelope))
+
+	raw, err := fixture.Client.Get(context.Background(), oidcStateRedisPrefix+envelope.Data.State).Result()
+	require.NoError(t, err)
+
+	var payload oidcStatePayload
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload))
+	assert.Equal(t, "admin", payload.Application)
+}
+
 func TestGetLoginURL_SetsCookie(t *testing.T) {
 	h, _ := newTestHandler(t)
 
@@ -153,7 +180,12 @@ func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
 	}
 
 	const state = "test-state"
-	require.NoError(t, h.storeOIDCState(context.Background(), state, "/courses/1", "test-verifier", false))
+	require.NoError(t, h.storeOIDCState(context.Background(), oidcStateInput{
+		state:        state,
+		redirect:     "/courses/1",
+		codeVerifier: "test-verifier",
+		application:  oidc.ApplicationWeb,
+	}))
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -161,10 +193,11 @@ func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 	c.Request = req
 
-	redirect, codeVerifier, isNative, err := h.consumeOIDCState(c, state)
+	redirect, codeVerifier, appKey, isNative, err := h.consumeOIDCState(c, state)
 	require.NoError(t, err)
 	assert.Equal(t, "/courses/1", redirect)
 	assert.Equal(t, "test-verifier", codeVerifier)
+	assert.Equal(t, oidc.ApplicationWeb, appKey)
 	assert.False(t, isNative)
 
 	w2 := httptest.NewRecorder()
@@ -173,7 +206,7 @@ func TestConsumeOIDCState_OneTimeAndCookieBound(t *testing.T) {
 	req2.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 	c2.Request = req2
 
-	_, _, _, err = h.consumeOIDCState(c2, state)
+	_, _, _, _, err = h.consumeOIDCState(c2, state)
 	require.Error(t, err)
 }
 

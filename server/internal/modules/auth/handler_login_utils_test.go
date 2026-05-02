@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 )
 
 func TestBuildAllowedRedirectHosts(t *testing.T) {
@@ -44,12 +46,16 @@ func TestHandleNativeCallbackRedirect(t *testing.T) {
 func TestNativeCodeVerifierRoundTrip(t *testing.T) {
 	h, _ := newTestHandler(t)
 
-	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "state-1", "verifier-1"))
-	verifier, err := h.consumeNativeCodeVerifier(context.Background(), "state-1")
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "state-1", nativeCodeVerifierPayload{
+		CodeVerifier: "verifier-1",
+		Application:  oidc.ApplicationUniapp,
+	}))
+	verifier, appKey, err := h.consumeNativeCodeVerifier(context.Background(), "state-1")
 	require.NoError(t, err)
 	assert.Equal(t, "verifier-1", verifier)
+	assert.Equal(t, oidc.ApplicationUniapp, appKey)
 
-	_, err = h.consumeNativeCodeVerifier(context.Background(), "state-1")
+	_, _, err = h.consumeNativeCodeVerifier(context.Background(), "state-1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expired or already used")
 }

@@ -87,7 +87,7 @@ async function handleSSOLogin() {
     // 原生 App 需要传 platform=native，服务端会标记该 state 走 deep link 回调流程
     const redirectPath = redirect.value || '/pages/user/index'
     const platform = isNativeApp ? 'native' : undefined
-    const result = await api.auth.login(redirectPath, platform)
+    const result = await api.auth.login(redirectPath, platform, 'uniapp')
     const data = unwrapData<{ url: string; state: string }>(result)
     if (!data.url) throw new Error(t('auth.login.ssoInitFailed'))
 

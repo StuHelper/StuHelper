@@ -146,6 +146,26 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	assert.Contains(t, string(raw), "oidc-user")
 }
 
+func TestOIDCClient_GetAuthURLForApplicationUsesSelectedClient(t *testing.T) {
+	client, srv := newTestOIDCClient(t)
+	defer srv.Close()
+
+	client.oauth2Configs["admin"] = oauth2.Config{
+		ClientID:     "admin-client",
+		ClientSecret: "admin-secret",
+		RedirectURL:  "https://admin.example.com/api/v1/auth/callback",
+		Endpoint:     client.oauth2Cfg.Endpoint,
+		Scopes:       client.oauth2Cfg.Scopes,
+	}
+
+	authURL, verifier, err := client.GetAuthURLForApplication("admin", "state-admin")
+	require.NoError(t, err)
+	assert.NotEmpty(t, verifier)
+	assert.Contains(t, authURL, "client_id=admin-client")
+	assert.Contains(t, authURL, "redirect_uri=https%3A%2F%2Fadmin.example.com%2Fapi%2Fv1%2Fauth%2Fcallback")
+	assert.Contains(t, authURL, "state=state-admin")
+}
+
 func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(crand.Reader, 2048)
 	require.NoError(t, err)
@@ -194,9 +214,10 @@ func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) 
 	issuer = srv.URL
 
 	client, err := NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:      issuer,
-		ClientID:    clientID,
-		RedirectURI: "https://web.example.com/api/v1/auth/callback",
+		Issuer:       issuer,
+		ClientID:     clientID,
+		ClientSecret: "oidc-secret",
+		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
 	})
 	require.NoError(t, err)
 	_, err = client.VerifyIDToken(context.Background(), issueIDToken(privateKey, "kid-1"))
@@ -259,9 +280,10 @@ func TestVerifyIDTokenRejectsDisallowedAlgorithmBeforeJWKSFetch(t *testing.T) {
 	issuer = srv.URL
 
 	client, err := NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:      issuer,
-		ClientID:    clientID,
-		RedirectURI: "https://web.example.com/api/v1/auth/callback",
+		Issuer:       issuer,
+		ClientID:     clientID,
+		ClientSecret: "oidc-secret",
+		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
 	})
 	require.NoError(t, err)
 	token := issueHS256IDToken(t, issuer, clientID)

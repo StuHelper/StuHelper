@@ -19,6 +19,13 @@
         schema:
           type: string
           enum: [web, native]
+      - name: app
+        in: query
+        required: false
+        description: 发起登录的一方应用；默认 `web`，原生流程默认 `uniapp`。
+        schema:
+          type: string
+          enum: [web, admin, uniapp]
     responses:
       '200':
         description: 返回 Casdoor OIDC 授权 URL 和 state
@@ -65,6 +72,13 @@
         schema:
           type: string
           enum: [web, native]
+      - name: app
+        in: query
+        required: false
+        description: 发起注册的一方应用；默认 `web`，原生流程默认 `uniapp`。
+        schema:
+          type: string
+          enum: [web, admin, uniapp]
     responses:
       '200':
         description: 返回 Casdoor OIDC 授权 URL 和 state

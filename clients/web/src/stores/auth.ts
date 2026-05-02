@@ -209,7 +209,7 @@ export const useAuthStore = defineStore("auth", () => {
     // 登录
     const login = (redirect?: string) =>
         startOAuthFlow(
-            () => api.auth.login(resolveLoginRedirectTarget(redirect)),
+            () => api.auth.login(resolveLoginRedirectTarget(redirect), undefined, "web"),
             i18n.global.t("common.login.loginUrlFailed"),
         );
 

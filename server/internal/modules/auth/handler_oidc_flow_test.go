@@ -98,10 +98,13 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 	t.Cleanup(srv.Close)
 
 	client, err := oidcpkg.NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:       issuer,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
+		Issuer:             issuer,
+		ClientID:           clientID,
+		ClientSecret:       clientSecret,
+		RedirectURI:        "https://web.example.com/api/v1/auth/callback",
+		UniappClientID:     "uniapp-client",
+		UniappClientSecret: "uniapp-secret",
+		UniappRedirectURI:  "stuhelper://auth/callback",
 	})
 	require.NoError(t, err)
 
@@ -150,7 +153,13 @@ func TestHandleWebCallback_Success(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
 
-	h.handleWebCallback(c, c.Request.Context(), "code-1", "/dashboard", "verifier-1", "request-1")
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
 
 	assert.Equal(t, http.StatusFound, w.Code)
 	assert.Equal(t, "https://web.example.com/dashboard", w.Header().Get("Location"))
@@ -320,7 +329,10 @@ func TestRefreshToken_NativeOIDCRequiresTrackedSession(t *testing.T) {
 func TestExchangeNative_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
-	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-1", "native-verifier"))
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-1", nativeCodeVerifierPayload{
+		CodeVerifier: "native-verifier",
+		Application:  oidcpkg.ApplicationUniapp,
+	}))
 
 	body := bytes.NewBufferString(`{"code":"code-1","state":"native-state-1"}`)
 	w := httptest.NewRecorder()
@@ -353,7 +365,13 @@ func TestHandleWebCallback_MissingIDToken(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
 
-	h.handleWebCallback(c, c.Request.Context(), "code-1", "/dashboard", "verifier-1", "request-1")
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "authentication failed")
@@ -368,7 +386,13 @@ func TestHandleWebCallback_UserSyncFailure(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
 
-	h.handleWebCallback(c, c.Request.Context(), "code-1", "/dashboard", "verifier-1", "request-1")
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "authentication failed")
@@ -414,7 +438,13 @@ func TestHandleWebCallback_InvalidIDToken(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
 
-	h.handleWebCallback(c, c.Request.Context(), "code-1", "/dashboard", "verifier-1", "request-1")
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "authentication failed")
@@ -486,7 +516,10 @@ func TestExchangeNative_MissingIDToken(t *testing.T) {
 		}
 	})
 	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
-	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-missing-id", "native-verifier"))
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-missing-id", nativeCodeVerifierPayload{
+		CodeVerifier: "native-verifier",
+		Application:  oidcpkg.ApplicationUniapp,
+	}))
 
 	body := bytes.NewBufferString(`{"code":"code-1","state":"native-state-missing-id"}`)
 	w := httptest.NewRecorder()
@@ -503,7 +536,10 @@ func TestExchangeNative_MissingIDToken(t *testing.T) {
 func TestExchangeNative_UserSyncFailure(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newOIDCTestHandlerWithProvider(t, failingOIDCUserSyncRepo{}, newFakeOIDCProvider(t))
-	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-sync-fail", "native-verifier"))
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-sync-fail", nativeCodeVerifierPayload{
+		CodeVerifier: "native-verifier",
+		Application:  oidcpkg.ApplicationUniapp,
+	}))
 
 	body := bytes.NewBufferString(`{"code":"code-1","state":"native-state-sync-fail"}`)
 	w := httptest.NewRecorder()
@@ -529,7 +565,10 @@ func TestExchangeNative_InvalidIDToken(t *testing.T) {
 		}
 	})
 	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
-	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-bad-id-token", "native-verifier"))
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-bad-id-token", nativeCodeVerifierPayload{
+		CodeVerifier: "native-verifier",
+		Application:  oidcpkg.ApplicationUniapp,
+	}))
 
 	body := bytes.NewBufferString(`{"code":"code-1","state":"native-state-bad-id-token"}`)
 	w := httptest.NewRecorder()

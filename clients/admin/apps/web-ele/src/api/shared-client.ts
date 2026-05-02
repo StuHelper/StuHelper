@@ -84,6 +84,7 @@ async function redirectToOIDCLogin() {
       headers: withSecurityHeaders('GET', {}),
       method: 'GET',
       params: {
+        app: 'admin',
         redirect: window.location.href,
       },
       url: serializeSchemaPath('/api/v1/auth/login'),

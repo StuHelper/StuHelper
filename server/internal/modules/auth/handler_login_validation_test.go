@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 )
 
 func TestHandleCallback_ValidationAndNativeBranch(t *testing.T) {
@@ -29,7 +31,13 @@ func TestHandleCallback_ValidationAndNativeBranch(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "invalid or expired state parameter")
 
-	require.NoError(t, h.storeOIDCState(req.Context(), "native-state", "stuhelper://auth/callback", "verifier-1", true))
+	require.NoError(t, h.storeOIDCState(req.Context(), oidcStateInput{
+		state:        "native-state",
+		redirect:     "stuhelper://auth/callback",
+		codeVerifier: "verifier-1",
+		application:  oidc.ApplicationUniapp,
+		native:       true,
+	}))
 	w = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/callback?code=abc123&state=native-state", nil)
 	r.ServeHTTP(w, req)

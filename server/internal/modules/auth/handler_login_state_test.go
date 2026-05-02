@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 )
 
 func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
@@ -18,12 +20,17 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 
 	t.Run("missing cookie", func(t *testing.T) {
 		const state = "state-missing-cookie"
-		require.NoError(t, h.storeOIDCState(context.Background(), state, "/courses/1", "verifier-1", false))
+		require.NoError(t, h.storeOIDCState(context.Background(), oidcStateInput{
+			state:        state,
+			redirect:     "/courses/1",
+			codeVerifier: "verifier-1",
+			application:  oidc.ApplicationWeb,
+		}))
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/callback?state="+state, nil)
 
-		_, _, _, err := h.consumeOIDCState(c, state)
+		_, _, _, _, err := h.consumeOIDCState(c, state)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "state cookie missing")
 
@@ -34,14 +41,19 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 
 	t.Run("cookie mismatch", func(t *testing.T) {
 		const state = "state-cookie-mismatch"
-		require.NoError(t, h.storeOIDCState(context.Background(), state, "/courses/1", "verifier-2", false))
+		require.NoError(t, h.storeOIDCState(context.Background(), oidcStateInput{
+			state:        state,
+			redirect:     "/courses/1",
+			codeVerifier: "verifier-2",
+			application:  oidc.ApplicationWeb,
+		}))
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		req := httptest.NewRequest(http.MethodGet, "/callback?state="+state, nil)
 		req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: "other-state"})
 		c.Request = req
 
-		_, _, _, err := h.consumeOIDCState(c, state)
+		_, _, _, _, err := h.consumeOIDCState(c, state)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "state cookie mismatch")
 
@@ -55,10 +67,11 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		retryReq.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 		retryCtx.Request = retryReq
 
-		redirect, verifier, isNative, retryErr := h.consumeOIDCState(retryCtx, state)
+		redirect, verifier, appKey, isNative, retryErr := h.consumeOIDCState(retryCtx, state)
 		require.NoError(t, retryErr)
 		assert.Equal(t, "/courses/1", redirect)
 		assert.Equal(t, "verifier-2", verifier)
+		assert.Equal(t, oidc.ApplicationWeb, appKey)
 		assert.False(t, isNative)
 	})
 
@@ -71,29 +84,38 @@ func TestConsumeOIDCState_EdgeBranches(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: oidcStateCookieName, Value: state})
 		c.Request = req
 
-		redirect, verifier, isNative, err := h.consumeOIDCState(c, state)
+		redirect, verifier, appKey, isNative, err := h.consumeOIDCState(c, state)
 		require.NoError(t, err)
 		assert.Equal(t, "/legacy/path", redirect)
 		assert.Empty(t, verifier)
+		assert.Equal(t, oidc.ApplicationWeb, appKey)
 		assert.False(t, isNative)
 	})
 
 	t.Run("native path stores verifier for exchange", func(t *testing.T) {
 		const state = "state-native-verifier"
-		require.NoError(t, h.storeOIDCState(context.Background(), state, "stuhelper://auth/callback", "verifier-native", true))
+		require.NoError(t, h.storeOIDCState(context.Background(), oidcStateInput{
+			state:        state,
+			redirect:     "stuhelper://auth/callback",
+			codeVerifier: "verifier-native",
+			application:  oidc.ApplicationUniapp,
+			native:       true,
+		}))
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/callback?state="+state, nil)
 
-		redirect, verifier, isNative, err := h.consumeOIDCState(c, state)
+		redirect, verifier, appKey, isNative, err := h.consumeOIDCState(c, state)
 		require.NoError(t, err)
 		assert.Equal(t, "stuhelper://auth/callback", redirect)
 		assert.Equal(t, "verifier-native", verifier)
+		assert.Equal(t, oidc.ApplicationUniapp, appKey)
 		assert.True(t, isNative)
 
-		consumed, err := h.consumeNativeCodeVerifier(context.Background(), state)
+		consumed, consumedApp, err := h.consumeNativeCodeVerifier(context.Background(), state)
 		require.NoError(t, err)
 		assert.Equal(t, "verifier-native", consumed)
+		assert.Equal(t, oidc.ApplicationUniapp, consumedApp)
 	})
 }
 

@@ -2919,6 +2919,8 @@ export interface operations {
                 redirect?: string;
                 /** @description 登录发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。 */
                 platform?: "web" | "native";
+                /** @description 发起登录的一方应用；默认 `web`，原生流程默认 `uniapp`。 */
+                app?: "web" | "admin" | "uniapp";
             };
             header?: never;
             path?: never;
@@ -2952,6 +2954,8 @@ export interface operations {
                 redirect?: string;
                 /** @description 注册发起平台；`native` 会把 callback 标记为 deep-link 回传流程，其他值按 Web 处理。 */
                 platform?: "web" | "native";
+                /** @description 发起注册的一方应用；默认 `web`，原生流程默认 `uniapp`。 */
+                app?: "web" | "admin" | "uniapp";
             };
             header?: never;
             path?: never;

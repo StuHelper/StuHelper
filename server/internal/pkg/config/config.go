@@ -107,6 +107,12 @@ type CasdoorConfig struct {
 	ClientID                    string
 	ClientSecret                string
 	RedirectURI                 string
+	AdminClientID               string
+	AdminClientSecret           string
+	AdminRedirectURI            string
+	UniappClientID              string
+	UniappClientSecret          string
+	UniappRedirectURI           string
 	Organization                string // Casdoor organization 名称
 	RolesClaim                  string // 角色 claim 名称，默认 roles
 	AppProvisioningClientID     string
@@ -238,6 +244,12 @@ func loadCasdoorConfig() CasdoorConfig {
 		ClientID:                    getEnv("CASDOOR_CLIENT_ID", ""),
 		ClientSecret:                getEnv("CASDOOR_CLIENT_SECRET", ""),
 		RedirectURI:                 getEnv("CASDOOR_REDIRECT_URI", ""),
+		AdminClientID:               getEnv("CASDOOR_ADMIN_CLIENT_ID", ""),
+		AdminClientSecret:           getEnv("CASDOOR_ADMIN_CLIENT_SECRET", ""),
+		AdminRedirectURI:            getEnv("CASDOOR_ADMIN_REDIRECT_URI", ""),
+		UniappClientID:              getEnv("CASDOOR_UNIAPP_CLIENT_ID", ""),
+		UniappClientSecret:          getEnv("CASDOOR_UNIAPP_CLIENT_SECRET", ""),
+		UniappRedirectURI:           getEnv("CASDOOR_UNIAPP_REDIRECT_URI", ""),
 		Organization:                getEnv("CASDOOR_ORGANIZATION", ""),
 		RolesClaim:                  getEnv("CASDOOR_ROLES_CLAIM", "roles"),
 		AppProvisioningClientID:     getEnv("CASDOOR_APP_PROVISIONING_CLIENT_ID", ""),

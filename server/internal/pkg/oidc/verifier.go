@@ -38,7 +38,7 @@ func newProviderVerifier(
 		return nil, errors.New("oidc: jwks_uri unavailable")
 	}
 	keySet := newProviderUnavailableKeySet(ctx, metadata.JWKSURI, defaultJWKSCacheTTL)
-	return gooidc.NewVerifier(cfg.Issuer, keySet, &gooidc.Config{ClientID: cfg.ClientID}), nil
+	return gooidc.NewVerifier(cfg.Issuer, keySet, &gooidc.Config{SkipClientIDCheck: true}), nil
 }
 
 func newProviderUnavailableKeySet(ctx context.Context, jwksURI string, ttl time.Duration) *providerUnavailableKeySet {

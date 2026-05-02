@@ -23,18 +23,22 @@ function withNativeSessionHeader(sessionID?: NativeSessionRequestOptions['sessio
   }
 }
 
+export type FirstPartyOIDCApp = 'admin' | 'uniapp' | 'web'
+
 export const createAuthApi = (client: ApiClient) => ({
-  login: (redirect?: string, platform?: string) => {
+  login: (redirect?: string, platform?: string, app?: FirstPartyOIDCApp) => {
     const query: Record<string, string> = {}
     if (redirect) query.redirect = redirect
     if (platform) query.platform = platform
+    if (app) query.app = app
     return client.GET('/api/v1/auth/login', Object.keys(query).length > 0 ? { params: { query } } : undefined)
   },
 
-  signup: (redirect?: string, platform?: string) => {
+  signup: (redirect?: string, platform?: string, app?: FirstPartyOIDCApp) => {
     const query: Record<string, string> = {}
     if (redirect) query.redirect = redirect
     if (platform) query.platform = platform
+    if (app) query.app = app
     return client.GET('/api/v1/auth/signup', Object.keys(query).length > 0 ? { params: { query } } : undefined)
   },
 

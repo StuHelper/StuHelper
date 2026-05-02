@@ -66,7 +66,7 @@ export async function redirectToOIDCLogin(redirectPath?: string) {
       ? new URL(redirectPath, window.location.origin).toString()
       : redirectPath || window.location.href;
   const data = unwrapData<AuthApi.LoginUrlResult>(
-    await baseAuthApi.login(currentUrl),
+    await baseAuthApi.login(currentUrl, undefined, 'admin'),
   );
   const url = data.url;
   if (url) {
