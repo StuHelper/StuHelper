@@ -46,7 +46,9 @@ func NewHandler(cacheHelper *cache.Helper, service *Service, rdb *redis.Client, 
 	if rdb == nil {
 		panic("review.NewHandler: redis client must not be nil")
 	}
-	authorizer = normalizeAuthorizationProvider(authorizer)
+	if authorizer == nil {
+		panic("review.NewHandler: authorizer must not be nil")
+	}
 	return &Handler{
 		cache:             cacheHelper,
 		service:           service,

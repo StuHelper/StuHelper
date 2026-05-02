@@ -1,6 +1,9 @@
 package review
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // AuthorizationProvider 是评测模块的资源关系投影依赖。
 // 请求时鉴权走 capability / DB scope / Authorization Service，不能在 handler 中直接查 OpenFGA。
@@ -9,6 +12,8 @@ type AuthorizationProvider interface {
 	WriteReportRelations(ctx context.Context, reportID, reporterUserID, reviewID, schoolID string) error
 }
 
+var errAuthorizationProviderNotConfigured = errors.New("review authorization provider is not configured")
+
 type failClosedAuthorizationProvider struct{}
 
 func NewFailClosedAuthorizationProvider() AuthorizationProvider {
@@ -16,11 +21,11 @@ func NewFailClosedAuthorizationProvider() AuthorizationProvider {
 }
 
 func (failClosedAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string, string) error {
-	return nil
+	return errAuthorizationProviderNotConfigured
 }
 
 func (failClosedAuthorizationProvider) WriteReportRelations(context.Context, string, string, string, string) error {
-	return nil
+	return errAuthorizationProviderNotConfigured
 }
 
 func normalizeAuthorizationProvider(provider AuthorizationProvider) AuthorizationProvider {
