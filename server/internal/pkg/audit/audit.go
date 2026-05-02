@@ -90,6 +90,9 @@ func EventFromContext(ctx context.Context, event Event) Event {
 	if sc.IsValid() && event.TraceID == "" {
 		event.TraceID = sc.TraceID().String()
 	}
+	if event.RequestID == "" {
+		event.RequestID = logger.RequestIDFromContext(ctx)
+	}
 	return normalizeEvent(event)
 }
 

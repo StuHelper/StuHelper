@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 )
 
@@ -36,4 +38,13 @@ func TestEventFromGin(t *testing.T) {
 	assert.Equal(t, "req-1", event.RequestID)
 	assert.NotEmpty(t, event.UserAgent)
 	assert.LessOrEqual(t, len(event.UserAgent), 512)
+}
+
+func TestEventFromContextUsesLoggerRequestID(t *testing.T) {
+	t.Parallel()
+
+	ctx := logger.WithRequestID(context.Background(), "req-context-1")
+	event := EventFromContext(ctx, Event{Type: EventUserLogin, Result: "success"})
+
+	assert.Equal(t, "req-context-1", event.RequestID)
 }

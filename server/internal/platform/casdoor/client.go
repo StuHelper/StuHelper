@@ -217,7 +217,7 @@ func withSDKConfig(ctx context.Context, credential Credential, operation string,
 		return err
 	}
 	err := runWithSDKConfig(credential, fn)
-	auditAdminCall(credential, operation, err)
+	auditAdminCall(ctx, credential, operation, err)
 	if err != nil {
 		return fmt.Errorf("casdoor: %s failed: %w", operation, err)
 	}
@@ -242,8 +242,12 @@ func initSDKConfig(credential Credential) {
 	)
 }
 
-func auditAdminCall(credential Credential, operation string, err error) {
-	audit.Log(casdoorAdminAuditEvent(credential, operation, err))
+func auditAdminCall(ctx context.Context, credential Credential, operation string, err error) {
+	audit.Log(casdoorAdminAuditEventFromContext(ctx, credential, operation, err))
+}
+
+func casdoorAdminAuditEventFromContext(ctx context.Context, credential Credential, operation string, err error) audit.Event {
+	return audit.EventFromContext(ctx, casdoorAdminAuditEvent(credential, operation, err))
 }
 
 func casdoorAdminAuditEvent(credential Credential, operation string, err error) audit.Event {

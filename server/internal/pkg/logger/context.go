@@ -7,6 +7,7 @@ import (
 )
 
 type ctxKey struct{}
+type requestIDKey struct{}
 
 // WithContext 将 Logger 注入到 Context
 func WithContext(ctx context.Context, l *zap.Logger) context.Context {
@@ -25,4 +26,15 @@ func FromContext(ctx context.Context) *zap.Logger {
 func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
 	l := FromContext(ctx).With(fields...)
 	return WithContext(ctx, l)
+}
+
+func WithRequestID(ctx context.Context, requestID string) context.Context {
+	return context.WithValue(ctx, requestIDKey{}, requestID)
+}
+
+func RequestIDFromContext(ctx context.Context) string {
+	if requestID, ok := ctx.Value(requestIDKey{}).(string); ok {
+		return requestID
+	}
+	return ""
 }

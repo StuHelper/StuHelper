@@ -58,6 +58,7 @@ func RequestIDMiddleware() gin.HandlerFunc {
 			requestID = uuid.NewString()
 		}
 		c.Set(CtxKeyRequestID, requestID)
+		c.Request = c.Request.WithContext(logger.WithRequestID(c.Request.Context(), requestID))
 		c.Header("X-Request-ID", requestID)
 		c.Next()
 	}

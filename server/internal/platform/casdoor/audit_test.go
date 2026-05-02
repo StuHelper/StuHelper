@@ -1,10 +1,13 @@
 package casdoor
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 )
 
 func TestCasdoorAdminAuditEventRedactsCredentialsAndRecordsPurpose(t *testing.T) {
@@ -43,6 +46,20 @@ func TestCasdoorAdminAuditEventCapturesFailureReason(t *testing.T) {
 	assert.Equal(t, "failure", event.Result)
 	assert.Equal(t, "casdoor unavailable", event.Reason)
 	assert.Equal(t, string(PurposeUserLookup), event.Details["purpose"])
+}
+
+func TestCasdoorAdminAuditEventUsesContextRequestID(t *testing.T) {
+	t.Parallel()
+
+	ctx := logger.WithRequestID(context.Background(), "req-casdoor-1")
+	event := casdoorAdminAuditEventFromContext(
+		ctx,
+		Credential{Purpose: PurposeRoleSync, Organization: "stuhelper", Application: "casdoor-admin-role-sync"},
+		"update role users verified_student",
+		nil,
+	)
+
+	assert.Equal(t, "req-casdoor-1", event.RequestID)
 }
 
 func TestCasdoorApplicationAuditEventRecordsLifecycleWithoutSecrets(t *testing.T) {
