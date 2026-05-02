@@ -35,16 +35,12 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool 
 	if !ok {
 		return false
 	}
-
-	if err := h.setTokenCookies(c, payload.rawIDToken, payload.refreshToken); err != nil {
-		response.InternalError(c, "failed to refresh token")
+	csrfToken, ok := h.prepareTokenCookies(c)
+	if !ok {
 		return false
 	}
 
 	sessionID := h.getSessionID(c, "")
-	if sessionID != "" {
-		h.setSessionCookie(c, sessionID)
-	}
 	rotation := oidcSessionRotation{
 		sessionID:       sessionID,
 		userID:          payload.userID,
@@ -55,6 +51,10 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool 
 		return false
 	}
 
+	h.setTokenCookiesWithCSRF(c, payload.rawIDToken, payload.refreshToken, csrfToken)
+	if sessionID != "" {
+		h.setSessionCookie(c, sessionID)
+	}
 	response.Success(c, h.buildRefreshResponse(c, payload.rawIDToken, payload.refreshToken))
 	return true
 }

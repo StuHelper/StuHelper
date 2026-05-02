@@ -58,9 +58,14 @@ func (h *Handler) refreshSelfSignedToken(c *gin.Context, refreshTokenStr string)
 		newAccessToken:  newAccessToken,
 		newRefreshToken: newRefreshToken,
 	}
+	csrfToken, ok := h.prepareTokenCookies(c)
+	if !ok {
+		return false
+	}
 	if !h.rotateSelfSignedSession(c, rotation) {
 		return false
 	}
+	h.setTokenCookiesWithCSRF(c, newAccessToken, newRefreshToken, csrfToken)
 
 	response.Success(c, h.buildRefreshResponse(c, newAccessToken, newRefreshToken))
 	return true
@@ -123,10 +128,6 @@ func (h *Handler) signRotatedSelfSignedToken(c *gin.Context, input selfSignedTok
 }
 
 func (h *Handler) rotateSelfSignedSession(c *gin.Context, rotation selfSignedSessionRotation) bool {
-	if err := h.setTokenCookies(c, rotation.newAccessToken, rotation.newRefreshToken); err != nil {
-		response.InternalError(c, "failed to refresh token")
-		return false
-	}
 	err := h.svc.RotateSession(
 		c.Request.Context(),
 		rotation.sessionID,

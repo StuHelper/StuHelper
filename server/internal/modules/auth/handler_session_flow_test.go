@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,6 +55,18 @@ func marshalRefreshBody(t *testing.T, refreshToken string) *bytes.Buffer {
 	body, err := json.Marshal(refreshTokenRequest{RefreshToken: refreshToken})
 	require.NoError(t, err)
 	return bytes.NewBuffer(body)
+}
+
+func assertNoIssuedTokenCookies(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	for _, header := range recorder.Header().Values("Set-Cookie") {
+		if strings.HasPrefix(header, middleware.CookieAccessToken+"=;") ||
+			strings.HasPrefix(header, middleware.CookieRefreshToken+"=;") {
+			continue
+		}
+		assert.False(t, strings.HasPrefix(header, middleware.CookieAccessToken+"="), header)
+		assert.False(t, strings.HasPrefix(header, middleware.CookieRefreshToken+"="), header)
+	}
 }
 
 func TestConsumeRefreshToken_ReserveReleaseAndRetry(t *testing.T) {
@@ -260,6 +273,7 @@ func TestRefreshToken_SelfSignedMissingSessionFailsRotation(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
+	assertNoIssuedTokenCookies(t, w)
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(t.Context(), refreshToken)
 	require.NoError(t, err)

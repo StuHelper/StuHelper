@@ -8,6 +8,7 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 const tokenCookieSameSite = http.SameSiteLaxMode
@@ -40,11 +41,25 @@ func (h *Handler) setTokenCookies(c *gin.Context, accessToken, refreshToken stri
 		logger.FromGin(c).Error("failed to generate CSRF token", zap.Error(err))
 		return err
 	}
+	h.setTokenCookiesWithCSRF(c, accessToken, refreshToken, csrfToken)
+
+	return nil
+}
+
+func (h *Handler) prepareTokenCookies(c *gin.Context) (string, bool) {
+	csrfToken, err := middleware.GenerateCSRFToken()
+	if err != nil {
+		logger.FromGin(c).Error("failed to generate CSRF token", zap.Error(err))
+		response.InternalError(c, "failed to refresh token")
+		return "", false
+	}
+	return csrfToken, true
+}
+
+func (h *Handler) setTokenCookiesWithCSRF(c *gin.Context, accessToken, refreshToken, csrfToken string) {
 	h.setCSRFCookie(c, csrfToken)
 	h.writeCookie(c, middleware.CookieAccessToken, accessToken, h.currentAccessTokenTTLSeconds(), "/", true)
 	h.writeCookie(c, middleware.CookieRefreshToken, refreshToken, h.tokenConfig.RefreshTokenTTL, refreshTokenCookiePath, true)
-
-	return nil
 }
 
 // clearTokenCookies 清除 Token Cookie 和 Session Cookie

@@ -231,6 +231,21 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 	assert.NotEmpty(t, session.RefreshTokenHash)
 }
 
+func TestRefreshOIDCToken_RotationFailureDoesNotIssueCookies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token")
+
+	require.False(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assertNoIssuedTokenCookies(t, w)
+}
+
 func TestRefreshOIDCToken_RejectsMissingProviderRefreshRotation(t *testing.T) {
 	assertOIDCRefreshRotationUnavailable(t, func(issueIDToken func() string) map[string]any {
 		return map[string]any{
