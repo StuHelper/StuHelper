@@ -41,6 +41,7 @@ var roleCapabilities = map[string][]string{
 		UserSystemRead, UserSystemUpdate,
 	},
 	"school_admin": {
+		AdminReviewsManage, AdminReportsManage,
 		UserStudentRead, UserStudentReview,
 		UserSchoolRead, UserSchoolUpdate,
 	},

@@ -93,6 +93,8 @@ func TestExpandRoleGrants_SchoolAdminUsesScopedSchoolIDs(t *testing.T) {
 	snapshot := BuildUserAccessSnapshot(grants)
 
 	assert.Empty(t, snapshot.GlobalCapabilities)
+	assert.Contains(t, snapshot.Capabilities, AdminReviewsManage)
+	assert.Contains(t, snapshot.Capabilities, AdminReportsManage)
 	assert.Contains(t, snapshot.Capabilities, UserStudentRead)
 	assert.Contains(t, snapshot.Capabilities, UserSchoolUpdate)
 	for _, grant := range snapshot.CapabilityGrants {
