@@ -35,6 +35,7 @@ func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testi
 
 	assert.False(t, scope.canModerateSchool(10006))
 	assert.Empty(t, scope.schoolIDs())
+	assert.False(t, scope.hasModerationAccess())
 
 	scope = moderationScope{
 		moderatorSections: map[string]struct{}{
@@ -44,4 +45,5 @@ func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testi
 
 	assert.True(t, scope.canModerateSchool(10006))
 	assert.Equal(t, []int64{10006}, scope.schoolIDs())
+	assert.True(t, scope.hasModerationAccess())
 }

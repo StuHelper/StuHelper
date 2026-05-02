@@ -133,7 +133,7 @@ func hasRole(roles []string, target string) bool {
 }
 
 func (s moderationScope) hasModerationAccess() bool {
-	return s.superAdmin || len(s.schoolAdmins) > 0 || len(s.moderatorSections) > 0
+	return s.superAdmin || len(s.schoolIDs()) > 0
 }
 
 func (s moderationScope) hasContentEditAccess() bool {
