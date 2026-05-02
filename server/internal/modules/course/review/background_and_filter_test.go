@@ -113,7 +113,7 @@ func TestReviewDispatchNotificationUsesManagedLauncher(t *testing.T) {
 	jobCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	launches := make(chan string, 2)
+	launches := make(chan string, 3)
 	start := func(name string, run func(context.Context)) {
 		launches <- name
 		go run(jobCtx)
@@ -121,9 +121,16 @@ func TestReviewDispatchNotificationUsesManagedLauncher(t *testing.T) {
 	svc.StartBackgroundJobs(jobCtx, start)
 
 	select {
-	case <-launches:
+	case name := <-launches:
+		assert.Equal(t, "review fga sync worker", name)
 	case <-time.After(time.Second):
-		t.Fatal("expected review background worker to launch")
+		t.Fatal("expected review FGA sync worker to launch")
+	}
+	select {
+	case name := <-launches:
+		assert.Equal(t, "review fga sync reconciliation", name)
+	case <-time.After(time.Second):
+		t.Fatal("expected review FGA reconciliation to launch")
 	}
 
 	done := make(chan struct{})

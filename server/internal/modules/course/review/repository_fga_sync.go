@@ -41,6 +41,83 @@ func (r *Repository) MarkFGASyncJobRetry(ctx context.Context, jobID int64, nextA
 	return nil
 }
 
+func (r *Repository) ListReviewRelationProjectionStates(
+	ctx context.Context,
+	limit int,
+) ([]ReviewRelationProjectionState, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT r.id, u.id, r.course_id, c.school_id
+		FROM reviews r
+		JOIN users u ON u.user_hash = r.user_hash
+		JOIN courses c ON c.id = r.course_id
+		WHERE r.status <> 'deleted'
+		ORDER BY r.id ASC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("ListReviewRelationProjectionStates: %w", err)
+	}
+	defer rows.Close()
+	return scanReviewRelationProjectionStates(rows, limit)
+}
+
+func (r *Repository) ListReportRelationProjectionStates(
+	ctx context.Context,
+	limit int,
+) ([]ReportRelationProjectionState, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT rr.id, u.id, rr.review_id, c.school_id
+		FROM review_reports rr
+		JOIN users u ON u.user_hash = rr.reporter_hash
+		JOIN reviews r ON r.id = rr.review_id
+		JOIN courses c ON c.id = r.course_id
+		WHERE r.status <> 'deleted'
+		ORDER BY rr.id ASC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("ListReportRelationProjectionStates: %w", err)
+	}
+	defer rows.Close()
+	return scanReportRelationProjectionStates(rows, limit)
+}
+
+func scanReviewRelationProjectionStates(rows pgx.Rows, limit int) ([]ReviewRelationProjectionState, error) {
+	states := make([]ReviewRelationProjectionState, 0, limit)
+	for rows.Next() {
+		var state ReviewRelationProjectionState
+		if err := rows.Scan(&state.ReviewID, &state.AuthorUserID, &state.CourseID, &state.SchoolID); err != nil {
+			return nil, fmt.Errorf("ListReviewRelationProjectionStates scan: %w", err)
+		}
+		states = append(states, state)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ListReviewRelationProjectionStates rows: %w", err)
+	}
+	return states, nil
+}
+
+func scanReportRelationProjectionStates(rows pgx.Rows, limit int) ([]ReportRelationProjectionState, error) {
+	states := make([]ReportRelationProjectionState, 0, limit)
+	for rows.Next() {
+		var state ReportRelationProjectionState
+		if err := rows.Scan(&state.ReportID, &state.ReporterUserID, &state.ReviewID, &state.SchoolID); err != nil {
+			return nil, fmt.Errorf("ListReportRelationProjectionStates scan: %w", err)
+		}
+		states = append(states, state)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ListReportRelationProjectionStates rows: %w", err)
+	}
+	return states, nil
+}
+
 func mapFGASyncJobs(jobs []outbox.Job) []FGASyncJob {
 	items := make([]FGASyncJob, 0, len(jobs))
 	for _, job := range jobs {

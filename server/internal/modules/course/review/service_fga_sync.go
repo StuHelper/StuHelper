@@ -89,9 +89,11 @@ func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, fu
 	s.asyncLaunch = start
 	if start == nil {
 		go s.runFGASyncWorker(ctx)
+		go s.runFGASyncReconciliationLoop(ctx)
 		return
 	}
 	start("review fga sync worker", s.runFGASyncWorker)
+	start("review fga sync reconciliation", s.runFGASyncReconciliationLoop)
 }
 
 func (s *Service) runFGASyncWorker(ctx context.Context) {

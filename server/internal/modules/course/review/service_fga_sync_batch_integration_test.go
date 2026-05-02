@@ -1,10 +1,13 @@
 package review
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
@@ -74,4 +77,108 @@ func TestReviewService_ProcessFGASyncBatchLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, remaining)
 	assert.Equal(t, 2, writer.calls)
+}
+
+func TestReviewService_ReconcileFGARelationProjectionsRequeuesOutbox(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	schoolID := int64(10006)
+	departmentID := seedDepartment(t, fixture, schoolID, "FGA 对账学院")
+	teacherID := seedTeacher(t, fixture, schoolID, "FGA 对账老师", departmentID)
+	courseID := seedCourse(t, fixture, schoolID, departmentID, "FGA 对账课程")
+	authorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "fga-author", UserHash: "hash-fga-author"})
+	reporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "fga-reporter", UserHash: "hash-fga-reporter"})
+	reviewID := "review-fga-reconcile-1"
+	reportID := "report-fga-reconcile-1"
+	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "hash-fga-author", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "FGA 标题", "FGA 内容")
+	_, err := fixture.Pool.Exec(ctx, `
+		INSERT INTO review_reports (id, review_id, reporter_hash, reason, description, status, created_at)
+		VALUES ($1, $2, $3, 'spam', '需要处理', 'pending', NOW())
+	`, reportID, reviewID, "hash-fga-reporter")
+	require.NoError(t, err)
+
+	requeued, err := svc.ReconcileFGARelationProjections(ctx, 10)
+	require.NoError(t, err)
+	assert.Equal(t, 2, requeued)
+	assertFGASyncPayload(t, fixture, reviewRelationsSyncKey(reviewID), fgaSyncJobTypeReviewRelations, map[string]any{
+		"reviewID":     reviewID,
+		"authorUserID": fmt.Sprint(authorID),
+		"courseID":     json.Number(fmt.Sprint(courseID)),
+		"schoolID":     json.Number(fmt.Sprint(schoolID)),
+	})
+	assertFGASyncPayload(t, fixture, reportRelationsSyncKey(reportID), fgaSyncJobTypeReportRelations, map[string]any{
+		"reportID":       reportID,
+		"reporterUserID": fmt.Sprint(reporterID),
+		"reviewID":       reviewID,
+		"schoolID":       json.Number(fmt.Sprint(schoolID)),
+	})
+}
+
+func TestReviewService_ReconcileFGARelationProjectionsStopsAboveThreshold(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	schoolID := int64(10006)
+	departmentID := seedDepartment(t, fixture, schoolID, "FGA 阈值学院")
+	teacherID := seedTeacher(t, fixture, schoolID, "FGA 阈值老师", departmentID)
+	courseID := seedCourse(t, fixture, schoolID, departmentID, "FGA 阈值课程")
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: "fga-threshold-a", UserHash: "hash-threshold-a"})
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: "fga-threshold-b", UserHash: "hash-threshold-b"})
+	seedReviewWithRatings(t, fixture, "review-threshold-a", courseID, teacherID, "hash-threshold-a", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "阈值 A", "阈值内容 A")
+	seedReviewWithRatings(t, fixture, "review-threshold-b", courseID, teacherID, "hash-threshold-b", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "阈值 B", "阈值内容 B")
+
+	requeued, err := svc.ReconcileFGARelationProjections(ctx, 1)
+	require.ErrorIs(t, err, ErrFGAReconciliationThresholdExceeded)
+	assert.Equal(t, 0, requeued)
+	var queued int
+	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM domain_event_outbox WHERE stream = $1`, outbox.StreamIAMOpenFGATupleSync).Scan(&queued)
+	require.NoError(t, err)
+	assert.Equal(t, 0, queued)
+}
+
+func TestNextFGASyncReconciliationDelay(t *testing.T) {
+	location := time.FixedZone("test", 8*60*60)
+	cases := []struct {
+		name string
+		now  time.Time
+		want time.Duration
+	}{
+		{name: "before window", now: time.Date(2026, 5, 2, 2, 30, 0, 0, location), want: 30 * time.Minute},
+		{name: "at window", now: time.Date(2026, 5, 2, 3, 0, 0, 0, location), want: 24 * time.Hour},
+		{name: "after window", now: time.Date(2026, 5, 2, 4, 0, 0, 0, location), want: 23 * time.Hour},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, nextFGASyncReconciliationDelay(tc.now))
+		})
+	}
+}
+
+func assertFGASyncPayload(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	dedupeKey string,
+	jobType string,
+	want map[string]any,
+) {
+	t.Helper()
+	var gotType string
+	var payload []byte
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT job_type, payload
+		FROM domain_event_outbox
+		WHERE stream = $1 AND dedupe_key = $2
+	`, outbox.StreamIAMOpenFGATupleSync, dedupeKey).Scan(&gotType, &payload)
+	require.NoError(t, err)
+	assert.Equal(t, jobType, gotType)
+	var got map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.UseNumber()
+	require.NoError(t, decoder.Decode(&got))
+	assert.Equal(t, want, got)
 }
