@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, ops
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-05-02
 ---
 
 # 安全实践
@@ -31,6 +31,8 @@ access / refresh token 已显式区分 `typ`。
 - Redis 黑名单用于紧急吊销
 - `logout` 撤销当前设备
 - `logout-all` 撤销全部已跟踪 token
+- OIDC provider refresh token 由后端加密代持；`refresh` 轮换、`logout`、`logout-all` 都会先调用 Casdoor revocation endpoint 吊销 provider refresh token
+- provider revoke 失败时返回错误并保留本地 session，避免 Casdoor 端仍可 refresh 但 StuHelper 误报登出成功
 - 浏览器 Cookie 中的 Casdoor JWT access token 走 **本地 JWKS 验证**，不会为每个请求额外查询 session store
 - 即时吊销模型明确收口为：**blacklist + 5 分钟 access TTL + refresh 轮换**；`refresh` 仍会触达 session store，浏览器写请求不引入每请求 Redis RTT
 

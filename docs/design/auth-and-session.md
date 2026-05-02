@@ -71,6 +71,11 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
   - 请求体传 `{ "refreshToken": "..." }`
   - 不走 cookie / 不做 CSRF 校验
   - 响应体返回 `accessToken`、`refreshToken`、`expiresIn`
+- OIDC refresh token 由 StuHelper session store 代持：
+  - `oidc` / `oidc-native` session 会把 provider refresh token 加密后写入 Redis session；
+  - refresh 轮换时先吊销旧 provider refresh token，再保存新 provider refresh token；
+  - `logout` / `logout-all` 必须先调用 Casdoor revocation endpoint 吊销 provider refresh token，失败时返回错误，不清理本地 session 假装成功；
+  - `phone` 登录使用 StuHelper 自签 refresh token，不进入 provider revoke 流程。
 
 ### 浏览器 access token 校验模型
 
@@ -84,7 +89,7 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
 - `POST /api/v1/auth/exchange-native` 请求体：`{ code, state }`
 - 成功响应：`{ accessToken, refreshToken, sessionID, expiresIn }`
 - 原生 OIDC refresh 必须通过 `X-Stuhelper-Session-ID` 回传 `sessionID`；缺失或不匹配时拒绝 refresh。
-- refresh 会对旧 refresh token 做 blacklist，并在 session store 内更新新 token hash。
+- refresh 会对旧 refresh token 做 blacklist，并在 session store 内更新新 token hash 和加密后的 provider refresh token。
 - 旧 refresh token 再次提交会触发 reuse detection：吊销该用户全部 session 并记录审计。
 
 ## Shadow User
@@ -116,4 +121,5 @@ OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email
 | Auth Handler | `server/internal/modules/auth/` |
 | OIDC 客户端 | `server/internal/pkg/oidc/` |
 | Token 服务 | `server/internal/pkg/token/` |
+| Provider refresh token revoke | `server/internal/modules/auth/service_provider_tokens.go` + `server/internal/pkg/oidc/revoke.go` |
 | 用户同步 | `server/internal/modules/auth/user_sync.go` |
