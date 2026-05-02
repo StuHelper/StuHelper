@@ -166,5 +166,6 @@ StuHelper/
 - HTTP 响应统一通过 `response.*` 返回
 - 前端 API 统一使用 `clients/shared`
 - 配置通过环境变量读取，不硬编码
+- IAM、认证、session、outbox、审计 retention 和后台任务变更必须遵守 [docs/design/iam-implementation-guardrails.md](docs/design/iam-implementation-guardrails.md)
 
 工程原则详见 [docs/design/core-beliefs.md](docs/design/core-beliefs.md)。
