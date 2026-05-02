@@ -30,6 +30,7 @@ assert_not_contains() {
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_CLIENT_ID must be configured before platform bootstrap'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'go run \./cmd/casdoor-bootstrap'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_BOOTSTRAP_CLIENT_SECRET'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'SMS_INTERNAL_KEY'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_ADMIN_CLIENT_SECRET'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'Casdoor bootstrap skipped because CASDOOR_BOOTSTRAP_ENABLED is not true'
 retired_idp_prefix='ZITA''DEL_'

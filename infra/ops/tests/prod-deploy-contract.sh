@@ -30,6 +30,8 @@ role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT
 user_lookup_require_line="$(line_number 'require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET')"
 sms_secret_require_line="$(line_number 'require_nonempty SMS_SECRET_ID')"
 casdoor_sms_enabled_line="$(line_number 'CASDOOR_SMS_PROVIDER_ENABLED must be true for production deploy')"
+casdoor_sms_type_line="$(line_number 'CASDOOR_SMS_PROVIDER_TYPE must be CustomHTTP for production deploy')"
+casdoor_sms_title_line="$(line_number 'CASDOOR_SMS_PROVIDER_TITLE must be content for production deploy')"
 sms_enabled_line="$(line_number 'SMS_ENABLED must be true for production deploy')"
 
 if (( source_bootstrap_line <= load_env_line )); then
@@ -55,6 +57,12 @@ if (( sms_secret_require_line <= user_lookup_require_line )); then
 fi
 if (( casdoor_sms_enabled_line <= sms_secret_require_line )); then
   fail "Casdoor SMS provider production gate must run after SMS credentials are validated"
+fi
+if (( casdoor_sms_type_line <= casdoor_sms_enabled_line )); then
+  fail "Casdoor SMS provider type gate must run after provider enabled gate"
+fi
+if (( casdoor_sms_title_line <= casdoor_sms_type_line )); then
+  fail "Casdoor SMS provider title gate must run after provider type gate"
 fi
 if (( sms_enabled_line <= sms_secret_require_line )); then
   fail "SMS_ENABLED production gate must run after SMS credentials are validated"

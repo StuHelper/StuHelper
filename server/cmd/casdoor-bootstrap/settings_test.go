@@ -31,6 +31,9 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, "super_admin", settings.plan.Roles[0].Name)
 	require.Len(t, settings.plan.Providers, 1)
 	assert.Equal(t, "stuhelper-sms", settings.plan.Providers[0].Name)
+	assert.Equal(t, "Custom HTTP SMS", settings.plan.Providers[0].Type)
+	assert.Equal(t, "content", settings.plan.Providers[0].Title)
+	assert.Equal(t, "https://api.example.com/internal/sms/send?internal_key=sms-internal-key", settings.plan.Providers[0].Endpoint)
 }
 
 func TestFlatRoleCatalogMatchesAuthorizationRoles(t *testing.T) {
@@ -82,6 +85,26 @@ func TestLoadSettingsRejectsInvalidProviderFlag(t *testing.T) {
 	assert.Contains(t, err.Error(), "CASDOOR_SMS_PROVIDER_ENABLED must be true or false")
 }
 
+func TestLoadSettingsRequiresSMSInternalKeyForEnabledSMSProvider(t *testing.T) {
+	env := completeEnv()
+	delete(env, "SMS_INTERNAL_KEY")
+
+	_, err := loadSettings(testEnv(env))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SMS_INTERNAL_KEY is required")
+}
+
+func TestLoadSettingsRejectsWrongSMSType(t *testing.T) {
+	env := completeEnv()
+	env["CASDOOR_SMS_PROVIDER_TYPE"] = "Custom HTTP SMS"
+
+	_, err := loadSettings(testEnv(env))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CASDOOR_SMS_PROVIDER_TYPE must be CustomHTTP")
+}
+
 func completeEnv() map[string]string {
 	return map[string]string{
 		"CASDOOR_ISSUER":                         "https://sso.example.com",
@@ -113,7 +136,9 @@ func completeEnv() map[string]string {
 		"CASDOOR_SMS_PROVIDER_CATEGORY":          "SMS",
 		"CASDOOR_SMS_PROVIDER_TYPE":              "CustomHTTP",
 		"CASDOOR_SMS_PROVIDER_METHOD":            "POST",
+		"CASDOOR_SMS_PROVIDER_TITLE":             "content",
 		"CASDOOR_SMS_PROVIDER_ENDPOINT":          "https://api.example.com/internal/sms/send",
+		"SMS_INTERNAL_KEY":                       "sms-internal-key",
 	}
 }
 

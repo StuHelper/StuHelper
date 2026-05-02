@@ -692,7 +692,7 @@ Casdoor 登录验证码请求
     ▼
 StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
     │
-    │ Bearer InternalKey 鉴权
+    │ form POST + internal_key query 鉴权
     ▼
 腾讯云 SMS API  (server/internal/pkg/sms/tencent.go)
 ```
@@ -702,7 +702,8 @@ StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
 **变更点**：
 - 取消 Zitadel Action 触发链路；
 - Casdoor 配置 Custom HTTP SMS Provider，URL 指向 `/internal/sms/send`；
-- `InternalKey` 头部鉴权保留；
+- Casdoor Custom HTTP SMS Provider 按 `application/x-www-form-urlencoded` 发送 `phoneNumber` 与验证码字段。StuHelper bootstrap 必须把 provider `title` 固定为 `content`，并在 provider endpoint 注入 `?internal_key=...`，因为 Casdoor Provider 不支持给该回调配置 Bearer Authorization header；
+- `/internal/sms/send` handler 保留 `Authorization: Bearer <SMS_INTERNAL_KEY>` + JSON body 作为内部诊断/手动调用入口，但 Casdoor 生产链路使用 query key + form body；
 - `sms/handler.go` 第 12 行注释从 "Zitadel Action" 改为 "Casdoor Custom HTTP SMS Provider"。
 
 **禁止**：Casdoor 直连腾讯云 SMS API（避免模板/签名/限流/审计配置散到 IDP）。

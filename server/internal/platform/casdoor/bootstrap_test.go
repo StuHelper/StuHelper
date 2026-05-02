@@ -106,6 +106,7 @@ func validBootstrapPlan() BootstrapPlan {
 			Category:    "SMS",
 			Type:        "Custom HTTP SMS",
 			Method:      "POST",
+			Title:       "content",
 			Endpoint:    "https://api.example.com/internal/sms/send",
 		}},
 	}

@@ -215,6 +215,7 @@ ensure_value "CASDOOR_SMS_PROVIDER_DISPLAY_NAME" "${CASDOOR_SMS_PROVIDER_DISPLAY
 ensure_value "CASDOOR_SMS_PROVIDER_CATEGORY" "${CASDOOR_SMS_PROVIDER_CATEGORY:-}" "SMS"
 ensure_value "CASDOOR_SMS_PROVIDER_TYPE" "${CASDOOR_SMS_PROVIDER_TYPE:-}" "CustomHTTP"
 ensure_value "CASDOOR_SMS_PROVIDER_METHOD" "${CASDOOR_SMS_PROVIDER_METHOD:-}" "POST"
+ensure_prod_default "CASDOOR_SMS_PROVIDER_TITLE" "${CASDOOR_SMS_PROVIDER_TITLE:-}" "content"
 ensure_prod_default "CASDOOR_SMS_PROVIDER_ENDPOINT" "${CASDOOR_SMS_PROVIDER_ENDPOINT:-}" "http://app:8080/internal/sms/send" "http://host.docker.internal:8080/internal/sms/send"
 ensure_value "CASDOOR_EMAIL_PROVIDER_ENABLED" "${CASDOOR_EMAIL_PROVIDER_ENABLED:-}" "false"
 ensure_prod_default "SMS_ENABLED" "${SMS_ENABLED:-}" "true" "false"

@@ -49,8 +49,8 @@ func TestMaskSensitiveQueryParams(t *testing.T) {
 		},
 		{
 			name:     "多个敏感参数",
-			input:    "code=abc&token=xyz&api_key=123",
-			expected: "api_key=%5BREDACTED%5D&code=%5BREDACTED%5D&token=%5BREDACTED%5D",
+			input:    "code=abc&token=xyz&api_key=123&internal_key=secret",
+			expected: "api_key=%5BREDACTED%5D&code=%5BREDACTED%5D&internal_key=%5BREDACTED%5D&token=%5BREDACTED%5D",
 		},
 	}
 

@@ -2,10 +2,21 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
+)
+
+const (
+	smsProviderPrefix         = "CASDOOR_SMS_PROVIDER"
+	smsInternalKeyEnv         = "SMS_INTERNAL_KEY"
+	smsProviderEnvCustomHTTP  = "CustomHTTP"
+	smsProviderTypeCustomHTTP = "Custom HTTP SMS"
+	smsProviderMethodPost     = "POST"
+	smsProviderContentParam   = "content"
+	smsProviderKeyParam       = "internal_key"
 )
 
 func providerSpec(getenv envReader, prefix string) (casdoor.ProviderSpec, bool, error) {
@@ -30,6 +41,11 @@ func providerSpec(getenv envReader, prefix string) (casdoor.ProviderSpec, bool, 
 		Title:       strings.TrimSpace(getenv(prefix + "_TITLE")),
 		Content:     strings.TrimSpace(getenv(prefix + "_CONTENT")),
 		Metadata:    strings.TrimSpace(getenv(prefix + "_METADATA")),
+	}
+	if prefix == smsProviderPrefix {
+		if spec, err = finishSMSProviderSpec(getenv, prefix, spec); err != nil {
+			return casdoor.ProviderSpec{}, false, err
+		}
 	}
 	return finishProviderSpec(getenv, prefix, spec)
 }
@@ -65,6 +81,42 @@ func finishProviderSpec(getenv envReader, prefix string, spec casdoor.ProviderSp
 	spec.Port = port
 	spec.DisableSSL, err = boolEnv(getenv, prefix+"_DISABLE_SSL")
 	return spec, true, err
+}
+
+func finishSMSProviderSpec(getenv envReader, prefix string, spec casdoor.ProviderSpec) (casdoor.ProviderSpec, error) {
+	if spec.Type != smsProviderEnvCustomHTTP {
+		return casdoor.ProviderSpec{}, fmt.Errorf("%s_TYPE must be %s", prefix, smsProviderEnvCustomHTTP)
+	}
+	spec.Type = smsProviderTypeCustomHTTP
+	if spec.Method != smsProviderMethodPost {
+		return casdoor.ProviderSpec{}, fmt.Errorf("%s_METHOD must be %s", prefix, smsProviderMethodPost)
+	}
+	if spec.Title != smsProviderContentParam {
+		return casdoor.ProviderSpec{}, fmt.Errorf("%s_TITLE must be %s", prefix, smsProviderContentParam)
+	}
+	if spec.Endpoint == "" {
+		return casdoor.ProviderSpec{}, fmt.Errorf("%s_ENDPOINT is required", prefix)
+	}
+	key, err := requiredValue(getenv, smsInternalKeyEnv)
+	if err != nil {
+		return casdoor.ProviderSpec{}, err
+	}
+	spec.Endpoint, err = endpointWithInternalKey(spec.Endpoint, key)
+	return spec, err
+}
+
+func endpointWithInternalKey(rawEndpoint, internalKey string) (string, error) {
+	parsed, err := url.Parse(rawEndpoint)
+	if err != nil {
+		return "", fmt.Errorf("invalid SMS provider endpoint: %w", err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("SMS provider endpoint must be absolute URL")
+	}
+	query := parsed.Query()
+	query.Set(smsProviderKeyParam, internalKey)
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
 }
 
 func optionalPort(raw string) (int, error) {

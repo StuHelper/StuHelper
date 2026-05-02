@@ -37,6 +37,7 @@ var sensitiveQueryParams = map[string]bool{
 	"password":      true,
 	"secret":        true,
 	"key":           true,
+	"internal_key":  true,
 	"api_key":       true,
 	"apikey":        true,
 	"auth":          true,
