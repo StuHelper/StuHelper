@@ -73,9 +73,8 @@ func TestParseReviewAccessSchoolIDs(t *testing.T) {
 func TestNormalizeAuthorizationProvider(t *testing.T) {
 	provider := normalizeAuthorizationProvider(nil)
 	require.NotNil(t, provider)
-	allowed, err := provider.Check(context.Background(), "user:1", "viewer", "review:1")
-	require.NoError(t, err)
-	assert.False(t, allowed)
+	assert.NoError(t, provider.WriteReviewRelations(context.Background(), "review-1", "user-1", "42", "10006"))
+	assert.NoError(t, provider.WriteReportRelations(context.Background(), "report-1", "user-1", "review-1", "10006"))
 }
 
 func TestNormalizeReviewAccessReader(t *testing.T) {

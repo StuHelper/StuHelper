@@ -1,8 +1,6 @@
 package review
 
 import (
-	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,18 +15,6 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/reviewaccess"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/systemconfig"
 )
-
-type errorAuthorizationProvider struct{}
-
-func (errorAuthorizationProvider) Check(_ context.Context, _, _, _ string) (bool, error) {
-	return false, errors.New("boom")
-}
-func (errorAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string, string) error {
-	return nil
-}
-func (errorAuthorizationProvider) WriteReportRelations(context.Context, string, string, string, string) error {
-	return nil
-}
 
 func TestReviewHandlerValidationPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -250,10 +236,6 @@ func TestReviewHandler_MoreValidationBranches(t *testing.T) {
 		assert.Equal(t, http.StatusPreconditionRequired, w.Code)
 	})
 
-	t.Run("checkFGA returns false on provider error", func(t *testing.T) {
-		h := &Handler{fga: errorAuthorizationProvider{}}
-		assert.False(t, h.checkFGA(context.Background(), "user:1", "can_hide", "review:1"))
-	})
 }
 
 func batchStepUpRequestBody(action string) string {

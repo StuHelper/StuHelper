@@ -23,9 +23,6 @@ import (
 
 type allowAllAuthorizationProvider struct{}
 
-func (allowAllAuthorizationProvider) Check(context.Context, string, string, string) (bool, error) {
-	return true, nil
-}
 func (allowAllAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string, string) error {
 	return nil
 }

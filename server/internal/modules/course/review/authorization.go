@@ -2,10 +2,9 @@ package review
 
 import "context"
 
-// AuthorizationProvider 是评测模块唯一的授权依赖。
-// 它同时承担请求时鉴权和异步关系投影写入。
+// AuthorizationProvider 是评测模块的资源关系投影依赖。
+// 请求时鉴权走 capability / DB scope / Authorization Service，不能在 handler 中直接查 OpenFGA。
 type AuthorizationProvider interface {
-	Check(ctx context.Context, user, relation, object string) (bool, error)
 	WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error
 	WriteReportRelations(ctx context.Context, reportID, reporterUserID, reviewID, schoolID string) error
 }
@@ -14,10 +13,6 @@ type failClosedAuthorizationProvider struct{}
 
 func NewFailClosedAuthorizationProvider() AuthorizationProvider {
 	return failClosedAuthorizationProvider{}
-}
-
-func (failClosedAuthorizationProvider) Check(context.Context, string, string, string) (bool, error) {
-	return false, nil
 }
 
 func (failClosedAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string, string) error {
