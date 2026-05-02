@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExpandRoles_SuperAdminHasAllCapabilities(t *testing.T) {
@@ -99,6 +100,21 @@ func TestExpandRoleGrants_SchoolAdminWithoutOrgScopeGetsNoGrant(t *testing.T) {
 	snapshot := BuildUserAccessSnapshot(ExpandRoleGrants([]string{"school_admin"}, nil))
 	assert.Empty(t, snapshot.Capabilities)
 	assert.Empty(t, snapshot.CapabilityGrants)
+}
+
+func TestExpandRoleGrants_SectionRolesUseScopedSchoolIDs(t *testing.T) {
+	grants := ExpandRoleGrants([]string{"section_moderator"}, map[string][]string{
+		"section_moderator": {"10006"},
+	})
+	snapshot := BuildUserAccessSnapshot(grants)
+
+	assert.Contains(t, snapshot.Capabilities, AdminReviewsManage)
+	assert.Empty(t, snapshot.GlobalCapabilities)
+	require.Len(t, snapshot.CapabilityGrants, 2)
+	for _, grant := range snapshot.CapabilityGrants {
+		assert.False(t, grant.Global)
+		assert.Equal(t, []string{"10006"}, grant.ScopeSchoolIDs)
+	}
 }
 
 func TestHasGrantInSchool(t *testing.T) {

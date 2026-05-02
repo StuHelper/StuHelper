@@ -162,7 +162,7 @@ func (h *Handler) RegisterRoutes(
 		admin.PATCH("/reviews/batch", requireModerationRole(), h.BatchUpdateReviews)
 		admin.GET("/stats", rbac.RequireCapability(capability.AdminDashboardView), h.GetAdminStats)
 		admin.GET("/logs", rbac.RequireCapability(capability.AdminLogsView), h.GetOperationLogs)
-		admin.GET("/export", rbac.RequireCapability(capability.AdminReviewsManage), h.ExportReviews)
+		admin.GET("/export", rbac.RequireGlobalCapability(capability.AdminReviewsManage), h.ExportReviews)
 
 		admin.GET("/teachers", rbac.RequireCapability(capability.AdminTeachersManage), h.ListAdminTeachers)
 		admin.POST("/teachers", rbac.RequireCapability(capability.AdminTeachersManage), h.CreateTeacher)

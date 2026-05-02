@@ -90,8 +90,8 @@ func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Gran
 		if !ok {
 			continue
 		}
-		switch role {
-		case "school_admin":
+		switch {
+		case roleRequiresSchoolScope(role):
 			schoolIDs := normalizeScope(orgScopedRoles[role])
 			if len(schoolIDs) == 0 {
 				continue
@@ -109,6 +109,15 @@ func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Gran
 		}
 	}
 	return BuildUserAccessSnapshot(grants).CapabilityGrants
+}
+
+func roleRequiresSchoolScope(role string) bool {
+	switch role {
+	case "school_admin", "section_admin", "section_moderator", "section_reviewer":
+		return true
+	default:
+		return false
+	}
 }
 
 // AdminEntryCapabilities 拥有任一即可进入管理后台
