@@ -198,6 +198,12 @@ func TestSSEDroppedEventsTotal_Counter(t *testing.T) {
 	assert.Equal(t, before+1, testutil.ToFloat64(SSEDroppedEventsTotal))
 }
 
+func TestObserveRefreshTokenReuse_Counter(t *testing.T) {
+	before := testutil.ToFloat64(AuthRefreshTokenReuseTotal.WithLabelValues("self_signed"))
+	ObserveRefreshTokenReuse("self_signed")
+	assert.Equal(t, before+1, testutil.ToFloat64(AuthRefreshTokenReuseTotal.WithLabelValues("self_signed")))
+}
+
 // ---------------------------------------------------------------------------
 // Redis metrics (redis.go)
 // ---------------------------------------------------------------------------

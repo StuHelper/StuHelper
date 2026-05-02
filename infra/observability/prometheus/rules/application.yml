@@ -70,6 +70,16 @@ groups:
           summary: Outbox job reached terminal retry threshold
           description: '{{ $labels.worker }} {{ $labels.job_type }} exceeded its configured retry limit.'
 
+      - alert: StuHelperRefreshTokenReuseDetected
+        expr: increase(auth_refresh_token_reuse_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: Refresh token reuse detected
+          description: 'Refresh token reuse was detected for token family {{ $labels.token_family }}.'
+
       - alert: StuHelperRedisPoolTimeouts
         expr: increase(redis_pool_timeouts_total[10m]) > 0
         for: 10m

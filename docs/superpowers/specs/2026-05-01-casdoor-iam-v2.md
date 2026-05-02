@@ -675,6 +675,7 @@ Casdoor 官方 token 文档目前**未明确**说明 single-use rotation + reuse
    - 记录每个 refresh token 的 hash + user_id + 颁发时间；
    - refresh 调用时校验旧 hash 仍 active → rotation 后立即作废旧 hash；
    - 旧 hash 在作废后被再次提交 → 触发"reuse detected" → 吊销该 user 全部 session + 安全告警；
+   - 当前落地：reuse detection 增加 `auth_refresh_token_reuse_total{token_family}`，由 Prometheus `StuHelperRefreshTokenReuseDetected` 告警接管；label 只允许低基数 token family（如 `self_signed` / `oidc`），不得包含 user / session / token hash；
    - 所有客户端不得直接持有可向 Casdoor token endpoint 使用的 refresh token；refresh 必须走 StuHelper `/auth/refresh` 代理，由 StuHelper 代持、轮换、吊销 Casdoor refresh token；
    - 若无法阻断客户端直连 Casdoor refresh grant，则禁用 refresh token，public client 改为短 session + 重新 OIDC flow；
    - 这层 wrapper 在 Casdoor 之外提供，与 IDP 选型解耦；

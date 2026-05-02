@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/redisfixture"
@@ -169,6 +171,7 @@ func TestRefreshToken_SelfSignedSuccess(t *testing.T) {
 func TestRefreshToken_SelfSignedReuseRevokesAllSessions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+	beforeReuseAlerts := testutil.ToFloat64(metrics.AuthRefreshTokenReuseTotal.WithLabelValues("self_signed"))
 
 	user := &PhoneUser{CasdoorSubject: "phone-user-reuse", Username: "phone-user-reuse"}
 	accessToken, refreshToken, err := h.svc.SignPhoneTokenPair(user, []string{"user"}, "sid-reuse-a")
@@ -196,6 +199,8 @@ func TestRefreshToken_SelfSignedReuseRevokesAllSessions(t *testing.T) {
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "refresh token reuse detected")
+	afterReuseAlerts := testutil.ToFloat64(metrics.AuthRefreshTokenReuseTotal.WithLabelValues("self_signed"))
+	assert.Equal(t, beforeReuseAlerts+1, afterReuseAlerts)
 
 	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), user.CasdoorSubject)
 	require.NoError(t, err)

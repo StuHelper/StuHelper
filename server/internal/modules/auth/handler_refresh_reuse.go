@@ -9,8 +9,10 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
 func (h *Handler) rejectRefreshReuse(c *gin.Context, refreshToken string) {
@@ -27,6 +29,7 @@ func (h *Handler) rejectRefreshReuse(c *gin.Context, refreshToken string) {
 		return
 	}
 
+	metrics.ObserveRefreshTokenReuse(refreshTokenFamily(refreshToken))
 	if err := h.svc.RevokeAllSessions(c.Request.Context(), ref.UserID); err != nil {
 		logger.FromGin(c).Error("failed to revoke sessions after refresh token reuse",
 			zap.String("user_id", ref.UserID),
@@ -51,6 +54,13 @@ func (h *Handler) rejectRefreshReuse(c *gin.Context, refreshToken string) {
 		Reason:       "refresh token reuse detected",
 	})
 	response.Unauthorized(c, "refresh token reuse detected", errs.ErrTokenRevoked)
+}
+
+func refreshTokenFamily(refreshToken string) string {
+	if token.IsSelfSignedToken(refreshToken) {
+		return "self_signed"
+	}
+	return "oidc"
 }
 
 func (h *Handler) lookupRefreshTokenRef(c *gin.Context, refreshToken string) (*tokenRefreshRef, error) {
