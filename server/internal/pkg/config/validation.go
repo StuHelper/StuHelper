@@ -128,6 +128,9 @@ func (c *Config) validate(parseErrs []string) error {
 		if c.Bot.ServiceToken == "" {
 			errs = append(errs, "BOT_SERVICE_TOKEN is required in production")
 		}
+		if !c.SMS.Enabled {
+			errs = append(errs, "SMS_ENABLED must be true in production")
+		}
 		if !c.Observability.Enabled {
 			errs = append(errs, "OTEL_ENABLED must be true in production")
 		}

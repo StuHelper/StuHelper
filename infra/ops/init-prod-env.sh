@@ -121,7 +121,13 @@ if placeholder_or_empty "${DOC_AES_KEYS:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "DOC_AES_ACTIVE_KEY_ID" "1"
   upsert_env_file "${SECRETS_ENV_FILE}" "DOC_AES_KEYS" "1:$(random_hex 32)"
 fi
-if [[ "${SMS_ENABLED:-false}" == "true" ]] && placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
+if placeholder_or_empty "${SMS_SECRET_ID:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "SMS_SECRET_ID" "REPLACE_WITH_SMS_SECRET_ID"
+fi
+if placeholder_or_empty "${SMS_SECRET_KEY:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "SMS_SECRET_KEY" "REPLACE_WITH_SMS_SECRET_KEY"
+fi
+if placeholder_or_empty "${SMS_INTERNAL_KEY:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "SMS_INTERNAL_KEY" "$(random_hex 16)"
 fi
 if placeholder_or_empty "${METRICS_PASSWORD:-}"; then
@@ -211,6 +217,11 @@ ensure_value "CASDOOR_SMS_PROVIDER_TYPE" "${CASDOOR_SMS_PROVIDER_TYPE:-}" "Custo
 ensure_value "CASDOOR_SMS_PROVIDER_METHOD" "${CASDOOR_SMS_PROVIDER_METHOD:-}" "POST"
 ensure_prod_default "CASDOOR_SMS_PROVIDER_ENDPOINT" "${CASDOOR_SMS_PROVIDER_ENDPOINT:-}" "http://app:8080/internal/sms/send" "http://host.docker.internal:8080/internal/sms/send"
 ensure_value "CASDOOR_EMAIL_PROVIDER_ENABLED" "${CASDOOR_EMAIL_PROVIDER_ENABLED:-}" "false"
+ensure_prod_default "SMS_ENABLED" "${SMS_ENABLED:-}" "true" "false"
+ensure_prod_default "SMS_APP_ID" "${SMS_APP_ID:-}" "REPLACE_WITH_SMS_APP_ID"
+ensure_prod_default "SMS_SIGN_NAME" "${SMS_SIGN_NAME:-}" "REPLACE_WITH_SMS_SIGN_NAME"
+ensure_prod_default "SMS_TEMPLATE_ID" "${SMS_TEMPLATE_ID:-}" "REPLACE_WITH_SMS_TEMPLATE_ID"
+ensure_value "SMS_REGION" "${SMS_REGION:-}" "ap-beijing"
 ensure_prod_default "CASDOOR_APP_PROVISIONING_CLIENT_ID" "${CASDOOR_APP_PROVISIONING_CLIENT_ID:-}" "casdoor-admin-app-provisioning" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
 ensure_prod_default "CASDOOR_APP_PROVISIONING_APPLICATION" "${CASDOOR_APP_PROVISIONING_APPLICATION:-}" "casdoor-admin-app-provisioning" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
 ensure_prod_default "CASDOOR_ROLE_SYNC_CLIENT_ID" "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_ID"

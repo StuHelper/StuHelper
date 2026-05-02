@@ -207,6 +207,16 @@ func TestValidate_ProductionRequiresBotServiceToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "BOT_SERVICE_TOKEN is required in production")
 }
 
+func TestValidate_ProductionRequiresSMSEnabled(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.SMS.Enabled = false
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SMS_ENABLED must be true in production")
+}
+
 func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.Env = "development"
@@ -544,7 +554,16 @@ func validProductionConfigForTest() *Config {
 			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,
 		},
 		RateLimit: ReviewRateLimitConfig{PostLimit: 5, VoteLimit: 30, ReportLimit: 10, ReplyLimit: 10, WriteLimit: 10, SearchAnonLimit: 5, SearchUserLimit: 60, BatchAnonLimit: 5, BatchUserLimit: 60},
-		SMS:       SMSConfig{Enabled: false},
-		Bot:       BotConfig{ServiceToken: "bot-service-token"},
+		SMS: SMSConfig{
+			Enabled:     true,
+			SecretID:    "sms-secret-id",
+			SecretKey:   "sms-secret-key",
+			AppID:       "sms-app-id",
+			SignName:    "StuHelper",
+			TemplateID:  "sms-template-id",
+			Region:      "ap-beijing",
+			InternalKey: "sms-internal-key",
+		},
+		Bot: BotConfig{ServiceToken: "bot-service-token"},
 	}
 }
