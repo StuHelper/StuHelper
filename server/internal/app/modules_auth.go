@@ -20,6 +20,7 @@ func (rt *Runtime) initAuthModule(
 	bgCtx context.Context,
 	piiCipher *pii.Cipher,
 	smsSvc *sms.Service,
+	roleScopeResolver middleware.RoleScopeResolver,
 ) (*auth.Handler, gin.HandlerFunc, gin.HandlerFunc, error) {
 	userSyncRepo := user.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey())
 	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
@@ -40,13 +41,13 @@ func (rt *Runtime) initAuthModule(
 	authHandler.RegisterPublicRoutes(api)
 
 	api.Use(middleware.CSRFMiddleware())
-	authHandler.RegisterRoutes(api, rt.oidcClient, rt.tokenService)
+	authMW := middleware.AuthMiddlewareWithRoleScopeResolver(rt.oidcClient, rt.tokenService, roleScopeResolver)
+	authHandler.RegisterRoutesWithAuthMiddleware(api, authMW)
 
-	authMW := middleware.AuthMiddleware(rt.oidcClient, rt.tokenService)
-	optionalAuthMW := middleware.OptionalAuthMiddleware(rt.oidcClient, rt.tokenService, middleware.OptionalAuthConfig{
+	optionalAuthMW := middleware.OptionalAuthMiddlewareWithRoleScopeResolver(rt.oidcClient, rt.tokenService, middleware.OptionalAuthConfig{
 		CookieDomain: rt.cfg.Token.CookieDomain,
 		CookieSecure: rt.cfg.Token.CookieSecure,
-	})
+	}, roleScopeResolver)
 	return authHandler, authMW, optionalAuthMW, nil
 }
 

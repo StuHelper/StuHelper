@@ -26,6 +26,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
+	platformauth "git.stuhelper.com/StuHelper/StuHelper/internal/platform/authorization"
 	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
@@ -51,17 +52,22 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return fmt.Errorf("failed to initialize PII cipher: %w", err)
 	}
 
-	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, smsSvc)
-	if err != nil {
-		return err
-	}
-
 	fgaClient, err := fga.NewClient(rt.cfg.OpenFGA)
 	if err != nil {
 		return fmt.Errorf("failed to create FGA client: %w", err)
 	}
 
 	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
+	roleScopeResolver, err := platformauth.NewRoleScopeResolver(fgaClient, userRepo.GetInternalUserID)
+	if err != nil {
+		return err
+	}
+
+	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, smsSvc, roleScopeResolver)
+	if err != nil {
+		return err
+	}
+
 	adminMFA := adminMFAMiddlewares(userRepo)
 	notifHub := notification.NewHub(rt.redisClient.GetClient())
 	notifRepo := notification.NewRepository(rt.database)

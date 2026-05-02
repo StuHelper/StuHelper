@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSetClaimsToContextPropagatesMFAProofOnly(t *testing.T) {
@@ -29,4 +32,41 @@ func TestSetClaimsToContextPropagatesMFAProofOnly(t *testing.T) {
 	assert.Equal(t, "alice", GetUsername(c))
 	assert.True(t, GetMFAProofVerifiedAt(c).Equal(proofAt))
 	assert.False(t, GetMFAEnrollmentActive(c))
+}
+
+type fakeRoleScopeResolver struct {
+	scopes map[string][]string
+	err    error
+}
+
+func (f fakeRoleScopeResolver) ResolveRoleScopes(context.Context, string, []string) (map[string][]string, error) {
+	return f.scopes, f.err
+}
+
+func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
+	result, err := withResolvedRoleScopes(context.Background(), &authResult{
+		userID: "casdoor-user-1",
+		roles:  []string{"school_admin"},
+		orgScopedRoles: map[string][]string{
+			"school_admin": {"1001"},
+		},
+	}, fakeRoleScopeResolver{
+		scopes: map[string][]string{"school_admin": {"1002"}},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1001", "1002"}, result.orgScopedRoles["school_admin"])
+}
+
+func TestWithResolvedRoleScopesMarksBackendUnavailable(t *testing.T) {
+	expectedErr := errors.New("openfga unavailable")
+
+	_, err := withResolvedRoleScopes(context.Background(), &authResult{
+		userID: "casdoor-user-1",
+		roles:  []string{"school_admin"},
+	}, fakeRoleScopeResolver{err: expectedErr})
+
+	require.ErrorIs(t, err, errRoleScopeUnavailable)
+	require.ErrorIs(t, err, expectedErr)
+	assert.True(t, authBackendUnavailable(err))
 }

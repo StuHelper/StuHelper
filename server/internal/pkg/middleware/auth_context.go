@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +33,33 @@ type authResult struct {
 	roles                                []string
 	orgScopedRoles                       map[string][]string
 	mfaProofAt                           time.Time
+}
+
+func withResolvedRoleScopes(ctx context.Context, auth *authResult, resolver RoleScopeResolver) (*authResult, error) {
+	if auth == nil || resolver == nil {
+		return auth, nil
+	}
+	scopes, err := resolver.ResolveRoleScopes(ctx, auth.userID, auth.roles)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errRoleScopeUnavailable, err)
+	}
+	if len(scopes) == 0 {
+		return auth, nil
+	}
+	resolved := *auth
+	resolved.orgScopedRoles = mergeRoleScopes(auth.orgScopedRoles, scopes)
+	return &resolved, nil
+}
+
+func mergeRoleScopes(base, overlay map[string][]string) map[string][]string {
+	merged := make(map[string][]string, len(base)+len(overlay))
+	for role, values := range base {
+		merged[role] = append([]string(nil), values...)
+	}
+	for role, values := range overlay {
+		merged[role] = append(merged[role], values...)
+	}
+	return merged
 }
 
 // setClaimsToContext 将用户信息、角色和能力集合注入 Gin context。

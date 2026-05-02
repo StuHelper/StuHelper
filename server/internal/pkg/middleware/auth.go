@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -23,11 +24,16 @@ type OptionalAuthConfig struct {
 	CookieSecure bool
 }
 
+type RoleScopeResolver interface {
+	ResolveRoleScopes(ctx context.Context, casdoorSubject string, roles []string) (map[string][]string, error)
+}
+
 // resolveToken 认证哨兵错误
 var (
-	errNoToken       = errors.New("missing token")
-	errTokenRevoked  = errors.New("token revoked")
-	errBlacklistFail = errors.New("blacklist unavailable")
+	errNoToken              = errors.New("missing token")
+	errTokenRevoked         = errors.New("token revoked")
+	errBlacklistFail        = errors.New("blacklist unavailable")
+	errRoleScopeUnavailable = errors.New("role scope unavailable")
 )
 
 // resolveToken 从请求中提取、验证并解析 Token。
@@ -116,10 +122,21 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 	return nil, errNoToken
 }
 
-// AuthMiddleware 强制认证中间件：Token 缺失或无效时返回 401/503。
 func AuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.HandlerFunc {
+	return AuthMiddlewareWithRoleScopeResolver(oidcClient, tokenService, nil)
+}
+
+// AuthMiddlewareWithRoleScopeResolver 强制认证并补全 DB/OpenFGA role scope。
+func AuthMiddlewareWithRoleScopeResolver(
+	oidcClient *oidc.Client,
+	tokenService *token.Service,
+	scopeResolver RoleScopeResolver,
+) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		result, err := resolveToken(c, oidcClient, tokenService)
+		if err == nil {
+			result, err = withResolvedRoleScopes(c.Request.Context(), result, scopeResolver)
+		}
 		if err != nil {
 			switch {
 			case errors.Is(err, errNoToken):
@@ -148,6 +165,15 @@ func AuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.Ha
 //  4. 后端故障（黑名单/Redis 不可用）→ 注入诊断标记到 context 供
 //     handler 按路由敏感度决定是否拒绝，匿名继续。
 func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service, cfg OptionalAuthConfig) gin.HandlerFunc {
+	return OptionalAuthMiddlewareWithRoleScopeResolver(oidcClient, tokenService, cfg, nil)
+}
+
+func OptionalAuthMiddlewareWithRoleScopeResolver(
+	oidcClient *oidc.Client,
+	tokenService *token.Service,
+	cfg OptionalAuthConfig,
+	scopeResolver RoleScopeResolver,
+) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		_, source := getTokenWithSource(c)
 		if source == tokenSourceNone {
@@ -156,6 +182,9 @@ func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service
 		}
 
 		result, err := resolveToken(c, oidcClient, tokenService)
+		if err == nil {
+			result, err = withResolvedRoleScopes(c.Request.Context(), result, scopeResolver)
+		}
 		if err == nil {
 			setClaimsToContext(c, result)
 			c.Next()
@@ -195,7 +224,9 @@ func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service
 }
 
 func authBackendUnavailable(err error) bool {
-	return errors.Is(err, errBlacklistFail) || errors.Is(err, oidc.ErrProviderUnavailable)
+	return errors.Is(err, errBlacklistFail) ||
+		errors.Is(err, errRoleScopeUnavailable) ||
+		errors.Is(err, oidc.ErrProviderUnavailable)
 }
 
 // RequireHealthyOptionalAuth 在 optional auth 之后执行。

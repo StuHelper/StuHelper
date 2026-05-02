@@ -126,14 +126,18 @@ func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 
 // RegisterRoutes 注册认证路由
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup, oidcClient *oidc.Client, tokenService *token.Service) {
+	h.RegisterRoutesWithAuthMiddleware(r, middleware.AuthMiddleware(oidcClient, tokenService))
+}
+
+func (h *Handler) RegisterRoutesWithAuthMiddleware(r *gin.RouterGroup, authMW gin.HandlerFunc) {
 	auth := r.Group("/auth")
 	{
 		auth.GET("/login", h.GetLoginURL)
 		auth.GET("/signup", h.GetSignupURL)
 		auth.GET("/callback", h.HandleCallback)
 		auth.POST("/refresh", middleware.RateLimitMiddleware(h.refreshLimiter), h.RefreshToken)
-		auth.GET("/me", middleware.AuthMiddleware(oidcClient, tokenService), h.GetCurrentUser)
-		auth.POST("/logout", middleware.AuthMiddleware(oidcClient, tokenService), h.Logout)
-		auth.POST("/logout-all", middleware.AuthMiddleware(oidcClient, tokenService), h.LogoutAll)
+		auth.GET("/me", authMW, h.GetCurrentUser)
+		auth.POST("/logout", authMW, h.Logout)
+		auth.POST("/logout-all", authMW, h.LogoutAll)
 	}
 }
