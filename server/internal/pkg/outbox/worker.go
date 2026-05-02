@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
 
 type WorkerConfig struct {
@@ -85,6 +86,7 @@ func ProcessBatch[T any](
 					zap.Error(retryErr),
 				)
 			}
+			metrics.ObserveOutboxJobFailure(cfg.Name, jobMeta.JobType, terminalFailed)
 			logger.L().Warn(cfg.Name+" job failed",
 				zap.Int64("job_id", jobMeta.ID),
 				zap.String("job_type", jobMeta.JobType),

@@ -478,7 +478,7 @@ Authorize(subject, "profile.view_identity", profile)
 
 **已选方案 B**：`WorkerConfig.MaxAttempts` 达到阈值时，worker 把 `available_at` 设为远未来（100 年），状态保持 `failed`。后续 `ClaimJobs` 自然跳过。该行为只对显式设置 `MaxAttempts` 的 worker 生效；IAM worker 统一通过 `outbox.IAMWorkerConfig` 设置，非 IAM worker（如 resource cleanup）保持旧语义。
 
-超阈值事件**触发一次**告警，不重复触发。漂移对账任务（§6.5.4）按夜间扫描 `WHERE status='failed' AND available_at > NOW() + INTERVAL '1 year'` 找出长期 failed 行，纳入人工修复队列。
+超阈值事件**触发一次** `outbox_job_failures_total{terminal="true"}` 指标增量，并由 Prometheus `StuHelperOutboxTerminalFailures` 告警接管；不重复触发。漂移对账任务（§6.5.4）按夜间扫描 `WHERE status='failed' AND available_at > NOW() + INTERVAL '1 year'` 找出长期 failed 行，纳入人工修复队列。
 
 **v2 退避策略（沿用现行实现）**：
 

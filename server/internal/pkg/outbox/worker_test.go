@@ -6,8 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
 
 type testJob struct {
@@ -105,4 +108,35 @@ func TestProcessBatch_SchedulesLongFailedAfterMaxAttempts(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.True(t, nextRetry.After(time.Now().Add(99*365*24*time.Hour)))
+}
+
+func TestProcessBatch_RecordsTerminalFailureMetric(t *testing.T) {
+	const (
+		workerName = "metric terminal worker"
+		jobType    = "metric_terminal_sync"
+	)
+	before := testutil.ToFloat64(metrics.OutboxJobFailuresTotal.WithLabelValues(workerName, jobType, "true"))
+	err := ProcessBatch(
+		context.Background(),
+		WorkerConfig{
+			Name:             workerName,
+			BatchSize:        10,
+			LockStaleAfter:   time.Minute,
+			RetryBaseBackoff: time.Second,
+			MaxAttempts:      1,
+		},
+		func(context.Context, int, time.Duration) ([]testJob, error) {
+			return []testJob{{id: 9, jobType: jobType, attemptCount: 0}}, nil
+		},
+		func(context.Context, testJob) error { return errors.New("boom") },
+		func(context.Context, int64) error { return errors.New("should not mark done") },
+		func(context.Context, int64, time.Time, string) error { return nil },
+		func(job testJob) JobMeta {
+			return JobMeta{ID: job.id, JobType: job.jobType, AttemptCount: job.attemptCount}
+		},
+		nil,
+	)
+	require.NoError(t, err)
+	after := testutil.ToFloat64(metrics.OutboxJobFailuresTotal.WithLabelValues(workerName, jobType, "true"))
+	assert.Equal(t, before+1, after)
 }
