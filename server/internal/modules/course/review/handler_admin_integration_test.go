@@ -242,7 +242,7 @@ func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
 	w, c = withAdminContext(http.MethodPost, "/admin/reviews/"+reviewA+"/edit", `{"title":"志愿者修订","content":"志愿者不应能改内容","reason":"越权"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {"10006"}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
 	h.AdminEditReviewContent(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 }
@@ -294,7 +294,7 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 
 	w, c := withAdminContext(http.MethodGet, "/admin/reports?status=pending", "")
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {"10006"}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
 	h.ListReports(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
@@ -312,14 +312,14 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportA, `{"action":"reject","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: reportA}}
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {"10006"}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
 	h.ProcessReport(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportB, `{"action":"reject","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: reportB}}
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {"10006"}})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
 	h.ProcessReport(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 }

@@ -52,7 +52,7 @@ func TestReviewExportRequiresGlobalReviewManageCapability(t *testing.T) {
 func scopedSectionModeratorAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roles := []string{"section_moderator"}
-		scopes := map[string][]string{"section_moderator": {"10006"}}
+		scopes := map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}}
 		snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, scopes))
 		c.Set(middleware.CtxKeyUserID, "section-moderator-1")
 		c.Set(middleware.CtxKeyRoles, roles)

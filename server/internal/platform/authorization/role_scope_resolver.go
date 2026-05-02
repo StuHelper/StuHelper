@@ -113,26 +113,23 @@ func (r *RoleScopeResolver) resolveSectionRoleScopes(
 	if err != nil {
 		return fmt.Errorf("list %s scopes: %w", role, err)
 	}
-	schoolIDs, err := r.resolveSectionSchools(ctx, objectIDs(sections, openFGASectionType))
-	if err != nil {
+	sectionIDs := objectIDs(sections, openFGASectionType)
+	if err := r.validateSectionSchools(ctx, sectionIDs); err != nil {
 		return err
 	}
-	if len(schoolIDs) > 0 {
-		scopes[role] = schoolIDs
+	if len(sectionIDs) > 0 {
+		scopes[role] = sectionIDs
 	}
 	return nil
 }
 
-func (r *RoleScopeResolver) resolveSectionSchools(ctx context.Context, sectionIDs []string) ([]string, error) {
-	seen := make(map[string]struct{}, len(sectionIDs))
+func (r *RoleScopeResolver) validateSectionSchools(ctx context.Context, sectionIDs []string) error {
 	for _, sectionID := range sectionIDs {
-		schoolID, err := r.resolveSectionSchool(ctx, sectionID)
-		if err != nil {
-			return nil, err
+		if _, err := r.resolveSectionSchool(ctx, sectionID); err != nil {
+			return err
 		}
-		seen[schoolID] = struct{}{}
 	}
-	return sortedKeys(seen), nil
+	return nil
 }
 
 func (r *RoleScopeResolver) resolveSectionSchool(ctx context.Context, sectionID string) (string, error) {
@@ -186,13 +183,4 @@ func tupleUserIDs(tuples []fga.Tuple, objectType string) []string {
 		users = append(users, tuple.User)
 	}
 	return objectIDs(users, objectType)
-}
-
-func sortedKeys(values map[string]struct{}) []string {
-	result := make([]string, 0, len(values))
-	for value := range values {
-		result = append(result, value)
-	}
-	sort.Strings(result)
-	return result
 }

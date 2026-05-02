@@ -45,6 +45,10 @@ CapabilityGrant:
       type: array
       items:
         type: string
+    scopeSectionIDs:
+      type: array
+      items:
+        type: string
     scopeRoles:
       type: array
       items:

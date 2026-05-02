@@ -65,7 +65,7 @@ func TestRoleScopeResolverResolvesSchoolAdminScopes(t *testing.T) {
 	assert.Empty(t, reader.readCalls)
 }
 
-func TestRoleScopeResolverResolvesSectionRoleScopesToSchools(t *testing.T) {
+func TestRoleScopeResolverResolvesSectionRoleScopesToSections(t *testing.T) {
 	reader := newFakeScopeReader()
 	reader.listResponses[listScopeKey("user:42", "section_moderator", "section")] = []string{
 		"section:reviews", "section:qa", "section:reviews", "school:bad",
@@ -84,7 +84,7 @@ func TestRoleScopeResolverResolvesSectionRoleScopesToSchools(t *testing.T) {
 	scopes, err := resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"section_moderator"})
 
 	require.NoError(t, err)
-	assert.Equal(t, map[string][]string{"section_moderator": {"1001", "1002"}}, scopes)
+	assert.Equal(t, map[string][]string{"section_moderator": {"qa", "reviews"}}, scopes)
 	assert.Equal(t, []scopeListCall{{user: "user:42", relation: "section_moderator", objectType: "section"}}, reader.listCalls)
 	assert.ElementsMatch(t, []scopeReadCall{
 		{object: "section:reviews", relation: "school"},

@@ -77,7 +77,7 @@ func ExpandRoles(roles []string) []string {
 }
 
 // ExpandRoleGrants 将角色列表展开为带 scope 的能力授权。
-// school_admin 和 section_* 角色必须绑定 school scope；super_admin 与普通用户角色保持全局授权。
+// school_admin 绑定 school scope；section_* 绑定 section scope；super_admin 与普通用户角色保持全局授权。
 func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Grant {
 	grants := make([]Grant, 0, len(roles))
 	for _, role := range roles {
@@ -86,6 +86,17 @@ func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Gran
 			continue
 		}
 		switch {
+		case roleRequiresSectionScope(role):
+			sectionIDs := normalizeScope(orgScopedRoles[role])
+			if len(sectionIDs) == 0 {
+				continue
+			}
+			for _, capName := range caps {
+				grants = append(grants, Grant{
+					Name:            capName,
+					ScopeSectionIDs: sectionIDs,
+				})
+			}
 		case roleRequiresSchoolScope(role):
 			schoolIDs := normalizeScope(orgScopedRoles[role])
 			if len(schoolIDs) == 0 {
@@ -107,8 +118,12 @@ func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Gran
 }
 
 func roleRequiresSchoolScope(role string) bool {
+	return role == "school_admin"
+}
+
+func roleRequiresSectionScope(role string) bool {
 	switch role {
-	case "school_admin", "section_admin", "section_moderator", "section_reviewer":
+	case "section_admin", "section_moderator", "section_reviewer":
 		return true
 	default:
 		return false
@@ -134,10 +149,11 @@ var AdminEntryCapabilities = []string{
 }
 
 type Grant struct {
-	Name           string   `json:"name"`
-	ScopeSchoolIDs []string `json:"scopeSchoolIDs,omitempty"`
-	ScopeRoles     []string `json:"scopeRoles,omitempty"`
-	Global         bool     `json:"global"`
+	Name            string   `json:"name"`
+	ScopeSchoolIDs  []string `json:"scopeSchoolIDs,omitempty"`
+	ScopeSectionIDs []string `json:"scopeSectionIDs,omitempty"`
+	ScopeRoles      []string `json:"scopeRoles,omitempty"`
+	Global          bool     `json:"global"`
 }
 
 type UserAccessSnapshot struct {
@@ -209,8 +225,9 @@ func normalizeScope(values []string) []string {
 func NormalizeGrant(grant Grant) Grant {
 	grant.Name = strings.TrimSpace(grant.Name)
 	grant.ScopeSchoolIDs = normalizeScope(grant.ScopeSchoolIDs)
+	grant.ScopeSectionIDs = normalizeScope(grant.ScopeSectionIDs)
 	grant.ScopeRoles = normalizeScope(grant.ScopeRoles)
-	grant.Global = len(grant.ScopeSchoolIDs) == 0 && len(grant.ScopeRoles) == 0
+	grant.Global = len(grant.ScopeSchoolIDs) == 0 && len(grant.ScopeSectionIDs) == 0 && len(grant.ScopeRoles) == 0
 	return grant
 }
 
@@ -226,7 +243,8 @@ func BuildUserAccessSnapshot(grants []Grant) UserAccessSnapshot {
 			continue
 		}
 
-		key := normalized.Name + "|" + strings.Join(normalized.ScopeSchoolIDs, ",") + "|" + strings.Join(normalized.ScopeRoles, ",")
+		key := normalized.Name + "|" + strings.Join(normalized.ScopeSchoolIDs, ",") + "|" +
+			strings.Join(normalized.ScopeSectionIDs, ",") + "|" + strings.Join(normalized.ScopeRoles, ",")
 		if _, ok := grantSeen[key]; ok {
 			continue
 		}
@@ -248,6 +266,11 @@ func BuildUserAccessSnapshot(grants []Grant) UserAccessSnapshot {
 		rightSchools := strings.Join(right.ScopeSchoolIDs, ",")
 		if leftSchools != rightSchools {
 			return leftSchools < rightSchools
+		}
+		leftSections := strings.Join(left.ScopeSectionIDs, ",")
+		rightSections := strings.Join(right.ScopeSectionIDs, ",")
+		if leftSections != rightSections {
+			return leftSections < rightSections
 		}
 		return strings.Join(left.ScopeRoles, ",") < strings.Join(right.ScopeRoles, ",")
 	})
@@ -282,6 +305,23 @@ func HasGrantInSchool(grants []Grant, expected, schoolID string) bool {
 		}
 		for _, scopedSchoolID := range grant.ScopeSchoolIDs {
 			if scopedSchoolID == schoolID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func HasGrantInSection(grants []Grant, expected, sectionID string) bool {
+	for _, grant := range grants {
+		if grant.Name != expected {
+			continue
+		}
+		if grant.Global {
+			return true
+		}
+		for _, scopedSectionID := range grant.ScopeSectionIDs {
+			if scopedSectionID == sectionID {
 				return true
 			}
 		}

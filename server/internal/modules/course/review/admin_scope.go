@@ -4,11 +4,13 @@ import (
 	"errors"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
@@ -21,9 +23,9 @@ const (
 )
 
 type moderationScope struct {
-	superAdmin   bool
-	schoolAdmins map[int64]struct{}
-	moderators   map[int64]struct{}
+	superAdmin        bool
+	schoolAdmins      map[int64]struct{}
+	moderatorSections map[string]struct{}
 }
 
 func requireModerationRole() gin.HandlerFunc {
@@ -50,23 +52,23 @@ func requireSchoolAdminRole() gin.HandlerFunc {
 
 func resolveModerationScope(c *gin.Context) moderationScope {
 	scope := moderationScope{
-		superAdmin:   hasRole(middleware.GetRoles(c), roleSuperAdmin),
-		schoolAdmins: scopedSchoolSet(c, roleSchoolAdmin),
-		moderators:   scopedModerationSchools(c),
+		superAdmin:        hasRole(middleware.GetRoles(c), roleSuperAdmin),
+		schoolAdmins:      scopedSchoolSet(c, roleSchoolAdmin),
+		moderatorSections: scopedModerationSections(c),
 	}
 	if scope.superAdmin {
 		scope.schoolAdmins = nil
-		scope.moderators = nil
+		scope.moderatorSections = nil
 	}
 	return scope
 }
 
-func scopedModerationSchools(c *gin.Context) map[int64]struct{} {
+func scopedModerationSections(c *gin.Context) map[string]struct{} {
 	roles := []string{roleSectionAdmin, roleSectionModerator}
-	merged := make(map[int64]struct{}, len(roles))
+	merged := make(map[string]struct{}, len(roles))
 	for _, role := range roles {
-		for schoolID := range scopedSchoolSet(c, role) {
-			merged[schoolID] = struct{}{}
+		for sectionID := range scopedStringSet(c, role) {
+			merged[sectionID] = struct{}{}
 		}
 	}
 	if len(merged) == 0 {
@@ -76,6 +78,25 @@ func scopedModerationSchools(c *gin.Context) map[int64]struct{} {
 }
 
 func scopedSchoolSet(c *gin.Context, role string) map[int64]struct{} {
+	rawValues := scopedStringSet(c, role)
+	if len(rawValues) == 0 {
+		return nil
+	}
+	schoolSet := make(map[int64]struct{}, len(rawValues))
+	for rawSchoolID := range rawValues {
+		schoolID, err := strconv.ParseInt(rawSchoolID, 10, 64)
+		if err != nil {
+			continue
+		}
+		schoolSet[schoolID] = struct{}{}
+	}
+	if len(schoolSet) == 0 {
+		return nil
+	}
+	return schoolSet
+}
+
+func scopedStringSet(c *gin.Context, role string) map[string]struct{} {
 	value, exists := c.Get(middleware.CtxKeyOrgScopedRoles)
 	if !exists {
 		return nil
@@ -89,18 +110,17 @@ func scopedSchoolSet(c *gin.Context, role string) map[int64]struct{} {
 		return nil
 	}
 
-	schoolSet := make(map[int64]struct{}, len(rawSchoolIDs))
-	for _, rawSchoolID := range rawSchoolIDs {
-		schoolID, err := strconv.ParseInt(rawSchoolID, 10, 64)
-		if err != nil {
+	scopeSet := make(map[string]struct{}, len(rawSchoolIDs))
+	for _, rawID := range rawSchoolIDs {
+		if rawID == "" {
 			continue
 		}
-		schoolSet[schoolID] = struct{}{}
+		scopeSet[rawID] = struct{}{}
 	}
-	if len(schoolSet) == 0 {
+	if len(scopeSet) == 0 {
 		return nil
 	}
-	return schoolSet
+	return scopeSet
 }
 
 func hasRole(roles []string, target string) bool {
@@ -113,7 +133,7 @@ func hasRole(roles []string, target string) bool {
 }
 
 func (s moderationScope) hasModerationAccess() bool {
-	return s.superAdmin || len(s.schoolAdmins) > 0 || len(s.moderators) > 0
+	return s.superAdmin || len(s.schoolAdmins) > 0 || len(s.moderatorSections) > 0
 }
 
 func (s moderationScope) hasContentEditAccess() bool {
@@ -125,7 +145,7 @@ func (s moderationScope) canModerateSchool(schoolID int64) bool {
 		return true
 	}
 	_, schoolAdmin := s.schoolAdmins[schoolID]
-	_, moderator := s.moderators[schoolID]
+	_, moderator := s.moderatorSections[reviewModerationSectionID(schoolID)]
 	return schoolAdmin || moderator
 }
 
@@ -141,12 +161,15 @@ func (s moderationScope) schoolIDs() []int64 {
 	if s.superAdmin {
 		return nil
 	}
-	seen := make(map[int64]struct{}, len(s.schoolAdmins)+len(s.moderators))
+	seen := make(map[int64]struct{}, len(s.schoolAdmins)+len(s.moderatorSections))
 	for schoolID := range s.schoolAdmins {
 		seen[schoolID] = struct{}{}
 	}
-	for schoolID := range s.moderators {
-		seen[schoolID] = struct{}{}
+	for sectionID := range s.moderatorSections {
+		schoolID, ok := schoolIDFromReviewModerationSectionID(sectionID)
+		if ok {
+			seen[schoolID] = struct{}{}
+		}
 	}
 
 	ids := make([]int64, 0, len(seen))
@@ -157,6 +180,28 @@ func (s moderationScope) schoolIDs() []int64 {
 		return ids[i] < ids[j]
 	})
 	return ids
+}
+
+func reviewModerationSectionID(schoolID int64) string {
+	return fga.ReviewModerationSectionID(strconv.FormatInt(schoolID, 10))
+}
+
+func schoolIDFromReviewModerationSectionID(sectionID string) (int64, bool) {
+	const prefix = "school_"
+	const suffix = "_review_moderation"
+	raw, ok := strings.CutPrefix(sectionID, prefix)
+	if !ok {
+		return 0, false
+	}
+	raw, ok = strings.CutSuffix(raw, suffix)
+	if !ok {
+		return 0, false
+	}
+	schoolID, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || schoolID <= 0 {
+		return 0, false
+	}
+	return schoolID, true
 }
 
 func (h *Handler) authorizeReviewModeration(c *gin.Context, reviewID string) bool {

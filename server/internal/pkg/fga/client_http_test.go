@@ -85,6 +85,8 @@ func TestClient_HTTPWrappers(t *testing.T) {
 	assert.Contains(t, string(firstJSON), "user:u1")
 	assert.Contains(t, string(firstJSON), "author")
 	assert.Contains(t, string(firstJSON), "review:r1")
+	assert.Contains(t, string(firstJSON), "section")
+	assert.Contains(t, string(firstJSON), "section:school_s1_review_moderation")
 }
 
 func TestRecordSpanError_NoPanicOnNil(t *testing.T) {

@@ -107,9 +107,9 @@ func TestExpandRoleGrants_SchoolAdminWithoutOrgScopeGetsNoGrant(t *testing.T) {
 	assert.Empty(t, snapshot.CapabilityGrants)
 }
 
-func TestExpandRoleGrants_SectionRolesUseScopedSchoolIDs(t *testing.T) {
+func TestExpandRoleGrants_SectionRolesUseScopedSectionIDs(t *testing.T) {
 	grants := ExpandRoleGrants([]string{"section_moderator"}, map[string][]string{
-		"section_moderator": {"10006"},
+		"section_moderator": {"school_10006_review_moderation"},
 	})
 	snapshot := BuildUserAccessSnapshot(grants)
 
@@ -118,7 +118,8 @@ func TestExpandRoleGrants_SectionRolesUseScopedSchoolIDs(t *testing.T) {
 	require.Len(t, snapshot.CapabilityGrants, 2)
 	for _, grant := range snapshot.CapabilityGrants {
 		assert.False(t, grant.Global)
-		assert.Equal(t, []string{"10006"}, grant.ScopeSchoolIDs)
+		assert.Empty(t, grant.ScopeSchoolIDs)
+		assert.Equal(t, []string{"school_10006_review_moderation"}, grant.ScopeSectionIDs)
 	}
 }
 

@@ -2521,6 +2521,7 @@ export interface components {
         CapabilityGrant: {
             name: string;
             scopeSchoolIDs?: string[];
+            scopeSectionIDs?: string[];
             scopeRoles?: string[];
             global: boolean;
         };

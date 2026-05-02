@@ -19,7 +19,7 @@ const (
 	CtxKeyDisplayName        = "display_name"
 	CtxKeyAvatar             = "avatar"
 	CtxKeyRoles              = "roles"
-	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — StuHelper school-scoped role grants
+	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — StuHelper scoped role grants
 	CtxKeyCapabilities       = "capabilities"
 	CtxKeyGlobalCapabilities = "global_capabilities"
 	CtxKeyCapabilityGrants   = "capability_grants"

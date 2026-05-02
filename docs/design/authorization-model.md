@@ -20,9 +20,9 @@ last-verified: 2026-05-02
 
 代码：`server/internal/pkg/capability/capability.go`
 
-Casdoor JWT 只提供扁平角色名，不携带学校 ID 或资源 ID。`school_admin` / `section_*` 展开为 school-scoped grants；缺少 scope 时不授予对应 capability，避免把 scoped admin 误放大为全局权限。
+Casdoor JWT 只提供扁平角色名，不携带学校 ID 或资源 ID。`school_admin` 展开为 school-scoped grants，`section_*` 展开为 section-scoped grants；缺少 scope 时不授予对应 capability，避免把 scoped admin 误放大为全局权限。
 
-当前运行时已通过 `server/internal/platform/authorization.RoleScopeResolver` 补全 scoped admin 范围：先把 Casdoor subject 映射到内部 `users.id`，再从 OpenFGA 查询 `school#effective_admin` 生成 `school_admin` scope；`section_admin` / `section_moderator` 则先反查可管理的 `section`，再读取 `section#school` 转成 school-scoped grant。OpenFGA tuple 中的 `user:<id>` 必须使用内部 `users.id`，不能使用 Casdoor subject。
+当前运行时已通过 `server/internal/platform/authorization.RoleScopeResolver` 补全 scoped admin 范围：先把 Casdoor subject 映射到内部 `users.id`，再从 OpenFGA 查询 `school#effective_admin` 生成 `school_admin` scope；`section_admin` / `section_moderator` 则反查可管理的 `section` 并保留 section ID，同时校验每个 section 必须有唯一 `section#school` 归属。OpenFGA tuple 中的 `user:<id>` 必须使用内部 `users.id`，不能使用 Casdoor subject。
 
 典型能力：
 - 后台入口：`admin:dashboard:view`
