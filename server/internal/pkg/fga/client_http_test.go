@@ -30,6 +30,14 @@ func TestClient_HTTPWrappers(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/read"):
 			require.Equal(t, http.MethodPost, r.Method)
 			_ = json.NewEncoder(w).Encode(openfga.ReadResponse{Tuples: []openfga.Tuple{{Key: openfga.TupleKey{User: "user:1", Relation: "author", Object: "review:1"}, Timestamp: time.Now()}}, ContinuationToken: ""})
+		case strings.HasSuffix(r.URL.Path, "/list-objects"):
+			require.Equal(t, http.MethodPost, r.Method)
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			assert.Equal(t, "user:1", body["user"])
+			assert.Equal(t, "effective_admin", body["relation"])
+			assert.Equal(t, "school", body["type"])
+			_ = json.NewEncoder(w).Encode(openfga.ListObjectsResponse{Objects: []string{"school:1002", "school:1001"}})
 		case strings.HasSuffix(r.URL.Path, "/write"):
 			require.Equal(t, http.MethodPost, r.Method)
 			var body map[string]any
@@ -56,6 +64,10 @@ func TestClient_HTTPWrappers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tuples, 1)
 	assert.Equal(t, Tuple{User: "user:1", Relation: "author", Object: "review:1"}, tuples[0])
+
+	objects, err := client.ListObjects(context.Background(), "user:1", "effective_admin", "school")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"school:1001", "school:1002"}, objects)
 
 	require.NoError(t, client.WriteReviewRelations(context.Background(), "r1", "u1", "c1", "s1"))
 	require.NoError(t, client.WriteReportRelations(context.Background(), "rep1", "u2", "r1", "s1"))

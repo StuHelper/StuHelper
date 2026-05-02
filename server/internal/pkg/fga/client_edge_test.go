@@ -48,4 +48,16 @@ func TestClientInputValidation(t *testing.T) {
 	_, err = c.ReadTuples(ctx, "review:1", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "relation")
+
+	_, err = c.ListObjects(ctx, "", "viewer", "review")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "user")
+
+	_, err = c.ListObjects(ctx, "user:1", "", "review")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "relation")
+
+	_, err = c.ListObjects(ctx, "user:1", "viewer", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "object type")
 }

@@ -5,6 +5,7 @@ package fga
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -107,6 +108,38 @@ func (c *Client) Check(ctx context.Context, user, relation, object string) (bool
 		return false, nil
 	}
 	return *resp.Allowed, nil
+}
+
+// ListObjects lists object IDs of one type for which the user has the relation.
+func (c *Client) ListObjects(ctx context.Context, user, relation, objectType string) ([]string, error) {
+	if err := validateTupleField(user, "user"); err != nil {
+		return nil, err
+	}
+	if err := validateTupleField(relation, "relation"); err != nil {
+		return nil, err
+	}
+	if err := validateTupleField(objectType, "object type"); err != nil {
+		return nil, err
+	}
+	start := time.Now()
+	ctx, span := c.startSpan(ctx, "list_objects", relation, objectType)
+	defer span.End()
+
+	body := client.ClientListObjectsRequest{
+		User:     user,
+		Relation: relation,
+		Type:     objectType,
+	}
+	resp, err := c.fga.ListObjects(ctx).Body(body).Execute()
+	metrics.ObserveExternalRequest("openfga", "list_objects", start, err)
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, fmt.Errorf("fga: list objects failed for %s#%s@%s: %w", objectType, relation, user, err)
+	}
+
+	objects := append([]string(nil), resp.Objects...)
+	sort.Strings(objects)
+	return objects, nil
 }
 
 // WriteTuples 批量写入授权关系
