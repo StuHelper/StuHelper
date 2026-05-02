@@ -7,34 +7,41 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 )
 
 const (
 	roleSchoolAdmin            = "school_admin"
+	roleSectionAdmin           = "section_admin"
+	roleSectionModerator       = "section_moderator"
 	openFGASchoolType          = "school"
+	openFGASectionType         = "section"
 	openFGAUserType            = "user"
 	openFGASchoolAdminRelation = "effective_admin"
+	openFGASectionSchool       = "school"
 )
 
-type ObjectLister interface {
+type ScopeReader interface {
 	ListObjects(ctx context.Context, user, relation, objectType string) ([]string, error)
+	ReadTuples(ctx context.Context, object, relation string) ([]fga.Tuple, error)
 }
 
 type InternalUserIDResolver func(ctx context.Context, casdoorSubject string) (int64, error)
 
 type RoleScopeResolver struct {
-	fga            ObjectLister
+	scopeReader    ScopeReader
 	internalUserID InternalUserIDResolver
 }
 
-func NewRoleScopeResolver(fga ObjectLister, internalUserID InternalUserIDResolver) (*RoleScopeResolver, error) {
-	if fga == nil {
-		return nil, errors.New("authorization: fga object lister is required")
+func NewRoleScopeResolver(scopeReader ScopeReader, internalUserID InternalUserIDResolver) (*RoleScopeResolver, error) {
+	if scopeReader == nil {
+		return nil, errors.New("authorization: fga scope reader is required")
 	}
 	if internalUserID == nil {
 		return nil, errors.New("authorization: internal user id resolver is required")
 	}
-	return &RoleScopeResolver{fga: fga, internalUserID: internalUserID}, nil
+	return &RoleScopeResolver{scopeReader: scopeReader, internalUserID: internalUserID}, nil
 }
 
 func (r *RoleScopeResolver) ResolveRoleScopes(
@@ -42,22 +49,103 @@ func (r *RoleScopeResolver) ResolveRoleScopes(
 	casdoorSubject string,
 	roles []string,
 ) (map[string][]string, error) {
-	if !containsRole(roles, roleSchoolAdmin) {
+	if !needsResolvedScopes(roles) {
 		return nil, nil
 	}
 	userID, err := r.internalUserID(ctx, casdoorSubject)
 	if err != nil {
 		return nil, fmt.Errorf("resolve internal user id: %w", err)
 	}
-	objects, err := r.fga.ListObjects(ctx, fgaUser(userID), openFGASchoolAdminRelation, openFGASchoolType)
-	if err != nil {
-		return nil, fmt.Errorf("list school admin scopes: %w", err)
+	subject := fgaUser(userID)
+	scopes := map[string][]string{}
+	if err := r.resolveSchoolAdminScopes(ctx, subject, roles, scopes); err != nil {
+		return nil, err
 	}
-	schoolIDs := objectIDs(objects, openFGASchoolType)
-	if len(schoolIDs) == 0 {
+	if err := r.resolveSectionRoleScopes(ctx, subject, roleSectionAdmin, roles, scopes); err != nil {
+		return nil, err
+	}
+	if err := r.resolveSectionRoleScopes(ctx, subject, roleSectionModerator, roles, scopes); err != nil {
+		return nil, err
+	}
+	if len(scopes) == 0 {
 		return nil, nil
 	}
-	return map[string][]string{roleSchoolAdmin: schoolIDs}, nil
+	return scopes, nil
+}
+
+func needsResolvedScopes(roles []string) bool {
+	return containsRole(roles, roleSchoolAdmin) ||
+		containsRole(roles, roleSectionAdmin) ||
+		containsRole(roles, roleSectionModerator)
+}
+
+func (r *RoleScopeResolver) resolveSchoolAdminScopes(
+	ctx context.Context,
+	subject string,
+	roles []string,
+	scopes map[string][]string,
+) error {
+	if !containsRole(roles, roleSchoolAdmin) {
+		return nil
+	}
+	objects, err := r.scopeReader.ListObjects(ctx, subject, openFGASchoolAdminRelation, openFGASchoolType)
+	if err != nil {
+		return fmt.Errorf("list school admin scopes: %w", err)
+	}
+	schoolIDs := objectIDs(objects, openFGASchoolType)
+	if len(schoolIDs) > 0 {
+		scopes[roleSchoolAdmin] = schoolIDs
+	}
+	return nil
+}
+
+func (r *RoleScopeResolver) resolveSectionRoleScopes(
+	ctx context.Context,
+	subject string,
+	role string,
+	roles []string,
+	scopes map[string][]string,
+) error {
+	if !containsRole(roles, role) {
+		return nil
+	}
+	sections, err := r.scopeReader.ListObjects(ctx, subject, role, openFGASectionType)
+	if err != nil {
+		return fmt.Errorf("list %s scopes: %w", role, err)
+	}
+	schoolIDs, err := r.resolveSectionSchools(ctx, objectIDs(sections, openFGASectionType))
+	if err != nil {
+		return err
+	}
+	if len(schoolIDs) > 0 {
+		scopes[role] = schoolIDs
+	}
+	return nil
+}
+
+func (r *RoleScopeResolver) resolveSectionSchools(ctx context.Context, sectionIDs []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(sectionIDs))
+	for _, sectionID := range sectionIDs {
+		schoolID, err := r.resolveSectionSchool(ctx, sectionID)
+		if err != nil {
+			return nil, err
+		}
+		seen[schoolID] = struct{}{}
+	}
+	return sortedKeys(seen), nil
+}
+
+func (r *RoleScopeResolver) resolveSectionSchool(ctx context.Context, sectionID string) (string, error) {
+	object := openFGASectionType + ":" + sectionID
+	tuples, err := r.scopeReader.ReadTuples(ctx, object, openFGASectionSchool)
+	if err != nil {
+		return "", fmt.Errorf("read section school scope: %w", err)
+	}
+	schoolIDs := tupleUserIDs(tuples, openFGASchoolType)
+	if len(schoolIDs) != 1 {
+		return "", fmt.Errorf("section %s must have exactly one school relation, got %d", sectionID, len(schoolIDs))
+	}
+	return schoolIDs[0], nil
 }
 
 func fgaUser(userID int64) string {
@@ -87,6 +175,23 @@ func objectIDs(objects []string, objectType string) []string {
 		}
 		seen[id] = struct{}{}
 		result = append(result, id)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func tupleUserIDs(tuples []fga.Tuple, objectType string) []string {
+	users := make([]string, 0, len(tuples))
+	for _, tuple := range tuples {
+		users = append(users, tuple.User)
+	}
+	return objectIDs(users, objectType)
+}
+
+func sortedKeys(values map[string]struct{}) []string {
+	result := make([]string, 0, len(values))
+	for value := range values {
+		result = append(result, value)
 	}
 	sort.Strings(result)
 	return result

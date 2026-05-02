@@ -7,28 +7,51 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 )
 
-type fakeObjectLister struct {
+type fakeScopeReader struct {
+	listResponses map[string][]string
+	readResponses map[string][]fga.Tuple
+	err           error
+	listCalls     []scopeListCall
+	readCalls     []scopeReadCall
+}
+
+type scopeListCall struct {
 	user       string
 	relation   string
 	objectType string
-	objects    []string
-	err        error
-	calls      int
 }
 
-func (f *fakeObjectLister) ListObjects(_ context.Context, user, relation, objectType string) ([]string, error) {
-	f.calls++
-	f.user = user
-	f.relation = relation
-	f.objectType = objectType
-	return f.objects, f.err
+type scopeReadCall struct {
+	object   string
+	relation string
+}
+
+func (f *fakeScopeReader) ListObjects(_ context.Context, user, relation, objectType string) ([]string, error) {
+	f.listCalls = append(f.listCalls, scopeListCall{user: user, relation: relation, objectType: objectType})
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.listResponses[listScopeKey(user, relation, objectType)], nil
+}
+
+func (f *fakeScopeReader) ReadTuples(_ context.Context, object, relation string) ([]fga.Tuple, error) {
+	f.readCalls = append(f.readCalls, scopeReadCall{object: object, relation: relation})
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.readResponses[readScopeKey(object, relation)], nil
 }
 
 func TestRoleScopeResolverResolvesSchoolAdminScopes(t *testing.T) {
-	lister := &fakeObjectLister{objects: []string{"school:1002", "school:1001", "bad", "school:1001"}}
-	resolver, err := NewRoleScopeResolver(lister, func(_ context.Context, subject string) (int64, error) {
+	reader := newFakeScopeReader()
+	reader.listResponses[listScopeKey("user:42", "effective_admin", "school")] = []string{
+		"school:1002", "school:1001", "bad", "school:1001",
+	}
+	resolver, err := NewRoleScopeResolver(reader, func(_ context.Context, subject string) (int64, error) {
 		assert.Equal(t, "casdoor-subject-1", subject)
 		return 42, nil
 	})
@@ -38,15 +61,54 @@ func TestRoleScopeResolverResolvesSchoolAdminScopes(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, map[string][]string{"school_admin": {"1001", "1002"}}, scopes)
-	assert.Equal(t, "user:42", lister.user)
-	assert.Equal(t, "effective_admin", lister.relation)
-	assert.Equal(t, "school", lister.objectType)
-	assert.Equal(t, 1, lister.calls)
+	assert.Equal(t, []scopeListCall{{user: "user:42", relation: "effective_admin", objectType: "school"}}, reader.listCalls)
+	assert.Empty(t, reader.readCalls)
+}
+
+func TestRoleScopeResolverResolvesSectionRoleScopesToSchools(t *testing.T) {
+	reader := newFakeScopeReader()
+	reader.listResponses[listScopeKey("user:42", "section_moderator", "section")] = []string{
+		"section:reviews", "section:qa", "section:reviews", "school:bad",
+	}
+	reader.readResponses[readScopeKey("section:reviews", "school")] = []fga.Tuple{
+		{User: "school:1002", Relation: "school", Object: "section:reviews"},
+	}
+	reader.readResponses[readScopeKey("section:qa", "school")] = []fga.Tuple{
+		{User: "school:1001", Relation: "school", Object: "section:qa"},
+	}
+	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
+		return 42, nil
+	})
+	require.NoError(t, err)
+
+	scopes, err := resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"section_moderator"})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]string{"section_moderator": {"1001", "1002"}}, scopes)
+	assert.Equal(t, []scopeListCall{{user: "user:42", relation: "section_moderator", objectType: "section"}}, reader.listCalls)
+	assert.ElementsMatch(t, []scopeReadCall{
+		{object: "section:reviews", relation: "school"},
+		{object: "section:qa", relation: "school"},
+	}, reader.readCalls)
+}
+
+func TestRoleScopeResolverFailsClosedOnSectionWithoutSchool(t *testing.T) {
+	reader := newFakeScopeReader()
+	reader.listResponses[listScopeKey("user:42", "section_admin", "section")] = []string{"section:orphan"}
+	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
+		return 42, nil
+	})
+	require.NoError(t, err)
+
+	_, err = resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"section_admin"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must have exactly one school relation")
 }
 
 func TestRoleScopeResolverSkipsRolesWithoutSchoolScope(t *testing.T) {
-	lister := &fakeObjectLister{}
-	resolver, err := NewRoleScopeResolver(lister, func(context.Context, string) (int64, error) {
+	reader := newFakeScopeReader()
+	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
 		t.Fatal("internal user resolver should not be called")
 		return 0, nil
 	})
@@ -56,13 +118,15 @@ func TestRoleScopeResolverSkipsRolesWithoutSchoolScope(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, scopes)
-	assert.Equal(t, 0, lister.calls)
+	assert.Empty(t, reader.listCalls)
+	assert.Empty(t, reader.readCalls)
 }
 
 func TestRoleScopeResolverPropagatesDependencies(t *testing.T) {
 	expectedErr := errors.New("openfga unavailable")
-	lister := &fakeObjectLister{err: expectedErr}
-	resolver, err := NewRoleScopeResolver(lister, func(context.Context, string) (int64, error) {
+	reader := newFakeScopeReader()
+	reader.err = expectedErr
+	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
 		return 42, nil
 	})
 	require.NoError(t, err)
@@ -77,7 +141,22 @@ func TestNewRoleScopeResolverRequiresDependencies(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, resolver)
 
-	resolver, err = NewRoleScopeResolver(&fakeObjectLister{}, nil)
+	resolver, err = NewRoleScopeResolver(newFakeScopeReader(), nil)
 	require.Error(t, err)
 	assert.Nil(t, resolver)
+}
+
+func newFakeScopeReader() *fakeScopeReader {
+	return &fakeScopeReader{
+		listResponses: map[string][]string{},
+		readResponses: map[string][]fga.Tuple{},
+	}
+}
+
+func listScopeKey(user, relation, objectType string) string {
+	return user + "|" + relation + "|" + objectType
+}
+
+func readScopeKey(object, relation string) string {
+	return object + "|" + relation
 }
