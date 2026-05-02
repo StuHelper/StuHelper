@@ -111,6 +111,9 @@ func (c *Client) ExchangeCode(ctx context.Context, code, codeVerifier string) (*
 
 // VerifyIDToken 验证 ID Token 并返回解析后的 Claims
 func (c *Client) VerifyIDToken(ctx context.Context, rawIDToken string) (*Claims, error) {
+	if err := validateJWTSigningAlgorithm(rawIDToken); err != nil {
+		return nil, err
+	}
 	idToken, err := c.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		return nil, fmt.Errorf("oidc: id_token verification failed: %w", classifyVerifierError(err))

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -201,6 +202,58 @@ func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) 
 	keysAvailable = false
 	_, err = client.VerifyIDToken(context.Background(), issueIDToken(rotatedKey, "kid-2"))
 	require.ErrorIs(t, err, ErrProviderUnavailable)
+}
+
+func TestVerifyIDTokenRejectsDisallowedAlgorithmBeforeJWKSFetch(t *testing.T) {
+	const clientID = "oidc-client"
+	var keyRequests int64
+	var issuer string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                 issuer,
+			"authorization_endpoint": issuer + "/authorize",
+			"token_endpoint":         issuer + "/token",
+			"jwks_uri":               issuer + "/keys",
+		})
+	})
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt64(&keyRequests, 1)
+		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	issuer = srv.URL
+
+	client, err := NewClient(context.Background(), config.CasdoorConfig{
+		Issuer:      issuer,
+		ClientID:    clientID,
+		RedirectURI: "https://web.example.com/api/v1/auth/callback",
+	})
+	require.NoError(t, err)
+	token := issueHS256IDToken(t, issuer, clientID)
+
+	_, err = client.VerifyIDToken(context.Background(), token)
+	require.ErrorIs(t, err, errDisallowedJWTAlgorithm)
+	assert.Equal(t, int64(0), atomic.LoadInt64(&keyRequests))
+}
+
+func issueHS256IDToken(t *testing.T, issuer, clientID string) string {
+	t.Helper()
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.HS256,
+		Key:       []byte("test-hs256-secret-with-enough-entropy"),
+	}, (&jose.SignerOptions{}).WithHeader("kid", "hs-1"))
+	require.NoError(t, err)
+	raw, err := josejwt.Signed(signer).Claims(map[string]any{
+		"iss": issuer,
+		"sub": "user-oidc-1",
+		"aud": clientID,
+		"exp": time.Now().Add(time.Hour).Unix(),
+		"iat": time.Now().Unix(),
+	}).Serialize()
+	require.NoError(t, err)
+	return raw
 }
 
 func TestOIDCClientRemoteEndpointFailuresAreProviderUnavailable(t *testing.T) {
