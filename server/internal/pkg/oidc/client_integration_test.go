@@ -204,6 +204,36 @@ func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) 
 	require.ErrorIs(t, err, ErrProviderUnavailable)
 }
 
+func TestProviderUnavailableKeySetExpiresCachedJWKS(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(crand.Reader, 2048)
+	require.NoError(t, err)
+	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "kid-ttl", Algorithm: string(jose.RS256), Use: "sig"}
+	var keyRequests int64
+	mux := http.NewServeMux()
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt64(&keyRequests, 1)
+		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{jwk}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	now := time.Date(2026, 5, 2, 0, 0, 0, 0, time.UTC)
+	keySet := newProviderUnavailableKeySet(context.Background(), srv.URL+"/keys", time.Minute)
+	keySet.now = func() time.Time { return now }
+	token := issueSignedJWT(t, privateKey, jwk.KeyID, map[string]any{"sub": "user-1"})
+
+	_, err = keySet.VerifySignature(context.Background(), token)
+	require.NoError(t, err)
+	_, err = keySet.VerifySignature(context.Background(), token)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), atomic.LoadInt64(&keyRequests))
+
+	now = now.Add(time.Minute + time.Second)
+	_, err = keySet.VerifySignature(context.Background(), token)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), atomic.LoadInt64(&keyRequests))
+}
+
 func TestVerifyIDTokenRejectsDisallowedAlgorithmBeforeJWKSFetch(t *testing.T) {
 	const clientID = "oidc-client"
 	var keyRequests int64
@@ -236,6 +266,18 @@ func TestVerifyIDTokenRejectsDisallowedAlgorithmBeforeJWKSFetch(t *testing.T) {
 	_, err = client.VerifyIDToken(context.Background(), token)
 	require.ErrorIs(t, err, errDisallowedJWTAlgorithm)
 	assert.Equal(t, int64(0), atomic.LoadInt64(&keyRequests))
+}
+
+func issueSignedJWT(t *testing.T, privateKey *rsa.PrivateKey, kid string, claims map[string]any) string {
+	t.Helper()
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS256,
+		Key:       jose.JSONWebKey{Key: privateKey, KeyID: kid},
+	}, nil)
+	require.NoError(t, err)
+	raw, err := josejwt.Signed(signer).Claims(claims).Serialize()
+	require.NoError(t, err)
+	return raw
 }
 
 func issueHS256IDToken(t *testing.T, issuer, clientID string) string {

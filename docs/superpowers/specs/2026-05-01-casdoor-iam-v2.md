@@ -1052,6 +1052,7 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 - **StuHelper verifier**：`server/internal/pkg/oidc` 在拉 JWKS 前先解析 JWT header，只允许 `RS256` / `ES256`；`HS*` / `none` 直接拒绝，避免错误 provider 配置被业务路径接受；
 - **JWKS rotation**：90 天周期；旧 key 保留 14 天覆盖 token TTL；JWKS endpoint 同时返回新旧 key；
 - **JWKS cache（StuHelper 端）**：5 分钟 TTL；遇 unknown `kid` 时立即失效并重新拉取（一次性回源，失败 503，不允许 stale 续命）；
+- **StuHelper cache 实现**：`server/internal/pkg/oidc` 在 `go-oidc` RemoteKeySet 外层维护 5 分钟 TTL；TTL 内复用本地 key cache，TTL 后重建 RemoteKeySet 并重新拉取 JWKS；
 - **Casdoor 端 key 轮换** 必须在 JWKS endpoint 提前 14 天暴露新 key，再切换签名 key，避免 verifier 端来不及拉新 key。
 
 #### 14.4.2 Client Secret 存储
