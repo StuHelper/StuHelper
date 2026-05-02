@@ -50,8 +50,6 @@ func TestSetClaimsToContextAndGetters(t *testing.T) {
 	assert.False(t, HasGlobalCapability(c, capability.UserSchoolRead))
 	assert.True(t, HasCapabilityInSchool(c, capability.UserSchoolRead, "school-1"))
 	assert.False(t, HasCapabilityInSchool(c, capability.UserSchoolRead, "school-2"))
-	assert.True(t, HasRoleInOrg(c, "school_admin", "school-1"))
-	assert.False(t, HasRoleInOrg(c, "school_admin", "school-2"))
 	assert.True(t, HasCapability(c, capability.UserStudentRead))
 	assert.False(t, HasCapability(c, capability.UserIdentityRead))
 

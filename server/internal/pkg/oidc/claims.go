@@ -77,28 +77,6 @@ func (c *Claims) MFAProofVerifiedAt() time.Time {
 	return MFAProofVerifiedAt(c.AMR, c.AuthTime)
 }
 
-// HasRoleInOrg 检查用户是否在指定 orgID 上拥有指定角色。
-// 用于多租户授权：例如 school_admin 必须对请求资源所属 school_id 有对应 scope。
-// 若 orgID 为空，等价于"该用户是否在任意 org 上拥有此角色"。
-func (c *Claims) HasRoleInOrg(role, orgID string) bool {
-	if c == nil || c.OrgScopedRoles == nil {
-		return false
-	}
-	orgs, ok := c.OrgScopedRoles[role]
-	if !ok {
-		return false
-	}
-	if orgID == "" {
-		return len(orgs) > 0
-	}
-	for _, o := range orgs {
-		if o == orgID {
-			return true
-		}
-	}
-	return false
-}
-
 func defaultRolesClaim(value string) string {
 	if value == "" {
 		return "roles"
@@ -108,25 +86,25 @@ func defaultRolesClaim(value string) string {
 
 // ParseProviderRolesFromRaw extracts roles from the provider-neutral flat roles claim.
 // Casdoor role projection is intentionally flat; resource scope is resolved from DB/OpenFGA.
-func ParseProviderRolesFromRaw(rawJSON []byte, rolesClaim string) ([]string, map[string][]string, error) {
+func ParseProviderRolesFromRaw(rawJSON []byte, rolesClaim string) ([]string, error) {
 	return parseFlatRolesClaim(rawJSON, defaultRolesClaim(rolesClaim))
 }
 
-func parseFlatRolesClaim(rawJSON []byte, rolesClaim string) ([]string, map[string][]string, error) {
+func parseFlatRolesClaim(rawJSON []byte, rolesClaim string) ([]string, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(rawJSON, &raw); err != nil {
-		return nil, nil, fmt.Errorf("unmarshal raw claims: %w", err)
+		return nil, fmt.Errorf("unmarshal raw claims: %w", err)
 	}
 	roleData, ok := raw[rolesClaim]
 	if !ok {
-		return nil, nil, nil
+		return nil, nil
 	}
 	roles, err := parseRoleNames(roleData, rolesClaim)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	sort.Strings(roles)
-	return roles, nil, nil
+	return roles, nil
 }
 
 func parseRoleNames(roleData json.RawMessage, rolesClaim string) ([]string, error) {

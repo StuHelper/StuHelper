@@ -184,35 +184,6 @@ func HasCapabilityInSchool(c *gin.Context, capabilityName, schoolID string) bool
 	return capability.HasGrantInSchool(GetCapabilityGrants(c), capabilityName, schoolID)
 }
 
-// HasRoleInOrg 检查当前用户是否在指定 schoolID 上拥有指定 school-scoped role grant。
-// scope 不来自 Casdoor token；运行时配置 RoleScopeResolver 后，Cookie 和 Bearer
-// 认证路径都会从 DB/OpenFGA 补全。手机号登录不填充 scope。
-// orgID 为空时判定"是否在任意 school 拥有此角色"。
-func HasRoleInOrg(c *gin.Context, role, orgID string) bool {
-	if val, exists := c.Get(CtxKeyOrgScopedRoles); exists {
-		if scoped, ok := val.(map[string][]string); ok {
-			return hasScopedRole(scoped, role, orgID)
-		}
-	}
-	return false
-}
-
-func hasScopedRole(scoped map[string][]string, role, orgID string) bool {
-	orgs, has := scoped[role]
-	if !has {
-		return false
-	}
-	if orgID == "" {
-		return len(orgs) > 0
-	}
-	for _, org := range orgs {
-		if org == orgID {
-			return true
-		}
-	}
-	return false
-}
-
 // IsAuthenticated 检查当前请求是否已认证
 func IsAuthenticated(c *gin.Context) bool {
 	return GetUserID(c) != ""

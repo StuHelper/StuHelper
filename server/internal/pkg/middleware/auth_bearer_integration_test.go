@@ -76,8 +76,8 @@ func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {
 	r.Use(AuthMiddleware(oidcClient, tokenSvc))
 	r.GET("/me", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"roles":       GetRoles(c),
-			"hasOrgScope": HasRoleInOrg(c, "school_admin", "school-1"),
+			"roles":               GetRoles(c),
+			"hasScopedSchoolRead": HasCapabilityInSchool(c, capability.UserSchoolRead, "school-1"),
 		})
 	})
 
@@ -88,7 +88,7 @@ func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"school_admin"`)
-	assert.Contains(t, w.Body.String(), `"hasOrgScope":false`)
+	assert.Contains(t, w.Body.String(), `"hasScopedSchoolRead":false`)
 }
 
 func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
@@ -104,7 +104,6 @@ func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
 	}))
 	r.GET("/me", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"hasOrgScope":          HasRoleInOrg(c, "school_admin", "1001"),
 			"hasScopedStudentRead": HasCapabilityInSchool(c, capability.UserStudentRead, "1001"),
 			"hasGlobalStudentRead": HasGlobalCapability(c, capability.UserStudentRead),
 		})
@@ -116,7 +115,6 @@ func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), `"hasOrgScope":true`)
 	assert.Contains(t, w.Body.String(), `"hasScopedStudentRead":true`)
 	assert.Contains(t, w.Body.String(), `"hasGlobalStudentRead":false`)
 }

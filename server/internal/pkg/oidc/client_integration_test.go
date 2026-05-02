@@ -127,7 +127,7 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	assert.Contains(t, claims.Roles, "school_admin")
 	assert.Contains(t, claims.AMR, "totp")
 	assert.False(t, claims.MFAProofVerifiedAt().IsZero())
-	assert.False(t, claims.HasRoleInOrg("school_admin", "school-1"))
+	assert.Nil(t, claims.OrgScopedRoles)
 
 	refreshed, err := client.RefreshToken(context.Background(), "provider-refresh-token")
 	require.NoError(t, err)

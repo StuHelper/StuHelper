@@ -267,12 +267,11 @@ func (c *Client) VerifyIDToken(ctx context.Context, rawIDToken string) (*Claims,
 	var rawJSON []byte
 	if rawJSON, err = marshalIDTokenClaims(idToken); err == nil {
 		claims.AppID = appIDFromRawClaims(rawJSON)
-		roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
+		roles, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
 		if parseErr != nil {
 			logger.L().Warn("oidc: failed to parse roles from id_token", zap.Error(parseErr))
 		} else {
 			claims.Roles = roles
-			claims.OrgScopedRoles = scoped
 		}
 	}
 
@@ -401,12 +400,11 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 	result.AppID = appIDFromRawClaims(rawJSON)
 
 	// 从原始 JSON 解析 provider-specific 角色 claim
-	roles, scoped, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
+	roles, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
 	if parseErr != nil {
 		logger.L().Warn("oidc: failed to parse roles from introspection response", zap.Error(parseErr))
 	} else {
 		result.Roles = roles
-		result.OrgScopedRoles = scoped
 	}
 
 	return &result, nil
