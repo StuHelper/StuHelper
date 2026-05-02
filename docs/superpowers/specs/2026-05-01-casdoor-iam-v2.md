@@ -104,11 +104,11 @@ user
 
 bootstrap 必须创建并校验：
 - **SMS Provider**：Custom HTTP 类型，回调 StuHelper `/internal/sms/send`（见 §9.1）；
-- **Email Provider**：SMTP 或 Custom HTTP；
+- **Email Provider**：仅当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true` 时创建并校验；当前仓库尚无 StuHelper email service，默认延后（见 §9.2）；
 - 证书 / 公钥配置；
 - 未来的社交或校园 Provider（设计预留）。
 
-生产环境缺必要 Provider 启动失败；开发环境可显式关闭，但必须通过 env + 日志告警暴露。
+生产环境缺必要 Provider（当前为 SMS Provider；Email Provider 以 env 开关显式启用后才算必要）启动失败；开发环境可显式关闭，但必须通过 env + 日志告警暴露。
 
 ### 3.5 MFA / Step-up 策略
 
@@ -910,11 +910,11 @@ COMMIT;
 - Applications：`stuhelper-web`、`stuhelper-admin`、`stuhelper-uniapp`；
 - 7 个扁平 role（§3.3）；
 - Custom HTTP SMS Provider → `/internal/sms/send`；
-- Custom SMTP / HTTP Email Provider；
+- Custom SMTP / HTTP Email Provider（仅当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true`；当前默认延后）；
 - Certificate / public key（按 Casdoor 数据初始化文档）；
 - 初始管理员账号（密码从 env 读，启动后强制修改提示）。
 
-**生产环境**缺必要 Provider 启动失败。**开发环境**可关闭，但必须 env 显式 + 日志告警。
+**生产环境**缺必要 Provider 启动失败；Email Provider 只有在 env 显式启用时才进入必要 Provider 清单。**开发环境**可关闭，但必须 env 显式 + 日志告警。
 
 参考：[Casdoor 数据初始化](https://casdoor.org/docs/deployment/data-initialization/)、[Casdoor SMS Provider](https://casdoor.org/docs/provider/sms/overview/)。
 
@@ -1075,7 +1075,7 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 
 自动化检查至少覆盖：
 
-1. Casdoor bootstrap 创建 organization / applications / 7 个 role / SMS Provider / SMTP Provider；
+1. Casdoor bootstrap 创建 organization / applications / 7 个 role / SMS Provider；当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true` 时还必须创建 SMTP / HTTP Email Provider；
 2. 一方应用 OIDC 登录 happy path（web / admin / uniapp）；
 3. **投影一致性 case A**：DB `student_verified=true`、Casdoor 角色未同步 → 敏感操作放行（DB 为准）+ 漂移告警触发；
 4. **投影一致性 case B**：DB `student_verified=false`、Casdoor 仍有 `verified_student` 角色 → 敏感操作拒绝 + 即时撤销触发；
@@ -1113,7 +1113,7 @@ Open Platform v1 的实施前置条件：IAM v2 全部验证策略（§15）通�
 4. `pkg/oidc/` provider-neutral 化；
 5. 业务模块迁移到 Authorization Service（移除直接 Casdoor / FGA 调用）；
 6. Outbox 同步（DB → Casdoor 角色）；
-7. SMS / Email Provider 切换；
+7. SMS Provider 切换；Email Provider 在 email service 落地后按 `CASDOOR_EMAIL_PROVIDER_ENABLED=true` 单独启用；
 8. Zitadel 退役（代码 / infra / env / data）；
 9. 文档同步（`authorization-model.md` / `auth-and-session.md` / `security-model.md`）；
 10. 验证策略落地；
