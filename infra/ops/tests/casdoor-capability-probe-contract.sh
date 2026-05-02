@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+PROBE_SCRIPT="${REPO_ROOT}/infra/ops/casdoor-capability-probe.sh"
+
+fail() {
+  echo "[casdoor-capability-probe-contract][error] $*" >&2
+  exit 1
+}
+
+assert_contains() {
+  local pattern="$1"
+  if ! grep -Fq -- "${pattern}" "${PROBE_SCRIPT}"; then
+    fail "expected probe script to contain: ${pattern}"
+  fi
+}
+
+[[ -x "${PROBE_SCRIPT}" ]] || fail "probe script must be executable"
+assert_contains "CASDOOR_PROBE_RUN_REFRESH_ROTATION=true"
+assert_contains "prompt=login"
+assert_contains "max_age"
+assert_contains "acr_values"
+assert_contains "amr"
+assert_contains "auth_time"
+assert_contains "exit 78"
+assert_contains "provider appears single-use"
+
+retired_idp_pattern="$(printf '\x5a\x49\x54\x41\x44\x45\x4c')"
+if grep -Eq "${retired_idp_pattern}" "${PROBE_SCRIPT}"; then
+  fail "probe script must not reference retired IDP identifiers"
+fi
+
+echo "[casdoor-capability-probe-contract] all assertions passed"

@@ -163,6 +163,8 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 | C5: Casdoor 是否尊重 OIDC `max_age=0` | 看是否强制重新走完整认证 |
 | C6: Casdoor 是否尊重 `acr_values=mfa` | 看 token 是否含 acr 且强制 MFA |
 
+**落地工具**：`infra/ops/casdoor-capability-probe.sh` 是实施前必须跑的证据入口。它会读取真实 Casdoor OIDC metadata，生成含 `prompt=login` / `max_age=0` / `acr_values=mfa` 的 step-up authorize URL，并在提供 `CASDOOR_PROBE_ID_TOKEN` 或 `CASDOOR_PROBE_ID_TOKEN_FILE` 时解码 JWT payload 检查 `amr` / `auth_time` / `acr` 是否存在。缺少必要 env 时脚本以 `78` 明确退出，不产出伪成功。
+
 **根据 capability 实测结果分支选择**：
 
 | 场景 | C1=Yes（精准强制） | C1=No（org 全员强制） |
@@ -666,6 +668,8 @@ auth_time  # 上次认证时间；不可用时 step-up 走 StuHelper 本地 chal
 Casdoor 官方 token 文档目前**未明确**说明 single-use rotation + reuse detection 是否原生支持（仅给出 lifecycle、grant type、revocation 语义；参考 [Casdoor Token Overview](https://casdoor.org/docs/token/overview/)）。实施 IAM v2 之前必须验证：
 
 1. **跑实测**：用 Casdoor 测试实例发 refresh token，连续两次以同一 refresh token 调 token endpoint，观察行为；
+   - 实测入口：`infra/ops/casdoor-capability-probe.sh`；
+   - 因该检查会消耗 refresh token，必须显式设置 `CASDOOR_PROBE_RUN_REFRESH_ROTATION=true` 和一次性 `CASDOOR_PROBE_REFRESH_TOKEN`，脚本不得默认执行破坏性 probe；
 2. **若 Casdoor 原生支持** rotation + reuse detection：直接用 Casdoor 配置；
 3. **若 Casdoor 不支持**（默认假设）：StuHelper 在 session store 层包装：
    - 记录每个 refresh token 的 hash + user_id + 颁发时间；
@@ -1083,6 +1087,7 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 13. **资源授权**：section moderator 只能管理被授予的板块；
 14. **角色目录**：Casdoor role 列表完全等于 §3.3 的 7 个扁平角色，无嵌入 ID；
 15. **SMS 转发链路**：Casdoor 登录验证码 → `/internal/sms/send` → 腾讯云 API；端点鉴权失败 401。
+16. **Casdoor capability gate**：`infra/ops/casdoor-capability-probe.sh` 在测试 Casdoor 实例上生成 step-up URL、检查 `amr` / `auth_time` / `acr` claim，并按显式开关验证 refresh token 是否 single-use。
 
 ## 16. 范围外（Open Platform v1）
 
