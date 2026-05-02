@@ -498,6 +498,7 @@ Authorize(subject, "profile.view_identity", profile)
   - 单次漂移条数 < 阈值（建议 100）→ 自动修复（重新写 outbox 事件）；
   - 漂移条数 ≥ 阈值 → 暂停自动修复 + 告警 + 人工确认后再放行；
   - 修复结果落审计。
+- **当前落地**：`user_profiles` 每日 reconciliation 重新入队 `verified_student_role` 与 `user_profile_projection` 两类任务；前者修复 Casdoor `verified_student` 角色，后者修复 OpenFGA `user_profile:{id}` 的 `owner` / `school` tuple。
 
 #### 6.5.5 Dedupe 与幂等
 

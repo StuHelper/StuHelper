@@ -48,7 +48,7 @@ func nextExternalSyncReconciliationDelay(now time.Time) time.Duration {
 }
 
 func (s *Service) runExternalSyncReconciliation(ctx context.Context) {
-	requeued, err := s.ReconcileVerifiedStudentRoleProjection(ctx, externalSyncReconciliationRepairLimit)
+	requeued, err := s.ReconcileUserProfileProjections(ctx, externalSyncReconciliationRepairLimit)
 	if err != nil {
 		logger.L().Warn("user external sync reconciliation failed", zap.Error(err))
 		return
@@ -56,7 +56,7 @@ func (s *Service) runExternalSyncReconciliation(ctx context.Context) {
 	logger.L().Info("user external sync reconciliation completed", zap.Int("requeued_count", requeued))
 }
 
-func (s *Service) ReconcileVerifiedStudentRoleProjection(ctx context.Context, repairLimit int) (int, error) {
+func (s *Service) ReconcileUserProfileProjections(ctx context.Context, repairLimit int) (int, error) {
 	if repairLimit <= 0 {
 		repairLimit = externalSyncReconciliationRepairLimit
 	}
@@ -70,33 +70,40 @@ func (s *Service) ReconcileVerifiedStudentRoleProjection(ctx context.Context, re
 	if len(states) == 0 {
 		return 0, nil
 	}
-	if err := s.requeueStudentRoleProjectionStates(ctx, states); err != nil {
+	requeued, err := s.requeueUserProfileProjectionStates(ctx, states)
+	if err != nil {
 		return 0, err
 	}
 	audit.Log(audit.EventFromContext(ctx, audit.Event{
 		Type:         audit.EventType("iam.drift.reconcile"),
 		Category:     "domain_event",
 		ActorType:    "system",
-		ResourceType: "casdoor.role",
-		ResourceID:   verifiedStudentRoleName,
+		ResourceType: "user_profile_projection",
+		ResourceID:   "user_profiles",
 		Action:       "requeue",
 		Result:       "success",
-		Details:      map[string]any{"requeued": len(states)},
+		Details:      map[string]any{"profile_count": len(states), "requeued_jobs": requeued},
 	}))
-	return len(states), nil
+	return requeued, nil
 }
 
-func (s *Service) requeueStudentRoleProjectionStates(ctx context.Context, states []StudentRoleProjectionState) error {
+func (s *Service) requeueUserProfileProjectionStates(ctx context.Context, states []StudentRoleProjectionState) (int, error) {
+	requeued := 0
 	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		for _, state := range states {
+			if err := s.enqueueUserProfileProjectionTx(ctx, tx, state.UserID, state.Approved); err != nil {
+				return err
+			}
+			requeued++
 			if err := s.enqueueVerifiedStudentRoleSyncTx(ctx, tx, state.UserID, state.Approved); err != nil {
 				return err
 			}
+			requeued++
 		}
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("requeue verified student role projection: %w", err)
+		return 0, fmt.Errorf("requeue user profile projections: %w", err)
 	}
-	return nil
+	return requeued, nil
 }

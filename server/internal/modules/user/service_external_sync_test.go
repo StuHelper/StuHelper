@@ -174,7 +174,7 @@ func TestVerifyStudent_EnqueuesProjectionInsideTransaction(t *testing.T) {
 	assert.NotContains(t, enqueued, externalSyncJobTypeVerifiedStudentRole+":"+verifiedStudentRoleSyncKey(1))
 }
 
-func TestReconcileVerifiedStudentRoleProjectionRequeuesWithinLimit(t *testing.T) {
+func TestReconcileUserProfileProjectionsRequeuesWithinLimit(t *testing.T) {
 	var enqueued []externalSyncTestJob
 	repo := &mockRepo{
 		onListStudentRoleProjectionStates: func(_ context.Context, limit int) ([]StudentRoleProjectionState, error) {
@@ -189,15 +189,17 @@ func TestReconcileVerifiedStudentRoleProjectionRequeuesWithinLimit(t *testing.T)
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	requeued, err := svc.ReconcileVerifiedStudentRoleProjection(context.Background(), 100)
+	requeued, err := svc.ReconcileUserProfileProjections(context.Background(), 100)
 	require.NoError(t, err)
-	assert.Equal(t, 2, requeued)
-	require.Len(t, enqueued, 2)
-	assertExternalSyncTestJob(t, enqueued[0], 42, true)
-	assertExternalSyncTestJob(t, enqueued[1], 43, false)
+	assert.Equal(t, 4, requeued)
+	require.Len(t, enqueued, 4)
+	assertProfileProjectionTestJob(t, enqueued[0], 42, true)
+	assertRoleSyncTestJob(t, enqueued[1], 42, true)
+	assertProfileProjectionTestJob(t, enqueued[2], 43, false)
+	assertRoleSyncTestJob(t, enqueued[3], 43, false)
 }
 
-func TestReconcileVerifiedStudentRoleProjectionStopsAboveThreshold(t *testing.T) {
+func TestReconcileUserProfileProjectionsStopsAboveThreshold(t *testing.T) {
 	txCalled := false
 	repo := &mockRepo{
 		onListStudentRoleProjectionStates: func(_ context.Context, limit int) ([]StudentRoleProjectionState, error) {
@@ -212,7 +214,7 @@ func TestReconcileVerifiedStudentRoleProjectionStopsAboveThreshold(t *testing.T)
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	requeued, err := svc.ReconcileVerifiedStudentRoleProjection(context.Background(), 100)
+	requeued, err := svc.ReconcileUserProfileProjections(context.Background(), 100)
 	require.ErrorIs(t, err, ErrExternalSyncReconciliationThresholdExceeded)
 	assert.Equal(t, 0, requeued)
 	assert.False(t, txCalled)
@@ -242,7 +244,7 @@ type externalSyncTestJob struct {
 	payload   []byte
 }
 
-func assertExternalSyncTestJob(t *testing.T, job externalSyncTestJob, userID int64, approved bool) {
+func assertRoleSyncTestJob(t *testing.T, job externalSyncTestJob, userID int64, approved bool) {
 	t.Helper()
 	assert.Equal(t, externalSyncJobTypeVerifiedStudentRole, job.jobType)
 	assert.Equal(t, verifiedStudentRoleSyncKey(userID), job.dedupeKey)
@@ -250,5 +252,15 @@ func assertExternalSyncTestJob(t *testing.T, job externalSyncTestJob, userID int
 	require.NoError(t, json.Unmarshal(job.payload, &payload))
 	assert.Equal(t, userID, payload.UserID)
 	assert.Equal(t, verifiedStudentRoleName, payload.Role)
+	assert.Equal(t, approved, payload.Approved)
+}
+
+func assertProfileProjectionTestJob(t *testing.T, job externalSyncTestJob, userID int64, approved bool) {
+	t.Helper()
+	assert.Equal(t, externalSyncJobTypeUserProfileProjection, job.jobType)
+	assert.Equal(t, userProfileProjectionKey(userID), job.dedupeKey)
+	var payload userProfileProjectionPayload
+	require.NoError(t, json.Unmarshal(job.payload, &payload))
+	assert.Equal(t, userID, payload.UserID)
 	assert.Equal(t, approved, payload.Approved)
 }
