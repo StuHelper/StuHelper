@@ -123,6 +123,18 @@ func TestExpandRoleGrants_SectionRolesUseScopedSectionIDs(t *testing.T) {
 	}
 }
 
+func TestExpandRoleGrants_SectionAdminDoesNotManageTeachers(t *testing.T) {
+	grants := ExpandRoleGrants([]string{"section_admin"}, map[string][]string{
+		"section_admin": {"school_10006_review_moderation"},
+	})
+	snapshot := BuildUserAccessSnapshot(grants)
+
+	assert.NotContains(t, snapshot.Capabilities, AdminTeachersManage)
+	for _, grant := range snapshot.CapabilityGrants {
+		assert.NotEqual(t, AdminTeachersManage, grant.Name)
+	}
+}
+
 func TestHasGrantInSchool(t *testing.T) {
 	grants := []Grant{
 		{Name: UserStudentRead, ScopeSchoolIDs: []string{"1001"}},

@@ -32,6 +32,8 @@ Casdoor JWT 只提供扁平角色名，不携带学校 ID 或资源 ID。`school
 - 用户系统：`user:identity:read` / `user:identity:review` / `user:student:read` / `user:student:review` / `user:school:read` / `user:school:update` / `user:system:read` / `user:system:update`
 - 主站：`review:list:brief` / `review:list:full` / `review:create` / `review:edit:own` / `review:delete:own`
 
+`admin:teachers:manage` 当前只授予全局管理员。`teachers` 是学校级参考数据，现有教师 CRUD 尚未实现 school-scoped 资源过滤；在补齐学校范围参数、repository 过滤和对应测试前，不得把该能力授予 `school_admin` 或 `section_*` 角色。
+
 ## 业务访问事实
 
 关键操作还需检查：
