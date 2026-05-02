@@ -35,6 +35,13 @@ func TestParseProviderRolesFromRaw_InvalidRolesClaim(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestParseProviderRolesFromRaw_RejectsObjectRolesClaim(t *testing.T) {
+	_, _, err := ParseProviderRolesFromRaw([]byte(`{"roles":{"school_admin":["1001"]}}`), "roles")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a string array")
+}
+
 func TestParseProviderRolesFromRaw_MissingRolesClaim(t *testing.T) {
 	roles, scoped, err := ParseProviderRolesFromRaw([]byte(`{"sub":"user-1"}`), "roles")
 	require.NoError(t, err)

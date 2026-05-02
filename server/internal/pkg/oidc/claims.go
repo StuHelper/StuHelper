@@ -140,16 +140,7 @@ func parseRoleNames(roleData json.RawMessage, rolesClaim string) ([]string, erro
 		return dedupeRoles(roles), nil
 	}
 
-	var roleMap map[string]any
-	if err := json.Unmarshal(roleData, &roleMap); err == nil {
-		roles := make([]string, 0, len(roleMap))
-		for role := range roleMap {
-			roles = append(roles, role)
-		}
-		return dedupeRoles(roles), nil
-	}
-
-	return nil, fmt.Errorf("unmarshal roles claim %q", rolesClaim)
+	return nil, fmt.Errorf("roles claim %q must be a string array", rolesClaim)
 }
 
 func dedupeRoles(roles []string) []string {
