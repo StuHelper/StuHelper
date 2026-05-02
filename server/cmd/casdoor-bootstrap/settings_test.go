@@ -1,13 +1,18 @@
 package main
 
 import (
+	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 )
+
+var flatRoleNamePattern = regexp.MustCompile(`^[a-z]+(_[a-z]+)*$`)
 
 func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	settings, err := loadSettings(testEnv(completeEnv()))
@@ -26,6 +31,24 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, "super_admin", settings.plan.Roles[0].Name)
 	require.Len(t, settings.plan.Providers, 1)
 	assert.Equal(t, "stuhelper-sms", settings.plan.Providers[0].Name)
+}
+
+func TestFlatRoleCatalogMatchesAuthorizationRoles(t *testing.T) {
+	expected := []string{
+		"super_admin",
+		"school_admin",
+		"section_admin",
+		"section_moderator",
+		"section_reviewer",
+		"verified_student",
+		"user",
+	}
+	bootstrapRoles := roleNames(flatRoleCatalog())
+	assert.Equal(t, expected, bootstrapRoles)
+	assert.ElementsMatch(t, capabilityRoleNames(), bootstrapRoles)
+	for _, role := range bootstrapRoles {
+		assert.Truef(t, flatRoleNamePattern.MatchString(role), "role %q must stay flat and ID-free", role)
+	}
 }
 
 func TestLoadSettingsRequiresDedicatedBootstrapCredential(t *testing.T) {
@@ -98,4 +121,22 @@ func testEnv(values map[string]string) envReader {
 	return func(key string) string {
 		return values[key]
 	}
+}
+
+func roleNames(roles []casdoor.RoleSpec) []string {
+	names := make([]string, 0, len(roles))
+	for _, role := range roles {
+		names = append(names, role.Name)
+	}
+	return names
+}
+
+func capabilityRoleNames() []string {
+	roleCapabilities := capability.GetRoleCapabilities()
+	roles := make([]string, 0, len(roleCapabilities))
+	for role := range roleCapabilities {
+		roles = append(roles, role)
+	}
+	slices.Sort(roles)
+	return roles
 }
