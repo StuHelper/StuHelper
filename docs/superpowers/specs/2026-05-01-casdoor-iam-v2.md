@@ -460,6 +460,8 @@ Authorize(subject, "profile.view_identity", profile)
 | `iam_casdoor_user_projection` | 用户元数据变更 → Casdoor 用户记录更新 |
 | `iam_openfga_tuple_sync` | DB 资源关系变更 → OpenFGA tuple 写入 / 删除 |
 
+现行 `user_profile_projection` job 更新的是 `user_profile:{id}` 的 owner/school OpenFGA tuple，因此必须落在 `iam_openfga_tuple_sync`。`iam_casdoor_user_projection` 仅预留给未来 Casdoor 用户元数据投影；不得承载 profile tuple sync。
+
 #### 6.5.2 Worker 机制
 
 - **基线**：沿用现有 polling worker（按 `pending` → `processing` → `completed` / `failed` 状态机）；
