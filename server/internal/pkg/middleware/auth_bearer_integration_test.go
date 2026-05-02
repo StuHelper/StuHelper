@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
@@ -88,6 +89,58 @@ func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"school_admin"`)
 	assert.Contains(t, w.Body.String(), `"hasOrgScope":false`)
+}
+
+func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenSvc := newTokenServiceForMiddlewareTest(t)
+	oidcClient, server := newBearerOIDCClient(t)
+	defer server.Close()
+
+	r := gin.New()
+	r.Use(AuthMiddlewareWithRoleScopeResolver(oidcClient, tokenSvc, fakeRoleScopeResolver{
+		scopes: map[string][]string{"school_admin": {"1001"}},
+	}))
+	r.GET("/me", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"hasOrgScope":          HasRoleInOrg(c, "school_admin", "1001"),
+			"hasScopedStudentRead": HasCapabilityInSchool(c, capability.UserStudentRead, "1001"),
+			"hasGlobalStudentRead": HasGlobalCapability(c, capability.UserStudentRead),
+		})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer provider-access-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"hasOrgScope":true`)
+	assert.Contains(t, w.Body.String(), `"hasScopedStudentRead":true`)
+	assert.Contains(t, w.Body.String(), `"hasGlobalStudentRead":false`)
+}
+
+func TestAuthMiddlewareWithRoleScopeResolverFailureReturns503(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tokenSvc := newTokenServiceForMiddlewareTest(t)
+	oidcClient, server := newBearerOIDCClient(t)
+	defer server.Close()
+
+	r := gin.New()
+	r.Use(AuthMiddlewareWithRoleScopeResolver(oidcClient, tokenSvc, fakeRoleScopeResolver{
+		err: context.Canceled,
+	}))
+	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer provider-access-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrServiceUnavailable))
 }
 
 func TestAuthMiddleware_BearerProviderUnavailableReturns503(t *testing.T) {
