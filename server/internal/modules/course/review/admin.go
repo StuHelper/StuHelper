@@ -3,7 +3,6 @@ package review
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -33,13 +32,14 @@ func (h *Handler) ListReports(c *gin.Context) {
 	}
 	page, pageSize := httputil.ParsePage(c)
 	scope := resolveModerationScope(c)
+	schoolIDs := scope.schoolIDs()
 
-	respondWithCachedData(h, c, "review:admin:reports", "status="+status+":page="+strconv.Itoa(page)+":size="+strconv.Itoa(pageSize), func(ctx context.Context) (*ListReportsResult, error) {
+	respondWithCachedData(h, c, "review:admin:reports", adminReportsCacheKey(status, page, pageSize, schoolIDs), func(ctx context.Context) (*ListReportsResult, error) {
 		return h.service.ListReports(ctx, ListReportsParams{
 			Status:    status,
 			Page:      page,
 			PageSize:  pageSize,
-			SchoolIDs: scope.schoolIDs(),
+			SchoolIDs: schoolIDs,
 		})
 	}, func(result *ListReportsResult) any {
 		return gin.H{"list": result.List, "total": result.Total}

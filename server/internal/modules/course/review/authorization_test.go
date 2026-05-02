@@ -47,3 +47,18 @@ func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testi
 	assert.Equal(t, []int64{10006}, scope.schoolIDs())
 	assert.True(t, scope.hasModerationAccess())
 }
+
+func TestAdminReportsCacheKeyIncludesModerationScope(t *testing.T) {
+	assert.Equal(t,
+		"status=pending:page=1:size=20:scope=all",
+		adminReportsCacheKey("pending", 1, 20, nil),
+	)
+	assert.Equal(t,
+		"status=pending:page=1:size=20:scope=none",
+		adminReportsCacheKey("pending", 1, 20, []int64{}),
+	)
+	assert.Equal(t,
+		"status=pending:page=1:size=20:scope=schools:10006,10007",
+		adminReportsCacheKey("pending", 1, 20, []int64{10007, 10006}),
+	)
+}

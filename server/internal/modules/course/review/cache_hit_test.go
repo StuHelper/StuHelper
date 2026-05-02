@@ -44,7 +44,7 @@ func TestReviewHandlers_ServeFromCache(t *testing.T) {
 	mustSet("review:teacher_stats", "teacherID=1", TeacherRatingStatsResponse{TeacherID: 1, TeacherName: "张老师", Overall: TermRatingStats{TermID: "overall", TermName: "Overall", Dimensions: []DimensionStats{{Key: "overall", Name: "综合", AvgRating: 4.5, RatingCount: 1, Distribution: map[int]int{5: 1}}}}})
 	mustSet("review:teachers", "q="+httputil.SanitizeCacheKey("")+":dept=0:sort=reviews:p=1:ps=20", gin.H{"list": []TeacherSummary{{TeacherID: 1, TeacherName: "张老师"}}, "total": 1})
 	mustSet("review:hot_teachers", "limit=10", gin.H{"list": []TeacherSummary{{TeacherID: 1, TeacherName: "张老师"}}})
-	mustSet("review:admin:reports", "status=pending:page=1:size=20", gin.H{"list": []ReviewReport{{ID: "550e8400-e29b-41d4-a716-446655440000", ReviewID: "660e8400-e29b-41d4-a716-446655440000", Status: ReportStatusPending}}, "total": 1})
+	mustSet("review:admin:reports", "status=pending:page=1:size=20:scope=none", gin.H{"list": []ReviewReport{{ID: "550e8400-e29b-41d4-a716-446655440000", ReviewID: "660e8400-e29b-41d4-a716-446655440000", Status: ReportStatusPending}}, "total": 1})
 	mustSet("review:admin:stats", "all", gin.H{"totalReviews": 1})
 
 	cases := []struct {
