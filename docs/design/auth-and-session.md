@@ -101,7 +101,7 @@ OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email
 ## 角色与能力
 
 - Casdoor JWT 提供粗粒度角色
-- 中间件静态展开为 capabilities
+- 中间件静态展开为 capabilities；scoped admin 的学校范围不来自 token，而是由运行时 resolver 从 DB/OpenFGA 补全
 - `/api/v1/auth/me` 返回：`roles`、`capabilities`、`globalCapabilities`、`canAccessAdmin`、`displayName`、`isPlatformAdmin`、`capabilityGrants`、`accountSettingsUrl`
 
 ## Native App OIDC 登录

@@ -179,8 +179,9 @@ func HasCapabilityInSchool(c *gin.Context, capabilityName, schoolID string) bool
 }
 
 // HasRoleInOrg 检查当前用户是否在指定 schoolID 上拥有指定 school-scoped role grant。
-// 仅 cookie-OIDC 登录路径填充 scope；手机登录与 Bearer introspection 返回
-// false。orgID 为空时判定"是否在任意 school 拥有此角色"。
+// scope 不来自 Casdoor token；运行时配置 RoleScopeResolver 后，Cookie 和 Bearer
+// 认证路径都会从 DB/OpenFGA 补全。手机号登录不填充 scope。
+// orgID 为空时判定"是否在任意 school 拥有此角色"。
 func HasRoleInOrg(c *gin.Context, role, orgID string) bool {
 	if val, exists := c.Get(CtxKeyOrgScopedRoles); exists {
 		if scoped, ok := val.(map[string][]string); ok {
