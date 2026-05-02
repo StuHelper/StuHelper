@@ -150,6 +150,31 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 	assert.True(t, nextRetry.After(time.Now().Add(4*time.Second)))
 }
 
+func TestStartBackgroundJobsRequiresStarter(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.Panics(t, func() {
+		svc.StartBackgroundJobs(ctx, nil)
+	})
+}
+
+func TestRunExternalSyncReconciliationRecoversPanic(t *testing.T) {
+	repo := &mockRepo{
+		onListStudentRoleProjectionStates: func(context.Context, int) ([]StudentRoleProjectionState, error) {
+			panic("projection query panic")
+		},
+	}
+	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	require.NotPanics(t, func() {
+		svc.runExternalSyncReconciliation(context.Background())
+	})
+}
+
 func TestVerifyStudent_EnqueuesProjectionInsideTransaction(t *testing.T) {
 	var enqueued []string
 	repo := &mockRepo{

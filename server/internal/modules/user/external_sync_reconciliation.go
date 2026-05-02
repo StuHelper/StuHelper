@@ -50,6 +50,16 @@ func nextExternalSyncReconciliationDelay(now time.Time) time.Duration {
 }
 
 func (s *Service) runExternalSyncReconciliation(ctx context.Context) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.L().Error(
+				"user external sync reconciliation panicked",
+				zap.Any("panic", recovered),
+				zap.Stack("stack"),
+			)
+		}
+	}()
+
 	requeued, err := s.ReconcileUserProfileProjections(ctx, externalSyncReconciliationRepairLimit)
 	if err != nil {
 		logger.L().Warn("user external sync reconciliation failed", zap.Error(err))

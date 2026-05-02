@@ -87,9 +87,7 @@ func (s *Service) enqueueVerificationProjectionTx(ctx context.Context, tx pgx.Tx
 
 func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
 	if start == nil {
-		go s.runExternalSyncWorker(ctx)
-		go s.runExternalSyncReconciliationLoop(ctx)
-		return
+		panic("user.Service.StartBackgroundJobs: starter is required")
 	}
 	start("user external sync worker", s.runExternalSyncWorker)
 	start("user external sync reconciliation", s.runExternalSyncReconciliationLoop)
