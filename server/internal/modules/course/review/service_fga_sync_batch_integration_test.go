@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/testutil/postgresfixture"
 )
@@ -122,6 +124,7 @@ func TestReviewService_ReconcileFGARelationProjectionsStopsAboveThreshold(t *tes
 	repo := NewRepository(fixture.DB)
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	ctx := context.Background()
+	before := testutil.ToFloat64(metrics.IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("openfga_relation"))
 
 	schoolID := int64(10006)
 	departmentID := seedDepartment(t, fixture, schoolID, "FGA 阈值学院")
@@ -139,6 +142,8 @@ func TestReviewService_ReconcileFGARelationProjectionsStopsAboveThreshold(t *tes
 	err = fixture.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM domain_event_outbox WHERE stream = $1`, outbox.StreamIAMOpenFGATupleSync).Scan(&queued)
 	require.NoError(t, err)
 	assert.Equal(t, 0, queued)
+	after := testutil.ToFloat64(metrics.IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("openfga_relation"))
+	assert.Equal(t, before+1, after)
 }
 
 func TestNextFGASyncReconciliationDelay(t *testing.T) {

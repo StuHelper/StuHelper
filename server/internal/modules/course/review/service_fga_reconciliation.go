@@ -11,11 +11,13 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
 
 const (
-	fgaReconciliationHour        = 3
-	fgaReconciliationRepairLimit = 100
+	fgaReconciliationHour         = 3
+	fgaReconciliationRepairLimit  = 100
+	fgaReconciliationMetricDomain = "openfga_relation"
 )
 
 var ErrFGAReconciliationThresholdExceeded = errors.New("fga relation reconciliation threshold exceeded")
@@ -74,7 +76,7 @@ func (s *Service) ReconcileFGARelationProjections(ctx context.Context, repairLim
 		return 0, fmt.Errorf("list review relation projection states: %w", err)
 	}
 	if len(reviews) > repairLimit {
-		return 0, fmt.Errorf("%w: limit=%d", ErrFGAReconciliationThresholdExceeded, repairLimit)
+		return 0, fgaReconciliationThresholdExceededError(repairLimit)
 	}
 	reports, err := s.listReportRelationProjectionStates(ctx, repairLimit, len(reviews))
 	if err != nil {
@@ -101,9 +103,14 @@ func (s *Service) listReportRelationProjectionStates(
 		return nil, fmt.Errorf("list report relation projection states: %w", err)
 	}
 	if reviewCount+len(reports) > repairLimit {
-		return nil, fmt.Errorf("%w: limit=%d", ErrFGAReconciliationThresholdExceeded, repairLimit)
+		return nil, fgaReconciliationThresholdExceededError(repairLimit)
 	}
 	return reports, nil
+}
+
+func fgaReconciliationThresholdExceededError(repairLimit int) error {
+	metrics.ObserveIAMDriftReconciliationThresholdExceeded(fgaReconciliationMetricDomain)
+	return fmt.Errorf("%w: limit=%d", ErrFGAReconciliationThresholdExceeded, repairLimit)
 }
 
 func (s *Service) requeueFGARelationProjectionStates(

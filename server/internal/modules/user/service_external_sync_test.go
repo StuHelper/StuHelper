@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
 
 type fakeProfileFGAClient struct {
@@ -201,6 +203,7 @@ func TestReconcileUserProfileProjectionsRequeuesWithinLimit(t *testing.T) {
 
 func TestReconcileUserProfileProjectionsStopsAboveThreshold(t *testing.T) {
 	txCalled := false
+	before := testutil.ToFloat64(metrics.IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("user_profile_projection"))
 	repo := &mockRepo{
 		onListStudentRoleProjectionStates: func(_ context.Context, limit int) ([]StudentRoleProjectionState, error) {
 			require.Equal(t, 101, limit)
@@ -218,6 +221,8 @@ func TestReconcileUserProfileProjectionsStopsAboveThreshold(t *testing.T) {
 	require.ErrorIs(t, err, ErrExternalSyncReconciliationThresholdExceeded)
 	assert.Equal(t, 0, requeued)
 	assert.False(t, txCalled)
+	after := testutil.ToFloat64(metrics.IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("user_profile_projection"))
+	assert.Equal(t, before+1, after)
 }
 
 func TestNextExternalSyncReconciliationDelay(t *testing.T) {

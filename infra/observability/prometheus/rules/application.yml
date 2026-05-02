@@ -80,6 +80,16 @@ groups:
           summary: Refresh token reuse detected
           description: 'Refresh token reuse was detected for token family {{ $labels.token_family }}.'
 
+      - alert: StuHelperIAMDriftReconciliationThresholdExceeded
+        expr: increase(iam_drift_reconciliation_threshold_exceeded_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: IAM drift reconciliation exceeded automatic repair threshold
+          description: '{{ $labels.domain }} drift reconciliation paused automatic repair and needs manual confirmation.'
+
       - alert: StuHelperRedisPoolTimeouts
         expr: increase(redis_pool_timeouts_total[10m]) > 0
         for: 10m

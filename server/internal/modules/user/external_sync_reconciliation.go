@@ -11,11 +11,13 @@ import (
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
 
 const (
-	externalSyncReconciliationHour        = 3
-	externalSyncReconciliationRepairLimit = 100
+	externalSyncReconciliationHour         = 3
+	externalSyncReconciliationRepairLimit  = 100
+	externalSyncReconciliationMetricDomain = "user_profile_projection"
 )
 
 var ErrExternalSyncReconciliationThresholdExceeded = errors.New("external sync reconciliation threshold exceeded")
@@ -65,7 +67,7 @@ func (s *Service) ReconcileUserProfileProjections(ctx context.Context, repairLim
 		return 0, fmt.Errorf("list student role projection states: %w", err)
 	}
 	if len(states) > repairLimit {
-		return 0, fmt.Errorf("%w: limit=%d", ErrExternalSyncReconciliationThresholdExceeded, repairLimit)
+		return 0, externalSyncReconciliationThresholdExceededError(repairLimit)
 	}
 	if len(states) == 0 {
 		return 0, nil
@@ -85,6 +87,11 @@ func (s *Service) ReconcileUserProfileProjections(ctx context.Context, repairLim
 		Details:      map[string]any{"profile_count": len(states), "requeued_jobs": requeued},
 	}))
 	return requeued, nil
+}
+
+func externalSyncReconciliationThresholdExceededError(repairLimit int) error {
+	metrics.ObserveIAMDriftReconciliationThresholdExceeded(externalSyncReconciliationMetricDomain)
+	return fmt.Errorf("%w: limit=%d", ErrExternalSyncReconciliationThresholdExceeded, repairLimit)
 }
 
 func (s *Service) requeueUserProfileProjectionStates(ctx context.Context, states []StudentRoleProjectionState) (int, error) {

@@ -204,6 +204,12 @@ func TestObserveRefreshTokenReuse_Counter(t *testing.T) {
 	assert.Equal(t, before+1, testutil.ToFloat64(AuthRefreshTokenReuseTotal.WithLabelValues("self_signed")))
 }
 
+func TestObserveIAMDriftReconciliationThresholdExceeded_Counter(t *testing.T) {
+	before := testutil.ToFloat64(IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("openfga_relation"))
+	ObserveIAMDriftReconciliationThresholdExceeded("openfga_relation")
+	assert.Equal(t, before+1, testutil.ToFloat64(IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("openfga_relation")))
+}
+
 // ---------------------------------------------------------------------------
 // Redis metrics (redis.go)
 // ---------------------------------------------------------------------------

@@ -23,5 +23,8 @@ assert_contains "Outbox job reached terminal retry threshold"
 assert_contains "StuHelperRefreshTokenReuseDetected"
 assert_contains "increase(auth_refresh_token_reuse_total[5m]) > 0"
 assert_contains "Refresh token reuse detected"
+assert_contains "StuHelperIAMDriftReconciliationThresholdExceeded"
+assert_contains "increase(iam_drift_reconciliation_threshold_exceeded_total[10m]) > 0"
+assert_contains "IAM drift reconciliation exceeded automatic repair threshold"
 
 echo "[observability-alert-contract] all assertions passed"
