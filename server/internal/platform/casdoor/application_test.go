@@ -21,7 +21,7 @@ func TestCreateApplicationMapsSpec(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, api.added)
-	assert.Equal(t, "stuhelper", api.added.Owner)
+	assert.Equal(t, "admin", api.added.Owner)
 	assert.Equal(t, "third-party-demo", api.added.Name)
 	assert.Equal(t, "Third Party Demo", api.added.DisplayName)
 	assert.Equal(t, "stuhelper", api.added.Organization)
@@ -72,7 +72,7 @@ func TestDeleteApplicationUsesOwnedApplicationKey(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, api.deleted)
-	assert.Equal(t, "stuhelper", api.deleted.Owner)
+	assert.Equal(t, "admin", api.deleted.Owner)
 	assert.Equal(t, "third-party-demo", api.deleted.Name)
 }
 

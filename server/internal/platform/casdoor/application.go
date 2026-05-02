@@ -58,7 +58,7 @@ func (c *Client) DeleteApplication(ctx context.Context, name string) error {
 	if err := validateName("application name", name); err != nil {
 		return err
 	}
-	app := &casdoorsdk.Application{Owner: c.credential.Organization, Name: name}
+	app := &casdoorsdk.Application{Owner: "admin", Name: name}
 	err := c.call(ctx, "delete application "+name, func() (bool, error) {
 		return c.apps.DeleteApplication(app)
 	})
@@ -141,7 +141,7 @@ func (c *Client) buildApplication(spec ApplicationSpec) (*casdoorsdk.Application
 		return nil, err
 	}
 	return &casdoorsdk.Application{
-		Owner:                c.credential.Organization,
+		Owner:                "admin",
 		Name:                 normalized.Name,
 		DisplayName:          normalized.DisplayName,
 		Organization:         c.credential.Organization,
