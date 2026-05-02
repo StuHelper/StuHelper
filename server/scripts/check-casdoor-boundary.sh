@@ -103,6 +103,12 @@ run_check_non_test \
   '^internal/modules/(auth|user)/' \
   "${SERVER_DIR}/internal/modules"
 
+run_check_non_test \
+  "backend code must not use retired moderator role literal" \
+  '"moderator"|roleModerator' \
+  '^$' \
+  "${SERVER_DIR}/internal"
+
 run_git_check \
   "tracked server/infra/env files must not reference retired Zitadel identifiers" \
   'Zitadel|ZITADEL|zitadel|urn:zitadel' \

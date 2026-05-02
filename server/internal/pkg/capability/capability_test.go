@@ -43,6 +43,23 @@ func TestExpandRoles_UnknownRoleIgnored(t *testing.T) {
 	assert.Empty(t, caps)
 }
 
+func TestRoleCapabilities_UsesCasdoorV2RoleCatalog(t *testing.T) {
+	roles := make([]string, 0, len(GetRoleCapabilities()))
+	for role := range GetRoleCapabilities() {
+		roles = append(roles, role)
+	}
+
+	assert.ElementsMatch(t, []string{
+		"super_admin",
+		"school_admin",
+		"section_admin",
+		"section_moderator",
+		"section_reviewer",
+		"verified_student",
+		"user",
+	}, roles)
+}
+
 func TestHas(t *testing.T) {
 	caps := []string{"a", "b", "c"}
 	assert.True(t, Has(caps, "b"))
@@ -57,7 +74,8 @@ func TestHasAny(t *testing.T) {
 
 func TestCanAccessAdmin(t *testing.T) {
 	assert.True(t, CanAccessAdmin(ExpandRoles([]string{"super_admin"})))
-	assert.True(t, CanAccessAdmin(ExpandRoles([]string{"moderator"})))
+	assert.True(t, CanAccessAdmin(ExpandRoles([]string{"section_moderator"})))
+	assert.False(t, CanAccessAdmin(ExpandRoles([]string{"moderator"})))
 	assert.False(t, CanAccessAdmin(ExpandRoles([]string{"user"})))
 	assert.False(t, CanAccessAdmin(ExpandRoles([]string{"verified_student"})))
 }

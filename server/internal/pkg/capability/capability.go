@@ -44,9 +44,13 @@ var roleCapabilities = map[string][]string{
 		UserStudentRead, UserStudentReview,
 		UserSchoolRead, UserSchoolUpdate,
 	},
-	"moderator": {
+	"section_admin": {
 		AdminReviewsManage, AdminReportsManage, AdminTeachersManage,
 	},
+	"section_moderator": {
+		AdminReviewsManage, AdminReportsManage,
+	},
+	"section_reviewer": {},
 	"verified_student": {
 		ReviewListFull, ReviewCreate, ReviewEditOwn, ReviewDeleteOwn,
 	},

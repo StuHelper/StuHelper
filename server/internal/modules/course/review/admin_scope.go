@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	roleSuperAdmin  = "super_admin"
-	roleSchoolAdmin = "school_admin"
-	roleModerator   = "moderator"
+	roleSuperAdmin       = "super_admin"
+	roleSchoolAdmin      = "school_admin"
+	roleSectionAdmin     = "section_admin"
+	roleSectionModerator = "section_moderator"
 )
 
 type moderationScope struct {
@@ -51,13 +52,27 @@ func resolveModerationScope(c *gin.Context) moderationScope {
 	scope := moderationScope{
 		superAdmin:   hasRole(middleware.GetRoles(c), roleSuperAdmin),
 		schoolAdmins: scopedSchoolSet(c, roleSchoolAdmin),
-		moderators:   scopedSchoolSet(c, roleModerator),
+		moderators:   scopedModerationSchools(c),
 	}
 	if scope.superAdmin {
 		scope.schoolAdmins = nil
 		scope.moderators = nil
 	}
 	return scope
+}
+
+func scopedModerationSchools(c *gin.Context) map[int64]struct{} {
+	roles := []string{roleSectionAdmin, roleSectionModerator}
+	merged := make(map[int64]struct{}, len(roles))
+	for _, role := range roles {
+		for schoolID := range scopedSchoolSet(c, role) {
+			merged[schoolID] = struct{}{}
+		}
+	}
+	if len(merged) == 0 {
+		return nil
+	}
+	return merged
 }
 
 func scopedSchoolSet(c *gin.Context, role string) map[int64]struct{} {
