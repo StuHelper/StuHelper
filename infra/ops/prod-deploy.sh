@@ -260,7 +260,6 @@ infra_services=(
 )
 
 authz_services=(
-  casdoor
   proxy
   openfga
 )
@@ -279,10 +278,10 @@ log "running production database migrations"
 compose --profile prod up --no-deps migrate
 compose --profile prod up --no-deps openfga-migrate
 
-log "starting production identity and authorization services"
+log "starting production authorization services"
 compose --profile prod up -d --wait "${authz_services[@]}"
 
-log "bootstrapping runtime identities and authorization"
+log "bootstrapping runtime identities against external Casdoor and local OpenFGA"
 "${SCRIPT_DIR}/bootstrap-platform.sh" prod
 
 log "starting production application services"

@@ -102,9 +102,6 @@ fi
 if placeholder_or_empty "${STUHELPER_APP_DB_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "prod-app-$(random_hex 16)"
 fi
-if placeholder_or_empty "${CASDOOR_DB_PASSWORD:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_DB_PASSWORD" "prod-casdoor-$(random_hex 16)"
-fi
 if placeholder_or_empty "${OPENFGA_DB_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-openfga-$(random_hex 16)"
 fi
@@ -195,9 +192,7 @@ ensure_value "OTEL_SERVICE_NAMESPACE" "${OTEL_SERVICE_NAMESPACE:-}" "stuhelper"
 ensure_prod_default "OTEL_EXPORTER_OTLP_ENDPOINT" "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" "http://alloy:4318" "http://localhost:4318"
 ensure_value "OTEL_EXPORTER_OTLP_INSECURE" "${OTEL_EXPORTER_OTLP_INSECURE:-}" "true"
 ensure_prod_default "TOKEN_COOKIE_SECURE" "${TOKEN_COOKIE_SECURE:-}" "true" "false"
-ensure_value "CASDOOR_EXTERNALPORT" "${CASDOOR_EXTERNALPORT:-}" "8085"
-ensure_value "CASDOOR_VERSION" "${CASDOOR_VERSION:-}" "3.31.1"
-ensure_prod_default "CASDOOR_ISSUER" "${CASDOOR_ISSUER:-}" "REPLACE_WITH_CASDOOR_ISSUER" "http://localhost:8085" "http://localhost"
+ensure_prod_default "CASDOOR_ISSUER" "${CASDOOR_ISSUER:-}" "https://sso.stuhelper.com" "REPLACE_WITH_CASDOOR_ISSUER" "http://localhost:8085" "http://localhost"
 ensure_prod_default "CASDOOR_INTERNAL_ADDRESS" "${CASDOOR_INTERNAL_ADDRESS:-}" "" "host.docker.internal:8085" "casdoor:8000"
 ensure_prod_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
 ensure_prod_default "CASDOOR_CLIENT_ID" "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID" "stuhelper-web"
@@ -239,7 +234,7 @@ ensure_bootstrap_env_value "${casdoor_bootstrap_env_file}" "CASDOOR_BOOTSTRAP_CE
 ensure_prod_default "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL" "http://localhost:3000"
 ensure_prod_default "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL" "http://localhost:3001"
 ensure_prod_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
-ensure_prod_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB_VITE_SSO_URL" "http://localhost:8085" "http://localhost"
+ensure_prod_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "https://sso.stuhelper.com" "REPLACE_WITH_WEB_VITE_SSO_URL" "http://localhost:8085" "http://localhost"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
 ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"
 ensure_value "ADMIN_VITE_BASE" "${ADMIN_VITE_BASE:-}" "/admin/"

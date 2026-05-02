@@ -3,14 +3,14 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-05-02
 ---
 
 # 生产拓扑与运维责任
 
 ## 部署架构
 
-单机 Docker Compose 部署，所有服务由仓库内 `docker-compose.yml` 定义。
+主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；生产 SSO 已独立部署为 `https://sso.stuhelper.com`，不随主站 Compose 生命周期启动或停止。
 
 > 生产前提：承载 `postgres_data` / `redis_data` / 对象存储数据目录的底层块设备必须开启静态加密（云盘 KMS/EBS/PD 或主机侧 LUKS）。仓库内的 Compose 只定义容器拓扑，不负责替代宿主机磁盘加密。
 
@@ -23,9 +23,11 @@ last-verified: 2026-04-19
     ├── /admin/*        → admin 前端 (Nginx, :80)
     └── /               → web 前端 (Nginx, :80)
 
-[sso.stuhelper.com / CASDOOR_EXTERNALPORT]
-    └── Casdoor SSO     → casdoor (:8000)
+[sso.stuhelper.com]
+    └── Casdoor SSO     → 独立 Docker Compose 栈
 ```
+
+主站生产配置中 `CASDOOR_ISSUER` 与 `WEB_VITE_SSO_URL` 固定指向 `https://sso.stuhelper.com`。仓库内 `casdoor` compose service 只用于本地开发或显式本地 SSO 验证，生产发布脚本不得启动该服务。
 
 ## 外部机器人链路
 

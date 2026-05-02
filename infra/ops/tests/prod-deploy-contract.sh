@@ -22,6 +22,7 @@ load_env_line="$(line_number 'load_env')"
 source_bootstrap_line="$(line_number 'source_casdoor_bootstrap_env # load bootstrap credential env')"
 render_redis_acl_line="$(line_number 'render-redis-acl.sh')"
 start_infra_line="$(line_number 'compose --profile prod up -d --wait "${infra_services[@]}"')"
+start_authz_line="$(line_number 'compose --profile prod up -d --wait "${authz_services[@]}"')"
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 bootstrap_reject_line="$(line_number 'reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
@@ -74,6 +75,25 @@ fi
 
 if (( render_redis_acl_line >= start_infra_line )); then
   fail "render-redis-acl.sh must run before production infrastructure starts"
+fi
+
+authz_block="$(
+  awk '
+    /^authz_services=\(/ { in_block=1; next }
+    /^\)/ && in_block { in_block=0 }
+    in_block { print }
+  ' "${PROD_DEPLOY_FILE}"
+)"
+
+[[ -n "${authz_block}" ]] || fail "expected authz_services block in ${PROD_DEPLOY_FILE}"
+if printf '%s\n' "${authz_block}" | grep -Eq '(^|[[:space:]])casdoor($|[[:space:]])'; then
+  fail "production deploy must not start the local casdoor service; SSO is external"
+fi
+if ! printf '%s\n' "${authz_block}" | grep -Eq '(^|[[:space:]])openfga($|[[:space:]])'; then
+  fail "production authz services must still start OpenFGA"
+fi
+if (( start_authz_line <= start_infra_line )); then
+  fail "authorization services must start after infrastructure services"
 fi
 
 echo "[prod-deploy-contract] all assertions passed"

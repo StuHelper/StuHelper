@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 APPLICATION_RULES="${REPO_ROOT}/infra/observability/prometheus/rules/application.yml"
+PROM_TEMPLATE="${REPO_ROOT}/infra/observability/prometheus/prometheus.yml.tmpl"
 
 fail() {
   echo "[observability-alert-contract][error] $*" >&2
@@ -17,6 +18,13 @@ assert_contains() {
   fi
 }
 
+assert_prometheus_contains() {
+  local pattern="$1"
+  if ! grep -Fq -- "${pattern}" "${PROM_TEMPLATE}"; then
+    fail "expected prometheus.yml.tmpl to contain: ${pattern}"
+  fi
+}
+
 assert_contains "StuHelperOutboxTerminalFailures"
 assert_contains 'increase(outbox_job_failures_total{terminal="true"}[5m]) > 0'
 assert_contains "Outbox job reached terminal retry threshold"
@@ -26,5 +34,7 @@ assert_contains "Refresh token reuse detected"
 assert_contains "StuHelperIAMDriftReconciliationThresholdExceeded"
 assert_contains "increase(iam_drift_reconciliation_threshold_exceeded_total[10m]) > 0"
 assert_contains "IAM drift reconciliation exceeded automatic repair threshold"
+assert_contains 'probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"} == 0'
+assert_prometheus_contains "https://sso.stuhelper.com/.well-known/openid-configuration"
 
 echo "[observability-alert-contract] all assertions passed"

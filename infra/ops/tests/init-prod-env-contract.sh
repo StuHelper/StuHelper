@@ -94,7 +94,7 @@ fresh_bootstrap_env="${fresh_dir}/.env.casdoor-bootstrap.local"
 assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
 assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置样板$'
 assert_env_value "${fresh_env}" "CORS_ORIGINS" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
-assert_env_value "${fresh_env}" "CASDOOR_ISSUER" "REPLACE_WITH_CASDOOR_ISSUER"
+assert_env_value "${fresh_env}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
 assert_env_value "${fresh_env}" "CASDOOR_REDIRECT_URI" "REPLACE_WITH_CASDOOR_REDIRECT_URI"
 assert_env_value "${fresh_env}" "CASDOOR_CLIENT_ID" "REPLACE_WITH_CASDOOR_CLIENT_ID"
 assert_env_value "${fresh_env}" "CASDOOR_BOOTSTRAP_ENABLED" "true"
@@ -121,7 +121,7 @@ assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin
 assert_env_value "${fresh_env}" "WEB_PUBLIC_URL" "REPLACE_WITH_WEB_PUBLIC_URL"
 assert_env_value "${fresh_env}" "ADMIN_PUBLIC_URL" "REPLACE_WITH_ADMIN_PUBLIC_URL"
 assert_env_value "${fresh_env}" "WEB_VITE_API_URL" "/api"
-assert_env_value "${fresh_env}" "WEB_VITE_SSO_URL" "REPLACE_WITH_WEB_VITE_SSO_URL"
+assert_env_value "${fresh_env}" "WEB_VITE_SSO_URL" "https://sso.stuhelper.com"
 assert_env_value "${fresh_env}" "OPENFGA_API_URL" "http://openfga:8080"
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_ENDPOINT" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_USE_SSL" "true"
@@ -144,6 +144,7 @@ assert_file_contains "${fresh_secrets}" '^CASDOOR_UNIAPP_CLIENT_SECRET=prod-casd
 assert_file_contains "${fresh_secrets}" '^CASDOOR_APP_PROVISIONING_CLIENT_SECRET=prod-casdoor-app-provisioning-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_ROLE_SYNC_CLIENT_SECRET=prod-casdoor-role-sync-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_USER_LOOKUP_CLIENT_SECRET=prod-casdoor-user-lookup-[0-9a-f]+$'
+assert_file_not_contains "${fresh_secrets}" '^CASDOOR_DB_PASSWORD='
 assert_env_value "${fresh_secrets}" "SMS_SECRET_ID" "REPLACE_WITH_SMS_SECRET_ID"
 assert_env_value "${fresh_secrets}" "SMS_SECRET_KEY" "REPLACE_WITH_SMS_SECRET_KEY"
 assert_file_contains "${fresh_secrets}" '^SMS_INTERNAL_KEY=[0-9a-f]+$'
@@ -178,7 +179,7 @@ bash "${INIT_SCRIPT}" >"${legacy_dir}/stdout.log" 2>"${legacy_dir}/stderr.log"
 legacy_env="${legacy_dir}/.env.prod.shared"
 assert_env_value "${legacy_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
 assert_env_value "${legacy_env}" "CORS_ORIGINS" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
-assert_env_value "${legacy_env}" "CASDOOR_ISSUER" "REPLACE_WITH_CASDOOR_ISSUER"
+assert_env_value "${legacy_env}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
 assert_env_value "${legacy_env}" "CASDOOR_INTERNAL_ADDRESS" ""
 assert_env_value "${legacy_env}" "CASDOOR_REDIRECT_URI" "REPLACE_WITH_CASDOOR_REDIRECT_URI"
 assert_env_value "${legacy_env}" "CASDOOR_CLIENT_ID" "REPLACE_WITH_CASDOOR_CLIENT_ID"
@@ -204,7 +205,7 @@ assert_env_value "${legacy_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admi
 assert_env_value "${legacy_env}" "WEB_PUBLIC_URL" "REPLACE_WITH_WEB_PUBLIC_URL"
 assert_env_value "${legacy_env}" "ADMIN_PUBLIC_URL" "REPLACE_WITH_ADMIN_PUBLIC_URL"
 assert_env_value "${legacy_env}" "WEB_VITE_API_URL" "/api"
-assert_env_value "${legacy_env}" "WEB_VITE_SSO_URL" "REPLACE_WITH_WEB_VITE_SSO_URL"
+assert_env_value "${legacy_env}" "WEB_VITE_SSO_URL" "https://sso.stuhelper.com"
 assert_env_value "${legacy_env}" "OPENFGA_API_URL" "http://openfga:8080"
 assert_env_value "${legacy_env}" "OBJECT_STORAGE_ENDPOINT" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
 assert_env_value "${legacy_env}" "OBJECT_STORAGE_USE_SSL" "true"

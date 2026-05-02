@@ -240,9 +240,9 @@ TRAEFIK_TLS_REDIRECT_TARGET=
 
 发布前确认：
 
-- [ ] `CASDOOR_ISSUER` 与实际 scheme、host、端口一致
-- [ ] `CASDOOR_EXTERNALPORT` 与本机暴露端口一致
+- [ ] `CASDOOR_ISSUER=https://sso.stuhelper.com`
 - [ ] `CORS_ORIGINS` 使用正确的 scheme 和端口
-- [ ] `WEB_VITE_SSO_URL` 使用正确的 scheme
+- [ ] `WEB_VITE_SSO_URL=https://sso.stuhelper.com`
+- [ ] `https://sso.stuhelper.com/.well-known/openid-configuration` 可达
 - [ ] `TOKEN_COOKIE_SECURE=true`（生产必须）
 - [ ] 如果使用 External LB，`TRUSTED_PROXIES` 已正确配置

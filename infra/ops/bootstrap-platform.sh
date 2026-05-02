@@ -87,17 +87,31 @@ require_casdoor_bootstrap_config() {
 }
 
 casdoor_internal_endpoint() {
-  local address="${CASDOOR_INTERNAL_ADDRESS:-casdoor:8000}"
+  local address="${CASDOOR_INTERNAL_ADDRESS:-}"
+  [[ -n "${address}" ]] || return 1
   case "${address}" in
     http://*|https://*) printf '%s\n' "${address}" ;;
     *) printf 'http://%s\n' "${address}" ;;
   esac
 }
 
+casdoor_bootstrap_endpoint() {
+  local endpoint
+  if [[ -n "${CASDOOR_BOOTSTRAP_ENDPOINT:-}" ]]; then
+    printf '%s\n' "${CASDOOR_BOOTSTRAP_ENDPOINT}"
+    return
+  fi
+  if endpoint="$(casdoor_internal_endpoint)"; then
+    printf '%s\n' "${endpoint}"
+    return
+  fi
+  printf '%s\n' "${CASDOOR_ISSUER:-http://localhost:8085}"
+}
+
 run_casdoor_bootstrap_with_go() {
   (
     cd "${REPO_ROOT}/server" && \
-    CASDOOR_BOOTSTRAP_ENDPOINT="${CASDOOR_BOOTSTRAP_ENDPOINT:-${CASDOOR_ISSUER:-http://localhost:8085}}" \
+    CASDOOR_BOOTSTRAP_ENDPOINT="$(casdoor_bootstrap_endpoint)" \
     go run ./cmd/casdoor-bootstrap
   )
 }
@@ -106,7 +120,7 @@ run_casdoor_bootstrap_with_docker() {
   local endpoint
   local -a env_args
   local key
-  endpoint="${CASDOOR_BOOTSTRAP_ENDPOINT:-$(casdoor_internal_endpoint)}"
+  endpoint="$(casdoor_bootstrap_endpoint)"
   env_args=(-e "CASDOOR_BOOTSTRAP_ENDPOINT=${endpoint}")
   for key in "${CASDOOR_BOOTSTRAP_ENV_KEYS[@]}"; do
     env_args+=(-e "${key}=${!key:-}")

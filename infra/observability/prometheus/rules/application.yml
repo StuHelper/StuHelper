@@ -131,14 +131,14 @@ groups:
           description: Frontend runtime error reporting has exceeded 0.1 events/s for 15 minutes.
 
       - alert: StuHelperCasdoorProbeFailed
-        expr: probe_success{job="blackbox-http",instance="http://casdoor:8000/.well-known/openid-configuration"} == 0
+        expr: probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"} == 0
         for: 5m
         labels:
           severity: critical
           team: platform
         annotations:
           summary: Casdoor OIDC metadata probe failed
-          description: The Casdoor OIDC metadata endpoint has failed blackbox probing for 5 minutes.
+          description: The external Casdoor OIDC metadata endpoint has failed blackbox probing for 5 minutes.
 
       - alert: StuHelperOpenFGAGRPCProbeFailed
         expr: probe_success{job="blackbox-tcp",instance="openfga:8081"} == 0

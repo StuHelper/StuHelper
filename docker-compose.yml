@@ -11,8 +11,8 @@
 #   /admin/*        (600)  → admin 前端（Vben Admin）
 #   /               (500)  → web 前端（Vue SPA，catch-all）
 #
-# Casdoor SSO 默认通过 CASDOOR_EXTERNALPORT 直接暴露，生产可在边缘层用独立
-# sso 域名转发到 casdoor:8000，避免与应用 /api 路由冲突。
+# Casdoor SSO 在生产环境独立部署为 https://sso.stuhelper.com；
+# 本 compose 中的 casdoor service 仅用于本地开发或显式本地 SSO 验证。
 #
 # 使用方式:
 #   开发（仅基础设施）:  docker compose -f docker-compose.yml up -d --wait
@@ -103,7 +103,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-stuhelper}
       PGDATA: ${POSTGRES_PGDATA:-/var/lib/postgresql/data}
       STUHELPER_APP_DB_PASSWORD: ${STUHELPER_APP_DB_PASSWORD:?STUHELPER_APP_DB_PASSWORD is required}
-      CASDOOR_DB_PASSWORD: ${CASDOOR_DB_PASSWORD:?CASDOOR_DB_PASSWORD is required}
+      CASDOOR_DB_PASSWORD: ${CASDOOR_DB_PASSWORD:-}
       OPENFGA_DB_PASSWORD: ${OPENFGA_DB_PASSWORD:?OPENFGA_DB_PASSWORD is required}
       STUHELPER_BACKUP_DB_PASSWORD: ${STUHELPER_BACKUP_DB_PASSWORD:?STUHELPER_BACKUP_DB_PASSWORD is required}
       STUHELPER_REPLICATION_DB_PASSWORD: ${STUHELPER_REPLICATION_DB_PASSWORD:?STUHELPER_REPLICATION_DB_PASSWORD is required}
