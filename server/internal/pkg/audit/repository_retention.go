@@ -94,13 +94,20 @@ func normalizeIAMRetentionPolicy(policy IAMRetentionPolicy) (IAMRetentionPolicy,
 func (r *Repository) cleanupIAMEventGroup(ctx context.Context, spec iamCleanupSpec) (int64, error) {
 	query := fmt.Sprintf(`
 		DELETE FROM audit_events
-		WHERE category = $1
-		  AND %s
-		  AND created_at < NOW() - make_interval(days => $2)
+		WHERE id IN (
+			SELECT id
+			FROM audit_events
+			WHERE category = $1
+			  AND %s
+			  AND created_at < NOW() - make_interval(days => $2)
+			ORDER BY created_at ASC, id ASC
+			LIMIT $3
+			FOR UPDATE SKIP LOCKED
+		)
 	`, spec.condition)
-	result, err := r.db.Exec(ctx, query, spec.category, spec.days)
+	deleted, err := r.cleanupAuditEventsInChunks(ctx, query, spec.category, spec.days)
 	if err != nil {
 		return 0, fmt.Errorf("cleanup iam audit events: %w", err)
 	}
-	return result.RowsAffected(), nil
+	return deleted, nil
 }

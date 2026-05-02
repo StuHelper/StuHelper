@@ -17,6 +17,8 @@ const (
 	adminOperationCategory = "admin_operation"
 )
 
+const defaultAuditCleanupChunkSize = 5000
+
 type AdminOperationRecord struct {
 	ID            string
 	ActorUserID   string
@@ -110,16 +112,49 @@ func (r *Repository) CleanupAdminOperations(ctx context.Context, retentionDays i
 	if retentionDays <= 0 {
 		retentionDays = defaultAdminOperationRetentionDays
 	}
-	result, err := r.db.Exec(ctx, `
+
+	query := `
 		DELETE FROM audit_events
-		WHERE category = $1
-		  AND event_type NOT LIKE 'iam.%'
-		  AND created_at < NOW() - make_interval(days => $2)
-	`, adminOperationCategory, retentionDays)
+		WHERE id IN (
+			SELECT id
+			FROM audit_events
+			WHERE category = $1
+			  AND event_type NOT LIKE 'iam.%'
+			  AND created_at < NOW() - make_interval(days => $2)
+			ORDER BY created_at ASC, id ASC
+			LIMIT $3
+			FOR UPDATE SKIP LOCKED
+		)
+	`
+	deleted, err := r.cleanupAuditEventsInChunks(ctx, query, adminOperationCategory, retentionDays)
 	if err != nil {
 		return 0, fmt.Errorf("cleanup admin operations: %w", err)
 	}
-	return result.RowsAffected(), nil
+	return deleted, nil
+}
+
+func (r *Repository) cleanupAuditEventsInChunks(ctx context.Context, query string, args ...any) (int64, error) {
+	var total int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
+
+		queryArgs := make([]any, 0, len(args)+1)
+		queryArgs = append(queryArgs, args...)
+		queryArgs = append(queryArgs, defaultAuditCleanupChunkSize)
+
+		result, err := r.db.Exec(ctx, query, queryArgs...)
+		if err != nil {
+			return total, fmt.Errorf("cleanup audit events chunk: %w", err)
+		}
+
+		deleted := result.RowsAffected()
+		total += deleted
+		if deleted < defaultAuditCleanupChunkSize {
+			return total, nil
+		}
+	}
 }
 
 var (

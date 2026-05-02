@@ -67,6 +67,36 @@ func TestRepository_CleanupAdminOperationsPreservesIAMEvents(t *testing.T) {
 	assert.EqualValues(t, 1, countEvents(t, fixture, "event_type LIKE 'iam.%'"))
 }
 
+func TestRepository_CleanupAdminOperationsSkipsLockedRows(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	const retentionDays = 90
+	lockedID := writeStaleAdminEventForUser(t, fixture, repo, ctx, "locked-admin")
+	unlockedID := writeStaleAdminEventForUser(t, fixture, repo, ctx, "unlocked-admin")
+
+	lockTx, err := fixture.Pool.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, lockTx.Rollback(context.Background()))
+	})
+
+	var selectedID string
+	err = lockTx.QueryRow(ctx, `SELECT id FROM audit_events WHERE id = $1 FOR UPDATE`, lockedID).Scan(&selectedID)
+	require.NoError(t, err)
+	require.Equal(t, lockedID, selectedID)
+
+	cleanupCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	deleted, err := repo.CleanupAdminOperations(cleanupCtx, retentionDays)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted)
+	assert.True(t, eventExists(t, fixture, lockedID))
+	assert.False(t, eventExists(t, fixture, unlockedID))
+}
+
 func TestRepository_CleanupIAMEventsUsesTieredRetention(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
@@ -113,6 +143,38 @@ func staleAdminEventWithAge(eventType EventType, ageDays int) Event {
 		Result:       "success",
 		Timestamp:    time.Now().AddDate(0, 0, -ageDays),
 	}
+}
+
+func writeStaleAdminEventForUser(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	repo *Repository,
+	ctx context.Context,
+	userID string,
+) string {
+	t.Helper()
+	event := staleAdminEvent(EventAdminConfigChange)
+	event.UserID = userID
+	require.NoError(t, repo.WriteEvent(ctx, event))
+
+	var eventID string
+	row := fixture.Pool.QueryRow(ctx, `
+		SELECT id
+		FROM audit_events
+		WHERE category = $1
+		  AND event_type = $2
+		  AND actor_user_id = $3
+	`, adminOperationCategory, string(EventAdminConfigChange), userID)
+	require.NoError(t, row.Scan(&eventID))
+	return eventID
+}
+
+func eventExists(t *testing.T, fixture *postgresfixture.Fixture, eventID string) bool {
+	t.Helper()
+	var exists bool
+	row := fixture.Pool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM audit_events WHERE id = $1)`, eventID)
+	require.NoError(t, row.Scan(&exists))
+	return exists
 }
 
 func countEvents(t *testing.T, fixture *postgresfixture.Fixture, condition string) int64 {
