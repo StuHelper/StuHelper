@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
@@ -60,6 +61,7 @@ func (rt *Runtime) registerAdminRoutes(
 	userRepo user.MFAContextRepository,
 	userHandler *user.Handler,
 	authHandler *auth.Handler,
+	admissionHandler *admission.Handler,
 	authMW gin.HandlerFunc,
 ) {
 	adminGroup := api.Group("/admin")
@@ -68,6 +70,7 @@ func (rt *Runtime) registerAdminRoutes(
 	adminGroup.Use(middlewares...)
 	authHandler.RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
+	admissionHandler.RegisterAdminRoutes(adminGroup)
 }
 
 func adminMFAMiddlewares(userRepo user.MFAContextRepository) []gin.HandlerFunc {

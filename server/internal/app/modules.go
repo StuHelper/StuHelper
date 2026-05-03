@@ -11,6 +11,7 @@ import (
 	gozap "go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/academics"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
@@ -113,11 +114,23 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return err
 	}
+	admissionService, err := admission.NewService(
+		admission.NewRepository(rt.database),
+		userService,
+		crypto.GetHMACKey(),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize admission service: %w", err)
+	}
+	admissionHandler := admission.NewHandler(admissionService, userRepo.GetInternalUserID, botCredentialVerifier)
+	admissionHandler.RegisterRoutes(api, authMW)
+	admissionHandler.RegisterBotRoutes(api)
+
 	botHandler := user.NewBotHandler(userService, botCredentialVerifier)
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
 	botHandler.RegisterRoutes(api)
-	rt.registerAdminRoutes(api, userRepo, userHandler, authHandler, authMW)
+	rt.registerAdminRoutes(api, userRepo, userHandler, authHandler, admissionHandler, authMW)
 
 	courseHandler.StartBackgroundJobs(bgCtx, startBackgroundTask)
 

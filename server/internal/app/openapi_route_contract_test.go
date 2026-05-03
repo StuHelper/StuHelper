@@ -12,6 +12,7 @@ import (
 
 	apigen "git.stuhelper.com/StuHelper/StuHelper/internal/api/gen"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/academics"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/admission"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/auth"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	reviewmodule "git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
@@ -58,10 +59,14 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 	userHandler.RegisterRoutes(api, noOp)
 	botHandler := &user.BotHandler{}
 	botHandler.RegisterRoutes(api)
+	admissionHandler := &admission.Handler{}
+	admissionHandler.RegisterRoutes(api, noOp)
+	admissionHandler.RegisterBotRoutes(api)
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(noOp)
 	authHandler.RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
+	admissionHandler.RegisterAdminRoutes(adminGroup)
 
 	metricsGroup := api.Group("/metrics")
 	metricsGroup.Use(metrics.OriginValidationMiddleware([]string{"http://localhost:3000"}))

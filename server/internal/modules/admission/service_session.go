@@ -1,0 +1,267 @@
+package admission
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
+)
+
+const admissionTokenBytes = 32
+
+type QQBindingGateway interface {
+	EnsureQQBindingForUserTx(context.Context, pgx.Tx, int64, string, *string) (*user.QQBinding, error)
+}
+
+type Service struct {
+	repo          *Repository
+	qqGateway     QQBindingGateway
+	hmacKey       []byte
+	now           func() time.Time
+	generateToken func() (string, error)
+	authBaseURL   string
+}
+
+func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte) (*Service, error) {
+	if repo == nil {
+		return nil, errors.New("admission.NewService: repo must not be nil")
+	}
+	if qqGateway == nil {
+		return nil, errors.New("admission.NewService: qqGateway must not be nil")
+	}
+	if len(hmacKey) == 0 {
+		return nil, errors.New("admission.NewService: hmacKey must not be empty")
+	}
+	return &Service{
+		repo:          repo,
+		qqGateway:     qqGateway,
+		hmacKey:       hmacKey,
+		now:           time.Now,
+		generateToken: generateAdmissionToken,
+		authBaseURL:   defaultAdmissionAuthBaseURL,
+	}, nil
+}
+
+func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateInput) (*CreatedAdmissionSession, error) {
+	input = normalizeBotSessionCreateInput(input)
+	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
+	if err != nil {
+		return nil, err
+	}
+	token, err := s.generateToken()
+	if err != nil {
+		return nil, fmt.Errorf("CreateBotSession token: %w", err)
+	}
+	session, err := s.newAdmissionSession(input, policy, token)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.CreateSession(ctx, session); err != nil {
+		return nil, err
+	}
+	return &CreatedAdmissionSession{
+		Session: session,
+		Token:   token,
+		AuthURL: s.buildAuthURL(token, session.QQID),
+	}, nil
+}
+
+func (s *Service) PreviewToken(ctx context.Context, token string, qqQuery string) (*AdmissionSession, error) {
+	session, err := s.repo.GetSessionByTokenHash(ctx, s.hashToken(token))
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateTokenSession(session, qqQuery); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func (s *Service) LinkTokenToUser(ctx context.Context, token string, qqQuery string, userID int64) (*AdmissionSession, error) {
+	var linked *AdmissionSession
+	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		session, err := s.repo.GetSessionByTokenHashForUpdate(ctx, tx, s.hashToken(token))
+		if err != nil {
+			return err
+		}
+		if err := s.validateTokenSession(session, qqQuery); err != nil {
+			return err
+		}
+		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
+		if err != nil {
+			return err
+		}
+		if _, err := s.qqGateway.EnsureQQBindingForUserTx(ctx, tx, userID, session.QQID, session.QQNickname); err != nil {
+			return err
+		}
+		deadline := s.now().Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second)
+		linked, err = s.repo.MarkTokenConsumedAndLinked(ctx, tx, session.ID, userID, s.now(), deadline)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("LinkTokenToUser: %w", err)
+	}
+	return linked, nil
+}
+
+func (s *Service) MarkMaterialSubmitted(ctx context.Context, sessionID string) (*AdmissionSession, error) {
+	session, err := s.repo.GetSessionByID(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if session.Status != StatusLinked {
+		return nil, ErrAdmissionInvalidStatus
+	}
+	policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
+	if err != nil {
+		return nil, err
+	}
+	deadline := s.now().Add(time.Duration(policy.ManualReviewTimeoutSeconds) * time.Second)
+	return s.repo.MarkMaterialSubmitted(ctx, session.ID, deadline)
+}
+
+func (s *Service) MarkVerified(ctx context.Context, sessionID string) (*AdmissionSession, error) {
+	session, err := s.repo.GetSessionByID(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if session.Status != StatusLinked && session.Status != StatusMaterialSubmitted {
+		return nil, ErrAdmissionInvalidStatus
+	}
+	return s.repo.MarkVerified(ctx, session.ID, s.now())
+}
+
+func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event BotEventInput) error {
+	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		session, err := s.repo.GetSessionByIDForUpdate(ctx, tx, sessionID)
+		if err != nil {
+			return err
+		}
+		if !event.Success {
+			return s.repo.UpdateLastBotErrorTx(ctx, tx, sessionID, normalizeBotEventError(event))
+		}
+		if event.Action != BotActionKick {
+			return nil
+		}
+		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
+		if err != nil {
+			return err
+		}
+		_, err = s.repo.IncrementFailureFromKickEventTx(ctx, tx, session, policy, s.now())
+		return err
+	})
+}
+
+func (s *Service) newAdmissionSession(
+	input BotSessionCreateInput,
+	policy *AdmissionPolicy,
+	token string,
+) (*AdmissionSession, error) {
+	sessionID, err := id.New()
+	if err != nil {
+		return nil, fmt.Errorf("newAdmissionSession id: %w", err)
+	}
+	now := s.now()
+	return &AdmissionSession{
+		ID:                       sessionID,
+		Platform:                 input.Platform,
+		GuildID:                  input.GuildID,
+		ChannelID:                input.ChannelID,
+		QQID:                     input.QQID,
+		QQNickname:               input.QQNickname,
+		TokenHash:                s.hashToken(token),
+		TokenExpiresAt:           now.Add(time.Duration(policy.LinkWaitSeconds) * time.Second),
+		Status:                   StatusJoinedMuted,
+		LinkWaitDeadlineAt:       now.Add(time.Duration(policy.LinkWaitSeconds) * time.Second),
+		SubmissionWaitDeadlineAt: now.Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second),
+		InitialMuteUntil:         now.Add(time.Duration(policy.InitialMuteDurationSeconds) * time.Second),
+	}, nil
+}
+
+func (s *Service) validateTokenSession(session *AdmissionSession, qqQuery string) error {
+	if session == nil {
+		return ErrAdmissionTokenNotFound
+	}
+	if query := strings.TrimSpace(qqQuery); query != "" && query != session.QQID {
+		return ErrAdmissionQQMismatch
+	}
+	if session.TokenConsumedAt != nil || session.Status != StatusJoinedMuted {
+		return ErrAdmissionTokenConsumed
+	}
+	if s.now().After(session.TokenExpiresAt) {
+		return ErrAdmissionTokenExpired
+	}
+	return nil
+}
+
+func (s *Service) loadPolicy(ctx context.Context, platform, guildID string) (*AdmissionPolicy, error) {
+	policy, err := s.repo.GetPolicy(ctx, platform, guildID)
+	if err != nil {
+		return nil, err
+	}
+	if policy != nil {
+		return policy, nil
+	}
+	return defaultAdmissionPolicy(platform, guildID, s.now()), nil
+}
+
+func (s *Service) hashToken(token string) string {
+	mac := hmac.New(sha256.New, s.hmacKey)
+	mac.Write([]byte(strings.TrimSpace(token)))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func (s *Service) buildAuthURL(token string, qqID string) string {
+	values := url.Values{}
+	values.Set("qq", qqID)
+	return s.authBaseURL + url.PathEscape(token) + "?" + values.Encode()
+}
+
+func generateAdmissionToken() (string, error) {
+	buf := make([]byte, admissionTokenBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func normalizeBotSessionCreateInput(input BotSessionCreateInput) BotSessionCreateInput {
+	input.Platform = strings.TrimSpace(input.Platform)
+	input.GuildID = strings.TrimSpace(input.GuildID)
+	input.ChannelID = strings.TrimSpace(input.ChannelID)
+	input.QQID = strings.TrimSpace(input.QQID)
+	input.QQNickname = normalizeStringPtr(input.QQNickname)
+	input.BotSelfID = strings.TrimSpace(input.BotSelfID)
+	return input
+}
+
+func normalizeStringPtr(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func normalizeBotEventError(event BotEventInput) string {
+	trimmed := strings.TrimSpace(event.Error)
+	if trimmed != "" {
+		return trimmed
+	}
+	return "bot action failed"
+}

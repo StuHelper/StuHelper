@@ -1,21 +1,41 @@
 package admission
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
 
-type Handler struct{}
+type BotCredentialVerifier interface {
+	Verify(ctx context.Context, rawToken, audience, scope string) error
+}
 
-func NewHandler() *Handler {
-	return &Handler{}
+type Handler struct {
+	service                *Service
+	internalUserIDResolver middleware.InternalUserIDResolver
+	botCredentialVerifier  BotCredentialVerifier
+}
+
+func NewHandler(
+	service *Service,
+	internalUserIDResolver middleware.InternalUserIDResolver,
+	botCredentialVerifier BotCredentialVerifier,
+) *Handler {
+	return &Handler{
+		service:                service,
+		internalUserIDResolver: internalUserIDResolver,
+		botCredentialVerifier:  botCredentialVerifier,
+	}
 }
 
 func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 	admission := api.Group("/admission")
-	admission.GET("/sessions/:token", notImplemented)
-	admission.POST("/sessions/:token/link", authMW, notImplemented)
+	admission.GET("/sessions/:token", h.handlePreviewAdmissionSession)
+	admission.POST("/sessions/:token/link", authMW, h.handleLinkAdmissionSession)
 	admission.GET("/me", authMW, notImplemented)
 	admission.POST("/freshman/applications", authMW, notImplemented)
 	admission.POST("/freshman/applications/:id/camera-captures", authMW, notImplemented)
@@ -27,11 +47,11 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 
 func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 	bot := api.Group("/bot/admission")
-	bot.POST("/sessions", notImplemented)
+	bot.POST("/sessions", h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession), h.handleCreateBotSession)
 	bot.POST("/join-requests/events", notImplemented)
 	bot.GET("/qq-users/:qqID/access", notImplemented)
 	bot.GET("/sessions/pending", notImplemented)
-	bot.POST("/sessions/:id/events", notImplemented)
+	bot.POST("/sessions/:id/events", h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent), h.handleRecordBotEvent)
 	bot.GET("/freshman/applications/pending-forward", notImplemented)
 	bot.POST("/freshman/applications/:id/forwarded", notImplemented)
 	bot.POST("/freshman/applications/:id/review", notImplemented)

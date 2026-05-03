@@ -1,0 +1,148 @@
+package admission
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+const admissionSessionColumns = `
+	id, platform, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash,
+	token_expires_at, token_consumed_at, status, link_wait_deadline_at,
+	submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
+	verified_at, cancelled_at, last_bot_error
+`
+
+func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSession) error {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO group_admission_sessions (
+			id, platform, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash,
+			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
+			submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
+			verified_at, cancelled_at, last_bot_error
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+	`, session.ID, session.Platform, session.GuildID, session.ChannelID, session.QQID, session.QQNickname,
+		session.UserID, session.TokenHash, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
+		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
+		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError)
+	if err != nil {
+		return fmt.Errorf("CreateSession: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) GetSessionByID(ctx context.Context, id string) (*AdmissionSession, error) {
+	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE id = $1"
+	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, id))
+	if err != nil {
+		return nil, fmt.Errorf("GetSessionByID: %w", err)
+	}
+	return session, nil
+}
+
+func (r *Repository) GetSessionByIDForUpdate(ctx context.Context, tx pgx.Tx, id string) (*AdmissionSession, error) {
+	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE id = $1 FOR UPDATE"
+	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, id))
+	if err != nil {
+		return nil, fmt.Errorf("GetSessionByIDForUpdate: %w", err)
+	}
+	return session, nil
+}
+
+func (r *Repository) GetSessionByTokenHash(ctx context.Context, tokenHash string) (*AdmissionSession, error) {
+	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE token_hash = $1"
+	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, tokenHash))
+	if err != nil {
+		return nil, fmt.Errorf("GetSessionByTokenHash: %w", err)
+	}
+	return session, nil
+}
+
+func (r *Repository) GetSessionByTokenHashForUpdate(
+	ctx context.Context,
+	tx pgx.Tx,
+	tokenHash string,
+) (*AdmissionSession, error) {
+	query := "SELECT " + admissionSessionColumns + " FROM group_admission_sessions WHERE token_hash = $1 FOR UPDATE"
+	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, tokenHash))
+	if err != nil {
+		return nil, fmt.Errorf("GetSessionByTokenHashForUpdate: %w", err)
+	}
+	return session, nil
+}
+
+func (r *Repository) MarkTokenConsumedAndLinked(
+	ctx context.Context,
+	tx pgx.Tx,
+	sessionID string,
+	userID int64,
+	now time.Time,
+	submissionDeadline time.Time,
+) (*AdmissionSession, error) {
+	return r.updateSessionTx(ctx, tx, `
+		UPDATE group_admission_sessions
+		SET user_id = $2, token_consumed_at = $3, status = $4,
+		    submission_wait_deadline_at = $5, updated_at = NOW()
+		WHERE id = $1
+		RETURNING `+admissionSessionColumns, sessionID, userID, now, StatusLinked, submissionDeadline)
+}
+
+func (r *Repository) MarkMaterialSubmitted(
+	ctx context.Context,
+	sessionID string,
+	manualReviewDeadline time.Time,
+) (*AdmissionSession, error) {
+	query := `
+		UPDATE group_admission_sessions
+		SET status = $2, manual_review_deadline_at = $3, updated_at = NOW()
+		WHERE id = $1
+		RETURNING ` + admissionSessionColumns
+	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, sessionID, StatusMaterialSubmitted, manualReviewDeadline))
+	if err != nil {
+		return nil, fmt.Errorf("MarkMaterialSubmitted: %w", err)
+	}
+	return session, nil
+}
+
+func (r *Repository) MarkVerified(ctx context.Context, sessionID string, now time.Time) (*AdmissionSession, error) {
+	query := `
+		UPDATE group_admission_sessions
+		SET status = $2, verified_at = $3, updated_at = NOW()
+		WHERE id = $1
+		RETURNING ` + admissionSessionColumns
+	session, err := scanAdmissionSession(r.db.QueryRow(ctx, query, sessionID, StatusVerified, now))
+	if err != nil {
+		return nil, fmt.Errorf("MarkVerified: %w", err)
+	}
+	return session, nil
+}
+
+func (r *Repository) updateSessionTx(ctx context.Context, tx pgx.Tx, query string, args ...any) (*AdmissionSession, error) {
+	session, err := scanAdmissionSession(tx.QueryRow(ctx, query, args...))
+	if err != nil {
+		return nil, fmt.Errorf("updateSessionTx: %w", err)
+	}
+	return session, nil
+}
+
+func scanAdmissionSession(row pgx.Row) (*AdmissionSession, error) {
+	var session AdmissionSession
+	err := row.Scan(
+		&session.ID, &session.Platform, &session.GuildID, &session.ChannelID, &session.QQID,
+		&session.QQNickname, &session.UserID, &session.TokenHash, &session.TokenExpiresAt,
+		&session.TokenConsumedAt, &session.Status, &session.LinkWaitDeadlineAt,
+		&session.SubmissionWaitDeadlineAt, &session.ManualReviewDeadlineAt, &session.InitialMuteUntil,
+		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrAdmissionTokenNotFound
+		}
+		return nil, err
+	}
+	return &session, nil
+}
