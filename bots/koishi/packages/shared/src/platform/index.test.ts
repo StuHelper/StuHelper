@@ -50,6 +50,12 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   })
   await client.listPendingFreshmanForwards()
   await client.markFreshmanForwarded('app-1')
+  await client.viewFreshmanApplication('app-1', {
+    operatorQQID: '90001',
+    guildID: 'mgmt-1',
+    channelID: 'channel-1',
+    rawCommand: '新生审核查看 app-1',
+  })
   await client.reviewFreshmanApplication('app-1', {
     action: 'approve',
     operatorQQID: '90001',
@@ -57,6 +63,12 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     channelID: 'channel-1',
     rawCommand: '新生审核通过 app-1 +30d',
     expiresInDays: 30,
+  })
+  await client.releaseAdmissionBlacklist('10001', {
+    operatorQQID: '90001',
+    guildID: 'mgmt-1',
+    channelID: 'channel-1',
+    rawCommand: '新生黑名单解除 10001',
   })
 
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
@@ -66,14 +78,17 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     ['POST', '/api/v1/bot/admission/sessions/session-1/events'],
     ['GET', '/api/v1/bot/admission/freshman/applications/pending-forward'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/forwarded'],
+    ['POST', '/api/v1/bot/admission/freshman/applications/app-1/view'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/review'],
+    ['POST', '/api/v1/bot/admission/blacklist/10001/release'],
   ])
   assert.ok(calls.every((call) => call.authorization === 'Bearer service-token'))
   assert.equal(calls[0].body.qqNickname, 'Alice')
   assert.equal(calls[1].body.rawEvent.comment, '我是新生')
   assert.equal(calls[3].body.messageID, 'message-1')
   assert.equal(calls[6].body.operatorQQID, '90001')
-  assert.equal(calls[6].body.expiresInDays, 30)
+  assert.equal(calls[7].body.expiresInDays, 30)
+  assert.equal(calls[8].body.rawCommand, '新生黑名单解除 10001')
 })
 
 interface CapturedRequest {
@@ -108,7 +123,7 @@ function responseDataForPath(path: string) {
       managementGuildIDs: ['mgmt-1'],
     }]
   }
-  if (path.endsWith('/review')) {
+  if (path.endsWith('/view') || path.endsWith('/review')) {
     return freshmanApplication('app-1')
   }
   return { message: 'ok' }

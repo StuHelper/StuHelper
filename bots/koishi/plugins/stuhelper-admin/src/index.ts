@@ -6,6 +6,7 @@ import {
 } from '@stuhelper/koishi-moderation-core'
 import {
   createAdminPluginConfigSchema,
+  createPlatformClient,
   createPluginLogger,
   registerGuardMemberModel,
   type StuhelperAdminPluginConfig,
@@ -26,6 +27,7 @@ export function apply(ctx: Context, config: Config) {
 
   const logger = createPluginLogger(ctx, 'admin')
   const moderationStore = new ModerationStore(ctx)
+  const platform = createPlatformClient(config.platform)
 
   if (!config.admin.enableCommands) {
     logger.info('管理员命令已停用')
@@ -34,6 +36,7 @@ export function apply(ctx: Context, config: Config) {
 
   registerAdminCommands(ctx, {
     moderationStore,
+    platform,
   })
 
   logger.info('管理员命令已启用')

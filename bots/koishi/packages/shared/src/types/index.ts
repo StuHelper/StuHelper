@@ -268,12 +268,17 @@ export interface FreshmanForwardItem {
   readonly qqID?: string
 }
 
-export interface FreshmanReviewRequest {
-  readonly action: FreshmanReviewAction
-  readonly reason?: string
-  readonly expiresInDays?: number
+export interface FreshmanCommandContext {
   readonly operatorQQID: string
   readonly guildID: string
   readonly channelID?: string
   readonly rawCommand: string
 }
+
+export interface FreshmanReviewRequest extends FreshmanCommandContext {
+  readonly action: FreshmanReviewAction
+  readonly reason?: string
+  readonly expiresInDays?: number
+}
+
+export interface FreshmanBlacklistReleaseRequest extends FreshmanCommandContext {}

@@ -7562,20 +7562,7 @@ components:
     BotFreshmanReviewRequest:
       allOf:
         - $ref: '#/components/schemas/FreshmanReviewRequest'
-        - type: object
-          required:
-            - operatorQQID
-            - guildID
-            - rawCommand
-          properties:
-            operatorQQID:
-              type: string
-            guildID:
-              type: string
-            channelID:
-              type: string
-            rawCommand:
-              type: string
+        - $ref: '#/components/schemas/BotFreshmanCommandContext'
     CameraCaptureRequest:
       type: object
       required:
@@ -8162,6 +8149,21 @@ components:
         - pending
         - approved
         - rejected
+    BotFreshmanCommandContext:
+      type: object
+      required:
+        - operatorQQID
+        - guildID
+        - rawCommand
+      properties:
+        operatorQQID:
+          type: string
+        guildID:
+          type: string
+        channelID:
+          type: string
+        rawCommand:
+          type: string
     AdminStudentVerificationItem:
       type: object
       required:

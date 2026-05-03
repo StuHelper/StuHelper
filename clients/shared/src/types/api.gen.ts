@@ -3018,12 +3018,7 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        BotFreshmanReviewRequest: components["schemas"]["FreshmanReviewRequest"] & {
-            operatorQQID: string;
-            guildID: string;
-            channelID?: string;
-            rawCommand: string;
-        };
+        BotFreshmanReviewRequest: components["schemas"]["FreshmanReviewRequest"] & components["schemas"]["BotFreshmanCommandContext"];
         CameraCaptureRequest: {
             /** @enum {string} */
             contentType: "image/jpeg" | "image/png" | "image/webp";
@@ -3256,6 +3251,12 @@ export interface components {
         AdmissionStatus: "joined_muted" | "linked" | "material_submitted" | "verified" | "expired_kicked" | "cancelled";
         /** @enum {string} */
         FreshmanApplicationStatus: "pending" | "approved" | "rejected";
+        BotFreshmanCommandContext: {
+            operatorQQID: string;
+            guildID: string;
+            channelID?: string;
+            rawCommand: string;
+        };
         AdminStudentVerificationItem: {
             /** Format: int64 */
             userID: number;

@@ -176,20 +176,23 @@ FreshmanReviewRequest:
       type: integer
       minimum: 1
 
+BotFreshmanCommandContext:
+  type: object
+  required: [operatorQQID, guildID, rawCommand]
+  properties:
+    operatorQQID:
+      type: string
+    guildID:
+      type: string
+    channelID:
+      type: string
+    rawCommand:
+      type: string
+
 BotFreshmanReviewRequest:
   allOf:
     - $ref: '#/FreshmanReviewRequest'
-    - type: object
-      required: [operatorQQID, guildID, rawCommand]
-      properties:
-        operatorQQID:
-          type: string
-        guildID:
-          type: string
-        channelID:
-          type: string
-        rawCommand:
-          type: string
+    - $ref: '#/BotFreshmanCommandContext'
 
 BotAdmissionSessionCreateRequest:
   type: object

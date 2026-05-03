@@ -8,6 +8,8 @@ import type {
   AdmissionSessionCreateResult,
   ConsumeQQBindingRequest,
   FreshmanApplication,
+  FreshmanBlacklistReleaseRequest,
+  FreshmanCommandContext,
   FreshmanForwardItem,
   FreshmanReviewRequest,
   QQVerificationStatus,
@@ -65,7 +67,9 @@ export interface PlatformClient {
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
   listPendingFreshmanForwards(): Promise<readonly FreshmanForwardItem[]>
   markFreshmanForwarded(applicationID: string): Promise<void>
+  viewFreshmanApplication(applicationID: string, input: FreshmanCommandContext): Promise<FreshmanApplication>
   reviewFreshmanApplication(applicationID: string, input: FreshmanReviewRequest): Promise<FreshmanApplication>
+  releaseAdmissionBlacklist(qqID: string, input: FreshmanBlacklistReleaseRequest): Promise<void>
 }
 
 export function createPlatformClient(config: StuhelperPlatformConfig): PlatformClient {
@@ -125,10 +129,25 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
       }, true)
     },
 
+    async viewFreshmanApplication(applicationID, input) {
+      return request<FreshmanApplication>(
+        `${ADMISSION_FRESHMAN_APPLICATIONS_PATH}/${encodeURIComponent(applicationID)}/view`,
+        jsonPost(input),
+      )
+    },
+
     async reviewFreshmanApplication(applicationID, input) {
       return request<FreshmanApplication>(
         `${ADMISSION_FRESHMAN_APPLICATIONS_PATH}/${encodeURIComponent(applicationID)}/review`,
         jsonPost(input),
+      )
+    },
+
+    async releaseAdmissionBlacklist(qqID, input) {
+      await request<void>(
+        `/api/v1/bot/admission/blacklist/${encodeURIComponent(qqID)}/release`,
+        jsonPost(input),
+        true,
       )
     },
   }

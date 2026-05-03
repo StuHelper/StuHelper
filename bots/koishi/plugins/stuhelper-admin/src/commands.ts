@@ -3,16 +3,23 @@ import type { Context, Session } from 'koishi'
 import {
   GUARD_MEMBER_TABLE,
   type GuardMemberRecord,
+  type PlatformClient,
 } from '@stuhelper/koishi-shared'
 import {
   COMMAND_POLICY_IDS,
-  canExecuteCommand,
   type ModerationStore,
   type ReviewActionType,
 } from '@stuhelper/koishi-moderation-core'
 
+import {
+  ensureAdminCommandAccess,
+  resolveGuildId,
+} from './command-access'
+import { registerFreshmanReviewCommands } from './admission-review-commands'
+
 interface AdminCommandDeps {
   moderationStore: ModerationStore
+  platform: PlatformClient
 }
 
 export function registerAdminCommands(ctx: Context, deps: AdminCommandDeps) {
@@ -22,6 +29,7 @@ export function registerAdminCommands(ctx: Context, deps: AdminCommandDeps) {
   registerBatchMuteCommand(ctx, deps)
   registerKickReviewCommand(ctx, deps)
   registerBlockReviewCommand(ctx, deps)
+  registerFreshmanReviewCommands(ctx, deps)
 }
 
 function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {
@@ -149,31 +157,6 @@ function registerBlockReviewCommand(ctx: Context, deps: AdminCommandDeps) {
     })
 }
 
-async function ensureAdminCommandAccess(
-  store: ModerationStore,
-  session: Session | undefined,
-  commandId: string,
-  targetGuildId = session?.guildId,
-) {
-  const guildId = targetGuildId
-  if (!session || !guildId) {
-    return
-  }
-  const [policy, memberRoles] = await Promise.all([
-    store.getCommandPolicy(commandId),
-    store.getMemberRoles(guildId, session.userId),
-  ])
-  const allowed = canExecuteCommand({
-    authority: resolveAuthority(session),
-    memberRoles,
-    policy,
-  })
-  if (allowed) {
-    return
-  }
-  return '命令权限不足。'
-}
-
 async function createReviewRequest(
   store: ModerationStore,
   session: Session | undefined,
@@ -274,13 +257,4 @@ function parseBatchMutePayload(payload: string | undefined) {
     return null
   }
   return { seconds, memberIds }
-}
-
-function resolveAuthority(session: Session | undefined) {
-  const target = session as { user?: { authority?: number } } | undefined
-  return target?.user?.authority ?? 0
-}
-
-function resolveGuildId(session: Session | undefined, guildId: string | undefined) {
-  return guildId?.trim() || session?.guildId || ''
 }
