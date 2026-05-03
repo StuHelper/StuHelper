@@ -113,7 +113,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement forward scan**
 
-During scheduled scan, call `listPendingFreshmanForwards`. For each item, send `h.image(materialURL)` only when backend explicitly returns a material URL and policy enables raw forwarding. Text must include application ID and approved/rejected command examples.
+During scheduled scan, call `listPendingFreshmanForwards`. For each item, send `h.image(materialURL)` only when backend explicitly returns a material URL and policy enables raw forwarding. Send it directly to the configured QQ management group with the application summary; v1 does not add signed URL handling, IP binding, watermark composition, or private download proxy. Text must include application ID and approved/rejected command examples.
 
 - [ ] **Step 4: Run and commit**
 

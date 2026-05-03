@@ -181,7 +181,7 @@ Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只�
 - 用户没有正式学生身份。
 - 用户没有同学校 pending 新生申请。
 
-材料入口只允许摄像头拍摄。移动端使用 camera capture 或 WebRTC；桌面端无摄像头时明确提示换手机打开。后端拒绝 PDF、超大文件、伪装 content type 和非图片内容。
+材料入口只允许调用摄像头拍摄。前端只使用 WebRTC `getUserMedia` 打开摄像头并通过 canvas 生成图片；不使用普通文件输入、相册选择、拖拽上传或 `<input capture>` 作为提交入口。设备无可用摄像头时明确提示换手机打开。后端拒绝 PDF、超大文件、伪装 content type 和非图片内容。材料转发到 QQ 管理群是显式策略开关；开启 `forward_raw_material_to_qq` 后，后端为待转发申请返回可供 Koishi 发送的图片 URL，Koishi 直接把图片和申请摘要发送到策略指定管理群。第一版不做额外 signed URL、IP 绑定、水印合成或私有下载代理；安全边界依赖默认关闭、管理群白名单、审批权限和审计记录。
 
 ## API 形状
 

@@ -50,7 +50,7 @@ Commit: `git add clients/web/src && git commit -m "feat: add admission landing p
 
 - [ ] **Step 1: Write failing camera tests**
 
-Cover `supportsCameraCapture()` returning false without `navigator.mediaDevices.getUserMedia`, `fileInputAccept()` returning `image/*`, and `fileInputCapture()` returning `environment`.
+Cover `supportsCameraCapture()` returning false without `navigator.mediaDevices.getUserMedia`, `buildCameraConstraints()` requesting an environment-facing camera, and `AdmissionPage` rendering no `input[type="file"]` in the freshman material flow.
 
 - [ ] **Step 2: Run failing test**
 
@@ -59,11 +59,11 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement camera helper**
 
-Expose `supportsCameraCapture`, `readCameraImageAsBase64(file)`, `fileInputAccept`, `fileInputCapture`, and `MAX_CAMERA_IMAGE_BYTES = 10 * 1024 * 1024`. Reject files larger than the limit before calling the API.
+Expose `supportsCameraCapture`, `buildCameraConstraints`, `startCameraStream`, `captureFrameAsBase64`, `stopCameraStream`, and `MAX_CAMERA_IMAGE_BYTES = 10 * 1024 * 1024`. Capture from a live video stream into canvas; do not expose file-input helpers or accept user-selected files.
 
 - [ ] **Step 4: Wire page submission**
 
-Render old-student and freshman tabs after link success. Freshman tab shows school, name, major, material type, camera capture input with `capture="environment"`, preview, and submit. It must not render ordinary upload, drag-drop, PDF, or gallery language.
+Render old-student and freshman tabs after link success. Freshman tab shows school, name, major, material type, live camera preview, capture button, preview, retake, and submit. If camera access is unavailable or denied, show a fixed prompt to reopen the link on a phone browser; it must not render ordinary upload, file input, drag-drop, PDF, gallery, or album language.
 
 - [ ] **Step 5: Run tests and commit**
 
