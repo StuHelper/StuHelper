@@ -8,7 +8,6 @@
           QQ：{{ displayQQ }}
         </p>
       </header>
-
       <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div v-if="pageState === 'loading'" data-state="loading">
           <p class="text-sm text-slate-600">正在校验链接...</p>
@@ -71,18 +70,25 @@
               新生认证
             </button>
           </div>
-          <div
+          <OldStudentVerificationFlow
             v-if="activeFlow === 'oldStudent'"
-            class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
-            data-admission-old-student-flow
-          >
-            学校邮箱和学校官方 SSO 认证入口将在此处显示。
-          </div>
+            :current-return-url="currentAdmissionURL()"
+            :linked="pageState === 'linked'"
+            :schools="admissionSchools"
+            @verified="handleOldStudentVerified"
+          />
           <FreshmanCameraFlow
-            v-else
+            v-else-if="showFreshmanSubmission"
             :max-material-bytes="session?.maxMaterialBytes"
             @submitted="markPendingReview"
           />
+          <div
+            v-else
+            class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+            data-formal-student-credential
+          >
+            已完成老生认证。
+          </div>
         </div>
 
         <div v-else-if="pageState === 'pendingReview'" data-state="pendingReview">
@@ -120,11 +126,17 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import type { AdmissionSession } from '@stuhelper/shared/api'
+import { useVerificationStore } from '@/stores/verification'
+import type { AdmissionMe, AdmissionSession } from '@stuhelper/shared/api'
 
 import { admissionApi } from '../api'
 import { buildAdmissionReturnURL, mapAdmissionApiError } from '../admissionToken'
+import {
+  shouldShowFreshmanSubmission,
+  type AdmissionSchoolOption,
+} from '../oldStudentAdmission'
 import FreshmanCameraFlow from './FreshmanCameraFlow.vue'
+import OldStudentVerificationFlow from './OldStudentVerificationFlow.vue'
 
 type AdmissionPageState =
   | 'loading'
@@ -139,8 +151,10 @@ type AdmissionPageState =
 
 const route = useRoute()
 const auth = useAuthStore()
+const verificationStore = useVerificationStore()
 const pageState = ref<AdmissionPageState>('loading')
 const session = ref<AdmissionSession | null>(null)
+const admissionMe = ref<AdmissionMe | null>(null)
 const errorMessage = ref('认证链接暂时无法打开，请稍后重试。')
 const linking = ref(false)
 const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
@@ -149,6 +163,12 @@ const token = computed(() => String(route.params.code ?? ''))
 const displayQQ = computed(() => {
   const qq = route.query.qq
   return typeof qq === 'string' ? qq : ''
+})
+const admissionSchools = computed(() => {
+  return verificationStore.schools as AdmissionSchoolOption[]
+})
+const showFreshmanSubmission = computed(() => {
+  return shouldShowFreshmanSubmission(admissionMe.value)
 })
 
 function stateFromSession(nextSession: AdmissionSession): AdmissionPageState {
@@ -171,6 +191,20 @@ function currentAdmissionURL(): string {
   return buildAdmissionReturnURL(route.fullPath)
 }
 
+async function loadLinkedResources(): Promise<void> {
+  await Promise.all([
+    verificationStore.fetchSchools(),
+    admissionApi.getAdmissionMe().then((admission) => {
+      admissionMe.value = admission
+      if (!showFreshmanSubmission.value) activeFlow.value = 'oldStudent'
+    }),
+  ])
+}
+
+function scheduleLinkedResourcesLoad(): void {
+  loadLinkedResources().catch(applyError)
+}
+
 async function loadAdmissionSession() {
   pageState.value = 'loading'
   try {
@@ -180,6 +214,7 @@ async function loadAdmissionSession() {
     )
     session.value = preview
     pageState.value = auth.isAuthenticated ? stateFromSession(preview) : 'needsLogin'
+    if (pageState.value === 'linked') scheduleLinkedResourcesLoad()
   } catch (error) {
     applyError(error)
   }
@@ -194,6 +229,7 @@ async function confirmLink() {
     )
     session.value = linked
     pageState.value = stateFromSession(linked)
+    if (pageState.value === 'linked') scheduleLinkedResourcesLoad()
   } catch (error) {
     applyError(error)
   } finally {
@@ -211,6 +247,11 @@ function startSignup() {
 
 function markPendingReview() {
   pageState.value = 'pendingReview'
+}
+
+function handleOldStudentVerified(nextAdmission: AdmissionMe) {
+  admissionMe.value = nextAdmission
+  pageState.value = nextAdmission.status === 'verified' ? 'approved' : 'linked'
 }
 
 onMounted(() => {
@@ -234,10 +275,7 @@ onMounted(() => {
   color: #ffffff;
 }
 
-.primary-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
+.primary-button:disabled { cursor: not-allowed; opacity: 0.6; }
 
 .secondary-button {
   background: #e2e8f0;
