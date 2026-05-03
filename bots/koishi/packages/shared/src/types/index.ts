@@ -8,6 +8,33 @@ export type GuardMemberActionState =
   | 'released'
   | 'expired_pending_kick'
 
+export type AdmissionSessionStatus =
+  | 'joined_muted'
+  | 'linked'
+  | 'material_submitted'
+  | 'verified'
+  | 'expired_kicked'
+  | 'cancelled'
+
+export type FreshmanApplicationStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+
+export type FreshmanMaterialType =
+  | 'admission_notice'
+  | 'admission_certificate'
+
+export type AdmissionBotAction =
+  | 'mute'
+  | 'remind'
+  | 'release'
+  | 'kick'
+  | 'blacklist'
+  | 'forward'
+
+export type FreshmanReviewAction = 'approve' | 'reject'
+
 export const GUARD_MEMBER_TABLE = 'stuhelper_guard_member'
 
 export interface StuhelperPlatformConfig {
@@ -139,4 +166,96 @@ export interface QQVerificationStatus {
   verificationState: PlatformVerificationState
   profileVerificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected'
   studentVerified: boolean
+}
+
+export interface AdmissionSession {
+  readonly id: string
+  readonly platform: string
+  readonly guildID: string
+  readonly channelID?: string
+  readonly qqID: string
+  readonly qqNickname?: string | null
+  readonly userID?: number | string | null
+  readonly status: AdmissionSessionStatus
+  readonly tokenExpiresAt: string
+  readonly linkWaitDeadlineAt: string
+  readonly submissionWaitDeadlineAt: string
+  readonly manualReviewDeadlineAt?: string | null
+  readonly initialMuteUntil: string
+  readonly projectionPending: boolean
+  readonly authURL?: string
+  readonly maxMaterialBytes?: number
+}
+
+export interface AdmissionSessionCreateRequest {
+  readonly platform: string
+  readonly guildID: string
+  readonly channelID: string
+  readonly qqID: string
+  readonly qqNickname?: string
+  readonly botSelfID?: string
+}
+
+export interface AdmissionSessionCreateResult {
+  readonly session: AdmissionSession
+  readonly token: string
+  readonly authURL: string
+}
+
+export interface AdmissionJoinRequestEvent {
+  readonly platform: string
+  readonly guildID: string
+  readonly qqID: string
+  readonly requestID: string
+  readonly success: boolean
+  readonly error?: string
+  readonly rawEvent?: Record<string, unknown>
+}
+
+export interface AdmissionPendingActionsRequest {
+  readonly platform?: string
+  readonly botSelfID?: string
+}
+
+export interface AdmissionPendingAction {
+  readonly sessionID: string
+  readonly action: Extract<AdmissionBotAction, 'remind' | 'release' | 'kick' | 'blacklist'>
+}
+
+export interface AdmissionBotEventRequest {
+  readonly action: AdmissionBotAction
+  readonly success: boolean
+  readonly messageID?: string
+  readonly error?: string
+}
+
+export interface FreshmanApplication {
+  readonly id: string
+  readonly userID: number | string
+  readonly schoolID: number
+  readonly admissionSessionID?: string
+  readonly applicantName?: string
+  readonly applicantNameMasked: string
+  readonly departmentOrMajor?: string | null
+  readonly materialType: FreshmanMaterialType
+  readonly status: FreshmanApplicationStatus
+  readonly provisionalExpiresAt?: string | null
+  readonly reviewedAt?: string | null
+  readonly createdAt: string
+}
+
+export interface FreshmanForwardItem {
+  readonly application: FreshmanApplication
+  readonly materialURL: string
+  readonly managementGuildIDs: readonly string[]
+}
+
+export interface FreshmanReviewRequest {
+  readonly action: FreshmanReviewAction
+  readonly reason?: string
+  readonly expiresInDays?: number
+  readonly operatorQQID: string
+  readonly guildID: string
+  readonly channelID?: string
+  readonly rawCommand: string
 }

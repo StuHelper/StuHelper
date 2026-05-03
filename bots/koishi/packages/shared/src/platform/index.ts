@@ -1,5 +1,14 @@
 import type {
+  AdmissionBotEventRequest,
+  AdmissionJoinRequestEvent,
+  AdmissionPendingAction,
+  AdmissionPendingActionsRequest,
+  AdmissionSessionCreateRequest,
+  AdmissionSessionCreateResult,
   ConsumeQQBindingRequest,
+  FreshmanApplication,
+  FreshmanForwardItem,
+  FreshmanReviewRequest,
   QQVerificationStatus,
   StuhelperPlatformConfig,
   QQBinding,
@@ -8,6 +17,11 @@ import type {
 const HEALTH_PATH = '/health/live'
 const QQ_BINDING_CONSUME_PATH = '/api/v1/bot/qq-binding/consume'
 const QQ_VERIFICATION_PATH_PREFIX = '/api/v1/bot/qq-users/'
+const ADMISSION_SESSIONS_PATH = '/api/v1/bot/admission/sessions'
+const ADMISSION_JOIN_REQUEST_EVENTS_PATH = '/api/v1/bot/admission/join-requests/events'
+const ADMISSION_PENDING_ACTIONS_PATH = '/api/v1/bot/admission/sessions/pending'
+const ADMISSION_FRESHMAN_FORWARD_PATH = '/api/v1/bot/admission/freshman/applications/pending-forward'
+const ADMISSION_FRESHMAN_APPLICATIONS_PATH = '/api/v1/bot/admission/freshman/applications'
 const AUTH_SCHEME = 'Bearer'
 const JSON_CONTENT_TYPE = 'application/json'
 const PLATFORM_REQUEST_TIMEOUT_MS = 8_000
@@ -43,6 +57,13 @@ export interface PlatformClient {
   getHealth(): Promise<void>
   consumeQQBindingCode(input: ConsumeQQBindingRequest): Promise<ConsumeQQBindingResult>
   getQQVerificationStatus(qqID: string): Promise<QQVerificationStatus>
+  createAdmissionSession(input: AdmissionSessionCreateRequest): Promise<AdmissionSessionCreateResult>
+  recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
+  listPendingAdmissionActions(input?: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
+  recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
+  listPendingFreshmanForwards(): Promise<readonly FreshmanForwardItem[]>
+  markFreshmanForwarded(applicationID: string): Promise<void>
+  reviewFreshmanApplication(applicationID: string, input: FreshmanReviewRequest): Promise<FreshmanApplication>
 }
 
 export function createPlatformClient(config: StuhelperPlatformConfig): PlatformClient {
@@ -66,6 +87,63 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
         method: 'GET',
       })
     },
+
+    async createAdmissionSession(input) {
+      return request<AdmissionSessionCreateResult>(ADMISSION_SESSIONS_PATH, jsonPost(input))
+    },
+
+    async recordJoinRequestEvent(input) {
+      await request<void>(ADMISSION_JOIN_REQUEST_EVENTS_PATH, jsonPost(input), true)
+    },
+
+    async listPendingAdmissionActions(input = {}) {
+      return request<readonly AdmissionPendingAction[]>(withQuery(ADMISSION_PENDING_ACTIONS_PATH, input), {
+        method: 'GET',
+      })
+    },
+
+    async recordAdmissionEvent(sessionID, input) {
+      await request<void>(`${ADMISSION_SESSIONS_PATH}/${encodeURIComponent(sessionID)}/events`, jsonPost(input), true)
+    },
+
+    async listPendingFreshmanForwards() {
+      return request<readonly FreshmanForwardItem[]>(ADMISSION_FRESHMAN_FORWARD_PATH, { method: 'GET' })
+    },
+
+    async markFreshmanForwarded(applicationID) {
+      await request<void>(`${ADMISSION_FRESHMAN_APPLICATIONS_PATH}/${encodeURIComponent(applicationID)}/forwarded`, {
+        method: 'POST',
+      }, true)
+    },
+
+    async reviewFreshmanApplication(applicationID, input) {
+      return request<FreshmanApplication>(
+        `${ADMISSION_FRESHMAN_APPLICATIONS_PATH}/${encodeURIComponent(applicationID)}/review`,
+        jsonPost(input),
+      )
+    },
+  }
+}
+
+function jsonPost(input: unknown): RequestInit {
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': JSON_CONTENT_TYPE },
+    body: JSON.stringify(input),
+  }
+}
+
+function withQuery(path: string, input: AdmissionPendingActionsRequest) {
+  const values = new URLSearchParams()
+  appendQueryValue(values, 'platform', input.platform)
+  appendQueryValue(values, 'botSelfID', input.botSelfID)
+  const query = values.toString()
+  return query ? `${path}?${query}` : path
+}
+
+function appendQueryValue(values: URLSearchParams, key: string, value: string | undefined) {
+  if (value) {
+    values.set(key, value)
   }
 }
 
