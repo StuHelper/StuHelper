@@ -12,7 +12,7 @@ created: 2026-05-03
 
 当前系统已经有 QQ 绑定码、学生认证、Koishi 入群禁言/提醒/解禁/踢出，以及对象存储。新需求是在 QQ 新生群中实现“先入群、禁言、认证、通过后解禁”的完整链路，并把老生认证、新生材料审核、QQ 绑定、Admin 后台和 QQ 管理群审批打通。
 
-后期 QQ 加群问题可写成“访问网站 `buaa. team` 完成认证”，这是为了绕开 QQ 文案拦截和字数限制。`buaa.team` 只做短域名重定向工具，目标是 StuHelper 认证域名，例如 `https://auth.stuhelper.com/admission`。本系统和 `buaa.team` 没有身份、数据或权限关系。
+后期 QQ 加群问题可写成“访问网站 `buaa. team` 完成认证”，这是为了绕开 QQ 加群问题的字数限制和文案拦截。`buaa.team` 只做短域名重定向工具，目标是 StuHelper 认证域名，例如 `https://auth.stuhelper.com/admission`。群内提醒和系统生成链接不使用 `buaa.team`。
 
 ## 目标
 
@@ -25,7 +25,7 @@ created: 2026-05-03
 
 ## 非目标
 
-- 不把 `buaa.team` 做成系统组成部分；它只是可替换的短域名重定向工具。
+- 不把 `buaa.team` 做成系统组成部分；它只是 QQ 加群问题可用的外部短域名重定向工具。
 - 不把录取材料人工审核直接写成正式 `verified_student`。
 - 不把 Koishi SQLite 作为身份或审核真源。
 - 第一版不支持普通图片上传、相册选择、拖拽上传或 PDF 材料。
@@ -66,12 +66,13 @@ Admin 后台执行：
 2. Koishi 调后端创建入群认证会话。
 3. 后端返回认证链接、禁言时长、等待截止时间、提醒间隔等策略。
 4. Koishi 默认禁言 30 天，并 @ 新人发送认证链接和截止时间。
-5. 用户打开链接；未登录则跳转 SSO 注册或登录，回调后回到 admission 页面。
-6. 后端消费 token，将当前登录用户与 token 绑定的 QQ 会话关联，并在安全条件满足时自动建立 QQ 绑定。
-7. 用户选择老生或新生认证路径。
-8. 认证通过后，Koishi 扫描到状态变化并自动解禁。
-9. 等待时间超时仍未通过时，Koishi 发送超时提醒、踢出并上报失败。
-10. 同一 QQ 在同一群累计 3 次“进群但未认证超时被踢”后默认永久拉黑。
+5. 用户打开 `auth.stuhelper.com` 链接；后端先做 token 轻量校验，但不消费 token。
+6. 未登录用户跳转到 `sso.stuhelper.com` 登录或注册，SSO 完成后回到原 admission URL。
+7. 已登录用户回到 admission 页面后，后端消费 token，将当前登录用户与 token 绑定的 QQ 会话关联，并在安全条件满足时自动建立 QQ 绑定。
+8. 用户选择老生或新生认证路径。
+9. 认证通过后，Koishi 扫描到状态变化并自动解禁。
+10. 等待时间超时仍未通过时，Koishi 发送超时提醒、踢出并上报失败。
+11. 同一 QQ 在同一群累计 3 次“进群但未认证超时被踢”后默认永久拉黑。
 
 ## 认证链接
 
@@ -81,9 +82,17 @@ Admin 后台执行：
 https://auth.stuhelper.com/admission/a/<code>?qq=123456789
 ```
 
-QQ 加群问题或群内短文案可使用 `buaa. team` 引导用户访问短域名；`https://buaa.team/a/<code>?qq=123456789` 只做 302 到 canonical URL。
+Koishi 群内 @ 新人的短文案直接发送 canonical URL。`buaa.team` 只允许用于 QQ 加群问题，不用于群内提醒或系统生成链接。
 
 `qq` 参数只用于用户观察。后端必须校验 token 绑定的 QQ 与 `qq` 参数一致；不一致时拒绝打开。实际绑定和状态判断只使用 token 记录中的 `qq_id`。
+
+登录回跳规则：
+
+- admission 链接先落在 `auth.stuhelper.com`，不要直接把群内链接发到 `sso.stuhelper.com`。
+- 未登录时跳转 `sso.stuhelper.com`，OIDC `state` 中保存受保护的 admission return target。
+- SSO 回调只允许回跳到 StuHelper 白名单域名和 admission 路径，避免 open redirect。
+- 登录或注册中断不会消费 token；只有已登录用户确认进入 admission 流程时才消费。
+- OIDC 使用 `state + nonce + PKCE`；回调后恢复原始 `code` 与 `qq` 展示参数。
 
 入群 token 规则：
 
@@ -288,9 +297,4 @@ Koishi：
 
 ## 实施分解建议
 
-1. 后端数据模型、OpenAPI 和 admission 状态机。
-2. 用户 admission 页面、老生认证和摄像头材料提交。
-3. Admin 新生审核和策略配置。
-4. Koishi admission session、提醒、解禁、踢出、拉黑。
-5. QQ 管理群材料转发和指令审批。
-6. 过期撤销、能力投影和端到端验证。
+按后端数据模型、OpenAPI 与 admission 状态机；用户 admission 页面、老生认证与摄像头材料提交；Admin 新生审核与策略配置；Koishi session、提醒、解禁、踢出、拉黑；QQ 管理群转发与指令审批；过期撤销、能力投影与端到端验证的顺序推进。
