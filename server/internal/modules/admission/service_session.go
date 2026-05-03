@@ -3,11 +3,8 @@ package admission
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -15,44 +12,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
-
-const admissionTokenBytes = 32
-
-type QQBindingGateway interface {
-	EnsureQQBindingForUserTx(context.Context, pgx.Tx, int64, string, *string) (*user.QQBinding, error)
-}
-
-type Service struct {
-	repo          *Repository
-	qqGateway     QQBindingGateway
-	hmacKey       []byte
-	now           func() time.Time
-	generateToken func() (string, error)
-	authBaseURL   string
-}
-
-func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte) (*Service, error) {
-	if repo == nil {
-		return nil, errors.New("admission.NewService: repo must not be nil")
-	}
-	if qqGateway == nil {
-		return nil, errors.New("admission.NewService: qqGateway must not be nil")
-	}
-	if len(hmacKey) == 0 {
-		return nil, errors.New("admission.NewService: hmacKey must not be empty")
-	}
-	return &Service{
-		repo:          repo,
-		qqGateway:     qqGateway,
-		hmacKey:       hmacKey,
-		now:           time.Now,
-		generateToken: generateAdmissionToken,
-		authBaseURL:   defaultAdmissionAuthBaseURL,
-	}, nil
-}
 
 func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateInput) (*CreatedAdmissionSession, error) {
 	input = normalizeBotSessionCreateInput(input)
@@ -227,14 +188,6 @@ func (s *Service) buildAuthURL(token string, qqID string) string {
 	values := url.Values{}
 	values.Set("qq", qqID)
 	return s.authBaseURL + url.PathEscape(token) + "?" + values.Encode()
-}
-
-func generateAdmissionToken() (string, error) {
-	buf := make([]byte, admissionTokenBytes)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 func normalizeBotSessionCreateInput(input BotSessionCreateInput) BotSessionCreateInput {

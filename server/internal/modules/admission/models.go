@@ -97,6 +97,91 @@ type BotEventInput struct {
 	Error     string
 }
 
+type FreshmanMaterialType string
+
+const (
+	MaterialAdmissionNotice      FreshmanMaterialType = "admission_notice"
+	MaterialAdmissionCertificate FreshmanMaterialType = "admission_certificate"
+)
+
+type FreshmanApplication struct {
+	ID                   string
+	UserID               int64
+	SchoolID             int64
+	AdmissionSessionID   *string
+	Status               FreshmanApplicationStatus
+	ApplicantName        string
+	ApplicantNameMasked  string
+	DepartmentOrMajor    *string
+	MaterialType         FreshmanMaterialType
+	ProvisionalExpiresAt *time.Time
+	ReviewedAt           *time.Time
+	CreatedAt            time.Time
+}
+
+type FreshmanApplicationCreateInput struct {
+	UserID            int64
+	SchoolID          int64
+	ApplicantName     string
+	DepartmentOrMajor *string
+	MaterialType      FreshmanMaterialType
+}
+
+type CameraCaptureInput struct {
+	UserID        int64
+	ApplicationID string
+	ContentType   string
+	ImageBase64   string
+}
+
+type SchoolEmailOTPInput struct {
+	UserID   int64
+	SchoolID int64
+	Email    string
+}
+
+type SchoolEmailOTPVerifyInput struct {
+	UserID   int64
+	SchoolID int64
+	Email    string
+	Code     string
+}
+
+type SchoolEmailOTPResponse struct {
+	CooldownSeconds int
+}
+
+type SchoolSSOStartInput struct {
+	UserID    int64
+	SchoolID  int64
+	ReturnURL string
+}
+
+type SchoolSSOStartResult struct {
+	RedirectURL string
+	State       string
+}
+
+type SchoolSSOCompleteInput struct {
+	SchoolID       int64
+	State          string
+	UserID         int64
+	Subject        string
+	SubjectDisplay string
+}
+
+type SchoolSSOCompleteResult struct {
+	ReturnURL string
+}
+
+type AdmissionSchoolConfig struct {
+	SchoolID        int64
+	Enabled         bool
+	EmailDomains    []string
+	SSOLoginURL     string
+	FreshmanEnabled bool
+}
+
 type AdmissionPolicy struct {
 	ID                         string
 	Platform                   string
