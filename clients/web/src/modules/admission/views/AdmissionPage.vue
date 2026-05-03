@@ -53,9 +53,36 @@
 
         <div v-else-if="pageState === 'linked'" data-state="linked">
           <h2 class="text-lg font-semibold">选择认证方式</h2>
-          <p class="mt-2 text-sm text-slate-600">
-            老生可使用学校邮箱或学校官方 SSO，新生可提交录取证明。
-          </p>
+          <div class="mt-4 flex gap-2">
+            <button
+              class="flow-tab"
+              :class="{ 'flow-tab--active': activeFlow === 'oldStudent' }"
+              type="button"
+              @click="activeFlow = 'oldStudent'"
+            >
+              老生认证
+            </button>
+            <button
+              class="flow-tab"
+              :class="{ 'flow-tab--active': activeFlow === 'freshman' }"
+              type="button"
+              @click="activeFlow = 'freshman'"
+            >
+              新生认证
+            </button>
+          </div>
+          <div
+            v-if="activeFlow === 'oldStudent'"
+            class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+            data-admission-old-student-flow
+          >
+            学校邮箱和学校官方 SSO 认证入口将在此处显示。
+          </div>
+          <FreshmanCameraFlow
+            v-else
+            :max-material-bytes="session?.maxMaterialBytes"
+            @submitted="markPendingReview"
+          />
         </div>
 
         <div v-else-if="pageState === 'pendingReview'" data-state="pendingReview">
@@ -97,6 +124,7 @@ import type { AdmissionSession } from '@stuhelper/shared/api'
 
 import { admissionApi } from '../api'
 import { buildAdmissionReturnURL, mapAdmissionApiError } from '../admissionToken'
+import FreshmanCameraFlow from './FreshmanCameraFlow.vue'
 
 type AdmissionPageState =
   | 'loading'
@@ -115,6 +143,7 @@ const pageState = ref<AdmissionPageState>('loading')
 const session = ref<AdmissionSession | null>(null)
 const errorMessage = ref('认证链接暂时无法打开，请稍后重试。')
 const linking = ref(false)
+const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
 
 const token = computed(() => String(route.params.code ?? ''))
 const displayQQ = computed(() => {
@@ -180,6 +209,10 @@ function startSignup() {
   void auth.signup(currentAdmissionURL())
 }
 
+function markPendingReview() {
+  pageState.value = 'pendingReview'
+}
+
 onMounted(() => {
   void loadAdmissionSession()
 })
@@ -209,5 +242,21 @@ onMounted(() => {
 .secondary-button {
   background: #e2e8f0;
   color: #0f172a;
+}
+
+.flow-tab {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
+.flow-tab--active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
 }
 </style>
