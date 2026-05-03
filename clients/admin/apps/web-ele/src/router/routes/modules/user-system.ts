@@ -14,6 +14,8 @@ const routes: RouteRecordRaw[] = [
         'user:student:review',
         'user:school:read',
         'user:system:read',
+        'admission:freshman:review',
+        'admission:policy:update',
       ],
     },
     name: 'UserSystem',
@@ -47,6 +49,26 @@ const routes: RouteRecordRaw[] = [
           icon: 'lucide:school',
           title: $t('admin.routes.userSystem.schoolConfig'),
           authority: ['user:school:read'],
+        },
+      },
+      {
+        name: 'FreshmanVerification',
+        path: '/users/freshman-verification',
+        component: () => import('#/views/users/freshman-verification/index.vue'),
+        meta: {
+          icon: 'lucide:file-check-2',
+          title: $t('admin.routes.userSystem.freshmanVerification'),
+          authority: ['admission:freshman:review'],
+        },
+      },
+      {
+        name: 'AdmissionPolicy',
+        path: '/users/admission-policy',
+        component: () => import('#/views/users/admission-policy/index.vue'),
+        meta: {
+          icon: 'lucide:shield-check',
+          title: $t('admin.routes.userSystem.admissionPolicy'),
+          authority: ['admission:policy:update'],
         },
       },
       {

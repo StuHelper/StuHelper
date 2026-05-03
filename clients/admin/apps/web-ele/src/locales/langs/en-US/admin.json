@@ -12,6 +12,8 @@
       "title": "User System",
       "identityReview": "Identity Review",
       "studentVerification": "Student Verification",
+      "freshmanVerification": "Freshman Verification",
+      "admissionPolicy": "Admission Policy",
       "schoolConfig": "School Config",
       "systemConfig": "System Config"
     }

@@ -17,7 +17,20 @@ describe('user-system routes', () => {
         'user:student:review',
         'user:school:read',
         'user:system:read',
+        'admission:freshman:review',
+        'admission:policy:update',
       ]),
     );
+  });
+
+  it('registers admission review and policy routes with admission capabilities', () => {
+    const children = routes[0]!.children ?? [];
+    const freshman = children.find((route) => route.name === 'FreshmanVerification');
+    const policy = children.find((route) => route.name === 'AdmissionPolicy');
+
+    expect(freshman?.path).toBe('/users/freshman-verification');
+    expect(freshman?.meta?.authority).toEqual(['admission:freshman:review']);
+    expect(policy?.path).toBe('/users/admission-policy');
+    expect(policy?.meta?.authority).toEqual(['admission:policy:update']);
   });
 });

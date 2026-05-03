@@ -12,6 +12,8 @@
       "title": "用户系统",
       "identityReview": "实名审核",
       "studentVerification": "学生认证审核",
+      "freshmanVerification": "新生材料审核",
+      "admissionPolicy": "入群认证策略",
       "schoolConfig": "学校配置",
       "systemConfig": "系统配置"
     }

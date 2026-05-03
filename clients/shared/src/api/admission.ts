@@ -9,6 +9,12 @@ type CreateFreshmanApplicationRequest =
 type CameraCaptureRequest = components['schemas']['CameraCaptureRequest']
 type SchoolEmailOTPRequest = components['schemas']['SchoolEmailOTPRequest']
 type SchoolEmailOTPVerifyRequest = components['schemas']['SchoolEmailOTPVerifyRequest']
+type AdmissionPolicy = components['schemas']['AdmissionPolicy']
+type FreshmanReviewRequest = components['schemas']['FreshmanReviewRequest']
+type ListAdmissionSessionsParams =
+  operations['listAdmissionSessions']['parameters']['query']
+type ListFreshmanVerificationsParams =
+  operations['listFreshmanVerifications']['parameters']['query']
 
 function withQQQuery(qq?: string) {
   return qq ? { qq } : undefined
@@ -48,14 +54,53 @@ export const createAdmissionApi = (client: ApiClient) => ({
 
   verifySchoolEmailOTP: (data: SchoolEmailOTPVerifyRequest) =>
     client.POST('/api/v1/admission/school-email/verify-otp', { body: data }),
+
+  listAdmissionPolicies: () =>
+    client.GET('/api/v1/admin/admission/policies'),
+
+  updateAdmissionPolicy: (id: string, data: AdmissionPolicy) =>
+    client.PUT('/api/v1/admin/admission/policies/{id}', {
+      params: { path: { id } },
+      body: data,
+    }),
+
+  listAdmissionSessions: (params?: ListAdmissionSessionsParams) =>
+    client.GET('/api/v1/admin/admission/sessions', {
+      params: { query: params },
+    }),
+
+  listFreshmanVerifications: (params?: ListFreshmanVerificationsParams) =>
+    client.GET('/api/v1/admin/freshman-verifications', {
+      params: { query: params },
+    }),
+
+  getFreshmanVerification: (id: string) =>
+    client.GET('/api/v1/admin/freshman-verifications/{id}', {
+      params: { path: { id } },
+    }),
+
+  reviewFreshmanVerification: (id: string, data: FreshmanReviewRequest) =>
+    client.PUT('/api/v1/admin/freshman-verifications/{id}', {
+      params: { path: { id } },
+      body: data,
+    }),
+
+  releaseAdmissionBlacklist: (qqID: string) =>
+    client.POST('/api/v1/admin/admission/blacklist/{qqID}/release', {
+      params: { path: { qqID } },
+    }),
 })
 
 export type {
   AdmissionMe,
+  AdmissionPolicy,
   AdmissionSession,
   CameraCaptureRequest,
   CreateFreshmanApplicationRequest,
   FreshmanApplication,
+  FreshmanReviewRequest,
+  ListAdmissionSessionsParams,
+  ListFreshmanVerificationsParams,
   SchoolEmailOTPRequest,
   SchoolEmailOTPVerifyRequest,
 }
