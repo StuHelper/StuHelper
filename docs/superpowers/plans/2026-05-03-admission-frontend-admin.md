@@ -23,7 +23,7 @@
 
 - [ ] **Step 1: Write failing token tests**
 
-Test `buildAdmissionReturnURL('/admission/a/ABCD?qq=123')` returns same-origin absolute URL, rejects `//evil.example`, rejects non-admission paths, and preserves `qq`.
+Test `buildAdmissionReturnURL('/admission/a/ABCD?qq=123')` returns same-origin absolute URL, rejects `//evil.example`, rejects non-admission paths, and preserves `qq`. Add API error mapping tests for `admission.qq_mismatch`, `admission.token_consumed`, and `admission.token_expired`.
 
 - [ ] **Step 2: Run failing tests**
 
@@ -36,7 +36,7 @@ Add methods `getAdmissionSession(token, qq)`, `linkAdmissionSession(token, qq)`,
 
 - [ ] **Step 4: Implement route and page**
 
-Add route `/admission/a/:code` with `layout: "none"`. Page states are `loading`, `needsLogin`, `ready`, `linked`, `submitted`, `approved`, `expired`, and `error`. For `needsLogin`, call `auth.login(currentAdmissionURL)` and `auth.signup(currentAdmissionURL)`.
+Add route `/admission/a/:code` with `layout: "none"`. Page states are `loading`, `needsLogin`, `qqMismatch`, `ready`, `linked`, `pendingReview`, `approved`, `expired`, and `error`. `qqMismatch` must not show login/signup buttons or call link API; it shows fixed text asking the user to contact an admin for a fresh link. For `needsLogin`, call `auth.login(currentAdmissionURL)` and `auth.signup(currentAdmissionURL)`.
 
 - [ ] **Step 5: Run tests and commit**
 
@@ -59,7 +59,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement camera helper**
 
-Expose `supportsCameraCapture`, `buildCameraConstraints`, `startCameraStream`, `captureFrameAsBase64`, `stopCameraStream`, and `MAX_CAMERA_IMAGE_BYTES = 10 * 1024 * 1024`. Capture from a live video stream into canvas; do not expose file-input helpers or accept user-selected files.
+Expose `supportsCameraCapture`, `buildCameraConstraints`, `startCameraStream`, `captureFrameAsBase64`, and `stopCameraStream`. Read `maxMaterialBytes` from admission session/policy API and reject larger canvas output before submission; do not expose file-input helpers or accept user-selected files.
 
 - [ ] **Step 4: Wire page submission**
 
@@ -77,7 +77,7 @@ Commit: `git add clients/web/src/modules/admission && git commit -m "feat: add f
 
 - [ ] **Step 1: Write failing UI state tests**
 
-Mount `AdmissionPage` with mocked API; assert old-student path exposes school official SSO button when `schoolSsoEnabled=true`, exposes email OTP form when `emailOtpEnabled=true`, and hides freshman submission after formal credential exists.
+Mount `AdmissionPage` with mocked API; assert old-student path exposes school official SSO button only when `schoolSsoEnabled=true`, hides it for unconfigured schools, exposes email OTP form only after admission is `linked`, and hides freshman submission after formal credential exists.
 
 - [ ] **Step 2: Run failing test**
 
@@ -86,7 +86,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement old-student actions**
 
-Official SSO button navigates to `/api/v1/admission/school-sso/{schoolID}/login?return=<current admission URL>`. Email form calls request OTP, then verify OTP, then refreshes admission status and shows verified state.
+Official SSO button navigates to `/api/v1/admission/school-sso/{schoolID}/login?return=<encoded current admission URL>`; backend owns state binding and return-target whitelist validation. Email form calls request OTP, then verify OTP, then refreshes admission status and shows verified state.
 
 - [ ] **Step 4: Run tests and commit**
 
@@ -127,7 +127,7 @@ Commit: `git add clients/admin/apps/web-ele/src && git commit -m "feat: add admi
 
 - [ ] **Step 1: Write failing view tests**
 
-Test freshman list renders status, school, QQ, application time, failure count, approve, approve with days, reject, and material preview. Test policy view renders freshman channel switch, close time, provisional expiry, mute duration, token TTL, wait timeout, reminder interval, failed limit, permanent blacklist, management group, and raw material forwarding switch.
+Test freshman list renders status, school, QQ, application time, failure count, approve, approve with days, reject, pending-review state, and material preview. Test policy view renders freshman channel switch, close time, provisional expiry, mute duration, link wait, submission wait, manual-review wait, reminder interval, failed limit, permanent blacklist, max material bytes, max extension days, management groups, and raw material forwarding switch.
 
 - [ ] **Step 2: Run failing tests**
 
@@ -136,7 +136,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement Vben views**
 
-Use existing Element Plus table/form patterns from `views/users/student-verification/index.vue` and `views/users/school-config/index.vue`. Show material image in a preview dialog, mask applicant display where API provides masked fields, and require rejection reason before calling reject.
+Use existing Element Plus table/form patterns from `views/users/student-verification/index.vue` and `views/users/school-config/index.vue`. Show material image in a preview dialog, mask applicant display where API provides masked fields, require rejection reason before reject, and require a confirmation dialog before releasing a blacklist entry.
 
 - [ ] **Step 4: Run tests and commit**
 
@@ -144,8 +144,26 @@ Run: `cd clients/admin && pnpm --filter @vben/web-ele exec vitest run apps/web-e
 Expected: PASS.
 Commit: `git add clients/admin/apps/web-ele/src && git commit -m "feat: add admission admin pages"`
 
+## Task 6: Admission Edge States
+
+**Files:** `clients/web/src/modules/admission/views/AdmissionPage.vue`, `clients/web/src/modules/admission/__tests__/admissionToken.test.ts`, `clients/web/src/modules/admission/__tests__/oldStudentFlow.test.ts`
+
+- [ ] **Step 1: Write failing edge tests**
+
+Assert `qqMismatch` blocks login/link, expired token shows no submission controls, `pendingReview` tells the user to wait for admin review without counting as user failure, approved with `projectionPending=true` refreshes `/api/v1/auth/me` with bounded retries, and school email OTP cannot be requested before linked state.
+
+- [ ] **Step 2: Implement state handling**
+
+Map backend status `material_submitted` to `pendingReview`. Map `admission.qq_mismatch` to `qqMismatch`. When approval is visible but role projection is pending, show "身份生效中" and refresh `/api/v1/auth/me` at most 5 times with exponential backoff (`1s,2s,4s,8s,16s`); still not ready shows manual-refresh text. Keep current admission URL same-origin and admission-path-only before passing it into `auth.login` or `auth.signup`.
+
+- [ ] **Step 3: Run and commit**
+
+Run: `cd clients/web && pnpm exec vitest run src/modules/admission/__tests__ && pnpm type-check`
+Expected: PASS.
+Commit: `git add clients/web/src/modules/admission clients/web/src/router && git commit -m "feat: handle admission edge states"`
+
 ## Self-Review
 
-- Spec coverage: web covers auth-domain admission URL, SSO login/signup return, token mismatch display, old-student email/SSO, camera-only freshman material, and no gallery upload. Admin covers review, per-application expiry override, policy config, and blacklist release.
+- Spec coverage: web covers auth-domain admission URL, SSO login/signup return, token mismatch display, old-student email/SSO, camera-only freshman material, pending review, IAM projection pending state, and no gallery upload. Admin covers review, per-application expiry override, policy config, and blacklist release.
 - No placeholders: every task names files, commands, expected results, and commit boundary.
 - Type consistency: frontend uses generated OpenAPI clients after backend Task 1 generation.
