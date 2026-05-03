@@ -27,6 +27,10 @@ type OperatorAccessGateway interface {
 	UserHasCapability(ctx context.Context, userID int64, capabilityName string) (bool, error)
 }
 
+type FreshmanProjectionGateway interface {
+	EnqueueFreshmanProvisionalRoleSyncTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error
+}
+
 type Service struct {
 	repo           *Repository
 	qqGateway      QQBindingGateway
@@ -40,6 +44,7 @@ type Service struct {
 	redisClient    *redis.Client
 	emailSender    SchoolEmailSender
 	operatorAccess OperatorAccessGateway
+	projection     FreshmanProjectionGateway
 }
 
 type ServiceOption func(*Service)
@@ -58,6 +63,10 @@ func WithSchoolEmailSender(sender SchoolEmailSender) ServiceOption {
 
 func WithOperatorAccessGateway(gateway OperatorAccessGateway) ServiceOption {
 	return func(s *Service) { s.operatorAccess = gateway }
+}
+
+func WithFreshmanProjectionGateway(gateway FreshmanProjectionGateway) ServiceOption {
+	return func(s *Service) { s.projection = gateway }
 }
 
 func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, opts ...ServiceOption) (*Service, error) {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 )
 
@@ -114,12 +113,65 @@ func (s *Service) reviewFreshmanApplication(
 			return err
 		}
 		reviewed, err = s.repo.ReviewFreshmanApplicationTx(ctx, tx, update)
-		return err
+		if err != nil {
+			return err
+		}
+		approval := freshmanApprovalTxInput{Tx: tx, App: app, Update: update}
+		if err := s.applyFreshmanApprovalTx(ctx, approval); err != nil {
+			return err
+		}
+		return nil
 	})
 	if err == nil {
 		auditFreshmanReview(ctx, reviewed, command)
 	}
 	return reviewed, err
+}
+
+func (s *Service) applyFreshmanApprovalTx(
+	ctx context.Context,
+	input freshmanApprovalTxInput,
+) error {
+	if input.Update.Status != FreshmanApplicationApproved {
+		return nil
+	}
+	if s.projection == nil {
+		return ErrAdmissionProjectionUnavailable
+	}
+	if input.Update.ProvisionalExpiresAt == nil {
+		return ErrAdmissionInvalidStatus
+	}
+	credential := s.newFreshmanMaterialCredential(input.App, *input.Update.ProvisionalExpiresAt)
+	if err := s.repo.CreateVerificationCredentialTx(ctx, input.Tx, credential); err != nil {
+		return err
+	}
+	if err := s.repo.MarkUserLinkedSessionsVerifiedTx(ctx, input.Tx, input.App.UserID, s.now()); err != nil {
+		return err
+	}
+	return s.projection.EnqueueFreshmanProvisionalRoleSyncTx(ctx, input.Tx, input.App.UserID, true)
+}
+
+type freshmanApprovalTxInput struct {
+	Tx     pgx.Tx
+	App    *FreshmanApplication
+	Update freshmanApplicationReviewUpdate
+}
+
+func (s *Service) newFreshmanMaterialCredential(
+	app *FreshmanApplication,
+	expiresAt time.Time,
+) VerificationCredential {
+	sourceID := app.ID
+	return VerificationCredential{
+		UserID:              app.UserID,
+		SchoolID:            app.SchoolID,
+		Kind:                CredentialFreshmanMaterialManual,
+		SubjectHash:         s.hashCredentialSubject(app.SchoolID, "freshman:"+app.ID),
+		SubjectDisplay:      "freshman material " + app.ApplicantNameMasked,
+		SourceApplicationID: &sourceID,
+		ExpiresAt:           &expiresAt,
+		VerifiedAt:          s.now(),
+	}
 }
 
 func (s *Service) buildFreshmanReviewUpdate(
@@ -223,35 +275,6 @@ func stringInSlice(value string, list []string) bool {
 		}
 	}
 	return false
-}
-
-func auditFreshmanReview(ctx context.Context, app *FreshmanApplication, command freshmanReviewCommand) {
-	if app == nil {
-		return
-	}
-	audit.Log(audit.EventFromContext(ctx, audit.Event{
-		Type:         audit.EventType("admission.freshman.review"),
-		Category:     "admin_operation",
-		ActorType:    "user",
-		UserID:       reviewActorUserID(command.ReviewerUserID),
-		ResourceType: "admission.freshman_application",
-		ResourceID:   app.ID,
-		Action:       string(command.Action),
-		Result:       "success",
-		Reason:       stringValue(command.Reason),
-		Details: map[string]any{
-			"operator_qq_id": stringValue(command.OperatorQQID),
-			"guild_id":       command.GuildID,
-			"raw_command":    command.RawCommand,
-		},
-	}))
-}
-
-func reviewActorUserID(userID *int64) string {
-	if userID == nil {
-		return ""
-	}
-	return fmt.Sprint(*userID)
 }
 
 func stringValue(value *string) string {

@@ -39,6 +39,26 @@ func (h *Handler) handleLinkAdmissionSession(c *gin.Context) {
 	response.Success(c, session)
 }
 
+func (h *Handler) handleAdmissionMe(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	userID, ok := middleware.ResolveRequiredInternalUserID(
+		c,
+		h.internalUserIDResolver,
+		"failed to resolve admission user",
+	)
+	if !ok {
+		return
+	}
+	me, err := h.service.GetAdmissionMe(c.Request.Context(), userID)
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	response.Success(c, me)
+}
+
 func (h *Handler) ready(c *gin.Context) bool {
 	if h.service != nil {
 		return true

@@ -3,6 +3,7 @@ package notification
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,4 +41,24 @@ func TestNewIdentityRejectedNotification_UsesVerificationPage(t *testing.T) {
 	assert.Equal(t, TypeIdentityRejected, params.Type)
 	assert.Equal(t, "/user/identity-verification", params.SourceURL)
 	assert.Equal(t, "你的实名认证未通过审核：实名信息不匹配", params.Content)
+}
+
+func TestFreshmanNotificationTemplatesEncodeReviewState(t *testing.T) {
+	expiresAt := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	approved := NewFreshmanApprovedNotification(9, "app-1", expiresAt)
+	rejected := NewFreshmanRejectedNotification(9, "app-1", "材料不清晰")
+	nearExpiry := NewFreshmanNearExpiryNotification(9, "cred-1", expiresAt)
+
+	assert.Equal(t, TypeFreshmanApproved, approved.Type)
+	assert.Equal(t, "新生认证已通过", approved.Title)
+	assert.Equal(t, "/admission", approved.SourceURL)
+	assert.Contains(t, approved.Content, "2026-10-01 12:00")
+	assert.Equal(t, TypeFreshmanRejected, rejected.Type)
+	assert.Equal(t, "你的新生认证未通过审核：材料不清晰", rejected.Content)
+	assert.Equal(t, TypeFreshmanNearExpiry, nearExpiry.Type)
+
+	var payload map[string]string
+	require.NoError(t, json.Unmarshal(approved.Payload, &payload))
+	assert.Equal(t, "app-1", payload["applicationID"])
+	assert.Equal(t, "2026-10-01T12:00:00Z", payload["expiresAt"])
 }

@@ -75,6 +75,14 @@ type AdmissionSession struct {
 	ProjectionPending        bool                   `json:"projectionPending"`
 }
 
+type AdmissionMe struct {
+	Status               AdmissionSessionStatus      `json:"status"`
+	ProjectionPending    bool                        `json:"projectionPending"`
+	Session              *AdmissionSession           `json:"session,omitempty"`
+	CredentialKind       *VerificationCredentialKind `json:"credentialKind,omitempty"`
+	ProvisionalExpiresAt *time.Time                  `json:"provisionalExpiresAt,omitempty"`
+}
+
 type CreatedAdmissionSession struct {
 	Session *AdmissionSession `json:"session"`
 	Token   string            `json:"token"`
@@ -206,6 +214,12 @@ type AdmissionSchoolConfig struct {
 	EmailDomains    []string
 	SSOLoginURL     string
 	FreshmanEnabled bool
+}
+
+type ExpiredFreshmanCredential struct {
+	ID        string
+	UserID    int64
+	ExpiresAt time.Time
 }
 
 type AdmissionPolicy struct {

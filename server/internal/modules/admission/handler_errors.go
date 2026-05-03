@@ -41,6 +41,8 @@ func respondAdmissionError(c *gin.Context, err error) {
 		response.BadRequest(c, "freshman credential extension exceeds policy limit")
 	case errors.Is(err, ErrAdmissionOperatorAccessUnavailable):
 		response.ServiceUnavailable(c, "operator access verification unavailable")
+	case errors.Is(err, ErrAdmissionProjectionUnavailable):
+		response.ServiceUnavailable(c, "admission projection unavailable")
 	case errors.Is(err, user.ErrQQBindingQQAlreadyBound), errors.Is(err, user.ErrQQBindingUserConflict):
 		response.Conflict(c, "qq binding conflict")
 	default:

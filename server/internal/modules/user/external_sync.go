@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -15,9 +16,11 @@ import (
 )
 
 const (
-	externalSyncJobTypeVerifiedStudentRole   = "verified_student_role"
-	externalSyncJobTypeUserProfileProjection = "user_profile_projection"
-	verifiedStudentRoleName                  = "verified_student"
+	externalSyncJobTypeVerifiedStudentRole     = "verified_student_role"
+	externalSyncJobTypeFreshmanProvisionalRole = "freshman_provisional_role"
+	externalSyncJobTypeUserProfileProjection   = "user_profile_projection"
+	verifiedStudentRoleName                    = "verified_student"
+	freshmanProvisionalRoleName                = "freshman_provisional"
 
 	externalSyncBatchSize = outbox.IAMWorkerBatchSize
 	roleSyncTimeout       = 15 * time.Second
@@ -41,8 +44,16 @@ type userProfileProjectionPayload struct {
 	Approved bool  `json:"approved"`
 }
 
+func roleSyncKey(role string, userID int64) string {
+	return fmt.Sprintf("%s-role:%d", strings.ReplaceAll(role, "_", "-"), userID)
+}
+
 func verifiedStudentRoleSyncKey(userID int64) string {
-	return fmt.Sprintf("verified-student-role:%d", userID)
+	return roleSyncKey(verifiedStudentRoleName, userID)
+}
+
+func freshmanProvisionalRoleSyncKey(userID int64) string {
+	return roleSyncKey(freshmanProvisionalRoleName, userID)
 }
 
 func userProfileProjectionKey(userID int64) string {
@@ -50,15 +61,47 @@ func userProfileProjectionKey(userID int64) string {
 }
 
 func (s *Service) enqueueVerifiedStudentRoleSyncTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error {
+	return s.enqueueRoleSyncTx(ctx, roleSyncInput{
+		Tx: tx, UserID: userID, Role: verifiedStudentRoleName, Approved: approved,
+	})
+}
+
+func (s *Service) EnqueueFreshmanProvisionalRoleSyncTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	approved bool,
+) error {
+	return s.enqueueRoleSyncTx(ctx, roleSyncInput{
+		Tx: tx, UserID: userID, Role: freshmanProvisionalRoleName, Approved: approved,
+	})
+}
+
+func (s *Service) enqueueRoleSyncTx(ctx context.Context, input roleSyncInput) error {
 	payload, err := json.Marshal(verifiedStudentRoleSyncPayload{
-		UserID:   userID,
-		Role:     verifiedStudentRoleName,
-		Approved: approved,
+		UserID:   input.UserID,
+		Role:     input.Role,
+		Approved: input.Approved,
 	})
 	if err != nil {
-		return fmt.Errorf("marshal verified student role payload: %w", err)
+		return fmt.Errorf("marshal role sync payload: %w", err)
 	}
-	return s.repo.UpsertExternalSyncJobTx(ctx, tx, externalSyncJobTypeVerifiedStudentRole, verifiedStudentRoleSyncKey(userID), payload)
+	jobType, key := roleSyncJobTypeAndKey(input.Role, input.UserID)
+	return s.repo.UpsertExternalSyncJobTx(ctx, input.Tx, jobType, key, payload)
+}
+
+type roleSyncInput struct {
+	Tx       pgx.Tx
+	UserID   int64
+	Role     string
+	Approved bool
+}
+
+func roleSyncJobTypeAndKey(role string, userID int64) (string, string) {
+	if role == freshmanProvisionalRoleName {
+		return externalSyncJobTypeFreshmanProvisionalRole, freshmanProvisionalRoleSyncKey(userID)
+	}
+	return externalSyncJobTypeVerifiedStudentRole, verifiedStudentRoleSyncKey(userID)
 }
 
 func (s *Service) enqueueUserProfileProjectionTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error {
@@ -125,14 +168,12 @@ func (s *Service) processExternalSyncBatch(ctx context.Context) error {
 
 func (s *Service) processExternalSyncJob(ctx context.Context, job ExternalSyncJob) error {
 	switch job.JobType {
-	case externalSyncJobTypeVerifiedStudentRole:
+	case externalSyncJobTypeVerifiedStudentRole, externalSyncJobTypeFreshmanProvisionalRole:
 		var payload verifiedStudentRoleSyncPayload
 		if err := json.Unmarshal(job.Payload, &payload); err != nil {
-			return fmt.Errorf("decode verified student role payload: %w", err)
+			return fmt.Errorf("decode role sync payload: %w", err)
 		}
-		if payload.Role == "" {
-			payload.Role = verifiedStudentRoleName
-		}
+		payload.Role = defaultRoleSyncPayloadRole(job.JobType, payload.Role)
 		return s.syncVerifiedStudentRole(ctx, payload.UserID, payload.Role, payload.Approved)
 	case externalSyncJobTypeUserProfileProjection:
 		var payload userProfileProjectionPayload
@@ -143,6 +184,16 @@ func (s *Service) processExternalSyncJob(ctx context.Context, job ExternalSyncJo
 	default:
 		return fmt.Errorf("unsupported external sync job type: %s", job.JobType)
 	}
+}
+
+func defaultRoleSyncPayloadRole(jobType string, role string) string {
+	if strings.TrimSpace(role) != "" {
+		return role
+	}
+	if jobType == externalSyncJobTypeFreshmanProvisionalRole {
+		return freshmanProvisionalRoleName
+	}
+	return verifiedStudentRoleName
 }
 
 func truncateExternalSyncError(err error) string {

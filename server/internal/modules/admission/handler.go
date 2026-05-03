@@ -38,7 +38,7 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 	admission := api.Group("/admission")
 	admission.GET("/sessions/:token", h.handlePreviewAdmissionSession)
 	admission.POST("/sessions/:token/link", authMW, h.handleLinkAdmissionSession)
-	admission.GET("/me", authMW, notImplemented)
+	admission.GET("/me", authMW, h.handleAdmissionMe)
 	admission.POST("/freshman/applications", authMW, notImplemented)
 	admission.POST("/freshman/applications/:id/camera-captures", authMW, notImplemented)
 	admission.POST("/school-email/request-otp", authMW, notImplemented)

@@ -4,20 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 const (
-	TypeReply            = "reply"
-	TypeLike             = "like"
-	TypeVote             = "vote" // legacy compatibility
-	TypeReviewHidden     = "review_hidden"
-	TypeReviewRestored   = "review_restored"
-	TypeReportResolved   = "report_resolved"
-	TypeIdentityApproved = "identity_approved"
-	TypeIdentityRejected = "identity_rejected"
-	TypeStudentApproved  = "student_approved"
-	TypeStudentRejected  = "student_rejected"
-	TypeSystem           = "system"
+	TypeReply              = "reply"
+	TypeLike               = "like"
+	TypeVote               = "vote" // legacy compatibility
+	TypeReviewHidden       = "review_hidden"
+	TypeReviewRestored     = "review_restored"
+	TypeReportResolved     = "report_resolved"
+	TypeIdentityApproved   = "identity_approved"
+	TypeIdentityRejected   = "identity_rejected"
+	TypeStudentApproved    = "student_approved"
+	TypeStudentRejected    = "student_rejected"
+	TypeFreshmanApproved   = "freshman_approved"
+	TypeFreshmanRejected   = "freshman_rejected"
+	TypeFreshmanNearExpiry = "freshman_near_expiry"
+	TypeSystem             = "system"
 )
 
 const (
@@ -85,6 +89,34 @@ func NewStudentRejectedNotification(userID int64, reason string) SendParams {
 		content = "你的学生认证未通过审核：" + reason
 	}
 	return newSendParams(userID, TypeStudentRejected, "学生认证未通过", content, marshalPayload(map[string]string{"reason": reason}), "user", fmt.Sprintf("%d", userID), "/user/student-verification", 0)
+}
+
+func NewFreshmanApprovedNotification(userID int64, applicationID string, expiresAt time.Time) SendParams {
+	displayExpiry := expiresAt.Format("2006-01-02 15:04")
+	payload := marshalPayload(map[string]string{
+		"applicationID": applicationID,
+		"expiresAt":     expiresAt.Format(time.RFC3339),
+	})
+	return newSendParams(userID, TypeFreshmanApproved, "新生认证已通过", "你的新生认证已通过，临时学生身份有效期至 "+displayExpiry+"。", payload, "admission", applicationID, "/admission", 0)
+}
+
+func NewFreshmanRejectedNotification(userID int64, applicationID string, reason string) SendParams {
+	reason = strings.TrimSpace(reason)
+	content := "你的新生认证未通过审核。"
+	if reason != "" {
+		content = "你的新生认证未通过审核：" + reason
+	}
+	payload := marshalPayload(map[string]string{"applicationID": applicationID, "reason": reason})
+	return newSendParams(userID, TypeFreshmanRejected, "新生认证未通过", content, payload, "admission", applicationID, "/admission", 0)
+}
+
+func NewFreshmanNearExpiryNotification(userID int64, credentialID string, expiresAt time.Time) SendParams {
+	displayExpiry := expiresAt.Format("2006-01-02 15:04")
+	payload := marshalPayload(map[string]string{
+		"credentialID": credentialID,
+		"expiresAt":    expiresAt.Format(time.RFC3339),
+	})
+	return newSendParams(userID, TypeFreshmanNearExpiry, "新生临时身份即将过期", "你的新生临时学生身份将于 "+displayExpiry+" 过期。", payload, "admission", credentialID, "/admission", 0)
 }
 
 func newSendParams(userID int64, typ, title, content string, payload json.RawMessage, sourceModule, sourceID, sourceURL string, courseID int64) SendParams {

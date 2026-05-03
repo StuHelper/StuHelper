@@ -119,6 +119,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		userService,
 		crypto.GetHMACKey(),
 		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(userRepo)),
+		admission.WithFreshmanProjectionGateway(userService),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize admission service: %w", err)
@@ -126,6 +127,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	admissionHandler := admission.NewHandler(admissionService, userRepo.GetInternalUserID, botCredentialVerifier)
 	admissionHandler.RegisterRoutes(api, authMW)
 	admissionHandler.RegisterBotRoutes(api)
+	admissionService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 
 	botHandler := user.NewBotHandler(userService, botCredentialVerifier)
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)

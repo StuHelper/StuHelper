@@ -159,7 +159,7 @@ func mapExternalSyncJobs(jobs []outbox.Job) []ExternalSyncJob {
 
 func externalSyncStreamForJobType(jobType string) (string, error) {
 	switch jobType {
-	case externalSyncJobTypeVerifiedStudentRole:
+	case externalSyncJobTypeVerifiedStudentRole, externalSyncJobTypeFreshmanProvisionalRole:
 		return outbox.StreamIAMCasdoorRoleSync, nil
 	case externalSyncJobTypeUserProfileProjection:
 		return outbox.StreamIAMOpenFGATupleSync, nil

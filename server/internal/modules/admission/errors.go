@@ -29,6 +29,7 @@ var (
 	ErrAdmissionOperatorUnbound           = errors.New("admission operator qq unbound")
 	ErrAdmissionOperatorForbidden         = errors.New("admission operator forbidden")
 	ErrAdmissionOperatorAccessUnavailable = errors.New("admission operator access unavailable")
+	ErrAdmissionProjectionUnavailable     = errors.New("admission projection unavailable")
 	ErrAdmissionManagementGuildForbidden  = errors.New("admission management guild forbidden")
 	ErrAdmissionReviewExtensionTooLong    = errors.New("admission review extension too long")
 	ErrAdmissionApplicationNotFound       = errors.New("admission application not found")

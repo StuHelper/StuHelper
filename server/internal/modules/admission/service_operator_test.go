@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,6 +52,9 @@ func TestFreshmanReviewApprovesAndRejects(t *testing.T) {
 	assert.Equal(t, FreshmanApplicationApproved, approved.Status)
 	require.NotNil(t, approved.ProvisionalExpiresAt)
 	assert.True(t, svc.now().Add(7*admissionDay).Equal(*approved.ProvisionalExpiresAt))
+	assertCredentialStored(t, fixture, approved.UserID, CredentialFreshmanMaterialManual, "freshman material A***")
+	assertUserSessionVerified(t, fixture, approved.UserID)
+	assertProjectionEnqueued(t, svc, approved.UserID, true)
 	assertApplicationReviewer(t, fixture, reviewerExpectation{
 		ApplicationID: approved.ID, UserID: operatorID, QQID: "90002",
 	})
@@ -84,6 +88,7 @@ func newOperatorTestService(t *testing.T, fixture *postgresfixture.Fixture) *Ser
 	t.Helper()
 	svc := newFreshmanTestService(t, fixture)
 	svc.materialStore = &testAdmissionMaterialStore{}
+	svc.projection = &testFreshmanProjectionGateway{}
 	return svc
 }
 
@@ -186,4 +191,30 @@ type testOperatorAccessGateway struct {
 
 func (g *testOperatorAccessGateway) UserHasCapability(_ context.Context, userID int64, capName string) (bool, error) {
 	return userID == g.allowedUserID && capName == capability.AdmissionFreshmanReview, nil
+}
+
+type testFreshmanProjectionGateway struct {
+	calls []freshmanProjectionCall
+}
+
+func (g *testFreshmanProjectionGateway) EnqueueFreshmanProvisionalRoleSyncTx(
+	_ context.Context,
+	_ pgx.Tx,
+	userID int64,
+	approved bool,
+) error {
+	g.calls = append(g.calls, freshmanProjectionCall{UserID: userID, Approved: approved})
+	return nil
+}
+
+type freshmanProjectionCall struct {
+	UserID   int64
+	Approved bool
+}
+
+func assertProjectionEnqueued(t *testing.T, svc *Service, userID int64, approved bool) {
+	t.Helper()
+	gateway, ok := svc.projection.(*testFreshmanProjectionGateway)
+	require.True(t, ok)
+	assert.Contains(t, gateway.calls, freshmanProjectionCall{UserID: userID, Approved: approved})
 }
