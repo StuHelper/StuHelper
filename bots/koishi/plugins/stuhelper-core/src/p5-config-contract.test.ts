@@ -59,6 +59,22 @@ test('P6 core config schema only keeps fields used by core runtime', async () =>
   assert.doesNotMatch(coreTypeBody, /binding|admin|scheduler|moderation|fun|ai/)
 })
 
+test('README documents admission scopes and backend policy boundary', async () => {
+  const readme = await readWorkspaceFile('README.md')
+
+  for (const scope of [
+    'bot.admission.session',
+    'bot.admission.event',
+    'bot.admission.review',
+    'bot.admission.forward',
+  ]) {
+    assert.match(readme, new RegExp(scope), `README must document ${scope}.`)
+  }
+  assert.match(readme, /Admission 策略边界/)
+  assert.match(readme, /后端 admission policy/)
+  assert.match(readme, /`koishi\.yml` 的插件加载保持不变/)
+})
+
 async function readWorkspaceFile(relativePath: string) {
   return readFile(join(workspaceRoot, relativePath), 'utf8')
 }
