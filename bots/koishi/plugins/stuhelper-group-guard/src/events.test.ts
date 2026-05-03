@@ -25,6 +25,7 @@ test('group guard event listeners return service promises to Koishi', () => {
   assert.equal(ctx.handlers.get('guild-member-added')?.({}), memberAdded)
   assert.equal(ctx.handlers.get('message')?.({}), message)
   assert.equal(ctx.handlers.get('message-deleted')?.({}), messageDeleted)
+  assert.equal(ctx.handlers.has('guild-member-request'), false)
 })
 
 test('scheduled group guard scans log rejected promises explicitly', async () => {

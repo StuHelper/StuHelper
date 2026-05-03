@@ -3,6 +3,7 @@
  */
 
 import type { Context } from 'koishi'
+import { createPlatformClient, type PlatformClient } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config } from '../../types'
@@ -29,7 +30,8 @@ export class EventModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager
+    readonly data: DataManager,
+    readonly admissionPlatform?: Pick<PlatformClient, 'getAdmissionQQAccess' | 'recordJoinRequestEvent'>,
   ) {}
 
   get config(): Config {
@@ -65,6 +67,9 @@ export class EventModule implements RuntimeModuleInstance {
 export const eventRuntimeModule: RuntimeModule<EventModule> = {
   id: 'event',
   create(ctx, deps) {
-    return new EventModule(ctx, deps.data)
+    const admissionPlatform = deps.coreConfig
+      ? createPlatformClient(deps.coreConfig.platform)
+      : undefined
+    return new EventModule(ctx, deps.data, admissionPlatform)
   },
 }

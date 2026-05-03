@@ -34,7 +34,7 @@ export function apply(ctx: Context, config: Config) {
   registerConsoleEntry(ctx)
   registerConsoleApi(ctx, config)
   registerBackgroundJobs(ctx)
-  registerRuntimeModules(ctx)
+  registerRuntimeModules(ctx, config)
 }
 
 export default {

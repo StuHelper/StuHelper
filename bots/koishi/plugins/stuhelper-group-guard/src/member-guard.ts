@@ -7,8 +7,11 @@ import {
 } from '@stuhelper/koishi-shared'
 import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
+import { formatAdmissionReminder } from './admission-format'
 import type { GuardMemberRecord } from './model'
 import type { GuardMemberStore } from './store'
+
+const POSITIVE_MUTE_DURATION_REQUIRED = 'admission session initialMuteUntil must be in the future'
 
 interface MemberGuardDeps {
   platform: PlatformClient
@@ -33,16 +36,24 @@ export class MemberGuardService {
       return
     }
 
-    const verification = await this.deps.platform.getQQVerificationStatus(memberId)
-    if (verification.verificationState === 'verified') {
-      return
-    }
-
-    const record = createGuardMemberRecord(session, verification.verificationState, policy)
+    const admission = await this.deps.platform.createAdmissionSession({
+      platform: session.platform,
+      guildID: guildId,
+      channelID: resolveChannelID(session),
+      qqID: memberId,
+      qqNickname: resolveMemberName(session),
+      botSelfID: session.selfId,
+    })
+    const record = createGuardMemberRecord(session, admission, policy)
     await this.deps.guardStore.savePending(record)
-    await muteGuardedMember(session.bot, record.guildId, record.memberId, policy.muteDurationSeconds)
+    await muteGuardedMember(
+      session.bot,
+      record.guildId,
+      record.memberId,
+      muteDurationMs(new Date(admission.session.initialMuteUntil)),
+    )
     await this.deps.guardStore.markMuted(record.id, new Date())
-    await sendReminder(session.bot, record.channelId, record.memberId, policy.reminderTemplate)
+    await sendAdmissionReminder(session.bot, record, admission.authURL)
     await this.deps.guardStore.markReminderSent(record.id, new Date())
     await this.deps.moderationStore.appendEvent({
       platform: record.platform,
@@ -54,7 +65,7 @@ export class MemberGuardService {
       level: 'medium',
       summary: `已对 ${record.memberId} 执行入群待认证禁言`,
       payload: {
-        verificationState: verification.verificationState,
+        admissionSessionID: admission.session.id,
         policySource: policy.source,
         templateId: policy.templateId,
       },
@@ -158,7 +169,7 @@ function requireMemberID(session: Session) {
 
 function createGuardMemberRecord(
   session: Session,
-  verificationState: GuardMemberRecord['verificationState'],
+  admission: Awaited<ReturnType<PlatformClient['createAdmissionSession']>>,
   policy: Awaited<ReturnType<GuardPolicyStore['resolvePolicy']>>,
 ): GuardMemberRecord {
   if (!policy) {
@@ -177,10 +188,13 @@ function createGuardMemberRecord(
     guildId,
     channelId: resolveChannelID(session),
     memberId,
-    memberName: session.username || session.event.user?.nick || memberId,
-    verificationState,
+    memberName: resolveMemberName(session) || memberId,
+    verificationState: 'bound_unverified',
+    admissionSessionID: admission.session.id,
     joinedAt: now,
-    deadlineAt: new Date(now.getTime() + policy.kickAfterMinutes * 60 * 1000),
+    deadlineAt: new Date(admission.session.linkWaitDeadlineAt),
+    nextReminderAt: new Date(admission.session.linkWaitDeadlineAt),
+    manualReviewDeadlineAt: parseOptionalDate(admission.session.manualReviewDeadlineAt),
     mutedAt: null,
     reminderSentAt: null,
     releasedAt: null,
@@ -191,6 +205,22 @@ function createGuardMemberRecord(
   }
 }
 
+function resolveMemberName(session: Session) {
+  return session.username || session.event.user?.nick || undefined
+}
+
+function parseOptionalDate(value: string | null | undefined) {
+  return value ? new Date(value) : null
+}
+
+function muteDurationMs(initialMuteUntil: Date) {
+  const duration = initialMuteUntil.getTime() - Date.now()
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new Error(POSITIVE_MUTE_DURATION_REQUIRED)
+  }
+  return duration
+}
+
 function createBotRuntimeMap(bots: readonly GuardBotRuntime[]) {
   return new Map(bots.map((bot) => [createBotRuntimeID(bot.platform || '', bot.selfId), bot]))
 }
@@ -199,8 +229,8 @@ function createBotRuntimeID(platform: string, botSelfId: string) {
   return `${platform}:${botSelfId}`
 }
 
-async function muteGuardedMember(bot: Universal.Methods, guildId: string, memberId: string, muteDurationSeconds: number) {
-  await bot.muteGuildMember(guildId, memberId, muteDurationSeconds * 1000)
+async function muteGuardedMember(bot: Universal.Methods, guildId: string, memberId: string, muteDurationMs: number) {
+  await bot.muteGuildMember(guildId, memberId, muteDurationMs)
 }
 
 async function releaseGuardedMember(bot: Universal.Methods, record: GuardMemberRecord) {
@@ -213,8 +243,12 @@ async function kickGuardedMember(bot: Universal.Methods, record: GuardMemberReco
   await bot.kickGuildMember(record.guildId, record.memberId)
 }
 
-async function sendReminder(bot: Universal.Methods, channelId: string, memberId: string, template: string) {
-  await bot.sendMessage(channelId, `${h.at(memberId)} ${template}`)
+async function sendAdmissionReminder(bot: Universal.Methods, record: GuardMemberRecord, authURL: string) {
+  await bot.sendMessage(record.channelId, formatAdmissionReminder({
+    memberId: record.memberId,
+    authURL,
+    deadlineAt: record.deadlineAt,
+  }))
 }
 
 function formatGuardError(error: unknown) {

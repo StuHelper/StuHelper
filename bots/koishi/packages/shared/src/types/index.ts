@@ -222,6 +222,12 @@ export interface AdmissionPendingAction {
   readonly action: Extract<AdmissionBotAction, 'remind' | 'release' | 'kick' | 'blacklist'>
 }
 
+export interface AdmissionQQAccess {
+  readonly canJoin: boolean
+  readonly reason?: string
+  readonly autoApproveJoin?: boolean
+}
+
 export interface AdmissionBotEventRequest {
   readonly action: AdmissionBotAction
   readonly success: boolean

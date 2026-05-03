@@ -3,6 +3,7 @@ import { Logger } from 'koishi'
 
 import type { DataManager } from '../data'
 import type { Config, GroupConfig } from '../../types'
+import type { PlatformClient } from '@stuhelper/koishi-shared'
 
 export const eventLogger = new Logger('stuhelperGroupCenter:event')
 export const DEFAULT_LEVEL_LIMIT = 0
@@ -21,6 +22,7 @@ export interface EventRuntimeHost {
   readonly ctx: Context
   readonly data: DataManager
   readonly config: Config
+  readonly admissionPlatform?: Pick<PlatformClient, 'getAdmissionQQAccess' | 'recordJoinRequestEvent'>
 }
 
 export type EventSession = Session & {

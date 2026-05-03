@@ -1,4 +1,5 @@
 import type { Command, Context } from 'koishi'
+import type { StuhelperCoreConfig } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../core/data'
 import type { StuhelperGroupCenterService } from '../core/services'
@@ -36,6 +37,7 @@ export interface ModuleDeps {
   readonly service: StuhelperGroupCenterService
   readonly data: DataManager
   readonly config: Config
+  readonly coreConfig?: StuhelperCoreConfig
 }
 
 export interface RuntimeModule<TInstance extends RuntimeModuleInstance = RuntimeModuleInstance> {

@@ -37,7 +37,7 @@ test('stuhelper-core 入口只表达装配顺序', async () => {
   )
   assert.match(
     content,
-    /export function apply\(ctx: Context, config: Config\) {\s+registerCoreService\(ctx\)\s+registerConsoleEntry\(ctx\)\s+registerConsoleApi\(ctx, config\)\s+registerBackgroundJobs\(ctx\)\s+registerRuntimeModules\(ctx\)\s+}/,
+    /export function apply\(ctx: Context, config: Config\) {\s+registerCoreService\(ctx\)\s+registerConsoleEntry\(ctx\)\s+registerConsoleApi\(ctx, config\)\s+registerBackgroundJobs\(ctx\)\s+registerRuntimeModules\(ctx, config\)\s+}/,
     'apply() 必须保持 P3 约定的装配顺序。',
   )
 })

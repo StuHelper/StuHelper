@@ -21,6 +21,7 @@ import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
 test('未认证成员入群后会被禁言并收到提醒，认证完成后自动解禁', async () => {
   let verificationState: 'bound_unverified' | 'verified' = 'bound_unverified'
   const server = createServer((req, res) => {
+    if (respondAdmissionSession(req, res, '10001', 'group-1')) return
     assert.equal(req.method, 'GET')
     assert.equal(req.headers.authorization, 'Bearer test-token')
     res.setHeader('content-type', 'application/json')
@@ -90,8 +91,10 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
 
     await waitFor(() => muteActions.length > 0 && sentMessages.length > 0)
 
-    assert.deepEqual(muteActions[0], { groupId: 'group-1', memberId: '10001', duration: 600000 })
-    assert.match(sentMessages[0], /请先完成 StuHelper 注册、QQ 绑定与学生认证/)
+    assert.equal(muteActions[0].groupId, 'group-1')
+    assert.equal(muteActions[0].memberId, '10001')
+    assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
+    assert.match(sentMessages[0], /https:\/\/auth\.stuhelper\.com\/admission\/a\/token-10001\?qq=10001/)
 
     const records = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.equal(records.length, 1)
@@ -112,6 +115,7 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
 
 test('超时未认证成员会被自动踢出', async () => {
   const server = createServer((req, res) => {
+    if (respondAdmissionSession(req, res, '10002', 'group-2')) return
     assert.equal(req.method, 'GET')
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify({
@@ -197,6 +201,7 @@ test('超时未认证成员会被自动踢出', async () => {
 test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () => {
   let verificationState: 'bound_unverified' | 'verified' = 'bound_unverified'
   const server = createServer((req, res) => {
+    if (respondAdmissionSession(req, res, '10003', 'group-3')) return
     assert.equal(req.method, 'GET')
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify({
@@ -286,7 +291,9 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
     const [record] = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.equal(record.botSelfId, '515')
     assert.equal(record.platform, 'mock')
-    assert.deepEqual(secondBotMuteActions[0], { groupId: 'group-3', memberId: '10003', duration: 600000 })
+    assert.equal(secondBotMuteActions[0].groupId, 'group-3')
+    assert.equal(secondBotMuteActions[0].memberId, '10003')
+    assert.ok(secondBotMuteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
 
     verificationState = 'verified'
     await sleep(1200)
@@ -300,8 +307,9 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
   }
 })
 
-test('数据库群绑定模板会驱动入群禁言策略', async () => {
+test('数据库群绑定模板会驱动 admission 入群认证', async () => {
   const server = createServer((req, res) => {
+    if (respondAdmissionSession(req, res, '10004', 'group-4')) return
     assert.equal(req.method, 'GET')
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify({
@@ -392,13 +400,14 @@ test('数据库群绑定模板会驱动入群禁言策略', async () => {
 
     await waitFor(() => muteActions.length > 0 && sentMessages.length > 0)
 
-    assert.deepEqual(muteActions[0], { groupId: 'group-4', memberId: '10004', duration: 90000 })
-    assert.match(sentMessages[0], /请先完成宿舍群学生认证/)
+    assert.equal(muteActions[0].groupId, 'group-4')
+    assert.equal(muteActions[0].memberId, '10004')
+    assert.ok(muteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
+    assert.match(sentMessages[0], /auth\.stuhelper\.com/)
 
     const [record] = await root.database.get(GUARD_MEMBER_TABLE, { id: 'mock:514:group-4:10004' })
     assert.ok(record)
-    const remainingMinutes = Math.round((record.deadlineAt.getTime() - record.joinedAt.getTime()) / 60000)
-    assert.equal(remainingMinutes, 10)
+    assert.equal(record.admissionSessionID, 'session-10004')
   } finally {
     runtime.dispose()
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
@@ -419,4 +428,37 @@ async function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 1000
     await sleep(intervalMs)
   }
   throw new Error('waitFor timed out')
+}
+
+function respondAdmissionSession(req: any, res: any, qqID: string, guildID: string) {
+  if (req.method !== 'POST') return false
+  assert.equal(req.headers.authorization, 'Bearer test-token')
+  assert.equal(req.url, '/api/v1/bot/admission/sessions')
+  res.setHeader('content-type', 'application/json')
+  res.end(JSON.stringify({
+    success: true,
+    data: {
+      token: `token-${qqID}`,
+      authURL: `https://auth.stuhelper.com/admission/a/token-${qqID}?qq=${qqID}`,
+      session: admissionSessionData(qqID, guildID),
+    },
+  }))
+  return true
+}
+
+function admissionSessionData(qqID: string, guildID: string) {
+  const now = Date.now()
+  return {
+    id: `session-${qqID}`,
+    platform: 'mock',
+    guildID,
+    channelID: guildID,
+    qqID,
+    status: 'joined_muted',
+    tokenExpiresAt: new Date(now + 60 * 60 * 1000).toISOString(),
+    linkWaitDeadlineAt: new Date(now + 60 * 60 * 1000).toISOString(),
+    submissionWaitDeadlineAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+    initialMuteUntil: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    projectionPending: false,
+  }
 }

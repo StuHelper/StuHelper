@@ -6,7 +6,7 @@ import { getRuntimeModules } from '../runtime/registry'
 
 const logger = new Logger('stuhelper-core')
 
-export function registerRuntimeModules(ctx: Context, _config?: Config) {
+export function registerRuntimeModules(ctx: Context, config?: Config) {
   ctx.inject(['database', 'stuhelperGroupCenter'], (moduleCtx) => {
     moduleCtx.on('ready', async () => {
       const service = moduleCtx.stuhelperGroupCenter
@@ -14,6 +14,7 @@ export function registerRuntimeModules(ctx: Context, _config?: Config) {
         service,
         data: service.data,
         config: service.pluginConfig,
+        coreConfig: config,
       }
       for (const runtimeModule of getRuntimeModules()) {
         service.registerModule(runtimeModule.create(moduleCtx, deps))

@@ -3,6 +3,7 @@ import type {
   AdmissionJoinRequestEvent,
   AdmissionPendingAction,
   AdmissionPendingActionsRequest,
+  AdmissionQQAccess,
   AdmissionSessionCreateRequest,
   AdmissionSessionCreateResult,
   ConsumeQQBindingRequest,
@@ -57,6 +58,7 @@ export interface PlatformClient {
   getHealth(): Promise<void>
   consumeQQBindingCode(input: ConsumeQQBindingRequest): Promise<ConsumeQQBindingResult>
   getQQVerificationStatus(qqID: string): Promise<QQVerificationStatus>
+  getAdmissionQQAccess(qqID: string): Promise<AdmissionQQAccess>
   createAdmissionSession(input: AdmissionSessionCreateRequest): Promise<AdmissionSessionCreateResult>
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
   listPendingAdmissionActions(input?: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
@@ -86,6 +88,13 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
       return request<QQVerificationStatus>(`${QQ_VERIFICATION_PATH_PREFIX}${encodeURIComponent(qqID)}/verification`, {
         method: 'GET',
       })
+    },
+
+    async getAdmissionQQAccess(qqID) {
+      return request<AdmissionQQAccess>(
+        `/api/v1/bot/admission/qq-users/${encodeURIComponent(qqID)}/access`,
+        { method: 'GET' },
+      )
     },
 
     async createAdmissionSession(input) {

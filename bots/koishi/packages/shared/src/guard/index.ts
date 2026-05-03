@@ -17,8 +17,11 @@ export interface GuardMemberRecord {
   memberId: string
   memberName: string
   verificationState: PlatformVerificationState
+  admissionSessionID: string | null
   joinedAt: Date
   deadlineAt: Date
+  nextReminderAt: Date | null
+  manualReviewDeadlineAt: Date | null
   mutedAt: Date | null
   reminderSentAt: Date | null
   releasedAt: Date | null
@@ -38,8 +41,11 @@ export function registerGuardMemberModel(ctx: Context) {
     memberId: 'string',
     memberName: 'string',
     verificationState: 'string',
+    admissionSessionID: 'string',
     joinedAt: 'timestamp',
     deadlineAt: 'timestamp',
+    nextReminderAt: 'timestamp',
+    manualReviewDeadlineAt: 'timestamp',
     mutedAt: 'timestamp',
     reminderSentAt: 'timestamp',
     releasedAt: 'timestamp',
