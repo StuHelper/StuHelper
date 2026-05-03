@@ -82,6 +82,12 @@ export class GuardMemberStore {
     return records.filter((record) => record.guildId === guildId)
   }
 
+  async findActiveByAdmissionSessionID(sessionID: string) {
+    const records = await this.ctx.database.get(GUARD_MEMBER_TABLE, { admissionSessionID: sessionID })
+    const [record] = records.filter((item) => !item.releasedAt && !item.kickedAt)
+    return record as GuardMemberRecord | undefined
+  }
+
   private async getByID(id: string) {
     const [record] = await this.ctx.database.get(GUARD_MEMBER_TABLE, { id })
     return record as GuardMemberRecord | undefined

@@ -4681,6 +4681,24 @@ paths:
                                 - release
                                 - kick
                                 - blacklist
+                            platform:
+                              type: string
+                            botSelfID:
+                              type: string
+                            guildID:
+                              type: string
+                            channelID:
+                              type: string
+                            qqID:
+                              type: string
+                            authURL:
+                              type: string
+                              format: uri
+                            deadlineAt:
+                              type: string
+                              format: date-time
+                            reason:
+                              type: string
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/admission/sessions/{id}/events:

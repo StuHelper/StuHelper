@@ -1,12 +1,16 @@
-import { h, type Logger, type Session, type Universal } from 'koishi'
+import { type Logger, type Session, type Universal } from 'koishi'
 
 import {
   GuardPolicyStore,
-  PlatformAPIError,
+  type AdmissionPendingAction,
   type PlatformClient,
 } from '@stuhelper/koishi-shared'
 import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
+import {
+  executeAdmissionAction,
+  formatAdmissionActionError,
+} from './admission-actions'
 import { formatAdmissionReminder } from './admission-format'
 import type { GuardMemberRecord } from './model'
 import type { GuardMemberStore } from './store'
@@ -78,67 +82,71 @@ export class MemberGuardService {
     }
 
     const now = new Date()
-    const botMap = createBotRuntimeMap(bots)
-    const records = await this.deps.guardStore.listActive()
-    for (const record of records) {
-      const bot = botMap.get(createBotRuntimeID(record.platform, record.botSelfId))
-      if (!bot) {
-        const errorMessage = `guard bot not found: ${record.platform}:${record.botSelfId}`
-        await this.deps.guardStore.markLastError(record.id, errorMessage, now)
-        this.deps.logger.error(errorMessage, {
-          guardRecordID: record.id,
-          guildId: record.guildId,
-          memberId: record.memberId,
-        })
-        continue
-      }
-      await this.handleSingleRecord(bot, record, now)
+    for (const bot of bots) {
+      await this.scanBotAdmissionActions(bot, now)
     }
   }
 
-  private async handleSingleRecord(bot: GuardBotRuntime, record: GuardMemberRecord, now: Date) {
-    try {
-      const verification = await this.deps.platform.getQQVerificationStatus(record.memberId)
-      if (verification.verificationState === 'verified') {
-        await releaseGuardedMember(bot, record)
-        await this.deps.guardStore.markReleased(record.id, now)
-        await this.deps.moderationStore.appendEvent({
-          platform: record.platform,
-          botSelfId: record.botSelfId,
-          guildId: record.guildId,
-          channelId: record.channelId,
-          memberId: record.memberId,
-          type: 'join_released',
-          level: 'info',
-          summary: `已为 ${record.memberId} 解除禁言`,
-          payload: null,
-        })
-        return
-      }
-
-      if (record.deadlineAt.getTime() <= now.getTime()) {
-        await kickGuardedMember(bot, record)
-        await this.deps.guardStore.markKicked(record.id, now)
-        await this.deps.moderationStore.appendEvent({
-          platform: record.platform,
-          botSelfId: record.botSelfId,
-          guildId: record.guildId,
-          channelId: record.channelId,
-          memberId: record.memberId,
-          type: 'join_expired',
-          level: 'high',
-          summary: `${record.memberId} 认证超时，已自动移出群聊`,
-          payload: null,
-        })
-      }
-    } catch (error) {
-      await this.deps.guardStore.markLastError(record.id, formatGuardError(error), now)
-      this.deps.logger.warn('group guard scan failed for member', {
-        guardRecordID: record.id,
-        memberId: record.memberId,
-        error: formatGuardError(error),
-      })
+  private async scanBotAdmissionActions(bot: GuardBotRuntime, now: Date) {
+    const actions = await this.deps.platform.listPendingAdmissionActions({
+      platform: bot.platform || '',
+      botSelfID: bot.selfId,
+    })
+    for (const action of actions) {
+      await this.handleAdmissionAction(bot, action, now)
     }
+  }
+
+  private async handleAdmissionAction(bot: GuardBotRuntime, action: AdmissionPendingAction, now: Date) {
+    const record = await this.deps.guardStore.findActiveByAdmissionSessionID(action.sessionID)
+    try {
+      const result = await executeAdmissionAction(bot, action, record ?? null)
+      await this.deps.platform.recordAdmissionEvent(action.sessionID, result.event)
+      await this.markActionComplete(record, result.mark, now)
+    } catch (error) {
+      await this.reportActionFailure(action, record, error, now)
+      throw error
+    }
+  }
+
+  private async markActionComplete(
+    record: GuardMemberRecord | undefined,
+    mark: 'reminder' | 'released' | 'kicked',
+    now: Date,
+  ) {
+    if (!record) return
+    if (mark === 'reminder') {
+      await this.deps.guardStore.markReminderSent(record.id, now)
+      return
+    }
+    if (mark === 'released') {
+      await this.deps.guardStore.markReleased(record.id, now)
+      return
+    }
+    await this.deps.guardStore.markKicked(record.id, now)
+  }
+
+  private async reportActionFailure(
+    action: AdmissionPendingAction,
+    record: GuardMemberRecord | undefined,
+    error: unknown,
+    now: Date,
+  ) {
+    const message = formatAdmissionActionError(error)
+    if (record) {
+      await this.deps.guardStore.markLastError(record.id, message, now)
+    }
+    await this.deps.platform.recordAdmissionEvent(action.sessionID, {
+      action: action.action,
+      success: false,
+      error: message,
+    })
+    this.deps.logger.warn('group guard admission action failed', {
+      action: action.action,
+      sessionID: action.sessionID,
+      guardRecordID: record?.id,
+      error: message,
+    })
   }
 }
 
@@ -221,26 +229,8 @@ function muteDurationMs(initialMuteUntil: Date) {
   return duration
 }
 
-function createBotRuntimeMap(bots: readonly GuardBotRuntime[]) {
-  return new Map(bots.map((bot) => [createBotRuntimeID(bot.platform || '', bot.selfId), bot]))
-}
-
-function createBotRuntimeID(platform: string, botSelfId: string) {
-  return `${platform}:${botSelfId}`
-}
-
 async function muteGuardedMember(bot: Universal.Methods, guildId: string, memberId: string, muteDurationMs: number) {
   await bot.muteGuildMember(guildId, memberId, muteDurationMs)
-}
-
-async function releaseGuardedMember(bot: Universal.Methods, record: GuardMemberRecord) {
-  await bot.muteGuildMember(record.guildId, record.memberId, 0)
-  await bot.sendMessage(record.channelId, `${h.at(record.memberId)} 已检测到你完成 StuHelper 学生认证，已自动解除禁言。`)
-}
-
-async function kickGuardedMember(bot: Universal.Methods, record: GuardMemberRecord) {
-  await bot.sendMessage(record.channelId, `${h.at(record.memberId)} 认证超时，机器人将自动移出群聊。`)
-  await bot.kickGuildMember(record.guildId, record.memberId)
 }
 
 async function sendAdmissionReminder(bot: Universal.Methods, record: GuardMemberRecord, authURL: string) {
@@ -249,11 +239,4 @@ async function sendAdmissionReminder(bot: Universal.Methods, record: GuardMember
     authURL,
     deadlineAt: record.deadlineAt,
   }))
-}
-
-function formatGuardError(error: unknown) {
-  if (error instanceof PlatformAPIError) {
-    return `${error.status}:${error.message}`
-  }
-  return error instanceof Error ? error.message : String(error)
 }

@@ -84,3 +84,163 @@ test('member guard creates admission session, mutes, and sends canonical auth li
   assert.match(sentMessages[0], /https:\/\/auth\.stuhelper\.com\/admission\/a\/token-1\?qq=10001/)
   assert.doesNotMatch(sentMessages[0], /buaa\.team|sso\.stuhelper\.com/)
 })
+
+test('member guard executes pending admission actions and reports results', async () => {
+  const actions = [
+    action('session-remind', 'remind', {
+      authURL: 'https://auth.stuhelper.com/admission/a/remind-token?qq=10001',
+    }),
+    action('session-release', 'release'),
+    action('session-kick', 'kick'),
+    action('session-blacklist', 'blacklist'),
+  ] as const
+  const listCalls: unknown[] = []
+  const events: unknown[] = []
+  const messages: Array<{ channelId: string, content: string }> = []
+  const mutes: Array<{ guildId: string, memberId: string, duration: number }> = []
+  const kicks: Array<{ guildId: string, memberId: string, permanent?: boolean }> = []
+  const marks: string[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions(input: unknown) {
+        listCalls.push(input)
+        return actions
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        events.push({ sessionID, input })
+      },
+    },
+    guardStore: {
+      async findActiveByAdmissionSessionID(sessionID: string) {
+        return recordFor(sessionID)
+      },
+      async markReminderSent(id: string) { marks.push(`reminder:${id}`) },
+      async markReleased(id: string) { marks.push(`released:${id}`) },
+      async markKicked(id: string) { marks.push(`kicked:${id}`) },
+      async markLastError() {},
+    },
+    policyStore: {},
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'mock',
+    selfId: '514',
+    sid: 'mock:514',
+    sendMessage: async (channelId: string, content: string) => {
+      messages.push({ channelId, content })
+      return ['message-1']
+    },
+    muteGuildMember: async (guildId: string, memberId: string, duration: number) => {
+      mutes.push({ guildId, memberId, duration })
+    },
+    kickGuildMember: async (guildId: string, memberId: string, permanent?: boolean) => {
+      kicks.push({ guildId, memberId, permanent })
+    },
+  } as any])
+
+  assert.deepEqual(listCalls, [{ platform: 'mock', botSelfID: '514' }])
+  assert.match(messages[0].content, /https:\/\/auth\.stuhelper\.com\/admission\/a\/remind-token\?qq=10001/)
+  assert.deepEqual(mutes, [{ guildId: 'guild-1', memberId: '10001', duration: 0 }])
+  assert.deepEqual(kicks, [
+    { guildId: 'guild-1', memberId: '10001', permanent: undefined },
+    { guildId: 'guild-1', memberId: '10001', permanent: true },
+  ])
+  assert.deepEqual(marks, [
+    'reminder:guard-session-remind',
+    'released:guard-session-release',
+    'kicked:guard-session-kick',
+    'kicked:guard-session-blacklist',
+  ])
+  assert.deepEqual(events, [
+    successEvent('session-remind', 'remind', 'message-1'),
+    successEvent('session-release', 'release', 'message-1'),
+    successEvent('session-kick', 'kick', 'message-1'),
+    successEvent('session-blacklist', 'blacklist', 'message-1'),
+  ])
+})
+
+test('member guard reports action failures and keeps errors visible', async () => {
+  const errors: string[] = []
+  const events: unknown[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() {
+        return [action('session-release', 'release')]
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        events.push({ sessionID, input })
+      },
+    },
+    guardStore: {
+      async findActiveByAdmissionSessionID(sessionID: string) {
+        return recordFor(sessionID)
+      },
+      async markLastError(_id: string, message: string) {
+        errors.push(message)
+      },
+    },
+    policyStore: {},
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await assert.rejects(
+    service.scanPendingMembers([{
+      platform: 'mock',
+      selfId: '514',
+      sid: 'mock:514',
+      muteGuildMember: async () => { throw new Error('mute failed') },
+      sendMessage: async () => ['message-1'],
+    } as any]),
+    /mute failed/,
+  )
+
+  assert.deepEqual(errors, ['mute failed'])
+  assert.deepEqual(events, [{
+    sessionID: 'session-release',
+    input: {
+      action: 'release',
+      success: false,
+      error: 'mute failed',
+    },
+  }])
+})
+
+function action(sessionID: string, actionName: string, overrides: Record<string, unknown> = {}) {
+  return {
+    sessionID,
+    action: actionName,
+    platform: 'mock',
+    guildID: 'guild-1',
+    channelID: 'channel-1',
+    qqID: '10001',
+    deadlineAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    ...overrides,
+  }
+}
+
+function recordFor(sessionID: string) {
+  return {
+    id: `guard-${sessionID}`,
+    platform: 'mock',
+    botSelfId: '514',
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    memberId: '10001',
+    deadlineAt: new Date(Date.now() + 60 * 60 * 1000),
+    admissionSessionID: sessionID,
+  }
+}
+
+function successEvent(sessionID: string, actionName: string, messageID: string) {
+  return {
+    sessionID,
+    input: {
+      action: actionName,
+      success: true,
+      messageID,
+    },
+  }
+}

@@ -220,6 +220,14 @@ export interface AdmissionPendingActionsRequest {
 export interface AdmissionPendingAction {
   readonly sessionID: string
   readonly action: Extract<AdmissionBotAction, 'remind' | 'release' | 'kick' | 'blacklist'>
+  readonly platform?: string
+  readonly botSelfID?: string
+  readonly guildID?: string
+  readonly channelID?: string
+  readonly qqID?: string
+  readonly authURL?: string
+  readonly deadlineAt?: string
+  readonly reason?: string
 }
 
 export interface AdmissionQQAccess {

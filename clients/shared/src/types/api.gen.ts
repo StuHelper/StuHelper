@@ -7000,6 +7000,16 @@ export interface operations {
                             sessionID: string;
                             /** @enum {string} */
                             action: "remind" | "release" | "kick" | "blacklist";
+                            platform?: string;
+                            botSelfID?: string;
+                            guildID?: string;
+                            channelID?: string;
+                            qqID?: string;
+                            /** Format: uri */
+                            authURL?: string;
+                            /** Format: date-time */
+                            deadlineAt?: string;
+                            reason?: string;
                         }[];
                     };
                 };
