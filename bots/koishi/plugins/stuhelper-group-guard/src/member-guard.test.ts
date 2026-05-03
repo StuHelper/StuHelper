@@ -109,6 +109,7 @@ test('member guard executes pending admission actions and reports results', asyn
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
       },
+      async listPendingFreshmanForwards() { return [] },
     },
     guardStore: {
       async findActiveByAdmissionSessionID(sessionID: string) {
@@ -172,6 +173,7 @@ test('member guard reports action failures and keeps errors visible', async () =
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
       },
+      async listPendingFreshmanForwards() { return [] },
     },
     guardStore: {
       async findActiveByAdmissionSessionID(sessionID: string) {

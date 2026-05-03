@@ -203,6 +203,14 @@
                             type: array
                             items:
                               type: string
+                          platform:
+                            type: string
+                          botSelfID:
+                            type: string
+                          schoolName:
+                            type: string
+                          qqID:
+                            type: string
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 

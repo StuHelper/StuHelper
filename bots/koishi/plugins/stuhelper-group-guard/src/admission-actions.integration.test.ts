@@ -15,6 +15,7 @@ import {
   admissionAction,
   respondAdmissionEvent,
   respondAdmissionSession,
+  respondFreshmanForwards,
   respondPendingActions,
   sleep,
   waitFor,
@@ -29,6 +30,7 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
     if (respondAdmissionSession(req, res, '10001', 'group-1')) return
     if (respondPendingActions(req, res, () => pendingActions)) return
     if (respondAdmissionEvent(req, res, admissionEvents, () => { pendingActions = [] })) return
+    if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -91,6 +93,7 @@ test('超时未认证成员会被自动踢出', async () => {
     if (respondAdmissionSession(req, res, '10002', 'group-2')) return
     if (respondPendingActions(req, res, () => pendingActions)) return
     if (respondAdmissionEvent(req, res, admissionEvents, () => { pendingActions = [] })) return
+    if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -141,6 +144,7 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
       return [admissionAction('10003', 'group-3', 'release')]
     })) return
     if (respondAdmissionEvent(req, res, admissionEvents, () => { releaseEnabled = false })) return
+    if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 

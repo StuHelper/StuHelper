@@ -12,6 +12,10 @@ import {
   formatAdmissionActionError,
 } from './admission-actions'
 import { formatAdmissionReminder } from './admission-format'
+import {
+  forwardFreshmanMaterial,
+  resolveFreshmanForwardBot,
+} from './freshman-forward'
 import type { GuardMemberRecord } from './model'
 import type { GuardMemberStore } from './store'
 
@@ -85,6 +89,7 @@ export class MemberGuardService {
     for (const bot of bots) {
       await this.scanBotAdmissionActions(bot, now)
     }
+    await this.forwardFreshmanMaterials(bots)
   }
 
   private async scanBotAdmissionActions(bot: GuardBotRuntime, now: Date) {
@@ -147,6 +152,15 @@ export class MemberGuardService {
       guardRecordID: record?.id,
       error: message,
     })
+  }
+
+  private async forwardFreshmanMaterials(bots: readonly GuardBotRuntime[]) {
+    const items = await this.deps.platform.listPendingFreshmanForwards()
+    for (const item of items) {
+      const bot = resolveFreshmanForwardBot(bots, item)
+      await forwardFreshmanMaterial(bot, item)
+      await this.deps.platform.markFreshmanForwarded(item.application.id)
+    }
   }
 }
 

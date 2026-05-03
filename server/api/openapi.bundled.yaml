@@ -4770,6 +4770,14 @@ paths:
                               type: array
                               items:
                                 type: string
+                            platform:
+                              type: string
+                            botSelfID:
+                              type: string
+                            schoolName:
+                              type: string
+                            qqID:
+                              type: string
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/admission/freshman/applications/{id}/forwarded:

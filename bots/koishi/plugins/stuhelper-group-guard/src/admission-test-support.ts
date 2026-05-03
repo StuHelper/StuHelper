@@ -72,6 +72,20 @@ export function respondAdmissionEvent(
   return true
 }
 
+export function respondFreshmanForwards(
+  req: IncomingMessage,
+  res: ServerResponse,
+  items: unknown[] = [],
+) {
+  const url = new URL(req.url || '/', 'http://127.0.0.1')
+  const path = '/api/v1/bot/admission/freshman/applications/pending-forward'
+  if (req.method !== 'GET' || url.pathname !== path) return false
+  assert.equal(req.headers.authorization, 'Bearer test-token')
+  res.setHeader('content-type', 'application/json')
+  res.end(JSON.stringify({ success: true, data: items }))
+  return true
+}
+
 export function admissionAction(qqID: string, guildID: string, action: string) {
   return {
     sessionID: `session-${qqID}`,

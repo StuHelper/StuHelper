@@ -7066,6 +7066,10 @@ export interface operations {
                             /** Format: uri */
                             materialURL: string;
                             managementGuildIDs: string[];
+                            platform?: string;
+                            botSelfID?: string;
+                            schoolName?: string;
+                            qqID?: string;
                         }[];
                     };
                 };

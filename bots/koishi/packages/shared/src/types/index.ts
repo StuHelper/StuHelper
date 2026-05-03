@@ -262,6 +262,10 @@ export interface FreshmanForwardItem {
   readonly application: FreshmanApplication
   readonly materialURL: string
   readonly managementGuildIDs: readonly string[]
+  readonly platform?: string
+  readonly botSelfID?: string
+  readonly schoolName?: string
+  readonly qqID?: string
 }
 
 export interface FreshmanReviewRequest {
