@@ -76,6 +76,14 @@ const routes: RouteRecordRaw[] = [
         ),
         meta: { titleKey: "routes.authCallback", guest: true, layout: "none" },
     },
+    {
+        path: "/admission/a/:code",
+        name: "admission-token",
+        component: lazyLoad(
+            () => import("@/modules/admission/views/AdmissionPage.vue"),
+        ),
+        meta: { title: "入群身份认证", layout: "none" },
+    },
 
     // 首页
     {

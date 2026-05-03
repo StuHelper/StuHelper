@@ -10,6 +10,7 @@ import {
     createAdminApi,
     createRatingApi,
     createReplyApi,
+    createAdmissionApi,
     NOTIFICATION_STREAM_PATH,
 } from "@stuhelper/shared/api";
 import { createReviewAppApi } from "./review";
@@ -27,6 +28,7 @@ export const api = {
     admin: createAdminApi(apiClient),
     rating: createRatingApi(apiClient),
     reply: createReplyApi(apiClient),
+    admission: createAdmissionApi(apiClient),
 };
 
 // 导出类型
