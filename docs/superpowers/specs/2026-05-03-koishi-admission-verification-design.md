@@ -12,7 +12,7 @@ created: 2026-05-03
 
 当前系统已经有 QQ 绑定码、学生认证、Koishi 入群禁言/提醒/解禁/踢出，以及对象存储。新需求是在 QQ 新生群中实现“先入群、禁言、认证、通过后解禁”的完整链路，并把老生认证、新生材料审核、QQ 绑定、Admin 后台和 QQ 管理群审批打通。
 
-后期 QQ 加群问题可写成“访问网站 `buaa. team` 完成认证”，实际访问 `buaa.team`，再重定向到 StuHelper admission 页面。`buaa.team` 不保存身份状态，只做入口或短链解析。
+后期 QQ 加群问题可写成“访问网站 `buaa. team` 完成认证”，这是为了绕开 QQ 文案拦截和字数限制。`buaa.team` 只做短域名重定向工具，目标是 StuHelper 认证域名，例如 `https://auth.stuhelper.com/admission`。本系统和 `buaa.team` 没有身份、数据或权限关系。
 
 ## 目标
 
@@ -25,7 +25,7 @@ created: 2026-05-03
 
 ## 非目标
 
-- 不把 `buaa.team` 做成独立身份系统。
+- 不把 `buaa.team` 做成系统组成部分；它只是可替换的短域名重定向工具。
 - 不把录取材料人工审核直接写成正式 `verified_student`。
 - 不把 Koishi SQLite 作为身份或审核真源。
 - 第一版不支持普通图片上传、相册选择、拖拽上传或 PDF 材料。
@@ -75,17 +75,13 @@ Admin 后台执行：
 
 ## 认证链接
 
-群内展示可写成：
+认证链接的 canonical URL 使用 StuHelper 域名，例如：
 
 ```text
-buaa. team/a/<code>?qq=123456789
+https://auth.stuhelper.com/admission/a/<code>?qq=123456789
 ```
 
-实际访问为：
-
-```text
-https://buaa.team/a/<code>?qq=123456789
-```
+QQ 加群问题或群内短文案可使用 `buaa. team` 引导用户访问短域名；`https://buaa.team/a/<code>?qq=123456789` 只做 302 到 canonical URL。
 
 `qq` 参数只用于用户观察。后端必须校验 token 绑定的 QQ 与 `qq` 参数一致；不一致时拒绝打开。实际绑定和状态判断只使用 token 记录中的 `qq_id`。
 
