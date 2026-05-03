@@ -1,0 +1,282 @@
+AdmissionStatus:
+  type: string
+  enum: [joined_muted, linked, material_submitted, verified, expired_kicked, cancelled]
+
+FreshmanApplicationStatus:
+  type: string
+  enum: [pending, approved, rejected]
+
+AdmissionErrorCode:
+  type: string
+  enum: [admission.qq_mismatch, admission.token_consumed, admission.token_expired]
+
+AdmissionSession:
+  type: object
+  required:
+    [id, platform, guildID, qqID, status, tokenExpiresAt, linkWaitDeadlineAt, submissionWaitDeadlineAt, initialMuteUntil, projectionPending]
+  properties:
+    id:
+      type: string
+    platform:
+      type: string
+    guildID:
+      type: string
+    channelID:
+      type: string
+    qqID:
+      type: string
+    qqNickname:
+      type: string
+    userID:
+      type: string
+    status:
+      $ref: '#/AdmissionStatus'
+    tokenExpiresAt:
+      type: string
+      format: date-time
+    linkWaitDeadlineAt:
+      type: string
+      format: date-time
+    submissionWaitDeadlineAt:
+      type: string
+      format: date-time
+    manualReviewDeadlineAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    initialMuteUntil:
+      type: string
+      format: date-time
+    projectionPending:
+      type: boolean
+    authURL:
+      type: string
+      format: uri
+    maxMaterialBytes:
+      type: integer
+      format: int64
+
+AdmissionMe:
+  type: object
+  required: [status, projectionPending]
+  properties:
+    status:
+      $ref: '#/AdmissionStatus'
+    projectionPending:
+      type: boolean
+    session:
+      $ref: '#/AdmissionSession'
+    credentialKind:
+      type: string
+      enum: [school_sso, school_email_otp, freshman_material_manual]
+    provisionalExpiresAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+
+AdmissionPolicy:
+  type: object
+  required:
+    [id, platform, guildID, autoApproveJoin, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, freshmanChannelEnabled, freshmanChannelClosesAt, freshmanDefaultExpiresAt, forwardRawMaterialToQQ, managementGuildIDs, maxMaterialBytes, maxExtensionDays]
+  properties:
+    id:
+      type: string
+    platform:
+      type: string
+    guildID:
+      type: string
+    autoApproveJoin:
+      type: boolean
+    initialMuteDurationSeconds:
+      type: integer
+    linkWaitSeconds:
+      type: integer
+    submissionWaitSeconds:
+      type: integer
+    manualReviewTimeoutSeconds:
+      type: integer
+    reminderIntervalSeconds:
+      type: integer
+    failedJoinLimit:
+      type: integer
+    blacklistDurationSeconds:
+      type:
+        - integer
+        - "null"
+    freshmanChannelEnabled:
+      type: boolean
+    freshmanChannelClosesAt:
+      type: string
+      format: date-time
+    freshmanDefaultExpiresAt:
+      type: string
+      format: date-time
+    forwardRawMaterialToQQ:
+      type: boolean
+    managementGuildIDs:
+      type: array
+      items:
+        type: string
+    maxMaterialBytes:
+      type: integer
+      format: int64
+    maxExtensionDays:
+      type: integer
+
+FreshmanApplication:
+  type: object
+  required: [id, userID, schoolID, status, applicantNameMasked, materialType, createdAt]
+  properties:
+    id:
+      type: string
+    userID:
+      type: string
+    schoolID:
+      type: integer
+      format: int64
+    admissionSessionID:
+      type: string
+    applicantName:
+      type: string
+    applicantNameMasked:
+      type: string
+    departmentOrMajor:
+      type: string
+    materialType:
+      type: string
+      enum: [admission_notice, admission_certificate]
+    status:
+      $ref: '#/FreshmanApplicationStatus'
+    provisionalExpiresAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    reviewedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+
+FreshmanReviewRequest:
+  type: object
+  required: [action]
+  properties:
+    action:
+      type: string
+      enum: [approve, reject]
+    reason:
+      type: string
+    expiresInDays:
+      type: integer
+      minimum: 1
+
+BotFreshmanReviewRequest:
+  allOf:
+    - $ref: '#/FreshmanReviewRequest'
+    - type: object
+      required: [operatorQQID, guildID, rawCommand]
+      properties:
+        operatorQQID:
+          type: string
+        guildID:
+          type: string
+        channelID:
+          type: string
+        rawCommand:
+          type: string
+
+BotAdmissionSessionCreateRequest:
+  type: object
+  required: [platform, guildID, channelID, qqID]
+  properties:
+    platform:
+      type: string
+    guildID:
+      type: string
+    channelID:
+      type: string
+    qqID:
+      type: string
+    qqNickname:
+      type: string
+    botSelfID:
+      type: string
+
+BotAdmissionEventRequest:
+  type: object
+  required: [action, success]
+  properties:
+    action:
+      type: string
+      enum: [mute, remind, release, kick, blacklist, forward]
+    success:
+      type: boolean
+    messageID:
+      type: string
+    error:
+      type: string
+
+BotAdmissionJoinRequestEvent:
+  type: object
+  required: [platform, guildID, qqID, requestID, success]
+  properties:
+    platform:
+      type: string
+    guildID:
+      type: string
+    qqID:
+      type: string
+    requestID:
+      type: string
+    success:
+      type: boolean
+    error:
+      type: string
+    rawEvent:
+      type: object
+      additionalProperties: true
+
+CameraCaptureRequest:
+  type: object
+  required: [contentType, imageBase64]
+  properties:
+    contentType:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    imageBase64:
+      type: string
+    capturedAt:
+      type: string
+      format: date-time
+
+SchoolEmailOTPRequest:
+  type: object
+  required: [schoolID, email]
+  properties:
+    schoolID:
+      type: integer
+      format: int64
+    email:
+      type: string
+      format: email
+
+SchoolEmailOTPVerifyRequest:
+  type: object
+  required: [schoolID, email, code]
+  properties:
+    schoolID:
+      type: integer
+      format: int64
+    email:
+      type: string
+      format: email
+    code:
+      type: string
+      minLength: 4
+      maxLength: 12

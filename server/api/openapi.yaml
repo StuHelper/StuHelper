@@ -42,6 +42,8 @@ tags:
     description: 收藏
   - name: User
     description: 用户中心
+  - name: Admission
+    description: QQ 入群认证与新生身份审核
   - name: Bot
     description: 机器人内部接口
   - name: Identity
@@ -270,11 +272,49 @@ paths:
   /api/v1/user/me:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1me"
 
+  # ── Admission ──
+  /api/v1/admission/sessions/{token}:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1sessions~1{token}"
+  /api/v1/admission/sessions/{token}/link:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1sessions~1{token}~1link"
+  /api/v1/admission/me:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1me"
+  /api/v1/admission/freshman/applications:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1applications"
+  /api/v1/admission/freshman/applications/{id}/camera-captures:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1applications~1{id}~1camera-captures"
+  /api/v1/admission/school-email/request-otp:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1request-otp"
+  /api/v1/admission/school-email/verify-otp:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1verify-otp"
+  /api/v1/admission/school-sso/{schoolID}/login:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-sso~1{schoolID}~1login"
+  /api/v1/admission/school-sso/{schoolID}/callback:
+    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-sso~1{schoolID}~1callback"
+
   # ── Bot: User Binding ──
   /api/v1/bot/qq-binding/consume:
     $ref: "paths/bot-user.yaml#/~1api~1v1~1bot~1qq-binding~1consume"
   /api/v1/bot/qq-users/{qqID}/verification:
     $ref: "paths/bot-user.yaml#/~1api~1v1~1bot~1qq-users~1{qqID}~1verification"
+
+  # ── Bot: Admission ──
+  /api/v1/bot/admission/sessions:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions"
+  /api/v1/bot/admission/join-requests/events:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1join-requests~1events"
+  /api/v1/bot/admission/qq-users/{qqID}/access:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1qq-users~1{qqID}~1access"
+  /api/v1/bot/admission/sessions/pending:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1pending"
+  /api/v1/bot/admission/sessions/{id}/events:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1{id}~1events"
+  /api/v1/bot/admission/freshman/applications/pending-forward:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1pending-forward"
+  /api/v1/bot/admission/freshman/applications/{id}/forwarded:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1forwarded"
+  /api/v1/bot/admission/freshman/applications/{id}/review:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1review"
 
   # ── Admin: User System ──
   /api/v1/admin/identities:
@@ -293,6 +333,20 @@ paths:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs"
   /api/v1/admin/system-configs/{key}:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs~1{key}"
+
+  # ── Admin: Admission ──
+  /api/v1/admin/admission/policies:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1policies"
+  /api/v1/admin/admission/policies/{id}:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1policies~1{id}"
+  /api/v1/admin/admission/sessions:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1sessions"
+  /api/v1/admin/freshman-verifications:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1freshman-verifications"
+  /api/v1/admin/freshman-verifications/{id}:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1freshman-verifications~1{id}"
+  /api/v1/admin/admission/blacklist/{qqID}/release:
+    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1blacklist~1{qqID}~1release"
 
   # ── Metrics ──
   /api/v1/metrics/vitals:
@@ -521,6 +575,32 @@ components:
       $ref: "components/schemas/user-system.yaml#/ConsumeQQBindingRequest"
     QQVerificationStatus:
       $ref: "components/schemas/user-system.yaml#/QQVerificationStatus"
+
+    # Admission
+    AdmissionSession:
+      $ref: "components/schemas/admission.yaml#/AdmissionSession"
+    AdmissionMe:
+      $ref: "components/schemas/admission.yaml#/AdmissionMe"
+    AdmissionPolicy:
+      $ref: "components/schemas/admission.yaml#/AdmissionPolicy"
+    FreshmanApplication:
+      $ref: "components/schemas/admission.yaml#/FreshmanApplication"
+    FreshmanReviewRequest:
+      $ref: "components/schemas/admission.yaml#/FreshmanReviewRequest"
+    BotAdmissionSessionCreateRequest:
+      $ref: "components/schemas/admission.yaml#/BotAdmissionSessionCreateRequest"
+    BotAdmissionEventRequest:
+      $ref: "components/schemas/admission.yaml#/BotAdmissionEventRequest"
+    BotAdmissionJoinRequestEvent:
+      $ref: "components/schemas/admission.yaml#/BotAdmissionJoinRequestEvent"
+    BotFreshmanReviewRequest:
+      $ref: "components/schemas/admission.yaml#/BotFreshmanReviewRequest"
+    CameraCaptureRequest:
+      $ref: "components/schemas/admission.yaml#/CameraCaptureRequest"
+    SchoolEmailOTPRequest:
+      $ref: "components/schemas/admission.yaml#/SchoolEmailOTPRequest"
+    SchoolEmailOTPVerifyRequest:
+      $ref: "components/schemas/admission.yaml#/SchoolEmailOTPVerifyRequest"
 
   parameters:
     PageParam:

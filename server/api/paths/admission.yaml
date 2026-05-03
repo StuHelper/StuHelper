@@ -1,0 +1,280 @@
+/api/v1/admission/sessions/{token}:
+  get:
+    tags: [Admission]
+    operationId: previewAdmissionSession
+    summary: 预览入群认证 token 状态
+    security: []
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: qq
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 入群认证会话
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/AdmissionSession'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/sessions/{token}/link:
+  post:
+    tags: [Admission]
+    operationId: linkAdmissionSession
+    summary: 已登录用户消费 admission token 并绑定 QQ 会话
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: qq
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 绑定后的 admission 状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/AdmissionSession'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/me:
+  get:
+    tags: [Admission]
+    operationId: getAdmissionMe
+    summary: 获取当前登录用户 admission 状态
+    responses:
+      '200':
+        description: 当前 admission 状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/AdmissionMe'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/freshman/applications:
+  post:
+    tags: [Admission]
+    operationId: createFreshmanApplication
+    summary: 创建新生材料认证申请
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [schoolID, applicantName, materialType]
+            properties:
+              schoolID:
+                type: integer
+                format: int64
+              applicantName:
+                type: string
+              departmentOrMajor:
+                type: string
+              materialType:
+                type: string
+                enum: [admission_notice, admission_certificate]
+    responses:
+      '201':
+        description: 新生申请已创建
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/FreshmanApplication'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/freshman/applications/{id}/camera-captures:
+  post:
+    tags: [Admission]
+    operationId: uploadFreshmanCameraCapture
+    summary: 提交摄像头拍摄的新生材料图片
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/CameraCaptureRequest'
+    responses:
+      '200':
+        description: 材料已提交
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/FreshmanApplication'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '413':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '415':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/school-email/request-otp:
+  post:
+    tags: [Admission]
+    operationId: requestAdmissionSchoolEmailOTP
+    summary: 请求学校邮箱 admission OTP
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/SchoolEmailOTPRequest'
+    responses:
+      '200':
+        description: OTP 已发送
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/SuccessResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/school-email/verify-otp:
+  post:
+    tags: [Admission]
+    operationId: verifyAdmissionSchoolEmailOTP
+    summary: 校验学校邮箱 admission OTP
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/admission.yaml#/SchoolEmailOTPVerifyRequest'
+    responses:
+      '200':
+        description: 邮箱学生认证通过
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/admission.yaml#/AdmissionMe'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/school-sso/{schoolID}/login:
+  get:
+    tags: [Admission]
+    operationId: startAdmissionSchoolSSO
+    summary: 跳转学校官方 SSO 登录
+    security: []
+    parameters:
+      - name: schoolID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: return
+        in: query
+        schema:
+          type: string
+          format: uri
+    responses:
+      '302':
+        description: Redirect to school SSO provider
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admission/school-sso/{schoolID}/callback:
+  get:
+    tags: [Admission]
+    operationId: completeAdmissionSchoolSSO
+    summary: 学校官方 SSO 回调
+    security: []
+    parameters:
+      - name: schoolID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: code
+        in: query
+        schema:
+          type: string
+      - name: state
+        in: query
+        schema:
+          type: string
+    responses:
+      '302':
+        description: Redirect back to admission return URL
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

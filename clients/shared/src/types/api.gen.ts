@@ -1615,6 +1615,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admission/sessions/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 预览入群认证 token 状态 */
+        get: operations["previewAdmissionSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/sessions/{token}/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 已登录用户消费 admission token 并绑定 QQ 会话 */
+        post: operations["linkAdmissionSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前登录用户 admission 状态 */
+        get: operations["getAdmissionMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/freshman/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建新生材料认证申请 */
+        post: operations["createFreshmanApplication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/freshman/applications/{id}/camera-captures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 提交摄像头拍摄的新生材料图片 */
+        post: operations["uploadFreshmanCameraCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/school-email/request-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 请求学校邮箱 admission OTP */
+        post: operations["requestAdmissionSchoolEmailOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/school-email/verify-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 校验学校邮箱 admission OTP */
+        post: operations["verifyAdmissionSchoolEmailOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/school-sso/{schoolID}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 跳转学校官方 SSO 登录 */
+        get: operations["startAdmissionSchoolSSO"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admission/school-sso/{schoolID}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 学校官方 SSO 回调 */
+        get: operations["completeAdmissionSchoolSSO"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bot/qq-binding/consume": {
         parameters: {
             query?: never;
@@ -1643,6 +1796,142 @@ export interface paths {
         get: operations["getQQVerificationStatus"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人创建入群认证会话 */
+        post: operations["createBotAdmissionSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/join-requests/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人上报入群申请处理结果 */
+        post: operations["recordBotAdmissionJoinRequestEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/qq-users/{qqID}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 机器人查询 QQ 用户 admission 准入状态 */
+        get: operations["getBotAdmissionQQAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/sessions/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 机器人拉取待执行 admission 动作 */
+        get: operations["listBotPendingAdmissionActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/sessions/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人上报 admission 动作执行结果 */
+        post: operations["recordBotAdmissionEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/freshman/applications/pending-forward": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 机器人拉取待转发的新生材料 */
+        get: operations["listBotPendingFreshmanForwards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/freshman/applications/{id}/forwarded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 标记新生材料已转发到管理群 */
+        post: operations["markBotFreshmanApplicationForwarded"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/freshman/applications/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** QQ 管理群审核新生材料 */
+        post: operations["reviewBotFreshmanApplication"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1779,6 +2068,109 @@ export interface paths {
         /** 更新系统配置 */
         put: operations["updateSystemConfig"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/admission/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取入群认证策略 */
+        get: operations["listAdmissionPolicies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/admission/policies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新入群认证策略 */
+        put: operations["updateAdmissionPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/admission/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取入群认证会话 */
+        get: operations["listAdmissionSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/freshman-verifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取新生材料审核列表 */
+        get: operations["listFreshmanVerifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/freshman-verifications/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取新生材料审核详情 */
+        get: operations["getFreshmanVerification"];
+        /** Admin 审核新生材料 */
+        put: operations["reviewFreshmanVerification"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/admission/blacklist/{qqID}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 解除 QQ 入群认证黑名单 */
+        post: operations["releaseAdmissionBlacklist"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2518,6 +2910,140 @@ export interface components {
             profileVerificationStatus: "unverified" | "pending" | "verified" | "rejected";
             studentVerified: boolean;
         };
+        AdmissionSession: {
+            id: string;
+            platform: string;
+            guildID: string;
+            channelID?: string;
+            qqID: string;
+            qqNickname?: string;
+            userID?: string;
+            status: components["schemas"]["AdmissionStatus"];
+            /** Format: date-time */
+            tokenExpiresAt: string;
+            /** Format: date-time */
+            linkWaitDeadlineAt: string;
+            /** Format: date-time */
+            submissionWaitDeadlineAt: string;
+            /** Format: date-time */
+            manualReviewDeadlineAt?: string | null;
+            /** Format: date-time */
+            initialMuteUntil: string;
+            projectionPending: boolean;
+            /** Format: uri */
+            authURL?: string;
+            /** Format: int64 */
+            maxMaterialBytes?: number;
+        };
+        AdmissionMe: {
+            status: components["schemas"]["AdmissionStatus"];
+            projectionPending: boolean;
+            session?: components["schemas"]["AdmissionSession"];
+            /** @enum {string} */
+            credentialKind?: "school_sso" | "school_email_otp" | "freshman_material_manual";
+            /** Format: date-time */
+            provisionalExpiresAt?: string | null;
+        };
+        AdmissionPolicy: {
+            id: string;
+            platform: string;
+            guildID: string;
+            autoApproveJoin: boolean;
+            initialMuteDurationSeconds: number;
+            linkWaitSeconds: number;
+            submissionWaitSeconds: number;
+            manualReviewTimeoutSeconds: number;
+            reminderIntervalSeconds: number;
+            failedJoinLimit: number;
+            blacklistDurationSeconds?: number | null;
+            freshmanChannelEnabled: boolean;
+            /** Format: date-time */
+            freshmanChannelClosesAt: string;
+            /** Format: date-time */
+            freshmanDefaultExpiresAt: string;
+            forwardRawMaterialToQQ: boolean;
+            managementGuildIDs: string[];
+            /** Format: int64 */
+            maxMaterialBytes: number;
+            maxExtensionDays: number;
+        };
+        FreshmanApplication: {
+            id: string;
+            userID: string;
+            /** Format: int64 */
+            schoolID: number;
+            admissionSessionID?: string;
+            applicantName?: string;
+            applicantNameMasked: string;
+            departmentOrMajor?: string;
+            /** @enum {string} */
+            materialType: "admission_notice" | "admission_certificate";
+            status: components["schemas"]["FreshmanApplicationStatus"];
+            /** Format: date-time */
+            provisionalExpiresAt?: string | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        FreshmanReviewRequest: {
+            /** @enum {string} */
+            action: "approve" | "reject";
+            reason?: string;
+            expiresInDays?: number;
+        };
+        BotAdmissionSessionCreateRequest: {
+            platform: string;
+            guildID: string;
+            channelID: string;
+            qqID: string;
+            qqNickname?: string;
+            botSelfID?: string;
+        };
+        BotAdmissionEventRequest: {
+            /** @enum {string} */
+            action: "mute" | "remind" | "release" | "kick" | "blacklist" | "forward";
+            success: boolean;
+            messageID?: string;
+            error?: string;
+        };
+        BotAdmissionJoinRequestEvent: {
+            platform: string;
+            guildID: string;
+            qqID: string;
+            requestID: string;
+            success: boolean;
+            error?: string;
+            rawEvent?: {
+                [key: string]: unknown;
+            };
+        };
+        BotFreshmanReviewRequest: components["schemas"]["FreshmanReviewRequest"] & {
+            operatorQQID: string;
+            guildID: string;
+            channelID?: string;
+            rawCommand: string;
+        };
+        CameraCaptureRequest: {
+            /** @enum {string} */
+            contentType: "image/jpeg" | "image/png" | "image/webp";
+            imageBase64: string;
+            /** Format: date-time */
+            capturedAt?: string;
+        };
+        SchoolEmailOTPRequest: {
+            /** Format: int64 */
+            schoolID: number;
+            /** Format: email */
+            email: string;
+        };
+        SchoolEmailOTPVerifyRequest: {
+            /** Format: int64 */
+            schoolID: number;
+            /** Format: email */
+            email: string;
+            code: string;
+        };
         CapabilityGrant: {
             name: string;
             scopeSchoolIDs?: string[];
@@ -2726,6 +3252,10 @@ export interface components {
             /** @description 输入占位文案 */
             placeholder?: string | null;
         };
+        /** @enum {string} */
+        AdmissionStatus: "joined_muted" | "linked" | "material_submitted" | "verified" | "expired_kicked" | "cancelled";
+        /** @enum {string} */
+        FreshmanApplicationStatus: "pending" | "approved" | "rejected";
         AdminStudentVerificationItem: {
             /** Format: int64 */
             userID: number;
@@ -6054,6 +6584,258 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
         };
     };
+    previewAdmissionSession: {
+        parameters: {
+            query?: {
+                qq?: string;
+            };
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 入群认证会话 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionSession"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+        };
+    };
+    linkAdmissionSession: {
+        parameters: {
+            query?: {
+                qq?: string;
+            };
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 绑定后的 admission 状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionSession"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAdmissionMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前 admission 状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionMe"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    createFreshmanApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    schoolID: number;
+                    applicantName: string;
+                    departmentOrMajor?: string;
+                    /** @enum {string} */
+                    materialType: "admission_notice" | "admission_certificate";
+                };
+            };
+        };
+        responses: {
+            /** @description 新生申请已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanApplication"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    uploadFreshmanCameraCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CameraCaptureRequest"];
+            };
+        };
+        responses: {
+            /** @description 材料已提交 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanApplication"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            413: components["responses"]["ErrorResponse"];
+            415: components["responses"]["ErrorResponse"];
+        };
+    };
+    requestAdmissionSchoolEmailOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchoolEmailOTPRequest"];
+            };
+        };
+        responses: {
+            /** @description OTP 已发送 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+        };
+    };
+    verifyAdmissionSchoolEmailOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchoolEmailOTPVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description 邮箱学生认证通过 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionMe"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    startAdmissionSchoolSSO: {
+        parameters: {
+            query?: {
+                return?: string;
+            };
+            header?: never;
+            path: {
+                schoolID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to school SSO provider */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
+    completeAdmissionSchoolSSO: {
+        parameters: {
+            query?: {
+                code?: string;
+                state?: string;
+            };
+            header?: never;
+            path: {
+                schoolID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect back to admission return URL */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ErrorResponse"];
+        };
+    };
     consumeQQBindingCode: {
         parameters: {
             query?: never;
@@ -6114,6 +6896,226 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
+        };
+    };
+    createBotAdmissionSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionSessionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 入群认证会话已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionSession"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    recordBotAdmissionJoinRequestEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionJoinRequestEvent"];
+            };
+        };
+        responses: {
+            /** @description 事件已记录 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    getBotAdmissionQQAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                qqID: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description QQ 准入状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            canJoin: boolean;
+                            reason?: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listBotPendingAdmissionActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 待执行动作列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            sessionID: string;
+                            /** @enum {string} */
+                            action: "remind" | "release" | "kick" | "blacklist";
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    recordBotAdmissionEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotAdmissionEventRequest"];
+            };
+        };
+        responses: {
+            /** @description 事件已记录 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listBotPendingFreshmanForwards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 待转发材料列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            application: components["schemas"]["FreshmanApplication"];
+                            /** Format: uri */
+                            materialURL: string;
+                            managementGuildIDs: string[];
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    markBotFreshmanApplicationForwarded: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 转发状态已记录 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    reviewBotFreshmanApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotFreshmanReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description 审核成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanApplication"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
         };
     };
     listIdentityVerifications: {
@@ -6370,6 +7372,210 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdmissionPolicies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 策略列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionPolicy"][];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateAdmissionPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdmissionPolicy"];
+            };
+        };
+        responses: {
+            /** @description 策略已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdmissionPolicy"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdmissionSessions: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["AdmissionStatus"];
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 入群认证会话分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            list: components["schemas"]["AdmissionSession"][];
+                            total: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    listFreshmanVerifications: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["FreshmanApplicationStatus"];
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 新生材料审核分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            list: components["schemas"]["FreshmanApplication"][];
+                            total: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    getFreshmanVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 新生材料审核详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanApplication"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    reviewFreshmanVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FreshmanReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description 审核成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanApplication"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    releaseAdmissionBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                qqID: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 黑名单已解除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
         };
     };
     reportWebVitals: {
