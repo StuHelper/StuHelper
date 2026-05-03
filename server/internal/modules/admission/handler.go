@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/platform/serviceaccount"
 )
@@ -54,7 +56,11 @@ func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 	bot.POST("/sessions/:id/events", h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent), h.handleRecordBotEvent)
 	bot.GET("/freshman/applications/pending-forward", notImplemented)
 	bot.POST("/freshman/applications/:id/forwarded", notImplemented)
-	bot.POST("/freshman/applications/:id/review", notImplemented)
+	bot.POST(
+		"/freshman/applications/:id/review",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
+		h.handleBotReviewFreshmanApplication,
+	)
 }
 
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
@@ -63,7 +69,11 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	admin.GET("/admission/sessions", notImplemented)
 	admin.GET("/freshman-verifications", notImplemented)
 	admin.GET("/freshman-verifications/:id", notImplemented)
-	admin.PUT("/freshman-verifications/:id", notImplemented)
+	admin.PUT(
+		"/freshman-verifications/:id",
+		rbac.RequireCapability(capability.AdmissionFreshmanReview),
+		h.handleAdminReviewFreshmanVerification,
+	)
 	admin.POST("/admission/blacklist/:qqID/release", notImplemented)
 }
 

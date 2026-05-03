@@ -23,18 +23,23 @@ type SchoolEmailSender interface {
 	SendAdmissionOTP(ctx context.Context, email string, code string) error
 }
 
+type OperatorAccessGateway interface {
+	UserHasCapability(ctx context.Context, userID int64, capabilityName string) (bool, error)
+}
+
 type Service struct {
-	repo          *Repository
-	qqGateway     QQBindingGateway
-	hmacKey       []byte
-	now           func() time.Time
-	generateToken func() (string, error)
-	generateOTP   func() (string, error)
-	generateState func() (string, error)
-	authBaseURL   string
-	materialStore AdmissionMaterialStore
-	redisClient   *redis.Client
-	emailSender   SchoolEmailSender
+	repo           *Repository
+	qqGateway      QQBindingGateway
+	hmacKey        []byte
+	now            func() time.Time
+	generateToken  func() (string, error)
+	generateOTP    func() (string, error)
+	generateState  func() (string, error)
+	authBaseURL    string
+	materialStore  AdmissionMaterialStore
+	redisClient    *redis.Client
+	emailSender    SchoolEmailSender
+	operatorAccess OperatorAccessGateway
 }
 
 type ServiceOption func(*Service)
@@ -49,6 +54,10 @@ func WithAdmissionRedisClient(client *redis.Client) ServiceOption {
 
 func WithSchoolEmailSender(sender SchoolEmailSender) ServiceOption {
 	return func(s *Service) { s.emailSender = sender }
+}
+
+func WithOperatorAccessGateway(gateway OperatorAccessGateway) ServiceOption {
+	return func(s *Service) { s.operatorAccess = gateway }
 }
 
 func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, opts ...ServiceOption) (*Service, error) {

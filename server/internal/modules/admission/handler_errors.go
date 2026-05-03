@@ -29,6 +29,18 @@ func respondAdmissionError(c *gin.Context, err error) {
 		response.NotFound(c, "admission token not found")
 	case errors.Is(err, ErrAdmissionInvalidStatus):
 		response.Conflict(c, "admission session status invalid")
+	case errors.Is(err, ErrAdmissionApplicationNotFound):
+		response.NotFound(c, "admission application not found")
+	case errors.Is(err, ErrAdmissionOperatorUnbound):
+		response.Forbidden(c, "operator qq is not bound to a StuHelper admin account")
+	case errors.Is(err, ErrAdmissionOperatorForbidden):
+		response.Forbidden(c, "operator does not have admission review permission")
+	case errors.Is(err, ErrAdmissionManagementGuildForbidden):
+		response.Forbidden(c, "management group is not allowed for this admission policy")
+	case errors.Is(err, ErrAdmissionReviewExtensionTooLong):
+		response.BadRequest(c, "freshman credential extension exceeds policy limit")
+	case errors.Is(err, ErrAdmissionOperatorAccessUnavailable):
+		response.ServiceUnavailable(c, "operator access verification unavailable")
 	case errors.Is(err, user.ErrQQBindingQQAlreadyBound), errors.Is(err, user.ErrQQBindingUserConflict):
 		response.Conflict(c, "qq binding conflict")
 	default:

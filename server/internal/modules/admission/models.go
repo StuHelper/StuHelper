@@ -127,6 +127,32 @@ type FreshmanApplicationCreateInput struct {
 	MaterialType      FreshmanMaterialType
 }
 
+type FreshmanReviewAction string
+
+const (
+	FreshmanReviewApprove FreshmanReviewAction = "approve"
+	FreshmanReviewReject  FreshmanReviewAction = "reject"
+)
+
+type BotFreshmanReviewInput struct {
+	ApplicationID string
+	Action        FreshmanReviewAction
+	Reason        *string
+	ExpiresInDays *int
+	OperatorQQID  string
+	GuildID       string
+	ChannelID     *string
+	RawCommand    string
+}
+
+type AdminFreshmanReviewInput struct {
+	ApplicationID  string
+	Action         FreshmanReviewAction
+	Reason         *string
+	ExpiresInDays  *int
+	OperatorUserID int64
+}
+
 type CameraCaptureInput struct {
 	UserID        int64
 	ApplicationID string

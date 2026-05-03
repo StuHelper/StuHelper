@@ -61,6 +61,22 @@ func (c *RoleSyncClient) SyncRole(ctx context.Context, subject, role string, app
 	return c.updateRoleUsers(ctx, roleObj)
 }
 
+func (c *RoleSyncClient) UserHasRole(ctx context.Context, subject, role string) (bool, error) {
+	subject, role, err := normalizeRoleSyncInput(subject, role)
+	if err != nil {
+		return false, err
+	}
+	userName, err := c.lookupUserName(ctx, subject)
+	if err != nil {
+		return false, err
+	}
+	roleObj, err := c.getRole(ctx, role)
+	if err != nil {
+		return false, err
+	}
+	return containsString(uniqueNonBlank(roleObj.Users), userName), nil
+}
+
 func normalizeRoleSyncInput(subject, role string) (string, string, error) {
 	subject = strings.TrimSpace(subject)
 	role = strings.TrimSpace(role)
@@ -195,5 +211,32 @@ func BuildRoleSyncFunc(client *RoleSyncClient, getUserSubject func(context.Conte
 			return fmt.Errorf("sync role via Casdoor: %w", err)
 		}
 		return nil
+	}
+}
+
+func BuildRoleMembershipFunc(
+	client *RoleSyncClient,
+	getUserSubject func(context.Context, int64) (string, error),
+) func(context.Context, int64, string) (bool, error) {
+	if client == nil {
+		return func(_ context.Context, userID int64, role string) (bool, error) {
+			logger.L().Info("role membership check skipped (Casdoor role sync credentials not configured)",
+				zap.Int64("user_id", userID),
+				zap.String("role", role),
+			)
+			return false, fmt.Errorf("%w: role=%s user_id=%d", ErrRoleSyncCredentialNotConfigured, role, userID)
+		}
+	}
+
+	return func(ctx context.Context, userID int64, role string) (bool, error) {
+		subject, err := getUserSubject(ctx, userID)
+		if err != nil {
+			return false, fmt.Errorf("get Casdoor subject: %w", err)
+		}
+		allowed, err := client.UserHasRole(ctx, subject, role)
+		if err != nil {
+			return false, fmt.Errorf("check role via Casdoor: %w", err)
+		}
+		return allowed, nil
 	}
 }

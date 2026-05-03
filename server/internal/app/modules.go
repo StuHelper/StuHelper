@@ -118,6 +118,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		admission.NewRepository(rt.database),
 		userService,
 		crypto.GetHMACKey(),
+		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(userRepo)),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize admission service: %w", err)
