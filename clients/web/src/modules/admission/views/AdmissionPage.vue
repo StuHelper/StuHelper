@@ -98,6 +98,11 @@
           </p>
         </div>
 
+        <ProjectionPendingNotice
+          v-else-if="pageState === 'projectionPending'"
+          :timed-out="projectionRefreshTimedOut"
+        />
+
         <div v-else-if="pageState === 'approved'" data-state="approved">
           <h2 class="text-lg font-semibold">认证已通过</h2>
           <p class="mt-2 text-sm text-slate-600">
@@ -130,24 +135,20 @@ import { useVerificationStore } from '@/stores/verification'
 import type { AdmissionMe, AdmissionSession } from '@stuhelper/shared/api'
 
 import { admissionApi } from '../api'
+import {
+  stateFromAdmissionMe,
+  stateFromAdmissionSession,
+  type AdmissionPageState,
+} from '../admissionState'
 import { buildAdmissionReturnURL, mapAdmissionApiError } from '../admissionToken'
 import {
   shouldShowFreshmanSubmission,
   type AdmissionSchoolOption,
 } from '../oldStudentAdmission'
+import { waitForAdmissionProjection } from '../projectionRefresh'
 import FreshmanCameraFlow from './FreshmanCameraFlow.vue'
 import OldStudentVerificationFlow from './OldStudentVerificationFlow.vue'
-
-type AdmissionPageState =
-  | 'loading'
-  | 'needsLogin'
-  | 'qqMismatch'
-  | 'ready'
-  | 'linked'
-  | 'pendingReview'
-  | 'approved'
-  | 'expired'
-  | 'error'
+import ProjectionPendingNotice from './ProjectionPendingNotice.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -158,6 +159,7 @@ const admissionMe = ref<AdmissionMe | null>(null)
 const errorMessage = ref('认证链接暂时无法打开，请稍后重试。')
 const linking = ref(false)
 const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
+const projectionRefreshTimedOut = ref(false)
 
 const token = computed(() => String(route.params.code ?? ''))
 const displayQQ = computed(() => {
@@ -170,15 +172,6 @@ const admissionSchools = computed(() => {
 const showFreshmanSubmission = computed(() => {
   return shouldShowFreshmanSubmission(admissionMe.value)
 })
-
-function stateFromSession(nextSession: AdmissionSession): AdmissionPageState {
-  if (nextSession.status === 'joined_muted') return 'ready'
-  if (nextSession.status === 'linked') return 'linked'
-  if (nextSession.status === 'material_submitted') return 'pendingReview'
-  if (nextSession.status === 'verified') return 'approved'
-  if (nextSession.status === 'expired_kicked') return 'expired'
-  return 'error'
-}
 
 function applyError(error: unknown) {
   pageState.value = mapAdmissionApiError(error)
@@ -205,6 +198,22 @@ function scheduleLinkedResourcesLoad(): void {
   loadLinkedResources().catch(applyError)
 }
 
+function handleSessionState(nextSession: AdmissionSession): void {
+  pageState.value = stateFromAdmissionSession(nextSession)
+  if (pageState.value === 'linked') scheduleLinkedResourcesLoad()
+  if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
+}
+
+function scheduleProjectionRefresh(): void {
+  projectionRefreshTimedOut.value = false
+  waitForAdmissionProjection({ refreshAuth: auth.fetchUser })
+    .then((ready) => {
+      if (ready) pageState.value = 'approved'
+      else projectionRefreshTimedOut.value = true
+    })
+    .catch(applyError)
+}
+
 async function loadAdmissionSession() {
   pageState.value = 'loading'
   try {
@@ -213,8 +222,8 @@ async function loadAdmissionSession() {
       displayQQ.value || undefined,
     )
     session.value = preview
-    pageState.value = auth.isAuthenticated ? stateFromSession(preview) : 'needsLogin'
-    if (pageState.value === 'linked') scheduleLinkedResourcesLoad()
+    if (auth.isAuthenticated) handleSessionState(preview)
+    else pageState.value = 'needsLogin'
   } catch (error) {
     applyError(error)
   }
@@ -228,8 +237,7 @@ async function confirmLink() {
       displayQQ.value || undefined,
     )
     session.value = linked
-    pageState.value = stateFromSession(linked)
-    if (pageState.value === 'linked') scheduleLinkedResourcesLoad()
+    handleSessionState(linked)
   } catch (error) {
     applyError(error)
   } finally {
@@ -251,7 +259,8 @@ function markPendingReview() {
 
 function handleOldStudentVerified(nextAdmission: AdmissionMe) {
   admissionMe.value = nextAdmission
-  pageState.value = nextAdmission.status === 'verified' ? 'approved' : 'linked'
+  pageState.value = stateFromAdmissionMe(nextAdmission)
+  if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
 }
 
 onMounted(() => {
@@ -259,42 +268,4 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.primary-button,
-.secondary-button {
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-  min-height: 40px;
-  padding: 10px 16px;
-}
-
-.primary-button {
-  background: #0f172a;
-  color: #ffffff;
-}
-
-.primary-button:disabled { cursor: not-allowed; opacity: 0.6; }
-
-.secondary-button {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-.flow-tab {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 600;
-  min-height: 36px;
-  padding: 8px 12px;
-}
-
-.flow-tab--active {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #ffffff;
-}
-</style>
+<style scoped src="./AdmissionPage.css"></style>
