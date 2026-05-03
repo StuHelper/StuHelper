@@ -67,6 +67,25 @@ func (s *Service) ConsumeQQBindingCode(ctx context.Context, code, qqID string, q
 	return result, nil
 }
 
+func (s *Service) EnsureQQBindingForUserTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	qqID string,
+	qqNickname *string,
+) (*QQBinding, error) {
+	trimmedQQID := strings.TrimSpace(qqID)
+	if trimmedQQID == "" {
+		return nil, ErrQQIDRequired
+	}
+
+	binding, err := s.ensureQQBindingForUserTx(ctx, tx, userID, trimmedQQID, normalizeOptionalString(qqNickname))
+	if err != nil {
+		return nil, fmt.Errorf("EnsureQQBindingForUserTx: %w", err)
+	}
+	return binding, nil
+}
+
 // GetQQVerificationStateByQQID 查询 QQ 账号对应的学生认证状态。
 func (s *Service) GetQQVerificationStateByQQID(ctx context.Context, qqID string) (*QQVerificationStatus, error) {
 	trimmedQQID := strings.TrimSpace(qqID)
@@ -170,6 +189,44 @@ func (s *Service) consumeQQBindingCodeTx(ctx context.Context, tx pgx.Tx, binding
 	}
 	if err := s.repo.MarkQQBindingCodeConsumedTx(ctx, tx, bindingCode.UserID, now); err != nil {
 		return nil, fmt.Errorf("consumeQQBindingCodeTx consume code: %w", err)
+	}
+	return binding, nil
+}
+
+func (s *Service) ensureQQBindingForUserTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	qqID string,
+	qqNickname *string,
+) (*QQBinding, error) {
+	userBinding, err := s.repo.GetQQBindingByUserIDTx(ctx, tx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("ensureQQBindingForUserTx user binding: %w", err)
+	}
+	qqBinding, err := s.repo.GetQQBindingByQQIDTx(ctx, tx, qqID)
+	if err != nil {
+		return nil, fmt.Errorf("ensureQQBindingForUserTx qq binding: %w", err)
+	}
+	existing, err := resolveQQBindingConflict(userBinding, qqBinding, userID, qqID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+
+	now := time.Now()
+	binding := &QQBinding{
+		UserID:     userID,
+		QQID:       qqID,
+		QQNickname: qqNickname,
+		BoundAt:    now,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := s.repo.CreateQQBindingTx(ctx, tx, binding); err != nil {
+		return nil, fmt.Errorf("ensureQQBindingForUserTx create binding: %w", err)
 	}
 	return binding, nil
 }

@@ -62,6 +62,7 @@ func TestRoleCapabilities_UsesCasdoorV2RoleCatalog(t *testing.T) {
 		"section_moderator",
 		"section_reviewer",
 		"verified_student",
+		"freshman_provisional",
 		"user",
 	}, roles)
 }
