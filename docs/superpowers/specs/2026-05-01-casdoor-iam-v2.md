@@ -18,7 +18,7 @@ scope: greenfield IAM v2 target architecture; Casdoor is the final IDP; Open Pla
 ## 1. 决策记录
 
 - **IDP 决策**：Casdoor 是最终方案，由项目 owner 直接决策；不再做选型 ADR；不再保留 Zitadel/Keycloak 候选。
-- **迁移性质**：绿地架构，不做兼容数据迁移；现有 Zitadel `users.external_id`、session、token 全部失效，要求所有用户重新登录。
+- **迁移性质**：绿地架构，不做兼容数据迁移；历史 Zitadel external subject、session、token 全部失效，要求所有用户重新登录。
 - **范围拆分**：本文只覆盖 IAM v2（身份、登录、应用注册、授权决策入口、SMS/Email 通道、Zitadel 退役）。开放平台拆出独立 spec [`2026-05-01-open-platform-v1.md`](./2026-05-01-open-platform-v1.md)，且必须在 IAM v2 落地后才启动。
 
 > 本 spec 取代 `2026-05-01-casdoor-open-platform-iam-design.md`（commit 8295a1e7）。旧 spec 把 IAM 切换与开放平台 v1 混写，并把 Casdoor Casbin Enforce 引入业务授权路径，已被本文从架构上修正。
@@ -452,7 +452,7 @@ Authorize(subject, "profile.view_identity", profile)
 
 ### 6.5 Outbox 与 drift reconciliation 具体化
 
-> 复用现有 `domain_event_outbox` 基础设施（migration `server/migrations/000024_unify_domain_event_outbox.up.sql`），**不**新建 `iam_sync_job` 表。
+> 复用现有 `domain_event_outbox` 基础设施（定义在 `server/migrations/000001_initial_schema.up.sql`），**不**新建 `iam_sync_job` 表。
 
 #### 6.5.1 Stream 命名
 
@@ -778,26 +778,17 @@ ZITADEL_EXTERNALPORT    → CASDOOR_PORT (按 Casdoor 部署)
 | Network `zitadel-internal` | **删除** | — |
 | Network `casdoor-internal` | **新增** | 替代 |
 
-### 11.4 数据迁移（绿地：schema 重命名 + 数据 truncate）
+### 11.4 数据模型收口（绿地：已落入 baseline schema）
 
-**项目当前状态**：开发中，未部署生产；`users` 表中仅开发/测试数据，可全量清空。按"绿地 + 无兼容"原则执行：
+**项目当前状态**：开发中，未部署生产；按"绿地 + 无兼容"原则，`users.casdoor_subject` 已直接落入 baseline schema，不再保留 `external_id` 旧列兼容路径。
 
 #### 11.4.1 Schema 调整
 
-`users` 表的列从 Zitadel 语义（`external_id`）改名为 Casdoor 语义（`casdoor_subject`）：
-
-| 当前 (`server/migrations/000001_initial_schema.up.sql:16`) | 新 |
-|----|----|
-| `external_id VARCHAR(255) NOT NULL UNIQUE` | `casdoor_subject VARCHAR(255) NOT NULL UNIQUE` |
-
-新增一份 migration（`server/migrations/000XXX_rename_external_id_to_casdoor_subject.up.sql`）：
+`users` 表直接使用 Casdoor 语义列：
 
 ```sql
-ALTER TABLE users RENAME COLUMN external_id TO casdoor_subject;
--- 唯一索引随列名自动重命名；如需更明确可显式 ALTER INDEX
+casdoor_subject character varying(255) NOT NULL
 ```
-
-**前置条件**：先执行 §11.4.2 数据 truncate，再执行 schema 改名（避免空字符串等占位值与新 unique 冲突）。
 
 #### 11.4.2 数据 truncate
 
@@ -807,7 +798,7 @@ ALTER TABLE users RENAME COLUMN external_id TO casdoor_subject;
 - `users` 表的依赖**分两类**——FK 到 `users.id`（CASCADE 自动级联）与字符串 `user_hash` 关联（**不会被 CASCADE 级联**，必须显式 TRUNCATE）；
 - 实施 PR 不得依赖本 spec 的硬编码表清单；必须在迁移前用 SQL 查询自动生成完整清单（见下方"清单生成查询"），避免 schema 演进后 spec 过期。
 
-**清单生成查询**（在迁移 PR 中实际执行，结果纳入 PR 描述）：
+**清单生成查询**（在实施 PR 中实际执行，结果纳入 PR 描述）：
 
 ```sql
 -- (1) FK 到 users.id 的表
@@ -828,7 +819,7 @@ SELECT table_name, column_name
    AND table_schema = current_schema();
 ```
 
-**当前 schema 下的清单（仅作历史初始 `server/migrations/000001_initial_schema.up.sql` 参考；后续 migration 可能改变表结构，例如某些 user_hash 列已迁移为 user_id FK——`不可复制执行`，必须以上方"清单生成查询"实际跑出的结果为准）**：
+**当前 schema 下的清单（仅作 `server/migrations/000001_initial_schema.up.sql` 的初始化参考；后续 baseline 更新可能改变表结构，例如某些 user_hash 列改为 user_id FK——`不可复制执行`，必须以上方"清单生成查询"实际跑出的结果为准）**：
 
 ```sql
 BEGIN;
@@ -851,24 +842,24 @@ TRUNCATE TABLE
   notifications
 RESTART IDENTITY CASCADE;
 
--- 类 3：审计事件（旧 admin_operation_logs 已被 migration 000024 合并入 audit_events 并 DROP；
+-- 类 3：审计事件（旧 admin_operation_logs 已从 baseline schema 移除；
 --        现有 audit_events.category 约束只允许 'audit' / 'admin_operation' / 'domain_event'
---        见 server/migrations/000023_audit_events.up.sql:22；
+--        见 server/migrations/000001_initial_schema.up.sql；
 --        绿地阶段所有历史审计行为均关联旧 user_id / 旧 admin_user_id 字符串，可一并清空）
 TRUNCATE TABLE audit_events RESTART IDENTITY CASCADE;
 
 COMMIT;
 ```
 
-> 业务实体表（如 `courses`、`teachers`、`departments`、`terms`、`course_categories`、`rating_dimensions`、`course_rating_stats`、`teacher_rating_stats`、`sensitive_words`、`school_configs`、`system_configs`、`academic.buaa_students`）通常**不**清空——这些是业务参考数据，与用户身份无关。但若开发数据库中含污染数据，迁移 PR 应单独评估。
+> 业务实体表（如 `courses`、`teachers`、`departments`、`terms`、`course_categories`、`rating_dimensions`、`course_rating_stats`、`teacher_rating_stats`、`sensitive_words`、`school_configs`、`system_configs`、`academic.buaa_students`）通常**不**清空——这些是业务参考数据，与用户身份无关。但若开发数据库中含污染数据，实施 PR 应单独评估。
 
 #### 11.4.3 代码同步修改
 
 | 文件 | 修改 |
 |------|------|
-| `server/internal/modules/user/repository_auth_sync.go` | `external_id` → `casdoor_subject`：第 57 行 INSERT、第 59 行 `ON CONFLICT (external_id)`、第 97/118 行 SELECT、第 165 行 INSERT、第 215-218 行 `ExistsByExternalID` 重命名为 `ExistsByCasdoorSubject` |
-| `server/internal/modules/user/` 其它文件 | grep 所有 `external_id` 字符串与 `ExternalID` 标识符，全量替换为 `casdoor_subject` / `CasdoorSubject` |
-| `server/internal/modules/user/repository_auth_sync.go:239` | `WHERE user_hash IS NULL` 那段 backfill 逻辑：换列名 |
+| `server/migrations/000001_initial_schema.up.sql` | `users` 表只保留 `casdoor_subject`，不保留 `external_id` 双列或 rename 兼容路径 |
+| `server/internal/modules/user/repository_auth_sync.go` | 所有用户同步查询直接读写 `casdoor_subject` / `CasdoorSubject` |
+| `server/internal/modules/user/` 其它文件 | 身份侧外部 subject 统一使用 `casdoor_subject` / `CasdoorSubject`；教务导入域的 `academic_* external_id` 不在此范围 |
 
 #### 11.4.4 运行时缓存清理
 
@@ -884,7 +875,7 @@ COMMIT;
 
 ### 11.5 退役顺序
 
-> **关键时序约束**：以下步骤**必须严格按序**执行；不允许并行；不允许在维护窗口外执行 schema rename。原因：`external_id → casdoor_subject` 是代码与 schema 同步变化；项目已采纳 "no compat shim" 原则，不保留双列；任何乱序都会让在线业务读到不一致的列名或撞 NOT NULL UNIQUE 约束。绿地阶段建议大胆走停服迁移（项目无生产用户），避免引入双列兼容层。
+> **关键时序约束**：以下步骤**必须严格按序**执行；不允许并行。项目已采纳 "no compat shim" 原则，baseline schema 已直接使用 `casdoor_subject`，不再保留 `external_id` 双列、rename SQL 或运行时兼容层。
 
 ```
 1. 在新分支实施 §11.1 - §11.3 代码 / 配置 / infra 修改
@@ -1015,7 +1006,7 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 
 ### 14.3 IAM 自身审计保留
 
-复用现行 `audit_events` 表（`server/migrations/000023_audit_events.up.sql`）。**不**新增 `event_category` 字段——现有 schema 已有 `category` (CHECK IN 'audit'/'admin_operation'/'domain_event') + `event_type` (TEXT) + `action` + `resource_type` 四个分类维度，足以表达 IAM 事件类别。IAM 事件按以下映射写入：
+复用现行 `audit_events` 表（定义在 `server/migrations/000001_initial_schema.up.sql`）。**不**新增 `event_category` 字段——现有 schema 已有 `category` (CHECK IN 'audit'/'admin_operation'/'domain_event') + `event_type` (TEXT) + `action` + `resource_type` 四个分类维度，足以表达 IAM 事件类别。IAM 事件按以下映射写入：
 
 | IAM 事件 | category | event_type 前缀 |
 |---------|----------|-----------------|

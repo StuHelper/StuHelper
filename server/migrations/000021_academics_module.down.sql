@@ -1,9 +1,0 @@
-DROP TABLE IF EXISTS academic_memberships;
-DROP TABLE IF EXISTS academic_schedules;
-DROP TABLE IF EXISTS academic_offering_teachers;
-DROP TABLE IF EXISTS academic_offerings;
-DROP TABLE IF EXISTS academic_teachers;
-DROP TABLE IF EXISTS academic_courses;
-DROP TABLE IF EXISTS academic_terms;
-DROP TABLE IF EXISTS academic_import_jobs;
-DROP TABLE IF EXISTS academic_sources;

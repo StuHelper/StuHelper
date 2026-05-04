@@ -3,7 +3,7 @@
 -- StuHelper 种子数据（开发环境）
 -- 使用方法: psql -U stuhelper -d stuhelper -f seed.sql
 -- 包含: 院系、教师、课程、用户、测评、回复、投票
--- 注意: 需要先执行 server/migrations/*.sql（或等价 schema 快照）创建表结构
+-- 注意: 需要先执行 server/migrations/000001_initial_schema.up.sql 创建表结构
 
 BEGIN;
 

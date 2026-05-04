@@ -50,11 +50,11 @@ help:
 	@echo "  clean         - remove build artifacts"
 	@echo ""
 	@echo "Database:"
-		@echo "  migrate-up       - apply all pending SQL migrations (requires DATABASE_URL)"
-		@echo "  migrate-down-one - rollback exactly one migration (requires DATABASE_URL; local only)"
-		@echo "  migrate-status   - show current migration version (requires DATABASE_URL)"
-		@echo "  migrate-verify   - apply -> rollback one -> re-apply migrations (requires DATABASE_URL)"
-		@echo "  seed-dev         - load development-only seed data (requires DATABASE_URL + psql)"
+	@echo "  migrate-up       - apply current SQL baseline (requires DATABASE_URL)"
+	@echo "  migrate-down-one - drop current SQL baseline (requires DATABASE_URL; local only)"
+	@echo "  migrate-status   - show current migration version (requires DATABASE_URL)"
+	@echo "  migrate-verify   - apply -> drop -> re-apply baseline (requires DATABASE_URL)"
+	@echo "  seed-dev         - load development-only seed data (requires DATABASE_URL + psql)"
 
 tidy:
 	go mod tidy
@@ -130,7 +130,7 @@ check-doc-sync: bundle-spec
 check-coverage-threshold:
 	bash scripts/check-coverage-threshold.sh
 
-# ── Database Migrations ──
+# ── Database Baseline ──
 
 migrate-up:
 	$(call require_database_url)

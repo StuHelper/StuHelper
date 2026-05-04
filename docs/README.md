@@ -63,7 +63,7 @@ last-verified: 2026-04-19
 | 我想查 | 去哪里 |
 |--------|--------|
 | 某个接口的字段 / schema | `server/api/openapi.yaml` |
-| 某张表的列 / 索引 | `server/migrations/*.sql` |
+| 某张表的列 / 索引 | `server/migrations/000001_initial_schema.up.sql` |
 | 能力常量 | `server/internal/pkg/capability/capability.go` |
 | API 模块分组 | [reference/api-overview.md](reference/api-overview.md) |
 | 数据库模块分组 | [reference/database.md](reference/database.md) |

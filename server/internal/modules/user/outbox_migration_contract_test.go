@@ -4,39 +4,20 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIAMOutboxMigrationRoutesUserProfileProjectionToOpenFGAStream(t *testing.T) {
-	up := readServerFile(t, "migrations", "000026_iam_outbox_streams.up.sql")
-	assert.Contains(t, up, "SET stream = 'iam_openfga_tuple_sync'\nWHERE stream = 'user_external_sync'\n  AND job_type = 'user_profile_projection';")
-	assert.NotContains(t, projectionMigrationBlock(up), "iam_casdoor_user_projection")
-}
-
-func TestIAMOutboxRepairMigrationMovesMisroutedUserProfileProjection(t *testing.T) {
-	up := readServerFile(t, "migrations", "000032_repair_user_profile_projection_stream.up.sql")
-	assert.Contains(t, up, "SET stream = 'iam_openfga_tuple_sync'")
-	assert.Contains(t, up, "WHERE stream = 'iam_casdoor_user_projection'\n  AND job_type = 'user_profile_projection';")
-}
-
-func projectionMigrationBlock(sql string) string {
-	start := strings.Index(sql, "job_type = 'user_profile_projection'")
-	if start == -1 {
-		return ""
-	}
-	lineStart := strings.LastIndex(sql[:start], "UPDATE domain_event_outbox")
-	if lineStart == -1 {
-		return sql[start:]
-	}
-	lineEnd := strings.Index(sql[start:], ";")
-	if lineEnd == -1 {
-		return sql[lineStart:]
-	}
-	return sql[lineStart : start+lineEnd+1]
+func TestIAMOutboxBaselineUsesFinalStreams(t *testing.T) {
+	up := readServerFile(t, "migrations", "000001_initial_schema.up.sql")
+	assert.Contains(t, up, "CREATE TABLE public.domain_event_outbox")
+	assert.Contains(t, up, "CONSTRAINT chk_domain_event_outbox_stream CHECK ((stream <> ''::text))")
+	assert.Contains(t, up, "domain_event_outbox_stream_pending_idx")
+	assert.NotContains(t, up, "user_external_sync_outbox")
+	assert.NotContains(t, up, "review_fga_sync_outbox")
+	assert.NotContains(t, up, "iam_casdoor_user_projection")
 }
 
 func readServerFile(t *testing.T, parts ...string) string {

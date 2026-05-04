@@ -2,19 +2,19 @@
 type: reference
 audience: backend-dev, ops
 status: current
-authoritative-source: server/migrations/*.sql
-last-verified: 2026-04-19
+authoritative-source: server/migrations/000001_initial_schema.up.sql
+last-verified: 2026-05-04
 ---
 
 # 数据库导航摘要
 
-> 本文档仅做数据面与模块索引。表结构、索引、约束、迁移时序以 [`server/migrations/*.sql`](../../server/migrations) 为准。schema 变更永远先改 migration，绝不改文档。
+> 本文档仅做数据面与模块索引。表结构、索引、约束以 [`server/migrations/000001_initial_schema.up.sql`](../../server/migrations/000001_initial_schema.up.sql) 为准。
 
 ## 数据面
 
 | 存储 | 用途 | 权威来源 |
 |------|------|----------|
-| PostgreSQL | 业务数据 | `server/migrations/*.sql` |
+| PostgreSQL | 业务数据 | `server/migrations/000001_initial_schema.up.sql` |
 | Redis | 会话、黑名单、限流、缓存、通知广播 | 代码使用处（无独立 schema） |
 | 对象存储（MinIO/S3） | 证件照、资源文件 | 统一经 `storage` abstraction 访问 |
 | Casdoor | 身份平面（账号、OIDC 会话、扁平角色目录） | Casdoor 管理端 |
@@ -24,7 +24,7 @@ last-verified: 2026-04-19
 
 仅列模块与权威规格跳转。具体表名、字段和约束全部去 migration 查。
 
-| 业务模块 | 迁移文件前缀 | 业务规格 |
+| 业务模块 | 表前缀 | 业务规格 |
 |----------|---------------|----------|
 | 用户与学校 | `user_*`、`school_*`、`system_*` | [product-specs/user-system.md](../product-specs/user-system.md) |
 | 课程与评课 | `course_*`、`teacher_*`、`review_*`、`rating_*` | [product-specs/course-review.md](../product-specs/course-review.md) |
@@ -41,14 +41,14 @@ last-verified: 2026-04-19
 - `domain_event_outbox` 是统一 outbox：`stream + dedupe_key` 唯一键；`pending / processing / completed / failed` 状态机；后台 worker 按 stream 消费，主事务不直连外部系统。
 - `audit_events.category = 'admin_operation'` 收口所有管理员操作的审计留痕。
 - 能力由角色静态展开，**不落本地 RBAC 表**；资源级权限由 OpenFGA 承担。详见 [design/authorization-model.md](../design/authorization-model.md)。
-- `pg_trgm` 已启用，`courses.name/code`、`teachers.name` 上建有 GIN trigram 索引（`000006_search_trgm.up.sql`）。
+- `pg_trgm` 已启用，`courses.name/code`、`teachers.name` 上建有 GIN trigram 索引。
 
 ## 查找指引
 
-- 想看**完整 schema**：`server/migrations/*.up.sql`。
+- 想看**完整 schema**：`server/migrations/000001_initial_schema.up.sql`。
 - 想看**查询与事务**：`server/internal/modules/**/repository*.go`。
 - 想看**本地 ERD**：`make db-erd`（如果启用了 schemaspy/atlas）。
 
 ## 规则
 
-本文不再维护完整表清单。任何 schema 变更直接体现在 migration；本文只在**新增业务模块**或**出现跨表设计约束**时更新。
+本文不再维护完整表清单。任何 schema 变更直接体现在 baseline SQL；本文只在**新增业务模块**或**出现跨表设计约束**时更新。

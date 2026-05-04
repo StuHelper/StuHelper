@@ -14,7 +14,7 @@
 
 - Create `server/internal/modules/admission/{models,errors,repository,repository_session,repository_policy,repository_application,repository_failure,service,service_session,service_student,service_freshman,service_operator,service_expiry,service_policy,handler,handler_user,handler_bot,handler_admin,material_store,route_contract_test,service_session_test,service_student_test,service_freshman_test,service_operator_test,service_expiry_test,repository_integration_test}.go`.
 - Create `server/api/paths/{admission,admin-admission,bot-admission}.yaml` and `server/api/components/schemas/admission.yaml`.
-- Create `server/migrations/000033_admission_verification.{up,down}.sql`.
+- Update `server/migrations/000001_initial_schema.{up,down}.sql`.
 - Modify `server/api/openapi.yaml`, `server/internal/app/modules.go`, `server/internal/app/modules_auth.go`, `server/internal/modules/user/service_qq_binding.go`, `server/internal/modules/user/service.go`, `server/internal/modules/user/external_sync.go`, `server/internal/modules/notification/templates.go`, `server/internal/pkg/capability/capability.go`, and `server/internal/platform/serviceaccount/constants.go`.
 
 ## Task 1: OpenAPI Contract
@@ -42,7 +42,7 @@ Commit: `git add server/api server/internal/modules/admission/route_contract_tes
 
 ## Task 2: Persistence Model
 
-**Files:** `server/migrations/000033_admission_verification.{up,down}.sql`, `server/internal/modules/admission/models.go`, `server/internal/modules/admission/repository_integration_test.go`
+**Files:** `server/migrations/000001_initial_schema.{up,down}.sql`, `server/internal/modules/admission/models.go`, `server/internal/modules/admission/repository_integration_test.go`
 
 - [ ] **Step 1: Write failing migration test**
 

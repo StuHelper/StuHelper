@@ -70,8 +70,8 @@ server/
 
 ## 数据库规则
 
-- 结构变更只改 `server/migrations/`
-- `server/migrations/` 是唯一 schema 权威来源；不再维护仓库内 schema 快照
+- 结构变更直接更新 `server/migrations/000001_initial_schema.up.sql`
+- `server/migrations/000001_initial_schema.up.sql` 是唯一 schema 权威来源
 - 参数化查询，禁止拼接
 - 动态排序使用白名单
 - 分页优先 `COUNT(*) OVER()`

@@ -1,2 +1,0 @@
--- Intentionally left blank.
--- No rollback action is required because 000007 is a no-op placeholder.
