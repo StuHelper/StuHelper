@@ -19,6 +19,8 @@ type oidcSchoolSSOExchanger struct {
 	client schoolSSOOIDCClient
 }
 
+// oidcSchoolSSOExchanger expects school SSO to be federated through Casdoor
+// and exchanged through the StuHelper web OIDC application.
 func NewOIDCSchoolSSOExchanger(client schoolSSOOIDCClient) SchoolSSOExchanger {
 	if client == nil {
 		return nil

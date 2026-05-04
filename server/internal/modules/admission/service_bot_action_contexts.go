@@ -21,17 +21,23 @@ type pendingActionLookupKeySet struct {
 	failures []admissionFailureKey
 }
 
+type pendingActionSeed struct {
+	action   BotAction
+	deadline time.Time
+}
+
 type pendingActionContexts struct {
-	policies map[admissionGuildKey]AdmissionPolicy
-	failures map[admissionFailureKey]AdmissionFailure
+	policies map[admissionGuildKey]*AdmissionPolicy
+	failures map[admissionFailureKey]*AdmissionFailure
 	now      func() time.Time
 }
 
 func (s *Service) pendingActionContexts(
 	ctx context.Context,
 	sessions []AdmissionSession,
+	seeds []pendingActionSeed,
 ) (pendingActionContexts, error) {
-	keys := pendingActionLookupKeys(sessions, s.now())
+	keys := pendingActionLookupKeys(sessions, seeds)
 	policies, err := s.repo.ListPoliciesByGuildKeys(ctx, keys.guilds)
 	if err != nil {
 		return pendingActionContexts{}, err
@@ -43,10 +49,19 @@ func (s *Service) pendingActionContexts(
 	return pendingActionContexts{policies: policies, failures: failures, now: s.now}, nil
 }
 
+func pendingActionSeeds(sessions []AdmissionSession, now time.Time) []pendingActionSeed {
+	seeds := make([]pendingActionSeed, len(sessions))
+	for i := range sessions {
+		action, deadline := resolvePendingAction(&sessions[i], now)
+		seeds[i] = pendingActionSeed{action: action, deadline: deadline}
+	}
+	return seeds
+}
+
 func (c pendingActionContexts) policyFor(session *AdmissionSession) *AdmissionPolicy {
 	key := admissionGuildKey{Platform: session.Platform, GuildID: session.GuildID}
 	if policy, ok := c.policies[key]; ok {
-		return &policy
+		return policy
 	}
 	return defaultAdmissionPolicy(session.Platform, session.GuildID, c.now())
 }
@@ -54,16 +69,16 @@ func (c pendingActionContexts) policyFor(session *AdmissionSession) *AdmissionPo
 func (c pendingActionContexts) failureFor(session *AdmissionSession) *AdmissionFailure {
 	key := admissionFailureKey{Platform: session.Platform, GuildID: session.GuildID, QQID: session.QQID}
 	if failure, ok := c.failures[key]; ok {
-		return &failure
+		return failure
 	}
 	return nil
 }
 
-func pendingActionLookupKeys(sessions []AdmissionSession, now time.Time) pendingActionLookupKeySet {
+func pendingActionLookupKeys(sessions []AdmissionSession, seeds []pendingActionSeed) pendingActionLookupKeySet {
 	guilds := map[admissionGuildKey]struct{}{}
 	failures := map[admissionFailureKey]struct{}{}
 	for i := range sessions {
-		if action, _ := resolvePendingAction(&sessions[i], now); action != BotActionKick {
+		if seeds[i].action != BotActionKick {
 			continue
 		}
 		guilds[admissionGuildKey{Platform: sessions[i].Platform, GuildID: sessions[i].GuildID}] = struct{}{}

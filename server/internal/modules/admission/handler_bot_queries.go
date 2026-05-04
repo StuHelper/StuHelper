@@ -9,6 +9,8 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
+const maxBotPendingActionFilterLength = 64
+
 type botJoinRequestEventHTTPRequest struct {
 	Platform  string         `json:"platform" binding:"required"`
 	GuildID   string         `json:"guildID" binding:"required"`
@@ -59,21 +61,31 @@ func (h *Handler) handleListBotPendingActions(c *gin.Context) {
 	if !h.ready(c) {
 		return
 	}
-	limit, ok := botPendingActionLimit(c)
+	filter, ok := botPendingActionFilter(c)
 	if !ok {
-		response.BadRequest(c, "invalid admission pending action limit")
 		return
 	}
-	actions, err := h.service.ListPendingAdmissionActions(c.Request.Context(), AdmissionPendingActionFilter{
-		Platform:  c.Query("platform"),
-		BotSelfID: c.Query("botSelfID"),
-		Limit:     limit,
-	})
+	actions, err := h.service.ListPendingAdmissionActions(c.Request.Context(), filter)
 	if err != nil {
 		respondAdmissionError(c, err)
 		return
 	}
 	response.Success(c, actions)
+}
+
+func botPendingActionFilter(c *gin.Context) (AdmissionPendingActionFilter, bool) {
+	platform := strings.TrimSpace(c.Query("platform"))
+	botSelfID := strings.TrimSpace(c.Query("botSelfID"))
+	if len(platform) > maxBotPendingActionFilterLength || len(botSelfID) > maxBotPendingActionFilterLength {
+		response.BadRequest(c, "admission pending action filter too long")
+		return AdmissionPendingActionFilter{}, false
+	}
+	limit, ok := botPendingActionLimit(c)
+	if !ok {
+		response.BadRequest(c, "invalid admission pending action limit")
+		return AdmissionPendingActionFilter{}, false
+	}
+	return AdmissionPendingActionFilter{Platform: platform, BotSelfID: botSelfID, Limit: limit}, true
 }
 
 func botPendingActionLimit(c *gin.Context) (int, bool) {

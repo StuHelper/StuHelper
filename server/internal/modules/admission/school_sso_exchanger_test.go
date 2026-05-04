@@ -53,6 +53,18 @@ func TestOIDCSchoolSSOExchangerClassifiesProviderUnavailable(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionSSOProviderUnavailable)
 }
 
+func TestOIDCSchoolSSOExchangerClassifiesVerifyError(t *testing.T) {
+	client := &testOIDCSchoolSSOClient{
+		token:     (&oauth2.Token{}).WithExtra(map[string]any{"id_token": "raw-id-token"}),
+		verifyErr: errors.New("signature mismatch"),
+	}
+	exchanger := NewOIDCSchoolSSOExchanger(client)
+
+	_, err := exchanger.ExchangeSchoolSSO(context.Background(), SchoolSSOExchangeInput{Code: "code"})
+
+	require.ErrorIs(t, err, ErrAdmissionSSOExchangeFailed)
+}
+
 type testOIDCSchoolSSOClient struct {
 	token      *oauth2.Token
 	claims     *oidc.Claims

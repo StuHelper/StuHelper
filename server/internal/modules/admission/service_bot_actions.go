@@ -14,11 +14,13 @@ func (s *Service) ListPendingAdmissionActions(
 	if err != nil {
 		return nil, err
 	}
-	contexts, err := s.pendingActionContexts(ctx, sessions)
+	now := s.now()
+	seeds := pendingActionSeeds(sessions, now)
+	contexts, err := s.pendingActionContexts(ctx, sessions, seeds)
 	if err != nil {
 		return nil, err
 	}
-	return s.pendingActionsFromSessions(sessions, contexts)
+	return s.pendingActionsFromSessions(sessions, seeds, contexts)
 }
 
 func (s *Service) ListPendingFreshmanForwards(ctx context.Context) ([]FreshmanForwardItem, error) {
@@ -55,11 +57,12 @@ func (s *Service) ReleaseAdmissionBlacklistFromBot(
 
 func (s *Service) pendingActionsFromSessions(
 	sessions []AdmissionSession,
+	seeds []pendingActionSeed,
 	contexts pendingActionContexts,
 ) ([]AdmissionPendingAction, error) {
 	actions := make([]AdmissionPendingAction, 0, len(sessions))
 	for i := range sessions {
-		action, err := s.pendingActionFromSession(&sessions[i], contexts)
+		action, err := s.pendingActionFromSession(&sessions[i], seeds[i], contexts)
 		if err != nil {
 			return nil, err
 		}
@@ -70,17 +73,17 @@ func (s *Service) pendingActionsFromSessions(
 
 func (s *Service) pendingActionFromSession(
 	session *AdmissionSession,
+	seed pendingActionSeed,
 	contexts pendingActionContexts,
 ) (AdmissionPendingAction, error) {
-	action, deadline := resolvePendingAction(session, s.now())
-	if action != BotActionKick {
-		return admissionPendingAction(session, action, deadline), nil
+	if seed.action != BotActionKick {
+		return admissionPendingAction(session, seed.action, seed.deadline), nil
 	}
 	action, err := resolveKickAction(session, contexts)
 	if err != nil {
 		return AdmissionPendingAction{}, err
 	}
-	return admissionPendingAction(session, action, deadline), nil
+	return admissionPendingAction(session, action, seed.deadline), nil
 }
 
 func resolveKickAction(session *AdmissionSession, contexts pendingActionContexts) (BotAction, error) {

@@ -3,6 +3,7 @@ package admission
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,27 +14,54 @@ func (r *Repository) ListPendingActionSessions(
 	filter AdmissionPendingActionFilter,
 	now time.Time,
 ) ([]AdmissionSession, error) {
-	rows, err := r.db.Query(ctx, `
-		SELECT `+admissionSessionColumns+`
-		FROM group_admission_sessions
-		WHERE ($1::text = '' OR platform = $1)
-		  AND ($2::text = '' OR bot_self_id = $2)
-		  AND (
-		    (status = $3 AND (next_reminder_at IS NULL OR next_reminder_at <= $5))
-		    OR (status = $3 AND link_wait_deadline_at <= $5)
-		    OR (status = $4 AND submission_wait_deadline_at <= $5)
-		    OR (status = $6 AND manual_review_deadline_at <= $5)
-		    OR (status = $7 AND cancelled_at IS NULL)
-		  )
-		ORDER BY updated_at ASC, id ASC
-		LIMIT $8
-		`, filter.Platform, filter.BotSelfID, StatusJoinedMuted, StatusLinked, now,
-		StatusMaterialSubmitted, StatusVerified, filter.Limit)
+	query, args := pendingActionSessionsQuery(filter, now)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("ListPendingActionSessions: %w", err)
 	}
 	defer rows.Close()
 	return scanAdmissionSessions(rows)
+}
+
+func pendingActionSessionsQuery(filter AdmissionPendingActionFilter, now time.Time) (string, []any) {
+	clauses, args := pendingActionSessionFilterClauses(filter)
+	joinedMutedParam := len(args) + 1
+	linkedParam := joinedMutedParam + 1
+	nowParam := linkedParam + 1
+	materialSubmittedParam := nowParam + 1
+	verifiedParam := materialSubmittedParam + 1
+	limitParam := verifiedParam + 1
+	args = append(args, StatusJoinedMuted, StatusLinked, now, StatusMaterialSubmitted, StatusVerified, filter.Limit)
+	query := fmt.Sprintf(`
+		SELECT `+admissionSessionColumns+`
+		FROM group_admission_sessions
+		WHERE %s
+		  AND (
+		    (status = $%d AND (next_reminder_at IS NULL OR next_reminder_at <= $%d))
+		    OR (status = $%d AND link_wait_deadline_at <= $%d)
+		    OR (status = $%d AND submission_wait_deadline_at <= $%d)
+		    OR (status = $%d AND manual_review_deadline_at <= $%d)
+		    OR (status = $%d AND cancelled_at IS NULL)
+		  )
+		ORDER BY updated_at ASC, id ASC
+		LIMIT $%d
+		`, strings.Join(clauses, "\n		  AND "), joinedMutedParam, nowParam, joinedMutedParam, nowParam,
+		linkedParam, nowParam, materialSubmittedParam, nowParam, verifiedParam, limitParam)
+	return query, args
+}
+
+func pendingActionSessionFilterClauses(filter AdmissionPendingActionFilter) ([]string, []any) {
+	clauses := []string{"TRUE"}
+	args := make([]any, 0, 2)
+	if filter.Platform != "" {
+		args = append(args, filter.Platform)
+		clauses = append(clauses, fmt.Sprintf("platform = $%d", len(args)))
+	}
+	if filter.BotSelfID != "" {
+		args = append(args, filter.BotSelfID)
+		clauses = append(clauses, fmt.Sprintf("bot_self_id = $%d", len(args)))
+	}
+	return clauses, args
 }
 
 func (r *Repository) ListPendingFreshmanForwards(ctx context.Context) ([]freshmanForwardRecord, error) {

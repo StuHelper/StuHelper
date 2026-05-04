@@ -8,8 +8,8 @@ import (
 func (r *Repository) ListPoliciesByGuildKeys(
 	ctx context.Context,
 	keys []admissionGuildKey,
-) (map[admissionGuildKey]AdmissionPolicy, error) {
-	result := make(map[admissionGuildKey]AdmissionPolicy, len(keys))
+) (map[admissionGuildKey]*AdmissionPolicy, error) {
+	result := make(map[admissionGuildKey]*AdmissionPolicy, len(keys))
 	if len(keys) == 0 {
 		return result, nil
 	}
@@ -23,7 +23,7 @@ func (r *Repository) ListPoliciesByGuildKeys(
 		if err != nil {
 			return nil, err
 		}
-		result[admissionGuildKey{Platform: policy.Platform, GuildID: policy.GuildID}] = *policy
+		result[admissionGuildKey{Platform: policy.Platform, GuildID: policy.GuildID}] = policy
 	}
 	return result, rows.Err()
 }
@@ -31,8 +31,8 @@ func (r *Repository) ListPoliciesByGuildKeys(
 func (r *Repository) ListAdmissionFailuresByKeys(
 	ctx context.Context,
 	keys []admissionFailureKey,
-) (map[admissionFailureKey]AdmissionFailure, error) {
-	result := make(map[admissionFailureKey]AdmissionFailure, len(keys))
+) (map[admissionFailureKey]*AdmissionFailure, error) {
+	result := make(map[admissionFailureKey]*AdmissionFailure, len(keys))
 	if len(keys) == 0 {
 		return result, nil
 	}
@@ -47,7 +47,7 @@ func (r *Repository) ListAdmissionFailuresByKeys(
 			return nil, err
 		}
 		key := admissionFailureKey{Platform: failure.Platform, GuildID: failure.GuildID, QQID: failure.QQID}
-		result[key] = *failure
+		result[key] = failure
 	}
 	return result, rows.Err()
 }
