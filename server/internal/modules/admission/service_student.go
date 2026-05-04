@@ -204,6 +204,7 @@ func (s *Service) cleanupEmailOTPCode(ctx context.Context, userID, schoolID int6
 		ctx,
 		admissionEmailOTPKey(userID, schoolID),
 		admissionEmailOTPAttemptsKey(userID, schoolID),
+		admissionEmailOTPKey(userID, schoolID)+admissionEmailOTPCooldownSuffix,
 	).Err()
 }
 

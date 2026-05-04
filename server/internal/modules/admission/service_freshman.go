@@ -67,6 +67,9 @@ func (s *Service) SubmitCameraCapture(ctx context.Context, input CameraCaptureIn
 		return nil, fmt.Errorf("SubmitCameraCapture store material: %w", err)
 	}
 	if err := s.repo.CreateFreshmanMaterial(ctx, material); err != nil {
+		if cleanupErr := s.materialStore.DeleteAdmissionMaterial(ctx, material.ObjectKey); cleanupErr != nil {
+			return nil, fmt.Errorf("SubmitCameraCapture create material: %w; cleanup: %v", err, cleanupErr)
+		}
 		return nil, err
 	}
 	if _, err := s.MarkMaterialSubmitted(ctx, session.ID); err != nil {
@@ -199,11 +202,15 @@ func newFreshmanMaterialRecord(
 	return FreshmanMaterialRecord{
 		ID:            materialID,
 		ApplicationID: applicationID,
-		ObjectKey:     freshmanMaterialObjectPrefix + applicationID + materialExtension(contentType),
+		ObjectKey:     freshmanMaterialObjectKey(applicationID, materialID, contentType),
 		ContentType:   contentType,
 		SizeBytes:     int64(len(content)),
 		SHA256:        hex.EncodeToString(sum[:]),
 	}, nil
+}
+
+func freshmanMaterialObjectKey(applicationID, materialID string, contentType string) string {
+	return freshmanMaterialObjectPrefix + applicationID + "/" + materialID + materialExtension(contentType)
 }
 
 func normalizeMaterialContentType(value string) string {

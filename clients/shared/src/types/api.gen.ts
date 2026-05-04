@@ -1921,6 +1921,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bot/admission/freshman/applications/{id}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** QQ 管理群查看新生材料申请 */
+        post: operations["viewBotFreshmanApplication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bot/admission/freshman/applications/{id}/review": {
         parameters: {
             query?: never;
@@ -1932,6 +1949,23 @@ export interface paths {
         put?: never;
         /** QQ 管理群审核新生材料 */
         post: operations["reviewBotFreshmanApplication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/admission/blacklist/{qqID}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** QQ 管理群解除入群认证黑名单 */
+        post: operations["releaseBotAdmissionBlacklist"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6835,6 +6869,8 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     consumeQQBindingCode: {
@@ -6983,7 +7019,11 @@ export interface operations {
     };
     listBotPendingAdmissionActions: {
         parameters: {
-            query?: never;
+            query?: {
+                platform?: string;
+                botSelfID?: string;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -7102,6 +7142,37 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
         };
     };
+    viewBotFreshmanApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotFreshmanCommandContext"];
+            };
+        };
+        responses: {
+            /** @description 查询成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["FreshmanApplication"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
     reviewBotFreshmanApplication: {
         parameters: {
             query?: never;
@@ -7131,6 +7202,35 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+        };
+    };
+    releaseBotAdmissionBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                qqID: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotFreshmanCommandContext"];
+            };
+        };
+        responses: {
+            /** @description 黑名单已解除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
         };
     };
     listIdentityVerifications: {

@@ -55,7 +55,7 @@ func (r *Repository) HasPendingFreshmanProjection(ctx context.Context, userID in
 			FROM domain_event_outbox
 			WHERE stream = $1
 			  AND dedupe_key = $2
-			  AND status IN ('pending', 'processing', 'failed')
+			  AND status IN ('pending', 'processing')
 		)
 	`, outbox.StreamIAMCasdoorRoleSync, freshmanProjectionDedupeKey(userID)).Scan(&exists)
 	if err != nil {

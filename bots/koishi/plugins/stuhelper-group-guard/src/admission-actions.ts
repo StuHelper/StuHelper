@@ -29,10 +29,18 @@ export async function executeAdmissionAction(
   record: GuardMemberRecord | null,
 ): Promise<ActionResult> {
   const target = resolveActionTarget(action, record)
-  if (action.action === 'remind') return executeReminder(bot, action, target)
-  if (action.action === 'release') return executeRelease(bot, action, target)
-  if (action.action === 'kick') return executeKick(bot, action, target)
-  return executeBlacklist(bot, action, target)
+  switch (action.action) {
+    case 'remind':
+      return executeReminder(bot, action, target)
+    case 'release':
+      return executeRelease(bot, action, target)
+    case 'kick':
+      return executeKick(bot, action, target)
+    case 'blacklist':
+      return executeBlacklist(bot, action, target)
+    default:
+      throw new Error(`unknown admission action: ${action.action}`)
+  }
 }
 
 export function formatAdmissionActionError(error: unknown) {

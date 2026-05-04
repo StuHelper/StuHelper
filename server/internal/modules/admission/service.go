@@ -31,20 +31,26 @@ type FreshmanProjectionGateway interface {
 	EnqueueFreshmanProvisionalRoleSyncTx(ctx context.Context, tx pgx.Tx, userID int64, approved bool) error
 }
 
+type SchoolSSOExchanger interface {
+	ExchangeSchoolSSO(ctx context.Context, input SchoolSSOExchangeInput) (SchoolSSOIdentity, error)
+}
+
 type Service struct {
-	repo           *Repository
-	qqGateway      QQBindingGateway
-	hmacKey        []byte
-	now            func() time.Time
-	generateToken  func() (string, error)
-	generateOTP    func() (string, error)
-	generateState  func() (string, error)
-	authBaseURL    string
-	materialStore  AdmissionMaterialStore
-	redisClient    *redis.Client
-	emailSender    SchoolEmailSender
-	operatorAccess OperatorAccessGateway
-	projection     FreshmanProjectionGateway
+	repo            *Repository
+	qqGateway       QQBindingGateway
+	hmacKey         []byte
+	now             func() time.Time
+	generateToken   func() (string, error)
+	generateOTP     func() (string, error)
+	generateState   func() (string, error)
+	authBaseURL     string
+	returnURLOrigin string
+	materialStore   AdmissionMaterialStore
+	redisClient     *redis.Client
+	emailSender     SchoolEmailSender
+	operatorAccess  OperatorAccessGateway
+	projection      FreshmanProjectionGateway
+	schoolSSO       SchoolSSOExchanger
 }
 
 type ServiceOption func(*Service)
@@ -69,6 +75,14 @@ func WithFreshmanProjectionGateway(gateway FreshmanProjectionGateway) ServiceOpt
 	return func(s *Service) { s.projection = gateway }
 }
 
+func WithSchoolSSOExchanger(exchanger SchoolSSOExchanger) ServiceOption {
+	return func(s *Service) { s.schoolSSO = exchanger }
+}
+
+func WithAdmissionReturnURLOrigin(origin string) ServiceOption {
+	return func(s *Service) { s.returnURLOrigin = origin }
+}
+
 func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, opts ...ServiceOption) (*Service, error) {
 	if repo == nil {
 		return nil, errors.New("admission.NewService: repo must not be nil")
@@ -80,14 +94,15 @@ func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, op
 		return nil, errors.New("admission.NewService: hmacKey must not be empty")
 	}
 	svc := &Service{
-		repo:          repo,
-		qqGateway:     qqGateway,
-		hmacKey:       hmacKey,
-		now:           time.Now,
-		generateToken: generateAdmissionToken,
-		generateOTP:   generateAdmissionOTPCode,
-		generateState: generateAdmissionState,
-		authBaseURL:   defaultAdmissionAuthBaseURL,
+		repo:            repo,
+		qqGateway:       qqGateway,
+		hmacKey:         hmacKey,
+		now:             time.Now,
+		generateToken:   generateAdmissionToken,
+		generateOTP:     generateAdmissionOTPCode,
+		generateState:   generateAdmissionState,
+		authBaseURL:     defaultAdmissionAuthBaseURL,
+		returnURLOrigin: defaultAdmissionReturnURLOrigin,
 	}
 	for _, opt := range opts {
 		if opt != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 const admissionSessionColumns = `
-	id, platform, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash,
+	id, platform, bot_self_id, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash, auth_url,
 	token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 	submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
 	verified_at, cancelled_at, last_bot_error
@@ -19,14 +19,14 @@ const admissionSessionColumns = `
 func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSession) error {
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO group_admission_sessions (
-			id, platform, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash,
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, qq_nickname, user_id, token_hash, auth_url,
 			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 			submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
 			verified_at, cancelled_at, last_bot_error
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-	`, session.ID, session.Platform, session.GuildID, session.ChannelID, session.QQID, session.QQNickname,
-		session.UserID, session.TokenHash, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID, session.QQNickname,
+		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
 		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
 		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError)
 	if err != nil {
@@ -132,8 +132,8 @@ func (r *Repository) updateSessionTx(ctx context.Context, tx pgx.Tx, query strin
 func scanAdmissionSession(row pgx.Row) (*AdmissionSession, error) {
 	var session AdmissionSession
 	err := row.Scan(
-		&session.ID, &session.Platform, &session.GuildID, &session.ChannelID, &session.QQID,
-		&session.QQNickname, &session.UserID, &session.TokenHash, &session.TokenExpiresAt,
+		&session.ID, &session.Platform, &session.BotSelfID, &session.GuildID, &session.ChannelID, &session.QQID,
+		&session.QQNickname, &session.UserID, &session.TokenHash, &session.AuthURL, &session.TokenExpiresAt,
 		&session.TokenConsumedAt, &session.Status, &session.LinkWaitDeadlineAt,
 		&session.SubmissionWaitDeadlineAt, &session.ManualReviewDeadlineAt, &session.InitialMuteUntil,
 		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError,

@@ -313,8 +313,12 @@ paths:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1pending-forward"
   /api/v1/bot/admission/freshman/applications/{id}/forwarded:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1forwarded"
+  /api/v1/bot/admission/freshman/applications/{id}/view:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1view"
   /api/v1/bot/admission/freshman/applications/{id}/review:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1review"
+  /api/v1/bot/admission/blacklist/{qqID}/release:
+    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1blacklist~1{qqID}~1release"
 
   # ── Admin: User System ──
   /api/v1/admin/identities:

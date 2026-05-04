@@ -4,6 +4,7 @@ const DEFAULT_CAPTURE_CONTENT_TYPE = 'image/jpeg'
 const DEFAULT_CAPTURE_QUALITY = 0.92
 const BASE64_CHARS_PER_CHUNK = 4
 const BASE64_BYTES_PER_CHUNK = 3
+const CANVAS_CONTEXT_2D = '2d'
 
 type CameraNavigator = {
   readonly mediaDevices?: {
@@ -59,7 +60,11 @@ export function captureFrameAsBase64(
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  canvas.getContext('2d')?.drawImage(video, 0, 0, width, height)
+  const context = canvas.getContext(CANVAS_CONTEXT_2D)
+  if (!context) {
+    throw new Error('Canvas 2D context unavailable')
+  }
+  context.drawImage(video, 0, 0, width, height)
 
   const dataURL = canvas.toDataURL(
     contentType,

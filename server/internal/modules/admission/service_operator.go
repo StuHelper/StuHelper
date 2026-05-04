@@ -120,11 +120,8 @@ func (s *Service) reviewFreshmanApplication(
 		if err := s.applyFreshmanApprovalTx(ctx, approval); err != nil {
 			return err
 		}
-		return nil
+		return s.repo.InsertAuditEventTx(ctx, tx, freshmanReviewAuditEvent(ctx, reviewed, command))
 	})
-	if err == nil {
-		auditFreshmanReview(ctx, reviewed, command)
-	}
 	return reviewed, err
 }
 

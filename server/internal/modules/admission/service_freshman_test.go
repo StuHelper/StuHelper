@@ -130,6 +130,19 @@ func (s *testAdmissionMaterialStore) PutAdmissionMaterial(
 	return nil
 }
 
+func (s *testAdmissionMaterialStore) DeleteAdmissionMaterial(_ context.Context, objectKey string) error {
+	if s.objectKey == objectKey {
+		s.objectKey = ""
+		s.content = nil
+		s.contentType = ""
+	}
+	return nil
+}
+
+func (s *testAdmissionMaterialStore) GetAdmissionMaterialURL(_ context.Context, objectKey string) (string, error) {
+	return "https://materials.example/" + objectKey, nil
+}
+
 func insertAdmissionSchoolConfig(t *testing.T, fixture *postgresfixture.Fixture) {
 	t.Helper()
 	_, err := fixture.Pool.Exec(context.Background(), `

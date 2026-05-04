@@ -165,13 +165,14 @@ function withQuery(path: string, input: AdmissionPendingActionsRequest) {
   const values = new URLSearchParams()
   appendQueryValue(values, 'platform', input.platform)
   appendQueryValue(values, 'botSelfID', input.botSelfID)
+  appendQueryValue(values, 'limit', input.limit)
   const query = values.toString()
   return query ? `${path}?${query}` : path
 }
 
-function appendQueryValue(values: URLSearchParams, key: string, value: string | undefined) {
-  if (value) {
-    values.set(key, value)
+function appendQueryValue(values: URLSearchParams, key: string, value: number | string | undefined) {
+  if (typeof value !== 'undefined' && value !== '') {
+    values.set(key, String(value))
   }
 }
 

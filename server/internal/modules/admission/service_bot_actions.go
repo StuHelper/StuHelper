@@ -1,0 +1,220 @@
+package admission
+
+import (
+	"context"
+	"strings"
+	"time"
+)
+
+func (s *Service) ListPendingAdmissionActions(
+	ctx context.Context,
+	filter AdmissionPendingActionFilter,
+) ([]AdmissionPendingAction, error) {
+	sessions, err := s.repo.ListPendingActionSessions(ctx, normalizePendingActionFilter(filter), s.now())
+	if err != nil {
+		return nil, err
+	}
+	contexts, err := s.pendingActionContexts(ctx, sessions)
+	if err != nil {
+		return nil, err
+	}
+	return s.pendingActionsFromSessions(sessions, contexts)
+}
+
+func (s *Service) ListPendingFreshmanForwards(ctx context.Context) ([]FreshmanForwardItem, error) {
+	if s.materialStore == nil {
+		return nil, ErrAdmissionMaterialStoreUnavailable
+	}
+	records, err := s.repo.ListPendingFreshmanForwards(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.freshmanForwardItems(ctx, records)
+}
+
+func (s *Service) ViewFreshmanApplicationFromBot(
+	ctx context.Context,
+	input BotFreshmanCommandInput,
+) (*FreshmanApplication, error) {
+	if err := s.authorizeBotCommandForApplication(ctx, input); err != nil {
+		return nil, err
+	}
+	return s.repo.GetFreshmanApplicationByID(ctx, strings.TrimSpace(input.ApplicationID))
+}
+
+func (s *Service) ReleaseAdmissionBlacklistFromBot(
+	ctx context.Context,
+	qqID string,
+	input BotFreshmanCommandInput,
+) error {
+	if err := s.authorizeBotCommandForManagementGuild(ctx, input); err != nil {
+		return err
+	}
+	return s.ReleaseAdmissionBlacklist(ctx, qqID)
+}
+
+func (s *Service) pendingActionsFromSessions(
+	sessions []AdmissionSession,
+	contexts pendingActionContexts,
+) ([]AdmissionPendingAction, error) {
+	actions := make([]AdmissionPendingAction, 0, len(sessions))
+	for i := range sessions {
+		action, err := s.pendingActionFromSession(&sessions[i], contexts)
+		if err != nil {
+			return nil, err
+		}
+		actions = append(actions, action)
+	}
+	return actions, nil
+}
+
+func (s *Service) pendingActionFromSession(
+	session *AdmissionSession,
+	contexts pendingActionContexts,
+) (AdmissionPendingAction, error) {
+	action, deadline := resolvePendingAction(session, s.now())
+	if action != BotActionKick {
+		return admissionPendingAction(session, action, deadline), nil
+	}
+	action, err := resolveKickAction(session, contexts)
+	if err != nil {
+		return AdmissionPendingAction{}, err
+	}
+	return admissionPendingAction(session, action, deadline), nil
+}
+
+func resolveKickAction(session *AdmissionSession, contexts pendingActionContexts) (BotAction, error) {
+	policy := contexts.policyFor(session)
+	failure := contexts.failureFor(session)
+	if nextFailureReachesBlacklist(failure, policy) {
+		return BotActionBlacklist, nil
+	}
+	return BotActionKick, nil
+}
+
+func nextFailureReachesBlacklist(failure *AdmissionFailure, policy *AdmissionPolicy) bool {
+	count := 0
+	if failure != nil {
+		count = failure.FailureCount
+	}
+	return count+1 >= policy.FailedJoinLimit
+}
+
+func resolvePendingAction(session *AdmissionSession, now time.Time) (BotAction, time.Time) {
+	switch {
+	case session.Status == StatusVerified:
+		return BotActionRelease, session.InitialMuteUntil
+	case session.Status == StatusJoinedMuted && now.After(session.LinkWaitDeadlineAt):
+		return BotActionKick, session.LinkWaitDeadlineAt
+	case session.Status == StatusLinked && now.After(session.SubmissionWaitDeadlineAt):
+		return BotActionKick, session.SubmissionWaitDeadlineAt
+	case session.ManualReviewDeadlineAt != nil && now.After(*session.ManualReviewDeadlineAt):
+		return BotActionKick, *session.ManualReviewDeadlineAt
+	default:
+		return BotActionRemind, session.LinkWaitDeadlineAt
+	}
+}
+
+func (s *Service) freshmanForwardItems(
+	ctx context.Context,
+	records []freshmanForwardRecord,
+) ([]FreshmanForwardItem, error) {
+	items := make([]FreshmanForwardItem, 0, len(records))
+	for i := range records {
+		item, err := s.freshmanForwardItem(ctx, records[i])
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (s *Service) freshmanForwardItem(ctx context.Context, record freshmanForwardRecord) (FreshmanForwardItem, error) {
+	materialURL, err := s.materialStore.GetAdmissionMaterialURL(ctx, record.ObjectKey)
+	if err != nil {
+		return FreshmanForwardItem{}, err
+	}
+	return FreshmanForwardItem{
+		Application:        &record.Application,
+		MaterialURL:        materialURL,
+		ManagementGuildIDs: record.ManagementGuildIDs,
+		Platform:           record.Platform,
+		BotSelfID:          record.BotSelfID,
+		SchoolName:         record.SchoolName,
+		QQID:               record.QQID,
+	}, nil
+}
+
+func (s *Service) authorizeBotCommandForApplication(ctx context.Context, input BotFreshmanCommandInput) error {
+	reviewInput := BotFreshmanReviewInput{
+		ApplicationID: input.ApplicationID,
+		OperatorQQID:  input.OperatorQQID,
+		GuildID:       input.GuildID,
+		ChannelID:     input.ChannelID,
+		RawCommand:    input.RawCommand,
+	}
+	_, err := s.authorizeBotFreshmanReviewer(ctx, normalizeBotFreshmanReviewInput(reviewInput))
+	return err
+}
+
+func (s *Service) authorizeBotCommandForManagementGuild(ctx context.Context, input BotFreshmanCommandInput) error {
+	if err := s.ensureConfiguredManagementGuild(ctx, input.GuildID); err != nil {
+		return err
+	}
+	userID, err := s.repo.GetUserIDByQQID(ctx, strings.TrimSpace(input.OperatorQQID))
+	if err != nil {
+		return err
+	}
+	if userID == nil {
+		return ErrAdmissionOperatorUnbound
+	}
+	return s.ensureOperatorCapability(ctx, *userID)
+}
+
+func (s *Service) ensureConfiguredManagementGuild(ctx context.Context, guildID string) error {
+	allowed, err := s.repo.ManagementGuildAllowed(ctx, strings.TrimSpace(guildID))
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return ErrAdmissionManagementGuildForbidden
+	}
+	return nil
+}
+
+func admissionPendingAction(
+	session *AdmissionSession,
+	action BotAction,
+	deadline time.Time,
+) AdmissionPendingAction {
+	return AdmissionPendingAction{
+		SessionID:  session.ID,
+		Action:     action,
+		Platform:   session.Platform,
+		BotSelfID:  session.BotSelfID,
+		GuildID:    session.GuildID,
+		ChannelID:  session.ChannelID,
+		QQID:       session.QQID,
+		AuthURL:    session.AuthURL,
+		DeadlineAt: deadline,
+	}
+}
+
+func normalizePendingActionFilter(filter AdmissionPendingActionFilter) AdmissionPendingActionFilter {
+	return AdmissionPendingActionFilter{
+		Platform:  strings.TrimSpace(filter.Platform),
+		BotSelfID: strings.TrimSpace(filter.BotSelfID),
+		Limit:     normalizePendingActionLimit(filter.Limit),
+	}
+}
+
+func normalizePendingActionLimit(limit int) int {
+	if limit <= 0 {
+		return defaultPendingActionLimit
+	}
+	if limit > maxPendingActionLimit {
+		return maxPendingActionLimit
+	}
+	return limit
+}

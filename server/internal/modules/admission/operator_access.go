@@ -10,11 +10,15 @@ import (
 type OperatorRoleMembershipFunc func(ctx context.Context, userID int64, role string) (bool, error)
 
 type RoleOperatorAccessGateway struct {
-	hasRole OperatorRoleMembershipFunc
+	hasRole         OperatorRoleMembershipFunc
+	capabilityRoles map[string][]string
 }
 
 func NewRoleOperatorAccessGateway(hasRole OperatorRoleMembershipFunc) *RoleOperatorAccessGateway {
-	return &RoleOperatorAccessGateway{hasRole: hasRole}
+	return &RoleOperatorAccessGateway{
+		hasRole:         hasRole,
+		capabilityRoles: buildCapabilityRoleIndex(),
+	}
 }
 
 func (g *RoleOperatorAccessGateway) UserHasCapability(
@@ -25,7 +29,7 @@ func (g *RoleOperatorAccessGateway) UserHasCapability(
 	if g == nil || g.hasRole == nil {
 		return false, ErrAdmissionOperatorAccessUnavailable
 	}
-	for _, role := range rolesForCapability(capabilityName) {
+	for _, role := range g.capabilityRoles[capabilityName] {
 		allowed, err := g.hasRole(ctx, userID, role)
 		if err != nil {
 			return false, fmt.Errorf("operator role membership: %w", err)
@@ -37,13 +41,13 @@ func (g *RoleOperatorAccessGateway) UserHasCapability(
 	return false, nil
 }
 
-func rolesForCapability(capabilityName string) []string {
+func buildCapabilityRoleIndex() map[string][]string {
 	roleCaps := capability.GetRoleCapabilities()
-	roles := make([]string, 0, len(roleCaps))
+	index := map[string][]string{}
 	for role, caps := range roleCaps {
-		if capability.Has(caps, capabilityName) {
-			roles = append(roles, role)
+		for _, capName := range caps {
+			index[capName] = append(index[capName], role)
 		}
 	}
-	return roles
+	return index
 }

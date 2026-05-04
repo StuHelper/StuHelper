@@ -27,6 +27,7 @@ func TestAdmissionRoutes(t *testing.T) {
 	assertAdmissionUserRoutes(t, routes)
 	assertAdmissionBotRoutes(t, routes)
 	assertAdmissionAdminRoutes(t, routes)
+	assertAdmissionRoutesImplemented(t, routes)
 }
 
 func TestAdmissionErrorCodes(t *testing.T) {
@@ -73,7 +74,9 @@ func assertAdmissionBotRoutes(t *testing.T, routes gin.RoutesInfo) {
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/sessions/:id/events")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/bot/admission/freshman/applications/pending-forward")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/freshman/applications/:id/forwarded")
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/freshman/applications/:id/view")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/freshman/applications/:id/review")
+	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/bot/admission/blacklist/:qqID/release")
 }
 
 func assertAdmissionAdminRoutes(t *testing.T, routes gin.RoutesInfo) {
@@ -86,4 +89,17 @@ func assertAdmissionAdminRoutes(t *testing.T, routes gin.RoutesInfo) {
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admin/freshman-verifications/:id")
 	routeassert.Exists(t, routes, http.MethodPut, "/api/v1/admin/freshman-verifications/:id")
 	routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admin/admission/blacklist/:qqID/release")
+}
+
+func assertAdmissionRoutesImplemented(t *testing.T, routes gin.RoutesInfo) {
+	t.Helper()
+
+	for _, route := range routes {
+		if !strings.Contains(route.Path, "/admission") && !strings.Contains(route.Path, "/freshman-verifications") {
+			continue
+		}
+		if strings.Contains(route.Handler, ".notImplemented") {
+			t.Fatalf("%s %s is still registered to notImplemented", route.Method, route.Path)
+		}
+	}
 }

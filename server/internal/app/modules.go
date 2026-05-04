@@ -118,8 +118,13 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		admission.NewRepository(rt.database),
 		userService,
 		crypto.GetHMACKey(),
+		admission.WithAdmissionRedisClient(rt.redisClient.GetClient()),
+		admission.WithAdmissionMaterialStore(
+			admission.NewStorageAdmissionMaterialStore(storageService, storage.DefaultMountKey),
+		),
 		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(userRepo)),
 		admission.WithFreshmanProjectionGateway(userService),
+		admission.WithSchoolSSOExchanger(admission.NewOIDCSchoolSSOExchanger(rt.oidcClient)),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize admission service: %w", err)

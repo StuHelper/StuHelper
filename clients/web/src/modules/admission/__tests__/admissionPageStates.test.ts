@@ -115,6 +115,7 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-projection-timeout]').exists()).toBe(true)
     expect(mockWaitForAdmissionProjection).toHaveBeenCalledWith({
       refreshAuth: mockAuth.fetchUser,
+      signal: expect.any(AbortSignal),
     })
   })
 })

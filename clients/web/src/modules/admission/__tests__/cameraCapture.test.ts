@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   buildCameraConstraints,
+  captureFrameAsBase64,
   supportsCameraCapture,
 } from '../cameraCapture'
 import FreshmanCameraFlow from '../views/FreshmanCameraFlow.vue'
@@ -31,6 +32,26 @@ describe('camera capture helpers', () => {
         facingMode: { ideal: 'environment' },
       },
     })
+  })
+
+  it('fails when the browser cannot provide a canvas 2D context', () => {
+    const video = document.createElement('video')
+    const originalCreateElement = document.createElement.bind(document)
+    const createElement = vi.spyOn(document, 'createElement')
+    Object.defineProperty(video, 'videoWidth', { value: 1 })
+    Object.defineProperty(video, 'videoHeight', { value: 1 })
+    createElement.mockImplementation((tagName) => {
+      if (tagName !== 'canvas') return originalCreateElement(tagName)
+      return {
+        height: 0,
+        width: 0,
+        getContext: () => null,
+        toDataURL: () => 'data:image/jpeg;base64,AAAA',
+      } as unknown as HTMLCanvasElement
+    })
+
+    expect(() => captureFrameAsBase64(video)).toThrow('Canvas 2D context unavailable')
+    createElement.mockRestore()
   })
 })
 

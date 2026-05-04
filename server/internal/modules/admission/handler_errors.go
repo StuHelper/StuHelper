@@ -31,18 +31,53 @@ func respondAdmissionError(c *gin.Context, err error) {
 		response.Conflict(c, "admission session status invalid")
 	case errors.Is(err, ErrAdmissionApplicationNotFound):
 		response.NotFound(c, "admission application not found")
-	case errors.Is(err, ErrAdmissionOperatorUnbound):
-		response.Forbidden(c, "operator qq is not bound to a StuHelper admin account")
-	case errors.Is(err, ErrAdmissionOperatorForbidden):
-		response.Forbidden(c, "operator does not have admission review permission")
-	case errors.Is(err, ErrAdmissionManagementGuildForbidden):
-		response.Forbidden(c, "management group is not allowed for this admission policy")
+	case errors.Is(err, ErrAdmissionBlacklistNotFound):
+		response.NotFound(c, "admission blacklist not found")
+	case errors.Is(err, ErrAdmissionOperatorUnbound),
+		errors.Is(err, ErrAdmissionOperatorForbidden),
+		errors.Is(err, ErrAdmissionManagementGuildForbidden):
+		response.Forbidden(c, "forbidden")
 	case errors.Is(err, ErrAdmissionReviewExtensionTooLong):
 		response.BadRequest(c, "freshman credential extension exceeds policy limit")
+	case errors.Is(err, ErrAdmissionLinkedSessionRequired):
+		response.Conflict(c, "admission linked session required")
+	case errors.Is(err, ErrAdmissionFreshmanChannelClosed):
+		response.Conflict(c, "freshman admission channel closed")
+	case errors.Is(err, ErrAdmissionFreshmanPendingExists):
+		response.Conflict(c, "freshman application pending already exists")
+	case errors.Is(err, ErrAdmissionMaterialInvalidType):
+		response.Error(c, http.StatusUnsupportedMediaType, errs.ErrUnsupportedMedia, "admission material content type invalid")
+	case errors.Is(err, ErrAdmissionMaterialInvalidData):
+		response.BadRequest(c, "admission material image data invalid")
+	case errors.Is(err, ErrAdmissionMaterialTooLarge):
+		response.Error(c, http.StatusRequestEntityTooLarge, errs.ErrPayloadTooLarge, "admission material too large")
+	case errors.Is(err, ErrAdmissionEmailDomainNotAllowed):
+		response.BadRequest(c, "admission school email domain not allowed")
+	case errors.Is(err, ErrAdmissionOTPCooldown):
+		response.RateLimitExceeded(c, "please wait before requesting a new code")
+	case errors.Is(err, ErrAdmissionOTPExpired), errors.Is(err, ErrAdmissionOTPInvalid):
+		response.BadRequest(c, "admission email otp invalid")
+	case errors.Is(err, ErrAdmissionOTPMaxAttempts):
+		response.RateLimitExceeded(c, "too many failed attempts, please request a new code")
+	case errors.Is(err, ErrAdmissionSSONotConfigured):
+		response.ServiceUnavailable(c, "admission school sso not configured")
+	case errors.Is(err, ErrAdmissionSSOStateInvalid):
+		response.BadRequest(c, "invalid or expired school sso state")
+	case errors.Is(err, ErrAdmissionSSOExchangeFailed):
+		response.Unauthorized(c, "school sso verification failed", errs.ErrOAuthCodeInvalid)
+	case errors.Is(err, ErrAdmissionSSOIdentityInvalid):
+		response.Unauthorized(c, "school sso identity invalid", errs.ErrOAuthFailed)
+	case errors.Is(err, ErrAdmissionSSOProviderUnavailable):
+		response.ServiceUnavailable(c, "school sso provider unavailable")
+	case errors.Is(err, ErrAdmissionReturnURLNotAllowed):
+		response.BadRequest(c, "admission return url not allowed")
 	case errors.Is(err, ErrAdmissionOperatorAccessUnavailable):
 		response.ServiceUnavailable(c, "operator access verification unavailable")
-	case errors.Is(err, ErrAdmissionProjectionUnavailable):
-		response.ServiceUnavailable(c, "admission projection unavailable")
+	case errors.Is(err, ErrAdmissionProjectionUnavailable),
+		errors.Is(err, ErrAdmissionMaterialStoreUnavailable),
+		errors.Is(err, ErrAdmissionEmailSenderUnavailable),
+		errors.Is(err, ErrAdmissionRedisUnavailable):
+		response.ServiceUnavailable(c, "admission dependency unavailable")
 	case errors.Is(err, user.ErrQQBindingQQAlreadyBound), errors.Is(err, user.ErrQQBindingUserConflict):
 		response.Conflict(c, "qq binding conflict")
 	default:

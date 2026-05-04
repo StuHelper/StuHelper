@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	admissionSSOStateTTL     = 10 * time.Minute
-	admissionReturnURLOrigin = "https://auth.stuhelper.com"
+	admissionSSOStateTTL            = 10 * time.Minute
+	defaultAdmissionReturnURLOrigin = "https://auth.stuhelper.com"
 )
 
 const admissionSchoolSSOStateKeyPrefix = "admission:school_sso_state:"
@@ -48,7 +48,7 @@ func (s *Service) StartSchoolSSO(ctx context.Context, input SchoolSSOStartInput)
 	if err != nil {
 		return nil, err
 	}
-	if !admissionReturnURLAllowed(input.ReturnURL) {
+	if !s.admissionReturnURLAllowed(input.ReturnURL) {
 		return nil, ErrAdmissionReturnURLNotAllowed
 	}
 	state, err := s.storeSchoolSSOState(ctx, input)
@@ -69,17 +69,38 @@ func (s *Service) CompleteSchoolSSO(
 	if err != nil {
 		return nil, err
 	}
+	identity, err := s.exchangeSchoolSSO(ctx, input)
+	if err != nil {
+		return nil, err
+	}
 	_, err = s.storeStudentCredential(ctx, studentCredentialInput{
 		UserID:         input.UserID,
 		SchoolID:       input.SchoolID,
 		Kind:           CredentialSchoolSSO,
-		Subject:        strings.TrimSpace(input.Subject),
-		SubjectDisplay: strings.TrimSpace(input.SubjectDisplay),
+		Subject:        identity.Subject,
+		SubjectDisplay: identity.SubjectDisplay,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &SchoolSSOCompleteResult{ReturnURL: state.ReturnURL}, nil
+}
+
+func (s *Service) exchangeSchoolSSO(
+	ctx context.Context,
+	input SchoolSSOCompleteInput,
+) (SchoolSSOIdentity, error) {
+	if s.schoolSSO == nil {
+		return SchoolSSOIdentity{}, ErrAdmissionSSONotConfigured
+	}
+	identity, err := s.schoolSSO.ExchangeSchoolSSO(ctx, SchoolSSOExchangeInput{
+		SchoolID: input.SchoolID,
+		Code:     strings.TrimSpace(input.Code),
+	})
+	if err != nil {
+		return SchoolSSOIdentity{}, err
+	}
+	return normalizeSchoolSSOIdentity(identity)
 }
 
 func (s *Service) storeStudentCredential(ctx context.Context, input studentCredentialInput) (*AdmissionSession, error) {
@@ -150,7 +171,7 @@ func (s *Service) loadSchoolSSOState(
 	ctx context.Context,
 	input SchoolSSOCompleteInput,
 ) (admissionSSOStateRecord, error) {
-	raw, err := s.redisClient.Get(ctx, admissionSchoolSSOStateKeyPrefix+input.State).Bytes()
+	raw, err := s.redisClient.GetDel(ctx, admissionSchoolSSOStateKeyPrefix+input.State).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return admissionSSOStateRecord{}, ErrAdmissionSSOStateInvalid
 	}
@@ -179,6 +200,18 @@ func parseSchoolSSOState(raw []byte, input SchoolSSOCompleteInput) (admissionSSO
 	return record, nil
 }
 
+func normalizeSchoolSSOIdentity(identity SchoolSSOIdentity) (SchoolSSOIdentity, error) {
+	identity.Subject = strings.TrimSpace(identity.Subject)
+	identity.SubjectDisplay = strings.TrimSpace(identity.SubjectDisplay)
+	if identity.Subject == "" {
+		return SchoolSSOIdentity{}, ErrAdmissionSSOIdentityInvalid
+	}
+	if identity.SubjectDisplay == "" {
+		identity.SubjectDisplay = identity.Subject
+	}
+	return identity, nil
+}
+
 func markSessionVerifiedInMemory(session *AdmissionSession, now time.Time) *AdmissionSession {
 	verified := *session
 	verified.Status = StatusVerified
@@ -186,13 +219,13 @@ func markSessionVerifiedInMemory(session *AdmissionSession, now time.Time) *Admi
 	return &verified
 }
 
-func admissionReturnURLAllowed(value string) bool {
+func (s *Service) admissionReturnURLAllowed(value string) bool {
 	parsed, err := url.Parse(strings.TrimSpace(value))
 	if err != nil {
 		return false
 	}
 	origin := parsed.Scheme + "://" + parsed.Host
-	return origin == admissionReturnURLOrigin
+	return origin == s.returnURLOrigin
 }
 
 func appendSSOState(loginURL string, state string) string {

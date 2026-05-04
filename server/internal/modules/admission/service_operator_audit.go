@@ -7,11 +7,12 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 )
 
-func auditFreshmanReview(ctx context.Context, app *FreshmanApplication, command freshmanReviewCommand) {
-	if app == nil {
-		return
-	}
-	audit.Log(audit.EventFromContext(ctx, audit.Event{
+func freshmanReviewAuditEvent(
+	ctx context.Context,
+	app *FreshmanApplication,
+	command freshmanReviewCommand,
+) audit.Event {
+	return audit.EventFromContext(ctx, audit.Event{
 		Type:         audit.EventType("admission.freshman.review"),
 		Category:     "admin_operation",
 		ActorType:    "user",
@@ -21,12 +22,40 @@ func auditFreshmanReview(ctx context.Context, app *FreshmanApplication, command 
 		Action:       string(command.Action),
 		Result:       "success",
 		Reason:       stringValue(command.Reason),
+		Details:      freshmanReviewAuditDetails(command),
+	})
+}
+
+func joinRequestAuditEvent(ctx context.Context, input AdmissionJoinRequestEventInput) audit.Event {
+	result := "failure"
+	if input.Success {
+		result = "success"
+	}
+	return audit.EventFromContext(ctx, audit.Event{
+		Type:         audit.EventType("admission.join_request"),
+		Category:     "domain_event",
+		ActorType:    "system",
+		ResourceType: "admission.join_request",
+		ResourceID:   input.RequestID,
+		Action:       "approve",
+		Result:       result,
+		Reason:       input.Error,
 		Details: map[string]any{
-			"operator_qq_id": stringValue(command.OperatorQQID),
-			"guild_id":       command.GuildID,
-			"raw_command":    command.RawCommand,
+			"platform":  input.Platform,
+			"guild_id":  input.GuildID,
+			"qq_id":     input.QQID,
+			"raw_event": input.RawEvent,
 		},
-	}))
+	})
+}
+
+func freshmanReviewAuditDetails(command freshmanReviewCommand) map[string]any {
+	return map[string]any{
+		"operator_qq_id":  stringValue(command.OperatorQQID),
+		"guild_id":        command.GuildID,
+		"raw_command":     command.RawCommand,
+		"expires_in_days": command.ExpiresInDays,
+	}
 }
 
 func reviewActorUserID(userID *int64) string {

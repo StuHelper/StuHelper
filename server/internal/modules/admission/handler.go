@@ -39,42 +39,96 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 	admission.GET("/sessions/:token", h.handlePreviewAdmissionSession)
 	admission.POST("/sessions/:token/link", authMW, h.handleLinkAdmissionSession)
 	admission.GET("/me", authMW, h.handleAdmissionMe)
-	admission.POST("/freshman/applications", authMW, notImplemented)
-	admission.POST("/freshman/applications/:id/camera-captures", authMW, notImplemented)
-	admission.POST("/school-email/request-otp", authMW, notImplemented)
-	admission.POST("/school-email/verify-otp", authMW, notImplemented)
-	admission.GET("/school-sso/:schoolID/login", notImplemented)
-	admission.GET("/school-sso/:schoolID/callback", notImplemented)
+	admission.POST("/freshman/applications", authMW, h.handleCreateFreshmanApplication)
+	admission.POST("/freshman/applications/:id/camera-captures", authMW, h.handleUploadFreshmanCameraCapture)
+	admission.POST("/school-email/request-otp", authMW, h.handleRequestSchoolEmailOTP)
+	admission.POST("/school-email/verify-otp", authMW, h.handleVerifySchoolEmailOTP)
+	admission.GET("/school-sso/:schoolID/login", authMW, h.handleStartSchoolSSO)
+	admission.GET("/school-sso/:schoolID/callback", authMW, h.handleCompleteSchoolSSO)
 }
 
 func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 	bot := api.Group("/bot/admission")
 	bot.POST("/sessions", h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession), h.handleCreateBotSession)
-	bot.POST("/join-requests/events", notImplemented)
-	bot.GET("/qq-users/:qqID/access", notImplemented)
-	bot.GET("/sessions/pending", notImplemented)
+	bot.POST(
+		"/join-requests/events",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent),
+		h.handleRecordBotJoinRequestEvent,
+	)
+	bot.GET(
+		"/qq-users/:qqID/access",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleGetBotAdmissionQQAccess,
+	)
+	bot.GET(
+		"/sessions/pending",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
+		h.handleListBotPendingActions,
+	)
 	bot.POST("/sessions/:id/events", h.requireBotCredential(serviceaccount.ScopeBotAdmissionEvent), h.handleRecordBotEvent)
-	bot.GET("/freshman/applications/pending-forward", notImplemented)
-	bot.POST("/freshman/applications/:id/forwarded", notImplemented)
+	bot.GET(
+		"/freshman/applications/pending-forward",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionForward),
+		h.handleListBotPendingFreshmanForwards,
+	)
+	bot.POST(
+		"/freshman/applications/:id/forwarded",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionForward),
+		h.handleMarkBotFreshmanApplicationForwarded,
+	)
+	bot.POST(
+		"/freshman/applications/:id/view",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
+		h.handleBotViewFreshmanApplication,
+	)
 	bot.POST(
 		"/freshman/applications/:id/review",
 		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
 		h.handleBotReviewFreshmanApplication,
 	)
+	bot.POST(
+		"/blacklist/:qqID/release",
+		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
+		h.handleBotReleaseAdmissionBlacklist,
+	)
 }
 
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
-	admin.GET("/admission/policies", notImplemented)
-	admin.PUT("/admission/policies/:id", notImplemented)
-	admin.GET("/admission/sessions", notImplemented)
-	admin.GET("/freshman-verifications", notImplemented)
-	admin.GET("/freshman-verifications/:id", notImplemented)
+	admin.GET(
+		"/admission/policies",
+		rbac.RequireCapability(capability.AdmissionPolicyRead),
+		h.handleAdminListAdmissionPolicies,
+	)
+	admin.PUT(
+		"/admission/policies/:id",
+		rbac.RequireCapability(capability.AdmissionPolicyUpdate),
+		h.handleAdminUpdateAdmissionPolicy,
+	)
+	admin.GET(
+		"/admission/sessions",
+		rbac.RequireCapability(capability.AdmissionSessionRead),
+		h.handleAdminListAdmissionSessions,
+	)
+	admin.GET(
+		"/freshman-verifications",
+		rbac.RequireCapability(capability.AdmissionFreshmanRead),
+		h.handleAdminListFreshmanVerifications,
+	)
+	admin.GET(
+		"/freshman-verifications/:id",
+		rbac.RequireCapability(capability.AdmissionFreshmanRead),
+		h.handleAdminGetFreshmanVerification,
+	)
 	admin.PUT(
 		"/freshman-verifications/:id",
 		rbac.RequireCapability(capability.AdmissionFreshmanReview),
 		h.handleAdminReviewFreshmanVerification,
 	)
-	admin.POST("/admission/blacklist/:qqID/release", notImplemented)
+	admin.POST(
+		"/admission/blacklist/:qqID/release",
+		rbac.RequireCapability(capability.AdmissionBlacklistManage),
+		h.handleAdminReleaseAdmissionBlacklist,
+	)
 }
 
 func notImplemented(c *gin.Context) {

@@ -59,9 +59,6 @@ func (s *Service) ProcessExpiredFreshmanCredentials(ctx context.Context) (int, e
 		}
 		processed++
 	}
-	if processed > 0 {
-		auditFreshmanExpiry(ctx, processed)
-	}
 	return processed, nil
 }
 
@@ -76,19 +73,19 @@ func (s *Service) processExpiredFreshmanCredential(
 		if err := s.projection.EnqueueFreshmanProvisionalRoleSyncTx(ctx, tx, item.UserID, false); err != nil {
 			return fmt.Errorf("enqueue freshman provisional role removal: %w", err)
 		}
-		return nil
+		return s.repo.InsertAuditEventTx(ctx, tx, freshmanExpiryAuditEvent(ctx, item))
 	})
 }
 
-func auditFreshmanExpiry(ctx context.Context, processed int) {
-	audit.Log(audit.EventFromContext(ctx, audit.Event{
+func freshmanExpiryAuditEvent(ctx context.Context, item ExpiredFreshmanCredential) audit.Event {
+	return audit.EventFromContext(ctx, audit.Event{
 		Type:         audit.EventType("admission.freshman.expire"),
 		Category:     "domain_event",
 		ActorType:    "system",
 		ResourceType: "admission.freshman_credential",
-		ResourceID:   "freshman_provisional",
+		ResourceID:   item.ID,
 		Action:       "expire",
 		Result:       "success",
-		Details:      map[string]any{"processed_count": processed},
-	}))
+		Details:      map[string]any{"user_id": item.UserID, "expires_at": item.ExpiresAt},
+	})
 }

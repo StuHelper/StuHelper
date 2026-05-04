@@ -41,4 +41,17 @@ describe('waitForAdmissionProjection', () => {
     expect(refreshAuth).toHaveBeenCalledTimes(2)
     expect(waits).toEqual([1000, 2000])
   })
+
+  it('aborts before the next projection refresh request', async () => {
+    const controller = new AbortController()
+    const refreshAuth = vi.fn()
+    controller.abort()
+
+    await expect(waitForAdmissionProjection({
+      refreshAuth,
+      signal: controller.signal,
+      wait: async () => {},
+    })).rejects.toMatchObject({ name: 'AbortError' })
+    expect(refreshAuth).not.toHaveBeenCalled()
+  })
 })

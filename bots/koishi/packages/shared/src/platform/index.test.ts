@@ -42,7 +42,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     error: 'permission denied',
     rawEvent: { comment: '我是新生' },
   })
-  await client.listPendingAdmissionActions({ platform: 'qq', botSelfID: '514' })
+  await client.listPendingAdmissionActions({ platform: 'qq', botSelfID: '514', limit: 50 })
   await client.recordAdmissionEvent('session-1', {
     action: 'release',
     success: true,
@@ -74,7 +74,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
     ['POST', '/api/v1/bot/admission/sessions'],
     ['POST', '/api/v1/bot/admission/join-requests/events'],
-    ['GET', '/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=514'],
+    ['GET', '/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=514&limit=50'],
     ['POST', '/api/v1/bot/admission/sessions/session-1/events'],
     ['GET', '/api/v1/bot/admission/freshman/applications/pending-forward'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/forwarded'],

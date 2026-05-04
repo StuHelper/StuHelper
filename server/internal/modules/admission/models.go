@@ -56,12 +56,14 @@ const defaultAdmissionAuthBaseURL = "https://auth.stuhelper.com/admission/a/"
 type AdmissionSession struct {
 	ID                       string                 `json:"id"`
 	Platform                 string                 `json:"platform"`
+	BotSelfID                string                 `json:"botSelfID,omitempty"`
 	GuildID                  string                 `json:"guildID"`
 	ChannelID                string                 `json:"channelID"`
 	QQID                     string                 `json:"qqID"`
 	QQNickname               *string                `json:"qqNickname,omitempty"`
 	UserID                   *int64                 `json:"userID,omitempty"`
 	TokenHash                string                 `json:"-"`
+	AuthURL                  string                 `json:"authURL,omitempty"`
 	TokenExpiresAt           time.Time              `json:"tokenExpiresAt"`
 	TokenConsumedAt          *time.Time             `json:"tokenConsumedAt,omitempty"`
 	Status                   AdmissionSessionStatus `json:"status"`
@@ -197,15 +199,24 @@ type SchoolSSOStartResult struct {
 }
 
 type SchoolSSOCompleteInput struct {
-	SchoolID       int64
-	State          string
-	UserID         int64
-	Subject        string
-	SubjectDisplay string
+	SchoolID int64
+	State    string
+	UserID   int64
+	Code     string
 }
 
 type SchoolSSOCompleteResult struct {
 	ReturnURL string
+}
+
+type SchoolSSOExchangeInput struct {
+	SchoolID int64
+	Code     string
+}
+
+type SchoolSSOIdentity struct {
+	Subject        string
+	SubjectDisplay string
 }
 
 type AdmissionSchoolConfig struct {

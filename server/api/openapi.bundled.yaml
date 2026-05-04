@@ -4466,6 +4466,10 @@ paths:
           description: Redirect back to admission return URL
         '400':
           $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/qq-binding/consume:
     post:
       tags:
@@ -4652,6 +4656,22 @@ paths:
       summary: 机器人拉取待执行 admission 动作
       security:
         - serviceTokenAuth: []
+      parameters:
+        - name: platform
+          in: query
+          schema:
+            type: string
+        - name: botSelfID
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
       responses:
         '200':
           description: 待执行动作列表
@@ -4805,6 +4825,46 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '404':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/admission/freshman/applications/{id}/view:
+    post:
+      tags:
+        - Bot
+      operationId: viewBotFreshmanApplication
+      summary: QQ 管理群查看新生材料申请
+      security:
+        - serviceTokenAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotFreshmanCommandContext'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FreshmanApplication'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/admission/freshman/applications/{id}/review:
     post:
       tags:
@@ -4844,6 +4904,39 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/admission/blacklist/{qqID}/release:
+    post:
+      tags:
+        - Bot
+      operationId: releaseBotAdmissionBlacklist
+      summary: QQ 管理群解除入群认证黑名单
+      security:
+        - serviceTokenAuth: []
+      parameters:
+        - name: qqID
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotFreshmanCommandContext'
+      responses:
+        '200':
+          description: 黑名单已解除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/identities:
     get:

@@ -127,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
@@ -160,6 +160,7 @@ const errorMessage = ref('认证链接暂时无法打开，请稍后重试。')
 const linking = ref(false)
 const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
 const projectionRefreshTimedOut = ref(false)
+let projectionRefreshAbort: AbortController | null = null
 
 const token = computed(() => String(route.params.code ?? ''))
 const displayQQ = computed(() => {
@@ -206,12 +207,19 @@ function handleSessionState(nextSession: AdmissionSession): void {
 
 function scheduleProjectionRefresh(): void {
   projectionRefreshTimedOut.value = false
-  waitForAdmissionProjection({ refreshAuth: auth.fetchUser })
+  projectionRefreshAbort?.abort()
+  projectionRefreshAbort = new AbortController()
+  waitForAdmissionProjection({
+    refreshAuth: auth.fetchUser,
+    signal: projectionRefreshAbort.signal,
+  })
     .then((ready) => {
       if (ready) pageState.value = 'approved'
       else projectionRefreshTimedOut.value = true
     })
-    .catch(applyError)
+    .catch((error) => {
+      if (!isAbortError(error)) applyError(error)
+    })
 }
 
 async function loadAdmissionSession() {
@@ -266,6 +274,14 @@ function handleOldStudentVerified(nextAdmission: AdmissionMe) {
 onMounted(() => {
   void loadAdmissionSession()
 })
+
+onBeforeUnmount(() => {
+  projectionRefreshAbort?.abort()
+})
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
 </script>
 
 <style scoped src="./AdmissionPage.css"></style>

@@ -96,6 +96,22 @@
     summary: 机器人拉取待执行 admission 动作
     security:
       - serviceTokenAuth: []
+    parameters:
+      - name: platform
+        in: query
+        schema:
+          type: string
+      - name: botSelfID
+        in: query
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
     responses:
       '200':
         description: 待执行动作列表

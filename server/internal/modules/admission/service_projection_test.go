@@ -43,6 +43,24 @@ func TestAdmissionMeShowsProjectionPendingUntilOutboxCompletes(t *testing.T) {
 	assert.False(t, me.Session.ProjectionPending)
 }
 
+func TestAdmissionMeDoesNotTreatFailedProjectionAsPending(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newFreshmanTestService(t, fixture)
+	userID := seedAdmissionUser(t, fixture, "projection-failed")
+	linkFreshmanReviewSession(t, svc, freshmanReviewSessionSeed{
+		UserID: userID, QQID: "93002", Token: "projection-failed-token",
+	})
+	_, err := svc.MarkVerified(context.Background(), latestAdmissionSessionID(t, fixture, userID))
+	require.NoError(t, err)
+	insertFreshmanProjectionOutbox(t, fixture, userID, "failed")
+
+	me, err := svc.GetAdmissionMe(context.Background(), userID)
+
+	require.NoError(t, err)
+	assert.False(t, me.ProjectionPending)
+	assert.False(t, me.Session.ProjectionPending)
+}
+
 type freshmanCredentialSeed struct {
 	ID        string
 	UserID    int64

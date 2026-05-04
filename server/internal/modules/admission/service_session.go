@@ -35,7 +35,7 @@ func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateIn
 	return &CreatedAdmissionSession{
 		Session: session,
 		Token:   token,
-		AuthURL: s.buildAuthURL(token, session.QQID),
+		AuthURL: session.AuthURL,
 	}, nil
 }
 
@@ -113,16 +113,41 @@ func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event Bo
 		if !event.Success {
 			return s.repo.UpdateLastBotErrorTx(ctx, tx, sessionID, normalizeBotEventError(event))
 		}
-		if event.Action != BotActionKick {
-			return nil
-		}
 		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
 		if err != nil {
 			return err
 		}
-		_, err = s.repo.IncrementFailureFromKickEventTx(ctx, tx, session, policy, s.now())
-		return err
+		return s.applySuccessfulBotEventTx(ctx, successfulBotEventTxInput{
+			Tx:      tx,
+			Session: session,
+			Policy:  policy,
+			Action:  event.Action,
+		})
 	})
+}
+
+func (s *Service) applySuccessfulBotEventTx(ctx context.Context, input successfulBotEventTxInput) error {
+	switch input.Action {
+	case BotActionRemind:
+		return s.repo.MarkReminderSentTx(ctx, input.Tx, input.Session, input.Policy, s.now())
+	case BotActionRelease:
+		return s.repo.MarkBotReleaseCompletedTx(ctx, input.Tx, input.Session.ID, s.now())
+	case BotActionKick, BotActionBlacklist:
+		if err := s.repo.MarkBotKickCompletedTx(ctx, input.Tx, input.Session.ID, s.now()); err != nil {
+			return err
+		}
+		_, err := s.repo.IncrementFailureFromKickEventTx(ctx, input.Tx, input.Session, input.Policy, s.now())
+		return err
+	default:
+		return ErrAdmissionInvalidStatus
+	}
+}
+
+type successfulBotEventTxInput struct {
+	Tx      pgx.Tx
+	Session *AdmissionSession
+	Policy  *AdmissionPolicy
+	Action  BotAction
 }
 
 func (s *Service) newAdmissionSession(
@@ -138,11 +163,13 @@ func (s *Service) newAdmissionSession(
 	return &AdmissionSession{
 		ID:                       sessionID,
 		Platform:                 input.Platform,
+		BotSelfID:                input.BotSelfID,
 		GuildID:                  input.GuildID,
 		ChannelID:                input.ChannelID,
 		QQID:                     input.QQID,
 		QQNickname:               input.QQNickname,
 		TokenHash:                s.hashToken(token),
+		AuthURL:                  s.buildAuthURL(token, input.QQID),
 		TokenExpiresAt:           now.Add(time.Duration(policy.LinkWaitSeconds) * time.Second),
 		Status:                   StatusJoinedMuted,
 		LinkWaitDeadlineAt:       now.Add(time.Duration(policy.LinkWaitSeconds) * time.Second),
