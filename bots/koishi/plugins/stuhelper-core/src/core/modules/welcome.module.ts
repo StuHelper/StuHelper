@@ -52,11 +52,11 @@ export class WelcomeModule implements RuntimeModuleInstance {
   }
 
   async init(): Promise<void> {
-    this._state = 'loading'
-    try {
-      registerWelcomeCommands(this)
-      registerWelcomeEventListeners(this)
-      console.log('[WelcomeModule] initialized')
+      this._state = 'loading'
+      try {
+        registerWelcomeCommands(this)
+        registerWelcomeEventListeners(this)
+      this.ctx.logger('stuhelper-core:welcome').info('WelcomeModule initialized')
       this._state = 'loaded'
     } catch (error) {
       this._state = 'error'

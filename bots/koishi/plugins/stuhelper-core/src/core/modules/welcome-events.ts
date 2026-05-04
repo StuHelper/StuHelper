@@ -24,9 +24,9 @@ async function handleMemberJoin(host: WelcomeModule, session: Session): Promise<
 
   try {
     await session.send(host.formatWelcomeMessage(welcomeMsg, session.userId, session.guildId))
-    console.log(`[WelcomeModule] Sent welcome message to ${session.userId} in ${session.guildId}`)
+    host.ctx.logger('stuhelper-core:welcome').info('Sent welcome message to %s in %s', session.userId, session.guildId)
   } catch (error) {
-    console.error(`[WelcomeModule] Failed to send welcome message: ${error}`)
+    host.ctx.logger('stuhelper-core:welcome').error('Failed to send welcome message: %o', error)
   }
 }
 
@@ -42,8 +42,8 @@ async function handleMemberLeave(host: WelcomeModule, session: Session): Promise
 
   try {
     await session.send(host.formatWelcomeMessage(goodbyeMsg, session.userId, session.guildId))
-    console.log(`[WelcomeModule] Sent goodbye message to ${session.userId} in ${session.guildId}`)
+    host.ctx.logger('stuhelper-core:welcome').info('Sent goodbye message to %s in %s', session.userId, session.guildId)
   } catch (error) {
-    console.error(`[WelcomeModule] Failed to send goodbye message: ${error}`)
+    host.ctx.logger('stuhelper-core:welcome').error('Failed to send goodbye message: %o', error)
   }
 }

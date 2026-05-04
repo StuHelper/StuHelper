@@ -22,6 +22,7 @@ export class GuardMemberStore {
       memberName: record.memberName,
       verificationState: record.verificationState,
       admissionSessionID: record.admissionSessionID,
+      backendSyncPending: record.backendSyncPending,
       joinedAt: record.joinedAt,
       deadlineAt: record.deadlineAt,
       nextReminderAt: record.nextReminderAt,
@@ -30,7 +31,7 @@ export class GuardMemberStore {
       reminderSentAt: null,
       releasedAt: null,
       kickedAt: null,
-      lastError: null,
+      lastError: record.lastError ?? existing.lastError,
       updatedAt: record.updatedAt,
     })
   }
@@ -73,8 +74,10 @@ export class GuardMemberStore {
   }
 
   async listActive() {
-    const records = await this.ctx.database.get(GUARD_MEMBER_TABLE, {})
-    return records.filter((record) => !record.releasedAt && !record.kickedAt)
+    return this.ctx.database.get(GUARD_MEMBER_TABLE, {
+      releasedAt: null,
+      kickedAt: null,
+    }) as Promise<GuardMemberRecord[]>
   }
 
   async listPendingByGuild(guildId: string) {
@@ -83,9 +86,38 @@ export class GuardMemberStore {
   }
 
   async findActiveByAdmissionSessionID(sessionID: string) {
-    const records = await this.ctx.database.get(GUARD_MEMBER_TABLE, { admissionSessionID: sessionID })
-    const [record] = records.filter((item) => !item.releasedAt && !item.kickedAt)
+    const [record] = await this.ctx.database.get(GUARD_MEMBER_TABLE, {
+      admissionSessionID: sessionID,
+      releasedAt: null,
+      kickedAt: null,
+    })
     return record as GuardMemberRecord | undefined
+  }
+
+  async listBackendSyncPending(platform: string | undefined, botSelfId: string) {
+    const query: Record<string, unknown> = {
+      botSelfId,
+      backendSyncPending: true,
+      releasedAt: null,
+      kickedAt: null,
+    }
+    if (platform) {
+      query.platform = platform
+    }
+    return this.ctx.database.get(GUARD_MEMBER_TABLE, query) as Promise<GuardMemberRecord[]>
+  }
+
+  async markBackendSynced(
+    id: string,
+    input: Pick<GuardMemberRecord,
+      'admissionSessionID' | 'deadlineAt' | 'nextReminderAt' | 'manualReviewDeadlineAt'
+    > & { backendSyncPending: false },
+  ) {
+    await this.ctx.database.set(GUARD_MEMBER_TABLE, { id }, {
+      ...input,
+      lastError: null,
+      updatedAt: new Date(),
+    })
   }
 
   private async getByID(id: string) {

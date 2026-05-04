@@ -92,7 +92,7 @@ export class LogModule implements RuntimeModuleInstance {
       registerOperationLogCommands(this)
       registerCommandLogCommands(this)
       registerLogEventListeners(this)
-      console.log(`[${this.meta.name}] LogModule initialized`)
+      this.ctx.logger('stuhelper-core:log').info('LogModule initialized')
       this._state = 'loaded'
     } catch (error) {
       this._state = 'error'

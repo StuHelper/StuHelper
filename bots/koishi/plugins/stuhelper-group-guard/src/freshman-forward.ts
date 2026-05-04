@@ -31,8 +31,16 @@ export async function forwardFreshmanMaterial(
     h.image(item.materialURL),
     formatFreshmanForwardSummary(item),
   ].join('\n')
+  const failures: FreshmanForwardFailure[] = []
   for (const guildID of item.managementGuildIDs) {
-    await bot.sendMessage(guildID, content)
+    try {
+      await bot.sendMessage(guildID, content)
+    } catch (error) {
+      failures.push({ guildID, error })
+    }
+  }
+  if (failures.length) {
+    throw createFreshmanForwardError(item.application.id, failures)
   }
 }
 
@@ -44,4 +52,20 @@ export interface FreshmanForwardBot extends Universal.Methods {
 function botMatchesForward(bot: FreshmanForwardBot, item: FreshmanForwardItem) {
   const platformMatches = !item.platform || !bot.platform || bot.platform === item.platform
   return platformMatches && bot.selfId === item.botSelfID
+}
+
+function createFreshmanForwardError(applicationID: string, failures: readonly FreshmanForwardFailure[]) {
+  const guildIDs = failures.map((failure) => failure.guildID).join(', ')
+  const errors = failures.map((failure) => normalizeForwardError(failure))
+  return new AggregateError(errors, `freshman forward ${applicationID} failed for guilds: ${guildIDs}`)
+}
+
+function normalizeForwardError(failure: FreshmanForwardFailure) {
+  const message = failure.error instanceof Error ? failure.error.message : String(failure.error)
+  return new Error(`guild ${failure.guildID}: ${message}`)
+}
+
+interface FreshmanForwardFailure {
+  readonly guildID: string
+  readonly error: unknown
 }

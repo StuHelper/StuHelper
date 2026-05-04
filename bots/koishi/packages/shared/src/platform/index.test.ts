@@ -91,6 +91,25 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.equal(calls[8].body.rawCommand, '新生黑名单解除 10001')
 })
 
+test('platform client accepts empty success responses for void requests', async (t) => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(null, { status: 204 })
+  t.after(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  const client = createPlatformClient({
+    baseUrl: 'https://api.example.test',
+    serviceToken: 'service-token',
+  })
+
+  await client.getHealth()
+  await client.recordAdmissionEvent('session-1', {
+    action: 'release',
+    success: true,
+  })
+})
+
 interface CapturedRequest {
   readonly path: string
   readonly method: string

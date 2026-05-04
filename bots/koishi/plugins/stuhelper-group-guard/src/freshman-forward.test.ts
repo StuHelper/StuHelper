@@ -16,7 +16,9 @@ test('member guard forwards freshman material to every management group before m
         calls.push(`mark:${applicationID}`)
       },
     },
-    guardStore: {},
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+    },
     policyStore: {},
     moderationStore: { async appendEvent() {} },
     logger: { error() {}, warn() {} },
@@ -45,19 +47,22 @@ test('member guard forwards freshman material to every management group before m
   assert.match(sends[0].content, /新生审核驳回 A123 <原因>/)
 })
 
-test('member guard does not mark freshman material forwarded when any management send fails', async () => {
+test('member guard attempts every freshman forward target and does not mark when any send fails', async () => {
   const marks: string[] = []
+  const attemptedGuilds: string[] = []
   const service = new MemberGuardService({
     platform: {
       async listPendingAdmissionActions() { return [] },
       async listPendingFreshmanForwards() {
-        return [freshmanForwardItem()]
+        return [freshmanForwardItem(['9001', '9002', '9003'])]
       },
       async markFreshmanForwarded(applicationID: string) {
         marks.push(applicationID)
       },
     },
-    guardStore: {},
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+    },
     policyStore: {},
     moderationStore: { async appendEvent() {} },
     logger: { error() {}, warn() {} },
@@ -69,16 +74,18 @@ test('member guard does not mark freshman material forwarded when any management
       selfId: '514',
       sid: 'mock:514',
       sendMessage: async (guildID: string) => {
+        attemptedGuilds.push(guildID)
         if (guildID === '9002') throw new Error('send failed')
         return ['message-1']
       },
     } as any]),
-    /send failed/,
+    /freshman forward A123 failed for guilds: 9002/,
   )
+  assert.deepEqual(attemptedGuilds, ['9001', '9002', '9003'])
   assert.deepEqual(marks, [])
 })
 
-function freshmanForwardItem() {
+function freshmanForwardItem(managementGuildIDs = ['9001', '9002']) {
   return {
     application: {
       id: 'A123',
@@ -92,7 +99,7 @@ function freshmanForwardItem() {
       createdAt: '2026-05-03T12:00:00+08:00',
     },
     materialURL: 'https://cdn.example.edu/notice.jpg',
-    managementGuildIDs: ['9001', '9002'],
+    managementGuildIDs,
     schoolName: '北京航空航天大学',
     qqID: '10001',
   }

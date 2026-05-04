@@ -185,7 +185,13 @@ function createRequest(config: StuhelperPlatformConfig) {
     }
 
     const body = await parseJSONBody<T>(response)
-    if (!body || (!allowEmptyData && typeof body.data === 'undefined')) {
+    if (!body) {
+      if (allowEmptyData) {
+        return undefined as T
+      }
+      throw new Error(`platform response missing data for ${path}`)
+    }
+    if (!allowEmptyData && typeof body.data === 'undefined') {
       throw new Error(`platform response missing data for ${path}`)
     }
     return body.data as T

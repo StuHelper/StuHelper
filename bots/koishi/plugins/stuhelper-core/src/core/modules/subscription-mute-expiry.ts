@@ -16,7 +16,9 @@ export function setupMuteExpireCheck(host: SubscriptionModule): void {
   host.setCheckInterval(setInterval(() => {
     const bot = host.ctx.bots.values().next().value as MuteExpireBot | undefined
     if (bot) {
-      host.checkMuteExpires(bot).catch(console.error)
+      host.checkMuteExpires(bot).catch((error) => {
+        host.ctx.logger('stuhelper-core:subscription').error('检查禁言到期失败: %o', error)
+      })
     }
   }, MUTE_EXPIRE_CHECK_INTERVAL_MS))
 
@@ -68,7 +70,7 @@ async function notifyMuteExpireSubscribers(
         try {
           await bot.sendMessage(expired.guildId, `用户 ${expired.userId} 的禁言已到期喵~`)
         } catch (error) {
-          console.error('发送禁言到期通知失败:', error)
+          host.ctx.logger('stuhelper-core:subscription').error('发送禁言到期通知失败: %o', error)
         }
       }
     }

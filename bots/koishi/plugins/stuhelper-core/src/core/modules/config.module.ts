@@ -47,10 +47,10 @@ export class ConfigModule implements RuntimeModuleInstance {
   }
 
   async init(): Promise<void> {
-    this._state = 'loading'
-    try {
-      registerConfigCommands(this)
-      console.log(`[${this.meta.name}] ConfigModule initialized`)
+      this._state = 'loading'
+      try {
+        registerConfigCommands(this)
+      this.ctx.logger('stuhelper-core:config').info('ConfigModule initialized')
       this._state = 'loaded'
     } catch (error) {
       this._state = 'error'

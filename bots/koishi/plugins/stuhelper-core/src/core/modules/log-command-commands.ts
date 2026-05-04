@@ -167,7 +167,7 @@ function cleanOldLogs(host: LogModule, daysToKeep: number): number {
     host.loadStats()
     return removedCount
   } catch (error) {
-    console.error('清理命令日志失败:', error)
+    host.ctx.logger('stuhelper-core:log').error('清理命令日志失败: %o', error)
     return 0
   }
 }

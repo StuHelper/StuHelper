@@ -1,7 +1,7 @@
-import { type Logger, type Session, type Universal } from 'koishi'
+import { h, type Logger, type Session, type Universal } from 'koishi'
 
 import {
-  GuardPolicyStore,
+  type GuardPolicyStore,
   type AdmissionPendingAction,
   type PlatformClient,
 } from '@stuhelper/koishi-shared'
@@ -16,6 +16,16 @@ import {
   forwardFreshmanMaterial,
   resolveFreshmanForwardBot,
 } from './freshman-forward'
+import {
+  backendSyncUpdate,
+  createAdmissionSessionRequest,
+  createBackendPendingGuardMemberRecord,
+  createGuardMemberRecord,
+  requireMemberID,
+  resolveGuildID,
+  type AdmissionSessionCreateResult,
+  type EffectiveGuardPolicy,
+} from './member-records'
 import type { GuardMemberRecord } from './model'
 import type { GuardMemberStore } from './store'
 
@@ -44,15 +54,11 @@ export class MemberGuardService {
       return
     }
 
-    const admission = await this.deps.platform.createAdmissionSession({
-      platform: session.platform,
-      guildID: guildId,
-      channelID: resolveChannelID(session),
-      qqID: memberId,
-      qqNickname: resolveMemberName(session),
-      botSelfID: session.selfId,
-    })
-    const record = createGuardMemberRecord(session, admission, policy)
+    const admission = await this.createAdmissionSessionForJoin(session, policy)
+    if (!admission) {
+      return
+    }
+    const record = createGuardMemberRecord(session, admission)
     await this.deps.guardStore.savePending(record)
     await muteGuardedMember(
       session.bot,
@@ -87,9 +93,65 @@ export class MemberGuardService {
 
     const now = new Date()
     for (const bot of bots) {
+      await this.syncBackendPendingMembers(bot, now)
       await this.scanBotAdmissionActions(bot, now)
     }
     await this.forwardFreshmanMaterials(bots)
+  }
+
+  private async createAdmissionSessionForJoin(
+    session: Session,
+    policy: EffectiveGuardPolicy,
+  ): Promise<AdmissionSessionCreateResult | null> {
+    try {
+      return await this.deps.platform.createAdmissionSession(createAdmissionSessionRequest(session))
+    } catch (error) {
+      await this.failClosedBackendUnavailableJoin(session, policy, error)
+      return null
+    }
+  }
+
+  private async failClosedBackendUnavailableJoin(
+    session: Session,
+    policy: EffectiveGuardPolicy,
+    error: unknown,
+  ) {
+    const now = new Date()
+    const message = formatAdmissionActionError(error)
+    const record = createBackendPendingGuardMemberRecord(session, policy, message, now)
+    await this.deps.guardStore.savePending(record)
+    await muteGuardedMember(session.bot, record.guildId, record.memberId, policy.muteDurationSeconds * 1000)
+    await this.deps.guardStore.markMuted(record.id, now)
+    await sendBackendPendingReminder(session.bot, record, policy.reminderTemplate)
+    await this.deps.guardStore.markReminderSent(record.id, now)
+    await this.reportBackendUnavailableJoin(record, policy, message)
+  }
+
+  private async reportBackendUnavailableJoin(
+    record: GuardMemberRecord,
+    policy: EffectiveGuardPolicy,
+    message: string,
+  ) {
+    await this.deps.moderationStore.appendEvent({
+      platform: record.platform,
+      botSelfId: record.botSelfId,
+      guildId: record.guildId,
+      channelId: record.channelId,
+      memberId: record.memberId,
+      type: 'join_guarded',
+      level: 'high',
+      summary: `后端 admission session 创建失败，已对 ${record.memberId} 执行本地兜底禁言`,
+      payload: {
+        backendSyncPending: true,
+        policySource: policy.source,
+        templateId: policy.templateId,
+        error: message,
+      },
+    })
+    this.deps.logger.warn('group guard admission backend unavailable; member muted locally', {
+      guardRecordID: record.id,
+      error: message,
+    })
   }
 
   private async scanBotAdmissionActions(bot: GuardBotRuntime, now: Date) {
@@ -102,6 +164,37 @@ export class MemberGuardService {
     }
   }
 
+  private async syncBackendPendingMembers(bot: GuardBotRuntime, now: Date) {
+    const records = await this.deps.guardStore.listBackendSyncPending(bot.platform, bot.selfId)
+    for (const record of records) {
+      await this.syncBackendPendingMember(bot, record, now)
+    }
+  }
+
+  private async syncBackendPendingMember(bot: GuardBotRuntime, record: GuardMemberRecord, now: Date) {
+    try {
+      const admission = await this.deps.platform.createAdmissionSession({
+        platform: record.platform,
+        guildID: record.guildId,
+        channelID: record.channelId,
+        qqID: record.memberId,
+        qqNickname: record.memberName,
+        botSelfID: record.botSelfId,
+      })
+      const update = backendSyncUpdate(admission)
+      await this.deps.guardStore.markBackendSynced(record.id, update)
+      await sendAdmissionReminder(bot, { ...record, ...update }, admission.authURL)
+      await this.deps.guardStore.markReminderSent(record.id, now)
+    } catch (error) {
+      const message = formatAdmissionActionError(error)
+      await this.deps.guardStore.markLastError(record.id, message, now)
+      this.deps.logger.warn('group guard admission backend sync failed', {
+        guardRecordID: record.id,
+        error: message,
+      })
+    }
+  }
+
   private async handleAdmissionAction(bot: GuardBotRuntime, action: AdmissionPendingAction, now: Date) {
     const record = await this.deps.guardStore.findActiveByAdmissionSessionID(action.sessionID)
     try {
@@ -110,7 +203,6 @@ export class MemberGuardService {
       await this.markActionComplete(record, result.mark, now)
     } catch (error) {
       await this.reportActionFailure(action, record, error, now)
-      throw error
     }
   }
 
@@ -170,71 +262,6 @@ export interface GuardBotRuntime extends Universal.Methods {
   sid: string
 }
 
-function resolveGuildID(session: Session) {
-  return session.guildId || session.channelId
-}
-
-function resolveChannelID(session: Session) {
-  const channelId = session.channelId || session.guildId
-  if (!channelId) {
-    throw new Error('group guard requires guildId or channelId')
-  }
-  return channelId
-}
-
-function requireMemberID(session: Session) {
-  if (!session.userId) {
-    throw new Error('group guard requires session.userId')
-  }
-  return session.userId
-}
-
-function createGuardMemberRecord(
-  session: Session,
-  admission: Awaited<ReturnType<PlatformClient['createAdmissionSession']>>,
-  policy: Awaited<ReturnType<GuardPolicyStore['resolvePolicy']>>,
-): GuardMemberRecord {
-  if (!policy) {
-    throw new Error('group guard policy is required')
-  }
-  const now = new Date()
-  const guildId = resolveGuildID(session)
-  const memberId = requireMemberID(session)
-  if (!guildId) {
-    throw new Error('group guard requires guildId or channelId')
-  }
-  return {
-    id: `${session.platform}:${session.selfId}:${guildId}:${memberId}`,
-    platform: session.platform,
-    botSelfId: session.selfId,
-    guildId,
-    channelId: resolveChannelID(session),
-    memberId,
-    memberName: resolveMemberName(session) || memberId,
-    verificationState: 'bound_unverified',
-    admissionSessionID: admission.session.id,
-    joinedAt: now,
-    deadlineAt: new Date(admission.session.linkWaitDeadlineAt),
-    nextReminderAt: new Date(admission.session.linkWaitDeadlineAt),
-    manualReviewDeadlineAt: parseOptionalDate(admission.session.manualReviewDeadlineAt),
-    mutedAt: null,
-    reminderSentAt: null,
-    releasedAt: null,
-    kickedAt: null,
-    lastError: null,
-    createdAt: now,
-    updatedAt: now,
-  }
-}
-
-function resolveMemberName(session: Session) {
-  return session.username || session.event.user?.nick || undefined
-}
-
-function parseOptionalDate(value: string | null | undefined) {
-  return value ? new Date(value) : null
-}
-
 function muteDurationMs(initialMuteUntil: Date) {
   const duration = initialMuteUntil.getTime() - Date.now()
   if (!Number.isFinite(duration) || duration <= 0) {
@@ -253,4 +280,15 @@ async function sendAdmissionReminder(bot: Universal.Methods, record: GuardMember
     authURL,
     deadlineAt: record.deadlineAt,
   }))
+}
+
+async function sendBackendPendingReminder(
+  bot: Universal.Methods,
+  record: GuardMemberRecord,
+  reminderTemplate: string,
+) {
+  await bot.sendMessage(record.channelId, [
+    `${h.at(record.memberId)} ${reminderTemplate}`,
+    '认证链接暂时无法创建，机器人会自动重试。',
+  ].join('\n'))
 }

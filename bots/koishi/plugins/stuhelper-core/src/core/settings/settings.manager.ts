@@ -11,6 +11,11 @@ import { Config as PluginSettings } from '../../types'
 
 export type { PluginSettings }
 
+interface SettingsLogger {
+  info(message: string, ...args: unknown[]): void
+  error(message: string, ...args: unknown[]): void
+}
+
 /** 默认配置 - 从原 config/index.ts 提取 */
 export const DEFAULT_SETTINGS: PluginSettings = {
   keywords: [],
@@ -213,7 +218,7 @@ export class SettingsManager {
   private lastModified: number = 0
   private reloadTimeout: NodeJS.Timeout | null = null
 
-  constructor(dataPath: string) {
+  constructor(dataPath: string, private readonly logger?: SettingsLogger) {
     this.settingsPath = path.resolve(dataPath, 'settings.json')
 
     // 确保数据目录存在
@@ -221,7 +226,7 @@ export class SettingsManager {
       fs.mkdirSync(dataPath, { recursive: true })
     }
 
-    this.store = new JsonDataStore(this.settingsPath, {})
+    this.store = new JsonDataStore(this.settingsPath, {}, { logger: this.logger })
     if (!fs.existsSync(this.settingsPath)) {
       fs.writeFileSync(this.settingsPath, '{}', 'utf8')
     }
@@ -253,7 +258,7 @@ export class SettingsManager {
         }
       })
     } catch (e) {
-      console.error('[SettingsManager] 启动文件监视器失败:', e)
+      this.logger?.error('[SettingsManager] 启动文件监视器失败: %o', e)
     }
   }
 
@@ -271,10 +276,10 @@ export class SettingsManager {
         // 重新加载 store 的数据
         this.store.reload()
         this._settings = this.loadSettings()
-        console.log('[SettingsManager] 检测到配置文件变化，已重新加载')
+        this.logger?.info('[SettingsManager] 检测到配置文件变化，已重新加载')
       }
     } catch (e) {
-      console.error('[SettingsManager] 重新加载配置失败:', e)
+      this.logger?.error('[SettingsManager] 重新加载配置失败: %o', e)
     }
   }
 

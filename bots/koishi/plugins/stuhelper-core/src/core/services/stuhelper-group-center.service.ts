@@ -58,7 +58,7 @@ export class StuhelperGroupCenterService extends Service {
     super(ctx, 'stuhelperGroupCenter')
     this.serviceLogger = ctx.logger('stuhelperGroupCenter')
     this._data = new DataManager(ctx)
-    this._settingsManager = new SettingsManager(this._data.dataPath)
+    this._settingsManager = new SettingsManager(this._data.dataPath, this.serviceLogger)
     this._cache = new CacheService(ctx, this._data.dataPath)
     this._auth = new AuthService(ctx, this._data)
   }

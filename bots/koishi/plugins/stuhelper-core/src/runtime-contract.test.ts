@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -98,6 +98,28 @@ async function assertKoishiRuntimeConfig(relativePath: string) {
 
 async function readWorkspaceFile(relativePath: string) {
   return readFile(join(workspaceRoot, relativePath), 'utf8')
+}
+
+async function listTypeScriptFiles(paths: readonly string[]) {
+  const files: string[] = []
+  for (const path of paths) {
+    await collectTypeScriptFiles(path, files)
+  }
+  return files
+}
+
+async function collectTypeScriptFiles(path: string, files: string[]) {
+  const entries = await readdir(path, { withFileTypes: true })
+  for (const entry of entries) {
+    const childPath = join(path, entry.name)
+    if (entry.isDirectory()) {
+      await collectTypeScriptFiles(childPath, files)
+      continue
+    }
+    if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+      files.push(childPath)
+    }
+  }
 }
 
 function legacyAdapterPattern(id: string, className: string): RegExp {
@@ -337,6 +359,23 @@ test('stuhelper-core WebSocket API 不应保留空 catch 静默吞错', async ()
     /catch\s*(?:\([^)]*\))?\s*\{\s*\}/,
     'core/api/index.ts 的异常处理必须显式记录、返回错误或抛出，不能使用空 catch。',
   )
+})
+
+test('stuhelper-core 服务端运行时代码不直接写 console', async () => {
+  const files = await listTypeScriptFiles([
+    join(workspaceRoot, 'plugins/stuhelper-core/src/core'),
+    join(workspaceRoot, 'plugins/stuhelper-core/src/utils'),
+  ])
+  const offenders: string[] = []
+
+  for (const file of files) {
+    const content = await readFile(file, 'utf8')
+    if (/\bconsole\.(?:log|error|warn|info|debug)\b/.test(content)) {
+      offenders.push(file.replace(`${workspaceRoot}/`, ''))
+    }
+  }
+
+  assert.deepEqual(offenders, [], '服务端运行时代码必须使用 Koishi Logger，而不是直接写 console。')
 })
 
 test('BanmeModule 不应使用隐藏默认值兜底配置缺失', async () => {

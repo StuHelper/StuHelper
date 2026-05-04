@@ -291,7 +291,7 @@ async function unbanMemberIfMuted(input: UnbanMemberInput): Promise<number> {
     await session.bot.muteGuildMember(session.guildId, userId, 0)
     return 1
   } catch (error) {
-    console.error(`解除用户 ${userId} 禁言失败:`, error)
+    host.ctx.logger('stuhelper-core:member-manage').error('解除用户 %s 禁言失败: %o', userId, error)
     return 0
   }
 }

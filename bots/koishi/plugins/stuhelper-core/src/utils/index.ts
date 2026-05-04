@@ -344,14 +344,15 @@ export async function executeCommand(
   options: Record<string, any> = {},
   useAdmin: boolean = true
 ) {
+  const logger = ctx.logger('stuhelper-core:utils')
   try {
-    console.log(`准备执行命令: ${commandName}，参数: ${JSON.stringify(args)}`)
+    logger.info('准备执行命令: %s，参数: %s', commandName, JSON.stringify(args))
 
 
     const command = ctx.$commander.get(commandName, session)
     if (!command) {
       const error = `命令 ${commandName} 不存在`
-      console.error(error)
+      logger.error(error)
       return `执行失败: ${error}`
     }
 
@@ -365,30 +366,30 @@ export async function executeCommand(
       } else {
         session.user.authority = 5
       }
-      console.log(`已临时提升权限至管理员权限(5)执行命令: ${commandName}`)
+      logger.info('已临时提升权限至管理员权限(5)执行命令: %s', commandName)
     }
 
     try {
 
-      console.log(`正在执行命令: ${commandName}`)
+      logger.info('正在执行命令: %s', commandName)
       const result = await command.execute({
         session,
         args,
         options
       })
 
-      console.log(`命令 ${commandName} 执行结果:`, result)
+      logger.info('命令 %s 执行结果: %o', commandName, result)
       return result
     } finally {
 
       if (useAdmin && session.user) {
         session.user.authority = originalAuthority
-        console.log(`已恢复原始权限级别(${originalAuthority})`)
+        logger.info('已恢复原始权限级别(%d)', originalAuthority)
       }
     }
   } catch (error) {
     const errorMsg = `执行命令 ${commandName} 失败: ${error.message || error}`
-    console.error(errorMsg, error)
+    logger.error('%s %o', errorMsg, error)
     return `执行失败: ${error.message || '未知错误'}`
   }
 }

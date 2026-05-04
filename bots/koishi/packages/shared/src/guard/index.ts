@@ -18,6 +18,7 @@ export interface GuardMemberRecord {
   memberName: string
   verificationState: PlatformVerificationState
   admissionSessionID: string | null
+  backendSyncPending: boolean
   joinedAt: Date
   deadlineAt: Date
   nextReminderAt: Date | null
@@ -42,6 +43,7 @@ export function registerGuardMemberModel(ctx: Context) {
     memberName: 'string',
     verificationState: 'string',
     admissionSessionID: 'string',
+    backendSyncPending: { type: 'boolean', initial: false },
     joinedAt: 'timestamp',
     deadlineAt: 'timestamp',
     nextReminderAt: 'timestamp',

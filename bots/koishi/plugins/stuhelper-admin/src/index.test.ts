@@ -324,6 +324,7 @@ function createGuardMemberRecord(input: Pick<GuardMemberRecord, 'id' | 'guildId'
     memberName: input.memberId,
     verificationState: 'bound_unverified',
     admissionSessionID: null,
+    backendSyncPending: false,
     joinedAt: now,
     deadlineAt: input.deadlineAt,
     nextReminderAt: null,

@@ -12,13 +12,24 @@ export interface JsonStoreOptions {
   createBackup?: boolean
   /** 最大备份数量，默认 3 */
   maxBackups?: number
+  /** 日志入口；运行时应传入 Koishi Logger */
+  logger?: JsonDataStoreLogger
+}
+
+export interface JsonDataStoreLogger {
+  info(message: string, ...args: unknown[]): void
+  error(message: string, ...args: unknown[]): void
+}
+
+interface ResolvedJsonStoreOptions extends Required<Omit<JsonStoreOptions, 'logger'>> {
+  logger: JsonDataStoreLogger | null
 }
 
 export class JsonDataStore<T extends Record<string, unknown> = Record<string, unknown>> {
   private data: T
   private saveTimer: NodeJS.Timeout | null = null
   private dirty = false
-  private readonly options: Required<JsonStoreOptions>
+  private readonly options: ResolvedJsonStoreOptions
 
   constructor(
     private readonly filePath: string,
@@ -28,7 +39,8 @@ export class JsonDataStore<T extends Record<string, unknown> = Record<string, un
     this.options = {
       saveDelay: options.saveDelay ?? 1000,
       createBackup: options.createBackup ?? true,
-      maxBackups: options.maxBackups ?? 3
+      maxBackups: options.maxBackups ?? 3,
+      logger: options.logger ?? null,
     }
     this.data = this.load()
   }
@@ -43,7 +55,7 @@ export class JsonDataStore<T extends Record<string, unknown> = Record<string, un
         fs.mkdirSync(dir, { recursive: true })
       }
     } catch (error) {
-      console.error(`[JsonDataStore] 加载数据失败: ${this.filePath}`, error)
+      this.options.logger?.error('[JsonDataStore] 加载数据失败: %s', this.filePath, error)
       throw error
     }
 
@@ -72,7 +84,7 @@ export class JsonDataStore<T extends Record<string, unknown> = Record<string, un
    */
   reload(): void {
     this.data = this.load()
-    console.log(`[JsonDataStore] 重新加载: ${this.filePath}, 数据条目: ${Object.keys(this.data).length}`)
+    this.options.logger?.info('[JsonDataStore] 重新加载: %s, 数据条目: %d', this.filePath, Object.keys(this.data).length)
   }
 
   /**
@@ -156,7 +168,7 @@ export class JsonDataStore<T extends Record<string, unknown> = Record<string, un
       fs.writeFileSync(tempPath, content, 'utf-8')
       fs.renameSync(tempPath, this.filePath)
     } catch (error) {
-      console.error(`[JsonDataStore] 保存数据失败: ${this.filePath}`, error)
+      this.options.logger?.error('[JsonDataStore] 保存数据失败: %s', this.filePath, error)
       throw error
     }
 
@@ -204,17 +216,17 @@ export class JsonDataStore<T extends Record<string, unknown> = Record<string, un
   }
 
   private logJsonParseError(error: SyntaxError, content: string): void {
-    console.error(`[JsonDataStore] JSON 解析失败: ${this.filePath}`)
-    console.error(`  错误信息: ${error.message}`)
+    this.options.logger?.error('[JsonDataStore] JSON 解析失败: %s', this.filePath)
+    this.options.logger?.error('[JsonDataStore] 错误信息: %s', error.message)
     const match = error.message.match(/position (\d+)/)
     if (match) {
       const pos = parseInt(match[1])
       const before = content.substring(Math.max(0, pos - 50), pos)
       const after = content.substring(pos, pos + 50)
-      console.error(`  错误位置附近: ...${before}【错误在此】${after}...`)
+      this.options.logger?.error('[JsonDataStore] 错误位置附近: ...%s【错误在此】%s...', before, after)
     }
     if (content.includes(',]') || content.includes(',}')) {
-      console.error('  提示: 可能存在尾随逗号 (trailing comma)，JSON 不允许在数组/对象最后一个元素后加逗号')
+      this.options.logger?.error('[JsonDataStore] 提示: 可能存在尾随逗号，JSON 不允许在数组/对象最后一个元素后加逗号')
     }
   }
 

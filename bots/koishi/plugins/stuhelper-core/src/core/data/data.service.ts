@@ -74,10 +74,7 @@ export class DataManager {
    */
   get warns(): JsonDataStore<Record<string, WarnRecord>> {
     if (!this.stores.warns) {
-      this.stores.warns = new JsonDataStore(
-        path.resolve(this.dataPath, 'warns.json'),
-        {}
-      )
+      this.stores.warns = this.createStore('warns.json', {})
     }
     return this.stores.warns
   }
@@ -87,10 +84,7 @@ export class DataManager {
    */
   get blacklist(): JsonDataStore<Record<string, BlacklistRecord>> {
     if (!this.stores.blacklist) {
-      this.stores.blacklist = new JsonDataStore(
-        path.resolve(this.dataPath, 'blacklist.json'),
-        {}
-      )
+      this.stores.blacklist = this.createStore('blacklist.json', {})
     }
     return this.stores.blacklist
   }
@@ -100,10 +94,7 @@ export class DataManager {
    */
   get groupConfig(): JsonDataStore<Record<string, GroupConfig>> {
     if (!this.stores.groupConfig) {
-      this.stores.groupConfig = new JsonDataStore(
-        path.resolve(this.dataPath, 'group_config.json'),
-        {}
-      )
+      this.stores.groupConfig = this.createStore('group_config.json', {})
     }
     return this.stores.groupConfig
   }
@@ -113,10 +104,7 @@ export class DataManager {
    */
   get mutes(): JsonDataStore<Record<string, Record<string, MuteRecord>>> {
     if (!this.stores.mutes) {
-      this.stores.mutes = new JsonDataStore(
-        path.resolve(this.dataPath, 'mutes.json'),
-        {}
-      )
+      this.stores.mutes = this.createStore('mutes.json', {})
     }
     return this.stores.mutes
   }
@@ -126,10 +114,7 @@ export class DataManager {
    */
   get banmeRecords(): JsonDataStore<Record<string, BanMeRecord>> {
     if (!this.stores.banmeRecords) {
-      this.stores.banmeRecords = new JsonDataStore(
-        path.resolve(this.dataPath, 'banme_records.json'),
-        {}
-      )
+      this.stores.banmeRecords = this.createStore('banme_records.json', {})
     }
     return this.stores.banmeRecords
   }
@@ -139,10 +124,7 @@ export class DataManager {
    */
   get lockedNames(): JsonDataStore<Record<string, LockedName>> {
     if (!this.stores.lockedNames) {
-      this.stores.lockedNames = new JsonDataStore(
-        path.resolve(this.dataPath, 'locked_names.json'),
-        {}
-      )
+      this.stores.lockedNames = this.createStore('locked_names.json', {})
     }
     return this.stores.lockedNames
   }
@@ -152,10 +134,7 @@ export class DataManager {
    */
   get antiRepeat(): JsonDataStore<Record<string, AntiRepeatConfig>> {
     if (!this.stores.antiRepeat) {
-      this.stores.antiRepeat = new JsonDataStore(
-        path.resolve(this.dataPath, 'antirepeat.json'),
-        {}
-      )
+      this.stores.antiRepeat = this.createStore('antirepeat.json', {})
     }
     return this.stores.antiRepeat
   }
@@ -165,10 +144,7 @@ export class DataManager {
    */
   get subscriptions(): JsonDataStore<{ list: Subscription[] }> {
     if (!this.stores.subscriptions) {
-      this.stores.subscriptions = new JsonDataStore(
-        path.resolve(this.dataPath, 'subscriptions.json'),
-        { list: [] }
-      )
+      this.stores.subscriptions = this.createStore('subscriptions.json', { list: [] })
     }
     return this.stores.subscriptions
   }
@@ -178,10 +154,7 @@ export class DataManager {
    */
   get recallRecords(): JsonDataStore<RecallRecord> {
     if (!this.stores.recallRecords) {
-      this.stores.recallRecords = new JsonDataStore(
-        path.resolve(this.dataPath, 'recall_records.json'),
-        {}
-      )
+      this.stores.recallRecords = this.createStore('recall_records.json', {})
     }
     return this.stores.recallRecords
   }
@@ -191,10 +164,7 @@ export class DataManager {
    */
   get commandLogs(): JsonDataStore<CommandLogData> {
     if (!this.stores.commandLogs) {
-      this.stores.commandLogs = new JsonDataStore(
-        path.resolve(this.dataPath, 'command_logs.json'),
-        { logs: [] }
-      )
+      this.stores.commandLogs = this.createStore('command_logs.json', { logs: [] })
     }
     return this.stores.commandLogs
   }
@@ -204,10 +174,7 @@ export class DataManager {
    */
   get leaveRecords(): JsonDataStore<Record<string, LeaveRecord>> {
     if (!this.stores.leaveRecords) {
-      this.stores.leaveRecords = new JsonDataStore(
-        path.resolve(this.dataPath, 'leave_records.json'),
-        {}
-      )
+      this.stores.leaveRecords = this.createStore('leave_records.json', {})
     }
     return this.stores.leaveRecords
   }
@@ -217,10 +184,7 @@ export class DataManager {
    */
   get authRoles(): JsonDataStore<AuthRolesData> {
     if (!this.stores.authRoles) {
-      this.stores.authRoles = new JsonDataStore(
-        path.resolve(this.dataPath, 'auth_roles.json'),
-        { roles: {}, defaultLevels: {} }
-      )
+      this.stores.authRoles = this.createStore('auth_roles.json', { roles: {}, defaultLevels: {} })
     }
     return this.stores.authRoles
   }
@@ -230,10 +194,7 @@ export class DataManager {
    */
   get authUsers(): JsonDataStore<AuthUsersData> {
     if (!this.stores.authUsers) {
-      this.stores.authUsers = new JsonDataStore(
-        path.resolve(this.dataPath, 'auth_users.json'),
-        { users: {} }
-      )
+      this.stores.authUsers = this.createStore('auth_users.json', { users: {} })
     }
     return this.stores.authUsers
   }
@@ -252,8 +213,14 @@ export class DataManager {
         .slice(0, 16)
       const logLine = `[${time}] ${message}\n`
       this.logStream.write(logLine)
-      console.log(logLine.trim())
+      this.ctx.logger('stuhelperGroupCenter').info(logLine.trim())
     }
+  }
+
+  private createStore<T extends Record<string, unknown>>(fileName: string, defaultValue: T): JsonDataStore<T> {
+    return new JsonDataStore(path.resolve(this.dataPath, fileName), defaultValue, {
+      logger: this.ctx.logger('stuhelperGroupCenter:data'),
+    })
   }
 
   /**

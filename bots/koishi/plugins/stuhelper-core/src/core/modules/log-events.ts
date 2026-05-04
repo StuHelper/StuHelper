@@ -67,7 +67,7 @@ async function recordCommandExecution(
     host.saveCommandLogs(logs)
     host.recordCommandUsage(logRecord.command)
   } catch (error) {
-    console.error('记录命令日志失败:', error)
+    host.ctx.logger('stuhelper-core:log').error('记录命令日志失败: %o', error)
   }
 }
 
