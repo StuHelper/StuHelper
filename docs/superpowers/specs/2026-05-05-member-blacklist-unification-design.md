@@ -87,7 +87,7 @@ created: 2026-05-05
 | `source` | 来源分类 |
 | `reason_code` | 机器可读创建原因 |
 | `reason_text` | 人类可读创建原因 |
-| `created_by_type` | `system`、`admin_user`、`qq_operator`、`bot` |
+| `created_by_type` | `system`、`admin_user`、`qq_operator`、`service_account` |
 | `created_by_id` | 操作者 ID；系统动作固定为 `system` |
 | `created_from` | `admission_worker`、`qq_command`、`koishi_console`、`admin_console`、`moderation_review` |
 | `expires_at` | 过期时间；为空表示永久 |
@@ -108,10 +108,12 @@ released_at IS NULL AND (expires_at IS NULL OR expires_at > NOW())
 
 DB 约束和查询实现：
 
+- DB CHECK 约束：`scope_type='guild'` 时 `guild_id` 必填；`scope_type='global'` 时 `guild_id IS NULL`；`platform`、`subject_id`、`source`、`reason_code` 非空。
 - 准入查询是纯读路径，只按 active 条件过滤，不写表。
 - 写路径在创建前于同一事务释放同 subject + scope 已过期未释放记录，`release_reason_code='policy_expired_auto'`。
 - 后台 worker 定期 sweep 到期记录，执行 `policy_expired_auto`、重置 admission 失败计数和写审计。
-- active 唯一性用 `WHERE released_at IS NULL` 的 partial unique index 实现；过期但未 sweep 的记录会挡住 insert，所以写路径必须先 release expired row。
+- active 唯一性用两个 partial unique index 实现：global 记录按 `(platform, subject_type, subject_id) WHERE released_at IS NULL AND scope_type='global'`，guild 记录按 `(platform, subject_type, subject_id, guild_id) WHERE released_at IS NULL AND scope_type='guild'`。
+- 过期但未 sweep 的记录会挡住 insert，所以写路径必须先 release expired row。
 - 准入查询主路径使用 `(platform, subject_type, subject_id, scope_type, guild_id) WHERE released_at IS NULL` 索引，并在查询条件中排除 `expires_at <= NOW()`。
 
 `group_admission_failures` 继续作为 admission 失败计数表，但不再作为黑名单权威表。达到阈值时，admission 服务创建 `member_blacklist_entries` 记录。
@@ -152,10 +154,12 @@ DB 约束和查询实现：
 Bot 侧准入接口：
 
 ```text
-GET /api/v1/bot/member-blacklist/access?platform=qq&guildID=<guild>&subjectID=<qq>
+GET /api/v1/bot/member-blacklist/access?platform=qq&subjectType=qq_user&guildID=<guild>&subjectID=<qq>
 ```
 
-blocked 响应必须包含 `canJoin=false`、`decision='blocked'` 和 `matchedBlacklist`；`matchedBlacklist` 至少包含 id、platform、subjectType、subjectID、scopeType、guildID、source、reasonCode、reasonText 和 expiresAt。
+blocked 响应必须包含 `canJoin=false`、`decision='blocked'` 和 `matchedBlacklist`；`matchedBlacklist` 至少包含 id、platform、subjectType、subjectID、scopeType、source、reasonCode、reasonText、expiresAt，guild scope 还必须包含 guildID。
+
+列表接口 `GET /api/v1/admin/member-blacklist` 和 `GET /api/v1/bot/member-blacklist` 必须分页，并支持 subject、scope、source、guild 和 active/released/expired 状态过滤；默认只返回 active 记录。
 
 ### 写入黑名单
 
@@ -171,10 +175,12 @@ POST /api/v1/bot/member-blacklist
 | `source` | admin API | bot API | 内部 service |
 |---|---|---|---|
 | `admission_failure` | 禁止 | 禁止 | 允许 |
-| `manual_admin` | 允许 | 禁止 | 不需要 |
+| `manual_admin` | 允许 | 仅 `koishi_console` | 不需要 |
 | `kick_blacklist` | 禁止 | 允许 | 不需要 |
 | `moderation_action` | 禁止 | 允许 | 不需要 |
 | `migration_*` | 禁止 | 禁止 | 仅脚本 |
+
+Admin API 必须要求成员黑名单读/写 capability；bot API 必须要求独立 service-account scope，并把 QQ 命令或 Koishi 控制台操作者写入 metadata。
 
 ### 解除黑名单
 
@@ -256,7 +262,11 @@ Admin 和 Koishi 控制台黑名单列表至少展示 QQ、scope、群号或群�
 - 全局黑名单阻止所有群。
 - 同时命中全局和单群时决策返回全局。
 - active 唯一性防止重复创建。
+- global 唯一索引不得因 `guild_id IS NULL` 允许重复 active 记录。
+- 准入查询不写表。
 - 过期记录自动释放后可再次创建。
+- 列表接口分页和过滤有效。
+- 调用入口与 `source` 矩阵不匹配时返回 400。
 - release-by-subject 必须指定 scope。
 - `/{id}/release` 与 release-by-subject 均记录 release_reason_code。
 - admission 达到失败阈值后创建单群黑名单。
