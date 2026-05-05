@@ -108,9 +108,10 @@ released_at IS NULL AND (expires_at IS NULL OR expires_at > NOW())
 
 DB 约束和查询实现：
 
-- service 在创建或查询前先把已过期未释放记录标记为 released，`release_reason_code='policy_expired_auto'`。
-- active 唯一性用 `WHERE released_at IS NULL` 的 partial unique index 实现。
-- 过期记录被自动释放后，可以为同一 subject 和 scope 创建新条目。
+- 准入查询是纯读路径，只按 active 条件过滤，不写表。
+- 写路径在创建前于同一事务释放同 subject + scope 已过期未释放记录，`release_reason_code='policy_expired_auto'`。
+- 后台 worker 定期 sweep 到期记录，执行 `policy_expired_auto`、重置 admission 失败计数和写审计。
+- active 唯一性用 `WHERE released_at IS NULL` 的 partial unique index 实现；过期但未 sweep 的记录会挡住 insert，所以写路径必须先 release expired row。
 - 准入查询主路径使用 `(platform, subject_type, subject_id, scope_type, guild_id) WHERE released_at IS NULL` 索引，并在查询条件中排除 `expires_at <= NOW()`。
 
 `group_admission_failures` 继续作为 admission 失败计数表，但不再作为黑名单权威表。达到阈值时，admission 服务创建 `member_blacklist_entries` 记录。
@@ -122,11 +123,13 @@ DB 约束和查询实现：
 | `source` | `reason_code` | 默认范围 | 创建入口 | 必填 metadata |
 |---|---|---|---|---|
 | `admission_failure` | `admission_timeout_limit` | `guild` | `admission_worker` | `admissionSessionID`, `failureCount`, `failedJoinLimit`, `platform`, `guildID`, `botSelfID` |
-| `manual_admin` | `manual_blacklist` | 操作者选择 | `admin_console` 或 `koishi_console` | `operatorInput`, `scopeSource` |
+| `manual_admin` | `manual_blacklist` | 操作者选择 | `admin_console` 或 `koishi_console` | `operatorInput`, `scopeSelectionContext` |
 | `kick_blacklist` | `manual_kick_blacklist` | 默认 `guild`，可显式 `global` | `qq_command` | `rawCommand`, `targetGuildID`, `operatorQQID` |
 | `moderation_action` | `violation_review_blacklist` | 默认 `guild`，可显式 `global` | `moderation_review` | `reviewID`, `workItemID`, `targetGuildID` |
 | `migration_legacy_koishi` | `legacy_koishi_blacklist` | `global`，除非旧记录可确定群 | 一次性导入脚本 | `legacyFile`, `legacyUserID` |
 | `migration_admission_failure` | `legacy_admission_blacklist` | `guild` | 一次性导入脚本 | `legacyFailureCount`, `legacyGuildID` |
+
+`scopeSelectionContext` 记录操作者如何选择 scope，例如 `current_guild_command`、`admin_console_form`、`koishi_console_form` 或 `explicit_global_flag`。
 
 解除原因枚举：
 
@@ -137,6 +140,8 @@ DB 约束和查询实现：
 | `policy_expired_auto` | 到期自动解除 |
 | `admission_appeal_passed` | 申诉通过 |
 | `migration_inverse` | 数据整理或导入回滚 |
+
+系统自动解除使用 `released_by_type='system'` 和 `released_by_id='system'`。
 
 展示文案由前端根据枚举和文本组合。后端 API 必须返回原始枚举，不只返回 `blacklisted`。
 
@@ -150,26 +155,7 @@ Bot 侧准入接口：
 GET /api/v1/bot/member-blacklist/access?platform=qq&guildID=<guild>&subjectID=<qq>
 ```
 
-响应示例：
-
-```json
-{
-  "canJoin": false,
-  "decision": "blocked",
-  "matchedBlacklist": {
-    "id": "blk_xxx",
-    "platform": "qq",
-    "subjectType": "qq_user",
-    "subjectID": "10001",
-    "scopeType": "guild",
-    "guildID": "123456",
-    "source": "admission_failure",
-    "reasonCode": "admission_timeout_limit",
-    "reasonText": "连续 3 次入群认证超时",
-    "expiresAt": null
-  }
-}
-```
+blocked 响应必须包含 `canJoin=false`、`decision='blocked'` 和 `matchedBlacklist`；`matchedBlacklist` 至少包含 id、platform、subjectType、subjectID、scopeType、guildID、source、reasonCode、reasonText 和 expiresAt。
 
 ### 写入黑名单
 
@@ -179,6 +165,16 @@ POST /api/v1/bot/member-blacklist
 ```
 
 请求体必须包含 `platform`、`subjectType`、`subjectID`、`scopeType`、`source`、`reasonCode`、`reasonText`、`expiresAt` 和 `metadata`。`scopeType='guild'` 时必须包含 `guildID`。后端根据认证上下文填充 `created_by_type`、`created_by_id` 和 `created_from`，不信任客户端伪造操作者。
+
+服务端必须按调用入口校验 `source`，违反矩阵返回 400：
+
+| `source` | admin API | bot API | 内部 service |
+|---|---|---|---|
+| `admission_failure` | 禁止 | 禁止 | 允许 |
+| `manual_admin` | 允许 | 禁止 | 不需要 |
+| `kick_blacklist` | 禁止 | 允许 | 不需要 |
+| `moderation_action` | 禁止 | 允许 | 不需要 |
+| `migration_*` | 禁止 | 禁止 | 仅脚本 |
 
 ### 解除黑名单
 
