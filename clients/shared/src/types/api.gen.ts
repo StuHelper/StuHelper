@@ -7234,6 +7234,7 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
         };
     };

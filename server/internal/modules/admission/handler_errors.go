@@ -38,8 +38,10 @@ func respondAdmissionError(c *gin.Context, err error) {
 		response.Conflict(c, "member is blacklisted", ErrCodeAdmissionMemberBlacklisted)
 	case errors.Is(err, ErrMemberBlacklistNotFound):
 		response.NotFound(c, "member blacklist not found")
-	case errors.Is(err, ErrMemberBlacklistInvalidInput), errors.Is(err, ErrMemberBlacklistSourceForbidden):
+	case errors.Is(err, ErrMemberBlacklistInvalidInput):
 		response.BadRequest(c, "invalid member blacklist request")
+	case errors.Is(err, ErrMemberBlacklistSourceForbidden):
+		response.Forbidden(c, "member blacklist source forbidden")
 	case errors.Is(err, ErrAdmissionOperatorUnbound),
 		errors.Is(err, ErrAdmissionOperatorForbidden),
 		errors.Is(err, ErrAdmissionManagementGuildForbidden):

@@ -134,6 +134,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '409':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 

@@ -15,6 +15,7 @@ import {
 } from './console-guild-scope'
 
 const CONSOLE_BLACKLIST_PAGE_SIZE = 200
+const CONSOLE_SCOPE_SELECTION_CONTEXT = 'koishi_console_form'
 
 interface ConsoleBlacklistCreateParams {
   readonly platform: string
@@ -63,10 +64,7 @@ export function registerMemberBlacklistConsoleAPI(
       source: 'manual_admin',
       reasonCode: 'manual_blacklist',
       reasonText: params.reasonText?.trim() || 'manual blacklist from Koishi console',
-      metadata: {
-        consoleAuthID: consoleAuthID(this),
-        createdFrom: 'koishi_console',
-      },
+      metadata: consoleBlacklistMetadata(params, this),
     })
     return success(entry)
   })
@@ -124,6 +122,15 @@ function resolveConsoleScope(ctx: Context, service: StuhelperGroupCenterService,
 function consoleAuthID(client: unknown): string {
   const authID = (client as { auth?: { id?: unknown } }).auth?.id
   return authID === undefined || authID === null ? 'koishi-console' : String(authID)
+}
+
+function consoleBlacklistMetadata(params: ConsoleBlacklistCreateParams, client: unknown) {
+  return {
+    consoleAuthID: consoleAuthID(client),
+    createdFrom: 'koishi_console',
+    operatorInput: params.subjectID,
+    scopeSelectionContext: CONSOLE_SCOPE_SELECTION_CONTEXT,
+  }
 }
 
 function success<T>(data: T) {
