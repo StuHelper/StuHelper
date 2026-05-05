@@ -44,7 +44,7 @@ export interface EntityProfileScope {
 
 export interface EntityPageServiceDeps {
   loadWarns(): Promise<Record<string, Record<string, RawWarnEntry>>>
-  loadBlacklist(): Promise<Record<string, RawBlacklistEntry>>
+  loadBlacklist(): Promise<RawBlacklistEntry[]>
   loadGuardRecords(): Promise<GuardMemberRecord[]>
   loadReviews(): Promise<ReviewQueueRecord[]>
   loadReports(): Promise<ModerationReportRecord[]>
@@ -56,7 +56,7 @@ export interface EntityPageServiceDeps {
 
 interface ScopedEntityFacts {
   readonly warnsByGuild: Record<string, Record<string, RawWarnEntry>>
-  readonly blacklistMap: Record<string, RawBlacklistEntry>
+  readonly blacklistEntries: RawBlacklistEntry[]
   readonly guardRecords: GuardMemberRecord[]
   readonly reviews: ReviewQueueRecord[]
   readonly reports: ModerationReportRecord[]
@@ -90,7 +90,7 @@ export class EntityPageService {
   private async getUserProfile(userId: string, scope: EntityProfileScope): Promise<UserEntityProfile> {
     const facts = await this.loadScopedFacts(scope)
     const warns = collectUserWarns(facts.warnsByGuild, userId, this.deps.resolveGuildName)
-    const blacklist = mapBlacklist(facts.blacklistMap[userId], scope)
+    const blacklist = mapBlacklist(facts.blacklistEntries, userId, scope)
     const restricted = collectUserRestricted(facts.guardRecords, userId, this.deps.resolveGuildName)
     const userReviews = collectUserReviews(facts.reviews, userId, this.deps.resolveGuildName)
     const userReports = collectUserReports(facts.reports, userId, this.deps.resolveGuildName)
@@ -124,7 +124,7 @@ export class EntityPageService {
   }
 
   private async loadScopedFacts(scope: EntityProfileScope): Promise<ScopedEntityFacts> {
-    const [warnsByGuild, blacklistMap, guardRecords, reviews, reports, events] = await Promise.all([
+    const [warnsByGuild, blacklistEntries, guardRecords, reviews, reports, events] = await Promise.all([
       this.deps.loadWarns(),
       this.deps.loadBlacklist(),
       this.deps.loadGuardRecords(),
@@ -135,7 +135,7 @@ export class EntityPageService {
 
     return {
       warnsByGuild: filterWarnsByScope(warnsByGuild, scope),
-      blacklistMap,
+      blacklistEntries,
       guardRecords: filterGuildRecords(guardRecords, scope),
       reviews: filterGuildRecords(reviews, scope),
       reports: filterGuildRecords(reports, scope),
@@ -314,11 +314,12 @@ function hasUserFacts(
 }
 
 function mapBlacklist(
-  entry: RawBlacklistEntry | undefined,
+  entries: readonly RawBlacklistEntry[],
+  userId: string,
   scope: EntityProfileScope,
 ): EntityBlacklistFact | null {
+  const entry = selectVisibleBlacklist(entries, userId, scope)
   if (!entry) return null
-  if (!hasBlacklistScopeAccess(entry, scope)) return null
   return {
     userId: entry.userId,
     reason: entry.reason ?? null,
@@ -326,12 +327,21 @@ function mapBlacklist(
   }
 }
 
+function selectVisibleBlacklist(
+  entries: readonly RawBlacklistEntry[],
+  userId: string,
+  scope: EntityProfileScope,
+) {
+  const visible = entries.filter((entry) => entry.userId === userId && hasBlacklistScopeAccess(entry, scope))
+  return visible.find((entry) => !entry.guildId) || visible[0]
+}
+
 function hasBlacklistScopeAccess(
   entry: RawBlacklistEntry,
   scope: EntityProfileScope,
 ): boolean {
   if (scope.guildIds === null) return true
-  return typeof entry.guildId === 'string' && scope.guildIds.has(entry.guildId)
+  return !entry.guildId || scope.guildIds.has(entry.guildId)
 }
 
 function filterWarnsByScope(

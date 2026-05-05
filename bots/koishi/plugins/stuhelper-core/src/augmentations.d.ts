@@ -7,7 +7,10 @@ import type {
   GroupConfig,
   Config,
   WarnRecord,
-  BlacklistRecord,
+  MemberBlacklistCreateParams,
+  MemberBlacklistEntry,
+  MemberBlacklistListResult,
+  MemberBlacklistReleaseParams,
   PermissionNode,
   Role,
 } from './types'
@@ -135,9 +138,9 @@ declare module '@koishijs/console' {
     'stuhelperGroupCenter/warns/add'(params: { guildId: string; userId: string }): Promise<ApiResponse<{ success: boolean }>>
     'stuhelperGroupCenter/warns/clear'(params: { key: string }): Promise<ApiResponse<{ success: boolean }>>
 
-    'stuhelperGroupCenter/blacklist/list'(): Promise<ApiResponse<Record<string, BlacklistRecord>>>
-    'stuhelperGroupCenter/blacklist/add'(params: { userId: string; record: BlacklistRecord }): Promise<ApiResponse<{ success: boolean }>>
-    'stuhelperGroupCenter/blacklist/remove'(params: { userId: string }): Promise<ApiResponse<{ success: boolean }>>
+    'stuhelperGroupCenter/blacklist/list'(): Promise<ApiResponse<MemberBlacklistListResult>>
+    'stuhelperGroupCenter/blacklist/add'(params: MemberBlacklistCreateParams): Promise<ApiResponse<MemberBlacklistEntry>>
+    'stuhelperGroupCenter/blacklist/remove'(params: MemberBlacklistReleaseParams): Promise<ApiResponse<MemberBlacklistEntry>>
 
     'stuhelperGroupCenter/subscriptions/list'(params?: { fetchNames?: boolean }): Promise<ApiResponse<Array<Subscription & { name?: string; avatar?: string }>>>
     'stuhelperGroupCenter/subscriptions/add'(params: { subscription: Subscription }): Promise<ApiResponse<{ success: boolean }>>

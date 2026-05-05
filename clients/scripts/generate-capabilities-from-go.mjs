@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename)
 
 const goPath = path.resolve(__dirname, '../../server/internal/pkg/capability/catalog.go')
 const outPath = path.resolve(__dirname, '../shared/src/constants/capabilities.gen.ts')
+const goSourcePath = 'server/internal/pkg/capability/catalog.go'
 
 const source = readFileSync(goPath, 'utf8')
 
@@ -100,10 +101,10 @@ const header = `/**
  * AUTO-GENERATED FILE. DO NOT EDIT.
  *
  * Source of truth:
- *   ${goPath}
+ *   ${goSourcePath}
  *
  * Regenerate with:
- *   cd /Users/zxy/Code/StuHelper/clients && pnpm run generate:capabilities
+ *   cd clients && pnpm run generate:capabilities
  */
 `
 

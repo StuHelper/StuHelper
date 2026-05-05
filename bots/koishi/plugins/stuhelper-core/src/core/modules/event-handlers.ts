@@ -1,6 +1,7 @@
 import type { GroupConfig } from '../../types'
 import {
   DEFAULT_LEVEL_LIMIT,
+  MEMBER_BLACKLIST_ACCESS_TIMEOUT_MS,
   DEFAULT_MEMBER_REQUEST_CONFIG,
   botInternal,
   eventLogger,
@@ -10,7 +11,6 @@ import {
   requestIdOf,
   type EventRuntimeHost,
   type EventSession,
-  type GroupRequest,
 } from './event-support'
 import {
   handleGuildMemberAdded,
@@ -39,8 +39,6 @@ export function registerEventListeners(host: EventRuntimeHost): void {
 }
 
 async function handleFriendRequest(host: EventRuntimeHost, session: EventSession) {
-  if (await rejectBlacklistedFriendRequest(host, session)) return
-
   const config = host.config.friendRequest
   if (!config?.enabled) return
   const comment = requestCommentOf(session)
@@ -55,11 +53,6 @@ async function handleFriendRequest(host: EventRuntimeHost, session: EventSession
 }
 
 async function handleGuildRequest(host: EventRuntimeHost, session: EventSession) {
-  if (await rejectBlacklistedGroupRequest(host, {
-    session,
-    failureLog: '拒绝群邀请失败:',
-  })) return
-
   if (host.config.guildRequest?.enabled) {
     await session.bot.handleGuildRequest(requestIdOf(session), true)
     return
@@ -73,45 +66,38 @@ async function handleGuildRequest(host: EventRuntimeHost, session: EventSession)
 }
 
 async function handleGuildMemberRequest(host: EventRuntimeHost, session: EventSession) {
-  if (await rejectBlacklistedGroupRequest(host, {
-    session,
-    failureLog: '拒绝入群申请失败:',
-  })) return
   if (await rejectDuringLeaveCooldown(host, session)) return
 
   const groupConfig = groupConfigOf(host, session.guildId, DEFAULT_MEMBER_REQUEST_CONFIG)
   if (await rejectBelowLevelLimit(session, groupConfig)) return
+  if (await rejectByMemberBlacklist(host, session)) return
 
   if (await acceptIfKeywordMatches(host, session, groupConfig)) return
   await acceptByAdmissionPolicy(host, session)
 }
 
-async function rejectBlacklistedFriendRequest(
+async function rejectByMemberBlacklist(
   host: EventRuntimeHost,
   session: EventSession,
 ): Promise<boolean> {
-  if (!host.data.blacklist.getAll()[session.userId]) return false
+  if (!host.admissionPlatform) {
+    throw new Error('admission platform client is required for member blacklist access')
+  }
 
   try {
-    await session.bot.handleFriendRequest(requestIdOf(session), false, '您在黑名单中')
+    const access = await host.admissionPlatform.getMemberBlacklistAccess({
+      platform: session.platform,
+      subjectType: 'qq_user',
+      subjectID: session.userId,
+      guildID: session.guildId,
+    }, { timeoutMs: MEMBER_BLACKLIST_ACCESS_TIMEOUT_MS })
+    if (access.canJoin && access.decision !== 'blocked') return false
+    await session.bot.handleGuildMemberRequest(requestIdOf(session), false, '您在黑名单中')
+    return true
   } catch (error) {
-    eventLogger.error('拒绝好友请求失败:', error)
+    eventLogger.warn('成员黑名单准入检查失败，跳过请求阶段黑名单裁决:', error)
+    return false
   }
-  return true
-}
-
-async function rejectBlacklistedGroupRequest(
-  host: EventRuntimeHost,
-  request: GroupRequest,
-): Promise<boolean> {
-  if (!host.data.blacklist.getAll()[request.session.userId]) return false
-
-  try {
-    await rejectGuildOrMemberRequest(request.session, '您在黑名单中')
-  } catch (error) {
-    eventLogger.error(request.failureLog, error)
-  }
-  return true
 }
 
 async function rejectDuringLeaveCooldown(
@@ -168,8 +154,6 @@ async function acceptByAdmissionPolicy(host: EventRuntimeHost, session: EventSes
   if (!host.admissionPlatform) {
     throw new Error('admission platform client is required for guild-member-request auto-approve')
   }
-  const access = await host.admissionPlatform.getAdmissionQQAccess(session.userId)
-  if (!access.canJoin || access.autoApproveJoin === false) return
 
   const requestID = requestIdOf(session)
   try {
@@ -213,12 +197,4 @@ function rawRequestEvent(session: EventSession) {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
-}
-
-async function rejectGuildOrMemberRequest(session: EventSession, message: string): Promise<void> {
-  if (session.type === 'guild-request') {
-    await session.bot.handleGuildRequest(requestIdOf(session), false, message)
-    return
-  }
-  await session.bot.handleGuildMemberRequest(requestIdOf(session), false, message)
 }

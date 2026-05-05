@@ -56,11 +56,6 @@ func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 		h.handleRecordBotJoinRequestEvent,
 	)
 	bot.GET(
-		"/qq-users/:qqID/access",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
-		h.handleGetBotAdmissionQQAccess,
-	)
-	bot.GET(
 		"/sessions/pending",
 		h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession),
 		h.handleListBotPendingActions,
@@ -86,10 +81,15 @@ func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
 		h.handleBotReviewFreshmanApplication,
 	)
-	bot.POST(
-		"/blacklist/:qqID/release",
-		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
-		h.handleBotReleaseAdmissionBlacklist,
+	blacklist := api.Group("/bot/member-blacklist")
+	blacklist.GET("/access", h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistRead), h.handleGetBotMemberBlacklistAccess)
+	blacklist.GET("", h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistRead), h.handleListBotMemberBlacklist)
+	blacklist.POST("", h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage), h.handleCreateBotMemberBlacklist)
+	blacklist.POST("/:id/release", h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage), h.handleReleaseBotMemberBlacklist)
+	blacklist.POST(
+		"/release-by-subject",
+		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage),
+		h.handleReleaseBotMemberBlacklistBySubject,
 	)
 }
 
@@ -124,10 +124,17 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 		rbac.RequireCapability(capability.AdmissionFreshmanReview),
 		h.handleAdminReviewFreshmanVerification,
 	)
+	admin.GET("/member-blacklist", rbac.RequireCapability(capability.MemberBlacklistRead), h.handleListAdminMemberBlacklist)
+	admin.POST("/member-blacklist", rbac.RequireCapability(capability.MemberBlacklistManage), h.handleCreateAdminMemberBlacklist)
 	admin.POST(
-		"/admission/blacklist/:qqID/release",
-		rbac.RequireCapability(capability.AdmissionBlacklistManage),
-		h.handleAdminReleaseAdmissionBlacklist,
+		"/member-blacklist/:id/release",
+		rbac.RequireCapability(capability.MemberBlacklistManage),
+		h.handleReleaseAdminMemberBlacklist,
+	)
+	admin.POST(
+		"/member-blacklist/release-by-subject",
+		rbac.RequireCapability(capability.MemberBlacklistManage),
+		h.handleReleaseAdminMemberBlacklistBySubject,
 	)
 }
 

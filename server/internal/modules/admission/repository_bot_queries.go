@@ -73,23 +73,6 @@ func (r *Repository) ListPendingFreshmanForwards(ctx context.Context) ([]freshma
 	return scanFreshmanForwardRecords(rows)
 }
 
-func (r *Repository) GetActiveAdmissionFailure(ctx context.Context, qqID string) (*AdmissionFailure, error) {
-	failure, err := scanAdmissionFailure(r.db.QueryRow(ctx, `
-		SELECT platform, guild_id, qq_id, failure_count, blacklisted_at, blacklist_expires_at, released_at
-		FROM group_admission_failures
-		WHERE qq_id = $1
-		  AND blacklisted_at IS NOT NULL
-		  AND released_at IS NULL
-		  AND (blacklist_expires_at IS NULL OR blacklist_expires_at > NOW())
-		ORDER BY blacklisted_at DESC
-		LIMIT 1
-	`, qqID))
-	if err != nil {
-		return nil, err
-	}
-	return failure, nil
-}
-
 func (r *Repository) GetAdmissionFailure(
 	ctx context.Context,
 	platform string,
@@ -97,28 +80,10 @@ func (r *Repository) GetAdmissionFailure(
 	qqID string,
 ) (*AdmissionFailure, error) {
 	return scanAdmissionFailure(r.db.QueryRow(ctx, `
-		SELECT platform, guild_id, qq_id, failure_count, blacklisted_at, blacklist_expires_at, released_at
+		SELECT platform, guild_id, qq_id, failure_count
 		FROM group_admission_failures
-		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3 AND released_at IS NULL
+		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3
 	`, platform, guildID, qqID))
-}
-
-func (r *Repository) ReleaseAdmissionBlacklist(ctx context.Context, qqID string, now time.Time) error {
-	tag, err := r.db.Exec(ctx, `
-		UPDATE group_admission_failures
-		SET released_at = $2, updated_at = NOW()
-		WHERE qq_id = $1
-		  AND blacklisted_at IS NOT NULL
-		  AND released_at IS NULL
-		  AND (blacklist_expires_at IS NULL OR blacklist_expires_at > $2)
-	`, qqID, now)
-	if err != nil {
-		return fmt.Errorf("ReleaseAdmissionBlacklist: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrAdmissionBlacklistNotFound
-	}
-	return nil
 }
 
 func (r *Repository) MarkReminderSentTx(
@@ -145,13 +110,13 @@ func (r *Repository) MarkBotReleaseCompletedTx(ctx context.Context, tx pgx.Tx, s
 	return err
 }
 
-func (r *Repository) MarkBotKickCompletedTx(ctx context.Context, tx pgx.Tx, sessionID string, now time.Time) error {
-	_, err := tx.Exec(ctx, `
+func (r *Repository) MarkBotKickCompletedTx(ctx context.Context, tx pgx.Tx, sessionID string, now time.Time) (bool, error) {
+	tag, err := tx.Exec(ctx, `
 		UPDATE group_admission_sessions
 		SET status = $2, cancelled_at = $3, updated_at = NOW()
 		WHERE id = $1 AND status IN ($4, $5, $6)
 	`, sessionID, StatusExpiredKicked, now, StatusJoinedMuted, StatusLinked, StatusMaterialSubmitted)
-	return err
+	return tag.RowsAffected() > 0, err
 }
 
 func (r *Repository) ManagementGuildAllowed(ctx context.Context, guildID string) (bool, error) {

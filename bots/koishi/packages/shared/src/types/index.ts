@@ -1,3 +1,5 @@
+export * from './member-blacklist'
+
 export type PlatformVerificationState =
   | 'unbound'
   | 'bound_unverified'
@@ -231,12 +233,6 @@ export interface AdmissionPendingAction {
   readonly reason?: string
 }
 
-export interface AdmissionQQAccess {
-  readonly canJoin: boolean
-  readonly reason?: string
-  readonly autoApproveJoin?: boolean
-}
-
 export interface AdmissionBotEventRequest {
   readonly action: AdmissionBotAction
   readonly success: boolean
@@ -281,5 +277,3 @@ export interface FreshmanReviewRequest extends FreshmanCommandContext {
   readonly reason?: string
   readonly expiresInDays?: number
 }
-
-export interface FreshmanBlacklistReleaseRequest extends FreshmanCommandContext {}

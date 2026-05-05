@@ -83,17 +83,6 @@ func (h *Handler) handleAdminGetFreshmanVerification(c *gin.Context) {
 	response.Success(c, app)
 }
 
-func (h *Handler) handleAdminReleaseAdmissionBlacklist(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
-	if err := h.service.ReleaseAdmissionBlacklist(c.Request.Context(), c.Param("qqID")); err != nil {
-		respondAdmissionError(c, err)
-		return
-	}
-	response.Success(c, gin.H{"message": "admission blacklist released"})
-}
-
 func admissionSessionListFilterFromQuery(c *gin.Context) (AdmissionSessionListFilter, bool) {
 	page, pageSize := httputil.ParsePage(c)
 	status, ok := parseAdmissionSessionStatus(c.Query("status"))

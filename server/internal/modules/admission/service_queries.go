@@ -7,8 +7,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const blacklistReason = "blacklisted"
-
 func (s *Service) ListAdmissionPolicies(ctx context.Context) ([]AdmissionPolicy, error) {
 	return s.repo.ListPolicies(ctx)
 }
@@ -39,27 +37,11 @@ func (s *Service) MarkFreshmanApplicationForwarded(ctx context.Context, applicat
 	return s.repo.MarkFreshmanApplicationForwarded(ctx, strings.TrimSpace(applicationID), s.now())
 }
 
-func (s *Service) GetAdmissionQQAccess(ctx context.Context, qqID string) (*AdmissionQQAccess, error) {
-	failure, err := s.repo.GetActiveAdmissionFailure(ctx, strings.TrimSpace(qqID))
-	if err != nil {
-		return nil, err
-	}
-	if failure != nil {
-		reason := blacklistReason
-		return &AdmissionQQAccess{CanJoin: false, Reason: &reason}, nil
-	}
-	return &AdmissionQQAccess{CanJoin: true, AutoApproveJoin: true}, nil
-}
-
 func (s *Service) RecordJoinRequestEvent(ctx context.Context, input AdmissionJoinRequestEventInput) error {
 	event := joinRequestAuditEvent(ctx, normalizeJoinRequestEventInput(input))
 	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		return s.repo.InsertAuditEventTx(ctx, tx, event)
 	})
-}
-
-func (s *Service) ReleaseAdmissionBlacklist(ctx context.Context, qqID string) error {
-	return s.repo.ReleaseAdmissionBlacklist(ctx, strings.TrimSpace(qqID), s.now())
 }
 
 func normalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {

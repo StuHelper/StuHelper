@@ -1,4 +1,5 @@
 import type { Command, Context } from 'koishi'
+import { createPlatformClient, type PlatformClient } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config } from '../../types'
@@ -25,7 +26,8 @@ export class MemberManageModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager
+    readonly data: DataManager,
+    readonly memberBlacklistBackend?: Pick<PlatformClient, 'createMemberBlacklist'>,
   ) {}
 
   get config(): Config {
@@ -71,6 +73,9 @@ export class MemberManageModule implements RuntimeModuleInstance {
 export const memberManageRuntimeModule: RuntimeModule<MemberManageModule> = {
   id: 'manage-member',
   create(ctx, deps) {
-    return new MemberManageModule(ctx, deps.data)
+    const memberBlacklistBackend = deps.coreConfig
+      ? createPlatformClient(deps.coreConfig.platform)
+      : undefined
+    return new MemberManageModule(ctx, deps.data, memberBlacklistBackend)
   },
 }

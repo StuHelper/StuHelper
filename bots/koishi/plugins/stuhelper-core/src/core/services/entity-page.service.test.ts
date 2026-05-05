@@ -52,9 +52,9 @@ function createDeps(): EntityPageServiceDeps {
       '1001': { target: { count: 2, timestamp: 1 } },
       '2002': { target: { count: 3, timestamp: 1 } },
     }),
-    loadBlacklist: async () => ({
-      target: { userId: 'target', guildId: '2002', timestamp: 1 },
-    }),
+    loadBlacklist: async () => [
+      { userId: 'target', guildId: '2002', timestamp: 1 },
+    ],
     loadGuardRecords: async () => [
       createGuardRecord('gm-1001', '1001'),
       createGuardRecord('gm-2002', '2002'),

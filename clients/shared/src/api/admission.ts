@@ -4,6 +4,13 @@ import type { components, operations } from '../types/api.gen'
 type AdmissionSession = components['schemas']['AdmissionSession']
 type AdmissionMe = components['schemas']['AdmissionMe']
 type FreshmanApplication = components['schemas']['FreshmanApplication']
+type MemberBlacklistEntry = components['schemas']['MemberBlacklistEntry']
+type MemberBlacklistCreateRequest =
+  operations['createAdminMemberBlacklistEntry']['requestBody']['content']['application/json']
+type MemberBlacklistReleaseRequest =
+  operations['releaseAdminMemberBlacklistEntry']['requestBody']['content']['application/json']
+type MemberBlacklistReleaseBySubjectRequest =
+  operations['releaseAdminMemberBlacklistBySubject']['requestBody']['content']['application/json']
 type CreateFreshmanApplicationRequest =
   operations['createFreshmanApplication']['requestBody']['content']['application/json']
 type CameraCaptureRequest = components['schemas']['CameraCaptureRequest']
@@ -15,6 +22,8 @@ type ListAdmissionSessionsParams =
   operations['listAdmissionSessions']['parameters']['query']
 type ListFreshmanVerificationsParams =
   operations['listFreshmanVerifications']['parameters']['query']
+type ListMemberBlacklistParams =
+  operations['listAdminMemberBlacklist']['parameters']['query']
 
 function withQQQuery(qq?: string) {
   return qq ? { qq } : undefined
@@ -85,9 +94,23 @@ export const createAdmissionApi = (client: ApiClient) => ({
       body: data,
     }),
 
-  releaseAdmissionBlacklist: (qqID: string) =>
-    client.POST('/api/v1/admin/admission/blacklist/{qqID}/release', {
-      params: { path: { qqID } },
+  listMemberBlacklist: (params?: ListMemberBlacklistParams) =>
+    client.GET('/api/v1/admin/member-blacklist', {
+      params: { query: params },
+    }),
+
+  createMemberBlacklist: (data: MemberBlacklistCreateRequest) =>
+    client.POST('/api/v1/admin/member-blacklist', { body: data }),
+
+  releaseMemberBlacklist: (id: string, data: MemberBlacklistReleaseRequest) =>
+    client.POST('/api/v1/admin/member-blacklist/{id}/release', {
+      params: { path: { id } },
+      body: data,
+    }),
+
+  releaseMemberBlacklistBySubject: (data: MemberBlacklistReleaseBySubjectRequest) =>
+    client.POST('/api/v1/admin/member-blacklist/release-by-subject', {
+      body: data,
     }),
 })
 
@@ -101,6 +124,11 @@ export type {
   FreshmanReviewRequest,
   ListAdmissionSessionsParams,
   ListFreshmanVerificationsParams,
+  ListMemberBlacklistParams,
+  MemberBlacklistCreateRequest,
+  MemberBlacklistEntry,
+  MemberBlacklistReleaseBySubjectRequest,
+  MemberBlacklistReleaseRequest,
   SchoolEmailOTPRequest,
   SchoolEmailOTPVerifyRequest,
 }

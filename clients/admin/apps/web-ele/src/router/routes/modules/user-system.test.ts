@@ -19,6 +19,7 @@ describe('user-system routes', () => {
         'user:system:read',
         'admission:freshman:review',
         'admission:policy:update',
+        'member_blacklist:manage',
       ]),
     );
   });
@@ -31,6 +32,9 @@ describe('user-system routes', () => {
     expect(freshman?.path).toBe('/users/freshman-verification');
     expect(freshman?.meta?.authority).toEqual(['admission:freshman:review']);
     expect(policy?.path).toBe('/users/admission-policy');
-    expect(policy?.meta?.authority).toEqual(['admission:policy:update']);
+    expect(policy?.meta?.authority).toEqual([
+      'admission:policy:update',
+      'member_blacklist:manage',
+    ]);
   });
 });

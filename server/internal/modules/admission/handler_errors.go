@@ -33,6 +33,10 @@ func respondAdmissionError(c *gin.Context, err error) {
 		response.NotFound(c, "admission application not found")
 	case errors.Is(err, ErrAdmissionBlacklistNotFound):
 		response.NotFound(c, "admission blacklist not found")
+	case errors.Is(err, ErrMemberBlacklistNotFound):
+		response.NotFound(c, "member blacklist not found")
+	case errors.Is(err, ErrMemberBlacklistInvalidInput), errors.Is(err, ErrMemberBlacklistSourceForbidden):
+		response.BadRequest(c, "invalid member blacklist request")
 	case errors.Is(err, ErrAdmissionOperatorUnbound),
 		errors.Is(err, ErrAdmissionOperatorForbidden),
 		errors.Is(err, ErrAdmissionManagementGuildForbidden):

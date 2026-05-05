@@ -4,14 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -28,28 +33,28 @@ type Fixture struct {
 	closeFn func() error
 }
 
+type sharedPostgresServer struct {
+	adminURL string
+}
+
+var sharedPostgres = struct {
+	once   sync.Once
+	server *sharedPostgresServer
+	err    error
+	seq    atomic.Uint64
+}{}
+
 func Start(t *testing.T) *Fixture {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	container, err := postgrescontainer.Run(ctx,
-		"postgres:18-alpine",
-		postgrescontainer.WithDatabase("stuhelper"),
-		postgrescontainer.WithUsername("stuhelper"),
-		postgrescontainer.WithPassword("stuhelper"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(2*time.Minute),
-		),
-	)
-	require.NoError(t, err)
+	server := startSharedPostgres(t, ctx)
+	dbName := nextDatabaseName()
+	createTestDatabase(t, ctx, server.adminURL, dbName)
 
-	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
-	require.NoError(t, err)
-
+	connStr := databaseURLForTest(t, server.adminURL, dbName)
 	applyMigrations(t, connStr)
 
 	pool, err := pgxpool.New(ctx, connStr)
@@ -62,13 +67,102 @@ func Start(t *testing.T) *Fixture {
 		URL:  connStr,
 		closeFn: func() error {
 			wrapped.Close()
-			termCtx, termCancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer termCancel()
-			return container.Terminate(termCtx)
+			return dropTestDatabase(server.adminURL, dbName)
 		},
 	}
 	t.Cleanup(fixturesCleanup(t, fixture))
 	return fixture
+}
+
+func startSharedPostgres(t *testing.T, ctx context.Context) *sharedPostgresServer {
+	t.Helper()
+
+	sharedPostgres.once.Do(func() {
+		sharedPostgres.server, sharedPostgres.err = runSharedPostgres(ctx)
+	})
+	require.NoError(t, sharedPostgres.err)
+	return sharedPostgres.server
+}
+
+func runSharedPostgres(ctx context.Context) (*sharedPostgresServer, error) {
+	container, err := postgrescontainer.Run(ctx,
+		"postgres:18-alpine",
+		postgrescontainer.WithDatabase("stuhelper"),
+		postgrescontainer.WithUsername("stuhelper"),
+		postgrescontainer.WithPassword("stuhelper"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(2*time.Minute),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		return nil, err
+	}
+	return &sharedPostgresServer{adminURL: databaseURLForName(connStr, "postgres")}, nil
+}
+
+func nextDatabaseName() string {
+	return fmt.Sprintf("stuhelper_test_%d", sharedPostgres.seq.Add(1))
+}
+
+func createTestDatabase(t *testing.T, ctx context.Context, adminURL string, dbName string) {
+	t.Helper()
+
+	conn, err := pgx.Connect(ctx, adminURL)
+	require.NoError(t, err)
+	defer conn.Close(ctx)
+
+	_, err = conn.Exec(ctx, "CREATE DATABASE "+quoteIdentifier(dbName))
+	require.NoError(t, err)
+}
+
+func dropTestDatabase(adminURL string, dbName string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	conn, err := pgx.Connect(ctx, adminURL)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+
+	_, execErr := conn.Exec(ctx, "DROP DATABASE IF EXISTS "+quoteIdentifier(dbName)+" WITH (FORCE)")
+	return execErr
+}
+
+func databaseURLForTest(t *testing.T, rawURL string, dbName string) string {
+	t.Helper()
+
+	connStr, err := databaseURLWithName(rawURL, dbName)
+	require.NoError(t, err)
+	return connStr
+}
+
+func databaseURLForName(rawURL string, dbName string) string {
+	connStr, err := databaseURLWithName(rawURL, dbName)
+	if err != nil {
+		panic(err)
+	}
+	return connStr
+}
+
+func databaseURLWithName(rawURL string, dbName string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	parsed.Path = "/" + dbName
+	return parsed.String(), nil
+}
+
+func quoteIdentifier(identifier string) string {
+	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
 }
 
 func fixturesCleanup(t *testing.T, f *Fixture) func() {

@@ -54,41 +54,6 @@
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/bot/admission/qq-users/{qqID}/access:
-  get:
-    tags: [Bot]
-    operationId: getBotAdmissionQQAccess
-    summary: 机器人查询 QQ 用户 admission 准入状态
-    security:
-      - serviceTokenAuth: []
-    parameters:
-      - name: qqID
-        in: path
-        required: true
-        schema:
-          type: string
-    responses:
-      '200':
-        description: QQ 准入状态
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
-                - type: object
-                  required: [data]
-                  properties:
-                    data:
-                      type: object
-                      required: [canJoin]
-                      properties:
-                        canJoin:
-                          type: boolean
-                        reason:
-                          type: string
-      '401':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-
 /api/v1/bot/admission/sessions/pending:
   get:
     tags: [Bot]
@@ -331,37 +296,4 @@
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-
-/api/v1/bot/admission/blacklist/{qqID}/release:
-  post:
-    tags: [Bot]
-    operationId: releaseBotAdmissionBlacklist
-    summary: QQ 管理群解除入群认证黑名单
-    security:
-      - serviceTokenAuth: []
-    parameters:
-      - name: qqID
-        in: path
-        required: true
-        schema:
-          type: string
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '../components/schemas/admission.yaml#/BotFreshmanCommandContext'
-    responses:
-      '200':
-        description: 黑名单已解除
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/SuccessResponse'
-      '401':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '403':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '404':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

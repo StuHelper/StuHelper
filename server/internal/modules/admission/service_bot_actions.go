@@ -44,17 +44,6 @@ func (s *Service) ViewFreshmanApplicationFromBot(
 	return s.repo.GetFreshmanApplicationByID(ctx, strings.TrimSpace(input.ApplicationID))
 }
 
-func (s *Service) ReleaseAdmissionBlacklistFromBot(
-	ctx context.Context,
-	qqID string,
-	input BotFreshmanCommandInput,
-) error {
-	if err := s.authorizeBotCommandForManagementGuild(ctx, input); err != nil {
-		return err
-	}
-	return s.ReleaseAdmissionBlacklist(ctx, qqID)
-}
-
 func (s *Service) pendingActionsFromSessions(
 	sessions []AdmissionSession,
 	seeds []pendingActionSeed,

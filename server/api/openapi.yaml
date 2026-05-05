@@ -303,8 +303,14 @@ paths:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions"
   /api/v1/bot/admission/join-requests/events:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1join-requests~1events"
-  /api/v1/bot/admission/qq-users/{qqID}/access:
-    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1qq-users~1{qqID}~1access"
+  /api/v1/bot/member-blacklist/access:
+    $ref: "paths/bot-member-blacklist.yaml#/~1api~1v1~1bot~1member-blacklist~1access"
+  /api/v1/bot/member-blacklist:
+    $ref: "paths/bot-member-blacklist.yaml#/~1api~1v1~1bot~1member-blacklist"
+  /api/v1/bot/member-blacklist/{id}/release:
+    $ref: "paths/bot-member-blacklist.yaml#/~1api~1v1~1bot~1member-blacklist~1{id}~1release"
+  /api/v1/bot/member-blacklist/release-by-subject:
+    $ref: "paths/bot-member-blacklist.yaml#/~1api~1v1~1bot~1member-blacklist~1release-by-subject"
   /api/v1/bot/admission/sessions/pending:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1pending"
   /api/v1/bot/admission/sessions/{id}/events:
@@ -317,8 +323,6 @@ paths:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1view"
   /api/v1/bot/admission/freshman/applications/{id}/review:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1review"
-  /api/v1/bot/admission/blacklist/{qqID}/release:
-    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1blacklist~1{qqID}~1release"
 
   # ── Admin: User System ──
   /api/v1/admin/identities:
@@ -349,8 +353,12 @@ paths:
     $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1freshman-verifications"
   /api/v1/admin/freshman-verifications/{id}:
     $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1freshman-verifications~1{id}"
-  /api/v1/admin/admission/blacklist/{qqID}/release:
-    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1blacklist~1{qqID}~1release"
+  /api/v1/admin/member-blacklist:
+    $ref: "paths/admin-member-blacklist.yaml#/~1api~1v1~1admin~1member-blacklist"
+  /api/v1/admin/member-blacklist/{id}/release:
+    $ref: "paths/admin-member-blacklist.yaml#/~1api~1v1~1admin~1member-blacklist~1{id}~1release"
+  /api/v1/admin/member-blacklist/release-by-subject:
+    $ref: "paths/admin-member-blacklist.yaml#/~1api~1v1~1admin~1member-blacklist~1release-by-subject"
 
   # ── Metrics ──
   /api/v1/metrics/vitals:
@@ -605,6 +613,32 @@ components:
       $ref: "components/schemas/admission.yaml#/SchoolEmailOTPRequest"
     SchoolEmailOTPVerifyRequest:
       $ref: "components/schemas/admission.yaml#/SchoolEmailOTPVerifyRequest"
+    MemberBlacklistEntry:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistEntry"
+    MemberBlacklistCreateRequest:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistCreateRequest"
+    MemberBlacklistReleaseRequest:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistReleaseRequest"
+    MemberBlacklistReleaseBySubjectRequest:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistReleaseBySubjectRequest"
+    MemberBlacklistAccessDecision:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistAccessDecision"
+    MemberBlacklistSource:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistSource"
+    MemberBlacklistScopeType:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistScopeType"
+    MemberBlacklistSubjectType:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistSubjectType"
+    MemberBlacklistReasonCode:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistReasonCode"
+    MemberBlacklistActorType:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistActorType"
+    MemberBlacklistCreatedFrom:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistCreatedFrom"
+    MemberBlacklistStatus:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistStatus"
+    MemberBlacklistReleaseReasonCode:
+      $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistReleaseReasonCode"
 
   parameters:
     PageParam:

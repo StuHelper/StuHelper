@@ -15,12 +15,6 @@ type AdmissionPendingAction struct {
 	Reason     string    `json:"reason,omitempty"`
 }
 
-type AdmissionQQAccess struct {
-	CanJoin         bool    `json:"canJoin"`
-	Reason          *string `json:"reason,omitempty"`
-	AutoApproveJoin bool    `json:"autoApproveJoin,omitempty"`
-}
-
 type AdmissionJoinRequestEventInput struct {
 	Platform  string
 	GuildID   string

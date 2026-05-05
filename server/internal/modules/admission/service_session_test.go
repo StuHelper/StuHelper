@@ -94,15 +94,31 @@ func TestAdmissionFailureBlacklistFromKickEvent(t *testing.T) {
 	svc := newSessionTestService(t, fixture)
 	insertAdmissionPolicy(t, fixture)
 	created := createLinkableSession(t, svc)
+	insertAdmissionFailureCount(t, fixture, DefaultFailedJoinLimit-1)
 
-	for i := 0; i < DefaultFailedJoinLimit; i++ {
+	err := svc.RecordBotEvent(context.Background(), created.Session.ID, BotEventInput{
+		Action: BotActionKick, Success: true,
+	})
+	require.NoError(t, err)
+
+	assertAdmissionFailureBlacklisted(t, fixture, "10001")
+}
+
+func TestDuplicateKickEventDoesNotDoubleCountFailure(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createLinkableSession(t, svc)
+
+	for i := 0; i < 2; i++ {
 		err := svc.RecordBotEvent(context.Background(), created.Session.ID, BotEventInput{
 			Action: BotActionKick, Success: true,
 		})
 		require.NoError(t, err)
 	}
 
-	assertAdmissionFailureBlacklisted(t, fixture, "10001")
+	assertAdmissionFailureCount(t, fixture, "10001", 1)
+	assert.Equal(t, 0, countMemberBlacklistEntries(t, fixture))
 }
 
 type linkResult struct {
@@ -180,14 +196,26 @@ func (g *testQQBindingGateway) EnsureQQBindingForUserTx(
 
 func assertAdmissionFailureBlacklisted(t *testing.T, fixture *postgresfixture.Fixture, qqID string) {
 	t.Helper()
+	assertAdmissionFailureCount(t, fixture, qqID, DefaultFailedJoinLimit)
 	var failureCount int
-	var blacklistedAt *time.Time
 	err := fixture.Pool.QueryRow(context.Background(), `
-		SELECT failure_count, blacklisted_at
+		SELECT COUNT(*)
+		FROM member_blacklist_entries
+		WHERE platform = 'qq' AND guild_id = 'guild-1' AND subject_id = $1
+		  AND source = 'admission_failure' AND released_at IS NULL
+	`, qqID).Scan(&failureCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, failureCount)
+}
+
+func assertAdmissionFailureCount(t *testing.T, fixture *postgresfixture.Fixture, qqID string, expected int) {
+	t.Helper()
+	var failureCount int
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT failure_count
 		FROM group_admission_failures
 		WHERE platform = 'qq' AND guild_id = 'guild-1' AND qq_id = $1
-	`, qqID).Scan(&failureCount, &blacklistedAt)
+	`, qqID).Scan(&failureCount)
 	require.NoError(t, err)
-	assert.Equal(t, DefaultFailedJoinLimit, failureCount)
-	assert.NotNil(t, blacklistedAt)
+	assert.Equal(t, expected, failureCount)
 }

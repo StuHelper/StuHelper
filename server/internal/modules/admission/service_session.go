@@ -133,10 +133,16 @@ func (s *Service) applySuccessfulBotEventTx(ctx context.Context, input successfu
 	case BotActionRelease:
 		return s.repo.MarkBotReleaseCompletedTx(ctx, input.Tx, input.Session.ID, s.now())
 	case BotActionKick, BotActionBlacklist:
-		if err := s.repo.MarkBotKickCompletedTx(ctx, input.Tx, input.Session.ID, s.now()); err != nil {
+		now := s.now()
+		completed, err := s.repo.MarkBotKickCompletedTx(ctx, input.Tx, input.Session.ID, now)
+		if err != nil || !completed {
 			return err
 		}
-		_, err := s.repo.IncrementFailureFromKickEventTx(ctx, input.Tx, input.Session, input.Policy, s.now())
+		count, err := s.repo.IncrementFailureFromKickEventTx(ctx, input.Tx, input.Session, input.Policy, now)
+		if err != nil || count < input.Policy.FailedJoinLimit {
+			return err
+		}
+		_, err = s.createAdmissionFailureBlacklistTx(ctx, input.Tx, admissionFailureBlacklistInput(input, count, now))
 		return err
 	default:
 		return ErrAdmissionInvalidStatus
@@ -148,6 +154,43 @@ type successfulBotEventTxInput struct {
 	Session *AdmissionSession
 	Policy  *AdmissionPolicy
 	Action  BotAction
+}
+
+func admissionFailureBlacklistInput(
+	input successfulBotEventTxInput,
+	failureCount int,
+	now time.Time,
+) MemberBlacklistCreateInput {
+	return MemberBlacklistCreateInput{
+		Platform: input.Session.Platform, SubjectType: BlacklistSubjectQQUser, SubjectID: input.Session.QQID,
+		ScopeType: BlacklistScopeGuild, GuildID: &input.Session.GuildID, Source: BlacklistSourceAdmissionFailure,
+		ReasonCode: BlacklistReasonAdmissionTimeoutLimit, ReasonText: "admission failure limit reached",
+		CreatedByType: BlacklistActorSystem, CreatedByID: "system",
+		CreatedFrom: BlacklistCreatedFromAdmissionWorker, ExpiresAt: admissionFailureBlacklistExpiresAt(input, now),
+		Metadata: admissionFailureBlacklistMetadata(input, failureCount),
+	}
+}
+
+func admissionFailureBlacklistExpiresAt(input successfulBotEventTxInput, now time.Time) *time.Time {
+	if input.Policy.BlacklistDurationSeconds == nil {
+		return nil
+	}
+	expiresAt := now.Add(time.Duration(*input.Policy.BlacklistDurationSeconds) * time.Second)
+	return &expiresAt
+}
+
+func admissionFailureBlacklistMetadata(
+	input successfulBotEventTxInput,
+	failureCount int,
+) map[string]any {
+	return map[string]any{
+		"admissionSessionID": input.Session.ID,
+		"failureCount":       failureCount,
+		"failedJoinLimit":    input.Policy.FailedJoinLimit,
+		"platform":           input.Session.Platform,
+		"guildID":            input.Session.GuildID,
+		"botSelfID":          input.Session.BotSelfID,
+	}
 }
 
 func (s *Service) newAdmissionSession(

@@ -270,10 +270,15 @@ export interface WarnRecord {
 }
 
 
-export interface BlacklistRecord {
-  userId: string
-  timestamp: number
-}
+export type {
+  MemberBlacklistCreateParams,
+  MemberBlacklistEntry,
+  MemberBlacklistListResult,
+  MemberBlacklistReasonCode,
+  MemberBlacklistReleaseParams,
+  MemberBlacklistScopeType,
+  MemberBlacklistSource,
+} from './member-blacklist'
 
 
 export interface MuteRecord {

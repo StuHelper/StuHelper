@@ -16,6 +16,7 @@ const routes: RouteRecordRaw[] = [
         'user:system:read',
         'admission:freshman:review',
         'admission:policy:update',
+        'member_blacklist:manage',
       ],
     },
     name: 'UserSystem',
@@ -68,7 +69,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           icon: 'lucide:shield-check',
           title: $t('admin.routes.userSystem.admissionPolicy'),
-          authority: ['admission:policy:update'],
+          authority: ['admission:policy:update', 'member_blacklist:manage'],
         },
       },
       {

@@ -4611,23 +4611,95 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/bot/admission/qq-users/{qqID}/access:
+  /api/v1/bot/member-blacklist/access:
     get:
       tags:
         - Bot
-      operationId: getBotAdmissionQQAccess
-      summary: 机器人查询 QQ 用户 admission 准入状态
+      operationId: getBotMemberBlacklistAccess
+      summary: 机器人查询成员黑名单准入状态
       security:
         - serviceTokenAuth: []
       parameters:
-        - name: qqID
-          in: path
+        - name: platform
+          in: query
           required: true
+          schema:
+            type: string
+        - name: subjectType
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistSubjectType'
+        - name: subjectID
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: guildID
+          in: query
           schema:
             type: string
       responses:
         '200':
-          description: QQ 准入状态
+          description: 成员准入决策
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MemberBlacklistAccessDecision'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/member-blacklist:
+    get:
+      tags:
+        - Bot
+      operationId: listBotMemberBlacklist
+      summary: 机器人查询成员黑名单
+      security:
+        - serviceTokenAuth: []
+      parameters:
+        - name: platform
+          in: query
+          schema:
+            type: string
+        - name: subjectType
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistSubjectType'
+        - name: subjectID
+          in: query
+          schema:
+            type: string
+        - name: scopeType
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistScopeType'
+        - name: source
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistSource'
+        - name: guildID
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistStatus'
+            default: active
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成员黑名单分页列表
           content:
             application/json:
               schema:
@@ -4640,13 +4712,123 @@ paths:
                       data:
                         type: object
                         required:
-                          - canJoin
+                          - list
+                          - total
                         properties:
-                          canJoin:
-                            type: boolean
-                          reason:
-                            type: string
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/MemberBlacklistEntry'
+                          total:
+                            type: integer
         '401':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Bot
+      operationId: createBotMemberBlacklistEntry
+      summary: 机器人创建成员黑名单
+      security:
+        - serviceTokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberBlacklistCreateRequest'
+      responses:
+        '201':
+          description: 成员黑名单已创建
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MemberBlacklistEntry'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/member-blacklist/{id}/release:
+    post:
+      tags:
+        - Bot
+      operationId: releaseBotMemberBlacklistEntry
+      summary: 机器人按 ID 解除成员黑名单
+      security:
+        - serviceTokenAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberBlacklistReleaseRequest'
+      responses:
+        '200':
+          description: 成员黑名单已解除
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MemberBlacklistEntry'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/bot/member-blacklist/release-by-subject:
+    post:
+      tags:
+        - Bot
+      operationId: releaseBotMemberBlacklistBySubject
+      summary: 机器人按主体解除成员黑名单
+      security:
+        - serviceTokenAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberBlacklistReleaseBySubjectRequest'
+      responses:
+        '200':
+          description: 成员黑名单已解除
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MemberBlacklistEntry'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/admission/sessions/pending:
     get:
@@ -4904,39 +5086,6 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/bot/admission/blacklist/{qqID}/release:
-    post:
-      tags:
-        - Bot
-      operationId: releaseBotAdmissionBlacklist
-      summary: QQ 管理群解除入群认证黑名单
-      security:
-        - serviceTokenAuth: []
-      parameters:
-        - name: qqID
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BotFreshmanCommandContext'
-      responses:
-        '200':
-          description: 黑名单已解除
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '403':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/identities:
     get:
@@ -5530,28 +5679,185 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '403':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/admin/admission/blacklist/{qqID}/release:
-    post:
+  /api/v1/admin/member-blacklist:
+    get:
       tags:
         - Admin
-      operationId: releaseAdmissionBlacklist
-      summary: 解除 QQ 入群认证黑名单
+      operationId: listAdminMemberBlacklist
+      summary: Admin 查询成员黑名单
       security:
         - cookieAuth: []
         - bearerAuth: []
       parameters:
-        - name: qqID
+        - name: platform
+          in: query
+          schema:
+            type: string
+        - name: subjectType
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistSubjectType'
+        - name: subjectID
+          in: query
+          schema:
+            type: string
+        - name: scopeType
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistScopeType'
+        - name: source
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistSource'
+        - name: guildID
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemberBlacklistStatus'
+            default: active
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 成员黑名单分页列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - list
+                          - total
+                        properties:
+                          list:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/MemberBlacklistEntry'
+                          total:
+                            type: integer
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Admin
+      operationId: createAdminMemberBlacklistEntry
+      summary: Admin 创建成员黑名单
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberBlacklistCreateRequest'
+      responses:
+        '201':
+          description: 成员黑名单已创建
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MemberBlacklistEntry'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/member-blacklist/{id}/release:
+    post:
+      tags:
+        - Admin
+      operationId: releaseAdminMemberBlacklistEntry
+      summary: Admin 按 ID 解除成员黑名单
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
           in: path
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberBlacklistReleaseRequest'
       responses:
         '200':
-          description: 黑名单已解除
+          description: 成员黑名单已解除
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MemberBlacklistEntry'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/member-blacklist/release-by-subject:
+    post:
+      tags:
+        - Admin
+      operationId: releaseAdminMemberBlacklistBySubject
+      summary: Admin 按主体解除成员黑名单
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberBlacklistReleaseBySubjectRequest'
+      responses:
+        '200':
+          description: 成员黑名单已解除
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MemberBlacklistEntry'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -7702,6 +8008,230 @@ components:
           type: string
           minLength: 4
           maxLength: 12
+    MemberBlacklistEntry:
+      type: object
+      required:
+        - id
+        - platform
+        - subjectType
+        - subjectID
+        - scopeType
+        - source
+        - reasonCode
+        - reasonText
+        - createdByType
+        - createdByID
+        - createdFrom
+        - metadata
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        platform:
+          type: string
+        subjectType:
+          $ref: '#/components/schemas/MemberBlacklistSubjectType'
+        subjectID:
+          type: string
+        scopeType:
+          $ref: '#/components/schemas/MemberBlacklistScopeType'
+        guildID:
+          type:
+            - string
+            - 'null'
+        source:
+          $ref: '#/components/schemas/MemberBlacklistSource'
+        reasonCode:
+          $ref: '#/components/schemas/MemberBlacklistReasonCode'
+        reasonText:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        createdByType:
+          $ref: '#/components/schemas/MemberBlacklistActorType'
+        createdByID:
+          type: string
+        createdFrom:
+          $ref: '#/components/schemas/MemberBlacklistCreatedFrom'
+        expiresAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        releasedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        releasedByType:
+          type:
+            - string
+            - 'null'
+        releasedByID:
+          type:
+            - string
+            - 'null'
+        releaseReasonCode:
+          type:
+            - string
+            - 'null'
+        releaseReason:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MemberBlacklistCreateRequest:
+      type: object
+      required:
+        - platform
+        - subjectType
+        - subjectID
+        - scopeType
+        - source
+        - reasonCode
+        - reasonText
+        - metadata
+      properties:
+        platform:
+          type: string
+        subjectType:
+          $ref: '#/components/schemas/MemberBlacklistSubjectType'
+        subjectID:
+          type: string
+        scopeType:
+          $ref: '#/components/schemas/MemberBlacklistScopeType'
+        guildID:
+          type: string
+        source:
+          $ref: '#/components/schemas/MemberBlacklistSource'
+        reasonCode:
+          $ref: '#/components/schemas/MemberBlacklistReasonCode'
+        reasonText:
+          type: string
+          minLength: 1
+        expiresAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+    MemberBlacklistReleaseRequest:
+      type: object
+      required:
+        - releaseReasonCode
+      properties:
+        releaseReasonCode:
+          $ref: '#/components/schemas/MemberBlacklistReleaseReasonCode'
+        releaseReason:
+          type: string
+        operatorQQID:
+          type: string
+    MemberBlacklistReleaseBySubjectRequest:
+      allOf:
+        - $ref: '#/components/schemas/MemberBlacklistReleaseRequest'
+        - type: object
+          required:
+            - platform
+            - subjectType
+            - subjectID
+            - scopeType
+          properties:
+            platform:
+              type: string
+            subjectType:
+              $ref: '#/components/schemas/MemberBlacklistSubjectType'
+            subjectID:
+              type: string
+            scopeType:
+              $ref: '#/components/schemas/MemberBlacklistScopeType'
+            guildID:
+              type: string
+            operatorQQID:
+              type: string
+    MemberBlacklistAccessDecision:
+      type: object
+      required:
+        - canJoin
+        - decision
+      properties:
+        canJoin:
+          type: boolean
+        decision:
+          type: string
+          enum:
+            - allowed
+            - blocked
+        matchedBlacklist:
+          $ref: '#/components/schemas/MemberBlacklistEntry'
+        reason:
+          type: string
+    MemberBlacklistSource:
+      type: string
+      enum:
+        - admission_failure
+        - manual_admin
+        - kick_blacklist
+        - moderation_action
+        - migration_legacy_koishi
+        - migration_admission_failure
+    MemberBlacklistScopeType:
+      type: string
+      enum:
+        - global
+        - guild
+    MemberBlacklistSubjectType:
+      type: string
+      enum:
+        - qq_user
+    MemberBlacklistReasonCode:
+      type: string
+      enum:
+        - admission_timeout_limit
+        - manual_blacklist
+        - manual_kick_blacklist
+        - violation_review_blacklist
+        - legacy_koishi_blacklist
+        - legacy_admission_blacklist
+    MemberBlacklistActorType:
+      type: string
+      enum:
+        - system
+        - admin_user
+        - qq_operator
+        - service_account
+    MemberBlacklistCreatedFrom:
+      type: string
+      enum:
+        - admission_worker
+        - qq_command
+        - koishi_console
+        - admin_console
+        - moderation_review
+        - migration_script
+    MemberBlacklistStatus:
+      type: string
+      enum:
+        - active
+        - released
+        - expired
+        - all
+    MemberBlacklistReleaseReasonCode:
+      type: string
+      enum:
+        - manual_pardon
+        - release_only
+        - policy_expired_auto
+        - admission_appeal_passed
+        - migration_inverse
     CapabilityGrant:
       type: object
       required:

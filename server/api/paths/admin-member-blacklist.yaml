@@ -1,0 +1,177 @@
+/api/v1/admin/member-blacklist:
+  get:
+    tags: [Admin]
+    operationId: listAdminMemberBlacklist
+    summary: Admin 查询成员黑名单
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: platform
+        in: query
+        schema:
+          type: string
+      - name: subjectType
+        in: query
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistSubjectType'
+      - name: subjectID
+        in: query
+        schema:
+          type: string
+      - name: scopeType
+        in: query
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistScopeType'
+      - name: source
+        in: query
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistSource'
+      - name: guildID
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistStatus'
+          default: active
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 成员黑名单分页列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistEntry'
+                        total:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Admin]
+    operationId: createAdminMemberBlacklistEntry
+    summary: Admin 创建成员黑名单
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistCreateRequest'
+    responses:
+      '201':
+        description: 成员黑名单已创建
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistEntry'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/member-blacklist/{id}/release:
+  post:
+    tags: [Admin]
+    operationId: releaseAdminMemberBlacklistEntry
+    summary: Admin 按 ID 解除成员黑名单
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistReleaseRequest'
+    responses:
+      '200':
+        description: 成员黑名单已解除
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistEntry'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/member-blacklist/release-by-subject:
+  post:
+    tags: [Admin]
+    operationId: releaseAdminMemberBlacklistBySubject
+    summary: Admin 按主体解除成员黑名单
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistReleaseBySubjectRequest'
+    responses:
+      '200':
+        description: 成员黑名单已解除
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistEntry'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

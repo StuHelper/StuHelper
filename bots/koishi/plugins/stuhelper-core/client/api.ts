@@ -4,10 +4,32 @@
  */
 
 import { send } from '@koishijs/client'
-import type { GroupConfig, WarnRecord, BlacklistRecord, Subscription, Role, PermissionNode, RoleMember } from './types'
+import type {
+  GroupConfig,
+  WarnRecord,
+  MemberBlacklistCreateParams,
+  MemberBlacklistEntry,
+  MemberBlacklistListResult,
+  MemberBlacklistReleaseParams,
+  Subscription,
+  Role,
+  PermissionNode,
+  RoleMember,
+} from './types'
 
 // 重新导出类型
-export type { GroupConfig, WarnRecord, BlacklistRecord, Subscription, Role, PermissionNode, RoleMember }
+export type {
+  GroupConfig,
+  WarnRecord,
+  MemberBlacklistCreateParams,
+  MemberBlacklistEntry,
+  MemberBlacklistListResult,
+  MemberBlacklistReleaseParams,
+  Subscription,
+  Role,
+  PermissionNode,
+  RoleMember,
+}
 
 // 仪表盘统计数据类型
 export interface DashboardStats {
@@ -60,9 +82,11 @@ export const warnsApi = {
 
 // 黑名单 API
 export const blacklistApi = {
-  list: () => call<Record<string, BlacklistRecord>>('stuhelperGroupCenter/blacklist/list'),
-  add: (userId: string, record: BlacklistRecord) => call<{ success: boolean }>('stuhelperGroupCenter/blacklist/add', { userId, record }),
-  remove: (userId: string) => call<{ success: boolean }>('stuhelperGroupCenter/blacklist/remove', { userId }),
+  list: () => call<MemberBlacklistListResult>('stuhelperGroupCenter/blacklist/list'),
+  add: (input: MemberBlacklistCreateParams) =>
+    call<MemberBlacklistEntry>('stuhelperGroupCenter/blacklist/add', input),
+  remove: (input: MemberBlacklistReleaseParams) =>
+    call<MemberBlacklistEntry>('stuhelperGroupCenter/blacklist/remove', input),
 }
 
 // 订阅 API

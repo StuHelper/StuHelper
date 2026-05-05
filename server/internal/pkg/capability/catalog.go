@@ -17,12 +17,13 @@ const (
 	UserSystemRead     = "user:system:read"
 	UserSystemUpdate   = "user:system:update"
 
-	AdmissionPolicyRead      = "admission:policy:read"
-	AdmissionPolicyUpdate    = "admission:policy:update"
-	AdmissionFreshmanRead    = "admission:freshman:read"
-	AdmissionFreshmanReview  = "admission:freshman:review"
-	AdmissionBlacklistManage = "admission:blacklist:manage"
-	AdmissionSessionRead     = "admission:session:read"
+	AdmissionPolicyRead     = "admission:policy:read"
+	AdmissionPolicyUpdate   = "admission:policy:update"
+	AdmissionFreshmanRead   = "admission:freshman:read"
+	AdmissionFreshmanReview = "admission:freshman:review"
+	AdmissionSessionRead    = "admission:session:read"
+	MemberBlacklistRead     = "member_blacklist:read"
+	MemberBlacklistManage   = "member_blacklist:manage"
 
 	ReviewListFull  = "review:list:full"
 	ReviewCreate    = "review:create"
@@ -41,7 +42,7 @@ var roleCapabilities = map[string][]string{
 		UserSystemRead, UserSystemUpdate,
 		AdmissionPolicyRead, AdmissionPolicyUpdate,
 		AdmissionFreshmanRead, AdmissionFreshmanReview,
-		AdmissionBlacklistManage, AdmissionSessionRead,
+		AdmissionSessionRead, MemberBlacklistRead, MemberBlacklistManage,
 	},
 	"school_admin": {
 		AdminReviewsManage, AdminReportsManage,
@@ -85,6 +86,7 @@ var AdminEntryCapabilities = []string{
 	AdmissionPolicyUpdate,
 	AdmissionFreshmanRead,
 	AdmissionFreshmanReview,
-	AdmissionBlacklistManage,
 	AdmissionSessionRead,
+	MemberBlacklistRead,
+	MemberBlacklistManage,
 }

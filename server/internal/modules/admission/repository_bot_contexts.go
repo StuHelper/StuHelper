@@ -72,10 +72,9 @@ func listAdmissionFailuresByKeysSQL() string {
 		WITH wanted(platform, guild_id, qq_id) AS (
 			SELECT * FROM unnest($1::text[], $2::text[], $3::text[])
 		)
-		SELECT platform, guild_id, qq_id, failure_count, blacklisted_at, blacklist_expires_at, released_at
+		SELECT platform, guild_id, qq_id, failure_count
 		FROM group_admission_failures f
 		JOIN wanted w USING (platform, guild_id, qq_id)
-		WHERE released_at IS NULL
 	`
 }
 

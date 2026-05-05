@@ -4,6 +4,7 @@
  */
 
 import type { Context, Session } from 'koishi'
+import { createPlatformClient, type PlatformClient } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config } from '../../types'
@@ -31,7 +32,11 @@ export class ConfigModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager
+    readonly data: DataManager,
+    readonly memberBlacklistBackend?: Pick<
+      PlatformClient,
+      'createMemberBlacklist' | 'listMemberBlacklist' | 'releaseMemberBlacklistBySubject'
+    >,
   ) {}
 
   get config(): Config {
@@ -47,9 +52,9 @@ export class ConfigModule implements RuntimeModuleInstance {
   }
 
   async init(): Promise<void> {
-      this._state = 'loading'
-      try {
-        registerConfigCommands(this)
+    this._state = 'loading'
+    try {
+      registerConfigCommands(this)
       this.ctx.logger('stuhelper-core:config').info('ConfigModule initialized')
       this._state = 'loaded'
     } catch (error) {
@@ -84,6 +89,9 @@ export class ConfigModule implements RuntimeModuleInstance {
 export const configRuntimeModule: RuntimeModule<ConfigModule> = {
   id: 'config',
   create(ctx, deps) {
-    return new ConfigModule(ctx, deps.data)
+    const memberBlacklistBackend = deps.coreConfig
+      ? createPlatformClient(deps.coreConfig.platform)
+      : undefined
+    return new ConfigModule(ctx, deps.data, memberBlacklistBackend)
   },
 }

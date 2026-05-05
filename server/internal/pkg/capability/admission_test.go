@@ -22,6 +22,7 @@ func TestExpandRoles_SuperAdminHasAdmissionCapabilities(t *testing.T) {
 	assert.Contains(t, caps, AdmissionPolicyUpdate)
 	assert.Contains(t, caps, AdmissionFreshmanRead)
 	assert.Contains(t, caps, AdmissionFreshmanReview)
-	assert.Contains(t, caps, AdmissionBlacklistManage)
 	assert.Contains(t, caps, AdmissionSessionRead)
+	assert.Contains(t, caps, MemberBlacklistRead)
+	assert.Contains(t, caps, MemberBlacklistManage)
 }

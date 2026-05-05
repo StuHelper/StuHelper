@@ -178,8 +178,8 @@ func insertAdmissionFailure(t *testing.T, fixture *postgresfixture.Fixture) {
 	t.Helper()
 
 	_, err := fixture.Pool.Exec(context.Background(), `
-		INSERT INTO group_admission_failures (platform, guild_id, qq_id, failure_count, blacklisted_at)
-		VALUES ('qq', 'guild-1', '10001', 3, NOW())
+		INSERT INTO group_admission_failures (platform, guild_id, qq_id, failure_count)
+		VALUES ('qq', 'guild-1', '10001', 3)
 	`)
 	require.NoError(t, err)
 }

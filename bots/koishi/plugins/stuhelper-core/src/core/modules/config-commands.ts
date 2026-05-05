@@ -1,9 +1,17 @@
 import type { Context, Session } from 'koishi'
+import type { MemberBlacklistEntry } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
-import type { BlacklistRecord, Config, WarnRecord } from '../../types'
+import type { Config, WarnRecord } from '../../types'
 import type { RuntimeCommand, RuntimeCommandDef } from '../../runtime/types'
+import { parseUserId } from '../../utils'
 import { showAllConfig } from './config-summary'
+import {
+  createManualMemberBlacklist,
+  listVisibleMemberBlacklists,
+  releaseManualMemberBlacklist,
+  type MemberBlacklistBackend,
+} from './member-blacklist-backend'
 
 type ConfigCommandOptions = {
   readonly t?: boolean
@@ -11,12 +19,14 @@ type ConfigCommandOptions = {
   readonly w?: boolean
   readonly a?: string
   readonly r?: string
+  readonly global?: boolean
 }
 
 export interface ConfigCommandHost {
   readonly ctx: Context
   readonly data: DataManager
   readonly config: Config
+  readonly memberBlacklistBackend?: MemberBlacklistBackend
   registerCommand(def: RuntimeCommandDef): RuntimeCommand
   log(
     session: Session,
@@ -42,6 +52,7 @@ export function registerConfigCommands(host: ConfigCommandHost): void {
     .option('w', '-w 警告管理')
     .option('a', '-a <内容> 添加')
     .option('r', '-r <内容> 移除')
+    .option('global', '--global 使用全局黑名单范围')
     .action(async ({ session, options }, content) => {
       if (!session?.guildId) return '喵呜...这个命令只能在群里用喵...'
       return handleConfigCommand(host, session, options, content)
@@ -92,33 +103,40 @@ async function handleBlacklist(
   session: Session,
   options: ConfigCommandOptions,
 ): Promise<string> {
-  const blacklist = host.data.blacklist.getAll()
-
   if (options.a) {
-    blacklist[options.a] = { userId: options.a, timestamp: Date.now() }
-    host.data.blacklist.setAll(blacklist)
-    await host.log(session, 'config -b -a', options.a, '添加成功')
+    const userId = normalizeBlacklistUserID(options.a)
+    await createManualMemberBlacklist(requireMemberBlacklistBackend(host), {
+      ...blacklistCommandInput(session, userId, options.global),
+    })
+    await host.log(session, 'config -b -a', userId, '添加成功')
     await host.ctx.stuhelperGroupCenter.pushMessage(
       session.bot,
-      `[黑名单] 用户 ${options.a} 被加入黑名单`,
+      `[黑名单] 用户 ${userId} 被加入${formatScopeLabel(options.global)}黑名单`,
       'blacklist',
     )
-    return `已将 ${options.a} 加入黑名单喵~`
+    return `已将 ${userId} 加入${formatScopeLabel(options.global)}黑名单喵~`
   }
 
   if (options.r) {
-    delete blacklist[options.r]
-    host.data.blacklist.setAll(blacklist)
-    await host.log(session, 'config -b -r', options.r, '移除成功')
+    const userId = normalizeBlacklistUserID(options.r)
+    await releaseManualMemberBlacklist(requireMemberBlacklistBackend(host), {
+      ...blacklistCommandInput(session, userId, options.global),
+    })
+    await host.log(session, 'config -b -r', userId, '移除成功')
     await host.ctx.stuhelperGroupCenter.pushMessage(
       session.bot,
-      `[黑名单] 用户 ${options.r} 被移出黑名单`,
+      `[黑名单] 用户 ${userId} 被移出${formatScopeLabel(options.global)}黑名单`,
       'blacklist',
     )
-    return `已将 ${options.r} 从黑名单移除啦！`
+    return `已将 ${userId} 从${formatScopeLabel(options.global)}黑名单移除啦！`
   }
 
-  return `=== 当前黑名单 ===\n${formatBlacklist(blacklist) || '无记录'}`
+  const entries = await listVisibleMemberBlacklists(
+    requireMemberBlacklistBackend(host),
+    session.platform,
+    session.guildId!,
+  )
+  return `=== 当前黑名单 ===\n${formatBlacklist(entries) || '无记录'}`
 }
 
 async function handleWarns(
@@ -185,10 +203,40 @@ function formatWarnRemovalResult(
   return `已减少 ${userId} 的警告次数，当前为：${guildWarns[userId].count}`
 }
 
-function formatBlacklist(blacklist: Record<string, BlacklistRecord>): string {
-  return Object.entries(blacklist)
-    .map(([userId, data]) => `用户 ${userId}：${formatShanghaiTime(data.timestamp)}`)
+function requireMemberBlacklistBackend(host: ConfigCommandHost): MemberBlacklistBackend {
+  if (!host.memberBlacklistBackend) {
+    throw new Error('member blacklist backend client is required for config blacklist command')
+  }
+  return host.memberBlacklistBackend
+}
+
+function blacklistCommandInput(session: Session, subjectID: string, global?: boolean) {
+  return {
+    platform: session.platform,
+    guildID: session.guildId!,
+    subjectID,
+    operatorQQID: session.userId,
+    rawCommand: session.content?.trim() || '',
+    global,
+  }
+}
+
+function normalizeBlacklistUserID(value: string): string {
+  return parseUserId(value)
+}
+
+function formatScopeLabel(global?: boolean): string {
+  return global ? '全局' : '本群'
+}
+
+function formatBlacklist(entries: readonly MemberBlacklistEntry[]): string {
+  return entries
+    .map((entry) => `用户 ${entry.subjectID}：${formatBlacklistScope(entry)} / ${formatShanghaiTime(Date.parse(entry.createdAt))}`)
     .join('\n')
+}
+
+function formatBlacklistScope(entry: MemberBlacklistEntry): string {
+  return entry.scopeType === 'global' ? '全局' : `群 ${entry.guildID}`
 }
 
 function formatWarns(guildWarns: WarnRecord): string {

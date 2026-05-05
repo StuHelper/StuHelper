@@ -5,6 +5,7 @@
 
 import { Context, h } from 'koishi'
 import type {} from '@koishijs/plugin-console'
+import type { PlatformClient } from '@stuhelper/koishi-shared'
 import { StuhelperGroupCenterService } from '../services/stuhelper-group-center.service'
 import type { Subscription, Role, WarnRecord } from '../../types'
 import { createAuthority4ListenerRegistrar } from './authority-listener'
@@ -27,7 +28,11 @@ import {
 } from './auth-management'
 const pkg = require('../../../package.json')
 
+export { registerMemberBlacklistConsoleAPI } from './member-blacklist-console-api'
+
 const MAX_CHAT_CONTENT_BYTES = 256 * 1024
+const DASHBOARD_BLACKLIST_PAGE_SIZE = 200
+type MemberBlacklistBackend = Pick<PlatformClient, 'listMemberBlacklist'>
 
 /** API 响应格式 */
 interface ApiResponse<T = any> {
@@ -94,7 +99,11 @@ function assertChatContentSize(content: string) {
 /**
  * 注册所有 WebSocket API
  */
-export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenterService) {
+export function registerWebSocketAPI(
+  ctx: Context,
+  service: StuhelperGroupCenterService,
+  memberBlacklistBackend?: MemberBlacklistBackend,
+) {
   // 确保 console 服务存在
   if (!ctx.console) {
     ctx.logger('stuhelperGroupCenter').warn('console 服务未启用，WebSocket API 跳过注册')
@@ -192,7 +201,26 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     }
     return -1
   }
-  const readBlacklistGuildId = (record: any) => typeof record?.guildId === 'string' ? record.guildId : undefined
+  const loadScopedBlacklist = async (scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
+    if (!memberBlacklistBackend) {
+      throw new Error('member blacklist backend client is required for dashboard stats')
+    }
+    if (scope.kind === 'all') {
+      const result = await memberBlacklistBackend.listMemberBlacklist({
+        status: 'active',
+        pageSize: DASHBOARD_BLACKLIST_PAGE_SIZE,
+      })
+      return result.list
+    }
+    const pages = await Promise.all([...scope.guildIds].map((guildID) =>
+      memberBlacklistBackend.listMemberBlacklist({
+        scopeType: 'guild',
+        guildID,
+        status: 'active',
+        pageSize: DASHBOARD_BLACKLIST_PAGE_SIZE,
+      })))
+    return pages.flatMap((page) => page.list)
+  }
 
   // ===== 群组配置 API =====
   
@@ -710,49 +738,6 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
     }
   })
 
-  // ===== 黑名单 API =====
-
-  /** 获取黑名单 */
-  addAuthorityListener('stuhelperGroupCenter/blacklist/list', async function () {
-    const scope = await resolveConsoleScope(this)
-    const records = data.blacklist.getAll()
-    if (scope.kind === 'all') {
-      return success(records)
-    }
-    return success(Object.fromEntries(Object.entries(records).filter(([, record]) => {
-      const guildId = readBlacklistGuildId(record)
-      return guildId ? scope.guildIds.has(guildId) : false
-    })))
-  })
-
-  /** 添加黑名单 */
-  addAuthorityListener('stuhelperGroupCenter/blacklist/add', async function (params: { userId: string, record: any }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      const guildId = readBlacklistGuildId(params.record)
-      assertConsoleGuildAccess(scope, guildId, 'blacklist record')
-      data.blacklist.set(params.userId, params.record)
-      await data.blacklist.flush()
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '添加黑名单失败')
-    }
-  })
-
-  /** 移除黑名单 */
-  addAuthorityListener('stuhelperGroupCenter/blacklist/remove', async function (params: { userId: string }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      const record = data.blacklist.get(params.userId)
-      assertConsoleGuildAccess(scope, readBlacklistGuildId(record), 'blacklist record')
-      data.blacklist.delete(params.userId)
-      await data.blacklist.flush()
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '移除黑名单失败')
-    }
-  })
-
   // ===== 订阅 API =====
 
   /** 获取订阅列表 */
@@ -857,15 +842,11 @@ export function registerWebSocketAPI(ctx: Context, service: StuhelperGroupCenter
   addAuthorityListener('stuhelperGroupCenter/stats/dashboard', async function () {
     const scope = await resolveConsoleScope(this)
     const allWarns = data.warns.getAll()
-    const allBlacklist = data.blacklist.getAll()
     const allConfigs = data.groupConfig.getAll()
     const subsList = data.subscriptions.get('list') || []
     const scopedConfigs = filterGuildEntries(allConfigs, scope)
     const scopedSubs = filterSubscriptions(subsList, scope)
-    const scopedBlacklist = Object.values(allBlacklist).filter((record) => {
-      const guildId = readBlacklistGuildId(record)
-      return scope.kind === 'all' || (guildId ? scope.guildIds.has(guildId) : false)
-    })
+    const scopedBlacklist = await loadScopedBlacklist(scope)
 
     // 统计所有警告记录的真实数量
     let totalWarnCount = 0

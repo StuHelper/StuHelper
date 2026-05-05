@@ -1,0 +1,210 @@
+MemberBlacklistSource:
+  type: string
+  enum:
+    - admission_failure
+    - manual_admin
+    - kick_blacklist
+    - moderation_action
+    - migration_legacy_koishi
+    - migration_admission_failure
+
+MemberBlacklistScopeType:
+  type: string
+  enum: [global, guild]
+
+MemberBlacklistSubjectType:
+  type: string
+  enum: [qq_user]
+
+MemberBlacklistReasonCode:
+  type: string
+  enum:
+    - admission_timeout_limit
+    - manual_blacklist
+    - manual_kick_blacklist
+    - violation_review_blacklist
+    - legacy_koishi_blacklist
+    - legacy_admission_blacklist
+
+MemberBlacklistActorType:
+  type: string
+  enum: [system, admin_user, qq_operator, service_account]
+
+MemberBlacklistCreatedFrom:
+  type: string
+  enum:
+    - admission_worker
+    - qq_command
+    - koishi_console
+    - admin_console
+    - moderation_review
+    - migration_script
+
+MemberBlacklistStatus:
+  type: string
+  enum: [active, released, expired, all]
+
+MemberBlacklistReleaseReasonCode:
+  type: string
+  enum:
+    - manual_pardon
+    - release_only
+    - policy_expired_auto
+    - admission_appeal_passed
+    - migration_inverse
+
+MemberBlacklistEntry:
+  type: object
+  required:
+    [
+      id,
+      platform,
+      subjectType,
+      subjectID,
+      scopeType,
+      source,
+      reasonCode,
+      reasonText,
+      createdByType,
+      createdByID,
+      createdFrom,
+      metadata,
+      createdAt,
+      updatedAt,
+    ]
+  properties:
+    id:
+      type: string
+    platform:
+      type: string
+    subjectType:
+      $ref: '#/MemberBlacklistSubjectType'
+    subjectID:
+      type: string
+    scopeType:
+      $ref: '#/MemberBlacklistScopeType'
+    guildID:
+      type:
+        - string
+        - "null"
+    source:
+      $ref: '#/MemberBlacklistSource'
+    reasonCode:
+      $ref: '#/MemberBlacklistReasonCode'
+    reasonText:
+      type: string
+    metadata:
+      type: object
+      additionalProperties: true
+    createdByType:
+      $ref: '#/MemberBlacklistActorType'
+    createdByID:
+      type: string
+    createdFrom:
+      $ref: '#/MemberBlacklistCreatedFrom'
+    expiresAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    releasedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    releasedByType:
+      type:
+        - string
+        - "null"
+    releasedByID:
+      type:
+        - string
+        - "null"
+    releaseReasonCode:
+      type:
+        - string
+        - "null"
+    releaseReason:
+      type:
+        - string
+        - "null"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+MemberBlacklistCreateRequest:
+  type: object
+  required: [platform, subjectType, subjectID, scopeType, source, reasonCode, reasonText, metadata]
+  properties:
+    platform:
+      type: string
+    subjectType:
+      $ref: '#/MemberBlacklistSubjectType'
+    subjectID:
+      type: string
+    scopeType:
+      $ref: '#/MemberBlacklistScopeType'
+    guildID:
+      type: string
+    source:
+      $ref: '#/MemberBlacklistSource'
+    reasonCode:
+      $ref: '#/MemberBlacklistReasonCode'
+    reasonText:
+      type: string
+      minLength: 1
+    expiresAt:
+      type:
+        - string
+        - "null"
+      format: date-time
+    metadata:
+      type: object
+      additionalProperties: true
+
+MemberBlacklistReleaseRequest:
+  type: object
+  required: [releaseReasonCode]
+  properties:
+    releaseReasonCode:
+      $ref: '#/MemberBlacklistReleaseReasonCode'
+    releaseReason:
+      type: string
+    operatorQQID:
+      type: string
+
+MemberBlacklistReleaseBySubjectRequest:
+  allOf:
+    - $ref: '#/MemberBlacklistReleaseRequest'
+    - type: object
+      required: [platform, subjectType, subjectID, scopeType]
+      properties:
+        platform:
+          type: string
+        subjectType:
+          $ref: '#/MemberBlacklistSubjectType'
+        subjectID:
+          type: string
+        scopeType:
+          $ref: '#/MemberBlacklistScopeType'
+        guildID:
+          type: string
+        operatorQQID:
+          type: string
+
+MemberBlacklistAccessDecision:
+  type: object
+  required: [canJoin, decision]
+  properties:
+    canJoin:
+      type: boolean
+    decision:
+      type: string
+      enum: [allowed, blocked]
+    matchedBlacklist:
+      $ref: '#/MemberBlacklistEntry'
+    reason:
+      type: string

@@ -9,6 +9,7 @@ export const eventLogger = new Logger('stuhelperGroupCenter:event')
 export const DEFAULT_LEVEL_LIMIT = 0
 export const DEFAULT_LEAVE_COOLDOWN_DAYS = 0
 export const MUTE_EXPIRE_CHECK_INTERVAL_MS = 60_000
+export const MEMBER_BLACKLIST_ACCESS_TIMEOUT_MS = 800
 export const DEFAULT_MEMBER_REQUEST_CONFIG: GroupConfig = Object.freeze({
   keywords: [],
   approvalKeywords: [],
@@ -22,17 +23,12 @@ export interface EventRuntimeHost {
   readonly ctx: Context
   readonly data: DataManager
   readonly config: Config
-  readonly admissionPlatform?: Pick<PlatformClient, 'getAdmissionQQAccess' | 'recordJoinRequestEvent'>
+  readonly admissionPlatform?: Pick<PlatformClient, 'getMemberBlacklistAccess' | 'recordJoinRequestEvent'>
 }
 
 export type EventSession = Session & {
   readonly guildId: string
   readonly userId: string
-}
-
-export interface GroupRequest {
-  readonly session: EventSession
-  readonly failureLog: string
 }
 
 export function requestCommentOf(session: EventSession): string {

@@ -3,7 +3,6 @@ package admission
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -15,13 +14,10 @@ const (
 )
 
 type AdmissionFailure struct {
-	Platform           string
-	GuildID            string
-	QQID               string
-	FailureCount       int
-	BlacklistedAt      *time.Time
-	BlacklistExpiresAt *time.Time
-	ReleasedAt         *time.Time
+	Platform     string
+	GuildID      string
+	QQID         string
+	FailureCount int
 }
 
 type freshmanForwardRecord struct {
@@ -75,7 +71,6 @@ func scanAdmissionFailure(row pgx.Row) (*AdmissionFailure, error) {
 	var failure AdmissionFailure
 	err := row.Scan(
 		&failure.Platform, &failure.GuildID, &failure.QQID, &failure.FailureCount,
-		&failure.BlacklistedAt, &failure.BlacklistExpiresAt, &failure.ReleasedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil

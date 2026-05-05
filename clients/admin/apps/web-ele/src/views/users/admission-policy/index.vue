@@ -11,13 +11,15 @@ import {
   ElInput,
   ElInputNumber,
   ElMessage,
+  ElOption,
   ElPopconfirm,
+  ElSelect,
   ElSwitch,
 } from 'element-plus';
 
 import {
   listAdmissionPolicies,
-  releaseAdmissionBlacklist,
+  releaseMemberBlacklistBySubject,
   updateAdmissionPolicy,
 } from '#/api/admin';
 
@@ -25,6 +27,9 @@ const loading = ref(false);
 const releasing = ref(false);
 const policies = ref<AdmissionPolicy[]>([]);
 const blacklistQQ = ref('');
+const blacklistPlatform = ref('qq');
+const blacklistScope = ref<'guild' | 'global'>('guild');
+const blacklistGuildID = ref('');
 const managementGuildText = reactive<Record<string, string>>({});
 
 async function fetchData() {
@@ -60,11 +65,24 @@ async function releaseBlacklist() {
     ElMessage.error('请输入 QQ 号');
     return;
   }
+  const guildID = blacklistGuildID.value.trim();
+  if (blacklistScope.value === 'guild' && !guildID) {
+    ElMessage.error('请输入要解除的群号');
+    return;
+  }
 
   releasing.value = true;
   try {
-    await releaseAdmissionBlacklist(qqID);
+    await releaseMemberBlacklistBySubject({
+      platform: blacklistPlatform.value.trim(),
+      subjectType: 'qq_user',
+      subjectID: qqID,
+      scopeType: blacklistScope.value,
+      guildID: blacklistScope.value === 'guild' ? guildID : undefined,
+      releaseReasonCode: 'manual_pardon',
+    });
     blacklistQQ.value = '';
+    blacklistGuildID.value = '';
     ElMessage.success('已解除黑名单');
   } finally {
     releasing.value = false;
@@ -137,6 +155,27 @@ onMounted(fetchData);
     <section class="rounded border border-slate-200 bg-white p-4">
       <h2 class="mb-4 text-base font-semibold">黑名单解除</h2>
       <div class="flex items-center gap-3">
+        <ElInput
+          v-model="blacklistPlatform"
+          data-field="blacklistPlatform"
+          placeholder="平台"
+          style="width: 120px"
+        />
+        <ElSelect
+          v-model="blacklistScope"
+          data-field="blacklistScope"
+          style="width: 120px"
+        >
+          <ElOption label="单群" value="guild" />
+          <ElOption label="全局" value="global" />
+        </ElSelect>
+        <ElInput
+          v-if="blacklistScope === 'guild'"
+          v-model="blacklistGuildID"
+          data-field="blacklistGuildID"
+          placeholder="群号"
+          style="width: 180px"
+        />
         <ElInput
           v-model="blacklistQQ"
           data-field="blacklistQQ"

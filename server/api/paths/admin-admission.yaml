@@ -219,31 +219,3 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
-
-/api/v1/admin/admission/blacklist/{qqID}/release:
-  post:
-    tags: [Admin]
-    operationId: releaseAdmissionBlacklist
-    summary: 解除 QQ 入群认证黑名单
-    security:
-      - cookieAuth: []
-      - bearerAuth: []
-    parameters:
-      - name: qqID
-        in: path
-        required: true
-        schema:
-          type: string
-    responses:
-      '200':
-        description: 黑名单已解除
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/SuccessResponse'
-      '401':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '403':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '404':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'

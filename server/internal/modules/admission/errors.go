@@ -37,4 +37,7 @@ var (
 	ErrAdmissionReviewExtensionTooLong    = errors.New("admission review extension too long")
 	ErrAdmissionApplicationNotFound       = errors.New("admission application not found")
 	ErrAdmissionBlacklistNotFound         = errors.New("admission blacklist not found")
+	ErrMemberBlacklistInvalidInput        = errors.New("member blacklist invalid input")
+	ErrMemberBlacklistSourceForbidden     = errors.New("member blacklist source forbidden")
+	ErrMemberBlacklistNotFound            = errors.New("member blacklist not found")
 )

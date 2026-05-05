@@ -1,0 +1,210 @@
+/api/v1/bot/member-blacklist/access:
+  get:
+    tags: [Bot]
+    operationId: getBotMemberBlacklistAccess
+    summary: 机器人查询成员黑名单准入状态
+    security:
+      - serviceTokenAuth: []
+    parameters:
+      - name: platform
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: subjectType
+        in: query
+        required: true
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistSubjectType'
+      - name: subjectID
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: guildID
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 成员准入决策
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistAccessDecision'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/bot/member-blacklist:
+  get:
+    tags: [Bot]
+    operationId: listBotMemberBlacklist
+    summary: 机器人查询成员黑名单
+    security:
+      - serviceTokenAuth: []
+    parameters:
+      - name: platform
+        in: query
+        schema:
+          type: string
+      - name: subjectType
+        in: query
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistSubjectType'
+      - name: subjectID
+        in: query
+        schema:
+          type: string
+      - name: scopeType
+        in: query
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistScopeType'
+      - name: source
+        in: query
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistSource'
+      - name: guildID
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistStatus'
+          default: active
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 成员黑名单分页列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      required: [list, total]
+                      properties:
+                        list:
+                          type: array
+                          items:
+                            $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistEntry'
+                        total:
+                          type: integer
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Bot]
+    operationId: createBotMemberBlacklistEntry
+    summary: 机器人创建成员黑名单
+    security:
+      - serviceTokenAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistCreateRequest'
+    responses:
+      '201':
+        description: 成员黑名单已创建
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistEntry'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/bot/member-blacklist/{id}/release:
+  post:
+    tags: [Bot]
+    operationId: releaseBotMemberBlacklistEntry
+    summary: 机器人按 ID 解除成员黑名单
+    security:
+      - serviceTokenAuth: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistReleaseRequest'
+    responses:
+      '200':
+        description: 成员黑名单已解除
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistEntry'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/bot/member-blacklist/release-by-subject:
+  post:
+    tags: [Bot]
+    operationId: releaseBotMemberBlacklistBySubject
+    summary: 机器人按主体解除成员黑名单
+    security:
+      - serviceTokenAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistReleaseBySubjectRequest'
+    responses:
+      '200':
+        description: 成员黑名单已解除
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/member-blacklist.yaml#/MemberBlacklistEntry'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

@@ -62,7 +62,7 @@ const routes: RouteRecordRaw[] = [
       {
         name: 'OperationLogs',
         path: '/content/logs',
-        component: () => import('#/views/content/logs/index.vue'),
+        component: () => import('#/views/content/operation-logs/index.vue'),
         meta: {
           icon: 'lucide:scroll-text',
           title: $t('admin.routes.content.logs'),

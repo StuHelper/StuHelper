@@ -86,9 +86,43 @@ export interface WarnRecord {
 }
 
 // 黑名单记录
-export interface BlacklistRecord {
-  userId: string
-  timestamp: number
+export type MemberBlacklistScopeType = 'global' | 'guild'
+export type MemberBlacklistSource = 'admission_failure' | 'manual_admin' | 'kick_blacklist' | 'moderation_action' | 'migration_legacy_koishi' | 'migration_admission_failure'
+export type MemberBlacklistReasonCode = 'admission_timeout_limit' | 'manual_blacklist' | 'manual_kick_blacklist' | 'violation_review_blacklist' | 'legacy_koishi_blacklist' | 'legacy_admission_blacklist'
+
+export interface MemberBlacklistEntry {
+  id: string
+  platform: string
+  subjectType: 'qq_user'
+  subjectID: string
+  scopeType: MemberBlacklistScopeType
+  guildID?: string | null
+  source: MemberBlacklistSource
+  reasonCode: MemberBlacklistReasonCode
+  reasonText: string
+  createdAt: string
+  expiresAt?: string | null
+  releasedAt?: string | null
+}
+
+export interface MemberBlacklistListResult {
+  list: MemberBlacklistEntry[]
+  total: number
+}
+
+export interface MemberBlacklistCreateParams {
+  platform: string
+  subjectID: string
+  scopeType: MemberBlacklistScopeType
+  guildID?: string
+  reasonText?: string
+}
+
+export interface MemberBlacklistReleaseParams {
+  platform: string
+  subjectID: string
+  scopeType: MemberBlacklistScopeType
+  guildID?: string
 }
 
 // 订阅配置
@@ -222,9 +256,9 @@ declare module '@koishijs/client' {
     'stuhelperGroupCenter/warns/clear'(key: string): Promise<{ success: boolean }>
 
     // 黑名单 API
-    'stuhelperGroupCenter/blacklist/list'(): Promise<Record<string, BlacklistRecord>>
-    'stuhelperGroupCenter/blacklist/add'(userId: string, record: BlacklistRecord): Promise<{ success: boolean }>
-    'stuhelperGroupCenter/blacklist/remove'(userId: string): Promise<{ success: boolean }>
+    'stuhelperGroupCenter/blacklist/list'(): Promise<MemberBlacklistListResult>
+    'stuhelperGroupCenter/blacklist/add'(params: MemberBlacklistCreateParams): Promise<MemberBlacklistEntry>
+    'stuhelperGroupCenter/blacklist/remove'(params: MemberBlacklistReleaseParams): Promise<MemberBlacklistEntry>
 
     // 订阅 API
     'stuhelperGroupCenter/subscriptions/list'(): Promise<Subscription[]>

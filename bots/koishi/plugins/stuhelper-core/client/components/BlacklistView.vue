@@ -2,22 +2,14 @@
   <div class="sh-view">
     <WorkspaceHead
       title="黑名单"
-      description="永久拉黑的成员,任意群组都拒绝命令与入群请求。新增条目请尽量搭配处置中心的举报记录。"
+      description="按本群或全局范围生效的成员黑名单。新增全局条目需要单独确认。"
       :chips="headerChips"
     >
       <template #actions>
-        <el-button
-          class="sh-button sh-button--ghost"
-          :disabled="loading"
-          @click="refresh"
-        >
+        <el-button class="sh-button sh-button--ghost" :disabled="loading" @click="refresh">
           {{ loading ? '刷新中…' : '刷新' }}
         </el-button>
-        <el-button
-          type="primary"
-          class="sh-button sh-button--primary"
-          @click="openAdd"
-        >
+        <el-button type="primary" class="sh-button sh-button--primary" @click="openAdd">
           添加用户
         </el-button>
       </template>
@@ -34,15 +26,13 @@
     >
       <QueueTable
         v-if="entries.length > 0"
-        :columns="COLUMNS"
-        :rows="rows"
+        :columns="COLUMNS" :rows="rows"
         empty-title="黑名单为空"
         empty-body="这里会列出所有被加入黑名单的用户。"
-        actions-label="操作"
-        @action="handleRowAction"
+        actions-label="操作" @action="handleRowAction"
       >
-        <template #cell-user="{ row }">
-          <EntityChip kind="user" :id="String(row.id)" />
+        <template #cell-user="{ value }">
+          <EntityChip kind="user" :id="String(value.text)" />
         </template>
       </QueueTable>
       <EmptyState
@@ -52,35 +42,36 @@
       />
     </WorkspaceSection>
 
-    <Drawer
-      :open="addOpen"
-      title="添加黑名单用户"
-      subtitle="userId · 立即在所有群生效"
-      @close="closeAdd"
-    >
+    <Drawer :open="addOpen" title="添加黑名单用户" subtitle="平台 · 用户 · 生效范围" @close="closeAdd">
       <section class="sh-drawer__section">
         <h4 class="sh-drawer__section-title">用户标识</h4>
         <label class="sh-field">
+          <span class="sh-field__label">平台</span>
+          <el-input v-model.trim="draftPlatform" class="sh-control sh-control--mono" placeholder="qq" />
+        </label>
+        <label class="sh-field">
           <span class="sh-field__label">用户 ID</span>
-          <el-input
-            v-model.trim="draftUserId"
-            class="sh-control sh-control--mono"
-            placeholder="例如 1234567890"
-            @keyup.enter="submitAdd"
-          />
-          <span class="sh-field__hint">
-            支持原始 ID 或 <code>&lt;at&gt;</code> 片段;保存时自动提取数字 ID。
-          </span>
+          <el-input v-model.trim="draftUserId" class="sh-control sh-control--mono" placeholder="例如 1234567890" @keyup.enter="submitAdd" />
+        </label>
+        <label class="sh-field">
+          <span class="sh-field__label">范围</span>
+          <el-select v-model="draftScope" class="sh-control">
+            <el-option label="本群" value="guild" />
+            <el-option label="全局" value="global" />
+          </el-select>
+        </label>
+        <label v-if="draftScope === 'guild'" class="sh-field">
+          <span class="sh-field__label">群 ID</span>
+          <el-input v-model.trim="draftGuildId" class="sh-control sh-control--mono" placeholder="例如 100000000" />
+        </label>
+        <label class="sh-field">
+          <span class="sh-field__label">原因</span>
+          <el-input v-model.trim="draftReason" class="sh-control" placeholder="手动加入黑名单" />
         </label>
       </section>
       <template #footer>
         <el-button class="sh-button sh-button--ghost" @click="closeAdd">取消</el-button>
-        <el-button
-          type="primary"
-          class="sh-button sh-button--primary"
-          :disabled="!draftUserId.trim() || adding"
-          @click="submitAdd"
-        >
+        <el-button type="primary" class="sh-button sh-button--primary" :disabled="!canSubmitAdd || adding" @click="submitAdd">
           {{ adding ? '添加中…' : '添加' }}
         </el-button>
       </template>
@@ -107,7 +98,15 @@ import { computed, onMounted, ref } from 'vue'
 import { blacklistApi } from '../api'
 import { useConfirm } from '../composables/use-confirm'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
-import type { BlacklistRecord } from '../types'
+import type { MemberBlacklistEntry, MemberBlacklistScopeType } from '../types'
+import {
+  canSubmitBlacklistDraft,
+  filterBlacklistEntries,
+  formatBlacklistScope,
+  MEMBER_BLACKLIST_COLUMNS,
+  normalizeBlacklistUserID,
+  toBlacklistRows,
+} from '../models/member-blacklist'
 import { formatTimestamp } from '../models/formatters'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
@@ -115,17 +114,11 @@ import Drawer from './primitives/Drawer.vue'
 import EmptyState from './primitives/EmptyState.vue'
 import EntityChip from './primitives/EntityChip.vue'
 import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
-import QueueTable, {
-  type QueueTableColumn,
-  type QueueTableRow,
-} from './primitives/QueueTable.vue'
+import QueueTable from './primitives/QueueTable.vue'
 import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
-const COLUMNS: QueueTableColumn[] = [
-  { key: 'user', label: '用户 ID' },
-  { key: 'time', label: '加入时间', width: '220' },
-]
+const COLUMNS = MEMBER_BLACKLIST_COLUMNS
 
 const props = defineProps<{
   navigation?: ConsoleNavigationController
@@ -134,8 +127,12 @@ const props = defineProps<{
 const loading = ref(false)
 const adding = ref(false)
 const addOpen = ref(false)
+const draftPlatform = ref('qq')
 const draftUserId = ref('')
-const blacklist = ref<Record<string, BlacklistRecord>>({})
+const draftScope = ref<MemberBlacklistScopeType>('guild')
+const draftGuildId = ref('')
+const draftReason = ref('')
+const blacklist = ref<readonly MemberBlacklistEntry[]>([])
 const notices = ref<NoticeItem[]>([])
 const lastSync = ref('')
 const {
@@ -147,20 +144,14 @@ const {
 
 const keyword = computed(() => props.navigation?.state.value.keyword.trim().toLowerCase() ?? '')
 const entries = computed(() => filterBlacklistEntries(blacklist.value, keyword.value))
+const canSubmitAdd = computed(() => canSubmitBlacklistDraft({
+  platform: draftPlatform.value,
+  userId: draftUserId.value,
+  scope: draftScope.value,
+  guildId: draftGuildId.value,
+}))
 
-const rows = computed<QueueTableRow[]>(() =>
-  entries.value.map(({ userId, record }) => ({
-    id: userId,
-    cells: {
-      user: { text: formatUserId(userId) },
-      time: {
-        text: record.timestamp ? formatTimestamp(record.timestamp) : '未知',
-        mono: true,
-      },
-    },
-    actions: [{ key: 'remove', label: '移除', tone: 'danger' }],
-  })),
-)
+const rows = computed(() => toBlacklistRows(entries.value))
 
 const headerChips = computed<WorkspaceHeadChip[]>(() => {
   const chips: WorkspaceHeadChip[] = [
@@ -177,7 +168,7 @@ onMounted(refresh)
 async function refresh() {
   loading.value = true
   try {
-    blacklist.value = await blacklistApi.list()
+    blacklist.value = (await blacklistApi.list()).list
     lastSync.value = formatTimestamp(Date.now())
   } catch (cause) {
     pushError(cause, '加载黑名单失败')
@@ -187,7 +178,11 @@ async function refresh() {
 }
 
 function openAdd() {
+  draftPlatform.value = 'qq'
   draftUserId.value = ''
+  draftScope.value = 'guild'
+  draftGuildId.value = ''
+  draftReason.value = ''
   addOpen.value = true
 }
 
@@ -196,14 +191,21 @@ function closeAdd() {
 }
 
 async function submitAdd() {
-  const userId = draftUserId.value.trim()
-  if (!userId) return
+  if (!canSubmitAdd.value) return
+  const userId = normalizeBlacklistUserID(draftUserId.value.trim())
+  if (draftScope.value === 'global' && !await confirmGlobalAdd(userId)) return
   adding.value = true
   try {
-    await blacklistApi.add(userId, { userId, timestamp: Date.now() })
-    pushSuccess(`已将 ${formatUserId(userId)} 加入黑名单`)
+    await blacklistApi.add({
+      platform: draftPlatform.value.trim(),
+      subjectID: userId,
+      scopeType: draftScope.value,
+      guildID: draftScope.value === 'guild' ? draftGuildId.value.trim() : undefined,
+      reasonText: draftReason.value.trim() || undefined,
+    })
+    pushSuccess(`已将 ${userId} 加入黑名单`)
     addOpen.value = false
-    draftUserId.value = ''
+    resetDraft()
     await refresh()
   } catch (cause) {
     pushError(cause, '添加失败')
@@ -218,40 +220,42 @@ function handleRowAction(payload: { rowId: string; action: string }) {
 }
 
 async function removeUser(userId: string) {
+  const entry = blacklist.value.find((item) => item.id === userId)
+  if (!entry) return
   const confirmed = await confirm({
     title: '移除黑名单成员',
-    message: `确定要从黑名单移除 ${formatUserId(userId)} 吗？此操作会立即影响所有群组。`,
+    message: `确定要移除 ${entry.subjectID} 的${formatBlacklistScope(entry)}黑名单吗？`,
     tone: 'danger',
     confirmText: '移除',
   })
   if (!confirmed) return
 
   try {
-    await blacklistApi.remove(userId)
-    pushSuccess(`已从黑名单移除 ${formatUserId(userId)}`)
+    await blacklistApi.remove({
+      platform: entry.platform,
+      subjectID: entry.subjectID,
+      scopeType: entry.scopeType,
+      guildID: entry.guildID ?? undefined,
+    })
+    pushSuccess(`已从黑名单移除 ${entry.subjectID}`)
     await refresh()
   } catch (cause) {
     pushError(cause, '移除失败')
   }
 }
 
-function formatUserId(id: string): string {
-  if (id.startsWith('<at')) {
-    const match = id.match(/id="(\d+)"/)
-    if (match) return match[1]
-  }
-  return id
+function resetDraft() {
+  draftUserId.value = ''
+  draftGuildId.value = ''
+  draftReason.value = ''
 }
 
-function filterBlacklistEntries(
-  records: Record<string, BlacklistRecord>,
-  query: string,
-) {
-  const entries = Object.entries(records).map(([userId, record]) => ({ userId, record }))
-  if (!query) return entries
-  return entries.filter(({ userId }) => {
-    return [userId, formatUserId(userId)]
-      .some((value) => value.toLowerCase().includes(query))
+function confirmGlobalAdd(userId: string) {
+  return confirm({
+    title: '添加全局黑名单',
+    message: `确定要将 ${userId} 加入全局黑名单吗？该成员会被所有群拒绝。`,
+    tone: 'danger',
+    confirmText: '添加全局黑名单',
   })
 }
 

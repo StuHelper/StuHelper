@@ -27,8 +27,8 @@ export function registerFreshmanReviewCommands(ctx: Context, deps: FreshmanRevie
     .action(({ session }, payload) => handleApprove(deps, session, payload))
   ctx.command('新生审核驳回 <payload:text>', '驳回新生认证申请', { authority: 3 })
     .action(({ session }, payload) => handleReject(deps, session, payload))
-  ctx.command('新生黑名单解除 <qqID:text>', '解除新生入群认证黑名单', { authority: 3 })
-    .action(({ session }, qqID) => handleBlacklistRelease(deps, session, qqID))
+  ctx.command('新生黑名单解除 <payload:text>', '解除新生入群认证黑名单', { authority: 3 })
+    .action(({ session }, payload) => handleBlacklistRelease(deps, session, payload))
 }
 
 async function handleView(deps: FreshmanReviewCommandDeps, session: Session | undefined, applicationID: string) {
@@ -74,14 +74,23 @@ async function handleReject(deps: FreshmanReviewCommandDeps, session: Session | 
   })
 }
 
-async function handleBlacklistRelease(deps: FreshmanReviewCommandDeps, session: Session | undefined, qqID: string) {
+async function handleBlacklistRelease(deps: FreshmanReviewCommandDeps, session: Session | undefined, payload: string) {
   const input = await commandInput(deps, session)
   if ('error' in input) return input.error
-  const targetQQID = qqID?.trim()
-  if (!targetQQID) return '请提供 QQ 号。'
+  const parsed = parseBlacklistReleasePayload(payload)
+  if ('error' in parsed) return parsed.error
   return runAdmissionCommand(async () => {
-    await deps.platform.releaseAdmissionBlacklist(targetQQID, input.context)
-    return `已解除 ${targetQQID} 的入群认证黑名单。`
+    await deps.platform.releaseMemberBlacklistBySubject({
+      platform: session!.platform,
+      subjectType: 'qq_user',
+      subjectID: parsed.qqID,
+      scopeType: parsed.scopeType,
+      guildID: parsed.guildID,
+      releaseReasonCode: 'manual_pardon',
+      releaseReason: 'freshman review command release',
+      operatorQQID: input.context.operatorQQID,
+    })
+    return `已解除 ${parsed.qqID} 的${formatBlacklistScope(parsed)}入群认证黑名单。`
   })
 }
 
@@ -130,6 +139,20 @@ function parseRejectPayload(payload: string | undefined) {
 
 function splitPayload(payload: string | undefined) {
   return (payload || '').trim().split(/\s+/).filter(Boolean)
+}
+
+function parseBlacklistReleasePayload(payload: string | undefined) {
+  const parts = splitPayload(payload)
+  if (parts.length < 2) return { error: '解除命令格式为：新生黑名单解除 <QQ号> <群号|global>。' } as const
+  if (parts.length > 2) return { error: '解除命令格式为：新生黑名单解除 <QQ号> <群号|global>。' } as const
+  if (parts[1].toLowerCase() === 'global') {
+    return { qqID: parts[0], scopeType: 'global' as const }
+  }
+  return { qqID: parts[0], scopeType: 'guild' as const, guildID: parts[1] }
+}
+
+function formatBlacklistScope(input: { scopeType: 'global' | 'guild'; guildID?: string }) {
+  return input.scopeType === 'global' ? '全局' : `群 ${input.guildID} 的`
 }
 
 function formatFreshmanApplication(application: FreshmanApplication) {

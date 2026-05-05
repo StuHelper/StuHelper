@@ -45,18 +45,6 @@ func (h *Handler) handleRecordBotJoinRequestEvent(c *gin.Context) {
 	response.Success(c, gin.H{"message": "admission join request event recorded"})
 }
 
-func (h *Handler) handleGetBotAdmissionQQAccess(c *gin.Context) {
-	if !h.ready(c) {
-		return
-	}
-	access, err := h.service.GetAdmissionQQAccess(c.Request.Context(), c.Param("qqID"))
-	if err != nil {
-		respondAdmissionError(c, err)
-		return
-	}
-	response.Success(c, access)
-}
-
 func (h *Handler) handleListBotPendingActions(c *gin.Context) {
 	if !h.ready(c) {
 		return
@@ -134,18 +122,6 @@ func (h *Handler) handleBotViewFreshmanApplication(c *gin.Context) {
 		return
 	}
 	response.Success(c, app)
-}
-
-func (h *Handler) handleBotReleaseAdmissionBlacklist(c *gin.Context) {
-	command, ok := h.bindBotFreshmanCommand(c)
-	if !ok {
-		return
-	}
-	if err := h.service.ReleaseAdmissionBlacklistFromBot(c.Request.Context(), c.Param("qqID"), command); err != nil {
-		respondAdmissionError(c, err)
-		return
-	}
-	response.Success(c, gin.H{"message": "admission blacklist released"})
 }
 
 func (h *Handler) bindBotFreshmanCommand(c *gin.Context) (BotFreshmanCommandInput, bool) {

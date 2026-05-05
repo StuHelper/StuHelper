@@ -21,15 +21,16 @@ test('guild-member-request keeps one listener and approves through admission aft
   }])
 })
 
-test('guild-member-request preserves blacklist and keyword ordering before admission', async () => {
+test('guild-member-request rejects backend member blacklist before local approval rules', async () => {
   const host = createEventHost()
-  host.data.blacklist.rows = { '10001': true }
+  host.memberBlacklistBlocked = true
   registerEventListeners(host as any)
 
   await host.emitGuildMemberRequest(createRequestSession(host, { comment: '我是新生' }))
 
   assert.deepEqual(host.approvals, [{ requestID: 'req-1', approve: false, reason: '您在黑名单中' }])
-  assert.equal(host.admissionAccessChecks, 0)
+  assert.equal(host.memberBlacklistAccessChecks, 1)
+  assert.equal(host.joinEvents.length, 0)
 
   const keywordHost = createEventHost()
   keywordHost.config.keywords = ['校内群']
@@ -37,7 +38,25 @@ test('guild-member-request preserves blacklist and keyword ordering before admis
   await keywordHost.emitGuildMemberRequest(createRequestSession(keywordHost, { comment: '申请加入校内群' }))
 
   assert.deepEqual(keywordHost.approvals, [{ requestID: 'req-1', approve: true, reason: undefined }])
-  assert.equal(keywordHost.admissionAccessChecks, 0)
+  assert.equal(keywordHost.memberBlacklistAccessChecks, 1)
+})
+
+test('guild-member-request keeps blacklist backend outages visible and falls through', async () => {
+  const host = createEventHost()
+  host.memberBlacklistAccessError = new Error('backend timeout')
+  registerEventListeners(host as any)
+
+  await host.emitGuildMemberRequest(createRequestSession(host, { comment: '我是新生' }))
+
+  assert.deepEqual(host.approvals, [{ requestID: 'req-1', approve: true, reason: undefined }])
+  assert.deepEqual(host.joinEvents, [{
+    platform: 'mock',
+    guildID: 'guild-1',
+    qqID: '10001',
+    requestID: 'req-1',
+    success: true,
+    rawEvent: { comment: '我是新生' },
+  }])
 })
 
 test('guild-member-request reports admission approve failures and keeps error visible', async () => {
@@ -66,7 +85,9 @@ function createEventHost() {
     handlers: [] as Array<{ event: string, handler: (session: unknown) => unknown }>,
     approvals: [] as Array<{ requestID: string, approve: boolean, reason?: string }>,
     joinEvents: [] as unknown[],
-    admissionAccessChecks: 0,
+    memberBlacklistAccessChecks: 0,
+    memberBlacklistBlocked: false,
+    memberBlacklistAccessError: null as Error | null,
     approveError: null as Error | null,
     ctx: {
       on(event: string, handler: (session: unknown) => unknown) {
@@ -74,7 +95,6 @@ function createEventHost() {
       },
     },
     data: {
-      blacklist: { rows: {}, getAll() { return this.rows } },
       leaveRecords: { getAll() { return {} } },
       groupConfig: { getAll() { return {} } },
     },
@@ -84,10 +104,14 @@ function createEventHost() {
       guildRequest: { enabled: false, rejectMessage: '' },
     },
     admissionPlatform: {
-      async getAdmissionQQAccess(qqID: string) {
-        assert.equal(qqID, '10001')
-        host.admissionAccessChecks++
-        return { canJoin: true, autoApproveJoin: true }
+      async getMemberBlacklistAccess(input: { subjectID: string; guildID?: string }) {
+        assert.equal(input.subjectID, '10001')
+        assert.equal(input.guildID, 'guild-1')
+        host.memberBlacklistAccessChecks++
+        if (host.memberBlacklistAccessError) throw host.memberBlacklistAccessError
+        return host.memberBlacklistBlocked
+          ? { canJoin: false, decision: 'blocked', reason: 'member_blacklisted' }
+          : { canJoin: true, decision: 'allowed' }
       },
       async recordJoinRequestEvent(input: unknown) {
         host.joinEvents.push(input)

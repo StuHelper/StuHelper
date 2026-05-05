@@ -1,14 +1,16 @@
 package serviceaccount
 
 const (
-	KoishiRuntimeCredentialName = "koishi-runtime"
-	AudienceBotAPI              = "/api/v1/bot/*"
-	ScopeBotQQBindingConsume    = "bot.qq_binding.consume"
-	ScopeBotQQVerificationRead  = "bot.qq_verification.read"
-	ScopeBotAdmissionSession    = "bot.admission.session"
-	ScopeBotAdmissionEvent      = "bot.admission.event"
-	ScopeBotAdmissionReview     = "bot.admission.review"
-	ScopeBotAdmissionForward    = "bot.admission.forward"
+	KoishiRuntimeCredentialName   = "koishi-runtime"
+	AudienceBotAPI                = "/api/v1/bot/*"
+	ScopeBotQQBindingConsume      = "bot.qq_binding.consume"
+	ScopeBotQQVerificationRead    = "bot.qq_verification.read"
+	ScopeBotAdmissionSession      = "bot.admission.session"
+	ScopeBotAdmissionEvent        = "bot.admission.event"
+	ScopeBotAdmissionReview       = "bot.admission.review"
+	ScopeBotAdmissionForward      = "bot.admission.forward"
+	ScopeBotMemberBlacklistRead   = "bot.member_blacklist.read"
+	ScopeBotMemberBlacklistManage = "bot.member_blacklist.manage"
 )
 
 func KoishiRuntimeScopes() []string {
@@ -19,5 +21,7 @@ func KoishiRuntimeScopes() []string {
 		ScopeBotAdmissionEvent,
 		ScopeBotAdmissionReview,
 		ScopeBotAdmissionForward,
+		ScopeBotMemberBlacklistRead,
+		ScopeBotMemberBlacklistManage,
 	}
 }

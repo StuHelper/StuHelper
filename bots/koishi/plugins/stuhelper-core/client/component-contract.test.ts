@@ -62,7 +62,7 @@ test('dangerous moderation actions require shared confirmation before API mutati
 
   assert.match(blacklistSource, /<ConfirmDialog\b/)
   assert.ok(
-    blacklistSource.indexOf('const confirmed = await confirm(') < blacklistSource.indexOf('await blacklistApi.remove(userId)'),
+    blacklistSource.indexOf('const confirmed = await confirm(') < blacklistSource.indexOf('await blacklistApi.remove({'),
   )
   assert.match(blacklistSource, /if \(!confirmed\) return/)
 

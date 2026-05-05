@@ -43,6 +43,37 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     rawEvent: { comment: '我是新生' },
   })
   await client.listPendingAdmissionActions({ platform: 'qq', botSelfID: '514', limit: 50 })
+  await client.getMemberBlacklistAccess({
+    platform: 'qq',
+    subjectType: 'qq_user',
+    subjectID: '10001',
+    guildID: 'guild-1',
+  })
+  await client.listMemberBlacklist({ platform: 'qq', status: 'active', pageSize: 20 })
+  await client.createMemberBlacklist({
+    platform: 'qq',
+    subjectType: 'qq_user',
+    subjectID: '10001',
+    scopeType: 'guild',
+    guildID: 'guild-1',
+    source: 'manual_admin',
+    reasonCode: 'manual_blacklist',
+    reasonText: 'manual command',
+    metadata: { operatorQQID: '90001' },
+  })
+  await client.releaseMemberBlacklist('entry-1', {
+    releaseReasonCode: 'release_only',
+    operatorQQID: '90001',
+  })
+  await client.releaseMemberBlacklistBySubject({
+    platform: 'qq',
+    subjectType: 'qq_user',
+    subjectID: '10001',
+    scopeType: 'guild',
+    guildID: 'guild-1',
+    releaseReasonCode: 'manual_pardon',
+    operatorQQID: '90001',
+  })
   await client.recordAdmissionEvent('session-1', {
     action: 'release',
     success: true,
@@ -64,31 +95,29 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     rawCommand: '新生审核通过 app-1 +30d',
     expiresInDays: 30,
   })
-  await client.releaseAdmissionBlacklist('10001', {
-    operatorQQID: '90001',
-    guildID: 'mgmt-1',
-    channelID: 'channel-1',
-    rawCommand: '新生黑名单解除 10001',
-  })
-
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
     ['POST', '/api/v1/bot/admission/sessions'],
     ['POST', '/api/v1/bot/admission/join-requests/events'],
     ['GET', '/api/v1/bot/admission/sessions/pending?platform=qq&botSelfID=514&limit=50'],
+    ['GET', '/api/v1/bot/member-blacklist/access?platform=qq&subjectType=qq_user&subjectID=10001&guildID=guild-1'],
+    ['GET', '/api/v1/bot/member-blacklist?platform=qq&status=active&pageSize=20'],
+    ['POST', '/api/v1/bot/member-blacklist'],
+    ['POST', '/api/v1/bot/member-blacklist/entry-1/release'],
+    ['POST', '/api/v1/bot/member-blacklist/release-by-subject'],
     ['POST', '/api/v1/bot/admission/sessions/session-1/events'],
     ['GET', '/api/v1/bot/admission/freshman/applications/pending-forward'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/forwarded'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/view'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/review'],
-    ['POST', '/api/v1/bot/admission/blacklist/10001/release'],
   ])
   assert.ok(calls.every((call) => call.authorization === 'Bearer service-token'))
   assert.equal(calls[0].body.qqNickname, 'Alice')
   assert.equal(calls[1].body.rawEvent.comment, '我是新生')
-  assert.equal(calls[3].body.messageID, 'message-1')
-  assert.equal(calls[6].body.operatorQQID, '90001')
-  assert.equal(calls[7].body.expiresInDays, 30)
-  assert.equal(calls[8].body.rawCommand, '新生黑名单解除 10001')
+  assert.equal(calls[5].body.metadata.operatorQQID, '90001')
+  assert.equal(calls[7].body.releaseReasonCode, 'manual_pardon')
+  assert.equal(calls[8].body.messageID, 'message-1')
+  assert.equal(calls[11].body.operatorQQID, '90001')
+  assert.equal(calls[12].body.expiresInDays, 30)
 })
 
 test('platform client accepts empty success responses for void requests', async (t) => {
@@ -142,6 +171,15 @@ function responseDataForPath(path: string) {
       managementGuildIDs: ['mgmt-1'],
     }]
   }
+  if (path.endsWith('/member-blacklist/access')) {
+    return { canJoin: true, decision: 'allowed' }
+  }
+  if (path.endsWith('/member-blacklist')) {
+    return { list: [memberBlacklistEntry('entry-1')], total: 1 }
+  }
+  if (path.includes('/member-blacklist/')) {
+    return memberBlacklistEntry('entry-1')
+  }
   if (path.endsWith('/view') || path.endsWith('/review')) {
     return freshmanApplication('app-1')
   }
@@ -173,5 +211,25 @@ function freshmanApplication(id: string) {
     applicantNameMasked: 'A***',
     materialType: 'admission_notice',
     createdAt: '2026-05-03T12:00:00Z',
+  }
+}
+
+function memberBlacklistEntry(id: string) {
+  return {
+    id,
+    platform: 'qq',
+    subjectType: 'qq_user',
+    subjectID: '10001',
+    scopeType: 'guild',
+    guildID: 'guild-1',
+    source: 'manual_admin',
+    reasonCode: 'manual_blacklist',
+    reasonText: 'manual command',
+    metadata: {},
+    createdByType: 'qq_operator',
+    createdByID: '90001',
+    createdFrom: 'qq_command',
+    createdAt: '2026-05-03T12:00:00Z',
+    updatedAt: '2026-05-03T12:00:00Z',
   }
 }

@@ -3,15 +3,22 @@ import type {
   AdmissionJoinRequestEvent,
   AdmissionPendingAction,
   AdmissionPendingActionsRequest,
-  AdmissionQQAccess,
   AdmissionSessionCreateRequest,
   AdmissionSessionCreateResult,
   ConsumeQQBindingRequest,
   FreshmanApplication,
-  FreshmanBlacklistReleaseRequest,
   FreshmanCommandContext,
   FreshmanForwardItem,
   FreshmanReviewRequest,
+  MemberBlacklistAccessDecision,
+  MemberBlacklistAccessRequest,
+  MemberBlacklistCreateRequest,
+  MemberBlacklistEntry,
+  MemberBlacklistListRequest,
+  MemberBlacklistListResult,
+  MemberBlacklistReleaseBySubjectRequest,
+  MemberBlacklistReleaseRequest,
+  PlatformRequestOptions,
   QQVerificationStatus,
   StuhelperPlatformConfig,
   QQBinding,
@@ -25,6 +32,8 @@ const ADMISSION_JOIN_REQUEST_EVENTS_PATH = '/api/v1/bot/admission/join-requests/
 const ADMISSION_PENDING_ACTIONS_PATH = '/api/v1/bot/admission/sessions/pending'
 const ADMISSION_FRESHMAN_FORWARD_PATH = '/api/v1/bot/admission/freshman/applications/pending-forward'
 const ADMISSION_FRESHMAN_APPLICATIONS_PATH = '/api/v1/bot/admission/freshman/applications'
+const MEMBER_BLACKLIST_PATH = '/api/v1/bot/member-blacklist'
+const MEMBER_BLACKLIST_ACCESS_PATH = `${MEMBER_BLACKLIST_PATH}/access`
 const AUTH_SCHEME = 'Bearer'
 const JSON_CONTENT_TYPE = 'application/json'
 const PLATFORM_REQUEST_TIMEOUT_MS = 8_000
@@ -60,7 +69,14 @@ export interface PlatformClient {
   getHealth(): Promise<void>
   consumeQQBindingCode(input: ConsumeQQBindingRequest): Promise<ConsumeQQBindingResult>
   getQQVerificationStatus(qqID: string): Promise<QQVerificationStatus>
-  getAdmissionQQAccess(qqID: string): Promise<AdmissionQQAccess>
+  getMemberBlacklistAccess(
+    input: MemberBlacklistAccessRequest,
+    options?: PlatformRequestOptions,
+  ): Promise<MemberBlacklistAccessDecision>
+  listMemberBlacklist(input?: MemberBlacklistListRequest): Promise<MemberBlacklistListResult>
+  createMemberBlacklist(input: MemberBlacklistCreateRequest): Promise<MemberBlacklistEntry>
+  releaseMemberBlacklist(id: string, input: MemberBlacklistReleaseRequest): Promise<MemberBlacklistEntry>
+  releaseMemberBlacklistBySubject(input: MemberBlacklistReleaseBySubjectRequest): Promise<MemberBlacklistEntry>
   createAdmissionSession(input: AdmissionSessionCreateRequest): Promise<AdmissionSessionCreateResult>
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
   listPendingAdmissionActions(input?: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
@@ -69,7 +85,6 @@ export interface PlatformClient {
   markFreshmanForwarded(applicationID: string): Promise<void>
   viewFreshmanApplication(applicationID: string, input: FreshmanCommandContext): Promise<FreshmanApplication>
   reviewFreshmanApplication(applicationID: string, input: FreshmanReviewRequest): Promise<FreshmanApplication>
-  releaseAdmissionBlacklist(qqID: string, input: FreshmanBlacklistReleaseRequest): Promise<void>
 }
 
 export function createPlatformClient(config: StuhelperPlatformConfig): PlatformClient {
@@ -94,10 +109,32 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
       })
     },
 
-    async getAdmissionQQAccess(qqID) {
-      return request<AdmissionQQAccess>(
-        `/api/v1/bot/admission/qq-users/${encodeURIComponent(qqID)}/access`,
-        { method: 'GET' },
+    async getMemberBlacklistAccess(input, options) {
+      return request<MemberBlacklistAccessDecision>(
+        withQuery(MEMBER_BLACKLIST_ACCESS_PATH, input),
+        withRequestOptions({ method: 'GET' }, options),
+      )
+    },
+
+    async listMemberBlacklist(input = {}) {
+      return request<MemberBlacklistListResult>(withQuery(MEMBER_BLACKLIST_PATH, input), { method: 'GET' })
+    },
+
+    async createMemberBlacklist(input) {
+      return request<MemberBlacklistEntry>(MEMBER_BLACKLIST_PATH, jsonPost(input))
+    },
+
+    async releaseMemberBlacklist(id, input) {
+      return request<MemberBlacklistEntry>(
+        `${MEMBER_BLACKLIST_PATH}/${encodeURIComponent(id)}/release`,
+        jsonPost(input),
+      )
+    },
+
+    async releaseMemberBlacklistBySubject(input) {
+      return request<MemberBlacklistEntry>(
+        `${MEMBER_BLACKLIST_PATH}/release-by-subject`,
+        jsonPost(input),
       )
     },
 
@@ -143,13 +180,6 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
       )
     },
 
-    async releaseAdmissionBlacklist(qqID, input) {
-      await request<void>(
-        `/api/v1/bot/admission/blacklist/${encodeURIComponent(qqID)}/release`,
-        jsonPost(input),
-        true,
-      )
-    },
   }
 }
 
@@ -161,19 +191,24 @@ function jsonPost(input: unknown): RequestInit {
   }
 }
 
-function withQuery(path: string, input: AdmissionPendingActionsRequest) {
+function withQuery(path: string, input: Readonly<Record<string, unknown>>) {
   const values = new URLSearchParams()
-  appendQueryValue(values, 'platform', input.platform)
-  appendQueryValue(values, 'botSelfID', input.botSelfID)
-  appendQueryValue(values, 'limit', input.limit)
+  for (const [key, value] of Object.entries(input)) {
+    appendQueryValue(values, key, value)
+  }
   const query = values.toString()
   return query ? `${path}?${query}` : path
 }
 
-function appendQueryValue(values: URLSearchParams, key: string, value: number | string | undefined) {
-  if (typeof value !== 'undefined' && value !== '') {
+function appendQueryValue(values: URLSearchParams, key: string, value: unknown) {
+  if (typeof value !== 'undefined' && value !== null && value !== '') {
     values.set(key, String(value))
   }
+}
+
+function withRequestOptions(init: RequestInit, options?: PlatformRequestOptions): RequestInit {
+  if (!options?.timeoutMs) return init
+  return { ...init, signal: AbortSignal.timeout(options.timeoutMs) }
 }
 
 function createRequest(config: StuhelperPlatformConfig) {

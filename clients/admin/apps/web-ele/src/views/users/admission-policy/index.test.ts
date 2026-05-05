@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const sourcePath = fileURLToPath(new URL('./index.vue', import.meta.url));
+const sourcePath = resolve(
+  process.cwd(),
+  'src/views/users/admission-policy/index.vue',
+);
 
 describe('admission policy admin view contract', () => {
   it('covers every admission policy control required by the spec', async () => {
@@ -24,7 +27,11 @@ describe('admission policy admin view contract', () => {
       'maxExtensionDays',
       'managementGuildIDs',
       'forwardRawMaterialToQQ',
-      'releaseAdmissionBlacklist',
+      'releaseMemberBlacklistBySubject',
+      'blacklistPlatform',
+      'blacklistScope',
+      'blacklistGuildID',
+      'manual_pardon',
       'ElPopconfirm',
       'data-action="releaseBlacklist"',
     ]) {

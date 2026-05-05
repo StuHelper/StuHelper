@@ -3,6 +3,7 @@ import type { Session } from 'koishi'
 import { parseUserId } from '../../utils'
 import type { Config } from '../../types'
 import type { MemberManageModule } from './memberManage.module'
+import { handleBlackKick } from './member-manage-blacklist'
 
 const DEFAULT_MAX_TITLE_BYTES = 18
 
@@ -63,7 +64,10 @@ async function handleKickCommand(host: MemberManageModule, session: Session, inp
   try {
     await session.bot.kickGuildMember(kickInput.targetGroup, kickInput.userId, kickInput.black)
     if (kickInput.black) {
-      await handleBlackKick(host, session, kickInput)
+      await handleBlackKick(host, session, {
+        userId: kickInput.userId,
+        targetGroup: kickInput.targetGroup,
+      })
       return `已把坏人 ${kickInput.userId} 踢出去并加入黑名单啦喵！`
     }
 
@@ -71,7 +75,7 @@ async function handleKickCommand(host: MemberManageModule, session: Session, inp
     return `已把 ${kickInput.userId} 踢出去喵~`
   } catch (error) {
     host.logCommand(session, 'kick', kickInput.userId, `失败：未知错误`, false)
-    return `喵呜...踢出失败了：${error.message}`
+    return `喵呜...操作失败了：${error.message}`
   }
 }
 
@@ -118,22 +122,6 @@ function resolveCommandUserId(user: unknown): string {
   if (!raw) return ''
   const [, platformUserId] = raw.split(':')
   return platformUserId || resolveTargetUserId(raw) || ''
-}
-
-async function handleBlackKick(
-  host: MemberManageModule,
-  session: Session,
-  input: KickInput,
-): Promise<void> {
-  const blacklist = host.data.blacklist.getAll()
-  blacklist[input.userId] = { userId: input.userId, timestamp: Date.now() }
-  host.data.blacklist.setAll(blacklist)
-  host.logCommand(session, 'kick', input.userId, `成功：移出群聊并加入黑名单：${input.targetGroup}`)
-  await host.ctx.stuhelperGroupCenter.pushMessage(
-    session.bot,
-    `[黑名单] 用户 ${input.userId} 被踢出群 ${input.targetGroup} 并加入黑名单`,
-    'blacklist',
-  )
 }
 
 function registerAdminCommands(host: MemberManageModule): void {

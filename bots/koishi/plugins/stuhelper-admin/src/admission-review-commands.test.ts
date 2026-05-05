@@ -37,14 +37,14 @@ test('新生审核命令会把操作者 QQ、群号、频道和原始命令发�
     await client.shouldReply('新生审核通过 A123', '已通过新生认证申请 A123。')
     await client.shouldReply('新生审核通过 A123 +30d', '已通过新生认证申请 A123，临时身份 30 天后过期。')
     await client.shouldReply('新生审核驳回 A123 材料不清晰', '已驳回新生认证申请 A123。')
-    await client.shouldReply('新生黑名单解除 123456', '已解除 123456 的入群认证黑名单。')
+    await client.shouldReply('新生黑名单解除 123456 guild-1', '已解除 123456 的群 guild-1 的入群认证黑名单。')
 
     assert.deepEqual(requests.map((item) => [item.method, item.path]), [
       ['POST', '/api/v1/bot/admission/freshman/applications/A123/view'],
       ['POST', '/api/v1/bot/admission/freshman/applications/A123/review'],
       ['POST', '/api/v1/bot/admission/freshman/applications/A123/review'],
       ['POST', '/api/v1/bot/admission/freshman/applications/A123/review'],
-      ['POST', '/api/v1/bot/admission/blacklist/123456/release'],
+      ['POST', '/api/v1/bot/member-blacklist/release-by-subject'],
     ])
     assert.ok(requests.every((item) => item.authorization === 'Bearer test-token'))
     assert.deepEqual(requests[0].body, commandBody('20020', 'mgmt-1', '新生审核查看 A123'))
@@ -58,6 +58,16 @@ test('新生审核命令会把操作者 QQ、群号、频道和原始命令发�
       ...commandBody('20020', 'mgmt-1', '新生审核驳回 A123 材料不清晰'),
       action: 'reject',
       reason: '材料不清晰',
+    })
+    assert.deepEqual(requests[4].body, {
+      platform: 'mock',
+      subjectType: 'qq_user',
+      subjectID: '123456',
+      scopeType: 'guild',
+      guildID: 'guild-1',
+      releaseReasonCode: 'manual_pardon',
+      releaseReason: 'freshman review command release',
+      operatorQQID: '20020',
     })
   } finally {
     runtime.dispose()

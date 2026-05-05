@@ -2,7 +2,6 @@ import type { Session } from 'koishi'
 
 import type {
   BanMeRecord,
-  BlacklistRecord,
   Config,
   GroupConfig,
   MuteRecord,
@@ -10,6 +9,11 @@ import type {
 } from '../../types'
 import type { DataManager } from '../data'
 import { formatDuration } from '../../utils'
+import {
+  listVisibleMemberBlacklists,
+  type MemberBlacklistBackend,
+} from './member-blacklist-backend'
+import type { MemberBlacklistEntry } from '@stuhelper/koishi-shared'
 
 const HOUR_MS = 3_600_000
 const SOFT_PITY_STEP = 0.06
@@ -17,13 +21,14 @@ const SOFT_PITY_STEP = 0.06
 type ConfigSummaryHost = {
   readonly data: DataManager
   readonly config: Config
+  readonly memberBlacklistBackend?: MemberBlacklistBackend
 }
 
 type ConfigSummaryModel = {
   readonly config: Config
   readonly groupConfig?: GroupConfig
   readonly guildWarns: WarnRecord
-  readonly blacklist: Record<string, BlacklistRecord>
+  readonly blacklist: readonly MemberBlacklistEntry[]
   readonly currentMutes: Record<string, MuteRecord>
   readonly currentBanMe: BanMeRecord
   readonly currentProb: number
@@ -36,8 +41,8 @@ type ConfigSummaryModel = {
   readonly currentWelcome: string
 }
 
-export function showAllConfig(host: ConfigSummaryHost, session: Session): string {
-  const model = buildSummaryModel(host, session.guildId!)
+export async function showAllConfig(host: ConfigSummaryHost, session: Session): Promise<string> {
+  const model = await buildSummaryModel(host, session)
   return [
     formatWelcomeSection(model),
     formatApprovalSection(model),
@@ -53,7 +58,8 @@ export function showAllConfig(host: ConfigSummaryHost, session: Session): string
   ].join('\n\n')
 }
 
-function buildSummaryModel(host: ConfigSummaryHost, guildId: string): ConfigSummaryModel {
+async function buildSummaryModel(host: ConfigSummaryHost, session: Session): Promise<ConfigSummaryModel> {
+  const guildId = session.guildId!
   const groupConfigs = host.data.groupConfig.getAll()
   const groupConfig = groupConfigs[guildId]
   const currentBanMe = getCurrentBanMeRecord(host.data.banmeRecords.getAll(), guildId)
@@ -62,7 +68,7 @@ function buildSummaryModel(host: ConfigSummaryHost, guildId: string): ConfigSumm
     config: host.config,
     groupConfig,
     guildWarns: cleanupGuildWarns(host, guildId),
-    blacklist: host.data.blacklist.getAll(),
+    blacklist: await loadVisibleBlacklist(host, session),
     currentMutes: host.data.mutes.getAll()[guildId] || {},
     currentBanMe,
     currentProb: calculateCurrentProbability(currentBanMe, host.config),
@@ -74,6 +80,13 @@ function buildSummaryModel(host: ConfigSummaryHost, guildId: string): ConfigSumm
     currentGroupAutoDelete: groupConfig?.forbidden?.autoDelete || false,
     currentWelcome: groupConfig?.welcomeMsg || '未设置',
   }
+}
+
+function loadVisibleBlacklist(host: ConfigSummaryHost, session: Session) {
+  if (!host.memberBlacklistBackend) {
+    throw new Error('member blacklist backend client is required for config summary')
+  }
+  return listVisibleMemberBlacklists(host.memberBlacklistBackend, session.platform, session.guildId!)
 }
 
 function formatWelcomeSection(model: ConfigSummaryModel): string {
@@ -207,10 +220,14 @@ function calculateCurrentProbability(record: BanMeRecord, config: Config): numbe
   return Math.min(currentProb, 1)
 }
 
-function formatBlacklist(blacklist: Record<string, BlacklistRecord>): string {
-  return Object.entries(blacklist)
-    .map(([userId, data]) => `用户 ${userId}：${formatShanghaiTime(data.timestamp)}`)
+function formatBlacklist(entries: readonly MemberBlacklistEntry[]): string {
+  return entries
+    .map((entry) => `用户 ${entry.subjectID}：${formatBlacklistScope(entry)} / ${formatShanghaiTime(Date.parse(entry.createdAt))}`)
     .join('\n')
+}
+
+function formatBlacklistScope(entry: MemberBlacklistEntry): string {
+  return entry.scopeType === 'global' ? '全局' : `群 ${entry.guildID}`
 }
 
 function formatWarns(guildWarns: WarnRecord): string {

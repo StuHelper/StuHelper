@@ -799,13 +799,47 @@ CREATE TABLE public.group_admission_failures (
     guild_id text NOT NULL,
     qq_id text NOT NULL,
     failure_count integer DEFAULT 0 NOT NULL,
-    blacklisted_at timestamp with time zone,
-    blacklist_expires_at timestamp with time zone,
     last_failure_at timestamp with time zone DEFAULT now() NOT NULL,
-    released_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_group_admission_failures_count CHECK ((failure_count >= 0))
+);
+
+
+--
+-- Name: member_blacklist_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.member_blacklist_entries (
+    id character varying(36) NOT NULL,
+    platform text NOT NULL,
+    subject_type text NOT NULL,
+    subject_id text NOT NULL,
+    scope_type text NOT NULL,
+    guild_id text,
+    source text NOT NULL,
+    reason_code text NOT NULL,
+    reason_text text NOT NULL,
+    created_by_type text NOT NULL,
+    created_by_id text NOT NULL,
+    created_from text NOT NULL,
+    expires_at timestamp with time zone,
+    released_at timestamp with time zone,
+    released_by_type text,
+    released_by_id text,
+    release_reason_code text,
+    release_reason text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_member_blacklist_entries_actor_type CHECK ((created_by_type = ANY (ARRAY['system'::text, 'admin_user'::text, 'qq_operator'::text, 'service_account'::text]))),
+    CONSTRAINT chk_member_blacklist_entries_created_from CHECK ((created_from = ANY (ARRAY['admission_worker'::text, 'qq_command'::text, 'koishi_console'::text, 'admin_console'::text, 'moderation_review'::text, 'migration_script'::text]))),
+    CONSTRAINT chk_member_blacklist_entries_reason_code CHECK ((reason_code = ANY (ARRAY['admission_timeout_limit'::text, 'manual_blacklist'::text, 'manual_kick_blacklist'::text, 'violation_review_blacklist'::text, 'legacy_koishi_blacklist'::text, 'legacy_admission_blacklist'::text]))),
+    CONSTRAINT chk_member_blacklist_entries_release_actor_type CHECK (((released_by_type IS NULL) OR (released_by_type = ANY (ARRAY['system'::text, 'admin_user'::text, 'qq_operator'::text, 'service_account'::text])))),
+    CONSTRAINT chk_member_blacklist_entries_release_reason_code CHECK (((release_reason_code IS NULL) OR (release_reason_code = ANY (ARRAY['manual_pardon'::text, 'release_only'::text, 'policy_expired_auto'::text, 'admission_appeal_passed'::text, 'migration_inverse'::text])))),
+    CONSTRAINT chk_member_blacklist_entries_scope CHECK ((((scope_type = 'global'::text) AND (guild_id IS NULL)) OR ((scope_type = 'guild'::text) AND (guild_id IS NOT NULL)))),
+    CONSTRAINT chk_member_blacklist_entries_source CHECK ((source = ANY (ARRAY['admission_failure'::text, 'manual_admin'::text, 'kick_blacklist'::text, 'moderation_action'::text, 'migration_legacy_koishi'::text, 'migration_admission_failure'::text]))),
+    CONSTRAINT chk_member_blacklist_entries_subject_type CHECK ((subject_type = ANY (ARRAY['qq_user'::text])))
 );
 
 
@@ -1913,6 +1947,14 @@ ALTER TABLE ONLY public.group_admission_failures
 
 
 --
+-- Name: member_blacklist_entries member_blacklist_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.member_blacklist_entries
+    ADD CONSTRAINT member_blacklist_entries_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: group_admission_policies group_admission_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2433,6 +2475,27 @@ CREATE INDEX freshman_verification_materials_application_idx ON public.freshman_
 --
 
 CREATE INDEX group_admission_failures_count_idx ON public.group_admission_failures USING btree (platform, guild_id, failure_count DESC);
+
+
+--
+-- Name: member_blacklist_access_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX member_blacklist_access_idx ON public.member_blacklist_entries USING btree (platform, subject_type, subject_id, scope_type, guild_id) WHERE (released_at IS NULL);
+
+
+--
+-- Name: member_blacklist_global_active_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX member_blacklist_global_active_key ON public.member_blacklist_entries USING btree (platform, subject_type, subject_id) WHERE ((released_at IS NULL) AND (scope_type = 'global'::text));
+
+
+--
+-- Name: member_blacklist_guild_active_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX member_blacklist_guild_active_key ON public.member_blacklist_entries USING btree (platform, subject_type, subject_id, guild_id) WHERE ((released_at IS NULL) AND (scope_type = 'guild'::text));
 
 
 --
