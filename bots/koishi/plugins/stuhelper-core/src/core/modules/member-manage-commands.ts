@@ -1,17 +1,15 @@
 import type { Session } from 'koishi'
 
-import { parseUserId } from '../../utils'
 import type { Config } from '../../types'
 import type { MemberManageModule } from './memberManage.module'
 import { handleBlackKick } from './member-manage-blacklist'
+import {
+  parseKickInput,
+  resolveTargetUserId,
+  type KickCommandOptions,
+} from './member-manage-kick-input'
 
 const DEFAULT_MAX_TITLE_BYTES = 18
-
-interface KickInput {
-  userId: string | null
-  targetGroup?: string
-  black: boolean
-}
 
 type TitleConfig = NonNullable<Config['setTitle']>
 interface AdminCommandInput { host: MemberManageModule; session: Session; user: unknown; enabled: boolean }
@@ -42,16 +40,22 @@ function registerKickCommand(host: MemberManageModule): void {
     .example('kick @用户 -b')
     .example('kick 123456789 -b 群号')
     .option('black', '-b 加入黑名单')
-    .action(async ({ session }, input) => handleKickCommand(host, session, input))
+    .option('global', '-g, --global 使用全局黑名单范围')
+    .action(async ({ session, options }, input) => handleKickCommand(host, session, input, options))
 }
 
-async function handleKickCommand(host: MemberManageModule, session: Session, input: string): Promise<string> {
+async function handleKickCommand(
+  host: MemberManageModule,
+  session: Session,
+  input: string,
+  options: KickCommandOptions = {},
+): Promise<string> {
   if (!input?.trim()) {
     host.logCommand(session, 'kick', 'none', '失败：缺少必要参数', false)
     return '喵呜...请输入正确的用户（@或QQ号）'
   }
 
-  const kickInput = parseKickInput(input, session.guildId)
+  const kickInput = parseKickInput(input, session.guildId, options)
   if (!kickInput.userId) {
     host.logCommand(session, 'kick', 'none', '失败：无法读取目标用户', false)
     return '喵呜...请输入正确的用户（@或QQ号）'
@@ -67,6 +71,7 @@ async function handleKickCommand(host: MemberManageModule, session: Session, inp
       await handleBlackKick(host, session, {
         userId: kickInput.userId,
         targetGroup: kickInput.targetGroup,
+        global: kickInput.global,
       })
       return `已把坏人 ${kickInput.userId} 踢出去并加入黑名单啦喵！`
     }
@@ -77,44 +82,6 @@ async function handleKickCommand(host: MemberManageModule, session: Session, inp
     host.logCommand(session, 'kick', kickInput.userId, `失败：未知错误`, false)
     return `喵呜...操作失败了：${error.message}`
   }
-}
-
-function parseKickInput(input: string, defaultGuildId?: string): KickInput {
-  const black = input.includes('-b')
-  const normalized = input.replace(/-b/g, '').replace(/\s+/g, ' ').trim()
-  const [target, groupId] = splitKickArgs(normalized)
-
-  return {
-    userId: resolveTargetUserId(target),
-    targetGroup: groupId || defaultGuildId,
-    black,
-  }
-}
-
-function splitKickArgs(input: string): string[] {
-  const source = input.trim()
-  if (!source.includes('<at')) return source.split(/\s+/).filter(Boolean)
-
-  const atMatch = source.match(/<at[^>]+>/)
-  if (!atMatch) return source.split(/\s+/).filter(Boolean)
-
-  const atPart = atMatch[0]
-  const restPart = source.replace(atPart, '').trim()
-  return [atPart, ...restPart.split(/\s+/)].filter(Boolean)
-}
-
-function resolveTargetUserId(target: string): string | null {
-  try {
-    if (target?.startsWith('<at')) {
-      const match = target.match(/id="(\d+)"/)
-      if (match) return match[1]
-    } else {
-      return parseUserId(target)
-    }
-  } catch {
-    return parseUserId(target)
-  }
-  return null
 }
 
 function resolveCommandUserId(user: unknown): string {

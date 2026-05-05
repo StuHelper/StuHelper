@@ -3153,6 +3153,7 @@ export interface components {
             source: components["schemas"]["MemberBlacklistSource"];
             reasonCode: components["schemas"]["MemberBlacklistReasonCode"];
             reasonText: string;
+            /** @description Source-specific audit metadata. admission_failure entries include admissionSessionID, failureCount, failedJoinLimit, platform, guildID, and botSelfID; manual_admin requires operatorInput and scopeSelectionContext; kick_blacklist requires rawCommand, targetGuildID, and operatorQQID; moderation_action requires reviewID, workItemID, and targetGuildID. */
             metadata: {
                 [key: string]: unknown;
             };
@@ -3183,6 +3184,7 @@ export interface components {
             reasonText: string;
             /** Format: date-time */
             expiresAt?: string | null;
+            /** @description Source-specific audit metadata. manual_admin requires operatorInput and scopeSelectionContext; kick_blacklist requires rawCommand, targetGuildID, and operatorQQID; moderation_action requires reviewID, workItemID, and targetGuildID. Public admin and bot APIs cannot create admission_failure or migration sources. */
             metadata: {
                 [key: string]: unknown;
             };

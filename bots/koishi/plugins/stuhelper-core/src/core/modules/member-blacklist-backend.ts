@@ -42,7 +42,7 @@ export function createManualMemberBlacklist(
     source: 'manual_admin',
     reasonCode: 'manual_blacklist',
     reasonText: 'manual blacklist from Koishi command',
-    metadata: memberBlacklistMetadata(input, 'qq_command'),
+    metadata: manualMemberBlacklistMetadata(input, 'qq_command'),
   })
 }
 
@@ -67,7 +67,7 @@ export function createKickMemberBlacklist(
     source: 'kick_blacklist',
     reasonCode: 'manual_kick_blacklist',
     reasonText: 'manual kick with blacklist from Koishi command',
-    metadata: memberBlacklistMetadata(input, 'qq_command'),
+    metadata: memberBlacklistCommandMetadata(input),
   })
 }
 
@@ -102,14 +102,26 @@ function memberBlacklistScope(input: MemberBlacklistCommandInput): MemberBlackli
   return input.global ? 'global' : 'guild'
 }
 
-function memberBlacklistMetadata(
+function manualMemberBlacklistMetadata(
   input: MemberBlacklistCommandInput,
   createdFrom: 'qq_command',
 ): Record<string, unknown> {
   return {
-    operatorQQID: input.operatorQQID,
-    guildID: input.guildID,
-    rawCommand: input.rawCommand,
+    ...memberBlacklistCommandMetadata(input),
+    operatorInput: input.subjectID,
     createdFrom,
   }
+}
+
+function memberBlacklistCommandMetadata(input: MemberBlacklistCommandInput): Record<string, unknown> {
+  return {
+    operatorQQID: input.operatorQQID,
+    targetGuildID: input.guildID,
+    rawCommand: input.rawCommand,
+    scopeSelectionContext: memberBlacklistScopeSelectionContext(input),
+  }
+}
+
+function memberBlacklistScopeSelectionContext(input: MemberBlacklistCommandInput) {
+  return input.global ? 'explicit_global_flag' : 'current_guild_command'
 }

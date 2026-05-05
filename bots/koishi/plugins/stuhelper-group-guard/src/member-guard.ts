@@ -1,4 +1,4 @@
-import { h, type Logger, type Session, type Universal } from 'koishi'
+import { type Logger, type Session, type Universal } from 'koishi'
 
 import {
   type GuardPolicyStore,
@@ -11,7 +11,17 @@ import {
   executeAdmissionAction,
   formatAdmissionActionError,
 } from './admission-actions'
-import { formatAdmissionReminder } from './admission-format'
+import {
+  isMemberBlacklistedError,
+  kickBlacklistedJoin,
+  kickBlacklistedPendingMember,
+} from './member-blacklist-rejection'
+import {
+  muteDurationMs,
+  muteGuardedMember,
+  sendAdmissionReminder,
+  sendBackendPendingReminder,
+} from './member-guard-effects'
 import {
   forwardFreshmanMaterial,
   resolveFreshmanForwardBot,
@@ -28,8 +38,6 @@ import {
 } from './member-records'
 import type { GuardMemberRecord } from './model'
 import type { GuardMemberStore } from './store'
-
-const POSITIVE_MUTE_DURATION_REQUIRED = 'admission session initialMuteUntil must be in the future'
 
 interface MemberGuardDeps {
   platform: PlatformClient
@@ -106,6 +114,15 @@ export class MemberGuardService {
     try {
       return await this.deps.platform.createAdmissionSession(createAdmissionSessionRequest(session))
     } catch (error) {
+      if (isMemberBlacklistedError(error)) {
+        await kickBlacklistedJoin({
+          session,
+          moderationStore: this.deps.moderationStore,
+          logger: this.deps.logger,
+          error,
+        })
+        return null
+      }
       await this.failClosedBackendUnavailableJoin(session, policy, error)
       return null
     }
@@ -186,6 +203,18 @@ export class MemberGuardService {
       await sendAdmissionReminder(bot, { ...record, ...update }, admission.authURL)
       await this.deps.guardStore.markReminderSent(record.id, now)
     } catch (error) {
+      if (isMemberBlacklistedError(error)) {
+        await kickBlacklistedPendingMember({
+          bot,
+          record,
+          guardStore: this.deps.guardStore,
+          moderationStore: this.deps.moderationStore,
+          logger: this.deps.logger,
+          error,
+          now,
+        })
+        return
+      }
       const message = formatAdmissionActionError(error)
       await this.deps.guardStore.markLastError(record.id, message, now)
       this.deps.logger.warn('group guard admission backend sync failed', {
@@ -260,35 +289,4 @@ export interface GuardBotRuntime extends Universal.Methods {
   platform?: string
   selfId: string
   sid: string
-}
-
-function muteDurationMs(initialMuteUntil: Date) {
-  const duration = initialMuteUntil.getTime() - Date.now()
-  if (!Number.isFinite(duration) || duration <= 0) {
-    throw new Error(POSITIVE_MUTE_DURATION_REQUIRED)
-  }
-  return duration
-}
-
-async function muteGuardedMember(bot: Universal.Methods, guildId: string, memberId: string, muteDurationMs: number) {
-  await bot.muteGuildMember(guildId, memberId, muteDurationMs)
-}
-
-async function sendAdmissionReminder(bot: Universal.Methods, record: GuardMemberRecord, authURL: string) {
-  await bot.sendMessage(record.channelId, formatAdmissionReminder({
-    memberId: record.memberId,
-    authURL,
-    deadlineAt: record.deadlineAt,
-  }))
-}
-
-async function sendBackendPendingReminder(
-  bot: Universal.Methods,
-  record: GuardMemberRecord,
-  reminderTemplate: string,
-) {
-  await bot.sendMessage(record.channelId, [
-    `${h.at(record.memberId)} ${reminderTemplate}`,
-    '认证链接暂时无法创建，机器人会自动重试。',
-  ].join('\n'))
 }

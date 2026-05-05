@@ -12,6 +12,7 @@ interface BlackKickHost {
 interface BlackKickInput {
   readonly userId: string
   readonly targetGroup: string
+  readonly global: boolean
 }
 
 export async function handleBlackKick(
@@ -25,11 +26,13 @@ export async function handleBlackKick(
     subjectID: input.userId,
     operatorQQID: session.userId,
     rawCommand: session.content?.trim() || '',
+    global: input.global,
   })
   host.logCommand(session, 'kick', input.userId, `成功：移出群聊并加入黑名单：${input.targetGroup}`)
+  const scopeLabel = input.global ? '全局' : '本群'
   await host.ctx.stuhelperGroupCenter.pushMessage(
     session.bot,
-    `[黑名单] 用户 ${input.userId} 被踢出群 ${input.targetGroup} 并加入本群黑名单`,
+    `[黑名单] 用户 ${input.userId} 被踢出群 ${input.targetGroup} 并加入${scopeLabel}黑名单`,
     'blacklist',
   )
 }

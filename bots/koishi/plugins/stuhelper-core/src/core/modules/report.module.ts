@@ -1,5 +1,6 @@
 import type { Command, Context, Session } from 'koishi'
 import { Logger } from 'koishi'
+import { createPlatformClient, type PlatformClient } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config, GroupConfig, ReportGuildConfig } from '../../types'
@@ -51,7 +52,8 @@ export class ReportModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager
+    readonly data: DataManager,
+    readonly memberBlacklistBackend?: Pick<PlatformClient, 'createMemberBlacklist'>,
   ) {}
 
   get config(): Config {
@@ -169,6 +171,9 @@ export class ReportModule implements RuntimeModuleInstance {
 export const reportRuntimeModule: RuntimeModule<ReportModule> = {
   id: 'report',
   create(ctx, deps) {
-    return new ReportModule(ctx, deps.data)
+    const memberBlacklistBackend = deps.coreConfig
+      ? createPlatformClient(deps.coreConfig.platform)
+      : undefined
+    return new ReportModule(ctx, deps.data, memberBlacklistBackend)
   },
 }

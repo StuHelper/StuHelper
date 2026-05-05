@@ -2,6 +2,7 @@ import { Logger } from 'koishi'
 
 import { executeCommand } from '../../utils'
 import type { ReportModule } from './report.module'
+import { kickUserWithModerationBlacklist } from './report-moderation-blacklist'
 import type { ViolationAction, ViolationInfo } from './report-types'
 import { ViolationLevel } from './report-types'
 
@@ -76,9 +77,10 @@ function formatNoViolation(input: ReportViolationInput): string {
 
 async function handleManualViolation(input: ReportViolationInput): Promise<string> {
   const levelText = getViolationLevelText(input.violation.level)
+  const actionText = '自动处理功能已禁用，请管理员手动处理'
   await input.host.logCommand(input.session, 'report-no-action', input.userId, `${levelText}违规，管理员待处理`)
   return input.verbose
-    ? `AI判断结果：${levelText}违规\n理由：${input.violation.reason}\n操作：自动处理功能已禁用，请管理员手动处理`
+    ? `AI判断结果：${levelText}违规\n理由：${input.violation.reason}\n操作：${actionText}`
     : `该消息被判定为${levelText}违规，请管理员手动处理。`
 }
 
@@ -100,7 +102,8 @@ async function logReportHandling(input: ReportViolationInput, actionResults: str
   const levelText = getViolationLevelText(input.violation.level)
   const actionText = formatActionText(input.violation.action)
   const shortContent = shorten(input.content, SHORT_CONTENT_MAX_LENGTH)
-  await input.host.logCommand(input.session, 'report-handle', input.userId, `${levelText}违规，处理: ${actionText}，内容: ${shortContent}`)
+  const logDetails = `${levelText}违规，处理: ${actionText}，内容: ${shortContent}`
+  await input.host.logCommand(input.session, 'report-handle', input.userId, logDetails)
   await input.host.ctx.stuhelperGroupCenter.pushMessage(
     input.session.bot,
     `[举报] 群${input.session.guildId} 用户 ${input.userId} - ${levelText}违规\n内容: ${shortContent}\n处理: ${actionText}`,
@@ -170,7 +173,7 @@ async function runReportAction(input: ReportViolationInput & {
     await kickUser({ host: input.host, session, userId, addToBlacklist: false })
     actionResults.push('踢出群聊')
   } else if (action.type === 'kick_blacklist') {
-    await kickUser({ host: input.host, session, userId, addToBlacklist: true })
+    await kickUserWithModerationBlacklist(input)
     actionResults.push('踢出群聊并加入黑名单')
   } else if (action.type !== 'ban' && action.type !== 'warn') {
     logger.warn(`未知的操作类型: ${action.type}`)

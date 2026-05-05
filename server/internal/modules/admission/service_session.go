@@ -17,6 +17,9 @@ import (
 
 func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateInput) (*CreatedAdmissionSession, error) {
 	input = normalizeBotSessionCreateInput(input)
+	if err := s.ensureBotSessionMemberAllowed(ctx, input); err != nil {
+		return nil, err
+	}
 	policy, err := s.loadPolicy(ctx, input.Platform, input.GuildID)
 	if err != nil {
 		return nil, err

@@ -50,6 +50,7 @@ func TestMemberBlacklistRejectsSourceForWrongEntryPoint(t *testing.T) {
 	svc := newBlacklistTestService(t, fixture)
 	input := memberBlacklistTestCreateInput(BlacklistScopeGuild, stringPtr("guild-1"))
 	input.Source = BlacklistSourceAdmissionFailure
+	input.ReasonCode = BlacklistReasonAdmissionTimeoutLimit
 	input.CreatedFrom = BlacklistCreatedFromAdmissionWorker
 
 	_, err := svc.CreateMemberBlacklistFromBot(context.Background(), input)
@@ -213,7 +214,15 @@ func admissionFailureBlacklistTestInput(expiresAt *time.Time) MemberBlacklistCre
 		Source: BlacklistSourceAdmissionFailure, ReasonCode: BlacklistReasonAdmissionTimeoutLimit,
 		ReasonText: "admission failure limit reached", CreatedByType: BlacklistActorSystem,
 		CreatedByID: "system", CreatedFrom: BlacklistCreatedFromAdmissionWorker,
-		ExpiresAt: expiresAt, Metadata: map[string]any{"failureCount": DefaultFailedJoinLimit},
+		ExpiresAt: expiresAt,
+		Metadata: map[string]any{
+			"admissionSessionID": "session-1",
+			"failureCount":       DefaultFailedJoinLimit,
+			"failedJoinLimit":    DefaultFailedJoinLimit,
+			"platform":           "qq",
+			"guildID":            "guild-1",
+			"botSelfID":          "bot-1",
+		},
 	}
 }
 
@@ -224,7 +233,10 @@ func memberBlacklistTestCreateInput(scope MemberBlacklistScopeType, guildID *str
 		ReasonCode: BlacklistReasonManualBlacklist, ReasonText: "manual test",
 		CreatedByType: BlacklistActorAdminUser, CreatedByID: "admin-1",
 		CreatedFrom: BlacklistCreatedFromAdminConsole,
-		Metadata:    map[string]any{"operatorInput": "10001"},
+		Metadata: map[string]any{
+			"operatorInput":         "10001",
+			"scopeSelectionContext": "admin_console_form",
+		},
 	}
 }
 

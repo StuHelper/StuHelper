@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { PlatformAPIError } from '@stuhelper/koishi-shared'
+
 import { MemberGuardService } from './member-guard'
 
 test('member guard creates admission session, mutes, and sends canonical auth link', async () => {
@@ -177,6 +179,54 @@ test('member guard fail-closes when platform session creation is unavailable and
   assert.equal(updates[0].input.admissionSessionID, 'session-synced')
   assert.equal(updates[0].input.backendSyncPending, false)
   assert.match(sentMessages[1], /https:\/\/auth\.stuhelper\.com\/admission\/a\/token-synced\?qq=10001/)
+})
+
+test('member guard kicks blacklisted members instead of pending backend sync', async () => {
+  const savedRecords: unknown[] = []
+  const kicks: Array<{ guildId: string, memberId: string, permanent?: boolean }> = []
+  const service = new MemberGuardService({
+    platform: {
+      async createAdmissionSession() {
+        throw new PlatformAPIError('member is blacklisted', 409, 'admission.member_blacklisted')
+      },
+    },
+    guardStore: {
+      async savePending(record: unknown) { savedRecords.push(record) },
+      async markMuted() {},
+      async markReminderSent() {},
+    },
+    policyStore: {
+      async resolvePolicy() {
+        return {
+          source: 'static',
+          templateId: 'static',
+          exemptUsers: [],
+        }
+      },
+    },
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.handleGuildMemberAdded({
+    platform: 'mock',
+    selfId: '514',
+    guildId: 'guild-1',
+    channelId: 'channel-1',
+    userId: '10001',
+    username: 'Alice',
+    event: { user: { nick: 'Alice' } },
+    bot: {
+      kickGuildMember: async (guildId: string, memberId: string, permanent?: boolean) => {
+        kicks.push({ guildId, memberId, permanent })
+      },
+      muteGuildMember: async () => {},
+      sendMessage: async () => {},
+    },
+  } as any)
+
+  assert.deepEqual(savedRecords, [])
+  assert.deepEqual(kicks, [{ guildId: 'guild-1', memberId: '10001', permanent: false }])
 })
 
 test('member guard executes pending admission actions and reports results', async () => {

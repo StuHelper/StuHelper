@@ -29,10 +29,13 @@ func validateMemberBlacklistCreateInput(input MemberBlacklistCreateInput, entryP
 	if input.CreatedByType == "" || input.CreatedByID == "" || input.CreatedFrom == "" {
 		return ErrMemberBlacklistInvalidInput
 	}
+	if !memberBlacklistSourceReasonAllowed(input.Source, input.ReasonCode) {
+		return ErrMemberBlacklistInvalidInput
+	}
 	if !memberBlacklistSourceAllowed(entryPoint, input.Source, input.CreatedFrom) {
 		return ErrMemberBlacklistSourceForbidden
 	}
-	return nil
+	return validateMemberBlacklistMetadata(input)
 }
 
 func memberBlacklistSourceAllowed(
@@ -63,6 +66,69 @@ func memberBlacklistBotSourceAllowed(source MemberBlacklistSource, createdFrom M
 	default:
 		return false
 	}
+}
+
+func memberBlacklistSourceReasonAllowed(
+	source MemberBlacklistSource,
+	reason MemberBlacklistReasonCode,
+) bool {
+	switch source {
+	case BlacklistSourceAdmissionFailure:
+		return reason == BlacklistReasonAdmissionTimeoutLimit
+	case BlacklistSourceManualAdmin:
+		return reason == BlacklistReasonManualBlacklist
+	case BlacklistSourceKickBlacklist:
+		return reason == BlacklistReasonManualKickBlacklist
+	case BlacklistSourceModerationAction:
+		return reason == BlacklistReasonViolationReviewBlacklist
+	case BlacklistSourceMigrationLegacyKoishi:
+		return reason == BlacklistReasonLegacyKoishiBlacklist
+	case BlacklistSourceMigrationAdmissionFailure:
+		return reason == BlacklistReasonLegacyAdmissionBlacklist
+	default:
+		return false
+	}
+}
+
+func validateMemberBlacklistMetadata(input MemberBlacklistCreateInput) error {
+	switch input.Source {
+	case BlacklistSourceAdmissionFailure:
+		return validateAdmissionFailureBlacklistMetadata(input.Metadata)
+	case BlacklistSourceManualAdmin:
+		return requireMetadataString(input.Metadata, "operatorInput", "scopeSelectionContext")
+	case BlacklistSourceKickBlacklist:
+		return requireMetadataString(input.Metadata, "rawCommand", "targetGuildID", "operatorQQID")
+	case BlacklistSourceModerationAction:
+		return requireMetadataString(input.Metadata, "reviewID", "workItemID", "targetGuildID")
+	default:
+		return nil
+	}
+}
+
+func validateAdmissionFailureBlacklistMetadata(metadata map[string]any) error {
+	if err := requireMetadataString(metadata, "admissionSessionID", "platform", "guildID"); err != nil {
+		return err
+	}
+	return requireMetadataValue(metadata, "failureCount", "failedJoinLimit", "botSelfID")
+}
+
+func requireMetadataString(metadata map[string]any, keys ...string) error {
+	for _, key := range keys {
+		value, ok := metadata[key].(string)
+		if !ok || strings.TrimSpace(value) == "" {
+			return ErrMemberBlacklistInvalidInput
+		}
+	}
+	return nil
+}
+
+func requireMetadataValue(metadata map[string]any, keys ...string) error {
+	for _, key := range keys {
+		if value, ok := metadata[key]; !ok || value == nil {
+			return ErrMemberBlacklistInvalidInput
+		}
+	}
+	return nil
 }
 
 func normalizeMemberBlacklistAccessQuery(query MemberBlacklistAccessQuery) MemberBlacklistAccessQuery {

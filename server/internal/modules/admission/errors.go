@@ -36,6 +36,7 @@ var (
 	ErrAdmissionManagementGuildForbidden  = errors.New("admission management guild forbidden")
 	ErrAdmissionReviewExtensionTooLong    = errors.New("admission review extension too long")
 	ErrAdmissionApplicationNotFound       = errors.New("admission application not found")
+	ErrMemberBlacklisted                  = errors.New("member is blacklisted")
 	ErrAdmissionBlacklistNotFound         = errors.New("admission blacklist not found")
 	ErrMemberBlacklistInvalidInput        = errors.New("member blacklist invalid input")
 	ErrMemberBlacklistSourceForbidden     = errors.New("member blacklist source forbidden")

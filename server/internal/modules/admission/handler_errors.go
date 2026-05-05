@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	ErrCodeAdmissionQQMismatch    errs.ErrorCode = "admission.qq_mismatch"
-	ErrCodeAdmissionTokenConsumed errs.ErrorCode = "admission.token_consumed"
-	ErrCodeAdmissionTokenExpired  errs.ErrorCode = "admission.token_expired"
+	ErrCodeAdmissionMemberBlacklisted errs.ErrorCode = "admission.member_blacklisted"
+	ErrCodeAdmissionQQMismatch        errs.ErrorCode = "admission.qq_mismatch"
+	ErrCodeAdmissionTokenConsumed     errs.ErrorCode = "admission.token_consumed"
+	ErrCodeAdmissionTokenExpired      errs.ErrorCode = "admission.token_expired"
 )
 
 func respondAdmissionError(c *gin.Context, err error) {
@@ -33,6 +34,8 @@ func respondAdmissionError(c *gin.Context, err error) {
 		response.NotFound(c, "admission application not found")
 	case errors.Is(err, ErrAdmissionBlacklistNotFound):
 		response.NotFound(c, "admission blacklist not found")
+	case errors.Is(err, ErrMemberBlacklisted):
+		response.Conflict(c, "member is blacklisted", ErrCodeAdmissionMemberBlacklisted)
 	case errors.Is(err, ErrMemberBlacklistNotFound):
 		response.NotFound(c, "member blacklist not found")
 	case errors.Is(err, ErrMemberBlacklistInvalidInput), errors.Is(err, ErrMemberBlacklistSourceForbidden):
