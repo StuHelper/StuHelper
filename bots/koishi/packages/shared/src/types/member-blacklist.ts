@@ -50,9 +50,9 @@ export interface MemberBlacklistEntry {
   readonly createdFrom: MemberBlacklistCreatedFrom
   readonly expiresAt?: string | null
   readonly releasedAt?: string | null
-  readonly releasedByType?: string | null
+  readonly releasedByType?: MemberBlacklistActorType | null
   readonly releasedByID?: string | null
-  readonly releaseReasonCode?: string | null
+  readonly releaseReasonCode?: MemberBlacklistReleaseReasonCode | null
   readonly releaseReason?: string | null
   readonly createdAt: string
   readonly updatedAt: string

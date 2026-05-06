@@ -8073,6 +8073,11 @@ components:
           type:
             - string
             - 'null'
+          enum:
+            - system
+            - admin_user
+            - qq_operator
+            - service_account
         releasedByID:
           type:
             - string
@@ -8081,6 +8086,12 @@ components:
           type:
             - string
             - 'null'
+          enum:
+            - manual_pardon
+            - release_only
+            - policy_expired_auto
+            - admission_appeal_passed
+            - migration_inverse
         releaseReason:
           type:
             - string
