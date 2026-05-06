@@ -69,7 +69,17 @@ const routes: RouteRecordRaw[] = [
         meta: {
           icon: 'lucide:shield-check',
           title: $t('admin.routes.userSystem.admissionPolicy'),
-          authority: ['admission:policy:update', 'member_blacklist:manage'],
+          authority: ['admission:policy:update'],
+        },
+      },
+      {
+        name: 'MemberBlacklist',
+        path: '/users/member-blacklist',
+        component: () => import('#/views/users/member-blacklist/index.vue'),
+        meta: {
+          icon: 'lucide:user-x',
+          title: $t('admin.routes.userSystem.memberBlacklist'),
+          authority: ['member_blacklist:read', 'member_blacklist:manage'],
         },
       },
       {

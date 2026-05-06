@@ -14,6 +14,7 @@
       "studentVerification": "学生认证审核",
       "freshmanVerification": "新生材料审核",
       "admissionPolicy": "入群认证策略",
+      "memberBlacklist": "成员黑名单",
       "schoolConfig": "学校配置",
       "systemConfig": "系统配置"
     }

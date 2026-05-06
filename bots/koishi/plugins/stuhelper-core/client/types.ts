@@ -89,6 +89,9 @@ export interface WarnRecord {
 export type MemberBlacklistScopeType = 'global' | 'guild'
 export type MemberBlacklistSource = 'admission_failure' | 'manual_admin' | 'kick_blacklist' | 'moderation_action' | 'migration_legacy_koishi' | 'migration_admission_failure'
 export type MemberBlacklistReasonCode = 'admission_timeout_limit' | 'manual_blacklist' | 'manual_kick_blacklist' | 'violation_review_blacklist' | 'legacy_koishi_blacklist' | 'legacy_admission_blacklist'
+export type MemberBlacklistActorType = 'system' | 'admin_user' | 'qq_operator' | 'service_account'
+export type MemberBlacklistCreatedFrom = 'admission_worker' | 'qq_command' | 'koishi_console' | 'admin_console' | 'moderation_review' | 'migration_script'
+export type MemberBlacklistReleaseReasonCode = 'manual_pardon' | 'release_only' | 'policy_expired_auto' | 'admission_appeal_passed' | 'migration_inverse'
 
 export interface MemberBlacklistEntry {
   id: string
@@ -100,9 +103,17 @@ export interface MemberBlacklistEntry {
   source: MemberBlacklistSource
   reasonCode: MemberBlacklistReasonCode
   reasonText: string
+  createdByType: MemberBlacklistActorType
+  createdByID: string
+  createdFrom: MemberBlacklistCreatedFrom
   createdAt: string
   expiresAt?: string | null
   releasedAt?: string | null
+  releasedByType?: string | null
+  releasedByID?: string | null
+  releaseReasonCode?: string | null
+  releaseReason?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export interface MemberBlacklistListResult {
@@ -123,6 +134,8 @@ export interface MemberBlacklistReleaseParams {
   subjectID: string
   scopeType: MemberBlacklistScopeType
   guildID?: string
+  releaseReasonCode?: MemberBlacklistReleaseReasonCode
+  releaseReason?: string
 }
 
 // 订阅配置
