@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -8,10 +8,21 @@ const sourcePath = resolve(
   'src/views/users/admission-policy/index.vue',
 );
 
-const memberBlacklistPath = resolve(
+const memberBlacklistDir = resolve(
   process.cwd(),
-  'src/views/users/member-blacklist/index.vue',
+  'src/views/users/member-blacklist',
 );
+
+async function readAllMemberBlacklistSources(): Promise<string> {
+  const entries = await readdir(memberBlacklistDir);
+  const targets = entries.filter(
+    (name) => name.endsWith('.vue') || name.endsWith('.ts'),
+  );
+  const sources = await Promise.all(
+    targets.map((name) => readFile(resolve(memberBlacklistDir, name), 'utf8')),
+  );
+  return sources.join('\n');
+}
 
 describe('admission policy admin view contract', () => {
   it('covers every admission policy control required by the spec', async () => {
@@ -54,7 +65,7 @@ describe('admission policy admin view contract', () => {
 
 describe('member blacklist admin view contract', () => {
   it('exposes list, create and release-by-id with required columns', async () => {
-    const source = await readFile(memberBlacklistPath, 'utf8');
+    const source = await readAllMemberBlacklistSources();
 
     for (const token of [
       'listMemberBlacklist',
