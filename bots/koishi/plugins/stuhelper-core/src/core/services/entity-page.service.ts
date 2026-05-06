@@ -44,7 +44,7 @@ export interface EntityProfileScope {
 
 export interface EntityPageServiceDeps {
   loadWarns(): Promise<Record<string, Record<string, RawWarnEntry>>>
-  loadBlacklist(): Promise<RawBlacklistEntry[]>
+  loadBlacklistForUser(userId: string): Promise<RawBlacklistEntry[]>
   loadGuardRecords(): Promise<GuardMemberRecord[]>
   loadReviews(): Promise<ReviewQueueRecord[]>
   loadReports(): Promise<ModerationReportRecord[]>
@@ -56,7 +56,6 @@ export interface EntityPageServiceDeps {
 
 interface ScopedEntityFacts {
   readonly warnsByGuild: Record<string, Record<string, RawWarnEntry>>
-  readonly blacklistEntries: RawBlacklistEntry[]
   readonly guardRecords: GuardMemberRecord[]
   readonly reviews: ReviewQueueRecord[]
   readonly reports: ModerationReportRecord[]
@@ -88,9 +87,12 @@ export class EntityPageService {
   }
 
   private async getUserProfile(userId: string, scope: EntityProfileScope): Promise<UserEntityProfile> {
-    const facts = await this.loadScopedFacts(scope)
+    const [facts, userBlacklistEntries] = await Promise.all([
+      this.loadScopedFacts(scope),
+      this.deps.loadBlacklistForUser(userId),
+    ])
     const warns = collectUserWarns(facts.warnsByGuild, userId, this.deps.resolveGuildName)
-    const blacklist = mapBlacklist(facts.blacklistEntries, userId, scope)
+    const blacklist = mapBlacklist(userBlacklistEntries, userId, scope)
     const restricted = collectUserRestricted(facts.guardRecords, userId, this.deps.resolveGuildName)
     const userReviews = collectUserReviews(facts.reviews, userId, this.deps.resolveGuildName)
     const userReports = collectUserReports(facts.reports, userId, this.deps.resolveGuildName)
@@ -124,9 +126,8 @@ export class EntityPageService {
   }
 
   private async loadScopedFacts(scope: EntityProfileScope): Promise<ScopedEntityFacts> {
-    const [warnsByGuild, blacklistEntries, guardRecords, reviews, reports, events] = await Promise.all([
+    const [warnsByGuild, guardRecords, reviews, reports, events] = await Promise.all([
       this.deps.loadWarns(),
-      this.deps.loadBlacklist(),
       this.deps.loadGuardRecords(),
       this.deps.loadReviews(),
       this.deps.loadReports(),
@@ -135,7 +136,6 @@ export class EntityPageService {
 
     return {
       warnsByGuild: filterWarnsByScope(warnsByGuild, scope),
-      blacklistEntries,
       guardRecords: filterGuildRecords(guardRecords, scope),
       reviews: filterGuildRecords(reviews, scope),
       reports: filterGuildRecords(reports, scope),

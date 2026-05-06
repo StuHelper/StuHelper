@@ -104,8 +104,12 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
       const all = await options.service.data.warns.getAll()
       return all as Record<string, Record<string, { count: number; timestamp: number }>>
     },
-    loadBlacklist: async () => {
-      const result = await platform.listMemberBlacklist({ status: 'active', pageSize: 200 })
+    loadBlacklistForUser: async (userId: string) => {
+      const result = await platform.listMemberBlacklist({
+        subjectID: userId,
+        status: 'active',
+        pageSize: 50,
+      })
       return result.list.map((entry) => ({
         userId: entry.subjectID,
         guildId: entry.guildID ?? undefined,

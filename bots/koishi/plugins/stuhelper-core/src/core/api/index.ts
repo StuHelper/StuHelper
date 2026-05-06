@@ -31,7 +31,6 @@ const pkg = require('../../../package.json')
 export { registerMemberBlacklistConsoleAPI } from './member-blacklist-console-api'
 
 const MAX_CHAT_CONTENT_BYTES = 256 * 1024
-const DASHBOARD_BLACKLIST_PAGE_SIZE = 200
 type MemberBlacklistBackend = Pick<PlatformClient, 'listMemberBlacklist'>
 
 /** API 响应格式 */
@@ -201,25 +200,25 @@ export function registerWebSocketAPI(
     }
     return -1
   }
-  const loadScopedBlacklist = async (scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
+  const loadScopedBlacklistTotal = async (scope: Awaited<ReturnType<typeof resolveConsoleScope>>) => {
     if (!memberBlacklistBackend) {
       throw new Error('member blacklist backend client is required for dashboard stats')
     }
     if (scope.kind === 'all') {
       const result = await memberBlacklistBackend.listMemberBlacklist({
         status: 'active',
-        pageSize: DASHBOARD_BLACKLIST_PAGE_SIZE,
+        pageSize: 1,
       })
-      return result.list
+      return result.total
     }
-    const pages = await Promise.all([...scope.guildIds].map((guildID) =>
+    const totals = await Promise.all([...scope.guildIds].map((guildID) =>
       memberBlacklistBackend.listMemberBlacklist({
         scopeType: 'guild',
         guildID,
         status: 'active',
-        pageSize: DASHBOARD_BLACKLIST_PAGE_SIZE,
-      })))
-    return pages.flatMap((page) => page.list)
+        pageSize: 1,
+      }).then((page) => page.total)))
+    return totals.reduce((sum, n) => sum + n, 0)
   }
 
   // ===== 群组配置 API =====
@@ -846,7 +845,7 @@ export function registerWebSocketAPI(
     const subsList = data.subscriptions.get('list') || []
     const scopedConfigs = filterGuildEntries(allConfigs, scope)
     const scopedSubs = filterSubscriptions(subsList, scope)
-    const scopedBlacklist = await loadScopedBlacklist(scope)
+    const scopedBlacklistTotal = await loadScopedBlacklistTotal(scope)
 
     // 统计所有警告记录的真实数量
     let totalWarnCount = 0
@@ -860,7 +859,7 @@ export function registerWebSocketAPI(
     return success({
       totalGroups: scopedConfigs.length,
       totalWarns: totalWarnCount,
-      totalBlacklisted: scopedBlacklist.length,
+      totalBlacklisted: scopedBlacklistTotal,
       totalSubscriptions: scopedSubs.length,
       version: pkg.version,
       timestamp: Date.now()
