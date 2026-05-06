@@ -1,6 +1,7 @@
 import type { Context } from 'koishi'
 import type {
   MemberBlacklistEntry,
+  MemberBlacklistReleaseReasonCode,
   MemberBlacklistScopeType,
   PlatformClient,
 } from '@stuhelper/koishi-shared'
@@ -17,6 +18,12 @@ import {
 const CONSOLE_BLACKLIST_PAGE_SIZE = 200
 const CONSOLE_SCOPE_SELECTION_CONTEXT = 'koishi_console_form'
 
+const ALLOWED_CONSOLE_RELEASE_CODES: ReadonlySet<MemberBlacklistReleaseReasonCode> = new Set([
+  'manual_pardon',
+  'release_only',
+  'admission_appeal_passed',
+])
+
 interface ConsoleBlacklistCreateParams {
   readonly platform: string
   readonly subjectID: string
@@ -26,15 +33,16 @@ interface ConsoleBlacklistCreateParams {
 }
 
 interface ConsoleBlacklistReleaseParams {
-  readonly platform: string
-  readonly subjectID: string
+  readonly id: string
   readonly scopeType: MemberBlacklistScopeType
   readonly guildID?: string
+  readonly releaseReasonCode: MemberBlacklistReleaseReasonCode
+  readonly releaseReason?: string
 }
 
 type MemberBlacklistBackend = Pick<
   PlatformClient,
-  'createMemberBlacklist' | 'listMemberBlacklist' | 'releaseMemberBlacklistBySubject'
+  'createMemberBlacklist' | 'listMemberBlacklist' | 'releaseMemberBlacklist'
 >
 
 export function registerMemberBlacklistConsoleAPI(
@@ -72,14 +80,12 @@ export function registerMemberBlacklistConsoleAPI(
   addAuthorityListener('stuhelperGroupCenter/blacklist/remove', async function (params: ConsoleBlacklistReleaseParams) {
     const scope = await resolveConsoleScope(ctx, service, this)
     assertBlacklistScope(scope, params)
-    const entry = await backend.releaseMemberBlacklistBySubject({
-      platform: params.platform,
-      subjectType: 'qq_user',
-      subjectID: params.subjectID,
-      scopeType: params.scopeType,
-      guildID: params.guildID,
-      releaseReasonCode: 'manual_pardon',
-      releaseReason: 'manual release from Koishi console',
+    if (!ALLOWED_CONSOLE_RELEASE_CODES.has(params.releaseReasonCode)) {
+      throw new Error(`unsupported releaseReasonCode for koishi console: ${params.releaseReasonCode}`)
+    }
+    const entry = await backend.releaseMemberBlacklist(params.id, {
+      releaseReasonCode: params.releaseReasonCode,
+      releaseReason: params.releaseReason?.trim() || 'manual release from Koishi console',
       operatorQQID: consoleAuthID(this),
     })
     return success(entry)

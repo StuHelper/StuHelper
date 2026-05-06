@@ -6,6 +6,8 @@ import type {
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
+import { useAccessStore } from '@vben/stores';
+
 import {
   ElButton,
   ElDatePicker,
@@ -86,6 +88,11 @@ const SOURCE_OPTIONS: Array<{ label: string; value: SourceFilter }> = [
 const loading = ref(false);
 const items = ref<MemberBlacklistEntry[]>([]);
 const total = ref(0);
+
+const accessStore = useAccessStore();
+const canManage = computed(() =>
+  accessStore.accessCodes.includes('member_blacklist:manage'),
+);
 
 const query = reactive({
   page: 1,
@@ -350,6 +357,7 @@ onMounted(fetchData);
       <ElButton @click="resetQuery">重置</ElButton>
       <div class="flex-1" />
       <ElButton
+        v-if="canManage"
         data-action="openCreate"
         type="success"
         @click="openCreateDialog"
@@ -406,7 +414,7 @@ onMounted(fetchData);
       <ElTableColumn fixed="right" label="操作" width="120">
         <template #default="{ row }">
           <ElButton
-            v-if="entryStatus(row) === 'active'"
+            v-if="canManage && entryStatus(row) === 'active'"
             data-action="release"
             link
             type="warning"

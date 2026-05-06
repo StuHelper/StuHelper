@@ -215,32 +215,43 @@ async function submitAdd() {
 }
 
 function handleRowAction(payload: { rowId: string; action: string }) {
-  if (payload.action !== 'remove') return
-  void removeUser(payload.rowId)
+  if (payload.action === 'release_only') {
+    void removeUser(payload.rowId, 'release_only')
+  } else if (payload.action === 'forgive') {
+    void removeUser(payload.rowId, 'manual_pardon')
+  }
 }
 
-async function removeUser(userId: string) {
+async function removeUser(
+  userId: string,
+  releaseReasonCode: 'manual_pardon' | 'release_only',
+) {
   const entry = blacklist.value.find((item) => item.id === userId)
   if (!entry) return
+  const isForgive = releaseReasonCode === 'manual_pardon'
   const confirmed = await confirm({
-    title: '移除黑名单成员',
-    message: `确定要移除 ${entry.subjectID} 的${formatBlacklistScope(entry)}黑名单吗？`,
+    title: isForgive ? '宽恕黑名单成员（重置失败计数）' : '解除黑名单成员',
+    message: isForgive
+      ? `确定要宽恕 ${entry.subjectID} 的${formatBlacklistScope(entry)}黑名单吗？这会重置认证失败计数。`
+      : `确定要解除 ${entry.subjectID} 的${formatBlacklistScope(entry)}黑名单吗？认证失败计数会保留。`,
     tone: 'danger',
-    confirmText: '移除',
+    confirmText: isForgive ? '宽恕' : '解除',
   })
   if (!confirmed) return
 
   try {
     await blacklistApi.remove({
-      platform: entry.platform,
-      subjectID: entry.subjectID,
+      id: entry.id,
       scopeType: entry.scopeType,
       guildID: entry.guildID ?? undefined,
+      releaseReasonCode,
     })
-    pushSuccess(`已从黑名单移除 ${entry.subjectID}`)
+    pushSuccess(isForgive
+      ? `已宽恕并解除 ${entry.subjectID}`
+      : `已从黑名单解除 ${entry.subjectID}`)
     await refresh()
   } catch (cause) {
-    pushError(cause, '移除失败')
+    pushError(cause, '解除失败')
   }
 }
 

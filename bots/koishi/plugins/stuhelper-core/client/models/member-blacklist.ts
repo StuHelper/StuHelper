@@ -82,7 +82,14 @@ export function toBlacklistRows(entries: readonly MemberBlacklistEntry[]): Queue
         expiresAt: { text: entry.expiresAt ? formatTimestamp(Date.parse(entry.expiresAt)) : '永久', mono: Boolean(entry.expiresAt) },
         releasedAt: { text: entry.releasedAt ? formatTimestamp(Date.parse(entry.releasedAt)) : '—', mono: Boolean(entry.releasedAt) },
       },
-      actions: status === 'active' ? [{ key: 'remove', label: '解除', tone: 'danger' }] : [],
+      actions: status === 'active'
+        ? entry.source === 'admission_failure'
+          ? [
+              { key: 'release_only', label: '解除', tone: 'danger' },
+              { key: 'forgive', label: '宽恕', tone: 'danger' },
+            ]
+          : [{ key: 'release_only', label: '解除', tone: 'danger' }]
+        : [],
     }
   })
 }

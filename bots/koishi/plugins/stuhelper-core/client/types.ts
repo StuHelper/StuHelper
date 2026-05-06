@@ -130,11 +130,10 @@ export interface MemberBlacklistCreateParams {
 }
 
 export interface MemberBlacklistReleaseParams {
-  platform: string
-  subjectID: string
+  id: string
   scopeType: MemberBlacklistScopeType
   guildID?: string
-  releaseReasonCode?: MemberBlacklistReleaseReasonCode
+  releaseReasonCode: MemberBlacklistReleaseReasonCode
   releaseReason?: string
 }
 
