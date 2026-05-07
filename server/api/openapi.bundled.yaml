@@ -8070,17 +8070,17 @@ components:
             - 'null'
           format: date-time
         releasedByType:
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/MemberBlacklistActorType'
-          nullable: true
+            - type: 'null'
         releasedByID:
           type:
             - string
             - 'null'
         releaseReasonCode:
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/MemberBlacklistReleaseReasonCode'
-          nullable: true
+            - type: 'null'
         releaseReason:
           type:
             - string

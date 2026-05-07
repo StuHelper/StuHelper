@@ -32,3 +32,23 @@ actions:
     update:
       type: object
       nullable: true
+  - target: "$.components.schemas.MemberBlacklistEntry.properties.releasedByType"
+    description: |
+      Collapse the OAS 3.1 `oneOf: [$ref, type: null]` form into the
+      OAS 3.0 `allOf + nullable: true` form so oapi-codegen accepts a
+      nullable enum reference. Spec keeps the 3.1 form for Redocly lint
+      and openapi-typescript; this overlay only retargets the Go path.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/MemberBlacklistActorType'
+      nullable: true
+  - target: "$.components.schemas.MemberBlacklistEntry.properties.releaseReasonCode"
+    description: |
+      Same nullable-$ref collapse as releasedByType, applied to the
+      release reason code field.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/MemberBlacklistReleaseReasonCode'
+      nullable: true

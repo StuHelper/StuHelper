@@ -120,17 +120,17 @@ MemberBlacklistEntry:
         - "null"
       format: date-time
     releasedByType:
-      allOf:
+      oneOf:
         - $ref: '#/MemberBlacklistActorType'
-      nullable: true
+        - type: "null"
     releasedByID:
       type:
         - string
         - "null"
     releaseReasonCode:
-      allOf:
+      oneOf:
         - $ref: '#/MemberBlacklistReleaseReasonCode'
-      nullable: true
+        - type: "null"
     releaseReason:
       type:
         - string
