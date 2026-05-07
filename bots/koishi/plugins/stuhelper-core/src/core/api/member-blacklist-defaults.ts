@@ -1,0 +1,1 @@
+export const DEFAULT_MEMBER_BLACKLIST_PLATFORM = 'qq'

@@ -30,6 +30,7 @@ import {
   buildScopedReviewPageData,
 } from './page-scope'
 import { resolveRequiredConsoleGuildScope } from './console-guild-scope'
+import { DEFAULT_MEMBER_BLACKLIST_PLATFORM } from './member-blacklist-defaults'
 
 interface PageApiOptions {
   service: StuhelperGroupCenterService
@@ -106,6 +107,7 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
     },
     loadBlacklistForUser: async (userId: string) => {
       const result = await platform.listMemberBlacklist({
+        platform: DEFAULT_MEMBER_BLACKLIST_PLATFORM,
         subjectID: userId,
         status: 'active',
         pageSize: 50,

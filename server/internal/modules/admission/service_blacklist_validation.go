@@ -151,6 +151,9 @@ func validateMemberBlacklistReleaseInput(input MemberBlacklistReleaseInput, entr
 	if input.ReleasedByType == "" || input.ReleasedByID == "" {
 		return ErrMemberBlacklistInvalidInput
 	}
+	if !memberBlacklistReleaseReasonAllowed(entryPoint, input.ReleaseReasonCode) {
+		return ErrMemberBlacklistInvalidInput
+	}
 	if !memberBlacklistReleaseActorAllowed(entryPoint, input.ReleasedByType) {
 		return ErrMemberBlacklistSourceForbidden
 	}
@@ -212,6 +215,36 @@ func memberBlacklistReleaseActorAllowed(
 		return actor == BlacklistActorQQOperator || actor == BlacklistActorServiceAccount
 	default:
 		return actor == BlacklistActorSystem
+	}
+}
+
+func memberBlacklistReleaseReasonAllowed(
+	entryPoint memberBlacklistEntryPoint,
+	reason MemberBlacklistReleaseReasonCode,
+) bool {
+	switch entryPoint {
+	case memberBlacklistEntryPointAdmin, memberBlacklistEntryPointBot:
+		return memberBlacklistPublicReleaseReason(reason)
+	default:
+		return memberBlacklistSystemReleaseReason(reason)
+	}
+}
+
+func memberBlacklistPublicReleaseReason(reason MemberBlacklistReleaseReasonCode) bool {
+	switch reason {
+	case BlacklistReleaseManualPardon, BlacklistReleaseOnly, BlacklistReleaseAppealPassed:
+		return true
+	default:
+		return false
+	}
+}
+
+func memberBlacklistSystemReleaseReason(reason MemberBlacklistReleaseReasonCode) bool {
+	switch reason {
+	case BlacklistReleasePolicyExpiredAuto, BlacklistReleaseMigrationInverse:
+		return true
+	default:
+		return false
 	}
 }
 

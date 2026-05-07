@@ -14,6 +14,7 @@ import {
   resolveRequiredConsoleGuildScope,
   type ConsoleGuildScope,
 } from './console-guild-scope'
+import { DEFAULT_MEMBER_BLACKLIST_PLATFORM } from './member-blacklist-defaults'
 
 const CONSOLE_BLACKLIST_PAGE_SIZE = 200
 const CONSOLE_SCOPE_SELECTION_CONTEXT = 'koishi_console_form'
@@ -40,6 +41,10 @@ interface ConsoleBlacklistReleaseParams {
   readonly releaseReason?: string
 }
 
+interface ConsoleBlacklistOptions {
+  readonly platform?: string
+}
+
 type MemberBlacklistBackend = Pick<
   PlatformClient,
   'createMemberBlacklist' | 'listMemberBlacklist' | 'releaseMemberBlacklist'
@@ -49,15 +54,16 @@ export function registerMemberBlacklistConsoleAPI(
   ctx: Context,
   service: StuhelperGroupCenterService,
   backend: MemberBlacklistBackend,
+  options: ConsoleBlacklistOptions = {},
 ) {
   if (!ctx.console) return
 
   const addAuthorityListener = createAuthority4ListenerRegistrar(ctx.console)
+  const platform = options.platform || DEFAULT_MEMBER_BLACKLIST_PLATFORM
 
   addAuthorityListener('stuhelperGroupCenter/blacklist/list', async function () {
     const scope = await resolveConsoleScope(ctx, service, this)
-    const list = await listVisibleBlacklists(backend, scope)
-    return success({ list, total: list.length })
+    return success(await listVisibleBlacklists(backend, scope, platform))
   })
 
   addAuthorityListener('stuhelperGroupCenter/blacklist/add', async function (params: ConsoleBlacklistCreateParams) {
@@ -80,14 +86,13 @@ export function registerMemberBlacklistConsoleAPI(
 
   addAuthorityListener('stuhelperGroupCenter/blacklist/remove', async function (params: ConsoleBlacklistReleaseParams) {
     const scope = await resolveConsoleScope(ctx, service, this)
-    assertBlacklistScope(scope, params)
     if (!ALLOWED_CONSOLE_RELEASE_CODES.has(params.releaseReasonCode)) {
       throw new Error(`unsupported releaseReasonCode for koishi console: ${params.releaseReasonCode}`)
     }
+    await assertVisibleBlacklistRelease(backend, scope, platform, params.id)
     const entry = await backend.releaseMemberBlacklist(params.id, {
       releaseReasonCode: params.releaseReasonCode,
       releaseReason: params.releaseReason?.trim() || 'manual release from Koishi console',
-      operatorQQID: consoleAuthID(this),
     })
     return success(entry)
   })
@@ -96,15 +101,51 @@ export function registerMemberBlacklistConsoleAPI(
 async function listVisibleBlacklists(
   backend: MemberBlacklistBackend,
   scope: ConsoleGuildScope,
-): Promise<readonly MemberBlacklistEntry[]> {
+  platform: string,
+): Promise<{ readonly list: readonly MemberBlacklistEntry[]; readonly total: number }> {
   if (scope.kind === 'all') {
-    const result = await backend.listMemberBlacklist({ status: 'active', pageSize: CONSOLE_BLACKLIST_PAGE_SIZE })
-    return result.list
+    return listAllMemberBlacklistPages(backend, { platform, status: 'active' })
   }
 
   const pages = await Promise.all([...scope.guildIds].map((guildID) =>
-    backend.listMemberBlacklist({ scopeType: 'guild', guildID, status: 'active', pageSize: CONSOLE_BLACKLIST_PAGE_SIZE })))
-  return pages.flatMap((page) => page.list)
+    listAllMemberBlacklistPages(backend, { platform, scopeType: 'guild', guildID, status: 'active' })))
+  return {
+    list: pages.flatMap((page) => page.list),
+    total: pages.reduce((sum, page) => sum + page.total, 0),
+  }
+}
+
+async function assertVisibleBlacklistRelease(
+  backend: MemberBlacklistBackend,
+  scope: ConsoleGuildScope,
+  platform: string,
+  id: string,
+) {
+  const result = await listVisibleBlacklists(backend, scope, platform)
+  const entry = result.list.find((item) => item.id === id)
+  if (!entry) {
+    throw new Error(`member blacklist entry is outside of the current console scope: ${id}`)
+  }
+  assertBlacklistScope(scope, entry)
+}
+
+async function listAllMemberBlacklistPages(
+  backend: MemberBlacklistBackend,
+  query: Parameters<MemberBlacklistBackend['listMemberBlacklist']>[0],
+) {
+  const list: MemberBlacklistEntry[] = []
+  let total = 0
+  for (let page = 1; ; page++) {
+    const result = await backend.listMemberBlacklist({ ...query, page, pageSize: CONSOLE_BLACKLIST_PAGE_SIZE })
+    list.push(...result.list)
+    total = result.total
+    if (list.length >= total) {
+      return { list, total }
+    }
+    if (result.list.length === 0) {
+      throw new Error(`member blacklist pagination ended before total was reached: ${list.length}/${total}`)
+    }
+  }
 }
 
 function assertBlacklistScope(

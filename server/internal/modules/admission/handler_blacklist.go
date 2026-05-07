@@ -53,18 +53,26 @@ func (h *Handler) handleGetBotMemberBlacklistAccess(c *gin.Context) {
 }
 
 func (h *Handler) handleListBotMemberBlacklist(c *gin.Context) {
-	h.handleListMemberBlacklist(c)
-}
-
-func (h *Handler) handleListAdminMemberBlacklist(c *gin.Context) {
-	h.handleListMemberBlacklist(c)
-}
-
-func (h *Handler) handleListMemberBlacklist(c *gin.Context) {
 	if !h.ready(c) {
 		return
 	}
-	items, total, err := h.service.ListMemberBlacklist(c.Request.Context(), memberBlacklistListFilterFromGin(c))
+	filter, err := botMemberBlacklistListFilterFromGin(c)
+	if err != nil {
+		respondAdmissionError(c, err)
+		return
+	}
+	h.listMemberBlacklist(c, filter)
+}
+
+func (h *Handler) handleListAdminMemberBlacklist(c *gin.Context) {
+	if !h.ready(c) {
+		return
+	}
+	h.listMemberBlacklist(c, memberBlacklistListFilterFromGin(c))
+}
+
+func (h *Handler) listMemberBlacklist(c *gin.Context, filter MemberBlacklistListFilter) {
+	items, total, err := h.service.ListMemberBlacklist(c.Request.Context(), filter)
 	if err != nil {
 		respondAdmissionError(c, err)
 		return

@@ -76,3 +76,36 @@ func TestMemberBlacklistAllowsModerationMetadata(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+func TestMemberBlacklistRejectsInvalidReleaseReasonCode(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newBlacklistTestService(t, fixture)
+	entry := insertMemberBlacklistForTest(t, svc, memberBlacklistTestCreateInput(BlacklistScopeGuild, stringPtr("guild-1")))
+	input := memberBlacklistReleaseInput(entry.ID, MemberBlacklistReleaseReasonCode("not-a-code"))
+
+	_, err := svc.ReleaseMemberBlacklistFromAdmin(context.Background(), input)
+
+	require.ErrorIs(t, err, ErrMemberBlacklistInvalidInput)
+}
+
+func TestMemberBlacklistRejectsSystemReleaseReasonFromPublicAPI(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newBlacklistTestService(t, fixture)
+	entry := insertMemberBlacklistForTest(t, svc, memberBlacklistTestCreateInput(BlacklistScopeGuild, stringPtr("guild-1")))
+	input := memberBlacklistReleaseInput(entry.ID, BlacklistReleasePolicyExpiredAuto)
+
+	_, err := svc.ReleaseMemberBlacklistFromAdmin(context.Background(), input)
+
+	require.ErrorIs(t, err, ErrMemberBlacklistInvalidInput)
+}
+
+func TestMemberBlacklistAllowsAppealPassedReleaseFromAdmin(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newBlacklistTestService(t, fixture)
+	entry := insertMemberBlacklistForTest(t, svc, memberBlacklistTestCreateInput(BlacklistScopeGuild, stringPtr("guild-1")))
+	input := memberBlacklistReleaseInput(entry.ID, BlacklistReleaseAppealPassed)
+
+	_, err := svc.ReleaseMemberBlacklistFromAdmin(context.Background(), input)
+
+	require.NoError(t, err)
+}

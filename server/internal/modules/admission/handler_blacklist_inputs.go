@@ -28,6 +28,14 @@ func memberBlacklistListFilterFromGin(c *gin.Context) MemberBlacklistListFilter 
 	}
 }
 
+func botMemberBlacklistListFilterFromGin(c *gin.Context) (MemberBlacklistListFilter, error) {
+	filter := memberBlacklistListFilterFromGin(c)
+	if strings.TrimSpace(filter.Platform) == "" {
+		return filter, ErrMemberBlacklistInvalidInput
+	}
+	return filter, nil
+}
+
 func adminMemberBlacklistCreateInput(req memberBlacklistCreateHTTPRequest, userID int64) MemberBlacklistCreateInput {
 	input := memberBlacklistCreateInput(req)
 	input.CreatedByType = BlacklistActorAdminUser
@@ -64,8 +72,9 @@ func adminMemberBlacklistReleaseInput(
 }
 
 func botMemberBlacklistReleaseInput(id string, req memberBlacklistReleaseHTTPRequest) MemberBlacklistReleaseInput {
+	actorType, actorID := botMemberBlacklistReleaseActor(req.OperatorQQID)
 	return MemberBlacklistReleaseInput{
-		ID: id, ReleasedByType: BlacklistActorQQOperator, ReleasedByID: req.OperatorQQID,
+		ID: id, ReleasedByType: actorType, ReleasedByID: actorID,
 		ReleaseReasonCode: req.ReleaseReasonCode, ReleaseReason: req.ReleaseReason,
 	}
 }
@@ -83,10 +92,11 @@ func adminMemberBlacklistReleaseBySubjectInput(
 func botMemberBlacklistReleaseBySubjectInput(
 	req memberBlacklistReleaseBySubjectHTTPRequest,
 ) MemberBlacklistReleaseBySubjectInput {
+	actorType, actorID := botMemberBlacklistReleaseActor(req.OperatorQQID)
 	return MemberBlacklistReleaseBySubjectInput{
 		Platform: req.Platform, SubjectType: req.SubjectType, SubjectID: req.SubjectID,
-		ScopeType: req.ScopeType, GuildID: req.GuildID, ReleasedByType: BlacklistActorQQOperator,
-		ReleasedByID: req.OperatorQQID, ReleaseReasonCode: req.ReleaseReasonCode, ReleaseReason: req.ReleaseReason,
+		ScopeType: req.ScopeType, GuildID: req.GuildID, ReleasedByType: actorType,
+		ReleasedByID: actorID, ReleaseReasonCode: req.ReleaseReasonCode, ReleaseReason: req.ReleaseReason,
 	}
 }
 
@@ -118,6 +128,14 @@ func botMemberBlacklistActorID(req memberBlacklistCreateHTTPRequest) string {
 		return serviceaccount.KoishiRuntimeCredentialName
 	}
 	return metadataString(req.Metadata, "operatorQQID")
+}
+
+func botMemberBlacklistReleaseActor(operatorQQID string) (MemberBlacklistActorType, string) {
+	operatorQQID = strings.TrimSpace(operatorQQID)
+	if operatorQQID == "" {
+		return BlacklistActorServiceAccount, serviceaccount.KoishiRuntimeCredentialName
+	}
+	return BlacklistActorQQOperator, operatorQQID
 }
 
 func metadataString(metadata map[string]any, key string) string {
