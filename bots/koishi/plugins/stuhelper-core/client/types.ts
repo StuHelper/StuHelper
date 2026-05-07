@@ -109,9 +109,9 @@ export interface MemberBlacklistEntry {
   createdAt: string
   expiresAt?: string | null
   releasedAt?: string | null
-  releasedByType?: string | null
+  releasedByType?: MemberBlacklistActorType | null
   releasedByID?: string | null
-  releaseReasonCode?: string | null
+  releaseReasonCode?: MemberBlacklistReleaseReasonCode | null
   releaseReason?: string | null
   metadata?: Record<string, unknown>
 }

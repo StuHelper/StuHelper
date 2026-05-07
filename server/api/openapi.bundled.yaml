@@ -8070,28 +8070,17 @@ components:
             - 'null'
           format: date-time
         releasedByType:
-          type:
-            - string
-            - 'null'
-          enum:
-            - system
-            - admin_user
-            - qq_operator
-            - service_account
+          allOf:
+            - $ref: '#/components/schemas/MemberBlacklistActorType'
+          nullable: true
         releasedByID:
           type:
             - string
             - 'null'
         releaseReasonCode:
-          type:
-            - string
-            - 'null'
-          enum:
-            - manual_pardon
-            - release_only
-            - policy_expired_auto
-            - admission_appeal_passed
-            - migration_inverse
+          allOf:
+            - $ref: '#/components/schemas/MemberBlacklistReleaseReasonCode'
+          nullable: true
         releaseReason:
           type:
             - string

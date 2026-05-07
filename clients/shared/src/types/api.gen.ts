@@ -3164,11 +3164,9 @@ export interface components {
             expiresAt?: string | null;
             /** Format: date-time */
             releasedAt?: string | null;
-            /** @enum {string|null} */
-            releasedByType?: "system" | "admin_user" | "qq_operator" | "service_account" | null;
+            releasedByType?: components["schemas"]["MemberBlacklistActorType"] | null;
             releasedByID?: string | null;
-            /** @enum {string|null} */
-            releaseReasonCode?: "manual_pardon" | "release_only" | "policy_expired_auto" | "admission_appeal_passed" | "migration_inverse" | null;
+            releaseReasonCode?: components["schemas"]["MemberBlacklistReleaseReasonCode"] | null;
             releaseReason?: string | null;
             /** Format: date-time */
             createdAt: string;
