@@ -16,6 +16,11 @@ export type MemberBlacklistReasonCode =
   | 'legacy_koishi_blacklist'
   | 'legacy_admission_blacklist'
 
+export type MemberBlacklistReleaseReasonCode =
+  | 'manual_pardon'
+  | 'release_only'
+  | 'admission_appeal_passed'
+
 export interface MemberBlacklistEntry {
   id: string
   platform: string
@@ -32,7 +37,7 @@ export interface MemberBlacklistEntry {
 }
 
 export interface MemberBlacklistListResult {
-  list: MemberBlacklistEntry[]
+  list: readonly MemberBlacklistEntry[]
   total: number
 }
 
@@ -45,8 +50,9 @@ export interface MemberBlacklistCreateParams {
 }
 
 export interface MemberBlacklistReleaseParams {
-  platform: string
-  subjectID: string
+  id: string
   scopeType: MemberBlacklistScopeType
   guildID?: string
+  releaseReasonCode: MemberBlacklistReleaseReasonCode
+  releaseReason?: string
 }

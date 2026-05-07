@@ -67,6 +67,7 @@ export interface MemberBlacklistCreateRequest {
   readonly source: MemberBlacklistSource
   readonly reasonCode: MemberBlacklistReasonCode
   readonly reasonText: string
+  readonly createdFrom?: MemberBlacklistCreatedFrom
   readonly expiresAt?: string | null
   readonly metadata: Record<string, unknown>
 }

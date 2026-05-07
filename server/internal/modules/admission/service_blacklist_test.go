@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -64,6 +63,7 @@ func TestMemberBlacklistAllowsBotManualAdminFromQQCommand(t *testing.T) {
 	input.CreatedByType = BlacklistActorQQOperator
 	input.CreatedByID = "90001"
 	input.CreatedFrom = BlacklistCreatedFromQQCommand
+	input.Metadata["operatorQQID"] = "90001"
 
 	entry, err := svc.CreateMemberBlacklistFromBot(context.Background(), input)
 	require.NoError(t, err)
@@ -86,8 +86,7 @@ func TestMemberBlacklistExpiredRowsDoNotBlockAccess(t *testing.T) {
 	past := fixedAdmissionNow().Add(-time.Hour)
 	input.ExpiresAt = &past
 
-	_, err := svc.CreateMemberBlacklistFromAdmin(context.Background(), input)
-	require.NoError(t, err)
+	insertMemberBlacklistForTest(t, svc, input)
 
 	decision, err := svc.GetMemberBlacklistAccess(context.Background(), memberBlacklistAccessQuery("guild-1"))
 	require.NoError(t, err)
@@ -103,8 +102,7 @@ func TestMemberBlacklistCreateReleasesExpiredRowBeforeInsert(t *testing.T) {
 	past := fixedAdmissionNow().Add(-time.Hour)
 	expired.ExpiresAt = &past
 
-	oldEntry, err := svc.CreateMemberBlacklistFromAdmin(ctx, expired)
-	require.NoError(t, err)
+	oldEntry := insertMemberBlacklistForTest(t, svc, expired)
 	newEntry, err := svc.CreateMemberBlacklistFromAdmin(ctx, memberBlacklistTestCreateInput(BlacklistScopeGlobal, nil))
 	require.NoError(t, err)
 
@@ -154,6 +152,7 @@ func TestAdmissionBlacklistManualPardonResetsFailureCount(t *testing.T) {
 	require.NoError(t, err)
 
 	assertAdmissionFailureCount(t, fixture, "10001", 0)
+	assertReleaseAuditFailureReset(t, fixture, entry.ID, DefaultFailedJoinLimit)
 }
 
 func TestAdmissionBlacklistReleaseOnlyKeepsFailureCount(t *testing.T) {
@@ -197,14 +196,7 @@ func createAdmissionFailureBlacklistForTest(
 	expiresAt *time.Time,
 ) *MemberBlacklistEntry {
 	t.Helper()
-	var entry *MemberBlacklistEntry
-	err := svc.repo.WithTx(context.Background(), func(ctx context.Context, tx pgx.Tx) error {
-		created, err := svc.createAdmissionFailureBlacklistTx(ctx, tx, admissionFailureBlacklistTestInput(expiresAt))
-		entry = created
-		return err
-	})
-	require.NoError(t, err)
-	return entry
+	return insertMemberBlacklistForTest(t, svc, admissionFailureBlacklistTestInput(expiresAt))
 }
 
 func admissionFailureBlacklistTestInput(expiresAt *time.Time) MemberBlacklistCreateInput {

@@ -2,6 +2,7 @@ package admission
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -120,6 +121,9 @@ func (s *Service) createMemberBlacklistTx(
 		return nil, err
 	}
 	now := s.now()
+	if err := validateMemberBlacklistCreateTime(input, now); err != nil {
+		return nil, err
+	}
 	key := memberBlacklistCreateKey(input)
 	if err := s.releaseExpiredMemberBlacklistForCreateTx(ctx, tx, key, now); err != nil {
 		return nil, err
@@ -128,11 +132,40 @@ func (s *Service) createMemberBlacklistTx(
 	if err != nil || existing != nil {
 		return existing, err
 	}
+	if err := s.repo.CreateMemberBlacklistSavepointTx(ctx, tx); err != nil {
+		return nil, err
+	}
 	created, err := s.repo.CreateMemberBlacklistTx(ctx, tx, input, now)
 	if err != nil {
+		return s.memberBlacklistCreateConflictResultTx(ctx, tx, key, now, err)
+	}
+	if err := s.repo.ReleaseMemberBlacklistCreateSavepointTx(ctx, tx); err != nil {
 		return nil, err
 	}
 	return created, s.repo.InsertAuditEventTx(ctx, tx, memberBlacklistCreatedAuditEvent(ctx, created))
+}
+
+func (s *Service) memberBlacklistCreateConflictResultTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	key memberBlacklistKey,
+	now time.Time,
+	createErr error,
+) (*MemberBlacklistEntry, error) {
+	if !isMemberBlacklistActiveUniqueViolation(createErr) {
+		return nil, createErr
+	}
+	if err := s.repo.RollbackMemberBlacklistCreateSavepointTx(ctx, tx); err != nil {
+		return nil, fmt.Errorf("recover member blacklist create conflict: %w", err)
+	}
+	if err := s.repo.ReleaseMemberBlacklistCreateSavepointTx(ctx, tx); err != nil {
+		return nil, err
+	}
+	existing, err := s.repo.GetActiveMemberBlacklistByKeyTx(ctx, tx, key, now)
+	if err != nil || existing != nil {
+		return existing, err
+	}
+	return nil, createErr
 }
 
 func (s *Service) releaseExpiredMemberBlacklistForCreateTx(
@@ -201,10 +234,11 @@ func (s *Service) afterMemberBlacklistReleaseTx(
 	entry *MemberBlacklistEntry,
 	reason MemberBlacklistReleaseReasonCode,
 ) error {
-	if err := s.resetAdmissionFailureAfterPardonTx(ctx, tx, entry, reason); err != nil {
+	effects, err := s.resetAdmissionFailureAfterPardonTx(ctx, tx, entry, reason)
+	if err != nil {
 		return err
 	}
-	return s.repo.InsertAuditEventTx(ctx, tx, memberBlacklistReleasedAuditEvent(ctx, entry))
+	return s.repo.InsertAuditEventTx(ctx, tx, memberBlacklistReleasedAuditEvent(ctx, entry, effects))
 }
 
 func (s *Service) resetAdmissionFailureAfterPardonTx(
@@ -212,11 +246,15 @@ func (s *Service) resetAdmissionFailureAfterPardonTx(
 	tx pgx.Tx,
 	entry *MemberBlacklistEntry,
 	reason MemberBlacklistReleaseReasonCode,
-) error {
+) (memberBlacklistReleaseEffects, error) {
 	if entry.Source != BlacklistSourceAdmissionFailure || reason == BlacklistReleaseOnly || entry.GuildID == nil {
-		return nil
+		return memberBlacklistReleaseEffects{}, nil
 	}
-	return s.repo.ResetAdmissionFailureCountTx(ctx, tx, entry.Platform, *entry.GuildID, entry.SubjectID, s.now())
+	previous, err := s.repo.ResetAdmissionFailureCountTx(ctx, tx, entry.Platform, *entry.GuildID, entry.SubjectID, s.now())
+	return memberBlacklistReleaseEffects{
+		AdmissionFailureCountReset: true,
+		PreviousFailureCount:       previous,
+	}, err
 }
 
 func memberBlacklistCreateKey(input MemberBlacklistCreateInput) memberBlacklistKey {

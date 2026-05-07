@@ -4690,6 +4690,10 @@ paths:
           in: query
           schema:
             type: string
+        - name: createdByID
+          in: query
+          schema:
+            type: string
         - name: status
           in: query
           schema:
@@ -5712,6 +5716,10 @@ paths:
           schema:
             $ref: '#/components/schemas/MemberBlacklistSource'
         - name: guildID
+          in: query
+          schema:
+            type: string
+        - name: createdByID
           in: query
           schema:
             type: string
@@ -8064,6 +8072,7 @@ components:
             - string
             - 'null'
           format: date-time
+          description: Null means permanent; non-null values must be in the future.
         releasedAt:
           type:
             - string
@@ -8120,15 +8129,21 @@ components:
         reasonText:
           type: string
           minLength: 1
+        createdFrom:
+          allOf:
+            - $ref: '#/components/schemas/MemberBlacklistCreatedFrom'
+          description: |
+            Bot API creation context. Required for bot manual_admin requests so the server can distinguish qq_command from koishi_console without trusting metadata.createdFrom. Ignored by Admin API.
         expiresAt:
           type:
             - string
             - 'null'
           format: date-time
+          description: Null means permanent; non-null values must be in the future.
         metadata:
           type: object
           description: |
-            Source-specific audit metadata. manual_admin requires operatorInput and scopeSelectionContext; kick_blacklist requires rawCommand, targetGuildID, and operatorQQID; moderation_action requires reviewID, workItemID, and targetGuildID. Public admin and bot APIs cannot create admission_failure or migration sources.
+            Source-specific audit metadata. manual_admin requires operatorInput and scopeSelectionContext, and qq_command manual_admin also requires operatorQQID; kick_blacklist requires rawCommand, targetGuildID, and operatorQQID; moderation_action requires reviewID, workItemID, and targetGuildID. Public admin and bot APIs cannot create admission_failure or migration sources.
           additionalProperties: true
     MemberBlacklistReleaseRequest:
       type: object

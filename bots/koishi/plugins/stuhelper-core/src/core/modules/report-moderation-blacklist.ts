@@ -26,6 +26,7 @@ export async function kickUserWithModerationBlacklist(
     source: 'moderation_action',
     reasonCode: 'violation_review_blacklist',
     reasonText: moderationBlacklistReason(input),
+    createdFrom: 'moderation_review',
     metadata: moderationBlacklistMetadata(input, guildID),
   })
 }

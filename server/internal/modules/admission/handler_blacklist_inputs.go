@@ -23,7 +23,8 @@ func memberBlacklistListFilterFromGin(c *gin.Context) MemberBlacklistListFilter 
 		Platform: c.Query("platform"), SubjectType: MemberBlacklistSubjectType(c.Query("subjectType")),
 		SubjectID: c.Query("subjectID"), ScopeType: MemberBlacklistScopeType(c.Query("scopeType")),
 		Source: MemberBlacklistSource(c.Query("source")), GuildID: c.Query("guildID"),
-		Status: MemberBlacklistStatus(c.Query("status")), PageSize: pageSize, Offset: httputil.SafeOffset(page, pageSize),
+		CreatedByID: c.Query("createdByID"),
+		Status:      MemberBlacklistStatus(c.Query("status")), PageSize: pageSize, Offset: httputil.SafeOffset(page, pageSize),
 	}
 }
 
@@ -92,10 +93,7 @@ func botMemberBlacklistReleaseBySubjectInput(
 func botMemberBlacklistCreatedFrom(req memberBlacklistCreateHTTPRequest) MemberBlacklistCreatedFrom {
 	switch req.Source {
 	case BlacklistSourceManualAdmin:
-		if metadataString(req.Metadata, "createdFrom") == string(BlacklistCreatedFromQQCommand) {
-			return BlacklistCreatedFromQQCommand
-		}
-		return BlacklistCreatedFromKoishiConsole
+		return req.CreatedFrom
 	case BlacklistSourceKickBlacklist:
 		return BlacklistCreatedFromQQCommand
 	case BlacklistSourceModerationAction:

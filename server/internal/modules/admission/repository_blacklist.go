@@ -17,6 +17,8 @@ const memberBlacklistColumns = `
 	expires_at, released_at, released_by_type, released_by_id,
 	release_reason_code, release_reason, metadata, created_at, updated_at`
 
+const memberBlacklistCreateSavepoint = "member_blacklist_create"
+
 func (r *Repository) CreateMemberBlacklistTx(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -32,6 +34,30 @@ func (r *Repository) CreateMemberBlacklistTx(
 		return nil, fmt.Errorf("CreateMemberBlacklistTx: %w", err)
 	}
 	return entry, nil
+}
+
+func (r *Repository) CreateMemberBlacklistSavepointTx(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, "SAVEPOINT "+memberBlacklistCreateSavepoint)
+	if err != nil {
+		return fmt.Errorf("CreateMemberBlacklistSavepointTx: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) RollbackMemberBlacklistCreateSavepointTx(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT "+memberBlacklistCreateSavepoint)
+	if err != nil {
+		return fmt.Errorf("RollbackMemberBlacklistCreateSavepointTx: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ReleaseMemberBlacklistCreateSavepointTx(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, "RELEASE SAVEPOINT "+memberBlacklistCreateSavepoint)
+	if err != nil {
+		return fmt.Errorf("ReleaseMemberBlacklistCreateSavepointTx: %w", err)
+	}
+	return nil
 }
 
 func (r *Repository) GetActiveMemberBlacklistByKeyTx(
@@ -172,6 +198,7 @@ func memberBlacklistListClauses(filter MemberBlacklistListFilter, now time.Time)
 	addMemberBlacklistStringFilter(&clauses, &args, "scope_type", string(filter.ScopeType))
 	addMemberBlacklistStringFilter(&clauses, &args, "source", string(filter.Source))
 	addMemberBlacklistStringFilter(&clauses, &args, "guild_id", filter.GuildID)
+	addMemberBlacklistStringFilter(&clauses, &args, "created_by_id", filter.CreatedByID)
 	return append(clauses, memberBlacklistStatusClause(filter.Status, &args, now)), args
 }
 

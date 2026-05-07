@@ -135,6 +135,7 @@ type MemberBlacklistListFilter struct {
 	ScopeType   MemberBlacklistScopeType
 	Source      MemberBlacklistSource
 	GuildID     string
+	CreatedByID string
 	Status      MemberBlacklistStatus
 	PageSize    int
 	Offset      int

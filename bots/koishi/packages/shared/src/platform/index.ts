@@ -191,7 +191,7 @@ function jsonPost(input: unknown): RequestInit {
   }
 }
 
-function withQuery(path: string, input: Readonly<Record<string, unknown>>) {
+function withQuery(path: string, input: object) {
   const values = new URLSearchParams()
   for (const [key, value] of Object.entries(input)) {
     appendQueryValue(values, key, value)

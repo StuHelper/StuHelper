@@ -3160,7 +3160,10 @@ export interface components {
             createdByType: components["schemas"]["MemberBlacklistActorType"];
             createdByID: string;
             createdFrom: components["schemas"]["MemberBlacklistCreatedFrom"];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Null means permanent; non-null values must be in the future.
+             */
             expiresAt?: string | null;
             /** Format: date-time */
             releasedAt?: string | null;
@@ -3182,9 +3185,14 @@ export interface components {
             source: components["schemas"]["MemberBlacklistSource"];
             reasonCode: components["schemas"]["MemberBlacklistReasonCode"];
             reasonText: string;
-            /** Format: date-time */
+            /** @description Bot API creation context. Required for bot manual_admin requests so the server can distinguish qq_command from koishi_console without trusting metadata.createdFrom. Ignored by Admin API. */
+            createdFrom?: components["schemas"]["MemberBlacklistCreatedFrom"];
+            /**
+             * Format: date-time
+             * @description Null means permanent; non-null values must be in the future.
+             */
             expiresAt?: string | null;
-            /** @description Source-specific audit metadata. manual_admin requires operatorInput and scopeSelectionContext; kick_blacklist requires rawCommand, targetGuildID, and operatorQQID; moderation_action requires reviewID, workItemID, and targetGuildID. Public admin and bot APIs cannot create admission_failure or migration sources. */
+            /** @description Source-specific audit metadata. manual_admin requires operatorInput and scopeSelectionContext, and qq_command manual_admin also requires operatorQQID; kick_blacklist requires rawCommand, targetGuildID, and operatorQQID; moderation_action requires reviewID, workItemID, and targetGuildID. Public admin and bot APIs cannot create admission_failure or migration sources. */
             metadata: {
                 [key: string]: unknown;
             };
@@ -7179,6 +7187,7 @@ export interface operations {
                 scopeType?: components["schemas"]["MemberBlacklistScopeType"];
                 source?: components["schemas"]["MemberBlacklistSource"];
                 guildID?: string;
+                createdByID?: string;
                 status?: components["schemas"]["MemberBlacklistStatus"];
                 /** @description 页码 */
                 page?: components["parameters"]["PageParam"];
@@ -7929,6 +7938,7 @@ export interface operations {
                 scopeType?: components["schemas"]["MemberBlacklistScopeType"];
                 source?: components["schemas"]["MemberBlacklistSource"];
                 guildID?: string;
+                createdByID?: string;
                 status?: components["schemas"]["MemberBlacklistStatus"];
                 /** @description 页码 */
                 page?: components["parameters"]["PageParam"];

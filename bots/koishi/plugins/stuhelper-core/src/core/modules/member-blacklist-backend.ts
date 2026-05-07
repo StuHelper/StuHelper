@@ -42,7 +42,8 @@ export function createManualMemberBlacklist(
     source: 'manual_admin',
     reasonCode: 'manual_blacklist',
     reasonText: 'manual blacklist from Koishi command',
-    metadata: manualMemberBlacklistMetadata(input, 'qq_command'),
+    createdFrom: 'qq_command',
+    metadata: manualMemberBlacklistMetadata(input),
   })
 }
 
@@ -67,6 +68,7 @@ export function createKickMemberBlacklist(
     source: 'kick_blacklist',
     reasonCode: 'manual_kick_blacklist',
     reasonText: 'manual kick with blacklist from Koishi command',
+    createdFrom: 'qq_command',
     metadata: memberBlacklistCommandMetadata(input),
   })
 }
@@ -102,14 +104,10 @@ function memberBlacklistScope(input: MemberBlacklistCommandInput): MemberBlackli
   return input.global ? 'global' : 'guild'
 }
 
-function manualMemberBlacklistMetadata(
-  input: MemberBlacklistCommandInput,
-  createdFrom: 'qq_command',
-): Record<string, unknown> {
+function manualMemberBlacklistMetadata(input: MemberBlacklistCommandInput): Record<string, unknown> {
   return {
     ...memberBlacklistCommandMetadata(input),
     operatorInput: input.subjectID,
-    createdFrom,
   }
 }
 

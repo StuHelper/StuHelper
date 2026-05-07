@@ -20,6 +20,32 @@ func TestMemberBlacklistRejectsMissingRequiredMetadata(t *testing.T) {
 	require.ErrorIs(t, err, ErrMemberBlacklistInvalidInput)
 }
 
+func TestMemberBlacklistRejectsBotManualAdminWithoutCreatedFrom(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newBlacklistTestService(t, fixture)
+	input := memberBlacklistTestCreateInput(BlacklistScopeGuild, stringPtr("guild-1"))
+	input.CreatedByType = BlacklistActorServiceAccount
+	input.CreatedByID = "koishi-runtime"
+	input.CreatedFrom = ""
+
+	_, err := svc.CreateMemberBlacklistFromBot(context.Background(), input)
+
+	require.ErrorIs(t, err, ErrMemberBlacklistInvalidInput)
+}
+
+func TestMemberBlacklistRejectsQQCommandManualAdminWithoutOperatorQQID(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newBlacklistTestService(t, fixture)
+	input := memberBlacklistTestCreateInput(BlacklistScopeGuild, stringPtr("guild-1"))
+	input.CreatedByType = BlacklistActorQQOperator
+	input.CreatedByID = "90001"
+	input.CreatedFrom = BlacklistCreatedFromQQCommand
+
+	_, err := svc.CreateMemberBlacklistFromBot(context.Background(), input)
+
+	require.ErrorIs(t, err, ErrMemberBlacklistInvalidInput)
+}
+
 func TestMemberBlacklistRejectsSourceReasonMismatch(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newBlacklistTestService(t, fixture)

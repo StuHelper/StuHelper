@@ -26,7 +26,7 @@ test('moderation kick_blacklist writes a moderation_action blacklist entry', asy
   assert.equal(host.createdBlacklists.length, 1)
   assert.equal(host.createdBlacklists[0].source, 'moderation_action')
   assert.equal(host.createdBlacklists[0].reasonCode, 'violation_review_blacklist')
-  assert.equal(host.createdBlacklists[0].createdFrom, undefined)
+  assert.equal(host.createdBlacklists[0].createdFrom, 'moderation_review')
   assert.equal(host.createdBlacklists[0].metadata.targetGuildID, 'guild-1')
   assert.match(String(host.createdBlacklists[0].metadata.reviewID), /^moderation:/)
   assert.match(String(host.createdBlacklists[0].metadata.workItemID), /^moderation:/)

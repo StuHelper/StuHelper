@@ -1,6 +1,9 @@
 package admission
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	defaultMemberBlacklistPageSize = 50
@@ -32,62 +35,20 @@ func validateMemberBlacklistCreateInput(input MemberBlacklistCreateInput, entryP
 	if !memberBlacklistSourceReasonAllowed(input.Source, input.ReasonCode) {
 		return ErrMemberBlacklistInvalidInput
 	}
+	if !memberBlacklistCreatedFromValidForSource(input.Source, input.CreatedFrom) {
+		return ErrMemberBlacklistInvalidInput
+	}
 	if !memberBlacklistSourceAllowed(entryPoint, input.Source, input.CreatedFrom) {
 		return ErrMemberBlacklistSourceForbidden
 	}
 	return validateMemberBlacklistMetadata(input)
 }
 
-func memberBlacklistSourceAllowed(
-	entryPoint memberBlacklistEntryPoint,
-	source MemberBlacklistSource,
-	createdFrom MemberBlacklistCreatedFrom,
-) bool {
-	switch entryPoint {
-	case memberBlacklistEntryPointAdmin:
-		return source == BlacklistSourceManualAdmin && createdFrom == BlacklistCreatedFromAdminConsole
-	case memberBlacklistEntryPointBot:
-		return memberBlacklistBotSourceAllowed(source, createdFrom)
-	case memberBlacklistEntryPointInternal:
-		return source == BlacklistSourceAdmissionFailure && createdFrom == BlacklistCreatedFromAdmissionWorker
-	default:
-		return false
+func validateMemberBlacklistCreateTime(input MemberBlacklistCreateInput, now time.Time) error {
+	if input.ExpiresAt == nil || input.ExpiresAt.After(now) {
+		return nil
 	}
-}
-
-func memberBlacklistBotSourceAllowed(source MemberBlacklistSource, createdFrom MemberBlacklistCreatedFrom) bool {
-	switch source {
-	case BlacklistSourceManualAdmin:
-		return createdFrom == BlacklistCreatedFromKoishiConsole || createdFrom == BlacklistCreatedFromQQCommand
-	case BlacklistSourceKickBlacklist:
-		return createdFrom == BlacklistCreatedFromQQCommand
-	case BlacklistSourceModerationAction:
-		return createdFrom == BlacklistCreatedFromModerationReview
-	default:
-		return false
-	}
-}
-
-func memberBlacklistSourceReasonAllowed(
-	source MemberBlacklistSource,
-	reason MemberBlacklistReasonCode,
-) bool {
-	switch source {
-	case BlacklistSourceAdmissionFailure:
-		return reason == BlacklistReasonAdmissionTimeoutLimit
-	case BlacklistSourceManualAdmin:
-		return reason == BlacklistReasonManualBlacklist
-	case BlacklistSourceKickBlacklist:
-		return reason == BlacklistReasonManualKickBlacklist
-	case BlacklistSourceModerationAction:
-		return reason == BlacklistReasonViolationReviewBlacklist
-	case BlacklistSourceMigrationLegacyKoishi:
-		return reason == BlacklistReasonLegacyKoishiBlacklist
-	case BlacklistSourceMigrationAdmissionFailure:
-		return reason == BlacklistReasonLegacyAdmissionBlacklist
-	default:
-		return false
-	}
+	return ErrMemberBlacklistInvalidInput
 }
 
 func validateMemberBlacklistMetadata(input MemberBlacklistCreateInput) error {
@@ -95,7 +56,13 @@ func validateMemberBlacklistMetadata(input MemberBlacklistCreateInput) error {
 	case BlacklistSourceAdmissionFailure:
 		return validateAdmissionFailureBlacklistMetadata(input.Metadata)
 	case BlacklistSourceManualAdmin:
-		return requireMetadataString(input.Metadata, "operatorInput", "scopeSelectionContext")
+		if err := requireMetadataString(input.Metadata, "operatorInput", "scopeSelectionContext"); err != nil {
+			return err
+		}
+		if input.CreatedFrom == BlacklistCreatedFromQQCommand {
+			return requireMetadataString(input.Metadata, "operatorQQID")
+		}
+		return nil
 	case BlacklistSourceKickBlacklist:
 		return requireMetadataString(input.Metadata, "rawCommand", "targetGuildID", "operatorQQID")
 	case BlacklistSourceModerationAction:
@@ -149,6 +116,7 @@ func normalizeMemberBlacklistListFilter(filter MemberBlacklistListFilter) Member
 	filter.Platform = normalizeMemberBlacklistString(filter.Platform)
 	filter.SubjectID = normalizeMemberBlacklistString(filter.SubjectID)
 	filter.GuildID = normalizeMemberBlacklistString(filter.GuildID)
+	filter.CreatedByID = normalizeMemberBlacklistString(filter.CreatedByID)
 	filter.PageSize = normalizeMemberBlacklistPageSize(filter.PageSize)
 	if filter.Status == "" {
 		filter.Status = BlacklistStatusActive

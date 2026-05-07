@@ -72,6 +72,7 @@ export function registerMemberBlacklistConsoleAPI(
       source: 'manual_admin',
       reasonCode: 'manual_blacklist',
       reasonText: params.reasonText?.trim() || 'manual blacklist from Koishi console',
+      createdFrom: 'koishi_console',
       metadata: consoleBlacklistMetadata(params, this),
     })
     return success(entry)
@@ -133,7 +134,6 @@ function consoleAuthID(client: unknown): string {
 function consoleBlacklistMetadata(params: ConsoleBlacklistCreateParams, client: unknown) {
   return {
     consoleAuthID: consoleAuthID(client),
-    createdFrom: 'koishi_console',
     operatorInput: params.subjectID,
     scopeSelectionContext: CONSOLE_SCOPE_SELECTION_CONTEXT,
   }

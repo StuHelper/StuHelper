@@ -2,6 +2,7 @@ package admission
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -52,14 +53,27 @@ func (r *Repository) ResetAdmissionFailureCountTx(
 	guildID string,
 	qqID string,
 	now time.Time,
-) error {
-	_, err := tx.Exec(ctx, `
+) (int, error) {
+	var previousCount int
+	err := tx.QueryRow(ctx, `
+		SELECT failure_count
+		FROM group_admission_failures
+		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3
+		FOR UPDATE
+	`, platform, guildID, qqID).Scan(&previousCount)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("ResetAdmissionFailureCountTx: %w", err)
+	}
+	_, err = tx.Exec(ctx, `
 		UPDATE group_admission_failures
 		SET failure_count = 0, updated_at = $4
 		WHERE platform = $1 AND guild_id = $2 AND qq_id = $3
 	`, platform, guildID, qqID, now)
 	if err != nil {
-		return fmt.Errorf("ResetAdmissionFailureCountTx: %w", err)
+		return 0, fmt.Errorf("ResetAdmissionFailureCountTx: %w", err)
 	}
-	return nil
+	return previousCount, nil
 }

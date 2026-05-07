@@ -26,8 +26,10 @@ test('console blacklist add includes manual admin metadata required by platform'
 
   assert.equal(result.success, true)
   assert.equal(createdBlacklists.length, 1)
+  assert.equal(createdBlacklists[0].createdFrom, 'koishi_console')
   assert.equal(createdBlacklists[0].metadata.operatorInput, '10001')
   assert.equal(createdBlacklists[0].metadata.scopeSelectionContext, 'koishi_console_form')
+  assert.equal(createdBlacklists[0].metadata.createdFrom, undefined)
 })
 
 test('console blacklist remove forwards id-based release with chosen reason code', async () => {

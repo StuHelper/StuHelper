@@ -18,6 +18,7 @@ type memberBlacklistCreateHTTPRequest struct {
 	Source      MemberBlacklistSource      `json:"source" binding:"required"`
 	ReasonCode  MemberBlacklistReasonCode  `json:"reasonCode" binding:"required"`
 	ReasonText  string                     `json:"reasonText" binding:"required"`
+	CreatedFrom MemberBlacklistCreatedFrom `json:"createdFrom"`
 	ExpiresAt   *time.Time                 `json:"expiresAt"`
 	Metadata    map[string]any             `json:"metadata"`
 }

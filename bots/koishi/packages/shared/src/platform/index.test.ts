@@ -59,6 +59,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     source: 'manual_admin',
     reasonCode: 'manual_blacklist',
     reasonText: 'manual command',
+    createdFrom: 'qq_command',
     metadata: { operatorQQID: '90001' },
   })
   await client.releaseMemberBlacklist('entry-1', {
@@ -114,6 +115,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.equal(calls[0].body.qqNickname, 'Alice')
   assert.equal(calls[1].body.rawEvent.comment, '我是新生')
   assert.equal(calls[5].body.metadata.operatorQQID, '90001')
+  assert.equal(calls[5].body.createdFrom, 'qq_command')
   assert.equal(calls[7].body.releaseReasonCode, 'manual_pardon')
   assert.equal(calls[8].body.messageID, 'message-1')
   assert.equal(calls[11].body.operatorQQID, '90001')

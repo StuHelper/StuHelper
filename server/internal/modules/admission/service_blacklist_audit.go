@@ -21,7 +21,16 @@ func memberBlacklistCreatedAuditEvent(ctx context.Context, entry *MemberBlacklis
 	})
 }
 
-func memberBlacklistReleasedAuditEvent(ctx context.Context, entry *MemberBlacklistEntry) audit.Event {
+type memberBlacklistReleaseEffects struct {
+	AdmissionFailureCountReset bool
+	PreviousFailureCount       int
+}
+
+func memberBlacklistReleasedAuditEvent(
+	ctx context.Context,
+	entry *MemberBlacklistEntry,
+	effects memberBlacklistReleaseEffects,
+) audit.Event {
 	reason := ""
 	if entry.ReleaseReasonCode != nil {
 		reason = string(*entry.ReleaseReasonCode)
@@ -36,7 +45,7 @@ func memberBlacklistReleasedAuditEvent(ctx context.Context, entry *MemberBlackli
 		Action:       "release",
 		Result:       "success",
 		Reason:       reason,
-		Details:      memberBlacklistAuditDetails(entry),
+		Details:      memberBlacklistReleaseAuditDetails(entry, effects),
 	})
 }
 
@@ -82,4 +91,16 @@ func memberBlacklistAuditDetails(entry *MemberBlacklistEntry) map[string]any {
 		"release_text":   entry.ReleaseReason,
 		"entry_metadata": entry.Metadata,
 	}
+}
+
+func memberBlacklistReleaseAuditDetails(
+	entry *MemberBlacklistEntry,
+	effects memberBlacklistReleaseEffects,
+) map[string]any {
+	details := memberBlacklistAuditDetails(entry)
+	details["admission_failure_count_reset"] = effects.AdmissionFailureCountReset
+	if effects.AdmissionFailureCountReset {
+		details["previous_failure_count"] = effects.PreviousFailureCount
+	}
+	return details
 }

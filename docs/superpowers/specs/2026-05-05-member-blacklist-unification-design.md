@@ -89,7 +89,7 @@ created: 2026-05-05
 | `reason_text` | 人类可读创建原因 |
 | `created_by_type` | `system`、`admin_user`、`qq_operator`、`service_account` |
 | `created_by_id` | 操作者 ID；系统动作固定为 `system` |
-| `created_from` | `admission_worker`、`qq_command`、`koishi_console`、`admin_console`、`moderation_review` |
+| `created_from` | `admission_worker`、`qq_command`、`koishi_console`、`admin_console`、`moderation_review`、`migration_script` |
 | `expires_at` | 过期时间；为空表示永久 |
 | `released_at` | 解除时间 |
 | `released_by_type` | 解除操作者类型 |
@@ -125,13 +125,14 @@ DB 约束和查询实现：
 | `source` | `reason_code` | 默认范围 | 创建入口 | 必填 metadata |
 |---|---|---|---|---|
 | `admission_failure` | `admission_timeout_limit` | `guild` | `admission_worker` | `admissionSessionID`, `failureCount`, `failedJoinLimit`, `platform`, `guildID`, `botSelfID` |
-| `manual_admin` | `manual_blacklist` | 操作者选择 | `admin_console` 或 `koishi_console` | `operatorInput`, `scopeSelectionContext` |
+| `manual_admin` | `manual_blacklist` | 操作者选择 | `admin_console`、`koishi_console` 或 `qq_command` | `operatorInput`, `scopeSelectionContext` |
 | `kick_blacklist` | `manual_kick_blacklist` | 默认 `guild`，可显式 `global` | `qq_command` | `rawCommand`, `targetGuildID`, `operatorQQID` |
 | `moderation_action` | `violation_review_blacklist` | 默认 `guild`，可显式 `global` | `moderation_review` | `reviewID`, `workItemID`, `targetGuildID` |
 | `migration_legacy_koishi` | `legacy_koishi_blacklist` | `global`，除非旧记录可确定群 | 一次性导入脚本 | `legacyFile`, `legacyUserID` |
 | `migration_admission_failure` | `legacy_admission_blacklist` | `guild` | 一次性导入脚本 | `legacyFailureCount`, `legacyGuildID` |
 
 `scopeSelectionContext` 记录操作者如何选择 scope，例如 `current_guild_command`、`admin_console_form`、`koishi_console_form` 或 `explicit_global_flag`。
+当 `manual_admin` 由 QQ 命令创建时，metadata 还必须包含 `operatorQQID`，服务端用它填充 `created_by_id`；Koishi Console 创建时操作者上下文保存在 `consoleAuthID`，但后端审计 actor 仍是 Koishi runtime service account。
 
 解除原因枚举：
 
@@ -159,7 +160,7 @@ GET /api/v1/bot/member-blacklist/access?platform=qq&subjectType=qq_user&guildID=
 
 blocked 响应必须包含 `canJoin=false`、`decision='blocked'` 和 `matchedBlacklist`；`matchedBlacklist` 至少包含 id、platform、subjectType、subjectID、scopeType、source、reasonCode、reasonText、expiresAt，guild scope 还必须包含 guildID。
 
-列表接口 `GET /api/v1/admin/member-blacklist` 和 `GET /api/v1/bot/member-blacklist` 必须分页，并支持 subject、scope、source、guild 和 active/released/expired 状态过滤；默认只返回 active 记录。
+列表接口 `GET /api/v1/admin/member-blacklist` 和 `GET /api/v1/bot/member-blacklist` 必须分页，并支持 subject、scope、source、guild、createdByID 和 active/released/expired 状态过滤；默认只返回 active 记录。
 
 ### 写入黑名单
 
@@ -168,7 +169,7 @@ POST /api/v1/admin/member-blacklist
 POST /api/v1/bot/member-blacklist
 ```
 
-请求体必须包含 `platform`、`subjectType`、`subjectID`、`scopeType`、`source`、`reasonCode`、`reasonText`、`expiresAt` 和 `metadata`。`scopeType='guild'` 时必须包含 `guildID`。后端根据认证上下文填充 `created_by_type`、`created_by_id` 和 `created_from`，不信任客户端伪造操作者。
+请求体必须包含 `platform`、`subjectType`、`subjectID`、`scopeType`、`source`、`reasonCode`、`reasonText`、`expiresAt` 和 `metadata`。`scopeType='guild'` 时必须包含 `guildID`。`expiresAt` 为空表示永久；非空时必须晚于服务端当前时间。后端根据认证上下文填充 `created_by_type` 和 `created_by_id`，不信任客户端伪造操作者。Bot API 的 `manual_admin` 来源必须在顶层传入结构化 `createdFrom`（`qq_command` 或 `koishi_console`），服务端按入口和 source 校验；`metadata.createdFrom` 一律不参与审计字段判定。
 
 服务端必须按调用入口校验 `source`，违反矩阵返回 400：
 

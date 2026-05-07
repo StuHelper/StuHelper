@@ -14,8 +14,10 @@ test('kick -b --global creates a global member blacklist entry', async () => {
   assert.equal(host.createdBlacklists.length, 1)
   assert.equal(host.createdBlacklists[0].scopeType, 'global')
   assert.equal(host.createdBlacklists[0].guildID, undefined)
+  assert.equal(host.createdBlacklists[0].createdFrom, 'qq_command')
   assert.equal(host.createdBlacklists[0].metadata.targetGuildID, 'guild-1')
   assert.equal(host.createdBlacklists[0].metadata.scopeSelectionContext, 'explicit_global_flag')
+  assert.equal(host.createdBlacklists[0].metadata.createdFrom, undefined)
 })
 
 function createMemberManageHost() {
