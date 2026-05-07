@@ -7,7 +7,7 @@ created: 2026-05-01
 last-verified: 2026-05-02
 supersedes: 2026-05-01-casdoor-open-platform-iam-design.md
 related:
-  - 2026-05-01-open-platform-v1.md (deferred follow-up)
+  - open-platform-v1.md (deferred follow-up)
   - docs/design/authorization-model.md (current model, will be retired)
   - docs/design/auth-and-session.md (current auth, will be rewritten)
 scope: greenfield IAM v2 target architecture; Casdoor is the final IDP; Open Platform v1 split into separate spec
@@ -19,7 +19,7 @@ scope: greenfield IAM v2 target architecture; Casdoor is the final IDP; Open Pla
 
 - **IDP 决策**：Casdoor 是最终方案，由项目 owner 直接决策；不再做选型 ADR；不再保留 Zitadel/Keycloak 候选。
 - **迁移性质**：绿地架构，不做兼容数据迁移；历史 Zitadel external subject、session、token 全部失效，要求所有用户重新登录。
-- **范围拆分**：本文只覆盖 IAM v2（身份、登录、应用注册、授权决策入口、SMS/Email 通道、Zitadel 退役）。开放平台拆出独立 spec [`2026-05-01-open-platform-v1.md`](./2026-05-01-open-platform-v1.md)，且必须在 IAM v2 落地后才启动。
+- **范围拆分**：本文只覆盖 IAM v2（身份、登录、应用注册、授权决策入口、SMS/Email 通道、Zitadel 退役）。开放平台拆出独立 spec [`open-platform-v1.md`](open-platform-v1.md)，且必须在 IAM v2 落地后才启动。
 
 > 本 spec 取代 `2026-05-01-casdoor-open-platform-iam-design.md`（commit 8295a1e7）。旧 spec 把 IAM 切换与开放平台 v1 混写，并把 Casdoor Casbin Enforce 引入业务授权路径，已被本文从架构上修正。
 
@@ -31,7 +31,7 @@ scope: greenfield IAM v2 target architecture; Casdoor is the final IDP; Open Pla
 | **StuHelper DB** | 业务事实真相源：实名认证、学生认证、学校归属、手机号绑定、QQ 绑定、课程/评课/资源 owner | — |
 | **StuHelper Authorization Service** | **业务模块唯一授权入口**：组合 token 主体、DB 事实、OpenFGA 检查；统一 fail-closed | — |
 | **OpenFGA** | 资源关系权威：owner/author/school_admin/section_admin/section_moderator/section_reviewer/app→resource 关系 | 直接被业务模块调用；参与登录决策；承担粗粒度 RBAC（已在 Casdoor 解决） |
-| **Open Platform Gateway** | 第三方应用披露网关，scope/consent/审计/限流/吊销 | **完整逻辑见** [`open-platform-v1.md`](./2026-05-01-open-platform-v1.md)；IAM v2 仅做 Casdoor Application 模型 + Subject.AppID 维度 + OpenFGA `open_platform_app` 类型预留 |
+| **Open Platform Gateway** | 第三方应用披露网关，scope/consent/审计/限流/吊销 | **完整逻辑见** [`open-platform-v1.md`](open-platform-v1.md)；IAM v2 仅做 Casdoor Application 模型 + Subject.AppID 维度 + OpenFGA `open_platform_app` 类型预留 |
 
 ```text
 一方应用 (web / admin / uniapp)
@@ -596,7 +596,7 @@ type open_platform_app
 
 **落地文件**：`infra/openfga/model.fga` 是人类可读 DSL；`infra/openfga/model.json` 是 `server/cmd/fga-setup` 导入 OpenFGA 的机器格式。两者必须同步修改，不允许再使用代码内硬编码模型。
 
-**注意**：`scope consent`（用户对应用的 scope 授权）**不在 OpenFGA 中建模**，因为 scope 是字符串属性，不是 OpenFGA 关系目标。Scope consent 由业务 DB 表 `open_platform_user_consent` 承载，由 `AuthorizationService` 在决策时查询。OpenFGA 只承载"应用 → 具体资源"的细粒度关系（详见 [`open-platform-v1.md`](./2026-05-01-open-platform-v1.md) §9）。
+**注意**：`scope consent`（用户对应用的 scope 授权）**不在 OpenFGA 中建模**，因为 scope 是字符串属性，不是 OpenFGA 关系目标。Scope consent 由业务 DB 表 `open_platform_user_consent` 承载，由 `AuthorizationService` 在决策时查询。OpenFGA 只承载"应用 → 具体资源"的细粒度关系（详见 [`open-platform-v1.md`](open-platform-v1.md) §9）。
 
 ### 7.2 调用边界
 
@@ -1086,12 +1086,12 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 
 ## 16. 范围外（Open Platform v1）
 
-第三方应用注册、scope 目录、scope 审批、用户 consent、disclosure API、按 app/user 限流、审计、吊销 → 见 [`2026-05-01-open-platform-v1.md`](./2026-05-01-open-platform-v1.md)。
+第三方应用注册、scope 目录、scope 审批、用户 consent、disclosure API、按 app/user 限流、审计、吊销 → 见 [`open-platform-v1.md`](open-platform-v1.md)。
 
 IAM v2 仅做以下预留，不实现完整开放平台逻辑：
 - Casdoor Application 模型支持第三方应用类型（建模而非业务流程）；
 - `AuthorizationService.Authorize` 接口的 `Subject.AppID` 维度；
-- OpenFGA 模型预留 `open_platform_app` 类型定义（scope consent 在业务 DB 而非 OpenFGA 中建模，理由见 [`open-platform-v1.md`](./2026-05-01-open-platform-v1.md) §13）。
+- OpenFGA 模型预留 `open_platform_app` 类型定义（scope consent 在业务 DB 而非 OpenFGA 中建模，理由见 [`open-platform-v1.md`](open-platform-v1.md) §13）。
 
 Open Platform v1 的实施前置条件：IAM v2 全部验证策略（§15）通过、Zitadel 完全退役。
 
@@ -1130,7 +1130,7 @@ OpenFGA 是资源关系权威，但仅作为 Authorization Service 内部依赖�
 - Casdoor Email Provider：<https://casdoor.ai/docs/provider/email/overview/>
 - Casdoor 数据初始化：<https://casdoor.org/docs/deployment/data-initialization/>
 - Casdoor Go SDK：<https://github.com/casdoor/casdoor-go-sdk>
-- 现行授权模型：[`docs/design/authorization-model.md`](../../design/authorization-model.md)
-- 现行认证模型：[`docs/design/auth-and-session.md`](../../design/auth-and-session.md)
-- 现行安全模型：[`docs/design/security-model.md`](../../design/security-model.md)
+- 现行授权模型：[`docs/design/authorization-model.md`](authorization-model.md)
+- 现行认证模型：[`docs/design/auth-and-session.md`](auth-and-session.md)
+- 现行安全模型：[`docs/design/security-model.md`](security-model.md)
 - OpenFGA Zanzibar 风格 ReBAC：<https://openfga.dev/docs/concepts>

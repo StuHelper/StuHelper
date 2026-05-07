@@ -1,7 +1,7 @@
 ---
 type: internal
 audience: maintainers
-status: completed
+status: archived
 authoritative-source: source scan
 last-verified: 2026-05-07
 ---

@@ -12,8 +12,6 @@ last-verified: 2026-04-19
 >
 > 归档说明：本文仅保留为历史实施记录。下方 checklist 已闭环，不再作为当前项目待办来源。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 在 StuHelper 仓库内建立基于 Koishi 官方模板的独立工作区，并产出可扩展的 StuHelper 插件框架。
 
 **Architecture:** 使用 `bots/koishi/` 作为独立 Node.js 子系统，通过 Koishi 官方 boilerplate 初始化 workspace。以 `packages/shared` 提供共享能力，以 `plugins/stuhelper-*` 提供插件边界，入口插件 `stuhelper-core` 负责装配其余插件。

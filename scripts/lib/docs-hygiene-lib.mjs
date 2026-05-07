@@ -29,7 +29,6 @@ const TOP_LEVEL_ALLOWED = new Set([
   'docs/internal',
   'docs/product-specs',
   'docs/reference',
-  'docs/superpowers',
 ]);
 const LONG_TERM_ASSET_ALLOWLIST = new Set(['docs/design/openfga-model.fga']);
 const RETIRED_PATH_PATTERNS = [
@@ -39,6 +38,8 @@ const RETIRED_PATH_PATTERNS = [
   /docs\/operations\//,
   /docs\/references\//,
   /docs\/exec-plans\//,
+  /docs\/superpowers\//,
+  /docs\/internal\/superpowers\//,
   /docs\/product-specs\/(auth-sso|rbac-authorization|storage-driver-architecture)/,
 ];
 const ABSOLUTE_PATH_PATTERN = /\/Users\/|\/home\/|\/root\/|C:\\/;
@@ -244,6 +245,9 @@ function validateDocsPlacement(relativeEntries) {
   const issues = [];
   for (const entry of relativeEntries) {
     const firstSegment = entry.split('/').slice(0, 2).join('/');
+    if (RETIRED_PATH_PATTERNS.some((pattern) => pattern.test(entry))) {
+      issues.push(`${entry}: retired docs location`);
+    }
     if (entry.startsWith('docs/')) {
       if (!TOP_LEVEL_ALLOWED.has(firstSegment) && !TOP_LEVEL_ALLOWED.has(entry)) {
         issues.push(`${entry}: unexpected top-level docs location`);

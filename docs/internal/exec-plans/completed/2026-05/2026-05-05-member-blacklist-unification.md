@@ -1,6 +1,12 @@
-# Member Blacklist Unification Plan Index
+---
+type: internal
+audience: maintainers, backend-dev, frontend-dev
+status: archived
+authoritative-source: this file
+last-verified: 2026-05-07
+---
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+# Member Blacklist Unification Plan Index
 
 **Goal:** Replace split Koishi/admission blacklist sources with one backend-owned member blacklist supporting guild and global scopes.
 

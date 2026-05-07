@@ -37,6 +37,7 @@ last-verified: 2026-05-07
 - [completed/2026-04/2026-04-17-audit-closed-items.md](completed/2026-04/2026-04-17-audit-closed-items.md)
 - [completed/2026-04/2026-04-25-koishi-plugin-restructure.md](completed/2026-04/2026-04-25-koishi-plugin-restructure.md)
 - [completed/2026-04/2026-04-26-koishi-runtime-modules-deps.md](completed/2026-04/2026-04-26-koishi-runtime-modules-deps.md)
+- [completed/2026-05/](completed/2026-05/) — admission 与成员黑名单统一实施计划闭环记录
 
 ## 技术债
 

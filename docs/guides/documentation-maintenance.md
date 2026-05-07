@@ -3,7 +3,7 @@ type: guide
 audience: maintainers, backend-dev, frontend-dev
 status: current
 authoritative-source: this file + scripts/check-docs-hygiene.mjs
-last-verified: 2026-04-19
+last-verified: 2026-05-07
 ---
 
 # 文档维护
@@ -19,7 +19,7 @@ last-verified: 2026-04-19
 | 某个业务域做什么、不做什么 | `docs/product-specs/` |
 | 从哪里查稳定事实入口 | `docs/reference/` |
 | 某项已采纳架构决策为何如此 | `docs/adr/` |
-| 计划、审计、评分、历史记录 | `docs/internal/` |
+| 计划、审计、评分、历史设计草案、被替代方案、历史记录 | `docs/internal/` |
 
 如果一份文档同时想回答两类问题，先拆，再写。
 
@@ -47,7 +47,7 @@ last-verified: 2026-04-19
 ## 3. 长期文档只写当前状态
 
 - 当前代码、当前流程、当前边界，写进长期文档。
-- 历史背景、执行轨迹、阶段评分，写进 `docs/internal/`。
+- 历史背景、执行轨迹、阶段评分和被替代设计草案，写进 `docs/internal/`。
 - 不要在长期文档里保留“当时是这样，后来改成那样”的迁移叙事。
 
 ## 4. 不要复制真源

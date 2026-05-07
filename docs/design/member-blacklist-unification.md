@@ -1,9 +1,10 @@
 ---
 type: design
-audience: backend-dev, koishi-dev, frontend-dev, product
-status: approved-for-spec-review
+audience: backend-dev, frontend-dev, product, maintainers
+status: current
 authoritative-source: server/api/openapi.yaml and server/migrations/000001_initial_schema.up.sql after implementation
 created: 2026-05-05
+last-verified: 2026-05-07
 ---
 
 # 成员黑名单统一设计

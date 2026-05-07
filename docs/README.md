@@ -3,12 +3,12 @@ type: reference
 audience: all
 status: current
 authoritative-source: this file (index) + linked docs
-last-verified: 2026-04-19
+last-verified: 2026-05-07
 ---
 
 # StuHelper 文档
 
-`docs/` 只放**长期文档**：反映当前代码库真实状态的规范、设计、规格、参考。临时工件（执行计划、审计、评估）在 [internal/README.md](internal/README.md)。
+`docs/` 只放**长期文档**：反映当前代码库真实状态的规范、设计、规格、参考。临时工件（执行计划、历史设计快照、审计、评估）在 [internal/README.md](internal/README.md)。
 
 **真源永远是代码**：API → `server/api/openapi.yaml`；Schema → `server/migrations/`；能力常量 → `server/internal/pkg/capability/`。本目录只做解释与导航。
 
@@ -82,7 +82,7 @@ docs/
 ├── product-specs/         业务域规格
 ├── reference/             查资料(只做导航摘要)
 ├── adr/                   单项架构决策
-└── internal/              临时工件:exec-plans + 阶段性评估
+└── internal/              临时工件:exec-plans + design-snapshots + 阶段性评估
 ```
 
 ## 目录职责

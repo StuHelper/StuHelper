@@ -3,7 +3,7 @@ type: design
 audience: maintainers, backend-dev, frontend-dev
 status: current
 authoritative-source: this file + scripts/check-docs-hygiene.mjs
-last-verified: 2026-04-19
+last-verified: 2026-05-07
 ---
 
 # 文档治理模型
@@ -23,12 +23,12 @@ last-verified: 2026-04-19
 | `product-specs/` | product-spec | 业务边界、规则、范围 | 具体技术机制实现 |
 | `reference/` | reference | 导航摘要、稳定查阅入口 | 手写真源副本 |
 | `adr/` | adr | 已采纳、代价高、难回退的单项决策 | 实现复盘、变更日志 |
-| `internal/` | internal | 临时工件、阶段性评估、执行计划 | 现行规范与长期说明 |
+| `internal/` | internal | 临时工件、历史设计快照、阶段性评估、执行计划 | 现行规范与长期说明 |
 
 ## 长期文档与临时工件
 
 - `docs/` 根目录下除 `internal/` 以外的内容，都应反映当前代码库的**现行状态**。
-- `docs/internal/` 记录的是某一轮执行中的输入、输出或评估快照，可以过时。
+- `docs/internal/` 记录的是某一轮执行中的输入、输出、历史设计快照或评估快照，可以过时。
 - 历史计划、历史审计、阶段评分不应回流到长期文档目录。
 
 ## Frontmatter 规则

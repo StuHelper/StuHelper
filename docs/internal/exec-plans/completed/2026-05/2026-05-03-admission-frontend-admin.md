@@ -1,6 +1,12 @@
-# Admission Frontend And Admin Implementation Plan
+---
+type: internal
+audience: maintainers, frontend-dev
+status: archived
+authoritative-source: this file
+last-verified: 2026-05-07
+---
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+# Admission Frontend And Admin Implementation Plan
 
 **Goal:** Build the user admission page, camera-only freshman submission, old-student email/SSO flows, and admin review/policy screens.
 

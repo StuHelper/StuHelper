@@ -16,8 +16,6 @@ last-verified: 2026-04-19
 >
 > 归档说明：下方 checklist 表示历史计划闭环或被后续 Koishi/core 重构替代，不再表示当前待办。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 在现有 `bots/koishi/` 工作区内落地可运行的 StuHelper 群管中心基础版本，覆盖群管域模型、规则处理、管理员命令和自定义 Koishi Console 管理面板。
 
 **Architecture:** 保留 `stuhelper-core` 作为唯一装配入口；将“平台 API 与共享配置”继续放在 `packages/shared`，新增独立的 `packages/moderation-core` 承载群管域模型、存储查询和规则引擎；`stuhelper-group-guard` 负责高频事件处理，`stuhelper-admin` 负责文本兜底命令，`stuhelper-console` 负责 Web 管理台扩展。
@@ -122,7 +120,7 @@ last-verified: 2026-04-19
 - Modify: `bots/koishi/package.json`
 - Modify: `bots/koishi/koishi.yml`
 - Modify: `bots/koishi/README.md`
-- Modify: `docs/internal/superpowers/specs/2026-04-19-koishi-moderation-center-design.md`
+- Modify: `docs/internal/design-snapshots/koishi/2026-04-19-koishi-moderation-center-design.md`
 
 - [x] 将 `stuhelper-console` 纳入 `stuhelper-core` 装配。
 - [x] 启用 Koishi Console 所需认证与页面入口，固定端口仍为 `5140`。

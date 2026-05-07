@@ -1,9 +1,10 @@
 ---
 type: design
-audience: backend-dev, frontend-dev, koishi-dev, product
-status: approved-for-planning
+audience: backend-dev, frontend-dev, product, maintainers
+status: current
 authoritative-source: server/api/openapi.yaml after implementation
 created: 2026-05-03
+last-verified: 2026-05-07
 ---
 
 # Koishi 新生群入群认证与学生身份打通设计

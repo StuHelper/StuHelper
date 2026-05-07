@@ -1,6 +1,12 @@
-# Member Blacklist Koishi Implementation Plan
+---
+type: internal
+audience: maintainers, backend-dev, frontend-dev
+status: archived
+authoritative-source: this file
+last-verified: 2026-05-07
+---
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+# Member Blacklist Koishi Implementation Plan
 
 **Goal:** Move Koishi blacklist reads and writes from local JSON to backend member blacklist APIs.
 

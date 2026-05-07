@@ -3,7 +3,7 @@ type: design
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-05-07
 ---
 
 # 工程原则
@@ -55,6 +55,7 @@ Repository 只管数据
 
 - 活跃计划：`docs/internal/exec-plans/active/`
 - 归档计划：`docs/internal/exec-plans/archived/`
+- 历史设计快照：`docs/internal/design-snapshots/`
 - 执行计划索引：`docs/internal/exec-plans/README.md`
 
 ## 9. 快速合并 + 快速修正

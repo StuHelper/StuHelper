@@ -6,9 +6,9 @@ authoritative-source: this file for open-platform v1 target
 created: 2026-05-01
 last-verified: 2026-05-02
 prerequisites:
-  - 2026-05-01-casdoor-iam-v2.md (must land first)
+  - iam-v2-casdoor.md (must land first)
 related:
-  - 2026-05-01-casdoor-iam-v2.md
+  - iam-v2-casdoor.md
 scope: 第三方应用接入与披露网关；IAM v2 落地前不启动实施
 ---
 
@@ -25,7 +25,7 @@ scope: 第三方应用接入与披露网关；IAM v2 落地前不启动实施
 ## 1. 决策记录
 
 - **业务来源**：项目 owner 明确要求第三方应用接入 sso.stuhelper.com，scope 审批后通过 API 获取最小化身份信息。
-- **范围拆分**：从原 `2026-05-01-casdoor-open-platform-iam-design.md` 中剥离的开放平台部分独立成本文档；旧 spec 已被 [`casdoor-iam-v2.md`](./2026-05-01-casdoor-iam-v2.md) 取代。
+- **范围拆分**：从原 `2026-05-01-casdoor-open-platform-iam-design.md` 中剥离的开放平台部分独立成本文档；旧 spec 已被 [`casdoor-iam-v2.md`](iam-v2-casdoor.md) 取代。
 - **网关定位**：开放平台是 StuHelper 业务侧的披露网关，Casdoor 仅承载应用身份和 OAuth token 签发。
 
 ## 2. 目标
@@ -414,7 +414,7 @@ review_draft:{id}#can_write_by_app  @ open_platform_app:{app_id}
 user_profile:{id}#can_read_by_app   @ open_platform_app:{app_id}
 ```
 
-具体 type 与 relation 在 IAM v2 [`§7.1`](./2026-05-01-casdoor-iam-v2.md) 已为 `open_platform_app` 预留 type 定义。
+具体 type 与 relation 在 IAM v2 [`§7.1`](iam-v2-casdoor.md) 已为 `open_platform_app` 预留 type 定义。
 
 ## 14. 安全与隐私基线
 
@@ -471,7 +471,7 @@ user_profile:{id}#can_read_by_app   @ open_platform_app:{app_id}
 
 ## 18. 参考
 
-- IAM v2 主架构：[`2026-05-01-casdoor-iam-v2.md`](./2026-05-01-casdoor-iam-v2.md)
+- IAM v2 主架构：[`iam-v2-casdoor.md`](iam-v2-casdoor.md)
 - Casdoor Application：<https://casdoor.org/docs/application/overview>
 - Casdoor OAuth：<https://casdoor.org/docs/how-to-connect/oidc-client/>
 - OAuth 2.0 Threat Model and Security Considerations：<https://datatracker.ietf.org/doc/html/rfc6819>

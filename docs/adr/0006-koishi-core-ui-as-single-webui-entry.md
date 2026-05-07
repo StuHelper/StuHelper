@@ -10,11 +10,11 @@ last-verified: 2026-04-25
 
 **Date**: 2026-04-25
 **Status**: accepted
-**Implementation status**: accepted, not yet implemented. P1 of the execution plan will delete the unused packages.
+**Implementation status**: implemented. The completed execution record is under `docs/internal/exec-plans/completed/2026-04/`.
 **Deciders**: project owner（Xauryan）+ Claude/Codex 联合评审
 **Supersedes**:
-- [`docs/internal/superpowers/specs/2026-04-24-koishi-stuhelper-platform-redesign-design.md`](../internal/superpowers/specs/2026-04-24-koishi-stuhelper-platform-redesign-design.md)（提议把 `stuhelper-platform` 作为唯一入口）
-- [`docs/internal/superpowers/plans/2026-04-24-koishi-stuhelper-platform-redesign.md`](../internal/superpowers/plans/2026-04-24-koishi-stuhelper-platform-redesign.md)（对应实施计划）
+- [`docs/internal/design-snapshots/koishi/2026-04-24-koishi-stuhelper-platform-redesign-design.md`](../internal/design-snapshots/koishi/2026-04-24-koishi-stuhelper-platform-redesign-design.md)（提议把 `stuhelper-platform` 作为唯一入口）
+- [`docs/internal/exec-plans/archived/2026-04-24-koishi-stuhelper-platform-redesign.md`](../internal/exec-plans/archived/2026-04-24-koishi-stuhelper-platform-redesign.md)（对应实施计划）
 
 ## Context
 
@@ -34,7 +34,7 @@ last-verified: 2026-04-25
 
 **保留 `stuhelper-core` 作为 Koishi 控制台唯一 WebUI 入口；删除 `stuhelper-console` 与 `stuhelper-platform`；后续模块化只针对 server 端。**
 
-具体落实（详细阶段见执行计划 §4）：
+具体落实（详细阶段见完成执行记录 §4）：
 
 1. UI 端不引入新 shell、不做"多插件贡献 UI 子页"的装配模式
 2. `stuhelper-console/` 与 `stuhelper-platform/` 整目录删除，不抽取代码到 `packages/`
@@ -67,7 +67,7 @@ last-verified: 2026-04-25
 
 ### Alternative 2: 以 stuhelper-console 为下一代 UI
 
-把 4 月新写的 `stuhelper-console` 作为重设计主线，逐步替换 core。这是 `superpowers/specs/2026-04-24-koishi-stuhelper-platform-redesign-design.md` 与对应 plan 的方向。
+把 4 月新写的 `stuhelper-console` 作为重设计主线，逐步替换 core。这是历史 platform redesign 设计快照与对应 plan 的方向。
 
 - **Pros**：console 代码更新；composable / model 拆分更现代；token 体系更系统
 - **Cons**：

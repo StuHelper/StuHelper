@@ -10,8 +10,6 @@ last-verified: 2026-04-21
 
 > 归档说明：本计划已由后续 core console 与 Koishi 重构工作吸收，保留为历史实施记录。下方 checklist 已闭环，不再作为当前项目待办来源。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 在 `stuhelper-core` 中把旧 StuHelper 的身份认证、处置中心、治理配置能力并入当前 grouphelper 风格控制台，并提供可刷新、可深链、可测试的页面域接口与 UI。
 
 **Architecture:** 后端新增页面域聚合 service 和 console listener，前端用 query-synced 顶栏壳层承载 `Dashboard / Config / Identity / Review` 升级。纯数据映射、导航解析、状态格式化优先拆成可测试的 TypeScript 模块，再由 Vue 页面消费，避免把页面逻辑重新堆进单文件组件。
@@ -518,7 +516,7 @@ Expected: listens on `5140`, console page entry available, no startup crash
 - [x] **Step 5: Commit**
 
 ```bash
-git add bots/koishi/plugins/stuhelper-core docs/superpowers/plans/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration.md
+git add bots/koishi/plugins/stuhelper-core docs/internal/exec-plans/archived/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration.md
 git commit -m "feat(stuhelper-core): integrate legacy capabilities into core console"
 ```
 

@@ -1,6 +1,12 @@
-# Admission Koishi Implementation Plan
+---
+type: internal
+audience: maintainers, backend-dev
+status: archived
+authoritative-source: this file
+last-verified: 2026-05-07
+---
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+# Admission Koishi Implementation Plan
 
 **Goal:** Make Koishi the QQ executor for admission sessions: auto-approve join, mute, send canonical auth links, remind, unmute, kick, blacklist, forward materials, and accept QQ admin review commands.
 

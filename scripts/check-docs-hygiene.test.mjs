@@ -121,3 +121,35 @@ last-verified: 2026-04-19
     ),
   );
 });
+
+test('validateDocsTree rejects retired superpowers docs paths', () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stuhelper-docs-'));
+
+  writeFile(
+    repoRoot,
+    'docs/superpowers/specs/legacy.md',
+    `---
+type: design
+audience: maintainers
+status: current
+authoritative-source: this file
+last-verified: 2026-05-07
+---
+
+# Legacy Spec
+`,
+  );
+
+  const issues = validateDocsTree(repoRoot);
+
+  assert.ok(
+    issues.some((issue) =>
+      issue.includes('docs/superpowers/specs/legacy.md: unexpected top-level docs location'),
+    ),
+  );
+  assert.ok(
+    issues.some((issue) =>
+      issue.includes('docs/superpowers/specs/legacy.md: retired docs location'),
+    ),
+  );
+});

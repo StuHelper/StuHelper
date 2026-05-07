@@ -94,7 +94,7 @@ last-verified: 2026-04-21
 
 ## 4. Information Architecture
 
-顶层继续使用当前 [`client/pages/index.vue`](../../../bots/koishi/plugins/stuhelper-core/client/pages/index.vue) 这套顶栏切页模型，不改造成全新路由式控制台应用，也不增加第二层全局导航。
+顶层继续使用当前 [`client/pages/index.vue`](../../../../bots/koishi/plugins/stuhelper-core/client/pages/index.vue) 这套顶栏切页模型，不改造成全新路由式控制台应用，也不增加第二层全局导航。
 
 推荐固定主菜单顺序为：
 
