@@ -1,10 +1,40 @@
+import type { RouteRecordRaw } from 'vue-router';
+
 import { describe, expect, it, vi } from 'vitest';
+
+import { generateRoutesByFrontend } from '@vben/utils';
 
 vi.mock('#/locales', () => ({
   $t: (value: string) => value,
 }));
 
 import routes from './user-system';
+
+function findRouteByName(
+  tree: RouteRecordRaw[],
+  name: string,
+): RouteRecordRaw | undefined {
+  for (const node of tree) {
+    if (node.name === name) return node;
+    if (node.children) {
+      const hit = findRouteByName(node.children, name);
+      if (hit) return hit;
+    }
+  }
+  return undefined;
+}
+
+function childNames(tree: RouteRecordRaw[]): string[] {
+  return (tree[0]?.children ?? [])
+    .map((child) => child.name)
+    .filter((name): name is string => typeof name === 'string');
+}
+
+// generateRoutesByFrontend → filterTree mutates `node.children` in place,
+// so each test must work on a deep clone to stay isolated.
+function cloneRoutes(): RouteRecordRaw[] {
+  return JSON.parse(JSON.stringify(routes)) as RouteRecordRaw[];
+}
 
 describe('user-system routes', () => {
   it('lets scoped admin entries keep the parent menu visible', () => {
@@ -44,5 +74,71 @@ describe('user-system routes', () => {
       'member_blacklist:read',
       'member_blacklist:manage',
     ]);
+  });
+
+  it('keeps the parent UserSystem entry visible for blacklist-only operators', async () => {
+    const filtered = await generateRoutesByFrontend(cloneRoutes(), [
+      'member_blacklist:read',
+    ]);
+
+    const parent = findRouteByName(filtered, 'UserSystem');
+    expect(parent, 'parent menu must remain after filtering').toBeDefined();
+
+    const visibleChildren = childNames(filtered);
+    expect(visibleChildren).toContain('MemberBlacklist');
+    // operators without admission/identity codes should not see those children
+    expect(visibleChildren).not.toContain('IdentityReview');
+    expect(visibleChildren).not.toContain('FreshmanVerification');
+    expect(visibleChildren).not.toContain('AdmissionPolicy');
+    expect(visibleChildren).not.toContain('SystemConfig');
+  });
+
+  it('filters out the parent menu entirely when no overlapping codes are present', async () => {
+    const filtered = await generateRoutesByFrontend(cloneRoutes(), [
+      'unrelated:capability',
+    ]);
+
+    expect(findRouteByName(filtered, 'UserSystem')).toBeUndefined();
+    expect(findRouteByName(filtered, 'MemberBlacklist')).toBeUndefined();
+  });
+
+  it('exposes admission children to admission-only operators while keeping the parent', async () => {
+    const filtered = await generateRoutesByFrontend(cloneRoutes(), [
+      'admission:freshman:review',
+      'admission:policy:update',
+    ]);
+
+    expect(findRouteByName(filtered, 'UserSystem')).toBeDefined();
+    const visibleChildren = childNames(filtered);
+    expect(visibleChildren).toEqual(
+      expect.arrayContaining(['FreshmanVerification', 'AdmissionPolicy']),
+    );
+    expect(visibleChildren).not.toContain('MemberBlacklist');
+    expect(visibleChildren).not.toContain('IdentityReview');
+  });
+
+  it('keeps every child visible for the super-admin code set', async () => {
+    const filtered = await generateRoutesByFrontend(cloneRoutes(), [
+      'user:identity:review',
+      'user:student:review',
+      'user:school:read',
+      'user:system:read',
+      'admission:freshman:review',
+      'admission:policy:update',
+      'member_blacklist:manage',
+    ]);
+
+    const visibleChildren = childNames(filtered);
+    expect(visibleChildren).toEqual(
+      expect.arrayContaining([
+        'IdentityReview',
+        'StudentVerification',
+        'SchoolConfig',
+        'FreshmanVerification',
+        'AdmissionPolicy',
+        'MemberBlacklist',
+        'SystemConfig',
+      ]),
+    );
   });
 });

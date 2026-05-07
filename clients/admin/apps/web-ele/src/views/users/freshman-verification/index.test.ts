@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const sourcePath = fileURLToPath(new URL('./index.vue', import.meta.url));
+const sourcePath = resolve(
+  process.cwd(),
+  'src/views/users/freshman-verification/index.vue',
+);
 
 describe('freshman verification admin view contract', () => {
   it('covers review list fields, material preview, and approval actions', async () => {
