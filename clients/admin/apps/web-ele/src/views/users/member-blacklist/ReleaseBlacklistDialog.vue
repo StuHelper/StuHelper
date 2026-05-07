@@ -42,14 +42,21 @@ const draft = reactive({
   releaseReason: '',
 });
 
+// Reset draft whenever the dialog is opened (visible flips true) or the
+// target swaps while it is open. Watching only `props.target` would miss
+// the cancel-then-reopen-same-entry case because the target ref does not
+// change between the two opens, leaving stale draft state behind.
 watch(
-  () => props.target,
-  (target) => {
+  [visible, () => props.target],
+  ([nextVisible]) => {
+    if (!nextVisible) return;
+    const target = props.target;
     if (!target) return;
     draft.releaseReasonCode =
       target.source === 'admission_failure' ? 'manual_pardon' : 'release_only';
     draft.releaseReason = '';
   },
+  { immediate: true },
 );
 
 function submit() {

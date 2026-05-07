@@ -33,6 +33,7 @@ const pageSize = defineModel<number>('pageSize', { required: true });
 const emit = defineEmits<{
   (e: 'release', entry: MemberBlacklistEntry): void;
   (e: 'pageChange'): void;
+  (e: 'pageSizeChange'): void;
 }>();
 </script>
 
@@ -106,7 +107,7 @@ const emit = defineEmits<{
         :total="total"
         layout="total, prev, pager, next, sizes"
         @current-change="emit('pageChange')"
-        @size-change="emit('pageChange')"
+        @size-change="emit('pageSizeChange')"
       />
     </div>
   </div>

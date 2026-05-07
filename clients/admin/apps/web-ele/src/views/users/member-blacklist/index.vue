@@ -78,6 +78,16 @@ async function fetchData() {
   }
 }
 
+function runSearch() {
+  query.page = 1;
+  void fetchData();
+}
+
+function onPageSizeChange() {
+  query.page = 1;
+  void fetchData();
+}
+
 function resetQuery() {
   query.platform = '';
   query.scopeType = '';
@@ -141,7 +151,7 @@ onMounted(fetchData);
       v-model:guild-i-d="query.guildID"
       v-model:subject-i-d="query.subjectID"
       :can-manage="canManage"
-      @search="fetchData"
+      @search="runSearch"
       @reset="resetQuery"
       @open-create="openCreateDialog"
     />
@@ -155,6 +165,7 @@ onMounted(fetchData);
       :can-manage="canManage"
       @release="openReleaseDialog"
       @page-change="fetchData"
+      @page-size-change="onPageSizeChange"
     />
 
     <CreateBlacklistDialog
