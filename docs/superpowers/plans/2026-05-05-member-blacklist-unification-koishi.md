@@ -8,6 +8,10 @@
 
 **Tech Stack:** TypeScript, Koishi, node:test, Vue.
 
+**Status:** Complete. Koishi shared client methods, join-request access checks, command writes, moderation writes, console API, and console UI now use the backend member blacklist APIs.
+
+**Implementation Notes:** Console release now uses the backend entry identity when available, while command flows still use subject/scope release where that is the natural command input. `createdFrom` is sent as a top-level contract field rather than trusted metadata.
+
 ---
 
 ## File Map
@@ -27,7 +31,7 @@
 
 ## Task 1: Shared Client And Request Access Flow
 
-- [ ] **Step 1: Write failing shared client tests**
+- [x] **Step 1: Write failing shared client tests**
 
 In `platform/index.test.ts`, assert calls:
 
@@ -42,7 +46,7 @@ In `platform/index.test.ts`, assert calls:
 Run: `cd bots/koishi && corepack yarn tsx --test packages/shared/src/platform/index.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 2: Add shared types and client methods**
+- [x] **Step 2: Add shared types and client methods**
 
 Replace old `AdmissionQQAccess` and `releaseAdmissionBlacklist` methods with:
 
@@ -54,7 +58,7 @@ releaseMemberBlacklist(id: string, input: MemberBlacklistReleaseRequest): Promis
 releaseMemberBlacklistBySubject(input: MemberBlacklistReleaseBySubjectRequest): Promise<void>
 ```
 
-- [ ] **Step 3: Write failing request flow tests**
+- [x] **Step 3: Write failing request flow tests**
 
 In `event-handlers-admission.test.ts`, add:
 
@@ -65,11 +69,11 @@ test('guild-member-request does not approve or reject when access check times ou
 
 Expected first test rejects with reason `您在黑名单中`; timeout test has no approval call and reaches admission guarded flow.
 
-- [ ] **Step 4: Update request flow**
+- [x] **Step 4: Update request flow**
 
 In `event-support.ts`, replace `getAdmissionQQAccess` dependency with `getMemberBlacklistAccess` and `recordJoinRequestEvent`. In `event-handlers.ts`, call backend access after legacy cooldown/level/keyword checks and before admission auto-approve.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run:
 
@@ -90,7 +94,7 @@ git commit -m "feat(koishi): use member blacklist access"
 
 ## Task 2: Commands And Moderation Writes
 
-- [ ] **Step 1: Write failing command tests**
+- [x] **Step 1: Write failing command tests**
 
 Add or update tests for:
 
@@ -110,11 +114,11 @@ source: 'moderation_action'
 scopeType: 'guild' | 'global'
 ```
 
-- [ ] **Step 2: Replace local JSON writes**
+- [x] **Step 2: Replace local JSON writes**
 
 Remove command writes to `host.data.blacklist.setAll`, `set`, and `delete`. Route `config -b`, `kick -b`, and `kick_blacklist` through `PlatformClient` member blacklist methods. If backend write fails after QQ kick, return a visible failure message and log it.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 Run:
 
@@ -135,7 +139,7 @@ git commit -m "feat(koishi): write member blacklist through backend"
 
 ## Task 3: Console API And UI
 
-- [ ] **Step 1: Write failing console tests**
+- [x] **Step 1: Write failing console tests**
 
 Update component/API tests so blacklist list/add/remove no longer call `data.blacklist` directly. Expected listener behavior:
 
@@ -145,15 +149,15 @@ add -> platform.createMemberBlacklist({ source: 'manual_admin', subjectID: '1000
 remove -> platform.releaseMemberBlacklist(id, { releaseReasonCode: 'manual_pardon' })
 ```
 
-- [ ] **Step 2: Update API listeners**
+- [x] **Step 2: Update API listeners**
 
 In `core/api/index.ts`, replace `data.blacklist` list/add/remove with backend client calls. Enforce console guild scope before sending guild scoped create/release requests.
 
-- [ ] **Step 3: Update Vue client**
+- [x] **Step 3: Update Vue client**
 
 In `BlacklistView.vue`, render backend fields: subjectID, scopeType, guildID, source, reasonCode, reasonText, createdAt, expiresAt, releasedAt. Add scope selector. Global create requires an explicit confirmation dialog.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run:
 

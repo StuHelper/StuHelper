@@ -8,6 +8,10 @@
 
 **Tech Stack:** Go, Gin, pgx, PostgreSQL migrations, Redis OTP, OpenAPI 3.1, existing `audit_events`, IAM outbox, Casdoor role sync, object storage.
 
+**Status:** Complete. Admission API contracts, persistence, identity/capability gateways, session state machine, student verification, freshman material flow, operator review authorization, policy admin, expiry, projection, notifications, and audit integration are implemented in the current branch lineage.
+
+**Implementation Notes:** Later member-blacklist work moved blacklist source-of-truth concerns into `member_blacklist_entries`; the original admission failure tables remain coupled through service behavior rather than acting as an independent blacklist source.
+
 ---
 
 ## File Structure
@@ -21,20 +25,20 @@
 
 **Files:** `server/api/openapi.yaml`, `server/api/paths/admission.yaml`, `server/api/paths/admin-admission.yaml`, `server/api/paths/bot-admission.yaml`, `server/api/components/schemas/admission.yaml`, `server/internal/modules/admission/route_contract_test.go`
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 Assert routes for user session preview/link, freshman application/camera capture, email OTP, school SSO, bot sessions/actions/events/join-request-events/forward/review, admin policies/sessions/freshman reviews/blacklist release. Add error code expectations for `admission.qq_mismatch`, `admission.token_consumed`, and `admission.token_expired`.
 
-- [ ] **Step 2: Run failing test**
+- [x] **Step 2: Run failing test**
 
 Run: `go test -count=1 -timeout=60s ./server/internal/modules/admission -run TestAdmissionRoutes`
 Expected: FAIL because admission routes do not exist.
 
-- [ ] **Step 3: Add schemas**
+- [x] **Step 3: Add schemas**
 
 Define `AdmissionSession`, `AdmissionMe`, `AdmissionPolicy`, `FreshmanApplication`, `FreshmanReviewRequest`, `BotAdmissionSessionCreateRequest`, `BotAdmissionEventRequest`, `BotAdmissionJoinRequestEvent`, `BotFreshmanReviewRequest`, `CameraCaptureRequest`, `SchoolEmailOTPRequest`, and `SchoolEmailOTPVerifyRequest`. `AdmissionMe` includes `projectionPending`. Bot review body must include `operatorQQID`, `guildID`, `channelID`, `rawCommand`, and optional `expiresInDays`.
 
-- [ ] **Step 4: Generate and commit**
+- [x] **Step 4: Generate and commit**
 
 Run: `cd server && make generate && make lint-spec && make check-drift`
 Expected: PASS.
@@ -44,24 +48,24 @@ Commit: `git add server/api server/internal/modules/admission/route_contract_tes
 
 **Files:** `server/migrations/000001_initial_schema.{up,down}.sql`, `server/internal/modules/admission/models.go`, `server/internal/modules/admission/repository_integration_test.go`
 
-- [ ] **Step 1: Write failing migration test**
+- [x] **Step 1: Write failing migration test**
 
 Insert policy, session, freshman application, material, credential, and failure rows. Assert token hash uniqueness, pending freshman uniqueness, credential expiry requirement for `freshman_material_manual`, and that a new session is allowed after old status becomes `expired_kicked`.
 
-- [ ] **Step 2: Run failing test**
+- [x] **Step 2: Run failing test**
 
 Run: `go test -count=1 -timeout=60s ./server/internal/modules/admission -run TestAdmissionMigration`
 Expected: FAIL.
 
-- [ ] **Step 3: Add tables and indexes**
+- [x] **Step 3: Add tables and indexes**
 
 Create `user_verification_credentials`, `group_admission_policies`, `group_admission_sessions`, `freshman_verification_applications`, `freshman_verification_materials`, and `group_admission_failures`. Do not create a separate admission audit table; use existing `audit_events`. Add `management_guild_ids TEXT[] NOT NULL DEFAULT '{}'`, `UNIQUE(platform,guild_id,qq_id) WHERE status IN ('joined_muted','linked')`, indexes for pending applications, failures by `(platform,guild_id,failure_count DESC)`, and material lookup by application.
 
-- [ ] **Step 4: Add models**
+- [x] **Step 4: Add models**
 
 Define status constants `joined_muted`, `linked`, `material_submitted`, `verified`, `expired_kicked`, `cancelled`, `pending`, `approved`, and `rejected`. Add policy fields `linkWaitSeconds`, `submissionWaitSeconds`, `manualReviewTimeoutSeconds`, `maxMaterialBytes`, `maxExtensionDays`, and `managementGuildIDs []string`.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `go test -count=1 -timeout=60s ./server/internal/modules/admission -run TestAdmissionMigration`
 Expected: PASS.
@@ -71,19 +75,19 @@ Commit: `git add server/migrations server/internal/modules/admission && git comm
 
 **Files:** `server/internal/modules/user/{service_qq_binding.go,service.go,service_qq_binding_test.go,external_sync.go}`, `server/internal/pkg/capability/{capability.go,capability_test.go}`, `server/internal/platform/serviceaccount/{constants.go,verifier_integration_test.go}`
 
-- [ ] **Step 1: Write failing identity tests**
+- [x] **Step 1: Write failing identity tests**
 
 Cover `EnsureQQBindingForUserTx(ctx, tx, userID, qqID, nickname)` create, idempotent same binding, user-bound-to-other-QQ conflict, QQ-bound-to-other-user conflict, and no nested transaction.
 
-- [ ] **Step 2: Write failing capability/scope tests**
+- [x] **Step 2: Write failing capability/scope tests**
 
 Assert role `freshman_provisional` has the same capability set as `verified_student` but remains a distinct role. Assert `super_admin` has admission capabilities. Assert `KoishiRuntimeScopes()` contains existing QQ scopes plus `bot.admission.session`, `bot.admission.event`, `bot.admission.review`, and `bot.admission.forward`.
 
-- [ ] **Step 3: Implement gateway and constants**
+- [x] **Step 3: Implement gateway and constants**
 
 Add Tx gateway methods without changing existing `ConsumeQQBindingCode`. Add `AdmissionPolicyRead`, `AdmissionPolicyUpdate`, `AdmissionFreshmanRead`, `AdmissionFreshmanReview`, `AdmissionBlacklistManage`, `AdmissionSessionRead`, and service account scopes.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 Run: `go test -count=1 -timeout=60s ./server/internal/modules/user ./server/internal/pkg/capability ./server/internal/platform/serviceaccount`
 Expected: PASS.
@@ -93,23 +97,23 @@ Commit: `git add server/internal/modules/user server/internal/pkg/capability ser
 
 **Files:** `server/internal/modules/admission/{repository_session,repository_policy,repository_failure,service_session,handler_user,handler_bot}.go`, `server/internal/app/modules.go`
 
-- [ ] **Step 1: Write failing state tests**
+- [x] **Step 1: Write failing state tests**
 
 Cover create session, token preview without consume, `qq` mismatch, expired token, consumed token, linked status, link success resetting `submission_wait_deadline_at` from link time, material-submitted status, verified status, and kick event incrementing failure count.
 
-- [ ] **Step 2: Implement session repository**
+- [x] **Step 2: Implement session repository**
 
 Implement `CreateSession`, `GetSessionByTokenHashForUpdate`, `MarkTokenConsumedAndLinked`, `MarkMaterialSubmitted`, `MarkVerified`, and `CancelSession`. Use `FOR UPDATE` when consuming tokens.
 
-- [ ] **Step 3: Implement policy and failure repositories**
+- [x] **Step 3: Implement policy and failure repositories**
 
 Implement policy lookup with global/default fallback, action listing by deadlines, `RecordBotEvent`, `IncrementFailureFromKickEvent`, and `ApplyBlacklistTx`. Backend increments failure count when a bot kick/expired event succeeds.
 
-- [ ] **Step 4: Implement atomic link service**
+- [x] **Step 4: Implement atomic link service**
 
 `LinkTokenToUser` must run one `repo.WithTx` containing token lock, token consumed check, QQ query match, `EnsureQQBindingForUserTx`, and session `user_id` update. Add concurrency test: two users link the same token; exactly one succeeds and the other receives `token_consumed`.
 
-- [ ] **Step 5: Register handlers and commit**
+- [x] **Step 5: Register handlers and commit**
 
 Run: `go test -count=1 -timeout=60s ./server/internal/modules/admission -run 'TestAdmissionSession|TestAdmissionToken|TestAdmissionFailureBlacklist'`
 Expected: PASS.
@@ -119,23 +123,23 @@ Commit: `git add server/internal/modules/admission server/internal/app && git co
 
 **Files:** `server/internal/modules/admission/{service_student,service_freshman,repository_application,material_store,handler_user}.go`, `server/internal/modules/notification/templates.go`
 
-- [ ] **Step 1: Write failing verification tests**
+- [x] **Step 1: Write failing verification tests**
 
 Cover school SSO login only for configured schools, return URL whitelist/state binding, callback writing `school_sso` credential, camera-capture endpoint rejecting PDF/non-image/oversized bytes, channel close time, and duplicate pending application rejection.
 
-- [ ] **Step 2: Implement school SSO flow**
+- [x] **Step 2: Implement school SSO flow**
 
 Use the configured school SSO provider behind Casdoor. Bind OIDC state to admission session and same-origin admission return target; callback writes `user_verification_credentials(kind=school_sso)` and marks the linked session verified.
 
-- [ ] **Step 3: Implement material flow**
+- [x] **Step 3: Implement material flow**
 
 Accept only decoded JPEG/PNG/WebP bytes from the dedicated camera-capture endpoint and store through `storage.Service.Put`. Store `sha256`, size, content type, and object key. Do not add any generic upload endpoint; backend enforces image format and size, while frontend tests prove the only submission UI is live camera capture.
 
-- [ ] **Step 4: Implement email OTP**
+- [x] **Step 4: Implement email OTP**
 
 Allow OTP request only for authenticated users with a linked admission session. Store Redis key `admission:email_otp:<userID>:<schoolID>`, five-minute TTL, one-minute resend cooldown, five attempts, domain whitelist, `subject_hash = HMAC(school_id || normalized_email)`, and masked `subject_display`.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `go test -count=1 -timeout=60s ./server/internal/modules/admission -run 'TestStudent|TestFreshman|TestCamera|TestSchoolEmail'`
 Expected: PASS.
@@ -145,19 +149,19 @@ Commit: `git add server/internal/modules/admission server/internal/modules/notif
 
 **Files:** `server/internal/modules/admission/{service_operator,handler_bot,handler_admin,service_policy}.go`
 
-- [ ] **Step 1: Write failing operator tests**
+- [x] **Step 1: Write failing operator tests**
 
 Cover unbound operator QQ rejected, operator bound to user without `admission:freshman:review` rejected, command from non-whitelisted management guild rejected, and authorized operator approve/reject accepted.
 
-- [ ] **Step 2: Implement operator authorization**
+- [x] **Step 2: Implement operator authorization**
 
 Bot service token authenticates the bot only. Review service must resolve `operatorQQID -> user_qq_bindings -> user_id -> capability grant`, verify `guildID` is in policy `managementGuildIDs`, enforce `maxExtensionDays`, and write audit details including raw command text.
 
-- [ ] **Step 3: Implement admin handlers**
+- [x] **Step 3: Implement admin handlers**
 
 Admin review uses logged-in user capability/MFA. Bot and Admin review call the same service method after building different operator contexts.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 Run: `go test -count=1 -timeout=60s ./server/internal/modules/admission -run 'TestOperator|TestAdmissionPolicy|TestFreshmanReview'`
 Expected: PASS.
@@ -167,23 +171,23 @@ Commit: `git add server/internal/modules/admission && git commit -m "feat: add a
 
 **Files:** `server/internal/modules/admission/{service_freshman,service_expiry}.go`, `server/internal/modules/user/external_sync.go`, `server/internal/modules/notification/templates.go`
 
-- [ ] **Step 1: Write failing projection/expiry tests**
+- [x] **Step 1: Write failing projection/expiry tests**
 
 Cover approve enqueues `freshman_provisional` role sync through IAM outbox, session verified does not wait for Casdoor projection, `/api/v1/admission/me` exposes projection pending/ready status, expired credentials enqueue role removal, and only `freshman_provisional` is removed.
 
-- [ ] **Step 2: Implement outbox projection**
+- [x] **Step 2: Implement outbox projection**
 
 Add `enqueueFreshmanProvisionalRoleSyncTx` following existing verified-student outbox pattern. Approval transaction writes credential, application status, session verified, unified audit event, notification, and outbox job.
 
-- [ ] **Step 3: Implement expiry worker**
+- [x] **Step 3: Implement expiry worker**
 
 Add admission background job with bounded batch size from `outbox.IAMWorkerBatchSize`, polling interval from existing worker config, and explicit logs. Expired provisional credentials enqueue role removal and mark expiry processed.
 
-- [ ] **Step 4: Add notifications and audit**
+- [x] **Step 4: Add notifications and audit**
 
 Add notification templates for freshman approved, rejected, and near-expiry. Reuse `audit_events`; admin/QQ review and blacklist release use `category='admin_operation'`; expiry revocation, bot action result, and auto-approve failure use `category='domain_event'`; join-request approve failure uses `resource_type='admission.join_request'`; do not create a separate admission audit table.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `go test -count=1 -timeout=60s ./server/internal/modules/admission ./server/internal/modules/user ./server/internal/modules/notification && cd server && make check-drift`
 Expected: PASS.

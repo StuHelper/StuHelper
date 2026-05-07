@@ -8,6 +8,10 @@
 
 **Tech Stack:** Koishi, TypeScript, `@koishijs/plugin-mock`, SQLite test runtime, generated platform HTTP client, Node test runner.
 
+**Status:** Complete. Koishi platform admission client methods, join handling, guarded member cache, action execution, freshman material forwarding, QQ admin review commands, and workspace tests are implemented.
+
+**Implementation Notes:** Subsequent hardening made admission action scans resilient to single-action failures and added backend-unavailable fallback handling for newly joined members.
+
 ---
 
 ## File Structure
@@ -22,24 +26,24 @@
 
 **Files:** `bots/koishi/packages/shared/src/platform/index.ts`, `bots/koishi/packages/shared/src/types/index.ts`
 
-- [ ] **Step 1: Write failing client tests**
+- [x] **Step 1: Write failing client tests**
 
 Add tests that assert paths and payloads for `createAdmissionSession`, `recordJoinRequestEvent`, `listPendingAdmissionActions`, `recordAdmissionEvent`, `listPendingFreshmanForwards`, `markFreshmanForwarded`, and `reviewFreshmanApplication`.
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run: `cd bots/koishi && corepack yarn tsx --test packages/shared/src/platform/*.test.ts`
 Expected: FAIL because methods do not exist.
 
-- [ ] **Step 3: Implement types**
+- [x] **Step 3: Implement types**
 
 Add `AdmissionSessionCreateRequest`, `AdmissionSessionCreateResult`, `AdmissionJoinRequestEvent`, `AdmissionBotAction`, `AdmissionBotEventRequest`, `FreshmanForwardItem`, and `FreshmanReviewRequest`. Use readonly fields and string union status values.
 
-- [ ] **Step 4: Implement client methods**
+- [x] **Step 4: Implement client methods**
 
 Use service token auth already in `createRequest`. Add endpoints `/api/v1/bot/admission/sessions`, `/api/v1/bot/admission/join-requests/events`, `/api/v1/bot/admission/sessions/pending`, `/api/v1/bot/admission/sessions/{id}/events`, `/api/v1/bot/admission/freshman/applications/pending-forward`, `/api/v1/bot/admission/freshman/applications/{id}/forwarded`, and `/api/v1/bot/admission/freshman/applications/{id}/review`.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `cd bots/koishi && corepack yarn tsx --test packages/shared/src/platform/*.test.ts && corepack yarn tsc --noEmit`
 Expected: PASS.
@@ -49,33 +53,33 @@ Commit: `git add bots/koishi/packages/shared/src && git commit -m "feat: add adm
 
 **Files:** `bots/koishi/plugins/stuhelper-core/src/core/modules/{event-handlers,event-handlers-admission.test}.ts`, `bots/koishi/plugins/stuhelper-group-guard/src/{events,member-guard,admission-format}.ts`, `bots/koishi/packages/shared/src/guard/index.ts`, `bots/koishi/plugins/stuhelper-group-guard/src/{events,index}.test.ts`
 
-- [ ] **Step 1: Write failing request tests**
+- [x] **Step 1: Write failing request tests**
 
 Test `stuhelper-core` keeps one `guild-member-request` listener, preserves existing blacklist/cooldown/level/keyword ordering, and only calls admission auto-approve after those rules do not reject. If approval fails, assert Koishi calls `recordJoinRequestEvent` with `success=false` and leaves the error visible. Assert `stuhelper-group-guard` does not register `guild-member-request`.
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run: `cd bots/koishi && corepack yarn tsx --test plugins/stuhelper-core/src/core/modules/event-handlers-admission.test.ts plugins/stuhelper-group-guard/src/events.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement request listener**
+- [x] **Step 3: Implement request listener**
 
 Extend `stuhelper-core/src/core/modules/event-handlers.ts:handleGuildMemberRequest` after `acceptIfKeywordMatches`. Resolve request id from the same session, load backend admission policy, honor `autoApproveJoin`, call `session.bot.handleGuildMemberRequest`, and report failures through the platform client. Do not add a second `ctx.on('guild-member-request')` in `stuhelper-group-guard`.
 
-- [ ] **Step 4: Write failing added-member tests**
+- [x] **Step 4: Write failing added-member tests**
 
 Test a new unverified QQ member calls backend `createAdmissionSession`, mutes for returned `initialMuteDurationSeconds`, and sends `https://auth.stuhelper.com/admission/a/<code>?qq=<qq>`. Assert no `buaa.team` and no `sso.stuhelper.com` appear in group text.
 
-- [ ] **Step 5: Implement formatter and cache schema**
+- [x] **Step 5: Implement formatter and cache schema**
 
 Create `formatAdmissionReminder(input)` returning `@user 请在 X 分钟内完成 StuHelper 学生身份认证：\n<url>\n通过后自动解除禁言，超时将移出群聊。` and use `h.at(memberId)` for mention.
 Extend `GuardMemberRecord` with backend `admissionSessionID`, `nextReminderAt`, and optional `manualReviewDeadlineAt`; update `store.ts` save/update paths.
 
-- [ ] **Step 6: Replace local join authority**
+- [x] **Step 6: Replace local join authority**
 
 In `handleGuildMemberAdded`, after policy exemption checks, call backend create session instead of `getQQVerificationStatus`. Save local guard record only as execution cache with backend `sessionID`, `deadlineAt`, and `nextReminderAt`.
 
-- [ ] **Step 7: Run and commit**
+- [x] **Step 7: Run and commit**
 
 Run: `cd bots/koishi && corepack yarn tsx --test plugins/stuhelper-core/src/core/modules/event-handlers-admission.test.ts plugins/stuhelper-group-guard/src/events.test.ts && corepack yarn tsc --noEmit`
 Expected: PASS.
@@ -85,24 +89,24 @@ Commit: `git add bots/koishi/plugins/stuhelper-core/src bots/koishi/plugins/stuh
 
 **Files:** `bots/koishi/plugins/stuhelper-group-guard/src/member-guard.ts`, `bots/koishi/plugins/stuhelper-group-guard/src/member-guard.test.ts`, `bots/koishi/plugins/stuhelper-group-guard/src/store.ts`
 
-- [ ] **Step 1: Write failing action tests**
+- [x] **Step 1: Write failing action tests**
 
 Mock backend pending actions: `remind`, `release`, `kick`, `blacklist`. Assert bot sends reminder, unmutes with duration `0`, sends pre-kick warning then kicks, kicks with blacklist flag when requested, and reports each result through `recordAdmissionEvent`.
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run: `cd bots/koishi && corepack yarn tsx --test plugins/stuhelper-group-guard/src/member-guard.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement action dispatcher**
+- [x] **Step 3: Implement action dispatcher**
 
 Replace direct local scan decisions with `listPendingAdmissionActions({ platform, botSelfId })`. Route actions to one function per action: `executeReminder`, `executeRelease`, `executeKick`, and `executeBlacklist`. Each function returns a concrete event payload with `success`, `action`, `messageID` when available, and explicit error text on failure.
 
-- [ ] **Step 4: Preserve visible failures**
+- [x] **Step 4: Preserve visible failures**
 
 On platform API or bot API error, call backend `recordAdmissionEvent` with `success=false` and leave `lastBotError` visible. Do not swallow errors after reporting.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `cd bots/koishi && corepack yarn tsx --test plugins/stuhelper-group-guard/src/member-guard.test.ts plugins/stuhelper-group-guard/src/events.test.ts && corepack yarn tsc --noEmit`
 Expected: PASS.
@@ -112,20 +116,20 @@ Commit: `git add bots/koishi/plugins/stuhelper-group-guard/src && git commit -m 
 
 **Files:** `bots/koishi/plugins/stuhelper-group-guard/src/member-guard.ts`, `bots/koishi/plugins/stuhelper-group-guard/src/admission-format.ts`, `bots/koishi/plugins/stuhelper-group-guard/src/member-guard.test.ts`
 
-- [ ] **Step 1: Write failing forward tests**
+- [x] **Step 1: Write failing forward tests**
 
 Mock one pending freshman application with `managementGuildIDs: ['9001', '9002']`, image URL, applicant masked name, school, major, QQ, application ID, and expiry. Assert bot sends one image message plus summary text to both groups, then calls `markFreshmanForwarded`.
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run: `cd bots/koishi && corepack yarn tsx --test plugins/stuhelper-group-guard/src/member-guard.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement forward scan**
+- [x] **Step 3: Implement forward scan**
 
 During scheduled scan, call `listPendingFreshmanForwards`. For each item, send `h.image(materialURL)` only when backend explicitly returns a material URL and policy enables raw forwarding. Send it directly to every configured QQ management group with the application summary, then mark forwarded only after all sends succeed; v1 does not add signed URL handling, IP binding, watermark composition, or private download proxy. Text must include application ID and approved/rejected command examples.
 
-- [ ] **Step 4: Run and commit**
+- [x] **Step 4: Run and commit**
 
 Run: `cd bots/koishi && corepack yarn tsx --test plugins/stuhelper-group-guard/src/member-guard.test.ts && corepack yarn tsc --noEmit`
 Expected: PASS.
@@ -135,24 +139,24 @@ Commit: `git add bots/koishi/plugins/stuhelper-group-guard/src && git commit -m 
 
 **Files:** `bots/koishi/plugins/stuhelper-admin/src/admission-review-commands.ts`, `bots/koishi/plugins/stuhelper-admin/src/commands.ts`, `bots/koishi/plugins/stuhelper-admin/src/index.test.ts`, `bots/koishi/plugins/stuhelper-admin/src/index.ts`
 
-- [ ] **Step 1: Write failing command tests**
+- [x] **Step 1: Write failing command tests**
 
 Assert `新生审核查看 A123`, `新生审核通过 A123`, `新生审核通过 A123 +30d`, `新生审核驳回 A123 材料不清晰`, and `新生黑名单解除 123456` call backend with operator QQ, guild ID, channel ID, raw command text, and optional expiry override. Mock backend 403 codes for unbound/no-capability/wrong-management-guild and assert fixed Chinese replies.
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run: `cd bots/koishi && corepack yarn tsx --test plugins/stuhelper-admin/src/index.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Inject platform client**
+- [x] **Step 3: Inject platform client**
 
 Update `stuhelper-admin` to create `platform = createPlatformClient(config.platform)` and pass it to command registration. Keep existing local moderation commands unchanged.
 
-- [ ] **Step 4: Implement commands**
+- [x] **Step 4: Implement commands**
 
 Parse `+Nd` as positive integer days and reject zero/negative/non-integer values. Backend enforces `maxExtensionDays`; bot returns backend error messages explicitly. Use local command authority checks before API calls; backend remains final authorization.
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `cd bots/koishi && corepack yarn tsx --test plugins/stuhelper-admin/src/index.test.ts && corepack yarn tsc --noEmit`
 Expected: PASS.
@@ -162,16 +166,16 @@ Commit: `git add bots/koishi/plugins/stuhelper-admin/src && git commit -m "feat:
 
 **Files:** `bots/koishi/README.md`, `bots/koishi/scripts/startup-smoke.mjs`, `bots/koishi/plugins/stuhelper-core/src/p5-config-contract.test.ts`
 
-- [ ] **Step 1: Update runtime docs and smoke expectations**
+- [x] **Step 1: Update runtime docs and smoke expectations**
 
 Document that `STUHELPER_PLATFORM_BASE_URL` and `STUHELPER_PLATFORM_SERVICE_TOKEN` now require admission bot scopes. Clarify which local guard policy fields remain local command defaults and which admission policy fields come from backend. Keep `koishi.yml` plugin loading unchanged.
 
-- [ ] **Step 2: Run complete Koishi checks**
+- [x] **Step 2: Run complete Koishi checks**
 
 Run: `cd bots/koishi && corepack yarn test`
 Expected: PASS, including startup smoke on port `5140`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run: `git add bots/koishi && git commit -m "test: verify admission koishi workspace"`
 

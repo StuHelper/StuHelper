@@ -8,6 +8,10 @@
 
 **Tech Stack:** Go 1.26, Gin, pgx/PostgreSQL, OpenAPI 3.1, oapi-codegen.
 
+**Status:** Complete. The backend member blacklist contract, schema, repository, service, handlers, admission integration, expiry worker, audit details, and non-UI hardening are implemented.
+
+**Implementation Notes:** The final OpenAPI contract is split into dedicated `member-blacklist` schema/path files instead of appending all definitions to the admission files named in the original plan. The final service also enforces `source`, `createdFrom`, `reasonCode`, entry-point, required metadata, future `expiresAt`, and idempotent concurrent create behavior.
+
 ---
 
 ## File Map
@@ -28,7 +32,7 @@
 
 ## Task 1: Contract And Schema
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 In `server/internal/modules/admission/route_contract_test.go`, replace old blacklist route assertions with:
 
@@ -47,13 +51,13 @@ routeassert.Exists(t, routes, http.MethodPost, "/api/v1/admin/member-blacklist/r
 Run: `cd server && go test -count=1 -timeout=60s ./internal/modules/admission -run TestAdmissionRoutes`
 Expected: FAIL because routes are absent.
 
-- [ ] **Step 2: Add OpenAPI contract**
+- [x] **Step 2: Add OpenAPI contract**
 
 Add schemas in `server/api/components/schemas/admission.yaml`: `MemberBlacklistEntry`, `MemberBlacklistCreateRequest`, `MemberBlacklistReleaseRequest`, `MemberBlacklistReleaseBySubjectRequest`, `MemberBlacklistAccessDecision`, `MemberBlacklistSource`, `MemberBlacklistScopeType`, `MemberBlacklistReleaseReasonCode`.
 
 Add paths in `bot-admission.yaml` and `admin-admission.yaml` for list, create, access, release by ID, and release by subject. Remove these refs from `openapi.yaml`: `/api/v1/bot/admission/qq-users/{qqID}/access`, `/api/v1/bot/admission/blacklist/{qqID}/release`, `/api/v1/admin/admission/blacklist/{qqID}/release`.
 
-- [ ] **Step 3: Add schema baseline**
+- [x] **Step 3: Add schema baseline**
 
 Add `member_blacklist_entries` to `server/migrations/000001_initial_schema.up.sql` with CHECK constraints:
 
@@ -78,7 +82,7 @@ CREATE INDEX member_blacklist_access_idx
   WHERE released_at IS NULL;
 ```
 
-- [ ] **Step 4: Generate and verify**
+- [x] **Step 4: Generate and verify**
 
 Run: `cd server && make generate && make check-drift`
 Expected: PASS.
@@ -92,7 +96,7 @@ git commit -m "feat: add member blacklist contract"
 
 ## Task 2: Repository And Service
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Create `server/internal/modules/admission/service_blacklist_test.go` with these tests:
 
@@ -109,11 +113,11 @@ func TestMemberBlacklistGlobalUniqueDoesNotDuplicateOnNullGuild(t *testing.T)
 Run: `cd server && go test -count=1 -timeout=60s ./internal/modules/admission -run TestMemberBlacklist`
 Expected: FAIL because service does not exist.
 
-- [ ] **Step 2: Add focused models**
+- [x] **Step 2: Add focused models**
 
 Create `models_blacklist.go` with scope/source/release constants, `MemberBlacklistEntry`, `MemberBlacklistCreateInput`, `MemberBlacklistAccessQuery`, `MemberBlacklistListFilter`, `MemberBlacklistReleaseInput`, `MemberBlacklistReleaseBySubjectInput`, and an internal `blacklistEntryPoint` enum for admin, bot, internal.
 
-- [ ] **Step 3: Add repository**
+- [x] **Step 3: Add repository**
 
 Create `repository_blacklist.go` with:
 
@@ -128,7 +132,7 @@ ReleaseMemberBlacklistBySubjectTx(ctx context.Context, tx pgx.Tx, input MemberBl
 
 Access SQL must be read-only and include `released_at IS NULL AND (expires_at IS NULL OR expires_at > $now)`.
 
-- [ ] **Step 4: Add service validation and audit**
+- [x] **Step 4: Add service validation and audit**
 
 Create `service_blacklist.go`. Enforce:
 
@@ -141,7 +145,7 @@ migration_*: scripts only
 
 Create and release paths write `member_blacklist.created` and `member_blacklist.released` audit events in the same transaction.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `cd server && go test -count=1 -timeout=60s ./internal/modules/admission -run TestMemberBlacklist`
 Expected: PASS.
@@ -155,7 +159,7 @@ git commit -m "feat: add member blacklist service"
 
 ## Task 3: Routes And Admission Integration
 
-- [ ] **Step 1: Write failing integration tests**
+- [x] **Step 1: Write failing integration tests**
 
 Add tests for:
 
@@ -171,19 +175,19 @@ func TestMemberBlacklistListPaginatesAndFilters(t *testing.T)
 Run: `cd server && go test -count=1 -timeout=60s ./internal/modules/admission -run 'Blacklist|Routes'`
 Expected: FAIL.
 
-- [ ] **Step 2: Wire handlers and permissions**
+- [x] **Step 2: Wire handlers and permissions**
 
 Create `handler_blacklist.go`. In `handler.go`, remove old admission QQ access/release routes. Add bot routes using new service-account scopes and admin routes using member blacklist read/manage capabilities.
 
-- [ ] **Step 3: Integrate admission event path**
+- [x] **Step 3: Integrate admission event path**
 
 In `service_session.go`, make successful kick/blacklist idempotent: if session is already `expired_kicked`, return without incrementing. When failure count reaches policy limit, create or reuse a guild scoped `admission_failure` member blacklist entry in the same transaction.
 
-- [ ] **Step 4: Add expiry worker behavior**
+- [x] **Step 4: Add expiry worker behavior**
 
 In `service_expiry.go`, add a worker method that releases expired member blacklist rows. For `source='admission_failure'`, reset matching `group_admission_failures.failure_count` to 0 in the same transaction.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run:
 

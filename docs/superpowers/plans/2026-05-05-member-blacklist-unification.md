@@ -8,23 +8,27 @@
 
 **Tech Stack:** Go 1.26, Gin, pgx/PostgreSQL, OpenAPI 3.1, oapi-codegen, TypeScript, Koishi, node:test.
 
+**Status:** Complete. Backend, Koishi, Admin, and console integration are implemented on `feat/member-blacklist-unification`; follow-up review fixes are folded into the branch through `1dbd03f`.
+
+**Verification Snapshot:** The branch has fresh backend, shared client, Koishi workspace, OpenAPI lint/generate, and whitespace verification from the implementation pass. Current behavior is authoritative in the source, OpenAPI contract, migration baseline, and tests.
+
 ---
 
 ## Execution Order
 
-- [ ] **Step 1: Implement backend plan**
+- [x] **Step 1: Implement backend plan**
 
 Use [2026-05-05-member-blacklist-unification-backend.md](2026-05-05-member-blacklist-unification-backend.md).
 
 Expected result: backend schema, OpenAPI, generated types, service, routes, admission integration, expiry behavior, and admission tests pass.
 
-- [ ] **Step 2: Implement Koishi plan**
+- [x] **Step 2: Implement Koishi plan**
 
 Use [2026-05-05-member-blacklist-unification-koishi.md](2026-05-05-member-blacklist-unification-koishi.md).
 
 Expected result: Koishi shared client, request flow, commands, console API, and blacklist UI consume backend member blacklist APIs.
 
-- [ ] **Step 3: Run integrated verification**
+- [x] **Step 3: Run integrated verification**
 
 Run:
 
