@@ -39,12 +39,12 @@ last-verified: 2026-04-19
 
 ## Acceptance Criteria
 
-- [ ] 驳回流程会把 `verificationStatus` 设为 `rejected` 且 `verifiedAt` 置空。
-- [ ] 通过流程会把 `verificationStatus` 设为 `verified` 且 `rejectionReason` 置空。
-- [ ] 学生认证审核后重新查询，`rejectionReason` 与 `reviewedAt` 可回读。
-- [ ] 管理端列表接口与 OpenAPI 契约包含 `rejectionReason` 与 `reviewedAt`。
-- [ ] 管理端页面可展示驳回原因与审核时间。
-- [ ] 新增独立测试文件覆盖关键审核状态切换和序列化行为。
+- [x] 驳回流程会把 `verificationStatus` 设为 `rejected` 且 `verifiedAt` 置空。
+- [x] 通过流程会把 `verificationStatus` 设为 `verified` 且 `rejectionReason` 置空。
+- [x] 学生认证审核后重新查询，`rejectionReason` 与 `reviewedAt` 可回读。
+- [x] 管理端列表接口与 OpenAPI 契约包含 `rejectionReason` 与 `reviewedAt`。
+- [x] 管理端页面可展示驳回原因与审核时间。
+- [x] 新增独立测试文件覆盖关键审核状态切换和序列化行为。
 
 ## Definition of Done (team quality bar)
 

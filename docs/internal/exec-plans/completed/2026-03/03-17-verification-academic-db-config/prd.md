@@ -35,9 +35,9 @@ last-verified: 2026-04-19
 
 ## Acceptance Criteria
 
-- [ ] 配置了 `academic_db_table` 的学校会命中对应表
-- [ ] 未配置时回退默认表，行为不回归
-- [ ] 非法表名不会进入 SQL 执行
+- [x] 配置了 `academic_db_table` 的学校会命中对应表
+- [x] 未配置时回退默认表，行为不回归
+- [x] 非法表名不会进入 SQL 执行
 
 ## Definition of Done
 

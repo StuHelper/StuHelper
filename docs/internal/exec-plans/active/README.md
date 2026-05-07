@@ -3,13 +3,13 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-04-25
+last-verified: 2026-05-07
 ---
 
 # 活跃执行计划
 
 | 计划 | 范围 | 状态 |
 |------|------|------|
-| [2026-04-25-koishi-plugin-restructure.md](2026-04-25-koishi-plugin-restructure.md) | `bots/koishi/` 插件架构重构：保留 core UI、删除未用 console/platform、内部拆 server | 已采纳，待执行（P0 未开始） |
+| [current-project-open-items.md](current-project-open-items.md) | 当前项目待办总表 | 无已确认活跃未完成开发任务 |
 
 历史计划、已完成闭环和已归档技术债请查看 [../README.md](../README.md)。

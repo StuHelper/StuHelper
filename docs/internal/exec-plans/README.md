@@ -3,7 +3,7 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-04-25
+last-verified: 2026-05-07
 ---
 
 # 执行计划（内部）
@@ -20,7 +20,7 @@ last-verified: 2026-04-25
 
 ## 活跃计划
 
-- [active/2026-04-25-koishi-plugin-restructure.md](active/2026-04-25-koishi-plugin-restructure.md) — `bots/koishi/` 插件架构重构（保留 core UI、删除未用 console/platform、内部拆 server）
+- [active/current-project-open-items.md](active/current-project-open-items.md) — 当前项目待办总表；截至 2026-05-07 无已确认活跃未完成开发任务
 
 ## 归档
 
@@ -35,6 +35,8 @@ last-verified: 2026-04-25
 ## 完成记录
 
 - [completed/2026-04/2026-04-17-audit-closed-items.md](completed/2026-04/2026-04-17-audit-closed-items.md)
+- [completed/2026-04/2026-04-25-koishi-plugin-restructure.md](completed/2026-04/2026-04-25-koishi-plugin-restructure.md)
+- [completed/2026-04/2026-04-26-koishi-runtime-modules-deps.md](completed/2026-04/2026-04-26-koishi-runtime-modules-deps.md)
 
 ## 技术债
 

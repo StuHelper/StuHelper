@@ -20,7 +20,7 @@ last-verified: 2026-04-25
 
 `bots/koishi/plugins/` 下当前并存三套 WebUI 实现：`stuhelper-core`、`stuhelper-console`、`stuhelper-platform`。三者都把页面注册到 `/stuhelper`，但 `koishi.yml` 当前只加载 `stuhelper-core`，所以**当前不构成运行时冲突；只要任意两者并行启用就会互相覆盖**。
 
-完整事实证据（loaded 状态、各 client LOC、view 数量、私下装配链路）见执行计划 [§1 背景与现状](../internal/exec-plans/active/2026-04-25-koishi-plugin-restructure.md#1-背景与现状)。
+完整事实证据（loaded 状态、各 client LOC、view 数量、私下装配链路）见执行记录 [§1 背景与现状](../internal/exec-plans/completed/2026-04/2026-04-25-koishi-plugin-restructure.md#1-背景与现状)。
 
 四轮评审过程中曾提出过几个迁移方向：
 
@@ -50,7 +50,7 @@ last-verified: 2026-04-25
 
 相关：项目工程原则总集见 [docs/design/core-beliefs.md](../design/core-beliefs.md)。
 
-执行细节见 [exec-plans/active/2026-04-25-koishi-plugin-restructure.md](../internal/exec-plans/active/2026-04-25-koishi-plugin-restructure.md)。
+执行细节见 [exec-plans/completed/2026-04/2026-04-25-koishi-plugin-restructure.md](../internal/exec-plans/completed/2026-04/2026-04-25-koishi-plugin-restructure.md)。
 
 ## Alternatives Considered
 
@@ -114,7 +114,7 @@ last-verified: 2026-04-25
 
 ## References
 
-- 执行计划：[exec-plans/active/2026-04-25-koishi-plugin-restructure.md](../internal/exec-plans/active/2026-04-25-koishi-plugin-restructure.md)
+- 执行记录：[exec-plans/completed/2026-04/2026-04-25-koishi-plugin-restructure.md](../internal/exec-plans/completed/2026-04/2026-04-25-koishi-plugin-restructure.md)
 - 工程原则：[docs/design/core-beliefs.md](../design/core-beliefs.md)
 - 当前运行入口：`bots/koishi/koishi.yml`（`group:stuhelper:` 段）
 - legacy 装配点：`bots/koishi/plugins/stuhelper-core/src/legacy/legacy-wrapper.ts`（`applyLegacyFeatures` 内的 `ctx.plugin(binding/groupGuard/admin)` 三处调用）

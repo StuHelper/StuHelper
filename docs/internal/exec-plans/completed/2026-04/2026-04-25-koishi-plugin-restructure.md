@@ -1,16 +1,18 @@
 ---
 type: internal
 audience: maintainers
-status: current
+status: completed
 authoritative-source: this file
-last-verified: 2026-04-25
+last-verified: 2026-05-07
 ---
 
 # 2026-04-25 Koishi 插件重构执行计划
 
+> 归档状态：已完成。P0a 至 P6 均在本计划 §8 状态追踪中标记完成；本文保留为实施记录，不再作为活跃计划。
+
 > 目的：把 `bots/koishi/` 当前的"god plugin + 三套并存 WebUI"格局，收敛为"保留唯一真实运行 UI + 内部模块化 server"。
 > 范围：仅限 `bots/koishi/`；不动 `server/`、`clients/`、`infra/`。
-> 关联决策：[adr/0006-koishi-core-ui-as-single-webui-entry.md](../../../adr/0006-koishi-core-ui-as-single-webui-entry.md)
+> 关联决策：[adr/0006-koishi-core-ui-as-single-webui-entry.md](../../../../adr/0006-koishi-core-ui-as-single-webui-entry.md)
 
 ## 1. 背景与基线
 
@@ -54,7 +56,7 @@ last-verified: 2026-04-25
 
 ### 2.1 保留 `stuhelper-core` 作为唯一 WebUI 入口
 
-理由见 [ADR-0006](../../../adr/0006-koishi-core-ui-as-single-webui-entry.md)。要点：
+理由见 [ADR-0006](../../../../adr/0006-koishi-core-ui-as-single-webui-entry.md)。要点：
 
 - core 的 11 个 view 是产品事实源
 - console / platform 是功能子集，重写 UI 等于产品倒退
@@ -78,7 +80,7 @@ last-verified: 2026-04-25
 | 把 22 个内部模块拆成 22 个 koishi workspace 包 | 模块间互相依赖（多数依赖 `ModerationStore`），强行拆包会引入循环依赖 |
 | 让 UI 子页来自不同插件贡献 | Koishi 多 page 模型代价远超收益，单 UI 入口对一个 11 页控制台是正解 |
 | 把 console / platform 的代码捞成 `packages/` 库 | 死代码换目录是 anti-pattern；需要时从 git 历史参考即可 |
-| 引入运行时兼容开关（如 `STUHELPER_LEGACY_PLUGINS=1`） | 与 [ADR-0006](../../../adr/0006-koishi-core-ui-as-single-webui-entry.md) §Decision 中"不引入兼容路径"原则冲突；双装载会导致重复命令注册 |
+| 引入运行时兼容开关（如 `STUHELPER_LEGACY_PLUGINS=1`） | 与 [ADR-0006](../../../../adr/0006-koishi-core-ui-as-single-webui-entry.md) §Decision 中"不引入兼容路径"原则冲突；双装载会导致重复命令注册 |
 | 提交 HAR 录制作为 API 基线 | 含 cookie / 时间戳 / 噪声，泄漏与脆弱；改用 server 端 listener 单测扩充 DTO 契约 |
 | 提交 11 张视觉回归截图作为基线 | 视觉回归在当前阶段成本高、易脆；改用最小 UI smoke |
 | 把 knip / ts-prune 写成现成门禁 | 仓库当前未配置；引入需独立工具链 PR |
@@ -318,7 +320,7 @@ export function apply(ctx: Context, config: Config) {
    - 从 registry 读取所有模块定义
    - 通过 adapter 装配
    - 顺序由 `RuntimeModule.order` 决定，默认与原 `MODULE_CLASSES` 一致
-4. 新增 `docs/internal/exec-plans/active/koishi-runtime-modules-deps.md`：
+4. 新增 `docs/internal/exec-plans/completed/2026-04/2026-04-26-koishi-runtime-modules-deps.md`：
    - 列出 22 个模块及其依赖（人工审计）
    - 用于 P4b 排序参考
    - 不作为运行时数据消费
@@ -529,9 +531,9 @@ stuhelper-admin:
 
 ## 7. 引用
 
-- 关键决策：[adr/0006-koishi-core-ui-as-single-webui-entry.md](../../../adr/0006-koishi-core-ui-as-single-webui-entry.md)
-- Koishi 开发指南：[docs/guides/koishi-development.md](../../../guides/koishi-development.md)
-- 项目原则：本计划遵循的"不引入兼容路径"与"保留产品事实源"两条原则在 [ADR-0006](../../../adr/0006-koishi-core-ui-as-single-webui-entry.md) §Decision 中明文写出
+- 关键决策：[adr/0006-koishi-core-ui-as-single-webui-entry.md](../../../../adr/0006-koishi-core-ui-as-single-webui-entry.md)
+- Koishi 开发指南：[docs/guides/koishi-development.md](../../../../guides/koishi-development.md)
+- 项目原则：本计划遵循的"不引入兼容路径"与"保留产品事实源"两条原则在 [ADR-0006](../../../../adr/0006-koishi-core-ui-as-single-webui-entry.md) §Decision 中明文写出
 
 ## 8. 状态追踪
 

@@ -35,9 +35,9 @@ last-verified: 2026-04-19
 
 ## Acceptance Criteria
 
-- [ ] 无效 `roleID`/`userID`/`groupID`/`permissionID` 返回 4xx
-- [ ] 数据库 FK 错误不再直接变成 500
-- [ ] 现有成功路径不回归
+- [x] 无效 `roleID`/`userID`/`groupID`/`permissionID` 返回 4xx
+- [x] 数据库 FK 错误不再直接变成 500
+- [x] 现有成功路径不回归
 
 ## Definition of Done
 

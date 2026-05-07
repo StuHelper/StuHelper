@@ -8,6 +8,8 @@ last-verified: 2026-04-21
 
 # StuHelper Core Legacy Capabilities UI Integration Implementation Plan
 
+> 归档说明：本计划已由后续 core console 与 Koishi 重构工作吸收，保留为历史实施记录。下方 checklist 已闭环，不再作为当前项目待办来源。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在 `stuhelper-core` 中把旧 StuHelper 的身份认证、处置中心、治理配置能力并入当前 grouphelper 风格控制台，并提供可刷新、可深链、可测试的页面域接口与 UI。
@@ -26,7 +28,7 @@ last-verified: 2026-04-21
 - Create: `bots/koishi/plugins/stuhelper-core/client/models/formatters.ts`
 - Test: `bots/koishi/plugins/stuhelper-core/client/models/navigation.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import assert from 'node:assert/strict'
@@ -64,13 +66,13 @@ test('createConsoleQuery omits empty optional fields', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test bots/koishi/plugins/stuhelper-core/client/models/navigation.test.ts`
 
 Expected: FAIL with `Cannot find module './navigation'`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 export type ConsoleViewId = 'dashboard' | 'config' | 'warns' | 'blacklist' | 'identity' | 'review' | 'roles' | 'logs' | 'chat' | 'subscriptions' | 'settings'
@@ -98,13 +100,13 @@ export function parseConsoleQuery(params: URLSearchParams): ConsoleNavigationSta
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test bots/koishi/plugins/stuhelper-core/client/models/navigation.test.ts`
 
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add bots/koishi/plugins/stuhelper-core/client/models/navigation.ts bots/koishi/plugins/stuhelper-core/client/models/views.ts bots/koishi/plugins/stuhelper-core/client/models/formatters.ts bots/koishi/plugins/stuhelper-core/client/models/navigation.test.ts
@@ -128,7 +130,7 @@ git commit -m "feat(stuhelper-core): add console navigation model"
 - Test: `bots/koishi/plugins/stuhelper-core/src/core/services/review-page.service.test.ts`
 - Test: `bots/koishi/plugins/stuhelper-core/src/core/services/config-governance.service.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test('buildReviewPageData maps reviews, guard members and reports into ReviewWorkItem rows', async () => {
@@ -152,7 +154,7 @@ test('buildConfigGovernanceData includes template source and command policy list
 })
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -166,7 +168,7 @@ node --test \
 
 Expected: FAIL with missing service modules
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 export class ReviewPageService {
@@ -196,7 +198,7 @@ export class ReviewPageService {
 }
 ```
 
-- [ ] **Step 4: Register console listeners**
+- [x] **Step 4: Register console listeners**
 
 ```ts
 ctx.console.addListener('stuhelperGroupCenter/page/dashboard', () => dashboardService.getPageData())
@@ -205,7 +207,7 @@ ctx.console.addListener('stuhelperGroupCenter/page/review', (query) => reviewSer
 ctx.console.addListener('stuhelperGroupCenter/page/config-governance', () => configGovernanceService.getPageData())
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run:
 
@@ -219,7 +221,7 @@ node --test \
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add bots/koishi/plugins/stuhelper-core/src/core/services bots/koishi/plugins/stuhelper-core/src/core/api/page-api.ts bots/koishi/plugins/stuhelper-core/src/index.ts
@@ -236,7 +238,7 @@ git commit -m "feat(stuhelper-core): add page-domain console services"
 - Modify: `bots/koishi/plugins/stuhelper-core/client/index.ts`
 - Test: `bots/koishi/plugins/stuhelper-core/client/composables/use-console-navigation.test.ts`
 
-- [ ] **Step 1: Write the failing navigation test**
+- [x] **Step 1: Write the failing navigation test**
 
 ```ts
 test('selectView writes navigation state and preserves query-backed context', () => {
@@ -251,13 +253,13 @@ test('selectView writes navigation state and preserves query-backed context', ()
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test bots/koishi/plugins/stuhelper-core/client/composables/use-console-navigation.test.ts`
 
 Expected: FAIL with missing composable
 
-- [ ] **Step 3: Replace old local `currentView` shell**
+- [x] **Step 3: Replace old local `currentView` shell**
 
 ```vue
 <script setup lang="ts">
@@ -271,14 +273,14 @@ const activeComponent = computed(() => pages.resolve(navigation.state.value.view
 </script>
 ```
 
-- [ ] **Step 4: Add overflow-aware top nav**
+- [x] **Step 4: Add overflow-aware top nav**
 
 ```ts
 const PRIMARY_MENU_IDS: ConsoleViewId[] = ['dashboard', 'config', 'warns', 'blacklist', 'identity', 'review', 'roles', 'logs']
 const OVERFLOW_MENU_IDS: ConsoleViewId[] = ['chat', 'subscriptions', 'settings']
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run:
 
@@ -288,7 +290,7 @@ node --test bots/koishi/plugins/stuhelper-core/client/composables/use-console-na
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add bots/koishi/plugins/stuhelper-core/client/api.ts bots/koishi/plugins/stuhelper-core/client/composables bots/koishi/plugins/stuhelper-core/client/pages/index.vue bots/koishi/plugins/stuhelper-core/client/index.ts
@@ -309,7 +311,7 @@ git commit -m "feat(stuhelper-core): add query-synced console shell"
 - Modify: `bots/koishi/plugins/stuhelper-core/client/components/ConfigView.vue`
 - Test: `bots/koishi/plugins/stuhelper-core/client/models/dashboard.test.ts`
 
-- [ ] **Step 1: Write the failing dashboard model test**
+- [x] **Step 1: Write the failing dashboard model test**
 
 ```ts
 test('buildDashboardModel exposes todo rows and jump targets', () => {
@@ -321,13 +323,13 @@ test('buildDashboardModel exposes todo rows and jump targets', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test bots/koishi/plugins/stuhelper-core/client/models/dashboard.test.ts`
 
 Expected: FAIL with missing model
 
-- [ ] **Step 3: Implement Dashboard summary panels**
+- [x] **Step 3: Implement Dashboard summary panels**
 
 ```vue
 <DashboardTodoPanel
@@ -340,7 +342,7 @@ Expected: FAIL with missing model
 />
 ```
 
-- [ ] **Step 4: Split Config into workspaces**
+- [x] **Step 4: Split Config into workspaces**
 
 ```ts
 const configWorkspaces = [
@@ -351,7 +353,7 @@ const configWorkspaces = [
 ] as const
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run:
 
@@ -361,7 +363,7 @@ node --test bots/koishi/plugins/stuhelper-core/client/models/dashboard.test.ts
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add bots/koishi/plugins/stuhelper-core/client/models/dashboard.ts bots/koishi/plugins/stuhelper-core/client/components/dashboard bots/koishi/plugins/stuhelper-core/client/components/config bots/koishi/plugins/stuhelper-core/client/components/DashboardView.vue bots/koishi/plugins/stuhelper-core/client/components/ConfigView.vue
@@ -382,7 +384,7 @@ git commit -m "feat(stuhelper-core): upgrade dashboard and config workspaces"
 - Test: `bots/koishi/plugins/stuhelper-core/client/models/identity.test.ts`
 - Test: `bots/koishi/plugins/stuhelper-core/client/models/review.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test('buildIdentityModel groups members by guild-first scope and resolves selected member detail', () => {
@@ -408,7 +410,7 @@ test('buildReviewModel preserves selected item when filters narrow the list', ()
 })
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -420,7 +422,7 @@ node --test \
 
 Expected: FAIL with missing model modules
 
-- [ ] **Step 3: Implement the two new top-level pages**
+- [x] **Step 3: Implement the two new top-level pages**
 
 ```vue
 <IdentityView
@@ -436,7 +438,7 @@ Expected: FAIL with missing model modules
 />
 ```
 
-- [ ] **Step 4: Wire review actions through existing moderation listeners**
+- [x] **Step 4: Wire review actions through existing moderation listeners**
 
 ```ts
 await runReviewAction({ reviewId: item.id, action: 'execute', note })
@@ -444,7 +446,7 @@ await reloadReviewPage()
 navigation.replaceContext({ itemId: nextItemId ?? null })
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run:
 
@@ -456,7 +458,7 @@ node --test \
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add bots/koishi/plugins/stuhelper-core/client/models/identity.ts bots/koishi/plugins/stuhelper-core/client/models/review.ts bots/koishi/plugins/stuhelper-core/client/components/IdentityView.vue bots/koishi/plugins/stuhelper-core/client/components/ReviewView.vue bots/koishi/plugins/stuhelper-core/client/components/identity bots/koishi/plugins/stuhelper-core/client/components/review
@@ -472,7 +474,7 @@ git commit -m "feat(stuhelper-core): add identity and review pages"
 - Modify: `bots/koishi/plugins/stuhelper-core/src/browser-entry.test.ts`
 - Modify: `bots/koishi/plugins/stuhelper-core/src/runtime-contract.test.ts`
 
-- [ ] **Step 1: Add regression tests for browser entry and runtime menu registration**
+- [x] **Step 1: Add regression tests for browser entry and runtime menu registration**
 
 ```ts
 test('stuhelper-core browser page remains registered at /stuhelper', async () => {
@@ -481,7 +483,7 @@ test('stuhelper-core browser page remains registered at /stuhelper', async () =>
 })
 ```
 
-- [ ] **Step 2: Run targeted unit tests**
+- [x] **Step 2: Run targeted unit tests**
 
 Run:
 
@@ -501,19 +503,19 @@ node --test \
 
 Expected: PASS
 
-- [ ] **Step 3: Run package build**
+- [x] **Step 3: Run package build**
 
 Run: `cd bots/koishi && corepack yarn workspace koishi-plugin-stuhelper-core build`
 
 Expected: exit 0 and regenerated `dist/index.js` / `dist/style.css`
 
-- [ ] **Step 4: Run startup smoke**
+- [x] **Step 4: Run startup smoke**
 
 Run: `cd bots/koishi && node scripts/startup-smoke.mjs`
 
 Expected: listens on `5140`, console page entry available, no startup crash
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add bots/koishi/plugins/stuhelper-core docs/superpowers/plans/2026-04-21-stuhelper-core-legacy-capabilities-ui-integration.md

@@ -9,6 +9,8 @@ last-verified: 2026-04-19
 # Koishi Plugin Framework Implementation Plan
 
 > 现状说明：本计划已完成并被后续实现扩展。当前真实行为以 `bots/koishi/README.md`、`bots/koishi/` 源码和自动化测试结果为准。
+>
+> 归档说明：本文仅保留为历史实施记录。下方 checklist 已闭环，不再作为当前项目待办来源。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -37,12 +39,12 @@ last-verified: 2026-04-19
 **Files:**
 - Create: `bots/koishi/`
 
-- [ ] **Step 1: 确认目标目录不存在**
+- [x] **Step 1: 确认目标目录不存在**
 
 Run: `test ! -e bots/koishi`
 Expected: 命令返回 0。
 
-- [ ] **Step 2: 执行官方脚手架**
+- [x] **Step 2: 执行官方脚手架**
 
 Run:
 
@@ -52,7 +54,7 @@ npm create koishi@latest bots/koishi -- -t @koishijs/boilerplate -y
 
 Expected: 成功生成 `bots/koishi/package.json`、`bots/koishi/koishi.yml` 与 boilerplate 文件。
 
-- [ ] **Step 3: 安装依赖**
+- [x] **Step 3: 安装依赖**
 
 Run:
 
@@ -62,7 +64,7 @@ cd bots/koishi && corepack yarn install
 
 Expected: 依赖安装成功，生成 `.yarn/install-state.gz` 或缓存状态文件，无 install error。
 
-- [ ] **Step 4: 记录脚手架结果**
+- [x] **Step 4: 记录脚手架结果**
 
 Run:
 
@@ -95,7 +97,7 @@ Expected: 输出中包含 `package.json`、`koishi.yml`、`packages` 或 `plugin
 - Create: `bots/koishi/plugins/stuhelper-admin/tsconfig.json`
 - Create: `bots/koishi/plugins/stuhelper-admin/src/index.ts`
 
-- [ ] **Step 1: 建立目录**
+- [x] **Step 1: 建立目录**
 
 Run:
 
@@ -113,7 +115,7 @@ mkdir -p \
 
 Expected: 所有目录创建成功。
 
-- [ ] **Step 2: 写入最小共享包代码**
+- [x] **Step 2: 写入最小共享包代码**
 
 Code:
 
@@ -126,7 +128,7 @@ export * from './types'
 
 Expected: `packages/shared` 暴露统一出口。
 
-- [ ] **Step 3: 写入各插件最小入口**
+- [x] **Step 3: 写入各插件最小入口**
 
 Code:
 
@@ -144,7 +146,7 @@ export function apply(ctx: Context) {
 
 Expected: 每个插件都具备 Koishi 标准入口。
 
-- [ ] **Step 4: 让 core 插件装配其余插件**
+- [x] **Step 4: 让 core 插件装配其余插件**
 
 Code:
 
@@ -169,7 +171,7 @@ Expected: `stuhelper-core` 成为唯一挂载入口。
 - Modify: `bots/koishi/packages/shared/src/platform/index.ts`
 - Modify: `bots/koishi/packages/shared/src/types/index.ts`
 
-- [ ] **Step 1: 定义配置类型与 Schema 工厂**
+- [x] **Step 1: 定义配置类型与 Schema 工厂**
 
 Code:
 
@@ -187,7 +189,7 @@ export interface StuhelperBindingConfig {
 
 Expected: 平台、绑定、群管配置有明确类型。
 
-- [ ] **Step 2: 定义平台客户端接口**
+- [x] **Step 2: 定义平台客户端接口**
 
 Code:
 
@@ -211,7 +213,7 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
 
 Expected: 后续业务插件可以依赖接口而不是散落 `fetch`。
 
-- [ ] **Step 3: 定义未来业务状态的预留类型**
+- [x] **Step 3: 定义未来业务状态的预留类型**
 
 Code:
 
@@ -232,7 +234,7 @@ Expected: 未来业务状态在共享包中集中定义。
 - Modify: `bots/koishi/koishi.yml`
 - Modify: `bots/koishi/package.json`
 
-- [ ] **Step 1: 在 `koishi.yml` 中挂载 `stuhelper-core`**
+- [x] **Step 1: 在 `koishi.yml` 中挂载 `stuhelper-core`**
 
 Config snippet:
 
@@ -248,11 +250,11 @@ plugins:
 
 Expected: Koishi 启动时能加载 StuHelper 入口插件。
 
-- [ ] **Step 2: 保留官方模板默认插件，去除与本次框架无关的最重依赖入口**
+- [x] **Step 2: 保留官方模板默认插件，去除与本次框架无关的最重依赖入口**
 
 Expected: 配置文件保持最小可运行，不强行引入无关平台适配器。
 
-- [ ] **Step 3: 验证工作区识别**
+- [x] **Step 3: 验证工作区识别**
 
 Run:
 
@@ -269,7 +271,7 @@ Expected: 输出包含 `shared` 与 4 个 `stuhelper-*` 包。
 - Modify: `README.md`
 - Modify: `AGENTS.md`
 
-- [ ] **Step 1: 写子系统 README**
+- [x] **Step 1: 写子系统 README**
 
 Content requirements:
 
@@ -283,11 +285,11 @@ Content requirements:
 
 Expected: 新开发者知道该子系统做什么、怎么启动。
 
-- [ ] **Step 2: 更新根 README 与 AGENTS**
+- [x] **Step 2: 更新根 README 与 AGENTS**
 
 Expected: 文档中出现 `bots/koishi/` 的入口说明。
 
-- [ ] **Step 3: 运行最小验证**
+- [x] **Step 3: 运行最小验证**
 
 Run:
 
@@ -298,7 +300,7 @@ cd bots/koishi && corepack yarn workspaces list
 
 Expected: 构建成功，workspace 识别成功。
 
-- [ ] **Step 4: 记录 git 变更**
+- [x] **Step 4: 记录 git 变更**
 
 Run:
 

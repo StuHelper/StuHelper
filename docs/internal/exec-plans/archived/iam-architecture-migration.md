@@ -91,9 +91,9 @@ last-verified: 2026-04-19
 - [x] 创建 Organization 结构（stuhelper-platform + buaa）
 - [x] 创建 Project hangxiaoban + Application（web / admin / mobile）
 - [x] 定义 Project Roles（super_admin / school_admin / moderator / verified_student / user）
-- [ ] 配置 SMTP（邮件验证）
+- [x] 配置 SMTP（邮件验证）
 - [x] 配置通用 HTTP SMS（腾讯云短信转发）
-- [ ] 自定义登录 UI（Vue，支持手机号验证码登录）
+- [x] 自定义登录 UI（Vue，支持手机号验证码登录）
 - [x] Google Fonts 替换为自托管
 
 ### SSO 迁移

@@ -1,12 +1,14 @@
 ---
 type: internal
 audience: maintainers
-status: current
+status: completed
 authoritative-source: source scan
-last-verified: 2026-04-26
+last-verified: 2026-05-07
 ---
 
 # Koishi Runtime Modules Dependency Audit
+
+> 归档状态：已完成。本文是 Koishi runtime module 迁移期间的依赖审计快照，不再作为活跃计划。
 
 Scope: `bots/koishi/plugins/stuhelper-core/src/core/modules/`.
 

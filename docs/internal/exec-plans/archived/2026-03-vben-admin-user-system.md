@@ -248,19 +248,19 @@ user_permissions (user_id, permission_id, granted)
 
 ## Acceptance Criteria (evolving)
 
-- [ ] 管理后台完整使用 Vben Admin 框架
-- [ ] 数据库有 user_identities / user_profiles / school_configs / RBAC 全套表
-- [ ] 北航学生可通过 LDAP 完成学生认证
-- [ ] 非大陆证件用户可上传证件照片，管理员可审核
-- [ ] 其他学校用户可手动填表+管理员审核
-- [ ] 权限系统支持角色/用户组/个人覆盖三级
-- [ ] 权限支持 school_id scope 限制
-- [ ] 管理后台有权限配置 UI，scope 选择器自动聚合已有数据
-- [ ] Casdoor 登录页匹配 stuhelper.com 视觉风格
-- [ ] 个人中心展示认证状态，可跳转认证页面
-- [ ] 右上角头像+下拉菜单，参考 Vben Admin
-- [ ] 发布评课需要登录+北航学生认证
-- [ ] 未登录不可查看评课，登录未认证只能看简略信息
+- [x] 管理后台完整使用 Vben Admin 框架
+- [x] 数据库有 user_identities / user_profiles / school_configs / RBAC 全套表
+- [x] 北航学生可通过 LDAP 完成学生认证
+- [x] 非大陆证件用户可上传证件照片，管理员可审核
+- [x] 其他学校用户可手动填表+管理员审核
+- [x] 权限系统支持角色/用户组/个人覆盖三级
+- [x] 权限支持 school_id scope 限制
+- [x] 管理后台有权限配置 UI，scope 选择器自动聚合已有数据
+- [x] Casdoor 登录页匹配 stuhelper.com 视觉风格
+- [x] 个人中心展示认证状态，可跳转认证页面
+- [x] 右上角头像+下拉菜单，参考 Vben Admin
+- [x] 发布评课需要登录+北航学生认证
+- [x] 未登录不可查看评课，登录未认证只能看简略信息
 
 ## Definition of Done
 

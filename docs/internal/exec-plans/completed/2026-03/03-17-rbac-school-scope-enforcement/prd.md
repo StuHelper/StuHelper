@@ -38,12 +38,12 @@ last-verified: 2026-04-19
 
 ## Acceptance Criteria (evolving)
 
-- [ ] `CheckPermissionScope` 在学校范围权限且无 schoolID 时返回拒绝。
-- [ ] `RequirePermission` 可从 path 参数提取 schoolID 并传入 scope 检查。
-- [ ] `RequirePermission` 可从 query 参数提取 schoolID 并传入 scope 检查。
-- [ ] `RequirePermission` 可从 JSON body 提取 schoolID 并传入 scope 检查。
-- [ ] body 提取不会吞掉请求体，后续 handler 仍可读取。
-- [ ] 新增独立测试文件通过。
+- [x] `CheckPermissionScope` 在学校范围权限且无 schoolID 时返回拒绝。
+- [x] `RequirePermission` 可从 path 参数提取 schoolID 并传入 scope 检查。
+- [x] `RequirePermission` 可从 query 参数提取 schoolID 并传入 scope 检查。
+- [x] `RequirePermission` 可从 JSON body 提取 schoolID 并传入 scope 检查。
+- [x] body 提取不会吞掉请求体，后续 handler 仍可读取。
+- [x] 新增独立测试文件通过。
 
 ## Definition of Done (team quality bar)
 

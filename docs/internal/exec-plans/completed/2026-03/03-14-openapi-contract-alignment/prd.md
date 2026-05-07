@@ -125,13 +125,13 @@ pnpm run type-check
 
 ## Acceptance Criteria
 
-- [ ] `make lint-spec` 通过
-- [ ] `make check-drift` 无 diff
-- [ ] `go build && go test` 通过
-- [ ] `pnpm type-check` 通过
-- [ ] 所有 user/rbac 端点的 data 直接是对象/数组，无多余包裹
-- [ ] 所有 JSON 字段遵循大写初始缩写
-- [ ] ReviewStudentVerification 走 approved bool 全链路
-- [ ] bind-phone 无残留验证码字段
-- [ ] GroupMembers 返回完整 GroupMember[]
-- [ ] 前端 3 个新 typed client 覆盖全部用户系统端点
+- [x] `make lint-spec` 通过
+- [x] `make check-drift` 无 diff
+- [x] `go build && go test` 通过
+- [x] `pnpm type-check` 通过
+- [x] 所有 user/rbac 端点的 data 直接是对象/数组，无多余包裹
+- [x] 所有 JSON 字段遵循大写初始缩写
+- [x] ReviewStudentVerification 走 approved bool 全链路
+- [x] bind-phone 无残留验证码字段
+- [x] GroupMembers 返回完整 GroupMember[]
+- [x] 前端 3 个新 typed client 覆盖全部用户系统端点
