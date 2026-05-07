@@ -54,12 +54,13 @@ const sampleEntry: MemberBlacklistEntry = {
   scopeType: 'guild',
   guildID: 'guild-1',
   source: 'admission_failure',
-  reasonCode: 'admission_failed',
+  reasonCode: 'admission_timeout_limit',
   reasonText: 'too many failures',
   createdFrom: 'admin_console',
-  createdByType: 'admin',
+  createdByType: 'admin_user',
   createdByID: 'admin-1',
   createdAt: '2026-04-01T00:00:00Z',
+  updatedAt: '2026-04-01T00:00:00Z',
   expiresAt: null,
   releasedAt: null,
   releasedByType: null,
@@ -67,7 +68,7 @@ const sampleEntry: MemberBlacklistEntry = {
   releaseReasonCode: null,
   releaseReason: null,
   metadata: {},
-} as MemberBlacklistEntry;
+};
 
 const childStubs = {
   BlacklistFilters: {
@@ -94,7 +95,7 @@ const childStubs = {
       'page',
       'pageSize',
     ],
-    emits: ['release', 'pageChange'],
+    emits: ['release', 'pageChange', 'pageSizeChange'],
     template: '<div data-stub="table" />',
   },
   CreateBlacklistDialog: {
@@ -145,7 +146,7 @@ describe('member-blacklist index view orchestration', () => {
     });
   });
 
-  it('forwards trimmed filter values into listMemberBlacklist params', async () => {
+  it('forwards trimmed filter values into listMemberBlacklist params and resets to page 1', async () => {
     const wrapper = mount(IndexView, { global: { stubs: childStubs } });
     await flushPromises();
     apiMocks.listMemberBlacklist.mockClear();
@@ -162,6 +163,9 @@ describe('member-blacklist index view orchestration', () => {
         subjectID: string;
       };
     };
+    // operator is on a deep page when refining the filter — search must
+    // jump back to page 1 so the new filter set is visible.
+    vm.query.page = 5;
     vm.query.platform = '  qq  ';
     vm.query.scopeType = 'guild';
     vm.query.source = 'manual_admin';
@@ -173,6 +177,7 @@ describe('member-blacklist index view orchestration', () => {
     await filters.vm.$emit('search');
     await flushPromises();
 
+    expect(vm.query.page).toBe(1);
     expect(apiMocks.listMemberBlacklist).toHaveBeenCalledWith({
       page: 1,
       pageSize: 20,
@@ -182,6 +187,51 @@ describe('member-blacklist index view orchestration', () => {
       source: 'manual_admin',
       guildID: 'g-7',
       subjectID: '42',
+    });
+  });
+
+  it('pageSizeChange resets to page 1 before refetching', async () => {
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+    apiMocks.listMemberBlacklist.mockClear();
+
+    const vm = wrapper.vm as unknown as {
+      query: { page: number; pageSize: number };
+    };
+    vm.query.page = 4;
+    vm.query.pageSize = 50;
+
+    const table = wrapper.findComponent({ name: 'BlacklistTable' });
+    await table.vm.$emit('pageSizeChange');
+    await flushPromises();
+
+    expect(vm.query.page).toBe(1);
+    expect(apiMocks.listMemberBlacklist).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 50,
+      status: 'active',
+    });
+  });
+
+  it('pageChange refetches without resetting the current page', async () => {
+    const wrapper = mount(IndexView, { global: { stubs: childStubs } });
+    await flushPromises();
+    apiMocks.listMemberBlacklist.mockClear();
+
+    const vm = wrapper.vm as unknown as {
+      query: { page: number; pageSize: number };
+    };
+    vm.query.page = 3;
+
+    const table = wrapper.findComponent({ name: 'BlacklistTable' });
+    await table.vm.$emit('pageChange');
+    await flushPromises();
+
+    expect(vm.query.page).toBe(3);
+    expect(apiMocks.listMemberBlacklist).toHaveBeenCalledWith({
+      page: 3,
+      pageSize: 20,
+      status: 'active',
     });
   });
 

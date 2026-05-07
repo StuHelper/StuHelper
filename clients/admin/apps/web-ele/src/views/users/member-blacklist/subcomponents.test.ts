@@ -74,12 +74,13 @@ const baseEntry: MemberBlacklistEntry = {
   scopeType: 'guild',
   guildID: 'guild-1',
   source: 'admission_failure',
-  reasonCode: 'admission_failed',
+  reasonCode: 'admission_timeout_limit',
   reasonText: 'too many failures',
   createdFrom: 'admin_console',
-  createdByType: 'admin',
+  createdByType: 'admin_user',
   createdByID: 'admin-1',
   createdAt: '2026-04-01T00:00:00Z',
+  updatedAt: '2026-04-01T00:00:00Z',
   expiresAt: null,
   releasedAt: null,
   releasedByType: null,
@@ -87,7 +88,7 @@ const baseEntry: MemberBlacklistEntry = {
   releaseReasonCode: null,
   releaseReason: null,
   metadata: {},
-} as MemberBlacklistEntry;
+};
 
 describe('BlacklistFilters', () => {
   it('emits search/reset/openCreate when its action buttons are clicked', async () => {
@@ -382,5 +383,36 @@ describe('ReleaseBlacklistDialog', () => {
 
     await wrapper.find('[data-action="submitRelease"]').trigger('click');
     expect(wrapper.emitted('submit')).toBeUndefined();
+  });
+
+  it('resets the draft when reopening the same target after cancelling', async () => {
+    const target = { ...baseEntry, source: 'admission_failure' as const };
+    const wrapper = mount(ReleaseBlacklistDialog, {
+      props: { visible: false, submitting: false, target: null },
+      global: { stubs: dialogStubs },
+    });
+
+    // First open: parent assigns the target then flips visible to true.
+    await wrapper.setProps({ target });
+    await wrapper.setProps({ visible: true });
+    await wrapper.vm.$nextTick();
+
+    const vm = wrapper.vm as unknown as {
+      draft: { releaseReasonCode: string; releaseReason: string };
+    };
+    expect(vm.draft.releaseReasonCode).toBe('manual_pardon');
+
+    // Operator changes both fields then cancels (parent does NOT clear target).
+    vm.draft.releaseReasonCode = 'release_only';
+    vm.draft.releaseReason = 'mistaken edit';
+    await wrapper.setProps({ visible: false });
+    await wrapper.vm.$nextTick();
+
+    // Reopen the same target: stale draft must not bleed across opens.
+    await wrapper.setProps({ visible: true });
+    await wrapper.vm.$nextTick();
+
+    expect(vm.draft.releaseReasonCode).toBe('manual_pardon');
+    expect(vm.draft.releaseReason).toBe('');
   });
 });
