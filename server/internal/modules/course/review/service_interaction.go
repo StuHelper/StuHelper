@@ -136,6 +136,15 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 	if !exists {
 		return nil, ErrCourseNotFound
 	}
+	if params.TeacherID != nil {
+		teacherExists, err := s.repo.TeacherBelongsToCourseSchool(ctx, *params.TeacherID, params.CourseID)
+		if err != nil {
+			return nil, err
+		}
+		if !teacherExists {
+			return nil, ErrTeacherNotFound
+		}
+	}
 
 	// termID 格式校验（与发布链路一致）
 	if params.TermID != "" && !validTermIDFormat.MatchString(params.TermID) {

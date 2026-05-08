@@ -567,6 +567,9 @@ type review
     define can_edit: author
     define can_delete: author or section_moderator_proxy or school_admin_proxy
     define can_hide: section_moderator_proxy or school_admin_proxy
+    define can_restore: section_moderator_proxy or school_admin_proxy
+    define can_admin_delete: section_moderator_proxy or school_admin_proxy
+    define can_admin_edit: school_admin_proxy
 
 type report
   relations
@@ -600,9 +603,9 @@ type open_platform_app
 
 ### 7.2 调用边界
 
-- **OpenFGA 仅由 Authorization Service 调用**；
-- 业务模块不直接 `fga.Check()`；
-- Authorization Service 内部封装 fga client，所有 check 走标准接口。
+- **跨应用 / Open Platform 授权**：由 Authorization Service 调用 OpenFGA，并封装标准 check 接口；
+- **StuHelper 内部资源 mutation 授权**：业务模块可通过注入的授权接口执行 request-time OpenFGA `Check`，但不能直接构造具体 fga client；
+- 列表、筛选和 UI 范围展示继续使用登录时物化 scope；单条 mutation 以 OpenFGA `Check` 作为资源级权威决策。
 
 ## 8. Token 与 JWKS 语义（修正版）
 

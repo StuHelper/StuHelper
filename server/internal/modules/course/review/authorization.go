@@ -5,11 +5,13 @@ import (
 	"errors"
 )
 
-// AuthorizationProvider 是评测模块的资源关系投影依赖。
-// 请求时鉴权走 capability / DB scope / Authorization Service，不能在 handler 中直接查 OpenFGA。
+// AuthorizationProvider 是评课模块的资源关系与资源级鉴权依赖。
+// 写路径负责把业务事实投影到 OpenFGA；admin mutation 读路径通过 Check
+// 以 OpenFGA 作为单条资源操作的权威决策点。
 type AuthorizationProvider interface {
-	WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error
-	WriteReportRelations(ctx context.Context, reportID, reporterUserID, reviewID, schoolID string) error
+	Check(ctx context.Context, user, relation, object string) (bool, error)
+	WriteReviewRelations(ctx context.Context, reviewID, authorUserID, schoolID string) error
+	WriteReportRelations(ctx context.Context, reportID, schoolID string) error
 }
 
 var errAuthorizationProviderNotConfigured = errors.New("review authorization provider is not configured")
@@ -20,11 +22,15 @@ func NewFailClosedAuthorizationProvider() AuthorizationProvider {
 	return failClosedAuthorizationProvider{}
 }
 
-func (failClosedAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string, string) error {
+func (failClosedAuthorizationProvider) Check(context.Context, string, string, string) (bool, error) {
+	return false, errAuthorizationProviderNotConfigured
+}
+
+func (failClosedAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string) error {
 	return errAuthorizationProviderNotConfigured
 }
 
-func (failClosedAuthorizationProvider) WriteReportRelations(context.Context, string, string, string, string) error {
+func (failClosedAuthorizationProvider) WriteReportRelations(context.Context, string, string) error {
 	return errAuthorizationProviderNotConfigured
 }
 

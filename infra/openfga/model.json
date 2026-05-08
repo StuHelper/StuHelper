@@ -96,7 +96,16 @@
         "can_hide": {"union": {"child": [
           {"computedUserset": {"relation": "section_moderator_proxy"}},
           {"computedUserset": {"relation": "school_admin_proxy"}}
-        ]}}
+        ]}},
+        "can_restore": {"union": {"child": [
+          {"computedUserset": {"relation": "section_moderator_proxy"}},
+          {"computedUserset": {"relation": "school_admin_proxy"}}
+        ]}},
+        "can_admin_delete": {"union": {"child": [
+          {"computedUserset": {"relation": "section_moderator_proxy"}},
+          {"computedUserset": {"relation": "school_admin_proxy"}}
+        ]}},
+        "can_admin_edit": {"computedUserset": {"relation": "school_admin_proxy"}}
       },
       "metadata": {
         "relations": {

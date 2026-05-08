@@ -70,6 +70,7 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 		if err := repo.Create(ctx, tx, CreateParams{
 			ID:        createdReviewID,
 			CourseID:  courseID,
+			SchoolID:  10006,
 			TeacherID: &teacherID,
 			TermID:    "2025-2",
 			Title:     "新建评论",
@@ -137,7 +138,7 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, reported)
 
-	require.NoError(t, repo.CreateReport(ctx, CreateReportParams{ReviewID: reviewID, ReporterHash: "u-reporter-low-level", Reason: "spam", Description: "可疑内容"}))
+	require.NoError(t, repo.CreateReport(ctx, CreateReportParams{ReviewID: reviewID, SchoolID: 10006, ReporterHash: "u-reporter-low-level", Reason: "spam", Description: "可疑内容"}))
 	reported, err = repo.ReportExists(ctx, reviewID, "u-reporter-low-level")
 	require.NoError(t, err)
 	assert.True(t, reported)

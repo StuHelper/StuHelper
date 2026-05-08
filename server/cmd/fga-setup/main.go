@@ -22,11 +22,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	openfga "github.com/openfga/go-sdk"
+	"github.com/joho/godotenv"
 	"github.com/openfga/go-sdk/client"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		log.Printf("Warning: failed to load .env: %v", err)
+	}
+
 	apiURL := envOrDefault("OPENFGA_API_URL", "http://localhost:8081")
 	storeID := os.Getenv("OPENFGA_STORE_ID")
 	modelPath := envOrDefault("FGA_MODEL_PATH", "../infra/openfga/model.fga")
@@ -95,19 +99,8 @@ func main() {
 
 	// 4. Write initial tuples
 	log.Println("Writing initial tuples...")
-	tuples := []openfga.TupleKey{
-		// 学校 → 生态关系
-		{User: "ecosystem:stuhelper", Relation: "parent", Object: "school:1"},
-	}
-
-	_, err = fgaClient.Write(ctx).Body(client.ClientWriteRequest{
-		Writes: tuples,
-	}).Execute()
-	if err != nil {
-		// 可能已存在，记日志但不退出
-		log.Printf("Warning: initial tuple write: %v (may already exist)", err)
-	} else {
-		log.Printf("Written %d initial tuples", len(tuples))
+	if err := bootstrapSchoolTuples(ctx, apiURL, storeID, modelID); err != nil {
+		log.Fatalf("Failed to bootstrap FGA school tuples: %v", err)
 	}
 
 	// 5. Print env config

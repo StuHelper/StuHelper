@@ -10,6 +10,7 @@ import (
 const (
 	CookieAccessToken  = "access_token"
 	CookieRefreshToken = "refresh_token"
+	CookieSessionID    = "session_id"
 )
 
 // Cookie path constants. Browser deletion must use the same (name, domain,

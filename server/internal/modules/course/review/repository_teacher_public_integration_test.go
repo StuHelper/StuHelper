@@ -122,9 +122,9 @@ func seedReview(t *testing.T, fixture *postgresfixture.Fixture, reviewID string,
 	t.Helper()
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO reviews (
-			id, course_id, teacher_id, term_id, user_hash, title, content, ratings, avg_rating, status
+			id, course_id, school_id, teacher_id, term_id, user_hash, title, content, ratings, avg_rating, status
 		) VALUES (
-			$1, $2, $3, '2025-2', $4, 'title', 'content', '{}'::jsonb, $5, $6
+			$1, $2, (SELECT school_id FROM courses WHERE id = $2), $3, '2025-2', $4, 'title', 'content', '{}'::jsonb, $5, $6
 		)
 	`, reviewID, courseID, teacherID, userHash, avgRating, status)
 	require.NoError(t, err)

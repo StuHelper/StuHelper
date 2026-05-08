@@ -42,13 +42,14 @@ func (rt *Runtime) initAuthModule(
 	authHandler.RegisterPublicRoutes(api)
 
 	api.Use(middleware.CSRFMiddleware())
-	authMW := middleware.AuthMiddlewareWithRoleScopeResolver(rt.oidcClient, rt.tokenService, roleScopeResolver)
-	authHandler.RegisterRoutesWithAuthMiddleware(api, authMW)
-
-	optionalAuthMW := middleware.OptionalAuthMiddlewareWithRoleScopeResolver(rt.oidcClient, rt.tokenService, middleware.OptionalAuthConfig{
+	authCookieConfig := middleware.OptionalAuthConfig{
 		CookieDomain: rt.cfg.Token.CookieDomain,
 		CookieSecure: rt.cfg.Token.CookieSecure,
-	}, roleScopeResolver)
+	}
+	authMW := middleware.AuthMiddlewareWithConfigAndRoleScopeResolver(rt.oidcClient, rt.tokenService, authCookieConfig, roleScopeResolver)
+	authHandler.RegisterRoutesWithAuthMiddleware(api, authMW)
+
+	optionalAuthMW := middleware.OptionalAuthMiddlewareWithRoleScopeResolver(rt.oidcClient, rt.tokenService, authCookieConfig, roleScopeResolver)
 	return authHandler, authMW, optionalAuthMW, nil
 }
 

@@ -87,6 +87,10 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		if !exists {
 			return ErrCourseNotFound
 		}
+		schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
+		if err != nil {
+			return err
+		}
 
 		if params.TeacherID != nil {
 			teacherExists, err := s.repo.TeacherBelongsToCourseSchoolTx(ctx, tx, *params.TeacherID, params.CourseID)
@@ -114,6 +118,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		created, err := s.repo.CreateReturning(ctx, tx, CreateParams{
 			ID:          reviewID,
 			CourseID:    params.CourseID,
+			SchoolID:    schoolID,
 			TeacherID:   params.TeacherID,
 			TermID:      params.TermID,
 			Title:       params.Title,
@@ -132,11 +137,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		}
 		review = *created
 		if !isPublicReviewStatus(review.Status) {
-			schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
-			if err != nil {
-				return err
-			}
-			return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, authorUserID, params.CourseID, schoolID)
+			return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, authorUserID, schoolID)
 		}
 		if err := s.repo.IncrementCourseReviewCount(ctx, tx, params.CourseID); err != nil {
 			return err
@@ -144,11 +145,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 		if err := s.refreshReviewTargetTx(ctx, tx, params.CourseID, params.TeacherID); err != nil {
 			return err
 		}
-		schoolID, err := s.repo.GetCourseSchoolIDTx(ctx, tx, params.CourseID)
-		if err != nil {
-			return err
-		}
-		return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, authorUserID, params.CourseID, schoolID)
+		return s.enqueueReviewFGASyncTx(ctx, tx, reviewID, authorUserID, schoolID)
 	}); err != nil {
 		return nil, err
 	}

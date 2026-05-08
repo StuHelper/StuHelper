@@ -23,11 +23,37 @@ import (
 
 type allowAllAuthorizationProvider struct{}
 
-func (allowAllAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string, string) error {
+type checkedRelation struct {
+	User     string
+	Relation string
+	Object   string
+}
+
+type selectiveAuthorizationProvider struct {
+	allowed map[checkedRelation]bool
+	checks  []checkedRelation
+}
+
+func (allowAllAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string) error {
 	return nil
 }
-func (allowAllAuthorizationProvider) WriteReportRelations(context.Context, string, string, string, string) error {
+func (allowAllAuthorizationProvider) WriteReportRelations(context.Context, string, string) error {
 	return nil
+}
+func (allowAllAuthorizationProvider) Check(context.Context, string, string, string) (bool, error) {
+	return true, nil
+}
+
+func (s *selectiveAuthorizationProvider) WriteReviewRelations(context.Context, string, string, string) error {
+	return nil
+}
+func (s *selectiveAuthorizationProvider) WriteReportRelations(context.Context, string, string) error {
+	return nil
+}
+func (s *selectiveAuthorizationProvider) Check(_ context.Context, user, relation, object string) (bool, error) {
+	check := checkedRelation{User: user, Relation: relation, Object: object}
+	s.checks = append(s.checks, check)
+	return s.allowed[check], nil
 }
 
 func newReviewAdminHandler(t *testing.T, svc *Service) *Handler {
@@ -39,7 +65,20 @@ func newReviewAdminHandlerWithAuthorizer(t *testing.T, svc *Service, authorizer 
 	fixture := redisfixture.Start(t)
 
 	cacheHelper := cache.NewHelper(fixture.Client)
-	return NewHandler(cacheHelper, svc, fixture.Client, config.ReviewRateLimitConfig{}, authorizer)
+	return NewHandler(HandlerConfig{
+		CacheHelper:            cacheHelper,
+		Service:                svc,
+		Redis:                  fixture.Client,
+		RateLimit:              config.ReviewRateLimitConfig{},
+		Authorizer:             authorizer,
+		InternalUserIDResolver: staticInternalUserID(777),
+	})
+}
+
+func staticInternalUserID(userID int64) middleware.InternalUserIDResolver {
+	return func(context.Context, string) (int64, error) {
+		return userID, nil
+	}
 }
 
 func withAdminContext(method, target, body string) (*httptest.ResponseRecorder, *gin.Context) {
@@ -198,7 +237,20 @@ func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
-	h := newReviewAdminHandlerWithAuthorizer(t, svc, NewFailClosedAuthorizationProvider())
+	reviewA := "550e8400-e29b-41d4-a716-446655440211"
+	authorizer := &selectiveAuthorizationProvider{
+		allowed: map[checkedRelation]bool{
+			{User: "user:777", Relation: reviewRelationCanHide, Object: "review:" + reviewA}:      true,
+			{User: "user:777", Relation: reviewRelationCanAdminEdit, Object: "review:" + reviewA}: true,
+		},
+	}
+	h := newReviewAdminHandlerWithAuthorizer(t, svc, authorizer)
+	h.internalUserIDResolver = func(_ context.Context, casdoorSubject string) (int64, error) {
+		if casdoorSubject == "section-moderator" {
+			return 778, nil
+		}
+		return 777, nil
+	}
 
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO schools (id, code, name)
@@ -209,7 +261,6 @@ func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
 	departmentA := seedDepartment(t, fixture, 10006, "计算学院")
 	teacherA := seedTeacher(t, fixture, 10006, "甲老师", departmentA)
 	courseA := seedCourse(t, fixture, 10006, departmentA, "学校A课程")
-	reviewA := "550e8400-e29b-41d4-a716-446655440211"
 	seedReviewWithRatings(t, fixture, reviewA, courseA, teacherA, "u-admin-role-a", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "学校A评论", "学校A内容")
 
 	departmentB := seedDepartment(t, fixture, 10007, "经济学院")
@@ -241,10 +292,44 @@ func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
 
 	w, c = withAdminContext(http.MethodPost, "/admin/reviews/"+reviewA+"/edit", `{"title":"志愿者修订","content":"志愿者不应能改内容","reason":"越权"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
+	c.Set(middleware.CtxKeyUserID, "section-moderator")
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
 	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(10006)}})
 	h.AdminEditReviewContent(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+}
+
+func TestReviewHandler_AdminDeleteUsesFGAAdminRelation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	authorizer := &selectiveAuthorizationProvider{
+		allowed: map[checkedRelation]bool{
+			{User: "user:777", Relation: "can_delete", Object: "review:550e8400-e29b-41d4-a716-446655440231"}: true,
+		},
+	}
+	h := newReviewAdminHandlerWithAuthorizer(t, svc, authorizer)
+
+	departmentID := seedDepartment(t, fixture, 10006, "计算学院")
+	teacherID := seedTeacher(t, fixture, 10006, "甲老师", departmentID)
+	courseID := seedCourse(t, fixture, 10006, departmentID, "学校A课程")
+	reviewID := "550e8400-e29b-41d4-a716-446655440231"
+	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-admin-delete", 4.5, StatusHidden, ReviewRatings{"teaching": 5}, "标题", "内容")
+
+	w, c := withAdminContext(http.MethodPut, "/admin/reviews/"+reviewID, `{"action":"delete","reason":"admin delete"}`)
+	c.Params = gin.Params{{Key: "reviewID", Value: reviewID}}
+	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
+	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"10006"}})
+	h.AdminUpdateReview(c)
+
+	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+	require.Len(t, authorizer.checks, 1)
+	assert.Equal(t, checkedRelation{
+		User:     "user:777",
+		Relation: "can_admin_delete",
+		Object:   "review:" + reviewID,
+	}, authorizer.checks[0])
 }
 
 func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testing.T) {
@@ -252,7 +337,6 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
-	h := newReviewAdminHandlerWithAuthorizer(t, svc, NewFailClosedAuthorizationProvider())
 	ctx := context.Background()
 
 	_, err := fixture.Pool.Exec(context.Background(), `
@@ -291,6 +375,12 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 		Description:            "学校B举报",
 	})
 	require.NoError(t, err)
+	authorizer := &selectiveAuthorizationProvider{
+		allowed: map[checkedRelation]bool{
+			{User: "user:777", Relation: reportRelationCanProcess, Object: "report:" + reportA}: true,
+		},
+	}
+	h := newReviewAdminHandlerWithAuthorizer(t, svc, authorizer)
 
 	w, c := withAdminContext(http.MethodGet, "/admin/reports?status=pending", "")
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})

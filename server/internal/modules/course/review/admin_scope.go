@@ -1,13 +1,10 @@
 package review
 
 import (
-	"errors"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
@@ -30,7 +27,7 @@ type moderationScope struct {
 
 func requireModerationRole() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !resolveModerationScope(c).hasModerationAccess() {
+		if !hasAnyModerationRole(middleware.GetRoles(c)) {
 			response.Forbidden(c, "insufficient permissions", errs.ErrAccessDenied)
 			c.Abort()
 			return
@@ -41,13 +38,24 @@ func requireModerationRole() gin.HandlerFunc {
 
 func requireSchoolAdminRole() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !resolveModerationScope(c).hasContentEditAccess() {
+		if !hasAnyContentEditRole(middleware.GetRoles(c)) {
 			response.Forbidden(c, "insufficient permissions", errs.ErrAccessDenied)
 			c.Abort()
 			return
 		}
 		c.Next()
 	}
+}
+
+func hasAnyModerationRole(roles []string) bool {
+	return hasRole(roles, roleSuperAdmin) ||
+		hasRole(roles, roleSchoolAdmin) ||
+		hasRole(roles, roleSectionAdmin) ||
+		hasRole(roles, roleSectionModerator)
+}
+
+func hasAnyContentEditRole(roles []string) bool {
+	return hasRole(roles, roleSuperAdmin) || hasRole(roles, roleSchoolAdmin)
 }
 
 func resolveModerationScope(c *gin.Context) moderationScope {
@@ -132,31 +140,6 @@ func hasRole(roles []string, target string) bool {
 	return false
 }
 
-func (s moderationScope) hasModerationAccess() bool {
-	return s.superAdmin || len(s.schoolIDs()) > 0
-}
-
-func (s moderationScope) hasContentEditAccess() bool {
-	return s.superAdmin || len(s.schoolAdmins) > 0
-}
-
-func (s moderationScope) canModerateSchool(schoolID int64) bool {
-	if s.superAdmin {
-		return true
-	}
-	_, schoolAdmin := s.schoolAdmins[schoolID]
-	_, moderator := s.moderatorSections[reviewModerationSectionID(schoolID)]
-	return schoolAdmin || moderator
-}
-
-func (s moderationScope) canEditSchool(schoolID int64) bool {
-	if s.superAdmin {
-		return true
-	}
-	_, schoolAdmin := s.schoolAdmins[schoolID]
-	return schoolAdmin
-}
-
 func (s moderationScope) schoolIDs() []int64 {
 	if s.superAdmin {
 		return nil
@@ -187,13 +170,7 @@ func reviewModerationSectionID(schoolID int64) string {
 }
 
 func schoolIDFromReviewModerationSectionID(sectionID string) (int64, bool) {
-	const prefix = "school_"
-	const suffix = "_review_moderation"
-	raw, ok := strings.CutPrefix(sectionID, prefix)
-	if !ok {
-		return 0, false
-	}
-	raw, ok = strings.CutSuffix(raw, suffix)
+	raw, ok := fga.ParseReviewModerationSectionID(sectionID)
 	if !ok {
 		return 0, false
 	}
@@ -202,89 +179,4 @@ func schoolIDFromReviewModerationSectionID(sectionID string) (int64, bool) {
 		return 0, false
 	}
 	return schoolID, true
-}
-
-func (h *Handler) authorizeReviewModeration(c *gin.Context, reviewID string) bool {
-	if h.service == nil {
-		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
-		return false
-	}
-	scope := resolveModerationScope(c)
-	schoolID, err := h.service.GetReviewSchoolID(c.Request.Context(), reviewID)
-	if err != nil {
-		return respondModerationLookupError(c, err, "review not found", "failed to resolve review scope")
-	}
-	if !scope.canModerateSchool(schoolID) {
-		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
-		return false
-	}
-	return true
-}
-
-func (h *Handler) authorizeReviewContentEdit(c *gin.Context, reviewID string) bool {
-	if h.service == nil {
-		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
-		return false
-	}
-	scope := resolveModerationScope(c)
-	schoolID, err := h.service.GetReviewSchoolID(c.Request.Context(), reviewID)
-	if err != nil {
-		return respondModerationLookupError(c, err, "review not found", "failed to resolve review scope")
-	}
-	if !scope.canEditSchool(schoolID) {
-		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
-		return false
-	}
-	return true
-}
-
-func (h *Handler) authorizeBatchReviewModeration(c *gin.Context, reviewIDs []string) bool {
-	if h.service == nil {
-		response.Forbidden(c, "insufficient permission for one or more reviews", errs.ErrAccessDenied)
-		return false
-	}
-	scope := resolveModerationScope(c)
-	schoolIDs, err := h.service.ListReviewSchoolIDs(c.Request.Context(), reviewIDs)
-	if err != nil {
-		return respondModerationLookupError(c, err, "review not found", "failed to resolve review scope")
-	}
-	for _, reviewID := range reviewIDs {
-		schoolID, ok := schoolIDs[reviewID]
-		if !ok {
-			response.NotFound(c, "review not found")
-			return false
-		}
-		if !scope.canModerateSchool(schoolID) {
-			response.Forbidden(c, "insufficient permission for one or more reviews", errs.ErrAccessDenied)
-			return false
-		}
-	}
-	return true
-}
-
-func (h *Handler) authorizeReportModeration(c *gin.Context, reportID string) bool {
-	if h.service == nil {
-		response.Forbidden(c, "insufficient permission for this report", errs.ErrAccessDenied)
-		return false
-	}
-	scope := resolveModerationScope(c)
-	schoolID, err := h.service.GetReportSchoolID(c.Request.Context(), reportID)
-	if err != nil {
-		return respondModerationLookupError(c, err, "report not found", "failed to resolve report scope")
-	}
-	if !scope.canModerateSchool(schoolID) {
-		response.Forbidden(c, "insufficient permission for this report", errs.ErrAccessDenied)
-		return false
-	}
-	return true
-}
-
-func respondModerationLookupError(c *gin.Context, err error, notFoundMessage, internalMessage string) bool {
-	switch {
-	case errors.Is(err, ErrReviewNotFound), errors.Is(err, ErrReportNotFound), errors.Is(err, pgx.ErrNoRows):
-		response.NotFound(c, notFoundMessage)
-	default:
-		response.InternalError(c, internalMessage)
-	}
-	return false
 }

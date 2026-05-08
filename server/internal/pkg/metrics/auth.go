@@ -21,10 +21,22 @@ var AuthBlacklistFailuresTotal = promauto.NewCounterVec(
 	[]string{"reason"},
 )
 
+var AuthSessionValidationFailuresTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "auth_session_validation_failures_total",
+		Help: "Total number of tracked session validation failures",
+	},
+	[]string{"reason"},
+)
+
 func ObserveRefreshTokenReuse(tokenFamily string) {
 	AuthRefreshTokenReuseTotal.WithLabelValues(tokenFamily).Inc()
 }
 
 func ObserveAuthBlacklistFailure(reason string) {
 	AuthBlacklistFailuresTotal.WithLabelValues(reason).Inc()
+}
+
+func ObserveAuthSessionValidationFailure(reason string) {
+	AuthSessionValidationFailuresTotal.WithLabelValues(reason).Inc()
 }

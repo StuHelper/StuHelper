@@ -33,7 +33,7 @@ func (h *Handler) ClearContentFlag(c *gin.Context) {
 		response.BadRequest(c, "invalid review id")
 		return
 	}
-	if !h.authorizeReviewModeration(c, reviewID) {
+	if !h.authorizeReviewContentFlagClear(c, reviewID) {
 		return
 	}
 

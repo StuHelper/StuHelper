@@ -187,23 +187,13 @@ func (r *Repository) GetCourseSchoolIDTx(ctx context.Context, tx pgx.Tx, courseI
 // GetReviewSchoolIDTx 在事务内获取评论所属学校 ID。
 func (r *Repository) GetReviewSchoolIDTx(ctx context.Context, tx pgx.Tx, reviewID string) (int64, error) {
 	var schoolID int64
-	err := tx.QueryRow(ctx, `
-		SELECT c.school_id
-		FROM reviews r
-		JOIN courses c ON c.id = r.course_id
-		WHERE r.id = $1
-	`, reviewID).Scan(&schoolID)
+	err := tx.QueryRow(ctx, `SELECT school_id FROM reviews WHERE id = $1`, reviewID).Scan(&schoolID)
 	return schoolID, err
 }
 
 func (r *Repository) GetReviewSchoolID(ctx context.Context, reviewID string) (int64, error) {
 	var schoolID int64
-	err := r.db.QueryRow(ctx, `
-		SELECT c.school_id
-		FROM reviews r
-		JOIN courses c ON c.id = r.course_id
-		WHERE r.id = $1
-	`, reviewID).Scan(&schoolID)
+	err := r.db.QueryRow(ctx, `SELECT school_id FROM reviews WHERE id = $1`, reviewID).Scan(&schoolID)
 	return schoolID, err
 }
 
@@ -240,9 +230,8 @@ func (r *Repository) ListReviewSchoolIDs(ctx context.Context, reviewIDs []string
 	}
 
 	rows, err := r.db.Query(ctx, `
-		SELECT r.id, c.school_id
+		SELECT r.id, r.school_id
 		FROM reviews r
-		JOIN courses c ON c.id = r.course_id
 		WHERE r.id = ANY($1)
 	`, reviewIDs)
 	if err != nil {

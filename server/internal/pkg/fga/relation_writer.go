@@ -3,60 +3,32 @@ package fga
 import (
 	"context"
 	"fmt"
-	"strings"
-	"sync"
 )
 
-const reviewModerationSectionSuffix = "_review_moderation"
-
-var ensuredTupleCache sync.Map
-
-func ReviewModerationSectionID(schoolID string) string {
-	return "school_" + strings.TrimSpace(schoolID) + reviewModerationSectionSuffix
+func (c *Client) WriteReviewModerationSection(ctx context.Context, schoolID string) error {
+	return c.WriteMissingTuples(ctx, []Tuple{
+		{User: "school:" + schoolID, Relation: "school", Object: "section:" + ReviewModerationSectionID(schoolID)},
+	})
 }
 
-// WriteReviewRelations 评课发布时写入完整关系链，authorUserID 必须是内部 users.id。
-func (c *Client) WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error {
+// WriteReviewRelations 评课发布时写入 admin Check 会读取的动态关系。
+// authorUserID 必须是内部 users.id。
+func (c *Client) WriteReviewRelations(ctx context.Context, reviewID, authorUserID, schoolID string) error {
 	sectionID := ReviewModerationSectionID(schoolID)
-	if err := c.ensureTupleOnce(ctx, Tuple{
-		User: "school:" + schoolID, Relation: "school", Object: "section:" + sectionID,
-	}); err != nil {
-		return err
-	}
 	return c.WriteMissingTuples(ctx, []Tuple{
 		{User: "user:" + authorUserID, Relation: "author", Object: "review:" + reviewID},
-		{User: "course:" + courseID, Relation: "course", Object: "review:" + reviewID},
 		{User: "school:" + schoolID, Relation: "school", Object: "review:" + reviewID},
 		{User: "section:" + sectionID, Relation: "section", Object: "review:" + reviewID},
 	})
 }
 
-// WriteReportRelations 举报创建时写入完整关系链，reporterUserID 必须是内部 users.id。
-func (c *Client) WriteReportRelations(ctx context.Context, reportID, reporterUserID, reviewID, schoolID string) error {
+// WriteReportRelations 举报创建时写入 admin Check 会读取的动态关系。
+func (c *Client) WriteReportRelations(ctx context.Context, reportID, schoolID string) error {
 	sectionID := ReviewModerationSectionID(schoolID)
-	if err := c.ensureTupleOnce(ctx, Tuple{
-		User: "school:" + schoolID, Relation: "school", Object: "section:" + sectionID,
-	}); err != nil {
-		return err
-	}
 	return c.WriteMissingTuples(ctx, []Tuple{
-		{User: "user:" + reporterUserID, Relation: "reporter", Object: "report:" + reportID},
-		{User: "review:" + reviewID, Relation: "review", Object: "report:" + reportID},
 		{User: "school:" + schoolID, Relation: "school", Object: "report:" + reportID},
 		{User: "section:" + sectionID, Relation: "section", Object: "report:" + reportID},
 	})
-}
-
-func (c *Client) ensureTupleOnce(ctx context.Context, tuple Tuple) error {
-	cacheKey := c.storeID + "\x00" + c.modelID + "\x00" + tuple.Object + "\x00" + tuple.Relation + "\x00" + tuple.User
-	if _, ok := ensuredTupleCache.Load(cacheKey); ok {
-		return nil
-	}
-	if err := c.WriteMissingTuples(ctx, []Tuple{tuple}); err != nil {
-		return err
-	}
-	ensuredTupleCache.Store(cacheKey, struct{}{})
-	return nil
 }
 
 // WriteMissingTuples writes only tuples that are not already present in OpenFGA.

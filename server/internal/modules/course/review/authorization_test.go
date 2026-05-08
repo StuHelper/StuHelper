@@ -10,12 +10,15 @@ import (
 func TestFailClosedAuthorizationProvider_ReturnsConfigurationError(t *testing.T) {
 	provider := NewFailClosedAuthorizationProvider()
 
+	allowed, err := provider.Check(context.Background(), "user-1", "can_hide", "review-1")
+	assert.False(t, allowed)
+	assert.ErrorIs(t, err, errAuthorizationProviderNotConfigured)
 	assert.ErrorIs(t,
-		provider.WriteReviewRelations(context.Background(), "review-1", "user-1", "42", "10006"),
+		provider.WriteReviewRelations(context.Background(), "review-1", "user-1", "10006"),
 		errAuthorizationProviderNotConfigured,
 	)
 	assert.ErrorIs(t,
-		provider.WriteReportRelations(context.Background(), "report-1", "user-1", "review-1", "10006"),
+		provider.WriteReportRelations(context.Background(), "report-1", "10006"),
 		errAuthorizationProviderNotConfigured,
 	)
 }
@@ -27,9 +30,7 @@ func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testi
 		},
 	}
 
-	assert.False(t, scope.canModerateSchool(10006))
 	assert.Empty(t, scope.schoolIDs())
-	assert.False(t, scope.hasModerationAccess())
 
 	scope = moderationScope{
 		moderatorSections: map[string]struct{}{
@@ -37,9 +38,7 @@ func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testi
 		},
 	}
 
-	assert.True(t, scope.canModerateSchool(10006))
 	assert.Equal(t, []int64{10006}, scope.schoolIDs())
-	assert.True(t, scope.hasModerationAccess())
 }
 
 func TestAdminReportsCacheKeyIncludesModerationScope(t *testing.T) {

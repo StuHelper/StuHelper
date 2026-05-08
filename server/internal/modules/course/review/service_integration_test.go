@@ -14,10 +14,10 @@ import (
 
 type noopReviewFGAWriter struct{}
 
-func (noopReviewFGAWriter) WriteReviewRelations(context.Context, string, string, string, string) error {
+func (noopReviewFGAWriter) WriteReviewRelations(context.Context, string, string, string) error {
 	return nil
 }
-func (noopReviewFGAWriter) WriteReportRelations(context.Context, string, string, string, string) error {
+func (noopReviewFGAWriter) WriteReportRelations(context.Context, string, string) error {
 	return nil
 }
 
@@ -223,9 +223,9 @@ func seedReviewWithRatings(t *testing.T, fixture *postgresfixture.Fixture, revie
 	require.NoError(t, err)
 	_, err = fixture.Pool.Exec(context.Background(), `
 		INSERT INTO reviews (
-			id, course_id, teacher_id, term_id, user_hash, title, content, grade, ratings, avg_rating, status
+			id, course_id, school_id, teacher_id, term_id, user_hash, title, content, grade, ratings, avg_rating, status
 		) VALUES (
-			$1, $2, $3, '2025-2', $4, $5, $6, 'A', $7::jsonb, $8, $9
+			$1, $2, (SELECT school_id FROM courses WHERE id = $2), $3, '2025-2', $4, $5, $6, 'A', $7::jsonb, $8, $9
 		)
 	`, reviewID, courseID, teacherID, userHash, title, content, string(ratingsJSON), avgRating, status)
 	require.NoError(t, err)
@@ -416,6 +416,85 @@ func TestPostReviewRejectsTeacherFromDifferentSchool(t *testing.T) {
 		Ratings:              ReviewRatings{"teaching": 5},
 		UserHash:             "u-cross-school-teacher",
 		AuthorInternalUserID: crossSchoolAuthorID,
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTeacherNotFound)
+}
+
+func TestPostReviewAndReportMaterializeSchoolID(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	schoolID := int64(10006)
+	departmentID := seedDepartment(t, fixture, schoolID, "物化学院")
+	teacherID := seedTeacher(t, fixture, schoolID, "物化老师", departmentID)
+	courseID := seedCourse(t, fixture, schoolID, departmentID, "物化课程")
+	authorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-materialized-review", UserHash: "u-materialized-review"})
+
+	created, err := svc.PostReview(ctx, PostReviewParams{
+		CourseID:             courseID,
+		TeacherID:            &teacherID,
+		TermID:               "2025-2",
+		Title:                "学校物化",
+		Content:              "评课和举报都应该物化学校 ID",
+		Grade:                "A",
+		Ratings:              ReviewRatings{"teaching": 5},
+		UserHash:             "u-materialized-review",
+		AuthorInternalUserID: authorID,
+	})
+	require.NoError(t, err)
+
+	var reviewSchoolID int64
+	err = fixture.Pool.QueryRow(ctx, `SELECT school_id FROM reviews WHERE id = $1`, created.Review.ID).Scan(&reviewSchoolID)
+	require.NoError(t, err)
+	assert.Equal(t, schoolID, reviewSchoolID)
+	resolvedReviewSchoolID, err := svc.GetReviewSchoolID(ctx, created.Review.ID)
+	require.NoError(t, err)
+	assert.Equal(t, schoolID, resolvedReviewSchoolID)
+
+	reporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "ext-materialized-report", UserHash: "u-materialized-report"})
+	reportID, err := svc.ReportReview(ctx, ReportReviewParams{
+		ReviewID:               created.Review.ID,
+		UserHash:               "u-materialized-report",
+		ReporterInternalUserID: reporterID,
+		Reason:                 "spam",
+		Description:            "需要处理",
+	})
+	require.NoError(t, err)
+
+	var reportSchoolID int64
+	err = fixture.Pool.QueryRow(ctx, `SELECT school_id FROM review_reports WHERE id = $1`, reportID).Scan(&reportSchoolID)
+	require.NoError(t, err)
+	assert.Equal(t, schoolID, reportSchoolID)
+	resolvedReportSchoolID, err := svc.GetReportSchoolID(ctx, reportID)
+	require.NoError(t, err)
+	assert.Equal(t, schoolID, resolvedReportSchoolID)
+}
+
+func TestSaveDraftRejectsTeacherFromDifferentSchool(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	courseDepartmentID := seedDepartment(t, fixture, 10006, "草稿课程学院")
+	seedSchool(t, fixture, 20003, "dcr", "草稿跨校教师学校")
+	teacherDepartmentID := seedDepartment(t, fixture, 20003, "草稿跨校教师学院")
+	courseID := seedCourse(t, fixture, 10006, courseDepartmentID, "草稿跨校校验课程")
+	teacherID := seedTeacher(t, fixture, 20003, "草稿跨校教师", teacherDepartmentID)
+
+	_, err := svc.SaveDraft(ctx, SaveDraftParams{
+		UserHash:  "u-draft-cross-school-teacher",
+		CourseID:  courseID,
+		TeacherID: &teacherID,
+		TermID:    "2025-2",
+		Title:     "跨校教师草稿",
+		Content:   "草稿不能保存其它学校教师",
+		Grade:     "A",
+		Ratings:   ReviewRatings{"teaching": 5},
 	})
 
 	require.Error(t, err)

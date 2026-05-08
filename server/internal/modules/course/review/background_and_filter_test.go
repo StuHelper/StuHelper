@@ -29,11 +29,11 @@ func (r *recordingReviewFGAWriter) Check(context.Context, string, string, string
 	return true, nil
 }
 
-func (r *recordingReviewFGAWriter) WriteReviewRelations(_ context.Context, reviewID, _ string, _ string, _ string) error {
+func (r *recordingReviewFGAWriter) WriteReviewRelations(_ context.Context, reviewID, _ string, _ string) error {
 	r.reviewIDs = append(r.reviewIDs, reviewID)
 	return r.err
 }
-func (r *recordingReviewFGAWriter) WriteReportRelations(_ context.Context, reportID, _ string, _ string, _ string) error {
+func (r *recordingReviewFGAWriter) WriteReportRelations(_ context.Context, reportID, _ string) error {
 	r.reportIDs = append(r.reportIDs, reportID)
 	return r.err
 }
@@ -68,7 +68,14 @@ func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 	seedReviewWithRatings(t, fixture, "550e8400-e29b-41d4-a716-446655440881", courseID, teacherID, "u-bg-1", 4.0, StatusPublished, ReviewRatings{"teaching": 4}, "背景任务", "背景内容")
 
 	redisFixture := redisfixture.Start(t)
-	h := NewHandler(cache.NewHelper(redisFixture.Client), svc, redisFixture.Client, config.ReviewRateLimitConfig{}, writer)
+	h := NewHandler(HandlerConfig{
+		CacheHelper:            cache.NewHelper(redisFixture.Client),
+		Service:                svc,
+		Redis:                  redisFixture.Client,
+		RateLimit:              config.ReviewRateLimitConfig{},
+		Authorizer:             writer,
+		InternalUserIDResolver: staticInternalUserID(42),
+	})
 
 	assert.NoError(t, h.RefreshTeacherPublicStats(ctx))
 	_, err = h.CleanupOldLogs(ctx)
@@ -92,10 +99,10 @@ func TestReviewFGASyncProcessBatchAndHelpers(t *testing.T) {
 	ctx := context.Background()
 
 	err := fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if err := repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReviewRelations, reviewRelationsSyncKey("review-sync-1"), []byte(`{"reviewID":"review-sync-1","authorUserID":"user-1","courseID":1,"schoolID":10006}`)); err != nil {
+		if err := repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReviewRelations, reviewRelationsSyncKey("review-sync-1"), []byte(`{"reviewID":"review-sync-1","authorUserID":"user-1","schoolID":10006}`)); err != nil {
 			return err
 		}
-		return repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReportRelations, reportRelationsSyncKey("report-sync-1"), []byte(`{"reportID":"report-sync-1","reporterUserID":"user-2","reviewID":"review-sync-1","schoolID":10006}`))
+		return repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReportRelations, reportRelationsSyncKey("report-sync-1"), []byte(`{"reportID":"report-sync-1","schoolID":10006}`))
 	})
 	require.NoError(t, err)
 

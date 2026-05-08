@@ -48,6 +48,9 @@ type review
     define can_edit: author
     define can_delete: author or section_moderator_proxy or school_admin_proxy
     define can_hide: section_moderator_proxy or school_admin_proxy
+    define can_restore: section_moderator_proxy or school_admin_proxy
+    define can_admin_delete: section_moderator_proxy or school_admin_proxy
+    define can_admin_edit: school_admin_proxy
 
 type report
   relations

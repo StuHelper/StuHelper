@@ -50,7 +50,7 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 	var args []interface{}
 	hasWhere := false
 	if len(schoolIDs) > 0 {
-		qb.WriteString(` WHERE c.school_id = ANY($1)`)
+		qb.WriteString(` WHERE r.school_id = ANY($1)`)
 		args = append(args, schoolIDs)
 		hasWhere = true
 	}

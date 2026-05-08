@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/sync/errgroup"
-
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 )
 
@@ -21,13 +19,10 @@ const (
 	openFGASectionType         = "section"
 	openFGAUserType            = "user"
 	openFGASchoolAdminRelation = "effective_admin"
-	openFGASectionSchool       = "school"
-	sectionReadConcurrency     = 8
 )
 
 type ScopeReader interface {
 	ListObjects(ctx context.Context, user, relation, objectType string) ([]string, error)
-	ReadTuples(ctx context.Context, object, relation string) ([]fga.Tuple, error)
 }
 
 type InternalUserIDResolver func(ctx context.Context, casdoorSubject string) (int64, error)
@@ -117,7 +112,7 @@ func (r *RoleScopeResolver) resolveSectionRoleScopes(
 		return fmt.Errorf("list %s scopes: %w", role, err)
 	}
 	sectionIDs := objectIDs(sections, openFGASectionType)
-	if err := r.validateSectionSchools(ctx, sectionIDs); err != nil {
+	if err := validateReviewModerationSections(sectionIDs); err != nil {
 		return err
 	}
 	if len(sectionIDs) > 0 {
@@ -126,30 +121,13 @@ func (r *RoleScopeResolver) resolveSectionRoleScopes(
 	return nil
 }
 
-func (r *RoleScopeResolver) validateSectionSchools(ctx context.Context, sectionIDs []string) error {
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(sectionReadConcurrency)
+func validateReviewModerationSections(sectionIDs []string) error {
 	for _, sectionID := range sectionIDs {
-		sectionID := sectionID
-		g.Go(func() error {
-			_, err := r.resolveSectionSchool(ctx, sectionID)
-			return err
-		})
+		if _, ok := fga.ParseReviewModerationSectionID(sectionID); !ok {
+			return fmt.Errorf("unsupported review moderation section scope: %s", sectionID)
+		}
 	}
-	return g.Wait()
-}
-
-func (r *RoleScopeResolver) resolveSectionSchool(ctx context.Context, sectionID string) (string, error) {
-	object := openFGASectionType + ":" + sectionID
-	tuples, err := r.scopeReader.ReadTuples(ctx, object, openFGASectionSchool)
-	if err != nil {
-		return "", fmt.Errorf("read section school scope: %w", err)
-	}
-	schoolIDs := tupleUserIDs(tuples, openFGASchoolType)
-	if len(schoolIDs) != 1 {
-		return "", fmt.Errorf("section %s must have exactly one school relation, got %d", sectionID, len(schoolIDs))
-	}
-	return schoolIDs[0], nil
+	return nil
 }
 
 func fgaUser(userID int64) string {
@@ -182,12 +160,4 @@ func objectIDs(objects []string, objectType string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-func tupleUserIDs(tuples []fga.Tuple, objectType string) []string {
-	users := make([]string, 0, len(tuples))
-	for _, tuple := range tuples {
-		users = append(users, tuple.User)
-	}
-	return objectIDs(users, objectType)
 }

@@ -49,10 +49,9 @@ func (r *Repository) ListReviewRelationProjectionStates(
 		return nil, nil
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT r.id, u.id, r.course_id, c.school_id
+		SELECT r.id, u.id, r.school_id
 		FROM reviews r
 		JOIN users u ON u.user_hash = r.user_hash
-		JOIN courses c ON c.id = r.course_id
 		WHERE r.status <> 'deleted'
 		ORDER BY r.id ASC
 		LIMIT $1
@@ -72,11 +71,9 @@ func (r *Repository) ListReportRelationProjectionStates(
 		return nil, nil
 	}
 	rows, err := r.db.Query(ctx, `
-		SELECT rr.id, u.id, rr.review_id, c.school_id
+		SELECT rr.id, rr.school_id
 		FROM review_reports rr
-		JOIN users u ON u.user_hash = rr.reporter_hash
 		JOIN reviews r ON r.id = rr.review_id
-		JOIN courses c ON c.id = r.course_id
 		WHERE r.status <> 'deleted'
 		ORDER BY rr.id ASC
 		LIMIT $1
@@ -92,7 +89,7 @@ func scanReviewRelationProjectionStates(rows pgx.Rows, limit int) ([]ReviewRelat
 	states := make([]ReviewRelationProjectionState, 0, limit)
 	for rows.Next() {
 		var state ReviewRelationProjectionState
-		if err := rows.Scan(&state.ReviewID, &state.AuthorUserID, &state.CourseID, &state.SchoolID); err != nil {
+		if err := rows.Scan(&state.ReviewID, &state.AuthorUserID, &state.SchoolID); err != nil {
 			return nil, fmt.Errorf("ListReviewRelationProjectionStates scan: %w", err)
 		}
 		states = append(states, state)
@@ -107,7 +104,7 @@ func scanReportRelationProjectionStates(rows pgx.Rows, limit int) ([]ReportRelat
 	states := make([]ReportRelationProjectionState, 0, limit)
 	for rows.Next() {
 		var state ReportRelationProjectionState
-		if err := rows.Scan(&state.ReportID, &state.ReporterUserID, &state.ReviewID, &state.SchoolID); err != nil {
+		if err := rows.Scan(&state.ReportID, &state.SchoolID); err != nil {
 			return nil, fmt.Errorf("ListReportRelationProjectionStates scan: %w", err)
 		}
 		states = append(states, state)

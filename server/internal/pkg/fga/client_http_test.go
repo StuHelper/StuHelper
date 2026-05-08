@@ -69,30 +69,27 @@ func TestClient_HTTPWrappers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"school:1001", "school:1002"}, objects)
 
-	require.NoError(t, client.WriteReviewRelations(context.Background(), "r1", "u1", "c1", "s1"))
-	require.NoError(t, client.WriteReportRelations(context.Background(), "rep1", "u2", "r1", "s1"))
+	require.NoError(t, client.WriteReviewRelations(context.Background(), "r1", "u1", "s1"))
+	require.NoError(t, client.WriteReportRelations(context.Background(), "rep1", "s1"))
 	require.NoError(t, client.DeleteTuples(context.Background(), []Tuple{{User: "user:u1", Relation: "author", Object: "review:r1"}}))
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Len(t, writes, 4)
+	require.Len(t, writes, 3)
 	assert.Contains(t, writes[0], "writes")
 	assert.Contains(t, writes[1], "writes")
-	assert.Contains(t, writes[2], "writes")
-	assert.Contains(t, writes[3], "deletes")
+	assert.Contains(t, writes[2], "deletes")
 
 	firstJSON, err := json.Marshal(writes[0])
 	require.NoError(t, err)
-	assert.Contains(t, string(firstJSON), "school:s1")
-	assert.Contains(t, string(firstJSON), "school")
+	assert.Contains(t, string(firstJSON), "user:u1")
+	assert.Contains(t, string(firstJSON), "author")
+	assert.Contains(t, string(firstJSON), "review:r1")
 	assert.Contains(t, string(firstJSON), "section:school_s1_review_moderation")
 
-	secondJSON, err := json.Marshal(writes[1])
+	deleteJSON, err := json.Marshal(writes[2])
 	require.NoError(t, err)
-	assert.Contains(t, string(secondJSON), "user:u1")
-	assert.Contains(t, string(secondJSON), "author")
-	assert.Contains(t, string(secondJSON), "review:r1")
-	assert.Contains(t, string(secondJSON), "section:school_s1_review_moderation")
+	assert.Contains(t, string(deleteJSON), "deletes")
 }
 
 func TestRecordSpanError_NoPanicOnNil(t *testing.T) {

@@ -914,6 +914,7 @@ CREATE TABLE public.group_admission_sessions (
 CREATE TABLE public.reviews (
     id character varying(36) NOT NULL,
     course_id bigint NOT NULL,
+    school_id bigint NOT NULL,
     teacher_id bigint,
     term_id character varying(20) DEFAULT NULL::character varying,
     user_hash character varying(64) NOT NULL,
@@ -1171,6 +1172,7 @@ CREATE TABLE public.review_replies (
 CREATE TABLE public.review_reports (
     id character varying(36) NOT NULL,
     review_id character varying(36) NOT NULL,
+    school_id bigint NOT NULL,
     reporter_hash character varying(64) NOT NULL,
     reason character varying(50) NOT NULL,
     description text,
@@ -2695,6 +2697,13 @@ CREATE INDEX idx_review_drafts_user_hash ON public.review_drafts USING btree (us
 
 
 --
+-- Name: idx_review_drafts_teacher_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_review_drafts_teacher_id ON public.review_drafts USING btree (teacher_id) WHERE (teacher_id IS NOT NULL);
+
+
+--
 -- Name: idx_review_replies_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2734,6 +2743,13 @@ CREATE INDEX idx_review_replies_user_hash ON public.review_replies USING btree (
 --
 
 CREATE INDEX idx_review_reports_created_at ON public.review_reports USING btree (created_at DESC);
+
+
+--
+-- Name: idx_review_reports_school_status_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_review_reports_school_status_created ON public.review_reports USING btree (school_id, status, created_at DESC);
 
 
 --
@@ -2804,6 +2820,13 @@ CREATE INDEX idx_reviews_created_at ON public.reviews USING btree (created_at DE
 --
 
 CREATE INDEX idx_reviews_pending_review ON public.reviews USING btree (created_at DESC) WHERE ((status)::text = 'pending_review'::text);
+
+
+--
+-- Name: idx_reviews_school_status_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_reviews_school_status_created ON public.reviews USING btree (school_id, status, created_at DESC);
 
 
 --
@@ -3254,6 +3277,14 @@ ALTER TABLE ONLY public.review_drafts
 
 
 --
+-- Name: review_drafts fk_review_drafts_teacher; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.review_drafts
+    ADD CONSTRAINT fk_review_drafts_teacher FOREIGN KEY (teacher_id) REFERENCES public.teachers(id) ON DELETE SET NULL;
+
+
+--
 -- Name: review_drafts fk_review_drafts_term; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3286,6 +3317,14 @@ ALTER TABLE ONLY public.review_reports
 
 
 --
+-- Name: review_reports fk_review_reports_school; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.review_reports
+    ADD CONSTRAINT fk_review_reports_school FOREIGN KEY (school_id) REFERENCES public.schools(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: review_votes fk_review_votes_review; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3299,6 +3338,14 @@ ALTER TABLE ONLY public.review_votes
 
 ALTER TABLE ONLY public.reviews
     ADD CONSTRAINT fk_reviews_course FOREIGN KEY (course_id) REFERENCES public.courses(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: reviews fk_reviews_school; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reviews
+    ADD CONSTRAINT fk_reviews_school FOREIGN KEY (school_id) REFERENCES public.schools(id) ON DELETE RESTRICT;
 
 
 --

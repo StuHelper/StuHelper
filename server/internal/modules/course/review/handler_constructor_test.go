@@ -1,6 +1,7 @@
 package review
 
 import (
+	"context"
 	"testing"
 
 	"github.com/redis/go-redis/v9"
@@ -15,6 +16,13 @@ func TestNewHandler_PanicsOnMissingAuthorizationProvider(t *testing.T) {
 	t.Cleanup(func() { assert.NoError(t, rdb.Close()) })
 
 	assert.Panics(t, func() {
-		NewHandler(cache.NewHelper(rdb), &Service{}, rdb, config.ReviewRateLimitConfig{}, nil)
+		NewHandler(HandlerConfig{
+			CacheHelper:            cache.NewHelper(rdb),
+			Service:                &Service{},
+			Redis:                  rdb,
+			RateLimit:              config.ReviewRateLimitConfig{},
+			Authorizer:             nil,
+			InternalUserIDResolver: func(context.Context, string) (int64, error) { return 1, nil },
+		})
 	})
 }

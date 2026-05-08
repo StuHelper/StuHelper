@@ -25,15 +25,12 @@ var ErrFGAReconciliationThresholdExceeded = errors.New("fga relation reconciliat
 type ReviewRelationProjectionState struct {
 	ReviewID     string
 	AuthorUserID int64
-	CourseID     int64
 	SchoolID     int64
 }
 
 type ReportRelationProjectionState struct {
-	ReportID       string
-	ReporterUserID int64
-	ReviewID       string
-	SchoolID       int64
+	ReportID string
+	SchoolID int64
 }
 
 func (s *Service) runFGASyncReconciliationLoop(ctx context.Context) {
@@ -125,17 +122,13 @@ func (s *Service) requeueFGARelationProjectionStates(
 			if err != nil {
 				return err
 			}
-			if err := s.enqueueReviewFGASyncTx(ctx, tx, state.ReviewID, authorUserID, state.CourseID, state.SchoolID); err != nil {
+			if err := s.enqueueReviewFGASyncTx(ctx, tx, state.ReviewID, authorUserID, state.SchoolID); err != nil {
 				return err
 			}
 			requeued++
 		}
 		for _, state := range reports {
-			reporterUserID, err := formatFGAUserID(state.ReporterUserID)
-			if err != nil {
-				return err
-			}
-			if err := s.enqueueReportFGASyncTx(ctx, tx, state.ReportID, reporterUserID, state.ReviewID, state.SchoolID); err != nil {
+			if err := s.enqueueReportFGASyncTx(ctx, tx, state.ReportID, state.SchoolID); err != nil {
 				return err
 			}
 			requeued++

@@ -64,18 +64,18 @@ remediation-updated: 2026-05-08
 
 | ID | 状态 | 当前处理 |
 |----|------|----------|
-| C1 | 🟡 部分缓解 / 架构边界 | OIDC callback、native exchange、refresh 后 ID token 验证已按 application 绑定 audience；通用 cookie auth 仍接受任一已配置 first-party app audience，这是当前共享后端 cookie 边界，需要另立设计后再收紧。 |
+| C1 | ✅ 已修复 | Cookie OIDC auth 通过 `session_id` 读取 session，校验 access token hash 与 `ProviderAppKey`，并调用 `VerifyIDTokenForApplication` 绑定 audience；C11 的 first-party app boundary 一并收口。 |
 | C2 | ✅ 已修复 | `ExchangeCodeForApplication` 对空 PKCE verifier 返回 `ErrPKCEVerifierRequired`。 |
 | C3 | ✅ 已修复 | introspection endpoint 缺失不再从 token URL 推断 fallback，改为显式配置或 discovery 必须提供。 |
-| C4 | ⚠️ 架构决策 | Review/report FGA 写读不对称仍是产品/架构选边问题：走 request-time FGA Check，或明确保留 scope 物化读侧并缩减未使用 tuple。 |
+| C4 | ✅ 已修复 | Review/report admin mutation 读侧改为 OpenFGA `Check`；新增 `can_restore` / `can_admin_delete` / `can_admin_edit`，删除未读取的 course/reporter/report tuple 写入和 outbox payload 字段。 |
 | C5 | ✅ 已修复 | 删除 `handler_fga.go` 和仅测试引用的 `reviewPermissionRelationForAction`。 |
 | C6 | ✅ 已修复 | FGA tuple user/object/relation 增加严格格式正则校验；user/object ID 仅接受 `A-Za-z0-9_-`，覆盖 Check/Write/Delete/List/Read 输入。 |
-| C7 | 🟡 部分缓解 | 静态 school-section tuple 已从每次 review/report 批写中移出并加进程内 `ensureTupleOnce`；彻底移到 provisioning 仍属于后续授权投影整理。 |
-| C8 | 🟡 部分缓解 | `RoleScopeResolver` section-school 校验改为有上限并发，登录 RTT 从串行 N 次变为最多 8 并发；彻底批量读取仍待 OpenFGA read model 调整。 |
+| C7 | ✅ 已修复 | 静态 school-section tuple 从 review/report hot path 移到 `fga-setup` school bootstrap；`relation_writer.go` 不再懒写静态映射，也不再保留进程级 `sync.Map` 缓存。 |
+| C8 | ✅ 已修复 | `RoleScopeResolver` 不再逐 section `ReadTuples`；改用合成 section ID codec 本地校验，FGA 一致性检查降级到 setup/reconcile 侧。 |
 | C9 | ✅ 已修复 | 黑名单查询增加 50ms timeout 和 `auth_blacklist_failures_total{reason}` 指标，保留 fail-closed。 |
 | C10 | ✅ 已修复 | access/refresh cookie path 抽到 middleware 常量，写入与清理同源。 |
-| C11 | ⚠️ 架构决策 | 代码已支持 web/admin/uniapp 独立 scopes；默认 scope 是否去掉 `offline_access` 取决于各端 refresh/session 设计，暂不强行改默认。 |
-| C12 | 🟡 性能残留 | 批量 review schoolID 已批量化；单条 review/report moderation 仍有一次 schoolID 反查。要完全消除需在 review/report 行物化 schoolID 或重排授权/业务读取边界。 |
+| C11 | ✅ 已修复 / 并入 C1 | 复核后三类 first-party app 都需要 refresh/session 续期，`offline_access` 不是独立缺陷；真实边界是 per-app audience，已由 C1 修复。 |
+| C12 | ✅ 已修复 | `reviews.school_id` 与 `review_reports.school_id` 已物化并加索引/FK；创建、举报、列表、FGA reconciliation 和单条 admin 查 school 均改用物化列。 |
 
 ### 低风险 / 外部漂移项
 
@@ -89,16 +89,9 @@ remediation-updated: 2026-05-08
 | Stateful 容器挂 frontend 网络 | ➖ 不成立/无需修 | `postgres/redis/minio/casdoor/openfga` 均只挂 `backend`。 |
 | Koishi 当前启用插件 | ➖ 事实确认 | `stuhelper-core`、`stuhelper-binding`、`stuhelper-group-guard`、`stuhelper-admin` 均为活插件；本轮修复只关闭本文档已确认的 group-guard / platform 边界问题。 |
 
-### 待决策残留
+### 本轮新增闭环项
 
-当前没有未修复的直接 bug 类 finding；剩余项均为架构/性能边界：
-
-- `C1`：通用 cookie auth 是否必须按路由或 session app key 绑定 expected audience。
-- `C4`：review/report 授权读侧是否切到 request-time FGA Check。
-- `C7`：review moderation section 静态 tuple 是否迁到学校 provisioning。
-- `C8`：section-school 关系是否改成批量读取或 DB/cache 物化。
-- `C11`：三类 OIDC application 的默认 scopes 是否按端裁剪。
-- `C12`：review/report 是否物化 `school_id`，以去掉单条 moderation 的 schoolID 反查。
+当前没有未修复的直接 bug 类 finding。原先列为架构/性能边界的 C1/C4/C7/C8/C11/C12 已按长期方案落地；`review_drafts.teacher_id` teacher/course/school 一致性疑点也已补 repository/service 校验和回归测试。
 
 ### 本轮验证记录
 
@@ -117,6 +110,13 @@ remediation-updated: 2026-05-08
 | Koishi 类型 | `corepack yarn tsc --noEmit` | 通过 |
 | Infra contracts | `for test_script in infra/ops/tests/*.sh; do bash "$test_script"; done` | 通过 |
 | OpenAPI 生成一致性 | `make generate` 后对 `server/api/openapi.bundled.yaml`、`server/internal/api/gen/server.gen.go`、`clients/shared/src/types/api.gen.ts` 比较前后 diff | 无新增 diff |
+| 空白检查 | `git diff --check` | 通过 |
+
+### 追加验证记录（C1/C4/C7/C8/C12 收口）
+
+| 范围 | 命令 | 结果 |
+|------|------|------|
+| 后端收口验证 | `go test -count=1 -timeout=60s ./internal/pkg/middleware ./internal/modules/auth ./internal/pkg/metrics ./internal/pkg/fga ./internal/platform/authorization ./cmd/fga-setup ./internal/modules/course/review ./internal/modules/course ./internal/app` | 通过 |
 | 空白检查 | `git diff --check` | 通过 |
 
 ## 覆盖范围
@@ -149,15 +149,15 @@ remediation-updated: 2026-05-08
 
 修复方向：把容器扫描移到镜像构建之后的 stage，或调整 docker build stage 顺序，保留后续 package 对扫描结果的依赖。
 
-### H3 Traefik ACME/HTTPS 模式不闭环
+### H3 Traefik ACME/HTTPS 模式（已闭环）
 
 证据：`docker-compose.yml:38`、`infra/traefik/services.dynamic.yaml:43`、`infra/traefik/tls.dynamic.yaml:10`、`docs/guides/release-runbook.md:176`。
 
-发布手册声明设置 `TRAEFIK_ACME_EMAIL` 即启用 ACME；Compose 定义了 resolver，但应用 router 只列出 `websecure` entrypoint，没有 `tls` / `certResolver` 绑定，`tls.dynamic.yaml` 也只定义 TLS options。
+复核更新：`docker-compose.yml` 的 `websecure` entrypoint 已启用 TLS 并绑定 `letsencrypt` certResolver，仓库声明的 Traefik ACME 模式已闭环。
 
-影响：按当前“Traefik ACME”单机部署文档配置时，443 TLS 终止和证书申请链路不可靠。
+影响：如果生产最外层由外部 LB、宝塔或 Nginx 终止 TLS，Traefik ACME 会变成冗余路径，但不影响仓库内 Compose 模式正确性。
 
-修复方向：在 `websecure` entrypoint 配默认 TLS/certResolver，或在各 router 显式配置 `tls.certResolver: letsencrypt`，并补 infra contract 检查。
+修复状态：✅ 已修复，并由 Compose/Traefik contract 覆盖。
 
 ### H4 Admin Docker build context 不包含 `@stuhelper/shared`
 
@@ -271,25 +271,25 @@ Admin 路由挂 `RequirePrivilegedMFA()`，OpenAPI 已有 `/api/v1/auth/step-up`
 
 | ID | 级别 | 结论 | 证据 | 处理建议 |
 |----|------|------|------|----------|
-| C1 | HIGH | OIDC ID token audience 校验按“任一已配置 client”放行，未绑定当前 application | `server/internal/pkg/oidc/verifier.go:41`, `client.go:281`, `handler_login.go:140`, `handler_login.go:409` | 让 `VerifyIDToken` 接收 application/client 期望值；web/admin/uniapp/native callback 只接受对应 client ID |
+| C1 | HIGH | OIDC ID token audience 校验按“任一已配置 client”放行，未绑定当前 application | `server/internal/pkg/oidc/verifier.go:41`, `client.go:281`, `handler_login.go:140`, `handler_login.go:409` | ✅ 已修复：callback/native/refresh/cookie auth 均按 session/application 绑定 expected audience |
 | C2 | MEDIUM | `ExchangeCodeForApplication` 在 `codeVerifier == ""` 时无 PKCE 交换，生产调用方若传空串会绕过 PKCE | `server/internal/pkg/oidc/client.go:202`, `client.go:215` | 生产路径强制非空；测试兼容走专用 helper 或 test client |
 | C3 | MEDIUM | discovery 缺 `introspection_endpoint` 时会 fallback 到 token URL 同目录 `/introspect` | `server/internal/pkg/oidc/client.go:340`, `client.go:352`, `client.go:413` | 生产应显式配置或 discovery 必须提供 introspection endpoint，避免错误主机/路径 |
-| C4 | HIGH | Review/report FGA 关系存在写入、outbox 和 reconciliation，但业务决策读侧没有调用 FGA `Check` | `server/internal/modules/course/review/authorization.go:9`, `service_fga_sync.go:91`, `admin_scope.go:207`, `server/internal/pkg/fga/client.go:83` | 需要架构收口：要么请求时使用 FGA Check，要么明确保留“scope 物化读侧”并缩减未被使用的关系写入 |
-| C5 | HIGH | `reviewPermissionRelationForAction` 仅测试引用，是当前生产死代码 | `server/internal/modules/course/review/handler_fga.go:3`, `authorization_test.go:24` | 若不走 FGA Check，删除；若 C4 选择 FGA Check，则复用它 |
+| C4 | HIGH | Review/report FGA 关系存在写入、outbox 和 reconciliation，但业务决策读侧没有调用 FGA `Check` | `server/internal/modules/course/review/authorization.go:9`, `service_fga_sync.go:91`, `admin_scope.go:207`, `server/internal/pkg/fga/client.go:83` | ✅ 已修复：admin mutation 使用 FGA `Check`，列表仍用物化 scope；未读取 tuple 和 payload 字段已删除 |
+| C5 | HIGH | `reviewPermissionRelationForAction` 仅测试引用，是当前生产死代码 | `server/internal/modules/course/review/handler_fga.go:3`, `authorization_test.go:24` | ✅ 已修复：死代码文件已删除，C4 使用新的 action-relation 映射 |
 | C6 | MEDIUM | FGA tuple 字段校验只拦空值和控制字符，未强制 `type:id` / relation 格式 | `server/internal/pkg/fga/client.go:71` | 给 user/object 增加 `type:id` 格式校验，relation 增加 relation-name 校验 |
-| C7 | MEDIUM | `WriteMissingTuples` 每次写 review/report 关系都会 read-before-write，且包含静态 `school -> section` 映射 | `server/internal/pkg/fga/relation_writer.go:18`, `relation_writer.go:23`, `relation_writer.go:39` | 静态 school/section 关系移到 provisioning；动态 review/report 写入减少读放大 |
-| C8 | LOW | `RoleScopeResolver` 对每个 section 单独 `ReadTuples` 校验学校归属，section 多时登录 RTT 放大 | `server/internal/platform/authorization/role_scope_resolver.go:112`, `role_scope_resolver.go:126` | 批量读取或并发读取 section-school 关系 |
+| C7 | MEDIUM | `WriteMissingTuples` 每次写 review/report 关系都会 read-before-write，且包含静态 `school -> section` 映射 | `server/internal/pkg/fga/relation_writer.go:18`, `relation_writer.go:23`, `relation_writer.go:39` | ✅ 已修复：静态 school/section 关系由 `cmd/fga-setup` bootstrap，review/report hot path 只写动态关系 |
+| C8 | LOW | `RoleScopeResolver` 对每个 section 单独 `ReadTuples` 校验学校归属，section 多时登录 RTT 放大 | `server/internal/platform/authorization/role_scope_resolver.go:112`, `role_scope_resolver.go:126` | ✅ 已修复：合成 section ID 本地解析校验，不再登录热路径访问 FGA read |
 | C9 | MEDIUM | 黑名单 Redis 查询 fail-closed 是安全取舍，但缺少可见超时/告警约束时会把 Redis 慢调用放大成全站认证慢/503 | `server/internal/pkg/middleware/auth.go:48` | 给黑名单查询设置短超时并补告警；保留 fail-closed 语义 |
 | C10 | LOW | `clearAuthCookies` 与 auth handler 的 refresh cookie path 字面量重复，当前值一致且有测试，但后续可能漂移 | `server/internal/pkg/middleware/auth.go:249`, `server/internal/modules/auth/handler_cookies.go:15` | 抽共享常量或用测试继续锁定 |
-| C11 | LOW | OIDC scopes 三类 application 统一为 `openid/profile/email/offline_access`，没有按 web/admin/uniapp 分最小 scope | `server/internal/pkg/oidc/client.go:137`, `client.go:142` | 按 application 配置 scope；uniapp 是否需要 `offline_access` 需产品确认 |
-| C12 | MEDIUM | 单条 review/report moderation 仍按 ID 反查 schoolID；批量 review 已批量化但单条路径仍有 DB 往返 | `server/internal/modules/course/review/admin_scope.go:207`, `admin_scope.go:224`, `admin_scope.go:265` | 评估是否在 review/report 行物化 schoolID 或加缓存，避免高频管理操作反查 |
+| C11 | LOW | OIDC scopes 三类 application 统一为 `openid/profile/email/offline_access`，没有按 web/admin/uniapp 分最小 scope | `server/internal/pkg/oidc/client.go:137`, `client.go:142` | ✅ 已复核并并入 C1：三类 first-party app 均需要 refresh；最小权限边界改由 per-app audience 保证 |
+| C12 | MEDIUM | 单条 review/report moderation 仍按 ID 反查 schoolID；批量 review 已批量化但单条路径仍有 DB 往返 | `server/internal/modules/course/review/admin_scope.go:207`, `admin_scope.go:224`, `admin_scope.go:265` | ✅ 已修复：review/report 行物化 `school_id`，单条/批量/list/reconciliation 读取改用物化列 |
 
 ### Duplicate / 已由上文覆盖
 
 | 外部报告项 | 合并状态 |
 |------------|----------|
 | 多 OIDC application refresh/revoke/introspection 固定 web client | 已覆盖为 M1 |
-| FGA 双轨制 / review 操作未读 Check | 合并为 C4，注意当前代码注释明确“请求时鉴权走 capability / DB scope / Authorization Service”，所以这是架构决策项，不是单纯缺代码 |
+| FGA 双轨制 / review 操作未读 Check | 合并为 C4，已按“列表用物化 scope、mutation 用 request-time FGA Check”的分层方案修复 |
 | token blacklist Redis 失败导致认证 503 | 合并为 C9；fail-closed 本身不判错，缺少超时/告警约束才是问题 |
 | Admin workspace / shared 契约 | 已覆盖为 H4：真实缺陷是 Docker build context；`web-ele` 源码已直接引用 `@stuhelper/shared` |
 | Koishi 当前状态需 spot check | 已覆盖 H11、M6、M7；`stuhelper-admin` / `stuhelper-core` 深审仍在待确认 |
@@ -317,7 +317,7 @@ Admin 路由挂 `RequirePrivilegedMFA()`，OpenAPI 已有 `/api/v1/auth/step-up`
 | 漂移项 | 复核结论 |
 |--------|----------|
 | Casdoor / Zitadel | 运行主线是 Casdoor；Zitadel 只在历史文档、设计草案或边界脚本中出现，不能代表当前部署事实 |
-| OpenFGA | OpenFGA 仍是活依赖，但 review/report 关系写读不对称已并入 C4 |
+| OpenFGA | OpenFGA 仍是活依赖；review/report admin mutation 已切到 request-time `Check`，列表仍使用登录时物化 scope |
 | Vben Admin | `clients/admin/apps/` 当前主应用是 `web-ele`；历史 playground 已移入 `_archived` 并有 README 标记 |
 | RBAC | `server/internal/modules/rbac` 仍由 admin 守卫装配使用，不是可直接删除的死模块 |
 | Docker 网络 | Compose 当前定义 `frontend`、`backend`、`observability` 三个网络，不存在 Zitadel-only 内部网络 |
@@ -328,7 +328,6 @@ Admin 路由挂 `RequirePrivilegedMFA()`，OpenAPI 已有 `/api/v1/auth/step-up`
 
 - `server/internal/modules/user`、`ldap`、完整 `admission`、Koishi `stuhelper-admin` 命令、`stuhelper-core` Console API、`message-guard`、Koishi UI runtime 尚未完成逐文件深审。
 - Koishi pending action 的服务端接口 `/api/v1/bot/admission/sessions/pending` 已强制 `platform` 和 `botSelfID` 必填；更细的 credential-derived guild/policy 绑定属于后续服务账号模型设计，不再作为本轮 confirmed bug。
-- `review_drafts.teacher_id` 是否缺 teacher/course/school 一致性校验已有疑点，但本轮未查完 `repository_drafts.go`、OpenAPI 和测试，暂不列 confirmed。
 - `notification_preferences` 是否应被 `notification.Service.Send` 读取已有疑点，但是否属于已承诺能力需继续核对产品规格和调用链。
-- 如果生产最外层实际由外部 LB、宝塔或 Nginx 终止 TLS，H3 的直接生产影响会降级为“受支持部署模式不可用/文档漂移”；但仓库当前声明的 Traefik ACME 模式本身仍不闭环。
+- H3 已闭环；如果生产最外层由外部 LB、宝塔或 Nginx 终止 TLS，Traefik ACME 是冗余路径但不影响仓库 Compose 模式正确性。
 - 单独深审项：`pkg/outbox` idempotency / claim race / retry-dead-letter、`pkg/audit` retention 与 PII、`pkg/cache`/`redis`/`singleflightx` 抽象边界、`pkg/metrics` label cardinality、Web/Admin/UniAppX 全量源码、Docker 每服务 limits/healthcheck/read_only/user。

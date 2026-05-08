@@ -56,6 +56,19 @@ func (r *Repository) TeacherBelongsToCourseSchoolTx(ctx context.Context, tx pgx.
 	return exists, err
 }
 
+func (r *Repository) TeacherBelongsToCourseSchool(ctx context.Context, teacherID int64, courseID int64) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM teachers t
+			JOIN courses c ON c.school_id = t.school_id
+			WHERE t.id = $1 AND c.id = $2
+		)
+	`, teacherID, courseID).Scan(&exists)
+	return exists, err
+}
+
 // UserHasReviewedCourseTx 在事务内检查用户是否已对该课程发布评论
 func (r *Repository) UserHasReviewedCourseTx(ctx context.Context, tx pgx.Tx, userHash string, courseID int64) (bool, error) {
 	var exists bool
@@ -162,6 +175,7 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 type CreateParams struct {
 	ID          string
 	CourseID    int64
+	SchoolID    int64
 	TeacherID   *int64
 	TermID      string
 	Title       string
@@ -177,12 +191,12 @@ type CreateParams struct {
 func (r *Repository) Create(ctx context.Context, tx pgx.Tx, p CreateParams) error {
 	_, err := tx.Exec(ctx, `
 		INSERT INTO reviews (
-			id, course_id, teacher_id, term_id, title, content, grade,
+			id, course_id, school_id, teacher_id, term_id, title, content, grade,
 			ratings, avg_rating, user_hash, status, content_flag, created_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
-			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($8) WHERE value ~ '^\d+(\.\d+)?$'), 0),
-			$9,$10,$11,NOW())
-	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
+			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($9) WHERE value ~ '^\d+(\.\d+)?$'), 0),
+			$10,$11,$12,NOW())
+	`, p.ID, p.CourseID, p.SchoolID, p.TeacherID, p.TermID, p.Title,
 		p.Content, p.Grade, p.Ratings, p.UserHash, p.Status, p.ContentFlag)
 	return err
 }
@@ -192,14 +206,14 @@ func (r *Repository) CreateReturning(ctx context.Context, tx pgx.Tx, p CreatePar
 	var review Review
 	err := tx.QueryRow(ctx, `
 		INSERT INTO reviews (
-			id, course_id, teacher_id, term_id, title, content, grade,
+			id, course_id, school_id, teacher_id, term_id, title, content, grade,
 			ratings, avg_rating, user_hash, status, content_flag, created_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
-			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($8) WHERE value ~ '^\d+(\.\d+)?$'), 0),
-			$9,$10,$11,NOW())
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
+			COALESCE((SELECT AVG(value::numeric) FROM jsonb_each_text($9) WHERE value ~ '^\d+(\.\d+)?$'), 0),
+			$10,$11,$12,NOW())
 		RETURNING id, course_id, teacher_id, term_id, title, content, grade,
 			ratings, like_count, dislike_count, reply_count, status, content_flag, created_at, updated_at
-	`, p.ID, p.CourseID, p.TeacherID, p.TermID, p.Title,
+	`, p.ID, p.CourseID, p.SchoolID, p.TeacherID, p.TermID, p.Title,
 		p.Content, p.Grade, p.Ratings, p.UserHash, p.Status, p.ContentFlag,
 	).Scan(
 		&review.ID, &review.CourseID, &review.TeacherID, &review.TermID,

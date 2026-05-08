@@ -74,13 +74,10 @@ func TestRoleScopeResolverResolvesSchoolAdminScopes(t *testing.T) {
 func TestRoleScopeResolverResolvesSectionRoleScopesToSections(t *testing.T) {
 	reader := newFakeScopeReader()
 	reader.listResponses[listScopeKey("user:42", "section_moderator", "section")] = []string{
-		"section:reviews", "section:qa", "section:reviews", "school:bad",
-	}
-	reader.readResponses[readScopeKey("section:reviews", "school")] = []fga.Tuple{
-		{User: "school:1002", Relation: "school", Object: "section:reviews"},
-	}
-	reader.readResponses[readScopeKey("section:qa", "school")] = []fga.Tuple{
-		{User: "school:1001", Relation: "school", Object: "section:qa"},
+		"section:school_10002_review_moderation",
+		"section:school_10001_review_moderation",
+		"section:school_10002_review_moderation",
+		"school:bad",
 	}
 	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
 		return 42, nil
@@ -90,15 +87,12 @@ func TestRoleScopeResolverResolvesSectionRoleScopesToSections(t *testing.T) {
 	scopes, err := resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"section_moderator"})
 
 	require.NoError(t, err)
-	assert.Equal(t, map[string][]string{"section_moderator": {"qa", "reviews"}}, scopes)
+	assert.Equal(t, map[string][]string{"section_moderator": {"school_10001_review_moderation", "school_10002_review_moderation"}}, scopes)
 	assert.Equal(t, []scopeListCall{{user: "user:42", relation: "section_moderator", objectType: "section"}}, reader.listCalls)
-	assert.ElementsMatch(t, []scopeReadCall{
-		{object: "section:reviews", relation: "school"},
-		{object: "section:qa", relation: "school"},
-	}, reader.readCalls)
+	assert.Empty(t, reader.readCalls)
 }
 
-func TestRoleScopeResolverFailsClosedOnSectionWithoutSchool(t *testing.T) {
+func TestRoleScopeResolverFailsClosedOnUnsupportedSectionScope(t *testing.T) {
 	reader := newFakeScopeReader()
 	reader.listResponses[listScopeKey("user:42", "section_admin", "section")] = []string{"section:orphan"}
 	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
@@ -109,7 +103,7 @@ func TestRoleScopeResolverFailsClosedOnSectionWithoutSchool(t *testing.T) {
 	_, err = resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"section_admin"})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must have exactly one school relation")
+	assert.Contains(t, err.Error(), "unsupported review moderation section scope")
 }
 
 func TestRoleScopeResolverSkipsRolesWithoutSchoolScope(t *testing.T) {

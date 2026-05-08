@@ -6,6 +6,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
@@ -21,12 +22,19 @@ func (rt *Runtime) registerMetricsRoutes(api *gin.RouterGroup) {
 func (rt *Runtime) initCourseModule(
 	authorizer review.AuthorizationProvider,
 	notifSender notification.Sender,
-	accessReader review.ReviewAccessReader,
+	userRepo *user.Repository,
 ) *course.Handler {
 	courseCache := cache.NewHelper(rt.redisClient.GetClient())
 	reviewRepo := review.NewRepository(rt.database)
-	reviewService := review.NewService(rt.database, reviewRepo, notifSender, authorizer, accessReader)
-	reviewHandler := review.NewHandler(courseCache, reviewService, rt.redisClient.GetClient(), rt.cfg.RateLimit, authorizer)
+	reviewService := review.NewService(rt.database, reviewRepo, notifSender, authorizer, userRepo)
+	reviewHandler := review.NewHandler(review.HandlerConfig{
+		CacheHelper:            courseCache,
+		Service:                reviewService,
+		Redis:                  rt.redisClient.GetClient(),
+		RateLimit:              rt.cfg.RateLimit,
+		Authorizer:             authorizer,
+		InternalUserIDResolver: userRepo.GetInternalUserID,
+	})
 
 	courseRepo := course.NewRepository(rt.database)
 	courseService := course.NewService(courseRepo, logger.L().Named("course_service"))

@@ -143,7 +143,7 @@ func (h *Handler) AdminUpdateReview(c *gin.Context) {
 		response.BadRequest(c, "invalid request parameters")
 		return
 	}
-	if !h.authorizeReviewModeration(c, reviewID) {
+	if !h.authorizeReviewModeration(c, reviewID, req.Action) {
 		return
 	}
 
@@ -228,7 +228,7 @@ func (h *Handler) BatchUpdateReviews(c *gin.Context) {
 	if batchReviewStepUpRequired(req) && !rbac.EnsureStepUpMFA(c) {
 		return
 	}
-	if !h.authorizeBatchReviewModeration(c, req.IDs) {
+	if !h.authorizeBatchReviewModeration(c, req.IDs, req.Action) {
 		return
 	}
 

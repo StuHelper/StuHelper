@@ -27,10 +27,10 @@ type noopCourseReviewFGA struct{}
 func (noopCourseReviewFGA) Check(context.Context, string, string, string) (bool, error) {
 	return true, nil
 }
-func (noopCourseReviewFGA) WriteReviewRelations(context.Context, string, string, string, string) error {
+func (noopCourseReviewFGA) WriteReviewRelations(context.Context, string, string, string) error {
 	return nil
 }
-func (noopCourseReviewFGA) WriteReportRelations(context.Context, string, string, string, string) error {
+func (noopCourseReviewFGA) WriteReportRelations(context.Context, string, string) error {
 	return nil
 }
 
@@ -56,7 +56,16 @@ func newCourseModuleHandler(t *testing.T) *Handler {
 
 	redisFixture := redisfixture.Start(t)
 
-	reviewHandler := review.NewHandler(cache.NewHelper(redisFixture.Client), reviewSvc, redisFixture.Client, config.ReviewRateLimitConfig{}, noopCourseReviewFGA{})
+	reviewHandler := review.NewHandler(review.HandlerConfig{
+		CacheHelper: cache.NewHelper(redisFixture.Client),
+		Service:     reviewSvc,
+		Redis:       redisFixture.Client,
+		RateLimit:   config.ReviewRateLimitConfig{},
+		Authorizer:  noopCourseReviewFGA{},
+		InternalUserIDResolver: func(context.Context, string) (int64, error) {
+			return 42, nil
+		},
+	})
 	return NewHandler(cache.NewHelper(redisFixture.Client), courseSvc, reviewHandler)
 }
 

@@ -3,17 +3,14 @@ package review
 import (
 	"context"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/rbac"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/audit"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/cache"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/capability"
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
@@ -21,48 +18,19 @@ import (
 
 // Handler 评课社区处理器
 type Handler struct {
-	cache             *cache.Helper
-	service           *Service
-	fga               AuthorizationProvider
-	postLimiter       *middleware.RedisRateLimiter
-	voteLimiter       *middleware.RedisRateLimiter
-	reportLimiter     *middleware.RedisRateLimiter
-	replyLimiter      *middleware.RedisRateLimiter
-	writeLimiter      *middleware.RedisRateLimiter
-	searchAnonLimiter *middleware.RedisRateLimiter
-	searchUserLimiter *middleware.RedisRateLimiter
-	batchAnonLimiter  *middleware.RedisRateLimiter
-	batchUserLimiter  *middleware.RedisRateLimiter
-}
-
-// NewHandler 创建处理器
-func NewHandler(cacheHelper *cache.Helper, service *Service, rdb *redis.Client, rlCfg config.ReviewRateLimitConfig, authorizer AuthorizationProvider) *Handler {
-	if cacheHelper == nil {
-		panic("review.NewHandler: cacheHelper must not be nil")
-	}
-	if service == nil {
-		panic("review.NewHandler: service must not be nil")
-	}
-	if rdb == nil {
-		panic("review.NewHandler: redis client must not be nil")
-	}
-	if authorizer == nil {
-		panic("review.NewHandler: authorizer must not be nil")
-	}
-	return &Handler{
-		cache:             cacheHelper,
-		service:           service,
-		fga:               authorizer,
-		postLimiter:       middleware.NewRedisRateLimiter(rdb, rlCfg.PostLimit, time.Minute),
-		voteLimiter:       middleware.NewRedisRateLimiter(rdb, rlCfg.VoteLimit, time.Minute),
-		reportLimiter:     middleware.NewRedisRateLimiter(rdb, rlCfg.ReportLimit, time.Minute),
-		replyLimiter:      middleware.NewRedisRateLimiter(rdb, rlCfg.ReplyLimit, time.Minute),
-		writeLimiter:      middleware.NewRedisRateLimiter(rdb, rlCfg.WriteLimit, time.Minute),
-		searchAnonLimiter: middleware.NewRedisRateLimiter(rdb, rlCfg.SearchAnonLimit, time.Minute),
-		searchUserLimiter: middleware.NewRedisRateLimiter(rdb, rlCfg.SearchUserLimit, time.Minute),
-		batchAnonLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.BatchAnonLimit, time.Minute),
-		batchUserLimiter:  middleware.NewRedisRateLimiter(rdb, rlCfg.BatchUserLimit, time.Minute),
-	}
+	cache                  *cache.Helper
+	service                *Service
+	fga                    AuthorizationProvider
+	internalUserIDResolver middleware.InternalUserIDResolver
+	postLimiter            *middleware.RedisRateLimiter
+	voteLimiter            *middleware.RedisRateLimiter
+	reportLimiter          *middleware.RedisRateLimiter
+	replyLimiter           *middleware.RedisRateLimiter
+	writeLimiter           *middleware.RedisRateLimiter
+	searchAnonLimiter      *middleware.RedisRateLimiter
+	searchUserLimiter      *middleware.RedisRateLimiter
+	batchAnonLimiter       *middleware.RedisRateLimiter
+	batchUserLimiter       *middleware.RedisRateLimiter
 }
 
 // StartBackgroundJobs 启动评课后台任务（如 FGA 同步队列）。

@@ -15,6 +15,7 @@ import (
 // CreateReportParams 创建举报参数
 type CreateReportParams struct {
 	ReviewID     string
+	SchoolID     int64
 	ReporterHash string
 	Reason       string
 	Description  string
@@ -27,9 +28,9 @@ func (r *Repository) CreateReport(ctx context.Context, p CreateReportParams) err
 		return fmt.Errorf("CreateReport generate id: %w", err)
 	}
 	_, err = r.db.Exec(ctx, `
-		INSERT INTO review_reports (id, review_id, reporter_hash, reason, description, status, created_at)
-		VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
-	`, newID, p.ReviewID, p.ReporterHash, p.Reason, p.Description)
+		INSERT INTO review_reports (id, review_id, school_id, reporter_hash, reason, description, status, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
+	`, newID, p.ReviewID, p.SchoolID, p.ReporterHash, p.Reason, p.Description)
 	if err != nil {
 		return fmt.Errorf("CreateReport: %w", err)
 	}
@@ -43,9 +44,9 @@ func (r *Repository) CreateReportTx(ctx context.Context, tx pgx.Tx, p CreateRepo
 		return "", fmt.Errorf("CreateReportTx generate id: %w", err)
 	}
 	_, err = tx.Exec(ctx, `
-		INSERT INTO review_reports (id, review_id, reporter_hash, reason, description, status, created_at)
-		VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
-	`, newID, p.ReviewID, p.ReporterHash, p.Reason, p.Description)
+		INSERT INTO review_reports (id, review_id, school_id, reporter_hash, reason, description, status, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
+	`, newID, p.ReviewID, p.SchoolID, p.ReporterHash, p.Reason, p.Description)
 	if err != nil {
 		return "", fmt.Errorf("CreateReportTx: %w", err)
 	}
@@ -98,7 +99,7 @@ func (r *Repository) ListReports(ctx context.Context, status string, limit, offs
 
 	hasWhere := false
 	if len(schoolIDs) > 0 {
-		qb.WriteString(` WHERE c.school_id = ANY($1)`)
+		qb.WriteString(` WHERE rr.school_id = ANY($1)`)
 		args = append(args, schoolIDs)
 		hasWhere = true
 	}
@@ -183,11 +184,9 @@ func (r *Repository) GetReportByIDForUpdate(ctx context.Context, tx pgx.Tx, repo
 func (r *Repository) GetReportSchoolID(ctx context.Context, reportID string) (int64, error) {
 	var schoolID int64
 	err := r.db.QueryRow(ctx, `
-		SELECT c.school_id
-		FROM review_reports rr
-		JOIN reviews r ON r.id = rr.review_id
-		JOIN courses c ON c.id = r.course_id
-		WHERE rr.id = $1
+		SELECT school_id
+		FROM review_reports
+		WHERE id = $1
 	`, reportID).Scan(&schoolID)
 	return schoolID, err
 }

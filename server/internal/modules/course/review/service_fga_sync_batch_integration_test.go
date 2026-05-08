@@ -24,7 +24,7 @@ type flakyReviewFGAWriter struct {
 	calls    int
 }
 
-func (f *flakyReviewFGAWriter) WriteReviewRelations(_ context.Context, _, _, _, _ string) error {
+func (f *flakyReviewFGAWriter) WriteReviewRelations(_ context.Context, _, _, _ string) error {
 	f.calls++
 	if f.calls <= f.failures {
 		return errors.New("transient review fga failure")
@@ -32,7 +32,7 @@ func (f *flakyReviewFGAWriter) WriteReviewRelations(_ context.Context, _, _, _, 
 	return nil
 }
 
-func (f *flakyReviewFGAWriter) WriteReportRelations(_ context.Context, _, _, _, _ string) error {
+func (f *flakyReviewFGAWriter) WriteReportRelations(_ context.Context, _, _ string) error {
 	f.calls++
 	if f.calls <= f.failures {
 		return errors.New("transient report fga failure")
@@ -51,7 +51,6 @@ func TestReviewService_ProcessFGASyncBatchLifecycle(t *testing.T) {
 		payload, err := json.Marshal(reviewRelationsSyncPayload{
 			ReviewID:     "review-sync-1",
 			AuthorUserID: "user-sync-1",
-			CourseID:     42,
 			SchoolID:     10006,
 		})
 		if err != nil {
@@ -92,14 +91,13 @@ func TestReviewService_ReconcileFGARelationProjectionsRequeuesOutbox(t *testing.
 	teacherID := seedTeacher(t, fixture, schoolID, "FGA 对账老师", departmentID)
 	courseID := seedCourse(t, fixture, schoolID, departmentID, "FGA 对账课程")
 	authorID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "fga-author", UserHash: "hash-fga-author"})
-	reporterID := seedUser(t, fixture, seedUserParams{CasdoorSubject: "fga-reporter", UserHash: "hash-fga-reporter"})
 	reviewID := "review-fga-reconcile-1"
 	reportID := "report-fga-reconcile-1"
 	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "hash-fga-author", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "FGA 标题", "FGA 内容")
 	_, err := fixture.Pool.Exec(ctx, `
-		INSERT INTO review_reports (id, review_id, reporter_hash, reason, description, status, created_at)
-		VALUES ($1, $2, $3, 'spam', '需要处理', 'pending', NOW())
-	`, reportID, reviewID, "hash-fga-reporter")
+		INSERT INTO review_reports (id, review_id, school_id, reporter_hash, reason, description, status, created_at)
+		VALUES ($1, $2, $3, $4, 'spam', '需要处理', 'pending', NOW())
+	`, reportID, reviewID, schoolID, "hash-fga-reporter")
 	require.NoError(t, err)
 
 	requeued, err := svc.ReconcileFGARelationProjections(ctx, 10)
@@ -108,14 +106,11 @@ func TestReviewService_ReconcileFGARelationProjectionsRequeuesOutbox(t *testing.
 	assertFGASyncPayload(t, fixture, reviewRelationsSyncKey(reviewID), fgaSyncJobTypeReviewRelations, map[string]any{
 		"reviewID":     reviewID,
 		"authorUserID": fmt.Sprint(authorID),
-		"courseID":     json.Number(fmt.Sprint(courseID)),
 		"schoolID":     json.Number(fmt.Sprint(schoolID)),
 	})
 	assertFGASyncPayload(t, fixture, reportRelationsSyncKey(reportID), fgaSyncJobTypeReportRelations, map[string]any{
-		"reportID":       reportID,
-		"reporterUserID": fmt.Sprint(reporterID),
-		"reviewID":       reviewID,
-		"schoolID":       json.Number(fmt.Sprint(schoolID)),
+		"reportID": reportID,
+		"schoolID": json.Number(fmt.Sprint(schoolID)),
 	})
 }
 

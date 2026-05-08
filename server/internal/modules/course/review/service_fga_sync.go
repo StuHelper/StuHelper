@@ -18,8 +18,8 @@ const (
 )
 
 type reviewFGAWriter interface {
-	WriteReviewRelations(ctx context.Context, reviewID, authorUserID, courseID, schoolID string) error
-	WriteReportRelations(ctx context.Context, reportID, reporterUserID, reviewID, schoolID string) error
+	WriteReviewRelations(ctx context.Context, reviewID, authorUserID, schoolID string) error
+	WriteReportRelations(ctx context.Context, reportID, schoolID string) error
 }
 
 type FGASyncJob struct {
@@ -32,15 +32,12 @@ type FGASyncJob struct {
 type reviewRelationsSyncPayload struct {
 	ReviewID     string `json:"reviewID"`
 	AuthorUserID string `json:"authorUserID"`
-	CourseID     int64  `json:"courseID"`
 	SchoolID     int64  `json:"schoolID"`
 }
 
 type reportRelationsSyncPayload struct {
-	ReportID       string `json:"reportID"`
-	ReporterUserID string `json:"reporterUserID"`
-	ReviewID       string `json:"reviewID"`
-	SchoolID       int64  `json:"schoolID"`
+	ReportID string `json:"reportID"`
+	SchoolID int64  `json:"schoolID"`
 }
 
 func reviewRelationsSyncKey(reviewID string) string {
@@ -58,11 +55,10 @@ func formatFGAUserID(userID int64) (string, error) {
 	return strconv.FormatInt(userID, 10), nil
 }
 
-func (s *Service) enqueueReviewFGASyncTx(ctx context.Context, tx pgx.Tx, reviewID, authorUserID string, courseID, schoolID int64) error {
+func (s *Service) enqueueReviewFGASyncTx(ctx context.Context, tx pgx.Tx, reviewID, authorUserID string, schoolID int64) error {
 	payload, err := json.Marshal(reviewRelationsSyncPayload{
 		ReviewID:     reviewID,
 		AuthorUserID: authorUserID,
-		CourseID:     courseID,
 		SchoolID:     schoolID,
 	})
 	if err != nil {
@@ -71,12 +67,10 @@ func (s *Service) enqueueReviewFGASyncTx(ctx context.Context, tx pgx.Tx, reviewI
 	return s.repo.UpsertFGASyncJobTx(ctx, tx, fgaSyncJobTypeReviewRelations, reviewRelationsSyncKey(reviewID), payload)
 }
 
-func (s *Service) enqueueReportFGASyncTx(ctx context.Context, tx pgx.Tx, reportID, reporterUserID, reviewID string, schoolID int64) error {
+func (s *Service) enqueueReportFGASyncTx(ctx context.Context, tx pgx.Tx, reportID string, schoolID int64) error {
 	payload, err := json.Marshal(reportRelationsSyncPayload{
-		ReportID:       reportID,
-		ReporterUserID: reporterUserID,
-		ReviewID:       reviewID,
-		SchoolID:       schoolID,
+		ReportID: reportID,
+		SchoolID: schoolID,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal report FGA sync payload: %w", err)
@@ -139,7 +133,6 @@ func (s *Service) processFGASyncJob(ctx context.Context, job FGASyncJob) error {
 			writeCtx,
 			payload.ReviewID,
 			payload.AuthorUserID,
-			strconv.FormatInt(payload.CourseID, 10),
 			strconv.FormatInt(payload.SchoolID, 10),
 		)
 	case fgaSyncJobTypeReportRelations:
@@ -152,8 +145,6 @@ func (s *Service) processFGASyncJob(ctx context.Context, job FGASyncJob) error {
 		return s.fgaWriter.WriteReportRelations(
 			writeCtx,
 			payload.ReportID,
-			payload.ReporterUserID,
-			payload.ReviewID,
 			strconv.FormatInt(payload.SchoolID, 10),
 		)
 	default:

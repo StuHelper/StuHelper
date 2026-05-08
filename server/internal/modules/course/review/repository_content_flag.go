@@ -57,13 +57,12 @@ func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int, 
 		SELECT r.id, r.course_id, r.title, r.content, r.status, r.content_flag,
 		       r.user_hash, r.created_at, r.updated_at,
 		       COUNT(*) OVER() AS total
-		FROM reviews r
-		JOIN courses c ON c.id = r.course_id
-		WHERE r.content_flag IN ('warn', 'review')
+	FROM reviews r
+	WHERE r.content_flag IN ('warn', 'review')
 	`)
 	args := make([]interface{}, 0, 3)
 	if len(schoolIDs) > 0 {
-		qb.WriteString(` AND c.school_id = ANY($1)`)
+		qb.WriteString(` AND r.school_id = ANY($1)`)
 		args = append(args, schoolIDs)
 	}
 	qb.WriteString(` ORDER BY CASE WHEN r.content_flag = 'review' THEN 0 ELSE 1 END, r.created_at DESC`)

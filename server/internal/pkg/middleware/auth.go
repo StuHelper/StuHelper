@@ -10,7 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
@@ -20,6 +19,7 @@ import (
 )
 
 const authBlacklistLookupTimeout = 50 * time.Millisecond
+const authSessionLookupTimeout = 50 * time.Millisecond
 
 // OptionalAuthConfig 可选认证中间件的配置。
 // Cookie 无效时中间件需要清理浏览器端 cookie，为此需要 cookie 的 domain/secure 属性。
@@ -37,6 +37,8 @@ var (
 	errNoToken              = errors.New("missing token")
 	errTokenRevoked         = errors.New("token revoked")
 	errBlacklistFail        = errors.New("blacklist unavailable")
+	errSessionInvalid       = errors.New("session invalid")
+	errSessionUnavailable   = errors.New("session unavailable")
 	errRoleScopeUnavailable = errors.New("role scope unavailable")
 )
 
@@ -67,49 +69,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 
 	switch source {
 	case tokenSourceCookie:
-		// 自签名 JWT（HS256，手机验证码登录签发）优先检查：
-		// HMAC 验证是纯内存操作，比远程 JWKS/introspection 快几个数量级
-		if token.IsSelfSignedToken(tokenString) {
-			hmacKey := crypto.GetHMACKey()
-			if len(hmacKey) == 0 {
-				return nil, fmt.Errorf("self-signed token present but HMAC key not initialized")
-			}
-			claims, verifyErr := token.VerifyJWTWithType(hmacKey, tokenString, token.JWTTokenTypeAccess)
-			if verifyErr != nil {
-				logger.L().Debug("self-signed JWT verification failed", zap.Error(verifyErr))
-				return nil, fmt.Errorf("invalid token: %w", verifyErr)
-			}
-			var avatarPtr *string
-			if claims.Avatar != "" {
-				avatarPtr = &claims.Avatar
-			}
-			return &authResult{
-				userID:      claims.Sub,
-				username:    claims.Name,
-				email:       claims.Email,
-				displayName: claims.DisplayName,
-				avatar:      avatarPtr,
-				roles:       claims.Roles,
-			}, nil
-		}
-
-		// OIDC ID Token（RS256/ES256 由 provider 配置决定）— 通过 JWKS 本地验证
-		claims, verifyErr := oidcClient.VerifyIDToken(c.Request.Context(), tokenString)
-		if verifyErr != nil {
-			logger.L().Debug("OIDC token verification failed", zap.Error(verifyErr))
-			return nil, fmt.Errorf("invalid token: %w", verifyErr)
-		}
-		return &authResult{
-			userID:         claims.GetUserID(),
-			appID:          claims.GetAppID(),
-			username:       claims.GetUsername(),
-			email:          claims.GetEmail(),
-			displayName:    claims.GetDisplayName(),
-			avatar:         claims.GetAvatar(),
-			roles:          claims.Roles,
-			orgScopedRoles: claims.OrgScopedRoles,
-			mfaProofAt:     claims.MFAProofVerifiedAt(),
-		}, nil
+		return resolveCookieToken(c, oidcClient, tokenService, tokenString)
 
 	case tokenSourceBearer:
 		result, introErr := oidcClient.IntrospectToken(c.Request.Context(), tokenString)
@@ -139,18 +99,35 @@ func AuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.Ha
 	return AuthMiddlewareWithRoleScopeResolver(oidcClient, tokenService, nil)
 }
 
+func AuthMiddlewareWithConfig(oidcClient *oidc.Client, tokenService *token.Service, cfg OptionalAuthConfig) gin.HandlerFunc {
+	return AuthMiddlewareWithConfigAndRoleScopeResolver(oidcClient, tokenService, cfg, nil)
+}
+
 // AuthMiddlewareWithRoleScopeResolver 强制认证并补全 DB/OpenFGA role scope。
 func AuthMiddlewareWithRoleScopeResolver(
 	oidcClient *oidc.Client,
 	tokenService *token.Service,
 	scopeResolver RoleScopeResolver,
 ) gin.HandlerFunc {
+	return AuthMiddlewareWithConfigAndRoleScopeResolver(oidcClient, tokenService, OptionalAuthConfig{}, scopeResolver)
+}
+
+func AuthMiddlewareWithConfigAndRoleScopeResolver(
+	oidcClient *oidc.Client,
+	tokenService *token.Service,
+	cfg OptionalAuthConfig,
+	scopeResolver RoleScopeResolver,
+) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		_, source := getTokenWithSource(c)
 		result, err := resolveToken(c, oidcClient, tokenService)
 		if err == nil {
 			result, err = withResolvedRoleScopes(c.Request.Context(), result, scopeResolver)
 		}
 		if err != nil {
+			if source == tokenSourceCookie && !authBackendUnavailable(err) {
+				clearAuthCookies(c, cfg)
+			}
 			switch {
 			case errors.Is(err, errNoToken):
 				response.Unauthorized(c, "missing authentication token", errs.ErrTokenMissing)
@@ -238,6 +215,7 @@ func OptionalAuthMiddlewareWithRoleScopeResolver(
 
 func authBackendUnavailable(err error) bool {
 	return errors.Is(err, errBlacklistFail) ||
+		errors.Is(err, errSessionUnavailable) ||
 		errors.Is(err, errRoleScopeUnavailable) ||
 		errors.Is(err, oidc.ErrProviderUnavailable)
 }
@@ -263,4 +241,5 @@ func RequireHealthyOptionalAuth() gin.HandlerFunc {
 func clearAuthCookies(c *gin.Context, cfg OptionalAuthConfig) {
 	c.SetCookie(CookieAccessToken, "", -1, CookieAccessTokenPath, cfg.CookieDomain, cfg.CookieSecure, true)
 	c.SetCookie(CookieRefreshToken, "", -1, CookieRefreshTokenPath, cfg.CookieDomain, cfg.CookieSecure, true)
+	c.SetCookie(CookieSessionID, "", -1, "/", cfg.CookieDomain, cfg.CookieSecure, true)
 }
