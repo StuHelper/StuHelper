@@ -65,10 +65,47 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     expiresInDays: 30,
   })
   await client.releaseAdmissionBlacklist('10001', {
+    platform: 'qq',
+    targetGuildID: 'guild-1',
     operatorQQID: '90001',
     guildID: 'mgmt-1',
     channelID: 'channel-1',
     rawCommand: '新生黑名单解除 10001',
+  })
+  await client.getMemberBlacklistAccess({
+    platform: 'qq',
+    subjectType: 'qq_user',
+    subjectID: '10001',
+    guildID: 'guild-1',
+  })
+  await client.listMemberBlacklist({ pageSize: 50 })
+  await client.createMemberBlacklist({
+    platform: 'qq',
+    subjectType: 'qq_user',
+    subjectID: '10001',
+    scopeType: 'guild',
+    guildID: 'guild-1',
+    source: 'kick_blacklist',
+    reasonCode: 'manual_kick_blacklist',
+    reasonText: 'kick command',
+    createdFrom: 'qq_command',
+    operatorID: '90001',
+    metadata: { rawCommand: 'kick 10001 -b' },
+  })
+  await client.releaseMemberBlacklist('blk-1', {
+    releaseReasonCode: 'manual_pardon',
+    releaseReason: 'test',
+    operatorID: '90001',
+  })
+  await client.releaseMemberBlacklistBySubject({
+    platform: 'qq',
+    subjectType: 'qq_user',
+    subjectID: '10001',
+    scopeType: 'guild',
+    guildID: 'guild-1',
+    releaseReasonCode: 'manual_pardon',
+    releaseReason: 'test',
+    operatorID: '90001',
   })
 
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
@@ -81,6 +118,11 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/view'],
     ['POST', '/api/v1/bot/admission/freshman/applications/app-1/review'],
     ['POST', '/api/v1/bot/admission/blacklist/10001/release'],
+    ['GET', '/api/v1/bot/member-blacklist/access?platform=qq&subjectType=qq_user&subjectID=10001&guildID=guild-1'],
+    ['GET', '/api/v1/bot/member-blacklist?pageSize=50'],
+    ['POST', '/api/v1/bot/member-blacklist'],
+    ['POST', '/api/v1/bot/member-blacklist/blk-1/release'],
+    ['POST', '/api/v1/bot/member-blacklist/release-by-subject'],
   ])
   assert.ok(calls.every((call) => call.authorization === 'Bearer service-token'))
   assert.equal(calls[0].body.qqNickname, 'Alice')
@@ -89,6 +131,15 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.equal(calls[6].body.operatorQQID, '90001')
   assert.equal(calls[7].body.expiresInDays, 30)
   assert.equal(calls[8].body.rawCommand, '新生黑名单解除 10001')
+  assert.equal(calls[11].body.source, 'kick_blacklist')
+  assert.equal(calls[12].body.releaseReasonCode, 'manual_pardon')
+})
+
+test('platform client rejects missing service token at construction', () => {
+  assert.throws(() => createPlatformClient({
+    baseUrl: 'https://api.example.test',
+    serviceToken: '',
+  }), /platform service token is required/)
 })
 
 test('platform client accepts empty success responses for void requests', async (t) => {

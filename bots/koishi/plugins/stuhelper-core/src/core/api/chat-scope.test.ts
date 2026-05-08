@@ -8,13 +8,17 @@ type EventHandler = (session: any) => Promise<void>
 
 const CHAT_IMAGE_URL = 'https://gchat.qpic.cn/gchatpic_new/1/2-3-ABC/0'
 const CHAT_IMAGE_FILE = '6B4DE3DFD1BD271E3297859D41C530F5.jpg'
+const TEST_PLATFORM_CONFIG = {
+  baseUrl: 'http://platform.test',
+  serviceToken: 'test-token',
+}
 
 test('chat guild APIs reject guilds outside the console scope', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   await assertRejectsScope(listeners, 'stuhelperGroupCenter/chat/guild-members', { guildId: '2002' })
   await assertRejectsScope(listeners, 'stuhelperGroupCenter/chat/guild-info', { guildId: '2002' })
@@ -25,7 +29,7 @@ test('config and role read APIs filter data to the console scope', async () => {
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const configs = await callListener(listeners, 'stuhelperGroupCenter/config/list', {})
   assert.deepEqual(Object.keys(configs.data || {}), ['1001'])
@@ -43,7 +47,7 @@ test('chat write APIs reject messages outside the console scope', async () => {
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   await assertRejectsScope(listeners, 'stuhelperGroupCenter/chat/send', {
     channelId: '2002',
@@ -69,7 +73,7 @@ test('chat image fetch requires a delivered OneBot image file', async () => {
   }
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/image/fetch', {
     url: CHAT_IMAGE_URL,
@@ -94,7 +98,7 @@ test('chat image fetch passes only the OneBot file identifier to get_image', asy
   }
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
   await emit(events, 'message', createImageMessageSession('1001'))
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/image/fetch', {
@@ -120,7 +124,7 @@ test('chat image fetch enforces the guild scope recorded from delivered messages
   }
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
   await emit(events, 'message', createImageMessageSession('2002'))
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/image/fetch', {
@@ -146,7 +150,7 @@ test('chat image fetch does not derive OneBot file identifiers from URLs', async
   }
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
   await emit(events, 'message', createImageMessageSession('1001'))
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/image/fetch', {
@@ -163,7 +167,7 @@ test('chat send rejects oversized content', async () => {
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/chat/send', {
     channelId: '1001',
@@ -180,7 +184,7 @@ test('legacy warn APIs filter and reject data outside the console scope', async 
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const warns = await callListener(listeners, 'stuhelperGroupCenter/warns/list', {})
   assert.deepEqual((warns.data || []).map((item: { key: string }) => item.key), ['1001:u1'])
@@ -196,7 +200,7 @@ test('legacy subscription and cache APIs enforce the console scope', async () =>
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const subscriptions = await callListener(listeners, 'stuhelperGroupCenter/subscriptions/list', {})
   assert.deepEqual((subscriptions.data || []).map((item: { id: string }) => item.id), ['1001'])
@@ -225,7 +229,7 @@ test('subscription remove uses the visible scoped subscription identity instead 
     { type: 'group', id: '1003', features: { visible: 2 } },
   ] as any)
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const subscriptions = await callListener(listeners, 'stuhelperGroupCenter/subscriptions/list', {})
   assert.deepEqual((subscriptions.data || []).map((item: { id: string }) => item.id), ['1001', '1003'])
@@ -244,7 +248,7 @@ test('legacy global APIs reject guild-scoped console users', async () => {
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/cache/clear', {})
   await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/cache/refresh', {})
@@ -261,21 +265,86 @@ test('legacy stats APIs filter guild data to the console scope', async () => {
   const listeners = new Map<string, Listener>()
   const ctx = createContext(listeners)
   const service = createService(['1001'])
+  const restoreFetch = mockPlatformFetch([])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  try {
+    registerTestWebSocketAPI(ctx as any, service as any)
 
-  const dashboard = await callListener(listeners, 'stuhelperGroupCenter/stats/dashboard', {})
-  assert.equal(dashboard.data.totalGroups, 1)
-  assert.equal(dashboard.data.totalWarns, 1)
-  assert.equal(dashboard.data.totalBlacklisted, 1)
-  assert.equal(dashboard.data.totalSubscriptions, 1)
+    const dashboard = await callListener(listeners, 'stuhelperGroupCenter/stats/dashboard', {})
+    assert.equal(dashboard.data.totalGroups, 1)
+    assert.equal(dashboard.data.totalWarns, 1)
+    assert.equal(dashboard.data.totalBlacklisted, 2)
+    assert.equal(dashboard.data.totalSubscriptions, 1)
 
-  const charts = await callListener(listeners, 'stuhelperGroupCenter/stats/charts', {})
-  assert.deepEqual(charts.data.guildRank.map((item: { guildId: string }) => item.guildId), ['1001'])
-  assert.equal(charts.data.trend.reduce((sum: number, item: { count: number }) => sum + item.count, 0), 1)
-  assert.deepEqual(charts.data.distribution.map((item: { command: string }) => item.command), ['a'])
-  assert.deepEqual(charts.data.successRate, { success: 1, fail: 0 })
-  assert.deepEqual(charts.data.userRank.map((item: { userId: string }) => item.userId), ['u1'])
+    const charts = await callListener(listeners, 'stuhelperGroupCenter/stats/charts', {})
+    assert.deepEqual(charts.data.guildRank.map((item: { guildId: string }) => item.guildId), ['1001'])
+    assert.equal(charts.data.trend.reduce((sum: number, item: { count: number }) => sum + item.count, 0), 1)
+    assert.deepEqual(charts.data.distribution.map((item: { command: string }) => item.command), ['a'])
+    assert.deepEqual(charts.data.successRate, { success: 1, fail: 0 })
+    assert.deepEqual(charts.data.userRank.map((item: { userId: string }) => item.userId), ['u1'])
+  } finally {
+    restoreFetch()
+  }
+})
+
+test('blacklist console APIs use backend member blacklist and enforce release scope', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = []
+  const restoreFetch = mockPlatformFetch(fetchCalls)
+
+  try {
+    registerWebSocketAPI(ctx as any, service as any, TEST_PLATFORM_CONFIG)
+
+    const list = await callListener(listeners, 'stuhelperGroupCenter/blacklist/list', {})
+    assert.equal(list.success, true)
+    assert.deepEqual(
+      list.data.items.map((item: { id: string }) => item.id),
+      ['blk-global', 'blk-1001'],
+    )
+
+    const blocked = await callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
+      id: 'blk-2002',
+      releaseReason: 'wrong scope',
+    })
+    assert.equal(blocked.success, false)
+    assert.match(blocked.error || '', /outside of the current console guild scope/)
+
+    const released = await callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
+      id: 'blk-1001',
+      releaseReason: 'manual release',
+    })
+    assert.equal(released.success, true)
+    assert.equal(fetchCalls.at(-1)?.url, 'http://platform.test/api/v1/bot/member-blacklist/blk-1001/release')
+  } finally {
+    restoreFetch()
+  }
+})
+
+test('blacklist console add rejects guild scoped entries without guildID', async () => {
+  const listeners = new Map<string, Listener>()
+  const ctx = createContext(listeners)
+  const service = createService(['1001'])
+  const fetchCalls: Array<{ url: string; init?: RequestInit }> = []
+  const restoreFetch = mockPlatformFetch(fetchCalls)
+
+  try {
+    registerWebSocketAPI(ctx as any, service as any, TEST_PLATFORM_CONFIG)
+
+    const result = await callListener(listeners, 'stuhelperGroupCenter/blacklist/add', {
+      platform: 'qq',
+      subjectID: '10001',
+      scopeType: 'guild',
+      reasonText: 'missing guild',
+    })
+
+    assert.equal(result.success, false)
+    assert.match(result.error || '', /guildID is required/)
+    assert.equal(fetchCalls.length, 0)
+  } finally {
+    restoreFetch()
+  }
 })
 
 test('legacy settings APIs require global console scope', async () => {
@@ -283,7 +352,7 @@ test('legacy settings APIs require global console scope', async () => {
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/settings/get', {})
   await assertRejectsGlobalScope(listeners, 'stuhelperGroupCenter/settings/update', { settings: {} })
@@ -295,7 +364,7 @@ test('legacy log search filters records to the console scope', async () => {
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const logs = await callListener(listeners, 'stuhelperGroupCenter/logs/search', {})
   assert.equal(logs.data.total, 1)
@@ -309,7 +378,7 @@ test('legacy auth read APIs enforce the console scope', async () => {
   const ctx = createContext(listeners)
   const service = createService(['1001'])
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const roles = await callListener(listeners, 'stuhelperGroupCenter/auth/user/get', { userId: 'target' })
   assert.deepEqual(roles.data, ['scoped-role'])
@@ -328,7 +397,7 @@ test('role member import reports assignment failures instead of returning partia
     }
   }
 
-  registerWebSocketAPI(ctx as any, service as any)
+  registerTestWebSocketAPI(ctx as any, service as any)
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/auth/role/import-members', {
     roleId: 'scoped-role',
@@ -389,6 +458,10 @@ async function callListener(
   const listener = listeners.get(event)
   assert.ok(listener, `${event} listener should be registered`)
   return listener.call(createConsoleClient(), params)
+}
+
+function registerTestWebSocketAPI(ctx: unknown, service: unknown) {
+  registerWebSocketAPI(ctx as any, service as any, TEST_PLATFORM_CONFIG)
 }
 
 function createContext(
@@ -474,6 +547,62 @@ function createConsoleClient() {
       id: 42,
       authority: 4,
     },
+  }
+}
+
+function mockPlatformFetch(calls: Array<{ url: string; init?: RequestInit }>) {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    calls.push({ url, init })
+    if (url.includes('/api/v1/bot/member-blacklist?')) {
+      return jsonResponse({
+        data: {
+          items: [
+            memberBlacklistEntry({ id: 'blk-global', subjectID: 'global-user', scopeType: 'global' }),
+            memberBlacklistEntry({ id: 'blk-1001', subjectID: 'guild-user', guildID: '1001' }),
+            memberBlacklistEntry({ id: 'blk-2002', subjectID: 'other-user', guildID: '2002' }),
+          ],
+          total: 3,
+        },
+      })
+    }
+    return jsonResponse({ success: true })
+  }
+  return () => {
+    globalThis.fetch = originalFetch
+  }
+}
+
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
+function memberBlacklistEntry(input: {
+  id: string
+  subjectID: string
+  scopeType?: 'global' | 'guild'
+  guildID?: string
+}) {
+  return {
+    id: input.id,
+    platform: 'onebot',
+    subjectType: 'qq_user',
+    subjectID: input.subjectID,
+    scopeType: input.scopeType || 'guild',
+    guildID: input.guildID,
+    source: 'manual_admin',
+    reasonCode: 'manual_blacklist',
+    reasonText: 'test',
+    createdByType: 'service_account',
+    createdByID: 'koishi-runtime',
+    createdFrom: 'koishi_console',
+    metadata: {},
+    createdAt: '2026-05-08T00:00:00Z',
+    updatedAt: '2026-05-08T00:00:00Z',
   }
 }
 

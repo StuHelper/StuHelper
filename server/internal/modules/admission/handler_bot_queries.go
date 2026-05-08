@@ -22,10 +22,12 @@ type botJoinRequestEventHTTPRequest struct {
 }
 
 type botFreshmanCommandHTTPRequest struct {
-	OperatorQQID string  `json:"operatorQQID" binding:"required"`
-	GuildID      string  `json:"guildID" binding:"required"`
-	ChannelID    *string `json:"channelID"`
-	RawCommand   string  `json:"rawCommand" binding:"required"`
+	OperatorQQID  string  `json:"operatorQQID" binding:"required"`
+	GuildID       string  `json:"guildID" binding:"required"`
+	ChannelID     *string `json:"channelID"`
+	RawCommand    string  `json:"rawCommand" binding:"required"`
+	Platform      string  `json:"platform"`
+	TargetGuildID string  `json:"targetGuildID"`
 }
 
 func (h *Handler) handleRecordBotJoinRequestEvent(c *gin.Context) {
@@ -49,12 +51,29 @@ func (h *Handler) handleGetBotAdmissionQQAccess(c *gin.Context) {
 	if !h.ready(c) {
 		return
 	}
-	access, err := h.service.GetAdmissionQQAccess(c.Request.Context(), c.Param("qqID"))
+	query, ok := botAdmissionQQAccessQuery(c)
+	if !ok {
+		return
+	}
+	access, err := h.service.GetAdmissionQQAccess(c.Request.Context(), query)
 	if err != nil {
 		respondAdmissionError(c, err)
 		return
 	}
 	response.Success(c, access)
+}
+
+func botAdmissionQQAccessQuery(c *gin.Context) (AdmissionQQAccessQuery, bool) {
+	query := AdmissionQQAccessQuery{
+		Platform: strings.TrimSpace(c.Query("platform")),
+		GuildID:  strings.TrimSpace(c.Query("guildID")),
+		QQID:     strings.TrimSpace(c.Param("qqID")),
+	}
+	if query.Platform == "" || query.GuildID == "" || query.QQID == "" {
+		response.BadRequest(c, "platform, guildID and qqID are required")
+		return AdmissionQQAccessQuery{}, false
+	}
+	return query, true
 }
 
 func (h *Handler) handleListBotPendingActions(c *gin.Context) {
@@ -175,6 +194,8 @@ func botJoinRequestEventInput(req botJoinRequestEventHTTPRequest) AdmissionJoinR
 func botFreshmanCommandInput(applicationID string, req botFreshmanCommandHTTPRequest) BotFreshmanCommandInput {
 	return BotFreshmanCommandInput{
 		ApplicationID: applicationID,
+		Platform:      req.Platform,
+		TargetGuildID: req.TargetGuildID,
 		OperatorQQID:  req.OperatorQQID,
 		GuildID:       req.GuildID,
 		ChannelID:     req.ChannelID,

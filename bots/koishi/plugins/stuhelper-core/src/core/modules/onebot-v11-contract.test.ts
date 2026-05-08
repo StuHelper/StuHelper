@@ -67,7 +67,7 @@ test('request approvals use Koishi universal request APIs', async () => {
 })
 
 test('console chat prefers Koishi universal login and message APIs', async () => {
-  const content = await readCoreFile('core/api/index.ts')
+  const content = await readCoreFile('core/api/chat-message-broadcast.ts')
 
   assert.match(content, /bot\.getLogin\(/)
   assert.match(content, /bot\.getMessage\(/)

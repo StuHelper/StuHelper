@@ -1,5 +1,6 @@
 import type { Command, Context, Session } from 'koishi'
 import { Logger } from 'koishi'
+import type { StuhelperPlatformConfig } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config, GroupConfig, ReportGuildConfig } from '../../types'
@@ -51,7 +52,8 @@ export class ReportModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager
+    readonly data: DataManager,
+    readonly platformConfig: StuhelperPlatformConfig,
   ) {}
 
   get config(): Config {
@@ -141,7 +143,13 @@ export class ReportModule implements RuntimeModuleInstance {
     return getViolationLevelText(level)
   }
 
-  async logCommand(session: Session, command: string, target: string, details: string): Promise<void> {
+  async logCommand(entry: {
+    readonly session: Session
+    readonly command: string
+    readonly target: string
+    readonly details: string
+  }): Promise<void> {
+    const { session, command, target, details } = entry
     try {
       const commandLogs = this.data.commandLogs.getAll()
       if (!commandLogs.logs) commandLogs.logs = []
@@ -169,6 +177,7 @@ export class ReportModule implements RuntimeModuleInstance {
 export const reportRuntimeModule: RuntimeModule<ReportModule> = {
   id: 'report',
   create(ctx, deps) {
-    return new ReportModule(ctx, deps.data)
+    if (!deps.coreConfig) throw new Error('stuhelper core config is required for ReportModule')
+    return new ReportModule(ctx, deps.data, deps.coreConfig.platform)
   },
 }

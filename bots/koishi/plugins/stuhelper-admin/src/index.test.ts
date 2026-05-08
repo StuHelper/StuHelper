@@ -162,7 +162,12 @@ test('管理员可以查看成员警告次数', async () => {
     await root.mock.initChannel('group-1')
 
     const moderationStore = new ModerationStore(root)
-    await moderationStore.incrementWarning('group-1', '10001', '广告刷屏', new Date('2026-04-19T10:00:00Z'))
+    await moderationStore.incrementWarning({
+      guildId: 'group-1',
+      memberId: '10001',
+      reason: '广告刷屏',
+      now: new Date('2026-04-19T10:00:00Z'),
+    })
 
     const client = root.mock.client('20011', 'group-1')
     await client.shouldReply('群审警告 10001', '10001 当前累计警告 1 次，最近原因：广告刷屏')

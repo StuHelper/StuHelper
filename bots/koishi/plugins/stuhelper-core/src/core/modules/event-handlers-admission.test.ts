@@ -21,16 +21,19 @@ test('guild-member-request keeps one listener and approves through admission aft
   }])
 })
 
-test('guild-member-request preserves blacklist and keyword ordering before admission', async () => {
+test('guild-member-request checks backend blacklist before admission auto approve', async () => {
   const host = createEventHost()
-  host.data.blacklist.rows = { '10001': true }
+  host.memberBlacklistBlocked = true
   registerEventListeners(host as any)
 
   await host.emitGuildMemberRequest(createRequestSession(host, { comment: '我是新生' }))
 
   assert.deepEqual(host.approvals, [{ requestID: 'req-1', approve: false, reason: '您在黑名单中' }])
   assert.equal(host.admissionAccessChecks, 0)
+  assert.equal(host.memberBlacklistAccessChecks, 1)
+})
 
+test('guild-member-request preserves keyword ordering before backend checks', async () => {
   const keywordHost = createEventHost()
   keywordHost.config.keywords = ['校内群']
   registerEventListeners(keywordHost as any)
@@ -38,6 +41,7 @@ test('guild-member-request preserves blacklist and keyword ordering before admis
 
   assert.deepEqual(keywordHost.approvals, [{ requestID: 'req-1', approve: true, reason: undefined }])
   assert.equal(keywordHost.admissionAccessChecks, 0)
+  assert.equal(keywordHost.memberBlacklistAccessChecks, 0)
 })
 
 test('guild-member-request reports admission approve failures and keeps error visible', async () => {
@@ -67,6 +71,8 @@ function createEventHost() {
     approvals: [] as Array<{ requestID: string, approve: boolean, reason?: string }>,
     joinEvents: [] as unknown[],
     admissionAccessChecks: 0,
+    memberBlacklistAccessChecks: 0,
+    memberBlacklistBlocked: false,
     approveError: null as Error | null,
     ctx: {
       on(event: string, handler: (session: unknown) => unknown) {
@@ -84,8 +90,29 @@ function createEventHost() {
       guildRequest: { enabled: false, rejectMessage: '' },
     },
     admissionPlatform: {
-      async getAdmissionQQAccess(qqID: string) {
-        assert.equal(qqID, '10001')
+      async getMemberBlacklistAccess(input: {
+        platform: string
+        guildID: string
+        subjectType: string
+        subjectID: string
+      }) {
+        assert.deepEqual(input, {
+          platform: 'mock',
+          guildID: 'guild-1',
+          subjectType: 'qq_user',
+          subjectID: '10001',
+        })
+        host.memberBlacklistAccessChecks++
+        return host.memberBlacklistBlocked
+          ? { canJoin: false, decision: 'blocked' }
+          : { canJoin: true, decision: 'allowed' }
+      },
+      async getAdmissionQQAccess(input: { platform: string; guildID: string; qqID: string }) {
+        assert.deepEqual(input, {
+          platform: 'mock',
+          guildID: 'guild-1',
+          qqID: '10001',
+        })
         host.admissionAccessChecks++
         return { canJoin: true, autoApproveJoin: true }
       },

@@ -1,18 +1,15 @@
 import { Logger } from 'koishi'
+import { createPlatformClient } from '@stuhelper/koishi-shared'
 
-import { executeCommand } from '../../utils'
 import type { ReportModule } from './report.module'
 import type { ViolationAction, ViolationInfo } from './report-types'
 import { ViolationLevel } from './report-types'
+import { formatDurationSeconds, shorten } from './report-format'
 
 const logger = new Logger('stuhelperGroupCenter:report')
 const SHORT_CONTENT_MAX_LENGTH = 30
 const ERROR_MESSAGE_MAX_LENGTH = 50
-const SECONDS_PER_MINUTE = 60
-const MINUTES_PER_HOUR = 60
-const HOURS_PER_DAY = 24
-const SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
-const SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
+const MS_PER_SECOND = 1000
 
 export interface ReportViolationInput {
   readonly host: ReportModule
@@ -25,15 +22,10 @@ export interface ReportViolationInput {
 }
 
 export async function handleReportViolation(input: ReportViolationInput): Promise<string> {
-  const originalUser = input.session.user
-  input.session.user = { ...originalUser, authority: Infinity, permissions: ['*'] }
-
   try {
     return await executeViolation(input)
   } catch (error: any) {
     return handleViolationFailure(input, error)
-  } finally {
-    input.session.user = originalUser
   }
 }
 
@@ -76,7 +68,12 @@ function formatNoViolation(input: ReportViolationInput): string {
 
 async function handleManualViolation(input: ReportViolationInput): Promise<string> {
   const levelText = getViolationLevelText(input.violation.level)
-  await input.host.logCommand(input.session, 'report-no-action', input.userId, `${levelText}违规，管理员待处理`)
+  await input.host.logCommand({
+    session: input.session,
+    command: 'report-no-action',
+    target: input.userId,
+    details: `${levelText}违规，管理员待处理`,
+  })
   return input.verbose
     ? `AI判断结果：${levelText}违规\n理由：${input.violation.reason}\n操作：自动处理功能已禁用，请管理员手动处理`
     : `该消息被判定为${levelText}违规，请管理员手动处理。`
@@ -100,7 +97,12 @@ async function logReportHandling(input: ReportViolationInput, actionResults: str
   const levelText = getViolationLevelText(input.violation.level)
   const actionText = formatActionText(input.violation.action)
   const shortContent = shorten(input.content, SHORT_CONTENT_MAX_LENGTH)
-  await input.host.logCommand(input.session, 'report-handle', input.userId, `${levelText}违规，处理: ${actionText}，内容: ${shortContent}`)
+  await input.host.logCommand({
+    session: input.session,
+    command: 'report-handle',
+    target: input.userId,
+    details: `${levelText}违规，处理: ${actionText}，内容: ${shortContent}`,
+  })
   await input.host.ctx.stuhelperGroupCenter.pushMessage(
     input.session.bot,
     `[举报] 群${input.session.guildId} 用户 ${input.userId} - ${levelText}违规\n内容: ${shortContent}\n处理: ${actionText}`,
@@ -135,7 +137,12 @@ async function handleViolationFailure(input: ReportViolationInput, error: any): 
 async function logViolationFailure(input: ReportViolationInput, error: any): Promise<void> {
   const levelText = getViolationLevelText(input.violation.level)
   const message = shorten(error.message, ERROR_MESSAGE_MAX_LENGTH)
-  await input.host.logCommand(input.session, 'report-error', input.userId, `${levelText}违规处理失败: ${message}`)
+  await input.host.logCommand({
+    session: input.session,
+    command: 'report-error',
+    target: input.userId,
+    details: `${levelText}违规处理失败: ${message}`,
+  })
   await input.host.ctx.stuhelperGroupCenter.pushMessage(
     input.session.bot,
     `[举报失败] 用户 ${input.userId} - ${levelText}违规\n错误: ${message}`,
@@ -183,34 +190,17 @@ async function warnUser(input: {
   readonly userId: string
   readonly count: number
 }): Promise<void> {
-  try {
-    const user = `${input.session.platform}:${input.userId}`
-    const result = await executeCommand(input.host.ctx, input.session, 'warn', [user, input.count.toString()], {}, true)
-    if (!result || (typeof result === 'string' && result.includes('失败'))) {
-      throw new Error(`警告执行失败: ${result || '未知错误'}`)
-    }
-  } catch (error: any) {
-    logger.error(`警告用户失败: ${error.message}`)
-    throw error
-  }
-}
-
-async function banUser(input: {
-  readonly host: ReportModule
-  readonly session: any
-  readonly userId: string
-  readonly duration: string
-}): Promise<void> {
-  try {
-    const result = await executeCommand(input.host.ctx, input.session, 'ban', [`${input.userId} ${input.duration}`], {}, true)
-    if (!result || (typeof result === 'string' && result.includes('失败'))) {
-      throw new Error(`禁言执行失败: ${result || '未知错误'}`)
-    }
-    logger.debug(`禁言执行结果: ${JSON.stringify(result)}`)
-  } catch (error: any) {
-    logger.error(`禁言用户失败: ${error.message}`)
-    throw error
-  }
+  const guildWarns = input.host.data.warns.get(input.session.guildId) || {}
+  const current = guildWarns[input.userId] || { count: 0, timestamp: 0 }
+  guildWarns[input.userId] = { count: current.count + input.count, timestamp: Date.now() }
+  input.host.data.warns.set(input.session.guildId, guildWarns)
+  input.host.data.warns.flush()
+  await input.host.logCommand({
+    session: input.session,
+    command: 'report-warn',
+    target: input.userId,
+    details: `AI 处置警告 ${input.count} 次`,
+  })
 }
 
 async function banUserBySeconds(input: {
@@ -220,7 +210,20 @@ async function banUserBySeconds(input: {
   readonly seconds: number
 }): Promise<void> {
   try {
-    await banUser({ ...input, duration: formatDurationSeconds(input.seconds) })
+    const milliseconds = input.seconds * MS_PER_SECOND
+    await input.session.bot.muteGuildMember(input.session.guildId, input.userId, milliseconds)
+    recordReportMute({
+      host: input.host,
+      guildId: input.session.guildId,
+      userId: input.userId,
+      duration: milliseconds,
+    })
+    await input.host.logCommand({
+      session: input.session,
+      command: 'report-ban',
+      target: input.userId,
+      details: `AI 处置禁言 ${formatDurationSeconds(input.seconds)}`,
+    })
   } catch (error: any) {
     logger.error(`按秒数禁言用户失败: ${error.message}`)
     throw error
@@ -234,25 +237,51 @@ async function kickUser(input: {
   readonly addToBlacklist: boolean
 }): Promise<void> {
   try {
-    const kickInput = input.addToBlacklist ? `${input.userId} -b` : input.userId
-    const result = await executeCommand(input.host.ctx, input.session, 'kick', [kickInput], {}, true)
-    if (!result || (typeof result === 'string' && result.includes('失败'))) {
-      throw new Error(`踢出执行失败: ${result || '未知错误'}`)
+    await input.session.bot.kickGuildMember(input.session.guildId, input.userId, false)
+    if (input.addToBlacklist) {
+      await createModerationBlacklist(input)
     }
-    logger.debug(`踢出执行结果: ${JSON.stringify(result)}`)
+    await input.host.logCommand({
+      session: input.session,
+      command: 'report-kick',
+      target: input.userId,
+      details: 'AI 处置踢出群聊',
+    })
   } catch (error: any) {
     logger.error(`踢出用户失败: ${error.message}`)
     throw error
   }
 }
 
-function formatDurationSeconds(seconds: number): string {
-  if (seconds < SECONDS_PER_MINUTE) return `${seconds}s`
-  if (seconds < SECONDS_PER_HOUR) return `${Math.floor(seconds / SECONDS_PER_MINUTE)}m`
-  if (seconds < SECONDS_PER_DAY) return `${Math.floor(seconds / SECONDS_PER_HOUR)}h`
-  return `${Math.floor(seconds / SECONDS_PER_DAY)}d`
+async function createModerationBlacklist(input: {
+  readonly host: ReportModule
+  readonly session: any
+  readonly userId: string
+}) {
+  await createPlatformClient(input.host.platformConfig).createMemberBlacklist({
+    platform: input.session.platform,
+    subjectType: 'qq_user',
+    subjectID: input.userId,
+    scopeType: 'guild',
+    guildID: input.session.guildId,
+    source: 'moderation_action',
+    reasonCode: 'violation_review_blacklist',
+    reasonText: 'AI moderation action',
+    createdFrom: 'moderation_review',
+    operatorID: input.session.userId,
+    metadata: { rawCommand: input.session.content || '' },
+  })
 }
 
-function shorten(value: string, maxLength: number): string {
-  return value.length > maxLength ? `${value.substring(0, maxLength)}...` : value
+function recordReportMute(input: {
+  readonly host: ReportModule
+  readonly guildId: string
+  readonly userId: string
+  readonly duration: number
+}): void {
+  const { host, guildId, userId, duration } = input
+  const guildMutes = host.data.mutes.get(guildId) || {}
+  guildMutes[userId] = { startTime: Date.now(), duration, remainingTime: duration }
+  host.data.mutes.set(guildId, guildMutes)
+  host.data.mutes.flush()
 }

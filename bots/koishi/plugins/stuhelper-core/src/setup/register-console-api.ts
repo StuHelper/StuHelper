@@ -17,7 +17,7 @@ export function registerConsoleApi(ctx: Context, config?: Config) {
 
   ctx.inject(['console', 'database', 'stuhelperGroupCenter', 'auth'], (apiCtx) => {
     validateConsoleAdminPassword(process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD)
-    registerWebSocketAPI(apiCtx, apiCtx.stuhelperGroupCenter)
+    registerWebSocketAPI(apiCtx, apiCtx.stuhelperGroupCenter, coreConfig.platform)
     registerPageAPI(apiCtx, {
       service: apiCtx.stuhelperGroupCenter,
       platform: coreConfig.platform,

@@ -70,12 +70,7 @@ export class WarnModule implements RuntimeModuleInstance {
   }
 
   async log(input: WarnLogInput): Promise<void> {
-    await this.ctx.stuhelperGroupCenter.logCommand(
-      input.session,
-      input.command,
-      input.target,
-      input.result,
-    )
+    await this.ctx.stuhelperGroupCenter.logCommand(input)
   }
 
   getGroupConfig(guildId: string): GroupConfig | undefined {

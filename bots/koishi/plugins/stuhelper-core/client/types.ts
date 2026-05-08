@@ -85,12 +85,6 @@ export interface WarnRecord {
   }
 }
 
-// 黑名单记录
-export interface BlacklistRecord {
-  userId: string
-  timestamp: number
-}
-
 // 订阅配置
 export interface Subscription {
   type: 'group' | 'private'
@@ -222,9 +216,9 @@ declare module '@koishijs/client' {
     'stuhelperGroupCenter/warns/clear'(key: string): Promise<{ success: boolean }>
 
     // 黑名单 API
-    'stuhelperGroupCenter/blacklist/list'(): Promise<Record<string, BlacklistRecord>>
-    'stuhelperGroupCenter/blacklist/add'(userId: string, record: BlacklistRecord): Promise<{ success: boolean }>
-    'stuhelperGroupCenter/blacklist/remove'(userId: string): Promise<{ success: boolean }>
+    'stuhelperGroupCenter/blacklist/list'(): Promise<{ items: unknown[] }>
+    'stuhelperGroupCenter/blacklist/add'(params: Record<string, unknown>): Promise<{ success: boolean }>
+    'stuhelperGroupCenter/blacklist/remove'(params: { id: string; releaseReason?: string }): Promise<{ success: boolean }>
 
     // 订阅 API
     'stuhelperGroupCenter/subscriptions/list'(): Promise<Subscription[]>

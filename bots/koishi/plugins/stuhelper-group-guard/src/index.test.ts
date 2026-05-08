@@ -26,7 +26,7 @@ import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
 
 test('数据库群绑定模板会驱动 admission 入群认证', async () => {
   const server = createServer((req, res) => {
-    if (respondAdmissionSession(req, res, '10004', 'group-4')) return
+    if (respondAdmissionSession({ req, res, qqID: '10004', guildID: 'group-4' })) return
     if (respondPendingActions(req, res, () => [])) return
     if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)

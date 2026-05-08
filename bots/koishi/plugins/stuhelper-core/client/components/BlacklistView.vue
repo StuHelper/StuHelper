@@ -2,22 +2,14 @@
   <div class="sh-view">
     <WorkspaceHead
       title="黑名单"
-      description="永久拉黑的成员,任意群组都拒绝命令与入群请求。新增条目请尽量搭配处置中心的举报记录。"
+      description="按平台和作用域同步到后端 member blacklist。"
       :chips="headerChips"
     >
       <template #actions>
-        <el-button
-          class="sh-button sh-button--ghost"
-          :disabled="loading"
-          @click="refresh"
-        >
+        <el-button class="sh-button sh-button--ghost" :disabled="loading" @click="refresh">
           {{ loading ? '刷新中…' : '刷新' }}
         </el-button>
-        <el-button
-          type="primary"
-          class="sh-button sh-button--primary"
-          @click="openAdd"
-        >
+        <el-button type="primary" class="sh-button sh-button--primary" @click="openAdd">
           添加用户
         </el-button>
       </template>
@@ -28,7 +20,7 @@
     <WorkspaceSection
       v-else
       title="黑名单成员"
-      description="移除操作会立即同步到所有群,需要人工审慎判断。"
+      description="解除黑名单会立即影响对应作用域。"
       :meta="entries.length ? `${entries.length} 条` : ''"
       flush
     >
@@ -37,40 +29,46 @@
         :columns="COLUMNS"
         :rows="rows"
         empty-title="黑名单为空"
-        empty-body="这里会列出所有被加入黑名单的用户。"
+        empty-body="这里会列出后端 member blacklist 的当前生效条目。"
         actions-label="操作"
         @action="handleRowAction"
       >
         <template #cell-user="{ row }">
-          <EntityChip kind="user" :id="String(row.id)" />
+          <EntityChip kind="user" :id="String(row.cells.user.text)" />
         </template>
       </QueueTable>
-      <EmptyState
-        v-else
-        title="黑名单为空"
-        body="当前没有被永久拉黑的成员,一切正常。"
-      />
+      <EmptyState v-else title="黑名单为空" body="当前没有生效的黑名单成员。" />
     </WorkspaceSection>
 
-    <Drawer
-      :open="addOpen"
-      title="添加黑名单用户"
-      subtitle="userId · 立即在所有群生效"
-      @close="closeAdd"
-    >
+    <Drawer :open="addOpen" title="添加黑名单用户" subtitle="member blacklist" @close="closeAdd">
       <section class="sh-drawer__section">
-        <h4 class="sh-drawer__section-title">用户标识</h4>
+        <label class="sh-field">
+          <span class="sh-field__label">平台</span>
+          <el-input v-model.trim="draft.platform" class="sh-control sh-control--mono" placeholder="onebot" />
+        </label>
         <label class="sh-field">
           <span class="sh-field__label">用户 ID</span>
           <el-input
-            v-model.trim="draftUserId"
+            v-model.trim="draft.subjectID"
             class="sh-control sh-control--mono"
             placeholder="例如 1234567890"
             @keyup.enter="submitAdd"
           />
-          <span class="sh-field__hint">
-            支持原始 ID 或 <code>&lt;at&gt;</code> 片段;保存时自动提取数字 ID。
-          </span>
+        </label>
+        <label class="sh-field">
+          <span class="sh-field__label">作用域</span>
+          <el-select v-model="draft.scopeType" class="sh-control">
+            <el-option label="单群" value="guild" />
+            <el-option label="全局" value="global" />
+          </el-select>
+        </label>
+        <label v-if="draft.scopeType === 'guild'" class="sh-field">
+          <span class="sh-field__label">群 ID</span>
+          <el-input v-model.trim="draft.guildID" class="sh-control sh-control--mono" placeholder="群号" />
+        </label>
+        <label class="sh-field">
+          <span class="sh-field__label">原因</span>
+          <el-input v-model.trim="draft.reasonText" class="sh-control" placeholder="手动加入黑名单" />
         </label>
       </section>
       <template #footer>
@@ -78,7 +76,7 @@
         <el-button
           type="primary"
           class="sh-button sh-button--primary"
-          :disabled="!draftUserId.trim() || adding"
+          :disabled="!canSubmit || adding"
           @click="submitAdd"
         >
           {{ adding ? '添加中…' : '添加' }}
@@ -104,10 +102,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { blacklistApi } from '../api'
+import { blacklistApi, type BlacklistCreateInput, type MemberBlacklistEntry } from '../api'
 import { useConfirm } from '../composables/use-confirm'
 import type { ConsoleNavigationController } from '../composables/use-console-navigation'
-import type { BlacklistRecord } from '../types'
 import { formatTimestamp } from '../models/formatters'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 import ConsolePageSkeleton from './primitives/ConsolePageSkeleton.vue'
@@ -115,27 +112,24 @@ import Drawer from './primitives/Drawer.vue'
 import EmptyState from './primitives/EmptyState.vue'
 import EntityChip from './primitives/EntityChip.vue'
 import NoticeStack, { type NoticeItem } from './primitives/NoticeStack.vue'
-import QueueTable, {
-  type QueueTableColumn,
-  type QueueTableRow,
-} from './primitives/QueueTable.vue'
+import QueueTable, { type QueueTableColumn, type QueueTableRow } from './primitives/QueueTable.vue'
 import WorkspaceHead, { type WorkspaceHeadChip } from './primitives/WorkspaceHead.vue'
 import WorkspaceSection from './primitives/WorkspaceSection.vue'
 
 const COLUMNS: QueueTableColumn[] = [
   { key: 'user', label: '用户 ID' },
-  { key: 'time', label: '加入时间', width: '220' },
+  { key: 'platform', label: '平台', width: '110' },
+  { key: 'scope', label: '作用域', width: '150' },
+  { key: 'reason', label: '原因' },
+  { key: 'time', label: '加入时间', width: '190' },
 ]
 
-const props = defineProps<{
-  navigation?: ConsoleNavigationController
-}>()
-
+const props = defineProps<{ navigation?: ConsoleNavigationController }>()
 const loading = ref(false)
 const adding = ref(false)
 const addOpen = ref(false)
-const draftUserId = ref('')
-const blacklist = ref<Record<string, BlacklistRecord>>({})
+const draft = ref(createDraft())
+const entries = ref<readonly MemberBlacklistEntry[]>([])
 const notices = ref<NoticeItem[]>([])
 const lastSync = ref('')
 const {
@@ -146,29 +140,15 @@ const {
 } = useConfirm()
 
 const keyword = computed(() => props.navigation?.state.value.keyword.trim().toLowerCase() ?? '')
-const entries = computed(() => filterBlacklistEntries(blacklist.value, keyword.value))
-
-const rows = computed<QueueTableRow[]>(() =>
-  entries.value.map(({ userId, record }) => ({
-    id: userId,
-    cells: {
-      user: { text: formatUserId(userId) },
-      time: {
-        text: record.timestamp ? formatTimestamp(record.timestamp) : '未知',
-        mono: true,
-      },
-    },
-    actions: [{ key: 'remove', label: '移除', tone: 'danger' }],
-  })),
-)
-
+const visibleEntries = computed(() => filterEntries(entries.value, keyword.value))
+const canSubmit = computed(() => {
+  return Boolean(draft.value.subjectID.trim()) &&
+    (draft.value.scopeType === 'global' || Boolean(draft.value.guildID?.trim()))
+})
+const rows = computed<QueueTableRow[]>(() => visibleEntries.value.map(toRow))
 const headerChips = computed<WorkspaceHeadChip[]>(() => {
-  const chips: WorkspaceHeadChip[] = [
-    { text: `${entries.value.length} 条记录`, numeric: true },
-  ]
-  if (lastSync.value) {
-    chips.push({ text: `更新 · ${lastSync.value}`, mono: true })
-  }
+  const chips: WorkspaceHeadChip[] = [{ text: `${visibleEntries.value.length} 条记录`, numeric: true }]
+  if (lastSync.value) chips.push({ text: `更新 · ${lastSync.value}`, mono: true })
   return chips
 })
 
@@ -177,7 +157,7 @@ onMounted(refresh)
 async function refresh() {
   loading.value = true
   try {
-    blacklist.value = await blacklistApi.list()
+    entries.value = (await blacklistApi.list()).items
     lastSync.value = formatTimestamp(Date.now())
   } catch (cause) {
     pushError(cause, '加载黑名单失败')
@@ -187,7 +167,7 @@ async function refresh() {
 }
 
 function openAdd() {
-  draftUserId.value = ''
+  draft.value = createDraft()
   addOpen.value = true
 }
 
@@ -196,14 +176,13 @@ function closeAdd() {
 }
 
 async function submitAdd() {
-  const userId = draftUserId.value.trim()
-  if (!userId) return
+  if (!canSubmit.value) return
   adding.value = true
   try {
-    await blacklistApi.add(userId, { userId, timestamp: Date.now() })
-    pushSuccess(`已将 ${formatUserId(userId)} 加入黑名单`)
+    const input = toCreateInput(draft.value)
+    await blacklistApi.add(input)
+    pushSuccess(`已将 ${input.subjectID} 加入黑名单`)
     addOpen.value = false
-    draftUserId.value = ''
     await refresh()
   } catch (cause) {
     pushError(cause, '添加失败')
@@ -214,45 +193,71 @@ async function submitAdd() {
 
 function handleRowAction(payload: { rowId: string; action: string }) {
   if (payload.action !== 'remove') return
-  void removeUser(payload.rowId)
+  void removeEntry(payload.rowId)
 }
 
-async function removeUser(userId: string) {
+async function removeEntry(id: string) {
+  const entry = entries.value.find((item) => item.id === id)
   const confirmed = await confirm({
     title: '移除黑名单成员',
-    message: `确定要从黑名单移除 ${formatUserId(userId)} 吗？此操作会立即影响所有群组。`,
+    message: `确定要移除 ${entry?.subjectID || id} 的黑名单记录吗？`,
     tone: 'danger',
     confirmText: '移除',
   })
   if (!confirmed) return
 
   try {
-    await blacklistApi.remove(userId)
-    pushSuccess(`已从黑名单移除 ${formatUserId(userId)}`)
+    await blacklistApi.remove(id, 'Koishi console release')
+    pushSuccess(`已移除 ${entry?.subjectID || id}`)
     await refresh()
   } catch (cause) {
     pushError(cause, '移除失败')
   }
 }
 
-function formatUserId(id: string): string {
-  if (id.startsWith('<at')) {
-    const match = id.match(/id="(\d+)"/)
-    if (match) return match[1]
-  }
-  return id
+function createDraft(): BlacklistCreateInput {
+  return { platform: 'onebot', subjectID: '', scopeType: 'guild', guildID: '', reasonText: '' }
 }
 
-function filterBlacklistEntries(
-  records: Record<string, BlacklistRecord>,
-  query: string,
-) {
-  const entries = Object.entries(records).map(([userId, record]) => ({ userId, record }))
-  if (!query) return entries
-  return entries.filter(({ userId }) => {
-    return [userId, formatUserId(userId)]
+function toCreateInput(input: BlacklistCreateInput): BlacklistCreateInput {
+  return {
+    platform: input.platform?.trim(),
+    subjectID: normalizeSubjectID(input.subjectID),
+    scopeType: input.scopeType,
+    guildID: input.scopeType === 'guild' ? input.guildID?.trim() : undefined,
+    reasonText: input.reasonText?.trim(),
+  }
+}
+
+function toRow(entry: MemberBlacklistEntry): QueueTableRow {
+  return {
+    id: entry.id,
+    cells: {
+      user: { text: entry.subjectID },
+      platform: { text: entry.platform, mono: true },
+      scope: { text: formatScope(entry), mono: true },
+      reason: { text: entry.reasonText || entry.reasonCode },
+      time: { text: formatTimestamp(Date.parse(entry.createdAt)), mono: true },
+    },
+    actions: [{ key: 'remove', label: '移除', tone: 'danger' }],
+  }
+}
+
+function formatScope(entry: MemberBlacklistEntry): string {
+  return entry.scopeType === 'global' ? '全局' : `群 ${entry.guildID || ''}`.trim()
+}
+
+function filterEntries(records: readonly MemberBlacklistEntry[], query: string) {
+  if (!query) return [...records]
+  return records.filter((entry) => {
+    return [entry.subjectID, entry.platform, entry.guildID || '', entry.reasonText]
       .some((value) => value.toLowerCase().includes(query))
   })
+}
+
+function normalizeSubjectID(value: string): string {
+  const match = value.match(/id="(\d+)"/)
+  return match ? match[1] : value.trim()
 }
 
 function pushSuccess(message: string) {
@@ -261,8 +266,7 @@ function pushSuccess(message: string) {
 }
 
 function pushError(cause: unknown, fallback: string) {
-  const message = cause instanceof Error ? cause.message : fallback
-  notices.value.push({ id: noticeId(), kind: 'error', message })
+  notices.value.push({ id: noticeId(), kind: 'error', message: cause instanceof Error ? cause.message : fallback })
   scheduleDismiss()
 }
 
@@ -272,8 +276,7 @@ function dismissNotice(id: string) {
 
 function scheduleDismiss() {
   const id = notices.value[notices.value.length - 1]?.id
-  if (!id) return
-  window.setTimeout(() => dismissNotice(id), 4000)
+  if (id) window.setTimeout(() => dismissNotice(id), 4000)
 }
 
 function noticeId(): string {

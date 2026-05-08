@@ -237,6 +237,14 @@ export interface AdmissionQQAccess {
   readonly autoApproveJoin?: boolean
 }
 
+export * from './member-blacklist'
+
+export interface AdmissionQQAccessQuery {
+  readonly platform: string
+  readonly guildID: string
+  readonly qqID: string
+}
+
 export interface AdmissionBotEventRequest {
   readonly action: AdmissionBotAction
   readonly success: boolean
@@ -270,6 +278,8 @@ export interface FreshmanForwardItem {
 }
 
 export interface FreshmanCommandContext {
+  readonly platform?: string
+  readonly targetGuildID?: string
   readonly operatorQQID: string
   readonly guildID: string
   readonly channelID?: string

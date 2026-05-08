@@ -19,6 +19,8 @@ import {
   SimilarCharsStore,
   type SimilarChars,
 } from './banme-similar-chars'
+import { formatBanmeMessage, formatSuccessLog } from './banme-messages'
+import type { JackpotResult } from './banme-types'
 
 const SIMILAR_CHARS_PATH = './data/similarChars.json'
 const HOUR_MS = 3_600_000
@@ -27,11 +29,6 @@ const DEFAULT_BASE_PROBABILITY = 0.006
 const DEFAULT_SOFT_PITY = 74
 const DEFAULT_HARD_PITY = 90
 const SOFT_PITY_STEP = 0.06
-
-type JackpotResult = {
-  readonly isJackpot: boolean
-  readonly isGuaranteed: boolean
-}
 
 /**
  * 自助禁言模块
@@ -116,8 +113,13 @@ export class BanmeModule implements RuntimeModuleInstance {
     return normalizeBanmeCommand(command, similarChars)
   }
 
-  async log(session: Session, command: string, target: string, result: string): Promise<void> {
-    await this.ctx.stuhelperGroupCenter.logCommand(session, command, target, result)
+  async log(entry: {
+    readonly session: Session
+    readonly command: string
+    readonly target: string
+    readonly result: string
+  }): Promise<void> {
+    await this.ctx.stuhelperGroupCenter.logCommand(entry)
   }
 
   async executeBanme(session: Session, isAuto = false): Promise<string | null> {
@@ -125,7 +127,7 @@ export class BanmeModule implements RuntimeModuleInstance {
     const banmeConfig = this.getBanmeConfig(guildId)
 
     if (!banmeConfig?.enabled) {
-      void this.log(session, 'banme', session.userId, '失败：功能禁用')
+      void this.log({ session, command: 'banme', target: session.userId, result: '失败：功能禁用' })
       return '喵呜...banme功能现在被禁用了呢...'
     }
 
@@ -138,13 +140,13 @@ export class BanmeModule implements RuntimeModuleInstance {
 
       const milliseconds = calculateMuteDuration(record, banmeConfig, jackpot.isJackpot)
       await session.bot.muteGuildMember(guildId, session.userId, milliseconds)
-      this.saveMuteRecord(guildId, session.userId, now, milliseconds)
+      this.saveMuteRecord({ guildId, userId: session.userId, now, milliseconds })
 
       const timeStr = formatDuration(milliseconds)
-      void this.log(session, 'banme', session.userId, formatSuccessLog(timeStr, jackpot, record))
-      return formatBanmeMessage(session, isAuto, timeStr, jackpot, record)
+      void this.log({ session, command: 'banme', target: session.userId, result: formatSuccessLog(timeStr, jackpot, record) })
+      return formatBanmeMessage({ session, isAuto, timeStr, jackpot, record })
     } catch (error) {
-      void this.log(session, 'banme', session.userId, '失败：未知错误')
+      void this.log({ session, command: 'banme', target: session.userId, result: '失败：未知错误' })
       return `喵呜...禁言失败了：${(error as Error).message}`
     }
   }
@@ -182,7 +184,13 @@ export class BanmeModule implements RuntimeModuleInstance {
     return this.getGroupConfig(guildId)?.banme || this.config.banme
   }
 
-  private saveMuteRecord(guildId: string, userId: string, now: number, milliseconds: number): void {
+  private saveMuteRecord(input: {
+    readonly guildId: string
+    readonly userId: string
+    readonly now: number
+    readonly milliseconds: number
+  }): void {
+    const { guildId, userId, now, milliseconds } = input
     const allMutes = this.data.mutes.getAll()
     allMutes[guildId] = allMutes[guildId] || {}
     allMutes[guildId][userId] = { startTime: now, duration: milliseconds }
@@ -271,29 +279,4 @@ function requireBanmeNumber(value: number | undefined, field: string): number {
     throw new Error(`banme.${field} 配置缺失或不是数字`)
   }
   return value
-}
-
-function formatSuccessLog(timeStr: string, jackpot: JackpotResult, record: BanMeRecord): string {
-  return `成功：${timeStr} (Jackpot: ${jackpot.isJackpot}, Pity: ${record.pity}, Count: ${record.count})`
-}
-
-function formatBanmeMessage(
-  session: Session,
-  isAuto: boolean,
-  timeStr: string,
-  jackpot: JackpotResult,
-  record: BanMeRecord,
-): string {
-  let message = isAuto
-    ? `🎲 检测到使用特殊字符逃避禁言，抽到了 ${timeStr} 的禁言喵！\n`
-    : `🎲 ${session.username} 抽到了 ${timeStr} 的禁言喵！\n`
-
-  if (jackpot.isJackpot) {
-    message += record.guaranteed
-      ? '【金】呜呜呜歪掉了！但是下次一定会中的喵！\n'
-      : '【金】喵喵喵！恭喜主人中了UP！\n'
-    if (jackpot.isGuaranteed) message += '触发保底啦喵~\n'
-  }
-
-  return message
 }

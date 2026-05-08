@@ -1,5 +1,6 @@
 export * from './config/index'
 export * from './guard/index'
+export * from './keyword-pattern'
 export * from './logger/index'
 export * from './platform/index'
 export * from './types/index'

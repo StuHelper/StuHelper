@@ -38,7 +38,13 @@ test('handleReport marks AI review as failed when the request times out', async 
     store: {
       createReport: async () => ({ id: 'rp-1' }),
       appendEvent: async () => {},
-      updateReportAIResult: async (id: string, status: string, severity: string, summary: string | null) => {
+      updateReportAIResult: async (input: {
+        readonly id: string
+        readonly aiStatus: string
+        readonly aiSeverity: string
+        readonly aiSummary: string | null
+      }) => {
+        const { id, aiStatus: status, aiSeverity: severity, aiSummary: summary } = input
         updates.push({ id, status, severity, summary })
       },
       createReview: async () => {

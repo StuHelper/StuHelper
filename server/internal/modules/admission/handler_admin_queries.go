@@ -87,11 +87,28 @@ func (h *Handler) handleAdminReleaseAdmissionBlacklist(c *gin.Context) {
 	if !h.ready(c) {
 		return
 	}
-	if err := h.service.ReleaseAdmissionBlacklist(c.Request.Context(), c.Param("qqID")); err != nil {
+	input, ok := adminAdmissionBlacklistReleaseInput(c)
+	if !ok {
+		return
+	}
+	if err := h.service.ReleaseAdmissionBlacklist(c.Request.Context(), input); err != nil {
 		respondAdmissionError(c, err)
 		return
 	}
 	response.Success(c, gin.H{"message": "admission blacklist released"})
+}
+
+func adminAdmissionBlacklistReleaseInput(c *gin.Context) (AdmissionBlacklistReleaseInput, bool) {
+	input := AdmissionBlacklistReleaseInput{
+		Platform: strings.TrimSpace(c.Query("platform")),
+		GuildID:  strings.TrimSpace(c.Query("guildID")),
+		QQID:     strings.TrimSpace(c.Param("qqID")),
+	}
+	if input.Platform == "" || input.GuildID == "" || input.QQID == "" {
+		response.BadRequest(c, "platform, guildID and qqID are required")
+		return AdmissionBlacklistReleaseInput{}, false
+	}
+	return input, true
 }
 
 func admissionSessionListFilterFromQuery(c *gin.Context) (AdmissionSessionListFilter, bool) {

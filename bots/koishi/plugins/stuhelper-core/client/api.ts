@@ -4,10 +4,36 @@
  */
 
 import { send } from '@koishijs/client'
-import type { GroupConfig, WarnRecord, BlacklistRecord, Subscription, Role, PermissionNode, RoleMember } from './types'
+import type { GroupConfig, WarnRecord, Subscription, Role, PermissionNode, RoleMember } from './types'
 
 // 重新导出类型
-export type { GroupConfig, WarnRecord, BlacklistRecord, Subscription, Role, PermissionNode, RoleMember }
+export type { GroupConfig, WarnRecord, Subscription, Role, PermissionNode, RoleMember }
+
+export type BlacklistScopeType = 'guild' | 'global'
+
+export interface MemberBlacklistEntry {
+  readonly id: string
+  readonly platform: string
+  readonly subjectID: string
+  readonly scopeType: BlacklistScopeType
+  readonly guildID?: string
+  readonly source: string
+  readonly reasonCode: string
+  readonly reasonText: string
+  readonly createdAt: string
+}
+
+export interface BlacklistListResult {
+  readonly items: readonly MemberBlacklistEntry[]
+}
+
+export interface BlacklistCreateInput {
+  readonly platform?: string
+  readonly subjectID: string
+  readonly scopeType: BlacklistScopeType
+  readonly guildID?: string
+  readonly reasonText?: string
+}
 
 // 仪表盘统计数据类型
 export interface DashboardStats {
@@ -60,9 +86,9 @@ export const warnsApi = {
 
 // 黑名单 API
 export const blacklistApi = {
-  list: () => call<Record<string, BlacklistRecord>>('stuhelperGroupCenter/blacklist/list'),
-  add: (userId: string, record: BlacklistRecord) => call<{ success: boolean }>('stuhelperGroupCenter/blacklist/add', { userId, record }),
-  remove: (userId: string) => call<{ success: boolean }>('stuhelperGroupCenter/blacklist/remove', { userId }),
+  list: () => call<BlacklistListResult>('stuhelperGroupCenter/blacklist/list'),
+  add: (input: BlacklistCreateInput) => call<{ success: boolean }>('stuhelperGroupCenter/blacklist/add', input),
+  remove: (id: string, releaseReason?: string) => call<{ success: boolean }>('stuhelperGroupCenter/blacklist/remove', { id, releaseReason }),
 }
 
 // 订阅 API

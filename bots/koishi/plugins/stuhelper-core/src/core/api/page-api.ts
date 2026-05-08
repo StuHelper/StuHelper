@@ -1,41 +1,24 @@
 import type { Context } from 'koishi'
 
-import {
-  SUPPORTED_COMMAND_POLICY_IDS,
-  ModerationStore,
-} from '@stuhelper/koishi-moderation-core'
-import {
-  GUARD_MEMBER_TABLE,
-  GuardPolicyStore,
-  createPlatformClient,
-  type GuardMemberRecord,
-  type StuhelperGuardConfig,
-  type StuhelperPlatformConfig,
-} from '@stuhelper/koishi-shared'
-
-import type { StuhelperGroupCenterService } from '../services'
-import {
-  ConfigGovernanceService,
-  DashboardPageService,
-  EntityPageService,
-  IdentityPageService,
-  ReviewPageService,
-} from '../services'
 import type { EntityProfileQuery, EntityProfileScope } from '../services'
-import { IdentityProfileLookup } from './identity-profile-lookup'
+import {
+  resolveRequiredConsoleGuildScope,
+  type ScopedConsoleClient,
+} from './console-guild-scope'
 import {
   buildScopedConfigGovernancePageData,
   buildScopedDashboardPageData,
   buildScopedIdentityPageData,
   buildScopedReviewPageData,
 } from './page-scope'
-import { resolveRequiredConsoleGuildScope } from './console-guild-scope'
+import {
+  createPageApiRuntime,
+  createScopeDeps,
+  type PageApiOptions,
+  type PageApiRuntime,
+} from './page-api-runtime'
 
-interface PageApiOptions {
-  service: StuhelperGroupCenterService
-  platform: StuhelperPlatformConfig
-  guard: StuhelperGuardConfig
-}
+const CONSOLE_AUTHORITY = 4
 
 export function registerPageAPI(ctx: Context, options: PageApiOptions) {
   if (!ctx.console) {
@@ -43,207 +26,131 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
     return
   }
 
-  const moderationStore = new ModerationStore(ctx)
-  const guardPolicyStore = new GuardPolicyStore(ctx, options.guard)
-  const platform = createPlatformClient(options.platform)
-  const identityProfileLookup = new IdentityProfileLookup({
-    getQQVerificationStatus: (memberId) => platform.getQQVerificationStatus(memberId),
-  })
+  const runtime = createPageApiRuntime(ctx, options)
+  ctx.console.addListener('stuhelperGroupCenter/page/dashboard', function () {
+    return handleDashboardPage(runtime, this)
+  }, { authority: CONSOLE_AUTHORITY })
+  ctx.console.addListener('stuhelperGroupCenter/page/identity', function () {
+    return handleIdentityPage(runtime, this)
+  }, { authority: CONSOLE_AUTHORITY })
+  ctx.console.addListener('stuhelperGroupCenter/page/review', function () {
+    return handleReviewPage(runtime, this)
+  }, { authority: CONSOLE_AUTHORITY })
+  ctx.console.addListener('stuhelperGroupCenter/page/config-governance', function () {
+    return handleConfigGovernancePage(runtime, this)
+  }, { authority: CONSOLE_AUTHORITY })
+  ctx.console.addListener('stuhelperGroupCenter/page/entity-profile', function (query: EntityProfileQuery) {
+    return handleEntityProfilePage(runtime, this, query)
+  }, { authority: CONSOLE_AUTHORITY })
+}
 
-  const dashboardDeps = {
-    loadPendingMembers: () => listActiveGuardMembers(ctx),
-    loadPendingReviews: () => moderationStore.listPendingReviews(),
-    loadRecentEvents: () => moderationStore.listRecentEvents(20),
-    loadRecentReports: () => moderationStore.listOpenReports(),
-    loadCommandPolicies: () => moderationStore.listCommandPolicies(),
-    loadGuardTemplates: () => guardPolicyStore.listTemplates(),
-    loadGuardBindings: () => guardPolicyStore.listBindings(),
-    loadModuleStates: () => options.service.getAllModules().map((module) => ({
-      name: module.meta.name,
-      description: module.meta.description,
-      state: module.state,
-      error: module.error?.message,
-    })),
+async function handleDashboardPage(runtime: PageApiRuntime, client: ScopedConsoleClient) {
+  const scope = await resolvePageScope(runtime, client)
+  if (scope.kind === 'all') return runtime.dashboardPage.getPageData()
+  const data = await loadDashboardData(runtime.dashboardDeps)
+  return buildScopedDashboardPageData({ generatedAt: new Date().toISOString(), ...data }, scope)
+}
+
+async function handleIdentityPage(runtime: PageApiRuntime, client: ScopedConsoleClient) {
+  const scope = await resolvePageScope(runtime, client)
+  if (scope.kind === 'all') return runtime.identityPage.getPageData()
+  const guardRecords = await runtime.identityDeps.loadGuardRecords()
+  const scopedRecords = guardRecords.filter((record) => scope.guildIds.has(record.guildId))
+  const memberIds = [...new Set(scopedRecords.map((record) => record.memberId))]
+  const { profiles, errors } = await runtime.identityDeps.lookupVerificationProfiles(memberIds)
+  return buildScopedIdentityPageData({
+    generatedAt: new Date().toISOString(),
+    guardRecords: scopedRecords,
+    verificationProfiles: profiles,
+    lookupErrors: errors,
+  }, scope)
+}
+
+async function handleReviewPage(runtime: PageApiRuntime, client: ScopedConsoleClient) {
+  const scope = await resolvePageScope(runtime, client)
+  if (scope.kind === 'all') return runtime.reviewPage.getPageData()
+  const [pendingReviews, pendingMembers, reports, events] = await Promise.all([
+    runtime.reviewDeps.loadPendingReviews(),
+    runtime.reviewDeps.loadPendingMembers(),
+    runtime.reviewDeps.loadReports(),
+    runtime.reviewDeps.loadEvents(),
+  ])
+  return buildScopedReviewPageData({
+    generatedAt: new Date().toISOString(),
+    pendingReviews,
+    pendingMembers,
+    reports,
+    events,
+  }, scope)
+}
+
+async function handleConfigGovernancePage(runtime: PageApiRuntime, client: ScopedConsoleClient) {
+  const scope = await resolvePageScope(runtime, client)
+  if (scope.kind === 'all') return runtime.configPage.getPageData()
+  const [groupConfigs, guildNames, templates, bindings, commandPolicies, supportedCommandIds] = await Promise.all([
+    runtime.configDeps.loadGroupConfigs(),
+    runtime.configDeps.loadGuildNames(),
+    runtime.configDeps.loadTemplates(),
+    runtime.configDeps.loadBindings(),
+    runtime.configDeps.loadCommandPolicies(),
+    runtime.configDeps.loadSupportedCommandIds(),
+  ])
+  return buildScopedConfigGovernancePageData({
+    generatedAt: new Date().toISOString(),
+    groupConfigs,
+    guildNames,
+    templates,
+    bindings,
+    commandPolicies,
+    supportedCommandIds: [...supportedCommandIds],
+  }, scope)
+}
+
+async function handleEntityProfilePage(
+  runtime: PageApiRuntime,
+  client: ScopedConsoleClient,
+  query: EntityProfileQuery,
+) {
+  const scope = await resolvePageScope(runtime, client)
+  return runtime.entityPage.getProfile(normalizeEntityProfileQuery(query), toEntityProfileScope(scope))
+}
+
+async function loadDashboardData(deps: PageApiRuntime['dashboardDeps']) {
+  const [
+    pendingMembers,
+    pendingReviews,
+    recentEvents,
+    recentReports,
+    commandPolicies,
+    guardTemplates,
+    guardBindings,
+    moduleStates,
+  ] = await Promise.all([
+    deps.loadPendingMembers(),
+    deps.loadPendingReviews(),
+    deps.loadRecentEvents(),
+    deps.loadRecentReports(),
+    deps.loadCommandPolicies(),
+    deps.loadGuardTemplates(),
+    deps.loadGuardBindings(),
+    deps.loadModuleStates(),
+  ])
+  return { pendingMembers, pendingReviews, recentEvents, recentReports, commandPolicies, guardTemplates, guardBindings, moduleStates }
+}
+
+function normalizeEntityProfileQuery(query: EntityProfileQuery): EntityProfileQuery {
+  if (!query || (query.kind !== 'user' && query.kind !== 'guild')) {
+    throw new Error('entity profile: kind must be user or guild')
   }
-  const dashboardPage = new DashboardPageService(dashboardDeps)
-
-  const identityDeps = {
-    loadGuardRecords: () => listGuardRecords(ctx),
-    lookupVerificationProfiles: async (memberIds) => identityProfileLookup.lookup(memberIds),
+  const trimmedId = typeof query.id === 'string' ? query.id.trim() : ''
+  if (!trimmedId) {
+    throw new Error('entity profile: id is required')
   }
-  const identityPage = new IdentityPageService(identityDeps)
-
-  const reviewDeps = {
-    loadPendingReviews: () => moderationStore.listPendingReviews(),
-    loadPendingMembers: () => listActiveGuardMembers(ctx),
-    loadReports: () => moderationStore.listOpenReports(),
-    loadEvents: () => moderationStore.listRecentEvents(50),
+  return {
+    kind: query.kind,
+    id: trimmedId,
+    guildId: typeof query.guildId === 'string' ? query.guildId.trim() || undefined : undefined,
   }
-  const reviewPage = new ReviewPageService(reviewDeps)
-
-  const configDeps = {
-    loadGroupConfigs: async () => options.service.data.groupConfig.getAll() as Record<string, Record<string, unknown>>,
-    loadGuildNames: async () => {
-      const cacheData = options.service.cache.getCachedData()
-      return Object.fromEntries(
-        Object.entries(cacheData.guilds).map(([guildId, value]) => [guildId, {
-          name: value.name,
-          avatar: value.avatar,
-        }]),
-      )
-    },
-    loadTemplates: () => guardPolicyStore.listTemplates(),
-    loadBindings: () => guardPolicyStore.listBindings(),
-    loadCommandPolicies: () => moderationStore.listCommandPolicies(),
-    loadSupportedCommandIds: () => [...SUPPORTED_COMMAND_POLICY_IDS],
-  }
-  const configPage = new ConfigGovernanceService(configDeps)
-
-  const entityDeps = {
-    loadWarns: async () => {
-      const all = await options.service.data.warns.getAll()
-      return all as Record<string, Record<string, { count: number; timestamp: number }>>
-    },
-    loadBlacklist: async () => {
-      const all = await options.service.data.blacklist.getAll()
-      return all as Record<string, { userId: string; timestamp: number; reason?: string }>
-    },
-    loadGuardRecords: () => listGuardRecords(ctx),
-    loadReviews: () => moderationStore.listPendingReviews(),
-    loadReports: () => moderationStore.listOpenReports(),
-    loadEvents: (limit: number) => moderationStore.listRecentEvents(limit),
-    hasGuildConfig: async (guildId: string) => {
-      const all = await options.service.data.groupConfig.getAll()
-      return Boolean((all as Record<string, unknown>)[guildId])
-    },
-    resolveGuildName: (guildId: string) => {
-      const cache = options.service.cache.getCachedData()
-      const entry = cache.guilds[guildId]
-      if (!entry) return undefined
-      return { name: entry.name ?? null, avatar: entry.avatar ?? null }
-    },
-    resolveUserName: (userId: string) => {
-      const cache = options.service.cache.getCachedData()
-      const entry = cache.users[userId]
-      if (!entry) return undefined
-      return { name: entry.name ?? null, avatar: entry.avatar ?? null }
-    },
-  }
-  const entityPage = new EntityPageService(entityDeps)
-
-  ctx.console.addListener('stuhelperGroupCenter/page/dashboard', async function () {
-    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx, options.service))
-    if (scope.kind === 'all') {
-      return dashboardPage.getPageData()
-    }
-    const [
-      pendingMembers,
-      pendingReviews,
-      recentEvents,
-      recentReports,
-      commandPolicies,
-      guardTemplates,
-      guardBindings,
-      moduleStates,
-    ] = await Promise.all([
-      dashboardDeps.loadPendingMembers(),
-      dashboardDeps.loadPendingReviews(),
-      dashboardDeps.loadRecentEvents(),
-      dashboardDeps.loadRecentReports(),
-      dashboardDeps.loadCommandPolicies(),
-      dashboardDeps.loadGuardTemplates(),
-      dashboardDeps.loadGuardBindings(),
-      dashboardDeps.loadModuleStates(),
-    ])
-    return buildScopedDashboardPageData({
-      generatedAt: new Date().toISOString(),
-      pendingMembers,
-      pendingReviews,
-      recentEvents,
-      recentReports,
-      commandPolicies,
-      guardTemplates,
-      guardBindings,
-      moduleStates,
-    }, scope)
-  }, { authority: 4 })
-
-  ctx.console.addListener('stuhelperGroupCenter/page/identity', async function () {
-    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx, options.service))
-    if (scope.kind === 'all') {
-      return identityPage.getPageData()
-    }
-    const guardRecords = await identityDeps.loadGuardRecords()
-    const scopedRecords = guardRecords.filter((record) => scope.guildIds.has(record.guildId))
-    const memberIds = [...new Set(scopedRecords.map((record) => record.memberId))]
-    const { profiles, errors } = await identityDeps.lookupVerificationProfiles(memberIds)
-    return buildScopedIdentityPageData({
-      generatedAt: new Date().toISOString(),
-      guardRecords: scopedRecords,
-      verificationProfiles: profiles,
-      lookupErrors: errors,
-    }, scope)
-  }, { authority: 4 })
-
-  ctx.console.addListener('stuhelperGroupCenter/page/review', async function () {
-    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx, options.service))
-    if (scope.kind === 'all') {
-      return reviewPage.getPageData()
-    }
-    const [pendingReviews, pendingMembers, reports, events] = await Promise.all([
-      reviewDeps.loadPendingReviews(),
-      reviewDeps.loadPendingMembers(),
-      reviewDeps.loadReports(),
-      reviewDeps.loadEvents(),
-    ])
-    return buildScopedReviewPageData({
-      generatedAt: new Date().toISOString(),
-      pendingReviews,
-      pendingMembers,
-      reports,
-      events,
-    }, scope)
-  }, { authority: 4 })
-
-  ctx.console.addListener('stuhelperGroupCenter/page/config-governance', async function () {
-    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx, options.service))
-    if (scope.kind === 'all') {
-      return configPage.getPageData()
-    }
-    const [groupConfigs, guildNames, templates, bindings, commandPolicies, supportedCommandIds] = await Promise.all([
-      configDeps.loadGroupConfigs(),
-      configDeps.loadGuildNames(),
-      configDeps.loadTemplates(),
-      configDeps.loadBindings(),
-      configDeps.loadCommandPolicies(),
-      configDeps.loadSupportedCommandIds(),
-    ])
-    return buildScopedConfigGovernancePageData({
-      generatedAt: new Date().toISOString(),
-      groupConfigs,
-      guildNames,
-      templates,
-      bindings,
-      commandPolicies,
-      supportedCommandIds: [...supportedCommandIds],
-    }, scope)
-  }, { authority: 4 })
-
-  ctx.console.addListener('stuhelperGroupCenter/page/entity-profile', async function (query: EntityProfileQuery) {
-    const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx, options.service))
-    if (!query || (query.kind !== 'user' && query.kind !== 'guild')) {
-      throw new Error('entity profile: kind must be user or guild')
-    }
-    const trimmedId = typeof query.id === 'string' ? query.id.trim() : ''
-    if (!trimmedId) {
-      throw new Error('entity profile: id is required')
-    }
-    return entityPage.getProfile({
-      kind: query.kind,
-      id: trimmedId,
-      guildId: typeof query.guildId === 'string' ? query.guildId.trim() || undefined : undefined,
-    }, toEntityProfileScope(scope))
-  }, { authority: 4 })
 }
 
 function toEntityProfileScope(
@@ -255,19 +162,6 @@ function toEntityProfileScope(
   return { guildIds: scope.guildIds }
 }
 
-async function listGuardRecords(ctx: Context) {
-  return ctx.database.get(GUARD_MEMBER_TABLE, {}) as Promise<GuardMemberRecord[]>
-}
-
-async function listActiveGuardMembers(ctx: Context) {
-  const records = await listGuardRecords(ctx)
-  return records.filter((record) => !record.releasedAt && !record.kickedAt)
-}
-
-function createScopeDeps(ctx: Context, service: StuhelperGroupCenterService) {
-  return {
-    roles: service.auth.getRoles(),
-    getUserRoleIds: (userId: string) => service.auth.getUserRoleIds(userId),
-    listBindingsByAuthId: (authId: number) => ctx.database.get('binding', { aid: authId }),
-  }
+function resolvePageScope(runtime: PageApiRuntime, client: ScopedConsoleClient) {
+  return resolveRequiredConsoleGuildScope(client, createScopeDeps(runtime.ctx, runtime.service))
 }

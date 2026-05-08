@@ -101,7 +101,7 @@ function addForbiddenKeywords(input: ForbiddenCommandInput): string {
   groupConfig.keywords = groupConfig.keywords || []
   groupConfig.keywords.push(...newKeywords)
   saveGroupConfig(host, session.guildId, groupConfig)
-  void host.log(session, 'forbidden', 'add', `成功：已添加关键词：${newKeywords.join('、')}`)
+  void host.log({ session, command: 'forbidden', target: 'add', result: `成功：已添加关键词：${newKeywords.join('、')}` })
   return `已经添加了关键词：${newKeywords.join('、')} 喵喵喵~`
 }
 
@@ -120,7 +120,7 @@ function removeForbiddenKeywords(input: ForbiddenCommandInput): string {
   if (removed.length === 0) return '未找到指定的关键词'
 
   saveGroupConfig(host, session.guildId, groupConfig)
-  void host.log(session, 'forbidden', 'remove', `成功：已移除关键词：${removed.join('、')}`)
+  void host.log({ session, command: 'forbidden', target: 'remove', result: `成功：已移除关键词：${removed.join('、')}` })
   return `已经把关键词：${removed.join('、')} 删掉啦喵！`
 }
 
@@ -130,7 +130,7 @@ function clearForbiddenKeywords(input: ForbiddenCommandInput): string {
 
   groupConfig.keywords = []
   saveGroupConfig(host, session.guildId, groupConfig)
-  void host.log(session, 'forbidden', 'clear', '成功：已清除所有关键词')
+  void host.log({ session, command: 'forbidden', target: 'clear', result: '成功：已清除所有关键词' })
   return '所有禁言关键词已清除喵~'
 }
 
@@ -144,7 +144,12 @@ function setForbiddenFlag(
   const forbidden = ensureForbiddenConfig(input.host, input.groupConfig)
   forbidden[descriptor.key] = state
   saveGroupConfig(input.host, input.session.guildId, input.groupConfig)
-  void input.host.log(input.session, 'forbidden', descriptor.command, `成功：已设置${descriptor.label}：${state}`)
+  void input.host.log({
+    session: input.session,
+    command: 'forbidden',
+    target: descriptor.command,
+    result: `成功：已设置${descriptor.label}：${state}`,
+  })
   return `${descriptor.label}状态更新为${state}`
 }
 
@@ -154,7 +159,12 @@ function setForbiddenDuration(input: ForbiddenFlagInput): string {
     const milliseconds = parseTimeString(duration)
     ensureForbiddenConfig(input.host, input.groupConfig).muteDuration = milliseconds
     saveGroupConfig(input.host, input.session.guildId, input.groupConfig)
-    void input.host.log(input.session, 'forbidden', 'set', `成功：已设置禁言时间：${duration}`)
+    void input.host.log({
+      session: input.session,
+      command: 'forbidden',
+      target: 'set',
+      result: `成功：已设置禁言时间：${duration}`,
+    })
     return `禁言时间已更新为：${duration} 喵喵喵~`
   } catch {
     return `无效的时间格式：${duration}，请使用类似 "1h" 或 "30m" 的格式`
@@ -167,7 +177,12 @@ function setEchoFlag(input: ForbiddenFlagInput): string {
 
   ensureForbiddenConfig(input.host, input.groupConfig).echo = state
   saveGroupConfig(input.host, input.session.guildId, input.groupConfig)
-  void input.host.log(input.session, 'forbidden', 'echo', `成功：已设置回显：${state}`)
+  void input.host.log({
+    session: input.session,
+    command: 'forbidden',
+    target: 'echo',
+    result: `成功：已设置回显：${state}`,
+  })
   return `回显状态更新为${state}`
 }
 

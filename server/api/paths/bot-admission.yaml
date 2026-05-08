@@ -67,6 +67,16 @@
         required: true
         schema:
           type: string
+      - name: platform
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: guildID
+        in: query
+        required: true
+        schema:
+          type: string
     responses:
       '200':
         description: QQ 准入状态
@@ -79,13 +89,9 @@
                   required: [data]
                   properties:
                     data:
-                      type: object
-                      required: [canJoin]
-                      properties:
-                        canJoin:
-                          type: boolean
-                        reason:
-                          type: string
+                      $ref: '../components/schemas/admission.yaml#/AdmissionQQAccess'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 

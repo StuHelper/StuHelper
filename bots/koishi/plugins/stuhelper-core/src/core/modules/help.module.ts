@@ -111,42 +111,38 @@ export class HelpModule implements RuntimeModuleInstance {
 
     for (const [moduleDesc, commands] of commandsByModule) {
       const accessibleCommands = commands.filter(cmd => {
-        // skipAuth
         if (!cmd.permId) return true
         return this.ctx.stuhelperGroupCenter.auth.check(session, cmd.permId)
       })
 
       if (accessibleCommands.length === 0) continue
-
-      lines.push(`=== ${moduleDesc} ===`)
-
-      for (const cmd of accessibleCommands) {
-        // 命令名 参数  描述
-        let cmdLine = cmd.name
-        if (cmd.args) {
-          cmdLine += ` ${this.escapeAngleBrackets(cmd.args)}`
-        }
-        cmdLine += `  ${cmd.desc}`
-        lines.push(cmdLine)
-
-        if (cmd.usage) {
-          const usageLines = cmd.usage.split('\n')
-          for (const line of usageLines) {
-            lines.push(`  ${this.escapeAngleBrackets(line)}`)
-          }
-        }
-
-        if (cmd.examples && cmd.examples.length > 0) {
-          for (const example of cmd.examples) {
-            lines.push(`  示例：${this.escapeAngleBrackets(example)}`)
-          }
-        }
-      }
-
-      lines.push('')
+      lines.push(...this.formatCommandModuleHelp(moduleDesc, accessibleCommands))
     }
 
-    lines.push(`=== 时间表达式 ===
+    lines.push(this.getTimeExpressionHelp())
+    return lines.join('\n')
+  }
+
+  private formatCommandModuleHelp(moduleDesc: string, commands: any[]): string[] {
+    const lines = [`=== ${moduleDesc} ===`]
+    for (const cmd of commands) {
+      lines.push(this.formatCommandHelpLine(cmd))
+      if (cmd.usage) {
+        cmd.usage.split('\n').forEach((line: string) => lines.push(`  ${this.escapeAngleBrackets(line)}`))
+      }
+      cmd.examples?.forEach((example: string) => lines.push(`  示例：${this.escapeAngleBrackets(example)}`))
+    }
+    lines.push('')
+    return lines
+  }
+
+  private formatCommandHelpLine(cmd: any): string {
+    const args = cmd.args ? ` ${this.escapeAngleBrackets(cmd.args)}` : ''
+    return `${cmd.name}${args}  ${cmd.desc}`
+  }
+
+  private getTimeExpressionHelp(): string {
+    return `=== 时间表达式 ===
 支持以下格式：
 · 基本单位：s（秒）、min（分钟）、h（小时）
 · 基本格式：数字+单位，如：1h、10min、30s
@@ -154,9 +150,7 @@ export class HelpModule implements RuntimeModuleInstance {
   · +, -, *, /, ^, sqrt(), 1e2
 · 表达式示例：
   · (sqrt(100)+1e1)^2s = 400秒 = 6分40秒
-· 时间范围：1秒 ~ 29天23小时59分59秒`)
-
-    return lines.join('\n')
+· 时间范围：1秒 ~ 29天23小时59分59秒`
   }
 }
 

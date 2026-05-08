@@ -39,7 +39,12 @@ async function handleReportConfigCommand(input: ReportConfigInput): Promise<stri
   if (!result.hasChanges) return result.messages.join('\n')
 
   await input.host.ctx.stuhelperGroupCenter.settings.update({ report: currentReport })
-  await input.host.logCommand(input.session, 'report-config', guildId, '已更新举报功能配置')
+  await input.host.logCommand({
+    session: input.session,
+    command: 'report-config',
+    target: guildId,
+    details: '已更新举报功能配置',
+  })
   return `举报功能配置已更新\n${result.messages.join('\n')}`
 }
 

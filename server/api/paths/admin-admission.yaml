@@ -234,6 +234,16 @@
         required: true
         schema:
           type: string
+      - name: platform
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: guildID
+        in: query
+        required: true
+        schema:
+          type: string
     responses:
       '200':
         description: 黑名单已解除

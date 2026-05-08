@@ -14,5 +14,6 @@ func TestKoishiRuntimeScopesIncludeAdmissionScopes(t *testing.T) {
 		ScopeBotAdmissionEvent,
 		ScopeBotAdmissionReview,
 		ScopeBotAdmissionForward,
+		ScopeBotMemberBlacklist,
 	}, KoishiRuntimeScopes())
 }

@@ -39,12 +39,13 @@ export function createGuardMemberRecord(
   })
 }
 
-export function createBackendPendingGuardMemberRecord(
-  session: Session,
-  policy: EffectiveGuardPolicy,
-  lastError: string,
-  now = new Date(),
-): GuardMemberRecord {
+export function createBackendPendingGuardMemberRecord(input: {
+  readonly session: Session
+  readonly policy: EffectiveGuardPolicy
+  readonly lastError: string
+  readonly now?: Date
+}): GuardMemberRecord {
+  const { session, policy, lastError, now = new Date() } = input
   const deadlineAt = new Date(now.getTime() + policy.kickAfterMinutes * MINUTE_MS)
   return createBaseGuardMemberRecord(session, {
     admissionSessionID: null,

@@ -7,10 +7,10 @@ import type {
   GroupConfig,
   Config,
   WarnRecord,
-  BlacklistRecord,
   PermissionNode,
   Role,
 } from './types'
+import type { MemberBlacklistEntry } from '@stuhelper/koishi-shared'
 import type {
   DashboardPageData,
   IdentityPageData,
@@ -135,9 +135,18 @@ declare module '@koishijs/console' {
     'stuhelperGroupCenter/warns/add'(params: { guildId: string; userId: string }): Promise<ApiResponse<{ success: boolean }>>
     'stuhelperGroupCenter/warns/clear'(params: { key: string }): Promise<ApiResponse<{ success: boolean }>>
 
-    'stuhelperGroupCenter/blacklist/list'(): Promise<ApiResponse<Record<string, BlacklistRecord>>>
-    'stuhelperGroupCenter/blacklist/add'(params: { userId: string; record: BlacklistRecord }): Promise<ApiResponse<{ success: boolean }>>
-    'stuhelperGroupCenter/blacklist/remove'(params: { userId: string }): Promise<ApiResponse<{ success: boolean }>>
+    'stuhelperGroupCenter/blacklist/list'(): Promise<ApiResponse<{ items: readonly MemberBlacklistEntry[] }>>
+    'stuhelperGroupCenter/blacklist/add'(params: {
+      platform?: string
+      subjectID: string
+      scopeType: 'guild' | 'global'
+      guildID?: string
+      reasonText?: string
+    }): Promise<ApiResponse<{ success: boolean; entry: MemberBlacklistEntry }>>
+    'stuhelperGroupCenter/blacklist/remove'(params: {
+      id: string
+      releaseReason?: string
+    }): Promise<ApiResponse<{ success: boolean }>>
 
     'stuhelperGroupCenter/subscriptions/list'(params?: { fetchNames?: boolean }): Promise<ApiResponse<Array<Subscription & { name?: string; avatar?: string }>>>
     'stuhelperGroupCenter/subscriptions/add'(params: { subscription: Subscription }): Promise<ApiResponse<{ success: boolean }>>

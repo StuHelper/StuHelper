@@ -39,8 +39,22 @@ func (s *Service) MarkFreshmanApplicationForwarded(ctx context.Context, applicat
 	return s.repo.MarkFreshmanApplicationForwarded(ctx, strings.TrimSpace(applicationID), s.now())
 }
 
-func (s *Service) GetAdmissionQQAccess(ctx context.Context, qqID string) (*AdmissionQQAccess, error) {
-	failure, err := s.repo.GetActiveAdmissionFailure(ctx, strings.TrimSpace(qqID))
+func (s *Service) GetAdmissionQQAccess(ctx context.Context, query AdmissionQQAccessQuery) (*AdmissionQQAccess, error) {
+	query = normalizeAdmissionQQAccessQuery(query)
+	memberAccess, err := s.GetMemberBlacklistAccess(ctx, MemberBlacklistAccessQuery{
+		Platform:    query.Platform,
+		SubjectType: MemberBlacklistSubjectQQUser,
+		SubjectID:   query.QQID,
+		GuildID:     query.GuildID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !memberAccess.CanJoin {
+		reason := blacklistReason
+		return &AdmissionQQAccess{CanJoin: false, Reason: &reason}, nil
+	}
+	failure, err := s.repo.GetActiveAdmissionFailure(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +72,24 @@ func (s *Service) RecordJoinRequestEvent(ctx context.Context, input AdmissionJoi
 	})
 }
 
-func (s *Service) ReleaseAdmissionBlacklist(ctx context.Context, qqID string) error {
-	return s.repo.ReleaseAdmissionBlacklist(ctx, strings.TrimSpace(qqID), s.now())
+func (s *Service) ReleaseAdmissionBlacklist(ctx context.Context, input AdmissionBlacklistReleaseInput) error {
+	input = normalizeAdmissionBlacklistReleaseInput(input)
+	if input.Platform == "" || input.GuildID == "" || input.QQID == "" {
+		return ErrMemberBlacklistInvalidInput
+	}
+	now := s.now()
+	releasedFailure, err := s.repo.ReleaseAdmissionBlacklist(ctx, input, now)
+	if err != nil {
+		return err
+	}
+	releasedMember, err := s.repo.ReleaseAdmissionFailureMemberBlacklist(ctx, input, now)
+	if err != nil {
+		return err
+	}
+	if !releasedFailure && !releasedMember {
+		return ErrAdmissionBlacklistNotFound
+	}
+	return nil
 }
 
 func normalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {
@@ -68,6 +98,22 @@ func normalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {
 	policy.Platform = strings.TrimSpace(policy.Platform)
 	policy.GuildID = strings.TrimSpace(policy.GuildID)
 	return policy
+}
+
+func normalizeAdmissionQQAccessQuery(input AdmissionQQAccessQuery) AdmissionQQAccessQuery {
+	input.Platform = strings.TrimSpace(input.Platform)
+	input.GuildID = strings.TrimSpace(input.GuildID)
+	input.QQID = strings.TrimSpace(input.QQID)
+	return input
+}
+
+func normalizeAdmissionBlacklistReleaseInput(
+	input AdmissionBlacklistReleaseInput,
+) AdmissionBlacklistReleaseInput {
+	input.Platform = strings.TrimSpace(input.Platform)
+	input.GuildID = strings.TrimSpace(input.GuildID)
+	input.QQID = strings.TrimSpace(input.QQID)
+	return input
 }
 
 func normalizeJoinRequestEventInput(input AdmissionJoinRequestEventInput) AdmissionJoinRequestEventInput {

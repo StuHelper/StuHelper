@@ -58,7 +58,11 @@ func (h *Handler) handleLinkAdmissionSession(c *gin.Context) {
 	if !ok {
 		return
 	}
-	session, err := h.service.LinkTokenToUser(c.Request.Context(), c.Param("token"), c.Query("qq"), userID)
+	session, err := h.service.LinkTokenToUser(c.Request.Context(), AdmissionTokenLinkInput{
+		Token:   c.Param("token"),
+		QQQuery: c.Query("qq"),
+		UserID:  userID,
+	})
 	if err != nil {
 		respondAdmissionError(c, err)
 		return

@@ -36,12 +36,12 @@ function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审状态 [guildId:text]', '查看当前群待认证成员', { authority: 3 })
     .action(async ({ session }, guildId) => {
       const targetGuildId = resolveGuildId(session, guildId)
-      const denial = await ensureAdminCommandAccess(
-        deps.moderationStore,
+      const denial = await ensureAdminCommandAccess({
+        store: deps.moderationStore,
         session,
-        COMMAND_POLICY_IDS.guardStatus,
+        commandId: COMMAND_POLICY_IDS.guardStatus,
         targetGuildId,
-      )
+      })
       if (denial) {
         return denial
       }
@@ -53,12 +53,12 @@ function registerWarningCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审警告 <memberId:text> [guildId:text]', '查看成员当前警告次数', { authority: 3 })
     .action(async ({ session }, memberId, guildId) => {
       const targetGuildId = resolveGuildId(session, guildId)
-      const denial = await ensureAdminCommandAccess(
-        deps.moderationStore,
+      const denial = await ensureAdminCommandAccess({
+        store: deps.moderationStore,
         session,
-        COMMAND_POLICY_IDS.guardWarnings,
+        commandId: COMMAND_POLICY_IDS.guardWarnings,
         targetGuildId,
-      )
+      })
       if (denial) {
         return denial
       }
@@ -73,12 +73,12 @@ function registerReviewListCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审复核 [guildId:text]', '查看当前群待复核队列', { authority: 3 })
     .action(async ({ session }, guildId) => {
       const targetGuildId = resolveGuildId(session, guildId)
-      const denial = await ensureAdminCommandAccess(
-        deps.moderationStore,
+      const denial = await ensureAdminCommandAccess({
+        store: deps.moderationStore,
         session,
-        COMMAND_POLICY_IDS.guardReviews,
+        commandId: COMMAND_POLICY_IDS.guardReviews,
         targetGuildId,
-      )
+      })
       if (denial) {
         return denial
       }
@@ -89,11 +89,11 @@ function registerReviewListCommand(ctx: Context, deps: AdminCommandDeps) {
 function registerBatchMuteCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审禁言 <payload:text>', '批量禁言待认证成员', { authority: 3 })
     .action(async ({ session }, payload) => {
-      const denial = await ensureAdminCommandAccess(
-        deps.moderationStore,
+      const denial = await ensureAdminCommandAccess({
+        store: deps.moderationStore,
         session,
-        COMMAND_POLICY_IDS.guardMute,
-      )
+        commandId: COMMAND_POLICY_IDS.guardMute,
+      })
       if (denial) {
         return denial
       }
@@ -130,41 +130,56 @@ function registerBatchMuteCommand(ctx: Context, deps: AdminCommandDeps) {
 function registerKickReviewCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审踢人申请 <memberId> <reason:text>', '提交踢人复核申请', { authority: 4 })
     .action(async ({ session }, memberId, reason) => {
-      const denial = await ensureAdminCommandAccess(
-        deps.moderationStore,
+      const denial = await ensureAdminCommandAccess({
+        store: deps.moderationStore,
         session,
-        COMMAND_POLICY_IDS.guardKickRequest,
-      )
+        commandId: COMMAND_POLICY_IDS.guardKickRequest,
+      })
       if (denial) {
         return denial
       }
-      return createReviewRequest(deps.moderationStore, session, memberId, reason, 'kick', '踢人')
+      return createReviewRequest({
+        store: deps.moderationStore,
+        session,
+        memberId,
+        reason,
+        actionType: 'kick',
+        actionLabel: '踢人',
+      })
     })
 }
 
 function registerBlockReviewCommand(ctx: Context, deps: AdminCommandDeps) {
   ctx.command('群审拉黑申请 <memberId> <reason:text>', '提交踢人并拉黑复核申请', { authority: 4 })
     .action(async ({ session }, memberId, reason) => {
-      const denial = await ensureAdminCommandAccess(
-        deps.moderationStore,
+      const denial = await ensureAdminCommandAccess({
+        store: deps.moderationStore,
         session,
-        COMMAND_POLICY_IDS.guardBlockRequest,
-      )
+        commandId: COMMAND_POLICY_IDS.guardBlockRequest,
+      })
       if (denial) {
         return denial
       }
-      return createReviewRequest(deps.moderationStore, session, memberId, reason, 'kick_and_block', '踢人并拉黑')
+      return createReviewRequest({
+        store: deps.moderationStore,
+        session,
+        memberId,
+        reason,
+        actionType: 'kick_and_block',
+        actionLabel: '踢人并拉黑',
+      })
     })
 }
 
-async function createReviewRequest(
-  store: ModerationStore,
-  session: Session | undefined,
-  memberId: string | undefined,
-  reason: string | undefined,
-  actionType: ReviewActionType,
-  actionLabel: string,
-) {
+async function createReviewRequest(input: {
+  readonly store: ModerationStore
+  readonly session: Session | undefined
+  readonly memberId: string | undefined
+  readonly reason: string | undefined
+  readonly actionType: ReviewActionType
+  readonly actionLabel: string
+}) {
+  const { store, session, memberId, reason, actionType, actionLabel } = input
   if (!session?.guildId || !session.channelId || !memberId?.trim() || !reason?.trim()) {
     return '请在群聊中提供成员 ID 和原因。'
   }

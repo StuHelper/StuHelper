@@ -27,9 +27,9 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
   let pendingActions: unknown[] = []
   const admissionEvents: unknown[] = []
   const server = createServer((req, res) => {
-    if (respondAdmissionSession(req, res, '10001', 'group-1')) return
+    if (respondAdmissionSession({ req, res, qqID: '10001', guildID: 'group-1' })) return
     if (respondPendingActions(req, res, () => pendingActions)) return
-    if (respondAdmissionEvent(req, res, admissionEvents, () => { pendingActions = [] })) return
+    if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { pendingActions = [] } })) return
     if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
@@ -90,9 +90,9 @@ test('超时未认证成员会被自动踢出', async () => {
   let pendingActions: unknown[] = []
   const admissionEvents: unknown[] = []
   const server = createServer((req, res) => {
-    if (respondAdmissionSession(req, res, '10002', 'group-2')) return
+    if (respondAdmissionSession({ req, res, qqID: '10002', guildID: 'group-2' })) return
     if (respondPendingActions(req, res, () => pendingActions)) return
-    if (respondAdmissionEvent(req, res, admissionEvents, () => { pendingActions = [] })) return
+    if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { pendingActions = [] } })) return
     if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
@@ -138,12 +138,12 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
   let releaseEnabled = false
   const admissionEvents: unknown[] = []
   const server = createServer((req, res) => {
-    if (respondAdmissionSession(req, res, '10003', 'group-3')) return
+    if (respondAdmissionSession({ req, res, qqID: '10003', guildID: 'group-3' })) return
     if (respondPendingActions(req, res, (url) => {
       if (!releaseEnabled || url.searchParams.get('botSelfID') !== '515') return []
       return [admissionAction('10003', 'group-3', 'release')]
     })) return
-    if (respondAdmissionEvent(req, res, admissionEvents, () => { releaseEnabled = false })) return
+    if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { releaseEnabled = false } })) return
     if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })

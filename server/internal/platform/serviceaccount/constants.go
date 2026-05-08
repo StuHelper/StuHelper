@@ -9,6 +9,7 @@ const (
 	ScopeBotAdmissionEvent      = "bot.admission.event"
 	ScopeBotAdmissionReview     = "bot.admission.review"
 	ScopeBotAdmissionForward    = "bot.admission.forward"
+	ScopeBotMemberBlacklist     = "bot.member_blacklist"
 )
 
 func KoishiRuntimeScopes() []string {
@@ -19,5 +20,6 @@ func KoishiRuntimeScopes() []string {
 		ScopeBotAdmissionEvent,
 		ScopeBotAdmissionReview,
 		ScopeBotAdmissionForward,
+		ScopeBotMemberBlacklist,
 	}
 }

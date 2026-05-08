@@ -91,7 +91,7 @@ function registerSendCommand(ctx: Context, meta: RuntimeModuleMeta): void {
     .example('send 123456789')
     .option('s', '-s 静默发送，不显示发送者信息')
     .action(async ({ session, options }, groupId) => {
-      return handleSendCommand(ctx, session, groupId, Boolean(options.s))
+      return handleSendCommand({ ctx, session, groupId, silent: Boolean(options.s) })
     })
 }
 
@@ -123,12 +123,13 @@ async function handleQuitGroupCommand(
   }
 }
 
-async function handleSendCommand(
-  ctx: Context,
-  session: Session,
-  groupId: string,
-  silent: boolean,
-): Promise<string> {
+async function handleSendCommand(input: {
+  readonly ctx: Context
+  readonly session: Session
+  readonly groupId: string
+  readonly silent: boolean
+}): Promise<string> {
+  const { ctx, session, groupId, silent } = input
   if (!session.quote) return '喵喵！请回复要发送的消息呀~'
   if (!groupId?.trim()) return '喵呜...请指定要发送到的群聊ID喵~'
 
@@ -171,12 +172,12 @@ function logCommand(ctx: Context, entry: CommandLogEntry): void {
   if (entry.success === false) {
     entry.session['_commandFailed'] = true
   }
-  ctx.stuhelperGroupCenter.logCommand(
-    entry.session,
-    entry.command,
-    entry.target,
-    entry.result,
-  )
+  ctx.stuhelperGroupCenter.logCommand({
+    session: entry.session,
+    command: entry.command,
+    target: entry.target,
+    result: entry.result,
+  })
 }
 
 function getErrorMessage(error: unknown): string {

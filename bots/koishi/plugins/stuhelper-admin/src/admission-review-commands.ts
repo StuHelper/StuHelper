@@ -87,12 +87,12 @@ async function handleBlacklistRelease(deps: FreshmanReviewCommandDeps, session: 
 
 async function commandInput(deps: FreshmanReviewCommandDeps, session: Session | undefined) {
   if (!session?.guildId) return { error: '请在新生审核管理群中执行此命令。' } as const
-  const denial = await ensureAdminCommandAccess(
-    deps.moderationStore,
+  const denial = await ensureAdminCommandAccess({
+    store: deps.moderationStore,
     session,
-    COMMAND_POLICY_IDS.guardReviews,
-    session.guildId,
-  )
+    commandId: COMMAND_POLICY_IDS.guardReviews,
+    targetGuildId: session.guildId,
+  })
   if (denial) return { error: denial } as const
   return {
     context: {

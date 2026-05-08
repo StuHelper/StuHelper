@@ -76,6 +76,17 @@ AdmissionMe:
         - "null"
       format: date-time
 
+AdmissionQQAccess:
+  type: object
+  required: [canJoin]
+  properties:
+    canJoin:
+      type: boolean
+    reason:
+      type: string
+    autoApproveJoin:
+      type: boolean
+
 AdmissionPolicy:
   type: object
   required:
@@ -181,6 +192,10 @@ BotFreshmanCommandContext:
   required: [operatorQQID, guildID, rawCommand]
   properties:
     operatorQQID:
+      type: string
+    platform:
+      type: string
+    targetGuildID:
       type: string
     guildID:
       type: string

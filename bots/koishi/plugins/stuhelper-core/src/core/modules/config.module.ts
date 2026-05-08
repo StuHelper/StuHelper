@@ -4,6 +4,7 @@
  */
 
 import type { Context, Session } from 'koishi'
+import type { StuhelperPlatformConfig } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config } from '../../types'
@@ -31,7 +32,8 @@ export class ConfigModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager
+    readonly data: DataManager,
+    readonly platformConfig: StuhelperPlatformConfig,
   ) {}
 
   get config(): Config {
@@ -67,23 +69,25 @@ export class ConfigModule implements RuntimeModuleInstance {
     return registerRuntimeCommand(this.ctx, this.meta, def)
   }
 
-  async log(
-    session: Session,
-    command: string,
-    target: string,
-    result: string,
-    success?: boolean,
-  ): Promise<void> {
+  async log(entry: {
+    readonly session: Session
+    readonly command: string
+    readonly target: string
+    readonly result: string
+    readonly success?: boolean
+  }): Promise<void> {
+    const { session, command, target, result, success } = entry
     if (success === false) {
       session['_commandFailed'] = true
     }
-    await this.ctx.stuhelperGroupCenter.logCommand(session, command, target, result)
+    await this.ctx.stuhelperGroupCenter.logCommand({ session, command, target, result })
   }
 }
 
 export const configRuntimeModule: RuntimeModule<ConfigModule> = {
   id: 'config',
   create(ctx, deps) {
-    return new ConfigModule(ctx, deps.data)
+    if (!deps.coreConfig) throw new Error('stuhelper core config is required for ConfigModule')
+    return new ConfigModule(ctx, deps.data, deps.coreConfig.platform)
   },
 }

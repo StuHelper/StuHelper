@@ -1,17 +1,17 @@
 import { Context, Service, Session } from 'koishi'
 import { DataManager } from '../data'
 import { Role, PermissionNode, RegisteredCommand } from '../../types'
+import { BUILTIN_ROLE_IDS, type BuiltinRoleId, createBuiltinRoles } from './auth-builtins'
+import { collectSessionPermissions, hasPermissionNode } from './auth-permissions'
 
-/** 内置角色 ID 列表 */
-export const BUILTIN_ROLE_IDS = [
-  'authority1',
-  'authority2',
-  'authority3',
-  'authority4+',
-  'guild-admin'
-] as const
+export { BUILTIN_ROLE_IDS, type BuiltinRoleId }
 
-export type BuiltinRoleId = typeof BUILTIN_ROLE_IDS[number]
+interface RegisterPermissionInput {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly group?: string
+}
 
 export class AuthService {
   /** 动态注册的权限节点 */
@@ -26,7 +26,12 @@ export class AuthService {
     private data: DataManager
   ) {
     // 注册系统内置权限
-    this.registerPermission('*', '超级管理员', '拥有所有权限', '系统')
+    this.registerPermission({
+      id: '*',
+      name: '超级管理员',
+      description: '拥有所有权限',
+      group: '系统',
+    })
     
     // 初始化内置角色
     this.initBuiltinRoles()
@@ -39,55 +44,7 @@ export class AuthService {
     const roles = this.data.authRoles.get('roles') || {}
     let changed = false
 
-    const builtinRoles: Role[] = [
-      {
-        id: 'authority1',
-        name: 'Authority 1',
-        color: '#67c23a',
-        priority: 100,
-        permissions: [],
-        guildIds: [],
-        builtin: true
-      },
-      {
-        id: 'authority2',
-        name: 'Authority 2',
-        color: '#e6a23c',
-        priority: 200,
-        permissions: [],
-        guildIds: [],
-        builtin: true
-      },
-      {
-        id: 'authority3',
-        name: 'Authority 3',
-        color: '#f56c6c',
-        priority: 300,
-        permissions: [],
-        guildIds: [],
-        builtin: true
-      },
-      {
-        id: 'authority4+',
-        name: 'Authority ≥4',
-        color: '#9c27b0',
-        priority: 400,
-        permissions: [],
-        guildIds: [],
-        builtin: true
-      },
-      {
-        id: 'guild-admin',
-        name: '群管理员',
-        color: '#409eff',
-        priority: 50,
-        permissions: [],
-        guildIds: [],
-        builtin: true
-      }
-    ]
-
-    for (const role of builtinRoles) {
+    for (const role of createBuiltinRoles()) {
       if (!roles[role.id]) {
         roles[role.id] = role
         changed = true
@@ -121,7 +78,8 @@ export class AuthService {
    * @param description 权限描述
    * @param group 分组名称（用于前端显示）
    */
-  registerPermission(id: string, name: string, description: string, group?: string): void {
+  registerPermission(input: RegisterPermissionInput): void {
+    const { id, name, description, group } = input
     this._permissions.set(id, { id, name, description, group })
     
     // 自动注册模块级通配符权限（如 warn.* ）
@@ -314,70 +272,10 @@ export class AuthService {
    * 3. 用户被手动分配的自定义角色
    */
   getUserPermissions(session: Session): Set<string> {
-    const perms = new Set<string>()
     const user = session.userId
-    const guildId = session.guildId
-    if (!user) return perms
-
+    if (!user) return new Set()
     const roles = this.data.authRoles.get('roles') || {}
-    const authority = (session.user as any)?.authority || 0
-
-    // 辅助函数：添加角色权限
-    const addRolePermissions = (roleId: string, checkGuildScope = true) => {
-      const role = roles[roleId]
-      if (!role) return
-      
-      if (checkGuildScope) {
-        const roleGuildIds = role.guildIds || []
-        const isGlobal = roleGuildIds.length === 0
-        const isInScope = guildId && roleGuildIds.includes(guildId)
-        if (!isGlobal && !isInScope) return
-      }
-      
-      role.permissions?.forEach(p => perms.add(p))
-    }
-
-    // 1. 内置 Authority 角色（根据 Koishi 权限等级自动分配，全局生效）
-    if (authority >= 1) addRolePermissions('authority1', false)
-    if (authority >= 2) addRolePermissions('authority2', false)
-    if (authority >= 3) addRolePermissions('authority3', false)
-    if (authority >= 4) addRolePermissions('authority4+', false)
-
-    // 2. 群管理员角色（根据群内身份自动分配，仅当前群生效）
-    // 检查用户是否为群管理员或群主
-    const isGuildAdmin = this.checkGuildAdmin(session)
-    if (isGuildAdmin && guildId) {
-      addRolePermissions('guild-admin', false) // guild-admin 的权限仅在群内触发
-    }
-
-    // 3. 用户手动分配的角色
-    const userRoleIds = this.getUserRoleIds(user)
-    userRoleIds.forEach(roleId => addRolePermissions(roleId, true))
-
-    return perms
-  }
-
-  /**
-   * 检查用户是否为群管理员或群主
-   */
-  private checkGuildAdmin(session: Session): boolean {
-    // Koishi session 中的 author 信息
-    const author = session.author || (session.event as any)?.member
-    if (!author) return false
-    
-    // 检查 roles 字段（通常包含 'admin', 'owner' 等）
-    const roles = author.roles || []
-    if (roles.includes('admin') || roles.includes('owner')) {
-      return true
-    }
-    
-    // OneBot 协议：检查 role 字段
-    const role = (author as any).role
-    if (role === 'admin' || role === 'owner') {
-      return true
-    }
-    
-    return false
+    return collectSessionPermissions({ session, roles, userRoleIds: this.getUserRoleIds(user) })
   }
 
   /**
@@ -390,22 +288,6 @@ export class AuthService {
    * 注意：不再对高 authority 用户自动放行，必须在 WebUI 配置相应权限
    */
   check(session: Session, node: string): boolean {
-    const perms = this.getUserPermissions(session)
-
-    // 1. 精确匹配
-    if (perms.has(node)) return true
-
-    // 2. 超级通配符
-    if (perms.has('*')) return true
-
-    // 3. 逐级通配符匹配 (e.g. "warn.*" matches "warn.add")
-    const parts = node.split('.')
-    let current = ''
-    for (let i = 0; i < parts.length - 1; i++) {
-      current += (i === 0 ? '' : '.') + parts[i]
-      if (perms.has(current + '.*')) return true
-    }
-
-    return false
+    return hasPermissionNode(this.getUserPermissions(session), node)
   }
 }

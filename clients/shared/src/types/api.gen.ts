@@ -1972,6 +1972,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bot/member-blacklist/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 机器人查询成员黑名单准入状态 */
+        get: operations["getBotMemberBlacklistAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/member-blacklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 机器人列出成员黑名单 */
+        get: operations["listBotMemberBlacklist"];
+        put?: never;
+        /** 机器人创建成员黑名单 */
+        post: operations["createBotMemberBlacklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/member-blacklist/release-by-subject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人按成员和作用域解除黑名单 */
+        post: operations["releaseBotMemberBlacklistBySubject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bot/member-blacklist/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 机器人按黑名单 ID 解除黑名单 */
+        post: operations["releaseBotMemberBlacklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/identities": {
         parameters: {
             query?: never;
@@ -2205,6 +2274,58 @@ export interface paths {
         put?: never;
         /** 解除 QQ 入群认证黑名单 */
         post: operations["releaseAdmissionBlacklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/member-blacklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin 列出成员黑名单 */
+        get: operations["listAdminMemberBlacklist"];
+        put?: never;
+        /** Admin 创建成员黑名单 */
+        post: operations["createAdminMemberBlacklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/member-blacklist/release-by-subject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin 按成员和作用域解除黑名单 */
+        post: operations["releaseAdminMemberBlacklistBySubject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/member-blacklist/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin 按黑名单 ID 解除黑名单 */
+        post: operations["releaseAdminMemberBlacklist"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2978,6 +3099,11 @@ export interface components {
             /** Format: date-time */
             provisionalExpiresAt?: string | null;
         };
+        AdmissionQQAccess: {
+            canJoin: boolean;
+            reason?: string;
+            autoApproveJoin?: boolean;
+        };
         AdmissionPolicy: {
             id: string;
             platform: string;
@@ -3053,6 +3179,64 @@ export interface components {
             };
         };
         BotFreshmanReviewRequest: components["schemas"]["FreshmanReviewRequest"] & components["schemas"]["BotFreshmanCommandContext"];
+        MemberBlacklistEntry: {
+            id: string;
+            platform: string;
+            subjectType: components["schemas"]["MemberBlacklistSubjectType"];
+            subjectID: string;
+            scopeType: components["schemas"]["MemberBlacklistScopeType"];
+            guildID?: string;
+            source: components["schemas"]["MemberBlacklistSource"];
+            reasonCode: string;
+            reasonText: string;
+            createdByType: string;
+            createdByID: string;
+            createdFrom: components["schemas"]["MemberBlacklistCreatedFrom"];
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: date-time */
+            releasedAt?: string;
+            releasedByType?: string;
+            releasedByID?: string;
+            releaseReasonCode?: string;
+            releaseReason?: string;
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        MemberBlacklistCreateRequest: {
+            platform: string;
+            subjectType: components["schemas"]["MemberBlacklistSubjectType"];
+            subjectID: string;
+            scopeType: components["schemas"]["MemberBlacklistScopeType"];
+            guildID?: string;
+            source: components["schemas"]["MemberBlacklistSource"];
+            reasonCode: string;
+            reasonText?: string;
+            createdFrom: components["schemas"]["MemberBlacklistCreatedFrom"];
+            operatorID?: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        MemberBlacklistReleaseRequest: {
+            releaseReasonCode: string;
+            releaseReason?: string;
+            operatorID?: string;
+        };
+        MemberBlacklistReleaseBySubjectRequest: components["schemas"]["MemberBlacklistReleaseRequest"] & {
+            platform: string;
+            subjectType: components["schemas"]["MemberBlacklistSubjectType"];
+            subjectID: string;
+            scopeType: components["schemas"]["MemberBlacklistScopeType"];
+            guildID?: string;
+        };
         CameraCaptureRequest: {
             /** @enum {string} */
             contentType: "image/jpeg" | "image/png" | "image/webp";
@@ -3287,10 +3471,20 @@ export interface components {
         FreshmanApplicationStatus: "pending" | "approved" | "rejected";
         BotFreshmanCommandContext: {
             operatorQQID: string;
+            platform?: string;
+            targetGuildID?: string;
             guildID: string;
             channelID?: string;
             rawCommand: string;
         };
+        /** @enum {string} */
+        MemberBlacklistSubjectType: "qq_user";
+        /** @enum {string} */
+        MemberBlacklistScopeType: "guild" | "global";
+        /** @enum {string} */
+        MemberBlacklistSource: "admission_failure" | "manual_admin" | "kick_blacklist" | "moderation_action" | "migration_legacy_koishi" | "migration_admission_failure";
+        /** @enum {string} */
+        MemberBlacklistCreatedFrom: "admission_worker" | "qq_command" | "koishi_console" | "admin_console" | "moderation_review";
         AdminStudentVerificationItem: {
             /** Format: int64 */
             userID: number;
@@ -6991,7 +7185,10 @@ export interface operations {
     };
     getBotAdmissionQQAccess: {
         parameters: {
-            query?: never;
+            query: {
+                platform: string;
+                guildID: string;
+            };
             header?: never;
             path: {
                 qqID: string;
@@ -7007,13 +7204,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            canJoin: boolean;
-                            reason?: string;
-                        };
+                        data: components["schemas"]["AdmissionQQAccess"];
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
         };
     };
@@ -7230,6 +7425,161 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    getBotMemberBlacklistAccess: {
+        parameters: {
+            query: {
+                platform: string;
+                subjectType?: components["schemas"]["MemberBlacklistSubjectType"];
+                subjectID: string;
+                guildID: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 黑名单准入状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            canJoin: boolean;
+                            /** @enum {string} */
+                            decision: "allowed" | "blocked";
+                            matchedBlacklist?: components["schemas"]["MemberBlacklistEntry"];
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listBotMemberBlacklist: {
+        parameters: {
+            query?: {
+                platform?: string;
+                subjectType?: components["schemas"]["MemberBlacklistSubjectType"];
+                subjectID?: string;
+                scopeType?: components["schemas"]["MemberBlacklistScopeType"];
+                guildID?: string;
+                state?: "active" | "all";
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 黑名单分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["MemberBlacklistEntry"][];
+                            total: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    createBotMemberBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberBlacklistCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 黑名单已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MemberBlacklistEntry"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    releaseBotMemberBlacklistBySubject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberBlacklistReleaseBySubjectRequest"];
+            };
+        };
+        responses: {
+            /** @description 黑名单已解除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    releaseBotMemberBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberBlacklistReleaseRequest"];
+            };
+        };
+        responses: {
+            /** @description 黑名单已解除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
         };
     };
@@ -7670,7 +8020,10 @@ export interface operations {
     };
     releaseAdmissionBlacklist: {
         parameters: {
-            query?: never;
+            query: {
+                platform: string;
+                guildID: string;
+            };
             header?: never;
             path: {
                 qqID: string;
@@ -7688,6 +8041,131 @@ export interface operations {
                     "application/json": components["schemas"]["SuccessResponse"];
                 };
             };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminMemberBlacklist: {
+        parameters: {
+            query?: {
+                platform?: string;
+                subjectType?: components["schemas"]["MemberBlacklistSubjectType"];
+                subjectID?: string;
+                scopeType?: components["schemas"]["MemberBlacklistScopeType"];
+                guildID?: string;
+                state?: "active" | "all";
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 黑名单分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            items: components["schemas"]["MemberBlacklistEntry"][];
+                            total: number;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAdminMemberBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberBlacklistCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 黑名单已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MemberBlacklistEntry"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    releaseAdminMemberBlacklistBySubject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberBlacklistReleaseBySubjectRequest"];
+            };
+        };
+        responses: {
+            /** @description 黑名单已解除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    releaseAdminMemberBlacklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberBlacklistReleaseRequest"];
+            };
+        };
+        responses: {
+            /** @description 黑名单已解除 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];

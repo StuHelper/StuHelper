@@ -1,4 +1,5 @@
 import type { Command, Context } from 'koishi'
+import type { StuhelperPlatformConfig } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config } from '../../types'
@@ -25,7 +26,8 @@ export class MemberManageModule implements RuntimeModuleInstance {
 
   constructor(
     readonly ctx: Context,
-    readonly data: DataManager
+    readonly data: DataManager,
+    readonly platformConfig: StuhelperPlatformConfig,
   ) {}
 
   get config(): Config {
@@ -60,17 +62,25 @@ export class MemberManageModule implements RuntimeModuleInstance {
     return registerRuntimeCommand(this.ctx, this.meta, def)
   }
 
-  logCommand(session: any, command: string, target: string, result: string, success?: boolean): void {
+  logCommand(entry: {
+    readonly session: any
+    readonly command: string
+    readonly target: string
+    readonly result: string
+    readonly success?: boolean
+  }): void {
+    const { session, command, target, result, success } = entry
     if (success === false) {
       session['_commandFailed'] = true
     }
-    void this.ctx.stuhelperGroupCenter.logCommand(session, command, target, result)
+    void this.ctx.stuhelperGroupCenter.logCommand({ session, command, target, result })
   }
 }
 
 export const memberManageRuntimeModule: RuntimeModule<MemberManageModule> = {
   id: 'manage-member',
   create(ctx, deps) {
-    return new MemberManageModule(ctx, deps.data)
+    if (!deps.coreConfig) throw new Error('stuhelper core config is required for MemberManageModule')
+    return new MemberManageModule(ctx, deps.data, deps.coreConfig.platform)
   },
 }

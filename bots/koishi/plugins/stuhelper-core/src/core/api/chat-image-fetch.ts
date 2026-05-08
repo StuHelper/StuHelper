@@ -7,6 +7,21 @@ import {
   assertConsoleGuildAccess,
   type ConsoleGuildScope,
 } from './console-guild-scope'
+import type {
+  ChatImageAccessRegistry,
+  ChatImageFetchParams,
+  ChatImageFetchRequest,
+  ChatImageFetchResult,
+  ChatImageLogger,
+} from './chat-image-types'
+
+export type {
+  ChatImageAccessRegistry,
+  ChatImageFetchParams,
+  ChatImageFetchRequest,
+  ChatImageFetchResult,
+  ChatImageLogger,
+} from './chat-image-types'
 
 const HASH_ALGORITHM = 'md5'
 const ONEBOT_PLATFORM = 'onebot'
@@ -25,32 +40,6 @@ const IMAGE_MIME_BY_EXTENSION = Object.freeze(new Map<string, string>([
   ['.gif', 'image/gif'],
   ['.webp', 'image/webp'],
 ]))
-
-export interface ChatImageFetchParams {
-  url?: string
-  file?: string
-}
-
-export interface ChatImageFetchRequest {
-  url: string
-  file: string
-}
-
-export interface ChatImageFetchResult {
-  dataUrl: string
-  hash: string
-  mimeType: string
-  source: string
-}
-
-export interface ChatImageAccessRegistry {
-  remember(elements: unknown, guildId: string | undefined): void
-  assertAllowed(params: ChatImageFetchParams, scope: ConsoleGuildScope): ChatImageFetchRequest
-}
-
-interface LoggerLike {
-  warn(format: string, ...args: unknown[]): void
-}
 
 export function createChatImageAccessRegistry(): ChatImageAccessRegistry {
   const entries = new Map<string, Set<string | undefined>>()
@@ -76,7 +65,7 @@ export function createChatImageAccessRegistry(): ChatImageAccessRegistry {
 export async function fetchOneBotImage(
   bots: Iterable<Bot>,
   request: ChatImageFetchRequest,
-  logger: LoggerLike,
+  logger: ChatImageLogger,
 ): Promise<ChatImageFetchResult> {
   const imageErrors: string[] = []
 
@@ -156,7 +145,12 @@ async function resolveOneBotImageResult(
 ): Promise<ChatImageFetchResult | null> {
   if (!isRecord(result)) return null
   if (typeof result.base64 === 'string' && result.base64) {
-    return fromBase64(result.base64, readResultFileName(result), request.url, 'onebot-base64')
+    return fromBase64({
+      base64: result.base64,
+      fileName: readResultFileName(result),
+      sourceUrl: request.url,
+      source: 'onebot-base64',
+    })
   }
   if (typeof result.url === 'string' && result.url) {
     return fetchRemoteImage(result.url, request)
@@ -180,16 +174,27 @@ async function fetchRemoteImage(url: string, request: ChatImageFetchRequest): Pr
 
   const buffer = Buffer.from(await response.arrayBuffer())
   const mimeType = resolveResponseMimeType(response.headers.get('content-type'), request.file)
-  return buildDataUrlResult(buffer, mimeType, request.url, 'onebot-url')
+  return buildDataUrlResult({
+    buffer,
+    mimeType,
+    sourceUrl: request.url,
+    source: 'onebot-url',
+  })
 }
 
 async function readLocalOneBotImage(filePath: string, sourceUrl: string): Promise<ChatImageFetchResult> {
   const buffer = await readFile(filePath)
   const mimeType = mimeTypeFromName(filePath)
-  return buildDataUrlResult(buffer, mimeType, sourceUrl, 'onebot-file')
+  return buildDataUrlResult({ buffer, mimeType, sourceUrl, source: 'onebot-file' })
 }
 
-function fromBase64(base64: string, fileName: string, sourceUrl: string, source: string): ChatImageFetchResult {
+function fromBase64(input: {
+  readonly base64: string
+  readonly fileName: string
+  readonly sourceUrl: string
+  readonly source: string
+}): ChatImageFetchResult {
+  const { base64, fileName, sourceUrl, source } = input
   const mimeType = mimeTypeFromName(fileName)
   return {
     dataUrl: `${IMAGE_DATA_URL_PREFIX}${mimeType};${BASE64_ENCODING},${base64}`,
@@ -199,12 +204,13 @@ function fromBase64(base64: string, fileName: string, sourceUrl: string, source:
   }
 }
 
-function buildDataUrlResult(
-  buffer: Buffer,
-  mimeType: string,
-  sourceUrl: string,
-  source: string,
-): ChatImageFetchResult {
+function buildDataUrlResult(input: {
+  readonly buffer: Buffer
+  readonly mimeType: string
+  readonly sourceUrl: string
+  readonly source: string
+}): ChatImageFetchResult {
+  const { buffer, mimeType, sourceUrl, source } = input
   return {
     dataUrl: `${IMAGE_DATA_URL_PREFIX}${mimeType};${BASE64_ENCODING},${buffer.toString(BASE64_ENCODING)}`,
     hash: hashSourceUrl(sourceUrl),

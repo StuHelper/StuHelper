@@ -163,12 +163,12 @@ function logRepeatDeletion(
   session: Session,
   count: number,
 ): void {
-  void host.ctx.stuhelperGroupCenter.logCommand(
+  void host.ctx.stuhelperGroupCenter.logCommand({
     session,
-    'antirepeat',
-    'messages',
-    `已删除 ${count} 条复读消息`,
-  )
+    command: 'antirepeat',
+    target: 'messages',
+    result: `已删除 ${count} 条复读消息`,
+  })
 }
 
 async function deleteRepeatedMessages(

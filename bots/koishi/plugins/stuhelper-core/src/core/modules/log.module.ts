@@ -113,12 +113,12 @@ export class LogModule implements RuntimeModuleInstance {
     if (entry.success === false) {
       entry.session['_commandFailed'] = true
     }
-    await this.ctx.stuhelperGroupCenter.logCommand(
-      entry.session,
-      entry.command,
-      entry.target,
-      entry.result,
-    )
+    await this.ctx.stuhelperGroupCenter.logCommand({
+      session: entry.session,
+      command: entry.command,
+      target: entry.target,
+      result: entry.result,
+    })
   }
 
   readCommandLogs(): CommandLogRecord[] {

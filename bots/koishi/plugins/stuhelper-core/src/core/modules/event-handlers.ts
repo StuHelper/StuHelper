@@ -73,16 +73,16 @@ async function handleGuildRequest(host: EventRuntimeHost, session: EventSession)
 }
 
 async function handleGuildMemberRequest(host: EventRuntimeHost, session: EventSession) {
-  if (await rejectBlacklistedGroupRequest(host, {
-    session,
-    failureLog: '拒绝入群申请失败:',
-  })) return
   if (await rejectDuringLeaveCooldown(host, session)) return
 
   const groupConfig = groupConfigOf(host, session.guildId, DEFAULT_MEMBER_REQUEST_CONFIG)
   if (await rejectBelowLevelLimit(session, groupConfig)) return
 
   if (await acceptIfKeywordMatches(host, session, groupConfig)) return
+  if (await rejectBlacklistedGroupRequest(host, {
+    session,
+    failureLog: '拒绝入群申请失败:',
+  })) return
   await acceptByAdmissionPolicy(host, session)
 }
 
@@ -90,7 +90,7 @@ async function rejectBlacklistedFriendRequest(
   host: EventRuntimeHost,
   session: EventSession,
 ): Promise<boolean> {
-  if (!host.data.blacklist.getAll()[session.userId]) return false
+  if (!await isBackendBlacklisted(host, session)) return false
 
   try {
     await session.bot.handleFriendRequest(requestIdOf(session), false, '您在黑名单中')
@@ -104,7 +104,7 @@ async function rejectBlacklistedGroupRequest(
   host: EventRuntimeHost,
   request: GroupRequest,
 ): Promise<boolean> {
-  if (!host.data.blacklist.getAll()[request.session.userId]) return false
+  if (!await isBackendBlacklisted(host, request.session)) return false
 
   try {
     await rejectGuildOrMemberRequest(request.session, '您在黑名单中')
@@ -112,6 +112,19 @@ async function rejectBlacklistedGroupRequest(
     eventLogger.error(request.failureLog, error)
   }
   return true
+}
+
+async function isBackendBlacklisted(host: EventRuntimeHost, session: EventSession): Promise<boolean> {
+  if (!host.admissionPlatform) {
+    throw new Error('admission platform client is required for blacklist access')
+  }
+  const access = await host.admissionPlatform.getMemberBlacklistAccess({
+    platform: session.platform,
+    guildID: session.guildId,
+    subjectType: 'qq_user',
+    subjectID: session.userId,
+  })
+  return !access.canJoin
 }
 
 async function rejectDuringLeaveCooldown(
@@ -168,25 +181,30 @@ async function acceptByAdmissionPolicy(host: EventRuntimeHost, session: EventSes
   if (!host.admissionPlatform) {
     throw new Error('admission platform client is required for guild-member-request auto-approve')
   }
-  const access = await host.admissionPlatform.getAdmissionQQAccess(session.userId)
+  const access = await host.admissionPlatform.getAdmissionQQAccess({
+    platform: session.platform,
+    guildID: session.guildId,
+    qqID: session.userId,
+  })
   if (!access.canJoin || access.autoApproveJoin === false) return
 
   const requestID = requestIdOf(session)
   try {
     await session.bot.handleGuildMemberRequest(requestID, true)
-    await recordAdmissionJoinRequest(host, session, true)
+    await recordAdmissionJoinRequest({ host, session, success: true })
   } catch (error) {
-    await recordAdmissionJoinRequest(host, session, false, errorMessage(error))
+    await recordAdmissionJoinRequest({ host, session, success: false, error: errorMessage(error) })
     throw error
   }
 }
 
-async function recordAdmissionJoinRequest(
-  host: EventRuntimeHost,
-  session: EventSession,
-  success: boolean,
-  error?: string,
-) {
+async function recordAdmissionJoinRequest(input: {
+  readonly host: EventRuntimeHost
+  readonly session: EventSession
+  readonly success: boolean
+  readonly error?: string
+}) {
+  const { host, session, success, error } = input
   if (!host.admissionPlatform) {
     throw new Error('admission platform client is required to record join request events')
   }

@@ -17,7 +17,12 @@ export interface BanmeCommandHost {
   readSimilarChars(): SimilarChars | null
   saveSimilarChars(data: SimilarChars): void
   setDefaultSimilarChars(): void
-  log(session: Session, command: string, target: string, result: string): Promise<void>
+  log(entry: {
+    readonly session: Session
+    readonly command: string
+    readonly target: string
+    readonly result: string
+  }): Promise<void>
 }
 
 export function registerBanmeCommands(host: BanmeCommandHost): void {
@@ -111,7 +116,7 @@ function registerRecordCommand(host: BanmeCommandHost): void {
     }
 
     host.saveSimilarChars(similarChars)
-    void host.log(session, 'banme.record', session.userId, '成功')
+    void host.log({ session, command: 'banme.record', target: session.userId, result: '成功' })
     return '已记录形似字符映射喵~\n' + '规范化字符串：' + normalizedCommand + '\n' + '对应的标准串：' + standardCommand
   })
 }
@@ -133,7 +138,7 @@ function registerAliasCommand(host: BanmeCommandHost): void {
     similarChars[quotedMessage] = standardCommand
 
     host.saveSimilarChars(similarChars)
-    void host.log(session, 'banme.alias', session.userId, '成功')
+    void host.log({ session, command: 'banme.alias', target: session.userId, result: '成功' })
     return '已记录字符串映射喵~\n' + '原字符串：' + quotedMessage + '\n' + '对应的标准串：' + standardCommand
   })
 }
@@ -175,7 +180,7 @@ function handleConfigCommand(host: BanmeCommandHost, session: Session, options: 
   const banmeConfig = configs[session.guildId!].banme || { ...host.config.banme }
   banmeConfig.jackpot = banmeConfig.jackpot || { ...host.config.banme.jackpot }
 
-  const error = applyBooleanOptions(host, session, banmeConfig, options)
+  const error = applyBooleanOptions({ host, session, config: banmeConfig, options })
   if (error) return error
 
   applyNumericOptions(banmeConfig, options)
@@ -183,26 +188,27 @@ function handleConfigCommand(host: BanmeCommandHost, session: Session, options: 
 
   configs[session.guildId!].banme = banmeConfig
   host.data.groupConfig.setAll(configs)
-  void host.log(session, 'banme.config', session.userId, '成功：更新banme配置')
+  void host.log({ session, command: 'banme.config', target: session.userId, result: '成功：更新banme配置' })
   return '配置已更新喵~'
 }
 
-function applyBooleanOptions(
-  host: BanmeCommandHost,
-  session: Session,
-  config: BanMeConfig,
-  options: any,
-): string | undefined {
+function applyBooleanOptions(input: {
+  readonly host: BanmeCommandHost
+  readonly session: Session
+  readonly config: BanMeConfig
+  readonly options: any
+}): string | undefined {
+  const { host, session, config, options } = input
   const enabled = parseBooleanOption(options.enabled)
   if (options.enabled !== undefined && enabled === undefined) {
-    void host.log(session, 'banme.config', session.userId, '失败：启用选项无效')
+    void host.log({ session, command: 'banme.config', target: session.userId, result: '失败：启用选项无效' })
     return '启用选项无效，请输入 true/false'
   }
   if (enabled !== undefined) config.enabled = enabled
 
   const autoBan = parseBooleanOption(options.autoBan)
   if (options.autoBan !== undefined && autoBan === undefined) {
-    void host.log(session, 'banme.config', session.userId, '失败：自动禁言选项无效')
+    void host.log({ session, command: 'banme.config', target: session.userId, result: '失败：自动禁言选项无效' })
     return '自动禁言选项无效，请输入 true/false'
   }
   if (autoBan !== undefined) config.autoBan = autoBan

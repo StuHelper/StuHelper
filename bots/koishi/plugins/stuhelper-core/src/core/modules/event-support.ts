@@ -1,9 +1,9 @@
 import type { Context, Session } from 'koishi'
 import { Logger } from 'koishi'
+import { testSafeKeywordRegex, type PlatformClient } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config, GroupConfig } from '../../types'
-import type { PlatformClient } from '@stuhelper/koishi-shared'
 
 export const eventLogger = new Logger('stuhelperGroupCenter:event')
 export const DEFAULT_LEVEL_LIMIT = 0
@@ -22,7 +22,10 @@ export interface EventRuntimeHost {
   readonly ctx: Context
   readonly data: DataManager
   readonly config: Config
-  readonly admissionPlatform?: Pick<PlatformClient, 'getAdmissionQQAccess' | 'recordJoinRequestEvent'>
+  readonly admissionPlatform?: Pick<
+    PlatformClient,
+    'getAdmissionQQAccess' | 'getMemberBlacklistAccess' | 'recordJoinRequestEvent'
+  >
 }
 
 export type EventSession = Session & {
@@ -63,9 +66,5 @@ export function matchesAnyKeyword(comment: string, keywords: readonly string[]):
 }
 
 function matchesKeyword(comment: string, keyword: string): boolean {
-  try {
-    return new RegExp(keyword, 'i').test(comment)
-  } catch {
-    return comment.toLowerCase().includes(keyword.toLowerCase())
-  }
+  return testSafeKeywordRegex(keyword, comment)
 }

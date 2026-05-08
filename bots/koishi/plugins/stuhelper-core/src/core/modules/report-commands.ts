@@ -4,6 +4,9 @@ import { buildReportPrompt } from './report-context'
 import type { ReportModule } from './report.module'
 import type { ReporterPenalty, ViolationInfo } from './report-types'
 import { ViolationLevel } from './report-types'
+import { parseViolationInfo } from './report-violation-parser'
+
+export { parseViolationInfo } from './report-violation-parser'
 
 const logger = new Logger('stuhelperGroupCenter:report')
 const DEFAULT_AUTHORITY = 1
@@ -70,7 +73,12 @@ async function processReport(input: ReportCommandInput & {
   const target = await loadReportTarget(input)
   if (typeof target === 'string') return target
 
-  await input.host.logCommand(input.session, 'report', target.reportedUserId, `举报内容: ${target.content}`)
+  await input.host.logCommand({
+    session: input.session,
+    command: 'report',
+    target: target.reportedUserId,
+    details: `举报内容: ${target.content}`,
+  })
   const timeError = validateReportTime({ ...input, target })
   if (timeError) return timeError
 
@@ -198,24 +206,6 @@ async function parseViolationInfoOrLimitReporter(input: ReportCommandInput & {
   }
 }
 
-function parseViolationInfo(response: string): ViolationInfo {
-  const jsonText = response.startsWith('{') && response.endsWith('}')
-    ? response
-    : response.match(/\{[\s\S]*\}/g)?.[0]
-  if (!jsonText) throw new Error('无法解析AI响应中的JSON')
-
-  const violationInfo = JSON.parse(jsonText) as ViolationInfo
-  if (!isViolationInfo(violationInfo)) throw new Error('AI响应格式不正确')
-  return violationInfo
-}
-
-function isViolationInfo(value: ViolationInfo): boolean {
-  return value.level !== undefined &&
-    value.reason !== undefined &&
-    value.action !== undefined &&
-    Array.isArray(value.action)
-}
-
 function recordReportedMessage(
   host: ReportModule,
   target: ReportTarget,
@@ -281,7 +271,12 @@ async function limitReporter(input: ReportCommandInput & {
     timestamp: Date.now(),
     expireTime: Date.now() + duration,
   }
-  await input.host.logCommand(input.session, 'report-banned', input.session.userId, input.logResult)
+  await input.host.logCommand({
+    session: input.session,
+    command: 'report-banned',
+    target: input.session.userId,
+    details: input.logResult,
+  })
 }
 
 function quote(session: any): string {

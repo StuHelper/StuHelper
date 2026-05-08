@@ -10,7 +10,6 @@ import { JsonDataStore } from './json.store'
 import type {
   GroupConfig,
   WarnRecord,
-  BlacklistRecord,
   MuteRecord,
   BanMeRecord,
   LockedName,
@@ -26,7 +25,6 @@ import type {
 /** 数据存储映射类型 */
 export interface DataStores {
   warns: JsonDataStore<Record<string, WarnRecord>>
-  blacklist: JsonDataStore<Record<string, BlacklistRecord>>
   groupConfig: JsonDataStore<Record<string, GroupConfig>>
   mutes: JsonDataStore<Record<string, Record<string, MuteRecord>>>
   banmeRecords: JsonDataStore<Record<string, BanMeRecord>>
@@ -77,16 +75,6 @@ export class DataManager {
       this.stores.warns = this.createStore('warns.json', {})
     }
     return this.stores.warns
-  }
-
-  /**
-   * 获取黑名单存储
-   */
-  get blacklist(): JsonDataStore<Record<string, BlacklistRecord>> {
-    if (!this.stores.blacklist) {
-      this.stores.blacklist = this.createStore('blacklist.json', {})
-    }
-    return this.stores.blacklist
   }
 
   /**

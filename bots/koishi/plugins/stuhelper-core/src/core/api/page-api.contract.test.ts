@@ -13,13 +13,13 @@ function readApiFile(relativePath: string): string {
 test('entity-profile page listener applies console guild scope before loading profile data', () => {
   const source = readApiFile('./page-api.ts')
   const listenerStart = source.indexOf("stuhelperGroupCenter/page/entity-profile")
-  const scopeIndex = source.indexOf('resolveRequiredConsoleGuildScope', listenerStart)
+  const scopeIndex = source.indexOf('const scope = await resolvePageScope', listenerStart)
   const profileIndex = source.indexOf('entityPage.getProfile', listenerStart)
 
   assert.notEqual(listenerStart, -1)
   assert.ok(scopeIndex > listenerStart)
   assert.ok(profileIndex > scopeIndex)
-  assert.match(source, /entityPage\.getProfile\(\{[\s\S]*\}, toEntityProfileScope\(scope\)\)/)
+  assert.match(source, /entityPage\.getProfile\(normalizeEntityProfileQuery\(query\), toEntityProfileScope\(scope\)\)/)
   assert.match(source, /return \{ guildIds: null \}/)
   assert.match(source, /return \{ guildIds: scope\.guildIds \}/)
 })

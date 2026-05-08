@@ -5,12 +5,14 @@ import {
   type ModerationStore,
 } from '@stuhelper/koishi-moderation-core'
 
-export async function ensureAdminCommandAccess(
-  store: ModerationStore,
-  session: Session | undefined,
-  commandId: string,
-  targetGuildId = session?.guildId,
-) {
+export async function ensureAdminCommandAccess(input: {
+  readonly store: ModerationStore
+  readonly session: Session | undefined
+  readonly commandId: string
+  readonly targetGuildId?: string
+}) {
+  const { store, session, commandId } = input
+  const targetGuildId = input.targetGuildId ?? session?.guildId
   const guildId = targetGuildId
   if (!session || !guildId) return
   const [policy, memberRoles] = await Promise.all([

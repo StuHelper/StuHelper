@@ -50,25 +50,25 @@ func (s *Service) PreviewToken(ctx context.Context, token string, qqQuery string
 	return session, nil
 }
 
-func (s *Service) LinkTokenToUser(ctx context.Context, token string, qqQuery string, userID int64) (*AdmissionSession, error) {
+func (s *Service) LinkTokenToUser(ctx context.Context, input AdmissionTokenLinkInput) (*AdmissionSession, error) {
 	var linked *AdmissionSession
 	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		session, err := s.repo.GetSessionByTokenHashForUpdate(ctx, tx, s.hashToken(token))
+		session, err := s.repo.GetSessionByTokenHashForUpdate(ctx, tx, s.hashToken(input.Token))
 		if err != nil {
 			return err
 		}
-		if err := s.validateTokenSession(session, qqQuery); err != nil {
+		if err := s.validateTokenSession(session, input.QQQuery); err != nil {
 			return err
 		}
 		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
 		if err != nil {
 			return err
 		}
-		if _, err := s.qqGateway.EnsureQQBindingForUserTx(ctx, tx, userID, session.QQID, session.QQNickname); err != nil {
+		if _, err := s.qqGateway.EnsureQQBindingForUserTx(ctx, tx, input.UserID, session.QQID, session.QQNickname); err != nil {
 			return err
 		}
 		deadline := s.now().Add(time.Duration(policy.SubmissionWaitSeconds) * time.Second)
-		linked, err = s.repo.MarkTokenConsumedAndLinked(ctx, tx, session.ID, userID, s.now(), deadline)
+		linked, err = s.repo.MarkTokenConsumedAndLinked(ctx, tx, session.ID, input.UserID, s.now(), deadline)
 		return err
 	})
 	if err != nil {
@@ -111,7 +111,11 @@ func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event Bo
 			return err
 		}
 		if !event.Success {
-			return s.repo.UpdateLastBotErrorTx(ctx, tx, sessionID, normalizeBotEventError(event))
+			return s.repo.UpdateLastBotErrorTx(ctx, updateLastBotErrorTxInput{
+				Tx:        tx,
+				SessionID: sessionID,
+				BotError:  normalizeBotEventError(event),
+			})
 		}
 		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
 		if err != nil {
@@ -129,18 +133,55 @@ func (s *Service) RecordBotEvent(ctx context.Context, sessionID string, event Bo
 func (s *Service) applySuccessfulBotEventTx(ctx context.Context, input successfulBotEventTxInput) error {
 	switch input.Action {
 	case BotActionRemind:
-		return s.repo.MarkReminderSentTx(ctx, input.Tx, input.Session, input.Policy, s.now())
+		return s.repo.MarkReminderSentTx(ctx, markReminderSentTxInput{
+			Tx:      input.Tx,
+			Session: input.Session,
+			Policy:  input.Policy,
+			Now:     s.now(),
+		})
 	case BotActionRelease:
-		return s.repo.MarkBotReleaseCompletedTx(ctx, input.Tx, input.Session.ID, s.now())
+		return s.repo.MarkBotReleaseCompletedTx(ctx, markBotSessionTxInput{
+			Tx:        input.Tx,
+			SessionID: input.Session.ID,
+			Now:       s.now(),
+		})
 	case BotActionKick, BotActionBlacklist:
-		if err := s.repo.MarkBotKickCompletedTx(ctx, input.Tx, input.Session.ID, s.now()); err != nil {
+		updated, err := s.repo.MarkBotKickCompletedTx(ctx, markBotSessionTxInput{
+			Tx:        input.Tx,
+			SessionID: input.Session.ID,
+			Now:       s.now(),
+		})
+		if err != nil {
 			return err
 		}
-		_, err := s.repo.IncrementFailureFromKickEventTx(ctx, input.Tx, input.Session, input.Policy, s.now())
-		return err
+		if !updated {
+			return nil
+		}
+		return s.incrementFailureFromKickEventTx(ctx, input)
 	default:
 		return ErrAdmissionInvalidStatus
 	}
+}
+
+func (s *Service) incrementFailureFromKickEventTx(ctx context.Context, input successfulBotEventTxInput) error {
+	count, err := s.repo.IncrementFailureFromKickEventTx(ctx, admissionFailureIncrementTxInput{
+		Tx:      input.Tx,
+		Session: input.Session,
+		Policy:  input.Policy,
+		Now:     s.now(),
+	})
+	if err != nil {
+		return err
+	}
+	if count < input.Policy.FailedJoinLimit {
+		return nil
+	}
+	now := s.now()
+	_, err = s.repo.CreateMemberBlacklistTx(ctx, input.Tx, MemberBlacklistCreateTxInput{
+		Entry: admissionFailureBlacklistInput(input, count, now),
+		Now:   now,
+	})
+	return err
 }
 
 type successfulBotEventTxInput struct {

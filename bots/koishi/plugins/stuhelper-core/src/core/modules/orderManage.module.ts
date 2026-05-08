@@ -60,11 +60,18 @@ export class OrderManageModule implements RuntimeModuleInstance {
     return registerRuntimeCommand(this.ctx, this.meta, def)
   }
 
-  logCommand(session: any, command: string, target: string, result: string, success?: boolean): void {
+  logCommand(entry: {
+    readonly session: any
+    readonly command: string
+    readonly target: string
+    readonly result: string
+    readonly success?: boolean
+  }): void {
+    const { session, command, target, result, success } = entry
     if (success === false) {
       session['_commandFailed'] = true
     }
-    void this.ctx.stuhelperGroupCenter.logCommand(session, command, target, result)
+    void this.ctx.stuhelperGroupCenter.logCommand({ session, command, target, result })
   }
 
   recordMute(guildId: string, userId: string, duration: number): void {

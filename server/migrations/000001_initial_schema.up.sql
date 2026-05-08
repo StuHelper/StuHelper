@@ -810,6 +810,46 @@ CREATE TABLE public.group_admission_failures (
 
 
 --
+-- Name: member_blacklist_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.member_blacklist_entries (
+    id text NOT NULL,
+    platform text NOT NULL,
+    subject_type text NOT NULL,
+    subject_id text NOT NULL,
+    scope_type text NOT NULL,
+    guild_id text,
+    source text NOT NULL,
+    reason_code text NOT NULL,
+    reason_text text DEFAULT ''::text NOT NULL,
+    created_by_type text NOT NULL,
+    created_by_id text NOT NULL,
+    created_from text NOT NULL,
+    expires_at timestamp with time zone,
+    released_at timestamp with time zone,
+    released_by_type text,
+    released_by_id text,
+    release_reason_code text,
+    release_reason text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_member_blacklist_scope CHECK (
+        ((scope_type = 'guild'::text) AND (guild_id IS NOT NULL) AND (guild_id <> ''::text))
+        OR ((scope_type = 'global'::text) AND (guild_id IS NULL))
+    ),
+    CONSTRAINT chk_member_blacklist_subject CHECK (
+        (platform <> ''::text) AND (subject_type <> ''::text) AND (subject_id <> ''::text)
+    ),
+    CONSTRAINT chk_member_blacklist_reason CHECK (
+        (source <> ''::text) AND (reason_code <> ''::text) AND (created_by_type <> ''::text)
+        AND (created_by_id <> ''::text) AND (created_from <> ''::text)
+    )
+);
+
+
+--
 -- Name: group_admission_policies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1913,6 +1953,14 @@ ALTER TABLE ONLY public.group_admission_failures
 
 
 --
+-- Name: member_blacklist_entries member_blacklist_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.member_blacklist_entries
+    ADD CONSTRAINT member_blacklist_entries_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: group_admission_policies group_admission_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2433,6 +2481,27 @@ CREATE INDEX freshman_verification_materials_application_idx ON public.freshman_
 --
 
 CREATE INDEX group_admission_failures_count_idx ON public.group_admission_failures USING btree (platform, guild_id, failure_count DESC);
+
+
+--
+-- Name: member_blacklist_entries_access_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX member_blacklist_entries_access_idx ON public.member_blacklist_entries USING btree (platform, subject_type, subject_id, scope_type, guild_id) WHERE (released_at IS NULL);
+
+
+--
+-- Name: member_blacklist_entries_active_global_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX member_blacklist_entries_active_global_idx ON public.member_blacklist_entries USING btree (platform, subject_type, subject_id) WHERE ((released_at IS NULL) AND (scope_type = 'global'::text));
+
+
+--
+-- Name: member_blacklist_entries_active_guild_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX member_blacklist_entries_active_guild_idx ON public.member_blacklist_entries USING btree (platform, subject_type, subject_id, guild_id) WHERE ((released_at IS NULL) AND (scope_type = 'guild'::text));
 
 
 --

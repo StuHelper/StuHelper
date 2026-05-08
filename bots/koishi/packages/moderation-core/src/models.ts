@@ -38,6 +38,18 @@ declare module 'koishi' {
 }
 
 export function registerModerationModels(ctx: Context) {
+  registerEventModel(ctx)
+  registerReviewModel(ctx)
+  registerMessageLedgerModel(ctx)
+  registerWarningModel(ctx)
+  registerKeywordRuleModel(ctx)
+  registerMemberRoleModel(ctx)
+  registerCommandPolicyModel(ctx)
+  registerFunProfileModel(ctx)
+  registerReportModel(ctx)
+}
+
+function registerEventModel(ctx: Context) {
   ctx.model.extend(MODERATION_EVENT_TABLE, {
     id: 'string',
     platform: 'string',
@@ -52,7 +64,9 @@ export function registerModerationModels(ctx: Context) {
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'id' })
+}
 
+function registerReviewModel(ctx: Context) {
   ctx.model.extend(MODERATION_REVIEW_TABLE, {
     id: 'string',
     platform: 'string',
@@ -69,7 +83,9 @@ export function registerModerationModels(ctx: Context) {
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'id' })
+}
 
+function registerMessageLedgerModel(ctx: Context) {
   ctx.model.extend(MODERATION_MESSAGE_LEDGER_TABLE, {
     messageId: 'string',
     platform: 'string',
@@ -83,7 +99,9 @@ export function registerModerationModels(ctx: Context) {
     createdAt: 'timestamp',
     deletedAt: 'timestamp',
   }, { primary: 'messageId' })
+}
 
+function registerWarningModel(ctx: Context) {
   ctx.model.extend(MODERATION_WARNING_TABLE, {
     id: 'string',
     guildId: 'string',
@@ -94,7 +112,9 @@ export function registerModerationModels(ctx: Context) {
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'id' })
+}
 
+function registerKeywordRuleModel(ctx: Context) {
   ctx.model.extend(MODERATION_KEYWORD_RULE_TABLE, {
     id: 'string',
     guildId: 'string',
@@ -107,7 +127,9 @@ export function registerModerationModels(ctx: Context) {
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'id' })
+}
 
+function registerMemberRoleModel(ctx: Context) {
   ctx.model.extend(MODERATION_MEMBER_ROLE_TABLE, {
     id: 'string',
     guildId: 'string',
@@ -116,7 +138,9 @@ export function registerModerationModels(ctx: Context) {
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'id' })
+}
 
+function registerCommandPolicyModel(ctx: Context) {
   ctx.model.extend(MODERATION_COMMAND_POLICY_TABLE, {
     commandId: 'string',
     roles: { type: 'json', initial: [] },
@@ -124,7 +148,9 @@ export function registerModerationModels(ctx: Context) {
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'commandId' })
+}
 
+function registerFunProfileModel(ctx: Context) {
   ctx.model.extend(MODERATION_FUN_PROFILE_TABLE, {
     memberId: 'string',
     muteDrawCount: 'unsigned',
@@ -133,7 +159,9 @@ export function registerModerationModels(ctx: Context) {
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
   }, { primary: 'memberId' })
+}
 
+function registerReportModel(ctx: Context) {
   ctx.model.extend(MODERATION_REPORT_TABLE, {
     id: 'string',
     platform: 'string',

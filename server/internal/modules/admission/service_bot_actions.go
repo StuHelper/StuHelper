@@ -52,7 +52,11 @@ func (s *Service) ReleaseAdmissionBlacklistFromBot(
 	if err := s.authorizeBotCommandForManagementGuild(ctx, input); err != nil {
 		return err
 	}
-	return s.ReleaseAdmissionBlacklist(ctx, qqID)
+	return s.ReleaseAdmissionBlacklist(ctx, AdmissionBlacklistReleaseInput{
+		Platform: input.Platform,
+		GuildID:  input.TargetGuildID,
+		QQID:     qqID,
+	})
 }
 
 func (s *Service) pendingActionsFromSessions(

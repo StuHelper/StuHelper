@@ -113,7 +113,11 @@ func linkFreshmanReviewSession(t *testing.T, svc *Service, seed freshmanReviewSe
 		Platform: "qq", GuildID: "guild-1", ChannelID: "channel-1", QQID: seed.QQID,
 	})
 	require.NoError(t, err)
-	_, err = svc.LinkTokenToUser(context.Background(), created.Token, seed.QQID, seed.UserID)
+	_, err = svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: seed.QQID,
+		UserID:  seed.UserID,
+	})
 	require.NoError(t, err)
 }
 
