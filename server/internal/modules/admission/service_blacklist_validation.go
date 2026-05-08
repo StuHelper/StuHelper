@@ -114,9 +114,13 @@ func validateMemberBlacklistAccessQuery(query MemberBlacklistAccessQuery) error 
 
 func normalizeMemberBlacklistListFilter(filter MemberBlacklistListFilter) MemberBlacklistListFilter {
 	filter.Platform = normalizeMemberBlacklistString(filter.Platform)
+	filter.SubjectType = MemberBlacklistSubjectType(normalizeMemberBlacklistString(string(filter.SubjectType)))
 	filter.SubjectID = normalizeMemberBlacklistString(filter.SubjectID)
+	filter.ScopeType = MemberBlacklistScopeType(normalizeMemberBlacklistString(string(filter.ScopeType)))
+	filter.Source = MemberBlacklistSource(normalizeMemberBlacklistString(string(filter.Source)))
 	filter.GuildID = normalizeMemberBlacklistString(filter.GuildID)
 	filter.CreatedByID = normalizeMemberBlacklistString(filter.CreatedByID)
+	filter.Status = MemberBlacklistStatus(normalizeMemberBlacklistString(string(filter.Status)))
 	filter.PageSize = normalizeMemberBlacklistPageSize(filter.PageSize)
 	if filter.Status == "" {
 		filter.Status = BlacklistStatusActive
@@ -129,6 +133,9 @@ func validateMemberBlacklistListFilter(filter MemberBlacklistListFilter) error {
 		return ErrMemberBlacklistInvalidInput
 	}
 	if filter.ScopeType != "" && filter.ScopeType != BlacklistScopeGlobal && filter.ScopeType != BlacklistScopeGuild {
+		return ErrMemberBlacklistInvalidInput
+	}
+	if filter.Source != "" && !memberBlacklistSourceValid(filter.Source) {
 		return ErrMemberBlacklistInvalidInput
 	}
 	if !memberBlacklistStatusValid(filter.Status) {
@@ -251,6 +258,20 @@ func memberBlacklistSystemReleaseReason(reason MemberBlacklistReleaseReasonCode)
 func memberBlacklistStatusValid(status MemberBlacklistStatus) bool {
 	switch status {
 	case BlacklistStatusActive, BlacklistStatusReleased, BlacklistStatusExpired, BlacklistStatusAll:
+		return true
+	default:
+		return false
+	}
+}
+
+func memberBlacklistSourceValid(source MemberBlacklistSource) bool {
+	switch source {
+	case BlacklistSourceAdmissionFailure,
+		BlacklistSourceManualAdmin,
+		BlacklistSourceKickBlacklist,
+		BlacklistSourceModerationAction,
+		BlacklistSourceMigrationLegacyKoishi,
+		BlacklistSourceMigrationAdmissionFailure:
 		return true
 	default:
 		return false

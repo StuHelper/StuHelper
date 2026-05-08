@@ -1,11 +1,10 @@
 import type {
   MemberBlacklistEntry,
-  MemberBlacklistListResult,
   MemberBlacklistScopeType,
   PlatformClient,
 } from '@stuhelper/koishi-shared'
 
-export const MEMBER_BLACKLIST_PAGE_SIZE = 200
+import { listAllMemberBlacklistPages } from '../member-blacklist-pages'
 
 export type MemberBlacklistBackend = Pick<
   PlatformClient,
@@ -27,8 +26,19 @@ export async function listVisibleMemberBlacklists(
   guildID: string,
 ): Promise<readonly MemberBlacklistEntry[]> {
   const [globalItems, guildItems] = await Promise.all([
-    listMemberBlacklistPage(backend, { platform, scopeType: 'global' }),
-    listMemberBlacklistPage(backend, { platform, scopeType: 'guild', guildID }),
+    listAllMemberBlacklistPages(backend, {
+      platform,
+      subjectType: 'qq_user',
+      scopeType: 'global',
+      status: 'active',
+    }),
+    listAllMemberBlacklistPages(backend, {
+      platform,
+      subjectType: 'qq_user',
+      scopeType: 'guild',
+      guildID,
+      status: 'active',
+    }),
   ])
   return [...globalItems.list, ...guildItems.list]
 }
@@ -70,22 +80,6 @@ export function createKickMemberBlacklist(
     reasonText: 'manual kick with blacklist from Koishi command',
     createdFrom: 'qq_command',
     metadata: memberBlacklistCommandMetadata(input),
-  })
-}
-
-function listMemberBlacklistPage(
-  backend: MemberBlacklistBackend,
-  input: {
-    readonly platform: string
-    readonly scopeType: MemberBlacklistScopeType
-    readonly guildID?: string
-  },
-): Promise<MemberBlacklistListResult> {
-  return backend.listMemberBlacklist({
-    ...input,
-    subjectType: 'qq_user',
-    status: 'active',
-    pageSize: MEMBER_BLACKLIST_PAGE_SIZE,
   })
 }
 

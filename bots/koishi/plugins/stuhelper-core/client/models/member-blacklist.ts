@@ -3,7 +3,6 @@ import { formatTimestamp } from './formatters'
 import type { QueueTableColumn, QueueTableRow } from '../components/primitives/QueueTable.vue'
 
 export interface BlacklistDraft {
-  readonly platform: string
   readonly userId: string
   readonly scope: MemberBlacklistScopeType
   readonly guildId: string
@@ -43,7 +42,7 @@ const CREATED_FROM_LABELS: Record<string, string> = {
 }
 
 export function canSubmitBlacklistDraft(draft: BlacklistDraft): boolean {
-  if (!draft.platform.trim() || !draft.userId.trim()) return false
+  if (!draft.userId.trim()) return false
   return draft.scope === 'global' || Boolean(draft.guildId.trim())
 }
 

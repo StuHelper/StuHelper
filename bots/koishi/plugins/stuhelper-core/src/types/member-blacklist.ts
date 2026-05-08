@@ -42,7 +42,6 @@ export interface MemberBlacklistListResult {
 }
 
 export interface MemberBlacklistCreateParams {
-  platform: string
   subjectID: string
   scopeType: MemberBlacklistScopeType
   guildID?: string
@@ -51,8 +50,6 @@ export interface MemberBlacklistCreateParams {
 
 export interface MemberBlacklistReleaseParams {
   id: string
-  scopeType: MemberBlacklistScopeType
-  guildID?: string
   releaseReasonCode: MemberBlacklistReleaseReasonCode
   releaseReason?: string
 }

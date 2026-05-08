@@ -7,6 +7,7 @@ import type {
 } from '@stuhelper/koishi-shared'
 
 import type { StuhelperGroupCenterService } from '../services'
+import { listAllMemberBlacklistPages } from '../member-blacklist-pages'
 import { createAuthority4ListenerRegistrar } from './authority-listener'
 import {
   assertConsoleGuildAccess,
@@ -17,7 +18,6 @@ import {
 import { error, success, toApiErrorMessage } from './api-response'
 import { DEFAULT_MEMBER_BLACKLIST_PLATFORM } from './member-blacklist-defaults'
 
-const CONSOLE_BLACKLIST_PAGE_SIZE = 200
 const CONSOLE_SCOPE_SELECTION_CONTEXT = 'koishi_console_form'
 
 const ALLOWED_CONSOLE_RELEASE_CODES: ReadonlySet<MemberBlacklistReleaseReasonCode> = new Set([
@@ -27,7 +27,6 @@ const ALLOWED_CONSOLE_RELEASE_CODES: ReadonlySet<MemberBlacklistReleaseReasonCod
 ])
 
 interface ConsoleBlacklistCreateParams {
-  readonly platform: string
   readonly subjectID: string
   readonly scopeType: MemberBlacklistScopeType
   readonly guildID?: string
@@ -36,8 +35,6 @@ interface ConsoleBlacklistCreateParams {
 
 interface ConsoleBlacklistReleaseParams {
   readonly id: string
-  readonly scopeType: MemberBlacklistScopeType
-  readonly guildID?: string
   readonly releaseReasonCode: MemberBlacklistReleaseReasonCode
   readonly releaseReason?: string
 }
@@ -73,7 +70,7 @@ export function registerMemberBlacklistConsoleAPI(
       assertBlacklistInput(params)
       assertBlacklistScope(scope, params)
       const entry = await backend.createMemberBlacklist({
-        platform: params.platform,
+        platform,
         subjectType: 'qq_user',
         subjectID: params.subjectID,
         scopeType: params.scopeType,
@@ -114,13 +111,24 @@ async function listVisibleBlacklists(
   platform: string,
 ): Promise<{ readonly list: readonly MemberBlacklistEntry[]; readonly total: number }> {
   if (scope.kind === 'all') {
-    return listAllMemberBlacklistPages(backend, { platform, status: 'active' })
+    return listAllMemberBlacklistPages(backend, { platform, subjectType: 'qq_user', status: 'active' })
   }
 
   const pages = await Promise.all([
-    listAllMemberBlacklistPages(backend, { platform, scopeType: 'global', status: 'active' }),
+    listAllMemberBlacklistPages(backend, {
+      platform,
+      subjectType: 'qq_user',
+      scopeType: 'global',
+      status: 'active',
+    }),
     ...[...scope.guildIds].map((guildID) =>
-      listAllMemberBlacklistPages(backend, { platform, scopeType: 'guild', guildID, status: 'active' })),
+      listAllMemberBlacklistPages(backend, {
+        platform,
+        subjectType: 'qq_user',
+        scopeType: 'guild',
+        guildID,
+        status: 'active',
+      })),
   ])
   return {
     list: pages.flatMap((page) => page.list),
@@ -140,25 +148,6 @@ async function assertVisibleBlacklistRelease(
     throw new Error(`member blacklist entry is outside of the current console scope: ${id}`)
   }
   assertBlacklistScope(scope, entry)
-}
-
-async function listAllMemberBlacklistPages(
-  backend: MemberBlacklistBackend,
-  query: Parameters<MemberBlacklistBackend['listMemberBlacklist']>[0],
-) {
-  const list: MemberBlacklistEntry[] = []
-  let total = 0
-  for (let page = 1; ; page++) {
-    const result = await backend.listMemberBlacklist({ ...query, page, pageSize: CONSOLE_BLACKLIST_PAGE_SIZE })
-    list.push(...result.list)
-    total = result.total
-    if (list.length >= total) {
-      return { list, total }
-    }
-    if (result.list.length === 0) {
-      throw new Error(`member blacklist pagination ended before total was reached: ${list.length}/${total}`)
-    }
-  }
 }
 
 function assertBlacklistScope(

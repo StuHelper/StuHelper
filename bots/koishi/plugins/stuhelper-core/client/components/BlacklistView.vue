@@ -42,13 +42,9 @@
       />
     </WorkspaceSection>
 
-    <Drawer :open="addOpen" title="添加黑名单用户" subtitle="平台 · 用户 · 生效范围" @close="closeAdd">
+    <Drawer :open="addOpen" title="添加黑名单用户" subtitle="用户 · 生效范围" @close="closeAdd">
       <section class="sh-drawer__section">
         <h4 class="sh-drawer__section-title">用户标识</h4>
-        <label class="sh-field">
-          <span class="sh-field__label">平台</span>
-          <el-input v-model.trim="draftPlatform" class="sh-control sh-control--mono" placeholder="qq" />
-        </label>
         <label class="sh-field">
           <span class="sh-field__label">用户 ID</span>
           <el-input v-model.trim="draftUserId" class="sh-control sh-control--mono" placeholder="例如 1234567890" @keyup.enter="submitAdd" />
@@ -127,7 +123,6 @@ const props = defineProps<{
 const loading = ref(false)
 const adding = ref(false)
 const addOpen = ref(false)
-const draftPlatform = ref('qq')
 const draftUserId = ref('')
 const draftScope = ref<MemberBlacklistScopeType>('guild')
 const draftGuildId = ref('')
@@ -145,7 +140,6 @@ const {
 const keyword = computed(() => props.navigation?.state.value.keyword.trim().toLowerCase() ?? '')
 const entries = computed(() => filterBlacklistEntries(blacklist.value, keyword.value))
 const canSubmitAdd = computed(() => canSubmitBlacklistDraft({
-  platform: draftPlatform.value,
   userId: draftUserId.value,
   scope: draftScope.value,
   guildId: draftGuildId.value,
@@ -178,7 +172,6 @@ async function refresh() {
 }
 
 function openAdd() {
-  draftPlatform.value = 'qq'
   draftUserId.value = ''
   draftScope.value = 'guild'
   draftGuildId.value = ''
@@ -197,7 +190,6 @@ async function submitAdd() {
   adding.value = true
   try {
     await blacklistApi.add({
-      platform: draftPlatform.value.trim(),
       subjectID: userId,
       scopeType: draftScope.value,
       guildID: draftScope.value === 'guild' ? draftGuildId.value.trim() : undefined,
@@ -242,8 +234,6 @@ async function removeUser(
   try {
     await blacklistApi.remove({
       id: entry.id,
-      scopeType: entry.scopeType,
-      guildID: entry.guildID ?? undefined,
       releaseReasonCode,
     })
     pushSuccess(isForgive

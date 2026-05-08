@@ -211,15 +211,16 @@ func addMemberBlacklistStringFilter(clauses *[]string, args *[]any, column strin
 }
 
 func memberBlacklistStatusClause(status MemberBlacklistStatus, args *[]any, now time.Time) string {
-	*args = append(*args, now)
 	switch status {
 	case BlacklistStatusAll:
 		return "TRUE"
 	case BlacklistStatusReleased:
 		return "released_at IS NOT NULL"
 	case BlacklistStatusExpired:
+		*args = append(*args, now)
 		return fmt.Sprintf("released_at IS NULL AND expires_at IS NOT NULL AND expires_at <= $%d", len(*args))
 	default:
+		*args = append(*args, now)
 		return fmt.Sprintf("released_at IS NULL AND (expires_at IS NULL OR expires_at > $%d)", len(*args))
 	}
 }

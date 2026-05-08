@@ -17,7 +17,7 @@ test('console blacklist add includes manual admin metadata required by platform'
   )
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/blacklist/add', {
-    platform: 'qq',
+    platform: 'unexpected-platform',
     subjectID: '10001',
     scopeType: 'guild',
     guildID: '1001',
@@ -26,6 +26,7 @@ test('console blacklist add includes manual admin metadata required by platform'
 
   assert.equal(result.success, true)
   assert.equal(createdBlacklists.length, 1)
+  assert.equal(createdBlacklists[0].platform, 'qq')
   assert.equal(createdBlacklists[0].createdFrom, 'koishi_console')
   assert.equal(createdBlacklists[0].metadata.operatorInput, '10001')
   assert.equal(createdBlacklists[0].metadata.scopeSelectionContext, 'koishi_console_form')
@@ -48,8 +49,6 @@ test('console blacklist remove forwards id-based release with chosen reason code
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
     id: 'entry-42',
-    scopeType: 'guild',
-    guildID: '1001',
     releaseReasonCode: 'release_only',
   })
 
@@ -76,8 +75,6 @@ test('console blacklist remove checks actual visible entry scope before release'
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
     id: 'entry-42',
-    scopeType: 'guild',
-    guildID: '1001',
     releaseReasonCode: 'manual_pardon',
   })
 
@@ -110,6 +107,7 @@ test('console blacklist list fetches all backend pages', async () => {
   assert.deepEqual(result.data.list.map((entry: any) => entry.id), ['entry-1', 'entry-2'])
   assert.deepEqual(listCalls.map((call) => call.page), [1, 2])
   assert.ok(listCalls.every((call) => call.platform === 'qq'))
+  assert.ok(listCalls.every((call) => call.subjectType === 'qq_user'))
 })
 
 test('console blacklist remove rejects unsupported release reason code', async () => {
@@ -125,8 +123,6 @@ test('console blacklist remove rejects unsupported release reason code', async (
 
   const result = await callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
     id: 'entry-42',
-    scopeType: 'guild',
-    guildID: '1001',
     releaseReasonCode: 'policy_expired_auto',
   })
 
