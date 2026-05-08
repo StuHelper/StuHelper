@@ -20,6 +20,12 @@ export function extractErrorMessage(result: ApiCallResult<unknown>): string {
   if (status === 401 || code?.startsWith('A00101')) {
     return $t('admin.result.authExpired');
   }
+  if (status === 403 && code === 'A0010204') {
+    return $t('admin.result.mfaEnrollmentRequired');
+  }
+  if (status === 412 && code === 'A0010205') {
+    return $t('admin.result.stepUpRequired');
+  }
 
   return $t('admin.result.requestFailed');
 }
@@ -44,6 +50,17 @@ export function unwrapOptionalData<T>(result: ApiCallResult<T>): null | T {
   const status = readResultStatus(result);
   if (status === 401 || status === 404) {
     return null;
+  }
+
+  const message = extractErrorMessage(result);
+  ElMessage.error(message);
+  throw new Error(message);
+}
+
+export function unwrapVoid(result: ApiCallResult<unknown>): void {
+  const status = readResultStatus(result);
+  if (!result.error && status !== undefined && status >= 200 && status < 300) {
+    return;
   }
 
   const message = extractErrorMessage(result);

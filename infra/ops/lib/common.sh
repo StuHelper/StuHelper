@@ -119,11 +119,12 @@ should_source_generated_secret_from_backend() {
 source_generated_secret_env() {
   if should_source_generated_secret_from_backend; then
     local rendered
-    if rendered="$(secret_backend_read_to_stdout "${GENERATED_ENV_SECRET_REF}" 2>/dev/null)"; then
-      if [[ -n "${rendered}" ]]; then
-        # shellcheck disable=SC1091
-        source /dev/stdin <<<"${rendered}"
-      fi
+    if ! rendered="$(secret_backend_read_to_stdout "${GENERATED_ENV_SECRET_REF}")"; then
+      die "failed to read generated secret env from ${SECRET_BACKEND}: ${GENERATED_ENV_SECRET_REF}"
+    fi
+    if [[ -n "${rendered}" ]]; then
+      # shellcheck disable=SC1091
+      source /dev/stdin <<<"${rendered}"
     fi
     return 0
   fi

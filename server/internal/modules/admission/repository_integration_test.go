@@ -74,10 +74,10 @@ func insertAdmissionSession(t *testing.T, fixture *postgresfixture.Fixture, seed
 
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO group_admission_sessions (
-			id, platform, guild_id, channel_id, qq_id, token_hash, token_expires_at,
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, token_hash, token_expires_at,
 			status, link_wait_deadline_at, submission_wait_deadline_at, initial_mute_until
 		)
-		VALUES ($1, 'qq', 'guild-1', 'channel-1', $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1, 'qq', '514', 'guild-1', 'channel-1', $2, $3, $4, $5, $6, $7, $8)
 	`, seed.ID, seed.QQID, seed.TokenHash, futureTime(1), seed.Status, futureTime(1), futureTime(2), futureTime(30))
 	require.NoError(t, err)
 	return seed.ID
@@ -88,10 +88,10 @@ func assertTokenHashUnique(t *testing.T, fixture *postgresfixture.Fixture) {
 
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO group_admission_sessions (
-			id, platform, guild_id, channel_id, qq_id, token_hash, token_expires_at,
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, token_hash, token_expires_at,
 			status, link_wait_deadline_at, submission_wait_deadline_at, initial_mute_until
 		)
-		VALUES ('adm-token-dup', 'qq', 'guild-1', 'channel-1', '10002', 'token-hash-1', $1, $2, $3, $4, $5)
+		VALUES ('adm-token-dup', 'qq', '514', 'guild-1', 'channel-1', '10002', 'token-hash-1', $1, $2, $3, $4, $5)
 	`, futureTime(1), StatusJoinedMuted, futureTime(1), futureTime(2), futureTime(30))
 	require.Error(t, err)
 }
@@ -101,10 +101,10 @@ func assertActiveSessionPartialUnique(t *testing.T, fixture *postgresfixture.Fix
 
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO group_admission_sessions (
-			id, platform, guild_id, channel_id, qq_id, token_hash, token_expires_at,
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, token_hash, token_expires_at,
 			status, link_wait_deadline_at, submission_wait_deadline_at, initial_mute_until
 		)
-		VALUES ('adm-active-dup', 'qq', 'guild-1', 'channel-1', '10001', 'token-hash-2', $1, $2, $3, $4, $5)
+		VALUES ('adm-active-dup', 'qq', '514', 'guild-1', 'channel-1', '10001', 'token-hash-2', $1, $2, $3, $4, $5)
 	`, futureTime(1), StatusLinked, futureTime(1), futureTime(2), futureTime(30))
 	require.Error(t, err)
 

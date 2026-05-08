@@ -21,20 +21,19 @@ import {
 } from './options';
 
 defineProps<{
-  loading: boolean;
-  items: MemberBlacklistEntry[];
-  total: number;
   canManage: boolean;
+  items: MemberBlacklistEntry[];
+  loading: boolean;
+  total: number;
 }>();
-
-const page = defineModel<number>('page', { required: true });
-const pageSize = defineModel<number>('pageSize', { required: true });
 
 const emit = defineEmits<{
   (e: 'release', entry: MemberBlacklistEntry): void;
   (e: 'pageChange'): void;
   (e: 'pageSizeChange'): void;
 }>();
+const page = defineModel<number>('page', { required: true });
+const pageSize = defineModel<number>('pageSize', { required: true });
 </script>
 
 <template>
@@ -74,7 +73,9 @@ const emit = defineEmits<{
         </template>
       </ElTableColumn>
       <ElTableColumn label="创建时间" width="180">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        <template #default="{ row }">
+          {{ formatDateTime(row.createdAt) }}
+        </template>
       </ElTableColumn>
       <ElTableColumn label="过期时间" width="180">
         <template #default="{ row }">
@@ -82,7 +83,9 @@ const emit = defineEmits<{
         </template>
       </ElTableColumn>
       <ElTableColumn label="解除时间" width="180">
-        <template #default="{ row }">{{ formatDateTime(row.releasedAt) }}</template>
+        <template #default="{ row }">
+          {{ formatDateTime(row.releasedAt) }}
+        </template>
       </ElTableColumn>
       <ElTableColumn fixed="right" label="操作" width="120">
         <template #default="{ row }">

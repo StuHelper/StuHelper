@@ -27,6 +27,7 @@ bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT
 bootstrap_reject_line="$(line_number 'reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 app_provisioning_reject_line="$(line_number 'reject_placeholder CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
+introspection_require_line="$(line_number 'require_nonempty CASDOOR_INTROSPECTION_CLIENT_SECRET')"
 role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET')"
 user_lookup_require_line="$(line_number 'require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET')"
 sms_secret_require_line="$(line_number 'require_nonempty SMS_SECRET_ID')"
@@ -47,8 +48,11 @@ fi
 if (( app_provisioning_reject_line <= app_provisioning_require_line )); then
   fail "Casdoor app-provisioning placeholder rejection must run after non-empty validation"
 fi
-if (( role_sync_require_line <= app_provisioning_require_line )); then
-  fail "Casdoor role-sync validation should be grouped after app-provisioning validation"
+if (( introspection_require_line <= app_provisioning_require_line )); then
+  fail "Casdoor introspection validation should be grouped after app-provisioning validation"
+fi
+if (( role_sync_require_line <= introspection_require_line )); then
+  fail "Casdoor role-sync validation should be grouped after introspection validation"
 fi
 if (( user_lookup_require_line <= role_sync_require_line )); then
   fail "Casdoor user-lookup validation should be grouped after role-sync validation"
@@ -94,6 +98,19 @@ if ! printf '%s\n' "${authz_block}" | grep -Eq '(^|[[:space:]])openfga($|[[:spac
 fi
 if (( start_authz_line <= start_infra_line )); then
   fail "authorization services must start after infrastructure services"
+fi
+
+infra_block="$(
+  awk '
+    /^infra_services=\(/ { in_block=1; next }
+    /^\)/ && in_block { in_block=0 }
+    in_block { print }
+  ' "${PROD_DEPLOY_FILE}"
+)"
+
+[[ -n "${infra_block}" ]] || fail "expected infra_services block in ${PROD_DEPLOY_FILE}"
+if ! printf '%s\n' "${infra_block}" | grep -Eq '(^|[[:space:]])cadvisor($|[[:space:]])'; then
+  fail "production infra services must include cadvisor because Prometheus scrapes it"
 fi
 
 echo "[prod-deploy-contract] all assertions passed"

@@ -21,7 +21,7 @@ make check-drift       # 生成代码是否过期
 
 # 前端 (clients/)
 pnpm install
-pnpm type-check && pnpm lint
+pnpm type-check:all && pnpm lint:all
 pnpm test:web && pnpm test:e2e
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 

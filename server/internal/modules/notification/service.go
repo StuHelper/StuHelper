@@ -109,8 +109,12 @@ func (s *Service) CountUnread(ctx context.Context, userID int64) (int, error) {
 
 // MarkRead 标记通知已读
 func (s *Service) MarkRead(ctx context.Context, notifID string, userID int64) error {
-	if err := s.repo.MarkRead(ctx, notifID, userID); err != nil {
+	marked, err := s.repo.MarkRead(ctx, notifID, userID)
+	if err != nil {
 		return err
+	}
+	if !marked {
+		return nil
 	}
 
 	s.hub.Broadcast(userID, SSEEvent{

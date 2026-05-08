@@ -163,7 +163,7 @@ export async function executeSessionRefresh(
     const shouldTreatAsUnauthorized = options.shouldTreatAsUnauthorized?.(
       result,
       status,
-    ) ?? (options.unauthorizedStatuses ?? [401, 403]).includes(status)
+    ) ?? (options.unauthorizedStatuses ?? [401]).includes(status)
 
     if (shouldTreatAsUnauthorized) {
       return { kind: 'unauthorized', status }
@@ -183,8 +183,8 @@ function defaultShouldRefresh(schemaPath: string, status: number): boolean {
   return status === 401 && schemaPath !== AUTH_REFRESH_PATH
 }
 
-function isUnauthorizedStatus(status: number): boolean {
-  return status === 401 || status === 403
+function isReauthenticationStatus(status: number): boolean {
+  return status === 401
 }
 
 export function createSessionApiClient(
@@ -209,7 +209,7 @@ export function createSessionApiClient(
   }
 
   async function maybeHandleUnauthorized(status: number) {
-    if (!isUnauthorizedStatus(status) || !options.reauthenticateOnUnauthorized) {
+    if (!isReauthenticationStatus(status) || !options.reauthenticateOnUnauthorized) {
       return
     }
     await transport.onUnauthorized?.()

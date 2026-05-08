@@ -30,12 +30,14 @@ func TestClaimsAccessorsAndStubClientHelpers(t *testing.T) {
 	assert.Nil(t, claims.GetAvatar())
 
 	client := NewStubClient("https://sso.example.com/authorize")
-	authURL, verifier := client.GetAuthURL("state-123")
+	authURL, verifier, err := client.GetAuthURLForApplication(ApplicationWeb, "state-123")
+	require.NoError(t, err)
 	assert.Contains(t, authURL, "https://sso.example.com/authorize")
 	assert.Contains(t, authURL, "state-123")
 	assert.NotEmpty(t, verifier)
 
-	stepUpURL, stepUpVerifier := client.GetStepUpAuthURL("step-up-state")
+	stepUpURL, stepUpVerifier, err := client.GetStepUpAuthURLForApplication(ApplicationWeb, "step-up-state")
+	require.NoError(t, err)
 	assert.Contains(t, stepUpURL, "prompt=login")
 	assert.Contains(t, stepUpURL, "max_age=0")
 	assert.Contains(t, stepUpURL, "acr_values=mfa")

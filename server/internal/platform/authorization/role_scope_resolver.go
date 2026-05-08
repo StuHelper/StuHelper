@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
+
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 )
 
@@ -20,6 +22,7 @@ const (
 	openFGAUserType            = "user"
 	openFGASchoolAdminRelation = "effective_admin"
 	openFGASectionSchool       = "school"
+	sectionReadConcurrency     = 8
 )
 
 type ScopeReader interface {
@@ -124,12 +127,16 @@ func (r *RoleScopeResolver) resolveSectionRoleScopes(
 }
 
 func (r *RoleScopeResolver) validateSectionSchools(ctx context.Context, sectionIDs []string) error {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(sectionReadConcurrency)
 	for _, sectionID := range sectionIDs {
-		if _, err := r.resolveSectionSchool(ctx, sectionID); err != nil {
+		sectionID := sectionID
+		g.Go(func() error {
+			_, err := r.resolveSectionSchool(ctx, sectionID)
 			return err
-		}
+		})
 	}
-	return nil
+	return g.Wait()
 }
 
 func (r *RoleScopeResolver) resolveSectionSchool(ctx context.Context, sectionID string) (string, error) {

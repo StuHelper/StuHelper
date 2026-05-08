@@ -21,6 +21,16 @@ func TestBotPendingActionFilterRejectsOverlongValues(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
+func TestBotPendingActionFilterRequiresBotIdentity(t *testing.T) {
+	c, recorder := newBotPendingActionFilterContext("platform=qq")
+
+	filter, ok := botPendingActionFilter(c)
+
+	require.False(t, ok)
+	assert.Equal(t, AdmissionPendingActionFilter{}, filter)
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
 func TestBotPendingActionFilterTrimsValues(t *testing.T) {
 	const pendingActionLimit = 2
 	c, _ := newBotPendingActionFilterContext("platform=%20qq%20&botSelfID=%20bot-1%20&limit=2")

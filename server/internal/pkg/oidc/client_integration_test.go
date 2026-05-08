@@ -80,6 +80,11 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 		})
 	})
 	mux.HandleFunc("/introspect", func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "introspection-client" || pass != "introspection-secret" {
+			http.Error(w, "invalid introspection credentials", http.StatusUnauthorized)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"active":    true,
@@ -97,10 +102,12 @@ func newTestOIDCClient(t *testing.T) (*Client, *httptest.Server) {
 	srv := httptest.NewServer(mux)
 	issuer = srv.URL
 	client, err := NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:       issuer,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              clientSecret,
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
 	return client, srv
@@ -110,7 +117,8 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	client, srv := newTestOIDCClient(t)
 	defer srv.Close()
 
-	authURL, verifier := client.GetAuthURL("state-1")
+	authURL, verifier, err := client.GetAuthURLForApplication(ApplicationWeb, "state-1")
+	require.NoError(t, err)
 	assert.Contains(t, authURL, srv.URL+"/authorize")
 	assert.NotEmpty(t, verifier)
 
@@ -200,6 +208,7 @@ func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) 
 			"authorization_endpoint": issuer + "/authorize",
 			"token_endpoint":         issuer + "/token",
 			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
 		})
 	})
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
@@ -214,10 +223,12 @@ func TestVerifyIDTokenUnknownKidFetchFailureIsProviderUnavailable(t *testing.T) 
 	issuer = srv.URL
 
 	client, err := NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:       issuer,
-		ClientID:     clientID,
-		ClientSecret: "oidc-secret",
-		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              "oidc-secret",
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
 	_, err = client.VerifyIDToken(context.Background(), issueIDToken(privateKey, "kid-1"))
@@ -269,6 +280,7 @@ func TestVerifyIDTokenRejectsDisallowedAlgorithmBeforeJWKSFetch(t *testing.T) {
 			"authorization_endpoint": issuer + "/authorize",
 			"token_endpoint":         issuer + "/token",
 			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
 		})
 	})
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
@@ -280,10 +292,12 @@ func TestVerifyIDTokenRejectsDisallowedAlgorithmBeforeJWKSFetch(t *testing.T) {
 	issuer = srv.URL
 
 	client, err := NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:       issuer,
-		ClientID:     clientID,
-		ClientSecret: "oidc-secret",
-		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              "oidc-secret",
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
 	token := issueHS256IDToken(t, issuer, clientID)
@@ -351,10 +365,12 @@ func TestOIDCClientRemoteEndpointFailuresAreProviderUnavailable(t *testing.T) {
 	issuer = srv.URL
 
 	client, err := NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:       issuer,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              clientSecret,
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
 	_, err = client.RefreshToken(context.Background(), "old-refresh-token")

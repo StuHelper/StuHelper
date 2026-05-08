@@ -3,7 +3,10 @@
 import type { MemberBlacklistEntry } from '#/api/admin';
 
 import { flushPromises, mount } from '@vue/test-utils';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import IndexView from './index.vue';
 
 const apiMocks = vi.hoisted(() => ({
   listMemberBlacklist: vi.fn(),
@@ -43,8 +46,6 @@ vi.mock('element-plus', async () => {
     ElMessage: messageMocks,
   };
 });
-
-import IndexView from './index.vue';
 
 const sampleEntry: MemberBlacklistEntry = {
   id: 'entry-active',
@@ -87,14 +88,7 @@ const childStubs = {
   },
   BlacklistTable: {
     name: 'BlacklistTable',
-    props: [
-      'loading',
-      'items',
-      'total',
-      'canManage',
-      'page',
-      'pageSize',
-    ],
+    props: ['loading', 'items', 'total', 'canManage', 'page', 'pageSize'],
     emits: ['release', 'pageChange', 'pageSizeChange'],
     template: '<div data-stub="table" />',
   },
@@ -153,13 +147,13 @@ describe('member-blacklist index view orchestration', () => {
 
     const vm = wrapper.vm as unknown as {
       query: {
+        guildID: string;
         page: number;
         pageSize: number;
         platform: string;
         scopeType: string;
         source: string;
         status: string;
-        guildID: string;
         subjectID: string;
       };
     };
@@ -240,7 +234,7 @@ describe('member-blacklist index view orchestration', () => {
     await flushPromises();
 
     const vm = wrapper.vm as unknown as {
-      query: { platform: string; status: string; page: number };
+      query: { page: number; platform: string; status: string };
     };
     vm.query.platform = 'qq';
     vm.query.status = 'released';
@@ -283,9 +277,7 @@ describe('member-blacklist index view orchestration', () => {
     await flushPromises();
 
     expect(apiMocks.createMemberBlacklist).toHaveBeenCalledWith(payload);
-    expect(messageMocks.success).toHaveBeenCalledWith(
-      '已将 20002 加入黑名单',
-    );
+    expect(messageMocks.success).toHaveBeenCalledWith('已将 20002 加入黑名单');
     expect(apiMocks.listMemberBlacklist).toHaveBeenCalledTimes(1);
   });
 

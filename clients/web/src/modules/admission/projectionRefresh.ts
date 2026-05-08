@@ -49,15 +49,14 @@ function waitDelay(delayMs: number, signal?: AbortSignal): Promise<void> {
       reject(admissionProjectionAbortError())
       return
     }
-    let timeout: ReturnType<typeof setTimeout>
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }, delayMs)
     const abort = () => {
       clearTimeout(timeout)
       reject(admissionProjectionAbortError())
     }
-    timeout = setTimeout(() => {
-      signal?.removeEventListener('abort', abort)
-      resolve()
-    }, delayMs)
     signal?.addEventListener('abort', abort, { once: true })
   })
 }

@@ -42,13 +42,13 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "test-key", Algorithm: string(jose.RS256), Use: "sig"}
 
 	var issuer string
-	issueIDToken := func() string {
+	issueIDToken := func(audience string) string {
 		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: jose.JSONWebKey{Key: privateKey, KeyID: jwk.KeyID}}, nil)
 		require.NoError(t, err)
 		raw, err := josejwt.Signed(signer).Claims(map[string]any{
 			"iss":                issuer,
 			"sub":                "oidc-user-1",
-			"aud":                clientID,
+			"aud":                audience,
 			"exp":                time.Now().Add(time.Hour).Unix(),
 			"iat":                time.Now().Unix(),
 			"name":               "OIDC Tester",
@@ -69,6 +69,7 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 			"authorization_endpoint": issuer + "/authorize",
 			"token_endpoint":         issuer + "/token",
 			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
 		})
 	})
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
@@ -79,16 +80,19 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
+		issueForRequestClient := func() string {
+			return issueIDToken(requestOIDCClientID(r, clientID))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		payload := map[string]any{
 			"access_token":  "provider-access-token",
 			"token_type":    "Bearer",
 			"refresh_token": "provider-refresh-token",
 			"expires_in":    3600,
-			"id_token":      issueIDToken(),
+			"id_token":      issueForRequestClient(),
 		}
 		if payloadFn != nil {
-			payload = payloadFn(issueIDToken)
+			payload = payloadFn(issueForRequestClient)
 		}
 		_ = json.NewEncoder(w).Encode(payload)
 	})
@@ -98,17 +102,30 @@ func newFakeOIDCProviderWithTokenPayload(t *testing.T, payloadFn func(issueIDTok
 	t.Cleanup(srv.Close)
 
 	client, err := oidcpkg.NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:             issuer,
-		ClientID:           clientID,
-		ClientSecret:       clientSecret,
-		RedirectURI:        "https://web.example.com/api/v1/auth/callback",
-		UniappClientID:     "uniapp-client",
-		UniappClientSecret: "uniapp-secret",
-		UniappRedirectURI:  "stuhelper://auth/callback",
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              clientSecret,
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		UniappClientID:            "uniapp-client",
+		UniappClientSecret:        "uniapp-secret",
+		UniappRedirectURI:         "stuhelper://auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
 
 	return &fakeOIDCProvider{server: srv, client: client, clientID: clientID}
+}
+
+func requestOIDCClientID(r *http.Request, fallback string) string {
+	clientID, _, ok := r.BasicAuth()
+	if ok && clientID != "" {
+		return clientID
+	}
+	if formClientID := r.FormValue("client_id"); formClientID != "" {
+		return formClientID
+	}
+	return fallback
 }
 
 func newOIDCTestHandler(t *testing.T, repo UserSyncRepo) (*Handler, *recordingUserSyncRepo) {
@@ -234,15 +251,27 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 func TestRefreshOIDCToken_RotationFailureDoesNotIssueCookies(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-oidc-refresh-mismatch",
+		"other-user",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-refresh-mismatch"})
+	c.Request = req
 
 	ok := h.refreshOIDCToken(c, "old-refresh-token")
 
 	require.False(t, ok)
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assertNoIssuedTokenCookies(t, w)
 }
 
@@ -425,10 +454,22 @@ func TestRefreshOIDCToken_MissingIDToken(t *testing.T) {
 		}
 	})
 	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-oidc-missing-id-token",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-missing-id-token"})
+	c.Request = req
 
 	ok := h.refreshOIDCToken(c, "old-refresh-token")
 	assert.False(t, ok)
@@ -509,10 +550,22 @@ func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
 		}
 	})
 	h, _ := newOIDCTestHandlerWithProvider(t, nil, provider)
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-oidc-invalid-id-token",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-invalid-id-token"})
+	c.Request = req
 
 	ok := h.refreshOIDCToken(c, "old-refresh-token")
 	assert.False(t, ok)

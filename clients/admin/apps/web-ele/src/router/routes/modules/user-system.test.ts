@@ -1,14 +1,14 @@
 import type { RouteRecordRaw } from 'vue-router';
 
+import { generateRoutesByFrontend } from '@vben/utils';
+
 import { describe, expect, it, vi } from 'vitest';
 
-import { generateRoutesByFrontend } from '@vben/utils';
+import routes from './user-system';
 
 vi.mock('#/locales', () => ({
   $t: (value: string) => value,
 }));
-
-import routes from './user-system';
 
 function findRouteByName(
   tree: RouteRecordRaw[],
@@ -33,12 +33,17 @@ function childNames(tree: RouteRecordRaw[]): string[] {
 // generateRoutesByFrontend → filterTree mutates `node.children` in place,
 // so each test must work on a deep clone to stay isolated.
 function cloneRoutes(): RouteRecordRaw[] {
+  // eslint-disable-next-line unicorn/prefer-structured-clone -- route records contain component loader functions; structuredClone cannot clone them for this test fixture.
   return JSON.parse(JSON.stringify(routes)) as RouteRecordRaw[];
 }
 
 describe('user-system routes', () => {
   it('lets scoped admin entries keep the parent menu visible', () => {
-    const route = routes[0]!;
+    const route = routes[0];
+    expect(route).toBeDefined();
+    if (!route) {
+      throw new Error('expected UserSystem route');
+    }
 
     expect(route.meta?.authority).toEqual(
       expect.arrayContaining([
@@ -55,8 +60,15 @@ describe('user-system routes', () => {
   });
 
   it('registers admission review and policy routes with admission capabilities', () => {
-    const children = routes[0]!.children ?? [];
-    const freshman = children.find((route) => route.name === 'FreshmanVerification');
+    const route = routes[0];
+    expect(route).toBeDefined();
+    if (!route) {
+      throw new Error('expected UserSystem route');
+    }
+    const children = route.children ?? [];
+    const freshman = children.find(
+      (route) => route.name === 'FreshmanVerification',
+    );
     const policy = children.find((route) => route.name === 'AdmissionPolicy');
 
     expect(freshman?.path).toBe('/users/freshman-verification');
@@ -66,8 +78,15 @@ describe('user-system routes', () => {
   });
 
   it('registers a dedicated member blacklist route gated by blacklist capabilities', () => {
-    const children = routes[0]!.children ?? [];
-    const blacklist = children.find((route) => route.name === 'MemberBlacklist');
+    const route = routes[0];
+    expect(route).toBeDefined();
+    if (!route) {
+      throw new Error('expected UserSystem route');
+    }
+    const children = route.children ?? [];
+    const blacklist = children.find(
+      (route) => route.name === 'MemberBlacklist',
+    );
 
     expect(blacklist?.path).toBe('/users/member-blacklist');
     expect(blacklist?.meta?.authority).toEqual([

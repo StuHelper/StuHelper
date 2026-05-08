@@ -4847,10 +4847,12 @@ paths:
       parameters:
         - name: platform
           in: query
+          required: true
           schema:
             type: string
         - name: botSelfID
           in: query
+          required: true
           schema:
             type: string
         - name: limit
@@ -4907,6 +4909,8 @@ paths:
                               format: date-time
                             reason:
                               type: string
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/bot/admission/sessions/{id}/events:

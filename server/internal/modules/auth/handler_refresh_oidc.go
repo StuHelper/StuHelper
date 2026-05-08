@@ -31,7 +31,12 @@ type oidcSessionRotation struct {
 
 // refreshOIDCToken 处理 OIDC provider 的 refresh 逻辑。
 func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool {
-	payload, ok := h.fetchOIDCRefreshPayload(c, refreshTokenStr)
+	sessionID := h.getSessionID(c, "")
+	appKey, ok := h.resolveOIDCRefreshApplication(c, sessionID, refreshTokenStr)
+	if !ok {
+		return false
+	}
+	payload, ok := h.fetchOIDCRefreshPayload(c, appKey, refreshTokenStr)
 	if !ok {
 		return false
 	}
@@ -40,7 +45,6 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool 
 		return false
 	}
 
-	sessionID := h.getSessionID(c, "")
 	rotation := oidcSessionRotation{
 		sessionID:       sessionID,
 		userID:          payload.userID,
@@ -59,8 +63,24 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string) bool 
 	return true
 }
 
-func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, oldRefreshToken string) (oidcRefreshPayload, bool) {
-	newToken, err := h.oidcClient.RefreshToken(c.Request.Context(), oldRefreshToken)
+func (h *Handler) resolveOIDCRefreshApplication(c *gin.Context, sessionID, oldRefreshToken string) (string, bool) {
+	appKey, err := h.svc.OIDCApplicationForRefresh(c.Request.Context(), sessionID, oldRefreshToken)
+	if err == nil {
+		return appKey, true
+	}
+	logger.FromGin(c).Error("failed to resolve OIDC refresh application", zap.String("session_id", sessionID), zap.Error(err))
+	h.clearTokenCookies(c)
+	if errors.Is(err, token.ErrSessionNotFound) ||
+		errors.Is(err, errSessionRefreshTokenMismatch) {
+		response.Unauthorized(c, "invalid native session id", errs.ErrTokenInvalid)
+		return "", false
+	}
+	response.InternalError(c, "failed to refresh token")
+	return "", false
+}
+
+func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToken string) (oidcRefreshPayload, bool) {
+	newToken, err := h.oidcClient.RefreshTokenForApplication(c.Request.Context(), appKey, oldRefreshToken)
 	if err != nil {
 		logger.FromGin(c).Error("OIDC token refresh failed", zap.Error(err))
 		if errors.Is(err, oidc.ErrProviderUnavailable) {
@@ -86,7 +106,7 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, oldRefreshToken string
 		return oidcRefreshPayload{}, false
 	}
 
-	newClaims, err := h.oidcClient.VerifyIDToken(c.Request.Context(), rawIDToken)
+	newClaims, err := h.oidcClient.VerifyIDTokenForApplication(c.Request.Context(), appKey, rawIDToken)
 	if err != nil {
 		logger.FromGin(c).Error("new ID token verification failed after refresh", zap.Error(err))
 		h.clearTokenCookies(c)

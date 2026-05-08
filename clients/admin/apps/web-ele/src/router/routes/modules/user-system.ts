@@ -56,7 +56,8 @@ const routes: RouteRecordRaw[] = [
       {
         name: 'FreshmanVerification',
         path: '/users/freshman-verification',
-        component: () => import('#/views/users/freshman-verification/index.vue'),
+        component: () =>
+          import('#/views/users/freshman-verification/index.vue'),
         meta: {
           icon: 'lucide:file-check-2',
           title: $t('admin.routes.userSystem.freshmanVerification'),

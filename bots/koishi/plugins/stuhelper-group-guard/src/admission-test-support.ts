@@ -92,7 +92,7 @@ export function admissionAction(qqID: string, guildID: string, action: string) {
   return {
     sessionID: `session-${qqID}`,
     action,
-    platform: 'mock',
+    platform: 'qq',
     guildID,
     channelID: guildID,
     qqID,
@@ -104,7 +104,7 @@ function admissionSessionData(qqID: string, guildID: string) {
   const now = Date.now()
   return {
     id: `session-${qqID}`,
-    platform: 'mock',
+    platform: 'qq',
     guildID,
     channelID: guildID,
     qqID,

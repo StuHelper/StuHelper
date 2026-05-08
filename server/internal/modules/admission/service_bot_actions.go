@@ -10,7 +10,11 @@ func (s *Service) ListPendingAdmissionActions(
 	ctx context.Context,
 	filter AdmissionPendingActionFilter,
 ) ([]AdmissionPendingAction, error) {
-	sessions, err := s.repo.ListPendingActionSessions(ctx, normalizePendingActionFilter(filter), s.now())
+	normalized, err := normalizePendingActionFilter(filter)
+	if err != nil {
+		return nil, err
+	}
+	sessions, err := s.repo.ListPendingActionSessions(ctx, normalized, s.now())
 	if err != nil {
 		return nil, err
 	}
@@ -193,12 +197,16 @@ func admissionPendingAction(
 	}
 }
 
-func normalizePendingActionFilter(filter AdmissionPendingActionFilter) AdmissionPendingActionFilter {
-	return AdmissionPendingActionFilter{
+func normalizePendingActionFilter(filter AdmissionPendingActionFilter) (AdmissionPendingActionFilter, error) {
+	normalized := AdmissionPendingActionFilter{
 		Platform:  strings.TrimSpace(filter.Platform),
 		BotSelfID: strings.TrimSpace(filter.BotSelfID),
 		Limit:     normalizePendingActionLimit(filter.Limit),
 	}
+	if normalized.Platform == "" || normalized.BotSelfID == "" {
+		return AdmissionPendingActionFilter{}, ErrAdmissionPendingActionFilterInvalid
+	}
+	return normalized, nil
 }
 
 func normalizePendingActionLimit(limit int) int {

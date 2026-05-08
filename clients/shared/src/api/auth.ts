@@ -3,6 +3,7 @@ import type { operations } from '../types/api.gen'
 
 type RequestPhoneOTPResponse = operations['requestPhoneOTP']['responses'][200]['content']['application/json']['data']
 type VerifyPhoneOTPResponse = operations['verifyPhoneOTP']['responses'][200]['content']['application/json']['data']
+type StepUpURLResponse = operations['getStepUpURL']['responses'][200]['content']['application/json']['data']
 type NativeSessionHeader = NonNullable<operations['refreshToken']['parameters']['header']>
 
 export const NATIVE_SESSION_ID_HEADER = 'X-Stuhelper-Session-ID' as const
@@ -42,6 +43,13 @@ export const createAuthApi = (client: ApiClient) => ({
     return client.GET('/api/v1/auth/signup', Object.keys(query).length > 0 ? { params: { query } } : undefined)
   },
 
+  stepUp: (redirect?: string, platform?: 'native' | 'web') => {
+    const query: Record<string, string> = {}
+    if (redirect) query.redirect = redirect
+    if (platform) query.platform = platform
+    return client.GET('/api/v1/auth/step-up', Object.keys(query).length > 0 ? { params: { query } } : undefined)
+  },
+
   refresh: (options?: NativeSessionRequestOptions) =>
     client.POST('/api/v1/auth/refresh', withNativeSessionHeader(options?.sessionID)),
 
@@ -66,5 +74,6 @@ export const createAuthApi = (client: ApiClient) => ({
 
 export type {
   RequestPhoneOTPResponse,
+  StepUpURLResponse,
   VerifyPhoneOTPResponse,
 }

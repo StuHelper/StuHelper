@@ -157,6 +157,9 @@ fi
 if placeholder_or_empty "${CASDOOR_APP_PROVISIONING_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_APP_PROVISIONING_CLIENT_SECRET" "prod-casdoor-app-provisioning-$(random_hex 24)"
 fi
+if placeholder_or_empty "${CASDOOR_INTROSPECTION_CLIENT_SECRET:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_SECRET" "prod-casdoor-introspection-$(random_hex 24)"
+fi
 if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "prod-casdoor-role-sync-$(random_hex 24)"
 fi
@@ -220,6 +223,8 @@ ensure_prod_default "SMS_TEMPLATE_ID" "${SMS_TEMPLATE_ID:-}" "REPLACE_WITH_SMS_T
 ensure_value "SMS_REGION" "${SMS_REGION:-}" "ap-beijing"
 ensure_prod_default "CASDOOR_APP_PROVISIONING_CLIENT_ID" "${CASDOOR_APP_PROVISIONING_CLIENT_ID:-}" "casdoor-admin-app-provisioning" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_CLIENT_ID"
 ensure_prod_default "CASDOOR_APP_PROVISIONING_APPLICATION" "${CASDOOR_APP_PROVISIONING_APPLICATION:-}" "casdoor-admin-app-provisioning" "REPLACE_WITH_CASDOOR_APP_PROVISIONING_APPLICATION"
+ensure_prod_default "CASDOOR_INTROSPECTION_CLIENT_ID" "${CASDOOR_INTROSPECTION_CLIENT_ID:-}" "casdoor-token-introspection" "REPLACE_WITH_CASDOOR_INTROSPECTION_CLIENT_ID"
+ensure_prod_default "CASDOOR_INTROSPECTION_APPLICATION" "${CASDOOR_INTROSPECTION_APPLICATION:-}" "casdoor-token-introspection" "REPLACE_WITH_CASDOOR_INTROSPECTION_APPLICATION"
 ensure_prod_default "CASDOOR_ROLE_SYNC_CLIENT_ID" "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_ID"
 ensure_prod_default "CASDOOR_ROLE_SYNC_APPLICATION" "${CASDOOR_ROLE_SYNC_APPLICATION:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_APPLICATION"
 ensure_prod_default "CASDOOR_USER_LOOKUP_CLIENT_ID" "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_ID"

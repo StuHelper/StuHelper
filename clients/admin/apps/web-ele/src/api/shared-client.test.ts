@@ -5,6 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   capturedTransport: null as any,
   executeSessionRefresh: vi.fn(),
+  parseApiError: vi.fn((payload: unknown) => {
+    if (typeof payload === 'object' && payload !== null && 'error' in payload) {
+      const error = (payload as { error?: { code?: string } }).error;
+      return { code: error?.code };
+    }
+    return {};
+  }),
   readCookie: vi.fn(() => null),
   request: vi.fn(),
   resetAllStores: vi.fn(),
@@ -42,32 +49,36 @@ vi.mock('#/api/utils/csrf', () => ({
   readCookie: mocks.readCookie,
 }));
 
-mockVirtualModule('@stuhelper/shared/api', () => ({
-  AUTH_REFRESH_PATH: '/api/v1/auth/refresh',
-  buildSecurityHeaders: (
-    _method: string,
-    headers: Record<string, string>,
-  ) => headers,
-  createSessionApiClient: (transport: unknown) => {
-    mocks.capturedTransport = transport;
-    return {
-      DELETE: vi.fn(),
-      GET: vi.fn(),
-      PATCH: vi.fn(),
-      POST: vi.fn(),
-      PUT: vi.fn(),
-    };
-  },
-  executeSessionRefresh: mocks.executeSessionRefresh,
-  normalizeSchemaPath: (_baseUrl: string, schemaPath: string) => schemaPath,
-  serializePath: (schemaPath: string) => schemaPath,
-}), { virtual: true });
+mockVirtualModule(
+  '@stuhelper/shared/api',
+  () => ({
+    AUTH_REFRESH_PATH: '/api/v1/auth/refresh',
+    buildSecurityHeaders: (_method: string, headers: Record<string, string>) =>
+      headers,
+    createSessionApiClient: (transport: unknown) => {
+      mocks.capturedTransport = transport;
+      return {
+        DELETE: vi.fn(),
+        GET: vi.fn(),
+        PATCH: vi.fn(),
+        POST: vi.fn(),
+        PUT: vi.fn(),
+      };
+    },
+    executeSessionRefresh: mocks.executeSessionRefresh,
+    normalizeSchemaPath: (_baseUrl: string, schemaPath: string) => schemaPath,
+    parseApiError: mocks.parseApiError,
+    serializePath: (schemaPath: string) => schemaPath,
+  }),
+  { virtual: true },
+);
 
 describe('admin shared client reauthentication', () => {
   beforeEach(() => {
     vi.resetModules();
     mocks.capturedTransport = null;
     mocks.executeSessionRefresh.mockReset();
+    mocks.parseApiError.mockClear();
     mocks.readCookie.mockReset();
     mocks.readCookie.mockReturnValue(null);
     mocks.request.mockReset();
@@ -82,9 +93,9 @@ describe('admin shared client reauthentication', () => {
 
     await import('./shared-client');
 
-    await expect(
-      mocks.capturedTransport.onUnauthorized(),
-    ).rejects.toThrow('network down');
+    await expect(mocks.capturedTransport.onUnauthorized()).rejects.toThrow(
+      'network down',
+    );
     expect(replaceSpy).not.toHaveBeenCalledWith('/admin/');
     expect(mocks.resetAllStores).toHaveBeenCalledTimes(1);
 
@@ -108,9 +119,99 @@ describe('admin shared client reauthentication', () => {
     await expect(mocks.capturedTransport.onUnauthorized()).resolves.toBe(
       undefined,
     );
-    expect(replaceSpy).toHaveBeenCalledWith(
-      'https://sso.example.com/login',
+    expect(replaceSpy).toHaveBeenCalledWith('https://sso.example.com/login');
+
+    replaceSpy.mockRestore();
+  });
+
+  it('redirects step-up required responses to the fetched MFA URL', async () => {
+    mocks.request
+      .mockRejectedValueOnce({
+        response: {
+          data: {
+            error: {
+              code: 'A0010205',
+            },
+          },
+          status: 412,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            url: 'https://sso.example.com/step-up',
+          },
+        },
+        status: 200,
+      });
+    const replaceSpy = vi
+      .spyOn(window.location, 'replace')
+      .mockImplementation(() => undefined);
+
+    await import('./shared-client');
+
+    const result = await mocks.capturedTransport.request(
+      'GET',
+      '/api/v1/course/review/admin/reviews',
     );
+
+    expect(replaceSpy).toHaveBeenCalledWith('https://sso.example.com/step-up');
+    expect(mocks.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        method: 'GET',
+        params: {
+          platform: 'web',
+          redirect: window.location.href,
+        },
+        url: '/api/v1/auth/step-up',
+      }),
+    );
+    expect(result.response.status).toBe(412);
+
+    replaceSpy.mockRestore();
+  });
+
+  it('redirects MFA enrollment required responses to account settings', async () => {
+    mocks.request
+      .mockRejectedValueOnce({
+        response: {
+          data: {
+            error: {
+              code: 'A0010204',
+            },
+          },
+          status: 403,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            accountSettingsUrl: 'https://sso.example.com/account',
+          },
+        },
+        status: 200,
+      });
+    const replaceSpy = vi
+      .spyOn(window.location, 'replace')
+      .mockImplementation(() => undefined);
+
+    await import('./shared-client');
+
+    const result = await mocks.capturedTransport.request(
+      'DELETE',
+      '/api/v1/admin/users/1',
+    );
+
+    expect(replaceSpy).toHaveBeenCalledWith('https://sso.example.com/account');
+    expect(mocks.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        method: 'GET',
+        url: '/api/v1/auth/me',
+      }),
+    );
+    expect(result.response.status).toBe(403);
 
     replaceSpy.mockRestore();
   });

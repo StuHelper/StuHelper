@@ -44,7 +44,7 @@ func TestSetTokenCookies(t *testing.T) {
 	assert.Equal(t, 300, cookies[middleware.CookieAccessToken].MaxAge)
 
 	assert.Equal(t, "refresh-token", cookies[middleware.CookieRefreshToken].Value)
-	assert.Equal(t, refreshTokenCookiePath, cookies[middleware.CookieRefreshToken].Path)
+	assert.Equal(t, middleware.CookieRefreshTokenPath, cookies[middleware.CookieRefreshToken].Path)
 	assert.True(t, cookies[middleware.CookieRefreshToken].HttpOnly)
 	assert.Equal(t, 600, cookies[middleware.CookieRefreshToken].MaxAge)
 

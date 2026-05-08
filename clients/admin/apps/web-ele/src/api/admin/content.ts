@@ -3,7 +3,7 @@ import type { components } from '@stuhelper/shared/types';
 import { createAdminApi } from '@stuhelper/shared/api';
 
 import { sharedApiClient } from '#/api/shared-client';
-import { unwrapData, unwrapListData } from '#/api/shared-result';
+import { unwrapData, unwrapListData, unwrapVoid } from '#/api/shared-result';
 
 const adminApi = createAdminApi(sharedApiClient);
 
@@ -106,7 +106,7 @@ export async function updateTeacher(
 }
 
 export async function deleteTeacher(teacherId: number) {
-  return unwrapData(await adminApi.deleteTeacher(teacherId));
+  return unwrapVoid(await adminApi.deleteTeacher(teacherId));
 }
 
 export async function getSensitiveWordList(params: {
@@ -146,7 +146,7 @@ export async function updateSensitiveWord(
 }
 
 export async function deleteSensitiveWord(id: string) {
-  return unwrapData(await adminApi.deleteSensitiveWord(id));
+  return unwrapVoid(await adminApi.deleteSensitiveWord(id));
 }
 
 export async function getOperationLogs(params: {

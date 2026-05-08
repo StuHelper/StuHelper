@@ -7,7 +7,7 @@
 #   tls.dynamic.yaml      — TLS 选项（生产环境启用 ACME 时加载）
 #
 # 路由优先级总览:
-#   /api/*          (700)  → backend（Go 服务，strip /api）
+#   /api/*          (700)  → backend（Go 服务，保留 /api 前缀）
 #   /admin/*        (600)  → admin 前端（Vben Admin）
 #   /               (500)  → web 前端（Vue SPA，catch-all）
 #
@@ -32,6 +32,8 @@ services:
     - --entrypoints.web.address=:80
     # HTTPS 入口（生产启用 TLS 时使用；开发环境下无证书则不接受连接，无副作用）
     - --entrypoints.websecure.address=:443
+    - --entrypoints.websecure.http.tls=true
+    - --entrypoints.websecure.http.tls.certresolver=letsencrypt
     # HTTP → HTTPS 自动重定向（仅在 TRAEFIK_TLS_REDIRECT=true 时生效）
     - --entrypoints.web.http.redirections.entryPoint.to=${TRAEFIK_TLS_REDIRECT_TARGET:-}
     - --entrypoints.web.http.redirections.entryPoint.permanent=${TRAEFIK_TLS_REDIRECT_PERMANENT:-false}

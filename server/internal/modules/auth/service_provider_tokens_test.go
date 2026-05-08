@@ -84,7 +84,7 @@ func TestRevokeAllSessionsRevokesProviderRefreshTokens(t *testing.T) {
 	assert.Empty(t, sessions)
 }
 
-func TestRevokeAllSessionsKeepsLocalSessionsWhenProviderRevokeFails(t *testing.T) {
+func TestRevokeAllSessionsRevokesLocalSessionsWhenProviderRevokeFails(t *testing.T) {
 	revoker := &fakeProviderRefreshRevoker{err: errors.New("provider revoke failed")}
 	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
 	createTrackedSession(t, svc, trackedSessionSeed{
@@ -95,7 +95,21 @@ func TestRevokeAllSessionsKeepsLocalSessionsWhenProviderRevokeFails(t *testing.T
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "provider revoke failed")
-	assert.NotNil(t, requireSession(t, tokenSvc, "sid-a"))
+	assert.Nil(t, requireSession(t, tokenSvc, "sid-a"))
+}
+
+func TestRevokeSessionRevokesLocalSessionWhenProviderRevokeFails(t *testing.T) {
+	revoker := &fakeProviderRefreshRevoker{err: errors.New("provider revoke failed")}
+	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
+	createTrackedSession(t, svc, trackedSessionSeed{
+		SessionID: "sid-a", UserID: "user-1", RefreshToken: "provider-refresh-a", LoginMethod: "oidc",
+	})
+
+	err := svc.RevokeSession(t.Context(), "sid-a", "user-1", "access-sid-a", "provider-refresh-a")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider revoke failed")
+	assert.Nil(t, requireSession(t, tokenSvc, "sid-a"))
 }
 
 type trackedSessionSeed struct {

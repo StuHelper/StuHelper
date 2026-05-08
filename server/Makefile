@@ -2,7 +2,7 @@
 
 .PHONY: help tidy fmt lint test test-coverage build run clean security ci check-casdoor-boundary \
        bundle-spec lint-spec generate generate-go generate-ts check-drift check-drift-go check-drift-ts check-drift-all \
-       check-doc-sync check-coverage-threshold \
+       check-drift-capabilities check-doc-sync check-coverage-threshold \
        migrate-up migrate-down-one migrate-status migrate-verify seed-dev
 
 # 默认目标
@@ -118,10 +118,13 @@ check-drift: check-drift-all
 check-drift-go: generate-go
 	@git diff --exit-code -- internal/api/gen/ || (echo "ERROR: Generated Go code is out of sync with OpenAPI spec. Run 'make generate-go' and commit." && exit 1)
 
-check-drift-ts:
+check-drift-ts: bundle-spec
 	cd ../clients && npx --yes pnpm@10.32.1 run check:api-drift
 
-check-drift-all: check-drift-go check-drift-ts
+check-drift-capabilities:
+	cd ../clients && npx --yes pnpm@10.32.1 run check:capabilities-drift
+
+check-drift-all: check-drift-go check-drift-ts check-drift-capabilities
 
 check-doc-sync: bundle-spec
 	node --test scripts/check-api-overview-sync.test.mjs

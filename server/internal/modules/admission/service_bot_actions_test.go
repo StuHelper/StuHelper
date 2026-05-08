@@ -24,7 +24,10 @@ func TestPendingAdmissionActionBlacklistsOnFinalFailure(t *testing.T) {
 	expireAdmissionLinkWait(t, fixture, "adm-final-failure")
 	insertAdmissionFailureCount(t, fixture, DefaultFailedJoinLimit-1)
 
-	actions, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{})
+	actions, err := svc.ListPendingAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
 	require.NoError(t, err)
 	require.Len(t, actions, 1)
 	assert.Equal(t, BotActionBlacklist, actions[0].Action)
@@ -51,11 +54,20 @@ func TestPendingAdmissionActionsRespectLimit(t *testing.T) {
 
 	actions, err := svc.ListPendingAdmissionActions(
 		context.Background(),
-		AdmissionPendingActionFilter{Limit: 1},
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514", Limit: 1},
 	)
 
 	require.NoError(t, err)
 	require.Len(t, actions, 1)
+}
+
+func TestPendingAdmissionActionsRequireBotIdentity(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+
+	_, err := svc.ListPendingAdmissionActions(context.Background(), AdmissionPendingActionFilter{})
+
+	require.ErrorIs(t, err, ErrAdmissionPendingActionFilterInvalid)
 }
 
 func expireAdmissionLinkWait(t *testing.T, fixture *postgresfixture.Fixture, sessionID string) {

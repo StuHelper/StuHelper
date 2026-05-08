@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 COMPOSE_PROD_FILE="${REPO_ROOT}/docker-compose.prod.yml"
 COMMON_LIB_FILE="${REPO_ROOT}/infra/ops/lib/common.sh"
+PG_HBA_PROD_FILE="${REPO_ROOT}/infra/postgres/pg_hba.prod.conf"
 
 fail() {
   echo "[prod-compose-contract][error] $*" >&2
@@ -45,7 +46,11 @@ assert_contains "${COMMON_LIB_FILE}" 'GENERATED_SECRET_ENV_FILE_PATH="\$\{GENERA
 assert_contains "${REPO_ROOT}/docker-compose.yml" 'CASDOOR_DB_PASSWORD: \$\{CASDOOR_DB_PASSWORD:-\}'
 assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_CLIENT_SECRET: \$\{CASDOOR_CLIENT_SECRET:\?CASDOOR_CLIENT_SECRET is required\}'
 assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_APP_PROVISIONING_CLIENT_SECRET: \$\{CASDOOR_APP_PROVISIONING_CLIENT_SECRET:\?CASDOOR_APP_PROVISIONING_CLIENT_SECRET is required\}'
+assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_INTROSPECTION_CLIENT_SECRET: \$\{CASDOOR_INTROSPECTION_CLIENT_SECRET:\?CASDOOR_INTROSPECTION_CLIENT_SECRET is required\}'
 assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_ROLE_SYNC_CLIENT_SECRET: \$\{CASDOOR_ROLE_SYNC_CLIENT_SECRET:\?CASDOOR_ROLE_SYNC_CLIENT_SECRET is required\}'
 assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_USER_LOOKUP_CLIENT_SECRET: \$\{CASDOOR_USER_LOOKUP_CLIENT_SECRET:\?CASDOOR_USER_LOOKUP_CLIENT_SECRET is required\}'
+assert_contains "${COMPOSE_PROD_FILE}" '\./infra/postgres/pg_hba\.prod\.conf:/etc/postgresql/pg_hba\.conf:ro'
+assert_contains "${PG_HBA_PROD_FILE}" '^hostnossl all[[:space:]]+all[[:space:]]+10\.0\.0\.0/8[[:space:]]+reject$'
+assert_contains "${PG_HBA_PROD_FILE}" '^hostssl stuhelper[[:space:]]+stuhelper_app[[:space:]]+10\.0\.0\.0/8[[:space:]]+scram-sha-256$'
 
 echo "[prod-compose-contract] all assertions passed"

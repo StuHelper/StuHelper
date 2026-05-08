@@ -10,6 +10,7 @@ stages:
 - test
 - security
 - build
+- package_scan
 - package
 - deploy
 - verify
@@ -54,7 +55,7 @@ include:
 
 .trivy_scan_job:
   extends: .docker_job
-  stage: security
+  stage: package_scan
   before_script:
   - apk add --no-cache curl tar
   - export TRIVY_VERSION=0.58.2
@@ -269,4 +270,4 @@ docker_build_admin:
   - echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" --username "$REGISTRY_USERNAME" --password-stdin
   - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
-  - docker buildx build --push --platform linux/amd64 --file clients/admin/scripts/deploy/Dockerfile --tag "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_GLOB_API_URL=${ADMIN_VITE_API_URL:-/api/v1}" --build-arg "VITE_BASE=${ADMIN_VITE_BASE:-/admin/}" --cache-from "type=registry,ref=${ADMIN_IMAGE}:buildcache" --cache-to "type=registry,ref=${ADMIN_IMAGE}:buildcache,mode=max" clients/admin
+  - docker buildx build --push --platform linux/amd64 --file clients/admin/scripts/deploy/Dockerfile --tag "${ADMIN_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_GLOB_API_URL=${ADMIN_VITE_API_URL:-/api/v1}" --build-arg "VITE_BASE=${ADMIN_VITE_BASE:-/admin/}" --cache-from "type=registry,ref=${ADMIN_IMAGE}:buildcache" --cache-to "type=registry,ref=${ADMIN_IMAGE}:buildcache,mode=max" clients

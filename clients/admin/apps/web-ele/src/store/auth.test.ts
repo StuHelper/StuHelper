@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuthStore } from './auth';
 
@@ -204,9 +204,7 @@ describe('useAuthStore', () => {
 
     await store.initSession();
 
-    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe(
-      '1001',
-    );
+    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe('1001');
     expect(store.resolveScopedSchoolId('user:student:review', '1002')).toBe(
       '1002',
     );

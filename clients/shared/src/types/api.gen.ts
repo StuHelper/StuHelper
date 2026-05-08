@@ -7311,9 +7311,9 @@ export interface operations {
     };
     listBotPendingAdmissionActions: {
         parameters: {
-            query?: {
-                platform?: string;
-                botSelfID?: string;
+            query: {
+                platform: string;
+                botSelfID: string;
                 limit?: number;
             };
             header?: never;
@@ -7347,6 +7347,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
         };
     };

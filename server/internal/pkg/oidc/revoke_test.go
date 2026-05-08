@@ -77,6 +77,7 @@ func newRevocationOIDCClient(
 			"authorization_endpoint": issuer + "/authorize",
 			"token_endpoint":         issuer + "/token",
 			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
 		}
 		if includeRevocationEndpoint {
 			metadata["revocation_endpoint"] = issuer + "/revoke"
@@ -89,10 +90,12 @@ func newRevocationOIDCClient(
 	mux.HandleFunc("/revoke", revocationHandler)
 
 	client, err := NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:       issuer,
-		ClientID:     "oidc-client",
-		ClientSecret: "oidc-secret",
-		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
+		Issuer:                    issuer,
+		ClientID:                  "oidc-client",
+		ClientSecret:              "oidc-secret",
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
 	return client, server

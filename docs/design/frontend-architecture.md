@@ -82,7 +82,7 @@ pnpm install
 pnpm dev:web       # 主站
 pnpm dev:admin     # 管理后台（另开终端）
 pnpm dev:uni       # UniApp X（另开终端）
-pnpm type-check && pnpm lint && pnpm test:web && pnpm test:e2e
+pnpm type-check:all && pnpm lint:all && pnpm test:web && pnpm test:e2e
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 ```
 

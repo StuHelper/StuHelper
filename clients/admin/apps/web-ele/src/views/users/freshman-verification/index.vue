@@ -10,9 +10,9 @@ import {
   ElInput,
   ElInputNumber,
   ElMessage,
+  ElOption,
   ElPagination,
   ElSelect,
-  ElOption,
   ElTable,
   ElTableColumn,
   ElTag,
@@ -158,7 +158,12 @@ onMounted(fetchData);
             placeholder="驳回原因"
             size="small"
           />
-          <ElButton link type="danger" data-action="reject" @click="reject(row)">
+          <ElButton
+            link
+            type="danger"
+            data-action="reject"
+            @click="reject(row)"
+          >
             驳回
           </ElButton>
         </template>

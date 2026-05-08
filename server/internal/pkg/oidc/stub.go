@@ -28,10 +28,7 @@ func NewStubClient(authBaseURL string) *Client {
 			ApplicationAdmin:  adminCfg,
 			ApplicationUniapp: uniappCfg,
 		},
-		allowedClientIDs: map[string]struct{}{
-			cfg.ClientID:       {},
-			adminCfg.ClientID:  {},
-			uniappCfg.ClientID: {},
-		},
+		introspectionURL: cfg.Endpoint.TokenURL + "/introspect",
+		introspectionCfg: cfg,
 	}
 }

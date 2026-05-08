@@ -107,12 +107,18 @@ type CasdoorConfig struct {
 	ClientID                    string
 	ClientSecret                string
 	RedirectURI                 string
+	WebScopes                   []string
 	AdminClientID               string
 	AdminClientSecret           string
 	AdminRedirectURI            string
+	AdminScopes                 []string
 	UniappClientID              string
 	UniappClientSecret          string
 	UniappRedirectURI           string
+	UniappScopes                []string
+	IntrospectionEndpoint       string
+	IntrospectionClientID       string
+	IntrospectionClientSecret   string
 	Organization                string // Casdoor organization 名称
 	RolesClaim                  string // 角色 claim 名称，默认 roles
 	AppProvisioningClientID     string
@@ -244,12 +250,18 @@ func loadCasdoorConfig() CasdoorConfig {
 		ClientID:                    getEnv("CASDOOR_CLIENT_ID", ""),
 		ClientSecret:                getEnv("CASDOOR_CLIENT_SECRET", ""),
 		RedirectURI:                 getEnv("CASDOOR_REDIRECT_URI", ""),
+		WebScopes:                   getEnvSlice("CASDOOR_WEB_SCOPES", nil),
 		AdminClientID:               getEnv("CASDOOR_ADMIN_CLIENT_ID", ""),
 		AdminClientSecret:           getEnv("CASDOOR_ADMIN_CLIENT_SECRET", ""),
 		AdminRedirectURI:            getEnv("CASDOOR_ADMIN_REDIRECT_URI", ""),
+		AdminScopes:                 getEnvSlice("CASDOOR_ADMIN_SCOPES", nil),
 		UniappClientID:              getEnv("CASDOOR_UNIAPP_CLIENT_ID", ""),
 		UniappClientSecret:          getEnv("CASDOOR_UNIAPP_CLIENT_SECRET", ""),
 		UniappRedirectURI:           getEnv("CASDOOR_UNIAPP_REDIRECT_URI", ""),
+		UniappScopes:                getEnvSlice("CASDOOR_UNIAPP_SCOPES", nil),
+		IntrospectionEndpoint:       getEnv("CASDOOR_INTROSPECTION_ENDPOINT", ""),
+		IntrospectionClientID:       getEnv("CASDOOR_INTROSPECTION_CLIENT_ID", ""),
+		IntrospectionClientSecret:   getEnv("CASDOOR_INTROSPECTION_CLIENT_SECRET", ""),
 		Organization:                getEnv("CASDOOR_ORGANIZATION", ""),
 		RolesClaim:                  getEnv("CASDOOR_ROLES_CLAIM", "roles"),
 		AppProvisioningClientID:     getEnv("CASDOOR_APP_PROVISIONING_CLIENT_ID", ""),

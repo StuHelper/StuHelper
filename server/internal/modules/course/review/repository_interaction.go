@@ -403,7 +403,10 @@ func (r *Repository) GetReplyOwnerAndReviewID(ctx context.Context, replyID strin
 func (r *Repository) GetReplyOwnerAndReviewIDTx(ctx context.Context, tx pgx.Tx, replyID string) (string, string, string, error) {
 	var userHash, reviewID, status string
 	err := tx.QueryRow(ctx, `
-		SELECT user_hash, review_id, status FROM review_replies WHERE id = $1
+		SELECT user_hash, review_id, status
+		FROM review_replies
+		WHERE id = $1
+		FOR UPDATE
 	`, replyID).Scan(&userHash, &reviewID, &status)
 	if err != nil {
 		return "", "", "", fmt.Errorf("GetReplyOwnerAndReviewIDTx: %w", err)

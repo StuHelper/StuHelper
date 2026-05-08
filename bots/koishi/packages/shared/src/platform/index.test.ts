@@ -141,6 +141,18 @@ test('platform client accepts empty success responses for void requests', async 
   })
 })
 
+test('platform admission client requires bot identity for pending actions', async () => {
+  const client = createPlatformClient({
+    baseUrl: 'https://api.example.test',
+    serviceToken: 'service-token',
+  })
+
+  await assert.rejects(
+    client.listPendingAdmissionActions({ platform: 'qq', botSelfID: '' }),
+    /platform and botSelfID are required/,
+  )
+})
+
 test('platform client rejects missing platform config at construction', () => {
   assert.throws(() => createPlatformClient({
     baseUrl: 'https://api.example.test',

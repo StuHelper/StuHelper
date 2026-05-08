@@ -4,7 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 SERVICES_FILE="${REPO_ROOT}/infra/traefik/services.dynamic.yaml"
+COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 BACKEND_MODULES_FILE="${REPO_ROOT}/server/internal/app/modules.go"
+ADMIN_NGINX_FILE="${REPO_ROOT}/clients/admin/scripts/deploy/nginx.conf"
 
 fail() {
   echo "[traefik-services-contract][error] $*" >&2
@@ -43,5 +45,10 @@ if printf '%s\n' "${router_block}" | grep -Eq 'strip-api-prefix'; then
 fi
 
 assert_not_contains "${SERVICES_FILE}" '^[[:space:]]*strip-api-prefix:'
+assert_contains "${COMPOSE_FILE}" 'entrypoints\.websecure\.http\.tls=true'
+assert_contains "${COMPOSE_FILE}" 'entrypoints\.websecure\.http\.tls\.certresolver=letsencrypt'
+assert_contains "${ADMIN_NGINX_FILE}" '^[[:space:]]*location /admin/assets/ \{$'
+assert_contains "${ADMIN_NGINX_FILE}" '^[[:space:]]*location /admin/ \{$'
+assert_contains "${ADMIN_NGINX_FILE}" 'rewrite \^/admin/\(\.\*\)\$ /\$1 break;'
 
 echo "[traefik-services-contract] all assertions passed"

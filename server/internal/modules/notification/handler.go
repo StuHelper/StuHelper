@@ -2,7 +2,6 @@ package notification
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -105,13 +104,8 @@ func (h *Handler) MarkRead(c *gin.Context) {
 	}
 
 	if err := h.service.MarkRead(c.Request.Context(), notifID, userID); err != nil {
-		switch {
-		case errors.Is(err, ErrNotFound):
-			response.NotFound(c, "notification not found")
-		default:
-			logger.FromGin(c).Error("failed to mark notification as read", zap.Error(err))
-			response.InternalError(c, "failed to mark notification as read")
-		}
+		logger.FromGin(c).Error("failed to mark notification as read", zap.Error(err))
+		response.InternalError(c, "failed to mark notification as read")
 		return
 	}
 

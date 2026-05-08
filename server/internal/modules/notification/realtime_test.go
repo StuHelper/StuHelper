@@ -95,6 +95,28 @@ func TestServiceMarkReadBroadcastsNotificationRead(t *testing.T) {
 	}
 }
 
+func TestServiceMarkReadMissingNotificationIsNoop(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	hub := NewHub(redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}))
+	service := NewService(repo, hub, redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"}))
+
+	userID := seedNotificationUser(t, fixture, "notif-read-missing-user")
+	ch := hub.Subscribe(userID)
+	defer hub.Unsubscribe(userID, ch)
+
+	require.NoError(t, service.MarkRead(ctx, "550e8400-e29b-41d4-a716-446655440999", userID))
+
+	select {
+	case event := <-ch:
+		t.Fatalf("unexpected event for noop mark read: %+v", event)
+	case <-time.After(150 * time.Millisecond):
+	}
+}
+
 func TestServiceMarkAllReadBroadcastsReadAllAndUnreadCount(t *testing.T) {
 	t.Parallel()
 

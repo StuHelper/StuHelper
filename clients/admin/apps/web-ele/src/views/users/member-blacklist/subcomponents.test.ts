@@ -2,9 +2,9 @@
 
 import type { MemberBlacklistEntry } from '#/api/admin';
 
+import { mount } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 
-import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import BlacklistFilters from './BlacklistFilters.vue';
@@ -50,7 +50,8 @@ const ElTableStub = defineComponent({
 const ElTableColumnStub = defineComponent({
   name: 'ElTableColumn',
   setup(_, { slots }) {
-    return () => h('div', { 'data-stub': 'el-table-column' }, slots.default?.());
+    return () =>
+      h('div', { 'data-stub': 'el-table-column' }, slots.default?.());
   },
 });
 const ElPaginationStub = defineComponent({
@@ -112,9 +113,12 @@ describe('BlacklistFilters', () => {
     expect(search).toBeDefined();
     expect(reset).toBeDefined();
     expect(create.exists()).toBe(true);
+    if (!search || !reset) {
+      throw new Error('expected search and reset buttons');
+    }
 
-    await search!.trigger('click');
-    await reset!.trigger('click');
+    await search.trigger('click');
+    await reset.trigger('click');
     await create.trigger('click');
 
     expect(wrapper.emitted('search')).toHaveLength(1);
@@ -151,7 +155,11 @@ describe('BlacklistTable', () => {
         pageSize: 20,
       },
       global: {
-        stubs: { ElTable: ElTableStub, ElTableColumn: ElTableColumnStub, ElPagination: ElPaginationStub },
+        stubs: {
+          ElTable: ElTableStub,
+          ElTableColumn: ElTableColumnStub,
+          ElPagination: ElPaginationStub,
+        },
         directives: { loading: tableStubs.vLoading },
       },
     });
@@ -179,7 +187,11 @@ describe('BlacklistTable', () => {
         pageSize: 20,
       },
       global: {
-        stubs: { ElTable: ElTableStub, ElTableColumn: ElTableColumnStub, ElPagination: ElPaginationStub },
+        stubs: {
+          ElTable: ElTableStub,
+          ElTableColumn: ElTableColumnStub,
+          ElPagination: ElPaginationStub,
+        },
         directives: { loading: tableStubs.vLoading },
       },
     });
@@ -197,12 +209,12 @@ describe('CreateBlacklistDialog', () => {
 
     const vm = wrapper.vm as unknown as {
       draft: {
-        platform: string;
-        subjectID: string;
-        scopeType: 'global' | 'guild';
-        guildID: string;
-        reasonText: string;
         expiresAt: Date | string;
+        guildID: string;
+        platform: string;
+        reasonText: string;
+        scopeType: 'global' | 'guild';
+        subjectID: string;
       };
     };
     vm.draft.platform = 'qq';
@@ -244,12 +256,12 @@ describe('CreateBlacklistDialog', () => {
 
     const vm = wrapper.vm as unknown as {
       draft: {
-        platform: string;
-        subjectID: string;
-        scopeType: 'global' | 'guild';
-        guildID: string;
-        reasonText: string;
         expiresAt: Date | string;
+        guildID: string;
+        platform: string;
+        reasonText: string;
+        scopeType: 'global' | 'guild';
+        subjectID: string;
       };
       submit: () => void;
     };
@@ -302,8 +314,8 @@ describe('CreateBlacklistDialog', () => {
     });
 
     const exposed = wrapper.vm as unknown as {
+      draft: { reasonText: string; scopeType: string; subjectID: string };
       reset: () => void;
-      draft: { subjectID: string; reasonText: string; scopeType: string };
     };
     exposed.draft.subjectID = '99999';
     exposed.draft.reasonText = 'noise';
@@ -330,7 +342,7 @@ describe('ReleaseBlacklistDialog', () => {
     await wrapper.vm.$nextTick();
 
     const vm = wrapper.vm as unknown as {
-      draft: { releaseReasonCode: string; releaseReason: string };
+      draft: { releaseReason: string; releaseReasonCode: string };
     };
     expect(vm.draft.releaseReasonCode).toBe('manual_pardon');
 
@@ -358,7 +370,7 @@ describe('ReleaseBlacklistDialog', () => {
     await wrapper.vm.$nextTick();
 
     const vm = wrapper.vm as unknown as {
-      draft: { releaseReasonCode: string; releaseReason: string };
+      draft: { releaseReason: string; releaseReasonCode: string };
     };
     expect(vm.draft.releaseReasonCode).toBe('release_only');
     vm.draft.releaseReason = '   appeal accepted   ';
@@ -398,7 +410,7 @@ describe('ReleaseBlacklistDialog', () => {
     await wrapper.vm.$nextTick();
 
     const vm = wrapper.vm as unknown as {
-      draft: { releaseReasonCode: string; releaseReason: string };
+      draft: { releaseReason: string; releaseReasonCode: string };
     };
     expect(vm.draft.releaseReasonCode).toBe('manual_pardon');
 

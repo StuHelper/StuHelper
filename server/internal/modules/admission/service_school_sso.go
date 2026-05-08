@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -24,9 +25,10 @@ const (
 const admissionSchoolSSOStateKeyPrefix = "admission:school_sso_state:"
 
 type admissionSSOStateRecord struct {
-	UserID    int64  `json:"userID"`
-	SchoolID  int64  `json:"schoolID"`
-	ReturnURL string `json:"returnURL"`
+	UserID       int64  `json:"userID"`
+	SchoolID     int64  `json:"schoolID"`
+	ReturnURL    string `json:"returnURL"`
+	CodeVerifier string `json:"codeVerifier"`
 }
 
 type studentCredentialInput struct {
@@ -51,11 +53,11 @@ func (s *Service) StartSchoolSSO(ctx context.Context, input SchoolSSOStartInput)
 	if !s.admissionReturnURLAllowed(input.ReturnURL) {
 		return nil, ErrAdmissionReturnURLNotAllowed
 	}
-	state, err := s.storeSchoolSSOState(ctx, input)
+	state, record, err := s.storeSchoolSSOState(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	return &SchoolSSOStartResult{RedirectURL: appendSSOState(config.SSOLoginURL, state), State: state}, nil
+	return &SchoolSSOStartResult{RedirectURL: appendSSOState(config.SSOLoginURL, state, record.CodeVerifier), State: state}, nil
 }
 
 func (s *Service) CompleteSchoolSSO(
@@ -69,6 +71,7 @@ func (s *Service) CompleteSchoolSSO(
 	if err != nil {
 		return nil, err
 	}
+	input.CodeVerifier = state.CodeVerifier
 	identity, err := s.exchangeSchoolSSO(ctx, input)
 	if err != nil {
 		return nil, err
@@ -94,8 +97,9 @@ func (s *Service) exchangeSchoolSSO(
 		return SchoolSSOIdentity{}, ErrAdmissionSSONotConfigured
 	}
 	identity, err := s.schoolSSO.ExchangeSchoolSSO(ctx, SchoolSSOExchangeInput{
-		SchoolID: input.SchoolID,
-		Code:     strings.TrimSpace(input.Code),
+		SchoolID:     input.SchoolID,
+		Code:         strings.TrimSpace(input.Code),
+		CodeVerifier: strings.TrimSpace(input.CodeVerifier),
 	})
 	if err != nil {
 		return SchoolSSOIdentity{}, err
@@ -153,18 +157,18 @@ func (s *Service) loadSchoolSSOConfig(ctx context.Context, schoolID int64) (*Adm
 	return config, nil
 }
 
-func (s *Service) storeSchoolSSOState(ctx context.Context, input SchoolSSOStartInput) (string, error) {
+func (s *Service) storeSchoolSSOState(ctx context.Context, input SchoolSSOStartInput) (string, admissionSSOStateRecord, error) {
 	state, err := s.generateState()
 	if err != nil {
-		return "", err
+		return "", admissionSSOStateRecord{}, err
 	}
 	record := newSchoolSSOStateRecord(input)
 	payload, err := json.Marshal(record)
 	if err != nil {
-		return "", err
+		return "", admissionSSOStateRecord{}, err
 	}
 	key := admissionSchoolSSOStateKeyPrefix + state
-	return state, s.redisClient.Set(ctx, key, payload, admissionSSOStateTTL).Err()
+	return state, record, s.redisClient.Set(ctx, key, payload, admissionSSOStateTTL).Err()
 }
 
 func (s *Service) loadSchoolSSOState(
@@ -183,9 +187,10 @@ func (s *Service) loadSchoolSSOState(
 
 func newSchoolSSOStateRecord(input SchoolSSOStartInput) admissionSSOStateRecord {
 	return admissionSSOStateRecord{
-		UserID:    input.UserID,
-		SchoolID:  input.SchoolID,
-		ReturnURL: strings.TrimSpace(input.ReturnURL),
+		UserID:       input.UserID,
+		SchoolID:     input.SchoolID,
+		ReturnURL:    strings.TrimSpace(input.ReturnURL),
+		CodeVerifier: oauth2.GenerateVerifier(),
 	}
 }
 
@@ -195,6 +200,9 @@ func parseSchoolSSOState(raw []byte, input SchoolSSOCompleteInput) (admissionSSO
 		return admissionSSOStateRecord{}, err
 	}
 	if record.UserID != input.UserID || record.SchoolID != input.SchoolID {
+		return admissionSSOStateRecord{}, ErrAdmissionSSOStateInvalid
+	}
+	if strings.TrimSpace(record.CodeVerifier) == "" {
 		return admissionSSOStateRecord{}, ErrAdmissionSSOStateInvalid
 	}
 	return record, nil
@@ -228,13 +236,15 @@ func (s *Service) admissionReturnURLAllowed(value string) bool {
 	return origin == s.returnURLOrigin
 }
 
-func appendSSOState(loginURL string, state string) string {
+func appendSSOState(loginURL string, state string, codeVerifier string) string {
 	parsed, err := url.Parse(loginURL)
 	if err != nil {
 		return loginURL
 	}
 	values := parsed.Query()
 	values.Set("state", state)
+	values.Set("code_challenge", oauth2.S256ChallengeFromVerifier(codeVerifier))
+	values.Set("code_challenge_method", "S256")
 	parsed.RawQuery = values.Encode()
 	return parsed.String()
 }

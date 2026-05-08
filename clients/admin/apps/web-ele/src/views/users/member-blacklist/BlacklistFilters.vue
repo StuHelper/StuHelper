@@ -1,36 +1,25 @@
 <script setup lang="ts">
-import {
-  ElButton,
-  ElInput,
-  ElOption,
-  ElSelect,
-} from 'element-plus';
+import type { ScopeType, SourceFilter, StatusFilter } from './options';
 
-import {
-  SCOPE_OPTIONS,
-  SOURCE_OPTIONS,
-  STATUS_OPTIONS,
-  type ScopeType,
-  type SourceFilter,
-  type StatusFilter,
-} from './options';
+import { ElButton, ElInput, ElOption, ElSelect } from 'element-plus';
+
+import { SCOPE_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS } from './options';
 
 defineProps<{
   canManage: boolean;
 }>();
-
-const platform = defineModel<string>('platform', { required: true });
-const scopeType = defineModel<'' | ScopeType>('scopeType', { required: true });
-const source = defineModel<SourceFilter>('source', { required: true });
-const status = defineModel<StatusFilter>('status', { required: true });
-const guildID = defineModel<string>('guildID', { required: true });
-const subjectID = defineModel<string>('subjectID', { required: true });
 
 const emit = defineEmits<{
   (e: 'search'): void;
   (e: 'reset'): void;
   (e: 'openCreate'): void;
 }>();
+const platform = defineModel<string>('platform', { required: true });
+const scopeType = defineModel<'' | ScopeType>('scopeType', { required: true });
+const source = defineModel<SourceFilter>('source', { required: true });
+const status = defineModel<StatusFilter>('status', { required: true });
+const guildID = defineModel<string>('guildID', { required: true });
+const subjectID = defineModel<string>('subjectID', { required: true });
 </script>
 
 <template>
@@ -84,7 +73,7 @@ const emit = defineEmits<{
     </ElSelect>
     <ElButton type="primary" @click="emit('search')">查询</ElButton>
     <ElButton @click="emit('reset')">重置</ElButton>
-    <div class="flex-1" />
+    <div class="flex-1"></div>
     <ElButton
       v-if="canManage"
       data-action="openCreate"

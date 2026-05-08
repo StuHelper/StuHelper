@@ -77,7 +77,7 @@ export interface PlatformClient {
   releaseMemberBlacklistBySubject(input: MemberBlacklistReleaseBySubjectRequest): Promise<MemberBlacklistEntry>
   createAdmissionSession(input: AdmissionSessionCreateRequest): Promise<AdmissionSessionCreateResult>
   recordJoinRequestEvent(input: AdmissionJoinRequestEvent): Promise<void>
-  listPendingAdmissionActions(input?: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
+  listPendingAdmissionActions(input: AdmissionPendingActionsRequest): Promise<readonly AdmissionPendingAction[]>
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
   listPendingFreshmanForwards(): Promise<readonly FreshmanForwardItem[]>
   markFreshmanForwarded(applicationID: string): Promise<void>
@@ -145,7 +145,8 @@ function createAdmissionClient(
       await request<void>(ADMISSION_JOIN_REQUEST_EVENTS_PATH, jsonPost(input), true)
     },
 
-    async listPendingAdmissionActions(input = {}) {
+    async listPendingAdmissionActions(input) {
+      assertPendingAdmissionActionsRequest(input)
       return request<readonly AdmissionPendingAction[]>(withQuery(ADMISSION_PENDING_ACTIONS_PATH, input), {
         method: 'GET',
       })
@@ -212,6 +213,12 @@ function withQuery(path: string, input: object) {
 function appendQueryValue(values: URLSearchParams, key: string, value: unknown) {
   if (typeof value !== 'undefined' && value !== null && value !== '') {
     values.set(key, String(value))
+  }
+}
+
+function assertPendingAdmissionActionsRequest(input: AdmissionPendingActionsRequest) {
+  if (!input.platform?.trim() || !input.botSelfID?.trim()) {
+    throw new Error('platform and botSelfID are required for pending admission actions')
   }
 }
 

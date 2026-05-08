@@ -137,7 +137,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 		return
 	}
 
-	claims, err := h.oidcClient.VerifyIDToken(ctx, rawIDToken)
+	claims, err := h.oidcClient.VerifyIDTokenForApplication(ctx, input.application, rawIDToken)
 	if err != nil {
 		logger.FromGin(c).Error("ID token verification failed", zap.Error(err))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), input.requestID, "id_token verification error")
@@ -171,7 +171,9 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 		return
 	}
 	deviceInfo := c.Request.UserAgent()
-	sessInfo, sessErr := h.svc.CreateSession(ctx, sessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc", deviceInfo)
+	sessInfo, sessErr := h.svc.CreateSessionForApplication(
+		ctx, sessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc", input.application, deviceInfo,
+	)
 	if sessErr != nil {
 		logger.FromGin(c).Error("failed to create session",
 			zap.String("user_id", claims.GetUserID()),
@@ -406,7 +408,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 		return
 	}
 
-	claims, err := h.oidcClient.VerifyIDToken(ctx, rawIDToken)
+	claims, err := h.oidcClient.VerifyIDTokenForApplication(ctx, appKey, rawIDToken)
 	if err != nil {
 		logger.FromGin(c).Error("native exchange: ID token verification failed", zap.Error(err))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "id_token verification error")
@@ -439,7 +441,9 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 		return
 	}
 	deviceInfo := c.Request.UserAgent()
-	if _, sessErr := h.svc.CreateSession(ctx, nativeSessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc-native", deviceInfo); sessErr != nil {
+	if _, sessErr := h.svc.CreateSessionForApplication(
+		ctx, nativeSessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc-native", appKey, deviceInfo,
+	); sessErr != nil {
 		logger.FromGin(c).Error("native exchange: failed to create session",
 			zap.String("user_id", claims.GetUserID()), zap.Error(sessErr))
 		audit.LogFailure(audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "session creation failed")

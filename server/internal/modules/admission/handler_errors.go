@@ -55,6 +55,8 @@ func respondAdmissionSessionError(c *gin.Context, err error) bool {
 		response.Conflict(c, "admission linked session required")
 	case errors.Is(err, ErrAdmissionBlacklistNotFound):
 		response.NotFound(c, "admission blacklist not found")
+	case errors.Is(err, ErrAdmissionPendingActionFilterInvalid):
+		response.BadRequest(c, "admission pending action filter invalid")
 	case errors.Is(err, ErrMemberBlacklisted):
 		response.Conflict(c, "member is blacklisted", ErrCodeAdmissionMemberBlacklisted)
 	case errors.Is(err, ErrMemberBlacklistNotFound):

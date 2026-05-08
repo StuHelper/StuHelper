@@ -3,12 +3,7 @@ import type { OperationLog } from '#/api/admin';
 
 import { onMounted, reactive, ref } from 'vue';
 
-import {
-  ElPagination,
-  ElTable,
-  ElTableColumn,
-  ElTag,
-} from 'element-plus';
+import { ElPagination, ElTable, ElTableColumn, ElTag } from 'element-plus';
 
 import { getOperationLogs } from '#/api/admin';
 

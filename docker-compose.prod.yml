@@ -2,6 +2,10 @@
 # 与 docker-compose.yml 和 docker-compose.observability.yml 一起使用。
 
 services:
+  postgres:
+    volumes:
+    - ./infra/postgres/pg_hba.prod.conf:/etc/postgresql/pg_hba.conf:ro
+
   app:
     profiles: [prod]
     image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
@@ -24,6 +28,7 @@ services:
       REDIS_TLS_CA: /redis-tls/ca.crt
       CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:?CASDOOR_CLIENT_SECRET is required}
       CASDOOR_APP_PROVISIONING_CLIENT_SECRET: ${CASDOOR_APP_PROVISIONING_CLIENT_SECRET:?CASDOOR_APP_PROVISIONING_CLIENT_SECRET is required}
+      CASDOOR_INTROSPECTION_CLIENT_SECRET: ${CASDOOR_INTROSPECTION_CLIENT_SECRET:?CASDOOR_INTROSPECTION_CLIENT_SECRET is required}
       CASDOOR_ROLE_SYNC_CLIENT_SECRET: ${CASDOOR_ROLE_SYNC_CLIENT_SECRET:?CASDOOR_ROLE_SYNC_CLIENT_SECRET is required}
       CASDOOR_USER_LOOKUP_CLIENT_SECRET: ${CASDOOR_USER_LOOKUP_CLIENT_SECRET:?CASDOOR_USER_LOOKUP_CLIENT_SECRET is required}
       OTEL_ENABLED: "true"

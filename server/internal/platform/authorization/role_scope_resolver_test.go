@@ -3,6 +3,7 @@ package authorization
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,7 @@ type fakeScopeReader struct {
 	listResponses map[string][]string
 	readResponses map[string][]fga.Tuple
 	err           error
+	mu            sync.Mutex
 	listCalls     []scopeListCall
 	readCalls     []scopeReadCall
 }
@@ -31,6 +33,8 @@ type scopeReadCall struct {
 }
 
 func (f *fakeScopeReader) ListObjects(_ context.Context, user, relation, objectType string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.listCalls = append(f.listCalls, scopeListCall{user: user, relation: relation, objectType: objectType})
 	if f.err != nil {
 		return nil, f.err
@@ -39,6 +43,8 @@ func (f *fakeScopeReader) ListObjects(_ context.Context, user, relation, objectT
 }
 
 func (f *fakeScopeReader) ReadTuples(_ context.Context, object, relation string) ([]fga.Tuple, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.readCalls = append(f.readCalls, scopeReadCall{object: object, relation: relation})
 	if f.err != nil {
 		return nil, f.err

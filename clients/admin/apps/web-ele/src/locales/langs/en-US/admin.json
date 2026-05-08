@@ -43,6 +43,8 @@
   },
   "result": {
     "authExpired": "Session expired. Please sign in again.",
+    "mfaEnrollmentRequired": "Bind an MFA device in identity provider account settings first.",
+    "stepUpRequired": "Complete MFA verification again.",
     "requestFailed": "Request failed. Please try again later."
   },
   "layout": {

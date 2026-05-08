@@ -21,13 +21,15 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, casdoor.PurposeBootstrap, settings.credential.Purpose)
 	assert.Equal(t, "https://sso.example.com", settings.credential.Endpoint)
 	assert.Equal(t, "stuhelper", settings.plan.Organization.Name)
-	require.Len(t, settings.plan.Applications, 6)
+	require.Len(t, settings.plan.Applications, 7)
 	assert.Equal(t, "stuhelper-web", settings.plan.Applications[0].Name)
 	assert.Equal(t, "stuhelper-admin", settings.plan.Applications[1].Name)
 	assert.Equal(t, "stuhelper-uniapp", settings.plan.Applications[2].Name)
 	assert.Equal(t, "casdoor-admin-app-provisioning", settings.plan.Applications[3].Name)
+	assert.Equal(t, "casdoor-token-introspection", settings.plan.Applications[4].Name)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[3].GrantTypes)
-	require.Len(t, settings.plan.Roles, 7)
+	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[4].GrantTypes)
+	require.Len(t, settings.plan.Roles, 8)
 	assert.Equal(t, "super_admin", settings.plan.Roles[0].Name)
 	require.Len(t, settings.plan.Providers, 1)
 	assert.Equal(t, "stuhelper-sms", settings.plan.Providers[0].Name)
@@ -44,6 +46,7 @@ func TestFlatRoleCatalogMatchesAuthorizationRoles(t *testing.T) {
 		"section_moderator",
 		"section_reviewer",
 		"verified_student",
+		"freshman_provisional",
 		"user",
 	}
 	bootstrapRoles := roleNames(flatRoleCatalog())
@@ -124,6 +127,9 @@ func completeEnv() map[string]string {
 		"CASDOOR_APP_PROVISIONING_CLIENT_ID":     "casdoor-admin-app-provisioning",
 		"CASDOOR_APP_PROVISIONING_CLIENT_SECRET": "app-provisioning-secret",
 		"CASDOOR_APP_PROVISIONING_APPLICATION":   "casdoor-admin-app-provisioning",
+		"CASDOOR_INTROSPECTION_CLIENT_ID":        "casdoor-token-introspection",
+		"CASDOOR_INTROSPECTION_CLIENT_SECRET":    "introspection-secret",
+		"CASDOOR_INTROSPECTION_APPLICATION":      "casdoor-token-introspection",
 		"CASDOOR_ROLE_SYNC_CLIENT_ID":            "casdoor-admin-role-sync",
 		"CASDOOR_ROLE_SYNC_CLIENT_SECRET":        "role-sync-secret",
 		"CASDOOR_ROLE_SYNC_APPLICATION":          "casdoor-admin-role-sync",

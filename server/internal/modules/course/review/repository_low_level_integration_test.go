@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
@@ -181,4 +182,118 @@ func TestReviewRepository_LowLevelIntegrationPaths(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, likeCount)
 	assert.Equal(t, 0, dislikeCount)
+}
+
+func TestReviewRepository_GetVoteTypeLocksExistingVoteRow(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, 10006, "投票锁学院")
+	teacherID := seedTeacher(t, fixture, 10006, "投票锁老师", departmentID)
+	courseID := seedCourse(t, fixture, 10006, departmentID, "投票锁课程")
+	reviewID := "550e8400-e29b-41d4-a716-446655440903"
+	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-lock-review", 4.6, StatusPublished, ReviewRatings{"teaching": 5}, "锁测试", "锁测试内容")
+	_, err := fixture.Pool.Exec(ctx, `
+		INSERT INTO review_votes (id, review_id, user_hash, vote_type, created_at)
+		VALUES ('550e8400-e29b-41d4-a716-446655440904', $1, 'u-lock-voter', 'like', NOW())
+	`, reviewID)
+	require.NoError(t, err)
+
+	tx1, err := fixture.Pool.Begin(ctx)
+	require.NoError(t, err)
+	defer tx1.Rollback(ctx) //nolint:errcheck
+
+	voteType, err := repo.GetVoteType(ctx, tx1, reviewID, "u-lock-voter")
+	require.NoError(t, err)
+	assert.Equal(t, "like", voteType)
+
+	done := make(chan error, 1)
+	go func() {
+		tx2, err := fixture.Pool.Begin(ctx)
+		if err != nil {
+			done <- err
+			return
+		}
+		defer tx2.Rollback(ctx) //nolint:errcheck
+		_, err = repo.GetVoteType(ctx, tx2, reviewID, "u-lock-voter")
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("expected second vote read to block on row lock, got %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	require.NoError(t, tx1.Commit(ctx))
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for locked vote read to finish")
+	}
+}
+
+func TestReviewRepository_GetReplyOwnerAndReviewIDTxLocksReplyRow(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, 10006, "回复锁学院")
+	teacherID := seedTeacher(t, fixture, 10006, "回复锁老师", departmentID)
+	courseID := seedCourse(t, fixture, 10006, departmentID, "回复锁课程")
+	reviewID := "550e8400-e29b-41d4-a716-446655440905"
+	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "u-lock-reply-owner", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "回复锁", "回复锁内容")
+
+	var replyID string
+	err := fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		var createErr error
+		replyID, _, createErr = repo.CreateReply(ctx, tx, CreateReplyParams{
+			ReviewID: reviewID,
+			UserHash: "u-lock-replier",
+			Content:  "需要加锁的回复",
+			Status:   StatusPublished,
+		})
+		return createErr
+	})
+	require.NoError(t, err)
+
+	tx1, err := fixture.Pool.Begin(ctx)
+	require.NoError(t, err)
+	defer tx1.Rollback(ctx) //nolint:errcheck
+
+	owner, reviewRef, status, err := repo.GetReplyOwnerAndReviewIDTx(ctx, tx1, replyID)
+	require.NoError(t, err)
+	assert.Equal(t, "u-lock-replier", owner)
+	assert.Equal(t, reviewID, reviewRef)
+	assert.Equal(t, StatusPublished, status)
+
+	done := make(chan error, 1)
+	go func() {
+		tx2, err := fixture.Pool.Begin(ctx)
+		if err != nil {
+			done <- err
+			return
+		}
+		defer tx2.Rollback(ctx) //nolint:errcheck
+		_, _, _, err = repo.GetReplyOwnerAndReviewIDTx(ctx, tx2, replyID)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("expected second reply read to block on row lock, got %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	require.NoError(t, tx1.Commit(ctx))
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for locked reply read to finish")
+	}
 }

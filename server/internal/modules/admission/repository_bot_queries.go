@@ -14,6 +14,9 @@ func (r *Repository) ListPendingActionSessions(
 	filter AdmissionPendingActionFilter,
 	now time.Time,
 ) ([]AdmissionSession, error) {
+	if strings.TrimSpace(filter.Platform) == "" || strings.TrimSpace(filter.BotSelfID) == "" {
+		return nil, ErrAdmissionPendingActionFilterInvalid
+	}
 	query, args := pendingActionSessionsQuery(filter, now)
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -51,16 +54,8 @@ func pendingActionSessionsQuery(filter AdmissionPendingActionFilter, now time.Ti
 }
 
 func pendingActionSessionFilterClauses(filter AdmissionPendingActionFilter) ([]string, []any) {
-	clauses := []string{"TRUE"}
-	args := make([]any, 0, 2)
-	if filter.Platform != "" {
-		args = append(args, filter.Platform)
-		clauses = append(clauses, fmt.Sprintf("platform = $%d", len(args)))
-	}
-	if filter.BotSelfID != "" {
-		args = append(args, filter.BotSelfID)
-		clauses = append(clauses, fmt.Sprintf("bot_self_id = $%d", len(args)))
-	}
+	args := []any{filter.Platform, filter.BotSelfID}
+	clauses := []string{"platform = $1", "bot_self_id = $2"}
 	return clauses, args
 }
 

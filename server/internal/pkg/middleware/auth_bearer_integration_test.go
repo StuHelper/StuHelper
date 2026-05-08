@@ -19,7 +19,8 @@ import (
 
 func newBearerOIDCClient(t *testing.T) (*oidc.Client, *httptest.Server) {
 	t.Helper()
-	return newBearerOIDCClientWithIntrospection(t, func(w http.ResponseWriter, _ *http.Request) {
+	return newBearerOIDCClientWithIntrospection(t, func(w http.ResponseWriter, r *http.Request) {
+		requireIntrospectionCredentials(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"active":   true,
@@ -56,13 +57,23 @@ func newBearerOIDCClientWithIntrospection(
 	mux.HandleFunc("/introspect", introspectHandler)
 
 	client, err := oidc.NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:       server.URL,
-		ClientID:     "client-id",
-		ClientSecret: "client-secret",
-		RedirectURI:  "https://web.example.com/callback",
+		Issuer:                    server.URL,
+		ClientID:                  "client-id",
+		ClientSecret:              "client-secret",
+		RedirectURI:               "https://web.example.com/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
 	return client, server
+}
+
+func requireIntrospectionCredentials(t *testing.T, r *http.Request) {
+	t.Helper()
+	user, pass, ok := r.BasicAuth()
+	require.True(t, ok)
+	assert.Equal(t, "introspection-client", user)
+	assert.Equal(t, "introspection-secret", pass)
 }
 
 func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {

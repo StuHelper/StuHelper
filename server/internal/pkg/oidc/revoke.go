@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 )
 
@@ -17,8 +19,16 @@ var ErrRevocationEndpointUnavailable = errors.New("oidc: revocation endpoint una
 
 // RevokeRefreshToken calls the provider revocation endpoint for a refresh token.
 func (c *Client) RevokeRefreshToken(ctx context.Context, refreshToken string) (err error) {
+	return c.RevokeRefreshTokenForApplication(ctx, ApplicationWeb, refreshToken)
+}
+
+func (c *Client) RevokeRefreshTokenForApplication(ctx context.Context, appKey, refreshToken string) (err error) {
 	if strings.TrimSpace(refreshToken) == "" {
 		return errors.New("oidc: refresh token is required for revocation")
+	}
+	cfg, err := c.oauth2ConfigForApplication(appKey)
+	if err != nil {
+		return err
 	}
 
 	endpoint, err := c.revocationEndpoint()
@@ -31,7 +41,7 @@ func (c *Client) RevokeRefreshToken(ctx context.Context, refreshToken string) (e
 		metrics.ObserveExternalRequest(c.metricName, "revoke_refresh_token", start, err)
 	}()
 
-	req, err := c.newRevocationRequest(ctx, endpoint, refreshToken)
+	req, err := newRevocationRequest(ctx, endpoint, refreshToken, cfg)
 	if err != nil {
 		return err
 	}
@@ -61,13 +71,13 @@ func (c *Client) revocationEndpoint() (string, error) {
 	return endpoint, nil
 }
 
-func (c *Client) newRevocationRequest(ctx context.Context, endpoint, refreshToken string) (*http.Request, error) {
+func newRevocationRequest(ctx context.Context, endpoint, refreshToken string, cfg oauth2.Config) (*http.Request, error) {
 	body := url.Values{
 		"token":           []string{refreshToken},
 		"token_type_hint": []string{"refresh_token"},
 	}
-	if c.oauth2Cfg.ClientSecret == "" {
-		body.Set("client_id", c.oauth2Cfg.ClientID)
+	if cfg.ClientSecret == "" {
+		body.Set("client_id", cfg.ClientID)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(body.Encode()))
@@ -75,8 +85,8 @@ func (c *Client) newRevocationRequest(ctx context.Context, endpoint, refreshToke
 		return nil, fmt.Errorf("oidc: revoke request build failed: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if c.oauth2Cfg.ClientSecret != "" {
-		req.SetBasicAuth(c.oauth2Cfg.ClientID, c.oauth2Cfg.ClientSecret)
+	if cfg.ClientSecret != "" {
+		req.SetBasicAuth(cfg.ClientID, cfg.ClientSecret)
 	}
 	return req, nil
 }

@@ -215,8 +215,8 @@ export interface AdmissionJoinRequestEvent {
 }
 
 export interface AdmissionPendingActionsRequest {
-  readonly platform?: string
-  readonly botSelfID?: string
+  readonly platform: string
+  readonly botSelfID: string
   readonly limit?: number
 }
 

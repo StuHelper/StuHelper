@@ -264,7 +264,7 @@ Admin 接口：
 - `admission:policy:update`
 - `admission:freshman:read`
 - `admission:freshman:review`
-- `admission:blacklist:manage`
+- `member_blacklist:manage`
 
 审核审计必须记录申请、目标用户、目标 QQ、审批入口、操作者用户、操作者 QQ、动作、延长天数、过期时间、原因和 QQ 指令原文；Admin 后台审批、QQ 管理群审批和黑名单解除写 `category='admin_operation'`。
 

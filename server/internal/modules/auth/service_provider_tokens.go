@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
 
@@ -13,6 +14,10 @@ type ServiceOption func(*Service)
 
 type ProviderRefreshTokenRevoker interface {
 	RevokeRefreshToken(ctx context.Context, refreshToken string) error
+}
+
+type applicationProviderRefreshTokenRevoker interface {
+	RevokeRefreshTokenForApplication(ctx context.Context, appKey, refreshToken string) error
 }
 
 type providerRefreshTokenCipher interface {
@@ -60,7 +65,7 @@ func (s *Service) revokeProviderRefreshTokenFromSession(ctx context.Context, ses
 	if err != nil {
 		return err
 	}
-	return s.revokeRawProviderRefreshToken(ctx, rawToken)
+	return s.revokeRawProviderRefreshToken(ctx, session.ProviderAppKey, rawToken)
 }
 
 func (s *Service) revokeProviderRefreshTokensForUser(ctx context.Context, userID string) error {
@@ -99,8 +104,14 @@ func (s *Service) decryptProviderRefreshToken(encoded string) (string, error) {
 	return rawToken, nil
 }
 
-func (s *Service) revokeRawProviderRefreshToken(ctx context.Context, refreshToken string) error {
+func (s *Service) revokeRawProviderRefreshToken(ctx context.Context, appKey, refreshToken string) error {
 	if !s.providerTokens.enabled() || refreshToken == "" {
+		return nil
+	}
+	if revoker, ok := s.providerTokens.revoker.(applicationProviderRefreshTokenRevoker); ok {
+		if err := revoker.RevokeRefreshTokenForApplication(ctx, appKey, refreshToken); err != nil {
+			return fmt.Errorf("revoke provider refresh token: %w", err)
+		}
 		return nil
 	}
 	if err := s.providerTokens.revoker.RevokeRefreshToken(ctx, refreshToken); err != nil {
@@ -111,4 +122,17 @@ func (s *Service) revokeRawProviderRefreshToken(ctx context.Context, refreshToke
 
 func providerRefreshTokenTracked(loginMethod string) bool {
 	return loginMethod == "oidc" || loginMethod == "oidc-native"
+}
+
+func providerAppKeyForSession(loginMethod, appKey string) string {
+	if !providerRefreshTokenTracked(loginMethod) {
+		return ""
+	}
+	if appKey != "" {
+		return appKey
+	}
+	if loginMethod == "oidc-native" {
+		return oidc.ApplicationUniapp
+	}
+	return oidc.ApplicationWeb
 }

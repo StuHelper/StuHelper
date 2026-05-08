@@ -1,4 +1,5 @@
 import type { UserInfo } from '@vben/types';
+
 import type { AuthApi } from '#/api/core/auth';
 
 import { ref } from 'vue';
@@ -25,9 +26,7 @@ function hasGlobalCapabilityGrant(
   grants: AuthApi.MeResult['capabilityGrants'],
   capabilityName: string,
 ) {
-  return grants.some(
-    (grant) => grant.name === capabilityName && grant.global,
-  );
+  return grants.some((grant) => grant.name === capabilityName && grant.global);
 }
 
 function getScopedSchoolIdsForCapability(
@@ -85,8 +84,10 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     return (
-      getScopedSchoolIdsForCapability(capabilityGrants.value, capabilityName)[0]
-      || ''
+      getScopedSchoolIdsForCapability(
+        capabilityGrants.value,
+        capabilityName,
+      )[0] || ''
     );
   }
 

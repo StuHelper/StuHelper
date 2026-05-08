@@ -39,7 +39,11 @@ describe('admin admission API wrapper', () => {
   it('delegates freshman review and policy calls to the shared OpenAPI client', async () => {
     const api = await import('./admission');
 
-    await api.listFreshmanVerifications({ page: 1, pageSize: 20, status: 'pending' });
+    await api.listFreshmanVerifications({
+      page: 1,
+      pageSize: 20,
+      status: 'pending',
+    });
     await api.getFreshmanVerification('app-1');
     await api.reviewFreshmanVerification('app-1', { action: 'approve' });
     await api.listAdmissionPolicies();
@@ -47,7 +51,9 @@ describe('admin admission API wrapper', () => {
     await api.listAdmissionSessions({ status: 'linked' });
     await api.listMemberBlacklist({ status: 'active' });
     await api.createMemberBlacklist({ id: 'entry-1' } as never);
-    await api.releaseMemberBlacklist('entry-1', { releaseReasonCode: 'release_only' });
+    await api.releaseMemberBlacklist('entry-1', {
+      releaseReasonCode: 'release_only',
+    });
     await api.releaseMemberBlacklistBySubject({
       platform: 'qq',
       subjectType: 'qq_user',
@@ -63,24 +69,25 @@ describe('admin admission API wrapper', () => {
       status: 'pending',
     });
     expect(mocks.api.getFreshmanVerification).toHaveBeenCalledWith('app-1');
-    expect(mocks.api.reviewFreshmanVerification).toHaveBeenCalledWith(
-      'app-1',
-      { action: 'approve' },
-    );
+    expect(mocks.api.reviewFreshmanVerification).toHaveBeenCalledWith('app-1', {
+      action: 'approve',
+    });
     expect(mocks.api.listAdmissionPolicies).toHaveBeenCalledTimes(1);
-    expect(mocks.api.updateAdmissionPolicy).toHaveBeenCalledWith(
-      'policy-1',
-      { id: 'policy-1' },
-    );
+    expect(mocks.api.updateAdmissionPolicy).toHaveBeenCalledWith('policy-1', {
+      id: 'policy-1',
+    });
     expect(mocks.api.listAdmissionSessions).toHaveBeenCalledWith({
       status: 'linked',
     });
-    expect(mocks.api.listMemberBlacklist).toHaveBeenCalledWith({ status: 'active' });
-    expect(mocks.api.createMemberBlacklist).toHaveBeenCalledWith({ id: 'entry-1' });
-    expect(mocks.api.releaseMemberBlacklist).toHaveBeenCalledWith(
-      'entry-1',
-      { releaseReasonCode: 'release_only' },
-    );
+    expect(mocks.api.listMemberBlacklist).toHaveBeenCalledWith({
+      status: 'active',
+    });
+    expect(mocks.api.createMemberBlacklist).toHaveBeenCalledWith({
+      id: 'entry-1',
+    });
+    expect(mocks.api.releaseMemberBlacklist).toHaveBeenCalledWith('entry-1', {
+      releaseReasonCode: 'release_only',
+    });
     expect(mocks.api.releaseMemberBlacklistBySubject).toHaveBeenCalledWith({
       platform: 'qq',
       subjectType: 'qq_user',

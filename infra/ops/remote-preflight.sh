@@ -134,12 +134,12 @@ else
   log "⚠️  逻辑备份目录为空，尚无历史备份"
 fi
 
-# 4. BACKUP_DATABASE_URL 连通性（快速超时检测）
-if docker run --rm --network host "${pg_image}" \
+# 4. BACKUP_DATABASE_URL 连通性（通过 Compose 网络快速超时检测）
+if compose run --rm --no-deps -T postgres \
   pg_isready -d "${BACKUP_DATABASE_URL}" -t 5 >/dev/null 2>&1; then
   log "备份数据库连通性: OK"
 else
-  log "⚠️  备份数据库连通性检查失败（pg_isready 超时），请确认 BACKUP_DATABASE_URL 可达"
+  die "备份数据库连通性检查失败（pg_isready 超时），请确认 BACKUP_DATABASE_URL 可达"
 fi
 
 log "remote preflight checks passed"

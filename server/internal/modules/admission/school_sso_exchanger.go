@@ -12,7 +12,7 @@ import (
 
 type schoolSSOOIDCClient interface {
 	ExchangeCodeForApplication(ctx context.Context, appKey, code, codeVerifier string) (*oauth2.Token, error)
-	VerifyIDToken(ctx context.Context, rawIDToken string) (*oidc.Claims, error)
+	VerifyIDTokenForApplication(ctx context.Context, appKey, rawIDToken string) (*oidc.Claims, error)
 }
 
 type oidcSchoolSSOExchanger struct {
@@ -32,7 +32,12 @@ func (e *oidcSchoolSSOExchanger) ExchangeSchoolSSO(
 	ctx context.Context,
 	input SchoolSSOExchangeInput,
 ) (SchoolSSOIdentity, error) {
-	token, err := e.client.ExchangeCodeForApplication(ctx, oidc.ApplicationWeb, strings.TrimSpace(input.Code), "")
+	token, err := e.client.ExchangeCodeForApplication(
+		ctx,
+		oidc.ApplicationWeb,
+		strings.TrimSpace(input.Code),
+		strings.TrimSpace(input.CodeVerifier),
+	)
 	if err != nil {
 		return SchoolSSOIdentity{}, classifySchoolSSOExchangeError(err)
 	}
@@ -48,7 +53,7 @@ func (e *oidcSchoolSSOExchanger) verifiedClaims(ctx context.Context, token *oaut
 	if rawIDToken == "" {
 		return nil, ErrAdmissionSSOExchangeFailed
 	}
-	claims, err := e.client.VerifyIDToken(ctx, rawIDToken)
+	claims, err := e.client.VerifyIDTokenForApplication(ctx, oidc.ApplicationWeb, rawIDToken)
 	if err != nil {
 		return nil, classifySchoolSSOExchangeError(err)
 	}

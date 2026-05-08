@@ -1,5 +1,8 @@
 import { mount } from '@vue/test-utils';
+
 import { describe, expect, it, vi } from 'vitest';
+
+import AccessControl from './access-control.vue';
 
 vi.mock('./use-access', () => ({
   useAccess: () => ({
@@ -7,8 +10,6 @@ vi.mock('./use-access', () => ({
     hasAccessByRoles: vi.fn(() => false),
   }),
 }));
-
-import AccessControl from './access-control.vue';
 
 describe('AccessControl', () => {
   it('renders slot content when no codes are provided', () => {

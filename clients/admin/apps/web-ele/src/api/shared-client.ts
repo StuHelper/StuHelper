@@ -14,6 +14,7 @@ import {
   createSessionApiClient,
   executeSessionRefresh,
   normalizeSchemaPath,
+  parseApiError,
   serializePath,
 } from '@stuhelper/shared/api';
 
@@ -26,6 +27,9 @@ type TransportError = {
     status?: number;
   };
 };
+
+const STEP_UP_REQUIRED_CODE = 'A0010205';
+const MFA_ENROLLMENT_REQUIRED_CODE = 'A0010204';
 
 function logAdminAuthWarning(
   event: string,
@@ -106,10 +110,66 @@ async function redirectToOIDCLogin() {
         redirect: window.location.href,
       },
     );
-    throw normalizeAdminAuthError(
-      error,
-      'forced reauthentication failed',
-    );
+    throw normalizeAdminAuthError(error, 'forced reauthentication failed');
+  }
+}
+
+async function redirectToStepUp() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const response = await baseRequestClient.instance.request<
+    ApiEnvelope<{ url?: string }>
+  >({
+    headers: withSecurityHeaders('GET', {}),
+    method: 'GET',
+    params: {
+      platform: 'web',
+      redirect: window.location.href,
+    },
+    url: serializeSchemaPath('/api/v1/auth/step-up'),
+    withCredentials: true,
+  });
+
+  const url = response.data?.data?.url;
+  if (!url) {
+    throw new Error('step-up URL is missing');
+  }
+  window.location.replace(url);
+}
+
+async function redirectToMFAEnrollment() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const response = await baseRequestClient.instance.request<
+    ApiEnvelope<{ accountSettingsUrl?: string }>
+  >({
+    headers: withSecurityHeaders('GET', {}),
+    method: 'GET',
+    url: serializeSchemaPath('/api/v1/auth/me'),
+    withCredentials: true,
+  });
+
+  const url = response.data?.data?.accountSettingsUrl;
+  if (!url) {
+    throw new Error('MFA enrollment URL is missing');
+  }
+  window.location.replace(url);
+}
+
+async function handleRecoverableAdminAuthError(
+  status: number | undefined,
+  payload: unknown,
+) {
+  const errorCode = parseApiError(payload).code;
+  if (status === 403 && errorCode === MFA_ENROLLMENT_REQUIRED_CODE) {
+    await redirectToMFAEnrollment();
+  }
+  if (status === 412 && errorCode === STEP_UP_REQUIRED_CODE) {
+    await redirectToStepUp();
   }
 }
 
@@ -140,6 +200,10 @@ async function doRequest<T>(
     };
   } catch (error) {
     const responseError = error as TransportError;
+    await handleRecoverableAdminAuthError(
+      responseError.response?.status,
+      responseError.response?.data,
+    );
     return {
       error: responseError.response?.data ?? error,
       response: {

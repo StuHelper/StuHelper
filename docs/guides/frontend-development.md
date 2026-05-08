@@ -100,7 +100,7 @@ pnpm install
 pnpm dev:web
 pnpm dev:admin
 pnpm dev:uni
-pnpm type-check && pnpm lint
+pnpm type-check:all && pnpm lint:all
 pnpm test:web
 pnpm test:e2e:web && pnpm test:e2e:admin
 pnpm build:web && pnpm build:admin && pnpm build:uni:h5
@@ -112,4 +112,4 @@ pnpm build:web && pnpm build:admin && pnpm build:uni:h5
 - [ ] 组件和 store 没有 `any`
 - [ ] OpenAPI 变更后已重新生成
 - [ ] 错误交给统一错误处理
-- [ ] `pnpm type-check` / `pnpm lint` / `pnpm test:web` 通过
+- [ ] `pnpm type-check:all` / `pnpm lint:all` / `pnpm test:web` 通过

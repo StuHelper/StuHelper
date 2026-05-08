@@ -70,7 +70,9 @@ export function entryStatus(entry: MemberBlacklistEntry): DisplayStatus {
   return 'active';
 }
 
-export function statusType(status: DisplayStatus): 'danger' | 'info' | 'success' {
+export function statusType(
+  status: DisplayStatus,
+): 'danger' | 'info' | 'success' {
   if (status === 'active') return 'danger';
   if (status === 'expired') return 'info';
   return 'success';

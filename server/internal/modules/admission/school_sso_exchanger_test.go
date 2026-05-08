@@ -24,12 +24,15 @@ func TestOIDCSchoolSSOExchangerUsesVerifiedIDTokenClaims(t *testing.T) {
 	exchanger := NewOIDCSchoolSSOExchanger(client)
 
 	identity, err := exchanger.ExchangeSchoolSSO(context.Background(), SchoolSSOExchangeInput{
-		SchoolID: 1,
-		Code:     " code-value ",
+		SchoolID:     1,
+		Code:         " code-value ",
+		CodeVerifier: " verifier-value ",
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, "code-value", client.code)
+	assert.Equal(t, "verifier-value", client.codeVerifier)
+	assert.Equal(t, oidc.ApplicationWeb, client.appKey)
 	assert.Equal(t, "official-subject", identity.Subject)
 	assert.Equal(t, "Official Student", identity.SubjectDisplay)
 	assert.Equal(t, "raw-id-token", client.rawIDToken)
@@ -66,28 +69,33 @@ func TestOIDCSchoolSSOExchangerClassifiesVerifyError(t *testing.T) {
 }
 
 type testOIDCSchoolSSOClient struct {
-	token      *oauth2.Token
-	claims     *oidc.Claims
-	err        error
-	verifyErr  error
-	code       string
-	rawIDToken string
+	token        *oauth2.Token
+	claims       *oidc.Claims
+	err          error
+	verifyErr    error
+	appKey       string
+	code         string
+	codeVerifier string
+	rawIDToken   string
 }
 
 func (c *testOIDCSchoolSSOClient) ExchangeCodeForApplication(
 	_ context.Context,
-	_ string,
+	appKey string,
 	code string,
-	_ string,
+	codeVerifier string,
 ) (*oauth2.Token, error) {
+	c.appKey = appKey
 	c.code = code
+	c.codeVerifier = codeVerifier
 	if c.err != nil {
 		return nil, c.err
 	}
 	return c.token, nil
 }
 
-func (c *testOIDCSchoolSSOClient) VerifyIDToken(_ context.Context, rawIDToken string) (*oidc.Claims, error) {
+func (c *testOIDCSchoolSSOClient) VerifyIDTokenForApplication(_ context.Context, appKey, rawIDToken string) (*oidc.Claims, error) {
+	c.appKey = appKey
 	c.rawIDToken = rawIDToken
 	if c.verifyErr != nil {
 		return nil, c.verifyErr

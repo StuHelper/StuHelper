@@ -64,10 +64,12 @@
     parameters:
       - name: platform
         in: query
+        required: true
         schema:
           type: string
       - name: botSelfID
         in: query
+        required: true
         schema:
           type: string
       - name: limit
@@ -117,6 +119,8 @@
                             format: date-time
                           reason:
                             type: string
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 

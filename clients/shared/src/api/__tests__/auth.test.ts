@@ -47,4 +47,20 @@ describe('createAuthApi', () => {
     expect(client.POST).toHaveBeenNthCalledWith(1, '/api/v1/auth/refresh', undefined)
     expect(client.POST).toHaveBeenNthCalledWith(2, '/api/v1/auth/logout', undefined)
   })
+
+  it('passes step-up redirect and platform query parameters', () => {
+    const client = createMockClient()
+    const api = createAuthApi(client)
+
+    api.stepUp('/admin/content', 'web')
+
+    expect(client.GET).toHaveBeenCalledWith('/api/v1/auth/step-up', {
+      params: {
+        query: {
+          platform: 'web',
+          redirect: '/admin/content',
+        },
+      },
+    })
+  })
 })

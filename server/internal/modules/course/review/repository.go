@@ -239,7 +239,12 @@ func (r *Repository) CreateVote(ctx context.Context, tx pgx.Tx, reviewID, userHa
 // GetVoteType 获取用户对评论的投票类型，不存在返回空字符串
 func (r *Repository) GetVoteType(ctx context.Context, tx pgx.Tx, reviewID, userHash string) (string, error) {
 	var voteType string
-	err := tx.QueryRow(ctx, `SELECT vote_type FROM review_votes WHERE review_id = $1 AND user_hash = $2`,
+	err := tx.QueryRow(ctx, `
+		SELECT vote_type
+		FROM review_votes
+		WHERE review_id = $1 AND user_hash = $2
+		FOR UPDATE
+	`,
 		reviewID, userHash).Scan(&voteType)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil

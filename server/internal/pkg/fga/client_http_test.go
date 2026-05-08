@@ -75,18 +75,24 @@ func TestClient_HTTPWrappers(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Len(t, writes, 3)
+	require.Len(t, writes, 4)
 	assert.Contains(t, writes[0], "writes")
 	assert.Contains(t, writes[1], "writes")
-	assert.Contains(t, writes[2], "deletes")
+	assert.Contains(t, writes[2], "writes")
+	assert.Contains(t, writes[3], "deletes")
 
 	firstJSON, err := json.Marshal(writes[0])
 	require.NoError(t, err)
-	assert.Contains(t, string(firstJSON), "user:u1")
-	assert.Contains(t, string(firstJSON), "author")
-	assert.Contains(t, string(firstJSON), "review:r1")
-	assert.Contains(t, string(firstJSON), "section")
+	assert.Contains(t, string(firstJSON), "school:s1")
+	assert.Contains(t, string(firstJSON), "school")
 	assert.Contains(t, string(firstJSON), "section:school_s1_review_moderation")
+
+	secondJSON, err := json.Marshal(writes[1])
+	require.NoError(t, err)
+	assert.Contains(t, string(secondJSON), "user:u1")
+	assert.Contains(t, string(secondJSON), "author")
+	assert.Contains(t, string(secondJSON), "review:r1")
+	assert.Contains(t, string(secondJSON), "section:school_s1_review_moderation")
 }
 
 func TestRecordSpanError_NoPanicOnNil(t *testing.T) {

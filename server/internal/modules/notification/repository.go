@@ -124,18 +124,16 @@ func (r *Repository) CountUnread(ctx context.Context, userID int64) (int, error)
 	return count, nil
 }
 
-// MarkRead 标记通知已读
-func (r *Repository) MarkRead(ctx context.Context, notifID string, userID int64) error {
+// MarkRead 标记通知已读，返回本次调用是否真的发生了状态迁移。
+func (r *Repository) MarkRead(ctx context.Context, notifID string, userID int64) (bool, error) {
 	result, err := r.db.Exec(ctx, `
-		UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2
+		UPDATE notifications SET is_read = true
+		WHERE id = $1 AND user_id = $2 AND is_read = false
 	`, notifID, userID)
 	if err != nil {
-		return fmt.Errorf("notification mark read: %w", err)
+		return false, fmt.Errorf("notification mark read: %w", err)
 	}
-	if result.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return result.RowsAffected() > 0, nil
 }
 
 // MarkAllRead 标记所有通知已读

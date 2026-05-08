@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { ScopeType, SourceFilter, StatusFilter } from './options';
+
 import type {
   ListMemberBlacklistParams,
   MemberBlacklistCreateRequest,
@@ -22,11 +24,6 @@ import BlacklistFilters from './BlacklistFilters.vue';
 import BlacklistTable from './BlacklistTable.vue';
 import CreateBlacklistDialog from './CreateBlacklistDialog.vue';
 import ReleaseBlacklistDialog from './ReleaseBlacklistDialog.vue';
-import {
-  type ScopeType,
-  type SourceFilter,
-  type StatusFilter,
-} from './options';
 
 const loading = ref(false);
 const items = ref<MemberBlacklistEntry[]>([]);

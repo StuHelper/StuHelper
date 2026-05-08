@@ -43,6 +43,8 @@
   },
   "result": {
     "authExpired": "登录状态已失效，请重新登录",
+    "mfaEnrollmentRequired": "需要先在身份提供商账户设置中绑定 MFA 设备",
+    "stepUpRequired": "需要重新完成 MFA 验证",
     "requestFailed": "请求失败，请稍后重试"
   },
   "layout": {

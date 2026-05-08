@@ -51,6 +51,7 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
   try {
     await root.start()
     const bot = root.bots[0] as unknown as Universal.Methods & { receive: ReceiveEvent }
+    forceQQAdmissionBot(bot)
     bot.muteGuildMember = async (groupId, memberId, duration) => {
       muteActions.push({ groupId, memberId, duration })
     }
@@ -113,6 +114,7 @@ test('超时未认证成员会被自动踢出', async () => {
   try {
     await root.start()
     const bot = root.bots[0] as unknown as Universal.Methods & { receive: ReceiveEvent }
+    forceQQAdmissionBot(bot)
     bot.muteGuildMember = async () => {}
     bot.kickGuildMember = async (groupId, memberId) => { kickActions.push({ groupId, memberId }) }
     bot.sendMessage = async () => ['msg-1']
@@ -170,6 +172,8 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
     const secondBot = bots.find((item) => item.selfId === '515')
     assert.ok(firstBot)
     assert.ok(secondBot)
+    forceQQAdmissionBot(firstBot)
+    forceQQAdmissionBot(secondBot)
 
     firstBot.muteGuildMember = async (groupId, memberId, duration) => {
       firstBotMuteActions.push({ groupId, memberId, duration })
@@ -187,7 +191,7 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
 
     const [record] = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.equal(record.botSelfId, '515')
-    assert.equal(record.platform, 'mock')
+    assert.equal(record.platform, 'qq')
     assert.equal(secondBotMuteActions[0].groupId, 'group-3')
     assert.equal(secondBotMuteActions[0].memberId, '10003')
     assert.ok(secondBotMuteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
@@ -221,11 +225,15 @@ function groupGuardConfig(port: number, targetGroups: string[], reminderTemplate
   }
 }
 
+function forceQQAdmissionBot(bot: { platform?: string }) {
+  bot.platform = 'qq'
+}
+
 function receiveJoin(bot: { receive: ReceiveEvent }, userID: string, guildID: string, selfId?: string) {
   bot.receive({
     type: 'guild-member-added',
     selfId,
-    platform: selfId ? 'mock' : undefined,
+    platform: 'qq',
     user: { id: userID, name: userID },
     guild: { id: guildID },
     channel: { id: guildID, type: Universal.Channel.Type.TEXT },

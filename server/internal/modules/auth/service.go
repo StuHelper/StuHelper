@@ -56,6 +56,13 @@ type SessionInfo struct {
 // 并在签发 JWT 的 Sid claim 中使用同一值——否则 JWT sid 与服务端存储的
 // session key 不一致，refresh / revoke 都会失效。
 func (s *Service) CreateSession(ctx context.Context, sessionID, userID, accessToken, refreshToken, loginMethod, deviceInfo string) (*SessionInfo, error) {
+	return s.CreateSessionForApplication(ctx, sessionID, userID, accessToken, refreshToken, loginMethod, "", deviceInfo)
+}
+
+func (s *Service) CreateSessionForApplication(
+	ctx context.Context,
+	sessionID, userID, accessToken, refreshToken, loginMethod, providerAppKey, deviceInfo string,
+) (*SessionInfo, error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("create session: sessionID is required")
 	}
@@ -86,6 +93,7 @@ func (s *Service) CreateSession(ctx context.Context, sessionID, userID, accessTo
 		AccessTokenHash:         accessHash,
 		RefreshTokenHash:        refreshHash,
 		ProviderRefreshTokenEnc: providerRefreshTokenEnc,
+		ProviderAppKey:          providerAppKeyForSession(loginMethod, providerAppKey),
 		LoginMethod:             loginMethod,
 		DeviceInfo:              deviceInfo,
 	}
@@ -95,6 +103,14 @@ func (s *Service) CreateSession(ctx context.Context, sessionID, userID, accessTo
 	}
 
 	return &SessionInfo{SessionID: sessionID}, nil
+}
+
+func (s *Service) OIDCApplicationForRefresh(ctx context.Context, sessionID, refreshToken string) (string, error) {
+	session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{refreshToken: refreshToken})
+	if err != nil {
+		return "", fmt.Errorf("resolve oidc application: %w", err)
+	}
+	return providerAppKeyForSession(session.LoginMethod, session.ProviderAppKey), nil
 }
 
 // RotateSession 在 refresh 流程中轮换 session 内的 token 对（Token Family 模式）。
@@ -147,6 +163,7 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 		AccessTokenHash:         newAccessHash,
 		RefreshTokenHash:        newRefreshHash,
 		ProviderRefreshTokenEnc: providerRefreshTokenEnc,
+		ProviderAppKey:          providerAppKeyForSession(session.LoginMethod, session.ProviderAppKey),
 	}
 	if touchErr := s.tokenService.GetSessionStore().Touch(ctx, sessionID, update); touchErr != nil {
 		return fmt.Errorf("rotate session: touch session: %w", touchErr)
@@ -169,9 +186,6 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 		if err != nil {
 			return fmt.Errorf("revoke session: %w", err)
 		}
-		if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
-			return fmt.Errorf("revoke session: %w", err)
-		}
 		_, err = s.tokenService.GetSessionStore().Revoke(
 			ctx, sessionID,
 			s.tokenService.GetBlacklist(),
@@ -180,6 +194,9 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 		)
 		if err != nil {
 			return fmt.Errorf("revoke session: %w", err)
+		}
+		if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
+			return fmt.Errorf("revoke session: local session revoked; provider revoke failed: %w", err)
 		}
 	}
 
@@ -230,16 +247,17 @@ func (s *Service) verifyTrackedSession(
 // RevokeAllSessions 撤销用户的全部 session（全设备登出）。
 // 仅依赖 session store；不再回退到旧 token 跟踪系统。
 func (s *Service) RevokeAllSessions(ctx context.Context, userID string) error {
-	if err := s.revokeProviderRefreshTokensForUser(ctx, userID); err != nil {
-		return fmt.Errorf("revoke all sessions: %w", err)
-	}
+	providerErr := s.revokeProviderRefreshTokensForUser(ctx, userID)
 	if err := s.tokenService.GetSessionStore().RevokeAll(
 		ctx, userID,
 		s.tokenService.GetBlacklist(),
 		s.tokenService.GetAccessTokenTTL(),
 		s.tokenService.GetRefreshTokenTTL(),
 	); err != nil {
-		return fmt.Errorf("revoke all sessions: %w", err)
+		return fmt.Errorf("revoke all sessions: %w", errors.Join(err, providerErr))
+	}
+	if providerErr != nil {
+		return fmt.Errorf("revoke all sessions: local sessions revoked; provider revoke failed: %w", providerErr)
 	}
 	return nil
 }

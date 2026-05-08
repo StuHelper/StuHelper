@@ -3,25 +3,20 @@ package oidc
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 )
 
-func TestFallbackIntrospectionEndpoint(t *testing.T) {
-	tests := []struct {
-		name     string
-		tokenURL string
-		want     string
-	}{
-		{name: "standard token path", tokenURL: "https://issuer.example.com/oauth/v2/token", want: "https://issuer.example.com/oauth/v2/introspect"},
-		{name: "single path", tokenURL: "https://issuer.example.com/token", want: "https://issuer.example.com/introspect"},
-		{name: "root path", tokenURL: "https://issuer.example.com", want: "https://issuer.example.com/introspect"},
-		{name: "invalid url", tokenURL: "://bad", want: ""},
-		{name: "empty", tokenURL: "", want: ""},
+func TestVerifyIDTokenAudienceForApplication(t *testing.T) {
+	client := &Client{
+		oauth2Configs: map[string]oauth2.Config{
+			ApplicationWeb:   {ClientID: "web-client"},
+			ApplicationAdmin: {ClientID: "admin-client"},
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, fallbackIntrospectionEndpoint(tt.tokenURL))
-		})
-	}
+	require.NoError(t, client.verifyIDTokenAudience([]string{"web-client"}, "web-client"))
+	require.ErrorIs(t, client.verifyIDTokenAudience([]string{"web-client"}, "admin-client"), ErrInvalidAudience)
+	require.NoError(t, client.verifyIDTokenAudience([]string{"admin-client"}, ""))
+	require.ErrorIs(t, client.verifyIDTokenAudience([]string{"unknown-client"}, ""), ErrInvalidAudience)
 }

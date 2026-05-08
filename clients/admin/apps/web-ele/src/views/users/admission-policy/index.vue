@@ -64,10 +64,16 @@ onMounted(fetchData);
         <ElSwitch v-model="policy.freshmanChannelEnabled" />
       </ElFormItem>
       <ElFormItem label="freshmanChannelClosesAt">
-        <ElDatePicker v-model="policy.freshmanChannelClosesAt" type="datetime" />
+        <ElDatePicker
+          v-model="policy.freshmanChannelClosesAt"
+          type="datetime"
+        />
       </ElFormItem>
       <ElFormItem label="freshmanDefaultExpiresAt">
-        <ElDatePicker v-model="policy.freshmanDefaultExpiresAt" type="datetime" />
+        <ElDatePicker
+          v-model="policy.freshmanDefaultExpiresAt"
+          type="datetime"
+        />
       </ElFormItem>
       <ElFormItem label="initialMuteDurationSeconds">
         <ElInputNumber v-model="policy.initialMuteDurationSeconds" />

@@ -122,6 +122,15 @@ fi
 if placeholder_or_empty "${CASDOOR_APP_PROVISIONING_APPLICATION:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_APP_PROVISIONING_APPLICATION" "casdoor-admin-app-provisioning"
 fi
+if placeholder_or_empty "${CASDOOR_INTROSPECTION_CLIENT_ID:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_ID" "casdoor-token-introspection"
+fi
+if placeholder_or_empty "${CASDOOR_INTROSPECTION_CLIENT_SECRET:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_SECRET" "dev-casdoor-introspection-$(random_hex 16)"
+fi
+if placeholder_or_empty "${CASDOOR_INTROSPECTION_APPLICATION:-}"; then
+  upsert_env_file "${ENV_FILE}" "CASDOOR_INTROSPECTION_APPLICATION" "casdoor-token-introspection"
+fi
 if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
 fi

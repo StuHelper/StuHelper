@@ -64,6 +64,10 @@ func (h *Handler) handleListBotPendingActions(c *gin.Context) {
 func botPendingActionFilter(c *gin.Context) (AdmissionPendingActionFilter, bool) {
 	platform := strings.TrimSpace(c.Query("platform"))
 	botSelfID := strings.TrimSpace(c.Query("botSelfID"))
+	if platform == "" || botSelfID == "" {
+		response.BadRequest(c, "admission pending action filter requires platform and botSelfID")
+		return AdmissionPendingActionFilter{}, false
+	}
 	if len(platform) > maxBotPendingActionFilterLength || len(botSelfID) > maxBotPendingActionFilterLength {
 		response.BadRequest(c, "admission pending action filter too long")
 		return AdmissionPendingActionFilter{}, false

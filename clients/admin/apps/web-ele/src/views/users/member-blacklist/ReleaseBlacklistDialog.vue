@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { ReleaseReasonCode } from './options';
+
 import type {
   MemberBlacklistEntry,
   MemberBlacklistReleaseRequest,
@@ -16,18 +18,11 @@ import {
   ElSelect,
 } from 'element-plus';
 
-import {
-  RELEASE_REASON_OPTIONS,
-  type ReleaseReasonCode,
-  scopeLabel,
-  sourceLabel,
-} from './options';
-
-const visible = defineModel<boolean>('visible', { required: true });
+import { RELEASE_REASON_OPTIONS, scopeLabel, sourceLabel } from './options';
 
 const props = defineProps<{
-  target: MemberBlacklistEntry | null;
   submitting: boolean;
+  target: MemberBlacklistEntry | null;
 }>();
 
 const emit = defineEmits<{
@@ -36,6 +31,8 @@ const emit = defineEmits<{
     payload: { id: string; request: MemberBlacklistReleaseRequest },
   ): void;
 }>();
+
+const visible = defineModel<boolean>('visible', { required: true });
 
 const draft = reactive({
   releaseReasonCode: 'manual_pardon' as ReleaseReasonCode,
@@ -79,7 +76,9 @@ function submit() {
     width="520px"
   >
     <div v-if="target" class="mb-3 text-sm text-slate-600">
-      <div>主体：<span class="font-mono">{{ target.subjectID }}</span></div>
+      <div>
+        主体：<span class="font-mono">{{ target.subjectID }}</span>
+      </div>
       <div>范围：{{ scopeLabel(target) }}</div>
       <div>来源：{{ sourceLabel(target) }}</div>
     </div>

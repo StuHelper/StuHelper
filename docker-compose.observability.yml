@@ -237,7 +237,7 @@ services:
     security_opt:
     - no-new-privileges:true
   cadvisor:
-    profiles: [observability]
+    profiles: [observability, prod]
     image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION:-v0.52.1}
     container_name: ${STACK_NAME:-stuhelper}-cadvisor
     security_opt:

@@ -12,7 +12,6 @@ import (
 )
 
 const tokenCookieSameSite = http.SameSiteLaxMode
-const refreshTokenCookiePath = "/api/v1/auth" //nolint:gosec // Cookie path literal, not a credential.
 const nativeSessionIDHeader = "X-Stuhelper-Session-ID"
 
 // sessionCookieName 服务端 session ID cookie
@@ -58,14 +57,14 @@ func (h *Handler) prepareTokenCookies(c *gin.Context) (string, bool) {
 
 func (h *Handler) setTokenCookiesWithCSRF(c *gin.Context, accessToken, refreshToken, csrfToken string) {
 	h.setCSRFCookie(c, csrfToken)
-	h.writeCookie(c, middleware.CookieAccessToken, accessToken, h.currentAccessTokenTTLSeconds(), "/", true)
-	h.writeCookie(c, middleware.CookieRefreshToken, refreshToken, h.tokenConfig.RefreshTokenTTL, refreshTokenCookiePath, true)
+	h.writeCookie(c, middleware.CookieAccessToken, accessToken, h.currentAccessTokenTTLSeconds(), middleware.CookieAccessTokenPath, true)
+	h.writeCookie(c, middleware.CookieRefreshToken, refreshToken, h.tokenConfig.RefreshTokenTTL, middleware.CookieRefreshTokenPath, true)
 }
 
 // clearTokenCookies 清除 Token Cookie 和 Session Cookie
 func (h *Handler) clearTokenCookies(c *gin.Context) {
-	h.writeCookie(c, middleware.CookieAccessToken, "", -1, "/", true)
-	h.writeCookie(c, middleware.CookieRefreshToken, "", -1, refreshTokenCookiePath, true)
+	h.writeCookie(c, middleware.CookieAccessToken, "", -1, middleware.CookieAccessTokenPath, true)
+	h.writeCookie(c, middleware.CookieRefreshToken, "", -1, middleware.CookieRefreshTokenPath, true)
 	h.clearCSRFCookie(c)
 	h.clearSessionCookie(c)
 }

@@ -15,7 +15,7 @@ const accountSettingsUrl = computed(() => authStore.accountSettingsUrl);
 
 function handleGoToAccountSettings() {
   if (accountSettingsUrl.value) {
-    window.open(accountSettingsUrl.value, '_blank');
+    window.open(accountSettingsUrl.value, '_blank', 'noopener,noreferrer');
   }
 }
 </script>

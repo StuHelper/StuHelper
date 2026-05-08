@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -12,10 +13,13 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/errs"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/metrics"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/token"
 )
+
+const authBlacklistLookupTimeout = 50 * time.Millisecond
 
 // OptionalAuthConfig 可选认证中间件的配置。
 // Cookie 无效时中间件需要清理浏览器端 cookie，为此需要 cookie 的 domain/secure 属性。
@@ -46,8 +50,15 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 	}
 
 	// 检查 token 是否在应用级黑名单中（紧急吊销，两种来源都检查）
-	isBlacklisted, err := tokenService.GetBlacklist().IsBlacklisted(c.Request.Context(), tokenString)
+	blacklistCtx, cancel := context.WithTimeout(c.Request.Context(), authBlacklistLookupTimeout)
+	defer cancel()
+	isBlacklisted, err := tokenService.GetBlacklist().IsBlacklisted(blacklistCtx, tokenString)
 	if err != nil {
+		reason := "unavailable"
+		if errors.Is(blacklistCtx.Err(), context.DeadlineExceeded) {
+			reason = "timeout"
+		}
+		metrics.ObserveAuthBlacklistFailure(reason)
 		return nil, errBlacklistFail
 	}
 	if isBlacklisted {
@@ -250,6 +261,6 @@ func RequireHealthyOptionalAuth() gin.HandlerFunc {
 // 浏览器匹配通过 (name, domain, path) 三元组——这里用 handler_cookies.go
 // 写入时使用的同一路径组合。
 func clearAuthCookies(c *gin.Context, cfg OptionalAuthConfig) {
-	c.SetCookie(CookieAccessToken, "", -1, "/", cfg.CookieDomain, cfg.CookieSecure, true)
-	c.SetCookie(CookieRefreshToken, "", -1, "/api/v1/auth", cfg.CookieDomain, cfg.CookieSecure, true)
+	c.SetCookie(CookieAccessToken, "", -1, CookieAccessTokenPath, cfg.CookieDomain, cfg.CookieSecure, true)
+	c.SetCookie(CookieRefreshToken, "", -1, CookieRefreshTokenPath, cfg.CookieDomain, cfg.CookieSecure, true)
 }

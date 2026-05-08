@@ -19,7 +19,7 @@ test('member guard creates admission session, mutes, and sends canonical auth li
           authURL: 'https://auth.stuhelper.com/admission/a/token-1?qq=10001',
           session: {
             id: 'session-1',
-            platform: 'mock',
+            platform: 'qq',
             guildID: 'guild-1',
             channelID: 'channel-1',
             qqID: '10001',
@@ -52,7 +52,7 @@ test('member guard creates admission session, mutes, and sends canonical auth li
   } as any)
 
   await service.handleGuildMemberAdded({
-    platform: 'mock',
+    platform: 'qq',
     selfId: '514',
     guildId: 'guild-1',
     channelId: 'channel-1',
@@ -70,7 +70,7 @@ test('member guard creates admission session, mutes, and sends canonical auth li
   } as any)
 
   assert.deepEqual(createSessionCalls, [{
-    platform: 'mock',
+    platform: 'qq',
     guildID: 'guild-1',
     channelID: 'channel-1',
     qqID: '10001',
@@ -123,7 +123,7 @@ test('member guard fail-closes when platform session creation is unavailable and
           source: 'static',
           templateId: 'static',
           templateName: 'static',
-          platform: 'mock',
+          platform: 'qq',
           guildId: 'guild-1',
           muteDurationSeconds: 600,
           kickAfterMinutes: 30,
@@ -137,7 +137,7 @@ test('member guard fail-closes when platform session creation is unavailable and
   } as any)
 
   await service.handleGuildMemberAdded({
-    platform: 'mock',
+    platform: 'qq',
     selfId: '514',
     guildId: 'guild-1',
     channelId: 'channel-1',
@@ -164,9 +164,9 @@ test('member guard fail-closes when platform session creation is unavailable and
 
   backendAvailable = true
   await service.scanPendingMembers([{
-    platform: 'mock',
+    platform: 'qq',
     selfId: '514',
-    sid: 'mock:514',
+    sid: 'qq:514',
     muteGuildMember: async () => {},
     sendMessage: async (_channelId: string, content: string) => {
       sentMessages.push(content)
@@ -209,7 +209,7 @@ test('member guard kicks blacklisted members instead of pending backend sync', a
   } as any)
 
   await service.handleGuildMemberAdded({
-    platform: 'mock',
+    platform: 'qq',
     selfId: '514',
     guildId: 'guild-1',
     channelId: 'channel-1',
@@ -265,15 +265,15 @@ test('member guard executes pending admission actions and reports results', asyn
       async markKicked(id: string) { marks.push(`kicked:${id}`) },
       async markLastError() {},
     },
-    policyStore: {},
+    policyStore: policyStoreFor(['guild-1']),
     moderationStore: { async appendEvent() {} },
     logger: { error() {}, warn() {} },
   } as any)
 
   await service.scanPendingMembers([{
-    platform: 'mock',
+    platform: 'qq',
     selfId: '514',
-    sid: 'mock:514',
+    sid: 'qq:514',
     sendMessage: async (channelId: string, content: string) => {
       messages.push({ channelId, content })
       return ['message-1']
@@ -286,7 +286,7 @@ test('member guard executes pending admission actions and reports results', asyn
     },
   } as any])
 
-  assert.deepEqual(listCalls, [{ platform: 'mock', botSelfID: '514' }])
+  assert.deepEqual(listCalls, [{ platform: 'qq', botSelfID: '514' }])
   assert.match(messages[0].content, /https:\/\/auth\.stuhelper\.com\/admission\/a\/remind-token\?qq=10001/)
   assert.deepEqual(mutes, [{ guildId: 'guild-1', memberId: '10001', duration: 0 }])
   assert.deepEqual(kicks, [
@@ -337,15 +337,15 @@ test('member guard reports action failures, keeps errors visible, and continues 
       },
       async markReminderSent(id: string) { marks.push(`reminder:${id}`) },
     },
-    policyStore: {},
+    policyStore: policyStoreFor(['guild-1']),
     moderationStore: { async appendEvent() {} },
     logger: { error() {}, warn() {} },
   } as any)
 
   await service.scanPendingMembers([{
-    platform: 'mock',
+    platform: 'qq',
     selfId: '514',
-    sid: 'mock:514',
+    sid: 'qq:514',
     muteGuildMember: async () => { throw new Error('mute failed') },
     sendMessage: async (_channelId: string, content: string) => {
       messages.push(content)
@@ -373,11 +373,73 @@ test('member guard reports action failures, keeps errors visible, and continues 
   assert.match(messages[0], /remind-token/)
 })
 
+test('member guard rejects admission action scans without qq platform', async () => {
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() {
+        throw new Error('pending actions should not be requested')
+      },
+      async listPendingFreshmanForwards() { return [] },
+    },
+    guardStore: { async listBackendSyncPending() { return [] } },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await assert.rejects(
+    service.scanPendingMembers([{ selfId: '514', sid: 'missing:514' } as any]),
+    /admission action worker requires platform qq/,
+  )
+})
+
+test('member guard refuses pending admission actions outside local guard policy', async () => {
+  const events: unknown[] = []
+  const errors: string[] = []
+  const service = new MemberGuardService({
+    platform: {
+      async listPendingAdmissionActions() {
+        return [action('session-foreign', 'release', { guildID: 'guild-foreign' })]
+      },
+      async recordAdmissionEvent(sessionID: string, input: unknown) {
+        events.push({ sessionID, input })
+      },
+      async listPendingFreshmanForwards() { return [] },
+    },
+    guardStore: {
+      async listBackendSyncPending() { return [] },
+      async findActiveByAdmissionSessionID() { return null },
+      async markLastError(_id: string, message: string) { errors.push(message) },
+    },
+    policyStore: policyStoreFor(['guild-1']),
+    moderationStore: { async appendEvent() {} },
+    logger: { error() {}, warn() {} },
+  } as any)
+
+  await service.scanPendingMembers([{
+    platform: 'qq',
+    selfId: '514',
+    sid: 'qq:514',
+    muteGuildMember: async () => { throw new Error('mute should not be called') },
+    sendMessage: async () => { throw new Error('send should not be called') },
+  } as any])
+
+  assert.deepEqual(errors, [])
+  assert.deepEqual(events, [{
+    sessionID: 'session-foreign',
+    input: {
+      action: 'release',
+      success: false,
+      error: 'admission action session-foreign targets unmanaged guild guild-foreign',
+    },
+  }])
+})
+
 function action(sessionID: string, actionName: string, overrides: Record<string, unknown> = {}) {
   return {
     sessionID,
     action: actionName,
-    platform: 'mock',
+    platform: 'qq',
     guildID: 'guild-1',
     channelID: 'channel-1',
     qqID: '10001',
@@ -386,10 +448,29 @@ function action(sessionID: string, actionName: string, overrides: Record<string,
   }
 }
 
+function policyStoreFor(guildIds: readonly string[]) {
+  return {
+    async resolvePolicy(platform: string, guildId: string) {
+      if (platform !== 'qq' || !guildIds.includes(guildId)) return null
+      return {
+        source: 'static',
+        templateId: 'static',
+        templateName: 'static',
+        platform,
+        guildId,
+        muteDurationSeconds: 600,
+        kickAfterMinutes: 30,
+        reminderTemplate: '请先完成认证。',
+        exemptUsers: [],
+      }
+    },
+  }
+}
+
 function recordFor(sessionID: string) {
   return {
     id: `guard-${sessionID}`,
-    platform: 'mock',
+    platform: 'qq',
     botSelfId: '514',
     guildId: 'guild-1',
     channelId: 'channel-1',
@@ -417,7 +498,7 @@ function admissionResult(sessionID: string, token: string) {
     authURL: `https://auth.stuhelper.com/admission/a/${token}?qq=10001`,
     session: {
       id: sessionID,
-      platform: 'mock',
+      platform: 'qq',
       guildID: 'guild-1',
       channelID: 'channel-1',
       qqID: '10001',

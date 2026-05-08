@@ -34,11 +34,13 @@ func validConfigForValidation() *Config {
 			PresignTTL: 600,
 		},
 		Casdoor: CasdoorConfig{
-			Issuer:       "https://sso.example.com",
-			ClientID:     "client-id",
-			ClientSecret: "client-secret",
-			RedirectURI:  "https://api.example.com/api/v1/auth/callback",
-			Organization: "stuhelper",
+			Issuer:                    "https://sso.example.com",
+			ClientID:                  "client-id",
+			ClientSecret:              "client-secret",
+			RedirectURI:               "https://api.example.com/api/v1/auth/callback",
+			IntrospectionClientID:     "introspection-client",
+			IntrospectionClientSecret: "introspection-secret",
+			Organization:              "stuhelper",
 		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",

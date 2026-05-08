@@ -199,10 +199,11 @@ type SchoolSSOStartResult struct {
 }
 
 type SchoolSSOCompleteInput struct {
-	SchoolID int64
-	State    string
-	UserID   int64
-	Code     string
+	SchoolID     int64
+	State        string
+	UserID       int64
+	Code         string
+	CodeVerifier string
 }
 
 type SchoolSSOCompleteResult struct {
@@ -210,8 +211,9 @@ type SchoolSSOCompleteResult struct {
 }
 
 type SchoolSSOExchangeInput struct {
-	SchoolID int64
-	Code     string
+	SchoolID     int64
+	Code         string
+	CodeVerifier string
 }
 
 type SchoolSSOIdentity struct {

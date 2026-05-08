@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { ScopeType } from './options';
+
 import type { MemberBlacklistCreateRequest } from '#/api/admin';
 
 import { computed, reactive } from 'vue';
@@ -15,9 +17,7 @@ import {
   ElSelect,
 } from 'element-plus';
 
-import { type ScopeType, toIsoString } from './options';
-
-const visible = defineModel<boolean>('visible', { required: true });
+import { toIsoString } from './options';
 
 defineProps<{
   submitting: boolean;
@@ -26,6 +26,8 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'submit', payload: MemberBlacklistCreateRequest): void;
 }>();
+
+const visible = defineModel<boolean>('visible', { required: true });
 
 const draft = reactive({
   platform: 'qq',
@@ -59,8 +61,7 @@ function buildPayload(): MemberBlacklistCreateRequest {
     subjectType: 'qq_user',
     subjectID: draft.subjectID.trim(),
     scopeType: draft.scopeType,
-    guildID:
-      draft.scopeType === 'guild' ? draft.guildID.trim() : undefined,
+    guildID: draft.scopeType === 'guild' ? draft.guildID.trim() : undefined,
     source: 'manual_admin',
     reasonCode: 'manual_blacklist',
     reasonText: draft.reasonText.trim(),

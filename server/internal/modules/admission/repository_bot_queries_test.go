@@ -20,15 +20,17 @@ func TestPendingActionSessionsQueryUsesDirectBotFilters(t *testing.T) {
 	assert.Equal(t, "bot-1", args[1])
 }
 
-func TestPendingActionSessionsQueryOmitsBotFiltersWhenEmpty(t *testing.T) {
+func TestPendingActionSessionFilterClausesAlwaysUseBotIdentity(t *testing.T) {
 	const testPendingActionLimit = 10
 
 	query, args := pendingActionSessionsQuery(
-		AdmissionPendingActionFilter{Limit: testPendingActionLimit},
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "bot-1", Limit: testPendingActionLimit},
 		fixedAdmissionNow(),
 	)
 
-	assert.NotContains(t, query, "platform = $")
-	assert.NotContains(t, query, "bot_self_id = $")
-	assert.Equal(t, StatusJoinedMuted, args[0])
+	assert.Contains(t, query, "platform = $1")
+	assert.Contains(t, query, "bot_self_id = $2")
+	assert.Equal(t, "qq", args[0])
+	assert.Equal(t, "bot-1", args[1])
+	assert.Equal(t, StatusJoinedMuted, args[2])
 }

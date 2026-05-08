@@ -20,12 +20,6 @@ func TestFailClosedAuthorizationProvider_ReturnsConfigurationError(t *testing.T)
 	)
 }
 
-func TestReviewPermissionRelationForAction(t *testing.T) {
-	assert.Equal(t, "can_hide", reviewPermissionRelationForAction("hide"))
-	assert.Equal(t, "can_hide", reviewPermissionRelationForAction("restore"))
-	assert.Equal(t, "can_delete", reviewPermissionRelationForAction("delete"))
-}
-
 func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testing.T) {
 	scope := moderationScope{
 		moderatorSections: map[string]struct{}{

@@ -176,6 +176,12 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Casdoor.RedirectURI == "" {
 		errs = append(errs, "CASDOOR_REDIRECT_URI is required")
 	}
+	if c.Casdoor.IntrospectionClientID == "" {
+		errs = append(errs, "CASDOOR_INTROSPECTION_CLIENT_ID is required")
+	}
+	if c.Casdoor.IntrospectionClientSecret == "" {
+		errs = append(errs, "CASDOOR_INTROSPECTION_CLIENT_SECRET is required")
+	}
 	if c.Casdoor.Organization == "" {
 		errs = append(errs, "CASDOOR_ORGANIZATION is required")
 	}

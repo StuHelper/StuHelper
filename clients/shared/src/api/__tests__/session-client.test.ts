@@ -69,22 +69,41 @@ describe('executeSessionRefresh', () => {
     })
   })
 
-  it('maps 401/403 responses to unauthorized', async () => {
+  it('maps 401 responses to unauthorized', async () => {
     const unauthorized401 = await executeSessionRefresh({
       request: vi.fn().mockResolvedValue({
         error: { code: 'UNAUTHORIZED' },
         response: { status: 401 },
       }),
     })
-    const unauthorized403 = await executeSessionRefresh({
+
+    expect(unauthorized401).toEqual({ kind: 'unauthorized', status: 401 })
+  })
+
+  it('keeps refresh 403 failures visible unless explicitly configured as unauthorized', async () => {
+    const forbidden = await executeSessionRefresh({
       request: vi.fn().mockResolvedValue({
         error: { code: 'CSRF_INVALID' },
         response: { status: 403 },
       }),
     })
+    const configuredUnauthorized = await executeSessionRefresh({
+      request: vi.fn().mockResolvedValue({
+        error: { code: 'TOKEN_EXPIRED' },
+        response: { status: 403 },
+      }),
+      unauthorizedStatuses: [401, 403],
+    })
 
-    expect(unauthorized401).toEqual({ kind: 'unauthorized', status: 401 })
-    expect(unauthorized403).toEqual({ kind: 'unauthorized', status: 403 })
+    expect(forbidden).toEqual({
+      kind: 'error',
+      error: { code: 'CSRF_INVALID' },
+      status: 403,
+    })
+    expect(configuredUnauthorized).toEqual({
+      kind: 'unauthorized',
+      status: 403,
+    })
   })
 
   it('returns error result for non-auth refresh failures', async () => {
@@ -116,7 +135,7 @@ describe('executeSessionRefresh', () => {
 })
 
 describe('createSessionApiClient', () => {
-  it('reauthenticates when refresh returns 403 unauthorized', async () => {
+  it('reauthenticates when refresh returns unauthorized', async () => {
     const onUnauthorized = vi.fn()
     const request = vi
       .fn()
@@ -126,13 +145,13 @@ describe('createSessionApiClient', () => {
       })
       .mockResolvedValueOnce({
         data: { data: { message: 'csrf invalid' } },
-        response: { status: 403 },
+        response: { status: 401 },
       })
 
     const client = createSessionApiClient(
       {
         onUnauthorized,
-        refresh: vi.fn().mockResolvedValue({ kind: 'unauthorized', status: 403 }),
+        refresh: vi.fn().mockResolvedValue({ kind: 'unauthorized', status: 401 }),
         request,
       },
       { reauthenticateOnUnauthorized: true },
@@ -142,5 +161,27 @@ describe('createSessionApiClient', () => {
 
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
     expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reauthenticate on direct 403 responses', async () => {
+    const onUnauthorized = vi.fn()
+    const request = vi.fn().mockResolvedValue({
+      error: { code: 'FORBIDDEN' },
+      response: { status: 403 },
+    })
+
+    const client = createSessionApiClient(
+      {
+        onUnauthorized,
+        refresh: vi.fn(),
+        request,
+        shouldRefresh: () => false,
+      },
+      { reauthenticateOnUnauthorized: true },
+    )
+
+    await client.GET('/api/v1/admin/resource' as never, undefined as never)
+
+    expect(onUnauthorized).not.toHaveBeenCalled()
   })
 })

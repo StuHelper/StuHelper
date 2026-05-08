@@ -12,6 +12,13 @@ const (
 	CookieRefreshToken = "refresh_token"
 )
 
+// Cookie path constants. Browser deletion must use the same (name, domain,
+// path) tuple as cookie creation.
+const (
+	CookieAccessTokenPath  = "/"
+	CookieRefreshTokenPath = "/api/v1/auth"
+)
+
 // tokenSource 标记 Token 来源
 type tokenSource int
 

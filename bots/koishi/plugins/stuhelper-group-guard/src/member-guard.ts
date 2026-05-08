@@ -8,6 +8,10 @@ import {
 import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import {
+  assertAdmissionActionBoundary,
+  requireAdmissionActionPlatform,
+} from './admission-action-boundary'
+import {
   executeAdmissionAction,
   formatAdmissionActionError,
 } from './admission-actions'
@@ -183,8 +187,9 @@ export class MemberGuardService {
   }
 
   private async scanBotAdmissionActions(bot: GuardBotRuntime, now: Date) {
+    const platform = requireAdmissionActionPlatform(bot)
     const actions = await this.deps.platform.listPendingAdmissionActions({
-      platform: bot.platform || '',
+      platform,
       botSelfID: bot.selfId,
     })
     for (const action of actions) {
@@ -238,6 +243,12 @@ export class MemberGuardService {
   private async handleAdmissionAction(bot: GuardBotRuntime, action: AdmissionPendingAction, now: Date) {
     const record = await this.deps.guardStore.findActiveByAdmissionSessionID(action.sessionID)
     try {
+      await assertAdmissionActionBoundary({
+        bot,
+        action,
+        record: record ?? null,
+        policyStore: this.deps.policyStore,
+      })
       const result = await executeAdmissionAction(bot, action, record ?? null)
       await this.deps.platform.recordAdmissionEvent(action.sessionID, result.event)
       await this.markActionComplete(record, result.mark, now)

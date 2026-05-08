@@ -28,6 +28,7 @@ func newUnavailableRefreshOIDCProvider(t *testing.T) *fakeOIDCProvider {
 			"authorization_endpoint": issuer + "/authorize",
 			"token_endpoint":         issuer + "/token",
 			"jwks_uri":               issuer + "/keys",
+			"introspection_endpoint": issuer + "/introspect",
 		})
 	})
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
@@ -42,10 +43,12 @@ func newUnavailableRefreshOIDCProvider(t *testing.T) *fakeOIDCProvider {
 	t.Cleanup(srv.Close)
 
 	client, err := oidcpkg.NewClient(context.Background(), config.CasdoorConfig{
-		Issuer:       issuer,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURI:  "https://web.example.com/api/v1/auth/callback",
+		Issuer:                    issuer,
+		ClientID:                  clientID,
+		ClientSecret:              clientSecret,
+		RedirectURI:               "https://web.example.com/api/v1/auth/callback",
+		IntrospectionClientID:     "introspection-client",
+		IntrospectionClientSecret: "introspection-secret",
 	})
 	require.NoError(t, err)
 	return &fakeOIDCProvider{server: srv, client: client, clientID: clientID}

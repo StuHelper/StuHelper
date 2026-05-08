@@ -3,6 +3,7 @@ import { h, type Universal } from 'koishi'
 import type { FreshmanForwardItem } from '@stuhelper/koishi-shared'
 
 import { formatFreshmanForwardSummary } from './admission-format'
+import { validateFreshmanMaterialURL } from './freshman-material-url'
 
 export function resolveFreshmanForwardBot(
   bots: readonly FreshmanForwardBot[],
@@ -27,8 +28,9 @@ export async function forwardFreshmanMaterial(
   if (!item.managementGuildIDs.length) {
     throw new Error(`freshman forward ${item.application.id} missing managementGuildIDs`)
   }
+  const materialURL = validateFreshmanMaterialURL(item.materialURL)
   const content = [
-    h.image(item.materialURL),
+    h.image(materialURL),
     formatFreshmanForwardSummary(item),
   ].join('\n')
   const failures: FreshmanForwardFailure[] = []

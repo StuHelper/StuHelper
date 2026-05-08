@@ -30,7 +30,8 @@ import (
 // ARGV[2] = new access token hash (empty string == keep current)
 // ARGV[3] = new refresh token hash (empty string == keep current)
 // ARGV[4] = provider refresh token ciphertext (empty string == keep current)
-// ARGV[5] = TTL seconds
+// ARGV[5] = provider app key (empty string == keep current)
+// ARGV[6] = TTL seconds
 //
 // KEYS[2] = refresh token ref key for ARGV[3] (ignored when ARGV[3] is empty)
 //
@@ -48,12 +49,15 @@ end
 if ARGV[3] ~= '' then
     data['refreshTokenHash'] = ARGV[3]
     local ref = {sessionID=data['sessionID'], userID=data['userID']}
-    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[5]))
+	    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[6]))
 end
 if ARGV[4] ~= '' then
     data['providerRefreshTokenEnc'] = ARGV[4]
 end
-redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[5]))
+if ARGV[5] ~= '' then
+    data['providerAppKey'] = ARGV[5]
+end
+redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[6]))
 return 1
 `
 
@@ -80,6 +84,8 @@ type SessionData struct {
 	RefreshTokenHash string `json:"refreshTokenHash,omitempty"`
 	// ProviderRefreshTokenEnc stores an encrypted provider refresh token.
 	ProviderRefreshTokenEnc string `json:"providerRefreshTokenEnc,omitempty"`
+	// ProviderAppKey records which OIDC application owns provider token ops.
+	ProviderAppKey string `json:"providerAppKey,omitempty"`
 	// DeviceInfo 可选的设备信息（UA / IP / 平台标识）
 	DeviceInfo string `json:"deviceInfo,omitempty"`
 	// LoginMethod 登录方式（oidc / phone）
@@ -90,6 +96,7 @@ type SessionTouchUpdate struct {
 	AccessTokenHash         string
 	RefreshTokenHash        string
 	ProviderRefreshTokenEnc string
+	ProviderAppKey          string
 }
 
 // SessionStore 管理服务端 session 生命周期
@@ -187,6 +194,7 @@ func (s *SessionStore) Touch(ctx context.Context, sessionID string, update Sessi
 		update.AccessTokenHash,
 		update.RefreshTokenHash,
 		update.ProviderRefreshTokenEnc,
+		update.ProviderAppKey,
 		int(s.sessionTTL.Seconds()),
 	).Int64()
 	if err != nil {

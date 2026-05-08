@@ -68,17 +68,6 @@ type Tuple struct {
 	Object   string // 如 "review:100"
 }
 
-// validateTupleField 验证 FGA tuple 字段格式（type:id）
-func validateTupleField(field, name string) error {
-	if field == "" {
-		return fmt.Errorf("fga: %s must not be empty", name)
-	}
-	if strings.ContainsAny(field, "\x00\n\r") {
-		return fmt.Errorf("fga: %s contains invalid characters", name)
-	}
-	return nil
-}
-
 // Check 检查用户对资源是否具有指定关系（权限）
 func (c *Client) Check(ctx context.Context, user, relation, object string) (bool, error) {
 	if err := validateTupleField(user, "user"); err != nil {
@@ -194,6 +183,15 @@ func (c *Client) DeleteTuples(ctx context.Context, tuples []Tuple) error {
 
 	deletes := make([]openfga.TupleKeyWithoutCondition, len(tuples))
 	for i, t := range tuples {
+		if err := validateTupleField(t.User, "user"); err != nil {
+			return err
+		}
+		if err := validateTupleField(t.Relation, "relation"); err != nil {
+			return err
+		}
+		if err := validateTupleField(t.Object, "object"); err != nil {
+			return err
+		}
 		deletes[i] = openfga.TupleKeyWithoutCondition{
 			User:     t.User,
 			Relation: t.Relation,

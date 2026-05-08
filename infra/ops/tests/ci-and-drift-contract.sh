@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+CI_FILE="${REPO_ROOT}/.gitlab-ci.yml"
+SERVER_MAKEFILE="${REPO_ROOT}/server/Makefile"
+ADMIN_DOCKERFILE="${REPO_ROOT}/clients/admin/scripts/deploy/Dockerfile"
+
+fail() {
+  echo "[ci-and-drift-contract][error] $*" >&2
+  exit 1
+}
+
+assert_contains() {
+  local file="$1"
+  local pattern="$2"
+  if ! grep -Eq "${pattern}" "${file}"; then
+    fail "expected ${file} to contain pattern: ${pattern}"
+  fi
+}
+
+stage_line() {
+  local stage="$1"
+  local line
+  line="$(grep -nE "^- ${stage}$" "${CI_FILE}" | head -n1 | cut -d: -f1)"
+  [[ -n "${line}" ]] || fail "missing GitLab stage: ${stage}"
+  printf '%s\n' "${line}"
+}
+
+build_line="$(stage_line build)"
+scan_line="$(stage_line package_scan)"
+package_line="$(stage_line package)"
+
+if (( scan_line <= build_line )); then
+  fail "container scan stage must run after build"
+fi
+if (( package_line <= scan_line )); then
+  fail "package stage must run after container scans"
+fi
+
+assert_contains "${CI_FILE}" '^[[:space:]]*stage: package_scan$'
+assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/admin/scripts/deploy/Dockerfile .* clients$'
+assert_contains "${ADMIN_DOCKERFILE}" '^COPY shared /app/shared$'
+assert_contains "${ADMIN_DOCKERFILE}" '^RUN pnpm --filter @stuhelper/shared build$'
+assert_contains "${SERVER_MAKEFILE}" '^check-drift-ts: bundle-spec$'
+assert_contains "${SERVER_MAKEFILE}" '^check-drift-capabilities:$'
+assert_contains "${SERVER_MAKEFILE}" '^check-drift-all: check-drift-go check-drift-ts check-drift-capabilities$'
+
+echo "[ci-and-drift-contract] all assertions passed"
