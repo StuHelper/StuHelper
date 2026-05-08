@@ -1,4 +1,4 @@
-import { type Logger, type Session, type Universal } from 'koishi'
+import type { Logger, Session, Universal } from 'koishi'
 
 import {
   type GuardPolicyStore,
@@ -17,15 +17,14 @@ import {
   kickBlacklistedPendingMember,
 } from './member-blacklist-rejection'
 import {
-  muteDurationMs,
-  muteGuardedMember,
-  sendAdmissionReminder,
-  sendBackendPendingReminder,
-} from './member-guard-effects'
-import {
   forwardFreshmanMaterial,
   resolveFreshmanForwardBot,
 } from './freshman-forward'
+import {
+  muteGuardedMember,
+  sendAdmissionReminder,
+  sendBackendPendingReminder,
+} from './member-guard-actions'
 import {
   backendSyncUpdate,
   createAdmissionSessionRequest,
@@ -38,6 +37,8 @@ import {
 } from './member-records'
 import type { GuardMemberRecord } from './model'
 import type { GuardMemberStore } from './store'
+
+const POSITIVE_MUTE_DURATION_REQUIRED = 'admission session initialMuteUntil must be in the future'
 
 interface MemberGuardDeps {
   platform: PlatformClient
@@ -68,12 +69,12 @@ export class MemberGuardService {
     }
     const record = createGuardMemberRecord(session, admission)
     await this.deps.guardStore.savePending(record)
-    await muteGuardedMember(
-      session.bot,
-      record.guildId,
-      record.memberId,
-      muteDurationMs(new Date(admission.session.initialMuteUntil)),
-    )
+    await muteGuardedMember({
+      bot: session.bot,
+      guildId: record.guildId,
+      memberId: record.memberId,
+      muteDurationMs: muteDurationMs(new Date(admission.session.initialMuteUntil)),
+    })
     await this.deps.guardStore.markMuted(record.id, new Date())
     await sendAdmissionReminder(session.bot, record, admission.authURL)
     await this.deps.guardStore.markReminderSent(record.id, new Date())
@@ -135,9 +136,19 @@ export class MemberGuardService {
   ) {
     const now = new Date()
     const message = formatAdmissionActionError(error)
-    const record = createBackendPendingGuardMemberRecord(session, policy, message, now)
+    const record = createBackendPendingGuardMemberRecord({
+      session,
+      policy,
+      lastError: message,
+      now,
+    })
     await this.deps.guardStore.savePending(record)
-    await muteGuardedMember(session.bot, record.guildId, record.memberId, policy.muteDurationSeconds * 1000)
+    await muteGuardedMember({
+      bot: session.bot,
+      guildId: record.guildId,
+      memberId: record.memberId,
+      muteDurationMs: policy.muteDurationSeconds * 1000,
+    })
     await this.deps.guardStore.markMuted(record.id, now)
     await sendBackendPendingReminder(session.bot, record, policy.reminderTemplate)
     await this.deps.guardStore.markReminderSent(record.id, now)
@@ -231,7 +242,7 @@ export class MemberGuardService {
       await this.deps.platform.recordAdmissionEvent(action.sessionID, result.event)
       await this.markActionComplete(record, result.mark, now)
     } catch (error) {
-      await this.reportActionFailure(action, record, error, now)
+      await this.reportActionFailure({ action, record, error, now })
     }
   }
 
@@ -252,12 +263,13 @@ export class MemberGuardService {
     await this.deps.guardStore.markKicked(record.id, now)
   }
 
-  private async reportActionFailure(
-    action: AdmissionPendingAction,
-    record: GuardMemberRecord | undefined,
-    error: unknown,
-    now: Date,
-  ) {
+  private async reportActionFailure(input: {
+    readonly action: AdmissionPendingAction
+    readonly record: GuardMemberRecord | undefined
+    readonly error: unknown
+    readonly now: Date
+  }) {
+    const { action, record, error, now } = input
     const message = formatAdmissionActionError(error)
     if (record) {
       await this.deps.guardStore.markLastError(record.id, message, now)
@@ -289,4 +301,12 @@ export interface GuardBotRuntime extends Universal.Methods {
   platform?: string
   selfId: string
   sid: string
+}
+
+function muteDurationMs(initialMuteUntil: Date) {
+  const duration = initialMuteUntil.getTime() - Date.now()
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new Error(POSITIVE_MUTE_DURATION_REQUIRED)
+  }
+  return duration
 }

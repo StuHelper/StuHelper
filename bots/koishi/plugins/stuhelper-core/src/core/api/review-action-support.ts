@@ -8,9 +8,36 @@ import {
   type ReviewQueueRecord,
 } from '@stuhelper/koishi-moderation-core'
 
-import type { WorkItemActionActor } from './review-action-handler'
+import type { WorkItemActionActor } from './review-action-types'
 
 type ManagedBot = Universal.Methods & { platform?: string; selfId: string }
+
+interface ReviewResolvedEventInput {
+  readonly review: ReviewQueueRecord
+  readonly level: 'info' | 'high'
+  readonly actor: WorkItemActionActor
+  readonly note?: string
+}
+
+interface AdmissionEventInput {
+  readonly record: GuardMemberRecord
+  readonly type: 'join_released' | 'action_executed'
+  readonly level: 'info' | 'medium' | 'high'
+  readonly summaryPrefix: string
+  readonly actor: WorkItemActionActor
+  readonly note?: string
+  readonly action?: string
+  readonly deadlineAt?: string
+}
+
+interface ReportActionEventInput {
+  readonly report: ModerationReportRecord
+  readonly summaryPrefix: string
+  readonly level: 'info' | 'high'
+  readonly action: string
+  readonly actor: WorkItemActionActor
+  readonly note?: string
+}
 
 export async function requireReviewRecord(ctx: Context, reviewId: string) {
   const [review] = await ctx.database.get(MODERATION_REVIEW_TABLE, { id: reviewId }) as ReviewQueueRecord[]
@@ -44,12 +71,8 @@ export function resolveManagedBot(ctx: Context, platform: string, botSelfId: str
   return bot as ManagedBot
 }
 
-export function createReviewResolvedEvent(
-  review: ReviewQueueRecord,
-  level: 'info' | 'high',
-  actor: WorkItemActionActor,
-  note?: string,
-) {
+export function createReviewResolvedEvent(input: ReviewResolvedEventInput) {
+  const { review, level, actor, note } = input
   return {
     platform: review.platform,
     botSelfId: review.botSelfId,
@@ -70,16 +93,8 @@ export function createReviewResolvedEvent(
   }
 }
 
-export function createAdmissionEvent(
-  record: GuardMemberRecord,
-  type: 'join_released' | 'action_executed',
-  level: 'info' | 'medium' | 'high',
-  summaryPrefix: string,
-  actor: WorkItemActionActor,
-  note?: string,
-  action?: string,
-  deadlineAt?: string,
-) {
+export function createAdmissionEvent(input: AdmissionEventInput) {
+  const { record, type, level, summaryPrefix, actor, note, action, deadlineAt } = input
   return {
     platform: record.platform,
     botSelfId: record.botSelfId,
@@ -100,14 +115,8 @@ export function createAdmissionEvent(
   }
 }
 
-export function createReportActionEvent(
-  report: ModerationReportRecord,
-  summaryPrefix: string,
-  level: 'info' | 'high',
-  action: string,
-  actor: WorkItemActionActor,
-  note?: string,
-) {
+export function createReportActionEvent(input: ReportActionEventInput) {
+  const { report, summaryPrefix, level, action, actor, note } = input
   return {
     platform: report.platform,
     botSelfId: report.botSelfId,

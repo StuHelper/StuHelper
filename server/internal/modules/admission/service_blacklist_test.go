@@ -141,6 +141,24 @@ func TestMemberBlacklistGlobalUniqueDoesNotDuplicateOnNullGuild(t *testing.T) {
 	assert.Equal(t, 1, countMemberBlacklistEntries(t, fixture))
 }
 
+func TestMemberBlacklistRejectsGlobalScopeWithGuildID(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newBlacklistTestService(t, fixture)
+
+	input := memberBlacklistTestCreateInput(BlacklistScopeGlobal, stringPtr("guild-1"))
+	_, err := svc.CreateMemberBlacklistFromAdmin(context.Background(), input)
+	require.ErrorIs(t, err, ErrMemberBlacklistInvalidInput)
+}
+
+func TestMemberBlacklistReleaseBySubjectRejectsGlobalScopeWithGuildID(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newBlacklistTestService(t, fixture)
+	input := memberBlacklistReleaseBySubjectInput(BlacklistScopeGlobal, stringPtr("guild-1"))
+
+	_, err := svc.ReleaseMemberBlacklistBySubjectFromAdmin(context.Background(), input)
+	require.ErrorIs(t, err, ErrMemberBlacklistInvalidInput)
+}
+
 func TestAdmissionBlacklistManualPardonResetsFailureCount(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newBlacklistTestService(t, fixture)

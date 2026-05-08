@@ -59,6 +59,18 @@ const nativeRuntimeCases = [
   ['report', {}, {}],
 ] as const
 
+const coreConfig = {
+  platform: { baseUrl: 'https://platform.example', serviceToken: 'token' },
+  guard: {
+    targetGroups: [],
+    muteDurationSeconds: 0,
+    kickAfterMinutes: 0,
+    reminderTemplate: '',
+    exemptUsers: [],
+  },
+  console: { enabled: true, title: 'StuHelper' },
+}
+
 for (const [id, data, config] of nativeRuntimeCases) {
   test(`${id} runtime module creates a runtime instance`, () => {
     const module = getRuntimeModules().find(item => item.id === id)
@@ -68,6 +80,7 @@ for (const [id, data, config] of nativeRuntimeCases) {
       service: {} as any,
       data: data as any,
       config: config as any,
+      coreConfig,
     })
 
     assert.equal(instance.meta.name, id)
@@ -102,6 +115,7 @@ test('runtime module config getters require the live stuhelperGroupCenter servic
       service: {} as any,
       data: createDataForRuntimeModule(id),
       config: { marker: id } as any,
+      coreConfig,
     }) as any
 
     assert.throws(

@@ -32,8 +32,8 @@ export function collectWarmCacheTargets(
   const memberPairs: WarmCacheTargets['memberPairs'] = []
 
   collectGuildConfigTargets(data, guildIds)
-  collectWarnTargets(data, guildIds, userIds, memberPairs)
-  collectRecallTargets(data, guildIds, userIds, memberPairs)
+  collectWarnTargets({ data, guildIds, userIds, memberPairs })
+  collectRecallTargets({ data, guildIds, userIds, memberPairs })
   collectSubscriptionTargets(subscriptions, guildIds, userIds)
 
   return {
@@ -59,12 +59,13 @@ function collectGuildConfigTargets(data: DataManager, guildIds: Set<string>) {
   })
 }
 
-function collectWarnTargets(
-  data: DataManager,
-  guildIds: Set<string>,
-  userIds: Set<string>,
-  memberPairs: WarmCacheTargets['memberPairs'],
-) {
+function collectWarnTargets(input: {
+  readonly data: DataManager
+  readonly guildIds: Set<string>
+  readonly userIds: Set<string>
+  readonly memberPairs: WarmCacheTargets['memberPairs']
+}) {
+  const { data, guildIds, userIds, memberPairs } = input
   Object.entries(data.warns.getAll()).forEach(([key, value]) => {
     if (!isRecord(value)) {
       return
@@ -96,12 +97,13 @@ function collectWarnTargets(
   })
 }
 
-function collectRecallTargets(
-  data: DataManager,
-  guildIds: Set<string>,
-  userIds: Set<string>,
-  memberPairs: WarmCacheTargets['memberPairs'],
-) {
+function collectRecallTargets(input: {
+  readonly data: DataManager
+  readonly guildIds: Set<string>
+  readonly userIds: Set<string>
+  readonly memberPairs: WarmCacheTargets['memberPairs']
+}) {
+  const { data, guildIds, userIds, memberPairs } = input
   Object.entries(data.recallRecords.getAll()).forEach(([guildId, users]) => {
     if (!isRecord(users)) {
       return

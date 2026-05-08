@@ -86,3 +86,26 @@ test('关键词规则会生成动作列表', () => {
   assert.deepEqual(hits.map((item) => item.action), ['delete', 'mute'])
   assert.equal(hits[1].muteSeconds, 600)
 })
+
+test('正则关键词规则拒绝容易触发回溯爆炸的表达式', () => {
+  const rules: KeywordRuleRecord[] = [
+    {
+      id: 'unsafe-regex',
+      guildId: 'group-1',
+      pattern: '(a+)+$',
+      matchMode: 'regex',
+      action: 'mute',
+      enabled: true,
+      muteSeconds: 600,
+      note: 'unsafe',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ]
+
+  assert.throws(() => matchKeywordRules(rules, {
+    guildId: 'group-1',
+    content: 'aaaaaaaaaaaaaaaa!',
+    normalizedContent: normalizeModerationContent('aaaaaaaaaaaaaaaa!'),
+  }), /unsafe keyword regex/)
+})

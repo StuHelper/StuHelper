@@ -11,6 +11,7 @@ import {
   requestIdOf,
   type EventRuntimeHost,
   type EventSession,
+  type GroupRequest,
 } from './event-support'
 import {
   handleGuildMemberAdded,
@@ -39,6 +40,8 @@ export function registerEventListeners(host: EventRuntimeHost): void {
 }
 
 async function handleFriendRequest(host: EventRuntimeHost, session: EventSession) {
+  if (await rejectBlacklistedFriendRequest(host, session)) return
+
   const config = host.config.friendRequest
   if (!config?.enabled) return
   const comment = requestCommentOf(session)
@@ -53,6 +56,11 @@ async function handleFriendRequest(host: EventRuntimeHost, session: EventSession
 }
 
 async function handleGuildRequest(host: EventRuntimeHost, session: EventSession) {
+  if (await rejectBlacklistedGroupRequest(host, {
+    session,
+    failureLog: '拒绝群邀请失败:',
+  })) return
+
   if (host.config.guildRequest?.enabled) {
     await session.bot.handleGuildRequest(requestIdOf(session), true)
     return
@@ -70,30 +78,55 @@ async function handleGuildMemberRequest(host: EventRuntimeHost, session: EventSe
 
   const groupConfig = groupConfigOf(host, session.guildId, DEFAULT_MEMBER_REQUEST_CONFIG)
   if (await rejectBelowLevelLimit(session, groupConfig)) return
-  if (await rejectByMemberBlacklist(host, session)) return
 
+  if (await rejectBlacklistedGroupRequest(host, {
+    session,
+    failureLog: '拒绝入群申请失败:',
+  })) return
   if (await acceptIfKeywordMatches(host, session, groupConfig)) return
   await acceptByAdmissionPolicy(host, session)
 }
 
-async function rejectByMemberBlacklist(
+async function rejectBlacklistedFriendRequest(
   host: EventRuntimeHost,
   session: EventSession,
 ): Promise<boolean> {
-  if (!host.admissionPlatform) {
-    throw new Error('admission platform client is required for member blacklist access')
-  }
+  if (!await isBackendBlacklisted(host, session)) return false
 
+  try {
+    await session.bot.handleFriendRequest(requestIdOf(session), false, '您在黑名单中')
+  } catch (error) {
+    eventLogger.error('拒绝好友请求失败:', error)
+  }
+  return true
+}
+
+async function rejectBlacklistedGroupRequest(
+  host: EventRuntimeHost,
+  request: GroupRequest,
+): Promise<boolean> {
+  if (!await isBackendBlacklisted(host, request.session)) return false
+
+  try {
+    await rejectGuildOrMemberRequest(request.session, '您在黑名单中')
+  } catch (error) {
+    eventLogger.error(request.failureLog, error)
+  }
+  return true
+}
+
+async function isBackendBlacklisted(host: EventRuntimeHost, session: EventSession): Promise<boolean> {
+  if (!host.admissionPlatform) {
+    throw new Error('admission platform client is required for blacklist access')
+  }
   try {
     const access = await host.admissionPlatform.getMemberBlacklistAccess({
       platform: session.platform,
+      guildID: session.guildId,
       subjectType: 'qq_user',
       subjectID: session.userId,
-      guildID: session.guildId,
     }, { timeoutMs: MEMBER_BLACKLIST_ACCESS_TIMEOUT_MS })
-    if (access.canJoin && access.decision !== 'blocked') return false
-    await session.bot.handleGuildMemberRequest(requestIdOf(session), false, '您在黑名单中')
-    return true
+    return !access.canJoin || access.decision === 'blocked'
   } catch (error) {
     eventLogger.warn('成员黑名单准入检查失败，跳过请求阶段黑名单裁决:', error)
     return false
@@ -158,19 +191,20 @@ async function acceptByAdmissionPolicy(host: EventRuntimeHost, session: EventSes
   const requestID = requestIdOf(session)
   try {
     await session.bot.handleGuildMemberRequest(requestID, true)
-    await recordAdmissionJoinRequest(host, session, true)
+    await recordAdmissionJoinRequest({ host, session, success: true })
   } catch (error) {
-    await recordAdmissionJoinRequest(host, session, false, errorMessage(error))
+    await recordAdmissionJoinRequest({ host, session, success: false, error: errorMessage(error) })
     throw error
   }
 }
 
-async function recordAdmissionJoinRequest(
-  host: EventRuntimeHost,
-  session: EventSession,
-  success: boolean,
-  error?: string,
-) {
+async function recordAdmissionJoinRequest(input: {
+  readonly host: EventRuntimeHost
+  readonly session: EventSession
+  readonly success: boolean
+  readonly error?: string
+}) {
+  const { host, session, success, error } = input
   if (!host.admissionPlatform) {
     throw new Error('admission platform client is required to record join request events')
   }
@@ -197,4 +231,12 @@ function rawRequestEvent(session: EventSession) {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+async function rejectGuildOrMemberRequest(session: EventSession, message: string): Promise<void> {
+  if (session.type === 'guild-request') {
+    await session.bot.handleGuildRequest(requestIdOf(session), false, message)
+    return
+  }
+  await session.bot.handleGuildMemberRequest(requestIdOf(session), false, message)
 }

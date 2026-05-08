@@ -33,18 +33,23 @@ function registerWholeBanCommand(host: OrderManageModule, enabled: boolean): voi
 async function handleWholeBanCommand(host: OrderManageModule, session: Session, enabled: boolean): Promise<string> {
   const commandName = enabled ? 'ban-all' : 'unban-all'
   if (!session.guildId) {
-    host.logCommand(session, commandName, 'none', '失败：缺少群号', false)
+    host.logCommand({ session, command: commandName, target: 'none', result: '失败：缺少群号', success: false })
     return '喵呜...这个命令只能在群里用喵~'
   }
 
   try {
     await session.bot.muteChannel(session.channelId || session.guildId, session.guildId, enabled)
-    host.logCommand(session, commandName, session.guildId, enabled
-      ? `成功：已开启全体禁言，群号 ${session.guildId}`
-      : `成功：已解除全体禁言，群号 ${session.guildId}`)
+    host.logCommand({
+      session,
+      command: commandName,
+      target: session.guildId,
+      result: enabled
+        ? `成功：已开启全体禁言，群号 ${session.guildId}`
+        : `成功：已解除全体禁言，群号 ${session.guildId}`,
+    })
     return enabled ? '喵呜...全体禁言开启啦，大家都要乖乖的~' : '全体禁言解除啦喵，可以开心聊天啦~'
   } catch (error) {
-    host.logCommand(session, commandName, session.guildId, `失败：未知错误`, false)
+    host.logCommand({ session, command: commandName, target: session.guildId, result: '失败：未知错误', success: false })
     return `出错啦喵...${error}`
   }
 }
@@ -91,12 +96,12 @@ function registerNicknameCommand(host: OrderManageModule): void {
     examples: ['nickname @用户 小猫咪'],
   })
     .example('nickname 123456789 小猫咪')
-    .action(async ({ session }, user, nickname, group) => handleNicknameCommand({
+    .action(async (argv, ...args) => handleNicknameCommand({
       host,
-      session,
-      user,
-      nickname,
-      group,
+      session: argv.session,
+      user: args[0],
+      nickname: args[1],
+      group: args[2],
     }))
 }
 
@@ -112,15 +117,15 @@ async function handleNicknameCommand(input: NicknameCommandInput): Promise<strin
   try {
     if (nickname) {
       await session.bot.internal.setGroupCard(guildId, userId, nickname)
-      host.logCommand(session, 'nickname', userId, `成功：已设置昵称为 ${nickname}, 群号 ${guildId}`)
+      host.logCommand({ session, command: 'nickname', target: userId, result: `成功：已设置昵称为 ${nickname}, 群号 ${guildId}` })
       return `已将 ${userId} 的昵称设置为 "${nickname}" 喵~`
     }
 
     await session.bot.internal.setGroupCard(guildId, userId)
-    host.logCommand(session, 'nickname', userId, `成功：已清除昵称, 群号 ${guildId}`)
+    host.logCommand({ session, command: 'nickname', target: userId, result: `成功：已清除昵称, 群号 ${guildId}` })
     return `已将 ${userId} 的昵称清除喵~`
   } catch (error) {
-    host.logCommand(session, 'nickname', userId, `失败：未知错误`, false)
+    host.logCommand({ session, command: 'nickname', target: userId, result: '失败：未知错误', success: false })
     return `喵呜...设置昵称失败了：${error.message}`
   }
 }

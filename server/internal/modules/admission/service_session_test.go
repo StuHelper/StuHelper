@@ -3,6 +3,7 @@ package admission
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -61,7 +62,11 @@ func TestAdmissionTokenExpiredAndConsumedErrors(t *testing.T) {
 	require.ErrorIs(t, err, ErrAdmissionTokenExpired)
 
 	svc = newSessionTestService(t, fixture)
-	linked, err := svc.LinkTokenToUser(context.Background(), created.Token, "10001", seedAdmissionUser(t, fixture, "late-link"))
+	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  seedAdmissionUser(t, fixture, "late-link"),
+	})
 	require.NoError(t, err)
 	assert.Equal(t, StatusLinked, linked.Status)
 
@@ -75,7 +80,11 @@ func TestAdmissionSessionStatusTransitions(t *testing.T) {
 	insertAdmissionPolicy(t, fixture)
 	created := createLinkableSession(t, svc)
 	userID := seedAdmissionUser(t, fixture, "status-link")
-	_, err := svc.LinkTokenToUser(context.Background(), created.Token, "10001", userID)
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
 	require.NoError(t, err)
 
 	submitted, err := svc.MarkMaterialSubmitted(context.Background(), created.Session.ID)
@@ -93,13 +102,19 @@ func TestAdmissionFailureBlacklistFromKickEvent(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
 	insertAdmissionPolicy(t, fixture)
-	created := createLinkableSession(t, svc)
-	insertAdmissionFailureCount(t, fixture, DefaultFailedJoinLimit-1)
+	tokenIndex := 0
+	svc.generateToken = func() (string, error) {
+		tokenIndex++
+		return fmt.Sprintf("test-admission-token-%d", tokenIndex), nil
+	}
 
-	err := svc.RecordBotEvent(context.Background(), created.Session.ID, BotEventInput{
-		Action: BotActionKick, Success: true,
-	})
-	require.NoError(t, err)
+	for i := 0; i < DefaultFailedJoinLimit; i++ {
+		created := createLinkableSession(t, svc)
+		err := svc.RecordBotEvent(context.Background(), created.Session.ID, BotEventInput{
+			Action: BotActionKick, Success: true,
+		})
+		require.NoError(t, err)
+	}
 
 	assertAdmissionFailureBlacklisted(t, fixture, "10001")
 }
@@ -117,7 +132,14 @@ func TestDuplicateKickEventDoesNotDoubleCountFailure(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	assertAdmissionFailureCount(t, fixture, "10001", 1)
+	var failureCount int
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT failure_count
+		FROM group_admission_failures
+		WHERE platform = 'qq' AND guild_id = 'guild-1' AND qq_id = '10001'
+	`).Scan(&failureCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, failureCount)
 	assert.Equal(t, 0, countMemberBlacklistEntries(t, fixture))
 }
 
@@ -134,7 +156,11 @@ func linkTokenConcurrently(t *testing.T, svc *Service, token string, users ...in
 		wg.Add(1)
 		go func(index int, id int64) {
 			defer wg.Done()
-			session, err := svc.LinkTokenToUser(context.Background(), token, "10001", id)
+			session, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+				Token:   token,
+				QQQuery: "10001",
+				UserID:  id,
+			})
 			results[index] = linkResult{session: session, err: err}
 		}(i, userID)
 	}

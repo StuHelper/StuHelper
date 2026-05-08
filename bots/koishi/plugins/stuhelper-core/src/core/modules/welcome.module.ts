@@ -82,12 +82,12 @@ export class WelcomeModule implements RuntimeModuleInstance {
   }
 
   async log(entry: WelcomeLogEntry): Promise<void> {
-    await this.ctx.stuhelperGroupCenter.logCommand(
-      entry.session,
-      entry.command,
-      entry.target,
-      entry.result,
-    )
+    await this.ctx.stuhelperGroupCenter.logCommand({
+      session: entry.session,
+      command: entry.command,
+      target: entry.target,
+      result: entry.result,
+    })
   }
 
   formatWelcomeMessage(template: string, userId: string, guildId: string): string {

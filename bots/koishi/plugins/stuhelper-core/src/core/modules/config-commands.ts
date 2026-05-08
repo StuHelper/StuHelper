@@ -26,15 +26,15 @@ export interface ConfigCommandHost {
   readonly ctx: Context
   readonly data: DataManager
   readonly config: Config
-  readonly memberBlacklistBackend?: MemberBlacklistBackend
+  readonly memberBlacklistBackend: MemberBlacklistBackend
   registerCommand(def: RuntimeCommandDef): RuntimeCommand
-  log(
-    session: Session,
-    command: string,
-    target: string,
-    result: string,
-    success?: boolean,
-  ): Promise<void>
+  log(entry: {
+    readonly session: Session
+    readonly command: string
+    readonly target: string
+    readonly result: string
+    readonly success?: boolean
+  }): Promise<void>
 }
 
 export function registerConfigCommands(host: ConfigCommandHost): void {
@@ -55,23 +55,39 @@ export function registerConfigCommands(host: ConfigCommandHost): void {
     .option('global', '--global 使用全局黑名单范围')
     .action(async ({ session, options }, content) => {
       if (!session?.guildId) return '喵呜...这个命令只能在群里用喵...'
-      return handleConfigCommand(host, session, options, content)
+      return handleConfigCommand({ host, session, options, content })
     })
 }
 
 function registerConfigPermissions(host: ConfigCommandHost): void {
   const auth = host.ctx.stuhelperGroupCenter.auth
-  auth.registerPermission('config.view', '查看配置', '查看所有配置和记录', '配置管理模块')
-  auth.registerPermission('config.blacklist', '黑名单管理', '管理黑名单（添加/移除）', '配置管理模块')
-  auth.registerPermission('config.warn', '警告管理', '管理警告记录（添加/移除）', '配置管理模块')
+  auth.registerPermission({
+    id: 'config.view',
+    name: '查看配置',
+    description: '查看所有配置和记录',
+    group: '配置管理模块',
+  })
+  auth.registerPermission({
+    id: 'config.blacklist',
+    name: '黑名单管理',
+    description: '管理黑名单（添加/移除）',
+    group: '配置管理模块',
+  })
+  auth.registerPermission({
+    id: 'config.warn',
+    name: '警告管理',
+    description: '管理警告记录（添加/移除）',
+    group: '配置管理模块',
+  })
 }
 
-async function handleConfigCommand(
-  host: ConfigCommandHost,
-  session: Session,
-  options: ConfigCommandOptions,
-  content?: string,
-): Promise<string> {
+async function handleConfigCommand(input: {
+  readonly host: ConfigCommandHost
+  readonly session: Session
+  readonly options: ConfigCommandOptions
+  readonly content?: string
+}): Promise<string> {
+  const { host, session, options, content } = input
   const auth = host.ctx.stuhelperGroupCenter.auth
 
   if (options.t) {
@@ -86,7 +102,7 @@ async function handleConfigCommand(
 
   if (options.w) {
     if (!auth.check(session, 'config.warn')) return '你没有权限管理警告喵...'
-    return handleWarns(host, session, options, content)
+    return handleWarns({ host, session, options, content })
   }
 
   return `请使用以下参数：
@@ -103,48 +119,53 @@ async function handleBlacklist(
   session: Session,
   options: ConfigCommandOptions,
 ): Promise<string> {
-  if (options.a) {
-    const userId = normalizeBlacklistUserID(options.a)
-    await createManualMemberBlacklist(requireMemberBlacklistBackend(host), {
-      ...blacklistCommandInput(session, userId, options.global),
-    })
-    await host.log(session, 'config -b -a', userId, '添加成功')
-    await host.ctx.stuhelperGroupCenter.pushMessage(
-      session.bot,
-      `[黑名单] 用户 ${userId} 被加入${formatScopeLabel(options.global)}黑名单`,
-      'blacklist',
-    )
-    return `已将 ${userId} 加入${formatScopeLabel(options.global)}黑名单喵~`
-  }
-
-  if (options.r) {
-    const userId = normalizeBlacklistUserID(options.r)
-    await releaseManualMemberBlacklist(requireMemberBlacklistBackend(host), {
-      ...blacklistCommandInput(session, userId, options.global),
-    })
-    await host.log(session, 'config -b -r', userId, '移除成功')
-    await host.ctx.stuhelperGroupCenter.pushMessage(
-      session.bot,
-      `[黑名单] 用户 ${userId} 被移出${formatScopeLabel(options.global)}黑名单`,
-      'blacklist',
-    )
-    return `已将 ${userId} 从${formatScopeLabel(options.global)}黑名单移除啦！`
-  }
-
-  const entries = await listVisibleMemberBlacklists(
-    requireMemberBlacklistBackend(host),
-    session.platform,
-    session.guildId!,
-  )
-  return `=== 当前黑名单 ===\n${formatBlacklist(entries) || '无记录'}`
+  if (options.a) return addBlacklistEntry({ host, session, userId: normalizeBlacklistUserID(options.a), global: options.global })
+  if (options.r) return releaseBlacklistEntry({ host, session, userId: normalizeBlacklistUserID(options.r), global: options.global })
+  const entries = await listVisibleMemberBlacklists(host.memberBlacklistBackend, session.platform, session.guildId!)
+  return `=== 当前黑名单 ===\n${formatMemberBlacklist(entries) || '无记录'}`
 }
 
-async function handleWarns(
-  host: ConfigCommandHost,
-  session: Session,
-  options: ConfigCommandOptions,
-  content?: string,
-): Promise<string> {
+async function addBlacklistEntry(input: {
+  readonly host: ConfigCommandHost
+  readonly session: Session
+  readonly userId: string
+  readonly global?: boolean
+}) {
+  const { host, session, userId } = input
+  await createManualMemberBlacklist(host.memberBlacklistBackend, blacklistCommandInput(session, userId, input.global))
+  await host.log({ session, command: 'config -b -a', target: userId, result: '添加成功' })
+  await host.ctx.stuhelperGroupCenter.pushMessage(
+    session.bot,
+    `[黑名单] 用户 ${userId} 被加入${formatScopeLabel(input.global)}黑名单`,
+    'blacklist',
+  )
+  return `已将 ${userId} 加入${formatScopeLabel(input.global)}黑名单喵~`
+}
+
+async function releaseBlacklistEntry(input: {
+  readonly host: ConfigCommandHost
+  readonly session: Session
+  readonly userId: string
+  readonly global?: boolean
+}) {
+  const { host, session, userId } = input
+  await releaseManualMemberBlacklist(host.memberBlacklistBackend, blacklistCommandInput(session, userId, input.global))
+  await host.log({ session, command: 'config -b -r', target: userId, result: '移除成功' })
+  await host.ctx.stuhelperGroupCenter.pushMessage(
+    session.bot,
+    `[黑名单] 用户 ${userId} 被移出${formatScopeLabel(input.global)}黑名单`,
+    'blacklist',
+  )
+  return `已将 ${userId} 从${formatScopeLabel(input.global)}黑名单移除啦！`
+}
+
+async function handleWarns(input: {
+  readonly host: ConfigCommandHost
+  readonly session: Session
+  readonly options: ConfigCommandOptions
+  readonly content?: string
+}): Promise<string> {
+  const { host, session, options, content } = input
   const guildWarns = host.data.warns.get(session.guildId!) || {}
   const countDelta = parseInt(content ?? '') || 1
 
@@ -154,28 +175,29 @@ async function handleWarns(
     guildWarns[options.a].timestamp = Date.now()
     host.data.warns.set(session.guildId!, guildWarns)
     host.data.warns.flush()
-    void host.log(session, 'config -w -a', options.a, `增加到 ${guildWarns[options.a].count} 次`)
+    void host.log({ session, command: 'config -w -a', target: options.a, result: `增加到 ${guildWarns[options.a].count} 次` })
     return `已增加 ${options.a} 的警告次数，当前为：${guildWarns[options.a].count}`
   }
 
   if (options.r) {
-    return handleWarnRemoval(host, session, options.r, countDelta)
+    return handleWarnRemoval({ host, session, userId: options.r, countDelta })
   }
 
   return `=== 当前群警告记录 ===\n${formatWarns(guildWarns) || '无记录'}`
 }
 
-function handleWarnRemoval(
-  host: ConfigCommandHost,
-  session: Session,
-  userId: string,
-  countDelta: number,
-): string {
+function handleWarnRemoval(input: {
+  readonly host: ConfigCommandHost
+  readonly session: Session
+  readonly userId: string
+  readonly countDelta: number
+}): string {
+  const { host, session, userId, countDelta } = input
   const guildWarns = host.data.warns.get(session.guildId!) || {}
   if (!guildWarns[userId]) return '未找到该用户的警告记录'
 
   guildWarns[userId].count -= countDelta
-  const resultMsg = formatWarnRemovalResult(host, session, userId, guildWarns)
+  const resultMsg = formatWarnRemovalResult({ host, session, userId, guildWarns })
 
   if (Object.keys(guildWarns).length === 0) {
     host.data.warns.delete(session.guildId!)
@@ -186,28 +208,28 @@ function handleWarnRemoval(
   return resultMsg
 }
 
-function formatWarnRemovalResult(
-  host: ConfigCommandHost,
-  session: Session,
-  userId: string,
-  guildWarns: WarnRecord,
-): string {
+function formatWarnRemovalResult(input: {
+  readonly host: ConfigCommandHost
+  readonly session: Session
+  readonly userId: string
+  readonly guildWarns: WarnRecord
+}): string {
+  const { host, session, userId, guildWarns } = input
   if (guildWarns[userId].count <= 0) {
     delete guildWarns[userId]
-    void host.log(session, 'config -w -r', userId, '记录已移除')
+    void host.log({ session, command: 'config -w -r', target: userId, result: '记录已移除' })
     return `已移除 ${userId} 的警告记录`
   }
 
   guildWarns[userId].timestamp = Date.now()
-  void host.log(session, 'config -w -r', userId, `减少到 ${guildWarns[userId].count} 次`)
+  void host.log({ session, command: 'config -w -r', target: userId, result: `减少到 ${guildWarns[userId].count} 次` })
   return `已减少 ${userId} 的警告次数，当前为：${guildWarns[userId].count}`
 }
 
-function requireMemberBlacklistBackend(host: ConfigCommandHost): MemberBlacklistBackend {
-  if (!host.memberBlacklistBackend) {
-    throw new Error('member blacklist backend client is required for config blacklist command')
-  }
-  return host.memberBlacklistBackend
+function formatMemberBlacklist(entries: readonly MemberBlacklistEntry[]): string {
+  return entries
+    .map((entry) => `用户 ${entry.subjectID}：${formatBlacklistScope(entry)} / ${formatShanghaiTime(Date.parse(entry.createdAt))}`)
+    .join('\n')
 }
 
 function blacklistCommandInput(session: Session, subjectID: string, global?: boolean) {
@@ -227,12 +249,6 @@ function normalizeBlacklistUserID(value: string): string {
 
 function formatScopeLabel(global?: boolean): string {
   return global ? '全局' : '本群'
-}
-
-function formatBlacklist(entries: readonly MemberBlacklistEntry[]): string {
-  return entries
-    .map((entry) => `用户 ${entry.subjectID}：${formatBlacklistScope(entry)} / ${formatShanghaiTime(Date.parse(entry.createdAt))}`)
-    .join('\n')
 }
 
 function formatBlacklistScope(entry: MemberBlacklistEntry): string {

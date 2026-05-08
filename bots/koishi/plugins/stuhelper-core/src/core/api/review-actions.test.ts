@@ -554,16 +554,29 @@ function createActionDeps(input: {
         return { id: 'rv-created', ...record }
       },
       listPendingReviews: async () => [],
-      updateReportAIResult: async (id: string, aiStatus: string, aiSeverity: string, aiSummary: string | null) => {
+      updateReportAIResult: async (input: {
+        readonly id: string
+        readonly aiStatus: string
+        readonly aiSeverity: string
+        readonly aiSummary: string | null
+      }) => {
+        const { id, aiStatus, aiSeverity, aiSummary } = input
         operationLog.push(`update-report:${id}`)
         updatedReports.push({ id, aiStatus, aiSeverity, aiSummary })
       },
     },
     actions: {
-      kickMember: async (_bot, guildId: string, channelId: string, memberId: string, permanent: boolean, reason: string) => {
+      kickMember: async (actionInput: {
+        readonly guildId: string
+        readonly channelId: string
+        readonly memberId: string
+        readonly permanent: boolean
+        readonly reason: string
+      }) => {
         if (input.kickError) {
           throw input.kickError
         }
+        const { guildId, channelId, memberId, permanent, reason } = actionInput
         actionCalls.kick.push({ guildId, channelId, memberId, permanent, reason })
       },
     },

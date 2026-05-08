@@ -28,6 +28,11 @@ import type {
   ReviewStatus,
   WarningCounterRecord,
 } from './types'
+import type {
+  IncrementWarningInput,
+  ResolveReviewInput,
+  UpdateReportAIResultInput,
+} from './store-inputs'
 
 const REVIEW_STATUS_PENDING: ReviewStatus = 'pending'
 const REVIEW_STATUS_APPROVED: ReviewStatus = 'approved'
@@ -75,19 +80,19 @@ export class ModerationStore {
     return record as MessageLedgerRecord | undefined
   }
 
-  async incrementWarning(guildId: string, memberId: string, reason: string, now: Date) {
-    const id = createGuildScopedID(guildId, memberId)
+  async incrementWarning(input: IncrementWarningInput) {
+    const id = createGuildScopedID(input.guildId, input.memberId)
     const [record] = await this.ctx.database.get(MODERATION_WARNING_TABLE, { id })
     if (!record) {
       const created: WarningCounterRecord = {
         id,
-        guildId,
-        memberId,
+        guildId: input.guildId,
+        memberId: input.memberId,
         total: 1,
-        lastReason: reason,
-        lastAt: now,
-        createdAt: now,
-        updatedAt: now,
+        lastReason: input.reason,
+        lastAt: input.now,
+        createdAt: input.now,
+        updatedAt: input.now,
       }
       await this.ctx.database.create(MODERATION_WARNING_TABLE, created)
       return created
@@ -95,11 +100,11 @@ export class ModerationStore {
     const total = record.total + 1
     await this.ctx.database.set(MODERATION_WARNING_TABLE, { id }, {
       total,
-      lastReason: reason,
-      lastAt: now,
-      updatedAt: now,
+      lastReason: input.reason,
+      lastAt: input.now,
+      updatedAt: input.now,
     })
-    return { ...record, total, lastReason: reason, lastAt: now, updatedAt: now }
+    return { ...record, total, lastReason: input.reason, lastAt: input.now, updatedAt: input.now }
   }
 
   async getWarningCounter(guildId: string, memberId: string) {
@@ -148,12 +153,12 @@ export class ModerationStore {
     return this.ctx.database.get(MODERATION_REVIEW_TABLE, { status: REVIEW_STATUS_APPROVED })
   }
 
-  async resolveReview(id: string, status: ReviewStatus, operatorMemberId: string, resolutionNote: string | null) {
+  async resolveReview(input: ResolveReviewInput) {
     const updatedAt = new Date()
-    await this.ctx.database.set(MODERATION_REVIEW_TABLE, { id }, {
-      status,
-      operatorMemberId,
-      resolutionNote,
+    await this.ctx.database.set(MODERATION_REVIEW_TABLE, { id: input.id }, {
+      status: input.status,
+      operatorMemberId: input.operatorMemberId,
+      resolutionNote: input.resolutionNote,
       updatedAt,
     })
   }
@@ -243,11 +248,11 @@ export class ModerationStore {
     return this.ctx.database.remove(MODERATION_REPORT_TABLE, { id })
   }
 
-  async updateReportAIResult(id: string, aiStatus: ModerationReportRecord['aiStatus'], aiSeverity: ModerationReportRecord['aiSeverity'], aiSummary: string | null) {
-    await this.ctx.database.set(MODERATION_REPORT_TABLE, { id }, {
-      aiStatus,
-      aiSeverity,
-      aiSummary,
+  async updateReportAIResult(input: UpdateReportAIResultInput) {
+    await this.ctx.database.set(MODERATION_REPORT_TABLE, { id: input.id }, {
+      aiStatus: input.aiStatus,
+      aiSeverity: input.aiSeverity,
+      aiSummary: input.aiSummary,
       updatedAt: new Date(),
     })
   }

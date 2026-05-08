@@ -29,6 +29,13 @@ type CommandLogSession = {
   bot: PushMessageBot
 }
 
+interface CoreCommandLogInput {
+  readonly session: CommandLogSession
+  readonly command: string
+  readonly target: string
+  readonly result: string
+}
+
 // 声明服务类型
 declare module 'koishi' {
   interface Context {
@@ -218,12 +225,8 @@ export class StuhelperGroupCenterService extends Service {
   /**
    * 记录命令日志
    */
-  async logCommand(
-    session: CommandLogSession,
-    command: string,
-    target: string,
-    result: string
-  ): Promise<void> {
+  async logCommand(input: CoreCommandLogInput): Promise<void> {
+    const { session, command, target, result } = input
     const user = session.userId || session.username
     const group = session.guildId || 'private'
     const time = formatShanghaiTimestamp(new Date())

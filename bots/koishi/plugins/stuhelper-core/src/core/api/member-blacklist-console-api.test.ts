@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { registerMemberBlacklistConsoleAPI } from './member-blacklist-console-api'
 
-type Listener = (params: any) => Promise<{ success: boolean; data?: any }>
+type Listener = (params: any) => Promise<{ success: boolean; data?: any; error?: string }>
 
 test('console blacklist add includes manual admin metadata required by platform', async () => {
   const listeners = new Map<string, Listener>()
@@ -74,15 +74,15 @@ test('console blacklist remove checks actual visible entry scope before release'
     })) as any,
   )
 
-  await assert.rejects(
-    callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
-      id: 'entry-42',
-      scopeType: 'guild',
-      guildID: '1001',
-      releaseReasonCode: 'manual_pardon',
-    }),
-    /global member blacklist/,
-  )
+  const result = await callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
+    id: 'entry-42',
+    scopeType: 'guild',
+    guildID: '1001',
+    releaseReasonCode: 'manual_pardon',
+  })
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /global member blacklist/)
   assert.equal(releasedById.length, 0)
 })
 
@@ -123,15 +123,15 @@ test('console blacklist remove rejects unsupported release reason code', async (
     createBlacklistBackend(createdBlacklists, releasedById) as any,
   )
 
-  await assert.rejects(
-    callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
-      id: 'entry-42',
-      scopeType: 'guild',
-      guildID: '1001',
-      releaseReasonCode: 'policy_expired_auto',
-    }),
-    /unsupported releaseReasonCode/,
-  )
+  const result = await callListener(listeners, 'stuhelperGroupCenter/blacklist/remove', {
+    id: 'entry-42',
+    scopeType: 'guild',
+    guildID: '1001',
+    releaseReasonCode: 'policy_expired_auto',
+  })
+
+  assert.equal(result.success, false)
+  assert.match(result.error || '', /unsupported releaseReasonCode/)
   assert.equal(releasedById.length, 0)
 })
 

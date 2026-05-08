@@ -1,10 +1,8 @@
 import { Context, Logger } from 'koishi'
 
 import type { StuhelperCoreConfig as Config } from '@stuhelper/koishi-shared'
-import { createPlatformClient } from '@stuhelper/koishi-shared'
 
 import {
-  registerMemberBlacklistConsoleAPI,
   registerGovernanceActionAPI,
   registerPageAPI,
   registerReviewActionAPI,
@@ -19,9 +17,7 @@ export function registerConsoleApi(ctx: Context, config?: Config) {
 
   ctx.inject(['console', 'database', 'stuhelperGroupCenter', 'auth'], (apiCtx) => {
     validateConsoleAdminPassword(process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD)
-    const platform = createPlatformClient(coreConfig.platform)
-    registerWebSocketAPI(apiCtx, apiCtx.stuhelperGroupCenter, platform)
-    registerMemberBlacklistConsoleAPI(apiCtx, apiCtx.stuhelperGroupCenter, platform)
+    registerWebSocketAPI(apiCtx, apiCtx.stuhelperGroupCenter, coreConfig.platform)
     registerPageAPI(apiCtx, {
       service: apiCtx.stuhelperGroupCenter,
       platform: coreConfig.platform,

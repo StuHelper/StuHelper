@@ -3447,6 +3447,8 @@ export interface components {
         FreshmanApplicationStatus: "pending" | "approved" | "rejected";
         BotFreshmanCommandContext: {
             operatorQQID: string;
+            platform?: string;
+            targetGuildID?: string;
             guildID: string;
             channelID?: string;
             rawCommand: string;

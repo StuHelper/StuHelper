@@ -141,6 +141,18 @@ test('platform client accepts empty success responses for void requests', async 
   })
 })
 
+test('platform client rejects missing platform config at construction', () => {
+  assert.throws(() => createPlatformClient({
+    baseUrl: 'https://api.example.test',
+    serviceToken: '',
+  }), /platform service token is required/)
+
+  assert.throws(() => createPlatformClient({
+    baseUrl: '',
+    serviceToken: 'service-token',
+  }), /platform baseUrl is required/)
+})
+
 interface CapturedRequest {
   readonly path: string
   readonly method: string

@@ -13,12 +13,12 @@ export function registerRuntimeCommand(
   const permDesc = def.permDesc || def.desc
 
   if (!def.skipAuth) {
-    ctx.stuhelperGroupCenter.auth.registerPermission(
-      permId,
-      def.desc,
-      permDesc,
-      meta.description,
-    )
+    ctx.stuhelperGroupCenter.auth.registerPermission({
+      id: permId,
+      name: def.desc,
+      description: permDesc,
+      group: meta.description,
+    })
   }
 
   ctx.stuhelperGroupCenter.auth.registerCommand({

@@ -18,12 +18,13 @@ export async function waitFor(
   throw new Error('waitFor timed out')
 }
 
-export function respondAdmissionSession(
-  req: IncomingMessage,
-  res: ServerResponse,
-  qqID: string,
-  guildID: string,
-) {
+export function respondAdmissionSession(input: {
+  readonly req: IncomingMessage
+  readonly res: ServerResponse
+  readonly qqID: string
+  readonly guildID: string
+}) {
+  const { req, res, qqID, guildID } = input
   if (req.method !== 'POST' || req.url !== '/api/v1/bot/admission/sessions') return false
   assert.equal(req.headers.authorization, 'Bearer test-token')
   res.setHeader('content-type', 'application/json')
@@ -52,12 +53,13 @@ export function respondPendingActions(
   return true
 }
 
-export function respondAdmissionEvent(
-  req: IncomingMessage,
-  res: ServerResponse,
-  events: unknown[],
-  afterEvent?: () => void,
-) {
+export function respondAdmissionEvent(input: {
+  readonly req: IncomingMessage
+  readonly res: ServerResponse
+  readonly events: unknown[]
+  readonly afterEvent?: () => void
+}) {
+  const { req, res, events, afterEvent } = input
   const match = (req.url || '').match(/^\/api\/v1\/bot\/admission\/sessions\/([^/]+)\/events$/)
   if (req.method !== 'POST' || !match) return false
   assert.equal(req.headers.authorization, 'Bearer test-token')

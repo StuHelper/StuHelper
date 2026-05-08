@@ -104,17 +104,13 @@ async function handleAntirepeatCommand(
   }
 
   if (threshold === 0) {
-    groupConfigs[session.guildId] = {
-      ...groupConfig,
-      antiRepeat: { enabled: false, threshold: antiRepeatConfig.threshold },
-    }
-    host.data.groupConfig.setAll(groupConfigs)
-    logAntirepeatAction(host, {
+    return disableAntirepeat({
+      host,
       session,
-      target: session.guildId,
-      result: '成功：已关闭复读检测',
+      groupConfigs,
+      groupConfig,
+      threshold: antiRepeatConfig.threshold,
     })
-    return '已关闭本群的复读检测喵~'
   }
 
   if (threshold < MIN_ANTIREPEAT_THRESHOLD) {
@@ -127,17 +123,41 @@ async function handleAntirepeatCommand(
     return '喵呜...阈值至少要设置为3条以上喵...'
   }
 
-  groupConfigs[session.guildId] = {
+  enableAntirepeat({ host, session, groupConfigs, groupConfig, threshold })
+  return `已设置本群复读阈值为 ${threshold} 条并启用检测喵~`
+}
+
+interface AntirepeatConfigUpdateInput {
+  readonly host: AntirepeatModule
+  readonly session: Session
+  readonly groupConfigs: Record<string, GroupConfig>
+  readonly groupConfig: GroupConfig
+  readonly threshold: number
+}
+
+function disableAntirepeat(input: AntirepeatConfigUpdateInput) {
+  const { host, session, groupConfigs, groupConfig, threshold } = input
+  groupConfigs[session.guildId!] = {
+    ...groupConfig,
+    antiRepeat: { enabled: false, threshold },
+  }
+  host.data.groupConfig.setAll(groupConfigs)
+  logAntirepeatAction(host, { session, target: session.guildId!, result: '成功：已关闭复读检测' })
+  return '已关闭本群的复读检测喵~'
+}
+
+function enableAntirepeat(input: AntirepeatConfigUpdateInput) {
+  const { host, session, groupConfigs, groupConfig, threshold } = input
+  groupConfigs[session.guildId!] = {
     ...groupConfig,
     antiRepeat: { enabled: true, threshold },
   }
   host.data.groupConfig.setAll(groupConfigs)
   logAntirepeatAction(host, {
     session,
-    target: session.guildId,
+    target: session.guildId!,
     result: `成功：已设置阈值为 ${threshold} 并启用`,
   })
-  return `已设置本群复读阈值为 ${threshold} 条并启用检测喵~`
 }
 
 function formatCurrentConfig(config: NonNullable<GroupConfig['antiRepeat']>): string {
@@ -156,12 +176,12 @@ function logAntirepeatAction(
   if (entry.success === false) {
     entry.session['_commandFailed'] = true
   }
-  host.ctx.stuhelperGroupCenter.logCommand(
-    entry.session,
-    'antirepeat',
-    entry.target,
-    entry.result,
-  )
+  host.ctx.stuhelperGroupCenter.logCommand({
+    session: entry.session,
+    command: 'antirepeat',
+    target: entry.target,
+    result: entry.result,
+  })
 }
 
 export const antirepeatRuntimeModule: RuntimeModule<AntirepeatModule> = {

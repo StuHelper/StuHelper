@@ -1,108 +1,121 @@
-import { assertConsoleGuildAccess, assertGlobalConsoleScope } from './console-guild-scope'
 import { error, success } from './api-response'
-import {
-  filterGuildEntries,
-  type WebSocketAPIContext,
-} from './websocket-api-context'
+import type { WebSocketAPIContext } from './api-context'
+import { assertConsoleGuildAccess } from './console-guild-scope'
+import { filterGuildEntries } from './scope-filters'
 
-export function registerConfigAPI(api: WebSocketAPIContext) {
-  const { ctx, data, addAuthorityListener, resolveConsoleScope } = api
+const DEFAULT_FORBIDDEN_MUTE_DURATION = 600000
+const DEFAULT_DICE_LENGTH_LIMIT = 1000
+const DEFAULT_BANME_BASE_MIN = 1
+const DEFAULT_BANME_BASE_MAX = 30
+const DEFAULT_BANME_GROWTH_RATE = 30
+const DEFAULT_BANME_JACKPOT_PROBABILITY = 0.006
+const DEFAULT_BANME_SOFT_PITY = 73
+const DEFAULT_BANME_HARD_PITY = 89
+const DEFAULT_BANME_UP_DURATION = '24h'
+const DEFAULT_BANME_LOSE_DURATION = '12h'
 
-  addAuthorityListener('stuhelperGroupCenter/config/reload', async () => {
-    try {
-      data.groupConfig.reload()
-      ctx.logger('stuhelperGroupCenter').info('群组配置已重新加载，共 %d 条', Object.keys(data.groupConfig.getAll()).length)
-      return success({
-        success: true,
-        count: Object.keys(data.groupConfig.getAll()).length,
-      })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '重新加载配置失败')
-    }
+export function registerConfigAPI(api: WebSocketAPIContext): void {
+  api.addAuthorityListener('stuhelperGroupCenter/config/reload', async () => handleConfigReload(api))
+  api.addAuthorityListener('stuhelperGroupCenter/config/list', async function (params?: { fetchNames?: boolean }) {
+    const scope = await api.resolveConsoleScope(this)
+    return success(buildConfigList(api, filterGuildEntries(api.service.data.groupConfig.getAll(), scope), params))
   })
-
-  addAuthorityListener('stuhelperGroupCenter/config/list', async function (params?: { fetchNames?: boolean }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      const allConfigs = data.groupConfig.getAll()
-      const entries = filterGuildEntries(allConfigs, scope)
-
-      if (!params?.fetchNames) {
-        return success(Object.fromEntries(entries))
-      }
-
-      const enrichedEntries = await Promise.all(entries.map(async ([guildId, config]) => {
-        let name = guildId
-        let avatar = ''
-        try {
-          const bot = ctx.bots.find(b => b.platform === 'onebot' || b.platform === 'red')
-          if (bot?.getGuild) {
-            const guild = await bot.getGuild(guildId)
-            if (guild?.name) name = guild.name
-            if (guild?.avatar) avatar = guild.avatar
-          }
-        } catch (e) {
-          ctx.logger('stuhelperGroupCenter').debug('获取群名称失败: %s', e)
-        }
-        return [guildId, { ...config, guildName: name, guildAvatar: avatar }]
-      }))
-      return success(Object.fromEntries(enrichedEntries))
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '获取配置列表失败')
-    }
+  api.addAuthorityListener('stuhelperGroupCenter/config/get', async function (params: { guildId: string }) {
+    return handleConfigGet(api, this, params.guildId)
   })
-
-  addAuthorityListener('stuhelperGroupCenter/config/get', async function (params: { guildId: string }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      assertConsoleGuildAccess(scope, params.guildId, 'group config')
-      const config = data.groupConfig.get(params.guildId)
-      return success(config)
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '获取配置失败')
-    }
-  })
-
-  addAuthorityListener('stuhelperGroupCenter/config/update', async function (params: { guildId: string, config: any }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      assertConsoleGuildAccess(scope, params.guildId, 'group config')
-      data.groupConfig.set(params.guildId, params.config)
-      await data.groupConfig.flush()
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '更新配置失败')
-    }
-  })
-
-  addAuthorityListener('stuhelperGroupCenter/config/create', async function (params: { guildId: string }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      assertConsoleGuildAccess(scope, params.guildId, 'group config')
-      if (data.groupConfig.get(params.guildId)) {
-        return error('配置已存在')
-      }
-      data.groupConfig.set(params.guildId, {
-        command: '绑定',
-        enableWelcome: true,
-        welcomeMessage: '欢迎新成员！',
-        enableLeave: false,
-        leaveMessage: '',
-        enableMute: false,
-        muteThreshold: 3,
-      } as any)
-      await data.groupConfig.flush()
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '创建配置失败')
-    }
-  })
-
-  addAuthorityListener('stuhelperGroupCenter/config/delete', async function (params: { guildId: string }) {
-    const scope = await resolveConsoleScope(this)
+  api.addAuthorityListener('stuhelperGroupCenter/config/update', async function (params: { guildId: string, config: any }) {
+    const scope = await api.resolveConsoleScope(this)
     assertConsoleGuildAccess(scope, params.guildId, 'group config')
-    data.groupConfig.delete(params.guildId)
-    await data.groupConfig.flush()
+    api.service.data.groupConfig.set(params.guildId, params.config)
+    await api.service.data.groupConfig.flush()
     return success({ success: true })
   })
+  api.addAuthorityListener('stuhelperGroupCenter/config/create', async function (params: { guildId: string }) {
+    return handleConfigCreate(api, this, params.guildId)
+  })
+  api.addAuthorityListener('stuhelperGroupCenter/config/delete', async function (params: { guildId: string }) {
+    const scope = await api.resolveConsoleScope(this)
+    assertConsoleGuildAccess(scope, params.guildId, 'group config')
+    api.service.data.groupConfig.delete(params.guildId)
+    await api.service.data.groupConfig.flush()
+    return success({ success: true })
+  })
+}
+
+async function handleConfigReload(api: WebSocketAPIContext) {
+  try {
+    const groupConfig = api.service.data.groupConfig
+    groupConfig.reload()
+    const count = Object.keys(groupConfig.getAll()).length
+    api.ctx.logger('stuhelperGroupCenter').info('群组配置已重新加载，共 %d 条', count)
+    return success({ success: true, count })
+  } catch (cause) {
+    api.ctx.logger('stuhelperGroupCenter').error('重新加载配置失败:', cause)
+    return error(cause instanceof Error ? cause.message : '重新加载失败')
+  }
+}
+
+function buildConfigList(
+  api: WebSocketAPIContext,
+  scopedConfigs: [string, any][],
+  params?: { fetchNames?: boolean },
+) {
+  const results: Record<string, any> = {}
+  const cacheData = params?.fetchNames ? api.service.cache.getCachedData() : undefined
+
+  scopedConfigs.forEach(([guildId, config]) => {
+    const cached = cacheData?.guilds[guildId]
+    results[guildId] = {
+      ...config,
+      guildName: cached?.name || '',
+      guildAvatar: cached?.avatar || (cacheData ? `https://p.qlogo.cn/gh/${guildId}/${guildId}/640/` : ''),
+    }
+  })
+  return results
+}
+
+async function handleConfigGet(api: WebSocketAPIContext, client: unknown, guildId: string) {
+  try {
+    const scope = await api.resolveConsoleScope(client)
+    assertConsoleGuildAccess(scope, guildId, 'group config')
+    return success(api.service.data.groupConfig.get(guildId))
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '获取群组配置失败')
+  }
+}
+
+async function handleConfigCreate(api: WebSocketAPIContext, client: unknown, guildId: string) {
+  const scope = await api.resolveConsoleScope(client)
+  assertConsoleGuildAccess(scope, guildId, 'group config')
+  if (api.service.data.groupConfig.get(guildId)) {
+    return error('配置已存在')
+  }
+  api.service.data.groupConfig.set(guildId, createDefaultGroupConfig())
+  await api.service.data.groupConfig.flush()
+  return success({ success: true })
+}
+
+function createDefaultGroupConfig() {
+  return {
+    welcomeEnabled: false,
+    antiRecall: { enabled: false },
+    antiRepeat: { enabled: false, threshold: 3 },
+    forbidden: { autoDelete: false, autoBan: false, autoKick: false, muteDuration: DEFAULT_FORBIDDEN_MUTE_DURATION },
+    dice: { enabled: true, lengthLimit: DEFAULT_DICE_LENGTH_LIMIT },
+    banme: {
+      enabled: true,
+      baseMin: DEFAULT_BANME_BASE_MIN,
+      baseMax: DEFAULT_BANME_BASE_MAX,
+      growthRate: DEFAULT_BANME_GROWTH_RATE,
+      jackpot: {
+        enabled: true,
+        baseProb: DEFAULT_BANME_JACKPOT_PROBABILITY,
+        softPity: DEFAULT_BANME_SOFT_PITY,
+        hardPity: DEFAULT_BANME_HARD_PITY,
+        upDuration: DEFAULT_BANME_UP_DURATION,
+        loseDuration: DEFAULT_BANME_LOSE_DURATION,
+      },
+    },
+    openai: { enabled: true },
+  }
 }

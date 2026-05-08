@@ -1,143 +1,185 @@
-import {
-  createChatImageAccessRegistry,
-  fetchOneBotImage,
-  type ChatImageFetchParams,
-} from './chat-image-fetch'
-import { assertConsoleGuildAccess, assertGlobalConsoleScope } from './console-guild-scope'
+import type { ChatImageFetchParams, ChatImageAccessRegistry } from './chat-image-fetch'
+import { fetchOneBotImage } from './chat-image-fetch'
+import type { WebSocketAPIContext } from './api-context'
 import { error, success, toApiErrorMessage } from './api-response'
+import { assertConsoleGuildAccess, assertGlobalConsoleScope } from './console-guild-scope'
 import { registerChatMessageBroadcast } from './chat-message-broadcast'
-import type { WebSocketAPIContext } from './websocket-api-context'
 
+const QQ_PLATFORMS = new Set(['onebot', 'red', 'qq'])
 const MAX_CHAT_CONTENT_BYTES = 256 * 1024
-const QQ_PLATFORMS = ['onebot', 'red', 'qq']
 
-export function registerChatAPI(api: WebSocketAPIContext) {
-  const { ctx, addAuthorityListener, resolveConsoleScope } = api
-  const chatImageAccess = createChatImageAccessRegistry()
-
-  addAuthorityListener('stuhelperGroupCenter/chat/guild-members', async function (params: { guildId: string }) {
-    try {
-      if (!params.guildId) return error('缺少 guildId 参数')
-      const scope = await resolveConsoleScope(this)
-      assertConsoleGuildAccess(scope, params.guildId, 'chat guild members')
-      return await listGuildMembers(api, params.guildId)
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '获取群成员列表失败')
-    }
-  })
-
-  addAuthorityListener('stuhelperGroupCenter/chat/guild-info', async function (params: { guildId: string }) {
-    try {
-      if (!params.guildId) return error('缺少 guildId 参数')
-      const scope = await resolveConsoleScope(this)
-      assertConsoleGuildAccess(scope, params.guildId, 'chat guild info')
-      return await getGuildInfo(api, params.guildId)
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '获取群信息失败')
-    }
-  })
-
-  addAuthorityListener('stuhelperGroupCenter/chat/user-info', async function (params: { userId: string }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      assertGlobalConsoleScope(scope, 'chat user info')
-      if (!params.userId) return error('缺少 userId 参数')
-      return await getUserInfo(api, params.userId)
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '获取用户信息失败')
-    }
-  })
-
-  addAuthorityListener('stuhelperGroupCenter/chat/send', async function (params: { channelId: string, content: string, platform?: string, guildId?: string }) {
-    try {
-      if (!params.channelId || !params.content) return error('缺少必要参数')
-      assertChatContentSize(params.content)
-      const scope = await resolveConsoleScope(this)
-      assertConsoleGuildAccess(scope, params.guildId, 'chat send')
-      const bot = ctx.bots.find(b => !params.platform || b.platform === params.platform)
-      if (!bot) return error('未找到可用的 Bot')
-      await bot.sendMessage(params.channelId, params.content, params.guildId)
-      return success({ success: true })
-    } catch (e) {
-      ctx.logger('stuhelperGroupCenter').error('发送消息失败:', e)
-      return error(e instanceof Error ? e.message : '发送失败')
-    }
-  })
-
-  addAuthorityListener('stuhelperGroupCenter/chat/recall', async function (params: { channelId: string, messageId: string, platform?: string, guildId?: string }) {
-    try {
-      if (!params.channelId || !params.messageId) return error('缺少必要参数')
-      const scope = await resolveConsoleScope(this)
-      assertConsoleGuildAccess(scope, params.guildId, 'chat recall')
-      const bot = ctx.bots.find(b => !params.platform || b.platform === params.platform)
-      if (!bot) return error('未找到可用的 Bot')
-      await bot.deleteMessage(params.channelId, params.messageId)
-      return success({ success: true })
-    } catch (e) {
-      ctx.logger('stuhelperGroupCenter').error('撤回消息失败:', e)
-      return error(e instanceof Error ? e.message : '撤回失败')
-    }
-  })
-
-  addAuthorityListener('stuhelperGroupCenter/image/fetch', async function (params: ChatImageFetchParams) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      const request = chatImageAccess.assertAllowed(params, scope)
-      const result = await fetchOneBotImage(ctx.bots, request, ctx.logger('stuhelperGroupCenter'))
-      return success(result)
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '获取图片失败')
-    }
-  })
-
-  registerChatMessageBroadcast({ ctx, service: api.service, chatImageAccess })
+export interface ChatAPIOptions {
+  readonly imageAccess: ChatImageAccessRegistry
 }
 
-async function listGuildMembers(api: WebSocketAPIContext, guildId: string) {
-  const { ctx } = api
-  ctx.logger('stuhelperGroupCenter').debug('getGuildMembers called:', guildId)
-  for (const bot of ctx.bots) {
+export function registerChatAPI(api: WebSocketAPIContext, options: ChatAPIOptions): void {
+  api.addAuthorityListener('stuhelperGroupCenter/chat/guild-members', async function (params: { guildId: string }) {
+    return handleGuildMembers(api, this, params.guildId)
+  })
+  api.addAuthorityListener('stuhelperGroupCenter/chat/guild-info', async function (params: { guildId: string }) {
+    return handleGuildInfo(api, this, params.guildId)
+  })
+  api.addAuthorityListener('stuhelperGroupCenter/chat/user-info', async function (params: { userId: string }) {
+    return handleUserInfo(api, this, params.userId)
+  })
+  api.addAuthorityListener('stuhelperGroupCenter/chat/send', async function (params: ChatSendParams) {
+    return handleChatSend(api, this, params)
+  })
+  api.addAuthorityListener('stuhelperGroupCenter/chat/recall', async function (params: ChatRecallParams) {
+    return handleChatRecall(api, this, params)
+  })
+  api.addAuthorityListener('stuhelperGroupCenter/image/fetch', async function (params: ChatImageFetchParams) {
+    return handleImageFetch({ api, imageAccess: options.imageAccess, client: this, params })
+  })
+  registerChatMessageBroadcast(api, options.imageAccess)
+}
+
+interface ChatSendParams {
+  readonly channelId: string
+  readonly content: string
+  readonly platform?: string
+  readonly guildId?: string
+}
+
+interface ChatRecallParams {
+  readonly channelId: string
+  readonly messageId: string
+  readonly platform?: string
+  readonly guildId?: string
+}
+
+async function handleGuildMembers(api: WebSocketAPIContext, client: unknown, guildId: string) {
+  try {
+    if (!guildId) return error('缺少 guildId 参数')
+    const scope = await api.resolveConsoleScope(client)
+    assertConsoleGuildAccess(scope, guildId, 'chat guild members')
+    return await fetchFormattedGuildMembers(api, guildId)
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '获取群成员列表失败')
+  }
+}
+
+async function fetchFormattedGuildMembers(api: WebSocketAPIContext, guildId: string) {
+  for (const bot of api.ctx.bots) {
+    api.ctx.logger('stuhelperGroupCenter').debug('Trying bot:', bot.platform, bot.selfId)
     try {
-      ctx.logger('stuhelperGroupCenter').debug('Trying bot:', bot.platform, bot.selfId)
-      const members = await fetchGuildMembers(bot, guildId)
-      const formatted = formatGuildMembers(members, bot.platform)
-      return success({ members: formatted, total: formatted.length })
-    } catch (e) {
-      ctx.logger('stuhelperGroupCenter').warn('获取群成员列表失败:', e)
+      const members = (await fetchAllGuildMembers(bot, guildId)).map((member) => formatGuildMember(bot, member))
+      members.sort(compareGuildMembers)
+      return success({ members, total: members.length })
+    } catch (cause) {
+      api.ctx.logger('stuhelperGroupCenter').warn('获取群成员列表失败:', cause)
     }
   }
   return error('无法获取群成员列表')
 }
 
-async function getGuildInfo(api: WebSocketAPIContext, guildId: string) {
+async function handleGuildInfo(api: WebSocketAPIContext, client: unknown, guildId: string) {
+  try {
+    if (!guildId) return error('缺少 guildId 参数')
+    const scope = await api.resolveConsoleScope(client)
+    assertConsoleGuildAccess(scope, guildId, 'chat guild info')
+    return await fetchGuildInfo(api, guildId)
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '获取群信息失败')
+  }
+}
+
+async function fetchGuildInfo(api: WebSocketAPIContext, guildId: string) {
   const failures: string[] = []
   for (const bot of api.ctx.bots) {
     try {
       const guild = await bot.getGuild(guildId)
-      if (guild) return success({ name: guild.name, avatar: guild.avatar || fallbackGuildAvatar(bot.platform, guildId) })
-    } catch (e) {
-      failures.push(toApiErrorMessage(e))
-      api.ctx.logger('stuhelperGroupCenter').warn('获取群信息失败: %s', failures[failures.length - 1])
+      if (guild) return success({ name: guild.name, avatar: readGuildAvatar(bot, guildId, guild.avatar) })
+    } catch (cause) {
+      const message = toApiErrorMessage(cause)
+      failures.push(message)
+      api.ctx.logger('stuhelperGroupCenter').warn('获取群信息失败: %s', message)
     }
   }
   return error(`无法获取群信息${lastFailureSuffix(failures)}`)
 }
 
-async function getUserInfo(api: WebSocketAPIContext, userId: string) {
+async function handleUserInfo(api: WebSocketAPIContext, client: unknown, userId: string) {
+  try {
+    const scope = await api.resolveConsoleScope(client)
+    assertGlobalConsoleScope(scope, 'chat user info')
+    if (!userId) return error('缺少 userId 参数')
+    return await fetchUserInfo(api, userId)
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '获取用户信息失败')
+  }
+}
+
+async function fetchUserInfo(api: WebSocketAPIContext, userId: string) {
   const failures: string[] = []
   for (const bot of api.ctx.bots) {
     try {
       const user = await bot.getUser(userId)
-      if (user) return success({ name: user.name || user.nick || userId, avatar: user.avatar || fallbackQQAvatar(bot.platform, userId) })
-    } catch (e) {
-      failures.push(toApiErrorMessage(e))
-      api.ctx.logger('stuhelperGroupCenter').warn('获取用户信息失败: %s', failures[failures.length - 1])
+      if (user) return success({ name: user.name || user.nick || userId, avatar: readUserAvatar(bot, userId, user.avatar) })
+    } catch (cause) {
+      const message = toApiErrorMessage(cause)
+      failures.push(message)
+      api.ctx.logger('stuhelperGroupCenter').warn('获取用户信息失败: %s', message)
     }
   }
   return error(`无法获取用户信息${lastFailureSuffix(failures)}`)
 }
 
-async function fetchGuildMembers(bot: any, guildId: string) {
+async function handleChatSend(api: WebSocketAPIContext, client: unknown, params: ChatSendParams) {
+  try {
+    if (!params.channelId || !params.content) return error('缺少必要参数')
+    assertChatContentSize(params.content)
+    const scope = await api.resolveConsoleScope(client)
+    assertConsoleGuildAccess(scope, params.guildId, 'chat send')
+    const bot = api.ctx.bots.find((item) => !params.platform || item.platform === params.platform)
+    if (!bot) return error('未找到可用的 Bot')
+    await bot.sendMessage(params.channelId, params.content, params.guildId)
+    return success({ success: true })
+  } catch (cause) {
+    api.ctx.logger('stuhelperGroupCenter').error('发送消息失败:', cause)
+    return error(cause instanceof Error ? cause.message : '发送失败')
+  }
+}
+
+function assertChatContentSize(content: string) {
+  if (Buffer.byteLength(content, 'utf8') > MAX_CHAT_CONTENT_BYTES) {
+    throw new Error(`message content is too large; max ${MAX_CHAT_CONTENT_BYTES} bytes`)
+  }
+}
+
+async function handleChatRecall(api: WebSocketAPIContext, client: unknown, params: ChatRecallParams) {
+  try {
+    if (!params.channelId || !params.messageId) return error('缺少必要参数')
+    const scope = await api.resolveConsoleScope(client)
+    assertConsoleGuildAccess(scope, params.guildId, 'chat recall')
+    const bot = api.ctx.bots.find((item) => !params.platform || item.platform === params.platform)
+    if (!bot) return error('未找到可用的 Bot')
+    await bot.deleteMessage(params.channelId, params.messageId)
+    return success({ success: true })
+  } catch (cause) {
+    api.ctx.logger('stuhelperGroupCenter').error('撤回消息失败:', cause)
+    return error(cause instanceof Error ? cause.message : '撤回失败')
+  }
+}
+
+async function handleImageFetch(input: {
+  readonly api: WebSocketAPIContext
+  readonly imageAccess: ChatImageAccessRegistry
+  readonly client: unknown
+  readonly params: ChatImageFetchParams
+}) {
+  const { api, imageAccess, client, params } = input
+  try {
+    const scope = await api.resolveConsoleScope(client)
+    const request = imageAccess.assertAllowed(params, scope)
+    const result = await fetchOneBotImage(api.ctx.bots, request, api.ctx.logger('stuhelperGroupCenter'))
+    return success(result)
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '获取图片失败')
+  }
+}
+
+async function fetchAllGuildMembers(bot: any, guildId: string) {
   const members: any[] = []
   let next: string | undefined
   do {
@@ -148,19 +190,17 @@ async function fetchGuildMembers(bot: any, guildId: string) {
   return members
 }
 
-function formatGuildMembers(members: any[], platform: string) {
-  return members.map(member => {
-    const userId = member.user?.id || member.userId
-    return {
-      id: userId,
-      name: member.nick || member.user?.nick || member.user?.name || userId,
-      avatar: member.user?.avatar || member.avatar || fallbackQQAvatar(platform, userId),
-      isAdmin: member.roles?.includes('admin') || false,
-      isOwner: member.roles?.includes('owner') || false,
-      title: member.title || '',
-      joinedAt: member.joinedAt,
-    }
-  }).sort(compareGuildMembers)
+function formatGuildMember(bot: any, member: any) {
+  const userId = member.user?.id || member.userId
+  return {
+    id: userId,
+    name: member.nick || member.user?.nick || member.user?.name || userId,
+    avatar: readUserAvatar(bot, userId, member.user?.avatar || member.avatar),
+    isAdmin: member.roles?.includes('admin') || false,
+    isOwner: member.roles?.includes('owner') || false,
+    title: member.title || '',
+    joinedAt: member.joinedAt,
+  }
 }
 
 function compareGuildMembers(a: any, b: any) {
@@ -171,20 +211,16 @@ function compareGuildMembers(a: any, b: any) {
   return (a.name || '').localeCompare(b.name || '')
 }
 
-function assertChatContentSize(content: string) {
-  if (Buffer.byteLength(content, 'utf8') > MAX_CHAT_CONTENT_BYTES) {
-    throw new Error(`message content is too large; max ${MAX_CHAT_CONTENT_BYTES} bytes`)
-  }
+function readGuildAvatar(bot: any, guildId: string, avatar?: string) {
+  if (avatar || !QQ_PLATFORMS.has(bot.platform)) return avatar
+  return `https://p.qlogo.cn/gh/${guildId}/${guildId}/640/`
+}
+
+function readUserAvatar(bot: any, userId: string, avatar?: string) {
+  if (avatar || !QQ_PLATFORMS.has(bot.platform)) return avatar
+  return `https://q1.qlogo.cn/g?b=qq&nk=${userId}&s=640`
 }
 
 function lastFailureSuffix(failures: readonly string[]) {
   return failures.length > 0 ? `: ${failures[failures.length - 1]}` : ''
-}
-
-function fallbackQQAvatar(platform: string, userId: string) {
-  return QQ_PLATFORMS.includes(platform) ? `https://q1.qlogo.cn/g?b=qq&nk=${userId}&s=640` : undefined
-}
-
-function fallbackGuildAvatar(platform: string, guildId: string) {
-  return QQ_PLATFORMS.includes(platform) ? `https://p.qlogo.cn/gh/${guildId}/${guildId}/640/` : undefined
 }

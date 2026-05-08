@@ -1,21 +1,19 @@
 import type { Session } from 'koishi'
 
-import type { Config } from '../../types'
 import type { MemberManageModule } from './memberManage.module'
-import { handleBlackKick } from './member-manage-blacklist'
+import { createKickMemberBlacklist } from './member-blacklist-backend'
 import {
   parseKickInput,
-  resolveTargetUserId,
-  type KickCommandOptions,
-} from './member-manage-kick-input'
+  resolveCommandUserId,
+  type KickInput,
+  type KickOptions,
+} from './member-manage-input'
+import { registerTitleCommand } from './member-manage-title-commands'
 
-const DEFAULT_MAX_TITLE_BYTES = 18
-
-type TitleConfig = NonNullable<Config['setTitle']>
 interface AdminCommandInput { host: MemberManageModule; session: Session; user: unknown; enabled: boolean }
-interface TitleCommandInput { host: MemberManageModule; session: Session; options: any; titleConfig: TitleConfig }
-interface SpecialTitleInput { host: MemberManageModule; session: Session; targetId: string; value: unknown; titleConfig: TitleConfig }
 interface UnbanMemberInput { host: MemberManageModule; session: Session; userId: string; now: number }
+
+export { parseKickInput }
 
 export function registerMemberManageCommands(host: MemberManageModule): void {
   registerKickCommand(host)
@@ -41,54 +39,80 @@ function registerKickCommand(host: MemberManageModule): void {
     .example('kick 123456789 -b 群号')
     .option('black', '-b 加入黑名单')
     .option('global', '-g, --global 使用全局黑名单范围')
-    .action(async ({ session, options }, input) => handleKickCommand(host, session, input, options))
+    .action(async ({ session, options }, input) => handleKickCommand({ host, session, input, options }))
 }
 
-async function handleKickCommand(
-  host: MemberManageModule,
-  session: Session,
-  input: string,
-  options: KickCommandOptions = {},
-): Promise<string> {
+async function handleKickCommand(commandInput: {
+  readonly host: MemberManageModule
+  readonly session: Session
+  readonly input: string
+  readonly options?: KickOptions
+}): Promise<string> {
+  const { host, session, input, options = {} } = commandInput
   if (!input?.trim()) {
-    host.logCommand(session, 'kick', 'none', '失败：缺少必要参数', false)
+    host.logCommand({ session, command: 'kick', target: 'none', result: '失败：缺少必要参数', success: false })
     return '喵呜...请输入正确的用户（@或QQ号）'
   }
 
   const kickInput = parseKickInput(input, session.guildId, options)
   if (!kickInput.userId) {
-    host.logCommand(session, 'kick', 'none', '失败：无法读取目标用户', false)
+    host.logCommand({ session, command: 'kick', target: 'none', result: '失败：无法读取目标用户', success: false })
     return '喵呜...请输入正确的用户（@或QQ号）'
   }
   if (!kickInput.targetGroup) {
-    host.logCommand(session, 'kick', kickInput.userId, '失败：缺少群号', false)
+    host.logCommand({ session, command: 'kick', target: kickInput.userId, result: '失败：缺少群号', success: false })
     return '喵呜...请在群聊中执行，或显式传入群号'
   }
 
   try {
     await session.bot.kickGuildMember(kickInput.targetGroup, kickInput.userId, kickInput.black)
     if (kickInput.black) {
-      await handleBlackKick(host, session, {
-        userId: kickInput.userId,
-        targetGroup: kickInput.targetGroup,
-        global: kickInput.global,
-      })
+      const result = await handleBlackKick(host, session, kickInput)
+      if (result) return result
       return `已把坏人 ${kickInput.userId} 踢出去并加入黑名单啦喵！`
     }
 
-    host.logCommand(session, 'kick', kickInput.userId, `成功：移出群聊 ${kickInput.targetGroup}`)
+    host.logCommand({ session, command: 'kick', target: kickInput.userId, result: `成功：移出群聊 ${kickInput.targetGroup}` })
     return `已把 ${kickInput.userId} 踢出去喵~`
   } catch (error) {
-    host.logCommand(session, 'kick', kickInput.userId, `失败：未知错误`, false)
-    return `喵呜...操作失败了：${error.message}`
+    host.logCommand({ session, command: 'kick', target: kickInput.userId, result: '失败：未知错误', success: false })
+    return `喵呜...踢出失败了：${error.message}`
   }
 }
 
-function resolveCommandUserId(user: unknown): string {
-  const raw = String(user || '').trim()
-  if (!raw) return ''
-  const [, platformUserId] = raw.split(':')
-  return platformUserId || resolveTargetUserId(raw) || ''
+async function handleBlackKick(
+  host: MemberManageModule,
+  session: Session,
+  input: KickInput,
+): Promise<string | null> {
+  if (!input.userId) throw new Error('kick blacklist requires userId')
+  try {
+    await createKickMemberBlacklist(host.memberBlacklistBackend, {
+      platform: session.platform,
+      subjectID: input.userId,
+      guildID: input.targetGroup,
+      operatorQQID: session.userId,
+      rawCommand: session.content?.trim() || '',
+      global: input.global,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    host.logCommand({
+      session,
+      command: 'kick',
+      target: input.userId,
+      result: `部分成功：已踢出但加入黑名单失败：${message}`,
+      success: false,
+    })
+    return `已把 ${input.userId} 踢出群 ${input.targetGroup}，但加入黑名单失败：${message}`
+  }
+  host.logCommand({ session, command: 'kick', target: input.userId, result: `成功：移出群聊并加入黑名单：${input.targetGroup}` })
+  await host.ctx.stuhelperGroupCenter.pushMessage(
+    session.bot,
+    `[黑名单] 用户 ${input.userId} 被踢出群 ${input.targetGroup} 并加入${input.global ? '全局' : '本群'}黑名单`,
+    'blacklist',
+  )
+  return null
 }
 
 function registerAdminCommands(host: MemberManageModule): void {
@@ -125,69 +149,12 @@ async function handleAdminCommand(input: AdminCommandInput): Promise<string> {
       throw new Error('当前适配器不支持 OneBot set_group_admin')
     }
     await internal.setGroupAdmin(session.guildId, userId, enabled)
-    host.logCommand(session, commandName, userId, enabled ? '成功：已设置为管理员' : '成功：已取消管理员')
+    host.logCommand({ session, command: commandName, target: userId, result: enabled ? '成功：已设置为管理员' : '成功：已取消管理员' })
     return enabled ? `已将 ${userId} 设置为管理员喵~` : `已取消 ${userId} 的管理员权限喵~`
   } catch (error) {
-    host.logCommand(session, commandName, userId, `失败：未知错误`, enabled ? false : undefined)
+    host.logCommand({ session, command: commandName, target: userId, result: '失败：未知错误', success: enabled ? false : undefined })
     return enabled ? `设置失败了喵...${error.message}` : `取消失败了喵...${error.message}`
   }
-}
-
-function registerTitleCommand(host: MemberManageModule): void {
-  const titleConfig = host.config.setTitle || { enabled: false, authority: 3, maxLength: DEFAULT_MAX_TITLE_BYTES }
-
-  host.registerCommand({
-    name: 'title',
-    desc: '群头衔管理',
-    permNode: 'title',
-    permDesc: '设置群头衔',
-    usage: '-s <文本> 设置头衔，-r 移除头衔，-u @用户 指定用户',
-    examples: ['title -s 大佬', 'title -r', 'title -s 萌新 -u @用户'],
-  })
-    .option('s', '-s <text> 设置头衔')
-    .option('r', '-r 移除头衔')
-    .option('u', '-u <user:user> 指定用户')
-    .action(async ({ session, options }) => handleTitleCommand({ host, session, options, titleConfig }))
-}
-
-async function handleTitleCommand(input: TitleCommandInput): Promise<string> {
-  const { host, session, options, titleConfig } = input
-  if (!session.guildId) return '喵呜...这个命令只能在群里用喵...'
-  if (!titleConfig.enabled) return '喵呜...头衔功能未启用...'
-
-  const targetId = options.u ? resolveCommandUserId(options.u) : session.userId
-  if (!targetId) return '请指定正确的用户'
-
-  try {
-    if (options.s) return await setSpecialTitle({ host, session, targetId, value: options.s, titleConfig })
-    if (options.r) return await removeSpecialTitle(host, session, targetId)
-    return '请使用 -s <文本> 设置头衔或 -r 移除头衔\n可选 -u @用户 为指定用户设置'
-  } catch (error) {
-    host.logCommand(session, 'title', targetId, `失败：未知错误`, false)
-    return `出错啦喵...${error.message}`
-  }
-}
-
-async function setSpecialTitle(input: SpecialTitleInput): Promise<string> {
-  const { host, session, targetId, value, titleConfig } = input
-  const title = value.toString()
-  const maxLength = titleConfig.maxLength || DEFAULT_MAX_TITLE_BYTES
-  if (new TextEncoder().encode(title).length > maxLength) {
-    return `喵呜...头衔太长啦！最多只能有 ${maxLength} 个字节哦~`
-  }
-  await session.bot.internal.setGroupSpecialTitle(session.guildId, targetId, title)
-  host.logCommand(session, 'title', targetId, `成功：已设置头衔：${title}`)
-  return `已经设置好头衔啦喵~`
-}
-
-async function removeSpecialTitle(
-  host: MemberManageModule,
-  session: Session,
-  targetId: string,
-): Promise<string> {
-  await session.bot.internal.setGroupSpecialTitle(session.guildId, targetId, '')
-  host.logCommand(session, 'title', targetId, `成功：已移除头衔`)
-  return `已经移除头衔啦喵~`
 }
 
 function registerUnbanAllPplCommand(host: MemberManageModule): void {
@@ -205,10 +172,10 @@ async function handleUnbanAllPplCommand(host: MemberManageModule, session: Sessi
 
   try {
     const count = await unbanCurrentGuildMembers(host, session)
-    host.logCommand(session, 'unban-allppl', session.guildId, `成功：已解除 ${count} 人的禁言`)
+    host.logCommand({ session, command: 'unban-allppl', target: session.guildId, result: `成功：已解除 ${count} 人的禁言` })
     return count > 0 ? `已解除 ${count} 人的禁言啦！` : '当前没有被禁言的成员喵~'
   } catch (error) {
-    host.logCommand(session, 'unban-allppl', session.guildId, `失败：未知错误`, false)
+    host.logCommand({ session, command: 'unban-allppl', target: session.guildId, result: '失败：未知错误', success: false })
     return `出错啦喵...${error}`
   }
 }

@@ -1,164 +1,189 @@
 import type { WarnRecord } from '../../types'
-import { assertConsoleGuildAccess, assertGlobalConsoleScope } from './console-guild-scope'
+import type { WebSocketAPIContext } from './api-context'
 import { error, success } from './api-response'
-import {
-  parseWarnKey,
-  type ResolvedConsoleScope,
-  type WebSocketAPIContext,
-} from './websocket-api-context'
+import { assertConsoleGuildAccess, assertGlobalConsoleScope } from './console-guild-scope'
+import { parseWarnKey } from './scope-filters'
 
-export function registerWarnsAPI(api: WebSocketAPIContext) {
-  const { ctx, service, data, addAuthorityListener, resolveConsoleScope } = api
-
-  addAuthorityListener('stuhelperGroupCenter/warns/reload', async function () {
-    try {
-      const scope = await resolveConsoleScope(this)
-      assertGlobalConsoleScope(scope, 'warn reload')
-      data.warns.reload()
-      ctx.logger('stuhelperGroupCenter').info('警告数据已重新加载')
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '重新加载失败')
-    }
+export function registerWarnsAPI(api: WebSocketAPIContext): void {
+  api.addAuthorityListener('stuhelperGroupCenter/warns/reload', async function () {
+    return handleWarnsReload(api, this)
   })
-
-  addAuthorityListener('stuhelperGroupCenter/warns/list', async function (params?: { fetchNames?: boolean }) {
-    const scope = await resolveConsoleScope(this)
-    const cacheData = params?.fetchNames ? service.cache.getCachedData() : null
-    return success(listWarnRecords(data.warns.getAll(), scope, cacheData))
+  api.addAuthorityListener('stuhelperGroupCenter/warns/list', async function (params?: { fetchNames?: boolean }) {
+    const scope = await api.resolveConsoleScope(this)
+    return success(buildWarnList(api, scope, Boolean(params?.fetchNames)))
   })
-
-  addAuthorityListener('stuhelperGroupCenter/warns/update', async function (params: { key: string, count: number }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      const warnKey = parseWarnKey(params.key)
-      if (!warnKey) return error('Invalid key format')
-      assertConsoleGuildAccess(scope, warnKey.guildId, 'warn record')
-      return await updateWarnCount(api, warnKey.guildId, warnKey.userId, params.count)
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '更新警告失败')
-    }
+  api.addAuthorityListener('stuhelperGroupCenter/warns/update', async function (params: WarnUpdateParams) {
+    return handleWarnUpdate(api, this, params)
   })
-
-  addAuthorityListener('stuhelperGroupCenter/warns/add', async function (params: { guildId: string, userId: string }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      assertConsoleGuildAccess(scope, params.guildId, 'warn record')
-      await incrementWarnCount(api, params.guildId, params.userId)
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '添加警告失败')
-    }
+  api.addAuthorityListener('stuhelperGroupCenter/warns/add', async function (params: WarnAddParams) {
+    return handleWarnAdd(api, this, params)
   })
-
-  addAuthorityListener('stuhelperGroupCenter/warns/get', async function (params: { key: string }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      const warnKey = parseWarnKey(params.key)
-      if (!warnKey) return error('Invalid key format')
-      assertConsoleGuildAccess(scope, warnKey.guildId, 'warn record')
-      return success(data.warns.get(warnKey.guildId)?.[warnKey.userId] || null)
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '获取警告失败')
-    }
+  api.addAuthorityListener('stuhelperGroupCenter/warns/get', async function (params: { key: string }) {
+    return handleWarnGet(api, this, params.key)
   })
-
-  addAuthorityListener('stuhelperGroupCenter/warns/clear', async function (params: { key: string }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      const warnKey = parseWarnKey(params.key)
-      if (!warnKey) return error('Invalid key format')
-      assertConsoleGuildAccess(scope, warnKey.guildId, 'warn record')
-      await clearWarnRecord(api, warnKey.guildId, warnKey.userId)
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '清除警告失败')
-    }
+  api.addAuthorityListener('stuhelperGroupCenter/warns/clear', async function (params: { key: string }) {
+    return handleWarnClear(api, this, params.key)
   })
 }
 
-function listWarnRecords(
-  allWarns: Record<string, unknown>,
-  scope: ResolvedConsoleScope,
-  cacheData: any,
-) {
+interface WarnUpdateParams {
+  readonly key: string
+  readonly count: number
+}
+
+interface WarnAddParams {
+  readonly guildId: string
+  readonly userId: string
+}
+
+async function handleWarnsReload(api: WebSocketAPIContext, client: unknown) {
+  try {
+    const scope = await api.resolveConsoleScope(client)
+    assertGlobalConsoleScope(scope, 'warn reload')
+    api.service.data.warns.reload()
+    api.ctx.logger('stuhelperGroupCenter').info('警告数据已重新加载')
+    return success({ success: true })
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '重新加载失败')
+  }
+}
+
+function buildWarnList(api: WebSocketAPIContext, scope: any, fetchNames: boolean) {
+  const cacheData = fetchNames ? api.service.cache.getCachedData() : undefined
   const result: any[] = []
-  for (const [guildId, guildWarns] of Object.entries(allWarns)) {
-    if (!guildWarns || typeof guildWarns !== 'object') continue
-    if (scope.kind !== 'all' && !scope.guildIds.has(guildId)) continue
-    pushGuildWarnRecords(result, guildId, guildWarns as WarnRecord, cacheData)
+
+  for (const [guildId, guildWarns] of Object.entries(api.service.data.warns.getAll())) {
+    if (!isVisibleGuildWarns(scope, guildId, guildWarns)) continue
+    for (const [userId, warnInfo] of Object.entries(guildWarns as WarnRecord)) {
+      if (!isWarnInfo(warnInfo)) continue
+      result.push(buildWarnListItem({ guildId, userId, info: warnInfo, cacheData }))
+    }
   }
   return result
 }
 
-function pushGuildWarnRecords(
-  result: any[],
-  guildId: string,
-  guildWarns: WarnRecord,
-  cacheData: any,
-) {
-  for (const [userId, warnInfo] of Object.entries(guildWarns)) {
-    if (!warnInfo || typeof warnInfo !== 'object' || !('count' in warnInfo)) continue
-    const memberKey = `${guildId}:${userId}`
-    const memberCache = cacheData?.members[memberKey]
-    result.push({
-      key: memberKey,
-      guildId,
-      userId,
-      guildName: cacheData?.guilds[guildId]?.name || '',
-      guildAvatar: cacheData?.guilds[guildId]?.avatar || (cacheData ? guildAvatar(guildId) : ''),
-      userName: memberCache?.nick || memberCache?.name || '',
-      userAvatar: memberCache?.avatar || (cacheData ? qqAvatar(userId) : ''),
-      count: warnInfo.count,
-      timestamp: warnInfo.timestamp,
+function isVisibleGuildWarns(scope: any, guildId: string, guildWarns: unknown) {
+  if (!guildWarns || typeof guildWarns !== 'object') return false
+  return scope.kind === 'all' || scope.guildIds.has(guildId)
+}
+
+function isWarnInfo(value: unknown): value is { count: number, timestamp: number } {
+  return Boolean(value && typeof value === 'object' && 'count' in value)
+}
+
+function buildWarnListItem(input: {
+  readonly guildId: string
+  readonly userId: string
+  readonly info: { count: number, timestamp: number }
+  readonly cacheData?: any
+}) {
+  const { guildId, userId, info, cacheData } = input
+  const guildCache = cacheData?.guilds[guildId]
+  const memberKey = `${guildId}:${userId}`
+  const memberCache = cacheData?.members[memberKey]
+  return {
+    key: memberKey,
+    guildId,
+    userId,
+    guildName: guildCache?.name || '',
+    guildAvatar: guildCache?.avatar || (cacheData ? `https://p.qlogo.cn/gh/${guildId}/${guildId}/640/` : ''),
+    userName: memberCache?.nick || memberCache?.name || '',
+    userAvatar: memberCache?.avatar || (cacheData ? `https://q1.qlogo.cn/g?b=qq&nk=${userId}&s=640` : ''),
+    count: info.count,
+    timestamp: info.timestamp,
+  }
+}
+
+async function handleWarnUpdate(api: WebSocketAPIContext, client: unknown, params: WarnUpdateParams) {
+  try {
+    const warnKey = await assertWarnRecordScope(api, client, params.key)
+    const guildWarns = api.service.data.warns.get(warnKey.guildId)
+    if (!guildWarns?.[warnKey.userId]) return error('Record not found')
+    updateWarnRecord({
+      api,
+      guildId: warnKey.guildId,
+      userId: warnKey.userId,
+      count: params.count,
+      guildWarns: guildWarns as WarnRecord,
     })
-  }
-}
-
-async function updateWarnCount(api: WebSocketAPIContext, guildId: string, userId: string, count: number) {
-  const guildWarns = api.data.warns.get(guildId)
-  if (!guildWarns?.[userId]) return error('Record not found')
-  if (count <= 0) {
-    await removeWarnRecord(api, guildId, userId, guildWarns as WarnRecord)
+    await api.service.data.warns.flush()
     return success({ success: true })
-  }
-  guildWarns[userId].count = count
-  guildWarns[userId].timestamp = Date.now()
-  api.data.warns.set(guildId, guildWarns as WarnRecord)
-  await api.data.warns.flush()
-  return success({ success: true })
-}
-
-async function incrementWarnCount(api: WebSocketAPIContext, guildId: string, userId: string) {
-  const guildWarns = api.data.warns.get(guildId) || {}
-  guildWarns[userId] ||= { count: 0, timestamp: 0 }
-  guildWarns[userId].count++
-  guildWarns[userId].timestamp = Date.now()
-  api.data.warns.set(guildId, guildWarns as WarnRecord)
-  await api.data.warns.flush()
-}
-
-async function clearWarnRecord(api: WebSocketAPIContext, guildId: string, userId: string) {
-  const guildWarns = api.data.warns.get(guildId)
-  if (guildWarns?.[userId]) {
-    await removeWarnRecord(api, guildId, userId, guildWarns as WarnRecord)
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '更新警告失败')
   }
 }
 
-async function removeWarnRecord(api: WebSocketAPIContext, guildId: string, userId: string, guildWarns: WarnRecord) {
-  delete guildWarns[userId]
-  if (Object.keys(guildWarns).length === 0) {
-    api.data.warns.delete(guildId)
-  } else {
-    api.data.warns.set(guildId, guildWarns)
+async function handleWarnAdd(api: WebSocketAPIContext, client: unknown, params: WarnAddParams) {
+  try {
+    const scope = await api.resolveConsoleScope(client)
+    assertConsoleGuildAccess(scope, params.guildId, 'warn record')
+    const current = (api.service.data.warns.get(params.guildId) || {}) as WarnRecord
+    const previous = current[params.userId] || { count: 0, timestamp: 0 }
+    api.service.data.warns.set(params.guildId, {
+      ...current,
+      [params.userId]: { count: previous.count + 1, timestamp: Date.now() },
+    })
+    await api.service.data.warns.flush()
+    return success({ success: true })
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '添加警告失败')
   }
-  await api.data.warns.flush()
 }
 
-function qqAvatar(userId: string) {
-  return `https://q1.qlogo.cn/g?b=qq&nk=${userId}&s=640`
+async function handleWarnGet(api: WebSocketAPIContext, client: unknown, key: string) {
+  try {
+    const warnKey = await assertWarnRecordScope(api, client, key)
+    return success(api.service.data.warns.get(warnKey.guildId)?.[warnKey.userId] || null)
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '获取警告失败')
+  }
 }
 
-function guildAvatar(guildId: string) {
-  return `https://p.qlogo.cn/gh/${guildId}/${guildId}/640/`
+async function handleWarnClear(api: WebSocketAPIContext, client: unknown, key: string) {
+  try {
+    const warnKey = await assertWarnRecordScope(api, client, key)
+    removeWarnRecord(api, warnKey.guildId, warnKey.userId)
+    await api.service.data.warns.flush()
+    return success({ success: true })
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '清除警告失败')
+  }
+}
+
+async function assertWarnRecordScope(api: WebSocketAPIContext, client: unknown, key: string) {
+  const warnKey = parseWarnKey(key)
+  if (!warnKey) throw new Error('Invalid key format')
+  const scope = await api.resolveConsoleScope(client)
+  assertConsoleGuildAccess(scope, warnKey.guildId, 'warn record')
+  return warnKey
+}
+
+function updateWarnRecord(input: {
+  readonly api: WebSocketAPIContext
+  readonly guildId: string
+  readonly userId: string
+  readonly count: number
+  readonly guildWarns: WarnRecord
+}) {
+  const { api, guildId, userId, count, guildWarns } = input
+  if (count <= 0) {
+    removeWarnRecord(api, guildId, userId)
+    return
+  }
+  api.service.data.warns.set(guildId, {
+    ...guildWarns,
+    [userId]: { ...guildWarns[userId], count, timestamp: Date.now() },
+  })
+}
+
+function removeWarnRecord(api: WebSocketAPIContext, guildId: string, userId: string) {
+  const guildWarns = api.service.data.warns.get(guildId) as WarnRecord | undefined
+  if (!guildWarns?.[userId]) return
+  const nextWarns = { ...guildWarns }
+  delete nextWarns[userId]
+  if (Object.keys(nextWarns).length === 0) {
+    api.service.data.warns.delete(guildId)
+    return
+  }
+  api.service.data.warns.set(guildId, nextWarns)
 }

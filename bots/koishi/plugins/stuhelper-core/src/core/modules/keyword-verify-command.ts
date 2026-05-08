@@ -62,7 +62,7 @@ function addVerifyKeywords(input: VerifyCommandInput): string {
   const newKeywords = parseKeywordList(String(input.value))
   groupConfig.approvalKeywords.push(...newKeywords)
   saveGroupConfig(host, session.guildId, groupConfig)
-  void host.log(session, 'verify', 'add', `已添加关键词：${newKeywords.join('、')}`)
+  void host.log({ session, command: 'verify', target: 'add', result: `已添加关键词：${newKeywords.join('、')}` })
   return `已经添加了关键词：${newKeywords.join('、')} 喵喵喵~`
 }
 
@@ -72,7 +72,7 @@ function removeVerifyKeywords(input: VerifyCommandInput): string {
   if (removed.length === 0) return '未找到指定的关键词'
 
   saveGroupConfig(host, session.guildId, groupConfig)
-  void host.log(session, 'verify', 'remove', `已移除关键词：${removed.join('、')}`)
+  void host.log({ session, command: 'verify', target: 'remove', result: `已移除关键词：${removed.join('、')}` })
   return `已经把关键词：${removed.join('、')} 删掉啦喵！`
 }
 
@@ -82,7 +82,7 @@ function clearVerifyKeywords(input: VerifyCommandInput): string {
 
   groupConfig.approvalKeywords = []
   saveGroupConfig(host, session.guildId, groupConfig)
-  void host.log(session, 'verify', 'clear', '已清除所有关键词')
+  void host.log({ session, command: 'verify', target: 'clear', result: '已清除所有关键词' })
   return '所有入群审核关键词已清除喵~'
 }
 
@@ -93,7 +93,7 @@ function setAutoReject(input: VerifyCommandInput): string {
 
   groupConfig.auto = value ? 'true' : 'false'
   saveGroupConfig(host, session.guildId, groupConfig)
-  void host.log(session, 'verify', 'auto', `已设置自动拒绝：${groupConfig.auto}`)
+  void host.log({ session, command: 'verify', target: 'auto', result: `已设置自动拒绝：${groupConfig.auto}` })
   return `自动拒绝状态更新为${groupConfig.auto}`
 }
 
@@ -102,7 +102,7 @@ function setRejectMessage(input: VerifyCommandInput): string {
   const value = String(input.value)
   groupConfig.reject = value
   saveGroupConfig(host, session.guildId, groupConfig)
-  void host.log(session, 'verify', 'set', `已设置拒绝词：${value}`)
+  void host.log({ session, command: 'verify', target: 'set', result: `已设置拒绝词：${value}` })
   return `拒绝词已更新为：${value} 喵喵喵~`
 }
 

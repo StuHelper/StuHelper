@@ -38,13 +38,18 @@ async function handleRandomUnbanCommand(
   const currentMutes = getCurrentMutes(host, session)
   const banList = getActiveMuteUserIds(currentMutes)
   if (banList.length === 0) {
-    host.logCommand(session, 'unban-random', session.guildId, '失败：当前没有被禁言的成员', false)
+    host.logCommand({ session, command: 'unban-random', target: session.guildId, result: '失败：当前没有被禁言的成员', success: false })
     return '当前没有被禁言的成员喵~'
   }
 
   const unbanList = host.getRandomElements(banList, count)
   await unbanUsers({ host, session, currentMutes, unbanList })
-  host.logCommand(session, 'unban-random', session.guildId, `成功：已随机解除 ${unbanList.length} 人的禁言，解除名单：${unbanList.join(', ')}`)
+  host.logCommand({
+    session,
+    command: 'unban-random',
+    target: session.guildId,
+    result: `成功：已随机解除 ${unbanList.length} 人的禁言，解除名单：${unbanList.join(', ')}`,
+  })
   return `已随机解除 ${unbanList.length} 人的禁言喵~\n解除名单：\n${unbanList.join(', ')}`
 }
 
@@ -74,13 +79,18 @@ async function handleBatchUnbanCommand(
   const currentMutes = getCurrentMutes(host, session)
   const banList = getActiveMuteUserIds(currentMutes)
   if (banList.length === 0) {
-    host.logCommand(session, 'unban-batch', session.guildId, '失败：当前没有被禁言的成员', false)
+    host.logCommand({ session, command: 'unban-batch', target: session.guildId, result: '失败：当前没有被禁言的成员', success: false })
     return '当前没有被禁言的成员喵~'
   }
 
   const unbanList = sortMuteUsersByRemainingRatio(banList, currentMutes).slice(0, count)
   await unbanUsers({ host, session, currentMutes, unbanList })
-  host.logCommand(session, 'unban-batch', session.guildId, `成功：已批量解除 ${unbanList.length} 人的禁言，解除名单：${unbanList.join(', ')}`)
+  host.logCommand({
+    session,
+    command: 'unban-batch',
+    target: session.guildId,
+    result: `成功：已批量解除 ${unbanList.length} 人的禁言，解除名单：${unbanList.join(', ')}`,
+  })
   return `已批量解除 ${unbanList.length} 人的禁言喵~\n解除名单：\n${unbanList.join(', ')}`
 }
 

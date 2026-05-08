@@ -229,12 +229,12 @@ export class DiceModule implements RuntimeModuleInstance {
   }
 
   private recordCommandLog(record: CommandLogRecord): void {
-    void this.ctx.stuhelperGroupCenter.logCommand(
-      record.session,
-      record.command,
-      record.target,
-      record.result,
-    )
+    void this.ctx.stuhelperGroupCenter.logCommand({
+      session: record.session,
+      command: record.command,
+      target: record.target,
+      result: record.result,
+    })
   }
 
   private rollDice(sides: number, count: number): number[] {

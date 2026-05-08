@@ -1,86 +1,101 @@
 import type { Subscription } from '../../types'
+import type { WebSocketAPIContext } from './api-context'
 import { error, success } from './api-response'
 import {
   assertSubscriptionScope,
   filterSubscriptions,
   findScopedSubscriptionRawIndex,
-  type WebSocketAPIContext,
-} from './websocket-api-context'
+} from './scope-filters'
 
-export function registerSubscriptionsAPI(api: WebSocketAPIContext) {
-  const { service, data, addAuthorityListener, resolveConsoleScope } = api
-
-  addAuthorityListener('stuhelperGroupCenter/subscriptions/list', async function (params?: { fetchNames?: boolean }) {
-    const scope = await resolveConsoleScope(this)
-    const subsData = data.subscriptions.get('list') || []
-    const scopedSubs = filterSubscriptions(subsData, scope)
-    if (!params?.fetchNames) {
-      return success(scopedSubs.map(sub => ({ ...sub, name: '', avatar: '' })))
-    }
-    return success(enrichSubscriptions(scopedSubs, service.cache.getCachedData()))
+export function registerSubscriptionsAPI(api: WebSocketAPIContext): void {
+  api.addAuthorityListener('stuhelperGroupCenter/subscriptions/list', async function (params?: { fetchNames?: boolean }) {
+    const scope = await api.resolveConsoleScope(this)
+    const subscriptions = api.service.data.subscriptions.get('list') || []
+    const scopedSubs = filterSubscriptions(subscriptions, scope)
+    return success(buildSubscriptionList(api, scopedSubs, Boolean(params?.fetchNames)))
   })
-
-  addAuthorityListener('stuhelperGroupCenter/subscriptions/add', async function (params: { subscription: Subscription }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      assertSubscriptionScope(scope, params.subscription)
-      const list = data.subscriptions.get('list') || []
-      list.push(params.subscription)
-      data.subscriptions.set('list', list)
-      await data.subscriptions.flush()
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '添加订阅失败')
-    }
+  api.addAuthorityListener('stuhelperGroupCenter/subscriptions/add', async function (params: { subscription: Subscription }) {
+    return handleSubscriptionAdd(api, this, params.subscription)
   })
-
-  addAuthorityListener('stuhelperGroupCenter/subscriptions/remove', async function (params: { index: number }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      const list = data.subscriptions.get('list') || []
-      const rawIndex = findScopedSubscriptionRawIndex(list, scope, params.index)
-      if (rawIndex < 0) return error('订阅不存在')
-      list.splice(rawIndex, 1)
-      data.subscriptions.set('list', list)
-      await data.subscriptions.flush()
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '移除订阅失败')
-    }
+  api.addAuthorityListener('stuhelperGroupCenter/subscriptions/remove', async function (params: { index: number }) {
+    return handleSubscriptionRemove(api, this, params.index)
   })
-
-  addAuthorityListener('stuhelperGroupCenter/subscriptions/update', async function (params: { index: number, subscription: Subscription }) {
-    try {
-      const scope = await resolveConsoleScope(this)
-      assertSubscriptionScope(scope, params.subscription)
-      const list = data.subscriptions.get('list') || []
-      const rawIndex = findScopedSubscriptionRawIndex(list, scope, params.index)
-      if (rawIndex < 0) return error('订阅不存在')
-      list[rawIndex] = params.subscription
-      data.subscriptions.set('list', list)
-      await data.subscriptions.flush()
-      return success({ success: true })
-    } catch (e) {
-      return error(e instanceof Error ? e.message : '更新订阅失败')
-    }
+  api.addAuthorityListener('stuhelperGroupCenter/subscriptions/update', async function (params: SubscriptionUpdateParams) {
+    return handleSubscriptionUpdate(api, this, params)
   })
 }
 
-function enrichSubscriptions(subscriptions: Subscription[], cacheData: any) {
+interface SubscriptionUpdateParams {
+  readonly index: number
+  readonly subscription: Subscription
+}
+
+function buildSubscriptionList(api: WebSocketAPIContext, subscriptions: Subscription[], fetchNames: boolean) {
+  if (!fetchNames) {
+    return subscriptions.map((sub) => ({ ...sub, name: '', avatar: '' }))
+  }
+
+  const cacheData = api.service.cache.getCachedData()
   return subscriptions.map((sub) => {
     if (sub.type === 'group') {
       const cached = cacheData.guilds[sub.id]
-      return { ...sub, name: cached?.name || '', avatar: cached?.avatar || guildAvatar(sub.id) }
+      return { ...sub, name: cached?.name || '', avatar: cached?.avatar || `https://p.qlogo.cn/gh/${sub.id}/${sub.id}/640/` }
     }
     const cached = cacheData.users[sub.id]
-    return { ...sub, name: cached?.name || '', avatar: cached?.avatar || qqAvatar(sub.id) }
+    return { ...sub, name: cached?.name || '', avatar: cached?.avatar || `https://q1.qlogo.cn/g?b=qq&nk=${sub.id}&s=640` }
   })
 }
 
-function qqAvatar(userId: string) {
-  return `https://q1.qlogo.cn/g?b=qq&nk=${userId}&s=640`
+async function handleSubscriptionAdd(api: WebSocketAPIContext, client: unknown, subscription: Subscription) {
+  try {
+    const scope = await api.resolveConsoleScope(client)
+    assertSubscriptionScope(scope, subscription)
+    const list = api.service.data.subscriptions.get('list') || []
+    api.service.data.subscriptions.set('list', [...list, subscription])
+    await api.service.data.subscriptions.flush()
+    return success({ success: true })
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '添加订阅失败')
+  }
 }
 
-function guildAvatar(guildId: string) {
-  return `https://p.qlogo.cn/gh/${guildId}/${guildId}/640/`
+async function handleSubscriptionRemove(api: WebSocketAPIContext, client: unknown, index: number) {
+  try {
+    const scope = await api.resolveConsoleScope(client)
+    const list = api.service.data.subscriptions.get('list') || []
+    const rawIndex = findScopedSubscriptionRawIndex(list, scope, index)
+    if (rawIndex < 0) return error('订阅不存在')
+    api.service.data.subscriptions.set('list', removeAt(list, rawIndex))
+    await api.service.data.subscriptions.flush()
+    return success({ success: true })
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '移除订阅失败')
+  }
+}
+
+async function handleSubscriptionUpdate(
+  api: WebSocketAPIContext,
+  client: unknown,
+  params: SubscriptionUpdateParams,
+) {
+  try {
+    const scope = await api.resolveConsoleScope(client)
+    assertSubscriptionScope(scope, params.subscription)
+    const list = api.service.data.subscriptions.get('list') || []
+    const rawIndex = findScopedSubscriptionRawIndex(list, scope, params.index)
+    if (rawIndex < 0) return error('订阅不存在')
+    api.service.data.subscriptions.set('list', replaceAt(list, rawIndex, params.subscription))
+    await api.service.data.subscriptions.flush()
+    return success({ success: true })
+  } catch (cause) {
+    return error(cause instanceof Error ? cause.message : '更新订阅失败')
+  }
+}
+
+function removeAt<T>(items: T[], index: number) {
+  return items.filter((_, currentIndex) => currentIndex !== index)
+}
+
+function replaceAt<T>(items: T[], index: number, item: T) {
+  return items.map((current, currentIndex) => currentIndex === index ? item : current)
 }

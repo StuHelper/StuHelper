@@ -139,10 +139,9 @@ test('stuhelper-core 控制台密码校验必须与 API 注册共享失败边界
     /validateConsoleAdminPassword\(process\.env\.STUHELPER_CONSOLE_ADMIN_PASSWORD\)/,
     'registerConsoleAPI 必须在启动期显式校验控制台管理员密码。',
   )
-  const passwordCheckIndex = api.indexOf('validateConsoleAdminPassword(process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD)')
-  const firstConsoleAPIIndex = api.indexOf('registerWebSocketAPI(')
   assert.ok(
-    passwordCheckIndex >= 0 && passwordCheckIndex < firstConsoleAPIIndex,
+    api.indexOf('validateConsoleAdminPassword(process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD)') <
+      api.indexOf('registerWebSocketAPI(apiCtx, apiCtx.stuhelperGroupCenter, coreConfig.platform)'),
     '控制台管理员密码校验必须先于所有 Console API 注册，保持 fail-closed 行为。',
   )
 })

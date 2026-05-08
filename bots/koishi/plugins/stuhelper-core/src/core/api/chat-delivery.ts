@@ -39,7 +39,7 @@ export async function deliverChatMessageToClients(deps: ChatDeliveryDeps) {
   const scopeCache = new Map<number, Promise<ChatGuildScope | null>>()
 
   for (const client of deps.clients) {
-    const scope = await resolveClientScope(client, deps, rolesById, scopeCache)
+    const scope = await resolveClientScope({ client, deps, rolesById, scopeCache })
     if (!scope || !shouldDeliverPayload(scope, deps.payload.guildId)) {
       continue
     }
@@ -54,12 +54,13 @@ export async function deliverChatMessageToClients(deps: ChatDeliveryDeps) {
   return deliveredClientIds
 }
 
-async function resolveClientScope(
-  client: ConsoleChatClient,
-  deps: ChatDeliveryDeps,
-  rolesById: ReadonlyMap<string, Pick<Role, 'id' | 'guildIds'>>,
-  scopeCache: Map<number, Promise<ChatGuildScope | null>>,
-) {
+async function resolveClientScope(input: {
+  readonly client: ConsoleChatClient
+  readonly deps: ChatDeliveryDeps
+  readonly rolesById: ReadonlyMap<string, Pick<Role, 'id' | 'guildIds'>>
+  readonly scopeCache: Map<number, Promise<ChatGuildScope | null>>
+}) {
+  const { client, deps, rolesById, scopeCache } = input
   if (!client.auth || client.auth.authority < (deps.minAuthority ?? DEFAULT_MIN_AUTHORITY)) {
     return null
   }

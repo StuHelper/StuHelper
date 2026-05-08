@@ -37,6 +37,7 @@ DROP TABLE IF EXISTS public.reviews CASCADE;
 DROP TABLE IF EXISTS public.group_admission_sessions CASCADE;
 DROP TABLE IF EXISTS public.group_admission_policies CASCADE;
 DROP TABLE IF EXISTS public.group_admission_failures CASCADE;
+DROP TABLE IF EXISTS public.member_blacklist_entries CASCADE;
 DROP TABLE IF EXISTS public.freshman_verification_materials CASCADE;
 DROP TABLE IF EXISTS public.freshman_verification_applications CASCADE;
 DROP TABLE IF EXISTS public.domain_event_outbox CASCADE;

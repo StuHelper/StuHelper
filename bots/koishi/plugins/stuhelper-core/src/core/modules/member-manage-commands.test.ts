@@ -1,78 +1,77 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { registerMemberManageCommands } from './member-manage-commands'
+import { registerMemberManageCommands, parseKickInput } from './member-manage-commands.ts'
 
-test('kick -b --global creates a global member blacklist entry', async () => {
-  const host = createMemberManageHost()
-  registerMemberManageCommands(host as never)
+test('parseKickInput accepts command options and explicit guild id for blacklist kick', () => {
+  assert.deepEqual(parseKickInput('10001', 'default-guild', { black: true }), {
+    userId: '10001',
+    targetGroup: 'default-guild',
+    black: true,
+    global: false,
+  })
 
-  const result = await host.runKick('10001 -b --global')
-
-  assert.match(result, /加入黑名单/)
-  assert.deepEqual(host.kicks, [{ guildID: 'guild-1', userID: '10001', permanent: true }])
-  assert.equal(host.createdBlacklists.length, 1)
-  assert.equal(host.createdBlacklists[0].scopeType, 'global')
-  assert.equal(host.createdBlacklists[0].guildID, undefined)
-  assert.equal(host.createdBlacklists[0].createdFrom, 'qq_command')
-  assert.equal(host.createdBlacklists[0].metadata.targetGuildID, 'guild-1')
-  assert.equal(host.createdBlacklists[0].metadata.scopeSelectionContext, 'explicit_global_flag')
-  assert.equal(host.createdBlacklists[0].metadata.createdFrom, undefined)
+  assert.deepEqual(parseKickInput('10001 -b --global target-guild', 'default-guild'), {
+    userId: '10001',
+    targetGroup: 'target-guild',
+    black: true,
+    global: true,
+  })
 })
 
-function createMemberManageHost() {
+test('kick -b reports partial failure when backend blacklist creation fails', async () => {
+  const commandActions = new Map<string, Function>()
+  const logs: unknown[] = []
+  const blacklistRequests: unknown[] = []
   const host = {
-    actions: new Map<string, Function>(),
-    kicks: [] as Array<{ guildID: string; userID: string; permanent?: boolean }>,
-    createdBlacklists: [] as Array<Record<string, any>>,
+    config: {},
+    memberBlacklistBackend: {
+      async createMemberBlacklist(input: unknown) {
+        blacklistRequests.push(input)
+        throw new Error('backend down')
+      },
+    },
     ctx: {
       stuhelperGroupCenter: {
-        pushMessage: async () => {},
+        pushMessage: async () => undefined,
       },
     },
-    config: {
-      setTitle: { enabled: false },
-    },
-    memberBlacklistBackend: {
-      async createMemberBlacklist(input: Record<string, any>) {
-        host.createdBlacklists.push(input)
-        return { id: 'blacklist-1', ...input }
-      },
-    },
-    registerCommand(def: { name: string }) {
-      return commandChain((action) => host.actions.set(def.name, action))
-    },
-    logCommand() {},
-    runKick(input: string) {
-      const action = host.actions.get('kick')
-      assert.ok(action)
-      return action({ session: createSession(host) }, input)
+    logCommand: (entry: unknown) => logs.push(entry),
+    registerCommand(def: { readonly name: string }) {
+      const chain = {
+        example: () => chain,
+        option: () => chain,
+        action(fn: Function) {
+          commandActions.set(def.name, fn)
+          return chain
+        },
+      }
+      return chain
     },
   }
-  return host
-}
+  registerMemberManageCommands(host as any)
 
-function commandChain(onAction: (action: Function) => void) {
-  return {
-    example() { return this },
-    option() { return this },
-    action(handler: Function) {
-      onAction(handler)
-      return this
-    },
-  }
-}
-
-function createSession(host: ReturnType<typeof createMemberManageHost>) {
-  return {
+  const kicked: unknown[] = []
+  const session = {
     platform: 'qq',
-    guildId: 'guild-1',
-    userId: '90001',
-    content: 'kick 10001 -b --global',
+    guildId: 'source-guild',
+    userId: 'operator-qq',
+    content: 'kick 10001 -b target-guild',
     bot: {
-      kickGuildMember: async (guildID: string, userID: string, permanent?: boolean) => {
-        host.kicks.push({ guildID, userID, permanent })
-      },
+      kickGuildMember: async (...args: unknown[]) => kicked.push(args),
     },
   }
-}
+
+  const result = await commandActions.get('kick')?.({ session, options: {} }, '10001 -b target-guild')
+
+  assert.equal(result, '已把 10001 踢出群 target-guild，但加入黑名单失败：backend down')
+  assert.deepEqual(kicked, [['target-guild', '10001', true]])
+  assert.equal(blacklistRequests.length, 1)
+  assert.deepEqual(logs.at(-1), {
+    session,
+    command: 'kick',
+    target: '10001',
+    result: '部分成功：已踢出但加入黑名单失败：backend down',
+    success: false,
+  })
+})

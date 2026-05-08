@@ -14,6 +14,7 @@ import {
   resolveRequiredConsoleGuildScope,
   type ConsoleGuildScope,
 } from './console-guild-scope'
+import { error, success, toApiErrorMessage } from './api-response'
 import { DEFAULT_MEMBER_BLACKLIST_PLATFORM } from './member-blacklist-defaults'
 
 const CONSOLE_BLACKLIST_PAGE_SIZE = 200
@@ -67,34 +68,43 @@ export function registerMemberBlacklistConsoleAPI(
   })
 
   addAuthorityListener('stuhelperGroupCenter/blacklist/add', async function (params: ConsoleBlacklistCreateParams) {
-    const scope = await resolveConsoleScope(ctx, service, this)
-    assertBlacklistScope(scope, params)
-    const entry = await backend.createMemberBlacklist({
-      platform: params.platform,
-      subjectType: 'qq_user',
-      subjectID: params.subjectID,
-      scopeType: params.scopeType,
-      guildID: params.guildID,
-      source: 'manual_admin',
-      reasonCode: 'manual_blacklist',
-      reasonText: params.reasonText?.trim() || 'manual blacklist from Koishi console',
-      createdFrom: 'koishi_console',
-      metadata: consoleBlacklistMetadata(params, this),
-    })
-    return success(entry)
+    try {
+      const scope = await resolveConsoleScope(ctx, service, this)
+      assertBlacklistInput(params)
+      assertBlacklistScope(scope, params)
+      const entry = await backend.createMemberBlacklist({
+        platform: params.platform,
+        subjectType: 'qq_user',
+        subjectID: params.subjectID,
+        scopeType: params.scopeType,
+        guildID: params.guildID,
+        source: 'manual_admin',
+        reasonCode: 'manual_blacklist',
+        reasonText: params.reasonText?.trim() || 'manual blacklist from Koishi console',
+        createdFrom: 'koishi_console',
+        metadata: consoleBlacklistMetadata(params, this),
+      })
+      return success(entry)
+    } catch (cause) {
+      return error(toApiErrorMessage(cause))
+    }
   })
 
   addAuthorityListener('stuhelperGroupCenter/blacklist/remove', async function (params: ConsoleBlacklistReleaseParams) {
-    const scope = await resolveConsoleScope(ctx, service, this)
-    if (!ALLOWED_CONSOLE_RELEASE_CODES.has(params.releaseReasonCode)) {
-      throw new Error(`unsupported releaseReasonCode for koishi console: ${params.releaseReasonCode}`)
+    try {
+      const scope = await resolveConsoleScope(ctx, service, this)
+      if (!ALLOWED_CONSOLE_RELEASE_CODES.has(params.releaseReasonCode)) {
+        throw new Error(`unsupported releaseReasonCode for koishi console: ${params.releaseReasonCode}`)
+      }
+      await assertVisibleBlacklistRelease(backend, scope, platform, params.id)
+      const entry = await backend.releaseMemberBlacklist(params.id, {
+        releaseReasonCode: params.releaseReasonCode,
+        releaseReason: params.releaseReason?.trim() || 'manual release from Koishi console',
+      })
+      return success(entry)
+    } catch (cause) {
+      return error(toApiErrorMessage(cause))
     }
-    await assertVisibleBlacklistRelease(backend, scope, platform, params.id)
-    const entry = await backend.releaseMemberBlacklist(params.id, {
-      releaseReasonCode: params.releaseReasonCode,
-      releaseReason: params.releaseReason?.trim() || 'manual release from Koishi console',
-    })
-    return success(entry)
   })
 }
 
@@ -107,8 +117,11 @@ async function listVisibleBlacklists(
     return listAllMemberBlacklistPages(backend, { platform, status: 'active' })
   }
 
-  const pages = await Promise.all([...scope.guildIds].map((guildID) =>
-    listAllMemberBlacklistPages(backend, { platform, scopeType: 'guild', guildID, status: 'active' })))
+  const pages = await Promise.all([
+    listAllMemberBlacklistPages(backend, { platform, scopeType: 'global', status: 'active' }),
+    ...[...scope.guildIds].map((guildID) =>
+      listAllMemberBlacklistPages(backend, { platform, scopeType: 'guild', guildID, status: 'active' })),
+  ])
   return {
     list: pages.flatMap((page) => page.list),
     total: pages.reduce((sum, page) => sum + page.total, 0),
@@ -159,6 +172,12 @@ function assertBlacklistScope(
   assertConsoleGuildAccess(scope, input.guildID, 'member blacklist')
 }
 
+function assertBlacklistInput(input: { readonly scopeType: MemberBlacklistScopeType; readonly guildID?: string }) {
+  if (input.scopeType === 'guild' && !input.guildID?.trim()) {
+    throw new Error('guildID is required for guild member blacklist')
+  }
+}
+
 function resolveConsoleScope(ctx: Context, service: StuhelperGroupCenterService, client: unknown) {
   return resolveRequiredConsoleGuildScope(client as never, {
     roles: service.auth.getRoles(),
@@ -178,8 +197,4 @@ function consoleBlacklistMetadata(params: ConsoleBlacklistCreateParams, client: 
     operatorInput: params.subjectID,
     scopeSelectionContext: CONSOLE_SCOPE_SELECTION_CONTEXT,
   }
-}
-
-function success<T>(data: T) {
-  return { success: true, data }
 }

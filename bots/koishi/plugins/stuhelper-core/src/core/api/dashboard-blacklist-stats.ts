@@ -18,8 +18,11 @@ export async function loadScopedBlacklistTotal(
   if (scope.kind === 'all') {
     return loadBlacklistTotal(backend, { platform })
   }
-  const totals = await Promise.all([...scope.guildIds].map((guildID) =>
-    loadBlacklistTotal(backend, { platform, scopeType: 'guild', guildID })))
+  const totals = await Promise.all([
+    loadBlacklistTotal(backend, { platform, scopeType: 'global' }),
+    ...[...scope.guildIds].map((guildID) =>
+      loadBlacklistTotal(backend, { platform, scopeType: 'guild', guildID })),
+  ])
   return totals.reduce((sum, n) => sum + n, 0)
 }
 
@@ -27,7 +30,7 @@ function loadBlacklistTotal(
   backend: MemberBlacklistStatsBackend,
   input: {
     readonly platform: string
-    readonly scopeType?: 'guild'
+    readonly scopeType?: 'global' | 'guild'
     readonly guildID?: string
   },
 ) {

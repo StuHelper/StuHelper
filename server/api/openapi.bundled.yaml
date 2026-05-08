@@ -8802,6 +8802,10 @@ components:
       properties:
         operatorQQID:
           type: string
+        platform:
+          type: string
+        targetGuildID:
+          type: string
         guildID:
           type: string
         channelID:

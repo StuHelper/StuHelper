@@ -11,35 +11,34 @@ import (
 
 func (r *Repository) IncrementFailureFromKickEventTx(
 	ctx context.Context,
-	tx pgx.Tx,
-	session *AdmissionSession,
-	_ *AdmissionPolicy,
-	now time.Time,
+	input admissionFailureIncrementTxInput,
 ) (int, error) {
 	var count int
-	err := tx.QueryRow(ctx, `
-		INSERT INTO group_admission_failures (
-			platform, guild_id, qq_id, failure_count, last_failure_at
-		)
-		VALUES ($1, $2, $3, 1, $4::timestamptz)
-		ON CONFLICT (platform, guild_id, qq_id) DO UPDATE
-		SET failure_count = group_admission_failures.failure_count + 1,
-		    last_failure_at = $4::timestamptz,
-		    updated_at = NOW()
-		RETURNING failure_count
-	`, session.Platform, session.GuildID, session.QQID, now).Scan(&count)
+	err := input.Tx.QueryRow(ctx, `
+			INSERT INTO group_admission_failures (
+				platform, guild_id, qq_id, failure_count, last_failure_at
+			)
+			VALUES ($1, $2, $3, 1, $4::timestamptz)
+			ON CONFLICT (platform, guild_id, qq_id) DO UPDATE
+			SET failure_count = group_admission_failures.failure_count + 1,
+			    last_failure_at = $4::timestamptz,
+			    updated_at = NOW()
+			RETURNING failure_count
+			`,
+		input.Session.Platform, input.Session.GuildID, input.Session.QQID, input.Now,
+	).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("IncrementFailureFromKickEventTx: %w", err)
 	}
 	return count, nil
 }
 
-func (r *Repository) UpdateLastBotErrorTx(ctx context.Context, tx pgx.Tx, sessionID string, botError string) error {
-	_, err := tx.Exec(ctx, `
-		UPDATE group_admission_sessions
-		SET last_bot_error = $2, updated_at = NOW()
-		WHERE id = $1
-	`, sessionID, botError)
+func (r *Repository) UpdateLastBotErrorTx(ctx context.Context, input updateLastBotErrorTxInput) error {
+	_, err := input.Tx.Exec(ctx, `
+			UPDATE group_admission_sessions
+			SET last_bot_error = $2, updated_at = NOW()
+			WHERE id = $1
+		`, input.SessionID, input.BotError)
 	if err != nil {
 		return fmt.Errorf("UpdateLastBotErrorTx: %w", err)
 	}
@@ -76,4 +75,16 @@ func (r *Repository) ResetAdmissionFailureCountTx(
 		return 0, fmt.Errorf("ResetAdmissionFailureCountTx: %w", err)
 	}
 	return previousCount, nil
+}
+
+type admissionFailureIncrementTxInput struct {
+	Tx      pgx.Tx
+	Session *AdmissionSession
+	Now     time.Time
+}
+
+type updateLastBotErrorTxInput struct {
+	Tx        pgx.Tx
+	SessionID string
+	BotError  string
 }

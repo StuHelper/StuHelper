@@ -1,4 +1,5 @@
 import type { Command, Context, Session } from 'koishi'
+import { testSafeKeywordRegex } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config, GroupConfig } from '../../types'
@@ -64,17 +65,18 @@ export class KeywordModule implements RuntimeModuleInstance {
     return registerRuntimeCommand(this.ctx, this.meta, def)
   }
 
-  async log(
-    session: Session,
-    command: string,
-    target: string,
-    result: string,
-    success?: boolean,
-  ): Promise<void> {
+  async log(entry: {
+    readonly session: Session
+    readonly command: string
+    readonly target: string
+    readonly result: string
+    readonly success?: boolean
+  }): Promise<void> {
+    const { session, command, target, result, success } = entry
     if (success === false) {
       session['_commandFailed'] = true
     }
-    await this.ctx.stuhelperGroupCenter.logCommand(session, command, target, result)
+    await this.ctx.stuhelperGroupCenter.logCommand({ session, command, target, result })
   }
 
   recordMute(guildId: string, userId: string, duration: number): void {
@@ -104,12 +106,7 @@ export class KeywordModule implements RuntimeModuleInstance {
   }
 
   matchKeyword(content: string, keyword: string): boolean {
-    try {
-      const regex = new RegExp(keyword, 'i')
-      return regex.test(content)
-    } catch {
-      return content.includes(keyword)
-    }
+    return testSafeKeywordRegex(keyword, content)
   }
 }
 

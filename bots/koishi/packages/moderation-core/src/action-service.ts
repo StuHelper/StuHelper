@@ -8,79 +8,115 @@ export type ModerationBot = Universal.Methods & {
   selfId: string
 }
 
+export interface WarnMemberInput {
+  readonly runtime: ModerationRuntimeRef
+  readonly guildId: string
+  readonly channelId: string
+  readonly memberId: string
+  readonly reason: string
+}
+
+export interface BotMemberActionInput {
+  readonly bot: ModerationBot
+  readonly guildId: string
+  readonly channelId: string
+  readonly memberId: string
+  readonly reason: string
+}
+
+export interface MuteMemberInput extends BotMemberActionInput {
+  readonly seconds: number
+}
+
+export interface KickMemberInput extends BotMemberActionInput {
+  readonly permanent: boolean
+}
+
+export interface MemberRoleInput {
+  readonly bot: ModerationBot
+  readonly guildId: string
+  readonly memberId: string
+  readonly roleId: string
+}
+
 export class ModerationActionService {
   constructor(private readonly store: ModerationStore) {}
 
-  async warnMember(runtime: ModerationRuntimeRef, guildId: string, channelId: string, memberId: string, reason: string) {
+  async warnMember(input: WarnMemberInput) {
     const now = new Date()
-    const warning = await this.store.incrementWarning(guildId, memberId, reason, now)
+    const warning = await this.store.incrementWarning({
+      guildId: input.guildId,
+      memberId: input.memberId,
+      reason: input.reason,
+      now,
+    })
     await this.store.appendEvent({
-      platform: runtime.platform,
-      botSelfId: runtime.botSelfId,
-      guildId,
-      channelId,
-      memberId,
+      platform: input.runtime.platform,
+      botSelfId: input.runtime.botSelfId,
+      guildId: input.guildId,
+      channelId: input.channelId,
+      memberId: input.memberId,
       type: 'action_executed',
       level: 'medium',
-      summary: `已对 ${memberId} 记警告：${reason}`,
-      payload: { totalWarnings: warning.total, reason },
+      summary: `已对 ${input.memberId} 记警告：${input.reason}`,
+      payload: { totalWarnings: warning.total, reason: input.reason },
     })
     return warning
   }
 
-  async muteMember(bot: ModerationBot, guildId: string, channelId: string, memberId: string, seconds: number, reason: string) {
-    await bot.muteGuildMember(guildId, memberId, seconds * 1000)
-    await bot.sendMessage(channelId, `${h.at(memberId)} 因 ${reason} 被禁言 ${seconds} 秒。`)
+  async muteMember(input: MuteMemberInput) {
+    await input.bot.muteGuildMember(input.guildId, input.memberId, input.seconds * 1000)
+    await input.bot.sendMessage(input.channelId, `${h.at(input.memberId)} 因 ${input.reason} 被禁言 ${input.seconds} 秒。`)
     await this.store.appendEvent({
-      platform: bot.platform || '',
-      botSelfId: bot.selfId,
-      guildId,
-      channelId,
-      memberId,
+      platform: input.bot.platform || '',
+      botSelfId: input.bot.selfId,
+      guildId: input.guildId,
+      channelId: input.channelId,
+      memberId: input.memberId,
       type: 'action_executed',
       level: 'high',
-      summary: `已禁言 ${memberId}`,
-      payload: { seconds, reason },
+      summary: `已禁言 ${input.memberId}`,
+      payload: { seconds: input.seconds, reason: input.reason },
     })
   }
 
-  async unmuteMember(bot: ModerationBot, guildId: string, channelId: string, memberId: string, reason: string) {
-    await bot.muteGuildMember(guildId, memberId, 0)
-    await bot.sendMessage(channelId, `${h.at(memberId)} 已解除禁言。原因：${reason}`)
+  async unmuteMember(input: BotMemberActionInput) {
+    await input.bot.muteGuildMember(input.guildId, input.memberId, 0)
+    await input.bot.sendMessage(input.channelId, `${h.at(input.memberId)} 已解除禁言。原因：${input.reason}`)
     await this.store.appendEvent({
-      platform: bot.platform || '',
-      botSelfId: bot.selfId,
-      guildId,
-      channelId,
-      memberId,
+      platform: input.bot.platform || '',
+      botSelfId: input.bot.selfId,
+      guildId: input.guildId,
+      channelId: input.channelId,
+      memberId: input.memberId,
       type: 'action_executed',
       level: 'medium',
-      summary: `已解除 ${memberId} 的禁言`,
-      payload: { reason },
+      summary: `已解除 ${input.memberId} 的禁言`,
+      payload: { reason: input.reason },
     })
   }
 
-  async kickMember(bot: ModerationBot, guildId: string, channelId: string, memberId: string, permanent: boolean, reason: string) {
-    await bot.sendMessage(channelId, `${h.at(memberId)} 因 ${reason} 将被移出群聊。`)
-    await bot.kickGuildMember(guildId, memberId, permanent)
+  async kickMember(input: KickMemberInput) {
+    await input.bot.sendMessage(input.channelId, `${h.at(input.memberId)} 因 ${input.reason} 将被移出群聊。`)
+    await input.bot.kickGuildMember(input.guildId, input.memberId, input.permanent)
     await this.store.appendEvent({
-      platform: bot.platform || '',
-      botSelfId: bot.selfId,
-      guildId,
-      channelId,
-      memberId,
+      platform: input.bot.platform || '',
+      botSelfId: input.bot.selfId,
+      guildId: input.guildId,
+      channelId: input.channelId,
+      memberId: input.memberId,
       type: 'action_executed',
       level: 'critical',
-      summary: `已移出 ${memberId}`,
-      payload: { permanent, reason },
+      summary: `已移出 ${input.memberId}`,
+      payload: { permanent: input.permanent, reason: input.reason },
     })
   }
 
-  async setMemberRole(bot: ModerationBot, guildId: string, memberId: string, roleId: string) {
-    await bot.setGuildMemberRole(guildId, memberId, roleId)
+  async setMemberRole(input: MemberRoleInput) {
+    await input.bot.setGuildMemberRole(input.guildId, input.memberId, input.roleId)
   }
 
-  async unsetMemberRole(bot: ModerationBot, guildId: string, memberId: string, roleId: string) {
-    await bot.unsetGuildMemberRole(guildId, memberId, roleId)
+  async unsetMemberRole(input: MemberRoleInput) {
+    await input.bot.unsetGuildMemberRole(input.guildId, input.memberId, input.roleId)
   }
 }

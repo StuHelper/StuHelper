@@ -49,6 +49,13 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 
 func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 	bot := api.Group("/bot/admission")
+	h.registerBotAdmissionRoutes(bot)
+
+	memberBlacklist := api.Group("/bot/member-blacklist")
+	h.registerBotMemberBlacklistRoutes(memberBlacklist)
+}
+
+func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 	bot.POST("/sessions", h.requireBotCredential(serviceaccount.ScopeBotAdmissionSession), h.handleCreateBotSession)
 	bot.POST(
 		"/join-requests/events",
@@ -81,19 +88,42 @@ func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
 		h.requireBotCredential(serviceaccount.ScopeBotAdmissionReview),
 		h.handleBotReviewFreshmanApplication,
 	)
-	blacklist := api.Group("/bot/member-blacklist")
-	blacklist.GET("/access", h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistRead), h.handleGetBotMemberBlacklistAccess)
-	blacklist.GET("", h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistRead), h.handleListBotMemberBlacklist)
-	blacklist.POST("", h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage), h.handleCreateBotMemberBlacklist)
-	blacklist.POST("/:id/release", h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage), h.handleReleaseBotMemberBlacklist)
-	blacklist.POST(
+}
+
+func (h *Handler) registerBotMemberBlacklistRoutes(memberBlacklist *gin.RouterGroup) {
+	memberBlacklist.GET(
+		"/access",
+		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistRead),
+		h.handleGetBotMemberBlacklistAccess,
+	)
+	memberBlacklist.GET(
+		"",
+		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistRead),
+		h.handleListBotMemberBlacklist,
+	)
+	memberBlacklist.POST(
+		"",
+		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage),
+		h.handleCreateBotMemberBlacklist,
+	)
+	memberBlacklist.POST(
 		"/release-by-subject",
 		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage),
 		h.handleReleaseBotMemberBlacklistBySubject,
 	)
+	memberBlacklist.POST(
+		"/:id/release",
+		h.requireBotCredential(serviceaccount.ScopeBotMemberBlacklistManage),
+		h.handleReleaseBotMemberBlacklist,
+	)
 }
 
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
+	h.registerAdminAdmissionRoutes(admin)
+	h.registerAdminMemberBlacklistRoutes(admin)
+}
+
+func (h *Handler) registerAdminAdmissionRoutes(admin *gin.RouterGroup) {
 	admin.GET(
 		"/admission/policies",
 		rbac.RequireCapability(capability.AdmissionPolicyRead),
@@ -124,17 +154,28 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 		rbac.RequireCapability(capability.AdmissionFreshmanReview),
 		h.handleAdminReviewFreshmanVerification,
 	)
-	admin.GET("/member-blacklist", rbac.RequireCapability(capability.MemberBlacklistRead), h.handleListAdminMemberBlacklist)
-	admin.POST("/member-blacklist", rbac.RequireCapability(capability.MemberBlacklistManage), h.handleCreateAdminMemberBlacklist)
+}
+
+func (h *Handler) registerAdminMemberBlacklistRoutes(admin *gin.RouterGroup) {
+	admin.GET(
+		"/member-blacklist",
+		rbac.RequireCapability(capability.MemberBlacklistRead),
+		h.handleListAdminMemberBlacklist,
+	)
 	admin.POST(
-		"/member-blacklist/:id/release",
+		"/member-blacklist",
 		rbac.RequireCapability(capability.MemberBlacklistManage),
-		h.handleReleaseAdminMemberBlacklist,
+		h.handleCreateAdminMemberBlacklist,
 	)
 	admin.POST(
 		"/member-blacklist/release-by-subject",
 		rbac.RequireCapability(capability.MemberBlacklistManage),
 		h.handleReleaseAdminMemberBlacklistBySubject,
+	)
+	admin.POST(
+		"/member-blacklist/:id/release",
+		rbac.RequireCapability(capability.MemberBlacklistManage),
+		h.handleReleaseAdminMemberBlacklist,
 	)
 }
 

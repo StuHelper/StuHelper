@@ -23,6 +23,7 @@ import type {
   StuhelperPlatformConfig,
   QQBinding,
 } from '../types/index'
+import { createFreshmanClient } from './freshman-client'
 
 const HEALTH_PATH = '/health/live'
 const QQ_BINDING_CONSUME_PATH = '/api/v1/bot/qq-binding/consume'
@@ -30,10 +31,7 @@ const QQ_VERIFICATION_PATH_PREFIX = '/api/v1/bot/qq-users/'
 const ADMISSION_SESSIONS_PATH = '/api/v1/bot/admission/sessions'
 const ADMISSION_JOIN_REQUEST_EVENTS_PATH = '/api/v1/bot/admission/join-requests/events'
 const ADMISSION_PENDING_ACTIONS_PATH = '/api/v1/bot/admission/sessions/pending'
-const ADMISSION_FRESHMAN_FORWARD_PATH = '/api/v1/bot/admission/freshman/applications/pending-forward'
-const ADMISSION_FRESHMAN_APPLICATIONS_PATH = '/api/v1/bot/admission/freshman/applications'
 const MEMBER_BLACKLIST_PATH = '/api/v1/bot/member-blacklist'
-const MEMBER_BLACKLIST_ACCESS_PATH = `${MEMBER_BLACKLIST_PATH}/access`
 const AUTH_SCHEME = 'Bearer'
 const JSON_CONTENT_TYPE = 'application/json'
 const PLATFORM_REQUEST_TIMEOUT_MS = 8_000
@@ -88,13 +86,32 @@ export interface PlatformClient {
 }
 
 export function createPlatformClient(config: StuhelperPlatformConfig): PlatformClient {
+  assertPlatformConfig(config)
   const request = createRequest(config)
 
+  return {
+    ...createSystemClient(request),
+    ...createBindingClient(request),
+    ...createAdmissionClient(request),
+    ...createMemberBlacklistClient(request),
+    ...createFreshmanClient(request),
+  }
+}
+
+type PlatformRequest = ReturnType<typeof createRequest>
+
+function createSystemClient(request: PlatformRequest): Pick<PlatformClient, 'getHealth'> {
   return {
     async getHealth() {
       await request<void>(HEALTH_PATH, { method: 'GET' }, true)
     },
+  }
+}
 
+function createBindingClient(
+  request: PlatformRequest,
+): Pick<PlatformClient, 'consumeQQBindingCode' | 'getQQVerificationStatus'> {
+  return {
     async consumeQQBindingCode(input) {
       return request<ConsumeQQBindingResult>(QQ_BINDING_CONSUME_PATH, {
         method: 'POST',
@@ -108,36 +125,18 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
         method: 'GET',
       })
     },
+  }
+}
 
-    async getMemberBlacklistAccess(input, options) {
-      return request<MemberBlacklistAccessDecision>(
-        withQuery(MEMBER_BLACKLIST_ACCESS_PATH, input),
-        withRequestOptions({ method: 'GET' }, options),
-      )
-    },
-
-    async listMemberBlacklist(input = {}) {
-      return request<MemberBlacklistListResult>(withQuery(MEMBER_BLACKLIST_PATH, input), { method: 'GET' })
-    },
-
-    async createMemberBlacklist(input) {
-      return request<MemberBlacklistEntry>(MEMBER_BLACKLIST_PATH, jsonPost(input))
-    },
-
-    async releaseMemberBlacklist(id, input) {
-      return request<MemberBlacklistEntry>(
-        `${MEMBER_BLACKLIST_PATH}/${encodeURIComponent(id)}/release`,
-        jsonPost(input),
-      )
-    },
-
-    async releaseMemberBlacklistBySubject(input) {
-      return request<MemberBlacklistEntry>(
-        `${MEMBER_BLACKLIST_PATH}/release-by-subject`,
-        jsonPost(input),
-      )
-    },
-
+function createAdmissionClient(
+  request: PlatformRequest,
+): Pick<PlatformClient,
+  'createAdmissionSession'
+  | 'recordJoinRequestEvent'
+  | 'listPendingAdmissionActions'
+  | 'recordAdmissionEvent'
+> {
+  return {
     async createAdmissionSession(input) {
       return request<AdmissionSessionCreateResult>(ADMISSION_SESSIONS_PATH, jsonPost(input))
     },
@@ -155,31 +154,41 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
     async recordAdmissionEvent(sessionID, input) {
       await request<void>(`${ADMISSION_SESSIONS_PATH}/${encodeURIComponent(sessionID)}/events`, jsonPost(input), true)
     },
+  }
+}
 
-    async listPendingFreshmanForwards() {
-      return request<readonly FreshmanForwardItem[]>(ADMISSION_FRESHMAN_FORWARD_PATH, { method: 'GET' })
-    },
-
-    async markFreshmanForwarded(applicationID) {
-      await request<void>(`${ADMISSION_FRESHMAN_APPLICATIONS_PATH}/${encodeURIComponent(applicationID)}/forwarded`, {
-        method: 'POST',
-      }, true)
-    },
-
-    async viewFreshmanApplication(applicationID, input) {
-      return request<FreshmanApplication>(
-        `${ADMISSION_FRESHMAN_APPLICATIONS_PATH}/${encodeURIComponent(applicationID)}/view`,
-        jsonPost(input),
+function createMemberBlacklistClient(
+  request: PlatformRequest,
+): Pick<PlatformClient,
+  'getMemberBlacklistAccess'
+  | 'listMemberBlacklist'
+  | 'createMemberBlacklist'
+  | 'releaseMemberBlacklist'
+  | 'releaseMemberBlacklistBySubject'
+> {
+  return {
+    async getMemberBlacklistAccess(input, options) {
+      return request<MemberBlacklistAccessDecision>(
+        withQuery(`${MEMBER_BLACKLIST_PATH}/access`, input),
+        withRequestOptions({ method: 'GET' }, options),
       )
     },
 
-    async reviewFreshmanApplication(applicationID, input) {
-      return request<FreshmanApplication>(
-        `${ADMISSION_FRESHMAN_APPLICATIONS_PATH}/${encodeURIComponent(applicationID)}/review`,
-        jsonPost(input),
-      )
+    async listMemberBlacklist(input = {}) {
+      return request<MemberBlacklistListResult>(withQuery(MEMBER_BLACKLIST_PATH, input), { method: 'GET' })
     },
 
+    async createMemberBlacklist(input) {
+      return request<MemberBlacklistEntry>(MEMBER_BLACKLIST_PATH, jsonPost(input))
+    },
+
+    async releaseMemberBlacklist(id, input) {
+      return request<MemberBlacklistEntry>(`${MEMBER_BLACKLIST_PATH}/${encodeURIComponent(id)}/release`, jsonPost(input))
+    },
+
+    async releaseMemberBlacklistBySubject(input) {
+      return request<MemberBlacklistEntry>(`${MEMBER_BLACKLIST_PATH}/release-by-subject`, jsonPost(input))
+    },
   }
 }
 
@@ -209,6 +218,15 @@ function appendQueryValue(values: URLSearchParams, key: string, value: unknown) 
 function withRequestOptions(init: RequestInit, options?: PlatformRequestOptions): RequestInit {
   if (!options?.timeoutMs) return init
   return { ...init, signal: AbortSignal.timeout(options.timeoutMs) }
+}
+
+function assertPlatformConfig(config: StuhelperPlatformConfig) {
+  if (!config.serviceToken?.trim()) {
+    throw new Error('platform service token is required')
+  }
+  if (!config.baseUrl?.trim()) {
+    throw new Error('platform baseUrl is required')
+  }
 }
 
 function createRequest(config: StuhelperPlatformConfig) {

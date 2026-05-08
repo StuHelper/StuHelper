@@ -1,5 +1,6 @@
 import { DEFAULT_REPEAT_THRESHOLD } from './constants'
 import { evaluateThresholdExpression as evaluateExpression } from './expression'
+import { testSafeKeywordRegex } from '@stuhelper/koishi-shared'
 import type {
   KeywordHit,
   KeywordMatchContext,
@@ -57,5 +58,5 @@ function isRuleMatched(rule: KeywordRuleRecord, context: KeywordMatchContext) {
   if (rule.matchMode === 'includes') {
     return context.normalizedContent.includes(normalizeModerationContent(rule.pattern))
   }
-  return new RegExp(rule.pattern, 'i').test(context.content)
+  return testSafeKeywordRegex(rule.pattern, context.content)
 }

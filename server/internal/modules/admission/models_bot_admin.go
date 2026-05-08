@@ -15,6 +15,12 @@ type AdmissionPendingAction struct {
 	Reason     string    `json:"reason,omitempty"`
 }
 
+type AdmissionTokenLinkInput struct {
+	Token   string
+	QQQuery string
+	UserID  int64
+}
+
 type AdmissionJoinRequestEventInput struct {
 	Platform  string
 	GuildID   string

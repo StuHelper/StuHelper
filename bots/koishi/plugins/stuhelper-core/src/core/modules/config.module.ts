@@ -4,7 +4,7 @@
  */
 
 import type { Context, Session } from 'koishi'
-import { createPlatformClient, type PlatformClient } from '@stuhelper/koishi-shared'
+import { createPlatformClient } from '@stuhelper/koishi-shared'
 
 import type { DataManager } from '../data'
 import type { Config } from '../../types'
@@ -19,6 +19,7 @@ import type {
 } from '../../runtime/types'
 import { getRequiredPluginConfig } from './module-config'
 import { registerConfigCommands } from './config-commands'
+import type { MemberBlacklistBackend } from './member-blacklist-backend'
 
 export class ConfigModule implements RuntimeModuleInstance {
   readonly meta: RuntimeModuleMeta = {
@@ -33,10 +34,7 @@ export class ConfigModule implements RuntimeModuleInstance {
   constructor(
     readonly ctx: Context,
     readonly data: DataManager,
-    readonly memberBlacklistBackend?: Pick<
-      PlatformClient,
-      'createMemberBlacklist' | 'listMemberBlacklist' | 'releaseMemberBlacklistBySubject'
-    >,
+    readonly memberBlacklistBackend: MemberBlacklistBackend,
   ) {}
 
   get config(): Config {
@@ -72,26 +70,25 @@ export class ConfigModule implements RuntimeModuleInstance {
     return registerRuntimeCommand(this.ctx, this.meta, def)
   }
 
-  async log(
-    session: Session,
-    command: string,
-    target: string,
-    result: string,
-    success?: boolean,
-  ): Promise<void> {
+  async log(entry: {
+    readonly session: Session
+    readonly command: string
+    readonly target: string
+    readonly result: string
+    readonly success?: boolean
+  }): Promise<void> {
+    const { session, command, target, result, success } = entry
     if (success === false) {
       session['_commandFailed'] = true
     }
-    await this.ctx.stuhelperGroupCenter.logCommand(session, command, target, result)
+    await this.ctx.stuhelperGroupCenter.logCommand({ session, command, target, result })
   }
 }
 
 export const configRuntimeModule: RuntimeModule<ConfigModule> = {
   id: 'config',
   create(ctx, deps) {
-    const memberBlacklistBackend = deps.coreConfig
-      ? createPlatformClient(deps.coreConfig.platform)
-      : undefined
-    return new ConfigModule(ctx, deps.data, memberBlacklistBackend)
+    if (!deps.coreConfig) throw new Error('stuhelper core config is required for ConfigModule')
+    return new ConfigModule(ctx, deps.data, createPlatformClient(deps.coreConfig.platform))
   },
 }

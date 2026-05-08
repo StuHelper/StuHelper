@@ -95,7 +95,11 @@ func seedLinkedAdmissionUser(t *testing.T, fixture *postgresfixture.Fixture, svc
 	t.Helper()
 	userID := seedAdmissionUser(t, fixture, suffix)
 	created := createLinkableSession(t, svc)
-	_, err := svc.LinkTokenToUser(context.Background(), created.Token, "10001", userID)
+	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
+		Token:   created.Token,
+		QQQuery: "10001",
+		UserID:  userID,
+	})
 	require.NoError(t, err)
 	return userID
 }
