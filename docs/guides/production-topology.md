@@ -3,14 +3,14 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-02
+last-verified: 2026-05-09
 ---
 
 # 生产拓扑与运维责任
 
 ## 部署架构
 
-主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；生产 SSO 已独立部署为 `https://sso.stuhelper.com`，不随主站 Compose 生命周期启动或停止。
+主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；公网入口由宝塔 Nginx 管理，生产 SSO 已独立部署为 `https://sso.stuhelper.com`，不随主站 Compose 生命周期启动或停止。
 
 > 生产前提：承载 `postgres_data` / `redis_data` / 对象存储数据目录的底层块设备必须开启静态加密（云盘 KMS/EBS/PD 或主机侧 LUKS）。仓库内的 Compose 只定义容器拓扑，不负责替代宿主机磁盘加密。
 
@@ -18,10 +18,10 @@ last-verified: 2026-05-02
 [Internet]
     │
     ▼
-[Traefik Edge Proxy :443/:80]  ← 仓库内，负责 TLS 终止与路由
-    ├── /api/*          → backend (Go, :8080)
-    ├── /admin/*        → admin 前端 (Nginx, :80)
-    └── /               → web 前端 (Nginx, :80)
+[Baota Nginx :443/:80]  ← 宿主机，负责 TLS 终止与路由
+    ├── /api/*          → 127.0.0.1:18080 → backend (Go, :8080)
+    ├── /admin/*        → 127.0.0.1:18001 → admin 前端 (Nginx, :8080)
+    └── /               → 127.0.0.1:18000 → web 前端 (Nginx, :80)
 
 [sso.stuhelper.com]
     └── Casdoor SSO     → 独立 Docker Compose 栈
@@ -63,22 +63,23 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 
 | 决策 | 内容 |
 |------|------|
-| Edge Proxy | Traefik（仓库内 docker-compose 管理） |
-| TLS 终止 | Traefik ACME（Let's Encrypt），或外部 CDN/LB 终止后内部 HTTP |
-| 公网端口 | 443 (HTTPS)、80 (HTTP → 301 → HTTPS) |
+| Edge Proxy | 宝塔 Nginx（宿主机管理） |
+| TLS 终止 | 宝塔 Nginx 证书管理，或外部 CDN/LB 终止后转发到宝塔 Nginx |
+| 公网端口 | 443 (HTTPS)、80 (HTTP → 301 → HTTPS)，只由宝塔 Nginx 监听 |
+| 容器宿主机端口 | `127.0.0.1:18080` backend、`127.0.0.1:18000` web、`127.0.0.1:18001` admin |
 
 ### 证书终止策略
 
-**默认方案：Traefik ACME (Let's Encrypt)**
+**默认方案：宝塔 Nginx 终止 TLS**
 
-- `infra/traefik/traefik.yml` 中配置 `certificatesResolvers.letsencrypt`
-- 证书自动续期，存储在 Docker volume `acme_data`（实际名称 `${STACK_NAME:-stuhelper}-acme-data`）
-- 要求：域名 DNS 解析到部署机公网 IP，80 端口可达
+- `stuhelper.com` 与 `www.stuhelper.com` 在宝塔面板中建站并配置证书。
+- 宝塔 Nginx 根据路径反代到本机回环端口，示例见 `infra/nginx/baota-stuhelper.conf`。
+- Docker Compose 中的业务端口只绑定 `127.0.0.1`，不直接暴露公网。
 
 **备选方案：外部 LB/CDN 终止**
 
-- Traefik 仅监听 HTTP，由外部 Cloudflare/Nginx/ALB 终止 TLS
-- `TRAEFIK_ENTRYPOINT_WEBSECURE_ENABLED=false`
+- 外部 Cloudflare/Nginx/ALB 终止 TLS 后转发到宝塔 Nginx。
+- 需要保留 `X-Forwarded-Proto: https`、`X-Forwarded-Host` 和客户端 IP 链路。
 
 ## 备份责任
 

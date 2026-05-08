@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-02
+last-verified: 2026-05-09
 ---
 
 # 一键启动与部署
@@ -100,10 +100,10 @@ make prod-deploy
 1. 校验生产共享配置 + 本机 secrets + 运行时派生 secrets 文件
 2. 渲染 Prometheus / Alertmanager 生成配置
 3. 拉取 / 启动 backend / frontend / admin 生产镜像
-4. 启动基础设施、认证、授权、对象存储、可观测性组件
+4. 启动基础设施、授权、对象存储、可观测性组件
 5. 幂等创建 / 校验 Casdoor organization、first-party applications、7 个 flat roles、启用的 provider，并初始化 OpenFGA 派生配置
 6. 自动初始化对象存储 bucket
-7. 启动 `app` / `frontend` / `admin`
+7. 启动 `app` / `frontend` / `admin`，并将它们绑定到宿主机 `127.0.0.1:18080` / `18000` / `18001`
 8. 执行业务 Smoke Check + Observability Smoke Check
 
 ## 远端部署控制面

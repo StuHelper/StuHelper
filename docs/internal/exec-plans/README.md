@@ -27,6 +27,7 @@ last-verified: 2026-05-07
 - [archived/2026-03-casdoor-migration-and-vben.md](archived/2026-03-casdoor-migration-and-vben.md)
 - [archived/2026-03-vben-admin-user-system.md](archived/2026-03-vben-admin-user-system.md)
 - [archived/2026-04-13-full-repo-audit.md](archived/2026-04-13-full-repo-audit.md)
+- [archived/2026-05-08-parallel-codebase-review.md](archived/2026-05-08-parallel-codebase-review.md)
 - [archived/merged-audit-2026-04-16.md](archived/merged-audit-2026-04-16.md)
 - [archived/stuhelper-master-plan.md](archived/stuhelper-master-plan.md)
 - [archived/todo.md](archived/todo.md)

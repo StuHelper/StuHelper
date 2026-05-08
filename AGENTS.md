@@ -152,7 +152,7 @@ StuHelper/
 | 设计文档 | [docs/design/](docs/design/) |
 | 文档治理 | [docs/design/documentation-governance.md](docs/design/documentation-governance.md) |
 | 文档维护 | [docs/guides/documentation-maintenance.md](docs/guides/documentation-maintenance.md) |
-| 运维发布 | [docs/guides/](docs/guides/) |
+| 运维发布 | [docs/guides/production-go-live.md](docs/guides/production-go-live.md) / [docs/guides/](docs/guides/) |
 | API 参考 | [docs/reference/api-overview.md](docs/reference/api-overview.md) |
 | 数据库参考 | [docs/reference/database.md](docs/reference/database.md) |
 | 错误码参考 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |

@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: infra/ops/*.sh + infra/ansible/
-last-verified: 2026-04-19
+last-verified: 2026-05-09
 ---
 
 # 发布运行手册
@@ -12,6 +12,8 @@ last-verified: 2026-04-19
 
 - GitLab CI/CD 自动发布
 - 手工 SSH 到部署机执行的应急发布
+
+首次生产落地先按 [production-go-live.md](production-go-live.md) 完成域名、宝塔 Nginx、secret backend、对象存储、备份与告警准备；本文只描述发布与回滚运行流程。
 
 ## 发布前检查
 
@@ -90,8 +92,8 @@ make prod-deploy
 
 ## 发布后验证
 
-- API：`http://127.0.0.1:8080/health/live`
-- API：`http://127.0.0.1:8080/health/ready`
+- API：`http://127.0.0.1:18080/health/live`
+- API：`http://127.0.0.1:18080/health/ready`
 - Web：首页 200
 - Admin：首页 200
 - Grafana：`http://127.0.0.1:3003`
@@ -166,75 +168,44 @@ Smoke Check 结果:
 
 ### 方案选择
 
-StuHelper 支持两种 TLS 终止模式，根据部署环境选择：
+StuHelper 当前生产入口采用宝塔 Nginx。Docker Compose 只把业务服务绑定到宿主机回环地址的非常用端口，不直接监听公网 `80/443`。
 
 | 模式 | 适用场景 | 证书管理 |
 |------|---------|---------|
-| **Traefik ACME** | 单机部署，无外部 LB | Traefik 自动申请 Let's Encrypt 证书 |
-| **External LB** | 云厂商 LB / CDN 前置 | 外部 LB 终止 TLS，Traefik 仅接收 HTTP |
+| **Baota Nginx** | 当前生产默认 | 宝塔面板管理证书与站点反代 |
+| **External LB/CDN + Baota Nginx** | 云厂商 LB / CDN 前置 | 外部终止 TLS，或外部转发 HTTPS 到宝塔 |
 
-### 方案 A：Traefik ACME（推荐单机部署）
+### 方案 A：宝塔 Nginx（当前默认）
 
-Traefik 内置 Let's Encrypt ACME 客户端，通过 HTTP-01 challenge 自动申请和续期证书。
+宝塔 Nginx 是唯一公网入口，负责 `stuhelper.com` 的 `80/443`、证书、HTTP 到 HTTPS 跳转和反向代理。仓库提供反代示例：
 
-**启用步骤：**
-
-1. 在 `.env` 中配置：
-
-```bash
-# 绑定公网 IP（必须，ACME HTTP-01 challenge 需要 80 端口可达）
-TRAEFIK_BIND_IP=0.0.0.0
-TRAEFIK_HTTP_PORT=80
-TRAEFIK_HTTPS_PORT=443
-
-# 设置邮箱即启用 ACME
-TRAEFIK_ACME_EMAIL=admin@stuhelper.com
-
-# 启用 HTTP → HTTPS 强制重定向
-TRAEFIK_TLS_REDIRECT_TARGET=websecure
-TRAEFIK_TLS_REDIRECT_PERMANENT=true
+```text
+infra/nginx/baota-stuhelper.conf
 ```
 
-2. 确保域名 A 记录指向服务器公网 IP
-3. 确保防火墙开放 80 和 443 端口
-4. 证书自动存储在 `acme_data` Docker 卷中（`/acme/acme.json`）
-5. 证书自动续期，无需人工干预
-
-**注意事项：**
-
-- ACME HTTP-01 challenge 要求 80 端口从公网可达
-- 首次启动时证书申请可能需要 1-2 分钟
-- Let's Encrypt 有速率限制（每域名每周 50 张证书），测试时建议使用 staging CA
-- 证书存储在 Docker 卷中，`docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml down -v` 会删除证书
-
-### 方案 B：External LB 终止 TLS
-
-由外部负载均衡器（如阿里云 SLB、AWS ALB、Cloudflare）终止 TLS，Traefik 仅处理 HTTP 流量。
-
-**配置步骤：**
-
-1. 在 `.env` 中配置：
+生产端口默认值：
 
 ```bash
-# Traefik 仅监听 HTTP，不暴露 443
-TRAEFIK_BIND_IP=0.0.0.0
-TRAEFIK_HTTP_PORT=80
-
-# 不设置 ACME 邮箱（禁用 ACME）
-TRAEFIK_ACME_EMAIL=
-
-# 不设置重定向（由 LB 处理）
-TRAEFIK_TLS_REDIRECT_TARGET=
+BACKEND_EXTERNAL_PORT=18080
+WEB_EXTERNAL_PORT=18000
+ADMIN_EXTERNAL_PORT=18001
 ```
 
-2. 外部 LB 配置：
-   - 监听 443 (HTTPS)，后端转发到 Traefik 的 80 (HTTP)
-   - 设置 `X-Forwarded-Proto: https` 头
-   - 在 LB 上配置 TLS 证书
+反代目标：
 
-3. 应用层面需要配置受信代理：
-   - 设置 `TRUSTED_PROXIES` 为 LB 的内网 IP
-   - `CASDOOR_ISSUER` 使用外部 HTTPS 地址，并与 `WEB_VITE_SSO_URL` 保持一致
+- `/api/*` → `http://127.0.0.1:18080`
+- `/admin/*` → `http://127.0.0.1:18001`
+- `/` → `http://127.0.0.1:18000`
+
+### 方案 B：External LB/CDN + 宝塔 Nginx
+
+由外部负载均衡器或 CDN 作为第一层入口，宝塔 Nginx 仍然作为应用反代层。
+
+配置要求：
+
+- 外部层必须保留 `X-Forwarded-Proto: https`。
+- 宝塔 Nginx 必须继续把 `Host`、`X-Forwarded-Host`、`X-Real-IP`、`X-Forwarded-For` 传给后端。
+- `TRUSTED_PROXIES` 要包含可信代理网段。
 
 ### TLS 终止检查清单
 
@@ -245,4 +216,6 @@ TRAEFIK_TLS_REDIRECT_TARGET=
 - [ ] `WEB_VITE_SSO_URL=https://sso.stuhelper.com`
 - [ ] `https://sso.stuhelper.com/.well-known/openid-configuration` 可达
 - [ ] `TOKEN_COOKIE_SECURE=true`（生产必须）
-- [ ] 如果使用 External LB，`TRUSTED_PROXIES` 已正确配置
+- [ ] 宝塔 Nginx 是唯一监听公网 `80/443` 的入口
+- [ ] `127.0.0.1:18080`、`127.0.0.1:18000`、`127.0.0.1:18001` 在宿主机可访问且未暴露公网
+- [ ] 如果使用 External LB/CDN，`TRUSTED_PROXIES` 已正确配置

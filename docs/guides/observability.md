@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-05-09
 ---
 
 # 可观测性运行手册
@@ -14,7 +14,7 @@ StuHelper 采用 **方案 A** 的完整生产观测栈：
 
 - **应用埋点**：Go 后端接入 OpenTelemetry（Gin / outbound HTTP / Redis / DB / OpenFGA）
 - **Collector**：Grafana Alloy 负责接收 OTLP traces，并采集 Docker 容器日志推送到 Loki
-- **Metrics**：Prometheus 抓取应用、Grafana LGTM 组件、node-exporter、postgres-exporter、redis-exporter、blackbox-exporter；cAdvisor 仅在本地/临时 observability profile 中按需启用，不进入生产默认拓扑
+- **Metrics**：Prometheus 抓取应用、Grafana LGTM 组件、node-exporter、cAdvisor、postgres-exporter、redis-exporter、blackbox-exporter；生产发布脚本会启动 cAdvisor，因为基础设施 dashboard 依赖容器级 CPU / 内存指标
 - **Logs**：Loki 聚合容器日志
 - **Traces**：Tempo 存储链路数据
 - **Dashboards**：Grafana 统一查看 metrics / logs / traces / alerts

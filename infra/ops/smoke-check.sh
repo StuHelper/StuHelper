@@ -4,12 +4,12 @@
 #
 # 用法:
 #   ./smoke-check.sh                           # 本地默认地址
-#   API_BASE_URL=https://api.example.com ./smoke-check.sh  # 远端
+#   API_BASE_URL=https://stuhelper.com WEB_BASE_URL=https://stuhelper.com ADMIN_BASE_URL=https://stuhelper.com ./smoke-check.sh
 set -euo pipefail
 
-API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:8080}"
-WEB_BASE_URL="${WEB_BASE_URL:-http://127.0.0.1:3000}"
-ADMIN_BASE_URL="${ADMIN_BASE_URL:-http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-3001}}"
+API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:${BACKEND_EXTERNAL_PORT:-18080}}"
+WEB_BASE_URL="${WEB_BASE_URL:-http://127.0.0.1:${WEB_EXTERNAL_PORT:-18000}}"
+ADMIN_BASE_URL="${ADMIN_BASE_URL:-http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-18001}}"
 ADMIN_SMOKE_PATH="${ADMIN_SMOKE_PATH:-/admin/}"
 CHECK_ADMIN="${CHECK_ADMIN:-true}"
 SMOKE_RETRIES="${SMOKE_RETRIES:-30}"

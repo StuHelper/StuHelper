@@ -27,6 +27,7 @@ bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT
 bootstrap_reject_line="$(line_number 'reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 app_provisioning_reject_line="$(line_number 'reject_placeholder CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
+backup_endpoint_reject_line="$(line_number 'reject_placeholder BACKUP_OBJECT_STORAGE_ENDPOINT')"
 introspection_require_line="$(line_number 'require_nonempty CASDOOR_INTROSPECTION_CLIENT_SECRET')"
 role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET')"
 user_lookup_require_line="$(line_number 'require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET')"
@@ -47,6 +48,9 @@ if (( bootstrap_reject_line <= bootstrap_require_line )); then
 fi
 if (( app_provisioning_reject_line <= app_provisioning_require_line )); then
   fail "Casdoor app-provisioning placeholder rejection must run after non-empty validation"
+fi
+if (( backup_endpoint_reject_line <= app_provisioning_reject_line )); then
+  fail "backup object storage placeholder rejection must be part of production deploy validation"
 fi
 if (( introspection_require_line <= app_provisioning_require_line )); then
   fail "Casdoor introspection validation should be grouped after app-provisioning validation"
@@ -73,6 +77,10 @@ if (( sms_enabled_line <= sms_secret_require_line )); then
   fail "SMS_ENABLED production gate must run after SMS credentials are validated"
 fi
 
+if ! grep -qF 'reject_local_value BACKUP_OBJECT_STORAGE_ENDPOINT' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must reject local backup object storage endpoints"
+fi
+
 if (( render_redis_acl_line <= load_env_line )); then
   fail "render-redis-acl.sh must run after load_env so the latest REDIS_PASSWORD is available"
 fi
@@ -92,6 +100,9 @@ authz_block="$(
 [[ -n "${authz_block}" ]] || fail "expected authz_services block in ${PROD_DEPLOY_FILE}"
 if printf '%s\n' "${authz_block}" | grep -Eq '(^|[[:space:]])casdoor($|[[:space:]])'; then
   fail "production deploy must not start the local casdoor service; SSO is external"
+fi
+if printf '%s\n' "${authz_block}" | grep -Eq '(^|[[:space:]])proxy($|[[:space:]])'; then
+  fail "production deploy must not start Traefik when Baota/Nginx owns public ingress"
 fi
 if ! printf '%s\n' "${authz_block}" | grep -Eq '(^|[[:space:]])openfga($|[[:space:]])'; then
   fail "production authz services must still start OpenFGA"

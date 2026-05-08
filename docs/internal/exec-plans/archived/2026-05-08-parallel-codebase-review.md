@@ -1,16 +1,16 @@
 ---
 type: internal
 audience: maintainers
-status: remediation-reviewed
-authoritative-source: code review at develop@6295c6f32a15228c1773be50c6394b5bf2bb86bb
+status: archived
+authoritative-source: code review at develop@6295c6f32a15228c1773be50c6394b5bf2bb86bb + remediation commit 971db59c
 created: 2026-05-08
 last-verified: 2026-05-08
 remediation-updated: 2026-05-08
 ---
 
-# 2026-05-08 并行代码库审查记录
+# 2026-05-08 并行代码库审查归档
 
-本文件记录一次只读并行审查的阶段性结论。它不是长期规范来源；修复前仍应回到当前 checkout 复核源码、配置、OpenAPI 和测试。
+本文件是 2026-05-08 并行代码库审查与后续修复闭环的历史记录。它不作为当前代码库规范来源；当前实现以源码、测试、OpenAPI、migrations、`docs/design/`、`docs/guides/`、`docs/reference/` 为准。
 
 ## 审查基线
 

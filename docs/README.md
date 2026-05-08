@@ -3,7 +3,7 @@ type: reference
 audience: all
 status: current
 authoritative-source: this file (index) + linked docs
-last-verified: 2026-05-07
+last-verified: 2026-05-09
 ---
 
 # StuHelper 文档
@@ -51,12 +51,13 @@ last-verified: 2026-05-07
 
 ### 我要**运维 / 发布 / 排障**
 
-1. [guides/release-runbook.md](guides/release-runbook.md) — 发布流程、verify、回滚
-2. [guides/database-migrations.md](guides/database-migrations.md) — 迁移、seed、回滚
-3. [guides/observability.md](guides/observability.md) — Grafana LGTM、告警、排障
-4. [guides/backup-and-restore.md](guides/backup-and-restore.md) — PostgreSQL 备份恢复
-5. [guides/automation.md](guides/automation.md) — 一键启动、GitLab、Ansible
-6. [guides/production-topology.md](guides/production-topology.md) — 生产拓扑
+1. [guides/production-go-live.md](guides/production-go-live.md) — 生产上线缺漏清单与执行步骤
+2. [guides/release-runbook.md](guides/release-runbook.md) — 发布流程、verify、回滚
+3. [guides/database-migrations.md](guides/database-migrations.md) — 迁移、seed、回滚
+4. [guides/observability.md](guides/observability.md) — Grafana LGTM、告警、排障
+5. [guides/backup-and-restore.md](guides/backup-and-restore.md) — PostgreSQL 备份恢复
+6. [guides/automation.md](guides/automation.md) — 一键启动、GitLab、Ansible
+7. [guides/production-topology.md](guides/production-topology.md) — 生产拓扑
 
 ### 我想查**事实**
 

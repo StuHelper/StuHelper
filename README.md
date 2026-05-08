@@ -117,6 +117,7 @@ StuHelper/
 | [docs/guides/frontend-development.md](docs/guides/frontend-development.md) | 前端规范 |
 | [docs/design/product-overview.md](docs/design/product-overview.md) | 产品形态与边界 |
 | [docs/design/target-scope.md](docs/design/target-scope.md) | 目标范围与模块边界 |
+| [docs/guides/production-go-live.md](docs/guides/production-go-live.md) | 生产上线缺漏清单与执行步骤 |
 | [docs/guides/](docs/guides/) | 运维与发布 |
 | [docs/README.md](docs/README.md) | 文档总索引 |
 
