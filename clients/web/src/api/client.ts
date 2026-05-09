@@ -28,6 +28,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = (() => {
 })()
 const CSRF_COOKIE_NAME = 'csrf_token'
 const inflightGetRequests = new Map<string, Promise<unknown>>()
+let didWarnMissingApiBaseUrl = false
 
 function stripSchemaPrefix(baseUrl: string): string {
   const trimmed = baseUrl.trim().replace(/\/$/, '')
@@ -42,6 +43,10 @@ export function resolveApiBaseUrl(rawBaseUrl: string = RAW_API_BASE_URL): string
   }
 
   if (window.location?.origin) {
+    if (import.meta.env.DEV && normalizedBaseUrl === '' && !didWarnMissingApiBaseUrl) {
+      didWarnMissingApiBaseUrl = true
+      console.warn('[api] VITE_API_URL not set, falling back to window.location.origin')
+    }
     return window.location.origin
   }
 

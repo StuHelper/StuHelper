@@ -211,6 +211,7 @@
     "studentVerification": {
       "statusPlaceholder": "Verification status",
       "schoolIdPlaceholder": "Filter by school ID...",
+      "schoolIdRequired": "Enter a school ID first",
       "userId": "User ID",
       "schoolId": "School ID",
       "activeStudentId": "Current Student ID",

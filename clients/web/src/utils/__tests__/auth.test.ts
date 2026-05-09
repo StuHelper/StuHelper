@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { clearAuth, isTokenExpired, tokenExpiry, userManager, type StoredUser } from '../auth'
+import {
+  clearAuth,
+  consumeOAuthState,
+  isTokenExpired,
+  tokenExpiry,
+  userManager,
+  type StoredUser,
+} from '../auth'
 
 class MemoryStorage implements Storage {
   private store = new Map<string, string>()
@@ -111,5 +118,19 @@ describe('auth utilities', () => {
     expect(sessionStorage.getItem('post_login_redirect')).toBeNull()
     expect(sessionStorage.getItem('draft_redirect')).toBeNull()
     expect(sessionStorage.getItem('draft_pending')).toBeNull()
+  })
+
+  it('consumes a matching oauth state and clears it from session storage', () => {
+    sessionStorage.setItem('oauth_state', 'oauth-state')
+
+    expect(consumeOAuthState('oauth-state')).toBe(true)
+    expect(sessionStorage.getItem('oauth_state')).toBeNull()
+  })
+
+  it('rejects a mismatched oauth state and still clears it from session storage', () => {
+    sessionStorage.setItem('oauth_state', 'oauth-state')
+
+    expect(consumeOAuthState('other-state')).toBe(false)
+    expect(sessionStorage.getItem('oauth_state')).toBeNull()
   })
 })

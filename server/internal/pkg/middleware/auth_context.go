@@ -34,10 +34,14 @@ type authResult struct {
 	roles                                       []string
 	orgScopedRoles                              map[string][]string
 	mfaProofAt                                  time.Time
+	selfSigned                                  bool
 }
 
 func withResolvedRoleScopes(ctx context.Context, auth *authResult, resolver RoleScopeResolver) (*authResult, error) {
 	if auth == nil || resolver == nil {
+		return auth, nil
+	}
+	if auth.selfSigned {
 		return auth, nil
 	}
 	scopes, err := resolver.ResolveRoleScopes(ctx, auth.userID, auth.roles)

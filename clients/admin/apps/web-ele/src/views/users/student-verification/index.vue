@@ -6,6 +6,7 @@ import { onMounted, reactive, ref } from 'vue';
 import {
   ElButton,
   ElInput,
+  ElMessage,
   ElOption,
   ElPagination,
   ElPopconfirm,
@@ -20,7 +21,7 @@ import {
   reviewStudentVerification,
 } from '#/api/admin';
 import { $t } from '#/locales';
-import { useAuthStore } from '#/store/auth';
+import { SCHOOL_SCOPE_REQUIRED_ERROR, useAuthStore } from '#/store/auth';
 
 const STUDENT_REVIEW_CAPABILITY = 'user:student:review';
 
@@ -36,18 +37,36 @@ const query = reactive({
   schoolId: '',
 });
 
-function normalizeScopedSchoolId() {
-  const schoolId = authStore.resolveScopedSchoolId(
-    STUDENT_REVIEW_CAPABILITY,
-    query.schoolId,
-  );
-  if (schoolId !== query.schoolId) {
-    query.schoolId = schoolId;
+function normalizeScopedSchoolId(): boolean {
+  try {
+    const schoolId = authStore.resolveScopedSchoolId(
+      STUDENT_REVIEW_CAPABILITY,
+      query.schoolId,
+    );
+    if (schoolId !== query.schoolId) {
+      query.schoolId = schoolId;
+    }
+    return true;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === SCHOOL_SCOPE_REQUIRED_ERROR
+    ) {
+      items.value = [];
+      total.value = 0;
+      ElMessage.warning(
+        $t('admin.users.studentVerification.schoolIdRequired'),
+      );
+      return false;
+    }
+    throw error;
   }
 }
 
 async function fetchData() {
-  normalizeScopedSchoolId();
+  if (!normalizeScopedSchoolId()) {
+    return;
+  }
   loading.value = true;
   try {
     const data = await getStudentVerificationList(query);

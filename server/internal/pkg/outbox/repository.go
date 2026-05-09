@@ -14,6 +14,75 @@ import (
 
 const DomainEventOutboxTable = "domain_event_outbox"
 
+const upsertSQL = `
+	INSERT INTO ` + DomainEventOutboxTable + ` (
+		stream,
+		job_type,
+		dedupe_key,
+		payload,
+		status,
+		attempt_count,
+		available_at,
+		locked_at,
+		last_error,
+		created_at,
+		updated_at
+	) VALUES ($1, $2, $3, $4::jsonb, 'pending', 0, NOW(), NULL, NULL, NOW(), NOW())
+	ON CONFLICT (stream, dedupe_key)
+	DO UPDATE SET
+		job_type = EXCLUDED.job_type,
+		payload = EXCLUDED.payload,
+		status = 'pending',
+		attempt_count = 0,
+		available_at = NOW(),
+		locked_at = NULL,
+		last_error = NULL,
+		updated_at = NOW()
+`
+
+const claimSQL = `
+	WITH candidates AS (
+		SELECT id
+		FROM ` + DomainEventOutboxTable + `
+		WHERE stream = $1
+		  AND (
+			status = 'pending'
+			OR (status = 'failed' AND available_at <= NOW())
+			OR (status = 'processing' AND locked_at <= NOW() - $3::interval)
+		)
+		ORDER BY available_at ASC, id ASC
+		LIMIT $2
+		FOR UPDATE SKIP LOCKED
+	)
+	UPDATE ` + DomainEventOutboxTable + ` AS o
+	SET status = 'processing',
+		locked_at = NOW(),
+		updated_at = NOW()
+	FROM candidates
+	WHERE o.id = candidates.id
+	RETURNING o.id, o.job_type, o.payload, o.attempt_count
+`
+
+const markDoneSQL = `
+	UPDATE ` + DomainEventOutboxTable + `
+	SET status = 'completed',
+		locked_at = NULL,
+		last_error = NULL,
+		updated_at = NOW()
+	WHERE id = $1
+`
+
+const markRetrySQL = `
+	UPDATE ` + DomainEventOutboxTable + `
+	SET status = 'failed',
+		attempt_count = attempt_count + 1,
+		available_at = $2,
+		locked_at = NULL,
+		last_error = $3,
+		updated_at = NOW()
+	WHERE id = $1
+`
+
 var streamNamePattern = regexp.MustCompile(`^[a-z_]+$`)
 
 type Job struct {
@@ -28,11 +97,7 @@ func UpsertJobTx(ctx context.Context, tx pgx.Tx, stream, jobType, dedupeKey stri
 	if err != nil {
 		return err
 	}
-	query, err := upsertQuery()
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, query, stream, jobType, dedupeKey, payload)
+	_, err = tx.Exec(ctx, upsertSQL, stream, jobType, dedupeKey, payload)
 	if err != nil {
 		return fmt.Errorf("upsert outbox job: %w", err)
 	}
@@ -47,14 +112,9 @@ func ClaimJobs(ctx context.Context, database *db.DB, stream string, limit int, s
 	if err != nil {
 		return nil, err
 	}
-	query, err := claimQuery()
-	if err != nil {
-		return nil, err
-	}
-
 	jobs := make([]Job, 0, limit)
 	err = database.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, query, stream, limit, intervalLiteral(staleAfter))
+		rows, err := tx.Query(ctx, claimSQL, stream, limit, intervalLiteral(staleAfter))
 		if err != nil {
 			return fmt.Errorf("claim outbox jobs query: %w", err)
 		}
@@ -68,11 +128,7 @@ func ClaimJobs(ctx context.Context, database *db.DB, stream string, limit int, s
 }
 
 func MarkJobDone(ctx context.Context, database *db.DB, jobID int64) error {
-	query, err := markDoneQuery()
-	if err != nil {
-		return err
-	}
-	_, err = database.Exec(ctx, query, jobID)
+	_, err := database.Exec(ctx, markDoneSQL, jobID)
 	if err != nil {
 		return fmt.Errorf("mark outbox job done: %w", err)
 	}
@@ -80,11 +136,7 @@ func MarkJobDone(ctx context.Context, database *db.DB, jobID int64) error {
 }
 
 func MarkJobRetry(ctx context.Context, database *db.DB, jobID int64, nextAttemptAt time.Time, lastError string) error {
-	query, err := markRetryQuery()
-	if err != nil {
-		return err
-	}
-	_, err = database.Exec(ctx, query, jobID, nextAttemptAt, lastError)
+	_, err := database.Exec(ctx, markRetrySQL, jobID, nextAttemptAt, lastError)
 	if err != nil {
 		return fmt.Errorf("mark outbox job retry: %w", err)
 	}
@@ -105,83 +157,6 @@ func scanJobs(rows pgx.Rows, jobs *[]Job) error {
 		return fmt.Errorf("claim outbox jobs rows: %w", err)
 	}
 	return nil
-}
-
-func upsertQuery() (string, error) {
-	return fmt.Sprintf(`
-		INSERT INTO %s (
-			stream,
-			job_type,
-			dedupe_key,
-			payload,
-			status,
-			attempt_count,
-			available_at,
-			locked_at,
-			last_error,
-			created_at,
-			updated_at
-		) VALUES ($1, $2, $3, $4::jsonb, 'pending', 0, NOW(), NULL, NULL, NOW(), NOW())
-		ON CONFLICT (stream, dedupe_key)
-		DO UPDATE SET
-			job_type = EXCLUDED.job_type,
-			payload = EXCLUDED.payload,
-			status = 'pending',
-			attempt_count = 0,
-			available_at = NOW(),
-			locked_at = NULL,
-			last_error = NULL,
-			updated_at = NOW()
-	`, DomainEventOutboxTable), nil
-}
-
-func claimQuery() (string, error) {
-	return fmt.Sprintf(`
-		WITH candidates AS (
-			SELECT id
-			FROM %s
-			WHERE stream = $1
-			  AND (
-				status = 'pending'
-				OR (status = 'failed' AND available_at <= NOW())
-				OR (status = 'processing' AND locked_at <= NOW() - $3::interval)
-			)
-			ORDER BY available_at ASC, id ASC
-			LIMIT $2
-			FOR UPDATE SKIP LOCKED
-		)
-		UPDATE %s AS o
-		SET status = 'processing',
-			locked_at = NOW(),
-			updated_at = NOW()
-		FROM candidates
-		WHERE o.id = candidates.id
-		RETURNING o.id, o.job_type, o.payload, o.attempt_count
-	`, DomainEventOutboxTable, DomainEventOutboxTable), nil
-}
-
-func markDoneQuery() (string, error) {
-	return fmt.Sprintf(`
-		UPDATE %s
-		SET status = 'completed',
-			locked_at = NULL,
-			last_error = NULL,
-			updated_at = NOW()
-		WHERE id = $1
-	`, DomainEventOutboxTable), nil
-}
-
-func markRetryQuery() (string, error) {
-	return fmt.Sprintf(`
-		UPDATE %s
-		SET status = 'failed',
-			attempt_count = attempt_count + 1,
-			available_at = $2,
-			locked_at = NULL,
-			last_error = $3,
-			updated_at = NOW()
-		WHERE id = $1
-	`, DomainEventOutboxTable), nil
 }
 
 func safeStreamName(stream string) (string, error) {

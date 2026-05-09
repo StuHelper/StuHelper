@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 
@@ -26,6 +27,8 @@ const (
 	versionLocalTTL = 1 * time.Second
 	// defaultMaxVersionEntries 版本号本地缓存默认最大条目数
 	defaultMaxVersionEntries = 1000
+	// versionEvictionDivisor 达到本地缓存上限时，按最早过期时间裁剪 1/4 条目。
+	versionEvictionDivisor = 4
 	// jitterFraction TTL 抖动比例（±15%）
 	jitterFraction = 0.15
 )
@@ -40,6 +43,11 @@ var incrExpireScript = redis.NewScript(`
 // versionEntry 版本号本地缓存条目
 type versionEntry struct {
 	version   string
+	expiresAt time.Time
+}
+
+type versionEvictionCandidate struct {
+	key       string
 	expiresAt time.Time
 }
 
@@ -159,76 +167,6 @@ func (h *Helper) Set(ctx context.Context, key string, value any, ttl time.Durati
 	return nil
 }
 
-// Invalidate 批量删除匹配前缀的缓存
-// 注意：优先使用 InvalidateByVersion 代替此方法，避免 SCAN 的性能问题
-func (h *Helper) Invalidate(ctx context.Context, prefix string) error {
-	if h.client == nil {
-		return nil
-	}
-
-	// 添加超时保护，防止 SCAN 长时间阻塞（30s 以应对大规模前缀场景）
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	pattern := prefix + "*"
-	var cursor uint64
-	var deletedTotal int
-	// 持续扫描直到 cursor 归零，确保遍历所有匹配 key
-	for {
-		var batch []string
-		var err error
-		batch, cursor, err = h.client.Scan(ctx, cursor, pattern, 100).Result()
-		if err != nil {
-			// 超时或取消时已删除部分 key，缓存处于不一致状态
-			if ctx.Err() != nil && deletedTotal > 0 {
-				logger.L().Warn("cache invalidation incomplete due to timeout, partial keys deleted",
-					zap.String("prefix", prefix),
-					zap.String("pattern", pattern),
-					zap.Int("deleted_so_far", deletedTotal),
-					zap.Error(err),
-				)
-			} else {
-				logger.L().Warn("failed to scan cache keys",
-					zap.String("prefix", prefix),
-					zap.String("pattern", pattern),
-					zap.Error(err),
-				)
-			}
-			return err
-		}
-
-		// 每批立即删除，避免内存中积累大量 key
-		if len(batch) > 0 {
-			pipe := h.client.Pipeline()
-			for _, key := range batch {
-				pipe.Del(ctx, key)
-			}
-			if _, err := pipe.Exec(ctx); err != nil {
-				logger.L().Warn("failed to invalidate cache batch",
-					zap.String("prefix", prefix),
-					zap.Int("batch_size", len(batch)),
-					zap.Error(err),
-				)
-				return err
-			}
-			deletedTotal += len(batch)
-		}
-
-		if cursor == 0 {
-			break
-		}
-	}
-
-	if deletedTotal > 0 {
-		logger.L().Debug("cache invalidation completed",
-			zap.String("prefix", prefix),
-			zap.Int("deleted_total", deletedTotal),
-		)
-	}
-
-	return nil
-}
-
 // GetInt 获取整数缓存值
 func (h *Helper) GetInt(ctx context.Context, key string) (int, bool) {
 	if h.client == nil {
@@ -319,9 +257,7 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 	// 写入本地缓存
 	h.vmu.Lock()
 	if _, exists := h.versions[vk]; !exists && len(h.versions) >= h.maxVersionEntries {
-		// 本地版本缓存只是 Redis 命中的短时优化，达到上限时直接重置即可。
-		// 这样避免为了淘汰一个条目而按 map 大小 O(N) 扫描整张表。
-		h.versions = make(map[string]versionEntry, h.maxVersionEntries)
+		h.evictVersionEntriesLocked(time.Now())
 	}
 	h.versions[vk] = versionEntry{
 		version:   version,
@@ -336,6 +272,37 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 func (h *Helper) BuildVersionedKey(ctx context.Context, prefix, key string) string {
 	version := h.GetVersion(ctx, prefix)
 	return prefix + ":v" + version + ":" + key
+}
+
+func (h *Helper) evictVersionEntriesLocked(now time.Time) {
+	for key, entry := range h.versions {
+		if !now.Before(entry.expiresAt) {
+			delete(h.versions, key)
+		}
+	}
+	if len(h.versions) < h.maxVersionEntries {
+		return
+	}
+
+	candidates := make([]versionEvictionCandidate, 0, len(h.versions))
+	for key, entry := range h.versions {
+		candidates = append(candidates, versionEvictionCandidate{
+			key:       key,
+			expiresAt: entry.expiresAt,
+		})
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].expiresAt.Before(candidates[j].expiresAt)
+	})
+
+	removeCount := h.maxVersionEntries / versionEvictionDivisor
+	if removeCount < 1 {
+		removeCount = 1
+	}
+	for index := 0; index < len(candidates) &&
+		(index < removeCount || len(h.versions) >= h.maxVersionEntries); index++ {
+		delete(h.versions, candidates[index].key)
+	}
 }
 
 // InvalidateByVersion 通过递增版本号使缓存失效

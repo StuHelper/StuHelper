@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"go.uber.org/zap"
@@ -118,14 +119,36 @@ func nextAttemptAt(cfg WorkerConfig, attemptCount int) time.Time {
 	if reachedMaxAttempts(cfg, attemptCount) {
 		return time.Now().Add(longFailedDelay)
 	}
-	backoff := time.Duration(attemptCount+1) * cfg.RetryBaseBackoff
-	if cfg.MaxBackoff > 0 && backoff > cfg.MaxBackoff {
-		backoff = cfg.MaxBackoff
-	}
-	return time.Now().Add(backoff)
+	return time.Now().Add(jitteredBackoff(nextBackoffDuration(cfg, attemptCount)))
 }
 
 const longFailedDelay = 100 * 365 * 24 * time.Hour
+
+func nextBackoffDuration(cfg WorkerConfig, attemptCount int) time.Duration {
+	backoff := cfg.RetryBaseBackoff
+	if backoff <= 0 {
+		return 0
+	}
+	for retry := 0; retry < attemptCount; retry++ {
+		if cfg.MaxBackoff > 0 && backoff >= cfg.MaxBackoff {
+			return cfg.MaxBackoff
+		}
+		backoff *= 2
+	}
+	if cfg.MaxBackoff > 0 && backoff > cfg.MaxBackoff {
+		return cfg.MaxBackoff
+	}
+	return backoff
+}
+
+func jitteredBackoff(backoff time.Duration) time.Duration {
+	if backoff <= 1 {
+		return backoff
+	}
+	minDelay := backoff / 2
+	jitterWindow := backoff - minDelay
+	return minDelay + time.Duration(rand.Float64()*float64(jitterWindow))
+}
 
 func reachedMaxAttempts(cfg WorkerConfig, attemptCount int) bool {
 	return cfg.MaxAttempts > 0 && attemptCount+1 >= cfg.MaxAttempts

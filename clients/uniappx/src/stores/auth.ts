@@ -10,6 +10,11 @@ import {
   writeNativeTokens,
 } from '@/api/native-session'
 import { assertMutationSuccess, unwrapData, unwrapOptionalData } from '@/api/result'
+import {
+  clearStoredSSOState,
+  readStoredSSOState,
+  validateStoredSSOState,
+} from '@/auth/sso-state'
 import { translate } from '@/i18n'
 
 type CurrentUser = components['schemas']['UserInfo']
@@ -23,6 +28,11 @@ type UniPageLike = {
 }
 
 const BOOTSTRAP_STALE_MS = 60_000
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 function buildCurrentRouteRedirect(): string {
   try {
     const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as UniPageLike[]
@@ -127,19 +137,48 @@ export const useAuthStore = defineStore('auth', () => {
 
   /** 原生 App SSO 回调：用授权码 + state 换取 token 并持久化 */
   async function exchangeNativeCode(code: string, state: string): Promise<void> {
-    const result = await api.auth.exchangeNative(code, state)
-    const data = unwrapData<ExchangeNativeResult>(result)
+    let originalError: unknown
+    try {
+      const validation = validateStoredSSOState(readStoredSSOState(), state)
+      if (!validation.ok) {
+        throw new Error(
+          validation.reason === 'mismatch'
+            ? 'invalid native SSO state'
+            : 'missing native SSO state',
+        )
+      }
 
-    // 持久化 token 到本地存储
-    writeNativeTokens({
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      sessionID: data.sessionID,
-      expiresAt: Date.now() + data.expiresIn * 1000,
-    })
+      const result = await api.auth.exchangeNative(code, state)
+      const data = unwrapData<ExchangeNativeResult>(result)
 
-    // 立即拉取用户信息
-    await bootstrapSession(true)
+      // 持久化 token 到本地存储
+      writeNativeTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        sessionID: data.sessionID,
+        expiresAt: Date.now() + data.expiresIn * 1000,
+      })
+
+      // 立即拉取用户信息
+      await bootstrapSession(true)
+    } catch (error) {
+      originalError = error
+    }
+
+    try {
+      clearStoredSSOState()
+    } catch (clearError) {
+      if (originalError !== undefined) {
+        throw new Error(
+          `native SSO exchange failed and stored state cleanup also failed: ${errorMessage(originalError)}; cleanup: ${errorMessage(clearError)}`,
+        )
+      }
+      throw clearError
+    }
+
+    if (originalError !== undefined) {
+      throw originalError
+    }
   }
 
   /** 检查原生 App 是否持有有效 token */

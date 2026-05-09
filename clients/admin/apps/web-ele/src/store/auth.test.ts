@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useAuthStore } from './auth';
+import { SCHOOL_SCOPE_REQUIRED_ERROR, useAuthStore } from './auth';
 
 const mocks = vi.hoisted(() => ({
   ElNotification: vi.fn(),
@@ -184,7 +184,33 @@ describe('useAuthStore', () => {
     expect(mocks.accessStore.accessCodes).toEqual(['user:school:read']);
   });
 
-  it('defaults blank student verification school filters to the first allowed scoped school', async () => {
+  it('defaults blank student verification school filters when only one scoped school is allowed', async () => {
+    const me = {
+      capabilities: ['user:student:review'],
+      globalCapabilities: [],
+      capabilityGrants: [
+        {
+          name: 'user:student:review',
+          global: false,
+          scopeSchoolIDs: ['1001'],
+        },
+      ],
+      canAccessAdmin: true,
+    };
+    mocks.tryGetMe.mockResolvedValue({ kind: 'authenticated', me });
+    mocks.mapMeToUserInfo.mockReturnValue({ realName: 'School Admin' });
+
+    const store = useAuthStore();
+
+    await store.initSession();
+
+    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe('1001');
+    expect(store.resolveScopedSchoolId('user:student:review', '1002')).toBe(
+      '1002',
+    );
+  });
+
+  it('requires explicit school filters for multi-school scoped admins', async () => {
     const me = {
       capabilities: ['user:student:review'],
       globalCapabilities: [],
@@ -204,7 +230,9 @@ describe('useAuthStore', () => {
 
     await store.initSession();
 
-    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe('1001');
+    expect(() => store.resolveScopedSchoolId('user:student:review', '')).toThrow(
+      SCHOOL_SCOPE_REQUIRED_ERROR,
+    );
     expect(store.resolveScopedSchoolId('user:student:review', '1002')).toBe(
       '1002',
     );

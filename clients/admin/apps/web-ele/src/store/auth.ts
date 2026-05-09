@@ -19,6 +19,9 @@ import {
 } from '#/api/core/auth';
 import { getUserInfoApi, mapMeToUserInfo } from '#/api/core/user';
 import { $t } from '#/locales';
+import { adminLogger } from '#/utils/admin-logger';
+
+export const SCHOOL_SCOPE_REQUIRED_ERROR = 'school scope required';
 
 class SessionBootstrapError extends Error {}
 
@@ -73,7 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
   function resolveScopedSchoolId(
     capabilityName: string,
     requestedSchoolId: string,
-  ) {
+  ): string {
     const trimmed = requestedSchoolId.trim();
     if (trimmed !== '') {
       return trimmed;
@@ -83,12 +86,17 @@ export const useAuthStore = defineStore('auth', () => {
       return '';
     }
 
-    return (
-      getScopedSchoolIdsForCapability(
-        capabilityGrants.value,
-        capabilityName,
-      )[0] || ''
+    const scopedSchoolIds = getScopedSchoolIdsForCapability(
+      capabilityGrants.value,
+      capabilityName,
     );
+    if (scopedSchoolIds.length === 1) {
+      return scopedSchoolIds[0] ?? '';
+    }
+    if (scopedSchoolIds.length > 1) {
+      throw new Error(SCHOOL_SCOPE_REQUIRED_ERROR);
+    }
+    return '';
   }
 
   /**
@@ -175,7 +183,7 @@ export const useAuthStore = defineStore('auth', () => {
       if (error instanceof SessionBootstrapError) {
         throw error;
       }
-      console.warn('[admin-auth] initSession failed unexpectedly', error);
+      adminLogger.warn('initSession failed unexpectedly', error);
       throw error;
     } finally {
       loginLoading.value = false;

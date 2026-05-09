@@ -140,6 +140,20 @@ describe("browser API client", () => {
         expect(apiClientOptions.baseUrl).toBe("http://127.0.0.1:3000");
     });
 
+    it("warns once in development when VITE_API_URL is missing", async () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        const { __testing__ } = await import("../client");
+
+        expect(__testing__.resolveApiBaseUrl("")).toBe("http://127.0.0.1:3000");
+        expect(__testing__.resolveApiBaseUrl("")).toBe("http://127.0.0.1:3000");
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy).toHaveBeenCalledWith(
+            "[api] VITE_API_URL not set, falling back to window.location.origin",
+        );
+
+        warnSpy.mockRestore();
+    });
+
     it("strips duplicated API prefixes from absolute base URLs", async () => {
         const { __testing__ } = await import("../client");
 

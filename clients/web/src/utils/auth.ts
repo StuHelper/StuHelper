@@ -5,6 +5,7 @@
 // 存储键名
 const USER_KEY = 'stuhelper_user'
 const TOKEN_EXPIRY_KEY = 'stuhelper_token_expiry'
+const OAUTH_STATE_KEY = 'oauth_state'
 
 // 用户信息类型（仅持久化最小展示字段，权限信息必须来自服务端会话）
 export interface StoredUser {
@@ -16,6 +17,19 @@ export interface StoredUser {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+  const maxLength = Math.max(left.length, right.length)
+  let diff = left.length ^ right.length
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftCode = left.charCodeAt(index) || 0
+    const rightCode = right.charCodeAt(index) || 0
+    diff |= leftCode ^ rightCode
+  }
+
+  return diff === 0
 }
 
 // 校验 localStorage 中的用户数据结构，包含 ID 格式验证
@@ -103,11 +117,22 @@ export function isTokenExpired(): boolean {
   return expiresAt < Date.now() + TOKEN_EXPIRY_BUFFER_SECONDS * 1000
 }
 
+export function consumeOAuthState(callbackState: string): boolean {
+  const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY) ?? ''
+  sessionStorage.removeItem(OAUTH_STATE_KEY)
+
+  if (!isNonEmptyString(expectedState) || !isNonEmptyString(callbackState)) {
+    return false
+  }
+
+  return constantTimeEqual(expectedState, callbackState)
+}
+
 // 清除所有认证信息（含草稿重定向状态）
 export const clearAuth = (): void => {
   userManager.removeUser()
   tokenExpiry.remove()
-  sessionStorage.removeItem('oauth_state')
+  sessionStorage.removeItem(OAUTH_STATE_KEY)
   sessionStorage.removeItem('post_login_redirect')
   sessionStorage.removeItem('draft_redirect')
   sessionStorage.removeItem('draft_pending')

@@ -177,34 +177,6 @@ func TestSet_TTLExpiry(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Invalidate (prefix-based SCAN + DEL)
-// ---------------------------------------------------------------------------
-
-func TestInvalidate(t *testing.T) {
-	client, _ := setupTestRedis(t)
-	h := NewHelper(client)
-	ctx := context.Background()
-
-	// Seed keys with a shared prefix and one unrelated key
-	for _, k := range []string{"prefix:a", "prefix:b", "prefix:c"} {
-		require.NoError(t, h.Set(ctx, k, "v", time.Minute))
-	}
-	require.NoError(t, h.Set(ctx, "other:1", "v", time.Minute))
-
-	require.NoError(t, h.Invalidate(ctx, "prefix:"))
-
-	// Prefixed keys should be gone
-	for _, k := range []string{"prefix:a", "prefix:b", "prefix:c"} {
-		_, ok := h.GetRaw(ctx, k)
-		assert.False(t, ok, "key %s should have been invalidated", k)
-	}
-
-	// Unrelated key should survive
-	_, ok := h.GetRaw(ctx, "other:1")
-	assert.True(t, ok)
-}
-
-// ---------------------------------------------------------------------------
 // InvalidateByVersion / GetVersion / BuildVersionedKey
 // ---------------------------------------------------------------------------
 
@@ -375,9 +347,6 @@ func TestNilClient_NoOps(t *testing.T) {
 
 	// SetInt is a no-op
 	assert.NoError(t, h.SetInt(ctx, "k", 1, time.Minute))
-
-	// Invalidate is a no-op
-	assert.NoError(t, h.Invalidate(ctx, "prefix"))
 
 	// InvalidateByVersion is a no-op
 	assert.NoError(t, h.InvalidateByVersion(ctx, "prefix"))

@@ -20,6 +20,7 @@ import {
 
 import { baseRequestClient } from '#/api/request';
 import { CSRF_COOKIE_NAME, readCookie } from '#/api/utils/csrf';
+import { adminLogger } from '#/utils/admin-logger';
 
 type TransportError = {
   response?: {
@@ -36,7 +37,7 @@ function logAdminAuthWarning(
   error: unknown,
   extra?: Record<string, unknown>,
 ) {
-  console.warn('[admin-auth]', event, extra ?? {}, error);
+  adminLogger.warn(event, error, extra);
 }
 
 function normalizeAdminAuthError(

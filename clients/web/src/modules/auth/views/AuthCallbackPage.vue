@@ -28,6 +28,7 @@ import { useRouter, useRoute } from 'vue-router'
 import type { LocationQueryValue } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { resolveApiURL } from '@/api/client'
+import { consumeOAuthState } from '@/utils/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -63,14 +64,12 @@ onMounted(async () => {
     return
   }
 
-  const savedState = sessionStorage.getItem('oauth_state')
-  if (savedState !== state) {
+  if (!consumeOAuthState(state)) {
     error.value = t('common.login.invalidState')
     loading.value = false
     return
   }
 
-  sessionStorage.removeItem('oauth_state')
   window.location.replace(buildBackendCallbackURL(code, state))
 })
 

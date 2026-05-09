@@ -1,20 +1,36 @@
 export const SSO_STATE_STORAGE_KEY = 'stuhelper:sso-state'
+const SSO_STATE_MAX_LENGTH = 256
+const SSO_STATE_PATTERN = /^[A-Za-z0-9_-]+$/
 
 export type SSOStateValidationResult =
   | { ok: true }
   | { ok: false; reason: 'missing_saved_state' | 'mismatch' }
 
 function normalizeState(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
+  if (typeof value !== 'string') {
+    return ''
+  }
+
+  const normalized = value.trim()
+  if (normalized === '' || normalized.length > SSO_STATE_MAX_LENGTH) {
+    return ''
+  }
+  if (!SSO_STATE_PATTERN.test(normalized)) {
+    return ''
+  }
+
+  return normalized
 }
 
 function getUniRuntime(): {
   getStorageSync?: (key: string) => unknown
+  removeStorageSync?: (key: string) => void
   setStorageSync?: (key: string, value: string) => void
 } | undefined {
   return (globalThis as typeof globalThis & {
     uni?: {
       getStorageSync?: (key: string) => unknown
+      removeStorageSync?: (key: string) => void
       setStorageSync?: (key: string, value: string) => void
     }
   }).uni
@@ -52,6 +68,20 @@ export function readStoredSSOState(): string | null {
   } catch (_error) {
     void _error
     throw new Error('failed to read native SSO state')
+  }
+}
+
+export function clearStoredSSOState(): void {
+  const runtime = getUniRuntime()
+  if (!runtime?.removeStorageSync) {
+    throw new Error('native storage is unavailable for SSO state')
+  }
+
+  try {
+    runtime.removeStorageSync(SSO_STATE_STORAGE_KEY)
+  } catch (_error) {
+    void _error
+    throw new Error('failed to clear native SSO state')
   }
 }
 

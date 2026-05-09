@@ -175,3 +175,17 @@ func TestProcessBatch_RecordsTerminalFailureMetric(t *testing.T) {
 	after := testutil.ToFloat64(metrics.OutboxJobFailuresTotal.WithLabelValues(workerName, jobType, "true"))
 	assert.Equal(t, before+1, after)
 }
+
+func TestNextAttemptAt_UsesExponentiallyJitteredBackoff(t *testing.T) {
+	t.Parallel()
+
+	start := time.Now()
+	nextRetry := nextAttemptAt(WorkerConfig{
+		RetryBaseBackoff: time.Second,
+		MaxBackoff:       10 * time.Second,
+	}, 2)
+	delay := nextRetry.Sub(start)
+
+	assert.GreaterOrEqual(t, delay, 2*time.Second)
+	assert.LessOrEqual(t, delay, 4*time.Second)
+}

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  clearStoredSSOState,
   SSO_STATE_STORAGE_KEY,
   persistSSOState,
   readStoredSSOState,
@@ -36,6 +37,20 @@ describe('validateStoredSSOState', () => {
   it('accepts only an exact state match', () => {
     expect(validateStoredSSOState('saved-state', 'saved-state')).toEqual({
       ok: true,
+    })
+  })
+
+  it('rejects states with an unexpected character set', () => {
+    expect(validateStoredSSOState('saved-state', 'saved state')).toEqual({
+      ok: false,
+      reason: 'missing_saved_state',
+    })
+  })
+
+  it('rejects states that exceed the allowed length', () => {
+    expect(validateStoredSSOState('a'.repeat(257), 'a'.repeat(257))).toEqual({
+      ok: false,
+      reason: 'missing_saved_state',
     })
   })
 
@@ -77,5 +92,27 @@ describe('validateStoredSSOState', () => {
     })
 
     expect(() => readStoredSSOState()).toThrow('failed to read native SSO state')
+  })
+
+  it('clears the stored native sso state after callback handling', () => {
+    const removeStorageSync = vi.fn()
+
+    vi.stubGlobal('uni', {
+      removeStorageSync,
+    })
+
+    clearStoredSSOState()
+
+    expect(removeStorageSync).toHaveBeenCalledWith(SSO_STATE_STORAGE_KEY)
+  })
+
+  it('surfaces native sso state storage clear failures', () => {
+    vi.stubGlobal('uni', {
+      removeStorageSync: vi.fn(() => {
+        throw new Error('bridge unavailable')
+      }),
+    })
+
+    expect(() => clearStoredSSOState()).toThrow('failed to clear native SSO state')
   })
 })

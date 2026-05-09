@@ -35,7 +35,13 @@ describe('useAuthStore', () => {
 
   it('persists session id returned by exchange-native', async () => {
     const setStorageSync = vi.fn()
-    const getStorageSync = vi.fn(() => '')
+    const getStorageSync = vi.fn((key: string) => {
+      if (key === 'stuhelper:sso-state') {
+        return 'state-1'
+      }
+      return ''
+    })
+    const removeStorageSync = vi.fn()
 
     authApi.exchangeNative.mockResolvedValue({
       data: {
@@ -59,7 +65,7 @@ describe('useAuthStore', () => {
     vi.stubGlobal('plus', {})
     vi.stubGlobal('uni', {
       getStorageSync,
-      removeStorageSync: vi.fn(),
+      removeStorageSync,
       setStorageSync,
     })
 
@@ -72,6 +78,7 @@ describe('useAuthStore', () => {
       'stuhelper:native-tokens',
       expect.stringContaining('"sessionID":"sid-native-1"'),
     )
+    expect(removeStorageSync).toHaveBeenCalledWith('stuhelper:sso-state')
   })
 
   it('fails closed when persisting native session tokens fails', async () => {
@@ -88,7 +95,12 @@ describe('useAuthStore', () => {
 
     vi.stubGlobal('plus', {})
     vi.stubGlobal('uni', {
-      getStorageSync: vi.fn(() => ''),
+      getStorageSync: vi.fn((key: string) => {
+        if (key === 'stuhelper:sso-state') {
+          return 'state-write-fail'
+        }
+        return ''
+      }),
       removeStorageSync: vi.fn(),
       setStorageSync: vi.fn(() => {
         throw new Error('disk full')
@@ -102,6 +114,54 @@ describe('useAuthStore', () => {
       'failed to persist native session tokens',
     )
     expect(authApi.me).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the callback state does not match the stored native state', async () => {
+    vi.stubGlobal('plus', {})
+    vi.stubGlobal('uni', {
+      getStorageSync: vi.fn((key: string) => {
+        if (key === 'stuhelper:sso-state') {
+          return 'saved-state'
+        }
+        return ''
+      }),
+      removeStorageSync: vi.fn(),
+      setStorageSync: vi.fn(),
+    })
+
+    const { useAuthStore } = await import('./auth')
+    const store = useAuthStore()
+
+    await expect(store.exchangeNativeCode('code-1', 'other-state')).rejects.toThrow(
+      'invalid native SSO state',
+    )
+    expect(authApi.exchangeNative).not.toHaveBeenCalled()
+  })
+
+  it('always clears the stored native state after exchange failures', async () => {
+    const removeStorageSync = vi.fn()
+
+    authApi.exchangeNative.mockRejectedValue(new Error('exchange failed'))
+
+    vi.stubGlobal('plus', {})
+    vi.stubGlobal('uni', {
+      getStorageSync: vi.fn((key: string) => {
+        if (key === 'stuhelper:sso-state') {
+          return 'state-1'
+        }
+        return ''
+      }),
+      removeStorageSync,
+      setStorageSync: vi.fn(),
+    })
+
+    const { useAuthStore } = await import('./auth')
+    const store = useAuthStore()
+
+    await expect(store.exchangeNativeCode('code-1', 'state-1')).rejects.toThrow(
+      'exchange failed',
+    )
+    expect(removeStorageSync).toHaveBeenCalledWith('stuhelper:sso-state')
   })
 
   it('bootstraps native session even when access token is expired but refresh session still exists', async () => {

@@ -119,6 +119,7 @@ func authResultFromSelfSignedClaims(claims *token.JWTClaims) *authResult {
 		displayName: claims.DisplayName,
 		avatar:      avatarPtr,
 		roles:       claims.Roles,
+		selfSigned:  true,
 	}
 }
 

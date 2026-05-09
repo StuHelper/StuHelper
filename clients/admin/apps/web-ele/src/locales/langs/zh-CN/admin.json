@@ -211,6 +211,7 @@
     "studentVerification": {
       "statusPlaceholder": "认证状态",
       "schoolIdPlaceholder": "按学校ID筛选...",
+      "schoolIdRequired": "请先输入学校ID",
       "userId": "用户ID",
       "schoolId": "学校ID",
       "activeStudentId": "当前学号",

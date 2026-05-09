@@ -43,6 +43,15 @@ func (f fakeRoleScopeResolver) ResolveRoleScopes(context.Context, string, []stri
 	return f.scopes, f.err
 }
 
+type countingRoleScopeResolver struct {
+	calls int
+}
+
+func (f *countingRoleScopeResolver) ResolveRoleScopes(context.Context, string, []string) (map[string][]string, error) {
+	f.calls++
+	return map[string][]string{"school_admin": {"1001"}}, nil
+}
+
 func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
 	result, err := withResolvedRoleScopes(context.Background(), &authResult{
 		userID: "casdoor-user-1",
@@ -56,6 +65,21 @@ func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"1001", "1002"}, result.orgScopedRoles["school_admin"])
+}
+
+func TestWithResolvedRoleScopesSkipsSelfSignedTokens(t *testing.T) {
+	resolver := &countingRoleScopeResolver{}
+
+	result, err := withResolvedRoleScopes(context.Background(), &authResult{
+		userID:     "phone-user-1",
+		roles:      []string{"school_admin"},
+		selfSigned: true,
+	}, resolver)
+
+	require.NoError(t, err)
+	assert.True(t, result.selfSigned)
+	assert.Zero(t, resolver.calls)
+	assert.Nil(t, result.orgScopedRoles)
 }
 
 func TestWithResolvedRoleScopesMarksBackendUnavailable(t *testing.T) {
