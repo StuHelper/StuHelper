@@ -122,6 +122,24 @@ async function mockPhoneOtpLogin(page: Page) {
   )
 }
 
+async function mockPhoneOtpRateLimit(page: Page) {
+  await mockUnauthenticated(page)
+
+  await page.route('**/api/v1/auth/phone/request-otp', (route) =>
+    route.fulfill({
+      status: 429,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        error: {
+          code: 'A0000429',
+          message: 'rate limit exceeded',
+        },
+      }),
+    }),
+  )
+}
+
 // ---- Tests ----
 
 test.describe('Auth Flow', () => {
@@ -201,6 +219,22 @@ test.describe('Auth Flow', () => {
     expect(lastCodeBox).not.toBeNull()
     expect(firstCodeBox!.width).toBeGreaterThanOrEqual(36)
     expect(lastCodeBox!.x + lastCodeBox!.width).toBeLessThanOrEqual(320)
+  })
+
+  test('phone otp rate limit message is localized in Chinese UI', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('locale', 'zh-CN')
+    })
+    await mockPhoneOtpRateLimit(page)
+    await page.goto('/login')
+
+    await page.getByPlaceholder('请输入手机号').fill('13800138000')
+    await page.getByRole('button', { name: '获取验证码' }).click()
+
+    await expect(page.getByText('请求过于频繁，请稍后重试')).toBeVisible()
+    await expect(page.getByText('rate limit exceeded')).toHaveCount(0)
   })
 
   test('authenticated user can access user center', async ({ page }) => {

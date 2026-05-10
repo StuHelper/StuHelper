@@ -97,6 +97,7 @@ import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
 import { ElMessage } from "element-plus";
+import { getErrorMessage } from "@/api/errors";
 import { useAuthStore } from "@/stores/auth";
 
 const { t } = useI18n();
@@ -180,8 +181,7 @@ const handleSendOTP = async () => {
         ElMessage.success(t("common.login.otpSent"));
         startCooldown(data?.cooldown ?? 60);
     } catch (e) {
-        const message = e instanceof Error ? e.message : t("common.login.otpSendFailed");
-        ElMessage.error(message);
+        ElMessage.error(getErrorMessage(e, t("common.login.otpSendFailed")));
     }
 };
 
@@ -200,8 +200,7 @@ const handlePhoneLogin = async () => {
             router.replace({ name: "home" });
         }
     } catch (e) {
-        const message = e instanceof Error ? e.message : t("common.login.otpVerifyFailed");
-        ElMessage.error(message);
+        ElMessage.error(getErrorMessage(e, t("common.login.otpVerifyFailed")));
     }
 };
 
@@ -235,8 +234,7 @@ const handleLogin = async () => {
         saveRedirectTarget();
         await authStore.login(getRedirectTarget());
     } catch (e) {
-        const message = e instanceof Error ? e.message : t("common.login.loginFailed");
-        ElMessage.error(message);
+        ElMessage.error(getErrorMessage(e, t("common.login.loginFailed")));
     }
 };
 
@@ -245,8 +243,7 @@ const handleSignup = async () => {
         saveRedirectTarget();
         await authStore.signup(getRedirectTarget());
     } catch (e) {
-        const message = e instanceof Error ? e.message : t("common.login.signupFailed");
-        ElMessage.error(message);
+        ElMessage.error(getErrorMessage(e, t("common.login.signupFailed")));
     }
 };
 </script>
