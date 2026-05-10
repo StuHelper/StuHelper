@@ -66,7 +66,7 @@ func (rt *Runtime) registerAdminRoutes(
 	authMW gin.HandlerFunc,
 ) {
 	adminGroup := api.Group("/admin")
-	middlewares := append([]gin.HandlerFunc{authMW}, adminMFAMiddlewares(userRepo)...)
+	middlewares := append([]gin.HandlerFunc{authMW}, adminMFAMiddlewares(rt.cfg.App.Env, userRepo)...)
 	middlewares = append(middlewares, rbac.RequireAnyCapability(capability.AdminEntryCapabilities...))
 	adminGroup.Use(middlewares...)
 	authHandler.RegisterAdminRoutes(adminGroup)
@@ -74,7 +74,10 @@ func (rt *Runtime) registerAdminRoutes(
 	admissionHandler.RegisterAdminRoutes(adminGroup)
 }
 
-func adminMFAMiddlewares(userRepo user.MFAContextRepository) []gin.HandlerFunc {
+func adminMFAMiddlewares(appEnv string, userRepo user.MFAContextRepository) []gin.HandlerFunc {
+	if appEnv == "development" {
+		return nil
+	}
 	return []gin.HandlerFunc{
 		user.MFAContextMiddleware(userRepo),
 		rbac.RequirePrivilegedMFA(),

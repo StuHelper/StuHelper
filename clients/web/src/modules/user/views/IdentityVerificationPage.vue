@@ -460,12 +460,12 @@ function handlePhotoChange(event: Event, key: "front" | "back" | "selfie") {
     if (!file) return;
 
     if (file.size > MAX_PHOTO_SIZE) {
-        toast.error(t("user.identity.photoTooLarge", { max: "5MB" }));
+        toast.error(t("user.verification.identity.photoTooLarge", { max: "5MB" }));
         input.value = "";
         return;
     }
     if (!isAllowedPhotoType(file.type)) {
-        toast.error(t("user.identity.photoInvalidType"));
+        toast.error(t("user.verification.identity.photoInvalidType"));
         input.value = "";
         return;
     }

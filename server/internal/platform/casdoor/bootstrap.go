@@ -147,12 +147,7 @@ func (c *Client) buildOrganization(spec OrganizationSpec) (*casdoorsdk.Organizat
 	if err != nil {
 		return nil, err
 	}
-	return &casdoorsdk.Organization{
-		Owner:              "admin",
-		Name:               spec.Name,
-		DisplayName:        spec.DisplayName,
-		DefaultApplication: spec.DefaultApplication,
-	}, nil
+	return newBootstrapOrganization(spec), nil
 }
 
 func (c *Client) buildRole(spec RoleSpec) (*casdoorsdk.Role, error) {

@@ -276,6 +276,29 @@ func TestRequirePrivilegedMFAAllowsFreshProof(t *testing.T) {
 	assert.True(t, called)
 }
 
+func TestRequireStepUpMFABypassedWhenAuthorizerDisablesMFAGates(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "reviewer-1")
+		c.Next()
+	})
+	called := false
+	engine.GET(
+		"/test",
+		RequireStepUpMFAWithAuthorizer(authorization.NewService(authorization.WithMFAGatesDisabled())),
+		func(c *gin.Context) {
+			called = true
+			c.Status(http.StatusOK)
+		},
+	)
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, called)
+}
+
 func assertErrorCode(t *testing.T, w *httptest.ResponseRecorder, code errs.ErrorCode) {
 	t.Helper()
 	var resp response.Response

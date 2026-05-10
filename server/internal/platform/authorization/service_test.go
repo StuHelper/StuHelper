@@ -161,3 +161,28 @@ func TestAuthorizePrivilegedMFAAllowsNonPrivilegedRole(t *testing.T) {
 	assert.True(t, decision.Allow)
 	assert.NoError(t, decision.Error)
 }
+
+func TestAuthorizeMFAGatesCanBeDisabled(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	service := newServiceWithClock(func() time.Time { return now }, WithMFAGatesDisabled())
+
+	privileged := service.Authorize(
+		context.Background(),
+		Subject{UserID: "user-1", Roles: []string{"super_admin"}},
+		ActionPrivilegedMFARequire,
+		PrivilegedMFAResource(DefaultStepUpWindow),
+	)
+	assert.True(t, privileged.Allow)
+	assert.NoError(t, privileged.Error)
+	assert.Equal(t, "mfa enforcement disabled", privileged.Reason)
+
+	stepUp := service.Authorize(
+		context.Background(),
+		Subject{UserID: "user-1"},
+		ActionStepUpMFARequire,
+		StepUpMFAResource(DefaultStepUpWindow),
+	)
+	assert.True(t, stepUp.Allow)
+	assert.NoError(t, stepUp.Error)
+	assert.Equal(t, "mfa enforcement disabled", stepUp.Reason)
+}

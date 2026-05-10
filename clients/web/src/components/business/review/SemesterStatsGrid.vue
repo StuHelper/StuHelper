@@ -22,7 +22,7 @@
         <div class="flex flex-col gap-3">
           <div v-for="dim in term.dimensions" :key="dim.key" class="flex flex-col gap-1">
             <div class="flex justify-between text-xs">
-              <span class="text-text-secondary">{{ dim.name }}</span>
+              <span class="text-text-secondary">{{ dimensionLabel(dim.key, dim.name) }}</span>
               <span class="font-mono font-medium text-text-primary">{{ dim.avgRating.toFixed(1) }}</span>
             </div>
             <div class="h-2 bg-bg-secondary rounded-full overflow-hidden">
@@ -54,6 +54,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CourseRatingStatsResponse, TermRatingStats } from '@stuhelper/shared/course'
 import { getRatingColor } from '@/design-system/rating'
+import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
 
 const props = defineProps<{
   ratingStats: CourseRatingStatsResponse | null
@@ -66,5 +67,9 @@ const terms = computed(() => props.ratingStats?.byTerm || [])
 // 从第一个维度取 ratingCount（同一学期各维度 ratingCount 相同）
 function getTermRatingCount(term: TermRatingStats): number {
   return term.dimensions?.[0]?.ratingCount ?? 0
+}
+
+function dimensionLabel(key: string, fallback?: string): string {
+  return ratingDimensionLabel({ key, fallback, t })
 }
 </script>

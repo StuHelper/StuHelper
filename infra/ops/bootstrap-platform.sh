@@ -14,7 +14,20 @@ require_cmd curl
 require_cmd jq
 require_cmd python3
 
+CALLER_CASDOOR_BOOTSTRAP_ENABLED="${CASDOOR_BOOTSTRAP_ENABLED-}"
+CALLER_CASDOOR_BOOTSTRAP_ENV_FILE="${CASDOOR_BOOTSTRAP_ENV_FILE-}"
+CALLER_CASDOOR_BOOTSTRAP_ENDPOINT="${CASDOOR_BOOTSTRAP_ENDPOINT-}"
+
 load_env
+if [[ -n "${CALLER_CASDOOR_BOOTSTRAP_ENABLED}" ]]; then
+  CASDOOR_BOOTSTRAP_ENABLED="${CALLER_CASDOOR_BOOTSTRAP_ENABLED}"
+fi
+if [[ -n "${CALLER_CASDOOR_BOOTSTRAP_ENV_FILE}" ]]; then
+  CASDOOR_BOOTSTRAP_ENV_FILE="${CALLER_CASDOOR_BOOTSTRAP_ENV_FILE}"
+fi
+if [[ -n "${CALLER_CASDOOR_BOOTSTRAP_ENDPOINT}" ]]; then
+  CASDOOR_BOOTSTRAP_ENDPOINT="${CALLER_CASDOOR_BOOTSTRAP_ENDPOINT}"
+fi
 STACK_NAME_VALUE="${STACK_NAME:-${COMPOSE_PROJECT_NAME:-stuhelper}}"
 DOCKER_NETWORK_NAME="${DOCKER_NETWORK_NAME:-${STACK_NAME_VALUE}-backend}"
 CASDOOR_BOOTSTRAP_ENV_FILE="${CASDOOR_BOOTSTRAP_ENV_FILE:-${REPO_ROOT}/.env.casdoor-bootstrap.local}"
@@ -49,7 +62,9 @@ source_casdoor_bootstrap_env() {
   esac
   if [[ -f "${file}" ]]; then
     # shellcheck disable=SC1090
+    set -a
     source "${file}"
+    set +a
   fi
 }
 
@@ -132,6 +147,7 @@ run_casdoor_bootstrap_with_docker() {
     --network "${DOCKER_NETWORK_NAME}" \
     -v "${REPO_ROOT}:/workspace" \
     -w /workspace/server \
+    -e "PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
     "${env_args[@]}" \
     golang:1.26-bookworm \
     go run ./cmd/casdoor-bootstrap
@@ -226,6 +242,7 @@ else
       --network "${DOCKER_NETWORK_NAME}" \
       -v "${REPO_ROOT}:/workspace" \
       -w /workspace/server \
+      -e "PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
       -e OPENFGA_API_URL="http://openfga:8080" \
       -e OPENFGA_STORE_ID="${OPENFGA_STORE_ID:-}" \
       -e FGA_MODEL_PATH="${FGA_MODEL_PATH:-/workspace/infra/openfga/model.fga}" \

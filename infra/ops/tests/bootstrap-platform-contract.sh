@@ -36,6 +36,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_INTROSPECTION_CLIENT_SECRET'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'Casdoor bootstrap skipped because CASDOOR_BOOTSTRAP_ENABLED is not true'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'casdoor_bootstrap_endpoint'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_ISSUER:-http://localhost:8085'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'CALLER_CASDOOR_BOOTSTRAP_ENABLED'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'set -a'
 retired_idp_prefix='ZITA''DEL_'
 assert_not_contains "${BOOTSTRAP_SCRIPT}" "${retired_idp_prefix}"
 if grep -Fqx "printf '%s\\n' \"\${FGA_OUTPUT}\"" "${BOOTSTRAP_SCRIPT}"; then

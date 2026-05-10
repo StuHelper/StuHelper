@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -23,6 +24,19 @@ func TestParseProviderRolesFromRaw_CustomRolesClaim(t *testing.T) {
 	assert.Equal(t, []string{"super_admin", "user"}, roles)
 }
 
+func TestParseProviderRolesFromRaw_CasdoorRoleObjects(t *testing.T) {
+	raw := []byte(`{"roles":[
+		{"owner":"stuhelper","name":"super_admin"},
+		{"owner":"stuhelper","name":"verified_student"},
+		{"owner":"stuhelper","name":"super_admin"}
+	]}`)
+
+	roles, err := ParseProviderRolesFromRaw(raw, "roles")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"super_admin", "verified_student"}, roles)
+}
+
 func TestParseProviderRolesFromRaw_InvalidJSON(t *testing.T) {
 	_, err := ParseProviderRolesFromRaw([]byte(`{"broken"`), "roles")
 	require.Error(t, err)
@@ -37,13 +51,38 @@ func TestParseProviderRolesFromRaw_RejectsObjectRolesClaim(t *testing.T) {
 	_, err := ParseProviderRolesFromRaw([]byte(`{"roles":{"school_admin":["1001"]}}`), "roles")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must be a string array")
+	assert.Contains(t, err.Error(), "must be a string array or role object array")
+}
+
+func TestParseProviderRolesFromRaw_RejectsRoleObjectWithoutName(t *testing.T) {
+	_, err := ParseProviderRolesFromRaw([]byte(`{"roles":[{"displayName":"Super Admin"}]}`), "roles")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "without string name")
 }
 
 func TestParseProviderRolesFromRaw_MissingRolesClaim(t *testing.T) {
 	roles, err := ParseProviderRolesFromRaw([]byte(`{"sub":"user-1"}`), "roles")
 	require.NoError(t, err)
 	assert.Empty(t, roles)
+}
+
+func TestClaimsUnmarshalIgnoresInternalRoleFields(t *testing.T) {
+	raw := []byte(`{
+		"sub": "user-1",
+		"name": "OIDC User",
+		"roles": {"school_admin": ["1001"]},
+		"orgScopedRoles": ["legacy-provider-shape"]
+	}`)
+	var claims Claims
+
+	err := json.Unmarshal(raw, &claims)
+
+	require.NoError(t, err)
+	assert.Equal(t, "user-1", claims.Sub)
+	assert.Equal(t, "OIDC User", claims.Name)
+	assert.Empty(t, claims.Roles)
+	assert.Nil(t, claims.OrgScopedRoles)
 }
 
 func TestClaims_MFAProofVerifiedAtRequiresMFAAMRAndAuthTime(t *testing.T) {

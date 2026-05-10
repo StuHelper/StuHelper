@@ -120,17 +120,19 @@ test.describe('User Journey: Search', () => {
     await courseNameInput.fill('数据结构')
 
     // Click the search submit button (the one with "Search" or "搜索" text)
+    const reviewsSearchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/review/reviews/search') &&
+        resp.status() === 200,
+    )
+
     await page
       .getByRole('button', { name: /^Search$|^搜索$/ })
       .first()
       .click()
 
-    // Wait for the search to complete and results view to render
-    await page.waitForResponse(
-      (resp) =>
-        resp.url().includes('/api/v1/course/review/reviews/search') &&
-        resp.status() === 200,
-    )
+    // Wait for the search to complete and results view to render.
+    await reviewsSearchResponse
 
     // The matching course name appears in results
     await expect(page.getByText('数据结构与算法').first()).toBeVisible({
@@ -171,16 +173,18 @@ test.describe('User Journey: Search', () => {
       .first()
     await courseNameInput.fill('不存在的课程名xyz')
 
+    const reviewsSearchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/v1/course/review/reviews/search') &&
+        resp.status() === 200,
+    )
+
     await page
       .getByRole('button', { name: /^Search$|^搜索$/ })
       .first()
       .click()
 
-    await page.waitForResponse(
-      (resp) =>
-        resp.url().includes('/api/v1/course/review/reviews/search') &&
-        resp.status() === 200,
-    )
+    await reviewsSearchResponse
 
     // Should show "no results" empty state from review.search.noResults i18n
     await expect(

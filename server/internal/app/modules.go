@@ -66,7 +66,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return err
 	}
 
-	adminMFA := adminMFAMiddlewares(userRepo)
+	adminMFA := adminMFAMiddlewares(rt.cfg.App.Env, userRepo)
 	notifHub := notification.NewHub(rt.redisClient.GetClient())
 	notifRepo := notification.NewRepository(rt.database)
 	notifService := notification.NewService(notifRepo, notifHub, rt.redisClient.GetClient())

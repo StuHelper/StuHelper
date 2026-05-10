@@ -80,6 +80,16 @@ async function mockAuth(page: Page) {
       }),
     }),
   )
+  await page.route('**/api/v1/user/qq-binding', (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        error: { code: 'A0040404', message: 'not bound' },
+      }),
+    }),
+  )
 }
 
 test.describe('User Journey: User Center', () => {

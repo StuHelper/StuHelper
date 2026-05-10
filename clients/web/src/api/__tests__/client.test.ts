@@ -234,6 +234,41 @@ describe("browser API client", () => {
         expect(mockClearSession).toHaveBeenCalledTimes(1);
     });
 
+    it("maps unauthorized refresh without response headers to an ApiError", async () => {
+        fetchMock
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        error: { code: "A0010100", message: "login required" },
+                    }),
+                    {
+                        status: 401,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+            )
+            .mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        error: { code: "A0010100", message: "refresh required" },
+                    }),
+                    {
+                        status: 401,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+            );
+
+        const { apiClient } = await import("../client");
+
+        await expect(apiClient.GET("/api/v1/auth/me")).rejects.toMatchObject({
+            code: "A0010100",
+            message: "login required",
+            status: 401,
+        });
+        expect(mockClearSession).toHaveBeenCalledTimes(1);
+    });
+
     it("aborts ordinary requests after the default timeout window", async () => {
         vi.useFakeTimers();
         Object.assign(window, {

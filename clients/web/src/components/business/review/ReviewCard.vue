@@ -43,7 +43,7 @@
         :to="`/courses/${review.courseID}/reviews`"
         class="text-base font-bold text-text-primary no-underline overflow-hidden text-ellipsis whitespace-nowrap hover:text-primary"
       >
-        {{ review.title || review.courseName || `Course #${review.courseID}` }}
+        {{ review.title || review.courseName || t('review.course.fallbackTitle', { id: review.courseID }) }}
       </router-link>
       <span
         v-if="avgRating > 0"
@@ -319,6 +319,7 @@ import { useReviewReport } from './useReviewReport'
 import { useReviewEdit } from './useReviewEdit'
 import { useReviewDelete } from './useReviewDelete'
 import { useReviewModeration } from './useReviewModeration'
+import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
 
 const props = defineProps<{
   review: Review
@@ -368,7 +369,7 @@ const displayRatings = computed(() => {
   if (!ratings || Object.keys(ratings).length === 0) return []
   return Object.entries(ratings).map(([key, value]) => {
     const emoji = t(`review.ratingEmoji.icon.${key}`, '⭐')
-    const label = t(`review.ratingEmoji.${key}`, t('review.ratingEmoji.fallback'))
+    const label = ratingDimensionLabel({ key, t })
     const clampedValue = Math.max(0, Math.min(5, value))
     return { key, emoji, label, value: clampedValue }
   })

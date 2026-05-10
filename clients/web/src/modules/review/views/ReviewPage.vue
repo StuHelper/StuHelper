@@ -27,7 +27,7 @@
         >
           <div
             v-if="sidebarOpen"
-            class="fixed left-0 top-[var(--navbar-height)] bottom-0 z-30 w-[260px] bg-bg-card border-r border-border-light shadow-lg overflow-y-auto p-3"
+            class="fixed left-0 top-[var(--mobile-header-height)] bottom-0 z-30 w-[260px] bg-bg-card border-r border-border-light shadow-lg overflow-y-auto p-3"
           >
             <DepartmentSidebar />
           </div>

@@ -39,7 +39,8 @@ export default {
     shareExperience: 'Share your experience with this course...',
     noTeacherData: 'No teacher data available',
     creditsBadge: '{n} cr',
-    reviewCountBadge: '{count} rev'
+    reviewCountBadge: '{count} rev',
+    fallbackTitle: 'Course #{id}'
   },
   review: {
     anonymous: 'Anonymous',
@@ -220,11 +221,35 @@ export default {
     noData: 'No statistics available'
   },
   ratingEmoji: {
+    icon: {
+      difficulty: '📈',
+      recommendation: '👍',
+      content_quality: '📘',
+      usefulness: '🧭',
+      teaching: '🎓',
+      workload: '🗂️',
+      grading: '✅',
+      assessment: '📝'
+    },
+    difficulty: 'Difficulty',
     recommendation: 'Recommendation',
     content_quality: 'Content',
+    usefulness: 'Usefulness',
+    teaching: 'Teaching',
     workload: 'Workload',
     grading: 'Grading',
+    assessment: 'Assessment',
     fallback: 'Rating'
+  },
+  ratingEmojiDescription: {
+    difficulty: 'How difficult the course content is',
+    recommendation: 'Whether students would recommend this course',
+    content_quality: 'Quality of the course content',
+    usefulness: 'How useful the course is for future study or work',
+    teaching: 'Instructor delivery and teaching effectiveness',
+    workload: 'Assignments and task load',
+    grading: 'Grading criteria and score generosity',
+    assessment: 'Exams, assignments, and assessment format'
   },
   card: {
     loginToView: 'Log in to view full content',
@@ -257,7 +282,7 @@ export default {
     all: 'All'
   },
   home: {
-    title: 'Course Review@BUAA',
+    title: "Course Review{'@'}BUAA",
     subtitle: '{count} reviews from students to help you find the best courses',
     dataUpdated: 'Course data updated to {term}',
     searchPlaceholder: 'Search by course name, pinyin, or initials, e.g.: gaodengshuxue, gdsx',
@@ -295,12 +320,51 @@ export default {
     workload: 'Workload',
     exam: 'Assessment'
   },
+  postForm: {
+    title: 'Post Review',
+    selectCourse: 'Select Course',
+    selectTeacher: 'Select Teacher',
+    searchCoursePlaceholder: 'Search by course name, pinyin, or initials, e.g. gaodengshuxue, gdsx',
+    teacher: 'Instructor',
+    teacherPlaceholder: 'Enter instructor name',
+    semester: 'Term',
+    rating: 'Rating',
+    ratingTip: 'Tip: click an emoji to rate, and click the selected emoji again to clear it',
+    overall: 'Overall Impression',
+    contentQuality: 'Content Quality',
+    workload: 'Workload',
+    exam: 'Assessment & Grading',
+    reviewTitle: 'Title',
+    reviewTitlePlaceholder: 'Summarize your opinion in one sentence, e.g. Strongly recommended',
+    detailedReview: 'Detailed Review',
+    detailedReviewPlaceholder: 'Describe your experience with this course in detail',
+    detailedReviewHint: 'Feel free to edit the default template as needed',
+    detailedReviewTip: 'Useful reviews should be factual and well rounded. If a course is well taught but the exams are hard, writing both helps other students make a balanced judgment.',
+    grade: 'Grade',
+    gradePlaceholder: 'Optional, e.g. 100, 90+, A, Excellent, Withdrawn',
+    gradeHint: 'Optional. Sharing your grade can help other students make a more informed judgment.',
+    submitBtn: 'Submit Review',
+    submitting: 'Submitting...',
+    submitDisclaimer: 'By submitting a review, you agree that we may use your review content and that you understand the site position stated by StuHelper.',
+    defaultTemplate: 'Course experience:\\nAssignments/workload:\\nAbout exams:',
+    errors: {
+      course: 'Please select a course',
+      teacher: 'Please enter an instructor name',
+      semester: 'Please select a term',
+      overall: 'Please choose an overall rating',
+      content: 'Please choose a content quality rating',
+      workload: 'Please choose a workload rating',
+      exam: 'Please choose an assessment and grading rating',
+      title: 'Please enter a review title',
+      review: 'Please enter detailed review content'
+    }
+  },
   about: {
-    title: 'About Course Review@BUAA',
+    title: "About Course Review{'@'}BUAA",
     preface: 'A Note Before Everything',
     prefaceContent1: 'Created in March 2025 at Building 3, Research Complex.',
     prefaceContent2: 'The first line of code was written on the afternoon of March 12, 2025 -- where the story began. The last line of the initial version was written in the early hours of March 18, 2025, totaling 21h56min (source: WakaTime).',
-    prefaceContent3pre: 'The full name of this project is the Unofficial Course Review Community of Beihang University, abbreviated as Course Review@BUAA (',
+    prefaceContent3pre: "The full name of this project is the Unofficial Course Review Community of Beihang University, abbreviated as Course Review{'@'}BUAA (",
     prefaceContent3post: ').',
     prefaceContent4: 'This project was inspired by student-built course review communities at various universities.',
     prefaceContent5: 'Thanks to all the enthusiastic students who have contributed reviews and suggestions, and thank you for visiting!',
@@ -330,7 +394,7 @@ export default {
     faq7q: '7. How is the copyright of content on this site defined?',
     faq7a: 'By submitting a review to this site, you agree to grant this site a perpetual, irrevocable, non-exclusive, worldwide, unrestricted license to the review content you submit. You retain full copyright of your submitted content. No one (except the original rights holder) may reproduce this site\'s content (in whole or in part) without permission. By submitting a review to this site, you authorize this site to use all legal and technical means to protect the copyright of your submitted content on your behalf, including but not limited to filing lawsuits against and sending DMCA requests to any unauthorized reproducing media.',
     contactTitle: 'Contact Us',
-    contactEmail: 'stuhelper@protonmail.com',
+    contactEmail: "stuhelper{'@'}protonmail.com",
     contactDesc: 'We welcome suggestions and feedback from students and teachers. If you are a teacher, you are also welcome to respond to or clarify questions or concerns about course reviews.',
     disclaimerTitle: 'Disclaimer',
     disclaimer1: 'This course review community is an unofficial website and has no affiliation with Beihang University or its affiliated organizations.',

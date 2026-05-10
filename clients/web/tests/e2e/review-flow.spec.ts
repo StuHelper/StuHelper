@@ -43,6 +43,48 @@ async function mockAuth(page: Page) {
             body: JSON.stringify({ success: true, data: { expiresIn: 3600 } }),
         }),
     );
+    await page.route("**/api/v1/user/me", (route) =>
+        route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: {
+                    id: storedUser.id,
+                    identityStatus: "approved",
+                    verificationStatus: "approved",
+                    capabilities: storedUser.capabilities,
+                },
+            }),
+        }),
+    );
+    await page.route("**/api/v1/user/identity", (route) =>
+        route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: { verified: true, status: "verified" },
+            }),
+        }),
+    );
+    await page.route("**/api/v1/user/profile", (route) =>
+        route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: { verificationStatus: "verified", schoolID: 1 },
+            }),
+        }),
+    );
+    await page.route("**/api/v1/user/qq-binding", (route) =>
+        route.fulfill({
+            status: 404,
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: false,
+                error: { code: "A0040404", message: "not bound" },
+            }),
+        }),
+    );
     await page.route(
         "**/api/v1/course/review/user/notifications/unread-count*",
         (route) =>
@@ -73,6 +115,62 @@ test("authenticated user can publish a review and vote on a course review", asyn
         });
     });
 
+    await page.route("**/api/v1/course/review/rating-dimensions", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: [
+                    {
+                        id: "dim-difficulty",
+                        schoolID: 1,
+                        key: "difficulty",
+                        name: "Difficulty",
+                        description: "",
+                        sortOrder: 1,
+                        isActive: true,
+                    },
+                    {
+                        id: "dim-workload",
+                        schoolID: 1,
+                        key: "workload",
+                        name: "Workload",
+                        description: "",
+                        sortOrder: 2,
+                        isActive: true,
+                    },
+                    {
+                        id: "dim-usefulness",
+                        schoolID: 1,
+                        key: "usefulness",
+                        name: "Usefulness",
+                        description: "",
+                        sortOrder: 3,
+                        isActive: true,
+                    },
+                    {
+                        id: "dim-teaching",
+                        schoolID: 1,
+                        key: "teaching",
+                        name: "Teaching",
+                        description: "",
+                        sortOrder: 4,
+                        isActive: true,
+                    },
+                    {
+                        id: "dim-grading",
+                        schoolID: 1,
+                        key: "grading",
+                        name: "Grading",
+                        description: "",
+                        sortOrder: 5,
+                        isActive: true,
+                    },
+                ],
+            }),
+        });
+    });
+
     await page.route("**/api/v1/course/courses/1", async (route) => {
         await route.fulfill({
             contentType: "application/json",
@@ -85,6 +183,13 @@ test("authenticated user can publish a review and vote on a course review", asyn
                     departmentName: "数学系",
                 },
             }),
+        });
+    });
+
+    await page.route("**/api/v1/course/review/courses/1/favorites", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: { favorited: false } }),
         });
     });
 
@@ -191,9 +296,10 @@ test("authenticated user can publish a review and vote on a course review", asyn
     await page.goto("/courses/1/reviews/post");
 
     await page.getByTestId("review-term").selectOption("2025-fall");
-    await page.getByTestId("rating-recommendation-5").click();
-    await page.getByTestId("rating-content_quality-4").click();
+    await page.getByTestId("rating-difficulty-5").click();
     await page.getByTestId("rating-workload-3").click();
+    await page.getByTestId("rating-usefulness-4").click();
+    await page.getByTestId("rating-teaching-4").click();
     await page.getByTestId("rating-grading-4").click();
     await page.getByTestId("review-title").fill("端到端评课验证");
     await page
@@ -208,9 +314,10 @@ test("authenticated user can publish a review and vote on a course review", asyn
     expect(createdReviewPayload?.courseID).toBe(1);
     expect(createdReviewPayload?.termID).toBe("2025-fall");
     expect(createdReviewPayload?.ratings).toMatchObject({
-        recommendation: 5,
-        content_quality: 4,
+        difficulty: 5,
         workload: 3,
+        usefulness: 4,
+        teaching: 4,
         grading: 4,
     });
 

@@ -58,23 +58,17 @@
         </header>
 
         <!-- ========== 2. Rating Section ========== -->
-        <section class="mb-6">
+        <section v-if="hasRatingTerms || showRatingUnavailable" class="mb-6">
           <h3 class="text-sm font-semibold uppercase tracking-wider text-text-muted mb-4">
             {{ t('review.detail.ratingTitle') }} &gt;
           </h3>
 
           <!-- No data at all -->
           <div
-            v-if="!ratingStats || !ratingStats.byTerm || ratingStats.byTerm.length === 0"
+            v-if="showRatingUnavailable"
             class="bg-bg-card rounded-xl shadow-card p-8 text-center"
           >
-            <p class="text-text-muted mb-3">{{ t('review.detail.noData') }}</p>
-            <button
-              class="py-2 px-6 text-sm font-medium text-white bg-accent rounded-full transition-opacity duration-fast hover:opacity-90"
-              @click="goToPostPage"
-            >
-              {{ t('review.detail.writeFirst') }}
-            </button>
+            <p class="text-text-muted">{{ t('review.stats.noData') }}</p>
           </div>
 
           <!-- Semester rating cards grid -->
@@ -84,7 +78,7 @@
             style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr))"
           >
             <div
-              v-for="(term, idx) in ratingStats.byTerm"
+              v-for="(term, idx) in ratingTerms"
               :key="term.termID ?? term.termName"
               class="glass-card rounded-xl shadow-card p-4 stagger-item"
               :style="{ animationDelay: `${idx * 80}ms` }"
@@ -119,7 +113,7 @@
               <div v-if="term.dimensions && term.dimensions.length > 0" class="flex flex-col gap-2.5">
                 <div v-for="dim in term.dimensions" :key="dim.key" class="flex items-center gap-2">
                   <span class="text-xs w-16 shrink-0 text-right text-text-secondary">
-                    {{ dimensionLabel(dim.key) }}
+                    {{ dimensionLabel(dim.key, dim.name) }}
                   </span>
                   <div class="flex-1 h-2 bg-bg-secondary rounded-full overflow-hidden">
                     <div
@@ -422,9 +416,14 @@ import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
 import { useReviewPost } from '@/composables/useReviewPost'
-import { getRatingColor } from '@/design-system/rating'
+import {
+  ratingBarColor,
+  ratingDimensionLabel,
+  reviewCardBorderClass,
+  termReviewCount,
+} from '@/modules/review/ratingHelpers'
 
-import type { Course, CourseRatingStatsResponse, TeacherStats, TermRatingStats } from '@stuhelper/shared/course'
+import type { Course, CourseRatingStatsResponse, TeacherStats } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
 
 const { t, locale } = useI18n()
@@ -455,6 +454,9 @@ const page = ref(1)
 const limit = 20
 const total = ref(0)
 const hasMore = computed(() => reviews.value.length < total.value)
+const ratingTerms = computed(() => ratingStats.value?.byTerm ?? [])
+const hasRatingTerms = computed(() => ratingTerms.value.length > 0)
+const showRatingUnavailable = computed(() => !hasRatingTerms.value && total.value > 0)
 
 // ── Teacher filter ──
 const selectedTeacher = ref('')
@@ -514,43 +516,8 @@ const {
   refreshReviews()
 })
 
-// ── Rating helpers ──
-const DIMENSION_LABELS: Record<string, string> = {
-  recommendation: 'review.detail.recommend',
-  content_quality: 'review.detail.contentQuality',
-  workload: 'review.detail.workload',
-  assessment: 'review.detail.exam',
-}
-
-function dimensionLabel(key: string): string {
-  const labelKey = DIMENSION_LABELS[key]
-  if (labelKey) return t(labelKey)
-
-  const translated = t(`review.ratingEmoji.${key}`)
-  return translated === `review.ratingEmoji.${key}` ? key : translated
-}
-
-function ratingBarColor(avg: number): string {
-  return getRatingColor(Math.round(avg))
-}
-
-function termReviewCount(term: TermRatingStats): number {
-  if (!term.dimensions || term.dimensions.length === 0) return 0
-  return term.dimensions[0].ratingCount ?? 0
-}
-
-// ── Review card styles (low rating left border) ──
-function reviewCardBorderClass(r: Review): string {
-  const avg = avgRatingForReview(r)
-  if (avg <= 1) return 'border-l-4 !border-l-danger shadow-[0_0_12px_var(--color-danger)/40]'
-  if (avg <= 2) return 'border-l-4 !border-l-warning shadow-[0_0_12px_var(--color-warning)/40]'
-  return ''
-}
-
-function avgRatingForReview(r: Review): number {
-  const vals = Object.values(r.ratings || {})
-  if (vals.length === 0) return 3
-  return vals.reduce((a, b) => a + b, 0) / vals.length
+function dimensionLabel(key: string, fallback?: string): string {
+  return ratingDimensionLabel({ key, fallback, t })
 }
 
 // ── Navigation ──
@@ -577,7 +544,7 @@ const fetchReviews = async (append = false, expectedVersion?: number) => {
     total.value = pageData.total
   } catch (error) {
     if (expectedVersion === undefined || expectedVersion === loadVersion) {
-      toast.error(getErrorMessage(error, t('review.course.loadFailed')))
+      toast.error(getErrorMessage(error, t('common.loadFailed')))
     }
   } finally {
     if (expectedVersion === undefined || expectedVersion === loadVersion) {
@@ -644,7 +611,7 @@ const fetchAll = async () => {
     } else {
       course.value = null
       error.value = true
-      toast.error(getErrorMessage(courseRes.reason, t('review.course.loadFailed')))
+      toast.error(getErrorMessage(courseRes.reason, t('common.loadFailed')))
       return
     }
 

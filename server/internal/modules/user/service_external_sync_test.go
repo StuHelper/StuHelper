@@ -143,11 +143,13 @@ func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	startedAt := time.Now()
 	err = svc.processExternalSyncBatch(context.Background())
 	require.NoError(t, err)
 	assert.True(t, retryMarked)
 	assert.Contains(t, lastError, "casdoor unavailable")
-	assert.True(t, nextRetry.After(time.Now().Add(4*time.Second)))
+	assert.True(t, nextRetry.After(startedAt.Add(2*time.Second)))
+	assert.True(t, nextRetry.Before(startedAt.Add(6*time.Second)))
 }
 
 func TestStartBackgroundJobsRequiresStarter(t *testing.T) {

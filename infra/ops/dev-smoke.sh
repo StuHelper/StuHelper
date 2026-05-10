@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/dev-local.sh"
 
 "${SCRIPT_DIR}/init-dev-env.sh"
+load_env
 if [[ -f "${DEV_RUNTIME_ENV}" ]]; then
   set -a
   # shellcheck disable=SC1090

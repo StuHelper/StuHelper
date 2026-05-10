@@ -256,7 +256,7 @@
                   :to="`/courses/${review.courseID}/reviews`"
                   class="text-base font-bold no-underline truncate text-text-primary hover:text-primary transition-colors"
                 >
-                  {{ review.title || review.courseName || `Course #${review.courseID}` }}
+                  {{ review.title || review.courseName || t('review.course.fallbackTitle', { id: review.courseID }) }}
                 </router-link>
                 <span
                   v-if="reviewAvgRating(review) > 0"
@@ -345,6 +345,7 @@ import { useToast } from '@/composables/useToast'
 import type { Department, Term, Course } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
 import { getRatingColor } from '@/design-system/rating'
+import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -414,7 +415,7 @@ function reviewDimensions(review: Review): Array<{ key: string; label: string; v
   if (!review.ratings) return []
   return Object.entries(review.ratings).map(([key, value]) => ({
     key,
-    label: t(`review.ratingEmoji.${key}`, t('review.ratingEmoji.fallback')),
+    label: ratingDimensionLabel({ key, t }),
     value: Math.max(0, Math.min(5, value)),
   }))
 }

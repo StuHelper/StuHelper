@@ -59,6 +59,44 @@ func TestBuildUserPayload_IncludesAvatarWhenPresent(t *testing.T) {
 	assert.Equal(t, "alice@example.com", decoded["email"])
 }
 
+func TestBuildUserPayload_UsesCasdoorAccountSettingsURL(t *testing.T) {
+	h := &Handler{oidcIssuer: " http://localhost:8085/ "}
+
+	payload := h.buildUserPayload(
+		"user-1",
+		"alice",
+		"Alice",
+		"",
+		nil,
+		[]string{"user"},
+		[]capability.Grant{},
+	)
+
+	assert.Equal(t, "http://localhost:8085/account", payload.AccountSettingsURL)
+	assert.NotContains(t, payload.AccountSettingsURL, "/ui/v2/login/password/change")
+}
+
+func TestBuildUserPayload_OmitsAccountSettingsURLWithoutIssuer(t *testing.T) {
+	h := &Handler{}
+
+	payload := h.buildUserPayload(
+		"user-1",
+		"alice",
+		"Alice",
+		"",
+		nil,
+		[]string{"user"},
+		[]capability.Grant{},
+	)
+
+	raw, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	assert.NotContains(t, decoded, "accountSettingsUrl")
+}
+
 func TestGetCurrentUser_HTTPContract_OmitsNilAvatar(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

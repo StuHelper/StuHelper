@@ -2648,6 +2648,22 @@ CREATE INDEX idx_mv_teacher_public_stats_reviews ON public.mv_teacher_public_sta
 
 
 --
+-- Name: mv_teacher_public_stats; Type: OWNER; Schema: public; Owner: stuhelper_app
+--
+
+ALTER MATERIALIZED VIEW public.mv_teacher_public_stats OWNER TO stuhelper_app;
+
+
+--
+-- Name: mv_teacher_public_stats dependencies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.teachers TO stuhelper_app;
+GRANT SELECT ON TABLE public.departments TO stuhelper_app;
+GRANT SELECT ON TABLE public.reviews TO stuhelper_app;
+
+
+--
 -- Name: idx_notifications_created_at; Type: INDEX; Schema: public; Owner: -
 --
 

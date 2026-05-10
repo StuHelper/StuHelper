@@ -57,6 +57,20 @@ func (c *Client) RevokeRefreshTokenForApplication(ctx context.Context, appKey, r
 	return handleRevocationResponse(resp)
 }
 
+func (c *Client) SupportsRefreshTokenRevocation() (bool, error) {
+	if c == nil || c.provider == nil {
+		return false, nil
+	}
+	_, err := c.revocationEndpoint()
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, ErrRevocationEndpointUnavailable) {
+		return false, nil
+	}
+	return false, err
+}
+
 func (c *Client) revocationEndpoint() (string, error) {
 	var metadata struct {
 		RevocationEndpoint string `json:"revocation_endpoint"`

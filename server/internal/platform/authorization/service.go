@@ -9,15 +9,23 @@ import (
 )
 
 type Service struct {
-	now func() time.Time
+	now             func() time.Time
+	disableMFAGates bool
 }
 
-func NewService() *Service {
-	return newServiceWithClock(time.Now)
+func NewService(opts ...ServiceOption) *Service {
+	return newServiceWithClock(time.Now, opts...)
 }
 
-func newServiceWithClock(now func() time.Time) *Service {
-	return &Service{now: now}
+func newServiceWithClock(now func() time.Time, opts ...ServiceOption) *Service {
+	service := &Service{now: now}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(service)
+	}
+	return service
 }
 
 func (s *Service) Authorize(ctx context.Context, subject Subject, action Action, resource Resource) Decision {
@@ -91,6 +99,9 @@ func validateCapabilityResource(resource Resource) error {
 }
 
 func (s *Service) authorizePrivilegedMFA(subject Subject, resource Resource) Decision {
+	if s.disableMFAGates {
+		return allow("mfa enforcement disabled")
+	}
 	if resource.Type != ResourceMFA {
 		return deny("mfa resource is invalid", ErrInvalidResource)
 	}
@@ -101,6 +112,9 @@ func (s *Service) authorizePrivilegedMFA(subject Subject, resource Resource) Dec
 }
 
 func (s *Service) authorizeMFA(subject Subject, resource Resource) Decision {
+	if s.disableMFAGates {
+		return allow("mfa enforcement disabled")
+	}
 	if resource.Type != ResourceMFA {
 		return deny("mfa resource is invalid", ErrInvalidResource)
 	}

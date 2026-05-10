@@ -30,6 +30,12 @@ const CSRF_COOKIE_NAME = 'csrf_token'
 const inflightGetRequests = new Map<string, Promise<unknown>>()
 let didWarnMissingApiBaseUrl = false
 
+interface ErrorResponse {
+  headers?: Pick<Headers, 'get'>
+  status: number
+  statusText?: string
+}
+
 function stripSchemaPrefix(baseUrl: string): string {
   const trimmed = baseUrl.trim().replace(/\/$/, '')
   return trimmed.replace(/\/api(?:\/v1)?$/, '')
@@ -241,10 +247,7 @@ async function refreshSession() {
 
       return {
         ...result,
-        error: buildApiError(
-          result.response as Response,
-          result.error ?? result.data,
-        ),
+        error: buildApiError(result.response ?? { status }, result.error ?? result.data),
       }
     },
     shouldTreatAsUnauthorized(result, status) {
@@ -280,7 +283,11 @@ async function refreshSession() {
   })
 }
 
-function buildApiError(response: Response, payload: unknown): ApiError {
+function responseHeader(response: ErrorResponse, name: string): string | null {
+  return response.headers?.get(name) ?? null
+}
+
+function buildApiError(response: ErrorResponse, payload: unknown): ApiError {
   const errorData = parseApiError(payload)
 
   return new ApiError({
@@ -289,7 +296,7 @@ function buildApiError(response: Response, payload: unknown): ApiError {
     code: errorData.code || httpStatusToDefaultCode(response.status),
     status: response.status,
     details: errorData.details,
-    requestID: response.headers.get('X-Request-Id') || undefined,
+    requestID: responseHeader(response, 'X-Request-Id') || undefined,
   })
 }
 
@@ -358,7 +365,7 @@ async function invokeClientMethod(
     const result = await callBrowserSessionClient(method, schemaPath, init)
     const status = result.response?.status ?? 0
     if (result.error || status >= 400) {
-      throw buildApiError(result.response as Response, result.error ?? result.data)
+      throw buildApiError(result.response ?? { status }, result.error ?? result.data)
     }
     return result
   }

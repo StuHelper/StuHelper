@@ -149,9 +149,22 @@ fi
 if placeholder_or_empty "${CASDOOR_USER_LOOKUP_APPLICATION:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
 fi
+if placeholder_or_empty "${STUHELPER_CONSOLE_ADMIN_PASSWORD:-}"; then
+  upsert_env_file "${ENV_FILE}" "STUHELPER_CONSOLE_ADMIN_PASSWORD" "dev-koishi-admin-$(random_hex 12)"
+fi
+if placeholder_or_empty "${BOT_SERVICE_TOKEN:-}"; then
+  bot_service_token="dev-bot-$(random_hex 24)"
+  upsert_env_file "${ENV_FILE}" "BOT_SERVICE_TOKEN" "${bot_service_token}"
+  if placeholder_or_empty "${STUHELPER_PLATFORM_SERVICE_TOKEN:-}"; then
+    upsert_env_file "${ENV_FILE}" "STUHELPER_PLATFORM_SERVICE_TOKEN" "${bot_service_token}"
+  fi
+elif placeholder_or_empty "${STUHELPER_PLATFORM_SERVICE_TOKEN:-}"; then
+  upsert_env_file "${ENV_FILE}" "STUHELPER_PLATFORM_SERVICE_TOKEN" "${BOT_SERVICE_TOKEN}"
+fi
 
 ensure_value "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev"
 ensure_value "APP_ENV" "${APP_ENV:-}" "development"
+ensure_dev_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "http://localhost:3000,http://localhost:3001" "http://localhost:5173,http://localhost:3001"
 load_env
 
 ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable"
@@ -186,6 +199,7 @@ ensure_value "CASDOOR_SMS_PROVIDER_ENDPOINT" "${CASDOOR_SMS_PROVIDER_ENDPOINT:-}
 ensure_value "CASDOOR_EMAIL_PROVIDER_ENABLED" "${CASDOOR_EMAIL_PROVIDER_ENABLED:-}" "false"
 ensure_value "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "http://localhost:3000"
 ensure_value "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "http://localhost:${ADMIN_EXTERNAL_PORT:-3001}"
+ensure_value "STUHELPER_PLATFORM_BASE_URL" "${STUHELPER_PLATFORM_BASE_URL:-}" "http://localhost:8080"
 ensure_value "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" ""
 ensure_dev_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "http://localhost:8085" "http://host.docker.internal:8085"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"

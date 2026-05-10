@@ -60,6 +60,26 @@ func TestRevokeRefreshTokenRequiresEndpointMetadata(t *testing.T) {
 	assert.False(t, errors.Is(err, ErrProviderUnavailable))
 }
 
+func TestSupportsRefreshTokenRevocationReflectsMetadata(t *testing.T) {
+	supportedClient, supportedServer := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}), true)
+	defer supportedServer.Close()
+
+	supported, err := supportedClient.SupportsRefreshTokenRevocation()
+	require.NoError(t, err)
+	assert.True(t, supported)
+
+	unsupportedClient, unsupportedServer := newRevocationOIDCClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}), false)
+	defer unsupportedServer.Close()
+
+	supported, err = unsupportedClient.SupportsRefreshTokenRevocation()
+	require.NoError(t, err)
+	assert.False(t, supported)
+}
+
 func newRevocationOIDCClient(
 	t *testing.T,
 	revocationHandler http.HandlerFunc,

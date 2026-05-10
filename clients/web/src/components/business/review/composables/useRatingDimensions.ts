@@ -1,9 +1,12 @@
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { isValidRating, type RatingDimension } from '@stuhelper/shared/course'
 import type { ReviewRatings } from '@stuhelper/shared/review'
+import { localizeRatingDimension } from '@/modules/review/ratingHelpers'
 
 export function useRatingDimensions() {
+  const { t } = useI18n()
   const rawDimensions = ref<RatingDimension[]>([])
   const loading = ref(false)
   const loadFailed = ref(false)
@@ -11,7 +14,8 @@ export function useRatingDimensions() {
   const dimensions = computed(() =>
     [...rawDimensions.value]
       .filter((dimension) => dimension.isActive)
-      .sort((left, right) => left.sortOrder - right.sortOrder),
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((dimension) => localizeRatingDimension(dimension, t)),
   )
 
   const ratingKeys = computed(() => dimensions.value.map((dimension) => dimension.key))

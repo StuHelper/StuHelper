@@ -126,19 +126,19 @@ onMounted(() => {
       </div>
 
       <!-- Error state -->
-      <div v-else-if="error" class="flex flex-col items-center justify-center py-20 text-text-secondary">
+  <div v-else-if="error" class="flex flex-col items-center justify-center py-20 text-text-secondary">
         <p class="mb-4">{{ error }}</p>
         <button
           class="rounded-lg bg-primary px-4 py-2 text-white hover:bg-primary/90 cursor-pointer"
           @click="fetchCourses"
         >
-          {{ t('common.retry') }}
+          {{ t('common.actions.retry') }}
         </button>
       </div>
 
       <!-- Empty state -->
       <div v-else-if="departmentGroups.length === 0" class="flex items-center justify-center py-20 text-text-secondary">
-        {{ t('review.courseList.empty') }}
+        {{ t('review.courseList.noCourses') }}
       </div>
 
       <!-- Department groups -->
@@ -175,7 +175,7 @@ onMounted(() => {
                 <p v-if="course.code" class="text-xs text-text-tertiary mt-0.5">{{ course.code }}</p>
               </div>
               <span class="ml-3 shrink-0 text-xs text-text-secondary">
-                {{ course.reviewCount }} {{ t('review.courseList.reviews') }}
+                {{ t('review.courseList.reviewCount', { count: course.reviewCount }) }}
               </span>
             </div>
           </div>

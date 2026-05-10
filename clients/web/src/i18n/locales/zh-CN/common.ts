@@ -21,6 +21,7 @@ export default {
     back: '返回',
     more: '更多',
     close: '关闭',
+    clear: '清除',
     operationFailed: '操作失败，请重试',
     refresh: '刷新',
     learnMore: '了解更多'

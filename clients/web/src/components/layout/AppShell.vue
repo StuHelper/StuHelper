@@ -164,7 +164,7 @@
       </div>
     </header>
 
-    <main class="pt-[var(--navbar-height)] max-tablet:pt-[calc(var(--navbar-height)+44px)] min-h-screen">
+    <main class="pt-[var(--navbar-height)] max-tablet:pt-[var(--mobile-header-height)] min-h-screen">
       <slot />
     </main>
 

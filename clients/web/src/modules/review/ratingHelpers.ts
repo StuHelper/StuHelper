@@ -1,20 +1,87 @@
-import type { TermRatingStats } from '@stuhelper/shared/course'
+import type { RatingDimension, TermRatingStats } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
 import { getRatingColor } from '@/design-system/rating'
 
-const DIMENSION_LABELS: Readonly<Record<string, string>> = {
+type Translate = (key: string) => string
+
+interface DimensionTextOptions {
+  key: string
+  t: Translate
+  fallback?: string | null
+}
+
+const DIMENSION_LABEL_KEYS: Readonly<Record<string, string>> = {
+  difficulty: 'review.ratingEmoji.difficulty',
+  usefulness: 'review.ratingEmoji.usefulness',
+  teaching: 'review.ratingEmoji.teaching',
+  grading: 'review.ratingEmoji.grading',
   recommendation: 'review.detail.recommend',
   content_quality: 'review.detail.contentQuality',
   workload: 'review.detail.workload',
   assessment: 'review.detail.exam',
 }
 
-export function dimensionLabel(key: string, t: (k: string) => string): string {
-  const labelKey = DIMENSION_LABELS[key]
-  if (labelKey) return t(labelKey)
+const DIMENSION_DESCRIPTION_KEYS: Readonly<Record<string, string>> = {
+  difficulty: 'review.ratingEmojiDescription.difficulty',
+  usefulness: 'review.ratingEmojiDescription.usefulness',
+  teaching: 'review.ratingEmojiDescription.teaching',
+  grading: 'review.ratingEmojiDescription.grading',
+  recommendation: 'review.ratingEmojiDescription.recommendation',
+  content_quality: 'review.ratingEmojiDescription.content_quality',
+  workload: 'review.ratingEmojiDescription.workload',
+  assessment: 'review.ratingEmojiDescription.assessment',
+}
 
-  const translated = t(`review.ratingEmoji.${key}`)
-  return translated === `review.ratingEmoji.${key}` ? key : translated
+function translatedText(
+  key: string,
+  keyMap: Readonly<Record<string, string>>,
+  t: Translate,
+): string | null {
+  const messageKey = keyMap[key]
+  if (!messageKey) return null
+  const translated = t(messageKey)
+  return translated === messageKey ? null : translated
+}
+
+export function ratingDimensionLabel(options: DimensionTextOptions): string {
+  const translated = translatedText(options.key, DIMENSION_LABEL_KEYS, options.t)
+  if (translated) return translated
+
+  const fallback = options.fallback?.trim()
+  return fallback || options.t('review.ratingEmoji.fallback')
+}
+
+export function ratingDimensionDescription(
+  options: DimensionTextOptions,
+): string | undefined {
+  const translated = translatedText(
+    options.key,
+    DIMENSION_DESCRIPTION_KEYS,
+    options.t,
+  )
+  if (translated) return translated
+
+  const fallback = options.fallback?.trim()
+  return fallback || undefined
+}
+
+export function localizeRatingDimension(
+  dimension: RatingDimension,
+  t: Translate,
+): RatingDimension {
+  return {
+    ...dimension,
+    name: ratingDimensionLabel({
+      key: dimension.key,
+      fallback: dimension.name,
+      t,
+    }),
+    description: ratingDimensionDescription({
+      key: dimension.key,
+      fallback: dimension.description,
+      t,
+    }),
+  }
 }
 
 export function ratingBarColor(avg: number): string {

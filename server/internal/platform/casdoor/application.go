@@ -140,17 +140,29 @@ func (c *Client) buildApplication(spec ApplicationSpec) (*casdoorsdk.Application
 	if err != nil {
 		return nil, err
 	}
+	interactive := applicationGrantRequiresRedirect(normalized.GrantTypes)
 	return &casdoorsdk.Application{
 		Owner:                "admin",
 		Name:                 normalized.Name,
 		DisplayName:          normalized.DisplayName,
 		Organization:         c.credential.Organization,
+		Cert:                 defaultApplicationCertificate,
+		EnablePassword:       interactive,
+		EnableSignUp:         interactive,
+		EnableSigninSession:  interactive,
 		ClientId:             normalized.ClientID,
 		ClientSecret:         normalized.ClientSecret,
 		RedirectUris:         normalized.RedirectURIs,
+		Providers:            defaultProviderItems(),
+		SigninMethods:        defaultSigninMethods(interactive),
+		SignupItems:          defaultSignupItems(interactive),
+		SigninItems:          defaultSigninItems(interactive),
 		GrantTypes:           normalized.GrantTypes,
 		TokenFormat:          normalized.TokenFormat,
 		TokenFields:          normalized.TokenFields,
+		TokenAttributes:      []*casdoorsdk.JwtItem{},
+		Tags:                 []string{},
+		SamlAttributes:       []*casdoorsdk.SamlItem{},
 		ExpireInHours:        normalized.ExpireInHours,
 		RefreshExpireInHours: normalized.RefreshExpireInHours,
 	}, nil

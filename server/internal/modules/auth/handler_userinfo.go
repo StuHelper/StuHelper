@@ -10,6 +10,8 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
+const casdoorAccountSettingsPath = "/account"
+
 type currentUserPayload struct {
 	ID                 string             `json:"id"`
 	Name               string             `json:"name"`
@@ -47,10 +49,6 @@ func (h *Handler) buildUserPayload(
 	grants []capability.Grant,
 ) currentUserPayload {
 	snapshot := capability.BuildUserAccessSnapshot(grants)
-	var accountURL string
-	if h.oidcIssuer != "" {
-		accountURL = strings.TrimRight(h.oidcIssuer, "/") + "/ui/v2/login/password/change"
-	}
 
 	return currentUserPayload{
 		ID:                 userID,
@@ -64,8 +62,16 @@ func (h *Handler) buildUserPayload(
 		CapabilityGrants:   snapshot.CapabilityGrants,
 		IsPlatformAdmin:    hasRole(roles, "super_admin"),
 		CanAccessAdmin:     capability.CanAccessAdmin(snapshot.Capabilities),
-		AccountSettingsURL: accountURL,
+		AccountSettingsURL: buildAccountSettingsURL(h.oidcIssuer),
 	}
+}
+
+func buildAccountSettingsURL(issuer string) string {
+	issuer = strings.TrimRight(strings.TrimSpace(issuer), "/")
+	if issuer == "" {
+		return ""
+	}
+	return issuer + casdoorAccountSettingsPath
 }
 
 func hasRole(roles []string, expected string) bool {

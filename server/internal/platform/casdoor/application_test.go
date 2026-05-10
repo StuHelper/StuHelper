@@ -25,12 +25,23 @@ func TestCreateApplicationMapsSpec(t *testing.T) {
 	assert.Equal(t, "third-party-demo", api.added.Name)
 	assert.Equal(t, "Third Party Demo", api.added.DisplayName)
 	assert.Equal(t, "stuhelper", api.added.Organization)
+	assert.Equal(t, "cert-built-in", api.added.Cert)
+	assert.True(t, api.added.EnablePassword)
+	assert.True(t, api.added.EnableSignUp)
+	assert.True(t, api.added.EnableSigninSession)
 	assert.Equal(t, "client-demo", api.added.ClientId)
 	assert.Equal(t, "secret-demo", api.added.ClientSecret)
 	assert.Equal(t, []string{"https://app.example.com/callback"}, api.added.RedirectUris)
+	assert.NotNil(t, api.added.Providers)
+	assert.NotEmpty(t, api.added.SigninMethods)
+	assert.NotEmpty(t, api.added.SignupItems)
+	assert.NotEmpty(t, api.added.SigninItems)
 	assert.Equal(t, []string{"authorization_code"}, api.added.GrantTypes)
 	assert.Equal(t, "JWT", api.added.TokenFormat)
 	assert.Equal(t, []string{}, api.added.TokenFields)
+	assert.NotNil(t, api.added.TokenAttributes)
+	assert.NotNil(t, api.added.Tags)
+	assert.NotNil(t, api.added.SamlAttributes)
 }
 
 func TestUpdateApplicationDelegatesToSDK(t *testing.T) {
@@ -112,6 +123,13 @@ func TestApplicationValidationAllowsClientCredentialsWithoutRedirect(t *testing.
 	require.NotNil(t, api.added)
 	assert.Empty(t, api.added.RedirectUris)
 	assert.Equal(t, []string{"client_credentials"}, api.added.GrantTypes)
+	assert.False(t, api.added.EnablePassword)
+	assert.False(t, api.added.EnableSignUp)
+	assert.False(t, api.added.EnableSigninSession)
+	assert.NotNil(t, api.added.Providers)
+	assert.Empty(t, api.added.SigninMethods)
+	assert.Empty(t, api.added.SignupItems)
+	assert.Empty(t, api.added.SigninItems)
 }
 
 func TestApplicationOperationRejected(t *testing.T) {

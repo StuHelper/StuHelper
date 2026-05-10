@@ -24,12 +24,12 @@ type Claims struct {
 	AppID             string   `json:"-"`
 
 	// 解析后的角色列表（如 ["school_admin", "verified_student"]）
-	Roles []string
+	Roles []string `json:"-"`
 
 	// OrgScopedRoles 是 StuHelper 内部的 school-scope grant 载体：roleName → schoolID 列表。
 	// Casdoor roles claim 保持扁平；学校作用域必须来自 DB/OpenFGA 投影，不能从 role 名嵌入解析。
 	// 例：{"school_admin": ["1001", "1002"]} 表示该用户在学校 1001 和 1002 上拥有 school_admin grant。
-	OrgScopedRoles map[string][]string
+	OrgScopedRoles map[string][]string `json:"-"`
 }
 
 // GetUserID 返回 OIDC subject（唯一用户标识）
@@ -115,18 +115,41 @@ func parseRoleNames(roleData json.RawMessage, rolesClaim string) ([]string, erro
 
 	var anyList []any
 	if err := json.Unmarshal(roleData, &anyList); err == nil {
-		roles := make([]string, 0, len(anyList))
-		for _, item := range anyList {
-			role, ok := item.(string)
-			if !ok {
-				return nil, fmt.Errorf("roles claim %q contains non-string role", rolesClaim)
-			}
-			roles = append(roles, role)
+		roles, err := rolesFromClaimItems(anyList, rolesClaim)
+		if err != nil {
+			return nil, err
 		}
 		return dedupeRoles(roles), nil
 	}
 
-	return nil, fmt.Errorf("roles claim %q must be a string array", rolesClaim)
+	return nil, fmt.Errorf("roles claim %q must be a string array or role object array", rolesClaim)
+}
+
+func rolesFromClaimItems(items []any, rolesClaim string) ([]string, error) {
+	roles := make([]string, 0, len(items))
+	for _, item := range items {
+		switch value := item.(type) {
+		case string:
+			roles = append(roles, value)
+		case map[string]any:
+			role, err := roleNameFromClaimObject(value, rolesClaim)
+			if err != nil {
+				return nil, err
+			}
+			roles = append(roles, role)
+		default:
+			return nil, fmt.Errorf("roles claim %q contains unsupported role item", rolesClaim)
+		}
+	}
+	return roles, nil
+}
+
+func roleNameFromClaimObject(value map[string]any, rolesClaim string) (string, error) {
+	name, ok := value["name"].(string)
+	if !ok || strings.TrimSpace(name) == "" {
+		return "", fmt.Errorf("roles claim %q contains role object without string name", rolesClaim)
+	}
+	return name, nil
 }
 
 func dedupeRoles(roles []string) []string {

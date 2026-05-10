@@ -104,7 +104,11 @@ func runSharedPostgres(ctx context.Context) (*sharedPostgresServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &sharedPostgresServer{adminURL: databaseURLForName(connStr, "postgres")}, nil
+	adminURL := databaseURLForName(connStr, "postgres")
+	if err := ensureFixtureRoles(ctx, adminURL); err != nil {
+		return nil, err
+	}
+	return &sharedPostgresServer{adminURL: adminURL}, nil
 }
 
 func nextDatabaseName() string {
@@ -120,6 +124,28 @@ func createTestDatabase(t *testing.T, ctx context.Context, adminURL string, dbNa
 
 	_, err = conn.Exec(ctx, "CREATE DATABASE "+quoteIdentifier(dbName))
 	require.NoError(t, err)
+}
+
+func ensureFixtureRoles(ctx context.Context, adminURL string) error {
+	conn, err := pgx.Connect(ctx, adminURL)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+
+	// Production bootstrap creates this cluster role before migrations run.
+	// The test fixture creates fresh databases inside one container, so it must
+	// mirror the cluster-level role dependency before applying the schema dump.
+	_, err = conn.Exec(ctx, `
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'stuhelper_app') THEN
+        CREATE ROLE stuhelper_app;
+    END IF;
+END
+$$;
+`)
+	return err
 }
 
 func dropTestDatabase(adminURL string, dbName string) error {

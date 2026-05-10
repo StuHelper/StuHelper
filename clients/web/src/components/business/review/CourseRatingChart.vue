@@ -92,7 +92,9 @@
           :key="dim.key"
           class="flex items-center gap-3 py-2 px-3 bg-bg-card rounded-md transition-[background] duration-fast hover:bg-bg-elevated max-sm:flex-wrap"
         >
-          <span class="w-[70px] text-sm font-medium text-text-secondary shrink-0 max-sm:w-full max-sm:mb-1">{{ dim.name }}</span>
+          <span class="w-[70px] text-sm font-medium text-text-secondary shrink-0 max-sm:w-full max-sm:mb-1">
+            {{ dimensionLabel(dim.key, dim.name) }}
+          </span>
           <div class="flex-1">
             <RatingDisplay :value="dim.avgRating" show-value />
           </div>
@@ -127,6 +129,7 @@ import type { CourseRatingStatsResponse } from '@stuhelper/shared/course'
 import { useThemeStore } from '@/stores/theme'
 import RatingDisplay from './RatingDisplay.vue'
 import { withAlpha } from '@stuhelper/shared/utils'
+import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
 
 use([RadarChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -193,10 +196,14 @@ const selectedTermLabels = computed(() => {
   })
 })
 
+function dimensionLabel(key: string, fallback?: string): string {
+  return ratingDimensionLabel({ key, fallback, t })
+}
+
 const chartOption = computed(() => {
   if (!ratingStats.value) return {}
 
-  const labels = ratingStats.value.overall.dimensions.map(d => d.name)
+  const labels = ratingStats.value.overall.dimensions.map(d => dimensionLabel(d.key, d.name))
   const indicator = labels.map(name => ({ name, max: 5 }))
 
   const series: { name: string; value: number[] }[] = []

@@ -21,6 +21,7 @@ export default {
     back: 'Back',
     more: 'More',
     close: 'Close',
+    clear: 'Clear',
     operationFailed: 'Operation failed, please retry',
     refresh: 'Refresh',
     learnMore: 'Learn More'

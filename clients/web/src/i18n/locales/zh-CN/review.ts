@@ -30,7 +30,8 @@ export default {
     shareExperience: '分享你对这门课的体验...',
     noTeacherData: '暂无教师数据',
     creditsBadge: '{n}学分',
-    reviewCountBadge: '{count}评'
+    reviewCountBadge: '{count}评',
+    fallbackTitle: '课程 #{id}'
   },
   review: {
     anonymous: '匿名用户',
@@ -211,11 +212,35 @@ export default {
     noData: '暂无统计数据'
   },
   ratingEmoji: {
+    icon: {
+      difficulty: '📈',
+      recommendation: '👍',
+      content_quality: '📘',
+      usefulness: '🧭',
+      teaching: '🎓',
+      workload: '🗂️',
+      grading: '✅',
+      assessment: '📝'
+    },
+    difficulty: '课程难度',
     recommendation: '推荐度',
     content_quality: '内容',
+    usefulness: '实用性',
+    teaching: '教学质量',
     workload: '工作量',
     grading: '给分',
+    assessment: '考核',
     fallback: '评分'
+  },
+  ratingEmojiDescription: {
+    difficulty: '课程内容的难易程度',
+    recommendation: '是否推荐给其他同学',
+    content_quality: '课程内容质量',
+    usefulness: '课程内容对未来学习或工作的帮助程度',
+    teaching: '教师的授课水平和教学效果',
+    workload: '课程作业和任务量',
+    grading: '评分标准和给分宽松程度',
+    assessment: '考试、作业与考核方式'
   },
   card: {
     loginToView: '登录后查看完整内容',
@@ -248,7 +273,7 @@ export default {
     all: '全部'
   },
   home: {
-    title: '评课社区@BUAA',
+    title: "评课社区{'@'}BUAA",
     subtitle: '来自同学们的{count}条测评，帮你找到最适合的课程',
     dataUpdated: '课程数据已更新至{term}',
     searchPlaceholder: '搜索课程名称、拼音或首字母，如：高等数学、gaodengshuxue、gdsx',
@@ -298,6 +323,7 @@ export default {
   postForm: {
     title: '发布测评',
     selectCourse: '选择课程',
+    selectTeacher: '选择教师',
     searchCoursePlaceholder: '输入名称、拼音或首字母搜索，如: 高等数学、gaodengshuxue、gdsx',
     teacher: '授课老师',
     teacherPlaceholder: '请输入教师姓名',
@@ -359,11 +385,11 @@ export default {
     noReviewsFound: '未找到符合条件的测评'
   },
   about: {
-    title: '关于评课社区@BUAA',
+    title: "关于评课社区{'@'}BUAA",
     preface: '写在最前面的话',
     prefaceContent1: '于2025年3月在3号科研楼创建。',
     prefaceContent2: '第一行代码于2025年3月12日下午敲下，这是故事开始的地方，初版的最后一行代码于2025年3月18日凌晨敲完，共计用时21h56min（数据来源：WakaTime）。',
-    prefaceContent3pre: '本项目全名为北京航空航天大学非官方课程测评社区，简称评课社区@BUAA（',
+    prefaceContent3pre: "本项目全名为北京航空航天大学非官方课程测评社区，简称评课社区{'@'}BUAA（",
     prefaceContent3post: '）。',
     prefaceContent4: '本项目的灵感来源于各高校学生自建的评课社区。',
     prefaceContent5: '感谢所有为本站贡献测评内容和提出意见和建议的热心同学，也感谢您的访问！',
@@ -393,7 +419,7 @@ export default {
     faq7q: '7. 网站上的内容版权问题如何界定？',
     faq7a: '向本站提交测评时，您同意向本站提供对您提交的测评内容的永久的（perpetual）、不可撤回的（irrevocable）、非独占的（non-exclusive）、全球有效的（worldwide）无限制的许可（license）。您依然享有您提交的内容的全部版权。任何人（除了原始所有权人）不得在未经许可的条件下，转载本站内容（包括全部或部分内容）。您在本站提交测评时，授权本站以一切法律、技术途径代理保护您所提交的内容的版权，包括但不限于向任何未经许可的转载媒介进行起诉和发送DMCA请求。',
     contactTitle: '联系我们',
-    contactEmail: 'stuhelper@protonmail.com',
+    contactEmail: "stuhelper{'@'}protonmail.com",
     contactDesc: '欢迎各位同学与老师向本站提供宝贵的意见和建议。如果您是老师，也欢迎您对课程测评的疑问或质疑进行答复或澄清。',
     disclaimerTitle: '必要声明',
     disclaimer1: '本评课社区为非官方网站，与北京航空航天大学及其下设机关或组织没有任何关联。',

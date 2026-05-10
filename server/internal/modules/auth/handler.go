@@ -7,9 +7,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/sms"
@@ -81,6 +83,15 @@ func providerTokenRevocationOptions(oidcClient *oidc.Client, cfg HandlerConfig) 
 	if oidcClient == nil || cfg.ProviderTokenCipher == nil {
 		return nil
 	}
+	supported, err := oidcClient.SupportsRefreshTokenRevocation()
+	if err != nil {
+		logger.L().Warn("OIDC provider refresh token revocation disabled: metadata lookup failed", zap.Error(err))
+		return nil
+	}
+	if !supported {
+		logger.L().Warn("OIDC provider refresh token revocation disabled: revocation endpoint unavailable")
+		return nil
+	}
 	return []ServiceOption{WithProviderRefreshTokenRevocation(oidcClient, cfg.ProviderTokenCipher)}
 }
 
@@ -121,7 +132,7 @@ func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 		phone.POST("/verify-otp", middleware.RateLimitMiddleware(h.phoneLimiter), h.VerifyPhoneOTP)
 	}
 	// 原生 App 令牌交换：无 cookie / 无 CSRF，用一次性 state 做防重放
-	r.POST("/auth/exchange-native", middleware.RateLimitMiddleware(h.refreshLimiter), h.ExchangeNative)
+	r.POST("/auth/exchange-native", middleware.EndpointRateLimitMiddleware(h.refreshLimiter, "auth-exchange-native"), h.ExchangeNative)
 }
 
 // RegisterRoutes 注册认证路由
@@ -136,7 +147,7 @@ func (h *Handler) RegisterRoutesWithAuthMiddleware(r *gin.RouterGroup, authMW gi
 		auth.GET("/signup", h.GetSignupURL)
 		auth.GET("/step-up", authMW, h.GetStepUpURL)
 		auth.GET("/callback", h.HandleCallback)
-		auth.POST("/refresh", middleware.RateLimitMiddleware(h.refreshLimiter), h.RefreshToken)
+		auth.POST("/refresh", middleware.EndpointRateLimitMiddleware(h.refreshLimiter, "auth-refresh"), h.RefreshToken)
 		auth.GET("/me", authMW, h.GetCurrentUser)
 		auth.POST("/logout", authMW, h.Logout)
 		auth.POST("/logout-all", authMW, h.LogoutAll)

@@ -278,11 +278,12 @@ services:
     container_name: ${STACK_NAME:-stuhelper}-migrate-dev
     working_dir: /workspace/server
     command: >-
-      sh -lc 'go run ./cmd/migrate-runtime'
+      /usr/local/go/bin/go run ./cmd/migrate-runtime
     env_file:
     - ${ENV_FILE_PATH:-.env}
     - ${GENERATED_ENV_FILE_PATH:-.env.generated}
     environment:
+      PATH: /usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       DATABASE_URL: postgresql://${POSTGRES_USER:-stuhelper}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}
     volumes:
     - ./server:/workspace/server:ro

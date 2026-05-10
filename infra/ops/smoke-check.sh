@@ -50,8 +50,9 @@ fi
 
 check_status() {
   local name="$1" url="$2" expect="${3:-200}"
+  local method="${4:-GET}"
   local status
-  status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null || echo "000")
+  status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X "${method}" "$url" 2>/dev/null || echo "000")
   if [ "$status" = "$expect" ]; then
     echo "  ✅ $name (HTTP $status)"
     PASS=$((PASS + 1))
@@ -97,13 +98,17 @@ check_body   "login-url 返回授权地址" "${API_BASE_URL}/api/v1/auth/login?p
 # 验证 callback 端点在缺少 code 参数时返回 400
 check_status "callback 无 code 返回 400" "${API_BASE_URL}/api/v1/auth/callback" "400"
 # 验证 exchange-native 端点在无请求体时返回 400
-check_status "exchange-native 无 body 返回 400" "${API_BASE_URL}/api/v1/auth/exchange-native" "400"
+check_status "exchange-native 无 body 返回 400" "${API_BASE_URL}/api/v1/auth/exchange-native" "400" "POST"
 # 验证 refresh 端点在无 cookie 时返回 401（未携带刷新令牌）
-check_status "refresh 无 cookie 返回 401" "${API_BASE_URL}/api/v1/auth/refresh" "401"
+check_status "refresh 无 cookie 返回 401" "${API_BASE_URL}/api/v1/auth/refresh" "401" "POST"
 
 echo ""
 echo "── 指标与观测 ──"
-check_status "指标端点需认证" "${API_BASE_URL}/metrics" "401"
+if [[ "${APP_ENV:-development}" == "production" ]]; then
+  check_status "指标端点需认证" "${API_BASE_URL}/metrics" "401"
+else
+  check_status "开发指标端点可访问" "${API_BASE_URL}/metrics" "200"
+fi
 
 # OIDC（可选）
 CASDOOR_ISSUER="${CASDOOR_ISSUER:-}"

@@ -117,6 +117,8 @@
 
   /* 布局 */
   --navbar-height: 56px;
+  --mobile-header-extra-height: 44px;
+  --mobile-header-height: calc(var(--navbar-height) + var(--mobile-header-extra-height));
   --sidebar-width: 240px;
 
   /* 自定义断点 */

@@ -97,6 +97,7 @@ func (rt *Runtime) initConfigAndLogger() error {
 	}
 	rt.cfg = cfg
 	rt.isProduction = cfg.App.Env == "production"
+	configureRBACAuthorizer(cfg.App.Env)
 
 	logger.Init(logger.Config{
 		Level:           cfg.Log.Level,

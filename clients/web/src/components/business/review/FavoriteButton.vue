@@ -22,14 +22,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { Heart } from 'lucide-vue-next'
 import { useUserStore } from '@/stores/user'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 
 const { t } = useI18n()
 const toast = useToast()
+const router = useRouter()
 
 const props = withDefaults(defineProps<{
   courseID: number
@@ -39,18 +42,37 @@ const props = withDefaults(defineProps<{
 })
 
 const userStore = useUserStore()
+const authStore = useAuthStore()
 const loading = ref(false)
 
 const favoriteState = computed(() => userStore.isFavorited(props.courseID))
 const isFavorited = computed(() => favoriteState.value === true)
-const isLoading = computed(() => loading.value || favoriteState.value === undefined)
-
-onMounted(() => {
-  void userStore.ensureFavoriteStatus(props.courseID)
+const isLoading = computed(() => {
+  if (loading.value || !authStore.bootstrapCompleted) return true
+  return authStore.isAuthenticated && favoriteState.value === undefined
 })
+
+watch(
+  () => [authStore.bootstrapCompleted, authStore.isAuthenticated, props.courseID] as const,
+  ([bootstrapCompleted, isAuthenticated]) => {
+    if (!bootstrapCompleted || !isAuthenticated) return
+    void userStore.ensureFavoriteStatus(props.courseID)
+  },
+  {
+    immediate: true,
+  },
+)
 
 const handleClick = async () => {
   if (isLoading.value) return
+  if (!authStore.isAuthenticated) {
+    await router.push({
+      name: 'login',
+      query: { redirect: router.currentRoute.value.fullPath },
+    })
+    return
+  }
+
   loading.value = true
   try {
     await userStore.toggleFavorite(props.courseID)
