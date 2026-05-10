@@ -128,6 +128,10 @@ function normalizeClientError(error: unknown): ApiError {
   })
 }
 
+function hasRefreshSessionHint(): boolean {
+  return readCookie(CSRF_COOKIE_NAME) !== null || tokenExpiry.get() !== null
+}
+
 async function fetchWithTimeout(
   request: Request,
   timeoutMs: number,
@@ -307,6 +311,9 @@ const browserSessionClient = createSessionApiClient(
     },
     refresh: refreshSession,
     request: browserRequest,
+    shouldRefresh(schemaPath, status) {
+      return status === 401 && schemaPath !== AUTH_REFRESH_PATH && hasRefreshSessionHint()
+    },
   },
   {
     enableRefresh: true,

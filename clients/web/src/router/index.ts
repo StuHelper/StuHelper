@@ -401,6 +401,9 @@ router.beforeEach(async (to) => {
         stillAuthenticated: authStore.isAuthenticated,
     });
     if (authFailureDecision !== null) {
+        if (authFailureDecision === false) {
+            return true;
+        }
         return authFailureDecision;
     }
 

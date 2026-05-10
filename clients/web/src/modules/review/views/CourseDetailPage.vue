@@ -345,12 +345,6 @@
             class="bg-bg-card rounded-xl shadow-card p-8 text-center"
           >
             <p class="text-text-muted">{{ t('review.course.noReviews') }}</p>
-            <button
-              class="mt-2 py-2 px-6 text-sm font-medium text-white bg-accent rounded-full transition-opacity duration-fast hover:opacity-90"
-              @click="goToPostPage"
-            >
-              {{ t('review.detail.writeFirst') }}
-            </button>
           </div>
 
           <!-- Load more -->

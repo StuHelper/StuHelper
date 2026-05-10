@@ -1,9 +1,9 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-bg-base p-4 relative overflow-hidden">
     <ParticleBackground :particle-count="35" color="rgba(91, 124, 247, 0.5)" />
-    <div class="relative z-10 glass-card glow-border py-12 px-10 rounded-xl shadow-lg text-center max-w-[380px] w-full animate-scale-in overflow-hidden">
+    <div class="relative z-10 glass-card glow-border py-12 px-4 sm:px-10 rounded-xl shadow-lg text-center max-w-[380px] w-full animate-scale-in overflow-hidden">
       <!-- 渐变条 -->
-      <div class="h-[3px] bg-gradient-to-r from-primary to-accent -mt-12 -mx-10 mb-6"></div>
+      <div class="h-[3px] bg-gradient-to-r from-primary to-accent -mt-12 -mx-4 sm:-mx-10 mb-6"></div>
 
       <h1 class="font-sans text-2xl font-extrabold tracking-tight m-0 mb-2 gradient-text">StuHelper</h1>
       <p class="text-text-muted mb-6 text-sm leading-relaxed">{{ $t('common.login.subtitle') }}</p>
@@ -25,37 +25,31 @@
 
       <!-- 手机验证码登录 -->
       <div v-if="activeTab === 'phone'" class="flex flex-col gap-3">
-        <div class="relative">
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
           <input
             v-model="phone"
             type="tel"
             maxlength="11"
             :placeholder="$t('common.login.phonePlaceholder')"
-            class="w-full py-3 px-4 rounded-lg text-sm bg-bg-card border border-border text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors duration-fast"
-            :disabled="loading"
-            @keydown.enter="handlePhoneLogin"
-          />
-        </div>
-
-        <div class="flex gap-2">
-          <input
-            v-model="otpCode"
-            type="text"
-            inputmode="numeric"
-            maxlength="6"
-            :placeholder="$t('common.login.codePlaceholder')"
-            class="flex-1 py-3 px-4 rounded-lg text-sm bg-bg-card border border-border text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors duration-fast tracking-[0.3em] text-center"
+            class="min-w-0 w-full py-3 px-4 rounded-lg text-sm bg-bg-card border border-border text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors duration-fast"
             :disabled="loading"
             @keydown.enter="handlePhoneLogin"
           />
           <button
-            class="shrink-0 py-3 px-4 rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast bg-bg-card border border-border text-primary hover:enabled:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap min-w-[110px]"
+            class="min-w-[96px] shrink-0 py-3 px-4 rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast bg-bg-card border border-border text-primary hover:enabled:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap sm:min-w-[110px]"
             :disabled="loading || cooldown > 0 || !isValidPhone"
             @click="handleSendOTP"
           >
             {{ cooldown > 0 ? $t('common.login.resendCode', { n: cooldown }) : $t('common.login.sendCode') }}
           </button>
         </div>
+
+        <OtpCodeInput
+          v-model="otpCode"
+          :disabled="loading"
+          :aria-label="$t('common.login.codePlaceholder')"
+          @complete="handleOtpComplete"
+        />
 
         <button
           v-ripple
@@ -98,6 +92,7 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from "vue";
 import ParticleBackground from "@/components/animated/ParticleBackground.vue";
+import OtpCodeInput from "@/components/common/OtpCodeInput.vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
@@ -208,6 +203,11 @@ const handlePhoneLogin = async () => {
         const message = e instanceof Error ? e.message : t("common.login.otpVerifyFailed");
         ElMessage.error(message);
     }
+};
+
+const handleOtpComplete = async (value: string) => {
+    otpCode.value = value;
+    await handlePhoneLogin();
 };
 
 // 单点登录跳转辅助逻辑

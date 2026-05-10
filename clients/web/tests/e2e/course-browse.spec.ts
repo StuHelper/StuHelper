@@ -241,7 +241,7 @@ test.describe('Course Browse Flow', () => {
       page.getByRole('button', {
         name: /^(写第一条测评|Write the first review)$/,
       }),
-    ).toHaveCount(1)
+    ).toHaveCount(0)
     expect(favoriteStatusRequests).toBe(0)
   })
 })

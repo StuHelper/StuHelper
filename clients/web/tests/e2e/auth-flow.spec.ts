@@ -83,6 +83,45 @@ async function mockUnauthenticated(page: Page) {
   )
 }
 
+async function mockPhoneOtpLogin(page: Page) {
+  await mockUnauthenticated(page)
+
+  await page.route('**/api/v1/auth/phone/request-otp', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          message: 'otp sent',
+          cooldown: 60,
+        },
+      }),
+    }),
+  )
+
+  await page.route('**/api/v1/auth/phone/verify-otp', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          user: VERIFIED_STUDENT,
+          expiresIn: 3600,
+        },
+      }),
+    }),
+  )
+
+  await page.route(
+    '**/api/v1/course/review/user/notifications/unread-count*',
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { count: 0 } }),
+      }),
+  )
+}
+
 // ---- Tests ----
 
 test.describe('Auth Flow', () => {
@@ -107,6 +146,61 @@ test.describe('Auth Flow', () => {
     await mockAuthenticated(page, BASIC_USER)
     await page.goto('/login')
     await expect(page).toHaveURL('/')
+  })
+
+  test('phone otp login renders six code boxes and auto-submits after completion', async ({
+    page,
+  }) => {
+    await mockPhoneOtpLogin(page)
+    await page.goto('/login')
+
+    const phoneInput = page.getByPlaceholder('Enter phone number')
+    await phoneInput.fill('13800138000')
+
+    const sendButton = page.getByRole('button', { name: /Send Code|获取验证码/ })
+    await expect(sendButton).toBeEnabled()
+    await sendButton.click()
+
+    const codeInputs = page.locator('div[role="group"] input')
+    await expect(codeInputs).toHaveCount(6)
+
+    for (let index = 0; index < 6; index += 1) {
+      await codeInputs.nth(index).fill(String(index + 1))
+    }
+
+    await expect(page).toHaveURL('/')
+  })
+
+  test('phone otp login keeps send button beside phone input on small screens', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 812 })
+    await mockPhoneOtpLogin(page)
+    await page.goto('/login')
+
+    const phoneInput = page.getByPlaceholder('Enter phone number')
+    await phoneInput.fill('13800138000')
+
+    const sendButton = page.getByRole('button', { name: /Send Code|获取验证码/ })
+    await expect(sendButton).toBeVisible()
+
+    const phoneBox = await phoneInput.boundingBox()
+    const buttonBox = await sendButton.boundingBox()
+    expect(phoneBox).not.toBeNull()
+    expect(buttonBox).not.toBeNull()
+    expect(Math.abs(phoneBox!.y - buttonBox!.y)).toBeLessThan(2)
+    expect(buttonBox!.x).toBeGreaterThan(phoneBox!.x + phoneBox!.width)
+
+    await sendButton.click()
+
+    const codeInputs = page.locator('div[role="group"] input')
+    await expect(codeInputs).toHaveCount(6)
+    const firstCodeBox = await codeInputs.first().boundingBox()
+    const lastCodeBox = await codeInputs.last().boundingBox()
+    expect(firstCodeBox).not.toBeNull()
+    expect(lastCodeBox).not.toBeNull()
+    expect(firstCodeBox!.width).toBeGreaterThanOrEqual(36)
+    expect(lastCodeBox!.x + lastCodeBox!.width).toBeLessThanOrEqual(320)
   })
 
   test('authenticated user can access user center', async ({ page }) => {
