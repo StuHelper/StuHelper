@@ -63,6 +63,30 @@ const claimSQL = `
 	RETURNING o.id, o.job_type, o.payload, o.attempt_count
 `
 
+const claimByTypesSQL = `
+	WITH candidates AS (
+		SELECT id
+		FROM ` + DomainEventOutboxTable + `
+		WHERE stream = $1
+		  AND job_type = ANY($4::text[])
+		  AND (
+			status = 'pending'
+			OR (status = 'failed' AND available_at <= NOW())
+			OR (status = 'processing' AND locked_at <= NOW() - $3::interval)
+		)
+		ORDER BY available_at ASC, id ASC
+		LIMIT $2
+		FOR UPDATE SKIP LOCKED
+	)
+	UPDATE ` + DomainEventOutboxTable + ` AS o
+	SET status = 'processing',
+		locked_at = NOW(),
+		updated_at = NOW()
+	FROM candidates
+	WHERE o.id = candidates.id
+	RETURNING o.id, o.job_type, o.payload, o.attempt_count
+`
+
 const markDoneSQL = `
 	UPDATE ` + DomainEventOutboxTable + `
 	SET status = 'completed',
@@ -117,6 +141,36 @@ func ClaimJobs(ctx context.Context, database *db.DB, stream string, limit int, s
 		rows, err := tx.Query(ctx, claimSQL, stream, limit, intervalLiteral(staleAfter))
 		if err != nil {
 			return fmt.Errorf("claim outbox jobs query: %w", err)
+		}
+		defer rows.Close()
+		return scanJobs(rows, &jobs)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
+func ClaimJobsByTypes(
+	ctx context.Context,
+	database *db.DB,
+	stream string,
+	jobTypes []string,
+	limit int,
+	staleAfter time.Duration,
+) ([]Job, error) {
+	if limit <= 0 || len(jobTypes) == 0 {
+		return nil, nil
+	}
+	stream, err := safeStreamName(stream)
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]Job, 0, limit)
+	err = database.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, claimByTypesSQL, stream, limit, intervalLiteral(staleAfter), jobTypes)
+		if err != nil {
+			return fmt.Errorf("claim outbox jobs by types query: %w", err)
 		}
 		defer rows.Close()
 		return scanJobs(rows, &jobs)

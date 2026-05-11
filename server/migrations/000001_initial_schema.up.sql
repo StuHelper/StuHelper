@@ -2662,6 +2662,13 @@ GRANT SELECT ON TABLE public.teachers TO stuhelper_app;
 GRANT SELECT ON TABLE public.departments TO stuhelper_app;
 GRANT SELECT ON TABLE public.reviews TO stuhelper_app;
 
+--
+-- Name: academic runtime lookup; Type: ACL; Schema: academic; Owner: -
+--
+
+GRANT USAGE ON SCHEMA academic TO stuhelper_app;
+GRANT SELECT ON TABLE academic.buaa_students TO stuhelper_app;
+
 
 --
 -- Name: idx_notifications_created_at; Type: INDEX; Schema: public; Owner: -
@@ -3615,23 +3622,23 @@ SELECT pg_catalog.setval('public.schools_id_seq', 10006, true);
 
 INSERT INTO public.terms (id, school_id, name, is_current)
 VALUES
-    ('2025-1', 1, '2025 春', false),
-    ('2025-2', 1, '2025 秋', true);
+    ('2025-1', 10006, '2025 春', false),
+    ('2025-2', 10006, '2025 秋', true);
 
 INSERT INTO public.course_categories (school_id, name, sort_order)
 VALUES
-    (1, '通识', 0),
-    (1, '体育', 1),
-    (1, '英语', 2),
-    (1, '思政', 3);
+    (10006, '通识', 0),
+    (10006, '体育', 1),
+    (10006, '英语', 2),
+    (10006, '思政', 3);
 
 INSERT INTO public.rating_dimensions (id, school_id, key, name, description, sort_order)
 VALUES
-    ('01973860-0001-7000-8000-000000000001', 1, 'difficulty', '课程难度', '课程内容的难易程度', 1),
-    ('01973860-0002-7000-8000-000000000002', 1, 'workload', '作业量', '课程作业和任务的工作量', 2),
-    ('01973860-0003-7000-8000-000000000003', 1, 'usefulness', '实用性', '课程内容对未来学习或工作的帮助程度', 3),
-    ('01973860-0004-7000-8000-000000000004', 1, 'teaching', '教学质量', '教师的授课水平和教学效果', 4),
-    ('01973860-0005-7000-8000-000000000005', 1, 'grading', '给分情况', '课程的评分标准和给分宽松程度', 5);
+    ('01973860-0001-7000-8000-000000000001', 10006, 'difficulty', '课程难度', '课程内容的难易程度', 1),
+    ('01973860-0002-7000-8000-000000000002', 10006, 'workload', '作业量', '课程作业和任务的工作量', 2),
+    ('01973860-0003-7000-8000-000000000003', 10006, 'usefulness', '实用性', '课程内容对未来学习或工作的帮助程度', 3),
+    ('01973860-0004-7000-8000-000000000004', 10006, 'teaching', '教学质量', '教师的授课水平和教学效果', 4),
+    ('01973860-0005-7000-8000-000000000005', 10006, 'grading', '给分情况', '课程的评分标准和给分宽松程度', 5);
 
 INSERT INTO public.school_configs (
     school_id, school_name, verification_method, academic_db_table, consent_text, enabled, approval_policy

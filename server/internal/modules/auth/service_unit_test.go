@@ -38,6 +38,20 @@ func newAuthServiceForTest(t *testing.T) (*Service, *token.Service) {
 	return NewService(tokenCfg, tokenSvc, &fakeUserSyncRepo{}), tokenSvc
 }
 
+func TestSyncOIDCUser_ForwardsRoles(t *testing.T) {
+	repo := &recordingUserSyncRepo{}
+	svc, _ := newAuthServiceForTest(t)
+	svc.userSyncRepo = repo
+
+	input := UserSyncInput{
+		CasdoorSubject: "oidc-admin",
+		Username:       "admin",
+		Roles:          []string{"super_admin"},
+	}
+	require.NoError(t, svc.SyncOIDCUser(context.Background(), input))
+	assert.Equal(t, []string{"super_admin"}, repo.upsertInput.Roles)
+}
+
 func TestNewService(t *testing.T) {
 	t.Run("panics when required deps missing", func(t *testing.T) {
 		assert.Panics(t, func() { NewService(config.TokenConfig{}, nil, nil) })

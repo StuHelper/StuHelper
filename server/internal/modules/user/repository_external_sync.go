@@ -15,6 +15,16 @@ var externalSyncOutboxStreams = []string{
 	outbox.StreamIAMOpenFGATupleSync,
 }
 
+var externalSyncJobTypesByStream = map[string][]string{
+	outbox.StreamIAMCasdoorRoleSync: {
+		externalSyncJobTypeVerifiedStudentRole,
+		externalSyncJobTypeFreshmanProvisionalRole,
+	},
+	outbox.StreamIAMOpenFGATupleSync: {
+		externalSyncJobTypeUserProfileProjection,
+	},
+}
+
 func (r *Repository) UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error {
 	stream, err := externalSyncStreamForJobType(jobType)
 	if err != nil {
@@ -85,7 +95,8 @@ func (r *Repository) claimExternalSyncRemaining(ctx context.Context, state *exte
 }
 
 func (r *Repository) claimExternalSyncStream(ctx context.Context, state *externalSyncClaimState, claim externalSyncStreamClaim) error {
-	claimed, err := outbox.ClaimJobs(ctx, r.db, claim.stream, claim.limit, state.staleAfter)
+	jobTypes := externalSyncJobTypesByStream[claim.stream]
+	claimed, err := outbox.ClaimJobsByTypes(ctx, r.db, claim.stream, jobTypes, claim.limit, state.staleAfter)
 	if err != nil {
 		return fmt.Errorf("ClaimExternalSyncJobs: %w", err)
 	}

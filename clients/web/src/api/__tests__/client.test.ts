@@ -127,31 +127,40 @@ describe("browser API client", () => {
 
     it("resolves the browser API base to the current origin when configured with a relative path", async () => {
         const { __testing__, apiClientOptions } = await import("../client");
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-        expect(__testing__.resolveApiBaseUrl("/api")).toBe(
-            "http://127.0.0.1:3000",
-        );
-        expect(__testing__.resolveApiBaseUrl("/api/v1")).toBe(
-            "http://127.0.0.1:3000",
-        );
-        expect(__testing__.resolveApiURL("/api/v1/auth/callback").toString()).toBe(
-            "http://127.0.0.1:3000/api/v1/auth/callback",
-        );
-        expect(apiClientOptions.baseUrl).toBe("http://127.0.0.1:3000");
+        try {
+            expect(__testing__.resolveApiBaseUrl("/api")).toBe(
+                "http://127.0.0.1:3000",
+            );
+            expect(__testing__.resolveApiBaseUrl("/api/v1")).toBe(
+                "http://127.0.0.1:3000",
+            );
+            expect(__testing__.resolveApiURL("/api/v1/auth/callback").toString()).toBe(
+                "http://127.0.0.1:3000/api/v1/auth/callback",
+            );
+            expect(apiClientOptions.baseUrl).toBe("http://127.0.0.1:3000");
+            expect(warnSpy).not.toHaveBeenCalled();
+        } finally {
+            warnSpy.mockRestore();
+        }
     });
 
     it("warns once in development when VITE_API_URL is missing", async () => {
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-        const { __testing__ } = await import("../client");
 
-        expect(__testing__.resolveApiBaseUrl("")).toBe("http://127.0.0.1:3000");
-        expect(__testing__.resolveApiBaseUrl("")).toBe("http://127.0.0.1:3000");
-        expect(warnSpy).toHaveBeenCalledTimes(1);
-        expect(warnSpy).toHaveBeenCalledWith(
-            "[api] VITE_API_URL not set, falling back to window.location.origin",
-        );
+        try {
+            const { __testing__ } = await import("../client");
 
-        warnSpy.mockRestore();
+            expect(__testing__.resolveApiBaseUrl("")).toBe("http://127.0.0.1:3000");
+            expect(__testing__.resolveApiBaseUrl("")).toBe("http://127.0.0.1:3000");
+            expect(warnSpy).toHaveBeenCalledTimes(1);
+            expect(warnSpy).toHaveBeenCalledWith(
+                "[api] VITE_API_URL not set, falling back to window.location.origin",
+            );
+        } finally {
+            warnSpy.mockRestore();
+        }
     });
 
     it("strips duplicated API prefixes from absolute base URLs", async () => {

@@ -516,8 +516,9 @@ services:
     - "127.0.0.1:3000:3000"
     environment:
     - NODE_ENV=development
-    - VITE_API_URL=
+    - VITE_API_URL=${WEB_VITE_API_URL:-/api}
     - VITE_SSO_URL=${WEB_VITE_SSO_URL:-http://localhost:8085}
+    - VITE_ADMIN_URL=${ADMIN_PUBLIC_URL:-http://localhost:3001}
     - VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}
     - VITE_DEV_PROXY_TARGET=http://app-dev:8080
     extra_hosts:

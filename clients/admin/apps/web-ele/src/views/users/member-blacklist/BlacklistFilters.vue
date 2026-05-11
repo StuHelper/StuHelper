@@ -47,7 +47,13 @@ const subjectID = defineModel<string>('subjectID', { required: true });
       placeholder="平台"
       style="width: 120px"
     />
-    <ElSelect v-model="scopeType" data-field="scopeType" style="width: 140px">
+    <ElSelect
+      v-model="scopeType"
+      data-field="scopeType"
+      style="width: 140px"
+      :teleported="false"
+      @change="emit('search')"
+    >
       <ElOption
         v-for="opt in SCOPE_OPTIONS"
         :key="opt.value || 'all'"
@@ -55,7 +61,13 @@ const subjectID = defineModel<string>('subjectID', { required: true });
         :value="opt.value"
       />
     </ElSelect>
-    <ElSelect v-model="source" data-field="source" style="width: 160px">
+    <ElSelect
+      v-model="source"
+      data-field="source"
+      style="width: 160px"
+      :teleported="false"
+      @change="emit('search')"
+    >
       <ElOption
         v-for="opt in SOURCE_OPTIONS"
         :key="opt.value || 'all'"
@@ -63,7 +75,13 @@ const subjectID = defineModel<string>('subjectID', { required: true });
         :value="opt.value"
       />
     </ElSelect>
-    <ElSelect v-model="status" data-field="status" style="width: 140px">
+    <ElSelect
+      v-model="status"
+      data-field="status"
+      style="width: 140px"
+      :teleported="false"
+      @change="emit('search')"
+    >
       <ElOption
         v-for="opt in STATUS_OPTIONS"
         :key="opt.value"

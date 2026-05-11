@@ -45,4 +45,17 @@ describe('admin shared result helpers', () => {
       }),
     ).toBe('admin.result.stepUpRequired');
   });
+
+  it('maps school configuration business errors to actionable messages', () => {
+    expect(
+      extractErrorMessage({
+        error: {
+          error: {
+            code: 'A0040013',
+          },
+        },
+        response: { status: 400 },
+      }),
+    ).toBe('admin.result.ldapConfigRequired');
+  });
 });

@@ -34,14 +34,17 @@ async function mockAnonymousSession(page: Page) {
   });
 }
 
-test('admin login shell renders correctly', async ({ page }) => {
+test('admin login route initiates OIDC login', async ({ page }) => {
   await mockAnonymousSession(page);
+  const loginRequest = page.waitForRequest('**/api/v1/auth/login**');
+
   await page.goto('/auth/login');
+  const request = await loginRequest;
+  const requestURL = new URL(request.url());
 
   await expect(page).toHaveTitle(/StuHelper Admin/i);
-  await expect(page.locator("input[name='username']")).toBeVisible();
-  await expect(page.locator("input[name='password']")).toBeVisible();
-  await expect(page.getByRole('button', { name: /^login$/i })).toBeVisible();
+  expect(requestURL.searchParams.get('app')).toBe('admin');
+  expect(requestURL.searchParams.get('redirect')).toContain('/analytics');
 });
 
 test('root route initiates OIDC login when unauthenticated', async ({
@@ -55,5 +58,5 @@ test('root route initiates OIDC login when unauthenticated', async ({
 
   await expect
     .poll(() => requestURL.searchParams.get('redirect'))
-    .toContain('/dashboard');
+    .toContain('/analytics');
 });

@@ -48,6 +48,32 @@ describe('admission policy admin view contract', () => {
     }
   });
 
+  it('normalizes missing management guild arrays before rendering', async () => {
+    const source = await readFile(sourcePath, 'utf8');
+
+    expect(source).toContain('function normalizeManagementGuildIDs');
+    expect(source).toContain('Array.isArray(values)');
+    expect(source).toContain('await listAdmissionPolicies()).map(normalizePolicy)');
+  });
+
+  it('renders operator-facing Chinese labels instead of raw API field names', async () => {
+    const source = await readFile(sourcePath, 'utf8');
+
+    for (const label of [
+      '启用新生入群通道',
+      '新生通道关闭时间',
+      '默认临时认证到期时间',
+      '入群初始禁言（秒）',
+      '管理群号',
+      '转发原始材料到 QQ',
+    ]) {
+      expect(source).toContain(label);
+    }
+
+    expect(source).toContain('policyFieldLabels.freshmanChannelEnabled');
+    expect(source).not.toContain('label="freshmanChannelEnabled"');
+  });
+
   it('no longer hosts the member blacklist release form', async () => {
     const source = await readFile(sourcePath, 'utf8');
 
@@ -84,6 +110,8 @@ describe('member blacklist admin view contract', () => {
       'data-action="submitCreate"',
       'data-action="submitRelease"',
       'data-field="releaseReasonCode"',
+      ':teleported="false"',
+      '@change="emit(\'search\')"',
     ]) {
       expect(source).toContain(token);
     }

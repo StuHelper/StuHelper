@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Search, X, User, Star, BookOpen } from 'lucide-vue-next'
 import { api } from '@/api'
@@ -15,7 +14,6 @@ interface TeacherEntry {
 }
 
 const { t } = useI18n()
-const router = useRouter()
 
 const searchQuery = ref('')
 const searchResults = ref<TeacherEntry[]>([])
@@ -82,10 +80,6 @@ function clearSearch() {
   searchTotal.value = 0
 }
 
-function navigateToTeacher(id: number) {
-  router.push(`/teachers/${id}`)
-}
-
 onMounted(loadPopularTeachers)
 
 onBeforeUnmount(() => {
@@ -121,8 +115,14 @@ const showEmpty = computed(
           :size="20"
         />
         <input
+          id="teacher-search-input"
           v-model="searchQuery"
           type="text"
+          autocomplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
+          :aria-label="t('teaching.hub.searchPlaceholder')"
           class="w-full pl-12 pr-12 py-4 text-base rounded-xl outline-none
                  bg-bg-glass-heavy backdrop-blur-sm shadow-card
                  text-text-primary placeholder:text-text-muted
@@ -133,6 +133,9 @@ const showEmpty = computed(
         />
         <button
           v-if="searchQuery"
+          type="button"
+          :aria-label="t('common.actions.clear')"
+          :title="t('common.actions.clear')"
           class="absolute right-4 top-1/2 -translate-y-1/2 p-0 text-text-muted hover:text-text-primary transition-colors duration-fast"
           @click="clearSearch"
         >
@@ -160,12 +163,12 @@ const showEmpty = computed(
 
       <!-- Teacher cards -->
       <div v-else-if="displayTeachers.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div
+        <router-link
           v-for="(teacher, idx) in displayTeachers"
           :key="teacher.teacherID"
-          class="glass-card shadow-card rounded-xl p-5 cursor-pointer hover-lift stagger-item"
+          :to="`/teachers/${teacher.teacherID}`"
+          class="glass-card shadow-card rounded-xl p-5 cursor-pointer hover-lift stagger-item no-underline block"
           :style="{ animationDelay: `${idx * 60}ms` }"
-          @click="navigateToTeacher(teacher.teacherID)"
         >
           <div class="flex items-center gap-3 mb-3">
             <div class="p-[3px] bg-gradient-to-br from-primary to-accent rounded-full shrink-0">
@@ -188,7 +191,7 @@ const showEmpty = computed(
               {{ teacher.reviewCount }} {{ t('teaching.hub.reviewUnit') }}
             </span>
           </div>
-        </div>
+        </router-link>
       </div>
 
       <!-- Empty -->

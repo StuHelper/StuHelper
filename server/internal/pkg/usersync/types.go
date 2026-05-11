@@ -10,6 +10,7 @@ type Input struct {
 	Username       string
 	Email          string
 	AvatarURL      *string
+	Roles          []string
 }
 
 // PhoneUser 通过手机号查询到的用户信息

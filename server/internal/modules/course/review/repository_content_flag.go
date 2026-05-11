@@ -50,6 +50,24 @@ func (r *Repository) ClearContentFlagTx(ctx context.Context, tx pgx.Tx, reviewID
 	return nil
 }
 
+func (r *Repository) MarkContentFlagClearedTx(ctx context.Context, tx pgx.Tx, reviewID, adminUserID string) error {
+	tag, err := tx.Exec(ctx, `
+		UPDATE reviews
+		SET content_flag = 'cleared',
+		    content_flag_cleared_at = $2,
+		    content_flag_cleared_by = $3,
+		    updated_at = NOW()
+		WHERE id = $1
+	`, reviewID, time.Now().UTC(), adminUserID)
+	if err != nil {
+		return fmt.Errorf("MarkContentFlagClearedTx: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrReviewNotFound
+	}
+	return nil
+}
+
 // ListFlaggedReviews 获取待复核评课列表（content_flag in warn/review）。
 func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int, schoolIDs []int64) ([]Review, int, error) {
 	var qb strings.Builder

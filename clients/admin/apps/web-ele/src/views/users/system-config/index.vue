@@ -20,6 +20,7 @@ import { getSystemConfigList, updateSystemConfig } from '#/api/admin';
 import { $t } from '#/locales';
 
 const loading = ref(false);
+const submitting = ref(false);
 const configs = ref<SystemConfig[]>([]);
 const accessStore = useAccessStore();
 const canUpdateSystemConfig = () =>
@@ -55,14 +56,22 @@ function openEdit(row: SystemConfig) {
 }
 
 async function handleSubmit() {
-  if (!canUpdateSystemConfig()) {
+  if (!canUpdateSystemConfig() || submitting.value) {
     return;
   }
 
-  await updateSystemConfig(form.key, { value: form.value });
-  ElMessage.success($t('admin.users.systemConfig.updated'));
-  dialogVisible.value = false;
-  await fetchData();
+  submitting.value = true;
+  try {
+    await updateSystemConfig(form.key, { value: form.value });
+    ElMessage.success($t('admin.users.systemConfig.updated'));
+    dialogVisible.value = false;
+    await fetchData();
+  } catch (_error) {
+    void _error;
+    // shared-result already displays the backend error message.
+  } finally {
+    submitting.value = false;
+  }
 }
 
 onMounted(fetchData);
@@ -138,6 +147,7 @@ onMounted(fetchData);
         </ElButton>
         <ElButton
           v-if="canUpdateSystemConfig()"
+          :loading="submitting"
           type="primary"
           @click="handleSubmit"
         >

@@ -12,6 +12,11 @@ import (
 
 const fgaSyncOutboxStream = outbox.StreamIAMOpenFGATupleSync
 
+var fgaSyncJobTypes = []string{
+	fgaSyncJobTypeReviewRelations,
+	fgaSyncJobTypeReportRelations,
+}
+
 func (r *Repository) UpsertFGASyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error {
 	if err := outbox.UpsertJobTx(ctx, tx, fgaSyncOutboxStream, jobType, dedupeKey, payload); err != nil {
 		return fmt.Errorf("UpsertFGASyncJobTx: %w", err)
@@ -20,7 +25,7 @@ func (r *Repository) UpsertFGASyncJobTx(ctx context.Context, tx pgx.Tx, jobType,
 }
 
 func (r *Repository) ClaimFGASyncJobs(ctx context.Context, limit int, staleAfter time.Duration) ([]FGASyncJob, error) {
-	jobs, err := outbox.ClaimJobs(ctx, r.db, fgaSyncOutboxStream, limit, staleAfter)
+	jobs, err := outbox.ClaimJobsByTypes(ctx, r.db, fgaSyncOutboxStream, fgaSyncJobTypes, limit, staleAfter)
 	if err != nil {
 		return nil, fmt.Errorf("ClaimFGASyncJobs: %w", err)
 	}

@@ -283,6 +283,9 @@
                   :data-testid="`review-like-${r.id}`"
                   class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-sm text-text-muted transition-colors duration-fast hover:text-vote-up hover:bg-vote-up/10"
                   :class="reviewVotes[r.id] === 'like' ? '!text-vote-up-active !bg-vote-up/12' : ''"
+                  :aria-label="t('review.vote.like')"
+                  :aria-pressed="reviewVotes[r.id] === 'like'"
+                  :title="t('review.vote.like')"
                   @click="handleVote(r, 'like')"
                 >
                   <ThumbsUp :size="16" />
@@ -292,6 +295,9 @@
                   :data-testid="`review-dislike-${r.id}`"
                   class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-sm text-text-muted transition-colors duration-fast hover:text-vote-down hover:bg-vote-down/10"
                   :class="reviewVotes[r.id] === 'dislike' ? '!text-vote-down-active !bg-vote-down/12' : ''"
+                  :aria-label="t('review.vote.dislike')"
+                  :aria-pressed="reviewVotes[r.id] === 'dislike'"
+                  :title="t('review.vote.dislike')"
                   @click="handleVote(r, 'dislike')"
                 >
                   <ThumbsDown :size="16" />
@@ -299,6 +305,9 @@
                 </button>
                 <button
                   class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full text-sm text-text-muted transition-colors duration-fast hover:text-text-primary hover:bg-bg-elevated"
+                  :aria-expanded="expandedReviewID === r.id"
+                  :aria-label="t('review.review.commentBtn')"
+                  :title="t('review.review.commentBtn')"
                   @click="toggleExpand(r.id)"
                 >
                   <MessageCircle :size="16" />

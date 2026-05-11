@@ -5,7 +5,7 @@ import type {
   PlatformClient,
 } from '@stuhelper/koishi-shared'
 
-const MEMBER_BLACKLIST_PAGE_SIZE = 200
+export const MEMBER_BLACKLIST_PAGE_SIZE = 100
 
 type MemberBlacklistListBackend = Pick<PlatformClient, 'listMemberBlacklist'>
 

@@ -100,6 +100,8 @@ export default {
             alreadyBound: "Phone number already bound",
             tooManyRequests: "Too many requests, please try again later",
             tooManyAttempts: "Too many failed attempts, please request a new code",
+            serviceUnavailable:
+                "Phone binding is not configured, so verification codes cannot be sent or checked right now",
         },
         qq: {
             title: "QQ Binding",

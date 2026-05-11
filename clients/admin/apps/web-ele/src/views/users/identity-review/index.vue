@@ -67,6 +67,10 @@ const statusLabel = (row: IdentityVerification) => {
 };
 
 const docTypeLabel = (docType: IdentityVerification['docType']) => {
+  if (!docType) {
+    return $t('admin.common.unavailable');
+  }
+
   return $t(`admin.users.identityReview.docType.${docType}`);
 };
 

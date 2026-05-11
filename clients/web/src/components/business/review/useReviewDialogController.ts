@@ -3,6 +3,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { api } from "@/api";
 import { useToast } from "@/composables/useToast";
+import { getErrorMessage } from "@/api/errors";
 import { useReviewPost } from "@/composables/useReviewPost";
 import { useAuthStore } from "@/stores/auth";
 import {
@@ -545,8 +546,8 @@ export function useReviewDialogController(
             toast.success(t("review.post.success"));
             callbacks.posted();
             callbacks.close();
-        } catch (_error) { void _error;
-            toast.error(t("review.post.failed"));
+        } catch (error) {
+            toast.error(getErrorMessage(error, t("review.post.failed")));
         } finally {
             submitting.value = false;
         }

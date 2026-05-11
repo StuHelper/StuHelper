@@ -1,6 +1,7 @@
 <template>
-  <div
-    class="flex items-start gap-3 p-3 cursor-pointer transition-colors duration-fast hover:bg-bg-secondary relative"
+  <button
+    type="button"
+    class="w-full flex items-start gap-3 p-3 cursor-pointer transition-colors duration-fast hover:bg-bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base relative text-left"
     @click="$emit('click')"
   >
     <div class="w-7 h-7 rounded-sm flex items-center justify-center shrink-0 text-text-muted">
@@ -14,7 +15,7 @@
       <span class="text-xs text-text-muted">{{ formattedTime }}</span>
     </div>
     <span v-if="!notification.isRead" class="w-2 h-2 bg-accent rounded-full shrink-0" />
-  </div>
+  </button>
 </template>
 
 <script setup lang="ts">

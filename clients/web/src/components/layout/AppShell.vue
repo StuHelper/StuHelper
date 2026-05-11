@@ -16,11 +16,13 @@
         <button
           v-if="isReviewRoute"
           v-ripple
-          class="flex items-center gap-1.5 bg-gradient-to-r from-accent to-primary text-white rounded-full px-4 py-1.5 text-sm font-semibold whitespace-nowrap cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-px transition-all duration-fast shrink-0 press-spring"
+          class="flex items-center justify-center gap-1.5 bg-gradient-to-r from-accent to-primary text-white rounded-full px-4 py-1.5 text-sm font-semibold whitespace-nowrap cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-px transition-all duration-fast shrink-0 press-spring max-sm:w-8 max-sm:h-8 max-sm:p-0"
+          :aria-label="t('review.topBar.writeReview')"
+          :title="t('review.topBar.writeReview')"
           @click="handleWriteReview"
         >
           <PenLine :size="14" />
-          <span>{{ t('review.topBar.writeReview') }}</span>
+          <span class="max-sm:hidden">{{ t('review.topBar.writeReview') }}</span>
         </button>
 
         <div class="flex-1" />
@@ -153,9 +155,12 @@
         <router-link
           v-else
           to="/login"
-          class="py-1.5 px-4 bg-gradient-to-br from-primary to-accent text-white rounded-full text-sm font-medium no-underline whitespace-nowrap hover:opacity-90 transition-all duration-fast press-spring hover:shadow-glow-primary"
+          class="inline-flex items-center justify-center gap-1.5 py-1.5 px-4 bg-gradient-to-br from-primary to-accent text-white rounded-full text-sm font-medium no-underline whitespace-nowrap hover:opacity-90 transition-all duration-fast press-spring hover:shadow-glow-primary max-sm:w-8 max-sm:h-8 max-sm:p-0"
+          :aria-label="t('nav.login')"
+          :title="t('nav.login')"
         >
-          {{ t('nav.login') }}
+          <LogIn class="hidden max-sm:block size-4" aria-hidden="true" />
+          <span class="max-sm:hidden">{{ t('nav.login') }}</span>
         </router-link>
       </div>
 
@@ -178,9 +183,10 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Bot, GraduationCap, LogOut, PenLine, Settings, ShieldCheck, User } from 'lucide-vue-next'
+import { Bot, GraduationCap, LogIn, LogOut, PenLine, Settings, ShieldCheck, User } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { canShowAdminEntry } from '@/utils/adminAccess'
+import { resolveAdminConsoleURL } from '@/utils/adminUrl'
 import { useVerificationStore } from '@/stores/verification'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { useToast } from '@/composables/useToast'
@@ -192,6 +198,7 @@ import Toast from '@/components/common/Toast.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 
 const USER_MENU_ID = 'app-shell-user-menu'
+const adminConsoleURL = resolveAdminConsoleURL(import.meta.env.VITE_ADMIN_URL)
 
 const { t } = useI18n()
 const router = useRouter()
@@ -349,7 +356,7 @@ function goTo(routeName: string) {
 
 function goToAdmin() {
   closeUserMenu()
-  window.location.assign('/admin/')
+  window.location.assign(adminConsoleURL)
 }
 
 async function handleWriteReview() {

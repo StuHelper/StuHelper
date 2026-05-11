@@ -24,6 +24,7 @@ func TestCreateApplicationMapsSpec(t *testing.T) {
 	assert.Equal(t, "admin", api.added.Owner)
 	assert.Equal(t, "third-party-demo", api.added.Name)
 	assert.Equal(t, "Third Party Demo", api.added.DisplayName)
+	assert.Equal(t, "https://static.example.com/logo.png", api.added.Logo)
 	assert.Equal(t, "stuhelper", api.added.Organization)
 	assert.Equal(t, "cert-built-in", api.added.Cert)
 	assert.True(t, api.added.EnablePassword)
@@ -153,6 +154,7 @@ func validApplicationSpec() ApplicationSpec {
 	return ApplicationSpec{
 		Name:                 "third-party-demo",
 		DisplayName:          "Third Party Demo",
+		Logo:                 "https://static.example.com/logo.png",
 		ClientID:             "client-demo",
 		ClientSecret:         "secret-demo",
 		RedirectURIs:         []string{"https://app.example.com/callback"},

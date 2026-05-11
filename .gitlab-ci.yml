@@ -279,6 +279,7 @@ frontend_build:
   - pnpm install --frozen-lockfile
   - ': "${WEB_VITE_SSO_URL:?WEB_VITE_SSO_URL must be set for frontend builds}"'
   - export VITE_SSO_URL="${WEB_VITE_SSO_URL}"
+  - export VITE_ADMIN_URL="${ADMIN_PUBLIC_URL:-/admin/}"
   - pnpm run build:web
 
 admin_build:
@@ -305,7 +306,7 @@ docker_build_frontend:
   - export BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   - docker buildx create --use --name "gitlab-builder-${CI_JOB_ID}"
   - ': "${WEB_VITE_SSO_URL:?WEB_VITE_SSO_URL must be set for frontend builds}"'
-  - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" clients
+  - docker buildx build --push --platform linux/amd64 --file clients/web/Dockerfile --tag "${FRONTEND_IMAGE}:ci-${CI_COMMIT_SHORT_SHA}" --build-arg "VITE_API_URL=${WEB_VITE_API_URL:-/api}" --build-arg "VITE_SSO_URL=${WEB_VITE_SSO_URL}" --build-arg "VITE_ADMIN_URL=${ADMIN_PUBLIC_URL:-/admin/}" --build-arg "VITE_API_TIMEOUT_MS=${WEB_VITE_API_TIMEOUT_MS:-15000}" --cache-from "type=registry,ref=${FRONTEND_IMAGE}:buildcache" --cache-to "type=registry,ref=${FRONTEND_IMAGE}:buildcache,mode=max" clients
 docker_build_admin:
   extends: .docker_job
   stage: build

@@ -45,6 +45,11 @@
     "authExpired": "登录状态已失效，请重新登录",
     "mfaEnrollmentRequired": "需要先在身份提供商账户设置中绑定 MFA 设备",
     "stepUpRequired": "需要重新完成 MFA 验证",
+    "invalidAcademicTable": "学籍表配置无效，请检查表名是否存在",
+    "academicTableRequired": "启用 LDAP 认证前必须配置学籍表",
+    "ldapConfigRequired": "启用 LDAP 认证前必须补全 LDAP 连接配置",
+    "ldapConfigInvalid": "LDAP 连接配置无效，请检查地址、Base DN 和绑定账号",
+    "systemConfigNotFound": "系统配置项不存在",
     "requestFailed": "请求失败，请稍后重试"
   },
   "layout": {
@@ -115,8 +120,11 @@
         "false_info": "虚假信息",
         "harassment": "骚扰辱骂",
         "inappropriate": "不当内容",
+        "abuse": "滥用举报",
+        "illegal": "违法违规",
         "other": "其他",
-        "spam": "垃圾信息"
+        "spam": "垃圾信息",
+        "unknown": "未说明"
       },
       "reject": "驳回",
       "hideReview": "隐藏评课",

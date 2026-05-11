@@ -5,15 +5,15 @@
       <div class="hidden max-tablet:block">
         <!-- Vertical tab button: shared position and style for expand/collapse -->
         <button
-          class="fixed left-0 top-1/2 -translate-y-1/2 z-40 w-6 py-2.5 flex flex-col items-center justify-center gap-px rounded-r-lg shadow-lg cursor-pointer transition-all duration-200 ease-out hover:shadow-xl hover:brightness-110 border-none bg-primary text-white"
+          type="button"
+          class="fixed left-0 top-1/2 -translate-y-1/2 z-40 size-11 flex items-center justify-center rounded-r-xl shadow-lg cursor-pointer transition-all duration-200 ease-out hover:shadow-xl hover:brightness-110 border-none bg-primary text-white"
           :class="sidebarOpen && 'translate-x-[260px]'"
+          :aria-label="t('review.courseListLabel')"
+          :aria-expanded="sidebarOpen"
           @click="sidebarOpen = !sidebarOpen"
         >
-          <span
-            v-for="ch in t('review.courseListLabel')"
-            :key="ch"
-            class="text-[10px] font-semibold text-text-muted leading-[1.3]"
-          >{{ ch }}</span>
+          <PanelLeftClose v-if="sidebarOpen" :size="20" aria-hidden="true" />
+          <PanelLeftOpen v-else :size="20" aria-hidden="true" />
         </button>
 
         <!-- Drawer panel -->
@@ -59,6 +59,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import CourseThemeProvider from '@/modules/course/theme/CourseThemeProvider.vue'
 import DepartmentSidebar from '@/components/business/review/DepartmentSidebar.vue'
 import ReviewFeed from '@/components/business/review/ReviewFeed.vue'

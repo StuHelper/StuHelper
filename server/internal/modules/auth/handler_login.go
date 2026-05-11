@@ -151,6 +151,7 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 		Username:       claims.GetUsername(),
 		Email:          claims.GetEmail(),
 		AvatarURL:      claims.GetAvatar(),
+		Roles:          claims.Roles,
 	}); syncErr != nil {
 		logger.FromGin(c).Error("user sync failed",
 			zap.String("user_id", claims.GetUserID()),
@@ -422,6 +423,7 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 		Username:       claims.GetUsername(),
 		Email:          claims.GetEmail(),
 		AvatarURL:      claims.GetAvatar(),
+		Roles:          claims.Roles,
 	}); syncErr != nil {
 		logger.FromGin(c).Error("native exchange: user sync failed",
 			zap.String("user_id", claims.GetUserID()), zap.Error(syncErr))

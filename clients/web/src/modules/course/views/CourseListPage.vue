@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import CourseThemeProvider from '@/modules/course/theme/CourseThemeProvider.vue'
@@ -15,7 +14,6 @@ interface DepartmentGroup {
 }
 
 const { t } = useI18n()
-const router = useRouter()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -49,10 +47,6 @@ function toggleDepartment(index: number): void {
   departmentGroups.value = departmentGroups.value.map((g, i) =>
     i === index ? { ...g, expanded: !g.expanded } : g,
   )
-}
-
-function navigateToCourse(courseId: number): void {
-  void router.push(`/courses/${courseId}/reviews`)
 }
 
 async function fetchCourses(): Promise<void> {
@@ -90,6 +84,7 @@ onMounted(() => {
         <div class="flex gap-2">
           <button
             :disabled="allExpanded"
+            :aria-label="t('review.courseList.expandAll')"
             :title="t('review.courseList.expandAll')"
             class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
             :class="
@@ -103,6 +98,7 @@ onMounted(() => {
           </button>
           <button
             :disabled="allCollapsed"
+            :aria-label="t('review.courseList.collapseAll')"
             :title="t('review.courseList.collapseAll')"
             class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
             :class="
@@ -150,6 +146,7 @@ onMounted(() => {
         >
           <button
             class="flex w-full items-center justify-between px-5 py-3 cursor-pointer hover:bg-bg-elevated/50 transition-colors"
+            :aria-expanded="group.expanded"
             @click="toggleDepartment(groupIndex)"
           >
             <span class="text-base font-semibold text-text-primary">
@@ -164,11 +161,11 @@ onMounted(() => {
           </button>
 
           <div v-show="group.expanded" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 px-5 pb-4">
-            <div
+            <router-link
               v-for="course in group.courses"
               :key="course.id"
+              :to="`/courses/${course.id}/reviews`"
               class="flex items-center justify-between rounded-lg border border-border-light px-4 py-3 cursor-pointer hover:bg-bg-elevated transition-colors"
-              @click="navigateToCourse(course.id)"
             >
               <div class="min-w-0">
                 <p class="text-sm font-medium text-text-primary truncate">{{ course.name }}</p>
@@ -177,7 +174,7 @@ onMounted(() => {
               <span class="ml-3 shrink-0 text-xs text-text-secondary">
                 {{ t('review.courseList.reviewCount', { count: course.reviewCount }) }}
               </span>
-            </div>
+            </router-link>
           </div>
         </div>
       </div>

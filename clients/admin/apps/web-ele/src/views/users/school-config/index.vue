@@ -24,6 +24,7 @@ import { getSchoolConfigList, updateSchoolConfig } from '#/api/admin';
 import { $t } from '#/locales';
 
 const loading = ref(false);
+const submitting = ref(false);
 const schools = ref<SchoolConfig[]>([]);
 const accessStore = useAccessStore();
 const canUpdateSchoolConfig = () =>
@@ -73,7 +74,7 @@ function openEdit(row: SchoolConfig) {
 }
 
 async function handleSubmit() {
-  if (!canUpdateSchoolConfig()) {
+  if (!canUpdateSchoolConfig() || submitting.value) {
     return;
   }
 
@@ -95,10 +96,18 @@ async function handleSubmit() {
     verificationMethod: form.verificationMethod,
   };
 
-  await updateSchoolConfig(form.schoolID, payload);
-  ElMessage.success($t('admin.users.schoolConfig.updated'));
-  dialogVisible.value = false;
-  await fetchData();
+  submitting.value = true;
+  try {
+    await updateSchoolConfig(form.schoolID, payload);
+    ElMessage.success($t('admin.users.schoolConfig.updated'));
+    dialogVisible.value = false;
+    await fetchData();
+  } catch (_error) {
+    void _error;
+    // shared-result already displays the backend error message.
+  } finally {
+    submitting.value = false;
+  }
 }
 
 onMounted(fetchData);
@@ -261,6 +270,7 @@ onMounted(fetchData);
         </ElButton>
         <ElButton
           v-if="canUpdateSchoolConfig()"
+          :loading="submitting"
           type="primary"
           @click="handleSubmit"
         >

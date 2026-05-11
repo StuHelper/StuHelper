@@ -23,6 +23,7 @@ const (
 type ApplicationSpec struct {
 	Name                 string
 	DisplayName          string
+	Logo                 string
 	ClientID             string
 	ClientSecret         string
 	RedirectURIs         []string
@@ -145,6 +146,7 @@ func (c *Client) buildApplication(spec ApplicationSpec) (*casdoorsdk.Application
 		Owner:                "admin",
 		Name:                 normalized.Name,
 		DisplayName:          normalized.DisplayName,
+		Logo:                 normalized.Logo,
 		Organization:         c.credential.Organization,
 		Cert:                 defaultApplicationCertificate,
 		EnablePassword:       interactive,
@@ -171,6 +173,7 @@ func (c *Client) buildApplication(spec ApplicationSpec) (*casdoorsdk.Application
 func normalizeApplicationSpec(spec ApplicationSpec) (ApplicationSpec, error) {
 	spec.Name = strings.TrimSpace(spec.Name)
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
+	spec.Logo = strings.TrimSpace(spec.Logo)
 	spec.ClientID = strings.TrimSpace(spec.ClientID)
 	spec.ClientSecret = strings.TrimSpace(spec.ClientSecret)
 	spec.TokenFormat = strings.TrimSpace(spec.TokenFormat)

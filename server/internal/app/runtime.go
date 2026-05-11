@@ -15,6 +15,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/fga"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/observability"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/oidc"
@@ -43,6 +44,7 @@ type Runtime struct {
 	pgPool       *pgxpool.Pool
 	redisClient  *redisclient.Client
 	database     *db.DB
+	fgaClient    *fga.Client
 	tokenService *token.Service
 	oidcClient   *oidc.Client
 }

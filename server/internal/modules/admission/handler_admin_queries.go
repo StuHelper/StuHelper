@@ -63,7 +63,7 @@ func (h *Handler) handleAdminListFreshmanVerifications(c *gin.Context) {
 	if !ok {
 		return
 	}
-	items, total, err := h.service.ListFreshmanApplications(c.Request.Context(), filter)
+	items, total, err := h.service.ListAdminFreshmanApplications(c.Request.Context(), filter)
 	if err != nil {
 		respondAdmissionError(c, err)
 		return

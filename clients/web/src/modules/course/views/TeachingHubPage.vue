@@ -25,6 +25,10 @@
             ref="searchInputRef"
             v-model="query"
             type="text"
+            autocomplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
             class="w-full pl-12 pr-12 py-4 text-base rounded-xl outline-none
                    bg-bg-glass-heavy backdrop-blur-sm
                    shadow-card
@@ -32,6 +36,7 @@
                    transition-all duration-base ease-smooth
                    focus:shadow-glow-primary focus:ring-1 focus:ring-primary/30"
             :placeholder="t('review.home.searchPlaceholder')"
+            :aria-label="t('review.home.searchPlaceholder')"
             @keydown="onSearchKeyDown"
             @focus="showDropdown = true"
           />

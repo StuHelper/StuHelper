@@ -114,12 +114,13 @@ casdoor_internal_endpoint() {
 }
 
 casdoor_bootstrap_endpoint() {
+  local prefer_internal="${1:-false}"
   local endpoint
   if [[ -n "${CASDOOR_BOOTSTRAP_ENDPOINT:-}" ]]; then
     printf '%s\n' "${CASDOOR_BOOTSTRAP_ENDPOINT}"
     return
   fi
-  if endpoint="$(casdoor_internal_endpoint)"; then
+  if [[ "${prefer_internal}" == "true" ]] && endpoint="$(casdoor_internal_endpoint)"; then
     printf '%s\n' "${endpoint}"
     return
   fi
@@ -129,7 +130,7 @@ casdoor_bootstrap_endpoint() {
 run_casdoor_bootstrap_with_go() {
   (
     cd "${REPO_ROOT}/server" && \
-    CASDOOR_BOOTSTRAP_ENDPOINT="$(casdoor_bootstrap_endpoint)" \
+    CASDOOR_BOOTSTRAP_ENDPOINT="$(casdoor_bootstrap_endpoint false)" \
     go run ./cmd/casdoor-bootstrap
   )
 }
@@ -138,7 +139,7 @@ run_casdoor_bootstrap_with_docker() {
   local endpoint
   local -a env_args
   local key
-  endpoint="$(casdoor_bootstrap_endpoint)"
+  endpoint="$(casdoor_bootstrap_endpoint true)"
   env_args=(-e "CASDOOR_BOOTSTRAP_ENDPOINT=${endpoint}")
   for key in "${CASDOOR_BOOTSTRAP_ENV_KEYS[@]}"; do
     env_args+=(-e "${key}=${!key:-}")
@@ -160,24 +161,32 @@ CASDOOR_BOOTSTRAP_ENV_KEYS=(
   CASDOOR_BOOTSTRAP_CERTIFICATE
   CASDOOR_ORGANIZATION
   CASDOOR_ORGANIZATION_DISPLAY_NAME
+  WEB_PUBLIC_URL
+  CASDOOR_LOGO
   CASDOOR_CLIENT_ID
   CASDOOR_CLIENT_SECRET
   CASDOOR_REDIRECT_URI
+  CASDOOR_ADMIN_LOGO
   CASDOOR_ADMIN_CLIENT_ID
   CASDOOR_ADMIN_CLIENT_SECRET
   CASDOOR_ADMIN_REDIRECT_URI
+  CASDOOR_UNIAPP_LOGO
   CASDOOR_UNIAPP_CLIENT_ID
   CASDOOR_UNIAPP_CLIENT_SECRET
   CASDOOR_UNIAPP_REDIRECT_URI
+  CASDOOR_APP_PROVISIONING_LOGO
   CASDOOR_APP_PROVISIONING_CLIENT_ID
   CASDOOR_APP_PROVISIONING_CLIENT_SECRET
   CASDOOR_APP_PROVISIONING_APPLICATION
+  CASDOOR_INTROSPECTION_LOGO
   CASDOOR_INTROSPECTION_CLIENT_ID
   CASDOOR_INTROSPECTION_CLIENT_SECRET
   CASDOOR_INTROSPECTION_APPLICATION
+  CASDOOR_ROLE_SYNC_LOGO
   CASDOOR_ROLE_SYNC_CLIENT_ID
   CASDOOR_ROLE_SYNC_CLIENT_SECRET
   CASDOOR_ROLE_SYNC_APPLICATION
+  CASDOOR_USER_LOOKUP_LOGO
   CASDOOR_USER_LOOKUP_CLIENT_ID
   CASDOOR_USER_LOOKUP_CLIENT_SECRET
   CASDOOR_USER_LOOKUP_APPLICATION

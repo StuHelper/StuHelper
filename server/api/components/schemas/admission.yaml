@@ -158,6 +158,13 @@ FreshmanApplication:
     materialType:
       type: string
       enum: [admission_notice, admission_certificate]
+    materialURL:
+      type: string
+      format: uri
+    qqID:
+      type: string
+    failureCount:
+      type: integer
     status:
       $ref: '#/FreshmanApplicationStatus'
     provisionalExpiresAt:

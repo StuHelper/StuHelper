@@ -23,6 +23,7 @@ import {
 } from '../services'
 import { IdentityProfileLookup } from './identity-profile-lookup'
 import { DEFAULT_MEMBER_BLACKLIST_PLATFORM } from './member-blacklist-defaults'
+import { MEMBER_BLACKLIST_PAGE_SIZE } from '../member-blacklist-pages'
 
 const RECENT_DASHBOARD_EVENT_LIMIT = 20
 const RECENT_REVIEW_EVENT_LIMIT = 50
@@ -216,7 +217,7 @@ async function loadActiveMemberBlacklists(platform: ReturnType<typeof createPlat
       platform: DEFAULT_MEMBER_BLACKLIST_PLATFORM,
       status: 'active',
       page,
-      pageSize: 200,
+      pageSize: MEMBER_BLACKLIST_PAGE_SIZE,
     })
     entries.push(...result.list)
     if (entries.length >= result.total) return entries

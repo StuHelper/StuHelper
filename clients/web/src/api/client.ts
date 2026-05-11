@@ -42,6 +42,7 @@ function stripSchemaPrefix(baseUrl: string): string {
 }
 
 export function resolveApiBaseUrl(rawBaseUrl: string = RAW_API_BASE_URL): string {
+  const trimmedBaseUrl = rawBaseUrl.trim()
   const normalizedBaseUrl = stripSchemaPrefix(rawBaseUrl)
 
   if (/^https?:\/\//.test(normalizedBaseUrl)) {
@@ -49,7 +50,7 @@ export function resolveApiBaseUrl(rawBaseUrl: string = RAW_API_BASE_URL): string
   }
 
   if (window.location?.origin) {
-    if (import.meta.env.DEV && normalizedBaseUrl === '' && !didWarnMissingApiBaseUrl) {
+    if (import.meta.env.DEV && trimmedBaseUrl === '' && !didWarnMissingApiBaseUrl) {
       didWarnMissingApiBaseUrl = true
       console.warn('[api] VITE_API_URL not set, falling back to window.location.origin')
     }

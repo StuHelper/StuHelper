@@ -41,6 +41,13 @@ type FreshmanForwardItem struct {
 	QQID               string               `json:"qqID,omitempty"`
 }
 
+type adminFreshmanApplicationRow struct {
+	Application  FreshmanApplication
+	ObjectKey    *string
+	QQID         *string
+	FailureCount *int
+}
+
 type AdmissionSessionListFilter struct {
 	Status   AdmissionSessionStatus
 	PageSize int

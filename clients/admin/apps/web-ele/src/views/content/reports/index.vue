@@ -74,7 +74,12 @@ const statusLabel = (status: string) => {
 };
 
 const reasonLabel = (reason: Report['reason']) => {
-  return $t(`admin.content.reports.reason.${reason}`);
+  if (typeof reason !== 'string' || reason.trim() === '') {
+    return $t('admin.content.reports.reason.unknown');
+  }
+  const key = `admin.content.reports.reason.${reason}`;
+  const label = $t(key);
+  return label === key ? reason : label;
 };
 
 onMounted(fetchData);

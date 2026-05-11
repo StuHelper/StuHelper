@@ -76,6 +76,28 @@ describe('useNotificationStore', () => {
       expect(store.pageHasMore).toBe(true)
     })
 
+    it('stops pagination when an out-of-range page returns no items', async () => {
+      const store = useNotificationStore()
+
+      mockGetNotifications.mockResolvedValue({
+        data: {
+          data: {
+            list: [{ id: '1', message: 'a', isRead: false }],
+            total: 2,
+          },
+        },
+      })
+      await store.fetchPageNotifications(1, 1)
+
+      mockGetNotifications.mockResolvedValue({
+        data: { data: { list: [], total: 2 } },
+      })
+      await store.fetchPageNotifications(3, 1)
+
+      expect(store.pageNotifications).toHaveLength(1)
+      expect(store.pageHasMore).toBe(false)
+    })
+
     it('sets fetchError on failure', async () => {
       mockGetNotifications.mockRejectedValue(new Error('network error'))
 
@@ -238,7 +260,7 @@ describe('useNotificationStore', () => {
       expect(store.pageTotal).toBe(0)
       expect(store.unreadCount).toBe(0)
       expect(store.pageLoading).toBe(false)
-      expect(store.pageHasMore).toBe(true)
+      expect(store.pageHasMore).toBe(false)
       expect(store.pageFetchError).toBeNull()
     })
   })

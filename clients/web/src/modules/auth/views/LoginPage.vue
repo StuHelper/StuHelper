@@ -149,6 +149,10 @@ function getPostLoginRedirect(): string | undefined {
     );
 }
 
+function defaultAuthenticatedRoute(): string {
+    return new URL("/", window.location.origin).toString();
+}
+
 function clearStoredRedirects() {
     sessionStorage.removeItem("draft_redirect");
     sessionStorage.removeItem("post_login_redirect");
@@ -217,7 +221,7 @@ const getRedirectTarget = (): string | undefined => {
     if (redirect) {
         return new URL(redirect, window.location.origin).toString();
     }
-    return undefined;
+    return defaultAuthenticatedRoute();
 };
 
 const saveRedirectTarget = () => {

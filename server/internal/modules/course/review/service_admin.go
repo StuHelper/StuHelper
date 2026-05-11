@@ -219,7 +219,7 @@ func (s *Service) restoreReviewByAdminTx(
 		return err
 	}
 	if currentStatus == StatusPendingReview {
-		if err := s.repo.ClearContentFlagTx(ctx, tx, params.ReviewID, params.AdminID); err != nil {
+		if err := s.repo.MarkContentFlagClearedTx(ctx, tx, params.ReviewID, params.AdminID); err != nil {
 			return err
 		}
 	} else if err := s.repo.ClearModerationTx(ctx, tx, params.ReviewID); err != nil {

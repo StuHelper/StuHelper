@@ -24,7 +24,7 @@ test('listAllMemberBlacklistPages fetches until backend total is reached', async
   assert.equal(result.total, 2)
   assert.deepEqual(result.list.map((entry) => entry.id), ['entry-1', 'entry-2'])
   assert.deepEqual(calls.map((call) => call.page), [1, 2])
-  assert.ok(calls.every((call) => call.pageSize === 200))
+  assert.ok(calls.every((call) => call.pageSize === 100))
 })
 
 test('listAllMemberBlacklistPages exposes inconsistent backend pagination', async () => {

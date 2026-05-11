@@ -1,11 +1,11 @@
 <template>
   <aside class="flex flex-col gap-1 overflow-y-auto">
     <!-- 分类标签 -->
-    <div class="flex gap-1.5 overflow-x-auto pb-2 mb-2 border-b border-border-light scrollbar-none">
+    <div class="flex flex-wrap gap-1.5 pb-2 mb-2 border-b border-border-light">
       <button
         v-for="cat in allCategories"
         :key="cat.id"
-        class="shrink-0 px-3 py-1 text-xs rounded-full transition-colors duration-fast cursor-pointer border-none"
+        class="max-w-full px-3 py-1 text-xs rounded-full transition-colors duration-fast cursor-pointer border-none leading-tight break-words text-left"
         :class="activeCategory === cat.id
           ? 'bg-primary text-white font-medium'
           : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'"

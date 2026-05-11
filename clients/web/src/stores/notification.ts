@@ -60,7 +60,7 @@ export const useNotificationStore = defineStore("notification", () => {
     const pageNotifications = ref<AppNotification[]>([]);
     const pageTotal = ref(0);
     const pageLoading = ref(false);
-    const pageHasMore = ref(true);
+    const pageHasMore = ref(false);
     const pageFetchError = ref<Error | null>(null);
 
     const bellNotifications = ref<AppNotification[]>([]);
@@ -263,7 +263,9 @@ export const useNotificationStore = defineStore("notification", () => {
                     : mergeUnique(pageNotifications.value, list);
 
             pageTotal.value = total;
-            pageHasMore.value = pageNotifications.value.length < total;
+            pageHasMore.value =
+                list.length === normalizedPageSize &&
+                pageNotifications.value.length < total;
         } catch (err) {
             pageFetchError.value =
                 err instanceof Error ? err : new Error(String(err));
@@ -558,7 +560,7 @@ export const useNotificationStore = defineStore("notification", () => {
         pageNotifications.value = [];
         pageTotal.value = 0;
         pageLoading.value = false;
-        pageHasMore.value = true;
+        pageHasMore.value = false;
         pageFetchError.value = null;
         bellNotifications.value = [];
         bellLoading.value = false;

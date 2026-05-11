@@ -48,7 +48,8 @@ const loading = ref(false)
 const favoriteState = computed(() => userStore.isFavorited(props.courseID))
 const isFavorited = computed(() => favoriteState.value === true)
 const isLoading = computed(() => {
-  if (loading.value || !authStore.bootstrapCompleted) return true
+  if (loading.value || authStore.bootstrapPending) return true
+  if (authStore.isAuthenticated && !authStore.bootstrapCompleted) return true
   return authStore.isAuthenticated && favoriteState.value === undefined
 })
 

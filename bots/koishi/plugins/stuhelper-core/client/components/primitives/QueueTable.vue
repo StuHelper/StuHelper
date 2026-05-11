@@ -4,6 +4,7 @@
       :data="rows"
       row-key="id"
       class="sh-grid-table"
+      :style="tableStyle"
       @row-click="handleRowClick"
       :row-class-name="rowClassName"
     >
@@ -53,6 +54,7 @@
         v-if="hasActions"
         :label="actionsLabel"
         align="right"
+        :width="ACTIONS_COLUMN_WIDTH"
         class-name="sh-queue-table__actions-column"
       >
         <template #default="{ row }">
@@ -81,6 +83,9 @@ import { computed } from 'vue'
 
 import EmptyState from './EmptyState.vue'
 import SeverityTag, { type TagIntent } from './SeverityTag.vue'
+
+const DEFAULT_COLUMN_WIDTH = 160
+const ACTIONS_COLUMN_WIDTH = '120'
 
 export interface QueueTableCellObject {
   text: string
@@ -132,6 +137,15 @@ const emit = defineEmits<{
 }>()
 
 const hasActions = computed(() => props.rows.some((row) => (row.actions?.length ?? 0) > 0))
+const tableStyle = computed(() => ({
+  minWidth: `${calculateTableMinWidth()}px`,
+}))
+
+function calculateTableMinWidth() {
+  const columnWidth = props.columns.reduce((total, column) => total + parseColumnWidth(column.width), 0)
+  const actionWidth = hasActions.value ? Number(ACTIONS_COLUMN_WIDTH) : 0
+  return columnWidth + actionWidth
+}
 
 function handleRowClick(row: QueueTableRow) {
   emit('select', row.id)
@@ -151,6 +165,11 @@ function normalizeCell(cell: QueueTableCell | undefined): QueueTableCellObject {
 
 function resolveCell(row: QueueTableRow, columnKey: string) {
   return normalizeCell(row.cells[columnKey])
+}
+
+function parseColumnWidth(width?: string) {
+  const value = Number.parseInt(width ?? '', 10)
+  return Number.isFinite(value) ? value : DEFAULT_COLUMN_WIDTH
 }
 
 function isTagCell(cell: QueueTableCell | undefined) {

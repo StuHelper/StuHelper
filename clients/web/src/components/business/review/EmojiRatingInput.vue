@@ -4,7 +4,9 @@
       v-for="level in 5"
       :key="level"
       type="button"
+      :aria-label="buttonLabel(level)"
       :data-testid="testIdPrefix ? `${testIdPrefix}-${level}` : undefined"
+      :title="buttonLabel(level)"
       class="emoji-btn p-2 m-0.5 rounded-full border-2 transition-all duration-200 cursor-pointer"
       :class="[
         modelValue === level
@@ -30,6 +32,7 @@ import { Angry, Frown, Meh, Smile, SmilePlus } from 'lucide-vue-next'
 import { getRatingColor } from '@/design-system/rating'
 
 const props = defineProps<{
+  label?: string
   modelValue: number
   error?: string
   testIdPrefix?: string
@@ -52,6 +55,10 @@ function getIcon(level: number) {
 
 function toggle(level: number) {
   emit('update:modelValue', props.modelValue === level ? 0 : level)
+}
+
+function buttonLabel(level: number) {
+  return props.label ? `${props.label} ${level}` : String(level)
 }
 </script>
 

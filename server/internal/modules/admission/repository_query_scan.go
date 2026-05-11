@@ -68,6 +68,25 @@ func freshmanApplicationListSQL() string {
 		LIMIT $2 OFFSET $3`
 }
 
+func adminFreshmanApplicationListSQL() string {
+	return `
+		SELECT app.id, app.user_id, app.school_id, app.admission_session_id, app.status,
+		       app.applicant_name, app.applicant_name_masked, app.department_or_major,
+		       app.material_type, app.provisional_expires_at, app.reviewed_at,
+		       app.created_at, material.object_key, session.qq_id,
+		       failure.failure_count, COUNT(*) OVER() AS total
+		FROM freshman_verification_applications app
+		LEFT JOIN freshman_verification_materials material ON material.application_id = app.id
+		LEFT JOIN group_admission_sessions session ON session.id = app.admission_session_id
+		LEFT JOIN group_admission_failures failure
+		  ON failure.platform = session.platform
+		 AND failure.guild_id = session.guild_id
+		 AND failure.qq_id = session.qq_id
+		WHERE ($1::text = '' OR app.status = $1)
+		ORDER BY app.created_at DESC, app.id ASC
+		LIMIT $2 OFFSET $3`
+}
+
 func scanFreshmanApplicationList(rows pgx.Rows) ([]FreshmanApplication, int, error) {
 	items := make([]FreshmanApplication, 0)
 	total := 0
@@ -94,6 +113,34 @@ func scanFreshmanApplicationWithTotal(row pgx.Row) (*FreshmanApplication, int, e
 		return nil, 0, err
 	}
 	return &app, total, nil
+}
+
+func scanAdminFreshmanApplicationList(rows pgx.Rows) ([]adminFreshmanApplicationRow, int, error) {
+	items := make([]adminFreshmanApplicationRow, 0)
+	total := 0
+	for rows.Next() {
+		item, rowTotal, err := scanAdminFreshmanApplicationRow(rows)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan admin freshman application: %w", err)
+		}
+		total = rowTotal
+		items = append(items, *item)
+	}
+	return items, total, rows.Err()
+}
+
+func scanAdminFreshmanApplicationRow(row pgx.Row) (*adminFreshmanApplicationRow, int, error) {
+	var item adminFreshmanApplicationRow
+	var total int
+	err := row.Scan(
+		&item.Application.ID, &item.Application.UserID, &item.Application.SchoolID,
+		&item.Application.AdmissionSessionID, &item.Application.Status, &item.Application.ApplicantName,
+		&item.Application.ApplicantNameMasked, &item.Application.DepartmentOrMajor,
+		&item.Application.MaterialType, &item.Application.ProvisionalExpiresAt,
+		&item.Application.ReviewedAt, &item.Application.CreatedAt, &item.ObjectKey,
+		&item.QQID, &item.FailureCount, &total,
+	)
+	return &item, total, err
 }
 
 func mapFreshmanApplicationScanError(op string, err error) error {

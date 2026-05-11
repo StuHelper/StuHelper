@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/db"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
@@ -92,14 +93,16 @@ func (r *Repository) List(ctx context.Context, p ListParams) (*ListResult, error
 
 	for rows.Next() {
 		var n Notification
+		var createdAt time.Time
 		if err := rows.Scan(
 			&n.ID, &n.Type, &n.Title, &n.Body, &n.Payload,
 			&n.SourceModule, &n.SourceID, &n.SourceURL, &n.CourseID,
-			&n.IsRead, &n.CreatedAt,
+			&n.IsRead, &createdAt,
 		); err != nil {
 			return nil, fmt.Errorf("notification list scan: %w", err)
 		}
 		n.Content = n.Body
+		n.CreatedAt = createdAt.UTC().Format(time.RFC3339Nano)
 		result.List = append(result.List, n)
 	}
 	return result, rows.Err()

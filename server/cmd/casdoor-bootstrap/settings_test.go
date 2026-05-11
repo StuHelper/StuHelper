@@ -25,6 +25,7 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, "stuhelper-web", settings.plan.Applications[0].Name)
 	assert.Equal(t, "stuhelper-admin", settings.plan.Applications[1].Name)
 	assert.Equal(t, "stuhelper-uniapp", settings.plan.Applications[2].Name)
+	assert.Equal(t, "https://www.example.com/android-chrome-512x512.png", settings.plan.Applications[1].Logo)
 	assert.Equal(t, "casdoor-admin-app-provisioning", settings.plan.Applications[3].Name)
 	assert.Equal(t, "casdoor-token-introspection", settings.plan.Applications[4].Name)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[3].GrantTypes)
@@ -36,6 +37,16 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, "Custom HTTP SMS", settings.plan.Providers[0].Type)
 	assert.Equal(t, "content", settings.plan.Providers[0].Title)
 	assert.Equal(t, "https://api.example.com/internal/sms/send?internal_key=sms-internal-key", settings.plan.Providers[0].Endpoint)
+}
+
+func TestLoadSettingsAllowsApplicationLogoOverride(t *testing.T) {
+	env := completeEnv()
+	env["CASDOOR_ADMIN_LOGO"] = "https://static.example.com/admin-logo.png"
+
+	settings, err := loadSettings(testEnv(env))
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://static.example.com/admin-logo.png", settings.plan.Applications[1].Logo)
 }
 
 func TestFlatRoleCatalogMatchesAuthorizationRoles(t *testing.T) {
@@ -111,6 +122,7 @@ func TestLoadSettingsRejectsWrongSMSType(t *testing.T) {
 func completeEnv() map[string]string {
 	return map[string]string{
 		"CASDOOR_ISSUER":                         "https://sso.example.com",
+		"WEB_PUBLIC_URL":                         "https://www.example.com",
 		"CASDOOR_BOOTSTRAP_CLIENT_ID":            "bootstrap-client",
 		"CASDOOR_BOOTSTRAP_CLIENT_SECRET":        "bootstrap-secret",
 		"CASDOOR_BOOTSTRAP_APPLICATION":          "casdoor-admin-bootstrap",

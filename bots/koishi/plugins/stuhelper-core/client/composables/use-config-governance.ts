@@ -5,8 +5,14 @@ import { consolePageApi } from '../page-api'
 import type { ConfigGovernancePageData } from '../page-types'
 import {
   assignBindingForm,
+  assignBindingFormState,
   assignPolicyForm,
+  assignPolicyFormState,
   assignTemplateForm,
+  assignTemplateFormState,
+  createBindingForm,
+  createPolicyForm,
+  createTemplateForm,
   splitCommaTokens,
   type BindingFormState,
   type PolicyFormState,
@@ -34,30 +40,12 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
   const submittingTemplate = ref(false)
   const submittingBinding = ref(false)
   const submittingPolicy = ref(false)
-  const templateSnapshot = ref<TemplateFormState | null>(null)
-  const bindingSnapshot = ref<BindingFormState | null>(null)
-  const policySnapshot = ref<PolicyFormState | null>(null)
-  const templateForm = reactive<TemplateFormState>({
-    id: '',
-    name: '',
-    muteDurationSeconds: 1800,
-    kickAfterMinutes: 30,
-    reminderTemplate: '',
-    exemptUsersText: '',
-    enabled: true,
-  })
-  const bindingForm = reactive<BindingFormState>({
-    platform: 'onebot',
-    guildId: '',
-    templateId: '',
-    note: '',
-    enabled: true,
-  })
-  const policyForm = reactive<PolicyFormState>({
-    commandId: '',
-    minAuthority: 3,
-    rolesText: '',
-  })
+  const templateSnapshot = ref<TemplateFormState | null>(createTemplateForm())
+  const bindingSnapshot = ref<BindingFormState | null>(createBindingForm())
+  const policySnapshot = ref<PolicyFormState | null>(createPolicyForm())
+  const templateForm = reactive<TemplateFormState>(createTemplateForm())
+  const bindingForm = reactive<BindingFormState>(createBindingForm())
+  const policyForm = reactive<PolicyFormState>(createPolicyForm())
 
   const configModel = computed(() => data.value ? buildConfigGovernanceModel(data.value, { workspace: currentWorkspace.value }) : null)
   const templateDirty = computed(() => isTemplateFormDirty(templateForm, templateSnapshot.value))
@@ -135,9 +123,38 @@ export function useConfigGovernance(navigation?: ConsoleNavigationController) {
   }
 
   function selectWorkspace(workspace: WorkspaceId) {
-    if (!confirmDiscardChanges(currentDirty.value, window.confirm)) return
+    if (workspace === currentWorkspace.value) return
+    if (!confirmCurrentDiscard()) return
     currentWorkspace.value = workspace
     navigation?.replaceState({ workspace })
+  }
+
+  function confirmCurrentDiscard() {
+    if (!currentDirty.value) return true
+    if (!confirmDiscardChanges(true, window.confirm)) return false
+    discardCurrentChanges()
+    return true
+  }
+
+  function discardCurrentChanges() {
+    if (currentWorkspace.value === 'templates') restoreTemplateForm()
+    if (currentWorkspace.value === 'bindings') restoreBindingForm()
+    if (currentWorkspace.value === 'command-policies') restorePolicyForm()
+  }
+
+  function restoreTemplateForm() {
+    if (!templateSnapshot.value) return
+    assignTemplateFormState(templateForm, templateSnapshot.value)
+  }
+
+  function restoreBindingForm() {
+    if (!bindingSnapshot.value) return
+    assignBindingFormState(bindingForm, bindingSnapshot.value)
+  }
+
+  function restorePolicyForm() {
+    if (!policySnapshot.value) return
+    assignPolicyFormState(policyForm, policySnapshot.value)
   }
 
   function loadTemplate(item: ConfigGovernancePageData['templates'][number]) {

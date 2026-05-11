@@ -3082,6 +3082,10 @@ export interface components {
             departmentOrMajor?: string;
             /** @enum {string} */
             materialType: "admission_notice" | "admission_certificate";
+            /** Format: uri */
+            materialURL?: string;
+            qqID?: string;
+            failureCount?: number;
             status: components["schemas"]["FreshmanApplicationStatus"];
             /** Format: date-time */
             provisionalExpiresAt?: string | null;

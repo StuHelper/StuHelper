@@ -1,14 +1,14 @@
 <template>
   <router-link
     :to="`/courses/${course.id}`"
-    class="flex items-center gap-1.5 px-3 py-1.5 text-xs no-underline transition-colors duration-fast cursor-pointer"
+    class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 px-3 py-2 text-xs no-underline transition-colors duration-fast cursor-pointer"
     :class="isActive
       ? 'text-primary font-semibold bg-primary/[0.08]'
       : 'text-text-primary hover:bg-bg-hover'"
   >
-    <span class="truncate shrink">{{ course.name }}</span>
-    <span v-if="course.credits" class="shrink-0 text-[10px] text-text-muted">{{ t('review.course.creditsBadge', { n: course.credits }) }}</span>
-    <span class="ml-auto shrink-0 text-[10px] tabular-nums" :class="isActive ? 'text-primary/60' : 'text-text-muted'">{{ t('review.course.reviewCountBadge', { count: course.reviewCount }) }}</span>
+    <span class="min-w-0 break-words leading-snug">{{ course.name }}</span>
+    <span class="justify-self-end text-[10px] tabular-nums whitespace-nowrap" :class="isActive ? 'text-primary/60' : 'text-text-muted'">{{ t('review.course.reviewCountBadge', { count: course.reviewCount }) }}</span>
+    <span v-if="course.credits" class="text-[10px] text-text-muted">{{ t('review.course.creditsBadge', { n: course.credits }) }}</span>
   </router-link>
 </template>
 

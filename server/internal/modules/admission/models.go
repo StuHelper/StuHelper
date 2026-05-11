@@ -115,18 +115,21 @@ const (
 )
 
 type FreshmanApplication struct {
-	ID                   string
-	UserID               int64
-	SchoolID             int64
-	AdmissionSessionID   *string
-	Status               FreshmanApplicationStatus
-	ApplicantName        string
-	ApplicantNameMasked  string
-	DepartmentOrMajor    *string
-	MaterialType         FreshmanMaterialType
-	ProvisionalExpiresAt *time.Time
-	ReviewedAt           *time.Time
-	CreatedAt            time.Time
+	ID                   string                    `json:"id"`
+	UserID               int64                     `json:"userID"`
+	SchoolID             int64                     `json:"schoolID"`
+	AdmissionSessionID   *string                   `json:"admissionSessionID,omitempty"`
+	Status               FreshmanApplicationStatus `json:"status"`
+	ApplicantName        string                    `json:"applicantName,omitempty"`
+	ApplicantNameMasked  string                    `json:"applicantNameMasked"`
+	DepartmentOrMajor    *string                   `json:"departmentOrMajor,omitempty"`
+	MaterialType         FreshmanMaterialType      `json:"materialType"`
+	MaterialURL          *string                   `json:"materialURL,omitempty"`
+	QQID                 *string                   `json:"qqID,omitempty"`
+	FailureCount         *int                      `json:"failureCount,omitempty"`
+	ProvisionalExpiresAt *time.Time                `json:"provisionalExpiresAt,omitempty"`
+	ReviewedAt           *time.Time                `json:"reviewedAt,omitempty"`
+	CreatedAt            time.Time                 `json:"createdAt"`
 }
 
 type FreshmanApplicationCreateInput struct {
@@ -236,23 +239,23 @@ type ExpiredFreshmanCredential struct {
 }
 
 type AdmissionPolicy struct {
-	ID                         string
-	Platform                   string
-	GuildID                    string
-	SchoolID                   int64
-	AutoApproveJoin            bool
-	InitialMuteDurationSeconds int
-	LinkWaitSeconds            int
-	SubmissionWaitSeconds      int
-	ManualReviewTimeoutSeconds int
-	ReminderIntervalSeconds    int
-	FailedJoinLimit            int
-	BlacklistDurationSeconds   *int
-	FreshmanChannelEnabled     bool
-	FreshmanChannelClosesAt    time.Time
-	FreshmanDefaultExpiresAt   time.Time
-	ForwardRawMaterialToQQ     bool
-	ManagementGuildIDs         []string
-	MaxMaterialBytes           int64
-	MaxExtensionDays           int
+	ID                         string    `json:"id"`
+	Platform                   string    `json:"platform"`
+	GuildID                    string    `json:"guildID"`
+	SchoolID                   int64     `json:"-"`
+	AutoApproveJoin            bool      `json:"autoApproveJoin"`
+	InitialMuteDurationSeconds int       `json:"initialMuteDurationSeconds"`
+	LinkWaitSeconds            int       `json:"linkWaitSeconds"`
+	SubmissionWaitSeconds      int       `json:"submissionWaitSeconds"`
+	ManualReviewTimeoutSeconds int       `json:"manualReviewTimeoutSeconds"`
+	ReminderIntervalSeconds    int       `json:"reminderIntervalSeconds"`
+	FailedJoinLimit            int       `json:"failedJoinLimit"`
+	BlacklistDurationSeconds   *int      `json:"blacklistDurationSeconds,omitempty"`
+	FreshmanChannelEnabled     bool      `json:"freshmanChannelEnabled"`
+	FreshmanChannelClosesAt    time.Time `json:"freshmanChannelClosesAt"`
+	FreshmanDefaultExpiresAt   time.Time `json:"freshmanDefaultExpiresAt"`
+	ForwardRawMaterialToQQ     bool      `json:"forwardRawMaterialToQQ"`
+	ManagementGuildIDs         []string  `json:"managementGuildIDs"`
+	MaxMaterialBytes           int64     `json:"maxMaterialBytes"`
+	MaxExtensionDays           int       `json:"maxExtensionDays"`
 }

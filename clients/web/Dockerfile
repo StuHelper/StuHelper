@@ -4,9 +4,11 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 ARG VITE_API_URL=https://api.stuhelper.com
 ARG VITE_SSO_URL=https://sso.stuhelper.com
+ARG VITE_ADMIN_URL=https://stuhelper.com/admin/
 ARG VITE_API_TIMEOUT_MS=15000
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_SSO_URL=${VITE_SSO_URL}
+ENV VITE_ADMIN_URL=${VITE_ADMIN_URL}
 ENV VITE_API_TIMEOUT_MS=${VITE_API_TIMEOUT_MS}
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json ./web/

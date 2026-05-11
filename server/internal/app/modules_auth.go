@@ -23,7 +23,8 @@ func (rt *Runtime) initAuthModule(
 	smsSvc *sms.Service,
 	roleScopeResolver middleware.RoleScopeResolver,
 ) (*auth.Handler, gin.HandlerFunc, gin.HandlerFunc, error) {
-	userSyncRepo := user.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey())
+	userSyncRepo := user.NewUserSyncRepository(rt.database, piiCipher, crypto.GetHMACKey()).
+		WithRoleFGAClient(rt.fgaClient)
 	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
 
 	authHandler := auth.NewHandler(

@@ -13,6 +13,14 @@ import { $t } from '#/locales';
 
 export type { ApiCallResult, ApiEnvelope };
 
+const BUSINESS_ERROR_MESSAGE_KEYS: Record<string, string> = {
+  A0040011: 'admin.result.invalidAcademicTable',
+  A0040012: 'admin.result.academicTableRequired',
+  A0040013: 'admin.result.ldapConfigRequired',
+  A0040014: 'admin.result.ldapConfigInvalid',
+  A0040015: 'admin.result.systemConfigNotFound',
+};
+
 export function extractErrorMessage(result: ApiCallResult<unknown>): string {
   const code = extractResultErrorCode(result);
   const status = readResultStatus(result);
@@ -25,6 +33,9 @@ export function extractErrorMessage(result: ApiCallResult<unknown>): string {
   }
   if (status === 412 && code === 'A0010205') {
     return $t('admin.result.stepUpRequired');
+  }
+  if (code && BUSINESS_ERROR_MESSAGE_KEYS[code]) {
+    return $t(BUSINESS_ERROR_MESSAGE_KEYS[code]);
   }
 
   return $t('admin.result.requestFailed');

@@ -201,6 +201,7 @@
                 <EmojiRatingInput
                   :model-value="ratings[dim.key] ?? 0"
                   :error="showErrors && !ratings[dim.key] ? t('review.post.ratingMissing') : undefined"
+                  :label="dim.name"
                   :test-id-prefix="`rating-${dim.key}`"
                   @update:model-value="(val: number) => updateRating(dim.key, val)"
                 />
@@ -299,6 +300,13 @@
 
         <!-- Submit button -->
         <div class="flex flex-col items-center gap-3">
+          <p
+            v-if="submitError"
+            role="alert"
+            class="w-full m-0 px-4 py-3 rounded-lg bg-danger/10 text-danger text-sm leading-relaxed"
+          >
+            {{ submitError }}
+          </p>
           <button
             data-testid="review-submit"
             class="w-full bg-primary hover:bg-primary-dark text-white rounded-xl py-3 font-semibold text-base cursor-pointer transition-all duration-200 border-none hover:-translate-y-px hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
@@ -329,6 +337,7 @@ import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinS
 import { buildCreateReviewPayload } from '@/components/business/review/reviewPayload'
 import { buildTermOptions } from '@/modules/course/termOptions'
 import { useReviewPost } from '@/composables/useReviewPost'
+import { getErrorMessage } from '@/api/errors'
 import {
   REVIEW_TITLE_MAX_LENGTH,
   REVIEW_CONTENT_MIN_LENGTH,
@@ -376,6 +385,7 @@ const content = ref(defaultTemplate.value)
 const grade = ref('')
 const submitting = ref(false)
 const showErrors = ref(false)
+const submitError = ref('')
 
 // ── Term options ─────────────────────────────────────────
 const terms = ref<Term[]>([])
@@ -578,8 +588,10 @@ const canSubmit = computed(() =>
 // ── 提交流程 ─────────────────────────────────────────────
 async function handleSubmit() {
   showErrors.value = true
+  submitError.value = ''
   if (ratingDimensionsLoadFailed.value) {
-    toast.error(t('review.post.ratingLoadFailed'))
+    submitError.value = t('review.post.ratingLoadFailed')
+    toast.error(submitError.value)
     return
   }
 
@@ -592,7 +604,8 @@ async function handleSubmit() {
     const checkResult = checkRes.data?.data
     if (checkResult && !checkResult.isValid) {
       if (checkResult.level === 'block') {
-        toast.error(t('review.post.contentBlocked'))
+        submitError.value = t('review.post.contentBlocked')
+        toast.error(submitError.value)
         return
       }
       if (checkResult.level === 'warn') {
@@ -615,8 +628,9 @@ async function handleSubmit() {
 
     // 发布成功后跳转到课程评测页
     router.push({ name: 'course-reviews', params: { id: selectedCourse.value!.id } })
-  } catch (_error) { void _error;
-    toast.error(t('review.post.failed'))
+  } catch (error) {
+    submitError.value = getErrorMessage(error, t('review.post.failed'))
+    toast.error(submitError.value)
   } finally {
     submitting.value = false
   }

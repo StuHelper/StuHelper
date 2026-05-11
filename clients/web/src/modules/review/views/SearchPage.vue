@@ -28,12 +28,20 @@
 
         <!-- Course Name -->
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1.5 text-text-secondary">
+          <label
+            for="advanced-course-name"
+            class="block text-sm font-medium mb-1.5 text-text-secondary"
+          >
             {{ t('review.search.courseName') }}
           </label>
           <input
+            id="advanced-course-name"
             v-model="form.courseName"
             type="text"
+            autocomplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary placeholder-text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all disabled:opacity-50"
             :class="{ 'border-danger focus:border-danger focus:ring-danger/20': validationError }"
             :placeholder="t('review.search.courseName')"
@@ -46,12 +54,20 @@
 
         <!-- Course Code -->
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1.5 text-text-secondary">
+          <label
+            for="advanced-course-code"
+            class="block text-sm font-medium mb-1.5 text-text-secondary"
+          >
             {{ t('review.search.courseCode') }}
           </label>
           <input
+            id="advanced-course-code"
             v-model="form.courseCode"
             type="text"
+            autocomplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary placeholder-text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all disabled:opacity-50"
             :placeholder="t('review.search.courseCode')"
             :disabled="!!form.courseName"
@@ -63,10 +79,14 @@
 
         <!-- Department -->
         <div>
-          <label class="block text-sm font-medium mb-1.5 text-text-secondary">
+          <label
+            for="advanced-department"
+            class="block text-sm font-medium mb-1.5 text-text-secondary"
+          >
             {{ t('review.search.department') }}
           </label>
           <select
+            id="advanced-department"
             v-model="form.departmentID"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           >
@@ -87,12 +107,20 @@
 
         <!-- Teacher Name -->
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1.5 text-text-secondary">
+          <label
+            for="advanced-teacher-name"
+            class="block text-sm font-medium mb-1.5 text-text-secondary"
+          >
             {{ t('review.search.teacherName') }}
           </label>
           <input
+            id="advanced-teacher-name"
             v-model="form.teacherName"
             type="text"
+            autocomplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary placeholder-text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
             :placeholder="t('review.search.teacherName')"
           />
@@ -103,10 +131,14 @@
 
         <!-- Semester -->
         <div>
-          <label class="block text-sm font-medium mb-1.5 text-text-secondary">
+          <label
+            for="advanced-term"
+            class="block text-sm font-medium mb-1.5 text-text-secondary"
+          >
             {{ t('review.search.semester') }}
           </label>
           <select
+            id="advanced-term"
             v-model="form.termID"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           >

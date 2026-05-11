@@ -78,6 +78,18 @@ func (r *Repository) ListFreshmanApplications(
 	return scanFreshmanApplicationList(rows)
 }
 
+func (r *Repository) ListAdminFreshmanApplications(
+	ctx context.Context,
+	filter FreshmanApplicationListFilter,
+) ([]adminFreshmanApplicationRow, int, error) {
+	rows, err := r.db.Query(ctx, adminFreshmanApplicationListSQL(), string(filter.Status), filter.PageSize, filter.Offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("ListAdminFreshmanApplications: %w", err)
+	}
+	defer rows.Close()
+	return scanAdminFreshmanApplicationList(rows)
+}
+
 func (r *Repository) MarkFreshmanApplicationForwarded(ctx context.Context, applicationID string, now time.Time) error {
 	tag, err := r.db.Exec(ctx, `
 		UPDATE freshman_verification_applications

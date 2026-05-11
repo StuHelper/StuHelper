@@ -357,13 +357,14 @@ router.beforeEach(async (to) => {
         : matchedTitleRoute?.meta.title;
     updatePageMeta({ title: resolvedTitle });
 
+    const routeHasRequiredCapabilities = to.matched.some((route) =>
+        Array.isArray(route.meta.requiredCapabilities) &&
+        route.meta.requiredCapabilities.length > 0,
+    );
     const needsResolvedSession =
         Boolean(to.meta.requiresAuth) ||
-        Boolean(to.meta.guest) ||
-        to.matched.some((route) =>
-            Array.isArray(route.meta.requiredCapabilities) &&
-            route.meta.requiredCapabilities.length > 0,
-        );
+        routeHasRequiredCapabilities ||
+        (Boolean(to.meta.guest) && authStore.isAuthenticated);
 
     if (needsResolvedSession && !authStore.bootstrapCompleted) {
         await authStore.bootstrapSession();

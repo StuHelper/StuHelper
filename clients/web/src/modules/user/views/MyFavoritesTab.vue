@@ -4,6 +4,21 @@
       <SkeletonCard v-for="i in 3" :key="i" variant="course" />
     </div>
 
+    <EmptyState
+      v-else-if="errorMessage"
+      :title="t('common.loadFailed')"
+      :description="errorMessage"
+    >
+      <template #action>
+        <button
+          class="inline-flex items-center justify-center rounded-sm bg-text-primary px-4 py-2 text-sm font-medium text-bg-base transition-colors duration-fast hover:bg-accent hover:text-white"
+          @click="loadInitial"
+        >
+          {{ t('common.actions.retry') }}
+        </button>
+      </template>
+    </EmptyState>
+
     <template v-else-if="favorites.length > 0">
       <CourseCard
         v-for="(course, index) in favorites"
@@ -45,6 +60,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
+import { getErrorMessage } from '@/api/errors'
 import CourseCard from '@/components/business/review/CourseCard.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -55,23 +71,35 @@ const store = useUserStore()
 const loading = ref(true)
 const loadingMore = ref(false)
 const page = ref(1)
+const errorMessage = ref('')
 
 const favorites = computed(() => store.myFavorites)
 const total = computed(() => store.myFavoritesTotal)
 
-onMounted(async () => {
+async function loadInitial() {
+  loading.value = true
+  errorMessage.value = ''
   try {
     await store.fetchMyFavorites(1)
+    page.value = 1
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err, t('common.loadFailed'))
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadInitial)
 
 const loadMore = async () => {
   loadingMore.value = true
+  errorMessage.value = ''
+  const nextPage = page.value + 1
   try {
-    page.value++
-    await store.fetchMyFavorites(page.value)
+    await store.fetchMyFavorites(nextPage)
+    page.value = nextPage
+  } catch (err) {
+    errorMessage.value = getErrorMessage(err, t('common.loadFailed'))
   } finally {
     loadingMore.value = false
   }

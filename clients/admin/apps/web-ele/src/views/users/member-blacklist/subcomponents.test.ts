@@ -126,6 +126,32 @@ describe('BlacklistFilters', () => {
     expect(wrapper.emitted('openCreate')).toHaveLength(1);
   });
 
+  it('emits search immediately when select filters change', async () => {
+    const wrapper = mount(BlacklistFilters, {
+      props: {
+        canManage: true,
+        platform: '',
+        scopeType: '',
+        source: '',
+        status: 'active',
+        guildID: '',
+        subjectID: '',
+      },
+    });
+
+    const selects = wrapper.findAllComponents({ name: 'ElSelect' });
+    expect(selects).toHaveLength(3);
+
+    await selects[0]!.vm.$emit('change', 'global');
+    await selects[1]!.vm.$emit('change', 'manual_admin');
+    await selects[2]!.vm.$emit('change', 'released');
+
+    expect(wrapper.emitted('search')).toHaveLength(3);
+    for (const select of selects) {
+      expect(select.props('teleported')).toBe(false);
+    }
+  });
+
   it('hides the create button when canManage is false', () => {
     const wrapper = mount(BlacklistFilters, {
       props: {

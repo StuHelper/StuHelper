@@ -162,6 +162,8 @@ async function onSendCode() {
       toast.error(t('user.verification.phone.tooManyRequests'))
     } else if (status === 400) {
       toast.error(t('user.verification.phone.invalidPhone'))
+    } else if (status === 503) {
+      toast.error(t('user.verification.phone.serviceUnavailable'))
     } else {
       toast.error(t('common.actions.operationFailed'))
     }
@@ -185,6 +187,8 @@ async function onSubmit() {
       toast.error(t('user.verification.phone.alreadyBound'))
     } else if (status === 429) {
       toast.error(t('user.verification.phone.tooManyAttempts'))
+    } else if (status === 503) {
+      toast.error(t('user.verification.phone.serviceUnavailable'))
     } else {
       toast.error(t('common.actions.operationFailed'))
     }

@@ -98,6 +98,7 @@ export default {
             alreadyBound: "手机号已被绑定",
             tooManyRequests: "请求过于频繁，请稍后再试",
             tooManyAttempts: "尝试次数过多，请重新获取验证码",
+            serviceUnavailable: "手机绑定服务未配置，暂时无法发送或校验验证码",
         },
         qq: {
             title: "绑定 QQ",

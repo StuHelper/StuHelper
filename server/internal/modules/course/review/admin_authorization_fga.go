@@ -36,9 +36,8 @@ func reviewAdminRelationForAction(action string) (string, bool) {
 }
 
 func (h *Handler) authorizeReviewModeration(c *gin.Context, reviewID, action string) bool {
-	relation, ok := reviewAdminRelationForAction(action)
+	relation, ok := h.reviewModerationRelationForAction(c, reviewID, action)
 	if !ok {
-		response.BadRequest(c, "invalid review action")
 		return false
 	}
 	return h.authorizeReviewRelation(c, reviewID, relation, "insufficient permission for this review")
@@ -53,6 +52,9 @@ func (h *Handler) authorizeReviewContentFlagClear(c *gin.Context, reviewID strin
 }
 
 func (h *Handler) authorizeBatchReviewModeration(c *gin.Context, reviewIDs []string, action string) bool {
+	if action == "restore" {
+		return h.authorizeBatchRestoreModeration(c, reviewIDs)
+	}
 	relation, ok := reviewAdminRelationForAction(action)
 	if !ok {
 		response.BadRequest(c, "invalid review action")
@@ -62,6 +64,47 @@ func (h *Handler) authorizeBatchReviewModeration(c *gin.Context, reviewIDs []str
 		return false
 	}
 	return h.authorizeObjectsRelation(c, "review", reviewIDs, relation, "insufficient permission for one or more reviews")
+}
+
+func (h *Handler) reviewModerationRelationForAction(c *gin.Context, reviewID, action string) (string, bool) {
+	if action != "restore" {
+		relation, ok := reviewAdminRelationForAction(action)
+		if !ok {
+			response.BadRequest(c, "invalid review action")
+		}
+		return relation, ok
+	}
+	status, ok := h.resolveReviewStatus(c, reviewID, "review not found", "failed to resolve review status")
+	if !ok {
+		return "", false
+	}
+	return reviewRestoreRelationForStatus(status), true
+}
+
+func reviewRestoreRelationForStatus(status string) string {
+	if status == StatusPendingReview {
+		return reviewRelationCanHide
+	}
+	return reviewRelationCanRestore
+}
+
+func (h *Handler) authorizeBatchRestoreModeration(c *gin.Context, reviewIDs []string) bool {
+	statuses, ok := h.resolveBatchReviewStatuses(c, reviewIDs)
+	if !ok {
+		return false
+	}
+	user, ok := h.resolveAuthorizationUser(c)
+	if !ok {
+		return false
+	}
+	for _, reviewID := range reviewIDs {
+		relation := reviewRestoreRelationForStatus(statuses[reviewID])
+		object := "review:" + reviewID
+		if !h.checkAuthorizationRelation(c, user, relation, object, "insufficient permission for one or more reviews") {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *Handler) authorizeReportModeration(c *gin.Context, reportID string) bool {
@@ -103,6 +146,33 @@ func (h *Handler) ensureBatchReviewsExist(c *gin.Context, reviewIDs []string) bo
 		}
 	}
 	return true
+}
+
+func (h *Handler) resolveReviewStatus(c *gin.Context, reviewID, notFoundMessage, internalMessage string) (string, bool) {
+	if h.service == nil {
+		response.Forbidden(c, "insufficient permission for this review", errs.ErrAccessDenied)
+		return "", false
+	}
+	status, err := h.service.GetReviewStatus(c.Request.Context(), reviewID)
+	return status, respondModerationLookupError(c, err, notFoundMessage, internalMessage)
+}
+
+func (h *Handler) resolveBatchReviewStatuses(c *gin.Context, reviewIDs []string) (map[string]string, bool) {
+	if h.service == nil {
+		response.Forbidden(c, "insufficient permission for one or more reviews", errs.ErrAccessDenied)
+		return nil, false
+	}
+	statuses, err := h.service.ListReviewStatuses(c.Request.Context(), reviewIDs)
+	if !respondModerationLookupError(c, err, "review not found", "failed to resolve review status") {
+		return nil, false
+	}
+	for _, reviewID := range reviewIDs {
+		if _, ok := statuses[reviewID]; !ok {
+			response.NotFound(c, "review not found")
+			return nil, false
+		}
+	}
+	return statuses, true
 }
 
 func (h *Handler) ensureReportExists(c *gin.Context, reportID string) bool {

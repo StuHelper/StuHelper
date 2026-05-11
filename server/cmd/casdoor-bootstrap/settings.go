@@ -11,6 +11,7 @@ const (
 	defaultAccessTokenHours  = 1
 	defaultRefreshTokenHours = 24
 	defaultTokenFormat       = "JWT"
+	defaultApplicationLogo   = "https://stuhelper.com/android-chrome-512x512.png"
 )
 
 type envReader func(string) string
@@ -159,6 +160,7 @@ func flatRoleCatalog() []casdoor.RoleSpec {
 type appEnv struct {
 	name        string
 	displayName string
+	logoKey     string
 	clientIDKey string
 	secretKey   string
 	redirectKey string
@@ -173,6 +175,7 @@ func webAppEnv() appEnv {
 	return appEnv{
 		name:        "stuhelper-web",
 		displayName: "StuHelper Web",
+		logoKey:     "CASDOOR_LOGO",
 		clientIDKey: "CASDOOR_CLIENT_ID",
 		secretKey:   "CASDOOR_CLIENT_SECRET", // #nosec G101 -- env key name, not a secret value.
 		redirectKey: "CASDOOR_REDIRECT_URI",
@@ -183,6 +186,7 @@ func prefixedAppEnv(prefix, name, displayName string) appEnv {
 	return appEnv{
 		name:        name,
 		displayName: displayName,
+		logoKey:     prefix + "_LOGO",
 		clientIDKey: prefix + "_CLIENT_ID",
 		secretKey:   prefix + "_CLIENT_SECRET",
 		redirectKey: prefix + "_REDIRECT_URI",
@@ -205,6 +209,7 @@ func appSpec(getenv envReader, env appEnv) (casdoor.ApplicationSpec, error) {
 	return casdoor.ApplicationSpec{
 		Name:                 env.name,
 		DisplayName:          env.displayName,
+		Logo:                 applicationLogo(getenv, env.logoKey),
 		ClientID:             clientID,
 		ClientSecret:         secret,
 		RedirectURIs:         redirects,
@@ -232,6 +237,7 @@ func serviceAppSpec(getenv envReader, env serviceAppEnv) (casdoor.ApplicationSpe
 	return casdoor.ApplicationSpec{
 		Name:                 name,
 		DisplayName:          env.displayName,
+		Logo:                 applicationLogo(getenv, env.prefix+"_LOGO"),
 		ClientID:             clientID,
 		ClientSecret:         secret,
 		GrantTypes:           []string{"client_credentials"},
@@ -240,6 +246,18 @@ func serviceAppSpec(getenv envReader, env serviceAppEnv) (casdoor.ApplicationSpe
 		ExpireInHours:        defaultAccessTokenHours,
 		RefreshExpireInHours: 0,
 	}, nil
+}
+
+func applicationLogo(getenv envReader, key string) string {
+	if logo := strings.TrimSpace(getenv(key)); logo != "" {
+		return logo
+	}
+
+	baseURL := strings.TrimRight(strings.TrimSpace(getenv("WEB_PUBLIC_URL")), "/")
+	if baseURL != "" {
+		return baseURL + "/android-chrome-512x512.png"
+	}
+	return defaultApplicationLogo
 }
 
 func requiredValue(getenv envReader, key string) (string, error) {

@@ -108,8 +108,9 @@ backend_cmd="
 frontend_cmd="
   cd '${REPO_ROOT}/clients' && \
   export NODE_ENV=development && \
-  export VITE_API_URL='' && \
+  export VITE_API_URL='${WEB_VITE_API_URL:-/api}' && \
   export VITE_SSO_URL='${WEB_VITE_SSO_URL:-http://localhost:8085}' && \
+  export VITE_ADMIN_URL='http://localhost:${ADMIN_DEV_PORT_SELECTED}' && \
   export VITE_API_TIMEOUT_MS='${WEB_VITE_API_TIMEOUT_MS:-15000}' && \
   export VITE_DEV_PROXY_TARGET='http://127.0.0.1:8080' && \
   exec pnpm --filter @stuhelper/web exec vite --host 127.0.0.1 --strictPort --port ${WEB_DEV_PORT_SELECTED}

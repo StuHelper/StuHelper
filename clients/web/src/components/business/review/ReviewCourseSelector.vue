@@ -3,6 +3,9 @@
         <input
             :value="query"
             autocomplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
             role="combobox"
             :aria-expanded="results.length > 0"
             aria-haspopup="listbox"

@@ -79,9 +79,11 @@ func (r *Repository) WriteEvent(ctx context.Context, event Event) error {
 
 func (r *Repository) ListAdminOperations(ctx context.Context, limit, offset int) ([]AdminOperationRecord, int, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, actor_user_id, actor_username, action, resource_type, resource_id,
-		       before_data, after_data, ip_address, user_agent, created_at,
-		       COUNT(*) OVER() AS total
+			SELECT id, COALESCE(actor_user_id, ''), COALESCE(actor_username, ''),
+			       COALESCE(action, ''), COALESCE(resource_type, ''), COALESCE(resource_id, ''),
+			       COALESCE(before_data, '{}'::jsonb), COALESCE(after_data, '{}'::jsonb),
+			       COALESCE(ip_address, ''), COALESCE(user_agent, ''), created_at,
+			       COUNT(*) OVER() AS total
 		FROM audit_events
 		WHERE category = $1
 		ORDER BY created_at DESC

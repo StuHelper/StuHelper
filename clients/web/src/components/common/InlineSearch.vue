@@ -9,6 +9,10 @@
         ref="inputRef"
         v-model="query"
         type="text"
+        autocomplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
         class="flex-1 bg-transparent border-none outline-none text-sm text-text-primary placeholder:text-text-muted min-w-0"
         :placeholder="t('review.topBar.searchPlaceholder')"
         :aria-label="t('review.topBar.searchPlaceholder')"

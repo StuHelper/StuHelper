@@ -45,6 +45,11 @@
     "authExpired": "Session expired. Please sign in again.",
     "mfaEnrollmentRequired": "Bind an MFA device in identity provider account settings first.",
     "stepUpRequired": "Complete MFA verification again.",
+    "invalidAcademicTable": "Academic table configuration is invalid. Check that the table exists.",
+    "academicTableRequired": "Configure an academic table before enabling LDAP verification.",
+    "ldapConfigRequired": "Complete the LDAP connection settings before enabling LDAP verification.",
+    "ldapConfigInvalid": "LDAP connection settings are invalid. Check the URL, Base DN, and bind account.",
+    "systemConfigNotFound": "System configuration item does not exist.",
     "requestFailed": "Request failed. Please try again later."
   },
   "layout": {
@@ -115,8 +120,11 @@
         "false_info": "False information",
         "harassment": "Harassment",
         "inappropriate": "Inappropriate content",
+        "abuse": "Abuse",
+        "illegal": "Illegal content",
         "other": "Other",
-        "spam": "Spam"
+        "spam": "Spam",
+        "unknown": "Not specified"
       },
       "reject": "Reject",
       "hideReview": "Hide Review",

@@ -163,6 +163,7 @@ export type ComponentType =
   | 'IconPicker'
   | 'Input'
   | 'InputNumber'
+  | 'Textarea'
   | 'RadioGroup'
   | 'Select'
   | 'Space'
@@ -240,6 +241,7 @@ async function initComponentAdapter() {
     }),
     Input: withDefaultPlaceholder(ElInput, 'input'),
     InputNumber: withDefaultPlaceholder(ElInputNumber, 'input'),
+    Textarea: withDefaultPlaceholder(ElInput, 'input', { type: 'textarea' }),
     RadioGroup: (props, { attrs, slots }) => {
       let defaultSlot;
       if (Reflect.has(slots, 'default')) {

@@ -3,6 +3,8 @@ import { onCLS, onFCP, onINP, onLCP, onTTFB, type Metric } from "web-vitals";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 const VITALS_PATH = "/api/v1/metrics/vitals";
 const FRONTEND_ERRORS_PATH = "/api/v1/metrics/frontend-errors";
+const CSRF_COOKIE_NAME = "csrf_token";
+const CSRF_HEADER_NAME = "X-CSRF-Token";
 
 type FrontendErrorKind = "error" | "unhandledrejection";
 
@@ -13,26 +15,39 @@ function resolveApiURL(path: string): string {
     return new URL(path, base).toString();
 }
 
+function readCookie(name: string): string | null {
+    const cookies = document.cookie ? document.cookie.split(";") : [];
+    const target = `${encodeURIComponent(name)}=`;
+    for (const raw of cookies) {
+        const cookie = raw.trim();
+        if (!cookie.startsWith(target)) continue;
+        try {
+            return decodeURIComponent(cookie.slice(target.length));
+        } catch (_error) { void _error;
+            return null;
+        }
+    }
+    return null;
+}
+
 function sendBeaconJSON(path: string, payload: unknown) {
     if (typeof window === "undefined") return;
     const body = JSON.stringify(payload);
     const url = resolveApiURL(path);
-
-    if (
-        typeof navigator !== "undefined" &&
-        typeof navigator.sendBeacon === "function"
-    ) {
-        const blob = new Blob([body], { type: "application/json" });
-        navigator.sendBeacon(url, blob);
-        return;
+    const csrfToken = readCookie(CSRF_COOKIE_NAME);
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+    };
+    if (csrfToken) {
+        headers[CSRF_HEADER_NAME] = csrfToken;
     }
 
     void fetch(url, {
         method: "POST",
         body,
-        headers: { "Content-Type": "application/json" },
+        headers,
         keepalive: true,
-        credentials: "omit",
+        credentials: "include",
     }).catch(() => undefined);
 }
 
@@ -66,3 +81,10 @@ export function initObservability() {
         reportFrontendError("unhandledrejection", reason);
     });
 }
+
+export const observabilityTestInternals =
+    import.meta.env.MODE === "test"
+        ? {
+            sendBeaconJSON,
+        }
+        : undefined;

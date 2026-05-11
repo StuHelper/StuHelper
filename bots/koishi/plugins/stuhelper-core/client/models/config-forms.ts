@@ -24,6 +24,60 @@ export interface PolicyFormState {
   rolesText: string
 }
 
+export function createTemplateForm(): TemplateFormState {
+  return {
+    id: '',
+    name: '',
+    muteDurationSeconds: 1800,
+    kickAfterMinutes: 30,
+    reminderTemplate: '',
+    exemptUsersText: '',
+    enabled: true,
+  }
+}
+
+export function createBindingForm(): BindingFormState {
+  return {
+    platform: 'onebot',
+    guildId: '',
+    templateId: '',
+    note: '',
+    enabled: true,
+  }
+}
+
+export function createPolicyForm(): PolicyFormState {
+  return {
+    commandId: '',
+    minAuthority: 3,
+    rolesText: '',
+  }
+}
+
+export function assignTemplateFormState(state: TemplateFormState, source: TemplateFormState) {
+  state.id = source.id
+  state.name = source.name
+  state.muteDurationSeconds = source.muteDurationSeconds
+  state.kickAfterMinutes = source.kickAfterMinutes
+  state.reminderTemplate = source.reminderTemplate
+  state.exemptUsersText = source.exemptUsersText
+  state.enabled = source.enabled
+}
+
+export function assignBindingFormState(state: BindingFormState, source: BindingFormState) {
+  state.platform = source.platform
+  state.guildId = source.guildId
+  state.templateId = source.templateId
+  state.note = source.note
+  state.enabled = source.enabled
+}
+
+export function assignPolicyFormState(state: PolicyFormState, source: PolicyFormState) {
+  state.commandId = source.commandId
+  state.minAuthority = source.minAuthority
+  state.rolesText = source.rolesText
+}
+
 export function assignTemplateForm(
   state: TemplateFormState,
   item: ConfigGovernancePageData['templates'][number],

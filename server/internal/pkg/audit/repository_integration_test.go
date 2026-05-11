@@ -52,6 +52,34 @@ func TestRepository_WriteListAndCleanupAdminOperations(t *testing.T) {
 	assert.EqualValues(t, 1, deleted)
 }
 
+func TestRepository_ListAdminOperationsHandlesNullableRequestFields(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	require.NoError(t, repo.WriteEvent(ctx, Event{
+		Type:         EventType("member_blacklist.created"),
+		Category:     "admin_operation",
+		ActorType:    "system",
+		Action:       "create",
+		ResourceType: "member_blacklist.entry",
+		ResourceID:   "entry-1",
+		Result:       "success",
+	}))
+
+	logs, total, err := repo.ListAdminOperations(ctx, 20, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	require.Len(t, logs, 1)
+	assert.Equal(t, "", logs[0].ActorUserID)
+	assert.Equal(t, "", logs[0].ActorUsername)
+	assert.Equal(t, "", logs[0].IPAddress)
+	assert.Equal(t, "", logs[0].UserAgent)
+	assert.Equal(t, "member_blacklist.entry", logs[0].ResourceType)
+	assert.JSONEq(t, `{}`, string(logs[0].BeforeData))
+	assert.JSONEq(t, `{}`, string(logs[0].AfterData))
+}
+
 func TestRepository_CleanupAdminOperationsPreservesIAMEvents(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

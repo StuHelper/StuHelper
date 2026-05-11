@@ -2,6 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  assignBindingFormState,
+  assignPolicyFormState,
+  assignTemplateFormState,
+  createBindingForm,
+  createPolicyForm,
+  createTemplateForm,
+} from './config-forms'
+import {
   DISCARD_CHANGES_MESSAGE,
   cloneBindingForm,
   clonePolicyForm,
@@ -42,6 +50,41 @@ test('config editor form snapshots detect dirty state per form', () => {
   assert.equal(isTemplateFormDirty({ ...template, name: '升级模板' }, template), true)
   assert.equal(isBindingFormDirty({ ...binding, note: '分群' }, binding), true)
   assert.equal(isPolicyFormDirty({ ...policy, minAuthority: 4 }, policy), true)
+})
+
+test('config editor default new-record snapshots start clean', () => {
+  const template = createTemplateForm()
+  const binding = createBindingForm()
+  const policy = createPolicyForm()
+
+  assert.equal(isTemplateFormDirty(template, cloneTemplateForm(template)), false)
+  assert.equal(isBindingFormDirty(binding, cloneBindingForm(binding)), false)
+  assert.equal(isPolicyFormDirty(policy, clonePolicyForm(policy)), false)
+
+  assert.equal(isTemplateFormDirty({ ...template, id: 'draft' }, template), true)
+  assert.equal(isBindingFormDirty({ ...binding, guildId: '1001' }, binding), true)
+  assert.equal(isPolicyFormDirty({ ...policy, commandId: 'report' }, policy), true)
+})
+
+test('config editor can restore form state from snapshots after discard', () => {
+  const template = createTemplateForm()
+  const binding = createBindingForm()
+  const policy = createPolicyForm()
+  const templateSnapshot = cloneTemplateForm(template)
+  const bindingSnapshot = cloneBindingForm(binding)
+  const policySnapshot = clonePolicyForm(policy)
+
+  template.id = 'draft'
+  binding.guildId = '1001'
+  policy.commandId = 'report'
+
+  assignTemplateFormState(template, templateSnapshot)
+  assignBindingFormState(binding, bindingSnapshot)
+  assignPolicyFormState(policy, policySnapshot)
+
+  assert.equal(isTemplateFormDirty(template, templateSnapshot), false)
+  assert.equal(isBindingFormDirty(binding, bindingSnapshot), false)
+  assert.equal(isPolicyFormDirty(policy, policySnapshot), false)
 })
 
 test('confirmDiscardChanges skips confirmation when the form is clean', () => {

@@ -54,6 +54,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return fmt.Errorf("failed to create FGA client: %w", err)
 	}
+	rt.fgaClient = fgaClient
 
 	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
 	roleScopeResolver, err := platformauth.NewRoleScopeResolver(fgaClient, userRepo.GetInternalUserID)

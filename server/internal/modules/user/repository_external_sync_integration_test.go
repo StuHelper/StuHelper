@@ -92,6 +92,7 @@ func TestExternalSyncOutbox_ClaimSplitsAcrossIAMStreams(t *testing.T) {
 		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeVerifiedStudentRole, verifiedStudentRoleSyncKey(userID))
 		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeUserProfileProjection, userProfileProjectionKey(userID))
 	}
+	upsertForeignOpenFGAJob(t, fixture, ctx)
 
 	jobs, err := repo.ClaimExternalSyncJobs(ctx, 4, time.Minute)
 	require.NoError(t, err)
@@ -103,6 +104,7 @@ func TestExternalSyncOutbox_ClaimSplitsAcrossIAMStreams(t *testing.T) {
 	}
 	assert.Equal(t, 2, counts[externalSyncJobTypeVerifiedStudentRole])
 	assert.Equal(t, 2, counts[externalSyncJobTypeUserProfileProjection])
+	assertExternalSyncJobStatus(t, fixture, "review-relations:foreign", "pending")
 }
 
 func TestListStudentRoleProjectionStates(t *testing.T) {
@@ -135,10 +137,33 @@ func upsertExternalSyncJob(t *testing.T, repo *Repository, ctx context.Context, 
 	require.NoError(t, err)
 }
 
+func upsertForeignOpenFGAJob(t *testing.T, fixture *postgresfixture.Fixture, ctx context.Context) {
+	t.Helper()
+	err := fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		return outbox.UpsertJobTx(
+			ctx,
+			tx,
+			outbox.StreamIAMOpenFGATupleSync,
+			"review_relations",
+			"review-relations:foreign",
+			[]byte(`{"reviewID":"foreign","authorUserID":"u-1","schoolID":10006}`),
+		)
+	})
+	require.NoError(t, err)
+}
+
 func assertExternalSyncStream(t *testing.T, fixture *postgresfixture.Fixture, dedupeKey, want string) {
 	t.Helper()
 	var got string
 	err := fixture.Pool.QueryRow(context.Background(), `SELECT stream FROM domain_event_outbox WHERE dedupe_key = $1`, dedupeKey).Scan(&got)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+func assertExternalSyncJobStatus(t *testing.T, fixture *postgresfixture.Fixture, dedupeKey, want string) {
+	t.Helper()
+	var got string
+	err := fixture.Pool.QueryRow(context.Background(), `SELECT status FROM domain_event_outbox WHERE dedupe_key = $1`, dedupeKey).Scan(&got)
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }

@@ -164,7 +164,23 @@ fi
 
 ensure_value "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev"
 ensure_value "APP_ENV" "${APP_ENV:-}" "development"
-ensure_dev_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "http://localhost:3000,http://localhost:3001" "http://localhost:5173,http://localhost:3001"
+ensure_dev_default "API_IP_RATE_LIMIT" "${API_IP_RATE_LIMIT:-}" "5000" "100"
+ensure_dev_default "API_GLOBAL_RATE_LIMIT" "${API_GLOBAL_RATE_LIMIT:-}" "50000" "10000"
+ensure_dev_default "REVIEW_RATE_POST_LIMIT" "${REVIEW_RATE_POST_LIMIT:-}" "500" "5"
+ensure_dev_default "REVIEW_RATE_VOTE_LIMIT" "${REVIEW_RATE_VOTE_LIMIT:-}" "500" "30"
+ensure_dev_default "REVIEW_RATE_REPORT_LIMIT" "${REVIEW_RATE_REPORT_LIMIT:-}" "500" "10"
+ensure_dev_default "REVIEW_RATE_REPLY_LIMIT" "${REVIEW_RATE_REPLY_LIMIT:-}" "500" "10"
+ensure_dev_default "REVIEW_RATE_WRITE_LIMIT" "${REVIEW_RATE_WRITE_LIMIT:-}" "500" "10"
+ensure_dev_default "REVIEW_RATE_SEARCH_ANON_LIMIT" "${REVIEW_RATE_SEARCH_ANON_LIMIT:-}" "500" "5"
+ensure_dev_default "REVIEW_RATE_SEARCH_USER_LIMIT" "${REVIEW_RATE_SEARCH_USER_LIMIT:-}" "500" "60"
+ensure_dev_default "REVIEW_RATE_BATCH_ANON_LIMIT" "${REVIEW_RATE_BATCH_ANON_LIMIT:-}" "500" "5"
+ensure_dev_default "REVIEW_RATE_BATCH_USER_LIMIT" "${REVIEW_RATE_BATCH_USER_LIMIT:-}" "500" "60"
+ensure_dev_default \
+  "CORS_ORIGINS" \
+  "${CORS_ORIGINS:-}" \
+  "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001" \
+  "http://localhost:3000,http://localhost:3001" \
+  "http://localhost:5173,http://localhost:3001"
 load_env
 
 ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-}@localhost:5432/stuhelper?sslmode=disable"
@@ -200,7 +216,7 @@ ensure_value "CASDOOR_EMAIL_PROVIDER_ENABLED" "${CASDOOR_EMAIL_PROVIDER_ENABLED:
 ensure_value "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "http://localhost:3000"
 ensure_value "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "http://localhost:${ADMIN_EXTERNAL_PORT:-3001}"
 ensure_value "STUHELPER_PLATFORM_BASE_URL" "${STUHELPER_PLATFORM_BASE_URL:-}" "http://localhost:8080"
-ensure_value "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" ""
+ensure_dev_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
 ensure_dev_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "http://localhost:8085" "http://host.docker.internal:8085"
 ensure_value "WEB_VITE_API_TIMEOUT_MS" "${WEB_VITE_API_TIMEOUT_MS:-}" "15000"
 ensure_value "ADMIN_VITE_API_URL" "${ADMIN_VITE_API_URL:-}" "/api/v1"

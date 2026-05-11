@@ -8,6 +8,14 @@ import ReplyForm from '@/components/business/review/ReplyForm.vue'
 
 import type { Reply } from '@stuhelper/shared/reply'
 
+type ReplyFormExpose = InstanceType<typeof ReplyForm>
+type ReplyFormRefValue = ReplyFormExpose | ReplyFormExpose[] | null
+
+function clearReplyForm(refValue: ReplyFormRefValue) {
+  const form = Array.isArray(refValue) ? refValue.find(Boolean) : refValue
+  form?.clear()
+}
+
 export function useReviewReplies() {
   const { t } = useI18n()
   const toast = useToast()
@@ -17,7 +25,7 @@ export function useReviewReplies() {
   const repliesLoading = ref(false)
   const repliesError = ref(false)
   const replySubmitting = ref(false)
-  const replyFormRef = ref<InstanceType<typeof ReplyForm> | null>(null)
+  const replyFormRef = ref<ReplyFormRefValue>(null)
   const replyCountMap = reactive<Record<string, number>>({})
   let repliesRequestSeq = 0
 
@@ -57,7 +65,7 @@ export function useReviewReplies() {
       if (res.data?.data) {
         replies.value = [...replies.value, res.data.data]
         replyCountMap[reviewId] = (replyCountMap[reviewId] ?? 0) + 1
-        replyFormRef.value?.clear()
+        clearReplyForm(replyFormRef.value)
         toast.success(t('review.review.replySuccess'))
       }
     } catch (err: unknown) {

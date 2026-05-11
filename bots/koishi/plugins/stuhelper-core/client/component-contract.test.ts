@@ -119,6 +119,16 @@ test('EntityChip owns click propagation so row-level handlers do not also fire',
   assert.match(source, /event\.stopPropagation\(\)/)
 })
 
+test('QueueTable keeps wide data sets horizontally scrollable', () => {
+  const source = readClientFile('./components/primitives/QueueTable.vue')
+
+  assert.match(source, /:style="tableStyle"/)
+  assert.match(source, /const DEFAULT_COLUMN_WIDTH = 160/)
+  assert.match(source, /const ACTIONS_COLUMN_WIDTH = '120'/)
+  assert.match(source, /minWidth: `\$\{calculateTableMinWidth\(\)\}px`/)
+  assert.match(source, /:width="ACTIONS_COLUMN_WIDTH"/)
+})
+
 test('SearchPanel escape does not bubble into the AppShell escape chain', () => {
   const searchSource = readClientFile('./components/shell/SearchPanel.vue')
   const shellSource = readClientFile('./components/shell/AppShell.vue')
