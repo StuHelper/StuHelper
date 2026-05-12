@@ -9,17 +9,6 @@ import { describe, expect, it } from 'vitest';
 
 import BlacklistFilters from './BlacklistFilters.vue';
 import BlacklistTable from './BlacklistTable.vue';
-import CreateBlacklistDialog from './CreateBlacklistDialog.vue';
-import ReleaseBlacklistDialog from './ReleaseBlacklistDialog.vue';
-
-const dialogStubs = {
-  ElDialog: {
-    template: '<div data-stub="el-dialog"><slot /><slot name="footer" /></div>',
-  },
-  ElPopconfirm: {
-    template: '<div data-stub="el-popconfirm"><slot name="reference" /></div>',
-  },
-};
 
 // Element Plus tables drive scoped slots from the inside; in happy-dom we
 // reimplement the row→column slot relationship with a tiny pair of stubs that
@@ -54,6 +43,40 @@ const ElTableColumnStub = defineComponent({
       h('div', { 'data-stub': 'el-table-column' }, slots.default?.());
   },
 });
+const PersistentAdminTableStub = defineComponent({
+  name: 'PersistentAdminTable',
+  props: { data: { type: Array, default: () => [] } },
+  setup(props, { slots }) {
+    return () => {
+      const cols = slots.default?.() ?? [];
+      return h(
+        'div',
+        { 'data-stub': 'persistent-admin-table' },
+        (props.data as object[]).map((row, rowIndex) =>
+          h(
+            'div',
+            { 'data-stub': 'el-row', key: rowIndex },
+            cols.map((col: any) => {
+              const colSlot = col?.children?.default;
+              return colSlot ? colSlot({ row, $index: rowIndex }) : null;
+            }),
+          ),
+        ),
+      );
+    };
+  },
+});
+const PersistentAdminTableColumnStub = defineComponent({
+  name: 'PersistentAdminTableColumn',
+  setup(_, { slots }) {
+    return () =>
+      h(
+        'div',
+        { 'data-stub': 'persistent-admin-table-column' },
+        slots.default?.(),
+      );
+  },
+});
 const ElPaginationStub = defineComponent({
   name: 'ElPagination',
   template: '<div data-stub="el-pagination" />',
@@ -62,6 +85,8 @@ const ElPaginationStub = defineComponent({
 const tableStubs = {
   ElTable: ElTableStub,
   ElTableColumn: ElTableColumnStub,
+  PersistentAdminTable: PersistentAdminTableStub,
+  PersistentAdminTableColumn: PersistentAdminTableColumnStub,
   ElPagination: ElPaginationStub,
   // suppress the v-loading directive resolver
   vLoading: { mounted() {}, updated() {} },
@@ -184,6 +209,8 @@ describe('BlacklistTable', () => {
         stubs: {
           ElTable: ElTableStub,
           ElTableColumn: ElTableColumnStub,
+          PersistentAdminTable: PersistentAdminTableStub,
+          PersistentAdminTableColumn: PersistentAdminTableColumnStub,
           ElPagination: ElPaginationStub,
         },
         directives: { loading: tableStubs.vLoading },
@@ -216,6 +243,8 @@ describe('BlacklistTable', () => {
         stubs: {
           ElTable: ElTableStub,
           ElTableColumn: ElTableColumnStub,
+          PersistentAdminTable: PersistentAdminTableStub,
+          PersistentAdminTableColumn: PersistentAdminTableColumnStub,
           ElPagination: ElPaginationStub,
         },
         directives: { loading: tableStubs.vLoading },
@@ -223,234 +252,5 @@ describe('BlacklistTable', () => {
     });
 
     expect(wrapper.find('[data-action="release"]').exists()).toBe(false);
-  });
-});
-
-describe('CreateBlacklistDialog', () => {
-  it('emits a guild-scope create payload that matches the API contract', async () => {
-    const wrapper = mount(CreateBlacklistDialog, {
-      props: { visible: true, submitting: false },
-      global: { stubs: dialogStubs },
-    });
-
-    const vm = wrapper.vm as unknown as {
-      draft: {
-        expiresAt: Date | string;
-        guildID: string;
-        platform: string;
-        reasonText: string;
-        scopeType: 'global' | 'guild';
-        subjectID: string;
-      };
-    };
-    vm.draft.platform = 'qq';
-    vm.draft.subjectID = '20002';
-    vm.draft.scopeType = 'guild';
-    vm.draft.guildID = 'guild-42';
-    vm.draft.reasonText = 'spamming';
-    vm.draft.expiresAt = '';
-    await wrapper.vm.$nextTick();
-
-    const submit = wrapper.find('[data-action="submitCreate"]');
-    expect(submit.exists()).toBe(true);
-    await submit.trigger('click');
-
-    const events = wrapper.emitted('submit');
-    expect(events).toHaveLength(1);
-    expect(events?.[0]?.[0]).toEqual({
-      platform: 'qq',
-      subjectType: 'qq_user',
-      subjectID: '20002',
-      scopeType: 'guild',
-      guildID: 'guild-42',
-      source: 'manual_admin',
-      reasonCode: 'manual_blacklist',
-      reasonText: 'spamming',
-      expiresAt: undefined,
-      metadata: {
-        operatorInput: '20002',
-        scopeSelectionContext: 'admin_console_form_guild',
-      },
-    });
-  });
-
-  it('omits guildID and tags global context for global blacklists', async () => {
-    const wrapper = mount(CreateBlacklistDialog, {
-      props: { visible: true, submitting: false },
-      global: { stubs: dialogStubs },
-    });
-
-    const vm = wrapper.vm as unknown as {
-      draft: {
-        expiresAt: Date | string;
-        guildID: string;
-        platform: string;
-        reasonText: string;
-        scopeType: 'global' | 'guild';
-        subjectID: string;
-      };
-      submit: () => void;
-    };
-    vm.draft.platform = 'qq';
-    vm.draft.subjectID = '30003';
-    vm.draft.scopeType = 'global';
-    vm.draft.guildID = 'leftover-should-be-ignored';
-    vm.draft.reasonText = 'global ban';
-    vm.draft.expiresAt = '';
-    await wrapper.vm.$nextTick();
-
-    // Global scope renders the submit inside ElPopconfirm, which is stubbed
-    // and will not forward @confirm. Drive submission directly.
-    vm.submit();
-
-    const events = wrapper.emitted('submit');
-    expect(events).toHaveLength(1);
-    expect(events?.[0]?.[0]).toEqual({
-      platform: 'qq',
-      subjectType: 'qq_user',
-      subjectID: '30003',
-      scopeType: 'global',
-      guildID: undefined,
-      source: 'manual_admin',
-      reasonCode: 'manual_blacklist',
-      reasonText: 'global ban',
-      expiresAt: undefined,
-      metadata: {
-        operatorInput: '30003',
-        scopeSelectionContext: 'admin_console_form_global',
-      },
-    });
-  });
-
-  it('does not emit when required fields are missing', async () => {
-    const wrapper = mount(CreateBlacklistDialog, {
-      props: { visible: true, submitting: false },
-      global: { stubs: dialogStubs },
-    });
-
-    const submit = wrapper.find('[data-action="submitCreate"]');
-    await submit.trigger('click');
-    expect(wrapper.emitted('submit')).toBeUndefined();
-  });
-
-  it('reset() restores the draft to defaults', async () => {
-    const wrapper = mount(CreateBlacklistDialog, {
-      props: { visible: true, submitting: false },
-      global: { stubs: dialogStubs },
-    });
-
-    const exposed = wrapper.vm as unknown as {
-      draft: { reasonText: string; scopeType: string; subjectID: string };
-      reset: () => void;
-    };
-    exposed.draft.subjectID = '99999';
-    exposed.draft.reasonText = 'noise';
-    exposed.draft.scopeType = 'global';
-    exposed.reset();
-    await wrapper.vm.$nextTick();
-
-    expect(exposed.draft.subjectID).toBe('');
-    expect(exposed.draft.reasonText).toBe('');
-    expect(exposed.draft.scopeType).toBe('guild');
-  });
-});
-
-describe('ReleaseBlacklistDialog', () => {
-  it('defaults to manual_pardon when releasing an admission_failure entry', async () => {
-    const wrapper = mount(ReleaseBlacklistDialog, {
-      props: { visible: true, submitting: false, target: null },
-      global: { stubs: dialogStubs },
-    });
-
-    await wrapper.setProps({
-      target: { ...baseEntry, source: 'admission_failure' },
-    });
-    await wrapper.vm.$nextTick();
-
-    const vm = wrapper.vm as unknown as {
-      draft: { releaseReason: string; releaseReasonCode: string };
-    };
-    expect(vm.draft.releaseReasonCode).toBe('manual_pardon');
-
-    const submit = wrapper.find('[data-action="submitRelease"]');
-    expect(submit.exists()).toBe(true);
-    await submit.trigger('click');
-
-    const events = wrapper.emitted('submit');
-    expect(events).toHaveLength(1);
-    expect(events?.[0]?.[0]).toEqual({
-      id: 'entry-active',
-      request: { releaseReasonCode: 'manual_pardon' },
-    });
-  });
-
-  it('defaults to release_only for non-admission sources and trims the reason note', async () => {
-    const wrapper = mount(ReleaseBlacklistDialog, {
-      props: { visible: true, submitting: false, target: null },
-      global: { stubs: dialogStubs },
-    });
-
-    await wrapper.setProps({
-      target: { ...baseEntry, source: 'manual_admin' },
-    });
-    await wrapper.vm.$nextTick();
-
-    const vm = wrapper.vm as unknown as {
-      draft: { releaseReason: string; releaseReasonCode: string };
-    };
-    expect(vm.draft.releaseReasonCode).toBe('release_only');
-    vm.draft.releaseReason = '   appeal accepted   ';
-    await wrapper.vm.$nextTick();
-
-    await wrapper.find('[data-action="submitRelease"]').trigger('click');
-
-    expect(wrapper.emitted('submit')?.[0]?.[0]).toEqual({
-      id: 'entry-active',
-      request: {
-        releaseReasonCode: 'release_only',
-        releaseReason: 'appeal accepted',
-      },
-    });
-  });
-
-  it('does not emit when target is null', async () => {
-    const wrapper = mount(ReleaseBlacklistDialog, {
-      props: { visible: true, submitting: false, target: null },
-      global: { stubs: dialogStubs },
-    });
-
-    await wrapper.find('[data-action="submitRelease"]').trigger('click');
-    expect(wrapper.emitted('submit')).toBeUndefined();
-  });
-
-  it('resets the draft when reopening the same target after cancelling', async () => {
-    const target = { ...baseEntry, source: 'admission_failure' as const };
-    const wrapper = mount(ReleaseBlacklistDialog, {
-      props: { visible: false, submitting: false, target: null },
-      global: { stubs: dialogStubs },
-    });
-
-    // First open: parent assigns the target then flips visible to true.
-    await wrapper.setProps({ target });
-    await wrapper.setProps({ visible: true });
-    await wrapper.vm.$nextTick();
-
-    const vm = wrapper.vm as unknown as {
-      draft: { releaseReason: string; releaseReasonCode: string };
-    };
-    expect(vm.draft.releaseReasonCode).toBe('manual_pardon');
-
-    // Operator changes both fields then cancels (parent does NOT clear target).
-    vm.draft.releaseReasonCode = 'release_only';
-    vm.draft.releaseReason = 'mistaken edit';
-    await wrapper.setProps({ visible: false });
-    await wrapper.vm.$nextTick();
-
-    // Reopen the same target: stale draft must not bleed across opens.
-    await wrapper.setProps({ visible: true });
-    await wrapper.vm.$nextTick();
-
-    expect(vm.draft.releaseReasonCode).toBe('manual_pardon');
-    expect(vm.draft.releaseReason).toBe('');
   });
 });

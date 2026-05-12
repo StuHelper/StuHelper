@@ -7,15 +7,22 @@ import {
   ElButton,
   ElOption,
   ElPagination,
-  ElPopconfirm,
   ElSelect,
-  ElTable,
-  ElTableColumn,
   ElTag,
 } from 'element-plus';
 
 import { getReviewList, updateReview } from '#/api/admin';
 import { $t } from '#/locales';
+
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
+import {
+  compactID,
+  formatAdminDateTime,
+  formatNullableText,
+} from '../../shared/display';
+import ReviewActions from './ReviewActions.vue';
 
 const loading = ref(false);
 const actionLoading = ref(false);
@@ -82,16 +89,30 @@ const statusTag = (
   return map[status] || 'warning';
 };
 
+const statusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    published: $t('admin.content.reviews.status.published'),
+    pending_review: $t('admin.content.reviews.status.pendingReview'),
+    hidden: $t('admin.content.reviews.status.hidden'),
+    deleted: $t('admin.content.reviews.status.deleted'),
+  };
+  return map[status] || status;
+};
+
 onMounted(fetchData);
 </script>
 
 <template>
-  <div class="p-4">
-    <div class="mb-4 flex items-center gap-3">
+  <AdminContentLayout
+    :title="$t('admin.routes.content.reviews')"
+    :total="total"
+  >
+    <template #toolbar>
       <ElSelect
         v-model="query.status"
+        class="admin-toolbar-control"
         :placeholder="$t('admin.common.status')"
-        style="width: 120px"
+        :teleported="false"
         @change="fetchData"
       >
         <ElOption :label="$t('admin.common.all')" value="all" />
@@ -115,132 +136,116 @@ onMounted(fetchData);
       <ElButton type="primary" @click="fetchData">
         {{ $t('admin.common.query') }}
       </ElButton>
-    </div>
+    </template>
 
-    <ElTable v-loading="loading" :data="reviews" stripe>
-      <ElTableColumn :label="$t('admin.common.id')" prop="id" width="70" />
-      <ElTableColumn
+    <PersistentAdminTable
+      table-key="content.reviews"
+      :loading="loading"
+      :data="reviews"
+      row-key="id"
+      stripe
+    >
+      <PersistentAdminTableColumn
+        column-key="id"
+        :label="$t('admin.common.id')"
+        :default-width="148"
+      >
+        <template #default="{ row }">
+          <span class="admin-id-token" :title="row.id">
+            {{ compactID(row.id) }}
+          </span>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="courseName"
         :label="$t('admin.content.reviews.course')"
-        min-width="120"
+        :default-min-width="140"
         prop="courseName"
+        show-overflow-tooltip
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="teacherName"
         :label="$t('admin.content.reviews.teacher')"
-        min-width="120"
+        :default-min-width="120"
+        show-overflow-tooltip
       >
         <template #default="{ row }">
           {{ row.teacherName || $t('admin.content.reviews.teacherUnlinked') }}
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="title"
         :label="$t('admin.common.title')"
-        min-width="140"
-        prop="title"
-      />
-      <ElTableColumn
-        :label="$t('admin.common.content')"
-        min-width="200"
-        prop="content"
+        :default-min-width="180"
         show-overflow-tooltip
-      />
-      <ElTableColumn :label="$t('admin.content.reviews.rating')" width="70">
-        <template #default="{ row }">
-          {{ averageRating(row.ratings) }}
-        </template>
-      </ElTableColumn>
-      <ElTableColumn :label="$t('admin.common.status')" width="90">
-        <template #default="{ row }">
-          <ElTag :type="statusTag(row.status)" size="small">
-            {{
-              row.status === 'published'
-                ? $t('admin.content.reviews.status.published')
-                : row.status === 'pending_review'
-                  ? $t('admin.content.reviews.status.pendingReview')
-                  : row.status === 'hidden'
-                    ? $t('admin.content.reviews.status.hidden')
-                    : $t('admin.content.reviews.status.deleted')
-            }}
-          </ElTag>
-        </template>
-      </ElTableColumn>
-      <ElTableColumn
-        :label="$t('admin.common.createdAt')"
-        prop="createdAt"
-        width="170"
-      />
-      <ElTableColumn
-        fixed="right"
-        :label="$t('admin.common.actions')"
-        width="180"
       >
         <template #default="{ row }">
-          <template
-            v-if="row.status === 'published' || row.status === 'pending_review'"
-          >
-            <ElPopconfirm
-              v-if="row.status === 'pending_review'"
-              :title="$t('admin.content.reviews.confirmApprove')"
-              @confirm="handleAction(row.id, 'restore')"
-            >
-              <template #reference>
-                <ElButton
-                  link
-                  size="small"
-                  type="success"
-                  :disabled="actionLoading"
-                >
-                  {{ $t('admin.content.reviews.approve') }}
-                </ElButton>
-              </template>
-            </ElPopconfirm>
-            <ElPopconfirm
-              :title="$t('admin.content.reviews.confirmHide')"
-              @confirm="handleAction(row.id, 'hide')"
-            >
-              <template #reference>
-                <ElButton
-                  link
-                  size="small"
-                  type="warning"
-                  :disabled="actionLoading"
-                >
-                  {{ $t('admin.content.reviews.hide') }}
-                </ElButton>
-              </template>
-            </ElPopconfirm>
-          </template>
-          <template v-if="row.status === 'hidden'">
-            <ElButton
-              link
-              size="small"
-              type="success"
-              :disabled="actionLoading"
-              @click="handleAction(row.id, 'restore')"
-            >
-              {{ $t('admin.content.reviews.restore') }}
-            </ElButton>
-          </template>
-          <ElPopconfirm
-            v-if="row.status !== 'deleted'"
-            :title="$t('admin.content.reviews.confirmDelete')"
-            @confirm="handleAction(row.id, 'delete')"
-          >
-            <template #reference>
-              <ElButton
-                link
-                size="small"
-                type="danger"
-                :disabled="actionLoading"
-              >
-                {{ $t('admin.common.delete') }}
-              </ElButton>
-            </template>
-          </ElPopconfirm>
+          <div class="admin-cell-title" :title="row.title">
+            {{ formatNullableText(row.title) }}
+          </div>
         </template>
-      </ElTableColumn>
-    </ElTable>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="content"
+        :label="$t('admin.common.content')"
+        :default-min-width="260"
+        show-overflow-tooltip
+      >
+        <template #default="{ row }">
+          <div class="admin-cell-body" :title="row.content">
+            {{ formatNullableText(row.content) }}
+          </div>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        align="center"
+        column-key="rating"
+        :label="$t('admin.content.reviews.rating')"
+        :default-width="82"
+      >
+        <template #default="{ row }">
+          <span class="admin-number">{{ averageRating(row.ratings) }}</span>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="status"
+        :label="$t('admin.common.status')"
+        :default-width="104"
+      >
+        <template #default="{ row }">
+          <ElTag :type="statusTag(row.status)" size="small">
+            {{ statusLabel(row.status) }}
+          </ElTag>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="createdAt"
+        :label="$t('admin.common.createdAt')"
+        :default-width="148"
+      >
+        <template #default="{ row }">
+          <span class="admin-cell-muted">
+            {{ formatAdminDateTime(row.createdAt) }}
+          </span>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="actions"
+        fixed="right"
+        :label="$t('admin.common.actions')"
+        :default-width="190"
+      >
+        <template #default="{ row }">
+          <ReviewActions
+            :row="row"
+            :action-loading="actionLoading"
+            @action="handleAction"
+          />
+        </template>
+      </PersistentAdminTableColumn>
+    </PersistentAdminTable>
 
-    <div class="mt-4 flex justify-end">
+    <template #pagination>
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
@@ -248,6 +253,6 @@ onMounted(fetchData);
         layout="total, prev, pager, next"
         @current-change="fetchData"
       />
-    </div>
-  </div>
+    </template>
+  </AdminContentLayout>
 </template>

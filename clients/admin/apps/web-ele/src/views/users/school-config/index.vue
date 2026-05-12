@@ -5,23 +5,15 @@ import { onMounted, reactive, ref } from 'vue';
 
 import { useAccessStore } from '@vben/stores';
 
-import {
-  ElButton,
-  ElDialog,
-  ElForm,
-  ElFormItem,
-  ElInput,
-  ElMessage,
-  ElOption,
-  ElSelect,
-  ElSwitch,
-  ElTable,
-  ElTableColumn,
-  ElTag,
-} from 'element-plus';
+import { ElButton, ElMessage, ElTag } from 'element-plus';
 
 import { getSchoolConfigList, updateSchoolConfig } from '#/api/admin';
 import { $t } from '#/locales';
+
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
+import SchoolConfigDialog from './SchoolConfigDialog.vue';
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -114,21 +106,34 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="p-4">
-    <ElTable v-loading="loading" :data="schools" stripe>
-      <ElTableColumn
+  <AdminContentLayout
+    :title="$t('admin.routes.userSystem.schoolConfig')"
+    :total="schools.length"
+  >
+    <PersistentAdminTable
+      table-key="users.schoolConfig"
+      :loading="loading"
+      :data="schools"
+      row-key="schoolID"
+      stripe
+    >
+      <PersistentAdminTableColumn
+        column-key="schoolID"
         :label="$t('admin.users.schoolConfig.schoolId')"
         prop="schoolID"
-        width="100"
+        :default-width="112"
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="schoolName"
         :label="$t('admin.users.schoolConfig.schoolName')"
-        min-width="180"
+        :default-min-width="200"
         prop="schoolName"
+        show-overflow-tooltip
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="verificationMethod"
         :label="$t('admin.users.schoolConfig.verificationMethod')"
-        width="110"
+        :default-width="128"
       >
         <template #default="{ row }">
           <ElTag
@@ -142,10 +147,11 @@ onMounted(fetchData);
             }}
           </ElTag>
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="enabled"
         :label="$t('admin.users.schoolConfig.enabledStatus')"
-        width="100"
+        :default-width="112"
       >
         <template #default="{ row }">
           <ElTag :type="row.enabled ? 'success' : 'danger'" size="small">
@@ -156,127 +162,38 @@ onMounted(fetchData);
             }}
           </ElTag>
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="ldapURL"
         :label="$t('admin.users.schoolConfig.ldapUrl')"
-        min-width="200"
+        :default-min-width="220"
+        show-overflow-tooltip
       >
         <template #default="{ row }">
           {{ row.ldapConfig?.url || $t('admin.common.unavailable') }}
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
         v-if="canUpdateSchoolConfig()"
+        column-key="actions"
         fixed="right"
         :label="$t('admin.common.actions')"
-        width="90"
+        :default-width="100"
       >
         <template #default="{ row }">
-          <ElButton link size="small" type="primary" @click="openEdit(row)">
+          <ElButton plain size="small" type="primary" @click="openEdit(row)">
             {{ $t('admin.common.edit') }}
           </ElButton>
         </template>
-      </ElTableColumn>
-    </ElTable>
+      </PersistentAdminTableColumn>
+    </PersistentAdminTable>
 
-    <ElDialog
-      v-model="dialogVisible"
-      :title="
-        $t('admin.users.schoolConfig.dialogTitle', {
-          schoolName: form.schoolName,
-        })
-      "
-      width="620px"
-    >
-      <ElForm label-width="120px">
-        <ElFormItem :label="$t('admin.users.schoolConfig.schoolName')">
-          <ElInput
-            v-model="form.schoolName"
-            :placeholder="$t('admin.users.schoolConfig.schoolNamePlaceholder')"
-          />
-        </ElFormItem>
-        <ElFormItem :label="$t('admin.users.schoolConfig.verificationMethod')">
-          <ElSelect v-model="form.verificationMethod" style="width: 100%">
-            <ElOption
-              :label="$t('admin.users.schoolConfig.methods.ldap')"
-              value="ldap"
-            />
-            <ElOption
-              :label="$t('admin.users.schoolConfig.methods.manual')"
-              value="manual"
-            />
-          </ElSelect>
-        </ElFormItem>
-        <ElFormItem :label="$t('admin.users.schoolConfig.enableSchool')">
-          <ElSwitch v-model="form.enabled" />
-        </ElFormItem>
-        <template v-if="form.verificationMethod === 'ldap'">
-          <ElFormItem :label="$t('admin.users.schoolConfig.ldapUrl')">
-            <ElInput
-              v-model="form.ldapURL"
-              :placeholder="$t('admin.users.schoolConfig.ldapUrlPlaceholder')"
-            />
-          </ElFormItem>
-          <ElFormItem :label="$t('admin.users.schoolConfig.baseDn')">
-            <ElInput
-              v-model="form.ldapBaseDN"
-              :placeholder="$t('admin.users.schoolConfig.baseDnPlaceholder')"
-            />
-          </ElFormItem>
-          <ElFormItem :label="$t('admin.users.schoolConfig.systemBindDn')">
-            <ElInput
-              v-model="form.systemBindDN"
-              :placeholder="
-                $t('admin.users.schoolConfig.systemBindDnPlaceholder')
-              "
-            />
-          </ElFormItem>
-          <ElFormItem
-            :label="$t('admin.users.schoolConfig.systemBindPassword')"
-          >
-            <ElInput
-              v-model="form.systemBindPassword"
-              :placeholder="
-                $t('admin.users.schoolConfig.systemBindPasswordPlaceholder')
-              "
-              show-password
-              type="password"
-            />
-          </ElFormItem>
-          <ElFormItem :label="$t('admin.users.schoolConfig.useTls')">
-            <ElSwitch v-model="form.useTLS" />
-          </ElFormItem>
-        </template>
-        <ElFormItem :label="$t('admin.users.schoolConfig.academicDbTable')">
-          <ElInput
-            v-model="form.academicDbTable"
-            :placeholder="
-              $t('admin.users.schoolConfig.academicDbTablePlaceholder')
-            "
-          />
-        </ElFormItem>
-        <ElFormItem :label="$t('admin.users.schoolConfig.consentText')">
-          <ElInput
-            v-model="form.consentText"
-            :rows="3"
-            :placeholder="$t('admin.users.schoolConfig.consentTextPlaceholder')"
-            type="textarea"
-          />
-        </ElFormItem>
-      </ElForm>
-      <template #footer>
-        <ElButton @click="dialogVisible = false">
-          {{ $t('admin.common.cancel') }}
-        </ElButton>
-        <ElButton
-          v-if="canUpdateSchoolConfig()"
-          :loading="submitting"
-          type="primary"
-          @click="handleSubmit"
-        >
-          {{ $t('admin.common.save') }}
-        </ElButton>
-      </template>
-    </ElDialog>
-  </div>
+    <SchoolConfigDialog
+      v-model:visible="dialogVisible"
+      :can-update="canUpdateSchoolConfig()"
+      :form="form"
+      :submitting="submitting"
+      @submit="handleSubmit"
+    />
+  </AdminContentLayout>
 </template>

@@ -12,8 +12,6 @@ import {
   ElMessage,
   ElPagination,
   ElPopconfirm,
-  ElTable,
-  ElTableColumn,
 } from 'element-plus';
 
 import {
@@ -23,6 +21,11 @@ import {
   updateTeacher,
 } from '#/api/admin';
 import { $t } from '#/locales';
+
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { formatAdminDateTime } from '../../shared/display';
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 
 const loading = ref(false);
 const teachers = ref<Teacher[]>([]);
@@ -110,21 +113,24 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="p-4">
-    <div class="mb-4 flex items-center gap-3">
+  <AdminContentLayout
+    :title="$t('admin.routes.content.teachers')"
+    :total="total"
+  >
+    <template #toolbar>
       <ElInput
         v-model="query.keyword"
+        class="admin-toolbar-control admin-toolbar-control--wide"
         clearable
         :placeholder="$t('admin.content.teachers.searchByName')"
-        style="width: 200px"
         @clear="fetchData"
         @keyup.enter="fetchData"
       />
       <ElInput
         v-model.number="query.departmentID"
+        class="admin-toolbar-control admin-toolbar-control--wide"
         clearable
         :placeholder="$t('admin.content.teachers.filterByDepartmentId')"
-        style="width: 200px"
         @clear="fetchData"
         @keyup.enter="fetchData"
       />
@@ -134,18 +140,32 @@ onMounted(fetchData);
       <ElButton type="success" @click="openCreate">
         {{ $t('admin.content.teachers.create') }}
       </ElButton>
-    </div>
+    </template>
 
-    <ElTable v-loading="loading" :data="teachers" stripe>
-      <ElTableColumn :label="$t('admin.common.id')" prop="id" width="70" />
-      <ElTableColumn
+    <PersistentAdminTable
+      table-key="content.teachers"
+      :loading="loading"
+      :data="teachers"
+      row-key="id"
+      stripe
+    >
+      <PersistentAdminTableColumn
+        column-key="id"
+        :label="$t('admin.common.id')"
+        prop="id"
+        :default-width="88"
+      />
+      <PersistentAdminTableColumn
+        column-key="name"
         :label="$t('admin.content.teachers.name')"
         prop="name"
-        width="120"
+        :default-width="140"
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="department"
         :label="$t('admin.content.teachers.department')"
-        min-width="150"
+        :default-min-width="180"
+        show-overflow-tooltip
       >
         <template #default="{ row }">
           {{
@@ -155,41 +175,51 @@ onMounted(fetchData);
               : $t('admin.common.notSet'))
           }}
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="reviewCount"
         :label="$t('admin.content.teachers.reviewCount')"
         prop="reviewCount"
-        width="90"
+        :default-width="100"
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="createdAt"
         :label="$t('admin.common.createdAt')"
-        prop="createdAt"
-        width="170"
-      />
-      <ElTableColumn
-        fixed="right"
-        :label="$t('admin.common.actions')"
-        width="140"
+        :default-width="148"
       >
         <template #default="{ row }">
-          <ElButton link size="small" type="primary" @click="openEdit(row)">
-            {{ $t('admin.common.edit') }}
-          </ElButton>
-          <ElPopconfirm
-            :title="$t('admin.content.teachers.confirmDelete')"
-            @confirm="handleDelete(row.id)"
-          >
-            <template #reference>
-              <ElButton link size="small" type="danger">
-                {{ $t('admin.common.delete') }}
-              </ElButton>
-            </template>
-          </ElPopconfirm>
+          <span class="admin-cell-muted">
+            {{ formatAdminDateTime(row.createdAt) }}
+          </span>
         </template>
-      </ElTableColumn>
-    </ElTable>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="actions"
+        fixed="right"
+        :label="$t('admin.common.actions')"
+        :default-width="160"
+      >
+        <template #default="{ row }">
+          <div class="admin-action-group">
+            <ElButton plain size="small" type="primary" @click="openEdit(row)">
+              {{ $t('admin.common.edit') }}
+            </ElButton>
+            <ElPopconfirm
+              :title="$t('admin.content.teachers.confirmDelete')"
+              @confirm="handleDelete(row.id)"
+            >
+              <template #reference>
+                <ElButton plain size="small" type="danger">
+                  {{ $t('admin.common.delete') }}
+                </ElButton>
+              </template>
+            </ElPopconfirm>
+          </div>
+        </template>
+      </PersistentAdminTableColumn>
+    </PersistentAdminTable>
 
-    <div class="mt-4 flex justify-end">
+    <template #pagination>
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
@@ -197,7 +227,7 @@ onMounted(fetchData);
         layout="total, prev, pager, next"
         @current-change="fetchData"
       />
-    </div>
+    </template>
 
     <!-- 新增/编辑弹窗 -->
     <ElDialog
@@ -233,5 +263,5 @@ onMounted(fetchData);
         </ElButton>
       </template>
     </ElDialog>
-  </div>
+  </AdminContentLayout>
 </template>

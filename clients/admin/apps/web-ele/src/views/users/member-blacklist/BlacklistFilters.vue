@@ -23,7 +23,7 @@ const subjectID = defineModel<string>('subjectID', { required: true });
 </script>
 
 <template>
-  <div class="mb-4 flex flex-wrap items-end gap-3">
+  <div class="flex flex-wrap items-end gap-3">
     <ElInput
       v-model="subjectID"
       clearable

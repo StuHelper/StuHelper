@@ -11,8 +11,6 @@ import {
   ElPagination,
   ElPopconfirm,
   ElSelect,
-  ElTable,
-  ElTableColumn,
   ElTag,
 } from 'element-plus';
 
@@ -22,6 +20,11 @@ import {
 } from '#/api/admin';
 import { $t } from '#/locales';
 import { SCHOOL_SCOPE_REQUIRED_ERROR, useAuthStore } from '#/store/auth';
+
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { formatAdminDateTime } from '../../shared/display';
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 
 const STUDENT_REVIEW_CAPABILITY = 'user:student:review';
 
@@ -125,12 +128,16 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="p-4">
-    <div class="mb-4 flex items-center gap-3">
+  <AdminContentLayout
+    :title="$t('admin.routes.userSystem.studentVerification')"
+    :total="total"
+  >
+    <template #toolbar>
       <ElSelect
         v-model="query.status"
+        class="admin-toolbar-control"
         :placeholder="$t('admin.users.studentVerification.statusPlaceholder')"
-        style="width: 140px"
+        :teleported="false"
         @change="fetchData"
       >
         <ElOption :label="$t('admin.common.all')" value="all" />
@@ -149,70 +156,92 @@ onMounted(fetchData);
       </ElSelect>
       <ElInput
         v-model="query.schoolId"
+        class="admin-toolbar-control admin-toolbar-control--wide"
         clearable
         :placeholder="$t('admin.users.studentVerification.schoolIdPlaceholder')"
-        style="width: 180px"
         @clear="fetchData"
         @keyup.enter="fetchData"
       />
       <ElButton type="primary" @click="fetchData">
         {{ $t('admin.common.query') }}
       </ElButton>
-    </div>
+    </template>
 
-    <ElTable v-loading="loading" :data="items" stripe>
-      <ElTableColumn
+    <PersistentAdminTable
+      table-key="users.studentVerification"
+      :loading="loading"
+      :data="items"
+      row-key="userID"
+      stripe
+    >
+      <PersistentAdminTableColumn
+        column-key="userID"
         :label="$t('admin.users.studentVerification.userId')"
         prop="userID"
-        width="80"
+        :default-width="96"
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="schoolID"
         :label="$t('admin.users.studentVerification.schoolId')"
-        min-width="140"
+        :default-min-width="140"
         prop="schoolID"
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="activeStudentID"
         :label="$t('admin.users.studentVerification.activeStudentId')"
         prop="activeStudentID"
-        width="140"
+        :default-width="220"
+        show-overflow-tooltip
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="status"
         :label="$t('admin.users.studentVerification.statusLabel')"
-        width="100"
+        :default-width="112"
       >
         <template #default="{ row }">
           <ElTag :type="statusTag(row.verificationStatus)" size="small">
             {{ statusLabel(row.verificationStatus) }}
           </ElTag>
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="verificationMethod"
         :label="$t('admin.users.studentVerification.methodLabel')"
-        width="100"
+        :default-width="112"
       >
         <template #default="{ row }">
           {{ verificationMethodLabel(row.verificationMethod) }}
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="createdAt"
         :label="$t('admin.users.studentVerification.createdAt')"
-        prop="createdAt"
-        width="170"
-      />
-      <ElTableColumn
-        fixed="right"
-        :label="$t('admin.common.actions')"
-        width="140"
+        :default-width="148"
       >
         <template #default="{ row }">
-          <template v-if="row.verificationStatus === 'pending'">
+          <span class="admin-cell-muted">
+            {{ formatAdminDateTime(row.createdAt) }}
+          </span>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="actions"
+        fixed="right"
+        :label="$t('admin.common.actions')"
+        :default-width="170"
+      >
+        <template #default="{ row }">
+          <div
+            v-if="row.verificationStatus === 'pending'"
+            class="admin-action-group"
+          >
             <ElPopconfirm
               :title="$t('admin.users.studentVerification.confirmApprove')"
               @confirm="handleReview(row.userID, true)"
             >
               <template #reference>
                 <ElButton
-                  link
+                  plain
                   size="small"
                   type="success"
                   :disabled="actionLoading"
@@ -227,7 +256,7 @@ onMounted(fetchData);
             >
               <template #reference>
                 <ElButton
-                  link
+                  plain
                   size="small"
                   type="danger"
                   :disabled="actionLoading"
@@ -236,12 +265,13 @@ onMounted(fetchData);
                 </ElButton>
               </template>
             </ElPopconfirm>
-          </template>
+          </div>
+          <span v-else class="admin-cell-muted">—</span>
         </template>
-      </ElTableColumn>
-    </ElTable>
+      </PersistentAdminTableColumn>
+    </PersistentAdminTable>
 
-    <div class="mt-4 flex justify-end">
+    <template #pagination>
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
@@ -249,6 +279,6 @@ onMounted(fetchData);
         layout="total, prev, pager, next"
         @current-change="fetchData"
       />
-    </div>
-  </div>
+    </template>
+  </AdminContentLayout>
 </template>

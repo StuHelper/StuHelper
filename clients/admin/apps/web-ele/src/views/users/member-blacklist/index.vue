@@ -20,6 +20,7 @@ import {
   releaseMemberBlacklist,
 } from '#/api/admin';
 
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import BlacklistFilters from './BlacklistFilters.vue';
 import BlacklistTable from './BlacklistTable.vue';
 import CreateBlacklistDialog from './CreateBlacklistDialog.vue';
@@ -139,19 +140,24 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="p-4">
-    <BlacklistFilters
-      v-model:platform="query.platform"
-      v-model:scope-type="query.scopeType"
-      v-model:source="query.source"
-      v-model:status="query.status"
-      v-model:guild-i-d="query.guildID"
-      v-model:subject-i-d="query.subjectID"
-      :can-manage="canManage"
-      @search="runSearch"
-      @reset="resetQuery"
-      @open-create="openCreateDialog"
-    />
+  <AdminContentLayout
+    title="成员黑名单"
+    :total="total"
+  >
+    <template #toolbar>
+      <BlacklistFilters
+        v-model:platform="query.platform"
+        v-model:scope-type="query.scopeType"
+        v-model:source="query.source"
+        v-model:status="query.status"
+        v-model:guild-i-d="query.guildID"
+        v-model:subject-i-d="query.subjectID"
+        :can-manage="canManage"
+        @search="runSearch"
+        @reset="resetQuery"
+        @open-create="openCreateDialog"
+      />
+    </template>
 
     <BlacklistTable
       v-model:page="query.page"
@@ -178,5 +184,5 @@ onMounted(fetchData);
       :submitting="releasing"
       @submit="submitRelease"
     />
-  </div>
+  </AdminContentLayout>
 </template>

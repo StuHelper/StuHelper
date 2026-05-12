@@ -3,10 +3,17 @@ import type { OperationLog } from '#/api/admin';
 
 import { onMounted, reactive, ref } from 'vue';
 
-import { ElPagination, ElTable, ElTableColumn, ElTag } from 'element-plus';
+import { ElPagination, ElTag } from 'element-plus';
 
 import { getOperationLogs } from '#/api/admin';
+import { $t } from '#/locales';
 
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { compactID, formatAdminDateTime } from '../../shared/display';
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
+
+const USER_AGENT_PREVIEW_LENGTH = 64;
 const loading = ref(false);
 const logs = ref<OperationLog[]>([]);
 const total = ref(0);
@@ -26,13 +33,15 @@ async function fetchData() {
   }
 }
 
-function formatTime(value: string) {
-  return new Date(value).toLocaleString('zh-CN', { hour12: false });
-}
-
 function formatJSON(value?: Record<string, unknown>) {
   if (!value || Object.keys(value).length === 0) return '—';
   return JSON.stringify(value);
+}
+
+function compactText(value?: null | string) {
+  if (!value) return '—';
+  if (value.length <= USER_AGENT_PREVIEW_LENGTH) return value;
+  return `${value.slice(0, USER_AGENT_PREVIEW_LENGTH)}...`;
 }
 
 function refreshPage(page: number) {
@@ -44,49 +53,91 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div v-loading="loading" class="p-4">
-    <ElTable :data="logs" border>
-      <ElTableColumn label="时间" min-width="180">
+  <AdminContentLayout :title="$t('admin.routes.content.logs')" :total="total">
+    <PersistentAdminTable
+      table-key="content.operationLogs"
+      :loading="loading"
+      :data="logs"
+      row-key="id"
+    >
+      <PersistentAdminTableColumn
+        column-key="createdAt"
+        label="时间"
+        :default-min-width="180"
+      >
         <template #default="{ row }">
-          {{ formatTime(row.createdAt) }}
+          {{ formatAdminDateTime(row.createdAt) }}
         </template>
-      </ElTableColumn>
-      <ElTableColumn label="管理员" min-width="160">
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="admin"
+        label="管理员"
+        :default-min-width="160"
+      >
         <template #default="{ row }">
           <div>{{ row.adminUsername }}</div>
-          <div class="text-xs text-gray-500">{{ row.adminUserID }}</div>
+          <div class="admin-id-token" :title="row.adminUserID">
+            {{ compactID(row.adminUserID) }}
+          </div>
         </template>
-      </ElTableColumn>
-      <ElTableColumn label="动作" min-width="160">
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="action"
+        label="动作"
+        :default-min-width="160"
+      >
         <template #default="{ row }">
           <ElTag type="info">{{ row.action }}</ElTag>
         </template>
-      </ElTableColumn>
-      <ElTableColumn label="资源" min-width="180">
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="resource"
+        label="资源"
+        :default-min-width="180"
+      >
         <template #default="{ row }">
           <div>{{ row.resourceType }}</div>
-          <div class="text-xs text-gray-500">{{ row.resourceID }}</div>
+          <div class="admin-id-token" :title="row.resourceID">
+            {{ compactID(row.resourceID) }}
+          </div>
         </template>
-      </ElTableColumn>
-      <ElTableColumn label="变更前" min-width="220" show-overflow-tooltip>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="oldValue"
+        label="变更前"
+        :default-min-width="220"
+        show-overflow-tooltip
+      >
         <template #default="{ row }">
           {{ formatJSON(row.oldValue) }}
         </template>
-      </ElTableColumn>
-      <ElTableColumn label="变更后" min-width="220" show-overflow-tooltip>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="newValue"
+        label="变更后"
+        :default-min-width="220"
+        show-overflow-tooltip
+      >
         <template #default="{ row }">
           {{ formatJSON(row.newValue) }}
         </template>
-      </ElTableColumn>
-      <ElTableColumn label="请求" min-width="220" show-overflow-tooltip>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="request"
+        label="请求"
+        :default-min-width="220"
+        show-overflow-tooltip
+      >
         <template #default="{ row }">
           <div>{{ row.ipAddress || '—' }}</div>
-          <div class="text-xs text-gray-500">{{ row.userAgent || '—' }}</div>
+          <div class="admin-id-token" :title="row.userAgent || ''">
+            {{ compactText(row.userAgent) }}
+          </div>
         </template>
-      </ElTableColumn>
-    </ElTable>
+      </PersistentAdminTableColumn>
+    </PersistentAdminTable>
 
-    <div class="mt-4 flex justify-end">
+    <template #pagination>
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
@@ -97,6 +148,6 @@ onMounted(fetchData);
         @current-change="refreshPage"
         @size-change="refreshPage(1)"
       />
-    </div>
-  </div>
+    </template>
+  </AdminContentLayout>
 </template>

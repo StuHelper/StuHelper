@@ -3,6 +3,8 @@ import type {
   MemberBlacklistEntry,
 } from '#/api/admin';
 
+import { formatAdminDateTime } from '../../shared/display';
+
 export type ScopeType = 'global' | 'guild';
 export type StatusFilter = 'active' | 'all' | 'expired' | 'released';
 export type SourceFilter =
@@ -101,8 +103,7 @@ export function createdByLabel(entry: MemberBlacklistEntry): string {
 }
 
 export function formatDateTime(value?: null | string): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleString('zh-CN', { hour12: false });
+  return formatAdminDateTime(value);
 }
 
 export function toIsoString(value: Date | string): string | undefined {

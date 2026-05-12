@@ -12,12 +12,15 @@ import {
   ElFormItem,
   ElInput,
   ElMessage,
-  ElTable,
-  ElTableColumn,
 } from 'element-plus';
 
 import { getSystemConfigList, updateSystemConfig } from '#/api/admin';
 import { $t } from '#/locales';
+
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { formatAdminDateTime } from '../../shared/display';
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -78,46 +81,66 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="p-4">
-    <ElTable v-loading="loading" :data="configs" stripe>
-      <ElTableColumn
+  <AdminContentLayout
+    :title="$t('admin.routes.userSystem.systemConfig')"
+    :total="configs.length"
+  >
+    <PersistentAdminTable
+      table-key="users.systemConfig"
+      :loading="loading"
+      :data="configs"
+      row-key="key"
+      stripe
+    >
+      <PersistentAdminTableColumn
+        column-key="key"
         :label="$t('admin.users.systemConfig.key')"
-        min-width="160"
+        :default-min-width="220"
         prop="key"
+        show-overflow-tooltip
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="value"
         :label="$t('admin.users.systemConfig.value')"
-        min-width="200"
+        :default-min-width="220"
         prop="value"
         show-overflow-tooltip
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="description"
         :label="$t('admin.common.description')"
-        min-width="200"
+        :default-min-width="240"
         show-overflow-tooltip
       >
         <template #default="{ row }">
           {{ row.description || $t('admin.common.unavailable') }}
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="updatedAt"
         :label="$t('admin.common.updatedAt')"
-        prop="updatedAt"
-        width="170"
-      />
-      <ElTableColumn
-        v-if="canUpdateSystemConfig()"
-        fixed="right"
-        :label="$t('admin.common.actions')"
-        width="90"
+        :default-width="148"
       >
         <template #default="{ row }">
-          <ElButton link size="small" type="primary" @click="openEdit(row)">
+          <span class="admin-cell-muted">
+            {{ formatAdminDateTime(row.updatedAt) }}
+          </span>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        v-if="canUpdateSystemConfig()"
+        column-key="actions"
+        fixed="right"
+        :label="$t('admin.common.actions')"
+        :default-width="100"
+      >
+        <template #default="{ row }">
+          <ElButton plain size="small" type="primary" @click="openEdit(row)">
             {{ $t('admin.common.edit') }}
           </ElButton>
         </template>
-      </ElTableColumn>
-    </ElTable>
+      </PersistentAdminTableColumn>
+    </PersistentAdminTable>
 
     <!-- 编辑弹窗 -->
     <ElDialog
@@ -155,5 +178,5 @@ onMounted(fetchData);
         </ElButton>
       </template>
     </ElDialog>
-  </div>
+  </AdminContentLayout>
 </template>

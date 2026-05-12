@@ -13,8 +13,6 @@ import {
   ElOption,
   ElPagination,
   ElSelect,
-  ElTable,
-  ElTableColumn,
   ElTag,
 } from 'element-plus';
 
@@ -22,6 +20,12 @@ import {
   listFreshmanVerifications,
   reviewFreshmanVerification,
 } from '#/api/admin';
+import { $t } from '#/locales';
+
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { formatAdminDateTime } from '../../shared/display';
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 
 type FreshmanReviewRow = FreshmanApplication & {
   failureCount?: number;
@@ -93,84 +97,158 @@ function statusType(status: FreshmanReviewRow['status']) {
   return 'warning';
 }
 
+function statusLabel(status: FreshmanReviewRow['status']) {
+  if (status === 'approved') return '已通过';
+  if (status === 'rejected') return '已驳回';
+  return '待审核';
+}
+
 onMounted(fetchData);
 </script>
 
 <template>
-  <div class="p-4">
-    <div class="mb-4 flex items-center gap-3">
-      <ElSelect v-model="query.status" style="width: 140px" @change="fetchData">
+  <AdminContentLayout
+    :title="$t('admin.routes.userSystem.freshmanVerification')"
+    :total="total"
+  >
+    <template #toolbar>
+      <ElSelect
+        v-model="query.status"
+        class="admin-toolbar-control"
+        :teleported="false"
+        @change="fetchData"
+      >
         <ElOption label="待审核" value="pending" />
         <ElOption label="已通过" value="approved" />
         <ElOption label="已驳回" value="rejected" />
       </ElSelect>
       <ElButton type="primary" @click="fetchData">查询</ElButton>
-    </div>
+    </template>
 
-    <ElTable v-loading="loading" :data="items" stripe>
-      <ElTableColumn data-field="status" label="状态" width="100">
+    <PersistentAdminTable
+      table-key="users.freshmanVerification"
+      :loading="loading"
+      :data="items"
+      row-key="id"
+      stripe
+    >
+      <PersistentAdminTableColumn
+        column-key="status"
+        data-field="status"
+        label="状态"
+        :default-width="100"
+      >
         <template #default="{ row }">
           <ElTag :type="statusType(row.status)" data-state="pendingReview">
-            {{ row.status }}
+            {{ statusLabel(row.status) }}
           </ElTag>
         </template>
-      </ElTableColumn>
-      <ElTableColumn data-field="schoolID" label="学校" prop="schoolID" />
-      <ElTableColumn data-field="qqID" label="QQ">
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="schoolID"
+        data-field="schoolID"
+        label="学校"
+        prop="schoolID"
+        :default-width="120"
+      />
+      <PersistentAdminTableColumn
+        column-key="qqID"
+        data-field="qqID"
+        label="QQ"
+        :default-width="140"
+      >
         <template #default="{ row }">{{ row.qqID || '—' }}</template>
-      </ElTableColumn>
-      <ElTableColumn label="申请人" prop="applicantNameMasked" />
-      <ElTableColumn data-field="createdAt" label="申请时间" prop="createdAt" />
-      <ElTableColumn data-field="failureCount" label="失败次数">
-        <template #default="{ row }">{{ row.failureCount ?? '—' }}</template>
-      </ElTableColumn>
-      <ElTableColumn fixed="right" label="操作" width="320">
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="applicant"
+        label="申请人"
+        prop="applicantNameMasked"
+        :default-width="120"
+      />
+      <PersistentAdminTableColumn
+        column-key="createdAt"
+        data-field="createdAt"
+        label="申请时间"
+        :default-width="148"
+      >
         <template #default="{ row }">
-          <ElButton
-            link
-            type="primary"
-            data-material-preview
-            @click="openMaterial(row)"
-          >
-            材料预览
-          </ElButton>
-          <ElButton
-            link
-            type="success"
-            data-action="approve"
-            :disabled="actionLoading"
-            @click="approve(row)"
-          >
-            通过
-          </ElButton>
-          <ElInputNumber v-model="extensionDays" :min="0" size="small" />
-          <ElButton
-            link
-            type="success"
-            data-action="approveWithDays"
-            :disabled="actionLoading"
-            @click="approve(row, extensionDays || undefined)"
-          >
-            带天数通过
-          </ElButton>
-          <ElInput
-            v-model="rejectionReasons[row.id]"
-            placeholder="驳回原因"
-            size="small"
-          />
-          <ElButton
-            link
-            type="danger"
-            data-action="reject"
-            @click="reject(row)"
-          >
-            驳回
-          </ElButton>
+          <span class="admin-cell-muted">
+            {{ formatAdminDateTime(row.createdAt) }}
+          </span>
         </template>
-      </ElTableColumn>
-    </ElTable>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="failureCount"
+        data-field="failureCount"
+        label="失败次数"
+        :default-width="100"
+      >
+        <template #default="{ row }">{{ row.failureCount ?? '—' }}</template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="actions"
+        fixed="right"
+        label="操作"
+        :default-width="420"
+      >
+        <template #default="{ row }">
+          <div class="freshman-action-group">
+            <ElButton
+              plain
+              size="small"
+              type="primary"
+              data-material-preview
+              @click="openMaterial(row)"
+            >
+              材料预览
+            </ElButton>
+            <ElButton
+              plain
+              size="small"
+              type="success"
+              data-action="approve"
+              :disabled="actionLoading"
+              @click="approve(row)"
+            >
+              通过
+            </ElButton>
+            <ElInputNumber
+              v-model="extensionDays"
+              class="freshman-action-number"
+              :min="0"
+              size="small"
+            />
+            <ElButton
+              plain
+              size="small"
+              type="success"
+              data-action="approveWithDays"
+              :disabled="actionLoading"
+              @click="approve(row, extensionDays || undefined)"
+            >
+              带天数通过
+            </ElButton>
+            <ElInput
+              v-model="rejectionReasons[row.id]"
+              class="freshman-action-reason"
+              placeholder="驳回原因"
+              size="small"
+            />
+            <ElButton
+              plain
+              size="small"
+              type="danger"
+              data-action="reject"
+              @click="reject(row)"
+            >
+              驳回
+            </ElButton>
+          </div>
+        </template>
+      </PersistentAdminTableColumn>
+    </PersistentAdminTable>
 
-    <div class="mt-4 flex justify-end">
+    <template #pagination>
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
@@ -178,10 +256,27 @@ onMounted(fetchData);
         layout="total, prev, pager, next"
         @current-change="fetchData"
       />
-    </div>
+    </template>
 
     <ElDialog v-model="materialDialogVisible" title="材料预览" width="720px">
       <ElImage :src="materialPreviewURL" fit="contain" />
     </ElDialog>
-  </div>
+  </AdminContentLayout>
 </template>
+
+<style scoped>
+.freshman-action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.freshman-action-number {
+  width: 96px;
+}
+
+.freshman-action-reason {
+  width: 140px;
+}
+</style>

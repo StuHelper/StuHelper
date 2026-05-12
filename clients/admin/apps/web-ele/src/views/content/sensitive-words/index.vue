@@ -5,18 +5,13 @@ import { onMounted, reactive, ref } from 'vue';
 
 import {
   ElButton,
-  ElDialog,
-  ElForm,
-  ElFormItem,
   ElInput,
   ElMessage,
   ElOption,
   ElPagination,
   ElPopconfirm,
   ElSelect,
-  ElSwitch,
-  ElTable,
-  ElTableColumn,
+  ElTag,
 } from 'element-plus';
 
 import {
@@ -26,6 +21,16 @@ import {
   updateSensitiveWord,
 } from '#/api/admin';
 import { $t } from '#/locales';
+
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import {
+  compactID,
+  formatAdminDateTime,
+  formatNullableText,
+} from '../../shared/display';
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
+import SensitiveWordDialog from './SensitiveWordDialog.vue';
 
 const loading = ref(false);
 const words = ref<SensitiveWord[]>([]);
@@ -123,21 +128,25 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="p-4">
-    <div class="mb-4 flex items-center gap-3">
+  <AdminContentLayout
+    :title="$t('admin.routes.content.sensitiveWords')"
+    :total="total"
+  >
+    <template #toolbar>
       <ElInput
         v-model="query.category"
+        class="admin-toolbar-control"
         clearable
         :placeholder="$t('admin.content.sensitiveWords.filterByCategory')"
-        style="width: 160px"
         @clear="fetchData"
         @keyup.enter="fetchData"
       />
       <ElSelect
         v-model="query.level"
+        class="admin-toolbar-control"
         clearable
         :placeholder="$t('admin.content.sensitiveWords.level')"
-        style="width: 120px"
+        :teleported="false"
         @change="fetchData"
       >
         <ElOption :label="$t('admin.common.all')" value="" />
@@ -160,62 +169,98 @@ onMounted(fetchData);
       <ElButton type="success" @click="openCreate">
         {{ $t('admin.content.sensitiveWords.create') }}
       </ElButton>
-    </div>
+    </template>
 
-    <ElTable v-loading="loading" :data="words" stripe>
-      <ElTableColumn :label="$t('admin.common.id')" prop="id" width="70" />
-      <ElTableColumn
+    <PersistentAdminTable
+      table-key="content.sensitiveWords"
+      :loading="loading"
+      :data="words"
+      row-key="id"
+      stripe
+    >
+      <PersistentAdminTableColumn
+        column-key="id"
+        :label="$t('admin.common.id')"
+        :default-width="148"
+      >
+        <template #default="{ row }">
+          <span class="admin-id-token" :title="row.id">
+            {{ compactID(row.id) }}
+          </span>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="word"
         :label="$t('admin.content.sensitiveWords.word')"
-        min-width="150"
+        :default-min-width="180"
         prop="word"
+        show-overflow-tooltip
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="category"
         :label="$t('admin.content.sensitiveWords.category')"
-        prop="category"
-        width="120"
-      />
-      <ElTableColumn
+        :default-width="140"
+        show-overflow-tooltip
+      >
+        <template #default="{ row }">
+          {{ formatNullableText(row.category) }}
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="level"
         :label="$t('admin.content.sensitiveWords.level')"
         prop="level"
-        width="90"
+        :default-width="104"
       />
-      <ElTableColumn
+      <PersistentAdminTableColumn
+        column-key="isActive"
         :label="$t('admin.content.sensitiveWords.active')"
-        width="80"
+        :default-width="96"
       >
         <template #default="{ row }">
-          {{ row.isActive ? $t('admin.common.yes') : $t('admin.common.no') }}
+          <ElTag :type="row.isActive ? 'success' : 'info'" size="small">
+            {{ row.isActive ? $t('admin.common.yes') : $t('admin.common.no') }}
+          </ElTag>
         </template>
-      </ElTableColumn>
-      <ElTableColumn
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="createdAt"
         :label="$t('admin.common.createdAt')"
-        prop="createdAt"
-        width="170"
-      />
-      <ElTableColumn
+        :default-width="148"
+      >
+        <template #default="{ row }">
+          <span class="admin-cell-muted">
+            {{ formatAdminDateTime(row.createdAt) }}
+          </span>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
+        column-key="actions"
         fixed="right"
         :label="$t('admin.common.actions')"
-        width="140"
+        :default-width="160"
       >
         <template #default="{ row }">
-          <ElButton link size="small" type="primary" @click="openEdit(row)">
-            {{ $t('admin.common.edit') }}
-          </ElButton>
-          <ElPopconfirm
-            :title="$t('admin.content.sensitiveWords.confirmDelete')"
-            @confirm="handleDelete(row.id)"
-          >
-            <template #reference>
-              <ElButton link size="small" type="danger">
-                {{ $t('admin.common.delete') }}
-              </ElButton>
-            </template>
-          </ElPopconfirm>
+          <div class="admin-action-group">
+            <ElButton plain size="small" type="primary" @click="openEdit(row)">
+              {{ $t('admin.common.edit') }}
+            </ElButton>
+            <ElPopconfirm
+              :title="$t('admin.content.sensitiveWords.confirmDelete')"
+              @confirm="handleDelete(row.id)"
+            >
+              <template #reference>
+                <ElButton plain size="small" type="danger">
+                  {{ $t('admin.common.delete') }}
+                </ElButton>
+              </template>
+            </ElPopconfirm>
+          </div>
         </template>
-      </ElTableColumn>
-    </ElTable>
+      </PersistentAdminTableColumn>
+    </PersistentAdminTable>
 
-    <div class="mt-4 flex justify-end">
+    <template #pagination>
       <ElPagination
         v-model:current-page="query.page"
         v-model:page-size="query.pageSize"
@@ -223,65 +268,13 @@ onMounted(fetchData);
         layout="total, prev, pager, next"
         @current-change="fetchData"
       />
-    </div>
+    </template>
 
-    <!-- 新增/编辑弹窗 -->
-    <ElDialog
-      v-model="dialogVisible"
-      :title="
-        isEdit
-          ? $t('admin.content.sensitiveWords.editTitle')
-          : $t('admin.content.sensitiveWords.createTitle')
-      "
-      width="480px"
-    >
-      <ElForm label-width="80px">
-        <ElFormItem :label="$t('admin.content.sensitiveWords.word')">
-          <ElInput
-            v-model="form.word"
-            :placeholder="$t('admin.content.sensitiveWords.wordPlaceholder')"
-          />
-        </ElFormItem>
-        <ElFormItem :label="$t('admin.content.sensitiveWords.category')">
-          <ElInput
-            v-model="form.category"
-            :placeholder="
-              $t('admin.content.sensitiveWords.categoryPlaceholder')
-            "
-          />
-        </ElFormItem>
-        <ElFormItem :label="$t('admin.content.sensitiveWords.level')">
-          <ElSelect
-            v-model="form.level"
-            :placeholder="$t('admin.content.sensitiveWords.levelPlaceholder')"
-            style="width: 100%"
-          >
-            <ElOption
-              :label="$t('admin.content.sensitiveWords.levels.block')"
-              value="block"
-            />
-            <ElOption
-              :label="$t('admin.content.sensitiveWords.levels.warn')"
-              value="warn"
-            />
-            <ElOption
-              :label="$t('admin.content.sensitiveWords.levels.review')"
-              value="review"
-            />
-          </ElSelect>
-        </ElFormItem>
-        <ElFormItem :label="$t('admin.content.sensitiveWords.active')">
-          <ElSwitch v-model="form.isActive" />
-        </ElFormItem>
-      </ElForm>
-      <template #footer>
-        <ElButton @click="dialogVisible = false">
-          {{ $t('admin.common.cancel') }}
-        </ElButton>
-        <ElButton type="primary" @click="handleSubmit">
-          {{ $t('admin.common.confirm') }}
-        </ElButton>
-      </template>
-    </ElDialog>
-  </div>
+    <SensitiveWordDialog
+      v-model:visible="dialogVisible"
+      :form="form"
+      :is-edit="isEdit"
+      @submit="handleSubmit"
+    />
+  </AdminContentLayout>
 </template>
