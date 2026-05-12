@@ -32,13 +32,8 @@ describe('review locale messages', () => {
     }
   })
 
-  it('defines review rating card icon messages for known dimensions', () => {
-    const t = createTestI18n('zh-CN').global.t
-
-    expect(t('review.ratingEmoji.icon.difficulty')).not.toBe('review.ratingEmoji.icon.difficulty')
-    expect(t('review.ratingEmoji.icon.grading')).not.toBe('review.ratingEmoji.icon.grading')
-    expect(t('review.ratingEmoji.icon.teaching')).not.toBe('review.ratingEmoji.icon.teaching')
-    expect(t('review.ratingEmoji.icon.usefulness')).not.toBe('review.ratingEmoji.icon.usefulness')
-    expect(t('review.ratingEmoji.icon.workload')).not.toBe('review.ratingEmoji.icon.workload')
+  it('does not define emoji icon messages for review cards', () => {
+    expect(zhCN.review.ratingEmoji).not.toHaveProperty('icon')
+    expect(enUS.review.ratingEmoji).not.toHaveProperty('icon')
   })
 })

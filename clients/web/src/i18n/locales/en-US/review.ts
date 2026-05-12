@@ -221,16 +221,6 @@ export default {
     noData: 'No statistics available'
   },
   ratingEmoji: {
-    icon: {
-      difficulty: '📈',
-      recommendation: '👍',
-      content_quality: '📘',
-      usefulness: '🧭',
-      teaching: '🎓',
-      workload: '🗂️',
-      grading: '✅',
-      assessment: '📝'
-    },
     difficulty: 'Difficulty',
     recommendation: 'Recommendation',
     content_quality: 'Content',

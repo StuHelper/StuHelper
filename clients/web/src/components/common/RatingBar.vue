@@ -7,7 +7,11 @@
         :style="{ width: `${percentage}%`, background: fillColor }"
       />
     </div>
-    <span class="text-sm font-semibold text-text-primary min-w-[32px] text-right font-mono">{{ displayValue }}</span>
+    <span
+      class="h-2.5 w-2.5 rounded-full shrink-0"
+      :style="{ background: fillColor }"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
@@ -19,18 +23,11 @@ const props = defineProps<{
   label: string
   value: number
   max?: number
-  showPercentage?: boolean
 }>()
 
 const max = computed(() => props.max ?? 5)
 const percentage = computed(() =>
   Math.min(100, (props.value / max.value) * 100)
 )
-const displayValue = computed(() =>
-  props.showPercentage
-    ? `${Math.round(percentage.value)}%`
-    : props.value.toFixed(1)
-)
-
 const fillColor = computed(() => getScaledRatingColor(props.value, max.value))
 </script>

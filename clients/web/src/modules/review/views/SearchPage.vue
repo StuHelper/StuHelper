@@ -276,87 +276,13 @@
             </span>
           </h2>
           <div class="flex flex-col gap-4">
-            <div
+            <ReviewCard
               v-for="(review, idx) in resultReviews"
               :key="review.id"
-              class="bg-bg-card rounded-xl shadow-card p-5 stagger-item"
+              :review="review"
+              class="stagger-item"
               :style="{ animationDelay: `${Math.min(idx, 8) * 60}ms` }"
-            >
-              <!-- Review Header -->
-              <div class="flex items-center gap-2 mb-2">
-                <router-link
-                  :to="`/courses/${review.courseID}/reviews`"
-                  class="text-base font-bold no-underline truncate text-text-primary hover:text-primary transition-colors"
-                >
-                  {{ review.title || review.courseName || t('review.course.fallbackTitle', { id: review.courseID }) }}
-                </router-link>
-                <span
-                  v-if="reviewAvgRating(review) > 0"
-                  class="text-xs font-bold font-mono py-px px-2 rounded-full shrink-0"
-                  :style="{ backgroundColor: ratingBgColor(review), color: ratingTextColor(review) }"
-                >
-                  {{ reviewAvgRating(review).toFixed(1) }}
-                </span>
-              </div>
-
-              <!-- Review Meta -->
-              <div class="flex items-center gap-2 mb-3 text-xs text-text-muted">
-                <span v-if="review.teacherName" class="font-medium text-primary">
-                  {{ review.teacherName }}
-                </span>
-                <span v-if="review.teacherName">&middot;</span>
-                <span v-if="review.termName">{{ review.termName }}</span>
-              </div>
-
-              <!-- Review Content -->
-              <div
-                class="text-sm leading-relaxed break-words line-clamp-3 text-text-secondary"
-                v-text="review.content"
-              />
-
-              <!-- Emoji Ratings -->
-              <div
-                v-if="hasRatings(review)"
-                class="flex flex-wrap gap-3 mt-4 pt-3 border-t border-border-light"
-              >
-                <span
-                  v-for="dim in reviewDimensions(review)"
-                  :key="dim.key"
-                  class="text-xs flex items-center gap-1 text-text-secondary"
-                >
-                  <EmojiRating :value="Math.round(dim.value)" size="sm" />
-                  <span>{{ dim.label }}</span>
-                  <span class="font-mono font-medium text-text-primary">
-                    {{ dim.value.toFixed(1) }}
-                  </span>
-                </span>
-              </div>
-
-              <!-- Controversial Badge -->
-              <ControversialBadge
-                v-if="review.dislikeCount >= 5"
-                :dislike-count="review.dislikeCount"
-                class="mt-3"
-              />
-
-              <!-- Vote Counts -->
-              <div
-                class="flex items-center gap-4 mt-3 pt-3 text-xs border-t border-border-light text-text-muted"
-              >
-                <span class="flex items-center gap-1">
-                  <Heart :size="14" />
-                  {{ review.likeCount }}
-                </span>
-                <span class="flex items-center gap-1">
-                  <ThumbsDown :size="14" />
-                  {{ review.dislikeCount }}
-                </span>
-                <span class="flex items-center gap-1">
-                  <MessageCircle :size="14" />
-                  {{ review.replyCount }}
-                </span>
-              </div>
-            </div>
+            />
           </div>
         </section>
       </template>
@@ -368,16 +294,13 @@
 import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Search, SearchX, Heart, ThumbsDown, MessageCircle } from 'lucide-vue-next'
-import EmojiRating from '@/components/business/review/EmojiRating.vue'
-import ControversialBadge from '@/components/business/review/ControversialBadge.vue'
+import { ArrowLeft, Search, SearchX } from 'lucide-vue-next'
+import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import type { Department, Term, Course } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
-import { getRatingColor } from '@/design-system/rating'
-import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -421,36 +344,6 @@ const coursesWithReviews = computed(() =>
 const coursesWithoutReviews = computed(() =>
   resultCourses.value.filter(c => c.reviewCount === 0)
 )
-
-// --- Rating helpers ---
-
-function reviewAvgRating(review: Review): number {
-  const values = Object.values(review.ratings || {})
-  if (values.length === 0) return 0
-  return values.reduce((a, b) => a + b, 0) / values.length
-}
-
-function ratingTextColor(review: Review): string {
-  return getRatingColor(reviewAvgRating(review))
-}
-
-function ratingBgColor(review: Review): string {
-  const color = getRatingColor(reviewAvgRating(review))
-  return `color-mix(in srgb, ${color} 15%, transparent)`
-}
-
-function hasRatings(review: Review): boolean {
-  return Object.keys(review.ratings || {}).length > 0
-}
-
-function reviewDimensions(review: Review): Array<{ key: string; label: string; value: number }> {
-  if (!review.ratings) return []
-  return Object.entries(review.ratings).map(([key, value]) => ({
-    key,
-    label: ratingDimensionLabel({ key, t }),
-    value: Math.max(0, Math.min(5, value)),
-  }))
-}
 
 // --- Navigation ---
 

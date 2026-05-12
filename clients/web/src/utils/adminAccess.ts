@@ -1,5 +1,6 @@
 import {
   ADMIN_REVIEWS_MANAGE,
+  REVIEW_LIST_FULL,
   canAccessAdmin,
   hasCapability,
 } from '@stuhelper/shared/constants'
@@ -19,4 +20,8 @@ export function canShowAdminEntry(user: CapabilityUser | null | undefined) {
 
 export function canManageReviews(user: CapabilityUser | null | undefined) {
   return hasCapability(getCapabilities(user), ADMIN_REVIEWS_MANAGE)
+}
+
+export function canListFullReviews(user: CapabilityUser | null | undefined) {
+  return hasCapability(getCapabilities(user), REVIEW_LIST_FULL)
 }

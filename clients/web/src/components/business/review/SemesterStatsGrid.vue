@@ -23,7 +23,11 @@
           <div v-for="dim in term.dimensions" :key="dim.key" class="flex flex-col gap-1">
             <div class="flex justify-between text-xs">
               <span class="text-text-secondary">{{ dimensionLabel(dim.key, dim.name) }}</span>
-              <span class="font-mono font-medium text-text-primary">{{ dim.avgRating.toFixed(1) }}</span>
+              <span
+                class="h-2.5 w-2.5 rounded-full"
+                :style="{ backgroundColor: getRatingColor(dim.avgRating) }"
+                aria-hidden="true"
+              />
             </div>
             <div class="h-2 bg-bg-secondary rounded-full overflow-hidden">
               <div

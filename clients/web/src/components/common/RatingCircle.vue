@@ -23,7 +23,9 @@
       />
     </svg>
     <div class="flex flex-col items-center z-[1]">
-      <span class="text-xl font-bold text-text-primary leading-none font-mono">{{ displayValue }}</span>
+      <slot>
+        <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: strokeColor }" aria-hidden="true" />
+      </slot>
       <span v-if="subtitle" class="text-xs text-text-muted mt-0.5">{{ subtitle }}</span>
     </div>
   </div>
@@ -56,8 +58,6 @@ const percentage = computed(() =>
 const dashOffset = computed(() =>
   circumference.value * (1 - percentage.value)
 )
-
-const displayValue = computed(() => props.value.toFixed(1))
 
 const strokeColor = computed(() => getScaledRatingColor(props.value, resolvedMax.value))
 </script>

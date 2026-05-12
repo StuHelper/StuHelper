@@ -96,7 +96,7 @@
             {{ dimensionLabel(dim.key, dim.name) }}
           </span>
           <div class="flex-1">
-            <RatingDisplay :value="dim.avgRating" show-value />
+            <RatingDisplay :value="dim.avgRating" />
           </div>
           <span class="flex items-center gap-1 text-xs text-text-muted shrink-0">
             <Users class="w-3.5 h-3.5" />
@@ -232,7 +232,8 @@ const chartOption = computed(() => {
       trigger: 'item',
       backgroundColor: withAlpha(cv.bgCard, 0.95),
       borderColor: cv.border,
-      textStyle: { color: cv.textPrimary }
+      textStyle: { color: cv.textPrimary },
+      formatter: (params: { name?: string }) => params.name ?? ''
     },
     legend: {
       data: series.map(s => s.name),

@@ -212,16 +212,6 @@ export default {
     noData: '暂无统计数据'
   },
   ratingEmoji: {
-    icon: {
-      difficulty: '📈',
-      recommendation: '👍',
-      content_quality: '📘',
-      usefulness: '🧭',
-      teaching: '🎓',
-      workload: '🗂️',
-      grading: '✅',
-      assessment: '📝'
-    },
     difficulty: '课程难度',
     recommendation: '推荐度',
     content_quality: '内容',

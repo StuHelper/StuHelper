@@ -47,14 +47,14 @@
       </router-link>
       <span
         v-if="avgRating > 0"
-        class="text-[11px] font-bold font-mono py-px px-2 rounded-full shrink-0"
+        class="inline-flex items-center justify-center py-1 px-2 rounded-full shrink-0"
         :style="{
           '--rating-clr': ratingColor,
           background: 'color-mix(in srgb, var(--rating-clr, var(--color-primary)) 12%, transparent)',
           color: 'var(--rating-clr, var(--color-primary))'
         }"
       >
-        {{ avgRating.toFixed(1) }}
+        <EmojiRating :value="avgRating" size="sm" />
       </span>
     </div>
 
@@ -76,30 +76,22 @@
     </div>
 
     <!-- 状态2: 未登录锁定 -->
-    <div v-else-if="!isAuthenticated && !isHidden" class="flex flex-col items-center gap-2 py-6 text-text-muted">
-      <Lock :size="24" />
-      <span class="text-sm">{{ t('review.card.loginToView') }}</span>
-      <button class="text-primary text-sm font-medium cursor-pointer" @click="handleLogin">
-        {{ t('review.card.loginBtn') }}
-      </button>
-    </div>
+    <LockedReviewContent
+      v-else-if="!isAuthenticated && !isHidden"
+      :content="review.content"
+      :message="t('review.card.loginToView')"
+      :action-label="t('review.card.loginBtn')"
+      @action="handleLogin"
+    />
 
-    <!-- 状态2.5: 已登录未认证 — 预览模式（D8: 模糊 + 锁图标） -->
-    <div v-else-if="isPreviewMode" class="relative">
-      <div class="text-sm text-text-secondary leading-relaxed break-words" v-text="previewContent" />
-      <div class="relative mt-1 h-16 overflow-hidden select-none" aria-hidden="true">
-        <div class="absolute inset-0 bg-bg-card/60 backdrop-blur-md flex flex-col items-center justify-center gap-1.5 rounded-lg">
-          <Lock :size="16" class="text-text-muted" />
-          <span class="text-xs text-text-muted">{{ t('review.card.verifyToView') }}</span>
-          <button
-            class="text-primary text-xs font-medium cursor-pointer hover:underline"
-            @click="$router.push({ name: 'student-verification' })"
-          >
-            {{ t('review.card.goVerify') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- 状态2.5: 已登录未认证，正文锁定 -->
+    <LockedReviewContent
+      v-else-if="isPreviewMode"
+      :content="review.content"
+      :message="t('review.card.verifyToView')"
+      :action-label="t('review.card.goVerify')"
+      @action="$router.push({ name: 'student-verification' })"
+    />
 
     <!-- 状态3: 正常显示（已登录 + published，或管理员查看 hidden） -->
     <template v-else>
@@ -118,16 +110,15 @@
       />
     </template>
 
-    <!-- 表情评分指标 -->
+    <!-- 评分指标 -->
     <div v-if="displayRatings.length > 0" class="flex flex-wrap gap-3 mt-4 pt-3 border-t border-border-light">
       <span
         v-for="dim in displayRatings"
         :key="dim.key"
-        class="text-xs text-text-secondary flex items-center gap-1"
+        class="text-xs text-text-secondary flex items-center gap-1.5"
       >
-        <span>{{ dim.emoji }}</span>
+        <EmojiRating :value="dim.value" size="sm" />
         <span>{{ dim.label }}</span>
-        <span class="font-mono font-medium text-text-primary">{{ dim.value.toFixed(1) }}</span>
       </span>
     </div>
 
@@ -301,9 +292,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, Lock, ShieldAlert, Flag, Trash2 } from 'lucide-vue-next'
+import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, ShieldAlert, Flag, Trash2 } from 'lucide-vue-next'
 import type { Review } from '@stuhelper/shared/review'
-import { canManageReviews as canManageReviewAccess } from '@/utils/adminAccess'
+import { canListFullReviews, canManageReviews as canManageReviewAccess } from '@/utils/adminAccess'
 import { getRatingColor } from '@/design-system/rating'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
@@ -311,6 +302,8 @@ import { formatRelativeTime } from '@/utils/date'
 import { use3DTilt } from '@/composables/use3DTilt'
 import ReplyCard from './ReplyCard.vue'
 import ReplyForm from './ReplyForm.vue'
+import LockedReviewContent from './LockedReviewContent.vue'
+import EmojiRating from './EmojiRating.vue'
 import ModerationDialog from './ModerationDialog.vue'
 import AdminEditDialog from './AdminEditDialog.vue'
 import { useReviewVote } from './useReviewVote'
@@ -347,19 +340,13 @@ const { style: tiltStyle } = use3DTilt(cardRef, { maxTilt: 4, scale: 1.01, speed
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const canManageReviews = computed(() => canManageReviewAccess(authStore.user))
+const hasFullListCapability = computed(() => canListFullReviews(authStore.user))
 const isHidden = computed(() => props.review.status === 'hidden')
 const showActions = computed(() => isAuthenticated.value && !isHidden.value)
-const canViewFull = computed(() => canManageReviews.value || verificationStore.canViewFullReviews)
+const canViewFull = computed(() =>
+  canManageReviews.value || (hasFullListCapability.value && verificationStore.canViewFullReviews)
+)
 const isPreviewMode = computed(() => isAuthenticated.value && !isHidden.value && !canViewFull.value)
-
-const PREVIEW_CHARS = 20
-const PREVIEW_PERCENT = 20
-const previewContent = computed(() => {
-  const content = props.review.content || ''
-  const previewLen = Math.min(PREVIEW_CHARS, Math.floor(content.length * PREVIEW_PERCENT / 100))
-  if (content.length <= previewLen) return content
-  return content.slice(0, previewLen)
-})
 
 const isExpanded = ref(false)
 const shouldTruncate = computed(() => (props.review.content?.length ?? 0) > 200)
@@ -368,10 +355,9 @@ const displayRatings = computed(() => {
   const ratings = props.review.ratings
   if (!ratings || Object.keys(ratings).length === 0) return []
   return Object.entries(ratings).map(([key, value]) => {
-    const emoji = t(`review.ratingEmoji.icon.${key}`, '⭐')
     const label = ratingDimensionLabel({ key, t })
     const clampedValue = Math.max(0, Math.min(5, value))
-    return { key, emoji, label, value: clampedValue }
+    return { key, label, value: clampedValue }
   })
 })
 

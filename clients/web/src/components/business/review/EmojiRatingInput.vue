@@ -16,7 +16,9 @@
       :style="modelValue === level ? { color: getRatingColor(level), borderColor: getRatingColor(level) } : { color: 'var(--color-text-muted)' }"
       @click="toggle(level)"
     >
-      <component :is="getIcon(level)" :size="24" :stroke-width="2.5" />
+      <svg class="size-6 block" viewBox="0 0 512 512" fill="currentColor" aria-hidden="true">
+        <path :d="getFacePath(level)" />
+      </svg>
     </button>
     <span
       v-if="error"
@@ -28,8 +30,8 @@
 </template>
 
 <script setup lang="ts">
-import { Angry, Frown, Meh, Smile, SmilePlus } from 'lucide-vue-next'
 import { getRatingColor } from '@/design-system/rating'
+import { getRatingFacePath } from '@/modules/review/ratingFaces'
 
 const props = defineProps<{
   label?: string
@@ -42,15 +44,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: number]
 }>()
 
-function getIcon(level: number) {
-  switch (level) {
-    case 1: return Angry
-    case 2: return Frown
-    case 3: return Meh
-    case 4: return Smile
-    case 5: return SmilePlus
-    default: return Meh
-  }
+function getFacePath(level: number) {
+  return getRatingFacePath(level)
 }
 
 function toggle(level: number) {

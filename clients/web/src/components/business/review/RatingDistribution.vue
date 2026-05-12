@@ -5,7 +5,7 @@
       :key="star"
       class="flex items-center gap-2"
     >
-      <span class="font-mono text-xs font-medium text-text-muted w-4 text-center">{{ star }}</span>
+      <EmojiRating :value="star" size="sm" />
       <div class="flex-1 h-2 bg-bg-secondary rounded-full overflow-hidden">
         <div
           class="h-full rounded-full transition-all duration-slower ease-out"
@@ -19,6 +19,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import EmojiRating from './EmojiRating.vue'
 
 const props = defineProps<{
   distribution: Record<number, number>

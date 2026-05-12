@@ -12,7 +12,10 @@
 
     <div class="grid grid-cols-3 gap-3 py-4 border-t border-b border-border-light">
       <div class="flex flex-col items-center text-center">
-        <span class="font-display text-xl font-bold text-accent tabular-nums">{{ stats.avgRating?.toFixed(1) || '-' }}</span>
+        <span class="h-7 flex items-center justify-center text-accent">
+          <EmojiRating v-if="stats.avgRating" :value="stats.avgRating" size="lg" />
+          <span v-else class="text-text-muted">-</span>
+        </span>
         <span class="text-xs text-text-muted mt-1">{{ t('teaching.profile.avgRating') }}</span>
       </div>
       <div class="flex flex-col items-center text-center">
@@ -49,6 +52,7 @@
 import { useI18n } from 'vue-i18n'
 import { User, ChevronRight } from 'lucide-vue-next'
 import type { TeacherStats } from '@stuhelper/shared/course'
+import EmojiRating from './EmojiRating.vue'
 
 const { t } = useI18n()
 

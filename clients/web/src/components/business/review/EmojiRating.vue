@@ -4,50 +4,40 @@
       class="inline-flex items-center justify-center transition-transform duration-200"
       :style="{ color: ratingColor }"
     >
-      <component :is="ratingIcon" :size="iconSize" :stroke-width="2.5" />
-    </span>
-    <span
-      v-if="showValue"
-      class="text-xs font-mono font-semibold"
-      :style="{ color: ratingColor }"
-    >
-      {{ value }}
+      <svg
+        class="block"
+        :class="iconSizeClass"
+        viewBox="0 0 512 512"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path :d="facePath" />
+      </svg>
     </span>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Angry, Frown, Meh, Smile, SmilePlus } from 'lucide-vue-next'
 import { getRatingColor } from '@/design-system/rating'
+import { getRatingFacePath, normalizeRatingLevel } from '@/modules/review/ratingFaces'
 
 const props = withDefaults(defineProps<{
   value: number
-  showValue?: boolean
   size?: 'sm' | 'md' | 'lg'
 }>(), {
-  showValue: false,
   size: 'md',
 })
 
-const ratingColor = computed(() => getRatingColor(props.value))
+const normalizedValue = computed(() => normalizeRatingLevel(props.value))
+const ratingColor = computed(() => getRatingColor(normalizedValue.value))
+const facePath = computed(() => getRatingFacePath(normalizedValue.value))
 
-const ratingIcon = computed(() => {
-  switch (props.value) {
-    case 1: return Angry
-    case 2: return Frown
-    case 3: return Meh
-    case 4: return Smile
-    case 5: return SmilePlus
-    default: return Meh
-  }
-})
-
-const iconSize = computed(() => {
+const iconSizeClass = computed(() => {
   switch (props.size) {
-    case 'sm': return 16
-    case 'lg': return 28
-    default: return 20
+    case 'sm': return 'size-4'
+    case 'lg': return 'size-7'
+    default: return 'size-5'
   }
 })
 </script>

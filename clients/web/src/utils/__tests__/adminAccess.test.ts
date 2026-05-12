@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  canListFullReviews,
   canManageReviews,
   canShowAdminEntry,
 } from '../adminAccess'
@@ -15,6 +16,16 @@ describe('admin access helpers', () => {
 
     expect(canShowAdminEntry(user)).toBe(true)
     expect(canManageReviews(user)).toBe(true)
+  })
+
+  it('detects full review list capability from scoped capabilities', () => {
+    const user = {
+      capabilities: ['review:list:full'],
+      globalCapabilities: [],
+      canAccessAdmin: false,
+    }
+
+    expect(canListFullReviews(user)).toBe(true)
   })
 
   it('denies admin visibility when neither admin flag nor scoped capability is present', () => {

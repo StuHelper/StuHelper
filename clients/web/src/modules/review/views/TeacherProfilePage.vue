@@ -31,7 +31,9 @@
             :size="72"
             :stroke-width="5"
             :subtitle="t('teaching.profile.overallRating')"
-          />
+          >
+            <EmojiRating v-if="teacher.avgRating" :value="teacher.avgRating" size="md" />
+          </RatingCircle>
         </div>
       </header>
 
@@ -81,8 +83,8 @@
               <span class="text-xs text-text-muted">{{ t('teaching.profile.reviewsCount', { count: course.reviewCount }) }}</span>
             </div>
             <div class="flex items-center gap-1">
-              <span class="font-semibold text-primary tabular-nums">{{ course.avgRating?.toFixed(1) || '-' }}</span>
-              <Star :size="14" fill="currentColor" class="text-primary" />
+              <EmojiRating v-if="course.avgRating" :value="course.avgRating" size="sm" />
+              <span v-else class="text-text-muted">-</span>
             </div>
           </router-link>
         </div>
@@ -113,8 +115,9 @@ use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 import { api } from '@/api'
 import { useThemeStore } from '@/stores/theme'
 import RatingCircle from '@/components/common/RatingCircle.vue'
+import EmojiRating from '@/components/business/review/EmojiRating.vue'
 import { withAlpha } from '@stuhelper/shared/utils'
-import { User, BookOpen, MessageSquare, TrendingUp, Star } from 'lucide-vue-next'
+import { User, BookOpen, MessageSquare, TrendingUp } from 'lucide-vue-next'
 
 interface TeacherCourse {
   id: number
@@ -221,7 +224,7 @@ const initChart = () => {
       max: 5,
       axisLine: { show: false },
       splitLine: { lineStyle: { color: cv.borderLight } },
-      axisLabel: { color: cv.textMuted, fontSize: 12 }
+      axisLabel: { show: false }
     },
     series: [{
       type: 'line',
@@ -243,7 +246,7 @@ const initChart = () => {
       formatter: (params: { name: string; value: number }[]) => {
         if (!params || params.length === 0) return ''
         const p = params[0]
-        return `${p.name}<br/>${t('teaching.profile.ratingLabel')}: ${p.value.toFixed(1)}`
+        return `${p.name}<br/>${t('teaching.profile.ratingLabel')}`
       }
     }
   })

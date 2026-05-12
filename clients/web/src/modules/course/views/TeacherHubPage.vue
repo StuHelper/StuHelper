@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Search, X, User, Star, BookOpen } from 'lucide-vue-next'
+import { Search, X, User, BookOpen } from 'lucide-vue-next'
 import { api } from '@/api'
+import EmojiRating from '@/components/business/review/EmojiRating.vue'
 
 interface TeacherEntry {
   teacherID: number
@@ -183,8 +184,7 @@ const showEmpty = computed(
           </div>
           <div class="flex items-center gap-4 text-xs text-text-secondary">
             <span v-if="teacher.avgRating" class="flex items-center gap-1 font-semibold text-primary">
-              <Star :size="12" fill="currentColor" />
-              {{ teacher.avgRating.toFixed(1) }}
+              <EmojiRating :value="teacher.avgRating" size="sm" />
             </span>
             <span class="flex items-center gap-1">
               <BookOpen :size="12" />

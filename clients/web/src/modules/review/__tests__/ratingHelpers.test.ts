@@ -4,6 +4,11 @@ import {
   localizeRatingDimension,
   ratingDimensionLabel,
 } from '../ratingHelpers'
+import {
+  getRatingFacePath,
+  normalizeRatingLevel,
+  ratingFacePaths,
+} from '../ratingFaces'
 
 const zhMessages: Record<string, string> = {
   'review.ratingEmoji.difficulty': '课程难度',
@@ -56,5 +61,19 @@ describe('rating dimension helpers', () => {
     expect(localized.name).toBe('课程难度')
     expect(localized.description).toBe('课程内容的难易程度')
     expect(dimension.name).toBe('Difficulty')
+  })
+})
+
+describe('rating face helpers', () => {
+  it('normalizes arbitrary rating values to the published-review face levels', () => {
+    expect(normalizeRatingLevel(0)).toBe(1)
+    expect(normalizeRatingLevel(3.4)).toBe(3)
+    expect(normalizeRatingLevel(4.6)).toBe(5)
+    expect(normalizeRatingLevel(Number.NaN)).toBe(3)
+  })
+
+  it('uses the same face path set for rating display and input', () => {
+    expect(getRatingFacePath(5)).toBe(ratingFacePaths[5])
+    expect(getRatingFacePath(99)).toBe(ratingFacePaths[5])
   })
 })

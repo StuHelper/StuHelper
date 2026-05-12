@@ -124,9 +124,11 @@
                       }"
                     />
                   </div>
-                  <span class="text-xs font-mono w-8 text-right" :style="{ color: ratingBarColor(dim.avgRating) }">
-                    {{ dim.avgRating.toFixed(1) }}
-                  </span>
+                  <span
+                    class="h-2.5 w-2.5 rounded-full shrink-0"
+                    :style="{ backgroundColor: ratingBarColor(dim.avgRating) }"
+                    aria-hidden="true"
+                  />
                 </div>
               </div>
 
@@ -150,9 +152,6 @@
                 :key="idx"
                 class="flex-1 flex flex-col items-center gap-1"
               >
-                <span class="text-xs font-mono font-medium text-primary">
-                  {{ point.avgRating.toFixed(1) }}
-                </span>
                 <div
                   class="w-full rounded-t-md bg-primary/20 transition-all duration-base"
                   :style="{ height: `${Math.max(8, (point.avgRating / 5) * 100)}%` }"
@@ -246,6 +245,39 @@
 
               <!-- Content -->
               <div
+                v-if="r.status === 'hidden' && !canManageReviews"
+                class="mb-2 flex items-start gap-2 rounded-lg border border-warning/20 bg-warning/5 px-3 py-4"
+              >
+                <ShieldAlert :size="18" class="mt-0.5 shrink-0 text-warning" />
+                <div>
+                  <span class="text-sm font-medium text-text-secondary">{{ t('review.card.contentHidden') }}</span>
+                  <p v-if="r.moderationReason" class="mt-1 text-xs text-text-muted" v-text="r.moderationReason" />
+                </div>
+              </div>
+              <div
+                v-else-if="!isAuthenticated"
+                class="mb-2"
+              >
+                <LockedReviewContent
+                  :content="r.content"
+                  :message="t('review.card.loginToView')"
+                  :action-label="t('review.card.loginBtn')"
+                  @action="handleLogin"
+                />
+              </div>
+              <div
+                v-else-if="isReviewContentLocked"
+                class="mb-2"
+              >
+                <LockedReviewContent
+                  :content="r.content"
+                  :message="t('review.card.verifyToView')"
+                  :action-label="t('review.card.goVerify')"
+                  @action="goVerify"
+                />
+              </div>
+              <div
+                v-else
                 class="text-sm leading-relaxed break-words whitespace-pre-line mb-2 text-text-secondary"
                 v-text="r.content"
               />
@@ -270,7 +302,7 @@
                   :key="key"
                   class="flex items-center gap-1.5"
                 >
-                  <EmojiRating :value="value" :show-value="false" size="sm" />
+                  <EmojiRating :value="value" size="sm" />
                   <span class="text-xs text-text-muted">
                     {{ dimensionLabel(String(key)) }}
                   </span>
@@ -400,12 +432,14 @@ import {
   EyeOff,
   Eye,
   Pencil,
+  ShieldAlert,
 } from 'lucide-vue-next'
 
 import CourseThemeProvider from '@/modules/course/theme/CourseThemeProvider.vue'
 import EmojiRating from '@/components/business/review/EmojiRating.vue'
 import ControversialBadge from '@/components/business/review/ControversialBadge.vue'
 import FavoriteButton from '@/components/business/review/FavoriteButton.vue'
+import LockedReviewContent from '@/components/business/review/LockedReviewContent.vue'
 import ReplyCard from '@/components/business/review/ReplyCard.vue'
 import ReplyForm from '@/components/business/review/ReplyForm.vue'
 import ModerationDialog from '@/components/business/review/ModerationDialog.vue'
@@ -419,6 +453,10 @@ import { getErrorMessage } from '@/api/errors'
 import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils/date'
 import { useReviewPost } from '@/composables/useReviewPost'
+import { rememberReviewPostCourse } from '@/modules/review/reviewPostNavigation'
+import { useAuthStore } from '@/stores/auth'
+import { useVerificationStore } from '@/stores/verification'
+import { canListFullReviews } from '@/utils/adminAccess'
 import {
   ratingBarColor,
   ratingDimensionLabel,
@@ -433,7 +471,9 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { ensureCanPostReview, lastPostedAt } = useReviewPost()
+const { ensureCanPostReview } = useReviewPost()
+const authStore = useAuthStore()
+const verificationStore = useVerificationStore()
 
 const courseID = computed(() => Number(route.params.id))
 
@@ -519,16 +559,33 @@ const {
   refreshReviews()
 })
 
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const hasFullListCapability = computed(() => canListFullReviews(authStore.user))
+const isReviewContentLocked = computed(() =>
+  isAuthenticated.value &&
+  !canManageReviews.value &&
+  !(hasFullListCapability.value && verificationStore.canViewFullReviews)
+)
+
 function dimensionLabel(key: string, fallback?: string): string {
   return ratingDimensionLabel({ key, fallback, t })
 }
 
 // ── Navigation ──
+function handleLogin() {
+  void authStore.login()
+}
+
+function goVerify() {
+  void router.push({ name: 'student-verification' })
+}
+
 async function goToPostPage() {
   if (!(await ensureCanPostReview())) {
     return
   }
-  await router.push({ name: 'course-review-post', params: { id: courseID.value } })
+  rememberReviewPostCourse(courseID.value)
+  await router.push({ name: 'course-review-post' })
 }
 
 // ── Data fetching ──
@@ -657,15 +714,6 @@ const fetchAll = async () => {
     }
   }
 }
-
-// 发帖成功后刷新评测列表
-let lastPostedAtSnapshot = lastPostedAt.value
-watch(lastPostedAt, (val) => {
-  if (val > lastPostedAtSnapshot) {
-    lastPostedAtSnapshot = val
-    refreshReviews()
-  }
-})
 
 onUnmounted(() => {
   ++loadVersion
