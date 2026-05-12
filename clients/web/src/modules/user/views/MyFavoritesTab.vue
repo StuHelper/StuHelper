@@ -6,6 +6,7 @@
 
     <EmptyState
       v-else-if="errorMessage"
+      class="col-span-full mx-auto w-full max-w-[420px]"
       :title="t('common.loadFailed')"
       :description="errorMessage"
     >
@@ -41,12 +42,13 @@
 
     <EmptyState
       v-else
+      class="col-span-full mx-auto w-full max-w-[420px]"
       :title="t('user.favorites.empty')"
       :description="t('user.favorites.emptyDesc')"
     >
       <template #action>
         <router-link
-          to="/"
+          to="/course"
           class="inline-block px-4 py-2 bg-text-primary text-bg-base rounded-sm no-underline text-sm font-medium transition-all duration-fast hover:bg-accent hover:text-white"
         >
           {{ t('user.favorites.browseCourses') }}

@@ -3,29 +3,24 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import i18n, { SUPPORTED_LOCALES, DEFAULT_LOCALE, LOCALE_STORAGE_KEY, type SupportedLocale } from '@/i18n'
+import i18n, {
+  DEFAULT_LOCALE,
+  LOCALE_STORAGE_KEY,
+  SUPPORTED_LOCALES,
+  normalizeLocale,
+  readStoredLocale,
+  type SupportedLocale
+} from '@/i18n'
 import { updateLocaleMeta } from '@/composables/usePageMeta'
 
 export const useLocaleStore = defineStore('locale', () => {
-  // 安全读取 localStorage，隐私模式下降级
-  let stored: string | null = null
-  try {
-    stored = localStorage.getItem(LOCALE_STORAGE_KEY)
-  } catch (_error) { void _error;
-    stored = null
+  function getI18nLocale(): SupportedLocale {
+    return normalizeLocale(i18n.global.locale.value) ?? DEFAULT_LOCALE
   }
 
-  // 无效 locale 降级时输出警告
-  if (stored && !SUPPORTED_LOCALES.includes(stored as SupportedLocale)) {
-    if (import.meta.env.DEV) {
-      console.warn(`[Locale] Invalid stored locale "${stored}", falling back to "${DEFAULT_LOCALE}"`)
-    }
-    stored = null
-  }
+  const initialLocale = readStoredLocale() ?? getI18nLocale()
 
-  const locale = ref<SupportedLocale>(
-    stored ? (stored as SupportedLocale) : DEFAULT_LOCALE
-  )
+  const locale = ref<SupportedLocale>(initialLocale)
 
   // 是否为中文
   const isZhCN = computed(() => locale.value === 'zh-CN')
@@ -39,7 +34,8 @@ export const useLocaleStore = defineStore('locale', () => {
     updateLocaleMeta(loc, t('common.meta.description'), t('common.meta.ogTitle'))
   }
 
-  // 初始化时同步 HTML lang 属性和 meta 标签
+  // 初始化时同步 i18n、HTML lang 属性和 meta 标签
+  i18n.global.locale.value = locale.value
   updateMetaTags(locale.value)
 
   // 切换语言

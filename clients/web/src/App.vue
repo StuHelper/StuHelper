@@ -4,13 +4,13 @@
       <AppShell v-if="showShell">
         <router-view v-slot="{ Component }">
           <Transition name="page" mode="out-in">
-            <component :is="Component" :key="route.name" />
+            <component :is="Component" :key="routeViewKey" />
           </Transition>
         </router-view>
       </AppShell>
       <router-view v-else v-slot="{ Component }">
         <Transition name="page" mode="out-in">
-          <component :is="Component" :key="route.name" />
+          <component :is="Component" :key="routeViewKey" />
         </Transition>
       </router-view>
     </ErrorBoundary>
@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElConfigProvider } from 'element-plus'
@@ -27,11 +27,9 @@ import en from 'element-plus/es/locale/lang/en'
 import { useThemeStore } from '@/stores/theme'
 import AppShell from '@/components/layout/AppShell.vue'
 import ErrorBoundary from '@/components/common/ErrorBoundary.vue'
-import { useReviewPost } from '@/composables/useReviewPost'
 
 const route = useRoute()
 const { locale } = useI18n()
-const { closePostModal } = useReviewPost()
 
 useThemeStore()
 
@@ -39,8 +37,11 @@ const elementLocale = computed(() => locale.value === 'zh-CN' ? zhCn : en)
 const showShell = computed(() => {
   return route.meta.layout !== 'none'
 })
-
-watch(() => route.fullPath, () => {
-  closePostModal()
+const routeViewKey = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : ''
+  if (name.startsWith('user-') && ['user-reviews', 'user-votes', 'user-favorites'].includes(name)) {
+    return 'user-center'
+  }
+  return name || route.fullPath
 })
 </script>

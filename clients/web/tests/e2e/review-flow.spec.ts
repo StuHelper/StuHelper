@@ -186,6 +186,27 @@ test("authenticated user can publish a review and vote on a course review", asyn
         });
     });
 
+    await page.route("**/api/v1/course/courses/search*", async (route) => {
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+                success: true,
+                data: {
+                    list: [
+                        {
+                            id: 1,
+                            name: "高等数学",
+                            code: "MATH101",
+                            departmentName: "数学系",
+                            reviewCount: 1,
+                        },
+                    ],
+                    total: 1,
+                },
+            }),
+        });
+    });
+
     await page.route("**/api/v1/course/review/courses/1/favorites", async (route) => {
         await route.fulfill({
             contentType: "application/json",
@@ -293,7 +314,16 @@ test("authenticated user can publish a review and vote on a course review", asyn
         });
     });
 
-    await page.goto("/courses/1/reviews/post");
+    await page.goto("/courses/reviews/post");
+
+    await expect(page).toHaveURL(/\/courses\/reviews\/post$/);
+    await page
+        .getByPlaceholder(/高等数学|gaodengshuxue|gdsx|Search by course/i)
+        .fill("高等数学");
+    await page.getByText("高等数学").click();
+    await expect(page.getByTestId("review-course-selected")).toContainText(
+        "高等数学",
+    );
 
     await page.getByTestId("review-term").selectOption("2025-fall");
     await page.getByTestId("rating-difficulty-5").click();

@@ -13,10 +13,18 @@ describe('style entrypoint', () => {
     expect(appSource).not.toContain("@/styles/tailwind.css")
   })
 
-  it('hydrates server cookie sessions after the app is mounted', () => {
+  it('hydrates sessions after mount only when a local session hint exists', () => {
     const mainSource = readFileSync(resolve(__dirname, '../../main.ts'), 'utf-8')
 
-    expect(mainSource).toMatch(/app\.mount\('#app'\)\s*void authStore\.bootstrapSession\(\)/)
+    expect(mainSource).toContain('const hasSessionHint = hasStoredSessionHint()')
+    expect(mainSource).toMatch(
+      /if \(!hasSessionHint && authStore\.isAuthenticated\) \{\s*authStore\.clearSession\(\)\s*\}/,
+    )
+    expect(mainSource).toContain('function markAnonymousBootstrap')
+    expect(mainSource).toContain('markAnonymousBootstrap(authStore)')
+    expect(mainSource).toMatch(
+      /app\.mount\('#app'\)\s*if \(hasSessionHint\) \{\s*void authStore\.bootstrapSession\(\)\s*\}/,
+    )
   })
 
   it('does not probe guest routes unless local auth state exists', () => {
@@ -34,6 +42,19 @@ describe('style entrypoint', () => {
     expect(loginSource).toContain('function defaultAuthenticatedRoute()')
     expect(loginSource).toContain('return new URL("/", window.location.origin).toString()')
     expect(loginSource).toContain('return defaultAuthenticatedRoute()')
+  })
+
+  it('keeps the login page inside the shared shell without global background side effects', () => {
+    const loginSource = readFileSync(
+      resolve(__dirname, '../../modules/auth/views/LoginPage.vue'),
+      'utf-8',
+    )
+    const routerSource = readFileSync(resolve(__dirname, '../../router/index.ts'), 'utf-8')
+
+    expect(routerSource).toMatch(/name:\s*"login"[\s\S]*meta:\s*\{\s*titleKey:\s*"routes\.login",\s*guest:\s*true\s*\}/)
+    expect(loginSource).not.toContain('ParticleBackground')
+    expect(loginSource).not.toContain(':global([data-theme="dark"])')
+    expect(loginSource).not.toMatch(/\[data-theme="dark"\]\s*\{[\s\S]*opacity/)
   })
 
   it('keeps anonymous favorite actions clickable without eager session bootstrap', () => {
@@ -60,6 +81,26 @@ describe('style entrypoint', () => {
     expect(courseListSource).toContain(':to="`/courses/${course.id}/reviews`"')
     expect(teacherHubSource).toContain('<router-link')
     expect(teacherHubSource).toContain(':to="`/teachers/${teacher.teacherID}`"')
+  })
+
+  it('routes header write-review actions to the page form instead of the deleted modal flow', () => {
+    const shellSource = readFileSync(resolve(__dirname, '../../components/layout/AppShell.vue'), 'utf-8')
+    const reviewPageSource = readFileSync(
+      resolve(__dirname, '../../modules/review/views/ReviewPage.vue'),
+      'utf-8',
+    )
+    const headerSource = readFileSync(resolve(__dirname, '../../components/layout/AppHeader.vue'), 'utf-8')
+    const routerSource = readFileSync(resolve(__dirname, '../../router/index.ts'), 'utf-8')
+
+    expect(shellSource).not.toContain('ReviewDialog')
+    expect(shellSource).not.toContain('showPostModal')
+    expect(headerSource).toContain("router.push({ name: 'course-review-post' })")
+    expect(headerSource).not.toContain('openPostModal')
+    expect(routerSource).toContain('path: "/courses/reviews/post"')
+    expect(routerSource).toContain('path: "/courses/:id/reviews/post"')
+    expect(routerSource).toContain('rememberReviewPostCourse(courseID)')
+    expect(routerSource).toContain('return "/courses/reviews/post"')
+    expect(reviewPageSource).not.toContain('<ReviewDialog')
   })
 
   it('keeps clickable notification rows keyboard reachable', () => {

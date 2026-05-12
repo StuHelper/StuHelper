@@ -9,7 +9,7 @@ export default {
   about: '关于 StuHelper',
   privacy: '隐私政策',
   terms: '服务条款',
-  teachingHub: '学习中心',
+  teachingHub: '评课社区',
   review: '评课中心',
   courseList: '课程列表',
   courseDetail: '课程详情',
@@ -38,7 +38,7 @@ export default {
   courseAbout: '关于评课社区',
   // 页面描述（用于 meta description）
   desc: {
-    teachingHub: '教学中心门户 - 课程评价、教师评价、学习资源一站式平台',
+    teachingHub: '评课社区 - 搜索课程、查看测评、了解教师与课程体验',
     review: '评课社区 - 真实的课程评价与教学反馈，帮助学生选课决策',
     courseDetail: '查看课程详细评价、评分统计和教师信息',
     teacherProfile: '查看教师教学评价和课程列表',

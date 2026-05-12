@@ -3,6 +3,9 @@
  */
 export default {
   logo: 'StuHelper',
+  tagline: '校园学习入口',
+  primary: '主导航',
+  menu: '菜单',
   home: '首页',
   review: '评课',
   campus: '校园',

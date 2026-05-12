@@ -23,12 +23,28 @@
             <span class="text-danger ml-0.5">*</span>
           </label>
           <div class="relative" ref="searchContainerRef">
-            <div class="relative">
+            <div
+              v-if="selectedCourse && !showDropdown"
+              data-testid="review-course-selected"
+              class="flex items-center justify-between gap-3 p-3 bg-primary/[0.06] rounded-lg border border-primary/15"
+            >
+              <span class="min-w-0 truncate font-semibold text-sm text-text-primary">{{ selectedCourse.name }}</span>
+              <button
+                type="button"
+                class="shrink-0 text-xs text-primary cursor-pointer"
+                :aria-label="t('common.actions.edit')"
+                @click="editCourseSelection"
+              >
+                {{ t('common.actions.edit') }}
+              </button>
+            </div>
+            <div v-else class="relative">
               <Search
                 :size="18"
                 class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted"
               />
               <input
+                ref="courseSearchInputRef"
                 v-model="courseSearch.query.value"
                 type="text"
                 class="w-full pl-10 pr-10 px-4 py-3 bg-bg-elevated rounded-lg text-text-primary placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors"
@@ -40,24 +56,11 @@
               />
               <button
                 v-if="courseSearch.query.value || selectedCourse"
+                type="button"
                 class="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0 flex items-center text-text-muted hover:text-text-secondary transition-colors"
                 @click="clearCourseSelection"
               >
                 <X :size="16" />
-              </button>
-            </div>
-
-            <!-- Selected course display -->
-            <div
-              v-if="selectedCourse && !showDropdown"
-              class="mt-2 bg-primary/10 text-primary rounded-lg px-3 py-2 text-sm flex items-center justify-between"
-            >
-              <span>{{ selectedCourse.name }}</span>
-              <button
-                class="bg-transparent border-none cursor-pointer p-0 flex items-center text-primary/60 hover:text-primary transition-colors"
-                @click="clearCourseSelection"
-              >
-                <X :size="14" />
               </button>
             </div>
 
@@ -325,9 +328,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, watch, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { ArrowLeft, Search, X } from 'lucide-vue-next'
 import EmojiRatingInput from '@/components/business/review/EmojiRatingInput.vue'
 import { areRatingsComplete, useRatingDimensions } from '@/components/business/review/composables/useRatingDimensions'
@@ -338,6 +341,7 @@ import { buildCreateReviewPayload } from '@/components/business/review/reviewPay
 import { buildTermOptions } from '@/modules/course/termOptions'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { getErrorMessage } from '@/api/errors'
+import { consumeReviewPostCourseID } from '@/modules/review/reviewPostNavigation'
 import {
   REVIEW_TITLE_MAX_LENGTH,
   REVIEW_CONTENT_MIN_LENGTH,
@@ -346,7 +350,6 @@ import {
 import type { Course, TeacherStats, Term } from '@stuhelper/shared/course'
 import type { ReviewRatings } from '@stuhelper/shared/review'
 
-const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
@@ -423,6 +426,7 @@ const courses = ref<Course[]>([])
 const courseSearchLoading = ref(false)
 const showDropdown = ref(false)
 const searchContainerRef = ref<HTMLDivElement | null>(null)
+const courseSearchInputRef = ref<HTMLInputElement | null>(null)
 
 const courseItems = computed<PinyinSearchItem[]>(() =>
   courses.value.map((c) => ({
@@ -495,6 +499,13 @@ function clearCourseSelection() {
   showDropdown.value = false
 }
 
+async function editCourseSelection() {
+  clearCourseSelection()
+  showDropdown.value = true
+  await nextTick()
+  courseSearchInputRef.value?.focus()
+}
+
 function handleCourseKeyDown(e: KeyboardEvent) {
   if (!showDropdown.value) return
   const selected = courseSearch.handleKeyDown(e)
@@ -520,7 +531,7 @@ onBeforeUnmount(() => {
   if (searchAbortController) searchAbortController.abort()
 })
 
-// ── 路由携带课程 ID 时预选课程 ─────────
+// ── 从入口携带的临时状态恢复默认课程 ─────────
 onMounted(async () => {
   if (!(await ensureCanPostReview())) {
     return
@@ -528,8 +539,8 @@ onMounted(async () => {
 
   await fetchTerms()
 
-  const courseID = Number(route.params.id)
-  if (!Number.isNaN(courseID) && courseID > 0) {
+  const courseID = consumeReviewPostCourseID()
+  if (courseID) {
     try {
       const res = await api.course.getCourse(courseID)
       const data = res.data?.data as Course | undefined

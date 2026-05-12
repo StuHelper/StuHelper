@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockClearSession = vi.fn();
 const mockTokenExpirySet = vi.fn();
+const mockHasStoredSessionHint = vi.fn();
 
 vi.mock("@stuhelper/shared/api", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@stuhelper/shared/api")>();
@@ -41,6 +42,21 @@ vi.mock("@/stores/auth", () => ({
 vi.mock("@/utils/auth", () => ({
     tokenExpiry: {
         set: mockTokenExpirySet,
+    },
+}));
+
+vi.mock("@/utils/sessionHint", () => ({
+    hasStoredSessionHint: mockHasStoredSessionHint,
+    readCookie: (name: string) => {
+        const cookies = document.cookie ? document.cookie.split(";") : [];
+        const target = `${encodeURIComponent(name)}=`;
+        for (const raw of cookies) {
+            const cookie = raw.trim();
+            if (cookie.startsWith(target)) {
+                return decodeURIComponent(cookie.slice(target.length));
+            }
+        }
+        return null;
     },
 }));
 
@@ -97,7 +113,9 @@ describe("browser API client", () => {
         vi.useRealTimers();
         fetchMock.mockReset();
         mockClearSession.mockReset();
+        mockHasStoredSessionHint.mockReset();
         mockTokenExpirySet.mockReset();
+        mockHasStoredSessionHint.mockReturnValue(true);
 
         Object.defineProperty(globalThis, "window", {
             configurable: true,
@@ -214,6 +232,31 @@ describe("browser API client", () => {
         expect(fetchMock).toHaveBeenCalledTimes(3);
         expect(mockTokenExpirySet).toHaveBeenCalledWith(120);
         expect(mockClearSession).not.toHaveBeenCalled();
+    });
+
+    it("does not refresh a 401 response without a stored browser session hint", async () => {
+        mockHasStoredSessionHint.mockReturnValue(false);
+        fetchMock.mockResolvedValueOnce(
+            new Response(
+                JSON.stringify({
+                    error: { code: "A0010100", message: "login required" },
+                }),
+                {
+                    status: 401,
+                    headers: { "Content-Type": "application/json" },
+                },
+            ),
+        );
+
+        const { apiClientOptions } = await import("../client");
+        const response = await apiClientOptions.fetch(
+            new Request("http://127.0.0.1:3000/api/v1/course/review/reviews", {
+                method: "GET",
+            }),
+        );
+
+        expect(response.status).toBe(401);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it("clears the local session when refresh is rejected as unauthorized", async () => {

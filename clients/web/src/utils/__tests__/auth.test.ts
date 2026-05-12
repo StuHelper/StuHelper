@@ -102,13 +102,11 @@ describe('auth utilities', () => {
     expect(isTokenExpired()).toBe(false)
   })
 
-  it('clears auth, redirect, and draft session state together', () => {
+  it('clears auth and redirect session state together', () => {
     localStorage.setItem('stuhelper_user', JSON.stringify({ id: 'user_2', name: 'bob', displayName: 'Bob' }))
     localStorage.setItem('stuhelper_token_expiry', String(Date.now() + 60_000))
     sessionStorage.setItem('oauth_state', 'oauth-state')
-    sessionStorage.setItem('post_login_redirect', '/courses/1/reviews/post')
-    sessionStorage.setItem('draft_redirect', '/courses/1/reviews')
-    sessionStorage.setItem('draft_pending', '1')
+    sessionStorage.setItem('post_login_redirect', '/courses/reviews/post')
 
     clearAuth()
 
@@ -116,8 +114,6 @@ describe('auth utilities', () => {
     expect(localStorage.getItem('stuhelper_token_expiry')).toBeNull()
     expect(sessionStorage.getItem('oauth_state')).toBeNull()
     expect(sessionStorage.getItem('post_login_redirect')).toBeNull()
-    expect(sessionStorage.getItem('draft_redirect')).toBeNull()
-    expect(sessionStorage.getItem('draft_pending')).toBeNull()
   })
 
   it('consumes a matching oauth state and clears it from session storage', () => {

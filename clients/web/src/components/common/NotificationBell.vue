@@ -1,15 +1,16 @@
 <template>
   <div ref="rootRef" class="notification-bell relative" :class="{ 'has-new': hasUnread }">
     <button
-      class="bell-btn relative flex items-center justify-center w-9 h-9 bg-transparent border-none text-text-muted cursor-pointer rounded-sm transition-colors duration-fast hover:text-text-primary"
+      class="bell-btn relative inline-flex size-11 cursor-pointer items-center justify-center rounded-xl border border-transparent bg-transparent text-text-secondary transition-all duration-fast hover:border-white/20 hover:bg-bg-card hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       :aria-label="t('user.notification.bell')"
       :aria-expanded="showPanel"
+      :title="t('user.notification.bell')"
       @click="togglePanel"
     >
-      <Bell :size="20" />
+      <Bell :size="20" aria-hidden="true" />
       <span
         v-if="unreadCount > 0"
-        class="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 bg-accent text-white text-[10px] font-semibold tabular-nums rounded-lg flex items-center justify-center"
+        class="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-lg bg-accent px-1 text-[10px] font-semibold tabular-nums text-white ring-2 ring-bg-base"
       >
         {{ unreadCount > 99 ? '99+' : unreadCount }}
       </span>
@@ -18,7 +19,7 @@
     <transition name="dropdown">
       <div
         v-if="showPanel"
-        class="absolute top-[calc(100%+8px)] right-0 w-80 bg-bg-base rounded-sm overflow-hidden z-[var(--z-dropdown)]"
+        class="absolute top-[calc(100%+10px)] right-0 z-[var(--z-dropdown)] w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-white/20 bg-bg-glass-heavy/95 shadow-lg backdrop-blur-xl dark:border-white/8"
       >
         <div class="flex items-center justify-between p-3 border-b border-border-light font-medium text-sm">
           <span>{{ t('user.notification.bell') }}</span>

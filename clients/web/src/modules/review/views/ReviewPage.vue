@@ -47,51 +47,28 @@
         <!-- Right content area -->
         <main class="min-w-0 max-tablet:px-4">
           <router-view v-if="hasChildRoute" />
-          <ReviewFeed v-else :key="feedKey" />
+          <ReviewFeed v-else />
         </main>
       </div>
-      <ReviewDialog :visible="showPostModal" @close="closePostModal" @posted="handlePosted" />
     </div>
   </CourseThemeProvider>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import CourseThemeProvider from '@/modules/course/theme/CourseThemeProvider.vue'
 import DepartmentSidebar from '@/components/business/review/DepartmentSidebar.vue'
 import ReviewFeed from '@/components/business/review/ReviewFeed.vue'
-import ReviewDialog from '@/components/business/review/ReviewDialog.vue'
-import { useReviewPost } from '@/composables/useReviewPost'
 
 const { t } = useI18n()
 const route = useRoute()
 const sidebarOpen = ref(false)
-const { ensureCanPostReview, showPostModal, closePostModal, notifyPosted, openPostModal } = useReviewPost()
-const feedKey = ref(0)
 
 const hasChildRoute = computed(() => {
   return route.matched.length > 1 && route.name !== 'review'
-})
-
-function handlePosted() {
-  closePostModal()
-  notifyPosted()
-  feedKey.value++
-}
-
-// 登录回流后检测 draft_pending 标记，自动恢复发帖弹窗
-onMounted(() => {
-  if (sessionStorage.getItem('draft_pending')) {
-    sessionStorage.removeItem('draft_pending')
-    void ensureCanPostReview().then((allowed) => {
-      if (allowed) {
-        openPostModal()
-      }
-    })
-  }
 })
 
 // 路由切到具体课程后自动关闭侧边抽屉

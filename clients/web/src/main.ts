@@ -9,8 +9,10 @@ import enUS from './i18n/locales/en-US'
 import zhCN from './i18n/locales/zh-CN'
 import App from './App.vue'
 import { useAuthStore } from './stores/auth'
+import { useLocaleStore } from './stores/locale'
 import { vRipple } from './directives/ripple'
 import { initObservability } from './utils/observability'
+import { hasStoredSessionHint } from './utils/sessionHint'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -58,12 +60,26 @@ app.use(i18n)
 app.directive('ripple', vRipple)
 initObservability()
 
+function markAnonymousBootstrap(authStore: ReturnType<typeof useAuthStore>) {
+  authStore.bootstrapPending = false
+  authStore.bootstrapCompleted = true
+}
+
 async function bootstrapApp() {
+  useLocaleStore(pinia)
   const authStore = useAuthStore(pinia)
+  const hasSessionHint = hasStoredSessionHint()
+  if (!hasSessionHint && authStore.isAuthenticated) {
+    authStore.clearSession()
+  } else if (!hasSessionHint) {
+    markAnonymousBootstrap(authStore)
+  }
   app.use(router)
   await router.isReady()
   app.mount('#app')
-  void authStore.bootstrapSession()
+  if (hasSessionHint) {
+    void authStore.bootstrapSession()
+  }
 }
 
 bootstrapApp().catch(renderBootstrapFallback)

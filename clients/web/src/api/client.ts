@@ -3,6 +3,7 @@ import {
   AUTH_REFRESH_PATH,
   appendQuery,
   buildSecurityHeaders,
+  CSRF_COOKIE_NAME,
   createSessionApiClient,
   executeSessionRefresh,
   parseApiError,
@@ -19,6 +20,7 @@ import {
 } from './errors'
 import { useAuthStore } from '@/stores/auth'
 import { tokenExpiry } from '@/utils/auth'
+import { hasStoredSessionHint, readCookie } from '@/utils/sessionHint'
 
 const RAW_API_BASE_URL = import.meta.env.VITE_API_URL?.trim() || ''
 const AUTH_REFRESH_TIMEOUT_MS = 10_000
@@ -26,7 +28,6 @@ const DEFAULT_REQUEST_TIMEOUT_MS = (() => {
   const raw = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 15_000)
   return Number.isFinite(raw) && raw > 0 ? raw : 15_000
 })()
-const CSRF_COOKIE_NAME = 'csrf_token'
 const inflightGetRequests = new Map<string, Promise<unknown>>()
 let didWarnMissingApiBaseUrl = false
 
@@ -58,21 +59,6 @@ export function resolveApiBaseUrl(rawBaseUrl: string = RAW_API_BASE_URL): string
   }
 
   return normalizedBaseUrl
-}
-
-function readCookie(name: string): string | null {
-  const cookies = document.cookie ? document.cookie.split(';') : []
-  const target = `${encodeURIComponent(name)}=`
-  for (const raw of cookies) {
-    const cookie = raw.trim()
-    if (!cookie.startsWith(target)) continue
-    try {
-      return decodeURIComponent(cookie.slice(target.length))
-    } catch (_error) { void _error;
-      return null
-    }
-  }
-  return null
 }
 
 function resolveApiPath(
@@ -127,10 +113,6 @@ function normalizeClientError(error: unknown): ApiError {
     code: 'NETWORK_ERROR',
     message: error instanceof Error ? error.message : 'network error',
   })
-}
-
-function hasRefreshSessionHint(): boolean {
-  return readCookie(CSRF_COOKIE_NAME) !== null || tokenExpiry.get() !== null
 }
 
 async function fetchWithTimeout(
@@ -313,7 +295,7 @@ const browserSessionClient = createSessionApiClient(
     refresh: refreshSession,
     request: browserRequest,
     shouldRefresh(schemaPath, status) {
-      return status === 401 && schemaPath !== AUTH_REFRESH_PATH && hasRefreshSessionHint()
+      return status === 401 && schemaPath !== AUTH_REFRESH_PATH && hasStoredSessionHint()
     },
   },
   {
@@ -446,6 +428,7 @@ export const __testing__ = {
   performBrowserFetch,
   authenticatedFetch,
   buildApiError,
+  hasStoredSessionHint,
   resolveApiBaseUrl,
   normalizeClientError,
   resolveApiURL,

@@ -15,11 +15,6 @@ const mockAuthStore = {
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: mockPush,
-    currentRoute: {
-      value: {
-        fullPath: '/review',
-      },
-    },
   }),
 }))
 
@@ -77,7 +72,7 @@ describe('useReviewPost', () => {
     expect(mockGetUserSurface).not.toHaveBeenCalled()
     expect(mockPush).toHaveBeenCalledWith({
       name: 'login',
-      query: { redirect: '/review' },
+      query: { redirect: '/courses/reviews/post' },
     })
   })
 

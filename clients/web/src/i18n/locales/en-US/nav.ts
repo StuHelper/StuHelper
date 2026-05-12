@@ -3,6 +3,9 @@
  */
 export default {
   logo: 'StuHelper',
+  tagline: 'Campus learning portal',
+  primary: 'Primary navigation',
+  menu: 'Menu',
   home: 'Home',
   review: 'Reviews',
   campus: 'Campus',

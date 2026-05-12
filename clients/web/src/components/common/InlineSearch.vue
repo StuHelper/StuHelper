@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-[600px] shrink-0 max-tablet:w-full">
+  <div class="relative w-full">
     <div
       class="flex items-center gap-2 px-3 py-2 rounded-full bg-bg-secondary transition-all duration-fast ease-smooth"
       :class="isFocused && 'border-primary shadow-glow-sm'"

@@ -9,7 +9,7 @@ export default {
   about: 'About StuHelper',
   privacy: 'Privacy Policy',
   terms: 'Terms of Service',
-  teachingHub: 'Learning Hub',
+  teachingHub: 'Course Reviews',
   review: 'Course Reviews',
   courseList: 'Course List',
   courseDetail: 'Course Detail',
@@ -38,7 +38,7 @@ export default {
   courseAbout: 'About Course Reviews',
   // Page descriptions (for meta description)
   desc: {
-    teachingHub: 'Teaching Hub - Course reviews, teacher ratings, and learning resources in one place',
+    teachingHub: 'Course Review Community - search courses, read reviews, and understand teacher and course experiences',
     review: 'Course Review Community - Authentic course reviews and teaching feedback to help students make informed choices',
     courseDetail: 'View detailed course reviews, rating statistics, and teacher information',
     teacherProfile: 'View teacher ratings and course list',

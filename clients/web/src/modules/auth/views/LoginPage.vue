@@ -1,6 +1,7 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-bg-base p-4 relative overflow-hidden">
-    <ParticleBackground :particle-count="35" color="rgba(91, 124, 247, 0.5)" />
+  <div class="login-page flex items-center justify-center px-4 py-10 relative overflow-hidden">
+    <div class="login-grid" aria-hidden="true" />
+    <div class="login-sheen" aria-hidden="true" />
     <div class="relative z-10 glass-card glow-border py-12 px-4 sm:px-10 rounded-xl shadow-lg text-center max-w-[380px] w-full animate-scale-in overflow-hidden">
       <!-- 渐变条 -->
       <div class="h-[3px] bg-gradient-to-r from-primary to-accent -mt-12 -mx-4 sm:-mx-10 mb-6"></div>
@@ -91,7 +92,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from "vue";
-import ParticleBackground from "@/components/animated/ParticleBackground.vue";
 import OtpCodeInput from "@/components/common/OtpCodeInput.vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
@@ -144,7 +144,6 @@ function getPostLoginRedirect(): string | undefined {
         sanitizeInternalRedirect(
             typeof route.query.redirect === "string" ? route.query.redirect : undefined,
         ) ||
-        sanitizeInternalRedirect(sessionStorage.getItem("draft_redirect")) ||
         sanitizeInternalRedirect(sessionStorage.getItem("post_login_redirect"))
     );
 }
@@ -154,7 +153,6 @@ function defaultAuthenticatedRoute(): string {
 }
 
 function clearStoredRedirects() {
-    sessionStorage.removeItem("draft_redirect");
     sessionStorage.removeItem("post_login_redirect");
 }
 
@@ -251,3 +249,35 @@ const handleSignup = async () => {
     }
 };
 </script>
+
+<style scoped>
+.login-page {
+    min-height: calc(100dvh - var(--navbar-height));
+    isolation: isolate;
+    background:
+        linear-gradient(135deg, var(--color-bg-base) 0%, var(--color-bg-card) 48%, var(--color-bg-elevated) 100%);
+}
+
+.login-grid,
+.login-sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.login-grid {
+    background-image:
+        linear-gradient(color-mix(in srgb, var(--color-text-primary) 6%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--color-text-primary) 6%, transparent) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+    opacity: 0.34;
+}
+
+.login-sheen {
+    background:
+        linear-gradient(115deg, transparent 0%, color-mix(in srgb, var(--color-primary) 10%, transparent) 34%, transparent 56%),
+        linear-gradient(250deg, transparent 8%, color-mix(in srgb, var(--color-accent) 8%, transparent) 42%, transparent 68%);
+    opacity: 0.72;
+}
+</style>

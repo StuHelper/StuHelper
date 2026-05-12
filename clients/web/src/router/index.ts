@@ -14,6 +14,7 @@ import {
     hasRequiredRouteCapabilityAccess,
     resolveProtectedRouteAuthFailure,
 } from "@/router/auth-guard-decision";
+import { rememberReviewPostCourse } from "@/modules/review/reviewPostNavigation";
 // 静态导入，确保 chunk load 失败时仍可渲染
 import ChunkErrorPage from "@/modules/errors/views/ChunkErrorPage.vue";
 import NotFoundPage from "@/modules/errors/views/NotFoundPage.vue";
@@ -66,7 +67,7 @@ const routes: RouteRecordRaw[] = [
         path: "/login",
         name: "login",
         component: lazyLoad(() => import("@/modules/auth/views/LoginPage.vue")),
-        meta: { titleKey: "routes.login", guest: true, layout: "none" },
+        meta: { titleKey: "routes.login", guest: true },
     },
     {
         path: "/auth/callback",
@@ -165,7 +166,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.courseReviews" },
     },
     {
-        path: "/courses/:id/reviews/post",
+        path: "/courses/reviews/post",
         name: "course-review-post",
         component: lazyLoad(
             () => import("@/modules/review/views/PostReviewPage.vue"),
@@ -174,6 +175,16 @@ const routes: RouteRecordRaw[] = [
             titleKey: "routes.postReview",
             requiresAuth: true,
             requiredCapabilities: [REVIEW_CREATE],
+        },
+    },
+    {
+        path: "/courses/:id/reviews/post",
+        redirect: (to) => {
+            const courseID = typeof to.params.id === "string"
+                ? Number(to.params.id)
+                : NaN;
+            rememberReviewPostCourse(courseID);
+            return "/courses/reviews/post";
         },
     },
 

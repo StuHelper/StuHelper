@@ -7,10 +7,10 @@
       <TabBar :tabs="tabItems" :model-value="activeTab" @update:model-value="handleTabChange" />
     </nav>
 
-    <div class="animate-fade-in">
-      <MyReviewsTab v-if="activeTab === 'reviews'" />
-      <MyVotesTab v-else-if="activeTab === 'votes'" />
-      <MyFavoritesTab v-else-if="activeTab === 'favorites'" />
+    <div class="min-h-[248px]">
+      <MyReviewsTab v-show="activeTab === 'reviews'" />
+      <MyVotesTab v-show="activeTab === 'votes'" />
+      <MyFavoritesTab v-show="activeTab === 'favorites'" />
     </div>
   </div>
 </template>
@@ -42,12 +42,14 @@ const activeTab = computed(() => {
 })
 
 function handleTabChange(tab: string) {
+  if (tab === activeTab.value) return
+
   const routeName = tab === 'votes'
     ? 'user-votes'
     : tab === 'favorites'
       ? 'user-favorites'
       : 'user-reviews'
 
-  router.push({ name: routeName })
+  void router.replace({ name: routeName })
 }
 </script>

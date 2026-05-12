@@ -16,29 +16,32 @@ export const DEFAULT_LOCALE: SupportedLocale = 'zh-CN'
 // localStorage key（与 stores/locale.ts 共享）
 export const LOCALE_STORAGE_KEY = 'locale'
 
-// 语言检测：localStorage → navigator.language → 默认
-function detectLocale(): SupportedLocale {
-  // 1. 从 localStorage 读取
+export function normalizeLocale(locale: string | null | undefined): SupportedLocale | null {
+  if (!locale) {
+    return null
+  }
+
+  return SUPPORTED_LOCALES.includes(locale as SupportedLocale)
+    ? (locale as SupportedLocale)
+    : null
+}
+
+export function readStoredLocale(): SupportedLocale | null {
+  if (typeof localStorage === 'undefined') {
+    return null
+  }
+
   try {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY)
-    if (stored && SUPPORTED_LOCALES.includes(stored as SupportedLocale)) {
-      return stored as SupportedLocale
-    }
+    return normalizeLocale(stored)
   } catch (_error) { void _error;
-    // ignore storage access failures and fall back to navigator
+    return null
   }
+}
 
-  // 2. 从浏览器语言检测
-  const browserLang = navigator.language
-  if (browserLang.startsWith('zh')) {
-    return 'zh-CN'
-  }
-  if (browserLang.startsWith('en')) {
-    return 'en-US'
-  }
-
-  // 3. 返回默认语言
-  return DEFAULT_LOCALE
+// 语言检测：显式存储 → 默认中文
+export function detectLocale(): SupportedLocale {
+  return readStoredLocale() ?? DEFAULT_LOCALE
 }
 
 // 创建 i18n 实例

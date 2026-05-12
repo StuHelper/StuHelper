@@ -128,12 +128,10 @@ export function consumeOAuthState(callbackState: string): boolean {
   return constantTimeEqual(expectedState, callbackState)
 }
 
-// 清除所有认证信息（含草稿重定向状态）
+// 清除所有认证信息（含登录回跳状态）
 export const clearAuth = (): void => {
   userManager.removeUser()
   tokenExpiry.remove()
   sessionStorage.removeItem(OAUTH_STATE_KEY)
   sessionStorage.removeItem('post_login_redirect')
-  sessionStorage.removeItem('draft_redirect')
-  sessionStorage.removeItem('draft_pending')
 }
