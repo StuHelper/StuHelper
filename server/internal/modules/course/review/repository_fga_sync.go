@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/outbox"
 )
@@ -56,7 +57,7 @@ func (r *Repository) ListReviewRelationProjectionStates(
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, u.id, r.school_id
 		FROM reviews r
-		JOIN users u ON u.user_hash = r.user_hash
+		LEFT JOIN users u ON u.user_hash = r.user_hash
 		WHERE r.status <> 'deleted'
 		ORDER BY r.id ASC
 		LIMIT $1
@@ -94,8 +95,13 @@ func scanReviewRelationProjectionStates(rows pgx.Rows, limit int) ([]ReviewRelat
 	states := make([]ReviewRelationProjectionState, 0, limit)
 	for rows.Next() {
 		var state ReviewRelationProjectionState
-		if err := rows.Scan(&state.ReviewID, &state.AuthorUserID, &state.SchoolID); err != nil {
+		var authorUserID pgtype.Int8
+		if err := rows.Scan(&state.ReviewID, &authorUserID, &state.SchoolID); err != nil {
 			return nil, fmt.Errorf("ListReviewRelationProjectionStates scan: %w", err)
+		}
+		if authorUserID.Valid {
+			id := authorUserID.Int64
+			state.AuthorUserID = &id
 		}
 		states = append(states, state)
 	}

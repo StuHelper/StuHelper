@@ -148,7 +148,7 @@ func (r *Repository) ListLatest(ctx context.Context, limit, offset int, sort str
 	}
 
 	rows, err := r.db.Query(ctx, `
-		SELECT r.id, r.course_id, c.name, r.teacher_id, t.name, r.term_id,
+		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
 		       r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,

@@ -114,6 +114,28 @@ func TestReviewService_ReconcileFGARelationProjectionsRequeuesOutbox(t *testing.
 	})
 }
 
+func TestReviewService_ReconcileFGARelationProjectionsRequeuesReviewWithoutAuthor(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	ctx := context.Background()
+
+	schoolID := int64(10006)
+	departmentID := seedDepartment(t, fixture, schoolID, "FGA 历史学院")
+	teacherID := seedTeacher(t, fixture, schoolID, "FGA 历史老师", departmentID)
+	courseID := seedCourse(t, fixture, schoolID, departmentID, "FGA 历史课程")
+	reviewID := "review-fga-orphan-author"
+	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "missing-author-hash", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "历史标题", "历史内容")
+
+	requeued, err := svc.ReconcileFGARelationProjections(ctx, 10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, requeued)
+	assertFGASyncPayload(t, fixture, reviewRelationsSyncKey(reviewID), fgaSyncJobTypeReviewRelations, map[string]any{
+		"reviewID": reviewID,
+		"schoolID": json.Number(fmt.Sprint(schoolID)),
+	})
+}
+
 func TestReviewService_ReconcileFGARelationProjectionsStopsAboveThreshold(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

@@ -237,6 +237,40 @@ func TestReviewRepository_GetVoteTypeLocksExistingVoteRow(t *testing.T) {
 	}
 }
 
+func TestReviewRepository_PublicListsHandleReviewsWithoutTeacher(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, 10006, "空教师学院")
+	courseID := seedCourse(t, fixture, 10006, departmentID, "无教师课程")
+	reviewID := "550e8400-e29b-41d4-a716-446655440906"
+	_, err := fixture.Pool.Exec(ctx, `
+		INSERT INTO reviews (
+			id, course_id, school_id, teacher_id, term_id, user_hash,
+			title, content, grade, ratings, avg_rating, status
+		) VALUES (
+			$1, $2, 10006, NULL, '2025-2', 'u-no-teacher',
+			'无教师标题', '无教师内容', 'A', '{"teaching":5}'::jsonb, 5, $3
+		)
+	`, reviewID, courseID, StatusPublished)
+	require.NoError(t, err)
+
+	latest, total, err := repo.ListLatest(ctx, 10, 0, SortTime)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, total, 1)
+	require.NotEmpty(t, latest)
+	assert.Nil(t, latest[0].TeacherID)
+	assert.Equal(t, "", latest[0].TeacherName)
+
+	byCourse, totals, err := repo.ListByMultipleCourses(ctx, []int64{courseID}, SortTime, 5)
+	require.NoError(t, err)
+	require.Len(t, byCourse[courseID], 1)
+	assert.Equal(t, 1, totals[courseID])
+	assert.Nil(t, byCourse[courseID][0].TeacherID)
+	assert.Equal(t, "", byCourse[courseID][0].TeacherName)
+}
+
 func TestReviewRepository_GetReplyOwnerAndReviewIDTxLocksReplyRow(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)

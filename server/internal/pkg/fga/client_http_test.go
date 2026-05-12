@@ -70,15 +70,17 @@ func TestClient_HTTPWrappers(t *testing.T) {
 	assert.Equal(t, []string{"school:1001", "school:1002"}, objects)
 
 	require.NoError(t, client.WriteReviewRelations(context.Background(), "r1", "u1", "s1"))
+	require.NoError(t, client.WriteReviewRelations(context.Background(), "legacy", "", "s1"))
 	require.NoError(t, client.WriteReportRelations(context.Background(), "rep1", "s1"))
 	require.NoError(t, client.DeleteTuples(context.Background(), []Tuple{{User: "user:u1", Relation: "author", Object: "review:r1"}}))
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Len(t, writes, 3)
+	require.Len(t, writes, 4)
 	assert.Contains(t, writes[0], "writes")
 	assert.Contains(t, writes[1], "writes")
-	assert.Contains(t, writes[2], "deletes")
+	assert.Contains(t, writes[2], "writes")
+	assert.Contains(t, writes[3], "deletes")
 
 	firstJSON, err := json.Marshal(writes[0])
 	require.NoError(t, err)
@@ -87,7 +89,14 @@ func TestClient_HTTPWrappers(t *testing.T) {
 	assert.Contains(t, string(firstJSON), "review:r1")
 	assert.Contains(t, string(firstJSON), "section:school_s1_review_moderation")
 
-	deleteJSON, err := json.Marshal(writes[2])
+	legacyJSON, err := json.Marshal(writes[1])
+	require.NoError(t, err)
+	assert.NotContains(t, string(legacyJSON), `"relation":"author"`)
+	assert.NotContains(t, string(legacyJSON), "user:u")
+	assert.Contains(t, string(legacyJSON), "school:s1")
+	assert.Contains(t, string(legacyJSON), "section:school_s1_review_moderation")
+
+	deleteJSON, err := json.Marshal(writes[3])
 	require.NoError(t, err)
 	assert.Contains(t, string(deleteJSON), "deletes")
 }

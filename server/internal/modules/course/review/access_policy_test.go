@@ -78,6 +78,46 @@ func TestPreviewText_RespectsConfiguredPercent(t *testing.T) {
 	assert.Equal(t, strings.Repeat("评", 40)+"...", preview)
 }
 
+func TestStripReviewsForResponse_LocksContentWithoutFullAccess(t *testing.T) {
+	fullContent := "第一行会作为安全预览显示\n第二行正文不应该返回给无完整查看权限的用户"
+	reviews := []Review{{
+		ID:      "review-1",
+		Title:   "保留课程标题",
+		Content: fullContent,
+		Status:  StatusPublished,
+	}}
+
+	result := stripReviewsForResponse(reviews, ReviewAccessFacts{
+		Authenticated:     true,
+		CanViewFull:       false,
+		PreviewTitleRunes: 8,
+	})
+
+	require.Len(t, result, 1)
+	assert.Equal(t, "保留课程标题", result[0].Title)
+	assert.Equal(t, "第一行会作为安全...", result[0].Content)
+	assert.NotContains(t, result[0].Content, "第二行正文")
+	assert.Equal(t, fullContent, reviews[0].Content)
+}
+
+func TestStripReviewsForResponse_HidesAnonymousContentAndTitle(t *testing.T) {
+	reviews := []Review{{
+		ID:      "review-1",
+		Title:   "匿名不可见标题",
+		Content: "\n匿名可以看到第一行安全预览\n但不能看到后文",
+		Status:  StatusPublished,
+	}}
+
+	result := stripReviewsForResponse(reviews, ReviewAccessFacts{
+		PreviewTitleRunes: 12,
+	})
+
+	require.Len(t, result, 1)
+	assert.Empty(t, result[0].Title)
+	assert.Equal(t, "匿名可以看到第一行安全预...", result[0].Content)
+	assert.NotContains(t, result[0].Content, "但不能看到后文")
+}
+
 func TestResolveAccessFacts_RequiresCapabilityAndVerificationFacts(t *testing.T) {
 	service := &Service{
 		accessReader: fakeReviewAccessReader{

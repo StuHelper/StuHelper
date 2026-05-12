@@ -52,6 +52,33 @@ func TestProcessFGASyncJob_ReviewRelations(t *testing.T) {
 	}
 }
 
+func TestProcessFGASyncJob_ReviewRelationsWithoutAuthor(t *testing.T) {
+	payload, err := json.Marshal(reviewRelationsSyncPayload{
+		ReviewID: "review-legacy",
+		SchoolID: 10006,
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	writer := &fakeReviewFGAWriter{}
+	service := &Service{fgaWriter: writer}
+	err = service.processFGASyncJob(context.Background(), FGASyncJob{
+		JobType: fgaSyncJobTypeReviewRelations,
+		Payload: payload,
+	})
+	if err != nil {
+		t.Fatalf("processFGASyncJob returned error: %v", err)
+	}
+
+	want := []string{"review-legacy", "", "10006"}
+	for i := range want {
+		if writer.reviewArgs[i] != want[i] {
+			t.Fatalf("review arg %d = %q, want %q", i, writer.reviewArgs[i], want[i])
+		}
+	}
+}
+
 func TestProcessFGASyncJob_ReportRelations(t *testing.T) {
 	payload, err := json.Marshal(reportRelationsSyncPayload{
 		ReportID: "report-1",

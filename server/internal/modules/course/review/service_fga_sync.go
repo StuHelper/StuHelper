@@ -31,7 +31,7 @@ type FGASyncJob struct {
 
 type reviewRelationsSyncPayload struct {
 	ReviewID     string `json:"reviewID"`
-	AuthorUserID string `json:"authorUserID"`
+	AuthorUserID string `json:"authorUserID,omitempty"`
 	SchoolID     int64  `json:"schoolID"`
 }
 

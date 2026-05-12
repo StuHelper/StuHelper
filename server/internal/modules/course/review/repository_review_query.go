@@ -295,7 +295,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 
 	// 使用 LATERAL join 高效获取每个课程的 top-N 测评
 	rows, err := r.db.Query(ctx, `
-		SELECT sub.course_id, sub.id, c.name, sub.teacher_id, t.name, sub.term_id,
+		SELECT sub.course_id, sub.id, COALESCE(c.name, ''), sub.teacher_id, COALESCE(t.name, ''), sub.term_id,
 		       sub.title, sub.content, sub.grade, sub.ratings,
 		       sub.like_count, sub.dislike_count,
 		       sub.reply_count,

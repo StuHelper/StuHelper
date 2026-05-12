@@ -11,15 +11,19 @@ func (c *Client) WriteReviewModerationSection(ctx context.Context, schoolID stri
 	})
 }
 
-// WriteReviewRelations 评课发布时写入 admin Check 会读取的动态关系。
-// authorUserID 必须是内部 users.id。
+// WriteReviewRelations 评课发布或对账时写入 admin Check 会读取的动态关系。
+// authorUserID 是内部 users.id；历史导入数据可能没有可解析作者，此时只写管理授权所需的 school/section 关系。
 func (c *Client) WriteReviewRelations(ctx context.Context, reviewID, authorUserID, schoolID string) error {
 	sectionID := ReviewModerationSectionID(schoolID)
-	return c.WriteMissingTuples(ctx, []Tuple{
-		{User: "user:" + authorUserID, Relation: "author", Object: "review:" + reviewID},
-		{User: "school:" + schoolID, Relation: "school", Object: "review:" + reviewID},
-		{User: "section:" + sectionID, Relation: "section", Object: "review:" + reviewID},
-	})
+	tuples := make([]Tuple, 0, 3)
+	if authorUserID != "" {
+		tuples = append(tuples, Tuple{User: "user:" + authorUserID, Relation: "author", Object: "review:" + reviewID})
+	}
+	tuples = append(tuples,
+		Tuple{User: "school:" + schoolID, Relation: "school", Object: "review:" + reviewID},
+		Tuple{User: "section:" + sectionID, Relation: "section", Object: "review:" + reviewID},
+	)
+	return c.WriteMissingTuples(ctx, tuples)
 }
 
 // WriteReportRelations 举报创建时写入 admin Check 会读取的动态关系。

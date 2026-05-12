@@ -229,15 +229,24 @@ func stripReviewsForResponse(reviews []Review, facts ReviewAccessFacts) []Review
 			result[i].Content = ""
 			result[i].Title = ""
 		case !facts.Authenticated:
-			result[i].Content = ""
+			result[i].Content = previewFirstContentLine(result[i].Content, facts.PreviewTitleRunes)
 			result[i].Title = ""
 		case !facts.CanViewFull:
-			result[i].Title = previewText(result[i].Title, facts.PreviewTitleRunes, 100)
-			result[i].Content = previewText(result[i].Content, facts.PreviewContentRunes, facts.PreviewContentPct)
+			result[i].Content = previewFirstContentLine(result[i].Content, facts.PreviewTitleRunes)
 		}
 	}
 
 	return result
+}
+
+func previewFirstContentLine(value string, maxRunes int) string {
+	for _, line := range strings.Split(value, "\n") {
+		preview := previewText(line, maxRunes, 100)
+		if preview != "" {
+			return preview
+		}
+	}
+	return ""
 }
 
 func previewText(value string, maxRunes int, percent int) string {

@@ -24,7 +24,7 @@ var ErrFGAReconciliationThresholdExceeded = errors.New("fga relation reconciliat
 
 type ReviewRelationProjectionState struct {
 	ReviewID     string
-	AuthorUserID int64
+	AuthorUserID *int64
 	SchoolID     int64
 }
 
@@ -118,7 +118,7 @@ func (s *Service) requeueFGARelationProjectionStates(
 	requeued := 0
 	err := s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		for _, state := range reviews {
-			authorUserID, err := formatFGAUserID(state.AuthorUserID)
+			authorUserID, err := formatOptionalFGAUserID(state.AuthorUserID)
 			if err != nil {
 				return err
 			}
@@ -139,6 +139,13 @@ func (s *Service) requeueFGARelationProjectionStates(
 		return 0, fmt.Errorf("requeue review FGA relation projections: %w", err)
 	}
 	return requeued, nil
+}
+
+func formatOptionalFGAUserID(userID *int64) (string, error) {
+	if userID == nil {
+		return "", nil
+	}
+	return formatFGAUserID(*userID)
 }
 
 func (s *Service) auditFGARelationReconciliation(

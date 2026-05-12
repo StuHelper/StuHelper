@@ -10,6 +10,7 @@ import (
 // 以 OpenFGA 作为单条资源操作的权威决策点。
 type AuthorizationProvider interface {
 	Check(ctx context.Context, user, relation, object string) (bool, error)
+	// authorUserID may be empty for legacy/imported reviews; school/section relations remain required.
 	WriteReviewRelations(ctx context.Context, reviewID, authorUserID, schoolID string) error
 	WriteReportRelations(ctx context.Context, reportID, schoolID string) error
 }
