@@ -121,7 +121,11 @@ onMounted(fetchStats);
     <ElSkeleton :loading="loading" animated>
       <template #template>
         <div class="admin-workspace__skeleton">
-          <div v-for="item in 4" :key="item" class="admin-workspace__block"></div>
+          <div
+            v-for="item in 4"
+            :key="item"
+            class="admin-workspace__block"
+          ></div>
           <div class="admin-workspace__wide"></div>
         </div>
       </template>

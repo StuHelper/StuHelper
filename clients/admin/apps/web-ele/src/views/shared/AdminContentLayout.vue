@@ -10,7 +10,10 @@ defineProps<{
     <header class="admin-content-page__header">
       <div class="admin-content-page__heading">
         <h1>{{ title }}</h1>
-        <span v-if="typeof total === 'number'" class="admin-content-page__total">
+        <span
+          v-if="typeof total === 'number'"
+          class="admin-content-page__total"
+        >
           {{ total }}
         </span>
       </div>
@@ -44,23 +47,23 @@ defineProps<{
 .admin-content-page__toolbar,
 .admin-content-page__body,
 .admin-content-page__footer {
-  border: 1px solid var(--el-border-color);
   background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
 }
 
 .admin-content-page__header {
   display: flex;
+  gap: 16px;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
   padding: 18px 20px;
   border-radius: 8px 8px 0 0;
 }
 
 .admin-content-page__heading {
   display: flex;
-  align-items: center;
   gap: 10px;
+  align-items: center;
   min-width: 0;
 }
 
@@ -74,34 +77,34 @@ defineProps<{
 .admin-content-page__total {
   min-width: 28px;
   padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-secondary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   line-height: 20px;
+  color: var(--el-text-color-secondary);
   text-align: center;
+  background: var(--el-fill-color-light);
+  border-radius: 999px;
 }
 
 .admin-content-page__actions {
   display: flex;
-  align-items: center;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .admin-content-page__toolbar {
   display: flex;
-  align-items: end;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
   padding: 14px 20px;
   border-top: 0;
 }
 
 .admin-content-page__body {
-  border-top: 0;
   overflow: hidden;
+  border-top: 0;
 }
 
 .admin-content-page__footer {

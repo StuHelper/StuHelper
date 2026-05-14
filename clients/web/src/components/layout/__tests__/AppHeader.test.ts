@@ -140,38 +140,4 @@ describe('AppHeader', () => {
     expect(wrapper.find('[data-test="app-user-menu"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('nav.login')
   })
-
-  it('preselects a course only when writing from a course route', async () => {
-    Object.assign(mocks.route, {
-      path: '/courses/20',
-      fullPath: '/courses/20',
-      params: { id: '20' },
-    })
-    const wrapper = mountHeader({
-      bootstrapCompleted: true,
-      isAuthenticated: true,
-    })
-
-    await wrapper.get('button[aria-label="review.topBar.writeReview"]').trigger('click')
-
-    expect(mocks.rememberReviewPostCourse).toHaveBeenCalledWith(20)
-    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'course-review-post' })
-  })
-
-  it('does not treat teacher route ids as course preselection ids', async () => {
-    Object.assign(mocks.route, {
-      path: '/teachers/20',
-      fullPath: '/teachers/20',
-      params: { id: '20' },
-    })
-    const wrapper = mountHeader({
-      bootstrapCompleted: true,
-      isAuthenticated: true,
-    })
-
-    await wrapper.get('button[aria-label="review.topBar.writeReview"]').trigger('click')
-
-    expect(mocks.rememberReviewPostCourse).not.toHaveBeenCalled()
-    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'course-review-post' })
-  })
 })

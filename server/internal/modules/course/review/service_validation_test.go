@@ -43,7 +43,7 @@ func TestReviewService_ValidateAndSanitizeReview(t *testing.T) {
 
 	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "title", "content", "2025-3")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid term_id format")
+	assert.ErrorIs(t, err, ErrInvalidTermID)
 
 	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "<b></b>", "content", "2025-2")
 	require.Error(t, err)
@@ -74,4 +74,24 @@ func TestReviewService_ValidateAndSanitizeReview(t *testing.T) {
 	_, _, _, _, err = svc.validateAndSanitizeReview(ctx, ReviewRatings{"teaching": 5}, "title", "blockword content", "2025-2")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrSensitiveContent)
+}
+
+func TestReviewService_ValidateDraftRatingValues(t *testing.T) {
+	ctx := context.Background()
+	svc := newValidationService(nil)
+
+	require.NoError(t, svc.validateRatingValues(ctx, nil, false))
+	require.NoError(t, svc.validateRatingValues(ctx, ReviewRatings{}, false))
+
+	err := svc.validateRatingValues(ctx, nil, true)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrRatingRequired)
+
+	err = svc.validateRatingValues(ctx, ReviewRatings{"teaching": 6}, false)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidRating)
+
+	err = svc.validateRatingValues(ctx, ReviewRatings{"unknown": 4}, false)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidRating)
 }

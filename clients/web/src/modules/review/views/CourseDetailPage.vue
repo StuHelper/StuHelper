@@ -259,7 +259,7 @@
                 class="mb-2"
               >
                 <LockedReviewContent
-                  :content="r.content"
+                  :preview-line="r.content"
                   :message="t('review.card.loginToView')"
                   :action-label="t('review.card.loginBtn')"
                   @action="handleLogin"
@@ -270,7 +270,7 @@
                 class="mb-2"
               >
                 <LockedReviewContent
-                  :content="r.content"
+                  :preview-line="r.content"
                   :message="t('review.card.verifyToView')"
                   :action-label="t('review.card.goVerify')"
                   @action="goVerify"

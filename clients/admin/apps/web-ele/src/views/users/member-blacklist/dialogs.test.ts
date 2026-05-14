@@ -195,7 +195,9 @@ describe('ReleaseBlacklistDialog', () => {
       global: { stubs: dialogStubs },
     });
 
-    await wrapper.setProps({ target: { ...baseEntry, source: 'manual_admin' } });
+    await wrapper.setProps({
+      target: { ...baseEntry, source: 'manual_admin' },
+    });
     await wrapper.vm.$nextTick();
 
     const vm = wrapper.vm as unknown as {

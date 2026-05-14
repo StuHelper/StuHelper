@@ -32,7 +32,7 @@ func TestReviewService_IntegrationErrorBranches(t *testing.T) {
 
 	_, err = svc.SaveDraft(ctx, SaveDraftParams{
 		UserHash: "u-draft",
-		CourseID: courseID,
+		CourseID: &courseID,
 		Title:    "草稿",
 		Content:  `<script>alert(1)</script>`,
 		Ratings:  ReviewRatings{"teaching": 5},

@@ -60,9 +60,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Review } from '@stuhelper/shared/review'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
 
 const props = defineProps<{
   visible: boolean
@@ -79,16 +80,16 @@ const title = ref('')
 const content = ref('')
 const reason = ref('')
 const submitting = ref(false)
+const visible = computed(() => props.visible)
 
-// 弹窗打开时预填当前内容 + body scroll lock
+useBodyScrollLock(visible)
+
+// 弹窗打开时预填当前内容
 watch(() => props.visible, (val) => {
   if (val) {
     title.value = props.review.title || ''
     content.value = props.review.content || ''
     reason.value = ''
-    document.body.style.overflow = 'hidden'
-  } else {
-    document.body.style.overflow = ''
   }
 })
 

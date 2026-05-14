@@ -22,14 +22,14 @@ import {
 } from '#/api/admin';
 import { $t } from '#/locales';
 
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import {
   compactID,
   formatAdminDateTime,
   formatNullableText,
 } from '../../shared/display';
-import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
-import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import SensitiveWordDialog from './SensitiveWordDialog.vue';
 
 const loading = ref(false);

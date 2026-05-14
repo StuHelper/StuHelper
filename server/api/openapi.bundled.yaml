@@ -2841,11 +2841,39 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/review/drafts:
+    get:
+      tags:
+        - Draft
+      operationId: getDraft
+      summary: 获取当前用户草稿
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 草稿内容
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReviewDraft'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
     post:
       tags:
         - Draft
       operationId: saveDraft
-      summary: 保存草稿
+      summary: 保存当前用户草稿
       security:
         - cookieAuth: []
         - bearerAuth: []
@@ -2879,50 +2907,21 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/course/review/drafts/{courseID}:
-    get:
-      tags:
-        - Draft
-      operationId: getDraft
-      summary: 获取草稿
-      security:
-        - cookieAuth: []
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/DraftCourseIDPath'
-      responses:
-        '200':
-          description: 草稿内容
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/ReviewDraft'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
     delete:
       tags:
         - Draft
       operationId: deleteDraft
-      summary: 删除草稿
+      summary: 删除当前用户草稿
       security:
         - cookieAuth: []
         - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/DraftCourseIDPath'
       responses:
-        '204':
+        '200':
           description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '403':
@@ -6456,7 +6455,6 @@ components:
       type: object
       required:
         - id
-        - courseID
         - updatedAt
       properties:
         id:
@@ -6497,8 +6495,6 @@ components:
           format: date-time
     SaveDraftRequest:
       type: object
-      required:
-        - courseID
       properties:
         courseID:
           type: integer
@@ -9003,14 +8999,6 @@ components:
       schema:
         type: string
         format: uuid
-    DraftCourseIDPath:
-      name: courseID
-      in: path
-      required: true
-      description: 课程 ID（用于草稿）
-      schema:
-        type: integer
-        format: int64
     ReplyIDPath:
       name: replyID
       in: path

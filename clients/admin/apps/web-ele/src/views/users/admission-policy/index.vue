@@ -54,9 +54,7 @@ function normalizeManagementGuildIDs(values?: null | string[]) {
 function normalizePolicy(policy: AdmissionPolicyBoundary): AdmissionPolicy {
   return {
     ...policy,
-    managementGuildIDs: normalizeManagementGuildIDs(
-      policy.managementGuildIDs,
-    ),
+    managementGuildIDs: normalizeManagementGuildIDs(policy.managementGuildIDs),
   };
 }
 
@@ -136,10 +134,7 @@ onMounted(fetchData);
           <ElInputNumber v-model="policy.submissionWaitSeconds" :min="1" />
         </ElFormItem>
         <ElFormItem :label="policyFieldLabels.manualReviewTimeoutSeconds">
-          <ElInputNumber
-            v-model="policy.manualReviewTimeoutSeconds"
-            :min="1"
-          />
+          <ElInputNumber v-model="policy.manualReviewTimeoutSeconds" :min="1" />
         </ElFormItem>
         <ElFormItem :label="policyFieldLabels.reminderIntervalSeconds">
           <ElInputNumber v-model="policy.reminderIntervalSeconds" :min="1" />

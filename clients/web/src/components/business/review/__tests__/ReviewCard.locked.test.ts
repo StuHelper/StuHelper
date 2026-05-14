@@ -121,7 +121,7 @@ function makeReview(): Review {
     teacherName: '张老师',
     termID: '2025-fall',
     title: '课堂体验',
-    content: `${previewLine}\n${hiddenLine}`,
+    content: previewLine,
     ratings: { teaching: 5 },
     likeCount: 3,
     dislikeCount: 1,
@@ -166,14 +166,12 @@ describe('ReviewCard locked content', () => {
     mocks.verificationStore.canViewFullReviews = false
   })
 
-  it('renders the full text while keeping the lock overlay in the locked state', () => {
+  it('renders the safe first-line preview in the locked state', () => {
     const wrapper = mountCard()
 
     expect(wrapper.text()).toContain('review.card.verifyToView')
     expect(wrapper.text()).toContain(previewLine)
-    expect(wrapper.text()).toContain(hiddenLine)
-    expect(wrapper.find('.blur-\\[3px\\]').text()).toContain(hiddenLine)
-    expect(wrapper.find('.line-clamp-1').text()).toContain(previewLine)
+    expect(wrapper.text()).not.toContain(hiddenLine)
   })
 
   it('requires both full-list capability and student verification before rendering body text', () => {
@@ -185,11 +183,10 @@ describe('ReviewCard locked content', () => {
     const capabilityOnly = mountCard()
     expect(capabilityOnly.text()).toContain('review.card.verifyToView')
     expect(capabilityOnly.text()).toContain(previewLine)
-    expect(capabilityOnly.find('.blur-\\[3px\\]').text()).toContain(hiddenLine)
+    expect(capabilityOnly.text()).not.toContain(hiddenLine)
 
     mocks.verificationStore.canViewFullReviews = true
     const fullAccess = mountCard()
     expect(fullAccess.text()).toContain(previewLine)
-    expect(fullAccess.find('.blur-\\[3px\\]').exists()).toBe(false)
   })
 })

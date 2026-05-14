@@ -3,7 +3,6 @@ package review
 import (
 	"context"
 	"net/http"
-	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -60,8 +59,7 @@ func TestReviewHandler_InteractionErrorPaths(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "course not found")
 
 	// GetDraft → draft not found
-	w, c = withUserContext(http.MethodGet, "/drafts/1", "", selfUserID)
-	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
+	w, c = withUserContext(http.MethodGet, "/drafts", "", selfUserID)
 	h.GetDraft(c)
 	require.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), "draft not found")

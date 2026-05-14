@@ -22,10 +22,10 @@ import {
 } from '#/api/admin';
 import { $t } from '#/locales';
 
-import AdminContentLayout from '../../shared/AdminContentLayout.vue';
-import { formatAdminDateTime } from '../../shared/display';
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { formatAdminDateTime } from '../../shared/display';
 
 const loading = ref(false);
 const teachers = ref<Teacher[]>([]);

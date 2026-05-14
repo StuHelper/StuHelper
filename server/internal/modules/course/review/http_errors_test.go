@@ -22,6 +22,7 @@ func TestRespondPostReviewError(t *testing.T) {
 		contains string
 	}{
 		{name: "already reviewed", err: ErrAlreadyReviewed, status: http.StatusConflict, code: errs.ErrReviewExists, contains: "already reviewed"},
+		{name: "invalid term", err: ErrInvalidTermID, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "invalid term_id format"},
 		{name: "invalid rating", err: ErrInvalidRating, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "rating must be between 1 and 5"},
 		{name: "sensitive content", err: ErrSensitiveContent, status: http.StatusBadRequest, code: errs.ErrSensitiveContent, contains: "sensitive words"},
 	}
@@ -36,6 +37,34 @@ func TestRespondPostReviewError(t *testing.T) {
 			assert.True(t, ok)
 			assert.Equal(t, tt.status, w.Code)
 			assert.Contains(t, w.Body.String(), string(tt.code))
+			assert.Contains(t, w.Body.String(), tt.contains)
+		})
+	}
+}
+
+func TestRespondSaveDraftError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name     string
+		err      error
+		status   int
+		contains string
+	}{
+		{name: "invalid term", err: ErrInvalidTermID, status: http.StatusBadRequest, contains: "invalid term_id format"},
+		{name: "invalid rating", err: ErrInvalidRating, status: http.StatusBadRequest, contains: "rating must be between 1 and 5"},
+		{name: "teacher not found", err: ErrTeacherNotFound, status: http.StatusNotFound, contains: "teacher not found"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			ok := respondSaveDraftError(c, tt.err)
+
+			assert.True(t, ok)
+			assert.Equal(t, tt.status, w.Code)
 			assert.Contains(t, w.Body.String(), tt.contains)
 		})
 	}

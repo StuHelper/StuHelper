@@ -21,10 +21,10 @@ import {
 import { $t } from '#/locales';
 import { SCHOOL_SCOPE_REQUIRED_ERROR, useAuthStore } from '#/store/auth';
 
-import AdminContentLayout from '../../shared/AdminContentLayout.vue';
-import { formatAdminDateTime } from '../../shared/display';
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { formatAdminDateTime } from '../../shared/display';
 
 const STUDENT_REVIEW_CAPABILITY = 'user:student:review';
 
@@ -57,9 +57,7 @@ function normalizeScopedSchoolId(): boolean {
     ) {
       items.value = [];
       total.value = 0;
-      ElMessage.warning(
-        $t('admin.users.studentVerification.schoolIdRequired'),
-      );
+      ElMessage.warning($t('admin.users.studentVerification.schoolIdRequired'));
       return false;
     }
     throw error;

@@ -1121,28 +1121,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /** 保存草稿 */
-        post: operations["saveDraft"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/course/review/drafts/{courseID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取草稿 */
+        /** 获取当前用户草稿 */
         get: operations["getDraft"];
         put?: never;
-        post?: never;
-        /** 删除草稿 */
+        /** 保存当前用户草稿 */
+        post: operations["saveDraft"];
+        /** 删除当前用户草稿 */
         delete: operations["deleteDraft"];
         options?: never;
         head?: never;
@@ -2523,7 +2507,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** Format: int64 */
-            courseID: number;
+            courseID?: number;
             /** Format: int64 */
             teacherID?: number | null;
             termID?: string;
@@ -2537,7 +2521,7 @@ export interface components {
         };
         SaveDraftRequest: {
             /** Format: int64 */
-            courseID: number;
+            courseID?: number;
             /** Format: int64 */
             teacherID?: number;
             termID?: string;
@@ -3532,8 +3516,6 @@ export interface components {
         TeacherIDPath: number;
         /** @description 通知 ID */
         NotificationIDPath: string;
-        /** @description 课程 ID（用于草稿） */
-        DraftCourseIDPath: number;
         /** @description 回复 ID */
         ReplyIDPath: string;
         /** @description 举报 ID */
@@ -5692,6 +5674,31 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    getDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 草稿内容 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ReviewDraft"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
     saveDraft: {
         parameters: {
             query?: never;
@@ -5723,52 +5730,23 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
-    getDraft: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 课程 ID（用于草稿） */
-                courseID: components["parameters"]["DraftCourseIDPath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 草稿内容 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["ReviewDraft"];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
     deleteDraft: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                /** @description 课程 ID（用于草稿） */
-                courseID: components["parameters"]["DraftCourseIDPath"];
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
             /** @description 删除成功 */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];

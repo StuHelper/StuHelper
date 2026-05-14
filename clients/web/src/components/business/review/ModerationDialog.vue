@@ -46,8 +46,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
 
 const props = defineProps<{
   visible: boolean
@@ -62,15 +63,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const reason = ref('')
 const submitting = ref(false)
+const visible = computed(() => props.visible)
 
-// Body scroll lock when dialog is visible
-watch(() => props.visible, (isVisible) => {
-  if (isVisible) {
-    document.body.style.overflow = 'hidden'
-  } else {
-    document.body.style.overflow = ''
-  }
-}, { immediate: true })
+useBodyScrollLock(visible)
 
 function handleConfirm() {
   emit('confirm', reason.value)

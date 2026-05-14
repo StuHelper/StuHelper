@@ -64,7 +64,7 @@ async function loadPage() {
       form.value.termID = terms.value[0].id
     }
 
-    const draftResult = await api.draft.getDraft(courseID.value)
+    const draftResult = await api.draft.getDraft()
     const draft = unwrapOptionalData<components['schemas']['ReviewDraft']>(draftResult)
     if (draft) {
       form.value.teacherID = draft.teacherID || 0
@@ -134,7 +134,7 @@ async function submitReview() {
       ratings: form.value.ratings as ReviewRatings,
     }))
     uni.showToast({ title: t('review.post.submitSuccess'), icon: 'success' })
-    try { await api.draft.deleteDraft(course.value.id) } catch (_error) { void _error; /* draft cleanup is best-effort */ }
+    try { await api.draft.deleteDraft() } catch (_error) { void _error; /* draft cleanup is best-effort */ }
     setTimeout(() => {
       uni.redirectTo({ url: `/pages/course/detail?id=${course.value?.id}` })
     }, 300)

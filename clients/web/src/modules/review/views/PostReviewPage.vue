@@ -16,6 +16,16 @@
 
       <!-- Form container -->
       <div class="bg-bg-card rounded-2xl shadow-md p-6 md:p-8">
+        <DraftIndicator
+          v-if="hasMeaningfulDraftInput || draftStore.lastSavedAt"
+          class="mb-5 bg-bg-elevated"
+          :saving="draftStore.saving"
+          :last-saved="draftStore.lastSavedAt"
+          :has-draft="draftStore.hasDraft"
+          @restore="promptRestoreExistingDraft"
+          @delete="discardCurrentDraft"
+        />
+
         <!-- Course search -->
         <div class="mb-5">
           <label class="block text-sm font-medium text-text-secondary mb-2">
@@ -324,14 +334,42 @@
         </div>
       </div>
     </div>
+
+    <DraftPromptDialog
+      visible
+      v-if="restorePromptDraft"
+      title-id="review-draft-restore-title"
+      :title="t('review.draft.restoreTitle')"
+      :description="t('review.draft.restoreDescription')"
+      :confirm-text="t('review.draft.restoreConfirm')"
+      :cancel-text="t('review.draft.restoreSkip')"
+      @confirm="restorePromptDraft && applyDraft(restorePromptDraft)"
+      @keep="restorePromptDraft = null"
+      @discard="restorePromptDraft = null"
+    />
+
+    <DraftPromptDialog
+      :visible="leavePromptVisible"
+      title-id="review-draft-leave-title"
+      :title="t('review.draft.leaveTitle')"
+      :description="t('review.draft.confirmSave')"
+      :confirm-text="t('review.draft.keepDraft')"
+      :danger-text="t('review.draft.discard')"
+      @confirm="resolveLeavePrompt(true)"
+      @keep="resolveLeavePrompt(true)"
+      @discard="resolveLeavePrompt(false)"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { ArrowLeft, Search, X } from 'lucide-vue-next'
+import type { Draft } from '@stuhelper/shared/draft'
+import DraftIndicator from '@/components/business/review/DraftIndicator.vue'
+import DraftPromptDialog from '@/components/business/review/DraftPromptDialog.vue'
 import EmojiRatingInput from '@/components/business/review/EmojiRatingInput.vue'
 import { areRatingsComplete, useRatingDimensions } from '@/components/business/review/composables/useRatingDimensions'
 import { api } from '@/api'
@@ -342,6 +380,7 @@ import { buildTermOptions } from '@/modules/course/termOptions'
 import { useReviewPost } from '@/composables/useReviewPost'
 import { getErrorMessage } from '@/api/errors'
 import { consumeReviewPostCourseID } from '@/modules/review/reviewPostNavigation'
+import { useDraftStore } from '@/stores/draft'
 import {
   REVIEW_TITLE_MAX_LENGTH,
   REVIEW_CONTENT_MIN_LENGTH,
@@ -354,6 +393,7 @@ const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 const { ensureCanPostReview } = useReviewPost()
+const draftStore = useDraftStore()
 
 // ── Constants ────────────────────────────────────────────
 const TITLE_MAX = REVIEW_TITLE_MAX_LENGTH
@@ -389,6 +429,13 @@ const grade = ref('')
 const submitting = ref(false)
 const showErrors = ref(false)
 const submitError = ref('')
+const restorePromptDraft = ref<Draft | null>(null)
+const leavePromptVisible = ref(false)
+const suppressAutosave = ref(true)
+const submittingSuccessfully = ref(false)
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+let leavePromptResolver: ((keepDraft: boolean) => void) | null = null
+const AUTOSAVE_DELAY_MS = 700
 
 // ── Term options ─────────────────────────────────────────
 const terms = ref<Term[]>([])
@@ -529,6 +576,8 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside, true)
   if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
   if (searchAbortController) searchAbortController.abort()
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
 // ── 从入口携带的临时状态恢复默认课程 ─────────
@@ -552,6 +601,9 @@ onMounted(async () => {
       // 路由中的课程不存在时，仍允许用户手动搜索
     }
   }
+
+  await promptDraftRestoreOnEntry()
+  suppressAutosave.value = false
 })
 
 watch(selectedCourse, async (course) => {
@@ -562,6 +614,167 @@ watch(selectedCourse, async (course) => {
   }
 
   await fetchTeachers(course.id)
+})
+
+function buildDraftPayload() {
+  return {
+    ...(selectedCourse.value?.id ? { courseID: selectedCourse.value.id } : {}),
+    ...(selectedTeacherID.value ? { teacherID: selectedTeacherID.value } : {}),
+    ...(termID.value.trim() ? { termID: termID.value.trim() } : {}),
+    ...(title.value ? { title: title.value } : {}),
+    ...(content.value ? { content: content.value } : {}),
+    ...(grade.value.trim() ? { grade: grade.value.trim() } : {}),
+    ...(Object.keys(ratings.value).length > 0 ? { ratings: ratings.value } : {}),
+  }
+}
+
+const hasMeaningfulDraftInput = computed(() => {
+  return Boolean(
+    selectedCourse.value ||
+    selectedTeacherID.value ||
+    title.value.trim() ||
+    grade.value.trim() ||
+    Object.keys(ratings.value).length > 0 ||
+    (content.value.trim() && content.value.trim() !== defaultTemplate.value.trim()),
+  )
+})
+
+async function autosaveDraftNow() {
+  try {
+    if (!hasMeaningfulDraftInput.value) {
+      if (draftStore.hasDraft) {
+        await draftStore.deleteDraft()
+      }
+      return
+    }
+    await draftStore.saveDraft(buildDraftPayload())
+  } catch (_error) { void _error;
+    toast.error(t('review.draft.saveFailed'))
+  }
+}
+
+function scheduleAutosave() {
+  if (suppressAutosave.value || submittingSuccessfully.value) return
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveTimer = setTimeout(() => {
+    void autosaveDraftNow()
+  }, AUTOSAVE_DELAY_MS)
+}
+
+async function applyDraft(draft: Draft) {
+  suppressAutosave.value = true
+  title.value = draft.title ?? ''
+  content.value = draft.content ?? defaultTemplate.value
+  grade.value = draft.grade ?? ''
+  termID.value = draft.termID ?? termID.value
+  ratings.value = (draft.ratings ?? {}) as ReviewRatings
+  restorePromptDraft.value = null
+  toast.success(t('review.draft.restored'))
+
+  if (draft.courseID) {
+    await loadDraftCourse(draft.courseID)
+  } else {
+    clearCourseSelection()
+  }
+  selectedTeacherID.value = draft.teacherID ?? null
+
+  nextTick(() => {
+    suppressAutosave.value = false
+  })
+}
+
+async function loadDraftCourse(courseID: number) {
+  try {
+    const res = await api.course.getCourse(courseID)
+    const data = res.data?.data as Course | undefined
+    if (data) {
+      selectedCourse.value = data
+      courseSearch.query.value = data.name
+    }
+  } catch (_error) { void _error;
+    clearCourseSelection()
+  }
+}
+
+async function promptDraftRestoreOnEntry() {
+  try {
+    const draft = await draftStore.loadDraft(true)
+    if (draft) {
+      restorePromptDraft.value = draft
+    }
+  } catch (_error) { void _error;
+    toast.error(t('review.draft.saveFailed'))
+  }
+}
+
+async function promptRestoreExistingDraft() {
+  try {
+    const draft = await draftStore.loadDraft(true)
+    if (draft) {
+      restorePromptDraft.value = draft
+    }
+  } catch (_error) { void _error;
+    toast.error(t('review.draft.saveFailed'))
+  }
+}
+
+async function discardCurrentDraft() {
+  try {
+    await draftStore.deleteDraft()
+    restorePromptDraft.value = null
+  } catch (_error) { void _error;
+    toast.error(t('review.draft.saveFailed'))
+  }
+}
+
+watch(
+  [
+    selectedCourse,
+    selectedTeacherID,
+    termID,
+    ratings,
+    title,
+    content,
+    grade,
+  ],
+  scheduleAutosave,
+  { deep: true },
+)
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  if (!draftStore.hasDraft && !hasMeaningfulDraftInput.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+window.addEventListener('beforeunload', handleBeforeUnload)
+
+function waitForLeaveDecision() {
+  leavePromptVisible.value = true
+  return new Promise<boolean>((resolve) => {
+    leavePromptResolver = resolve
+  })
+}
+
+function resolveLeavePrompt(keepDraft: boolean) {
+  leavePromptVisible.value = false
+  leavePromptResolver?.(keepDraft)
+  leavePromptResolver = null
+}
+
+async function confirmLeaveWithDraft() {
+  if (submittingSuccessfully.value) return true
+  if (!draftStore.hasDraft && !hasMeaningfulDraftInput.value) return true
+  await autosaveDraftNow()
+  if (!draftStore.hasDraft && !hasMeaningfulDraftInput.value) return true
+  const keepDraft = await waitForLeaveDecision()
+  if (keepDraft) return true
+  await discardCurrentDraft()
+  return true
+}
+
+onBeforeRouteLeave(async () => {
+  return confirmLeaveWithDraft()
 })
 
 // ── 评分相关状态 ─────────────────────────────────────────
@@ -635,6 +848,10 @@ async function handleSubmit() {
     })
 
     await api.review.createReview(payload)
+    submittingSuccessfully.value = true
+    if (draftStore.hasDraft) {
+      await draftStore.deleteDraft()
+    }
     toast.success(t('review.post.success'))
 
     // 发布成功后跳转到课程评测页

@@ -230,9 +230,9 @@ describe('useAuthStore', () => {
 
     await store.initSession();
 
-    expect(() => store.resolveScopedSchoolId('user:student:review', '')).toThrow(
-      SCHOOL_SCOPE_REQUIRED_ERROR,
-    );
+    expect(() =>
+      store.resolveScopedSchoolId('user:student:review', ''),
+    ).toThrow(SCHOOL_SCOPE_REQUIRED_ERROR);
     expect(store.resolveScopedSchoolId('user:student:review', '1002')).toBe(
       '1002',
     );

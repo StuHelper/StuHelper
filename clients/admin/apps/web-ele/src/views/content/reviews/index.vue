@@ -14,9 +14,9 @@ import {
 import { getReviewList, updateReview } from '#/api/admin';
 import { $t } from '#/locales';
 
-import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import {
   compactID,
   formatAdminDateTime,

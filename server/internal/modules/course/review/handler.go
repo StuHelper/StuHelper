@@ -110,8 +110,8 @@ func (h *Handler) RegisterRoutes(
 
 	// 草稿（需要认证）
 	r.POST("/drafts", authMiddleware, h.SaveDraft)
-	r.GET("/drafts/:courseID", authMiddleware, h.GetDraft)
-	r.DELETE("/drafts/:courseID", authMiddleware, h.DeleteDraft)
+	r.GET("/drafts", authMiddleware, h.GetDraft)
+	r.DELETE("/drafts", authMiddleware, h.DeleteDraft)
 
 	// 课程收藏（需要认证）
 	r.GET("/courses/:courseID/favorites", authMiddleware, h.GetFavoriteStatus)

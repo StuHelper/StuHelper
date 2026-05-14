@@ -117,7 +117,7 @@ func (s *Service) GetUserVotes(ctx context.Context, params GetUserVotesParams) (
 // SaveDraftParams 保存草稿参数
 type SaveDraftParams struct {
 	UserHash  string
-	CourseID  int64
+	CourseID  *int64
 	TeacherID *int64
 	TermID    string
 	Title     string
@@ -128,16 +128,20 @@ type SaveDraftParams struct {
 
 // SaveDraft 保存草稿（UPSERT）
 func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*ReviewDraft, error) {
-	// 检查课程是否存在
-	exists, err := s.repo.CourseExists(ctx, params.CourseID)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, ErrCourseNotFound
+	if params.CourseID != nil {
+		exists, err := s.repo.CourseExists(ctx, *params.CourseID)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, ErrCourseNotFound
+		}
 	}
 	if params.TeacherID != nil {
-		teacherExists, err := s.repo.TeacherBelongsToCourseSchool(ctx, *params.TeacherID, params.CourseID)
+		if params.CourseID == nil {
+			return nil, ErrTeacherNotFound
+		}
+		teacherExists, err := s.repo.TeacherBelongsToCourseSchool(ctx, *params.TeacherID, *params.CourseID)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +152,7 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 
 	// termID 格式校验（与发布链路一致）
 	if params.TermID != "" && !validTermIDFormat.MatchString(params.TermID) {
-		return nil, fmt.Errorf("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+		return nil, ErrInvalidTermID
 	}
 
 	// XSS 防护
@@ -159,7 +163,14 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 	params.Content = sanitizer.SanitizeText(params.Content)
 
 	// 序列化评分数据
-	ratingsData, err := json.Marshal(params.Ratings)
+	ratings := params.Ratings
+	if ratings == nil {
+		ratings = ReviewRatings{}
+	}
+	if err := s.validateRatingValues(ctx, ratings, false); err != nil {
+		return nil, err
+	}
+	ratingsData, err := json.Marshal(ratings)
 	if err != nil {
 		return nil, err
 	}
@@ -177,13 +188,13 @@ func (s *Service) SaveDraft(ctx context.Context, params SaveDraftParams) (*Revie
 }
 
 // GetDraft 获取草稿
-func (s *Service) GetDraft(ctx context.Context, userHash string, courseID int64) (*ReviewDraft, error) {
-	return s.repo.GetDraft(ctx, userHash, courseID)
+func (s *Service) GetDraft(ctx context.Context, userHash string) (*ReviewDraft, error) {
+	return s.repo.GetDraft(ctx, userHash)
 }
 
 // DeleteDraft 删除草稿
-func (s *Service) DeleteDraft(ctx context.Context, userHash string, courseID int64) error {
-	return s.repo.DeleteDraft(ctx, userHash, courseID)
+func (s *Service) DeleteDraft(ctx context.Context, userHash string) error {
+	return s.repo.DeleteDraft(ctx, userHash)
 }
 
 // CreateReplyResult 创建回复结果

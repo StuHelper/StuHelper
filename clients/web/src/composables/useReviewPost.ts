@@ -16,8 +16,6 @@ interface ReviewPostBlock {
   routeName: null | 'home' | 'identity-verification' | 'student-verification'
 }
 
-const REVIEW_POST_ROUTE = '/courses/reviews/post'
-
 export function resolveReviewPostBlock(surface: UserSurface): null | ReviewPostBlock {
   if (surface.identityStatus !== 'approved') {
     return {
@@ -48,20 +46,16 @@ export function useReviewPost() {
   const authStore = useAuthStore()
   const toast = useToast()
 
-  async function redirectToLoginForReviewPost() {
-    await router.push({
-      name: 'login',
-      query: { redirect: REVIEW_POST_ROUTE },
-    })
-  }
-
   async function ensureCanPostReview() {
     if (!authStore.bootstrapCompleted) {
       try {
         await authStore.bootstrapSession()
       } catch (error) {
         if (!authStore.isAuthenticated) {
-          await redirectToLoginForReviewPost()
+          await router.push({
+            name: 'login',
+            query: { redirect: router.currentRoute.value.fullPath },
+          })
           return false
         }
         toast.error(getErrorMessage(error, i18n.global.t('common.loadFailed')))
@@ -70,7 +64,10 @@ export function useReviewPost() {
     }
 
     if (!authStore.isAuthenticated) {
-      await redirectToLoginForReviewPost()
+      await router.push({
+        name: 'login',
+        query: { redirect: router.currentRoute.value.fullPath },
+      })
       return false
     }
 

@@ -38,6 +38,7 @@ var (
 	ErrDangerousContent      = errors.New("content contains dangerous elements")
 	ErrSensitiveContent      = errors.New("content contains sensitive words")
 	ErrModerationUnavailable = errors.New("content moderation unavailable")
+	ErrInvalidTermID         = errors.New("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
 	ErrTitleEmpty            = errors.New("title cannot be empty after sanitization")
 	ErrContentEmpty          = errors.New("content cannot be empty after sanitization")
 	ErrInvalidRating         = errors.New("invalid rating value")
@@ -146,35 +147,11 @@ var validRatingKey = regexp.MustCompile(`^[a-z][a-z0-9_]{0,49}$`)
 func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewRatings, title, content, termID string) (string, string, string, *string, error) {
 	// 校验 term_id 格式
 	if termID != "" && !validTermIDFormat.MatchString(termID) {
-		return "", "", "", nil, fmt.Errorf("invalid term_id format, expected YYYY-S (e.g. 2024-1)")
+		return "", "", "", nil, ErrInvalidTermID
 	}
 
-	if len(ratings) == 0 {
-		return "", "", "", nil, ErrRatingRequired
-	}
-
-	// 从缓存获取有效的评分维度 key 白名单
-	validKeys := s.getDimensionNames()
-	if validKeys == nil {
-		// 缓存未初始化，回退到数据库查询
-		var err error
-		validKeys, err = s.repo.GetDimensionNames(ctx)
-		if err != nil {
-			return "", "", "", nil, fmt.Errorf("failed to load rating dimensions: %w", err)
-		}
-	}
-
-	for k, v := range ratings {
-		if !validRatingKey.MatchString(k) {
-			return "", "", "", nil, ErrInvalidRating
-		}
-		// 校验 key 是否在 rating_dimensions 表中存在
-		if _, ok := validKeys[k]; !ok {
-			return "", "", "", nil, fmt.Errorf("%w: unknown dimension key %q", ErrInvalidRating, k)
-		}
-		if v < 1 || v > 5 {
-			return "", "", "", nil, ErrInvalidRating
-		}
+	if err := s.validateRatingValues(ctx, ratings, true); err != nil {
+		return "", "", "", nil, err
 	}
 
 	title = sanitizer.SanitizeTitle(title)
@@ -201,6 +178,37 @@ func (s *Service) validateAndSanitizeReview(ctx context.Context, ratings ReviewR
 	}
 
 	return title, content, decision.Status, decision.ContentFlag, nil
+}
+
+func (s *Service) validateRatingValues(ctx context.Context, ratings ReviewRatings, requireAny bool) error {
+	if len(ratings) == 0 {
+		if requireAny {
+			return ErrRatingRequired
+		}
+		return nil
+	}
+
+	validKeys := s.getDimensionNames()
+	if validKeys == nil {
+		var err error
+		validKeys, err = s.repo.GetDimensionNames(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to load rating dimensions: %w", err)
+		}
+	}
+
+	for k, v := range ratings {
+		if !validRatingKey.MatchString(k) {
+			return ErrInvalidRating
+		}
+		if _, ok := validKeys[k]; !ok {
+			return fmt.Errorf("%w: unknown dimension key %q", ErrInvalidRating, k)
+		}
+		if v < 1 || v > 5 {
+			return ErrInvalidRating
+		}
+	}
+	return nil
 }
 
 // GetCourseReviewsParams 获取课程评论参数

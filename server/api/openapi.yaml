@@ -209,8 +209,6 @@ paths:
   # ── Review: Drafts ──
   /api/v1/course/review/drafts:
     $ref: "paths/review-draft.yaml#/~1api~1v1~1course~1review~1drafts"
-  /api/v1/course/review/drafts/{courseID}:
-    $ref: "paths/review-draft.yaml#/~1api~1v1~1course~1review~1drafts~1{courseID}"
 
   # ── Review: Favorites ──
   /api/v1/course/review/courses/{courseID}/favorites:
@@ -653,8 +651,6 @@ components:
       $ref: "components/parameters/common.yaml#/TeacherIDPath"
     NotificationIDPath:
       $ref: "components/parameters/common.yaml#/NotificationIDPath"
-    DraftCourseIDPath:
-      $ref: "components/parameters/common.yaml#/DraftCourseIDPath"
     ReplyIDPath:
       $ref: "components/parameters/common.yaml#/ReplyIDPath"
     ReportIDPath:

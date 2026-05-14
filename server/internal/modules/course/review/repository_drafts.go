@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/id"
 )
@@ -13,7 +14,7 @@ import (
 // UpsertDraftParams 保存草稿参数
 type UpsertDraftParams struct {
 	UserHash  string
-	CourseID  int64
+	CourseID  *int64
 	TeacherID *int64
 	TermID    string
 	Title     string
@@ -31,10 +32,11 @@ func (r *Repository) UpsertDraft(ctx context.Context, p UpsertDraftParams) (*Rev
 		return nil, fmt.Errorf("UpsertDraft generate id: %w", err)
 	}
 
-	err = r.db.QueryRow(ctx, `
+	err = scanDraftRow(r.db.QueryRow(ctx, `
 		INSERT INTO review_drafts (id, user_hash, course_id, teacher_id, term_id, title, content, grade, ratings, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-		ON CONFLICT (user_hash, course_id) DO UPDATE SET
+		ON CONFLICT (user_hash) DO UPDATE SET
+			course_id = EXCLUDED.course_id,
 			teacher_id = EXCLUDED.teacher_id,
 			term_id = EXCLUDED.term_id,
 			title = EXCLUDED.title,
@@ -43,9 +45,7 @@ func (r *Repository) UpsertDraft(ctx context.Context, p UpsertDraftParams) (*Rev
 			ratings = EXCLUDED.ratings,
 			updated_at = NOW()
 		RETURNING id, course_id, teacher_id, term_id, title, content, grade, ratings, updated_at
-	`, newID, p.UserHash, p.CourseID, p.TeacherID, p.TermID, p.Title, p.Content, p.Grade, p.Ratings).Scan(
-		&d.ID, &d.CourseID, &d.TeacherID, &d.TermID, &d.Title, &d.Content, &d.Grade, &d.Ratings, &d.UpdatedAt,
-	)
+	`, newID, p.UserHash, p.CourseID, p.TeacherID, nullableString(p.TermID), p.Title, p.Content, p.Grade, p.Ratings), &d)
 	if err != nil {
 		return nil, fmt.Errorf("UpsertDraft: %w", err)
 	}
@@ -54,15 +54,13 @@ func (r *Repository) UpsertDraft(ctx context.Context, p UpsertDraftParams) (*Rev
 }
 
 // GetDraft 获取草稿
-func (r *Repository) GetDraft(ctx context.Context, userHash string, courseID int64) (*ReviewDraft, error) {
+func (r *Repository) GetDraft(ctx context.Context, userHash string) (*ReviewDraft, error) {
 	var d ReviewDraft
-	err := r.db.QueryRow(ctx, `
+	err := scanDraftRow(r.db.QueryRow(ctx, `
 		SELECT id, course_id, teacher_id, term_id, title, content, grade, ratings, updated_at
 		FROM review_drafts
-		WHERE user_hash = $1 AND course_id = $2
-	`, userHash, courseID).Scan(
-		&d.ID, &d.CourseID, &d.TeacherID, &d.TermID, &d.Title, &d.Content, &d.Grade, &d.Ratings, &d.UpdatedAt,
-	)
+		WHERE user_hash = $1
+	`, userHash), &d)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrDraftNotFound
@@ -73,12 +71,49 @@ func (r *Repository) GetDraft(ctx context.Context, userHash string, courseID int
 }
 
 // DeleteDraft 删除草稿
-func (r *Repository) DeleteDraft(ctx context.Context, userHash string, courseID int64) error {
+func (r *Repository) DeleteDraft(ctx context.Context, userHash string) error {
 	_, err := r.db.Exec(ctx, `
-		DELETE FROM review_drafts WHERE user_hash = $1 AND course_id = $2
-	`, userHash, courseID)
+		DELETE FROM review_drafts WHERE user_hash = $1
+	`, userHash)
 	if err != nil {
 		return fmt.Errorf("DeleteDraft: %w", err)
 	}
 	return nil
+}
+
+type draftScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanDraftRow(row draftScanner, d *ReviewDraft) error {
+	var courseID pgtype.Int8
+	var termID pgtype.Text
+	if err := row.Scan(
+		&d.ID,
+		&courseID,
+		&d.TeacherID,
+		&termID,
+		&d.Title,
+		&d.Content,
+		&d.Grade,
+		&d.Ratings,
+		&d.UpdatedAt,
+	); err != nil {
+		return err
+	}
+	if courseID.Valid {
+		value := courseID.Int64
+		d.CourseID = &value
+	}
+	if termID.Valid {
+		d.TermID = termID.String
+	}
+	return nil
+}
+
+func nullableString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }

@@ -53,12 +53,10 @@ func TestReviewHandler_IdentityRequiredBranches(t *testing.T) {
 		},
 		{
 			name: "GetDraft requires auth",
-			prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "courseID", Value: "1"}} },
 			run:  func(h *Handler, c *gin.Context) { h.GetDraft(c) },
 		},
 		{
 			name: "DeleteDraft requires auth",
-			prep: func(c *gin.Context) { c.Params = gin.Params{{Key: "courseID", Value: "1"}} },
 			run:  func(h *Handler, c *gin.Context) { h.DeleteDraft(c) },
 		},
 		{

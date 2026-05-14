@@ -7,9 +7,6 @@ import { persistentAdminTableKey } from './context';
 
 defineOptions({ inheritAttrs: false });
 
-const STORAGE_PREFIX = 'stuhelper.admin.tableColumns';
-const MIN_COLUMN_WIDTH = 48;
-
 const props = withDefaults(
   defineProps<{
     loading?: boolean;
@@ -17,7 +14,6 @@ const props = withDefaults(
   }>(),
   { loading: false },
 );
-
 const emit = defineEmits<{
   (
     e: 'headerDragend',
@@ -27,6 +23,8 @@ const emit = defineEmits<{
     event: MouseEvent,
   ): void;
 }>();
+const STORAGE_PREFIX = 'stuhelper.admin.tableColumns';
+const MIN_COLUMN_WIDTH = 48;
 
 type DragColumn = {
   columnKey?: string;
@@ -64,7 +62,11 @@ function handleHeaderDragend(
 
 function getColumnKey(column: DragColumn) {
   return String(
-    column.columnKey ?? column.property ?? column.rawColumnKey ?? column.label ?? '',
+    column.columnKey ??
+      column.property ??
+      column.rawColumnKey ??
+      column.label ??
+      '',
   ).trim();
 }
 
@@ -87,7 +89,9 @@ function readStoredWidths(key: string) {
   }
   return Object.fromEntries(
     Object.entries(parsed)
-      .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+      .filter(
+        (entry): entry is [string, number] => typeof entry[1] === 'number',
+      )
       .map(([columnKey, width]) => [columnKey, normalizeWidth(width)]),
   );
 }
@@ -119,13 +123,14 @@ function getLocalStorage() {
 
 <style>
 .persistent-admin-table {
-  min-width: 0;
   width: 100%;
+  min-width: 0;
   overflow: hidden;
 }
 
 .admin-data-table {
   --el-table-row-hover-bg-color: var(--el-fill-color-light);
+
   max-width: 100%;
   font-size: 13px;
 }
@@ -140,9 +145,9 @@ function getLocalStorage() {
 
 .admin-data-table .el-table__header th {
   height: 44px;
-  background: var(--el-fill-color-lighter);
-  color: var(--el-text-color-secondary);
   font-weight: 600;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-lighter);
 }
 
 .admin-data-table .el-table__row .el-table__cell {
@@ -171,25 +176,25 @@ function getLocalStorage() {
 
 .admin-id-token {
   padding: 3px 7px;
-  border-radius: 6px;
-  background: var(--el-fill-color-light);
-  color: var(--el-text-color-regular);
   font-size: 12px;
+  color: var(--el-text-color-regular);
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
 }
 
 .admin-sub-id {
   margin-top: 4px;
-  color: var(--el-text-color-secondary);
   font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .admin-cell-title {
   max-width: 100%;
   overflow: hidden;
-  color: var(--el-text-color-primary);
+  text-overflow: ellipsis;
   font-weight: 600;
   line-height: 1.45;
-  text-overflow: ellipsis;
+  color: var(--el-text-color-primary);
   white-space: nowrap;
 }
 
@@ -201,9 +206,9 @@ function getLocalStorage() {
 .admin-cell-body {
   display: -webkit-box;
   overflow: hidden;
+  -webkit-line-clamp: 2;
   color: var(--el-text-color-regular);
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .admin-cell-muted {
@@ -211,14 +216,14 @@ function getLocalStorage() {
 }
 
 .admin-number {
-  font-variant-numeric: tabular-nums;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-action-group {
   display: flex;
-  align-items: center;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 </style>

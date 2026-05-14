@@ -1,8 +1,35 @@
 /api/v1/course/review/drafts:
+  get:
+    tags: [Draft]
+    operationId: getDraft
+    summary: 获取当前用户草稿
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    responses:
+      '200':
+        description: 草稿内容
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/review.yaml#/ReviewDraft'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
   post:
     tags: [Draft]
     operationId: saveDraft
-    summary: 保存草稿
+    summary: 保存当前用户草稿
     security:
       - cookieAuth: []
       - bearerAuth: []
@@ -36,47 +63,20 @@
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
-/api/v1/course/review/drafts/{courseID}:
-  get:
-    tags: [Draft]
-    operationId: getDraft
-    summary: 获取草稿
-    security:
-      - cookieAuth: []
-      - bearerAuth: []
-    parameters:
-      - $ref: '../components/parameters/common.yaml#/DraftCourseIDPath'
-    responses:
-      '200':
-        description: 草稿内容
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
-                - type: object
-                  required: [data]
-                  properties:
-                    data:
-                      $ref: '../components/schemas/review.yaml#/ReviewDraft'
-      '401':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '404':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
-      '500':
-        $ref: '../components/responses/common.yaml#/ErrorResponse'
   delete:
     tags: [Draft]
     operationId: deleteDraft
-    summary: 删除草稿
+    summary: 删除当前用户草稿
     security:
       - cookieAuth: []
       - bearerAuth: []
-    parameters:
-      - $ref: '../components/parameters/common.yaml#/DraftCourseIDPath'
     responses:
-      '204':
+      '200':
         description: 删除成功
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/SuccessResponse'
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':

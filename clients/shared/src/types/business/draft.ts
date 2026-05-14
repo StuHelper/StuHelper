@@ -8,7 +8,7 @@ export type Draft = components['schemas']['ReviewDraft']
 
 /** 保存草稿参数 */
 export interface SaveDraftParams {
-  courseID: number
+  courseID?: number
   teacherID?: number
   termID?: string
   title?: string

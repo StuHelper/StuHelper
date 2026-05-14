@@ -123,14 +123,12 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "草稿")
 
-	w, c = withUserContext(http.MethodGet, "/drafts/1", "", selfUserID)
-	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
+	w, c = withUserContext(http.MethodGet, "/drafts", "", selfUserID)
 	h.GetDraft(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "草稿内容")
 
-	w, c = withUserContext(http.MethodDelete, "/drafts/1", "", selfUserID)
-	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
+	w, c = withUserContext(http.MethodDelete, "/drafts", "", selfUserID)
 	h.DeleteDraft(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 

@@ -22,10 +22,10 @@ import {
 } from '#/api/admin';
 import { $t } from '#/locales';
 
-import AdminContentLayout from '../../shared/AdminContentLayout.vue';
-import { formatAdminDateTime } from '../../shared/display';
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
+import AdminContentLayout from '../../shared/AdminContentLayout.vue';
+import { formatAdminDateTime } from '../../shared/display';
 
 type FreshmanReviewRow = FreshmanApplication & {
   failureCount?: number;
@@ -267,9 +267,9 @@ onMounted(fetchData);
 <style scoped>
 .freshman-action-group {
   display: flex;
-  align-items: center;
-  gap: 8px;
   flex-wrap: nowrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .freshman-action-number {

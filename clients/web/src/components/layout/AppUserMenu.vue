@@ -125,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Bot, GraduationCap, LogOut, Settings, ShieldCheck, User } from 'lucide-vue-next'
@@ -158,7 +158,6 @@ const showAdminEntry = computed(() => canShowAdminEntry(authStore.user))
 const canFetchVerificationStatus = computed(() =>
   authStore.bootstrapCompleted && authStore.isAuthenticated,
 )
-let verificationStatusFetched = false
 
 function syncUserMenuItems() {
   userMenuItems.value = userMenuRef.value
@@ -272,23 +271,17 @@ function onClickOutside(event: MouseEvent) {
   closeUserMenu()
 }
 
-function fetchVerificationStatusOnce() {
-  if (!canFetchVerificationStatus.value || verificationStatusFetched) return
-  verificationStatusFetched = true
+onMounted(() => {
+  document.addEventListener('click', onClickOutside, true)
+  if (!canFetchVerificationStatus.value) {
+    return
+  }
   void verificationStore.fetchStatus().catch((error) => {
-    verificationStatusFetched = false
     if (import.meta.env.DEV) {
       console.warn('[AppUserMenu] failed to bootstrap verification status', error)
     }
   })
-}
-
-onMounted(() => {
-  document.addEventListener('click', onClickOutside, true)
-  fetchVerificationStatusOnce()
 })
-
-watch(canFetchVerificationStatus, fetchVerificationStatusOnce)
 
 onUnmounted(() => {
   document.removeEventListener('click', onClickOutside, true)

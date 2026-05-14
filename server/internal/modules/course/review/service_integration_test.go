@@ -281,7 +281,7 @@ func TestReviewService_IntegrationInteractionPaths(t *testing.T) {
 	// 草稿链路
 	draft, err := svc.SaveDraft(ctx, SaveDraftParams{
 		UserHash:  "u-draft-1",
-		CourseID:  courseID,
+		CourseID:  &courseID,
 		TeacherID: &teacherID,
 		TermID:    "2025-2",
 		Title:     "草稿标题",
@@ -290,17 +290,42 @@ func TestReviewService_IntegrationInteractionPaths(t *testing.T) {
 		Ratings:   ReviewRatings{"teaching": 4, "difficulty": 3},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, courseID, draft.CourseID)
+	require.NotNil(t, draft.CourseID)
+	assert.Equal(t, courseID, *draft.CourseID)
 	assert.Equal(t, "草稿标题", draft.Title)
 
-	loadedDraft, err := svc.GetDraft(ctx, "u-draft-1", courseID)
+	loadedDraft, err := svc.GetDraft(ctx, "u-draft-1")
 	require.NoError(t, err)
 	assert.Equal(t, draft.ID, loadedDraft.ID)
 	assert.Equal(t, "草稿内容", loadedDraft.Content)
 	assert.Equal(t, 4, loadedDraft.Ratings["teaching"])
 
-	require.NoError(t, svc.DeleteDraft(ctx, "u-draft-1", courseID))
-	_, err = svc.GetDraft(ctx, "u-draft-1", courseID)
+	otherCourseID := seedCourse(t, fixture, 10006, departmentID, "编译原理")
+	overwrittenDraft, err := svc.SaveDraft(ctx, SaveDraftParams{
+		UserHash: "u-draft-1",
+		CourseID: &otherCourseID,
+		Title:    "覆盖后的草稿",
+		Content:  "覆盖后的内容",
+		Ratings:  ReviewRatings{"teaching": 5},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, draft.ID, overwrittenDraft.ID)
+	require.NotNil(t, overwrittenDraft.CourseID)
+	assert.Equal(t, otherCourseID, *overwrittenDraft.CourseID)
+	assert.Equal(t, "覆盖后的草稿", overwrittenDraft.Title)
+
+	courseFreeDraft, err := svc.SaveDraft(ctx, SaveDraftParams{
+		UserHash: "u-draft-free",
+		Title:    "还没选课程",
+		Content:  "先写内容再搜索课程",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, courseFreeDraft.CourseID)
+	assert.Empty(t, courseFreeDraft.TermID)
+	assert.Equal(t, "还没选课程", courseFreeDraft.Title)
+
+	require.NoError(t, svc.DeleteDraft(ctx, "u-draft-1"))
+	_, err = svc.GetDraft(ctx, "u-draft-1")
 	require.ErrorIs(t, err, ErrDraftNotFound)
 
 	// 用户评论 / 投票链路
@@ -488,7 +513,7 @@ func TestSaveDraftRejectsTeacherFromDifferentSchool(t *testing.T) {
 
 	_, err := svc.SaveDraft(ctx, SaveDraftParams{
 		UserHash:  "u-draft-cross-school-teacher",
-		CourseID:  courseID,
+		CourseID:  &courseID,
 		TeacherID: &teacherID,
 		TermID:    "2025-2",
 		Title:     "跨校教师草稿",

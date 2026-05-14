@@ -29,16 +29,20 @@ defineProps<{
   submitting: boolean;
 }>();
 
-const visible = defineModel<boolean>('visible', { required: true });
 const emit = defineEmits<{
   (e: 'submit'): void;
 }>();
+const visible = defineModel<boolean>('visible', { required: true });
 </script>
 
 <template>
   <ElDialog
     v-model="visible"
-    :title="$t('admin.users.schoolConfig.dialogTitle', { schoolName: form.schoolName })"
+    :title="
+      $t('admin.users.schoolConfig.dialogTitle', {
+        schoolName: form.schoolName,
+      })
+    "
     width="620px"
   >
     <ElForm label-width="120px">
@@ -79,13 +83,17 @@ const emit = defineEmits<{
         <ElFormItem :label="$t('admin.users.schoolConfig.systemBindDn')">
           <ElInput
             v-model="form.systemBindDN"
-            :placeholder="$t('admin.users.schoolConfig.systemBindDnPlaceholder')"
+            :placeholder="
+              $t('admin.users.schoolConfig.systemBindDnPlaceholder')
+            "
           />
         </ElFormItem>
         <ElFormItem :label="$t('admin.users.schoolConfig.systemBindPassword')">
           <ElInput
             v-model="form.systemBindPassword"
-            :placeholder="$t('admin.users.schoolConfig.systemBindPasswordPlaceholder')"
+            :placeholder="
+              $t('admin.users.schoolConfig.systemBindPasswordPlaceholder')
+            "
             show-password
             type="password"
           />
@@ -97,7 +105,9 @@ const emit = defineEmits<{
       <ElFormItem :label="$t('admin.users.schoolConfig.academicDbTable')">
         <ElInput
           v-model="form.academicDbTable"
-          :placeholder="$t('admin.users.schoolConfig.academicDbTablePlaceholder')"
+          :placeholder="
+            $t('admin.users.schoolConfig.academicDbTablePlaceholder')
+          "
         />
       </ElFormItem>
       <ElFormItem :label="$t('admin.users.schoolConfig.consentText')">

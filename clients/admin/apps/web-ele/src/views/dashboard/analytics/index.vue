@@ -132,7 +132,11 @@ onMounted(fetchStats);
     <ElSkeleton :loading="loading" animated>
       <template #template>
         <div class="admin-dashboard__skeleton">
-          <div v-for="item in 4" :key="item" class="admin-dashboard__block"></div>
+          <div
+            v-for="item in 4"
+            :key="item"
+            class="admin-dashboard__block"
+          ></div>
           <div class="admin-dashboard__wide"></div>
           <div class="admin-dashboard__wide"></div>
         </div>

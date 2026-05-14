@@ -2,7 +2,7 @@
   <div class="min-h-screen relative z-0">
     <AppHeader />
 
-    <main class="min-h-screen" :class="mainPaddingClass">
+    <main class="app-shell-main" :class="mainPaddingClass">
       <slot />
     </main>
 

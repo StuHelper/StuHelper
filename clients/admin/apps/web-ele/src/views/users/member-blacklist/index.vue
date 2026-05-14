@@ -140,10 +140,7 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <AdminContentLayout
-    title="成员黑名单"
-    :total="total"
-  >
+  <AdminContentLayout title="成员黑名单" :total="total">
     <template #toolbar>
       <BlacklistFilters
         v-model:platform="query.platform"

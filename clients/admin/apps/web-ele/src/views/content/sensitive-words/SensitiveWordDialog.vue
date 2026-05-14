@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElOption, ElSelect, ElSwitch } from 'element-plus';
+import {
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElOption,
+  ElSelect,
+  ElSwitch,
+} from 'element-plus';
 
 import { $t } from '#/locales';
 
@@ -16,10 +25,10 @@ defineProps<{
   isEdit: boolean;
 }>();
 
-const visible = defineModel<boolean>('visible', { required: true });
 const emit = defineEmits<{
   (e: 'submit'): void;
 }>();
+const visible = defineModel<boolean>('visible', { required: true });
 </script>
 
 <template>

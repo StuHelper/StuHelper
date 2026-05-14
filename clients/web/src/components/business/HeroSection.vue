@@ -54,14 +54,9 @@ const { t } = useI18n()
   overflow: hidden;
 }
 
-[data-theme="dark"] .hero-section {
+[data-theme="dark"] .hero-section,
+:root:where(:not([data-theme="light"]):not([data-theme="dark"])) .hero-section {
   background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]):not([data-theme="dark"]) .hero-section {
-    background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%);
-  }
 }
 
 .hero-content {

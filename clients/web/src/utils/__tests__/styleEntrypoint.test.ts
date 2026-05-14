@@ -20,8 +20,6 @@ describe('style entrypoint', () => {
     expect(mainSource).toMatch(
       /if \(!hasSessionHint && authStore\.isAuthenticated\) \{\s*authStore\.clearSession\(\)\s*\}/,
     )
-    expect(mainSource).toContain('function markAnonymousBootstrap')
-    expect(mainSource).toContain('markAnonymousBootstrap(authStore)')
     expect(mainSource).toMatch(
       /app\.mount\('#app'\)\s*if \(hasSessionHint\) \{\s*void authStore\.bootstrapSession\(\)\s*\}/,
     )
@@ -99,8 +97,27 @@ describe('style entrypoint', () => {
     expect(routerSource).toContain('path: "/courses/reviews/post"')
     expect(routerSource).toContain('path: "/courses/:id/reviews/post"')
     expect(routerSource).toContain('rememberReviewPostCourse(courseID)')
-    expect(routerSource).toContain('return "/courses/reviews/post"')
     expect(reviewPageSource).not.toContain('<ReviewDialog')
+  })
+
+  it('keeps review drafts user-scoped and recoverable from the post page', () => {
+    const draftApiSource = readFileSync(resolve(__dirname, '../../../../shared/src/api/draft.ts'), 'utf-8')
+    const draftStoreSource = readFileSync(resolve(__dirname, '../../stores/draft.ts'), 'utf-8')
+    const postPageSource = readFileSync(
+      resolve(__dirname, '../../modules/review/views/PostReviewPage.vue'),
+      'utf-8',
+    )
+
+    expect(draftApiSource).toContain("client.GET('/api/v1/course/review/drafts')")
+    expect(draftApiSource).toContain("client.DELETE('/api/v1/course/review/drafts')")
+    expect(draftApiSource).not.toContain('/drafts/${')
+    expect(draftStoreSource).toContain('const draft = ref<Draft | null>(null)')
+    expect(draftStoreSource).not.toContain('Record<number')
+    expect(postPageSource).toContain('DraftPromptDialog')
+    expect(postPageSource).toContain('await draftStore.loadDraft(true)')
+    expect(postPageSource).toContain('await draftStore.saveDraft(buildDraftPayload())')
+    expect(postPageSource).toContain('onBeforeRouteLeave')
+    expect(postPageSource).toContain('await draftStore.deleteDraft()')
   })
 
   it('keeps clickable notification rows keyboard reachable', () => {

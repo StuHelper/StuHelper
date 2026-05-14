@@ -167,11 +167,6 @@ const mobileMenuOpen = ref(false)
 let scrollTicking = false
 
 const showCourseSearch = computed(() => route.path === '/course')
-const activeCourseID = computed(() => {
-  if (!route.path.startsWith('/courses/')) return null
-  const courseID = typeof route.params.id === 'string' ? Number(route.params.id) : NaN
-  return Number.isFinite(courseID) && courseID > 0 ? courseID : null
-})
 const showWriteReview = computed(() =>
   route.path.startsWith('/review') ||
   route.path.startsWith('/courses') ||
@@ -201,9 +196,8 @@ async function handleWriteReview() {
     return
   }
 
-  if (activeCourseID.value !== null) {
-    rememberReviewPostCourse(activeCourseID.value)
-  }
+  const courseID = typeof route.params.id === 'string' ? Number(route.params.id) : NaN
+  rememberReviewPostCourse(courseID)
   await router.push({ name: 'course-review-post' })
 }
 

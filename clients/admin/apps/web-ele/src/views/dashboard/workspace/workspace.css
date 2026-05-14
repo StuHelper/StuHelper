@@ -7,8 +7,8 @@
 .admin-workspace__block,
 .admin-workspace__wide {
   min-height: 112px;
-  border-radius: 8px;
   background: var(--el-fill-color-light);
+  border-radius: 8px;
 }
 
 .admin-workspace__wide {
@@ -27,22 +27,22 @@
   gap: 8px;
   min-height: 112px;
   padding: 18px;
+  background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
-  background: var(--el-bg-color);
 }
 
 .admin-workspace__metric span {
-  color: var(--el-text-color-secondary);
   font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 
 .admin-workspace__metric strong {
   align-self: end;
-  color: var(--el-text-color-primary);
   font-size: 28px;
   font-weight: 650;
   line-height: 1;
+  color: var(--el-text-color-primary);
 }
 
 .admin-workspace__main {
@@ -54,9 +54,9 @@
 
 .admin-workspace__panel {
   padding: 18px;
+  background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
-  background: var(--el-bg-color);
 }
 
 .admin-workspace__panel-header {
@@ -68,26 +68,26 @@
 
 .admin-workspace__panel-header h2 {
   margin: 0;
-  color: var(--el-text-color-primary);
   font-size: 16px;
   font-weight: 650;
+  color: var(--el-text-color-primary);
 }
 
 .admin-workspace__queue {
   display: flex;
-  width: 100%;
-  min-height: 58px;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  min-height: 58px;
   padding: 0 14px;
+  margin-top: 10px;
+  font: inherit;
+  color: var(--el-text-color-primary);
+  text-align: left;
+  cursor: pointer;
+  background: var(--el-fill-color-extra-light);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
-  margin-top: 10px;
-  background: var(--el-fill-color-extra-light);
-  color: var(--el-text-color-primary);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
   transition:
     border-color 0.16s ease,
     background-color 0.16s ease;
@@ -98,15 +98,15 @@
 }
 
 .admin-workspace__queue:hover {
-  border-color: var(--el-color-primary-light-5);
   background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-5);
 }
 
 .admin-workspace__queue span {
   display: inline-flex;
-  min-width: 0;
-  align-items: center;
   gap: 8px;
+  align-items: center;
+  min-width: 0;
   color: var(--el-text-color-regular);
 }
 
@@ -140,24 +140,24 @@
 
 .admin-workspace__shortcut {
   display: inline-flex;
-  min-height: 54px;
+  gap: 8px;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  background: var(--el-bg-color);
+  min-height: 54px;
+  font: inherit;
   color: var(--el-text-color-primary);
   cursor: pointer;
-  font: inherit;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
   transition:
     border-color 0.16s ease,
     color 0.16s ease;
 }
 
 .admin-workspace__shortcut:hover {
-  border-color: var(--el-color-primary-light-5);
   color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
 }
 
 @media (max-width: 1180px) {

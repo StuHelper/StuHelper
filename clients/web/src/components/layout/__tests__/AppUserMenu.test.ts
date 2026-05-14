@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils'
-import { nextTick, reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppUserMenu from '../AppUserMenu.vue'
 
@@ -114,22 +113,5 @@ describe('AppUserMenu', () => {
     })
 
     expect(mocks.verificationStore.fetchStatus).not.toHaveBeenCalled()
-  })
-
-  it('fetches verification status when auth resolves after mount', async () => {
-    const state = reactive({
-      ...mocks.authStore,
-      bootstrapCompleted: false,
-      isAuthenticated: true,
-    }) as typeof mocks.authStore
-    mocks.authStore = state
-
-    mount(AppUserMenu)
-    expect(mocks.verificationStore.fetchStatus).not.toHaveBeenCalled()
-
-    state.bootstrapCompleted = true
-    await nextTick()
-
-    expect(mocks.verificationStore.fetchStatus).toHaveBeenCalledTimes(1)
   })
 })

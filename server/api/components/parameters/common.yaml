@@ -53,15 +53,6 @@ NotificationIDPath:
     type: string
     format: uuid
 
-DraftCourseIDPath:
-  name: courseID
-  in: path
-  required: true
-  description: 课程 ID（用于草稿）
-  schema:
-    type: integer
-    format: int64
-
 ReplyIDPath:
   name: replyID
   in: path

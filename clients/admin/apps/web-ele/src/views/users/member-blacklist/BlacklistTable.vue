@@ -5,7 +5,6 @@ import { ElButton, ElPagination, ElTag } from 'element-plus';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
-
 import {
   createdByLabel,
   createdFromLabel,

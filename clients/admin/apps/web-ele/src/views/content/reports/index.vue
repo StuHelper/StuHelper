@@ -15,14 +15,14 @@ import {
 import { getReportList, processReport } from '#/api/admin';
 import { $t } from '#/locales';
 
+import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
+import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import {
   compactID,
   formatAdminDateTime,
   formatNullableText,
 } from '../../shared/display';
-import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
-import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 
 const loading = ref(false);
 const actionLoading = ref(false);
@@ -161,9 +161,7 @@ onMounted(fetchData);
       >
         <template #default="{ row }">
           <div class="admin-cell-title" :title="row.review?.title">
-            {{
-              row.review?.title || $t('admin.content.reports.missingReview')
-            }}
+            {{ row.review?.title || $t('admin.content.reports.missingReview') }}
           </div>
         </template>
       </PersistentAdminTableColumn>

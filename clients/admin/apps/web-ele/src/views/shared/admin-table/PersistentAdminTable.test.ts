@@ -128,18 +128,20 @@ describe('PersistentAdminTable', () => {
       mountOptions,
     );
 
-    expect(wrapper.find('[data-column-key="courseName"]').attributes()).toMatchObject(
-      { 'data-width': '220' },
-    );
+    expect(
+      wrapper.find('[data-column-key="courseName"]').attributes(),
+    ).toMatchObject({ 'data-width': '220' });
   });
 
   it('clears corrupt stored widths instead of crashing the table', () => {
     window.localStorage.setItem(STORAGE_KEY, '{bad-json');
 
-    expect(() => mount(PersistentAdminTable, {
-      ...mountOptions,
-      props: { tableKey: 'spec' },
-    })).not.toThrow();
+    expect(() =>
+      mount(PersistentAdminTable, {
+        ...mountOptions,
+        props: { tableKey: 'spec' },
+      }),
+    ).not.toThrow();
     expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 });

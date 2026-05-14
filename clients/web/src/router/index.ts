@@ -184,7 +184,7 @@ const routes: RouteRecordRaw[] = [
                 ? Number(to.params.id)
                 : NaN;
             rememberReviewPostCourse(courseID);
-            return "/courses/reviews/post";
+            return { name: "course-review-post" };
         },
     },
 

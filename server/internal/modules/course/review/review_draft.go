@@ -6,14 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/httputil"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/logger"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/response"
 )
 
 // SaveDraftRequest 保存草稿请求
 type SaveDraftRequest struct {
-	CourseID  int64         `json:"courseID" binding:"required,gt=0"`
+	CourseID  *int64        `json:"courseID" binding:"omitempty,gt=0"`
 	TeacherID *int64        `json:"teacherID" binding:"omitempty,gt=0"`
 	TermID    string        `json:"termID" binding:"omitempty,max=20"`
 	Title     string        `json:"title" binding:"max=200"`
@@ -64,18 +63,12 @@ func (h *Handler) SaveDraft(c *gin.Context) {
 
 // GetDraft 获取草稿
 func (h *Handler) GetDraft(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "courseID")
-	if err != nil {
-		response.BadRequest(c, "invalid course id")
-		return
-	}
-
 	_, userHash, ok := h.resolveRequiredUserHash(c)
 	if !ok {
 		return
 	}
 
-	draft, err := h.service.GetDraft(c.Request.Context(), userHash, courseID)
+	draft, err := h.service.GetDraft(c.Request.Context(), userHash)
 	if err != nil {
 		if respondGetDraftError(c, err) {
 			return
@@ -90,18 +83,12 @@ func (h *Handler) GetDraft(c *gin.Context) {
 
 // DeleteDraft 删除草稿
 func (h *Handler) DeleteDraft(c *gin.Context) {
-	courseID, err := httputil.ParseIDParam(c, "courseID")
-	if err != nil {
-		response.BadRequest(c, "invalid course id")
-		return
-	}
-
 	_, userHash, ok := h.resolveRequiredUserHash(c)
 	if !ok {
 		return
 	}
 
-	err = h.service.DeleteDraft(c.Request.Context(), userHash, courseID)
+	err := h.service.DeleteDraft(c.Request.Context(), userHash)
 	if err != nil {
 		logger.FromGin(c).Error("failed to delete draft", zap.Error(err))
 		response.InternalError(c, "failed to delete draft")

@@ -9,7 +9,7 @@ function toSaveDraftRequest(data: SaveDraftParams): SaveDraftRequest {
   const grade = normalizeReviewGrade(data.grade)
 
   return {
-    courseID: data.courseID,
+    ...(data.courseID !== undefined && { courseID: data.courseID }),
     ...(data.teacherID !== undefined && { teacherID: data.teacherID }),
     ...(data.termID !== undefined && { termID: data.termID }),
     ...(data.title !== undefined && { title: data.title }),
@@ -20,12 +20,12 @@ function toSaveDraftRequest(data: SaveDraftParams): SaveDraftRequest {
 }
 
 export const createDraftApi = (client: ApiClient) => ({
-  getDraft: (courseID: number) =>
-    client.GET('/api/v1/course/review/drafts/{courseID}', { params: { path: { courseID } } }),
+  getDraft: () =>
+    client.GET('/api/v1/course/review/drafts'),
 
   saveDraft: (data: SaveDraftParams) =>
     client.POST('/api/v1/course/review/drafts', { body: toSaveDraftRequest(data) }),
 
-  deleteDraft: (courseID: number) =>
-    client.DELETE('/api/v1/course/review/drafts/{courseID}', { params: { path: { courseID } } })
+  deleteDraft: () =>
+    client.DELETE('/api/v1/course/review/drafts')
 })

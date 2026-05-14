@@ -152,7 +152,7 @@ type FavoriteCourse struct {
 type ReviewDraft struct {
 	ID        string        `json:"id"`
 	UserHash  string        `json:"-"`
-	CourseID  int64         `json:"courseID"`
+	CourseID  *int64        `json:"courseID,omitempty"`
 	TeacherID *int64        `json:"teacherID,omitempty"`
 	TermID    string        `json:"termID,omitempty"`
 	Title     string        `json:"title,omitempty"`

@@ -60,19 +60,12 @@ app.use(i18n)
 app.directive('ripple', vRipple)
 initObservability()
 
-function markAnonymousBootstrap(authStore: ReturnType<typeof useAuthStore>) {
-  authStore.bootstrapPending = false
-  authStore.bootstrapCompleted = true
-}
-
 async function bootstrapApp() {
   useLocaleStore(pinia)
   const authStore = useAuthStore(pinia)
   const hasSessionHint = hasStoredSessionHint()
   if (!hasSessionHint && authStore.isAuthenticated) {
     authStore.clearSession()
-  } else if (!hasSessionHint) {
-    markAnonymousBootstrap(authStore)
   }
   app.use(router)
   await router.isReady()

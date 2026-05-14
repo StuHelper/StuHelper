@@ -78,7 +78,7 @@
     <!-- 状态2: 未登录锁定 -->
     <LockedReviewContent
       v-else-if="!isAuthenticated && !isHidden"
-      :content="review.content"
+      :preview-line="review.content"
       :message="t('review.card.loginToView')"
       :action-label="t('review.card.loginBtn')"
       @action="handleLogin"
@@ -87,7 +87,7 @@
     <!-- 状态2.5: 已登录未认证，正文锁定 -->
     <LockedReviewContent
       v-else-if="isPreviewMode"
-      :content="review.content"
+      :preview-line="review.content"
       :message="t('review.card.verifyToView')"
       :action-label="t('review.card.goVerify')"
       @action="$router.push({ name: 'student-verification' })"

@@ -1134,7 +1134,7 @@ ALTER SEQUENCE public.resource_versions_id_seq OWNED BY public.resource_versions
 CREATE TABLE public.review_drafts (
     id character varying(36) NOT NULL,
     user_hash character varying(64) NOT NULL,
-    course_id bigint NOT NULL,
+    course_id bigint,
     teacher_id bigint,
     term_id character varying(20),
     title character varying(200),
@@ -2197,11 +2197,11 @@ ALTER TABLE ONLY public.rating_dimensions
 
 
 --
--- Name: review_drafts uq_review_drafts_user_course; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: review_drafts uq_review_drafts_user; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.review_drafts
-    ADD CONSTRAINT uq_review_drafts_user_course UNIQUE (user_hash, course_id);
+    ADD CONSTRAINT uq_review_drafts_user UNIQUE (user_hash);
 
 
 --
@@ -2710,13 +2710,6 @@ CREATE INDEX idx_rating_dimensions_active ON public.rating_dimensions USING btre
 --
 
 CREATE INDEX idx_rating_dimensions_school ON public.rating_dimensions USING btree (school_id);
-
-
---
--- Name: idx_review_drafts_user_hash; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_review_drafts_user_hash ON public.review_drafts USING btree (user_hash);
 
 
 --

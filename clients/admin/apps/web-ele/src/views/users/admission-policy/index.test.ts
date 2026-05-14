@@ -53,7 +53,9 @@ describe('admission policy admin view contract', () => {
 
     expect(source).toContain('function normalizeManagementGuildIDs');
     expect(source).toContain('Array.isArray(values)');
-    expect(source).toContain('await listAdmissionPolicies()).map(normalizePolicy)');
+    expect(source).toContain(
+      'await listAdmissionPolicies()).map(normalizePolicy)',
+    );
   });
 
   it('renders operator-facing Chinese labels instead of raw API field names', async () => {
