@@ -45,13 +45,13 @@ func TestOpenAPIRequestValidationMiddleware_RejectsInvalidRequestBody(t *testing
 	validator, err := NewOpenAPIRequestValidationMiddleware()
 	require.NoError(t, err)
 	api.Use(validator)
-	api.POST("/auth/phone/request-otp", func(c *gin.Context) {
+	api.POST("/user/profile/bind-phone", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
 
-	body := bytes.NewBufferString(`{"phone":"123"}`)
+	body := bytes.NewBufferString(`{"phone":"123","otpCode":"123"}`)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/phone/request-otp", body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone", body)
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
@@ -70,13 +70,13 @@ func TestOpenAPIRequestValidationMiddleware_AllowsValidRequest(t *testing.T) {
 	validator, err := NewOpenAPIRequestValidationMiddleware()
 	require.NoError(t, err)
 	api.Use(validator)
-	api.POST("/auth/phone/request-otp", func(c *gin.Context) {
+	api.POST("/user/profile/bind-phone", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
 
-	body := bytes.NewBufferString(`{"phone":"13800138000"}`)
+	body := bytes.NewBufferString(`{"phone":"13800138000","otpCode":"123456"}`)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/phone/request-otp", body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone", body)
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
@@ -103,13 +103,13 @@ func TestOpenAPIRequestValidationMiddleware_RejectsUnsupportedMediaType(t *testi
 	validator, err := NewOpenAPIRequestValidationMiddleware()
 	require.NoError(t, err)
 	api.Use(validator)
-	api.POST("/auth/phone/request-otp", func(c *gin.Context) {
+	api.POST("/user/profile/bind-phone", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true})
 	})
 
-	body := bytes.NewBufferString("phone=13800138000")
+	body := bytes.NewBufferString("phone=13800138000&otpCode=123456")
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/phone/request-otp", body)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/profile/bind-phone", body)
 	req.Header.Set("Content-Type", "text/plain")
 	r.ServeHTTP(w, req)
 

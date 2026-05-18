@@ -80,7 +80,7 @@ test.describe('Course Browse Flow', () => {
   })
 
   test('course list page loads and shows course names', async ({ page }) => {
-    await page.goto('/courses')
+    await page.goto('/courses/list')
     await page.waitForLoadState('networkidle')
 
     // Assert actual rendered content from mocked data

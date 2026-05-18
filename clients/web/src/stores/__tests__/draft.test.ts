@@ -206,6 +206,43 @@ describe('useDraftStore', () => {
       expect(store.hasDraft).toBe(false)
       expect(store.lastSavedAt).toBeNull()
     })
+
+    it('waits for in-flight saves before deleting the draft', async () => {
+      const order: string[] = []
+      let resolveSave: (value: unknown) => void = () => {}
+
+      mockSaveDraft.mockImplementation(() => new Promise((resolve) => {
+        resolveSave = (value: unknown) => {
+          order.push('save')
+          resolve(value)
+        }
+      }))
+      mockDeleteDraft.mockImplementation(async () => {
+        order.push('delete')
+        return {}
+      })
+
+      const store = useDraftStore()
+      const save = store.saveDraft({ title: 'x' })
+      const deletion = store.deleteDraft()
+
+      await Promise.resolve()
+      expect(mockDeleteDraft).not.toHaveBeenCalled()
+
+      resolveSave({
+        data: {
+          data: {
+            id: 'd1',
+            title: 'x',
+            updatedAt: '2026-04-05T00:00:00Z',
+          },
+        },
+      })
+
+      await Promise.all([save, deletion])
+      expect(order).toEqual(['save', 'delete'])
+      expect(store.hasDraft).toBe(false)
+    })
   })
 
   describe('reset', () => {

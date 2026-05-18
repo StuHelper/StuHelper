@@ -3,7 +3,7 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-05-09
+last-verified: 2026-05-18
 ---
 
 # 当前项目待办
@@ -13,7 +13,17 @@ checkbox 表示当前待办。
 
 ## 已确认活跃任务
 
-当前没有从计划文档中确认出的活跃未完成开发任务。
+Open Platform v1 baseline 已落地；下一步应补齐生产运营面和用户可控面。完整目标见 [`docs/design/open-platform-v1.md`](../../../design/open-platform-v1.md)。
+
+| 任务 | 范围 | 当前状态 | 完成标准 |
+|------|------|----------|----------|
+| Open Platform 用户授权管理 | `clients/web/src/modules/user/` + `server/internal/modules/openplatform/` | 当前已有 consent 授权写入，缺用户查看和撤销入口 | 用户可查看所有已授权应用，按 scope 或整应用撤销；撤销后 disclosure 立即返回 consent required |
+| Open Platform 开发者门户 | `clients/web/src/modules/open-platform/` + `/api/v1/open-platform/apps` | 当前已有注册 API，缺应用列表、审核状态和密钥生命周期 UI | 开发者无需进入 Casdoor 控制台即可提交应用、查看状态、申请 redirect URI 变更和触发 secret rotation |
+| Open Platform 管理审核 UI | `clients/admin/` + `/api/v1/admin/open-platform/*` | 当前已有审批 API，缺后台页面 | 管理员可审核 app / scope、暂停、吊销、查看敏感 scope 理由；全部动作落审计 |
+| 第三方 token 最小化准入探针 | `server/internal/platform/casdoor/` + `infra/ops/` | 当前服务端生成第三方 OIDC URL 时只请求 `openid`，缺生产自动探针 | 每个第三方 app approved 前自动完成 OIDC code flow probe；token 出现业务 claim 时拒绝 approved |
+| Disclosure 限流、指标和审计硬化 | `server/internal/modules/openplatform/` + metrics/audit | 当前有核心 consent/disclosure 流程，缺生产级可观测和限流闭环 | app、app+user、endpoint、consent 维度限流；Prometheus 标签低基数；审计失败 fail-closed |
+| App secret 生命周期 | `server/internal/modules/openplatform/` + Web/Admin UI | 当前批准时返回一次 secret，缺轮换 / 吊销 UI | 支持 secret rotation、旧 secret 立即失效、泄漏处置记录与审计 |
+| Open Platform 资源 API v1.1 | OpenFGA model + disclosure/resource APIs | v1 只做身份与认证事实披露 | app 到具体资源的 OpenFGA 关系清晰落地，且不与 scope consent 混用 |
 
 ## 待立项候选
 
@@ -22,7 +32,6 @@ checkbox 表示当前待办。
 | 候选项 | 来源 | 当前状态 |
 |--------|------|----------|
 | Koishi 群管中心高阶运营工作流：更细粒度报表、历史版本、更复杂处置编排 | `docs/internal/exec-plans/archived/2026-04-19-koishi-moderation-center-implementation.md` | 待产品确认，不作为活跃任务 |
-| Open Platform v1 前置条件 | `docs/design/open-platform-v1.md` | 依赖 IAM v2 决策，不作为当前执行计划 |
 
 ## 审查延后项
 

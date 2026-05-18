@@ -14,7 +14,6 @@ import {
     hasRequiredRouteCapabilityAccess,
     resolveProtectedRouteAuthFailure,
 } from "@/router/auth-guard-decision";
-import { rememberReviewPostCourse } from "@/modules/review/reviewPostNavigation";
 // 静态导入，确保 chunk load 失败时仍可渲染
 import ChunkErrorPage from "@/modules/errors/views/ChunkErrorPage.vue";
 import NotFoundPage from "@/modules/errors/views/NotFoundPage.vue";
@@ -78,6 +77,22 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.authCallback", guest: true, layout: "none" },
     },
     {
+        path: "/connect/consent",
+        name: "open-platform-consent",
+        component: lazyLoad(
+            () => import("@/modules/open-platform/views/ConsentPage.vue"),
+        ),
+        meta: { titleKey: "routes.openPlatformConsent", requiresAuth: true, layout: "none" },
+    },
+    {
+        path: "/connect/authorize",
+        name: "open-platform-authorize",
+        component: lazyLoad(
+            () => import("@/modules/open-platform/views/AuthorizePage.vue"),
+        ),
+        meta: { titleKey: "routes.openPlatformConsent", requiresAuth: true, layout: "none" },
+    },
+    {
         path: "/admission/a/:code",
         name: "admission-token",
         component: lazyLoad(
@@ -124,30 +139,38 @@ const routes: RouteRecordRaw[] = [
 
     // 课程入口
     {
-        path: "/course",
+        path: "/courses",
         name: "course-hub",
         component: lazyLoad(
             () => import("@/modules/course/views/TeachingHubPage.vue"),
         ),
         meta: { titleKey: "routes.teachingHub" },
     },
-
-    // 评测模块
     {
-        path: "/review",
-        name: "review",
-        component: lazyLoad(
-            () => import("@/modules/review/views/ReviewPage.vue"),
-        ),
-        meta: { titleKey: "routes.review" },
-    },
-    {
-        path: "/courses",
+        path: "/courses/list",
         name: "course-list",
         component: lazyLoad(
             () => import("@/modules/course/views/CourseListPage.vue"),
         ),
         meta: { titleKey: "routes.courseList" },
+    },
+    {
+        path: "/courses/about",
+        name: "course-about",
+        component: lazyLoad(
+            () => import("@/modules/review/views/AboutPage.vue"),
+        ),
+        meta: { titleKey: "routes.courseAbout" },
+    },
+
+    // 评测模块
+    {
+        path: "/courses/reviews",
+        name: "review",
+        component: lazyLoad(
+            () => import("@/modules/review/views/ReviewPage.vue"),
+        ),
+        meta: { titleKey: "routes.review" },
     },
     {
         path: "/courses/:id",
@@ -177,16 +200,6 @@ const routes: RouteRecordRaw[] = [
             requiredCapabilities: [REVIEW_CREATE],
         },
     },
-    {
-        path: "/courses/:id/reviews/post",
-        redirect: (to) => {
-            const courseID = typeof to.params.id === "string"
-                ? Number(to.params.id)
-                : NaN;
-            rememberReviewPostCourse(courseID);
-            return { name: "course-review-post" };
-        },
-    },
 
     // 搜索页
     {
@@ -196,16 +209,6 @@ const routes: RouteRecordRaw[] = [
             () => import("@/modules/review/views/SearchPage.vue"),
         ),
         meta: { titleKey: "routes.search" },
-    },
-
-    // 评测说明页
-    {
-        path: "/course/about",
-        name: "course-about",
-        component: lazyLoad(
-            () => import("@/modules/review/views/AboutPage.vue"),
-        ),
-        meta: { titleKey: "routes.courseAbout" },
     },
 
     // 教师相关页面
@@ -254,11 +257,6 @@ const routes: RouteRecordRaw[] = [
             () => import("@/modules/user/views/UserCenterPage.vue"),
         ),
         meta: { titleKey: "routes.userFavorites", requiresAuth: true },
-    },
-    {
-        path: "/user-center",
-        name: "user-center",
-        redirect: { name: "user-reviews" },
     },
 
     // 认证与资料页面
@@ -313,21 +311,6 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.notifications", requiresAuth: true },
     },
 
-    // 兼容旧链接的重定向
-    {
-        path: "/review/courses/:id",
-        redirect: (to) => `/courses/${to.params.id}/reviews`,
-    },
-    { path: "/review/courses", redirect: { name: "course-list" } },
-    {
-        path: "/review/teachers/:id",
-        redirect: (to) => `/teachers/${to.params.id}`,
-    },
-    {
-        path: "/courses/:id/review",
-        redirect: (to) => `/courses/${to.params.id}/reviews`,
-    },
-    { path: "/teacher", redirect: "/teachers" },
     {
         path: "/:pathMatch(.*)*",
         name: "not-found",

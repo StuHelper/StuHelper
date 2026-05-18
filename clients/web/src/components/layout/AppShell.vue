@@ -23,7 +23,7 @@ import Toast from '@/components/common/Toast.vue'
 const route = useRoute()
 
 const mainPaddingClass = Vue.computed(() => {
-  if (route.path === '/course') {
+  if (route.path === '/courses') {
     return 'pt-[var(--navbar-height)] max-tablet:pt-[var(--mobile-header-height)]'
   }
   return 'pt-[var(--navbar-height)]'

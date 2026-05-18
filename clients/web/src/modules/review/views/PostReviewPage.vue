@@ -342,10 +342,9 @@
       :title="t('review.draft.restoreTitle')"
       :description="t('review.draft.restoreDescription')"
       :confirm-text="t('review.draft.restoreConfirm')"
-      :cancel-text="t('review.draft.restoreSkip')"
+      :danger-text="t('review.draft.discard')"
       @confirm="restorePromptDraft && applyDraft(restorePromptDraft)"
-      @keep="restorePromptDraft = null"
-      @discard="restorePromptDraft = null"
+      @discard="discardRestorePromptDraft"
     />
 
     <DraftPromptDialog
@@ -367,7 +366,7 @@ import { ref, computed, onMounted, watch, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { ArrowLeft, Search, X } from 'lucide-vue-next'
-import type { Draft } from '@stuhelper/shared/draft'
+import type { Draft, SaveDraftParams } from '@stuhelper/shared/draft'
 import DraftIndicator from '@/components/business/review/DraftIndicator.vue'
 import DraftPromptDialog from '@/components/business/review/DraftPromptDialog.vue'
 import EmojiRatingInput from '@/components/business/review/EmojiRatingInput.vue'
@@ -433,6 +432,9 @@ const restorePromptDraft = ref<Draft | null>(null)
 const leavePromptVisible = ref(false)
 const suppressAutosave = ref(true)
 const submittingSuccessfully = ref(false)
+const draftTeacherIDToRestore = ref<number | null>(null)
+const discardedDraftSignature = ref<string | null>(null)
+const restorePromptDiscarded = ref(false)
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null
 let leavePromptResolver: ((keepDraft: boolean) => void) | null = null
 const AUTOSAVE_DELAY_MS = 700
@@ -528,6 +530,7 @@ watch(
 function selectCourse(item: PinyinSearchItem) {
   const found = courses.value.find((c) => c.id === item.id)
   if (found) {
+    restorePromptDiscarded.value = false
     selectedTeacherID.value = null
     teachers.value = []
     selectedCourse.value = found
@@ -537,6 +540,7 @@ function selectCourse(item: PinyinSearchItem) {
 }
 
 function clearCourseSelection() {
+  restorePromptDiscarded.value = false
   selectedCourse.value = null
   selectedTeacherID.value = null
   teachers.value = []
@@ -614,6 +618,7 @@ watch(selectedCourse, async (course) => {
   }
 
   await fetchTeachers(course.id)
+  restoreDraftTeacherSelection(course)
 })
 
 function buildDraftPayload() {
@@ -626,6 +631,22 @@ function buildDraftPayload() {
     ...(grade.value.trim() ? { grade: grade.value.trim() } : {}),
     ...(Object.keys(ratings.value).length > 0 ? { ratings: ratings.value } : {}),
   }
+}
+
+function currentDraftSignature() {
+  const payload: SaveDraftParams = buildDraftPayload()
+  const ratings = Object.entries(payload.ratings ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+
+  return JSON.stringify({
+    content: payload.content ?? '',
+    courseID: payload.courseID ?? null,
+    grade: payload.grade ?? '',
+    ratings,
+    teacherID: payload.teacherID ?? null,
+    termID: payload.termID ?? '',
+    title: payload.title ?? '',
+  })
 }
 
 const hasMeaningfulDraftInput = computed(() => {
@@ -641,6 +662,8 @@ const hasMeaningfulDraftInput = computed(() => {
 
 async function autosaveDraftNow() {
   try {
+    if (currentDraftSignature() === discardedDraftSignature.value) return
+    if (restorePromptDiscarded.value && !hasMeaningfulDraftInput.value) return
     if (!hasMeaningfulDraftInput.value) {
       if (draftStore.hasDraft) {
         await draftStore.deleteDraft()
@@ -655,6 +678,8 @@ async function autosaveDraftNow() {
 
 function scheduleAutosave() {
   if (suppressAutosave.value || submittingSuccessfully.value) return
+  if (currentDraftSignature() === discardedDraftSignature.value) return
+  if (restorePromptDiscarded.value && !hasMeaningfulDraftInput.value) return
   if (autosaveTimer) clearTimeout(autosaveTimer)
   autosaveTimer = setTimeout(() => {
     void autosaveDraftNow()
@@ -663,11 +688,14 @@ function scheduleAutosave() {
 
 async function applyDraft(draft: Draft) {
   suppressAutosave.value = true
+  discardedDraftSignature.value = null
+  restorePromptDiscarded.value = false
   title.value = draft.title ?? ''
   content.value = draft.content ?? defaultTemplate.value
   grade.value = draft.grade ?? ''
   termID.value = draft.termID ?? termID.value
   ratings.value = (draft.ratings ?? {}) as ReviewRatings
+  draftTeacherIDToRestore.value = draft.teacherID ?? null
   restorePromptDraft.value = null
   toast.success(t('review.draft.restored'))
 
@@ -676,11 +704,22 @@ async function applyDraft(draft: Draft) {
   } else {
     clearCourseSelection()
   }
-  selectedTeacherID.value = draft.teacherID ?? null
+  if (!draft.courseID) {
+    selectedTeacherID.value = draftTeacherIDToRestore.value
+    draftTeacherIDToRestore.value = null
+  }
 
   nextTick(() => {
     suppressAutosave.value = false
   })
+}
+
+function restoreDraftTeacherSelection(course: Course) {
+  const teacherID = draftTeacherIDToRestore.value
+  if (teacherID === null) return
+  if (selectedCourse.value?.id !== course.id) return
+  selectedTeacherID.value = teacherID
+  draftTeacherIDToRestore.value = null
 }
 
 async function loadDraftCourse(courseID: number) {
@@ -720,7 +759,21 @@ async function promptRestoreExistingDraft() {
 
 async function discardCurrentDraft() {
   try {
+    if (autosaveTimer) clearTimeout(autosaveTimer)
     await draftStore.deleteDraft()
+    discardedDraftSignature.value = currentDraftSignature()
+    restorePromptDraft.value = null
+  } catch (_error) { void _error;
+    toast.error(t('review.draft.saveFailed'))
+  }
+}
+
+async function discardRestorePromptDraft() {
+  try {
+    if (autosaveTimer) clearTimeout(autosaveTimer)
+    await draftStore.deleteDraft()
+    restorePromptDiscarded.value = true
+    discardedDraftSignature.value = currentDraftSignature()
     restorePromptDraft.value = null
   } catch (_error) { void _error;
     toast.error(t('review.draft.saveFailed'))

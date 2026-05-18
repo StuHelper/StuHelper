@@ -1,0 +1,86 @@
+/api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/approve:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: approveOpenPlatformScope
+    summary: 批准开放平台应用申请的 scope
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: scope
+        in: path
+        required: true
+        schema:
+          $ref: '../components/schemas/open-platform.yaml#/OpenPlatformScope'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformApproveScopeRequest'
+    responses:
+      '200':
+        description: scope 已批准。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/common.yaml#/MessageData'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/{appID}/approve:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: approveOpenPlatformApp
+    summary: 批准开放平台应用并创建 Casdoor OIDC application
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: appID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    responses:
+      '200':
+        description: 应用已批准，并返回第三方 client secret。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformApprovedApp'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

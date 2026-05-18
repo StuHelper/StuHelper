@@ -3,7 +3,7 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-05-07
+last-verified: 2026-05-18
 ---
 
 # 执行计划（内部）
@@ -20,7 +20,7 @@ last-verified: 2026-05-07
 
 ## 活跃计划
 
-- [active/current-project-open-items.md](active/current-project-open-items.md) — 当前项目待办总表；截至 2026-05-07 无已确认活跃未完成开发任务
+- [active/current-project-open-items.md](active/current-project-open-items.md) — 当前项目待办总表；Open Platform v1 baseline 后续运营面为当前活跃任务
 
 ## 归档
 
@@ -42,4 +42,4 @@ last-verified: 2026-05-07
 
 ## 技术债
 
-当前无活跃技术债；历史记录见 [archived/tech-debt-tracker.md](archived/tech-debt-tracker.md)。
+审查延后项和活跃技术任务以 [active/current-project-open-items.md](active/current-project-open-items.md) 为准；历史技术债记录见 [archived/tech-debt-tracker.md](archived/tech-debt-tracker.md)。

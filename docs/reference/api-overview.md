@@ -3,7 +3,7 @@ type: reference
 audience: backend-dev, frontend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-04-19
+last-verified: 2026-05-18
 ---
 
 # API 导航摘要
@@ -31,6 +31,8 @@ last-verified: 2026-04-19
 | 教务展示 | `/api/v1/academics/*` | [product-specs/academics-data-integration.md](../product-specs/academics-data-integration.md) |
 | 资源共享 | `/api/v1/resources/*` | [product-specs/resource-sharing.md](../product-specs/resource-sharing.md) |
 | 通知 | `/api/v1/course/review/user/notifications/*`（含 SSE 子路径） | [product-specs/notification.md](../product-specs/notification.md) |
+| 开放平台 | `/api/v1/open-platform/*` | [design/open-platform-v1.md](../design/open-platform-v1.md) |
+| 开放平台后台 | `/api/v1/admin/open-platform/*` | [design/open-platform-v1.md](../design/open-platform-v1.md) / [design/authorization-model.md](../design/authorization-model.md) |
 | 指标采集 | `/api/v1/metrics/*` | [guides/observability.md](../guides/observability.md) |
 
 ## 查找指引

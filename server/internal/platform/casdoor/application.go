@@ -24,6 +24,8 @@ type ApplicationSpec struct {
 	Name                 string
 	DisplayName          string
 	Logo                 string
+	HomepageURL          string
+	Description          string
 	ClientID             string
 	ClientSecret         string
 	RedirectURIs         []string
@@ -147,6 +149,8 @@ func (c *Client) buildApplication(spec ApplicationSpec) (*casdoorsdk.Application
 		Name:                 normalized.Name,
 		DisplayName:          normalized.DisplayName,
 		Logo:                 normalized.Logo,
+		HomepageUrl:          normalized.HomepageURL,
+		Description:          normalized.Description,
 		Organization:         c.credential.Organization,
 		Cert:                 defaultApplicationCertificate,
 		EnablePassword:       interactive,
@@ -174,6 +178,8 @@ func normalizeApplicationSpec(spec ApplicationSpec) (ApplicationSpec, error) {
 	spec.Name = strings.TrimSpace(spec.Name)
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	spec.Logo = strings.TrimSpace(spec.Logo)
+	spec.HomepageURL = strings.TrimSpace(spec.HomepageURL)
+	spec.Description = strings.TrimSpace(spec.Description)
 	spec.ClientID = strings.TrimSpace(spec.ClientID)
 	spec.ClientSecret = strings.TrimSpace(spec.ClientSecret)
 	spec.TokenFormat = strings.TrimSpace(spec.TokenFormat)
@@ -190,6 +196,9 @@ func normalizeApplicationSpec(spec ApplicationSpec) (ApplicationSpec, error) {
 	}
 	fields, err := normalizeTokenFields(spec.TokenFields)
 	if err != nil {
+		return ApplicationSpec{}, err
+	}
+	if err := validateHomepageURL(spec.HomepageURL); err != nil {
 		return ApplicationSpec{}, err
 	}
 	spec.RedirectURIs = redirects
@@ -260,6 +269,23 @@ func validateRedirectURI(redirect string) error {
 	}
 	if parsed.Fragment != "" {
 		return fmt.Errorf("casdoor: redirect URI must not contain fragment: %s", redirect)
+	}
+	return nil
+}
+
+func validateHomepageURL(value string) error {
+	if value == "" {
+		return nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("casdoor: invalid homepage URL: %s", value)
+	}
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return fmt.Errorf("casdoor: homepage URL must use http or https: %s", value)
+	}
+	if parsed.Fragment != "" {
+		return fmt.Errorf("casdoor: homepage URL must not contain fragment: %s", value)
 	}
 	return nil
 }

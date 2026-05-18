@@ -93,7 +93,7 @@ interface ModuleTab {
 const { t } = useI18n();
 
 const tabDefs: ModuleTab[] = [
-    { to: "/review", icon: markRaw(Pencil), labelKey: "nav.review" },
+    { to: "/courses/reviews", icon: markRaw(Pencil), labelKey: "nav.review" },
     { to: "/teachers", icon: markRaw(GraduationCap), labelKey: "nav.teacher" },
 ];
 

@@ -81,6 +81,38 @@ describe('style entrypoint', () => {
     expect(teacherHubSource).toContain(':to="`/teachers/${teacher.teacherID}`"')
   })
 
+  it('uses plural courses routes for the course hub and course catalog', () => {
+    const routerSource = readFileSync(resolve(__dirname, '../../router/index.ts'), 'utf-8')
+    const headerSource = readFileSync(resolve(__dirname, '../../components/layout/AppHeader.vue'), 'utf-8')
+    const floatingNavSource = readFileSync(
+      resolve(__dirname, '../../components/layout/FloatingModuleNav.vue'),
+      'utf-8',
+    )
+    const teachingHubSource = readFileSync(
+      resolve(__dirname, '../../modules/course/views/TeachingHubPage.vue'),
+      'utf-8',
+    )
+
+    expect(routerSource).toContain('path: "/courses"')
+    expect(routerSource).toContain('name: "course-hub"')
+    expect(routerSource).toContain('path: "/courses/list"')
+    expect(routerSource).toContain('path: "/courses/about"')
+    expect(routerSource).toContain('path: "/courses/reviews"')
+    expect(routerSource).not.toContain('path: "/review"')
+    expect(routerSource).not.toContain('path: "/review/')
+    expect(routerSource).not.toContain('path: "/course"')
+    expect(routerSource).not.toContain('path: "/course/')
+    expect(headerSource).toContain("route.path === '/courses'")
+    expect(headerSource).not.toContain("route.path.startsWith('/review')")
+    expect(headerSource).toContain("{ to: '/courses', label: t('nav.courses')")
+    expect(headerSource).not.toContain("{ to: '/course', label: t('nav.review')")
+    expect(teachingHubSource).toContain('to="/courses/list"')
+    expect(teachingHubSource).toContain('to="/courses/reviews"')
+    expect(teachingHubSource).not.toContain('to="/review"')
+    expect(floatingNavSource).toContain('{ to: "/courses/reviews"')
+    expect(floatingNavSource).not.toContain('{ to: "/review"')
+  })
+
   it('routes header write-review actions to the page form instead of the deleted modal flow', () => {
     const shellSource = readFileSync(resolve(__dirname, '../../components/layout/AppShell.vue'), 'utf-8')
     const reviewPageSource = readFileSync(
@@ -95,8 +127,8 @@ describe('style entrypoint', () => {
     expect(headerSource).toContain("router.push({ name: 'course-review-post' })")
     expect(headerSource).not.toContain('openPostModal')
     expect(routerSource).toContain('path: "/courses/reviews/post"')
-    expect(routerSource).toContain('path: "/courses/:id/reviews/post"')
-    expect(routerSource).toContain('rememberReviewPostCourse(courseID)')
+    expect(routerSource).not.toContain('path: "/courses/:id/reviews/post"')
+    expect(routerSource).not.toContain('rememberReviewPostCourse(courseID)')
     expect(reviewPageSource).not.toContain('<ReviewDialog')
   })
 

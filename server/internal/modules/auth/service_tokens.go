@@ -80,6 +80,7 @@ func (s *Service) SyncOIDCUser(ctx context.Context, input UserSyncInput) error {
 }
 
 // SyncPhoneUser 通过手机号查找或创建用户。
+// TODO(iam-v2): 删除本地手机号登录 token 路径；注册/登录入口应完全由 Casdoor 承担。
 func (s *Service) SyncPhoneUser(ctx context.Context, phone string) (*PhoneUser, error) {
 	return s.userSyncRepo.UpsertByPhone(ctx, phone)
 }

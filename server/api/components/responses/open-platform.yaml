@@ -1,0 +1,42 @@
+DisclosureResponse:
+  description: 按已授权 scope 返回用户字段。
+  content:
+    application/json:
+      schema:
+        allOf:
+          - $ref: '../schemas/common.yaml#/SuccessResponse'
+          - type: object
+            required: [data]
+            properties:
+              data:
+                $ref: '../schemas/open-platform.yaml#/OpenPlatformDisclosure'
+
+ConsentRequired:
+  description: 用户尚未授权该应用读取请求的 scope。
+  content:
+    application/json:
+      schema:
+        allOf:
+          - $ref: '../schemas/common.yaml#/ErrorResponseBody'
+          - type: object
+            properties:
+              error:
+                type: object
+                required: [code, message, details]
+                properties:
+                  code:
+                    type: string
+                    example: A0400005
+                  message:
+                    type: string
+                  details:
+                    type: object
+                    required: [consentURL, scopes]
+                    properties:
+                      consentURL:
+                        type: string
+                        format: uri-reference
+                      scopes:
+                        type: array
+                        items:
+                          $ref: '../schemas/open-platform.yaml#/OpenPlatformScopeDefinition'

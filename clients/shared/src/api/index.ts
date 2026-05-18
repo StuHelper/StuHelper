@@ -11,6 +11,7 @@ export * from "./reply";
 export * from "./identity";
 export * from "./user-admin";
 export * from "./admission";
+export * from "./open-platform";
 export * from "./error-codes";
 export * from "./errors";
 

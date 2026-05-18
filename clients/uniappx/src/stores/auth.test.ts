@@ -5,8 +5,6 @@ const authApi = {
   exchangeNative: vi.fn(),
   logout: vi.fn(),
   me: vi.fn(),
-  requestPhoneOTP: vi.fn(),
-  verifyPhoneOTP: vi.fn(),
 }
 
 vi.mock('@/api', () => ({

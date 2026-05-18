@@ -85,6 +85,39 @@ export default {
     phoneHint: 'Quick login with phone number',
     ssoHint: 'Via SSO unified authentication'
   },
+  openPlatformConsent: {
+    loading: 'Loading authorization request...',
+    loadFailed: 'Failed to load authorization request',
+    invalidToken: 'The authorization request is expired or missing a token',
+    submitFailed: 'Authorization failed. Please retry',
+    title: '{app} wants to access your StuHelper account',
+    identityLine: 'Authorize as {user}',
+    appInfo: 'Application',
+    appName: 'App',
+    description: 'Description',
+    redirect: 'Redirect host',
+    links: 'Links',
+    homepage: 'Homepage',
+    privacy: 'Privacy Policy',
+    permissions: 'Requested permissions',
+    expiresAt: 'Valid until {time}',
+    accept: 'Allow',
+    accepting: 'Allowing...',
+    deny: 'Deny',
+    denying: 'Denying...',
+    sensitivity: {
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      very_high: 'Very high'
+    }
+  },
+  openPlatformAuthorize: {
+    title: 'Opening StuHelper Connect',
+    subtitle: 'Checking the application and requested scopes',
+    failed: 'Unable to start authorization',
+    invalidRequest: 'The authorization request is missing required parameters'
+  },
   meta: {
     description: 'StuHelper Course Review Community - Authentic course reviews and teaching feedback to help students make informed choices',
     ogTitle: 'Course Review - StuHelper'

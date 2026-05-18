@@ -1,0 +1,24 @@
+DisclosureRedirectURI:
+  name: redirect_uri
+  in: query
+  required: true
+  schema:
+    type: string
+    format: uri
+
+DisclosureScope:
+  name: scope
+  in: query
+  required: true
+  description: 空格分隔的开放平台 scope。
+  schema:
+    type: string
+
+ConsentBaseURL:
+  name: consent_base_url
+  in: query
+  required: false
+  description: 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。
+  schema:
+    type: string
+    format: uri-reference

@@ -1,84 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { persistSSOState } from '@/auth/sso-state'
 import { api } from '@/api'
 import { unwrapData } from '@/api/result'
 import { translate } from '@/i18n'
-import { useAuthStore } from '@/stores/auth'
 
-const authStore = useAuthStore()
 const t = translate
 const redirect = ref('/pages/user/index')
-const phone = ref('')
-const code = ref('')
-const requestingCode = ref(false)
-const verifying = ref(false)
 const ssoLoading = ref(false)
-const cooldown = ref(0)
 const supportsSso = typeof window !== 'undefined' && typeof window.location?.href === 'string'
 const isNativeApp = typeof plus !== 'undefined'
-let cooldownTimer: ReturnType<typeof setInterval> | null = null
-const phonePattern = /^1[3-9]\d{9}$/
 
 onLoad((options) => {
   redirect.value = typeof options?.redirect === 'string' && options.redirect ? options.redirect : '/pages/user/index'
 })
-
-const canRequestCode = computed(() => phonePattern.test(phone.value.trim()) && cooldown.value === 0)
-const canVerify = computed(() => phonePattern.test(phone.value.trim()) && /^\d{6}$/.test(code.value.trim()))
-
-function startCooldown(seconds: number) {
-  cooldown.value = seconds
-  if (cooldownTimer) clearInterval(cooldownTimer)
-  cooldownTimer = setInterval(() => {
-    cooldown.value = Math.max(0, cooldown.value - 1)
-    if (cooldown.value === 0 && cooldownTimer) {
-      clearInterval(cooldownTimer)
-      cooldownTimer = null
-    }
-  }, 1000)
-}
-
-async function handleRequestCode() {
-  if (!canRequestCode.value || requestingCode.value) return
-  requestingCode.value = true
-  try {
-    const data = await authStore.requestPhoneOTP(phone.value.trim())
-    startCooldown(data.cooldown)
-    uni.showToast({ title: data.message || t('auth.login.codeSent'), icon: 'none' })
-  } catch (error) {
-    uni.showToast({
-      title: error instanceof Error ? error.message : t('auth.login.codeSendFailed'),
-      icon: 'none',
-    })
-  } finally {
-    requestingCode.value = false
-  }
-}
-
-async function handleVerify() {
-  if (!canVerify.value || verifying.value) return
-  verifying.value = true
-  try {
-    await authStore.verifyPhoneOTP(phone.value.trim(), code.value.trim())
-    uni.showToast({ title: t('auth.login.success'), icon: 'success' })
-    setTimeout(() => {
-      if (redirect.value.startsWith('/pages/')) {
-        uni.reLaunch({ url: redirect.value })
-        return
-      }
-      uni.switchTab({ url: '/pages/user/index' })
-    }, 250)
-  } catch (error) {
-    uni.showToast({
-      title: error instanceof Error ? error.message : t('auth.login.verifyFailed'),
-      icon: 'none',
-    })
-  } finally {
-    verifying.value = false
-  }
-}
 
 async function handleSSOLogin() {
   if (ssoLoading.value) return
@@ -114,10 +50,6 @@ async function handleSSOLogin() {
     ssoLoading.value = false
   }
 }
-
-onBeforeUnmount(() => {
-  if (cooldownTimer) clearInterval(cooldownTimer)
-})
 </script>
 
 <template>
@@ -127,44 +59,7 @@ onBeforeUnmount(() => {
       <text class="title">{{ t('auth.login.title') }}</text>
       <text class="subtitle">{{ t('auth.login.subtitle') }}</text>
 
-      <view class="field-group">
-        <text class="field-label">{{ t('auth.login.phone') }}</text>
-        <input
-          v-model="phone"
-          class="field-input"
-          maxlength="11"
-          :placeholder="t('auth.login.phonePlaceholder')"
-          type="number"
-        />
-      </view>
-
-      <view class="field-group">
-        <text class="field-label">{{ t('auth.login.code') }}</text>
-        <view class="code-row">
-          <input
-            v-model="code"
-            class="field-input code-input"
-            maxlength="6"
-            :placeholder="t('auth.login.codePlaceholder')"
-            type="number"
-          />
-          <button
-            class="secondary-btn code-btn"
-            :disabled="!canRequestCode || requestingCode"
-            @tap="handleRequestCode"
-          >
-            {{ cooldown > 0 ? `${cooldown}s` : requestingCode ? t('auth.login.sending') : t('auth.login.requestCode') }}
-          </button>
-        </view>
-      </view>
-
-      <button class="primary-btn" :disabled="!canVerify || verifying" @tap="handleVerify">
-        {{ verifying ? t('auth.login.loggingIn') : t('auth.login.otpLogin') }}
-      </button>
-
-      <view class="divider"><text>{{ t('common.or') }}</text></view>
-
-      <button class="secondary-btn" :disabled="ssoLoading" @tap="handleSSOLogin">
+      <button class="primary-btn" :disabled="ssoLoading" @tap="handleSSOLogin">
         {{ ssoLoading ? t('auth.login.preparingSso') : t('auth.login.useSso') }}
       </button>
 

@@ -65,6 +65,8 @@ assert_env_value "${env_file}" "API_IP_RATE_LIMIT" "5000"
 assert_env_value "${env_file}" "API_GLOBAL_RATE_LIMIT" "50000"
 assert_env_value "${env_file}" "REVIEW_RATE_POST_LIMIT" "500"
 assert_env_value "${env_file}" "REVIEW_RATE_SEARCH_USER_LIMIT" "500"
+assert_env_value "${env_file}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-user-profile"
+assert_env_value "${env_file}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
 
 legacy_dir="$(mktemp -d)"
 cleanup_dirs+=("${legacy_dir}")
@@ -112,5 +114,7 @@ assert_env_value "${legacy_env}" "API_IP_RATE_LIMIT" "5000"
 assert_env_value "${legacy_env}" "API_GLOBAL_RATE_LIMIT" "50000"
 assert_env_value "${legacy_env}" "REVIEW_RATE_POST_LIMIT" "500"
 assert_env_value "${legacy_env}" "REVIEW_RATE_SEARCH_USER_LIMIT" "500"
+assert_env_value "${legacy_env}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-user-profile"
+assert_env_value "${legacy_env}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
 
 echo "[init-dev-env-contract] ok"

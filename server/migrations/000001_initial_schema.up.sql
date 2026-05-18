@@ -1542,6 +1542,149 @@ CREATE TABLE public.users (
 
 
 --
+-- Name: open_platform_apps; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.open_platform_apps (
+    id bigint NOT NULL,
+    casdoor_application_name text NOT NULL,
+    owner_user_id bigint NOT NULL,
+    client_id text NOT NULL,
+    client_secret_hash character varying(64) NOT NULL,
+    display_name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    homepage_url text NOT NULL,
+    privacy_policy_url text NOT NULL,
+    redirect_uris jsonb NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_open_platform_apps_secret_hash CHECK (((client_secret_hash = ''::text) OR ((client_secret_hash)::text ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT chk_open_platform_apps_status CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'suspended'::text, 'revoked'::text]))),
+    CONSTRAINT chk_open_platform_apps_redirect_uris_array CHECK (jsonb_typeof(redirect_uris) = 'array'::text)
+);
+
+
+--
+-- Name: open_platform_apps_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.open_platform_apps_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: open_platform_apps_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.open_platform_apps_id_seq OWNED BY public.open_platform_apps.id;
+
+
+--
+-- Name: open_platform_scope_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.open_platform_scope_requests (
+    id bigint NOT NULL,
+    app_id bigint NOT NULL,
+    scope text NOT NULL,
+    reason text DEFAULT ''::text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    reviewer_user_id bigint,
+    reviewed_at timestamp with time zone,
+    decision_note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_open_platform_scope_requests_status CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])))
+);
+
+
+--
+-- Name: open_platform_scope_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.open_platform_scope_requests_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: open_platform_scope_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.open_platform_scope_requests_id_seq OWNED BY public.open_platform_scope_requests.id;
+
+
+--
+-- Name: open_platform_approved_scopes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.open_platform_approved_scopes (
+    app_id bigint NOT NULL,
+    scope text NOT NULL,
+    approved_at timestamp with time zone DEFAULT now() NOT NULL,
+    approved_by bigint NOT NULL
+);
+
+
+--
+-- Name: open_platform_user_consents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.open_platform_user_consents (
+    app_id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    scope text NOT NULL,
+    granted_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked_at timestamp with time zone,
+    grant_source text DEFAULT 'web'::text NOT NULL,
+    request_id text DEFAULT ''::text NOT NULL
+);
+
+
+--
+-- Name: open_platform_audit_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.open_platform_audit_events (
+    id bigint NOT NULL,
+    app_id bigint,
+    user_id bigint,
+    event_type text NOT NULL,
+    scope text,
+    request_id text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: open_platform_audit_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.open_platform_audit_events_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: open_platform_audit_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.open_platform_audit_events_id_seq OWNED BY public.open_platform_audit_events.id;
+
+
+--
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -1698,6 +1841,27 @@ ALTER TABLE ONLY public.user_mfa_recovery_codes ALTER COLUMN id SET DEFAULT next
 --
 
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- Name: open_platform_apps id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_apps ALTER COLUMN id SET DEFAULT nextval('public.open_platform_apps_id_seq'::regclass);
+
+
+--
+-- Name: open_platform_scope_requests id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_scope_requests ALTER COLUMN id SET DEFAULT nextval('public.open_platform_scope_requests_id_seq'::regclass);
+
+
+--
+-- Name: open_platform_audit_events id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_audit_events ALTER COLUMN id SET DEFAULT nextval('public.open_platform_audit_events_id_seq'::regclass);
 
 
 --
@@ -2330,6 +2494,70 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: open_platform_apps open_platform_apps_client_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_apps
+    ADD CONSTRAINT open_platform_apps_client_id_key UNIQUE (client_id);
+
+
+--
+-- Name: open_platform_apps open_platform_apps_casdoor_application_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_apps
+    ADD CONSTRAINT open_platform_apps_casdoor_application_name_key UNIQUE (casdoor_application_name);
+
+
+--
+-- Name: open_platform_apps open_platform_apps_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_apps
+    ADD CONSTRAINT open_platform_apps_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: open_platform_scope_requests open_platform_scope_requests_app_scope_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_scope_requests
+    ADD CONSTRAINT open_platform_scope_requests_app_scope_key UNIQUE (app_id, scope);
+
+
+--
+-- Name: open_platform_scope_requests open_platform_scope_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_scope_requests
+    ADD CONSTRAINT open_platform_scope_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: open_platform_approved_scopes open_platform_approved_scopes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_approved_scopes
+    ADD CONSTRAINT open_platform_approved_scopes_pkey PRIMARY KEY (app_id, scope);
+
+
+--
+-- Name: open_platform_user_consents open_platform_user_consents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_user_consents
+    ADD CONSTRAINT open_platform_user_consents_pkey PRIMARY KEY (app_id, user_id, scope);
+
+
+--
+-- Name: open_platform_audit_events open_platform_audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_audit_events
+    ADD CONSTRAINT open_platform_audit_events_pkey PRIMARY KEY (id);
 
 
 --
@@ -3028,10 +3256,117 @@ CREATE INDEX idx_users_username ON public.users USING btree (username);
 
 
 --
+-- Name: idx_open_platform_apps_owner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_apps_owner ON public.open_platform_apps USING btree (owner_user_id);
+
+
+--
+-- Name: idx_open_platform_apps_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_apps_status ON public.open_platform_apps USING btree (status);
+
+
+--
+-- Name: idx_open_platform_scope_requests_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_scope_requests_status ON public.open_platform_scope_requests USING btree (status);
+
+
+--
+-- Name: idx_open_platform_user_consents_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_user_consents_user ON public.open_platform_user_consents USING btree (user_id);
+
+
+--
+-- Name: idx_open_platform_audit_events_app_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_open_platform_audit_events_app_created ON public.open_platform_audit_events USING btree (app_id, created_at DESC);
+
+
+--
 -- Name: resource_bindings_lookup_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX resource_bindings_lookup_idx ON public.resource_bindings USING btree (binding_type, binding_value);
+
+
+--
+-- Name: open_platform_apps open_platform_apps_owner_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_apps
+    ADD CONSTRAINT open_platform_apps_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: open_platform_scope_requests open_platform_scope_requests_app_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_scope_requests
+    ADD CONSTRAINT open_platform_scope_requests_app_id_fkey FOREIGN KEY (app_id) REFERENCES public.open_platform_apps(id) ON DELETE CASCADE;
+
+
+--
+-- Name: open_platform_scope_requests open_platform_scope_requests_reviewer_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_scope_requests
+    ADD CONSTRAINT open_platform_scope_requests_reviewer_user_id_fkey FOREIGN KEY (reviewer_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: open_platform_approved_scopes open_platform_approved_scopes_app_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_approved_scopes
+    ADD CONSTRAINT open_platform_approved_scopes_app_id_fkey FOREIGN KEY (app_id) REFERENCES public.open_platform_apps(id) ON DELETE CASCADE;
+
+
+--
+-- Name: open_platform_approved_scopes open_platform_approved_scopes_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_approved_scopes
+    ADD CONSTRAINT open_platform_approved_scopes_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: open_platform_user_consents open_platform_user_consents_app_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_user_consents
+    ADD CONSTRAINT open_platform_user_consents_app_id_fkey FOREIGN KEY (app_id) REFERENCES public.open_platform_apps(id) ON DELETE CASCADE;
+
+
+--
+-- Name: open_platform_user_consents open_platform_user_consents_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_user_consents
+    ADD CONSTRAINT open_platform_user_consents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: open_platform_audit_events open_platform_audit_events_app_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_audit_events
+    ADD CONSTRAINT open_platform_audit_events_app_id_fkey FOREIGN KEY (app_id) REFERENCES public.open_platform_apps(id) ON DELETE SET NULL;
+
+
+--
+-- Name: open_platform_audit_events open_platform_audit_events_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_platform_audit_events
+    ADD CONSTRAINT open_platform_audit_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

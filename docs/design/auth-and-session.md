@@ -3,12 +3,12 @@ type: design
 audience: backend-dev, frontend-dev
 status: current
 authoritative-source: server/internal/modules/auth/
-last-verified: 2026-05-02
+last-verified: 2026-05-18
 ---
 
 # 认证与 SSO
 
-> 状态：现行。默认支持 Casdoor OIDC 登录；手机号验证码登录仅在 `SMS_ENABLED=true` 且短信凭据完整时启用。
+> 状态：现行。公开注册、登录、手机号验证码登录由 Casdoor 页面承载；StuHelper auth 模块负责 OIDC 回调、本地会话、token 轮换和 shadow user 同步。
 
 ## 登录方式
 
@@ -24,17 +24,11 @@ last-verified: 2026-05-02
 → 前端请求 /api/v1/auth/me
 ```
 
-### 手机号验证码（补充）
+### 手机号验证码（Casdoor）
 
-```
-POST /api/v1/auth/phone/request-otp → 发送验证码
-POST /api/v1/auth/phone/verify-otp  → 验证 → 签发本地 JWT Cookie
-```
+手机号注册、登录、绑定初始校验由 Casdoor 使用 SMS Provider 完成。StuHelper 不再暴露公开的 `/api/v1/auth/phone/*` 登录端点，也不签发独立的 phone-login 本地会话。
 
-- 仅限中国大陆手机号
-- 有冷却和频率限制
-- 只授予 `user` 角色，管理角色仍需 Casdoor SSO
-- 默认关闭；需要同时配置 `SMS_ENABLED=true`、`SMS_SECRET_ID`、`SMS_SECRET_KEY`、`SMS_APP_ID`、`SMS_SIGN_NAME`、`SMS_TEMPLATE_ID`、`SMS_INTERNAL_KEY`
+StuHelper 个人中心仍可以承载手机号补绑 / 更换 UI，但写路径调用 Casdoor user profile client；完整手机号真相源在 Casdoor。StuHelper 本地只保留业务展示和筛选需要的脱敏投影、验证状态与更新时间。
 
 ## 端点
 
@@ -43,8 +37,6 @@ POST /api/v1/auth/phone/verify-otp  → 验证 → 签发本地 JWT Cookie
 | `/api/v1/auth/login` | GET | 获取登录跳转地址 |
 | `/api/v1/auth/signup` | GET | 获取注册跳转地址 |
 | `/api/v1/auth/callback` | GET | OIDC 回调 |
-| `/api/v1/auth/phone/request-otp` | POST | 发送验证码 |
-| `/api/v1/auth/phone/verify-otp` | POST | 验证码登录 |
 | `/api/v1/auth/refresh` | POST | 续期会话 |
 | `/api/v1/auth/me` | GET | 当前用户 + 角色 + 能力 |
 | `/api/v1/auth/logout` | POST | 登出当前设备 |
@@ -75,7 +67,7 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
   - `oidc` / `oidc-native` session 会把 provider refresh token 加密后写入 Redis session；
   - refresh 轮换时先吊销旧 provider refresh token，再保存新 provider refresh token；
   - `logout` / `logout-all` 必须先调用 Casdoor revocation endpoint 吊销 provider refresh token，失败时返回错误，不清理本地 session 假装成功；
-  - `phone` 登录使用 StuHelper 自签 refresh token，不进入 provider revoke 流程。
+  - 当前公开登录链路全部是 OIDC provider session，不存在 StuHelper 自签 phone-login refresh token。
 
 ### 浏览器 access token 校验模型
 
@@ -96,7 +88,7 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
 
 OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email`、`avatar_url`。
 
-手机号登录通过 `UpsertByPhone` 处理，保证业务侧始终有稳定锚点。
+手机号不是 shadow user 的主锚点。业务侧稳定锚点是 Casdoor subject 映射出的内部 `users.id`；手机号补绑 / 更换只更新 Casdoor 真相源，并同步本地脱敏投影。
 
 ## 角色与能力
 
@@ -123,3 +115,4 @@ OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email
 | Token 服务 | `server/internal/pkg/token/` |
 | Provider refresh token revoke | `server/internal/modules/auth/service_provider_tokens.go` + `server/internal/pkg/oidc/revoke.go` |
 | 用户同步 | `server/internal/modules/auth/user_sync.go` |
+| 手机号资料写入 | `server/internal/modules/user/service_phone.go` + `server/internal/platform/casdoor/user_profile.go` |

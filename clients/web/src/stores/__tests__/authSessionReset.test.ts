@@ -14,8 +14,6 @@ vi.mock("@/api", () => ({
             signup: vi.fn(),
             refresh: vi.fn(),
             logout: mockLogout,
-            requestPhoneOTP: vi.fn(),
-            verifyPhoneOTP: vi.fn(),
         },
     },
 }));

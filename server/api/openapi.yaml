@@ -50,6 +50,8 @@ tags:
     description: 实名认证
   - name: Profile
     description: 学生认证
+  - name: OpenPlatform
+    description: 开放平台 OAuth 授权、scope consent 与用户信息披露
   - name: Admin
     description: 管理后台
   - name: Metrics
@@ -79,14 +81,34 @@ paths:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1logout"
   /api/v1/auth/logout-all:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1logout-all"
-  /api/v1/auth/phone/request-otp:
-    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1request-otp"
-  /api/v1/auth/phone/verify-otp:
-    $ref: "paths/auth.yaml#/~1api~1v1~1auth~1phone~1verify-otp"
   /api/v1/admin/auth/account-locks/unlock:
     $ref: "paths/auth.yaml#/~1api~1v1~1admin~1auth~1account-locks~1unlock"
   /api/v1/auth/exchange-native:
     $ref: "paths/auth.yaml#/~1api~1v1~1auth~1exchange-native"
+
+  # ── Open Platform ──
+  /api/v1/open-platform/authorize:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1authorize"
+  /api/v1/open-platform/consent:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1consent"
+  /api/v1/open-platform/consent/accept:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1consent~1accept"
+  /api/v1/open-platform/consent/deny:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1consent~1deny"
+  /api/v1/open-platform/userinfo:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1userinfo"
+  /api/v1/open-platform/verification:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1verification"
+  /api/v1/open-platform/student:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1student"
+  /api/v1/open-platform/phone:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1phone"
+  /api/v1/open-platform/apps:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1apps"
+  /api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/approve:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1scopes~1{scope}~1approve"
+  /api/v1/admin/open-platform/apps/{appID}/approve:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1approve"
 
   # ── Academics ──
   /api/v1/academics/terms:
@@ -585,6 +607,28 @@ components:
       $ref: "components/schemas/user-system.yaml#/ConsumeQQBindingRequest"
     QQVerificationStatus:
       $ref: "components/schemas/user-system.yaml#/QQVerificationStatus"
+
+    # Open Platform
+    OpenPlatformScopeDefinition:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformScopeDefinition"
+    OpenPlatformAuthorizeResponse:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformAuthorizeResponse"
+    OpenPlatformConsentPage:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformConsentPage"
+    OpenPlatformConsentDecisionRequest:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformConsentDecisionRequest"
+    OpenPlatformRedirectResponse:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformRedirectResponse"
+    OpenPlatformRegisterAppRequest:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformRegisterAppRequest"
+    OpenPlatformRegisteredApp:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformRegisteredApp"
+    OpenPlatformApprovedApp:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformApprovedApp"
+    OpenPlatformApproveScopeRequest:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformApproveScopeRequest"
+    OpenPlatformDisclosure:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformDisclosure"
 
     # Admission
     AdmissionSession:

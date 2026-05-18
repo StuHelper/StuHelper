@@ -4,13 +4,13 @@ audience: maintainers, backend-dev, ops
 status: draft
 authoritative-source: this file for the StuHelper IAM v2 target architecture
 created: 2026-05-01
-last-verified: 2026-05-02
+last-verified: 2026-05-18
 supersedes: 2026-05-01-casdoor-open-platform-iam-design.md
 related:
-  - open-platform-v1.md (deferred follow-up)
-  - docs/design/authorization-model.md (current model, will be retired)
-  - docs/design/auth-and-session.md (current auth, will be rewritten)
-scope: greenfield IAM v2 target architecture; Casdoor is the final IDP; Open Platform v1 split into separate spec
+  - open-platform-v1.md (current Open Platform baseline and target)
+  - docs/design/authorization-model.md
+  - docs/design/auth-and-session.md
+scope: Casdoor-centered IAM target architecture; Open Platform scope and consent live in separate current spec
 ---
 
 # StuHelper IAM v2 — Casdoor 身份平台
@@ -19,7 +19,7 @@ scope: greenfield IAM v2 target architecture; Casdoor is the final IDP; Open Pla
 
 - **IDP 决策**：Casdoor 是最终方案，由项目 owner 直接决策；不再做选型 ADR；不再保留 Zitadel/Keycloak 候选。
 - **迁移性质**：绿地架构，不做兼容数据迁移；历史 Zitadel external subject、session、token 全部失效，要求所有用户重新登录。
-- **范围拆分**：本文只覆盖 IAM v2（身份、登录、应用注册、授权决策入口、SMS/Email 通道、Zitadel 退役）。开放平台拆出独立 spec [`open-platform-v1.md`](open-platform-v1.md)，且必须在 IAM v2 落地后才启动。
+- **范围拆分**：本文只覆盖 IAM 目标架构（身份、登录、应用 registry、授权决策入口、SMS/Email 通道、Zitadel 退役）。开放平台已拆出独立 spec [`open-platform-v1.md`](open-platform-v1.md)，当前 v1 baseline 已落地；本文只保留 IAM 侧依赖和边界。
 
 > 本 spec 取代 `2026-05-01-casdoor-open-platform-iam-design.md`（commit 8295a1e7）。旧 spec 把 IAM 切换与开放平台 v1 混写，并把 Casdoor Casbin Enforce 引入业务授权路径，已被本文从架构上修正。
 
@@ -28,10 +28,10 @@ scope: greenfield IAM v2 target architecture; Casdoor is the final IDP; Open Pla
 | 层 | 权威 / 职责 | 严格不能做的 |
 |----|-------------|--------------|
 | **Casdoor** | 身份与应用 registry：用户生命周期、登录方式、OIDC/OAuth 客户端、Provider、MFA、会话、token 签发、扁平角色投影 | 业务授权决策；不向业务模块暴露 Casbin / Enforce / GetPermissions |
-| **StuHelper DB** | 业务事实真相源：实名认证、学生认证、学校归属、手机号绑定、QQ 绑定、课程/评课/资源 owner | — |
+| **StuHelper DB** | 业务事实真相源：实名认证、学生认证、学校归属、手机号验证投影、QQ 绑定、课程/评课/资源 owner、Open Platform consent | 完整手机号真相源 |
 | **StuHelper Authorization Service** | **业务模块唯一授权入口**：组合 token 主体、DB 事实、OpenFGA 检查；统一 fail-closed | — |
 | **OpenFGA** | 资源关系权威：owner/author/school_admin/section_admin/section_moderator/section_reviewer/app→resource 关系 | 直接被业务模块调用；参与登录决策；承担粗粒度 RBAC（已在 Casdoor 解决） |
-| **Open Platform Gateway** | 第三方应用披露网关，scope/consent/审计/限流/吊销 | **完整逻辑见** [`open-platform-v1.md`](open-platform-v1.md)；IAM v2 仅做 Casdoor Application 模型 + Subject.AppID 维度 + OpenFGA `open_platform_app` 类型预留 |
+| **Open Platform Gateway** | 第三方应用披露网关，scope/consent/审计/限流/吊销 | **完整逻辑见** [`open-platform-v1.md`](open-platform-v1.md)；IAM 侧只提供 Casdoor Application registry、OIDC 登录和最小 token |
 
 ```text
 一方应用 (web / admin / uniapp)
@@ -66,7 +66,7 @@ Casdoor 承载：
 - OIDC/OAuth 会话与 token 签发；
 - 未来的社交或校园身份源（设计预留，不在 v2 范围）。
 
-> StuHelper 不再自管 `/auth/phone/*` 验证码登录链路。手机号绑定（业务事实）仍归 StuHelper，但**手机号验证码登录归 Casdoor**。
+> StuHelper 不再自管公开 `/auth/phone/*` 验证码登录链路。手机号验证码登录归 Casdoor；个人中心的补绑 / 更换 UI 可以在 StuHelper，但写入 Casdoor user profile。StuHelper 本地只保留脱敏投影、验证状态和更新时间。
 
 ### 3.2 组织与应用
 
@@ -376,7 +376,7 @@ type Decision struct {
 1. 校验 token（本地 JWKS 或 introspection，按 token 类型）
 2. 提取 Subject (user_id, app_id, roles claim)
 3. 按 action 决定是否需要：
-   - 业务 DB 事实（实名 / 学生认证 / 学校 / 手机号绑定 / QQ 绑定）
+   - 业务 DB 事实（实名 / 学生认证 / 学校 / 手机号验证投影 / QQ 绑定）
    - OpenFGA 资源关系
 4. 并行加载所需事实
 5. 组合判断（按 §6 一致性矩阵处理冲突）
@@ -415,7 +415,8 @@ Authorize(subject, "profile.view_identity", profile)
 | 身份类型（学生/教职工/其他） | **派生字段**：默认 `other`；`user_profiles.verification_status='verified'` → `student`；教职工区分推到未来（需新增 `users.identity_type` 列或 `user_staff_profiles` 表）|
 | 学生认证状态 | StuHelper DB（`user_profiles`） |
 | 学校 ID | StuHelper DB |
-| 手机号绑定值 + 验证时间 | StuHelper DB |
+| 完整手机号 | Casdoor user profile |
+| 手机号验证投影（脱敏展示、已验证状态、更新时间） | StuHelper DB |
 | QQ 绑定 | StuHelper DB |
 | 课程归属学校 | StuHelper DB |
 | 评课/举报/资源 owner | StuHelper DB + OpenFGA（写双份） |
@@ -1087,16 +1088,19 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 15. **SMS 转发链路**：Casdoor 登录验证码 → `/internal/sms/send` → 腾讯云 API；端点鉴权失败 401。
 16. **Casdoor capability gate**：`infra/ops/casdoor-capability-probe.sh` 在测试 Casdoor 实例上生成 step-up URL、检查 `amr` / `auth_time` / `acr` claim，并按显式开关验证 refresh token 是否 single-use。
 
-## 16. 范围外（Open Platform v1）
+## 16. Open Platform 边界
 
 第三方应用注册、scope 目录、scope 审批、用户 consent、disclosure API、按 app/user 限流、审计、吊销 → 见 [`open-platform-v1.md`](open-platform-v1.md)。
 
-IAM v2 仅做以下预留，不实现完整开放平台逻辑：
-- Casdoor Application 模型支持第三方应用类型（建模而非业务流程）；
-- `AuthorizationService.Authorize` 接口的 `Subject.AppID` 维度；
-- OpenFGA 模型预留 `open_platform_app` 类型定义（scope consent 在业务 DB 而非 OpenFGA 中建模，理由见 [`open-platform-v1.md`](open-platform-v1.md) §13）。
+IAM 与 Open Platform 的稳定分工：
 
-Open Platform v1 的实施前置条件：IAM v2 全部验证策略（§15）通过、Zitadel 完全退役。
+- Casdoor 负责第三方 Application registry、OIDC 授权码、SMS / Email provider 和用户手机号真相源。
+- StuHelper 负责第三方 app 元数据、scope 审批、用户 consent、disclosure API、审计和撤销。
+- 第三方 Casdoor token 必须最小化；业务字段不进 token，必须通过 StuHelper disclosure API 读取。
+- Scope consent 在业务 DB 而非 OpenFGA 中建模，理由见 [`open-platform-v1.md`](open-platform-v1.md)。
+- OpenFGA 只承载未来“应用 → 具体资源”的关系授权。
+
+当前 Open Platform v1 baseline 已落地。后续运营面、撤销 UI、限流、指标、生产准入探针和资源 API v1.1 由 [`current-project-open-items.md`](../internal/exec-plans/active/current-project-open-items.md) 跟踪。
 
 ## 17. 后续实施阶段
 
@@ -1112,7 +1116,7 @@ Open Platform v1 的实施前置条件：IAM v2 全部验证策略（§15）通�
 8. Zitadel 退役（代码 / infra / env / data）；
 9. 文档同步（`authorization-model.md` / `auth-and-session.md` / `security-model.md`）；
 10. 验证策略落地；
-11. （IAM v2 完成后）Open Platform v1 立项。
+11. Open Platform 生产运营面与资源 API v1.1 按 [`open-platform-v1.md`](open-platform-v1.md) 的下一步拆独立计划。
 
 ## 18. 最终设计立场
 
@@ -1122,9 +1126,9 @@ StuHelper Authorization Service 是业务模块**唯一**授权入口，组合 t
 
 OpenFGA 是资源关系权威，但仅作为 Authorization Service 内部依赖，不直接被业务模块调用。
 
-业务 DB 是实名、学生认证、学校归属、手机号、QQ 绑定与所有业务实体的真相源。Casdoor 角色 claim 与业务事实冲突时，**敏感操作以 DB 为准**。
+业务 DB 是实名、学生认证、学校归属、手机号验证投影、QQ 绑定与所有业务实体的真相源；完整手机号真相源在 Casdoor。Casdoor 角色 claim 与业务事实冲突时，**敏感操作以 DB 为准**。
 
-开放平台是独立产品域，不与 IAM v2 混合实施。
+开放平台是独立产品域，不把业务 scope 和用户 consent 混进 Casdoor 或 OpenFGA。
 
 ## 19. 参考
 

@@ -383,54 +383,6 @@ export const useAuthStore = defineStore("auth", () => {
         resetAllStores();
     };
 
-    // 手机验证码登录：请求验证码
-    const requestPhoneOTP = async (phone: string) => {
-        clearError();
-        loading.value = true;
-        try {
-            const res = await api.auth.requestPhoneOTP(phone);
-            return res.data?.data;
-        } catch (err) {
-            const authErr = handleError(
-                err,
-                i18n.global.t("common.login.otpSendFailed"),
-            );
-            setError(authErr.type, authErr.message);
-            throw err;
-        } finally {
-            loading.value = false;
-        }
-    };
-
-    // 手机验证码登录：验证并登录
-    const verifyPhoneOTP = async (phone: string, code: string) => {
-        clearError();
-        loading.value = true;
-        try {
-            const res = await api.auth.verifyPhoneOTP(phone, code);
-            const data = res.data?.data;
-            if (data?.user) {
-                const normalizedUser = normalizeCurrentUser(data.user, null);
-                user.value = normalizedUser;
-                userManager.setUser(normalizedUser);
-                bootstrapCompleted.value = true;
-                if (typeof data.expiresIn === "number") {
-                    tokenExpiry.set(data.expiresIn);
-                }
-            }
-            return data;
-        } catch (err) {
-            const authErr = handleError(
-                err,
-                i18n.global.t("common.login.otpVerifyFailed"),
-            );
-            setError(authErr.type, authErr.message);
-            throw err;
-        } finally {
-            loading.value = false;
-        }
-    };
-
     return {
         user,
         loading,
@@ -447,7 +399,5 @@ export const useAuthStore = defineStore("auth", () => {
         logout,
         clearSession,
         clearError,
-        requestPhoneOTP,
-        verifyPhoneOTP,
     };
 });

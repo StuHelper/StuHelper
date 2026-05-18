@@ -64,6 +64,7 @@ func (rt *Runtime) registerAdminRoutes(
 	userHandler *user.Handler,
 	authHandler *auth.Handler,
 	admissionHandler *admission.Handler,
+	openPlatformHandler adminRouteRegistrar,
 	authMW gin.HandlerFunc,
 ) {
 	adminGroup := api.Group("/admin")
@@ -73,6 +74,13 @@ func (rt *Runtime) registerAdminRoutes(
 	authHandler.RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
 	admissionHandler.RegisterAdminRoutes(adminGroup)
+	if openPlatformHandler != nil {
+		openPlatformHandler.RegisterAdminRoutes(adminGroup)
+	}
+}
+
+type adminRouteRegistrar interface {
+	RegisterAdminRoutes(admin *gin.RouterGroup)
 }
 
 func adminMFAMiddlewares(appEnv string, userRepo user.MFAContextRepository) []gin.HandlerFunc {

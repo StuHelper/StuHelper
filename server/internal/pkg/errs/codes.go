@@ -10,7 +10,8 @@
 //   - 010-019: 教学模块 (课程、评课等)
 //   - 020-029: 资源模块 (文件等)
 //   - 030-039: 通信模块 (通知等)
-//   - 040-099: 业务扩展预留
+//   - 040: 开放平台
+//   - 041-099: 业务扩展预留
 //   - 100-999: 未来扩展预留
 //
 // 详细说明见 docs/reference/error-codes.md
@@ -142,6 +143,19 @@ const (
 	ErrRolePermissionClearConfirm ErrorCode = "A0050009" // 清空角色权限需显式确认
 	ErrRoleSelectionInvalid       ErrorCode = "A0050010" // 角色选择无效
 	ErrUserSelectionInvalid       ErrorCode = "A0050011" // 用户选择无效
+)
+
+// ============================================================================
+// A040xxxx - 开放平台相关错误
+// ============================================================================
+
+const (
+	ErrOpenPlatformAppNotFound     ErrorCode = "A0400001" // 开放平台应用不存在
+	ErrOpenPlatformAppInactive     ErrorCode = "A0400002" // 开放平台应用未启用
+	ErrOpenPlatformScopeInvalid    ErrorCode = "A0400003" // 开放平台 scope 无效
+	ErrOpenPlatformScopeDenied     ErrorCode = "A0400004" // 应用未获批该 scope
+	ErrOpenPlatformConsentRequired ErrorCode = "A0400005" // 需要用户授权
+	ErrOpenPlatformConsentInvalid  ErrorCode = "A0400006" // 授权请求无效或已过期
 )
 
 // ============================================================================

@@ -4,6 +4,7 @@
 export default {
   login: '登录',
   authCallback: '认证中',
+  openPlatformConsent: '授权确认',
   home: '首页',
   hub: 'StuHelper',
   about: '关于 StuHelper',

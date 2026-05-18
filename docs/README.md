@@ -44,10 +44,11 @@ last-verified: 2026-05-09
 3. [design/frontend-architecture.md](design/frontend-architecture.md) — 前端 Monorepo 与共享契约链路
 4. [design/auth-and-session.md](design/auth-and-session.md) — 认证与会话机制
 5. [design/authorization-model.md](design/authorization-model.md) — 三层授权（角色 → 能力 → FGA）
-6. [design/storage-architecture.md](design/storage-architecture.md) — 存储抽象与驱动
-7. [design/security-model.md](design/security-model.md) — 安全措施
-8. [guides/koishi-development.md](guides/koishi-development.md) — 机器人子系统边界与开发入口
-9. [adr/](adr/) — 单项架构决策
+6. [design/open-platform-v1.md](design/open-platform-v1.md) — 第三方应用接入、用户授权与最小化披露
+7. [design/storage-architecture.md](design/storage-architecture.md) — 存储抽象与驱动
+8. [design/security-model.md](design/security-model.md) — 安全措施
+9. [guides/koishi-development.md](guides/koishi-development.md) — 机器人子系统边界与开发入口
+10. [adr/](adr/) — 单项架构决策
 
 ### 我要**运维 / 发布 / 排障**
 

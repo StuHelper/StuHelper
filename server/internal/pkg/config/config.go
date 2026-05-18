@@ -125,6 +125,10 @@ type CasdoorConfig struct {
 	AppProvisioningClientSecret string
 	AppProvisioningApplication  string
 	AppProvisioningCertificate  string
+	UserProfileClientID         string
+	UserProfileClientSecret     string
+	UserProfileApplication      string
+	UserProfileCertificate      string
 	RoleSyncClientID            string
 	RoleSyncClientSecret        string
 	RoleSyncApplication         string
@@ -268,6 +272,10 @@ func loadCasdoorConfig() CasdoorConfig {
 		AppProvisioningClientSecret: getEnv("CASDOOR_APP_PROVISIONING_CLIENT_SECRET", ""),
 		AppProvisioningApplication:  getEnv("CASDOOR_APP_PROVISIONING_APPLICATION", ""),
 		AppProvisioningCertificate:  getEnv("CASDOOR_APP_PROVISIONING_CERTIFICATE", ""),
+		UserProfileClientID:         getEnv("CASDOOR_USER_PROFILE_CLIENT_ID", ""),
+		UserProfileClientSecret:     getEnv("CASDOOR_USER_PROFILE_CLIENT_SECRET", ""),
+		UserProfileApplication:      getEnv("CASDOOR_USER_PROFILE_APPLICATION", ""),
+		UserProfileCertificate:      getEnv("CASDOOR_USER_PROFILE_CERTIFICATE", ""),
 		RoleSyncClientID:            getEnv("CASDOOR_ROLE_SYNC_CLIENT_ID", ""),
 		RoleSyncClientSecret:        getEnv("CASDOOR_ROLE_SYNC_CLIENT_SECRET", ""),
 		RoleSyncApplication:         getEnv("CASDOOR_ROLE_SYNC_APPLICATION", ""),

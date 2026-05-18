@@ -85,6 +85,39 @@ export default {
     phoneHint: '使用手机号快捷登录',
     ssoHint: '通过 SSO 统一身份认证'
   },
+  openPlatformConsent: {
+    loading: '正在加载授权请求...',
+    loadFailed: '授权请求加载失败',
+    invalidToken: '授权请求已失效或缺少 token',
+    submitFailed: '授权操作失败，请重试',
+    title: '{app} 请求访问你的 StuHelper 账户',
+    identityLine: '以 {user} 的身份授权',
+    appInfo: '应用信息',
+    appName: '应用',
+    description: '说明',
+    redirect: '回调域名',
+    links: '链接',
+    homepage: '应用主页',
+    privacy: '隐私政策',
+    permissions: '将获取以下权限',
+    expiresAt: '有效至 {time}',
+    accept: '允许',
+    accepting: '正在允许...',
+    deny: '拒绝',
+    denying: '正在拒绝...',
+    sensitivity: {
+      low: '低敏感',
+      medium: '中敏感',
+      high: '高敏感',
+      very_high: '极高敏感'
+    }
+  },
+  openPlatformAuthorize: {
+    title: '正在前往 StuHelper Connect',
+    subtitle: '正在检查应用和授权范围',
+    failed: '无法发起授权',
+    invalidRequest: '授权请求缺少必要参数'
+  },
   meta: {
     description: 'StuHelper 评课社区 - 真实的课程评价与教学反馈平台，帮助学生选课决策',
     ogTitle: '评课社区 - StuHelper'

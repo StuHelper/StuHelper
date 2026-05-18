@@ -20,6 +20,7 @@ const (
 	PurposeAppProvisioning AdminPurpose = "casdoor-admin-app-provisioning"
 	PurposeRoleSync        AdminPurpose = "casdoor-admin-role-sync"
 	PurposeUserLookup      AdminPurpose = "casdoor-admin-user-lookup"
+	PurposeUserProfile     AdminPurpose = "casdoor-admin-user-profile"
 )
 
 var ErrOperationRejected = errors.New("casdoor operation rejected")
@@ -57,6 +58,11 @@ type roleAPI interface {
 
 type userAPI interface {
 	GetUserByUserId(string) (*casdoorsdk.User, error)
+	UpdateUserForColumns(*casdoorsdk.User, []string) (bool, error)
+}
+
+type smsAPI interface {
+	SendSms(content string, receivers ...string) error
 }
 
 type organizationAPI interface {
@@ -74,6 +80,7 @@ type providerAPI interface {
 type sdkApplicationAPI struct{}
 type sdkRoleAPI struct{}
 type sdkUserAPI struct{}
+type sdkSMSAPI struct{}
 type sdkOrganizationAPI struct{}
 type sdkProviderAPI struct{}
 
@@ -148,6 +155,14 @@ func (sdkUserAPI) GetUserByUserId(subject string) (*casdoorsdk.User, error) {
 	return casdoorsdk.GetUserByUserId(subject)
 }
 
+func (sdkUserAPI) UpdateUserForColumns(user *casdoorsdk.User, columns []string) (bool, error) {
+	return casdoorsdk.UpdateUserForColumns(user, columns)
+}
+
+func (sdkSMSAPI) SendSms(content string, receivers ...string) error {
+	return casdoorsdk.SendSms(content, receivers...)
+}
+
 func (sdkOrganizationAPI) GetOrganization(name string) (*casdoorsdk.Organization, error) {
 	return casdoorsdk.GetOrganization(name)
 }
@@ -179,7 +194,7 @@ func validateCredential(credential Credential) (Credential, error) {
 	credential.Organization = strings.TrimSpace(credential.Organization)
 	credential.Application = strings.TrimSpace(credential.Application)
 	switch credential.Purpose {
-	case PurposeBootstrap, PurposeAppProvisioning, PurposeRoleSync, PurposeUserLookup:
+	case PurposeBootstrap, PurposeAppProvisioning, PurposeRoleSync, PurposeUserLookup, PurposeUserProfile:
 	default:
 		return Credential{}, fmt.Errorf("casdoor: unsupported admin purpose %q", credential.Purpose)
 	}

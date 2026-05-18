@@ -88,6 +88,11 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return err
 	}
+	userProfileGateway, err := rt.initCasdoorUserProfileGateway()
+	if err != nil {
+		return err
+	}
+	userService.SetProfileIdentitySyncGateway(userProfileGateway)
 	academicsHandler := academics.NewHandler(academics.NewService(
 		academics.NewRepository(rt.database),
 		academics.NewRegistry(),
@@ -106,11 +111,15 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 
 	var bindPhoneOTP user.OTPGenerator
 	var bindPhoneSMS user.SMSSender
-	if smsSvc != nil {
+	if userProfileGateway != nil {
 		bindPhoneOTP = auth.NewOTPService(rt.redisClient.GetClient())
-		bindPhoneSMS = smsSvc
+		bindPhoneSMS = userProfileGateway
 	}
 	userHandler := user.NewHandler(userService, rt.redisClient.GetClient(), bindPhoneOTP, bindPhoneSMS)
+	openPlatformHandler, err := rt.initOpenPlatformModule(api, authMW, piiCipher, userProfileGateway)
+	if err != nil {
+		return err
+	}
 	botCredentialVerifier, err := rt.initBotCredentialVerifier(bgCtx)
 	if err != nil {
 		return err
@@ -139,7 +148,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
 	botHandler.RegisterRoutes(api)
-	rt.registerAdminRoutes(api, userRepo, userHandler, authHandler, admissionHandler, authMW)
+	rt.registerAdminRoutes(api, userRepo, userHandler, authHandler, admissionHandler, openPlatformHandler, authMW)
 
 	courseHandler.StartBackgroundJobs(bgCtx, startBackgroundTask)
 
@@ -217,7 +226,6 @@ func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cip
 	if err != nil {
 		return nil, err
 	}
-
 	userService, err := user.NewService(
 		userRepo,
 		crypto.GetHMACKey(),
@@ -233,6 +241,14 @@ func (rt *Runtime) initUserService(userRepo *user.Repository, piiCipher *pii.Cip
 		return nil, fmt.Errorf("failed to load user system config snapshots: %w", err)
 	}
 	return userService, nil
+}
+
+func (rt *Runtime) initCasdoorUserProfileGateway() (*casdoorUserProfileGateway, error) {
+	client, err := rt.newCasdoorUserProfileClient()
+	if err != nil {
+		return nil, err
+	}
+	return newCasdoorUserProfileGateway(client), nil
 }
 
 func (rt *Runtime) initCasdoorRoleSync(userRepo *user.Repository) (user.RoleSyncFunc, error) {

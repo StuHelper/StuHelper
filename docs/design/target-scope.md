@@ -3,7 +3,7 @@ type: design
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-05-18
 ---
 
 # 0001. StuHelper Target Scope And Module Boundaries
@@ -41,6 +41,7 @@ StuHelper 固定为校园信息平台，不再按完整教务系统或教学实�
 - `storage`
 - `notification`
 - `authorization`
+- `open-platform`
 - `audit`
 - `admin`
 
@@ -88,6 +89,19 @@ StuHelper 固定为校园信息平台，不再按完整教务系统或教学实�
 - `academics`
 - `resource`
 - `storage`
+
+### 开放平台边界
+
+`open-platform` 是平台扩展能力，负责第三方应用接入、scope 审批、用户授权、最小化 disclosure API 和审计。
+
+`open-platform` 不负责：
+
+- 替代 Casdoor 注册 / 登录页
+- 让第三方直接读取 Casdoor user API
+- 把学生认证、实名认证、手机号、学校归属等业务字段塞进第三方 token
+- 提供完整 OAuth marketplace、计费、插件运行时或第三方资源代理
+
+第三方 app 只能通过 StuHelper disclosure API 读取已审批且已授权的字段。完整设计见 [open-platform-v1.md](open-platform-v1.md)。
 
 后续若 `course` 持续阻碍 catalog/review/academics 的演进，再拆分为：
 

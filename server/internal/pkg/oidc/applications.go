@@ -2,6 +2,8 @@ package oidc
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -127,4 +129,27 @@ func (c *Client) GetStepUpAuthURLForApplication(appKey, state string) (string, s
 		oauth2.SetAuthURLParam("acr_values", "mfa"),
 	)
 	return authURL, verifier, nil
+}
+
+func (c *Client) GetAuthURL(clientID string, redirectURI string, scopes []string, state string) string {
+	return BuildAuthURL(c.oauth2Cfg.Endpoint.AuthURL, clientID, redirectURI, scopes, state)
+}
+
+func (c *Client) AuthorizeEndpoint() string {
+	if c == nil {
+		return ""
+	}
+	return c.oauth2Cfg.Endpoint.AuthURL
+}
+
+func BuildAuthURL(authorizeEndpoint, clientID, redirectURI string, scopes []string, state string) string {
+	values := url.Values{}
+	values.Set("response_type", "code")
+	values.Set("client_id", strings.TrimSpace(clientID))
+	values.Set("redirect_uri", strings.TrimSpace(redirectURI))
+	values.Set("scope", strings.Join(oauth2Scopes(scopes), " "))
+	if trimmed := strings.TrimSpace(state); trimmed != "" {
+		values.Set("state", trimmed)
+	}
+	return strings.TrimRight(authorizeEndpoint, "?") + "?" + values.Encode()
 }

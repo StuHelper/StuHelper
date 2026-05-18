@@ -28,6 +28,7 @@ bootstrap_reject_line="$(line_number 'reject_placeholder CASDOOR_BOOTSTRAP_CLIEN
 app_provisioning_require_line="$(line_number 'require_nonempty CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 app_provisioning_reject_line="$(line_number 'reject_placeholder CASDOOR_APP_PROVISIONING_CLIENT_SECRET')"
 backup_endpoint_reject_line="$(line_number 'reject_placeholder BACKUP_OBJECT_STORAGE_ENDPOINT')"
+user_profile_require_line="$(line_number 'require_nonempty CASDOOR_USER_PROFILE_CLIENT_SECRET')"
 introspection_require_line="$(line_number 'require_nonempty CASDOOR_INTROSPECTION_CLIENT_SECRET')"
 role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET')"
 user_lookup_require_line="$(line_number 'require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET')"
@@ -49,11 +50,14 @@ fi
 if (( app_provisioning_reject_line <= app_provisioning_require_line )); then
   fail "Casdoor app-provisioning placeholder rejection must run after non-empty validation"
 fi
+if (( user_profile_require_line <= app_provisioning_require_line )); then
+  fail "Casdoor user-profile validation should be grouped after app-provisioning validation"
+fi
 if (( backup_endpoint_reject_line <= app_provisioning_reject_line )); then
   fail "backup object storage placeholder rejection must be part of production deploy validation"
 fi
-if (( introspection_require_line <= app_provisioning_require_line )); then
-  fail "Casdoor introspection validation should be grouped after app-provisioning validation"
+if (( introspection_require_line <= user_profile_require_line )); then
+  fail "Casdoor introspection validation should be grouped after user-profile validation"
 fi
 if (( role_sync_require_line <= introspection_require_line )); then
   fail "Casdoor role-sync validation should be grouped after introspection validation"

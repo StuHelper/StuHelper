@@ -68,11 +68,11 @@ const stats = computed(() => [
 ])
 
 const onExplore = () => {
-  router.push('/course')
+  router.push('/courses')
 }
 
 const onLearnMore = () => {
-  router.push('/course/about')
+  router.push('/courses/about')
 }
 </script>
 

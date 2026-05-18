@@ -4,6 +4,7 @@
 export default {
   login: 'Login',
   authCallback: 'Authenticating',
+  openPlatformConsent: 'Authorize',
   home: 'Home',
   hub: 'StuHelper',
   about: 'About StuHelper',

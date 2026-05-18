@@ -2,14 +2,15 @@ package user
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
-
+	appcrypto "git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/phoneutil"
 )
+
+const phoneProjectionHashScope = "phone_projection:"
 
 func normalizeMaskedPhone(phone *string) *string {
 	if phone == nil {
@@ -29,14 +30,14 @@ func normalizeMaskedPhone(phone *string) *string {
 	return &masked
 }
 
-func (s *Service) encryptPhone(phone string) ([]byte, string, error) {
+func (s *Service) encryptPhoneProjection(userID int64, phone string) ([]byte, string, error) {
 	phoneEnc, err := s.docCipher.Encrypt(phone)
 	if err != nil {
 		return nil, "", fmt.Errorf("encrypt phone: %w", err)
 	}
-	phoneHash, err := phoneutil.HashLookupWithKey(phone, s.hmacKey)
+	phoneHash, err := appcrypto.HMACHashWithKey(phoneProjectionHashScope+strconv.FormatInt(userID, 10), s.hmacKey)
 	if err != nil {
-		return nil, "", fmt.Errorf("hash phone: %w", err)
+		return nil, "", fmt.Errorf("hash phone projection: %w", err)
 	}
 	return phoneEnc, phoneHash, nil
 }
@@ -62,11 +63,16 @@ func (s *Service) hydrateProfilePhone(profile *Profile) error {
 	return nil
 }
 
-// BindPhone 绑定手机号
+// BindPhone 绑定手机号。
+// Casdoor 是手机号真相源；StuHelper 只在本地 profile 上保存 masked projection，
+// 用于业务页面快速判断是否已绑定。
 func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) error {
 	trimmed := strings.TrimSpace(phone)
 	if !phoneutil.IsValidMainlandPhone(trimmed) {
 		return ErrInvalidPhoneFormat
+	}
+	if s.profileIdentitySync == nil {
+		return ErrProfileIdentitySyncMissing
 	}
 
 	profile, err := s.repo.GetProfileByUserID(ctx, userID)
@@ -77,34 +83,26 @@ func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) err
 		return ErrProfileNotFound
 	}
 
-	phoneEnc, phoneHash, err := s.encryptPhone(trimmed)
+	subject, err := s.repo.GetCasdoorSubject(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("BindPhone get Casdoor subject: %w", err)
+	}
+	if err := s.profileIdentitySync.UpdatePhone(ctx, subject, "+86"+trimmed); err != nil {
+		return fmt.Errorf("BindPhone update Casdoor phone: %w", err)
+	}
+
+	masked := phoneutil.Mask(trimmed)
+	profile.Phone = &masked
+	profile.PhoneVerified = true
+	phoneEnc, phoneHash, err := s.encryptPhoneProjection(userID, masked)
 	if err != nil {
 		return err
 	}
-
-	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		txProfile, err := s.repo.GetProfileByUserIDTx(ctx, tx, userID)
-		if err != nil {
-			return fmt.Errorf("BindPhone get profile tx: %w", err)
-		}
-		if txProfile == nil {
-			return ErrProfileNotFound
-		}
-		masked := phoneutil.Mask(trimmed)
-		txProfile.Phone = &masked
-		txProfile.PhoneVerified = true
-		if err := s.repo.SetUserPhoneTx(ctx, tx, userID, phoneEnc, phoneHash); err != nil {
-			return fmt.Errorf("BindPhone set phone tx: %w", err)
-		}
-		if err := s.repo.UpdateProfileTx(ctx, tx, txProfile); err != nil {
-			return fmt.Errorf("BindPhone update profile tx: %w", err)
-		}
-		return nil
-	}); err != nil {
-		if errors.Is(err, ErrPhoneAlreadyBound) {
-			return ErrPhoneAlreadyBound
-		}
-		return err
+	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
+		return fmt.Errorf("BindPhone update phone projection: %w", err)
+	}
+	if err := s.repo.UpdateProfile(ctx, profile); err != nil {
+		return fmt.Errorf("BindPhone update profile projection: %w", err)
 	}
 	return nil
 }

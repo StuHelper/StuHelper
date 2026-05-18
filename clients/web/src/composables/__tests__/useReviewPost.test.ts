@@ -17,7 +17,7 @@ vi.mock('vue-router', () => ({
     push: mockPush,
     currentRoute: {
       value: {
-        fullPath: '/review',
+        fullPath: '/courses/reviews',
       },
     },
   }),
@@ -77,7 +77,7 @@ describe('useReviewPost', () => {
     expect(mockGetUserSurface).not.toHaveBeenCalled()
     expect(mockPush).toHaveBeenCalledWith({
       name: 'login',
-      query: { redirect: '/review' },
+      query: { redirect: '/courses/reviews' },
     })
   })
 

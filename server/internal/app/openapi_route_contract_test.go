@@ -17,6 +17,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/course"
 	reviewmodule "git.stuhelper.com/StuHelper/StuHelper/internal/modules/course/review"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/notification"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/resource"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/storage"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/user"
@@ -62,11 +63,14 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 	admissionHandler := &admission.Handler{}
 	admissionHandler.RegisterRoutes(api, noOp)
 	admissionHandler.RegisterBotRoutes(api)
+	openPlatformHandler := openplatform.NewHandler(nil)
+	openPlatformHandler.RegisterRoutes(api, noOp)
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(noOp)
 	authHandler.RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
 	admissionHandler.RegisterAdminRoutes(adminGroup)
+	openPlatformHandler.RegisterAdminRoutes(adminGroup)
 
 	metricsGroup := api.Group("/metrics")
 	metricsGroup.Use(metrics.OriginValidationMiddleware([]string{"http://localhost:3000"}))

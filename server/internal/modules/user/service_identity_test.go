@@ -34,23 +34,20 @@ func TestNewService_ValidConstruction(t *testing.T) {
 	assert.NotNil(t, svc.docCipher)
 }
 
-func TestBindPhone_StoresEncryptedPhoneAndMaskedProfile(t *testing.T) {
-	enc := &fakeEncryptor{}
+func TestBindPhone_WritesCasdoorAndMaskedProfileProjection(t *testing.T) {
 	var (
-		capturedPhoneHash string
-		capturedPhoneEnc  []byte
-		updatedProfile    *Profile
+		updatedProfile *Profile
+		syncedSubject  string
+		syncedPhone    string
 	)
 
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
 			return &Profile{UserID: userID}, nil
 		},
-		onSetUserPhone: func(_ context.Context, userID int64, phoneEnc []byte, phoneHash string) error {
+		onGetCasdoorSubject: func(_ context.Context, userID int64) (string, error) {
 			assert.Equal(t, int64(42), userID)
-			capturedPhoneHash = phoneHash
-			capturedPhoneEnc = append([]byte(nil), phoneEnc...)
-			return nil
+			return "casdoor-subject-42", nil
 		},
 		onUpdateProfile: func(_ context.Context, profile *Profile) error {
 			cp := *profile
@@ -58,29 +55,34 @@ func TestBindPhone_StoresEncryptedPhoneAndMaskedProfile(t *testing.T) {
 			return nil
 		},
 	}
+	gateway := profileIdentitySyncFunc(func(_ context.Context, subject, phone string) error {
+		syncedSubject = subject
+		syncedPhone = phone
+		return nil
+	})
 
-	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), enc)
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithProfileIdentitySyncGateway(gateway),
+	)
 	require.NoError(t, err)
 
 	err = svc.BindPhone(context.Background(), 42, "13800138000")
 	require.NoError(t, err)
-	require.True(t, enc.called)
-	assert.Equal(t, "13800138000", enc.lastInput)
-	assert.Equal(t, []byte("encrypted:13800138000"), capturedPhoneEnc)
-	assert.Len(t, capturedPhoneHash, 64)
+	assert.Equal(t, "casdoor-subject-42", syncedSubject)
+	assert.Equal(t, "+8613800138000", syncedPhone)
 	require.NotNil(t, updatedProfile)
 	require.NotNil(t, updatedProfile.Phone)
 	assert.Equal(t, "138****8000", *updatedProfile.Phone)
 	assert.True(t, updatedProfile.PhoneVerified)
 }
 
-func TestBindPhone_ReturnsConflictWhenAlreadyBound(t *testing.T) {
+func TestBindPhone_RequiresIdentitySyncGateway(t *testing.T) {
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
 			return &Profile{UserID: userID}, nil
-		},
-		onSetUserPhone: func(_ context.Context, _ int64, _ []byte, _ string) error {
-			return ErrPhoneAlreadyBound
 		},
 	}
 
@@ -88,7 +90,13 @@ func TestBindPhone_ReturnsConflictWhenAlreadyBound(t *testing.T) {
 	require.NoError(t, err)
 
 	err = svc.BindPhone(context.Background(), 7, "13800138000")
-	require.ErrorIs(t, err, ErrPhoneAlreadyBound)
+	require.ErrorIs(t, err, ErrProfileIdentitySyncMissing)
+}
+
+type profileIdentitySyncFunc func(ctx context.Context, subject, phone string) error
+
+func (f profileIdentitySyncFunc) UpdatePhone(ctx context.Context, subject, phone string) error {
+	return f(ctx, subject, phone)
 }
 
 // ---------------------------------------------------------------------------

@@ -21,15 +21,19 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, casdoor.PurposeBootstrap, settings.credential.Purpose)
 	assert.Equal(t, "https://sso.example.com", settings.credential.Endpoint)
 	assert.Equal(t, "stuhelper", settings.plan.Organization.Name)
-	require.Len(t, settings.plan.Applications, 7)
+	require.Len(t, settings.plan.Applications, 8)
 	assert.Equal(t, "stuhelper-web", settings.plan.Applications[0].Name)
 	assert.Equal(t, "stuhelper-admin", settings.plan.Applications[1].Name)
 	assert.Equal(t, "stuhelper-uniapp", settings.plan.Applications[2].Name)
 	assert.Equal(t, "https://www.example.com/android-chrome-512x512.png", settings.plan.Applications[1].Logo)
 	assert.Equal(t, "casdoor-admin-app-provisioning", settings.plan.Applications[3].Name)
 	assert.Equal(t, "casdoor-token-introspection", settings.plan.Applications[4].Name)
+	assert.Equal(t, "casdoor-admin-user-profile", settings.plan.Applications[5].Name)
+	assert.Equal(t, "casdoor-admin-role-sync", settings.plan.Applications[6].Name)
+	assert.Equal(t, "casdoor-admin-user-lookup", settings.plan.Applications[7].Name)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[3].GrantTypes)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[4].GrantTypes)
+	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[5].GrantTypes)
 	require.Len(t, settings.plan.Roles, 8)
 	assert.Equal(t, "super_admin", settings.plan.Roles[0].Name)
 	require.Len(t, settings.plan.Providers, 1)
@@ -139,6 +143,9 @@ func completeEnv() map[string]string {
 		"CASDOOR_APP_PROVISIONING_CLIENT_ID":     "casdoor-admin-app-provisioning",
 		"CASDOOR_APP_PROVISIONING_CLIENT_SECRET": "app-provisioning-secret",
 		"CASDOOR_APP_PROVISIONING_APPLICATION":   "casdoor-admin-app-provisioning",
+		"CASDOOR_USER_PROFILE_CLIENT_ID":         "casdoor-admin-user-profile",
+		"CASDOOR_USER_PROFILE_CLIENT_SECRET":     "user-profile-secret",
+		"CASDOOR_USER_PROFILE_APPLICATION":       "casdoor-admin-user-profile",
 		"CASDOOR_INTROSPECTION_CLIENT_ID":        "casdoor-token-introspection",
 		"CASDOOR_INTROSPECTION_CLIENT_SECRET":    "introspection-secret",
 		"CASDOOR_INTROSPECTION_APPLICATION":      "casdoor-token-introspection",

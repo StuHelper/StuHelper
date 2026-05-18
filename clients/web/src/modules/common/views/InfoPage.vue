@@ -77,7 +77,7 @@ const pageContent = computed(() => {
             {{ t('common.infoPages.actions.home') }}
           </RouterLink>
           <RouterLink
-            to="/course"
+            to="/courses"
             class="rounded-full border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 no-underline transition-colors hover:border-cyan-500 hover:text-cyan-600"
           >
             {{ t('common.infoPages.actions.learningCenter') }}

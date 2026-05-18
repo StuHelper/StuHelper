@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-02
+last-verified: 2026-05-18
 ---
 
 # 安全实践
@@ -36,13 +36,24 @@ access / refresh token 已显式区分 `typ`。
 - 浏览器 Cookie 中的 Casdoor JWT access token 走 **本地 JWKS 验证**，不会为每个请求额外查询 session store
 - 即时吊销模型明确收口为：**blacklist + 5 分钟 access TTL + refresh 轮换**；`refresh` 仍会触达 session store，浏览器写请求不引入每请求 Redis RTT
 
-## 手机号登录
+## 手机号与 SMS
 
-补充登录方式，不授予管理权限。
+公开手机号验证码登录由 Casdoor SMS Provider 承载。StuHelper 不暴露公开 phone OTP 登录端点，也不签发独立 phone-login token。
 
-- 仅限中国大陆手机号：`^1[3-9]\d{9}$`
-- 有冷却和频率限制
-- 登录成功只签发 `user` 角色
+- Casdoor 使用受控 SMS Provider 回调 StuHelper 内部 SMS 发送入口，再由 StuHelper 调腾讯云 SMS。
+- 完整手机号真相源在 Casdoor；StuHelper 本地只保存脱敏投影、验证状态和业务展示需要的更新时间。
+- StuHelper 个人中心可以触发补绑 / 更换手机号，但必须写入 Casdoor；本地投影只作为缓存和业务状态展示。
+- Open Platform 的 `phone.read` 披露必须实时读取 Casdoor 手机号；Casdoor 不可用、手机号未绑定或格式不可标准化时 fail-closed。
+
+## Open Platform 安全
+
+- 第三方应用的 Casdoor OIDC scope 固定为 `openid`；业务字段不进入第三方 token。
+- `redirect_uri` 必须精确匹配 `open_platform_apps.redirect_uris`，禁止 wildcard、fragment、regex、通配子域和通配路径。
+- 业务 scope 审批和用户 consent 是两道独立检查；缺任一项都拒绝披露。
+- Consent challenge 存 Redis，TTL 为 5 分钟，绑定 app、user、scope、redirect URI 和 state。
+- Consent 页面由 StuHelper 承载，显示应用信息、当前登录身份和每个 scope 实际读取字段。
+- 应用密钥只在批准或轮换时展示一次，服务端仅保存 hash。
+- 敏感 disclosure、consent 决策、异常拒绝和手机号读取失败必须进入 `open_platform_audit_events` 或等价审计链路。
 
 ## 机器人内部接口
 
@@ -103,8 +114,9 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 | 举报 | 10/min |
 | 回复 | 10/min |
 | 刷新 token | 10/min |
-| 手机验证码 | 5/min |
-| 手机验证码（单号码） | 5/hour |
+| Casdoor SMS Provider 回调 | 按 IP + provider key + 手机号维度限流 |
+| Open Platform consent | 按 user + app 维度限流 |
+| Open Platform disclosure | 按 app + user + endpoint 维度限流 |
 
 ## 安全响应头
 

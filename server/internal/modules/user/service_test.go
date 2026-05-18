@@ -39,6 +39,7 @@ type mockRepo struct {
 	onCreateProfile                            func(ctx context.Context, profile *Profile) error
 	onUpdateProfile                            func(ctx context.Context, profile *Profile) error
 	onListProfilesByStatus                     func(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error)
+	onGetCasdoorSubject                        func(ctx context.Context, userID int64) (string, error)
 	onSetUserPhone                             func(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
 	onGetSchoolConfig                          func(ctx context.Context, schoolID int64) (*SchoolConfig, error)
 	onListSchoolConfigs                        func(ctx context.Context) ([]SchoolConfig, error)
@@ -52,7 +53,6 @@ type mockRepo struct {
 	onGetProfileByUserIDTx                     func(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
 	onCreateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	onUpdateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
-	onSetUserPhoneTx                           func(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error
 	onUpsertExternalSyncJobTx                  func(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error
 	onClaimExternalSyncJobs                    func(ctx context.Context, limit int, staleAfter time.Duration) ([]ExternalSyncJob, error)
 	onMarkExternalSyncJobDone                  func(ctx context.Context, jobID int64) error
@@ -137,6 +137,13 @@ func (m *mockRepo) ListProfilesByStatus(ctx context.Context, status string, scho
 		return m.onListProfilesByStatus(ctx, status, schoolID, page, pageSize)
 	}
 	return nil, 0, nil
+}
+
+func (m *mockRepo) GetCasdoorSubject(ctx context.Context, userID int64) (string, error) {
+	if m.onGetCasdoorSubject != nil {
+		return m.onGetCasdoorSubject(ctx, userID)
+	}
+	return "casdoor-subject", nil
 }
 
 func (m *mockRepo) SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error {
@@ -228,13 +235,6 @@ func (m *mockRepo) UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Prof
 		return m.onUpdateProfileTx(ctx, tx, profile)
 	}
 	return m.UpdateProfile(ctx, profile)
-}
-
-func (m *mockRepo) SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error {
-	if m.onSetUserPhoneTx != nil {
-		return m.onSetUserPhoneTx(ctx, tx, userID, phoneEnc, phoneHash)
-	}
-	return m.SetUserPhone(ctx, userID, phoneEnc, phoneHash)
 }
 
 func (m *mockRepo) UpsertExternalSyncJobTx(ctx context.Context, tx pgx.Tx, jobType, dedupeKey string, payload []byte) error {

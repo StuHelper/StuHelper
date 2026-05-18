@@ -160,8 +160,18 @@ test.describe('User Journey: Browse Platform', () => {
       page.getByRole('link', { name: /StuHelper/i }).first(),
     ).toBeVisible()
 
-    // Navigate to course catalog
+    // Navigate to course review community
     await page.goto('/courses')
+    await page.waitForLoadState('networkidle')
+
+    // Course names from the community hub mock data appear
+    await expect(page.getByText('数据结构与算法')).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('高等数学A')).toBeVisible()
+
+    // Navigate to course catalog
+    await page.goto('/courses/list')
     await page.waitForLoadState('networkidle')
 
     // Course names from mock data appear

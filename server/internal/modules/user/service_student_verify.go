@@ -221,19 +221,12 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 	}
 
-	var (
-		verifiedPhoneEnc  []byte
-		verifiedPhoneHash string
-	)
 	if verifiedPhoneRaw != "" {
-		verifiedPhoneEnc, verifiedPhoneHash, err = s.encryptPhone(verifiedPhoneRaw)
-		if err != nil {
-			logger.L().Warn("failed to prepare LDAP phone for secure storage",
+		if err := s.syncVerifiedPhoneProjection(ctx, userID, verifiedPhoneRaw); err != nil {
+			logger.L().Warn("failed to sync LDAP phone to identity provider",
 				zap.Int64("user_id", userID),
 				zap.Error(err),
 			)
-			verifiedPhoneEnc = nil
-			verifiedPhoneHash = ""
 		} else {
 			masked := phoneutil.Mask(verifiedPhoneRaw)
 			profile.Phone = &masked
@@ -248,12 +241,6 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		}
 		if err := validateStudentVerificationTransition(txExisting); err != nil {
 			return err
-		}
-
-		if len(verifiedPhoneEnc) > 0 {
-			if err := s.repo.SetUserPhoneTx(ctx, tx, userID, verifiedPhoneEnc, verifiedPhoneHash); err != nil {
-				return fmt.Errorf("VerifyStudent set phone tx: %w", err)
-			}
 		}
 
 		if txExisting != nil {
@@ -286,6 +273,17 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	}
 
 	return result, nil
+}
+
+func (s *Service) syncVerifiedPhoneProjection(ctx context.Context, userID int64, phone string) error {
+	if s.profileIdentitySync == nil {
+		return ErrProfileIdentitySyncMissing
+	}
+	subject, err := s.repo.GetCasdoorSubject(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get Casdoor subject: %w", err)
+	}
+	return s.profileIdentitySync.UpdatePhone(ctx, subject, "+86"+phone)
 }
 
 func validateStudentVerificationTransition(existing *Profile) error {

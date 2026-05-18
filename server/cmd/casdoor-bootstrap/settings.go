@@ -111,6 +111,7 @@ func buildAdminServiceApplications(getenv envReader) ([]casdoor.ApplicationSpec,
 	defs := []serviceAppEnv{
 		{prefix: "CASDOOR_APP_PROVISIONING", displayName: "StuHelper App Provisioning"},
 		{prefix: "CASDOOR_INTROSPECTION", displayName: "StuHelper Token Introspection"},
+		{prefix: "CASDOOR_USER_PROFILE", displayName: "StuHelper User Profile"},
 		{prefix: "CASDOOR_ROLE_SYNC", displayName: "StuHelper Role Sync"},
 		{prefix: "CASDOOR_USER_LOOKUP", displayName: "StuHelper User Lookup"},
 	}

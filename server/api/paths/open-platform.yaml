@@ -1,0 +1,281 @@
+/api/v1/open-platform/authorize:
+  get:
+    tags: [OpenPlatform]
+    operationId: openPlatformAuthorize
+    summary: 发起开放平台授权
+    description: |
+      第三方应用发起 StuHelper Connect 登录时调用。若用户已授予全部 scope，
+      返回 Casdoor OIDC authorize URL；否则返回 StuHelper 授权确认页 URL 和本次请求的字段清单。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: client_id
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: redirect_uri
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uri
+      - name: scope
+        in: query
+        required: true
+        description: 空格分隔的开放平台 scope。
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 已授权时返回 redirectURL，需授权时返回 consentURL 和 scopes。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAuthorizeResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/consent:
+  get:
+    tags: [OpenPlatform]
+    operationId: getOpenPlatformConsent
+    summary: 获取开放平台授权页数据
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 授权页展示所需的应用信息、scope 字段说明和回调地址。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformConsentPage'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/consent/accept:
+  post:
+    tags: [OpenPlatform]
+    operationId: acceptOpenPlatformConsent
+    summary: 同意开放平台授权
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformConsentDecisionRequest'
+    responses:
+      '200':
+        description: 返回允许后的第三方 redirect URL。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRedirectResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/consent/deny:
+  post:
+    tags: [OpenPlatform]
+    operationId: denyOpenPlatformConsent
+    summary: 拒绝开放平台授权
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformConsentDecisionRequest'
+    responses:
+      '200':
+        description: 返回带 access_denied 的第三方 redirect URL。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRedirectResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/userinfo:
+  get:
+    tags: [OpenPlatform]
+    operationId: getOpenPlatformUserInfo
+    summary: 获取授权用户基本信息
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/open-platform.yaml#/DisclosureRedirectURI'
+      - $ref: '../components/parameters/open-platform.yaml#/DisclosureScope'
+      - $ref: '../components/parameters/open-platform.yaml#/ConsentBaseURL'
+    responses:
+      '200':
+        $ref: '../components/responses/open-platform.yaml#/DisclosureResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/open-platform.yaml#/ConsentRequired'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/verification:
+  get:
+    tags: [OpenPlatform]
+    operationId: getOpenPlatformVerification
+    summary: 获取授权用户实名认证状态
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/open-platform.yaml#/DisclosureRedirectURI'
+      - $ref: '../components/parameters/open-platform.yaml#/DisclosureScope'
+      - $ref: '../components/parameters/open-platform.yaml#/ConsentBaseURL'
+    responses:
+      '200':
+        $ref: '../components/responses/open-platform.yaml#/DisclosureResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/open-platform.yaml#/ConsentRequired'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/student:
+  get:
+    tags: [OpenPlatform]
+    operationId: getOpenPlatformStudent
+    summary: 获取授权用户学生认证信息
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/open-platform.yaml#/DisclosureRedirectURI'
+      - $ref: '../components/parameters/open-platform.yaml#/DisclosureScope'
+      - $ref: '../components/parameters/open-platform.yaml#/ConsentBaseURL'
+    responses:
+      '200':
+        $ref: '../components/responses/open-platform.yaml#/DisclosureResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/open-platform.yaml#/ConsentRequired'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/phone:
+  get:
+    tags: [OpenPlatform]
+    operationId: getOpenPlatformPhone
+    summary: 获取授权用户手机号
+    security:
+      - bearerAuth: []
+    parameters:
+      - $ref: '../components/parameters/open-platform.yaml#/DisclosureRedirectURI'
+      - $ref: '../components/parameters/open-platform.yaml#/DisclosureScope'
+      - $ref: '../components/parameters/open-platform.yaml#/ConsentBaseURL'
+    responses:
+      '200':
+        $ref: '../components/responses/open-platform.yaml#/DisclosureResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/open-platform.yaml#/ConsentRequired'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/apps:
+  post:
+    tags: [OpenPlatform]
+    operationId: registerOpenPlatformApp
+    summary: 注册开放平台第三方应用
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRegisterAppRequest'
+    responses:
+      '201':
+        description: 应用已提交审核。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformRegisteredApp'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'

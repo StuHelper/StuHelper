@@ -3,7 +3,7 @@ type: design
 audience: backend-dev
 status: current
 authoritative-source: server/internal/pkg/capability/ + design/openfga-model.fga
-last-verified: 2026-05-02
+last-verified: 2026-05-18
 ---
 
 # 授权模型
@@ -30,6 +30,7 @@ Casdoor JWT 只提供扁平角色名，不携带学校 ID 或资源 ID。`school
 - 教师与敏感词：`admin:teachers:manage` / `admin:sensitive_words:manage`
 - 操作日志：`admin:logs:view`
 - 用户系统：`user:identity:read` / `user:identity:review` / `user:student:read` / `user:student:review` / `user:school:read` / `user:school:update` / `user:system:read` / `user:system:update`
+- 开放平台管理：`open_platform:read` / `open_platform:manage`
 - 主站：`review:list:brief` / `review:list:full` / `review:create` / `review:edit:own` / `review:delete:own`
 
 `admin:teachers:manage` 当前只授予全局管理员。`teachers` 是学校级参考数据，现有教师 CRUD 尚未实现 school-scoped 资源过滤；在补齐学校范围参数、repository 过滤和对应测试前，不得把该能力授予 `school_admin` 或 `section_*` 角色。
@@ -52,6 +53,20 @@ Casdoor JWT 只提供扁平角色名，不携带学校 ID 或资源 ID。`school
 - Capability 解决"能否进入这块功能"
 - 应用 DB 事实解决"业务状态是否满足"
 - OpenFGA 解决"这个具体资源能否操作"
+
+## Open Platform 授权边界
+
+开放平台引入两类主体：人类用户与第三方应用。第三方应用不会因为用户登录而自动继承该用户的 StuHelper 业务权限。
+
+第三方 disclosure API 的放行条件是：
+
+1. 调用方 app 处于 `approved` 状态；
+2. 请求 scope 在 `open_platform_approved_scopes` 中；
+3. 当前用户对 app + scope 有 active consent；
+4. 请求字段只落在 scope 覆盖范围内；
+5. 对未来资源 API，额外通过 OpenFGA 检查 app 到具体资源的关系。
+
+`open_platform:manage` 只授予管理员审批、暂停、吊销开放平台应用的能力，不等价于“读取所有用户开放平台数据”。用户对第三方应用的 scope consent 不写入 OpenFGA；它是业务 DB 中的 `open_platform_user_consents` 事实。
 
 ## 后台接口
 

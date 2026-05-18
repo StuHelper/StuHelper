@@ -18,8 +18,6 @@ import {
 import { translate } from '@/i18n'
 
 type CurrentUser = components['schemas']['UserInfo']
-type RequestPhoneOTPResult = { message: string; cooldown: number }
-type VerifyPhoneOTPResult = { user: CurrentUser; expiresIn: number }
 type ExchangeNativeResult = operations['exchangeNative']['responses'][200]['content']['application/json']['data']
 
 type UniPageLike = {
@@ -117,19 +115,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function requestPhoneOTP(phone: string): Promise<RequestPhoneOTPResult> {
-    const result = await api.auth.requestPhoneOTP(phone)
-    return unwrapData<RequestPhoneOTPResult>(result)
-  }
-
-  async function verifyPhoneOTP(phone: string, code: string): Promise<VerifyPhoneOTPResult> {
-    const result = await api.auth.verifyPhoneOTP(phone, code)
-    const data = unwrapData<VerifyPhoneOTPResult>(result)
-    setUser(data.user)
-    initialized.value = true
-    return data
-  }
-
   async function logout() {
     assertMutationSuccess(await api.auth.logout())
     clearSession()
@@ -219,8 +204,6 @@ export const useAuthStore = defineStore('auth', () => {
     setUser,
     clearSession,
     bootstrapSession,
-    requestPhoneOTP,
-    verifyPhoneOTP,
     exchangeNativeCode,
     hasNativeToken,
     getNativeAccessToken,

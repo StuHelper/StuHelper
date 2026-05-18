@@ -126,11 +126,6 @@ func buildDefaultRedirectURL(corsOrigins []string) string {
 // 必须在 CSRF 中间件挂载之前调用，否则匿名 POST 会被拦截。
 // OTP 路由已有独立限流保护。
 func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
-	phone := r.Group("/auth/phone")
-	{
-		phone.POST("/request-otp", middleware.RateLimitMiddleware(h.phoneLimiter), h.RequestPhoneOTP)
-		phone.POST("/verify-otp", middleware.RateLimitMiddleware(h.phoneLimiter), h.VerifyPhoneOTP)
-	}
 	// 原生 App 令牌交换：无 cookie / 无 CSRF，用一次性 state 做防重放
 	r.POST("/auth/exchange-native", middleware.EndpointRateLimitMiddleware(h.refreshLimiter, "auth-exchange-native"), h.ExchangeNative)
 }

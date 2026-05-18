@@ -53,6 +53,7 @@ var (
 	ErrQQBindingQQAlreadyBound    = errors.New("qq account already bound to another user")
 	ErrQQBindingUserConflict      = errors.New("user already bound to another qq account")
 	ErrQQIDRequired               = errors.New("qq id is required")
+	ErrProfileIdentitySyncMissing = errors.New("profile identity sync gateway is not configured")
 )
 
 // DocType 证件类型常量
@@ -101,6 +102,7 @@ type Repo interface {
 	CreateProfile(ctx context.Context, profile *Profile) error
 	UpdateProfile(ctx context.Context, profile *Profile) error
 	ListProfilesByStatus(ctx context.Context, status string, schoolID *int64, page, pageSize int) ([]Profile, int, error)
+	GetCasdoorSubject(ctx context.Context, userID int64) (string, error)
 	SetUserPhone(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
 	GetQQBindingByUserID(ctx context.Context, userID int64) (*QQBinding, error)
 	GetQQBindingByQQID(ctx context.Context, qqID string) (*QQBinding, error)
@@ -122,7 +124,6 @@ type Repo interface {
 	GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
 	CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	UpdateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error
-	SetUserPhoneTx(ctx context.Context, tx pgx.Tx, userID int64, phoneEnc []byte, phoneHash string) error
 	GetQQBindingCodeByHashTx(ctx context.Context, tx pgx.Tx, codeHash string) (*QQBindingCode, error)
 	GetQQBindingByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*QQBinding, error)
 	GetQQBindingByQQIDTx(ctx context.Context, tx pgx.Tx, qqID string) (*QQBinding, error)
@@ -153,6 +154,10 @@ type profileFGAClient interface {
 	ReadTuples(ctx context.Context, object, relation string) ([]fga.Tuple, error)
 }
 
+type profileIdentitySyncGateway interface {
+	UpdatePhone(ctx context.Context, subject, phone string) error
+}
+
 // RoleSyncFunc 角色同步回调。
 // 当用户认证状态变化时调用：approved=true 添加角色，approved=false 移除角色。
 // userID 是内部 users.id，role 是 Casdoor 扁平角色名称。
@@ -178,6 +183,16 @@ func WithIdentityPhotoStore(store identityPhotoStore) ServiceOption {
 	}
 }
 
+func WithProfileIdentitySyncGateway(gateway profileIdentitySyncGateway) ServiceOption {
+	return func(s *Service) {
+		s.profileIdentitySync = gateway
+	}
+}
+
+func (s *Service) SetProfileIdentitySyncGateway(gateway profileIdentitySyncGateway) {
+	s.profileIdentitySync = gateway
+}
+
 func WithLDAPClientFactory(factory ldapClientFactory) ServiceOption {
 	return func(s *Service) {
 		if factory != nil {
@@ -188,13 +203,14 @@ func WithLDAPClientFactory(factory ldapClientFactory) ServiceOption {
 
 // Service 用户服务层
 type Service struct {
-	repo              Repo
-	ldapClientFactory ldapClientFactory
-	hmacKey           []byte
-	docCipher         pii.EncryptDecryptor
-	onRoleSync        RoleSyncFunc
-	profileFGA        profileFGAClient
-	photoStore        identityPhotoStore
+	repo                Repo
+	ldapClientFactory   ldapClientFactory
+	hmacKey             []byte
+	docCipher           pii.EncryptDecryptor
+	onRoleSync          RoleSyncFunc
+	profileFGA          profileFGAClient
+	photoStore          identityPhotoStore
+	profileIdentitySync profileIdentitySyncGateway
 }
 
 // NewService 创建用户服务（构造期校验关键依赖）

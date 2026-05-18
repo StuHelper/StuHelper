@@ -11,6 +11,7 @@ import {
     createRatingApi,
     createReplyApi,
     createAdmissionApi,
+    createOpenPlatformApi,
     NOTIFICATION_STREAM_PATH,
 } from "@stuhelper/shared/api";
 import { createReviewAppApi } from "./review";
@@ -29,6 +30,7 @@ export const api = {
     rating: createRatingApi(apiClient),
     reply: createReplyApi(apiClient),
     admission: createAdmissionApi(apiClient),
+    openPlatform: createOpenPlatformApi(apiClient),
 };
 
 // 导出类型

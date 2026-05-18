@@ -3,7 +3,7 @@ type: reference
 audience: backend-dev, ops
 status: current
 authoritative-source: server/migrations/000001_initial_schema.up.sql
-last-verified: 2026-05-04
+last-verified: 2026-05-18
 ---
 
 # 数据库导航摘要
@@ -31,6 +31,7 @@ last-verified: 2026-05-04
 | 教务展示 | `academic_*` | [product-specs/academics-data-integration.md](../product-specs/academics-data-integration.md) |
 | 资源共享 | `resource_*` | [product-specs/resource-sharing.md](../product-specs/resource-sharing.md) |
 | 通知 | `notification*` | [product-specs/notification.md](../product-specs/notification.md) |
+| 开放平台 | `open_platform_*` | [design/open-platform-v1.md](../design/open-platform-v1.md) |
 | 审计与 outbox | `audit_events`、`domain_event_outbox` | [product-specs/audit-logging.md](../product-specs/audit-logging.md) |
 
 ## 设计约束（不改文档能看出来的除外）
@@ -40,6 +41,7 @@ last-verified: 2026-05-04
 - `users` 是 shadow user 表：业务外键锚点 + 最小用户画像缓存，身份真源是 Casdoor。
 - `domain_event_outbox` 是统一 outbox：`stream + dedupe_key` 唯一键；`pending / processing / completed / failed` 状态机；后台 worker 按 stream 消费，主事务不直连外部系统。
 - `audit_events.category = 'admin_operation'` 收口所有管理员操作的审计留痕。
+- `open_platform_user_consents` 是第三方 app + user + scope 授权事实；scope consent 不写入 OpenFGA。
 - 能力由角色静态展开，**不落本地 RBAC 表**；资源级权限由 OpenFGA 承担。详见 [design/authorization-model.md](../design/authorization-model.md)。
 - `pg_trgm` 已启用，`courses.name/code`、`teachers.name` 上建有 GIN trigram 索引。
 

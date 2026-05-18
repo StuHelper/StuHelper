@@ -111,7 +111,7 @@
             {{ t('review.home.browseCoursesDesc') }}
           </p>
           <router-link
-            to="/courses"
+            to="/courses/list"
             class="inline-block no-underline text-sm font-medium
                    px-5 py-2.5 rounded-lg
                    bg-primary text-white
@@ -136,7 +136,7 @@
             {{ t('review.home.postReviewDesc') }}
           </p>
           <router-link
-            to="/review"
+            to="/courses/reviews"
             class="inline-block no-underline text-sm font-medium
                    px-5 py-2.5 rounded-lg
                    bg-accent text-white

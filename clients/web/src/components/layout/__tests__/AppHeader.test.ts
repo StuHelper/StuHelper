@@ -85,7 +85,7 @@ function mountHeader(authState: {
       stubs: {
         RouterLink: {
           props: ['to'],
-          template: '<a data-test="router-link"><slot /></a>',
+          template: '<a data-test="router-link" :data-to="to"><slot /></a>',
         },
       },
     },
@@ -139,5 +139,39 @@ describe('AppHeader', () => {
     expect(wrapper.find('[data-test="notification-bell"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="app-user-menu"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('nav.login')
+  })
+
+  it('uses courses as the only course-review top navigation entry', () => {
+    const wrapper = mountHeader({
+      bootstrapCompleted: true,
+      isAuthenticated: false,
+    })
+
+    expect(wrapper.text()).toContain('nav.courses')
+    expect(wrapper.text()).not.toContain('nav.review')
+  })
+
+  it('shows the header course search only on the course hub', () => {
+    Object.assign(mocks.route, {
+      path: '/courses',
+      fullPath: '/courses',
+      params: {},
+    })
+    const courseHubWrapper = mountHeader({
+      bootstrapCompleted: true,
+      isAuthenticated: false,
+    })
+    expect(courseHubWrapper.find('[data-test="inline-search"]').exists()).toBe(true)
+
+    Object.assign(mocks.route, {
+      path: '/courses/list',
+      fullPath: '/courses/list',
+      params: {},
+    })
+    const courseListWrapper = mountHeader({
+      bootstrapCompleted: true,
+      isAuthenticated: false,
+    })
+    expect(courseListWrapper.find('[data-test="inline-search"]').exists()).toBe(false)
   })
 })

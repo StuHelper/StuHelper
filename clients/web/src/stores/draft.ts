@@ -22,6 +22,7 @@ export const useDraftStore = defineStore("draft", () => {
     const saving = ref(false);
     const lastSavedAt = ref<Date | null>(null);
     const hasDraft = computed(() => draft.value !== null);
+    const pendingSave = ref<Promise<Draft> | null>(null);
 
     function isCacheStale(): boolean {
         if (cacheTimestamp.value === null) return true;
@@ -101,13 +102,20 @@ export const useDraftStore = defineStore("draft", () => {
     const saveDraft = async (data: SaveDraftParams) => {
         assertValidDraftParams(data);
         saving.value = true;
-        try {
+        const save = (async () => {
             const res = await api.draft.saveDraft(data);
             const nextDraft = normalizeDraft(res.data?.data ?? undefined);
             cacheDraft(nextDraft);
             lastSavedAt.value = new Date();
             return nextDraft;
+        })();
+        pendingSave.value = save;
+        try {
+            return await save;
         } finally {
+            if (pendingSave.value === save) {
+                pendingSave.value = null;
+            }
             saving.value = false;
         }
     };
@@ -138,6 +146,7 @@ export const useDraftStore = defineStore("draft", () => {
     };
 
     const deleteDraft = async () => {
+        await pendingSave.value;
         await api.draft.deleteDraft();
         draft.value = null;
         cacheTimestamp.value = Date.now();
@@ -149,6 +158,7 @@ export const useDraftStore = defineStore("draft", () => {
         cacheTimestamp.value = null;
         saving.value = false;
         lastSavedAt.value = null;
+        pendingSave.value = null;
     };
 
     const unregisterSessionReset = registerSessionResetHandler(

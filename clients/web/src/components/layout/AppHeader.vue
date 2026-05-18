@@ -131,7 +131,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
-  BookOpenText,
   GraduationCap,
   Home,
   LibraryBig,
@@ -166,9 +165,8 @@ const isScrolled = ref(false)
 const mobileMenuOpen = ref(false)
 let scrollTicking = false
 
-const showCourseSearch = computed(() => route.path === '/course')
+const showCourseSearch = computed(() => route.path === '/courses')
 const showWriteReview = computed(() =>
-  route.path.startsWith('/review') ||
   route.path.startsWith('/courses') ||
   route.path.startsWith('/teachers'),
 )
@@ -179,7 +177,6 @@ const showLoginEntry = computed(() => !authStore.isAuthenticated)
 
 const navItems = computed<NavItem[]>(() => [
   { to: '/', label: t('nav.home'), icon: Home, exact: true },
-  { to: '/course', label: t('nav.review'), icon: BookOpenText },
   { to: '/courses', label: t('nav.courses'), icon: LibraryBig },
   { to: '/teachers', label: t('nav.teacher'), icon: GraduationCap },
 ])

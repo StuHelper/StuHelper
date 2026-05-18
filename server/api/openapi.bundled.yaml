@@ -47,6 +47,8 @@ tags:
     description: 实名认证
   - name: Profile
     description: 学生认证
+  - name: OpenPlatform
+    description: 开放平台 OAuth 授权、scope consent 与用户信息披露
   - name: Admin
     description: 管理后台
   - name: Metrics
@@ -508,113 +510,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
-  /api/v1/auth/phone/request-otp:
-    post:
-      tags:
-        - Auth
-      operationId: requestPhoneOTP
-      summary: 发送手机验证码
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - phone
-              properties:
-                phone:
-                  type: string
-                  pattern: ^1[3-9]\d{9}$
-                  description: 中国大陆手机号（11 位）
-      responses:
-        '200':
-          description: 验证码发送成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: object
-                        required:
-                          - message
-                          - cooldown
-                        properties:
-                          message:
-                            type: string
-                          cooldown:
-                            type: integer
-                            description: 冷却时间（秒）
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '429':
-          $ref: '#/components/responses/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/ErrorResponse'
-        '503':
-          $ref: '#/components/responses/ErrorResponse'
-  /api/v1/auth/phone/verify-otp:
-    post:
-      tags:
-        - Auth
-      operationId: verifyPhoneOTP
-      summary: 验证手机验证码并登录
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - phone
-                - code
-              properties:
-                phone:
-                  type: string
-                  pattern: ^1[3-9]\d{9}$
-                code:
-                  type: string
-                  minLength: 6
-                  maxLength: 6
-                  description: 6 位数字验证码
-      responses:
-        '200':
-          description: 验证通过，登录成功
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - type: object
-                    required:
-                      - data
-                    properties:
-                      data:
-                        type: object
-                        required:
-                          - user
-                          - expiresIn
-                        properties:
-                          user:
-                            $ref: '#/components/schemas/UserInfo'
-                          expiresIn:
-                            type: integer
-                            description: Access Token 有效期（秒）
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-        '429':
-          $ref: '#/components/responses/ErrorResponse'
-        '503':
-          $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/auth/account-locks/unlock:
     post:
       tags:
@@ -714,6 +609,384 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '429':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/authorize:
+    get:
+      tags:
+        - OpenPlatform
+      operationId: openPlatformAuthorize
+      summary: 发起开放平台授权
+      description: |
+        第三方应用发起 StuHelper Connect 登录时调用。若用户已授予全部 scope，
+        返回 Casdoor OIDC authorize URL；否则返回 StuHelper 授权确认页 URL 和本次请求的字段清单。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: scope
+          in: query
+          required: true
+          description: 空格分隔的开放平台 scope。
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 已授权时返回 redirectURL，需授权时返回 consentURL 和 scopes。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OpenPlatformAuthorizeResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/consent:
+    get:
+      tags:
+        - OpenPlatform
+      operationId: getOpenPlatformConsent
+      summary: 获取开放平台授权页数据
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 授权页展示所需的应用信息、scope 字段说明和回调地址。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OpenPlatformConsentPage'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/consent/accept:
+    post:
+      tags:
+        - OpenPlatform
+      operationId: acceptOpenPlatformConsent
+      summary: 同意开放平台授权
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenPlatformConsentDecisionRequest'
+      responses:
+        '200':
+          description: 返回允许后的第三方 redirect URL。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OpenPlatformRedirectResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/consent/deny:
+    post:
+      tags:
+        - OpenPlatform
+      operationId: denyOpenPlatformConsent
+      summary: 拒绝开放平台授权
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenPlatformConsentDecisionRequest'
+      responses:
+        '200':
+          description: 返回带 access_denied 的第三方 redirect URL。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OpenPlatformRedirectResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/userinfo:
+    get:
+      tags:
+        - OpenPlatform
+      operationId: getOpenPlatformUserInfo
+      summary: 获取授权用户基本信息
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DisclosureRedirectURI'
+        - $ref: '#/components/parameters/DisclosureScope'
+        - $ref: '#/components/parameters/ConsentBaseURL'
+      responses:
+        '200':
+          $ref: '#/components/responses/DisclosureResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ConsentRequired'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/verification:
+    get:
+      tags:
+        - OpenPlatform
+      operationId: getOpenPlatformVerification
+      summary: 获取授权用户实名认证状态
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DisclosureRedirectURI'
+        - $ref: '#/components/parameters/DisclosureScope'
+        - $ref: '#/components/parameters/ConsentBaseURL'
+      responses:
+        '200':
+          $ref: '#/components/responses/DisclosureResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ConsentRequired'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/student:
+    get:
+      tags:
+        - OpenPlatform
+      operationId: getOpenPlatformStudent
+      summary: 获取授权用户学生认证信息
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DisclosureRedirectURI'
+        - $ref: '#/components/parameters/DisclosureScope'
+        - $ref: '#/components/parameters/ConsentBaseURL'
+      responses:
+        '200':
+          $ref: '#/components/responses/DisclosureResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ConsentRequired'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/phone:
+    get:
+      tags:
+        - OpenPlatform
+      operationId: getOpenPlatformPhone
+      summary: 获取授权用户手机号
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DisclosureRedirectURI'
+        - $ref: '#/components/parameters/DisclosureScope'
+        - $ref: '#/components/parameters/ConsentBaseURL'
+      responses:
+        '200':
+          $ref: '#/components/responses/DisclosureResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ConsentRequired'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/open-platform/apps:
+    post:
+      tags:
+        - OpenPlatform
+      operationId: registerOpenPlatformApp
+      summary: 注册开放平台第三方应用
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenPlatformRegisterAppRequest'
+      responses:
+        '201':
+          description: 应用已提交审核。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OpenPlatformRegisteredApp'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/approve:
+    post:
+      tags:
+        - Admin
+        - OpenPlatform
+      operationId: approveOpenPlatformScope
+      summary: 批准开放平台应用申请的 scope
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: appID
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: scope
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/OpenPlatformScope'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenPlatformApproveScopeRequest'
+      responses:
+        '200':
+          description: scope 已批准。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageData'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/open-platform/apps/{appID}/approve:
+    post:
+      tags:
+        - Admin
+        - OpenPlatform
+      operationId: approveOpenPlatformApp
+      summary: 批准开放平台应用并创建 Casdoor OIDC application
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: appID
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 应用已批准，并返回第三方 client secret。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OpenPlatformApprovedApp'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/academics/terms:
     get:
@@ -5963,6 +6236,53 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponseBody'
+    DisclosureResponse:
+      description: 按已授权 scope 返回用户字段。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessResponse'
+              - type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OpenPlatformDisclosure'
+    ConsentRequired:
+      description: 用户尚未授权该应用读取请求的 scope。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorResponseBody'
+              - type: object
+                properties:
+                  error:
+                    type: object
+                    required:
+                      - code
+                      - message
+                      - details
+                    properties:
+                      code:
+                        type: string
+                        example: A0400005
+                      message:
+                        type: string
+                      details:
+                        type: object
+                        required:
+                          - consentURL
+                          - scopes
+                        properties:
+                          consentURL:
+                            type: string
+                            format: uri-reference
+                          scopes:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/OpenPlatformScopeDefinition'
   schemas:
     SuccessResponse:
       type: object
@@ -7700,6 +8020,170 @@ components:
             - rejected
         studentVerified:
           type: boolean
+    OpenPlatformScopeDefinition:
+      type: object
+      required:
+        - scope
+        - displayName
+        - sensitivity
+        - fields
+      properties:
+        scope:
+          $ref: '#/components/schemas/OpenPlatformScope'
+        displayName:
+          type: string
+        sensitivity:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+            - very_high
+        fields:
+          type: array
+          items:
+            type: string
+    OpenPlatformAuthorizeResponse:
+      type: object
+      properties:
+        redirectURL:
+          type: string
+          format: uri
+          description: 已授权时返回的 Casdoor OIDC authorize URL。
+        consentURL:
+          type: string
+          format: uri-reference
+          description: 需要用户确认授权时返回的 StuHelper 授权页 URL。
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenPlatformScopeDefinition'
+    OpenPlatformConsentPage:
+      type: object
+      required:
+        - token
+        - app
+        - scopes
+        - redirectURI
+        - expiresAt
+      properties:
+        token:
+          type: string
+        app:
+          $ref: '#/components/schemas/OpenPlatformConsentApp'
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenPlatformScopeDefinition'
+        redirectURI:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    OpenPlatformConsentDecisionRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+    OpenPlatformRedirectResponse:
+      type: object
+      required:
+        - redirectURL
+      properties:
+        redirectURL:
+          type: string
+          format: uri-reference
+    OpenPlatformRegisterAppRequest:
+      type: object
+      required:
+        - displayName
+        - homepageURL
+        - privacyPolicyURL
+        - redirectURIs
+        - scopes
+      properties:
+        displayName:
+          type: string
+        description:
+          type: string
+        homepageURL:
+          type: string
+          format: uri
+        privacyPolicyURL:
+          type: string
+          format: uri
+        redirectURIs:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uri
+        scopes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OpenPlatformScopeRequestInput'
+    OpenPlatformRegisteredApp:
+      type: object
+      required:
+        - app
+      properties:
+        app:
+          $ref: '#/components/schemas/OpenPlatformApp'
+        clientSecret:
+          type: string
+          description: 注册阶段不返回 client secret；管理员批准应用后才返回。
+    OpenPlatformApprovedApp:
+      type: object
+      required:
+        - app
+        - clientSecret
+      properties:
+        app:
+          $ref: '#/components/schemas/OpenPlatformApp'
+        clientSecret:
+          type: string
+          description: 只在批准时返回一次，调用方必须自行保存。
+    OpenPlatformApproveScopeRequest:
+      type: object
+      properties:
+        decisionNote:
+          type: string
+    OpenPlatformDisclosure:
+      type: object
+      additionalProperties: true
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        avatar:
+          type: string
+          format: uri-reference
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          pattern: ^1[3-9]\d{9}$
+        phoneMasked:
+          type: string
+        phoneVerified:
+          type: boolean
+        identityVerified:
+          type: boolean
+        identityType:
+          type: string
+          enum:
+            - student
+            - other
+        studentVerified:
+          type: boolean
+        school:
+          $ref: '#/components/schemas/OpenPlatformSchoolDisclosure'
     AdmissionSession:
       type: object
       required:
@@ -8291,6 +8775,110 @@ components:
           type: string
           pattern: ^1[3-9]\d{9}$
           description: 需要解除认证失败锁定的手机号
+    OpenPlatformScope:
+      type: string
+      enum:
+        - profile.basic.read
+        - email.read
+        - phone.read
+        - stu.identity.status.read
+        - stu.identity.type.read
+        - stu.student.status.read
+        - stu.student.school.read
+        - resource.read
+        - resource.write
+    OpenPlatformConsentApp:
+      type: object
+      required:
+        - id
+        - clientID
+        - displayName
+        - description
+        - homepageURL
+        - privacyPolicyURL
+      properties:
+        id:
+          type: integer
+          format: int64
+        clientID:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        homepageURL:
+          type: string
+          format: uri
+        privacyPolicyURL:
+          type: string
+          format: uri
+    OpenPlatformSchoolDisclosure:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    OpenPlatformScopeRequestInput:
+      type: object
+      required:
+        - scope
+      properties:
+        scope:
+          $ref: '#/components/schemas/OpenPlatformScope'
+        reason:
+          type: string
+    OpenPlatformApp:
+      type: object
+      required:
+        - id
+        - clientID
+        - displayName
+        - description
+        - homepageURL
+        - privacyPolicyURL
+        - redirectURIs
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        clientID:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        homepageURL:
+          type: string
+          format: uri
+        privacyPolicyURL:
+          type: string
+          format: uri
+        redirectURIs:
+          type: array
+          items:
+            type: string
+            format: uri
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - suspended
+            - revoked
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     AcademicTerm:
       type: object
       required:
@@ -9030,6 +9618,28 @@ components:
       description: 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪
       schema:
         type: string
+    DisclosureRedirectURI:
+      name: redirect_uri
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uri
+    DisclosureScope:
+      name: scope
+      in: query
+      required: true
+      description: 空格分隔的开放平台 scope。
+      schema:
+        type: string
+    ConsentBaseURL:
+      name: consent_base_url
+      in: query
+      required: false
+      description: 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。
+      schema:
+        type: string
+        format: uri-reference
     OfferingIDPath:
       name: offeringID
       in: path

@@ -209,40 +209,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/phone/request-otp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 发送手机验证码 */
-        post: operations["requestPhoneOTP"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/phone/verify-otp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 验证手机验证码并登录 */
-        post: operations["verifyPhoneOTP"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/auth/account-locks/unlock": {
         parameters: {
             query?: never;
@@ -279,6 +245,197 @@ export interface paths {
          *     PKCE `code_verifier` 只保存在服务端 Redis，并随 state 一次性消费，客户端无需传递。
          */
         post: operations["exchangeNative"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 发起开放平台授权
+         * @description 第三方应用发起 StuHelper Connect 登录时调用。若用户已授予全部 scope，
+         *     返回 Casdoor OIDC authorize URL；否则返回 StuHelper 授权确认页 URL 和本次请求的字段清单。
+         */
+        get: operations["openPlatformAuthorize"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取开放平台授权页数据 */
+        get: operations["getOpenPlatformConsent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/consent/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 同意开放平台授权 */
+        post: operations["acceptOpenPlatformConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/consent/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 拒绝开放平台授权 */
+        post: operations["denyOpenPlatformConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/userinfo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取授权用户基本信息 */
+        get: operations["getOpenPlatformUserInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取授权用户实名认证状态 */
+        get: operations["getOpenPlatformVerification"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/student": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取授权用户学生认证信息 */
+        get: operations["getOpenPlatformStudent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取授权用户手机号 */
+        get: operations["getOpenPlatformPhone"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 注册开放平台第三方应用 */
+        post: operations["registerOpenPlatformApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/scopes/{scope}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准开放平台应用申请的 scope */
+        post: operations["approveOpenPlatformScope"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/{appID}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 批准开放平台应用并创建 Casdoor OIDC application */
+        post: operations["approveOpenPlatformApp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2998,6 +3155,83 @@ export interface components {
             profileVerificationStatus: "unverified" | "pending" | "verified" | "rejected";
             studentVerified: boolean;
         };
+        OpenPlatformScopeDefinition: {
+            scope: components["schemas"]["OpenPlatformScope"];
+            displayName: string;
+            /** @enum {string} */
+            sensitivity: "low" | "medium" | "high" | "very_high";
+            fields: string[];
+        };
+        OpenPlatformAuthorizeResponse: {
+            /**
+             * Format: uri
+             * @description 已授权时返回的 Casdoor OIDC authorize URL。
+             */
+            redirectURL?: string;
+            /**
+             * Format: uri-reference
+             * @description 需要用户确认授权时返回的 StuHelper 授权页 URL。
+             */
+            consentURL?: string;
+            scopes?: components["schemas"]["OpenPlatformScopeDefinition"][];
+        };
+        OpenPlatformConsentPage: {
+            token: string;
+            app: components["schemas"]["OpenPlatformConsentApp"];
+            scopes: components["schemas"]["OpenPlatformScopeDefinition"][];
+            /** Format: uri */
+            redirectURI: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        OpenPlatformConsentDecisionRequest: {
+            token: string;
+        };
+        OpenPlatformRedirectResponse: {
+            /** Format: uri-reference */
+            redirectURL: string;
+        };
+        OpenPlatformRegisterAppRequest: {
+            displayName: string;
+            description?: string;
+            /** Format: uri */
+            homepageURL: string;
+            /** Format: uri */
+            privacyPolicyURL: string;
+            redirectURIs: string[];
+            scopes: components["schemas"]["OpenPlatformScopeRequestInput"][];
+        };
+        OpenPlatformRegisteredApp: {
+            app: components["schemas"]["OpenPlatformApp"];
+            /** @description 注册阶段不返回 client secret；管理员批准应用后才返回。 */
+            clientSecret?: string;
+        };
+        OpenPlatformApprovedApp: {
+            app: components["schemas"]["OpenPlatformApp"];
+            /** @description 只在批准时返回一次，调用方必须自行保存。 */
+            clientSecret: string;
+        };
+        OpenPlatformApproveScopeRequest: {
+            decisionNote?: string;
+        };
+        OpenPlatformDisclosure: {
+            username?: string;
+            displayName?: string;
+            /** Format: uri-reference */
+            avatar?: string;
+            /** Format: email */
+            email?: string;
+            phone?: string;
+            phoneMasked?: string;
+            phoneVerified?: boolean;
+            identityVerified?: boolean;
+            /** @enum {string} */
+            identityType?: "student" | "other";
+            studentVerified?: boolean;
+            school?: components["schemas"]["OpenPlatformSchoolDisclosure"];
+        } & {
+            [key: string]: unknown;
+        };
         AdmissionSession: {
             id: string;
             platform: string;
@@ -3231,6 +3465,46 @@ export interface components {
         UnlockAuthAccountRequest: {
             /** @description 需要解除认证失败锁定的手机号 */
             phone: string;
+        };
+        /** @enum {string} */
+        OpenPlatformScope: "profile.basic.read" | "email.read" | "phone.read" | "stu.identity.status.read" | "stu.identity.type.read" | "stu.student.status.read" | "stu.student.school.read" | "resource.read" | "resource.write";
+        OpenPlatformConsentApp: {
+            /** Format: int64 */
+            id: number;
+            clientID: string;
+            displayName: string;
+            description: string;
+            /** Format: uri */
+            homepageURL: string;
+            /** Format: uri */
+            privacyPolicyURL: string;
+        };
+        OpenPlatformSchoolDisclosure: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        OpenPlatformScopeRequestInput: {
+            scope: components["schemas"]["OpenPlatformScope"];
+            reason?: string;
+        };
+        OpenPlatformApp: {
+            /** Format: int64 */
+            id: number;
+            clientID: string;
+            displayName: string;
+            description: string;
+            /** Format: uri */
+            homepageURL: string;
+            /** Format: uri */
+            privacyPolicyURL: string;
+            redirectURIs: string[];
+            /** @enum {string} */
+            status: "pending" | "approved" | "suspended" | "revoked";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         AcademicTerm: {
             /** Format: int64 */
@@ -3502,6 +3776,37 @@ export interface components {
                 "application/json": components["schemas"]["ErrorResponseBody"];
             };
         };
+        /** @description 按已授权 scope 返回用户字段。 */
+        DisclosureResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SuccessResponse"] & {
+                    data: components["schemas"]["OpenPlatformDisclosure"];
+                };
+            };
+        };
+        /** @description 用户尚未授权该应用读取请求的 scope。 */
+        ConsentRequired: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorResponseBody"] & {
+                    error?: {
+                        /** @example A0400005 */
+                        code: string;
+                        message: string;
+                        details: {
+                            /** Format: uri-reference */
+                            consentURL: string;
+                            scopes: components["schemas"]["OpenPlatformScopeDefinition"][];
+                        };
+                    };
+                };
+            };
+        };
     };
     parameters: {
         /** @description 页码 */
@@ -3524,6 +3829,11 @@ export interface components {
         SensitiveWordIDPath: string;
         /** @description 原生 OIDC 客户端在 `exchange-native` 后拿到的服务端 session ID，用于 refresh/logout 保持同一 token family 追踪 */
         NativeSessionIDHeader: string;
+        DisclosureRedirectURI: string;
+        /** @description 空格分隔的开放平台 scope。 */
+        DisclosureScope: string;
+        /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
+        ConsentBaseURL: string;
         /** @description 开课实例 ID */
         OfferingIDPath: number;
         /** @description 资源 ID */
@@ -3868,81 +4178,6 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
-    requestPhoneOTP: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description 中国大陆手机号（11 位） */
-                    phone: string;
-                };
-            };
-        };
-        responses: {
-            /** @description 验证码发送成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            message: string;
-                            /** @description 冷却时间（秒） */
-                            cooldown: number;
-                        };
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    verifyPhoneOTP: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    phone: string;
-                    /** @description 6 位数字验证码 */
-                    code: string;
-                };
-            };
-        };
-        responses: {
-            /** @description 验证通过，登录成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            user: components["schemas"]["UserInfo"];
-                            /** @description Access Token 有效期（秒） */
-                            expiresIn: number;
-                        };
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
     unlockAuthAccount: {
         parameters: {
             query?: never;
@@ -4011,6 +4246,301 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
+        };
+    };
+    openPlatformAuthorize: {
+        parameters: {
+            query: {
+                client_id: string;
+                redirect_uri: string;
+                /** @description 空格分隔的开放平台 scope。 */
+                scope: string;
+                state?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已授权时返回 redirectURL，需授权时返回 consentURL 和 scopes。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAuthorizeResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getOpenPlatformConsent: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 授权页展示所需的应用信息、scope 字段说明和回调地址。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformConsentPage"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    acceptOpenPlatformConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformConsentDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description 返回允许后的第三方 redirect URL。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRedirectResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    denyOpenPlatformConsent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformConsentDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description 返回带 access_denied 的第三方 redirect URL。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRedirectResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getOpenPlatformUserInfo: {
+        parameters: {
+            query: {
+                redirect_uri: components["parameters"]["DisclosureRedirectURI"];
+                /** @description 空格分隔的开放平台 scope。 */
+                scope: components["parameters"]["DisclosureScope"];
+                /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
+                consent_base_url?: components["parameters"]["ConsentBaseURL"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DisclosureResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ConsentRequired"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getOpenPlatformVerification: {
+        parameters: {
+            query: {
+                redirect_uri: components["parameters"]["DisclosureRedirectURI"];
+                /** @description 空格分隔的开放平台 scope。 */
+                scope: components["parameters"]["DisclosureScope"];
+                /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
+                consent_base_url?: components["parameters"]["ConsentBaseURL"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DisclosureResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ConsentRequired"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getOpenPlatformStudent: {
+        parameters: {
+            query: {
+                redirect_uri: components["parameters"]["DisclosureRedirectURI"];
+                /** @description 空格分隔的开放平台 scope。 */
+                scope: components["parameters"]["DisclosureScope"];
+                /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
+                consent_base_url?: components["parameters"]["ConsentBaseURL"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DisclosureResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ConsentRequired"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getOpenPlatformPhone: {
+        parameters: {
+            query: {
+                redirect_uri: components["parameters"]["DisclosureRedirectURI"];
+                /** @description 空格分隔的开放平台 scope。 */
+                scope: components["parameters"]["DisclosureScope"];
+                /** @description 第三方客户端希望用户跳转查看授权页时使用的前端 base URL；为空时返回站内相对地址。 */
+                consent_base_url?: components["parameters"]["ConsentBaseURL"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["DisclosureResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ConsentRequired"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    registerOpenPlatformApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformRegisterAppRequest"];
+            };
+        };
+        responses: {
+            /** @description 应用已提交审核。 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformRegisteredApp"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    approveOpenPlatformScope: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+                scope: components["schemas"]["OpenPlatformScope"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformApproveScopeRequest"];
+            };
+        };
+        responses: {
+            /** @description scope 已批准。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["MessageData"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    approveOpenPlatformApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 应用已批准，并返回第三方 client secret。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformApprovedApp"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
         };
     };
     listAcademicTerms: {
