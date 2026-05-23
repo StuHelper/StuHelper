@@ -95,6 +95,10 @@ paths:
     $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1consent~1accept"
   /api/v1/open-platform/consent/deny:
     $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1consent~1deny"
+  /api/v1/open-platform/profile-completion:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1profile-completion"
+  /api/v1/open-platform/profile-completion/continue:
+    $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1profile-completion~1continue"
   /api/v1/open-platform/userinfo:
     $ref: "paths/open-platform.yaml#/~1api~1v1~1open-platform~1userinfo"
   /api/v1/open-platform/verification:
@@ -109,6 +113,8 @@ paths:
     $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1scopes~1{scope}~1approve"
   /api/v1/admin/open-platform/apps/{appID}/approve:
     $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1{appID}~1approve"
+  /api/v1/admin/open-platform/apps/import-casdoor:
+    $ref: "paths/admin-open-platform.yaml#/~1api~1v1~1admin~1open-platform~1apps~1import-casdoor"
 
   # ── Academics ──
   /api/v1/academics/terms:
@@ -615,6 +621,10 @@ components:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformAuthorizeResponse"
     OpenPlatformConsentPage:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformConsentPage"
+    OpenPlatformProfileCompletionField:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformProfileCompletionField"
+    OpenPlatformProfileCompletionPage:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformProfileCompletionPage"
     OpenPlatformConsentDecisionRequest:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformConsentDecisionRequest"
     OpenPlatformRedirectResponse:
@@ -625,6 +635,10 @@ components:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformRegisteredApp"
     OpenPlatformApprovedApp:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformApprovedApp"
+    OpenPlatformImportCasdoorAppRequest:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformImportCasdoorAppRequest"
+    OpenPlatformImportedApp:
+      $ref: "components/schemas/open-platform.yaml#/OpenPlatformImportedApp"
     OpenPlatformApproveScopeRequest:
       $ref: "components/schemas/open-platform.yaml#/OpenPlatformApproveScopeRequest"
     OpenPlatformDisclosure:

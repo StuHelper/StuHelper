@@ -72,6 +72,7 @@ scrape_configs:
           - http://app:8080/health/live
           - http://frontend/
           - http://admin:8080/
+          - https://id.stuhelper.com/.well-known/openid-configuration
           - https://sso.stuhelper.com/.well-known/openid-configuration
     relabel_configs:
       - source_labels: [__address__]

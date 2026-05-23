@@ -169,6 +169,9 @@ fi
 if placeholder_or_empty "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_SECRET" "prod-casdoor-user-lookup-$(random_hex 24)"
 fi
+if placeholder_or_empty "${IDENTITY_SIGNING_PRIVATE_KEY_PEM:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "IDENTITY_SIGNING_PRIVATE_KEY_PEM" "REPLACE_WITH_IDENTITY_RSA_PRIVATE_KEY_PEM_OR_BASE64_PEM"
+fi
 load_env
 
 ensure_prod_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-prod" "stuhelper-dev" "stuhelper"
@@ -190,7 +193,7 @@ ensure_prod_default "REDIS_HOST" "${REDIS_HOST:-}" "redis" "localhost"
 ensure_value "REDIS_PORT" "${REDIS_PORT:-}" "6379"
 ensure_prod_default "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true" "false"
 ensure_prod_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
-ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "https://stuhelper.com" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS" "http://localhost:3000,http://localhost:3001" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
+ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "https://stuhelper.com,https://id.stuhelper.com" "https://stuhelper.com" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS" "http://localhost:3000,http://localhost:3001" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
 ensure_value "TRUSTED_PROXIES" "${TRUSTED_PROXIES:-}" "127.0.0.1/32,172.16.0.0/12,192.168.0.0/16"
 ensure_prod_default "OTEL_ENABLED" "${OTEL_ENABLED:-}" "true" "false"
 ensure_value "OTEL_SERVICE_NAME" "${OTEL_SERVICE_NAME:-}" "stuhelper-backend"
@@ -198,6 +201,7 @@ ensure_value "OTEL_SERVICE_NAMESPACE" "${OTEL_SERVICE_NAMESPACE:-}" "stuhelper"
 ensure_prod_default "OTEL_EXPORTER_OTLP_ENDPOINT" "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" "http://alloy:4318" "http://localhost:4318"
 ensure_value "OTEL_EXPORTER_OTLP_INSECURE" "${OTEL_EXPORTER_OTLP_INSECURE:-}" "true"
 ensure_prod_default "TOKEN_COOKIE_SECURE" "${TOKEN_COOKIE_SECURE:-}" "true" "false"
+ensure_prod_default "TOKEN_COOKIE_DOMAIN" "${TOKEN_COOKIE_DOMAIN:-}" ".stuhelper.com" "localhost" "127.0.0.1"
 ensure_prod_default "CASDOOR_ISSUER" "${CASDOOR_ISSUER:-}" "https://sso.stuhelper.com" "REPLACE_WITH_CASDOOR_ISSUER" "http://localhost:8085" "http://localhost"
 ensure_prod_default "CASDOOR_INTERNAL_ADDRESS" "${CASDOOR_INTERNAL_ADDRESS:-}" "" "host.docker.internal:8085" "casdoor:8000"
 ensure_prod_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "https://stuhelper.com/api/v1/auth/callback" "REPLACE_WITH_CASDOOR_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
@@ -234,6 +238,10 @@ ensure_prod_default "CASDOOR_ROLE_SYNC_CLIENT_ID" "${CASDOOR_ROLE_SYNC_CLIENT_ID
 ensure_prod_default "CASDOOR_ROLE_SYNC_APPLICATION" "${CASDOOR_ROLE_SYNC_APPLICATION:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_APPLICATION"
 ensure_prod_default "CASDOOR_USER_LOOKUP_CLIENT_ID" "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_ID"
 ensure_prod_default "CASDOOR_USER_LOOKUP_APPLICATION" "${CASDOOR_USER_LOOKUP_APPLICATION:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_APPLICATION"
+ensure_prod_default "IDENTITY_ISSUER" "${IDENTITY_ISSUER:-}" "https://id.stuhelper.com" "REPLACE_WITH_IDENTITY_ISSUER" "http://localhost:3000" "http://localhost:8080"
+ensure_prod_default "IDENTITY_SIGNING_KEY_ID" "${IDENTITY_SIGNING_KEY_ID:-}" "stuhelper-identity-1" "REPLACE_WITH_IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-dev"
+ensure_value "IDENTITY_ACCESS_TOKEN_TTL" "${IDENTITY_ACCESS_TOKEN_TTL:-}" "900"
+ensure_value "IDENTITY_AUTH_CODE_TTL" "${IDENTITY_AUTH_CODE_TTL:-}" "300"
 casdoor_bootstrap_env_file="$(resolve_env_path "${CASDOOR_BOOTSTRAP_ENV_FILE:-.env.casdoor-bootstrap.local}")"
 mkdir -p "$(dirname "${casdoor_bootstrap_env_file}")"
 touch "${casdoor_bootstrap_env_file}"

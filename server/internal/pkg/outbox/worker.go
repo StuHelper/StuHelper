@@ -147,7 +147,7 @@ func jitteredBackoff(backoff time.Duration) time.Duration {
 	}
 	minDelay := backoff / 2
 	jitterWindow := backoff - minDelay
-	return minDelay + time.Duration(rand.Float64()*float64(jitterWindow))
+	return minDelay + time.Duration(rand.Float64()*float64(jitterWindow)) //nolint:gosec // worker backoff jitter is not security-sensitive randomness.
 }
 
 func reachedMaxAttempts(cfg WorkerConfig, attemptCount int) bool {

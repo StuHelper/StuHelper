@@ -16,16 +16,20 @@ import (
 )
 
 const (
-	clientSecretBytes  = 32
-	clientIDBytes      = 16
-	consentTokenBytes  = 24
-	consentTokenTTL    = 5 * time.Minute
-	consentRedisPrefix = "open_platform:consent:"
+	clientSecretBytes     = 32
+	clientIDBytes         = 16
+	consentTokenBytes     = 24
+	consentTokenTTL       = 5 * time.Minute
+	consentRedisPrefix    = "open_platform:consent:"
+	completionTokenTTL    = 10 * time.Minute
+	completionRedisPrefix = "open_platform:profile_completion:"
+
+	AuthorizeFlowCasdoor  = "casdoor"
+	AuthorizeFlowIdentity = "identity"
 )
 
 type appProvisioner interface {
-	CreateApplication(ctx context.Context, spec platformcasdoor.ApplicationSpec) error
-	UpdateApplication(ctx context.Context, spec platformcasdoor.ApplicationSpec) error
+	GetApplication(ctx context.Context, name string) (platformcasdoor.ApplicationSpec, error)
 }
 
 type oidcAuthURLBuilder interface {
@@ -36,18 +40,14 @@ type phoneDecryptor interface {
 	Decrypt(ciphertext []byte) (string, error)
 }
 
-type casdoorPhoneReader interface {
-	GetPhone(ctx context.Context, subject string) (string, error)
-}
-
 type Service struct {
-	repo           *Repository
-	rdb            *redis.Client
-	provisioner    appProvisioner
-	oidc           oidcAuthURLBuilder
-	phoneCipher    phoneDecryptor
-	phoneReader    casdoorPhoneReader
-	consentBaseURL string
+	repo            *Repository
+	rdb             *redis.Client
+	provisioner     appProvisioner
+	oidc            oidcAuthURLBuilder
+	phoneCipher     phoneDecryptor
+	consentBaseURL  string
+	identityBaseURL string
 }
 
 type ServiceOption func(*Service)
@@ -64,12 +64,6 @@ func WithPhoneDecryptor(cipher phoneDecryptor) ServiceOption {
 	}
 }
 
-func WithCasdoorPhoneReader(reader casdoorPhoneReader) ServiceOption {
-	return func(s *Service) {
-		s.phoneReader = reader
-	}
-}
-
 func WithOIDCAuthURLBuilder(builder oidcAuthURLBuilder) ServiceOption {
 	return func(s *Service) {
 		s.oidc = builder
@@ -79,6 +73,12 @@ func WithOIDCAuthURLBuilder(builder oidcAuthURLBuilder) ServiceOption {
 func WithConsentBaseURL(baseURL string) ServiceOption {
 	return func(s *Service) {
 		s.consentBaseURL = strings.TrimSpace(baseURL)
+	}
+}
+
+func WithIdentityBaseURL(baseURL string) ServiceOption {
+	return func(s *Service) {
+		s.identityBaseURL = strings.TrimSpace(baseURL)
 	}
 }
 
@@ -139,6 +139,25 @@ func (s *Service) RegisterApp(ctx context.Context, input RegisterAppInput) (*Reg
 		return nil, fmt.Errorf("RegisterApp create app: %w", err)
 	}
 	return &RegisteredApp{App: app, ClientSecret: secret}, nil
+}
+
+func (s *Service) VerifyClientSecret(ctx context.Context, clientID, clientSecret string) (*App, error) {
+	app, err := s.repo.VerifyClientSecret(ctx, strings.TrimSpace(clientID), strings.TrimSpace(clientSecret))
+	if err != nil {
+		return nil, err
+	}
+	if app.Status != AppStatusApproved {
+		return nil, ErrAppNotActive
+	}
+	return app, nil
+}
+
+func (s *Service) AppByID(ctx context.Context, appID int64) (*App, error) {
+	return s.repo.GetAppByID(ctx, appID)
+}
+
+func (s *Service) UserProjection(ctx context.Context, userID int64) (*UserProjection, error) {
+	return s.repo.GetUserProjection(ctx, userID)
 }
 
 func buildNewApp(input RegisterAppInput) (*App, string, error) {

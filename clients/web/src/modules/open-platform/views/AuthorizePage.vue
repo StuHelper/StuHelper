@@ -74,7 +74,7 @@ onMounted(async () => {
     validateQuery(query)
     const response = await api.openPlatform.authorize(query)
     const data = response.data?.data
-    const target = data?.redirectURL || data?.consentURL
+    const target = data?.redirectURL || data?.consentURL || data?.profileCompletionURL
     if (!target) throw new Error('Invalid authorization response')
     navigateTo(target)
   } catch (err) {

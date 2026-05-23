@@ -42,7 +42,7 @@ func main() {
 		}
 	}
 	if dirty {
-		log.Fatalf("migration state is dirty at version %d", version)
+		log.Fatal("migration state is dirty at version ", version) //nolint:gosec // version is a numeric migration marker from the migrator.
 	}
 
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {

@@ -9,6 +9,7 @@ import (
 	"git.stuhelper.com/StuHelper/StuHelper/internal/modules/openplatform"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/config"
 	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/crypto/pii"
+	"git.stuhelper.com/StuHelper/StuHelper/internal/pkg/middleware"
 	platformcasdoor "git.stuhelper.com/StuHelper/StuHelper/internal/platform/casdoor"
 )
 
@@ -16,11 +17,11 @@ func (rt *Runtime) initOpenPlatformModule(
 	api *gin.RouterGroup,
 	authMW gin.HandlerFunc,
 	piiCipher *pii.Cipher,
-	userProfileGateway *casdoorUserProfileGateway,
-) (*openplatform.Handler, error) {
+	userIDResolver middleware.InternalUserIDResolver,
+) (*openplatform.Handler, *openplatform.Service, error) {
 	provisioner, err := rt.newCasdoorAppProvisioningClient()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	service, err := openplatform.NewService(
 		openplatform.NewRepository(rt.database),
@@ -28,15 +29,15 @@ func (rt *Runtime) initOpenPlatformModule(
 		openplatform.WithAppProvisioner(provisioner),
 		openplatform.WithOIDCAuthURLBuilder(rt.oidcClient),
 		openplatform.WithPhoneDecryptor(piiCipher),
-		openplatform.WithCasdoorPhoneReader(userProfileGateway),
 		openplatform.WithConsentBaseURL(rt.cfg.App.CORSOrigins[0]),
+		openplatform.WithIdentityBaseURL(rt.identityIssuer()),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize open platform service: %w", err)
+		return nil, nil, fmt.Errorf("failed to initialize open platform service: %w", err)
 	}
-	handler := openplatform.NewHandler(service)
+	handler := openplatform.NewHandler(service, userIDResolver)
 	handler.RegisterRoutes(api, authMW)
-	return handler, nil
+	return handler, service, nil
 }
 
 func (rt *Runtime) newCasdoorAppProvisioningClient() (*platformcasdoor.Client, error) {
@@ -94,10 +95,6 @@ func (g *casdoorUserProfileGateway) UpdatePhone(ctx context.Context, subject, ph
 		Subject: subject,
 		Phone:   phone,
 	})
-}
-
-func (g *casdoorUserProfileGateway) GetPhone(ctx context.Context, subject string) (string, error) {
-	return g.client.GetPhone(ctx, subject)
 }
 
 func (g *casdoorUserProfileGateway) Send(ctx context.Context, phone, content string) error {

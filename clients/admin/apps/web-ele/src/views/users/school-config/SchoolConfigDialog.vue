@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { reactive, watch } from 'vue';
+
 import {
   ElButton,
   ElDialog,
@@ -12,27 +14,55 @@ import {
 
 import { $t } from '#/locales';
 
-defineProps<{
+type SchoolConfigForm = {
+  academicDbTable: string;
+  consentText: string;
+  enabled: boolean;
+  ldapBaseDN: string;
+  ldapURL: string;
+  schoolID: number;
+  schoolName: string;
+  systemBindDN: string;
+  systemBindPassword: string;
+  useTLS: boolean;
+  verificationMethod: 'ldap' | 'manual';
+};
+
+const props = defineProps<{
   canUpdate: boolean;
-  form: {
-    academicDbTable: string;
-    consentText: string;
-    enabled: boolean;
-    ldapBaseDN: string;
-    ldapURL: string;
-    schoolName: string;
-    systemBindDN: string;
-    systemBindPassword: string;
-    useTLS: boolean;
-    verificationMethod: 'ldap' | 'manual';
-  };
+  form: SchoolConfigForm;
   submitting: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'submit'): void;
+  (e: 'submit', form: SchoolConfigForm): void;
 }>();
 const visible = defineModel<boolean>('visible', { required: true });
+const draft = reactive<SchoolConfigForm>({
+  academicDbTable: '',
+  consentText: '',
+  enabled: true,
+  ldapBaseDN: '',
+  ldapURL: '',
+  schoolID: 0,
+  schoolName: '',
+  systemBindDN: '',
+  systemBindPassword: '',
+  useTLS: true,
+  verificationMethod: 'manual',
+});
+
+watch(
+  () => props.form,
+  (form) => {
+    Object.assign(draft, form);
+  },
+  { deep: true, immediate: true },
+);
+
+function submit() {
+  emit('submit', { ...draft });
+}
 </script>
 
 <template>
@@ -40,7 +70,7 @@ const visible = defineModel<boolean>('visible', { required: true });
     v-model="visible"
     :title="
       $t('admin.users.schoolConfig.dialogTitle', {
-        schoolName: form.schoolName,
+        schoolName: draft.schoolName,
       })
     "
     width="620px"
@@ -48,12 +78,12 @@ const visible = defineModel<boolean>('visible', { required: true });
     <ElForm label-width="120px">
       <ElFormItem :label="$t('admin.users.schoolConfig.schoolName')">
         <ElInput
-          v-model="form.schoolName"
+          v-model="draft.schoolName"
           :placeholder="$t('admin.users.schoolConfig.schoolNamePlaceholder')"
         />
       </ElFormItem>
       <ElFormItem :label="$t('admin.users.schoolConfig.verificationMethod')">
-        <ElSelect v-model="form.verificationMethod" style="width: 100%">
+        <ElSelect v-model="draft.verificationMethod" style="width: 100%">
           <ElOption
             :label="$t('admin.users.schoolConfig.methods.ldap')"
             value="ldap"
@@ -65,24 +95,24 @@ const visible = defineModel<boolean>('visible', { required: true });
         </ElSelect>
       </ElFormItem>
       <ElFormItem :label="$t('admin.users.schoolConfig.enableSchool')">
-        <ElSwitch v-model="form.enabled" />
+        <ElSwitch v-model="draft.enabled" />
       </ElFormItem>
-      <template v-if="form.verificationMethod === 'ldap'">
+      <template v-if="draft.verificationMethod === 'ldap'">
         <ElFormItem :label="$t('admin.users.schoolConfig.ldapUrl')">
           <ElInput
-            v-model="form.ldapURL"
+            v-model="draft.ldapURL"
             :placeholder="$t('admin.users.schoolConfig.ldapUrlPlaceholder')"
           />
         </ElFormItem>
         <ElFormItem :label="$t('admin.users.schoolConfig.baseDn')">
           <ElInput
-            v-model="form.ldapBaseDN"
+            v-model="draft.ldapBaseDN"
             :placeholder="$t('admin.users.schoolConfig.baseDnPlaceholder')"
           />
         </ElFormItem>
         <ElFormItem :label="$t('admin.users.schoolConfig.systemBindDn')">
           <ElInput
-            v-model="form.systemBindDN"
+            v-model="draft.systemBindDN"
             :placeholder="
               $t('admin.users.schoolConfig.systemBindDnPlaceholder')
             "
@@ -90,7 +120,7 @@ const visible = defineModel<boolean>('visible', { required: true });
         </ElFormItem>
         <ElFormItem :label="$t('admin.users.schoolConfig.systemBindPassword')">
           <ElInput
-            v-model="form.systemBindPassword"
+            v-model="draft.systemBindPassword"
             :placeholder="
               $t('admin.users.schoolConfig.systemBindPasswordPlaceholder')
             "
@@ -99,12 +129,12 @@ const visible = defineModel<boolean>('visible', { required: true });
           />
         </ElFormItem>
         <ElFormItem :label="$t('admin.users.schoolConfig.useTls')">
-          <ElSwitch v-model="form.useTLS" />
+          <ElSwitch v-model="draft.useTLS" />
         </ElFormItem>
       </template>
       <ElFormItem :label="$t('admin.users.schoolConfig.academicDbTable')">
         <ElInput
-          v-model="form.academicDbTable"
+          v-model="draft.academicDbTable"
           :placeholder="
             $t('admin.users.schoolConfig.academicDbTablePlaceholder')
           "
@@ -112,7 +142,7 @@ const visible = defineModel<boolean>('visible', { required: true });
       </ElFormItem>
       <ElFormItem :label="$t('admin.users.schoolConfig.consentText')">
         <ElInput
-          v-model="form.consentText"
+          v-model="draft.consentText"
           :rows="3"
           :placeholder="$t('admin.users.schoolConfig.consentTextPlaceholder')"
           type="textarea"
@@ -127,7 +157,7 @@ const visible = defineModel<boolean>('visible', { required: true });
         v-if="canUpdate"
         :loading="submitting"
         type="primary"
-        @click="emit('submit')"
+        @click="submit"
       >
         {{ $t('admin.common.save') }}
       </ElButton>

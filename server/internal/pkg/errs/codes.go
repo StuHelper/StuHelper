@@ -150,12 +150,13 @@ const (
 // ============================================================================
 
 const (
-	ErrOpenPlatformAppNotFound     ErrorCode = "A0400001" // 开放平台应用不存在
-	ErrOpenPlatformAppInactive     ErrorCode = "A0400002" // 开放平台应用未启用
-	ErrOpenPlatformScopeInvalid    ErrorCode = "A0400003" // 开放平台 scope 无效
-	ErrOpenPlatformScopeDenied     ErrorCode = "A0400004" // 应用未获批该 scope
-	ErrOpenPlatformConsentRequired ErrorCode = "A0400005" // 需要用户授权
-	ErrOpenPlatformConsentInvalid  ErrorCode = "A0400006" // 授权请求无效或已过期
+	ErrOpenPlatformAppNotFound       ErrorCode = "A0400001" // 开放平台应用不存在
+	ErrOpenPlatformAppInactive       ErrorCode = "A0400002" // 开放平台应用未启用
+	ErrOpenPlatformScopeInvalid      ErrorCode = "A0400003" // 开放平台 scope 无效
+	ErrOpenPlatformScopeDenied       ErrorCode = "A0400004" // 应用未获批该 scope
+	ErrOpenPlatformConsentRequired   ErrorCode = "A0400005" // 需要用户授权
+	ErrOpenPlatformConsentInvalid    ErrorCode = "A0400006" // 授权请求无效或已过期
+	ErrOpenPlatformProfileIncomplete ErrorCode = "A0400007" // 开放平台资料未补全
 )
 
 // ============================================================================

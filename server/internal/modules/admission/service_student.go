@@ -56,7 +56,9 @@ func (s *Service) RequestSchoolEmailOTP(
 		return nil, err
 	}
 	if err := s.emailSender.SendAdmissionOTP(ctx, email, code); err != nil {
-		_ = s.cleanupEmailOTPCode(ctx, input.UserID, input.SchoolID)
+		if cleanupErr := s.cleanupEmailOTPCode(ctx, input.UserID, input.SchoolID); cleanupErr != nil {
+			return nil, fmt.Errorf("RequestSchoolEmailOTP send: %w; cleanup: %w", err, cleanupErr)
+		}
 		return nil, fmt.Errorf("RequestSchoolEmailOTP send: %w", err)
 	}
 	return &SchoolEmailOTPResponse{CooldownSeconds: admissionEmailOTPCooldownSeconds}, nil
@@ -190,10 +192,14 @@ func (s *Service) recordEmailOTPFailure(ctx context.Context, userID, schoolID in
 		return fmt.Errorf("recordEmailOTPFailure: %w", err)
 	}
 	if attempts == 1 {
-		_ = s.redisClient.Expire(ctx, key, admissionEmailOTPTTL).Err()
+		if err := s.redisClient.Expire(ctx, key, admissionEmailOTPTTL).Err(); err != nil {
+			return fmt.Errorf("recordEmailOTPFailure expire attempts: %w", err)
+		}
 	}
 	if attempts >= admissionEmailOTPMaxAttempts {
-		_ = s.cleanupEmailOTPCode(ctx, userID, schoolID)
+		if err := s.cleanupEmailOTPCode(ctx, userID, schoolID); err != nil {
+			return fmt.Errorf("recordEmailOTPFailure cleanup: %w", err)
+		}
 		return ErrAdmissionOTPMaxAttempts
 	}
 	return ErrAdmissionOTPInvalid

@@ -6,6 +6,7 @@ type Config struct {
 	Database      DatabaseConfig
 	Redis         RedisConfig
 	Casdoor       CasdoorConfig
+	Identity      IdentityConfig
 	OpenFGA       OpenFGAConfig
 	ObjectStorage ObjectStorageConfig
 	Token         TokenConfig
@@ -139,6 +140,15 @@ type CasdoorConfig struct {
 	UserLookupCertificate       string
 }
 
+// IdentityConfig configures StuHelper's public OIDC issuer at id.stuhelper.com.
+type IdentityConfig struct {
+	Issuer               string
+	SigningPrivateKeyPEM string
+	SigningKeyID         string
+	AccessTokenTTL       int
+	AuthorizationCodeTTL int
+}
+
 // OpenFGAConfig OpenFGA 关系型授权引擎配置
 type OpenFGAConfig struct {
 	APIUrl               string // OpenFGA HTTP API 地址
@@ -194,6 +204,7 @@ func Load() (*Config, error) {
 		App:           loadAppConfig(&parseErrs),
 		Database:      loadDatabaseConfig(&parseErrs),
 		Casdoor:       loadCasdoorConfig(),
+		Identity:      loadIdentityConfig(&parseErrs),
 		OpenFGA:       loadOpenFGAConfig(),
 		ObjectStorage: loadObjectStorageConfig(&parseErrs),
 		Redis:         loadRedisConfig(&parseErrs),
@@ -214,6 +225,16 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func loadIdentityConfig(parseErrs *[]string) IdentityConfig {
+	return IdentityConfig{
+		Issuer:               getEnv("IDENTITY_ISSUER", ""),
+		SigningPrivateKeyPEM: getEnv("IDENTITY_SIGNING_PRIVATE_KEY_PEM", ""),
+		SigningKeyID:         getEnv("IDENTITY_SIGNING_KEY_ID", "stuhelper-identity-1"),
+		AccessTokenTTL:       getEnvInt("IDENTITY_ACCESS_TOKEN_TTL", 900, parseErrs),
+		AuthorizationCodeTTL: getEnvInt("IDENTITY_AUTH_CODE_TTL", 300, parseErrs),
+	}
 }
 
 func loadAppConfig(parseErrs *[]string) AppConfig {

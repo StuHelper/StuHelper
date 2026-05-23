@@ -11,7 +11,7 @@
     "dist"
   ],
   "bin": {
-    "vsh": "./bin/vsh.mjs"
+    "vsh": "./cli.mjs"
   },
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",

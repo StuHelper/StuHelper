@@ -4,8 +4,9 @@
     operationId: openPlatformAuthorize
     summary: 发起开放平台授权
     description: |
-      第三方应用发起 StuHelper Connect 登录时调用。若用户已授予全部 scope，
-      返回 Casdoor OIDC authorize URL；否则返回 StuHelper 授权确认页 URL 和本次请求的字段清单。
+      Legacy 授权辅助接口。新应用应直接接入 id.stuhelper.com 的 OIDC discovery；
+      该接口保留给站内授权页与历史调用方。若用户已授予全部 scope，
+      返回下一步 redirect URL；否则返回 StuHelper 授权确认页或资料补全页 URL。
     security:
       - cookieAuth: []
       - bearerAuth: []
@@ -152,6 +153,72 @@
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/profile-completion:
+  get:
+    tags: [OpenPlatform]
+    operationId: getOpenPlatformProfileCompletion
+    summary: 获取开放平台资料补全页数据
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 资料补全页展示所需的应用信息、缺失字段和回调地址。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformProfileCompletionPage'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/open-platform/profile-completion/continue:
+  post:
+    tags: [OpenPlatform]
+    operationId: continueOpenPlatformProfileCompletion
+    summary: 资料补全后继续开放平台授权
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformConsentDecisionRequest'
+    responses:
+      '200':
+        description: 返回下一步 redirectURL、consentURL 或 profileCompletionURL。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformAuthorizeResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/open-platform/userinfo:

@@ -147,9 +147,9 @@ func createMemberBlacklistSQL() string {
 		RETURNING ` + memberBlacklistColumns
 }
 
-func createMemberBlacklistArgs(id string, input MemberBlacklistCreateInput, now time.Time) []any {
+func createMemberBlacklistArgs(entryID string, input MemberBlacklistCreateInput, now time.Time) []any {
 	return []any{
-		id, input.Platform, input.SubjectType, input.SubjectID, input.ScopeType, input.GuildID,
+		entryID, input.Platform, input.SubjectType, input.SubjectID, input.ScopeType, input.GuildID,
 		input.Source, input.ReasonCode, input.ReasonText, input.CreatedByType, input.CreatedByID,
 		input.CreatedFrom, input.ExpiresAt, memberBlacklistMetadata(input.Metadata), now,
 	}
@@ -199,7 +199,8 @@ func memberBlacklistListClauses(filter MemberBlacklistListFilter, now time.Time)
 	addMemberBlacklistStringFilter(&clauses, &args, "source", string(filter.Source))
 	addMemberBlacklistStringFilter(&clauses, &args, "guild_id", filter.GuildID)
 	addMemberBlacklistStringFilter(&clauses, &args, "created_by_id", filter.CreatedByID)
-	return append(clauses, memberBlacklistStatusClause(filter.Status, &args, now)), args
+	statusClause := memberBlacklistStatusClause(filter.Status, &args, now)
+	return append(clauses, statusClause), args
 }
 
 func addMemberBlacklistStringFilter(clauses *[]string, args *[]any, column string, value string) {

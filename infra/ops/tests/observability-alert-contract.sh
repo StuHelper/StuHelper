@@ -35,6 +35,8 @@ assert_contains "StuHelperIAMDriftReconciliationThresholdExceeded"
 assert_contains "increase(iam_drift_reconciliation_threshold_exceeded_total[10m]) > 0"
 assert_contains "IAM drift reconciliation exceeded automatic repair threshold"
 assert_contains 'probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"} == 0'
+assert_contains 'probe_success{job="blackbox-http",instance="https://id.stuhelper.com/.well-known/openid-configuration"} == 0'
 assert_prometheus_contains "https://sso.stuhelper.com/.well-known/openid-configuration"
+assert_prometheus_contains "https://id.stuhelper.com/.well-known/openid-configuration"
 
 echo "[observability-alert-contract] all assertions passed"

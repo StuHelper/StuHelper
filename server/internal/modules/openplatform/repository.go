@@ -41,6 +41,27 @@ func (r *Repository) CreateApp(ctx context.Context, app *App, scopes []ScopeRequ
 	})
 }
 
+func (r *Repository) ImportApprovedApp(ctx context.Context, app *App, scopes []ScopeRequest, reviewerUserID int64) error {
+	return r.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if err := insertAppTx(ctx, tx, app); err != nil {
+			if isUniqueViolation(err) {
+				return ErrAppAlreadyExists
+			}
+			return err
+		}
+		for i := range scopes {
+			scopes[i].AppID = app.ID
+			if err := upsertApprovedScopeRequest(ctx, tx.Exec, &scopes[i]); err != nil {
+				return err
+			}
+			if err := insertApprovedScope(ctx, tx.Exec, app.ID, scopes[i].Scope, reviewerUserID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func insertAppTx(ctx context.Context, tx pgx.Tx, app *App) error {
 	redirects, err := json.Marshal(app.RedirectURIs)
 	if err != nil {
@@ -69,6 +90,33 @@ func insertScopeRequest(ctx context.Context, exec execFn, req *ScopeRequest) err
 		req.ReviewedAt, req.DecisionNote)
 }
 
+func upsertApprovedScopeRequest(ctx context.Context, exec execFn, req *ScopeRequest) error {
+	return execRow(ctx, exec, `
+		INSERT INTO open_platform_scope_requests (
+			app_id, scope, reason, status, reviewer_user_id, reviewed_at,
+			decision_note, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, NOW(), $6, NOW(), NOW())
+		ON CONFLICT (app_id, scope) DO UPDATE SET
+			reason = EXCLUDED.reason,
+			status = EXCLUDED.status,
+			reviewer_user_id = EXCLUDED.reviewer_user_id,
+			reviewed_at = NOW(),
+			decision_note = EXCLUDED.decision_note,
+			updated_at = NOW()
+	`, req.AppID, req.Scope, req.Reason, ScopeStatusApproved, req.ReviewerUserID,
+		req.DecisionNote)
+}
+
+func insertApprovedScope(ctx context.Context, exec execFn, appID int64, scope string, reviewerUserID int64) error {
+	return execRow(ctx, exec, `
+		INSERT INTO open_platform_approved_scopes (app_id, scope, approved_at, approved_by)
+		VALUES ($1, $2, NOW(), $3)
+		ON CONFLICT (app_id, scope) DO UPDATE SET
+			approved_at = EXCLUDED.approved_at,
+			approved_by = EXCLUDED.approved_by
+	`, appID, scope, reviewerUserID)
+}
+
 func (r *Repository) GetAppByID(ctx context.Context, appID int64) (*App, error) {
 	app, err := scanApp(r.db.QueryRow(ctx, `
 		SELECT id, casdoor_application_name, owner_user_id, client_id,
@@ -93,6 +141,17 @@ func (r *Repository) GetAppByClientID(ctx context.Context, clientID string) (*Ap
 	`, clientID))
 	if err != nil {
 		return nil, fmt.Errorf("GetAppByClientID: %w", err)
+	}
+	return app, nil
+}
+
+func (r *Repository) VerifyClientSecret(ctx context.Context, clientID, clientSecret string) (*App, error) {
+	app, err := r.GetAppByClientID(ctx, clientID)
+	if err != nil {
+		return nil, err
+	}
+	if app.ClientSecretHash == "" || hashClientSecret(clientSecret) != app.ClientSecretHash {
+		return nil, ErrAppNotFound
 	}
 	return app, nil
 }
@@ -223,4 +282,9 @@ func (r *Repository) ListApprovedScopes(ctx context.Context, appID int64) ([]str
 func execRow(ctx context.Context, exec execFn, sql string, args ...any) error {
 	_, err := exec(ctx, sql, args...)
 	return err
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

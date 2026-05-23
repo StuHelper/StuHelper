@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { reactive, watch } from 'vue';
+
 import {
   ElButton,
   ElDialog,
@@ -13,22 +15,42 @@ import {
 import { $t } from '#/locales';
 
 type Level = 'block' | 'review' | 'warn';
+type SensitiveWordForm = {
+  category: string;
+  id: string;
+  isActive: boolean;
+  level: Level;
+  word: string;
+};
 
-defineProps<{
-  form: {
-    category: string;
-    id: string;
-    isActive: boolean;
-    level: Level;
-    word: string;
-  };
+const props = defineProps<{
+  form: SensitiveWordForm;
   isEdit: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'submit'): void;
+  (e: 'submit', form: SensitiveWordForm): void;
 }>();
 const visible = defineModel<boolean>('visible', { required: true });
+const draft = reactive<SensitiveWordForm>({
+  category: '',
+  id: '',
+  isActive: true,
+  level: 'block',
+  word: '',
+});
+
+watch(
+  () => props.form,
+  (form) => {
+    Object.assign(draft, form);
+  },
+  { deep: true, immediate: true },
+);
+
+function submit() {
+  emit('submit', { ...draft });
+}
 </script>
 
 <template>
@@ -44,19 +66,19 @@ const visible = defineModel<boolean>('visible', { required: true });
     <ElForm label-width="80px">
       <ElFormItem :label="$t('admin.content.sensitiveWords.word')">
         <ElInput
-          v-model="form.word"
+          v-model="draft.word"
           :placeholder="$t('admin.content.sensitiveWords.wordPlaceholder')"
         />
       </ElFormItem>
       <ElFormItem :label="$t('admin.content.sensitiveWords.category')">
         <ElInput
-          v-model="form.category"
+          v-model="draft.category"
           :placeholder="$t('admin.content.sensitiveWords.categoryPlaceholder')"
         />
       </ElFormItem>
       <ElFormItem :label="$t('admin.content.sensitiveWords.level')">
         <ElSelect
-          v-model="form.level"
+          v-model="draft.level"
           :placeholder="$t('admin.content.sensitiveWords.levelPlaceholder')"
           style="width: 100%"
         >
@@ -75,14 +97,14 @@ const visible = defineModel<boolean>('visible', { required: true });
         </ElSelect>
       </ElFormItem>
       <ElFormItem :label="$t('admin.content.sensitiveWords.active')">
-        <ElSwitch v-model="form.isActive" />
+        <ElSwitch v-model="draft.isActive" />
       </ElFormItem>
     </ElForm>
     <template #footer>
       <ElButton @click="visible = false">
         {{ $t('admin.common.cancel') }}
       </ElButton>
-      <ElButton type="primary" @click="emit('submit')">
+      <ElButton type="primary" @click="submit">
         {{ $t('admin.common.confirm') }}
       </ElButton>
     </template>

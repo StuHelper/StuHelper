@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf
-last-verified: 2026-05-09
+last-verified: 2026-05-22
 ---
 
 # 生产上线缺漏清单与执行指导
@@ -17,20 +17,20 @@ last-verified: 2026-05-09
   - backend：`127.0.0.1:18080`
   - web：`127.0.0.1:18000`
   - admin：`127.0.0.1:18001`
-- `stuhelper.com` 承载主站、后台和 API；`sso.stuhelper.com` 是外部 Casdoor SSO。
+- `stuhelper.com` 承载主站、后台和 API；`id.stuhelper.com` 承载 StuHelper Identity/OIDC；`sso.stuhelper.com` 是外部 Casdoor SSO。
 - Traefik 保留给开发或可选内部网关，不作为当前生产公网入口。
 
 ## 缺漏清单
 
 | 项目 | 当前状态 | 上线前动作 | 是否阻断 |
 |------|----------|------------|----------|
-| 域名 DNS | 仓库不能代配 | `stuhelper.com`、`www.stuhelper.com` A/AAAA 记录指向生产机；`sso.stuhelper.com` 指向 SSO 机器 | 是 |
+| 域名 DNS | 仓库不能代配 | `stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` A/AAAA 记录指向生产机；`sso.stuhelper.com` 指向 SSO 机器 | 是 |
 | 宝塔 Nginx 反代 | 仓库已提供 `infra/nginx/baota-stuhelper.conf` | 在宝塔站点配置中合并该文件，证书生效后 reload Nginx | 是 |
 | Docker 生产端口 | 仓库已在 `docker-compose.prod.yml` 绑定 `127.0.0.1:18080/18000/18001` | 保持默认端口，确认防火墙没有把这些端口开放公网 | 是 |
 | 远端 secret backend | 脚本要求生产使用非 file secret backend | 配置 `.deploy/remote.env` 中的 `SECRET_BACKEND=vault-kv-v2`、`VAULT_ADDR`、`VAULT_TOKEN_FILE`、`*_SECRET_REF` | 是 |
 | 生产环境变量 | `.env.prod.example` 已按 `stuhelper.com` 预设主站 URL | 替换所有 `REPLACE_WITH_*` 和镜像占位符；不得提交 `.env.prod.*` | 是 |
 | 不可变镜像 | 脚本会拒绝 `latest` / 浮动 tag | 准备 `BACKEND_IMAGE_REF`、`FRONTEND_IMAGE_REF`、`ADMIN_IMAGE_REF`，使用明确 tag 或 digest | 是 |
-| Casdoor SSO | 主站 Compose 不启动本地 Casdoor | 确认 `https://sso.stuhelper.com` 可达，准备 bootstrap 管理应用凭据和各一方应用 client secret | 是 |
+| Casdoor SSO | 主站 Compose 不启动本地 Casdoor | 确认 `https://sso.stuhelper.com` 可达，准备 bootstrap 管理应用凭据和 `stuhelper-identity` 一方应用 client secret | 是 |
 | SMS | 生产强制 `SMS_ENABLED=true` | 配置短信厂商 `SMS_SECRET_ID`、`SMS_SECRET_KEY`、`SMS_APP_ID`、签名、模板 | 是 |
 | 对象存储 | 后端生产要求 `OBJECT_STORAGE_USE_SSL=true` | 配置 HTTPS S3 兼容 endpoint、bucket、access key；本仓库未把内置 MinIO 暴露成生产 HTTPS 对象存储入口 | 是 |
 | 备份对象存储 | 发布脚本会拒绝备份对象存储占位符 | 配置 `BACKUP_OBJECT_STORAGE_*`，并确认 `sync-postgres-backups.sh` 能写入 | 是 |
@@ -77,6 +77,7 @@ DNS：
 ```text
 stuhelper.com      A/AAAA -> 主站生产机
 www.stuhelper.com  A/AAAA -> 主站生产机
+id.stuhelper.com   A/AAAA -> 主站生产机
 sso.stuhelper.com  A/AAAA -> Casdoor SSO 机器
 ```
 
@@ -86,6 +87,7 @@ sso.stuhelper.com  A/AAAA -> Casdoor SSO 机器
 
 ```bash
 curl -I https://stuhelper.com
+curl -fsS https://id.stuhelper.com/.well-known/openid-configuration | head
 curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
 ```
 
@@ -102,6 +104,12 @@ curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
 /docs/*     -> http://127.0.0.1:18080
 /admin/*    -> http://127.0.0.1:18001
 /           -> http://127.0.0.1:18000
+
+id.stuhelper.com /.well-known/* -> http://127.0.0.1:18080
+id.stuhelper.com /oauth2/*      -> http://127.0.0.1:18080
+id.stuhelper.com /oidc/*        -> http://127.0.0.1:18080
+id.stuhelper.com /api/*         -> http://127.0.0.1:18080
+id.stuhelper.com /              -> http://127.0.0.1:18000
 ```
 
 宝塔面板保存后执行 Nginx 配置测试和 reload。命令路径随宝塔安装方式可能不同；至少要在面板里看到 Nginx 测试通过。
@@ -155,13 +163,16 @@ GENERATED_SECRET_ENV_FILE=.env.prod.generated.secrets \
 然后填写 `.env.prod.shared` 和 `.env.prod.secrets` 中的占位符。核心项：
 
 ```bash
-CORS_ORIGINS=https://stuhelper.com
+CORS_ORIGINS=https://stuhelper.com,https://id.stuhelper.com
 WEB_PUBLIC_URL=https://stuhelper.com
 ADMIN_PUBLIC_URL=https://stuhelper.com/admin/
 WEB_VITE_API_URL=/api
 WEB_VITE_SSO_URL=https://sso.stuhelper.com
 ADMIN_VITE_API_URL=/api/v1
 ADMIN_VITE_BASE=/admin/
+IDENTITY_ISSUER=https://id.stuhelper.com
+TOKEN_COOKIE_SECURE=true
+TOKEN_COOKIE_DOMAIN=.stuhelper.com
 
 CASDOOR_ISSUER=https://sso.stuhelper.com
 CASDOOR_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
@@ -172,6 +183,8 @@ WEB_EXTERNAL_PORT=18000
 ADMIN_EXTERNAL_PORT=18001
 ```
 
+`id.stuhelper.com` 的 `/login` 页面会复用主站后端会话。`CASDOOR_REDIRECT_URI` 固定回到 `stuhelper.com/api/v1/auth/callback` 时，生产必须设置 `TOKEN_COOKIE_DOMAIN=.stuhelper.com`，否则回到 `id.stuhelper.com/oauth2/authorize` 时浏览器不会携带登录 cookie，第三方授权会进入重复登录。
+
 必须替换的外部依赖：
 
 - `CASDOOR_CLIENT_ID` / `CASDOOR_CLIENT_SECRET`
@@ -181,6 +194,7 @@ ADMIN_EXTERNAL_PORT=18001
 - `CASDOOR_INTROSPECTION_*`
 - `CASDOOR_ROLE_SYNC_*`
 - `CASDOOR_USER_LOOKUP_*`
+- `IDENTITY_SIGNING_PRIVATE_KEY_PEM`
 - `SMS_*`
 - `OBJECT_STORAGE_*`
 - `BACKUP_OBJECT_STORAGE_*`
@@ -348,6 +362,7 @@ curl -fsSI https://stuhelper.com/
 curl -fsS https://stuhelper.com/health/ready
 curl -fsSI https://stuhelper.com/admin/
 curl -fsS https://stuhelper.com/api/v1/course/departments
+curl -fsS https://id.stuhelper.com/.well-known/openid-configuration | head
 curl -fsS https://sso.stuhelper.com/.well-known/openid-configuration | head
 ```
 
@@ -393,6 +408,7 @@ make prod-rollback
 同时满足下面条件，才算主站生产落地完成：
 
 - `https://stuhelper.com/`、`/admin/`、`/api/v1/*`、`/health/ready` 可通过宝塔 Nginx 访问。
+- `https://id.stuhelper.com/.well-known/openid-configuration`、`/oauth2/authorize`、`/oidc/userinfo` 路由到主站后端。
 - `https://sso.stuhelper.com/.well-known/openid-configuration` 可访问，登录 URL 能生成。
 - `make prod-deploy` 或 `remote-prod-deploy.sh` 完整通过。
 - `smoke-check.sh` 和 `observability-smoke-check.sh` 完整通过。

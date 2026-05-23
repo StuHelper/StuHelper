@@ -23,7 +23,12 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: `cd ${JSON.stringify(workspaceRoot)} && VITE_DEV_PROXY_TARGET=http://127.0.0.1:8080 pnpm -F @vben/web-ele exec vite --mode development --host 127.0.0.1 --port ${port}`,
+    command: `cd ${JSON.stringify(workspaceRoot)} && pnpm -F @vben/web-ele exec vite --mode development --host 127.0.0.1 --port ${port}`,
+    env: {
+      ...process.env,
+      VITE_DEV_PROXY_TARGET:
+        process.env.VITE_DEV_PROXY_TARGET ?? 'http://127.0.0.1:8080',
+    },
     reuseExistingServer: !process.env.CI,
     url: `${baseURL}/auth/login`,
   },

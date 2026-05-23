@@ -20,6 +20,8 @@ const (
 	casdoorApplicationActionRotate = "secret_rotated"
 )
 
+var ErrApplicationNotFound = errors.New("casdoor: application not found")
+
 type ApplicationSpec struct {
 	Name                 string
 	DisplayName          string
@@ -54,6 +56,21 @@ func (c *Client) UpdateApplication(ctx context.Context, spec ApplicationSpec) er
 		return err
 	}
 	return c.updateApplication(ctx, app, existing)
+}
+
+func (c *Client) GetApplication(ctx context.Context, name string) (ApplicationSpec, error) {
+	name = strings.TrimSpace(name)
+	if err := validateName("application name", name); err != nil {
+		return ApplicationSpec{}, err
+	}
+	app, err := c.getApplication(ctx, name)
+	if err != nil {
+		return ApplicationSpec{}, err
+	}
+	if app == nil {
+		return ApplicationSpec{}, ErrApplicationNotFound
+	}
+	return applicationSpecFromCasdoor(app), nil
 }
 
 func (c *Client) DeleteApplication(ctx context.Context, name string) error {
@@ -113,6 +130,27 @@ func applicationSecretRotated(existing, desired *casdoorsdk.Application) bool {
 	oldSecret := strings.TrimSpace(existing.ClientSecret)
 	newSecret := strings.TrimSpace(desired.ClientSecret)
 	return oldSecret != "" && newSecret != "" && oldSecret != newSecret
+}
+
+func applicationSpecFromCasdoor(app *casdoorsdk.Application) ApplicationSpec {
+	if app == nil {
+		return ApplicationSpec{}
+	}
+	return ApplicationSpec{
+		Name:                 app.Name,
+		DisplayName:          app.DisplayName,
+		Logo:                 app.Logo,
+		HomepageURL:          app.HomepageUrl,
+		Description:          app.Description,
+		ClientID:             app.ClientId,
+		ClientSecret:         app.ClientSecret,
+		RedirectURIs:         append([]string(nil), app.RedirectUris...),
+		GrantTypes:           append([]string(nil), app.GrantTypes...),
+		TokenFormat:          app.TokenFormat,
+		TokenFields:          append([]string(nil), app.TokenFields...),
+		ExpireInHours:        app.ExpireInHours,
+		RefreshExpireInHours: app.RefreshExpireInHours,
+	}
 }
 
 func auditCasdoorApplication(ctx context.Context, credential Credential, appName string, action string) {

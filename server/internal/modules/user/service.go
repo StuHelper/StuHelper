@@ -158,6 +158,18 @@ type profileIdentitySyncGateway interface {
 	UpdatePhone(ctx context.Context, subject, phone string) error
 }
 
+// Service 用户服务层
+type Service struct {
+	repo                Repo
+	ldapClientFactory   ldapClientFactory
+	hmacKey             []byte
+	docCipher           pii.EncryptDecryptor
+	onRoleSync          RoleSyncFunc
+	profileFGA          profileFGAClient
+	photoStore          identityPhotoStore
+	profileIdentitySync profileIdentitySyncGateway
+}
+
 // RoleSyncFunc 角色同步回调。
 // 当用户认证状态变化时调用：approved=true 添加角色，approved=false 移除角色。
 // userID 是内部 users.id，role 是 Casdoor 扁平角色名称。
@@ -199,18 +211,6 @@ func WithLDAPClientFactory(factory ldapClientFactory) ServiceOption {
 			s.ldapClientFactory = factory
 		}
 	}
-}
-
-// Service 用户服务层
-type Service struct {
-	repo                Repo
-	ldapClientFactory   ldapClientFactory
-	hmacKey             []byte
-	docCipher           pii.EncryptDecryptor
-	onRoleSync          RoleSyncFunc
-	profileFGA          profileFGAClient
-	photoStore          identityPhotoStore
-	profileIdentitySync profileIdentitySyncGateway
 }
 
 // NewService 创建用户服务（构造期校验关键依赖）

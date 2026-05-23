@@ -17,7 +17,7 @@ const (
 // path) tuple as cookie creation.
 const (
 	CookieAccessTokenPath  = "/"
-	CookieRefreshTokenPath = "/api/v1/auth"
+	CookieRefreshTokenPath = "/api/v1/auth" //nolint:gosec // cookie path constant, not token secret material.
 )
 
 // tokenSource 标记 Token 来源

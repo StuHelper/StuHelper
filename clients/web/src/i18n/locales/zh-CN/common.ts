@@ -112,8 +112,24 @@ export default {
       very_high: '极高敏感'
     }
   },
+  openPlatformProfileCompletion: {
+    loading: '正在检查账户资料...',
+    loadFailed: '资料补全请求加载失败',
+    invalidToken: '资料补全请求已失效或缺少 token',
+    submitFailed: '继续授权失败，请重试',
+    title: '继续登录 {app} 前需要补全资料',
+    identityLine: '当前账号：{user}',
+    requiredFields: '需要补全',
+    requestedPermissions: '应用请求的信息',
+    openAction: '去补全',
+    continue: '我已补全，继续',
+    continuing: '正在继续...',
+    refresh: '重新检查',
+    noMissingFields: '资料已满足本次授权请求',
+    expiresAt: '有效至 {time}'
+  },
   openPlatformAuthorize: {
-    title: '正在前往 StuHelper Connect',
+    title: '正在前往 StuHelper Identity',
     subtitle: '正在检查应用和授权范围',
     failed: '无法发起授权',
     invalidRequest: '授权请求缺少必要参数'

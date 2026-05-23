@@ -33,15 +33,43 @@ OpenPlatformAuthorizeResponse:
     redirectURL:
       type: string
       format: uri
-      description: 已授权时返回的 Casdoor OIDC authorize URL。
+      description: 已授权时返回的下一步 OAuth/OIDC redirect URL。
     consentURL:
       type: string
       format: uri-reference
       description: 需要用户确认授权时返回的 StuHelper 授权页 URL。
+    profileCompletionURL:
+      type: string
+      format: uri-reference
+      description: 需要用户补全资料时返回的资料补全页 URL。
     scopes:
       type: array
       items:
         $ref: '#/OpenPlatformScopeDefinition'
+    missingFields:
+      type: array
+      items:
+        $ref: '#/OpenPlatformProfileCompletionField'
+
+OpenPlatformProfileCompletionField:
+  type: object
+  required: [key, displayName, actionURL]
+  properties:
+    key:
+      type: string
+      enum:
+        - profile.username
+        - profile.email
+        - profile.avatar
+        - profile.phone
+        - profile.identity
+        - profile.student
+        - profile.school
+    displayName:
+      type: string
+    actionURL:
+      type: string
+      format: uri-reference
 
 OpenPlatformConsentApp:
   type: object
@@ -75,6 +103,29 @@ OpenPlatformConsentPage:
       type: array
       items:
         $ref: '#/OpenPlatformScopeDefinition'
+    redirectURI:
+      type: string
+      format: uri
+    expiresAt:
+      type: string
+      format: date-time
+
+OpenPlatformProfileCompletionPage:
+  type: object
+  required: [token, app, scopes, missingFields, redirectURI, expiresAt]
+  properties:
+    token:
+      type: string
+    app:
+      $ref: '#/OpenPlatformConsentApp'
+    scopes:
+      type: array
+      items:
+        $ref: '#/OpenPlatformScopeDefinition'
+    missingFields:
+      type: array
+      items:
+        $ref: '#/OpenPlatformProfileCompletionField'
     redirectURI:
       type: string
       format: uri
@@ -195,6 +246,55 @@ OpenPlatformApprovedApp:
     clientSecret:
       type: string
       description: 只在批准时返回一次，调用方必须自行保存。
+
+OpenPlatformImportCasdoorAppRequest:
+  type: object
+  required: [casdoorApplicationName, privacyPolicyURL, scopes]
+  properties:
+    casdoorApplicationName:
+      type: string
+      description: sso.stuhelper.com/Casdoor 中的 legacy application name。
+    displayName:
+      type: string
+      description: 可选覆盖；为空时使用 Casdoor application displayName/name。
+    description:
+      type: string
+      description: 可选覆盖；为空时使用 Casdoor application description。
+    homepageURL:
+      type: string
+      format: uri
+      description: 可选覆盖；为空时使用 Casdoor application homepageUrl。
+    privacyPolicyURL:
+      type: string
+      format: uri
+      description: id 授权页展示用隐私政策 URL；Casdoor 不提供该字段，导入时必须显式给出。
+    redirectURIs:
+      type: array
+      description: 可选覆盖；为空时使用 Casdoor application redirectUris。
+      items:
+        type: string
+        format: uri
+    clientSecret:
+      type: string
+      description: 可选；用于保留原 client_secret。为空时优先使用 Casdoor 返回的 secret，否则生成新 secret。
+    scopes:
+      type: array
+      minItems: 1
+      items:
+        $ref: '#/OpenPlatformScopeRequestInput'
+
+OpenPlatformImportedApp:
+  type: object
+  required: [app, clientSecretSource]
+  properties:
+    app:
+      $ref: '#/OpenPlatformApp'
+    clientSecret:
+      type: string
+      description: 当 secret 来源为 casdoor 或 generated 时返回；来源为 provided 时不回显。
+    clientSecretSource:
+      type: string
+      enum: [provided, casdoor, generated]
 
 OpenPlatformApproveScopeRequest:
   type: object

@@ -122,6 +122,28 @@ function setupCommonMocks(page: Page) {
         }),
       }),
     ),
+    page.route('**/api/v1/course/courses/grouped', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            groups: [
+              {
+                departmentID: 1,
+                departmentName: '计算机科学与技术学院',
+                courses: [courses[0]],
+              },
+              {
+                departmentID: 2,
+                departmentName: '数学科学学院',
+                courses: [courses[1]],
+              },
+            ],
+          },
+        }),
+      }),
+    ),
     page.route('**/api/v1/course/stats', (route) =>
       route.fulfill({
         contentType: 'application/json',
@@ -164,11 +186,11 @@ test.describe('User Journey: Browse Platform', () => {
     await page.goto('/courses')
     await page.waitForLoadState('networkidle')
 
-    // Course names from the community hub mock data appear
-    await expect(page.getByText('数据结构与算法')).toBeVisible({
+    // Current community hub shows entry points before the full catalog.
+    await expect(page.getByRole('heading', { name: '评课社区@BUAA' })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(page.getByText('高等数学A')).toBeVisible()
+    await expect(page.getByRole('link', { name: '查看所有课程' })).toBeVisible()
 
     // Navigate to course catalog
     await page.goto('/courses/list')

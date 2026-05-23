@@ -113,23 +113,11 @@ func (h *Handler) requireBotCredential(scope string) gin.HandlerFunc {
 }
 
 func botSessionCreateInput(req botSessionCreateHTTPRequest) BotSessionCreateInput {
-	return BotSessionCreateInput{
-		Platform:   req.Platform,
-		GuildID:    req.GuildID,
-		ChannelID:  req.ChannelID,
-		QQID:       req.QQID,
-		QQNickname: req.QQNickname,
-		BotSelfID:  req.BotSelfID,
-	}
+	return BotSessionCreateInput(req)
 }
 
 func botEventInput(req botAdmissionEventHTTPRequest) BotEventInput {
-	return BotEventInput{
-		Action:    req.Action,
-		Success:   req.Success,
-		MessageID: req.MessageID,
-		Error:     req.Error,
-	}
+	return BotEventInput(req)
 }
 
 func botFreshmanReviewInput(applicationID string, req botFreshmanReviewHTTPRequest) BotFreshmanReviewInput {

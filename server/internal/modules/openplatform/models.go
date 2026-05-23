@@ -45,16 +45,22 @@ type App struct {
 }
 
 type AuthorizeRequest struct {
-	ClientID    string
-	RedirectURI string
-	Scopes      []string
-	State       string
+	ClientID            string
+	RedirectURI         string
+	Scopes              []string
+	State               string
+	Flow                string
+	CodeChallenge       string
+	CodeChallengeMethod string
+	Nonce               string
 }
 
 type AuthorizeResult struct {
-	RedirectURL string
-	ConsentURL  string
-	Scopes      []ScopeDefinition
+	RedirectURL          string
+	ConsentURL           string
+	ProfileCompletionURL string
+	Scopes               []ScopeDefinition
+	MissingFields        []ProfileCompletionField
 }
 
 type ScopeRequest struct {
@@ -81,7 +87,6 @@ type Consent struct {
 }
 
 type UserProjection struct {
-	CasdoorSubject   string
 	Username         string
 	Email            string
 	AvatarURL        *string
@@ -93,15 +98,28 @@ type UserProjection struct {
 	SchoolName       *string
 }
 
+type AuthorizationDecision struct {
+	App                  *App
+	UserID               int64
+	Scopes               []string
+	ConsentURL           string
+	ProfileCompletionURL string
+	MissingFields        []ProfileCompletionField
+}
+
 type ConsentChallenge struct {
-	Token       string
-	AppID       int64
-	UserID      int64
-	Scopes      []string
-	RedirectURI string
-	State       string
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
+	Token               string
+	AppID               int64
+	UserID              int64
+	Scopes              []string
+	RedirectURI         string
+	State               string
+	Flow                string
+	CodeChallenge       string
+	CodeChallengeMethod string
+	Nonce               string
+	CreatedAt           time.Time
+	ExpiresAt           time.Time
 }
 
 type ConsentPage struct {
@@ -122,23 +140,91 @@ type ConsentApp struct {
 }
 
 type ConsentChallengePayload struct {
-	AppID       int64    `json:"appID"`
-	UserID      int64    `json:"userID"`
-	Scopes      []string `json:"scopes"`
-	RedirectURI string   `json:"redirectURI"`
-	State       string   `json:"state"`
-	CreatedAt   string   `json:"createdAt"`
-	ExpiresAt   string   `json:"expiresAt"`
+	AppID               int64    `json:"appID"`
+	UserID              int64    `json:"userID"`
+	Scopes              []string `json:"scopes"`
+	RedirectURI         string   `json:"redirectURI"`
+	State               string   `json:"state"`
+	Flow                string   `json:"flow,omitempty"`
+	CodeChallenge       string   `json:"codeChallenge,omitempty"`
+	CodeChallengeMethod string   `json:"codeChallengeMethod,omitempty"`
+	Nonce               string   `json:"nonce,omitempty"`
+	CreatedAt           string   `json:"createdAt"`
+	ExpiresAt           string   `json:"expiresAt"`
 }
 
 func (c ConsentChallenge) MarshalPayload() ([]byte, error) {
 	return json.Marshal(ConsentChallengePayload{
-		AppID:       c.AppID,
-		UserID:      c.UserID,
-		Scopes:      c.Scopes,
-		RedirectURI: c.RedirectURI,
-		State:       c.State,
-		CreatedAt:   c.CreatedAt.UTC().Format(time.RFC3339Nano),
-		ExpiresAt:   c.ExpiresAt.UTC().Format(time.RFC3339Nano),
+		AppID:               c.AppID,
+		UserID:              c.UserID,
+		Scopes:              c.Scopes,
+		RedirectURI:         c.RedirectURI,
+		State:               c.State,
+		Flow:                c.Flow,
+		CodeChallenge:       c.CodeChallenge,
+		CodeChallengeMethod: c.CodeChallengeMethod,
+		Nonce:               c.Nonce,
+		CreatedAt:           c.CreatedAt.UTC().Format(time.RFC3339Nano),
+		ExpiresAt:           c.ExpiresAt.UTC().Format(time.RFC3339Nano),
 	})
+}
+
+type ProfileCompletionField struct {
+	Key         string `json:"key"`
+	DisplayName string `json:"displayName"`
+	ActionURL   string `json:"actionURL"`
+}
+
+type ProfileCompletionChallenge struct {
+	Token               string
+	AppID               int64
+	UserID              int64
+	Scopes              []string
+	RedirectURI         string
+	State               string
+	Flow                string
+	CodeChallenge       string
+	CodeChallengeMethod string
+	Nonce               string
+	CreatedAt           time.Time
+	ExpiresAt           time.Time
+}
+
+type ProfileCompletionChallengePayload struct {
+	AppID               int64    `json:"appID"`
+	UserID              int64    `json:"userID"`
+	Scopes              []string `json:"scopes"`
+	RedirectURI         string   `json:"redirectURI"`
+	State               string   `json:"state"`
+	Flow                string   `json:"flow,omitempty"`
+	CodeChallenge       string   `json:"codeChallenge,omitempty"`
+	CodeChallengeMethod string   `json:"codeChallengeMethod,omitempty"`
+	Nonce               string   `json:"nonce,omitempty"`
+	CreatedAt           string   `json:"createdAt"`
+	ExpiresAt           string   `json:"expiresAt"`
+}
+
+func (c ProfileCompletionChallenge) MarshalPayload() ([]byte, error) {
+	return json.Marshal(ProfileCompletionChallengePayload{
+		AppID:               c.AppID,
+		UserID:              c.UserID,
+		Scopes:              c.Scopes,
+		RedirectURI:         c.RedirectURI,
+		State:               c.State,
+		Flow:                c.Flow,
+		CodeChallenge:       c.CodeChallenge,
+		CodeChallengeMethod: c.CodeChallengeMethod,
+		Nonce:               c.Nonce,
+		CreatedAt:           c.CreatedAt.UTC().Format(time.RFC3339Nano),
+		ExpiresAt:           c.ExpiresAt.UTC().Format(time.RFC3339Nano),
+	})
+}
+
+type ProfileCompletionPage struct {
+	Token         string
+	App           ConsentApp
+	Scopes        []ScopeDefinition
+	MissingFields []ProfileCompletionField
+	RedirectURI   string
+	ExpiresAt     time.Time
 }

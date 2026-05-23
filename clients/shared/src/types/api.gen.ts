@@ -260,8 +260,9 @@ export interface paths {
         };
         /**
          * 发起开放平台授权
-         * @description 第三方应用发起 StuHelper Connect 登录时调用。若用户已授予全部 scope，
-         *     返回 Casdoor OIDC authorize URL；否则返回 StuHelper 授权确认页 URL 和本次请求的字段清单。
+         * @description Legacy 授权辅助接口。新应用应直接接入 id.stuhelper.com 的 OIDC discovery；
+         *     该接口保留给站内授权页与历史调用方。若用户已授予全部 scope，
+         *     返回下一步 redirect URL；否则返回 StuHelper 授权确认页或资料补全页 URL。
          */
         get: operations["openPlatformAuthorize"];
         put?: never;
@@ -317,6 +318,40 @@ export interface paths {
         put?: never;
         /** 拒绝开放平台授权 */
         post: operations["denyOpenPlatformConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/profile-completion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取开放平台资料补全页数据 */
+        get: operations["getOpenPlatformProfileCompletion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/open-platform/profile-completion/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 资料补全后继续开放平台授权 */
+        post: operations["continueOpenPlatformProfileCompletion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -434,8 +469,31 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 批准开放平台应用并创建 Casdoor OIDC application */
+        /** 批准开放平台应用并签发 id.stuhelper.com client secret */
         post: operations["approveOpenPlatformApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/open-platform/apps/import-casdoor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 导入 legacy Casdoor 应用到 id.stuhelper.com
+         * @description 用于把历史上直接接入 sso.stuhelper.com/Casdoor 的应用导入 StuHelper Identity。
+         *     导入后应用应把 OIDC issuer/discovery 从 sso.stuhelper.com 切换到 id.stuhelper.com。
+         *     若未提供 clientSecret 且 Casdoor 可返回原 secret，则保留原 client_id/client_secret；
+         *     否则服务端生成新的 client secret 并只在本响应中返回一次。
+         */
+        post: operations["importOpenPlatformCasdoorApp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3165,7 +3223,7 @@ export interface components {
         OpenPlatformAuthorizeResponse: {
             /**
              * Format: uri
-             * @description 已授权时返回的 Casdoor OIDC authorize URL。
+             * @description 已授权时返回的下一步 OAuth/OIDC redirect URL。
              */
             redirectURL?: string;
             /**
@@ -3173,12 +3231,35 @@ export interface components {
              * @description 需要用户确认授权时返回的 StuHelper 授权页 URL。
              */
             consentURL?: string;
+            /**
+             * Format: uri-reference
+             * @description 需要用户补全资料时返回的资料补全页 URL。
+             */
+            profileCompletionURL?: string;
             scopes?: components["schemas"]["OpenPlatformScopeDefinition"][];
+            missingFields?: components["schemas"]["OpenPlatformProfileCompletionField"][];
         };
         OpenPlatformConsentPage: {
             token: string;
             app: components["schemas"]["OpenPlatformConsentApp"];
             scopes: components["schemas"]["OpenPlatformScopeDefinition"][];
+            /** Format: uri */
+            redirectURI: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        OpenPlatformProfileCompletionField: {
+            /** @enum {string} */
+            key: "profile.username" | "profile.email" | "profile.avatar" | "profile.phone" | "profile.identity" | "profile.student" | "profile.school";
+            displayName: string;
+            /** Format: uri-reference */
+            actionURL: string;
+        };
+        OpenPlatformProfileCompletionPage: {
+            token: string;
+            app: components["schemas"]["OpenPlatformConsentApp"];
+            scopes: components["schemas"]["OpenPlatformScopeDefinition"][];
+            missingFields: components["schemas"]["OpenPlatformProfileCompletionField"][];
             /** Format: uri */
             redirectURI: string;
             /** Format: date-time */
@@ -3210,6 +3291,36 @@ export interface components {
             app: components["schemas"]["OpenPlatformApp"];
             /** @description 只在批准时返回一次，调用方必须自行保存。 */
             clientSecret: string;
+        };
+        OpenPlatformImportCasdoorAppRequest: {
+            /** @description sso.stuhelper.com/Casdoor 中的 legacy application name。 */
+            casdoorApplicationName: string;
+            /** @description 可选覆盖；为空时使用 Casdoor application displayName/name。 */
+            displayName?: string;
+            /** @description 可选覆盖；为空时使用 Casdoor application description。 */
+            description?: string;
+            /**
+             * Format: uri
+             * @description 可选覆盖；为空时使用 Casdoor application homepageUrl。
+             */
+            homepageURL?: string;
+            /**
+             * Format: uri
+             * @description id 授权页展示用隐私政策 URL；Casdoor 不提供该字段，导入时必须显式给出。
+             */
+            privacyPolicyURL: string;
+            /** @description 可选覆盖；为空时使用 Casdoor application redirectUris。 */
+            redirectURIs?: string[];
+            /** @description 可选；用于保留原 client_secret。为空时优先使用 Casdoor 返回的 secret，否则生成新 secret。 */
+            clientSecret?: string;
+            scopes: components["schemas"]["OpenPlatformScopeRequestInput"][];
+        };
+        OpenPlatformImportedApp: {
+            app: components["schemas"]["OpenPlatformApp"];
+            /** @description 当 secret 来源为 casdoor 或 generated 时返回；来源为 provided 时不回显。 */
+            clientSecret?: string;
+            /** @enum {string} */
+            clientSecretSource: "provided" | "casdoor" | "generated";
         };
         OpenPlatformApproveScopeRequest: {
             decisionNote?: string;
@@ -4364,6 +4475,61 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    getOpenPlatformProfileCompletion: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 资料补全页展示所需的应用信息、缺失字段和回调地址。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformProfileCompletionPage"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    continueOpenPlatformProfileCompletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformConsentDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description 返回下一步 redirectURL、consentURL 或 profileCompletionURL。 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformAuthorizeResponse"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+        };
+    };
     getOpenPlatformUserInfo: {
         parameters: {
             query: {
@@ -4540,6 +4706,37 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    importOpenPlatformCasdoorApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenPlatformImportCasdoorAppRequest"];
+            };
+        };
+        responses: {
+            /** @description 应用已导入并处于 approved 状态。 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["OpenPlatformImportedApp"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };

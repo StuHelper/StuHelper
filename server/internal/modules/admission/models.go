@@ -36,7 +36,7 @@ type VerificationCredentialKind string
 
 const (
 	CredentialSchoolSSO              VerificationCredentialKind = "school_sso"
-	CredentialSchoolEmailOTP         VerificationCredentialKind = "school_email_otp"
+	CredentialSchoolEmailOTP         VerificationCredentialKind = "school_email_otp" //nolint:gosec // credential kind label, not secret material.
 	CredentialFreshmanMaterialManual VerificationCredentialKind = "freshman_material_manual"
 )
 

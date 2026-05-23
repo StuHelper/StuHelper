@@ -11,7 +11,7 @@
     "dist"
   ],
   "bin": {
-    "turbo-run": "./bin/turbo-run.mjs"
+    "turbo-run": "./cli.mjs"
   },
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",

@@ -112,8 +112,24 @@ export default {
       very_high: 'Very high'
     }
   },
+  openPlatformProfileCompletion: {
+    loading: 'Checking account profile...',
+    loadFailed: 'Failed to load profile completion request',
+    invalidToken: 'The profile completion request is expired or missing a token',
+    submitFailed: 'Failed to continue authorization. Please retry',
+    title: 'Complete your profile before continuing to {app}',
+    identityLine: 'Current account: {user}',
+    requiredFields: 'Required fields',
+    requestedPermissions: 'Requested information',
+    openAction: 'Complete',
+    continue: 'I have completed this',
+    continuing: 'Continuing...',
+    refresh: 'Check again',
+    noMissingFields: 'Your profile now satisfies this authorization request',
+    expiresAt: 'Valid until {time}'
+  },
   openPlatformAuthorize: {
-    title: 'Opening StuHelper Connect',
+    title: 'Opening StuHelper Identity',
     subtitle: 'Checking the application and requested scopes',
     failed: 'Unable to start authorization',
     invalidRequest: 'The authorization request is missing required parameters'

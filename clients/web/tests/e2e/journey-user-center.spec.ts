@@ -313,7 +313,7 @@ test.describe('User Journey: User Center', () => {
 
     // Should show empty state text
     await expect(
-      page.getByText(/还没有|no reviews|empty/i).first(),
+      page.getByText(/暂无评价|还没有|no reviews|empty/i).first(),
     ).toBeVisible({ timeout: 10_000 })
   })
 })

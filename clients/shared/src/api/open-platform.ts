@@ -3,6 +3,8 @@ import type { operations } from '../types/api.gen'
 
 type ConsentPageResponse =
   operations['getOpenPlatformConsent']['responses'][200]['content']['application/json']['data']
+type ProfileCompletionPageResponse =
+  operations['getOpenPlatformProfileCompletion']['responses'][200]['content']['application/json']['data']
 type AuthorizeResponse =
   operations['openPlatformAuthorize']['responses'][200]['content']['application/json']['data']
 type RedirectResponse =
@@ -40,10 +42,21 @@ export const createOpenPlatformApi = (client: ApiClient) => ({
     client.POST('/api/v1/open-platform/consent/deny', {
       body: { token },
     }),
+
+  getProfileCompletion: (token: string) =>
+    client.GET('/api/v1/open-platform/profile-completion', {
+      params: { query: { token } },
+    }),
+
+  continueProfileCompletion: (token: string) =>
+    client.POST('/api/v1/open-platform/profile-completion/continue', {
+      body: { token },
+    }),
 })
 
 export type {
   AuthorizeResponse as OpenPlatformAuthorizeResponse,
   ConsentPageResponse as OpenPlatformConsentPageResponse,
+  ProfileCompletionPageResponse as OpenPlatformProfileCompletionPageResponse,
   RedirectResponse as OpenPlatformRedirectResponse,
 }

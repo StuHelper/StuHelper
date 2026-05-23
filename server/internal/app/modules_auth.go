@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -30,7 +31,7 @@ func (rt *Runtime) initAuthModule(
 	authHandler := auth.NewHandler(
 		auth.HandlerConfig{
 			Token:               rt.cfg.Token,
-			CORSOrigins:         rt.cfg.App.CORSOrigins,
+			CORSOrigins:         rt.authRedirectOrigins(),
 			OIDCIssuer:          rt.cfg.Casdoor.Issuer,
 			ProviderTokenCipher: piiCipher,
 		},
@@ -52,6 +53,20 @@ func (rt *Runtime) initAuthModule(
 
 	optionalAuthMW := middleware.OptionalAuthMiddlewareWithRoleScopeResolver(rt.oidcClient, rt.tokenService, authCookieConfig, roleScopeResolver)
 	return authHandler, authMW, optionalAuthMW, nil
+}
+
+func (rt *Runtime) authRedirectOrigins() []string {
+	origins := append([]string(nil), rt.cfg.App.CORSOrigins...)
+	identityIssuer := strings.TrimRight(strings.TrimSpace(rt.identityIssuer()), "/")
+	if identityIssuer == "" {
+		return origins
+	}
+	for _, origin := range origins {
+		if strings.TrimRight(strings.TrimSpace(origin), "/") == identityIssuer {
+			return origins
+		}
+	}
+	return append(origins, identityIssuer)
 }
 
 func (rt *Runtime) registerUserRoutes(api *gin.RouterGroup, userHandler *user.Handler, authMW gin.HandlerFunc) {

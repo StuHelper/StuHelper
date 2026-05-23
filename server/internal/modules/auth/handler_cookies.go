@@ -20,7 +20,7 @@ const nativeSessionIDHeader = "X-Stuhelper-Session-ID"
 const sessionCookieName = middleware.CookieSessionID
 
 func (h *Handler) writeCookie(c *gin.Context, name, value string, maxAge int, path string, httpOnly bool) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ //nolint:gosec // cookie Secure flag is environment-configured through TokenConfig.
 		Name:     name,
 		Value:    value,
 		MaxAge:   maxAge,

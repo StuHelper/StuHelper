@@ -1,12 +1,14 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
 import { fileURLToPath, URL } from 'node:url'
 
 const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
+const e2eAPIStubEnabled = process.env.VITE_E2E_API_STUB === '1'
 
 // source-first：monorepo 内部直接解析 shared 源码，不依赖预构建 dist
 const sharedSrc = fileURLToPath(new URL('../shared/src', import.meta.url))
@@ -22,8 +24,42 @@ function resolveVueRuntimeEntry(packageName: string, entry: string) {
   return runtimeDomRequire.resolve(`${packageName}/dist/${entry}`)
 }
 
+function e2eAPIStubPlugin(): Plugin {
+  return {
+    name: 'stuhelper-e2e-api-stub',
+    configureServer(server) {
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
+        const requestURL = req.url ?? ''
+        if (!requestURL.startsWith('/api/')) {
+          next()
+          return
+        }
+
+        if (requestURL.includes('/notifications/stream')) {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'text/event-stream')
+          res.setHeader('Cache-Control', 'no-cache')
+          res.end()
+          return
+        }
+
+        if (requestURL === '/api/v1/metrics/vitals' || requestURL.startsWith('/api/v1/metrics/vitals?')) {
+          res.statusCode = 204
+          res.end()
+          return
+        }
+
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ data: null }))
+      })
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [
+    e2eAPIStubEnabled && e2eAPIStubPlugin(),
     vue(),
     tailwindcss(),
     AutoImport({
@@ -50,12 +86,26 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    proxy: {
-      '/api': {
-        target: devProxyTarget,
-        changeOrigin: true
-      }
-    }
+    proxy: e2eAPIStubEnabled
+      ? undefined
+      : {
+          '/api': {
+            target: devProxyTarget,
+            changeOrigin: true
+          },
+          '/.well-known': {
+            target: devProxyTarget,
+            changeOrigin: true
+          },
+          '/oauth2': {
+            target: devProxyTarget,
+            changeOrigin: true
+          },
+          '/oidc': {
+            target: devProxyTarget,
+            changeOrigin: true
+          }
+        }
   },
   build: {
     rollupOptions: {

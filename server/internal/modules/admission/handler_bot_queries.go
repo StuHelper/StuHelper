@@ -141,15 +141,7 @@ func (h *Handler) bindBotFreshmanCommand(c *gin.Context) (BotFreshmanCommandInpu
 }
 
 func botJoinRequestEventInput(req botJoinRequestEventHTTPRequest) AdmissionJoinRequestEventInput {
-	return AdmissionJoinRequestEventInput{
-		Platform:  req.Platform,
-		GuildID:   req.GuildID,
-		QQID:      req.QQID,
-		RequestID: req.RequestID,
-		Success:   req.Success,
-		Error:     req.Error,
-		RawEvent:  req.RawEvent,
-	}
+	return AdmissionJoinRequestEventInput(req)
 }
 
 func botFreshmanCommandInput(applicationID string, req botFreshmanCommandHTTPRequest) BotFreshmanCommandInput {

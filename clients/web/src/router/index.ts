@@ -77,7 +77,7 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.authCallback", guest: true, layout: "none" },
     },
     {
-        path: "/connect/consent",
+        path: "/consent",
         name: "open-platform-consent",
         component: lazyLoad(
             () => import("@/modules/open-platform/views/ConsentPage.vue"),
@@ -85,12 +85,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: "routes.openPlatformConsent", requiresAuth: true, layout: "none" },
     },
     {
-        path: "/connect/authorize",
-        name: "open-platform-authorize",
+        path: "/complete-profile",
+        name: "open-platform-profile-completion",
         component: lazyLoad(
-            () => import("@/modules/open-platform/views/AuthorizePage.vue"),
+            () => import("@/modules/open-platform/views/ProfileCompletionPage.vue"),
         ),
-        meta: { titleKey: "routes.openPlatformConsent", requiresAuth: true, layout: "none" },
+        meta: { titleKey: "routes.openPlatformProfileCompletion", requiresAuth: true, layout: "none" },
     },
     {
         path: "/admission/a/:code",

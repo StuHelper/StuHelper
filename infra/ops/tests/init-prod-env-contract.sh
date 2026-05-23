@@ -93,7 +93,8 @@ fresh_bootstrap_env="${fresh_dir}/.env.casdoor-bootstrap.local"
 
 assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
 assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置样板$'
-assert_env_value "${fresh_env}" "CORS_ORIGINS" "https://stuhelper.com"
+assert_env_value "${fresh_env}" "CORS_ORIGINS" "https://stuhelper.com,https://id.stuhelper.com"
+assert_env_value "${fresh_env}" "TOKEN_COOKIE_DOMAIN" ".stuhelper.com"
 assert_env_value "${fresh_env}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
 assert_env_value "${fresh_env}" "CASDOOR_REDIRECT_URI" "https://stuhelper.com/api/v1/auth/callback"
 assert_env_value "${fresh_env}" "CASDOOR_CLIENT_ID" "REPLACE_WITH_CASDOOR_CLIENT_ID"
@@ -122,6 +123,10 @@ assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-rol
 assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
 assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
 assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
+assert_env_value "${fresh_env}" "IDENTITY_ISSUER" "https://id.stuhelper.com"
+assert_env_value "${fresh_env}" "IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-1"
+assert_env_value "${fresh_env}" "IDENTITY_ACCESS_TOKEN_TTL" "900"
+assert_env_value "${fresh_env}" "IDENTITY_AUTH_CODE_TTL" "300"
 assert_env_value "${fresh_env}" "WEB_PUBLIC_URL" "https://stuhelper.com"
 assert_env_value "${fresh_env}" "ADMIN_PUBLIC_URL" "https://stuhelper.com/admin/"
 assert_env_value "${fresh_env}" "WEB_VITE_API_URL" "/api"
@@ -153,6 +158,7 @@ assert_file_contains "${fresh_secrets}" '^CASDOOR_USER_PROFILE_CLIENT_SECRET=pro
 assert_file_contains "${fresh_secrets}" '^CASDOOR_INTROSPECTION_CLIENT_SECRET=prod-casdoor-introspection-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_ROLE_SYNC_CLIENT_SECRET=prod-casdoor-role-sync-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_USER_LOOKUP_CLIENT_SECRET=prod-casdoor-user-lookup-[0-9a-f]+$'
+assert_env_value "${fresh_secrets}" "IDENTITY_SIGNING_PRIVATE_KEY_PEM" "REPLACE_WITH_IDENTITY_RSA_PRIVATE_KEY_PEM_OR_BASE64_PEM"
 assert_file_not_contains "${fresh_secrets}" '^CASDOOR_DB_PASSWORD='
 assert_env_value "${fresh_secrets}" "SMS_SECRET_ID" "REPLACE_WITH_SMS_SECRET_ID"
 assert_env_value "${fresh_secrets}" "SMS_SECRET_KEY" "REPLACE_WITH_SMS_SECRET_KEY"
@@ -187,7 +193,8 @@ bash "${INIT_SCRIPT}" >"${legacy_dir}/stdout.log" 2>"${legacy_dir}/stderr.log"
 
 legacy_env="${legacy_dir}/.env.prod.shared"
 assert_env_value "${legacy_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
-assert_env_value "${legacy_env}" "CORS_ORIGINS" "https://stuhelper.com"
+assert_env_value "${legacy_env}" "CORS_ORIGINS" "https://stuhelper.com,https://id.stuhelper.com"
+assert_env_value "${legacy_env}" "TOKEN_COOKIE_DOMAIN" ".stuhelper.com"
 assert_env_value "${legacy_env}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
 assert_env_value "${legacy_env}" "CASDOOR_INTERNAL_ADDRESS" ""
 assert_env_value "${legacy_env}" "CASDOOR_REDIRECT_URI" "https://stuhelper.com/api/v1/auth/callback"
@@ -215,6 +222,10 @@ assert_env_value "${legacy_env}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-ro
 assert_env_value "${legacy_env}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
 assert_env_value "${legacy_env}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
 assert_env_value "${legacy_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
+assert_env_value "${legacy_env}" "IDENTITY_ISSUER" "https://id.stuhelper.com"
+assert_env_value "${legacy_env}" "IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-1"
+assert_env_value "${legacy_env}" "IDENTITY_ACCESS_TOKEN_TTL" "900"
+assert_env_value "${legacy_env}" "IDENTITY_AUTH_CODE_TTL" "300"
 assert_env_value "${legacy_env}" "WEB_PUBLIC_URL" "https://stuhelper.com"
 assert_env_value "${legacy_env}" "ADMIN_PUBLIC_URL" "https://stuhelper.com/admin/"
 assert_env_value "${legacy_env}" "WEB_VITE_API_URL" "/api"

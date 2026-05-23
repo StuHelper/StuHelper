@@ -176,6 +176,10 @@ func TestValidate_ProductionRequiresObservability(t *testing.T) {
 			IntrospectionClientSecret: "introspection-secret",
 			Organization:              "stuhelper",
 		},
+		Identity: IdentityConfig{
+			AccessTokenTTL:       900,
+			AuthorizationCodeTTL: 300,
+		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
 			AuthorizationModelID: "model-id",
@@ -217,6 +221,18 @@ func TestValidate_ProductionRequiresSMSEnabled(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SMS_ENABLED must be true in production")
+}
+
+func TestValidate_ProductionRequiresIdentityIssuerAndSigningKey(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.Identity.Issuer = ""
+	c.Identity.SigningPrivateKeyPEM = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDENTITY_ISSUER is required in production")
+	assert.Contains(t, err.Error(), "IDENTITY_SIGNING_PRIVATE_KEY_PEM is required in production")
 }
 
 func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
@@ -342,6 +358,10 @@ func TestValidate_SMSRequiresFullConfigWhenEnabled(t *testing.T) {
 			IntrospectionClientSecret: "introspection-secret",
 			Organization:              "stuhelper",
 		},
+		Identity: IdentityConfig{
+			AccessTokenTTL:       900,
+			AuthorizationCodeTTL: 300,
+		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
 			AuthorizationModelID: "model-id",
@@ -404,6 +424,10 @@ func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 			IntrospectionClientID:     "introspection-client",
 			IntrospectionClientSecret: "introspection-secret",
 			Organization:              "stuhelper",
+		},
+		Identity: IdentityConfig{
+			AccessTokenTTL:       900,
+			AuthorizationCodeTTL: 300,
 		},
 		OpenFGA: OpenFGAConfig{
 			StoreID:              "store-id",
@@ -580,6 +604,13 @@ func validProductionConfigForTest() *Config {
 			UserLookupClientID:          "user-lookup-client",
 			UserLookupClientSecret:      "user-lookup-secret",
 			UserLookupApplication:       "stuhelper-user-lookup",
+		},
+		Identity: IdentityConfig{
+			Issuer:               "https://id.example.com",
+			SigningPrivateKeyPEM: "-----BEGIN RSA PRIVATE KEY-----\nplaceholder\n-----END RSA PRIVATE KEY-----",
+			SigningKeyID:         "stuhelper-identity-1",
+			AccessTokenTTL:       900,
+			AuthorizationCodeTTL: 300,
 		},
 		OpenFGA: OpenFGAConfig{StoreID: "store-id", AuthorizationModelID: "model-id", APIUrl: "http://openfga:8080"},
 		Observability: ObservabilityConfig{

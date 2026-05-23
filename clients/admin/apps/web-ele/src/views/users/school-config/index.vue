@@ -47,6 +47,8 @@ const form = reactive({
   verificationMethod: 'manual' as 'ldap' | 'manual',
 });
 
+type SchoolConfigForm = typeof form;
+
 function openEdit(row: SchoolConfig) {
   if (!canUpdateSchoolConfig()) {
     return;
@@ -65,32 +67,32 @@ function openEdit(row: SchoolConfig) {
   dialogVisible.value = true;
 }
 
-async function handleSubmit() {
+async function handleSubmit(submitted: SchoolConfigForm) {
   if (!canUpdateSchoolConfig() || submitting.value) {
     return;
   }
 
   const payload: UpdateSchoolConfigPayload = {
-    academicDbTable: form.academicDbTable || undefined,
-    consentText: form.consentText || undefined,
-    enabled: form.enabled,
+    academicDbTable: submitted.academicDbTable || undefined,
+    consentText: submitted.consentText || undefined,
+    enabled: submitted.enabled,
     ldapConfig:
-      form.verificationMethod === 'ldap'
+      submitted.verificationMethod === 'ldap'
         ? {
-            baseDN: form.ldapBaseDN || undefined,
-            systemBindDN: form.systemBindDN || undefined,
-            systemBindPassword: form.systemBindPassword || undefined,
-            url: form.ldapURL || undefined,
-            useTLS: form.useTLS,
+            baseDN: submitted.ldapBaseDN || undefined,
+            systemBindDN: submitted.systemBindDN || undefined,
+            systemBindPassword: submitted.systemBindPassword || undefined,
+            url: submitted.ldapURL || undefined,
+            useTLS: submitted.useTLS,
           }
         : undefined,
-    schoolName: form.schoolName,
-    verificationMethod: form.verificationMethod,
+    schoolName: submitted.schoolName,
+    verificationMethod: submitted.verificationMethod,
   };
 
   submitting.value = true;
   try {
-    await updateSchoolConfig(form.schoolID, payload);
+    await updateSchoolConfig(submitted.schoolID, payload);
     ElMessage.success($t('admin.users.schoolConfig.updated'));
     dialogVisible.value = false;
     await fetchData();

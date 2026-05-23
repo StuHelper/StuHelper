@@ -166,10 +166,14 @@ describe('BlacklistFilters', () => {
 
     const selects = wrapper.findAllComponents({ name: 'ElSelect' });
     expect(selects).toHaveLength(3);
+    const [scopeSelect, sourceSelect, statusSelect] = selects;
+    if (!scopeSelect || !sourceSelect || !statusSelect) {
+      throw new Error('expected three select filters');
+    }
 
-    await selects[0]!.vm.$emit('change', 'global');
-    await selects[1]!.vm.$emit('change', 'manual_admin');
-    await selects[2]!.vm.$emit('change', 'released');
+    await scopeSelect.vm.$emit('change', 'global');
+    await sourceSelect.vm.$emit('change', 'manual_admin');
+    await statusSelect.vm.$emit('change', 'released');
 
     expect(wrapper.emitted('search')).toHaveLength(3);
     for (const select of selects) {

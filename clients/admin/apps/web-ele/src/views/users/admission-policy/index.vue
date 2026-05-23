@@ -61,7 +61,8 @@ function normalizePolicy(policy: AdmissionPolicyBoundary): AdmissionPolicy {
 async function fetchData() {
   loading.value = true;
   try {
-    policies.value = (await listAdmissionPolicies()).map(normalizePolicy);
+    const data = await listAdmissionPolicies();
+    policies.value = data.map((policy) => normalizePolicy(policy));
     for (const policy of policies.value) {
       managementGuildText[policy.id] = policy.managementGuildIDs.join('\n');
     }

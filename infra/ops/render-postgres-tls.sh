@@ -7,6 +7,10 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 require_cmd openssl
 
+openssl_cmd() {
+  MSYS2_ARG_CONV_EXCL="/CN=" openssl "$@"
+}
+
 load_env
 
 POSTGRES_TLS_DIR="${POSTGRES_TLS_DIR:-${REPO_ROOT}/infra/generated/postgres}"
@@ -34,8 +38,8 @@ extfile="$(mktemp)"
 trap 'rm -f "${extfile}" "${SERVER_CSR}"' EXIT
 printf 'subjectAltName=%s\n' "${SAN_LIST}" >"${extfile}"
 
-openssl genrsa -out "${CA_KEY}" 4096 >/dev/null 2>&1
-openssl req \
+openssl_cmd genrsa -out "${CA_KEY}" 4096 >/dev/null 2>&1
+openssl_cmd req \
   -x509 \
   -new \
   -nodes \
@@ -45,13 +49,13 @@ openssl req \
   -subj "/CN=${COMMON_NAME}-ca" \
   -out "${CA_CERT}" >/dev/null 2>&1
 
-openssl genrsa -out "${SERVER_KEY}" 4096 >/dev/null 2>&1
-openssl req \
+openssl_cmd genrsa -out "${SERVER_KEY}" 4096 >/dev/null 2>&1
+openssl_cmd req \
   -new \
   -key "${SERVER_KEY}" \
   -subj "/CN=${COMMON_NAME}" \
   -out "${SERVER_CSR}" >/dev/null 2>&1
-openssl x509 \
+openssl_cmd x509 \
   -req \
   -in "${SERVER_CSR}" \
   -CA "${CA_CERT}" \

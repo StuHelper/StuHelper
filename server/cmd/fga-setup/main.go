@@ -87,16 +87,6 @@ func main() {
 	modelID := writeResp.AuthorizationModelId
 	log.Printf("Model imported: %s", modelID)
 
-	// Update client with model ID
-	fgaClient, err = client.NewSdkClient(&client.ClientConfiguration{
-		ApiUrl:               apiURL,
-		StoreId:              storeID,
-		AuthorizationModelId: modelID,
-	})
-	if err != nil {
-		log.Fatalf("Failed to re-create FGA client with model: %v", err)
-	}
-
 	// 4. Write initial tuples
 	log.Println("Writing initial tuples...")
 	if err := bootstrapSchoolTuples(ctx, apiURL, storeID, modelID); err != nil {

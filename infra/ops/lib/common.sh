@@ -274,8 +274,13 @@ upsert_env_file() {
   local file="$1"
   local key="$2"
   local value="$3"
+  local python_file="${file}"
 
-  python3 - "$file" "$key" "$value" <<'PY'
+  if [[ "$(uname -s)" =~ ^(MINGW|MSYS|CYGWIN) ]] && command -v cygpath >/dev/null 2>&1; then
+    python_file="$(cygpath -w "${file}")"
+  fi
+
+  MSYS2_ARG_CONV_EXCL="*" python3 - "$python_file" "$key" "$value" <<'PY'
 from pathlib import Path
 import sys
 

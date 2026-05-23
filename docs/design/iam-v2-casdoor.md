@@ -27,11 +27,11 @@ scope: Casdoor-centered IAM target architecture; Open Platform scope and consent
 
 | 层 | 权威 / 职责 | 严格不能做的 |
 |----|-------------|--------------|
-| **Casdoor** | 身份与应用 registry：用户生命周期、登录方式、OIDC/OAuth 客户端、Provider、MFA、会话、token 签发、扁平角色投影 | 业务授权决策；不向业务模块暴露 Casbin / Enforce / GetPermissions |
+| **Casdoor** | 身份与一方登录应用 registry：用户生命周期、登录方式、Provider、MFA、会话、token 签发、扁平角色投影 | 业务授权决策；Open Platform 对外 issuer；不向业务模块暴露 Casbin / Enforce / GetPermissions |
 | **StuHelper DB** | 业务事实真相源：实名认证、学生认证、学校归属、手机号验证投影、QQ 绑定、课程/评课/资源 owner、Open Platform consent | 完整手机号真相源 |
 | **StuHelper Authorization Service** | **业务模块唯一授权入口**：组合 token 主体、DB 事实、OpenFGA 检查；统一 fail-closed | — |
 | **OpenFGA** | 资源关系权威：owner/author/school_admin/section_admin/section_moderator/section_reviewer/app→resource 关系 | 直接被业务模块调用；参与登录决策；承担粗粒度 RBAC（已在 Casdoor 解决） |
-| **Open Platform Gateway** | 第三方应用披露网关，scope/consent/审计/限流/吊销 | **完整逻辑见** [`open-platform-v1.md`](open-platform-v1.md)；IAM 侧只提供 Casdoor Application registry、OIDC 登录和最小 token |
+| **Open Platform / Identity Gateway** | `id.stuhelper.com` 对外 OIDC issuer、第三方应用披露网关、scope/consent/审计/限流/吊销 | **完整逻辑见** [`open-platform-v1.md`](open-platform-v1.md)；Casdoor 只作为上游登录源 |
 
 ```text
 一方应用 (web / admin / uniapp)
@@ -76,11 +76,11 @@ Casdoor 承载：
 | Application `stuhelper-web` | 主站 Web/H5 |
 | Application `stuhelper-admin` | 管理后台 |
 | Application `stuhelper-uniapp` | Native/mobile（uniapp 端） |
-| Application `third-party-*` | 由 Open Platform 审批通过后，经 Casdoor SDK 创建（见 `open-platform-v1.md`） |
+| Application `stuhelper-identity` | `id.stuhelper.com` 接入 Casdoor 的一方登录应用 |
 
 **`stuhelper-koishi-console` 不在 v2 范围。** Koishi 控制台已有独立 admin password 自管，是否接 SSO 是单独产品决策，不阻塞 IAM v2。
 
-每个应用必须配置精确 redirect URI、明确的 grant type、token TTL。生产禁止 wildcard redirect URI。第三方应用生产环境**禁止手工创建**——必须经 Open Platform 审批工作流 + Casdoor SDK 自动化。
+每个 Casdoor 一方应用必须配置精确 redirect URI、明确的 grant type、token TTL。生产禁止 wildcard redirect URI。第三方应用不再直接进入 Casdoor registry；它们进入 `id.stuhelper.com` 的 open platform registry。
 
 **Redirect 安全 gate**：若当前 Casdoor 版本存在未修复 open redirect advisory，Casdoor 前置网关必须对 `/login/oauth/authorize` 的 `client_id + redirect_uri` 执行 StuHelper DB 精确白名单校验；没有该网关校验不得开放第三方 OAuth。
 
@@ -1094,9 +1094,9 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 
 IAM 与 Open Platform 的稳定分工：
 
-- Casdoor 负责第三方 Application registry、OIDC 授权码、SMS / Email provider 和用户手机号真相源。
-- StuHelper 负责第三方 app 元数据、scope 审批、用户 consent、disclosure API、审计和撤销。
-- 第三方 Casdoor token 必须最小化；业务字段不进 token，必须通过 StuHelper disclosure API 读取。
+- Casdoor 负责账号登录、SMS / Email provider、一方应用 registry 和用户手机号真相源。
+- StuHelper Identity / Open Platform 负责第三方 app 元数据、OIDC 授权码/token、scope 审批、用户 consent、disclosure API、审计和撤销。
+- 第三方应用必须信任 `iss=https://id.stuhelper.com`；业务字段只按已审批且已授权的 scope 进入 `id` token/UserInfo。
 - Scope consent 在业务 DB 而非 OpenFGA 中建模，理由见 [`open-platform-v1.md`](open-platform-v1.md)。
 - OpenFGA 只承载未来“应用 → 具体资源”的关系授权。
 

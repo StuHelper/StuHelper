@@ -105,7 +105,8 @@ test.describe('User Journey: Search', () => {
     // The page renders SearchPage heading
     await expect(
       page.getByRole('heading', {
-        name: /Advanced Search|高级搜索|搜索/i,
+        level: 1,
+        name: /Advanced Search|高级搜索/i,
       }),
     ).toBeVisible({ timeout: 10_000 })
 

@@ -31,7 +31,7 @@
             <ShieldCheck class="w-6 h-6" aria-hidden="true" />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="m-0 text-xs font-semibold uppercase text-text-muted">StuHelper Connect</p>
+            <p class="m-0 text-xs font-semibold uppercase text-text-muted">StuHelper Identity</p>
             <h1 class="mt-2 mb-0 text-2xl font-extrabold text-text-primary leading-tight">
               {{ t('common.openPlatformConsent.title', { app: consent.app.displayName }) }}
             </h1>

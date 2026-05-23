@@ -50,7 +50,7 @@
   post:
     tags: [Admin, OpenPlatform]
     operationId: approveOpenPlatformApp
-    summary: 批准开放平台应用并创建 Casdoor OIDC application
+    summary: 批准开放平台应用并签发 id.stuhelper.com client secret
     security:
       - cookieAuth: []
       - bearerAuth: []
@@ -81,6 +81,49 @@
       '403':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/open-platform/apps/import-casdoor:
+  post:
+    tags: [Admin, OpenPlatform]
+    operationId: importOpenPlatformCasdoorApp
+    summary: 导入 legacy Casdoor 应用到 id.stuhelper.com
+    description: |
+      用于把历史上直接接入 sso.stuhelper.com/Casdoor 的应用导入 StuHelper Identity。
+      导入后应用应把 OIDC issuer/discovery 从 sso.stuhelper.com 切换到 id.stuhelper.com。
+      若未提供 clientSecret 且 Casdoor 可返回原 secret，则保留原 client_id/client_secret；
+      否则服务端生成新的 client secret 并只在本响应中返回一次。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/open-platform.yaml#/OpenPlatformImportCasdoorAppRequest'
+    responses:
+      '201':
+        description: 应用已导入并处于 approved 状态。
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/open-platform.yaml#/OpenPlatformImportedApp'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

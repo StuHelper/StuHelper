@@ -5,6 +5,7 @@ export default {
   login: '登录',
   authCallback: '认证中',
   openPlatformConsent: '授权确认',
+  openPlatformProfileCompletion: '资料补全',
   home: '首页',
   hub: 'StuHelper',
   about: '关于 StuHelper',

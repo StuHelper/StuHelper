@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -78,10 +79,28 @@ func startSharedPostgres(t *testing.T, ctx context.Context) *sharedPostgresServe
 	t.Helper()
 
 	sharedPostgres.once.Do(func() {
+		if adminURL, ok := externalAdminURL(); ok {
+			sharedPostgres.err = ensureFixtureRoles(ctx, adminURL)
+			if sharedPostgres.err == nil {
+				sharedPostgres.server = &sharedPostgresServer{adminURL: adminURL}
+			}
+			return
+		}
+		testcontainers.SkipIfProviderIsNotHealthy(t)
 		sharedPostgres.server, sharedPostgres.err = runSharedPostgres(ctx)
 	})
 	require.NoError(t, sharedPostgres.err)
 	return sharedPostgres.server
+}
+
+func externalAdminURL() (string, bool) {
+	for _, key := range []string{"STUHELPER_TEST_POSTGRES_URL", "TEST_DATABASE_URL"} {
+		value := strings.TrimSpace(os.Getenv(key))
+		if value != "" {
+			return databaseURLForName(value, "postgres"), true
+		}
+	}
+	return "", false
 }
 
 func runSharedPostgres(ctx context.Context) (*sharedPostgresServer, error) {
@@ -120,18 +139,24 @@ func createTestDatabase(t *testing.T, ctx context.Context, adminURL string, dbNa
 
 	conn, err := pgx.Connect(ctx, adminURL)
 	require.NoError(t, err)
-	defer conn.Close(ctx)
+	defer func() {
+		require.NoError(t, conn.Close(ctx))
+	}()
 
 	_, err = conn.Exec(ctx, "CREATE DATABASE "+quoteIdentifier(dbName))
 	require.NoError(t, err)
 }
 
-func ensureFixtureRoles(ctx context.Context, adminURL string) error {
+func ensureFixtureRoles(ctx context.Context, adminURL string) (err error) {
 	conn, err := pgx.Connect(ctx, adminURL)
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() {
+		if closeErr := conn.Close(ctx); err == nil {
+			err = closeErr
+		}
+	}()
 
 	// Production bootstrap creates this cluster role before migrations run.
 	// The test fixture creates fresh databases inside one container, so it must
@@ -148,7 +173,7 @@ $$;
 	return err
 }
 
-func dropTestDatabase(adminURL string, dbName string) error {
+func dropTestDatabase(adminURL string, dbName string) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -156,7 +181,11 @@ func dropTestDatabase(adminURL string, dbName string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() {
+		if closeErr := conn.Close(ctx); err == nil {
+			err = closeErr
+		}
+	}()
 
 	_, execErr := conn.Exec(ctx, "DROP DATABASE IF EXISTS "+quoteIdentifier(dbName)+" WITH (FORCE)")
 	return execErr

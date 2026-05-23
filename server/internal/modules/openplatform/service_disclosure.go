@@ -13,7 +13,7 @@ var mainlandPhoneDigitsPattern = regexp.MustCompile(`1[3-9]\d{9}`)
 
 type DisclosureRequest struct {
 	ClientID       string
-	CasdoorSubject string
+	UserID         int64
 	Scopes         []string
 	RedirectURI    string
 	ConsentBaseURL string
@@ -35,45 +35,78 @@ func (s *Service) Phone(ctx context.Context, req DisclosureRequest) (map[string]
 	return s.disclose(ctx, req)
 }
 
+func (s *Service) UserInfoForIdentityToken(ctx context.Context, clientID string, userID int64, subject string, scopes []string) (map[string]any, error) {
+	normalized, err := NormalizeAuthorizationScopes(scopes)
+	if err != nil {
+		return nil, err
+	}
+	app, err := s.repo.GetAppByClientID(ctx, strings.TrimSpace(clientID))
+	if err != nil {
+		return nil, err
+	}
+	if app.Status != AppStatusApproved {
+		return nil, ErrAppNotActive
+	}
+	if err := s.ensureScopesApproved(ctx, app.ID, normalized); err != nil {
+		return nil, err
+	}
+	hasConsent, err := s.repo.HasActiveConsents(ctx, app.ID, userID, normalized)
+	if err != nil {
+		return nil, err
+	}
+	if !hasConsent {
+		return nil, ErrConsentRequired
+	}
+	projection, err := s.repo.GetUserProjection(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := s.buildDisclosurePayload(ctx, projection, normalized)
+	if err != nil {
+		return nil, err
+	}
+	payload["sub"] = strings.TrimSpace(subject)
+	return payload, nil
+}
+
 func (s *Service) disclose(ctx context.Context, req DisclosureRequest) (map[string]any, error) {
 	scopes, err := NormalizeScopes(req.Scopes)
 	if err != nil {
 		return nil, err
 	}
-	app, userID, err := s.loadDisclosureActors(ctx, req)
+	app, err := s.loadDisclosureApp(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+	if req.UserID <= 0 {
+		return nil, ErrDisclosureUnavailable
 	}
 	if err := s.ensureScopesApproved(ctx, app.ID, scopes); err != nil {
 		return nil, err
 	}
-	hasConsent, err := s.repo.HasActiveConsents(ctx, app.ID, userID, scopes)
+	hasConsent, err := s.repo.HasActiveConsents(ctx, app.ID, req.UserID, scopes)
 	if err != nil {
 		return nil, err
 	}
 	if !hasConsent {
-		return nil, s.consentRequired(ctx, app, userID, scopes, req)
+		return nil, s.consentRequired(ctx, app, req.UserID, scopes, req)
 	}
-	projection, err := s.repo.GetUserProjection(ctx, userID)
+	projection, err := s.repo.GetUserProjection(ctx, req.UserID)
 	if err != nil {
 		return nil, err
 	}
 	return s.buildDisclosurePayload(ctx, projection, scopes)
 }
 
-func (s *Service) loadDisclosureActors(ctx context.Context, req DisclosureRequest) (*App, int64, error) {
+func (s *Service) loadDisclosureApp(ctx context.Context, req DisclosureRequest) (*App, error) {
 	app, err := s.repo.GetAppByClientID(ctx, strings.TrimSpace(req.ClientID))
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	if app.Status != AppStatusApproved {
-		return nil, 0, ErrAppNotActive
+		return nil, ErrAppNotActive
 	}
-	userID, err := s.repo.GetInternalUserID(ctx, strings.TrimSpace(req.CasdoorSubject))
-	if err != nil {
-		return nil, 0, err
-	}
-	return app, userID, nil
+	return app, nil
 }
 
 func (s *Service) ensureScopesApproved(ctx context.Context, appID int64, scopes []string) error {
@@ -100,7 +133,12 @@ func (s *Service) consentRequired(
 	scopes []string,
 	req DisclosureRequest,
 ) error {
-	challenge, err := s.BuildConsentChallenge(ctx, app, userID, scopes, req.RedirectURI, "")
+	challenge, err := s.BuildConsentChallenge(ctx, app, userID, scopes, AuthorizeRequest{
+		ClientID:    app.ClientID,
+		RedirectURI: req.RedirectURI,
+		Scopes:      scopes,
+		Flow:        AuthorizeFlowCasdoor,
+	})
 	if err != nil {
 		return err
 	}
@@ -113,9 +151,9 @@ func (s *Service) consentRequired(
 func buildConsentURL(baseURL, token string) string {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if base == "" {
-		return "/connect/consent?token=" + token
+		return "/consent?token=" + token
 	}
-	return base + "/connect/consent?token=" + token
+	return base + "/consent?token=" + token
 }
 
 func (s *Service) buildDisclosurePayload(ctx context.Context, projection *UserProjection, scopes []string) (map[string]any, error) {
@@ -153,20 +191,20 @@ func (s *Service) addScopePayload(ctx context.Context, out map[string]any, proje
 }
 
 func (s *Service) addPhonePayload(ctx context.Context, out map[string]any, projection *UserProjection) error {
-	if !projection.PhoneVerified {
+	if !projection.PhoneVerified || len(projection.PhoneEnc) == 0 {
 		out["phoneVerified"] = false
 		return nil
 	}
-	if s.phoneReader == nil {
-		return fmt.Errorf("%w: Casdoor phone reader is not configured", ErrDisclosureUnavailable)
+	if s.phoneCipher == nil {
+		return fmt.Errorf("%w: phone decryptor is not configured", ErrDisclosureUnavailable)
 	}
-	phone, err := s.phoneReader.GetPhone(ctx, projection.CasdoorSubject)
+	phone, err := s.phoneCipher.Decrypt(projection.PhoneEnc)
 	if err != nil {
-		return fmt.Errorf("read Casdoor phone: %w", err)
+		return fmt.Errorf("decrypt phone projection: %w", err)
 	}
 	normalized, ok := normalizeCasdoorMainlandPhone(phone)
 	if !ok {
-		return fmt.Errorf("%w: Casdoor phone is unavailable", ErrDisclosureUnavailable)
+		return fmt.Errorf("%w: phone projection is unavailable", ErrDisclosureUnavailable)
 	}
 	out["phone"] = normalized
 	out["phoneMasked"] = phoneutil.Mask(normalized)

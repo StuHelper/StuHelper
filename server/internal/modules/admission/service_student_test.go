@@ -3,7 +3,6 @@ package admission
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -239,10 +238,4 @@ func assertNoCredentialStored(
 	`, userID, kind).Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
-}
-
-func assertMaskedEmailShape(t *testing.T, masked string) {
-	t.Helper()
-	assert.True(t, strings.Contains(masked, "@"))
-	assert.NotContains(t, masked, "student@")
 }

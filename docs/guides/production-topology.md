@@ -3,14 +3,14 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-09
+last-verified: 2026-05-22
 ---
 
 # 生产拓扑与运维责任
 
 ## 部署架构
 
-主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；公网入口由宝塔 Nginx 管理，生产 SSO 已独立部署为 `https://sso.stuhelper.com`，不随主站 Compose 生命周期启动或停止。
+主站单机 Docker Compose 部署。StuHelper 应用、PostgreSQL、Redis、OpenFGA、对象存储与观测栈由仓库内 Compose 管理；公网入口由宝塔 Nginx 管理。生产账号登录 SSO 已独立部署为 `https://sso.stuhelper.com`，不随主站 Compose 生命周期启动或停止；对一方 / 三方应用暴露的统一身份 issuer 是 `https://id.stuhelper.com`，由主站 web/frontend + backend 共同承载。
 
 > 生产前提：承载 `postgres_data` / `redis_data` / 对象存储数据目录的底层块设备必须开启静态加密（云盘 KMS/EBS/PD 或主机侧 LUKS）。仓库内的 Compose 只定义容器拓扑，不负责替代宿主机磁盘加密。
 
@@ -19,15 +19,17 @@ last-verified: 2026-05-09
     │
     ▼
 [Baota Nginx :443/:80]  ← 宿主机，负责 TLS 终止与路由
-    ├── /api/*          → 127.0.0.1:18080 → backend (Go, :8080)
-    ├── /admin/*        → 127.0.0.1:18001 → admin 前端 (Nginx, :8080)
-    └── /               → 127.0.0.1:18000 → web 前端 (Nginx, :80)
+    ├── stuhelper.com /api/*        → 127.0.0.1:18080 → backend (Go, :8080)
+    ├── stuhelper.com /admin/*      → 127.0.0.1:18001 → admin 前端 (Nginx, :8080)
+    ├── stuhelper.com /             → 127.0.0.1:18000 → web 前端 (Nginx, :80)
+    ├── id.stuhelper.com /.well-known/* /oauth2/* /oidc/* → backend
+    └── id.stuhelper.com /login /consent /complete-profile → web 前端
 
 [sso.stuhelper.com]
     └── Casdoor SSO     → 独立 Docker Compose 栈
 ```
 
-主站生产配置中 `CASDOOR_ISSUER` 与 `WEB_VITE_SSO_URL` 固定指向 `https://sso.stuhelper.com`。仓库内 `casdoor` compose service 只用于本地开发或显式本地 SSO 验证，生产发布脚本不得启动该服务。
+主站生产配置中 `CASDOOR_ISSUER` 与 `WEB_VITE_SSO_URL` 固定指向 `https://sso.stuhelper.com`；`IDENTITY_ISSUER` 固定指向 `https://id.stuhelper.com`。`CORS_ORIGINS` 必须同时包含 `https://stuhelper.com` 和 `https://id.stuhelper.com`，`TOKEN_COOKIE_DOMAIN` 必须设置为 `.stuhelper.com`，让 Casdoor 回调到主站 API 后签发的浏览器会话可继续用于 `id.stuhelper.com` 的授权页。仓库内 `casdoor` compose service 只用于本地开发或显式本地 SSO 验证，生产发布脚本不得启动该服务。
 
 ## 外部机器人链路
 

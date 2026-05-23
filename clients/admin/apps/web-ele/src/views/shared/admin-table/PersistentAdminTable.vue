@@ -83,7 +83,8 @@ function readStoredWidths(key: string) {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
+  } catch (error) {
+    void error;
     storage.removeItem(key);
     return {};
   }

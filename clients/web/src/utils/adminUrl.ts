@@ -26,7 +26,8 @@ export function resolveAdminConsoleURL(rawURL?: string) {
 
   try {
     return normalizeURLPath(new URL(value))
-  } catch {
+  } catch (error) {
+    void error
     return normalizeRelativePath(value)
   }
 }

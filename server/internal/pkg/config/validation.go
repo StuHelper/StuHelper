@@ -59,6 +59,12 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Token.RefreshTokenTTL < 3600 || c.Token.RefreshTokenTTL > 2592000 {
 		errs = append(errs, fmt.Sprintf("TOKEN_REFRESH_TTL must be between 3600 and 2592000 seconds (got %d)", c.Token.RefreshTokenTTL))
 	}
+	if c.Identity.AccessTokenTTL < 60 || c.Identity.AccessTokenTTL > 86400 {
+		errs = append(errs, fmt.Sprintf("IDENTITY_ACCESS_TOKEN_TTL must be between 60 and 86400 seconds (got %d)", c.Identity.AccessTokenTTL))
+	}
+	if c.Identity.AuthorizationCodeTTL < 60 || c.Identity.AuthorizationCodeTTL > 600 {
+		errs = append(errs, fmt.Sprintf("IDENTITY_AUTH_CODE_TTL must be between 60 and 600 seconds (got %d)", c.Identity.AuthorizationCodeTTL))
+	}
 
 	if c.Observability.TraceSampleRatio < 0 || c.Observability.TraceSampleRatio > 1 {
 		errs = append(errs, fmt.Sprintf("OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1 (got %.4f)", c.Observability.TraceSampleRatio))
@@ -152,6 +158,12 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 		if !c.ObjectStorage.UseSSL {
 			errs = append(errs, "OBJECT_STORAGE_USE_SSL must be true in production")
+		}
+		if c.Identity.Issuer == "" {
+			errs = append(errs, "IDENTITY_ISSUER is required in production")
+		}
+		if c.Identity.SigningPrivateKeyPEM == "" {
+			errs = append(errs, "IDENTITY_SIGNING_PRIVATE_KEY_PEM is required in production")
 		}
 	}
 

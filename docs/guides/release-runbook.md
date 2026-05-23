@@ -212,10 +212,13 @@ ADMIN_EXTERNAL_PORT=18001
 发布前确认：
 
 - [ ] `CASDOOR_ISSUER=https://sso.stuhelper.com`
-- [ ] `CORS_ORIGINS` 使用正确的 scheme 和端口
+- [ ] `IDENTITY_ISSUER=https://id.stuhelper.com`
+- [ ] `CORS_ORIGINS=https://stuhelper.com,https://id.stuhelper.com`
 - [ ] `WEB_VITE_SSO_URL=https://sso.stuhelper.com`
+- [ ] `https://id.stuhelper.com/.well-known/openid-configuration` 可达
 - [ ] `https://sso.stuhelper.com/.well-known/openid-configuration` 可达
 - [ ] `TOKEN_COOKIE_SECURE=true`（生产必须）
+- [ ] `TOKEN_COOKIE_DOMAIN=.stuhelper.com`（`id.stuhelper.com` 授权页复用主站登录会话）
 - [ ] 宝塔 Nginx 是唯一监听公网 `80/443` 的入口
 - [ ] `127.0.0.1:18080`、`127.0.0.1:18000`、`127.0.0.1:18001` 在宿主机可访问且未暴露公网
 - [ ] 如果使用 External LB/CDN，`TRUSTED_PROXIES` 已正确配置

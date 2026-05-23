@@ -93,6 +93,15 @@ func allErrorCodes() map[string]ErrorCode {
 		"ErrRoleSelectionInvalid":       ErrRoleSelectionInvalid,
 		"ErrUserSelectionInvalid":       ErrUserSelectionInvalid,
 
+		// A040xxxx - 开放平台
+		"ErrOpenPlatformAppNotFound":       ErrOpenPlatformAppNotFound,
+		"ErrOpenPlatformAppInactive":       ErrOpenPlatformAppInactive,
+		"ErrOpenPlatformScopeInvalid":      ErrOpenPlatformScopeInvalid,
+		"ErrOpenPlatformScopeDenied":       ErrOpenPlatformScopeDenied,
+		"ErrOpenPlatformConsentRequired":   ErrOpenPlatformConsentRequired,
+		"ErrOpenPlatformConsentInvalid":    ErrOpenPlatformConsentInvalid,
+		"ErrOpenPlatformProfileIncomplete": ErrOpenPlatformProfileIncomplete,
+
 		// A010xxxx - 课程
 		"ErrCourseNotFound":     ErrCourseNotFound,
 		"ErrDepartmentNotFound": ErrDepartmentNotFound,

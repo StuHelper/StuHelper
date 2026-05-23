@@ -203,7 +203,7 @@ func TestReviewRepository_GetVoteTypeLocksExistingVoteRow(t *testing.T) {
 
 	tx1, err := fixture.Pool.Begin(ctx)
 	require.NoError(t, err)
-	defer tx1.Rollback(ctx) //nolint:errcheck
+	defer tx1.Rollback(ctx) //nolint:errcheck // rollback may fail after commit; test asserts the committed path separately.
 
 	voteType, err := repo.GetVoteType(ctx, tx1, reviewID, "u-lock-voter")
 	require.NoError(t, err)
@@ -216,7 +216,7 @@ func TestReviewRepository_GetVoteTypeLocksExistingVoteRow(t *testing.T) {
 			done <- err
 			return
 		}
-		defer tx2.Rollback(ctx) //nolint:errcheck
+		defer tx2.Rollback(ctx) //nolint:errcheck // rollback only releases the blocked read transaction during test cleanup.
 		_, err = repo.GetVoteType(ctx, tx2, reviewID, "u-lock-voter")
 		done <- err
 	}()
@@ -297,7 +297,7 @@ func TestReviewRepository_GetReplyOwnerAndReviewIDTxLocksReplyRow(t *testing.T) 
 
 	tx1, err := fixture.Pool.Begin(ctx)
 	require.NoError(t, err)
-	defer tx1.Rollback(ctx) //nolint:errcheck
+	defer tx1.Rollback(ctx) //nolint:errcheck // rollback may fail after commit; test asserts the committed path separately.
 
 	owner, reviewRef, status, err := repo.GetReplyOwnerAndReviewIDTx(ctx, tx1, replyID)
 	require.NoError(t, err)
@@ -312,7 +312,7 @@ func TestReviewRepository_GetReplyOwnerAndReviewIDTxLocksReplyRow(t *testing.T) 
 			done <- err
 			return
 		}
-		defer tx2.Rollback(ctx) //nolint:errcheck
+		defer tx2.Rollback(ctx) //nolint:errcheck // rollback only releases the blocked read transaction during test cleanup.
 		_, _, _, err = repo.GetReplyOwnerAndReviewIDTx(ctx, tx2, replyID)
 		done <- err
 	}()

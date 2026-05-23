@@ -115,45 +115,7 @@ async function handleSSOLogin() {
   margin-top: 24rpx;
 }
 
-.field-group {
-  margin-top: 28rpx;
-}
-
-.field-label {
-  display: block;
-  margin-bottom: 12rpx;
-  color: #334155;
-  font-size: 26rpx;
-  font-weight: 600;
-}
-
-.field-input {
-  width: 100%;
-  height: 88rpx;
-  border-radius: 22rpx;
-  background: #f8fafc;
-  border: 2rpx solid #e2e8f0;
-  padding: 0 24rpx;
-  box-sizing: border-box;
-  font-size: 28rpx;
-}
-
-.code-row {
-  display: flex;
-  gap: 16rpx;
-}
-
-.code-input {
-  flex: 1;
-}
-
-.code-btn {
-  width: 220rpx;
-  min-width: 220rpx;
-}
-
-.primary-btn,
-.secondary-btn {
+.primary-btn {
   margin-top: 24rpx;
   height: 88rpx;
   border-radius: 22rpx;
@@ -167,17 +129,5 @@ async function handleSSOLogin() {
 .primary-btn {
   background: #4f46e5;
   color: #ffffff;
-}
-
-.secondary-btn {
-  background: #eef2ff;
-  color: #4338ca;
-}
-
-.divider {
-  margin-top: 28rpx;
-  text-align: center;
-  color: #94a3b8;
-  font-size: 24rpx;
 }
 </style>

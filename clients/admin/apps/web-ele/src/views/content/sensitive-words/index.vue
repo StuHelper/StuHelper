@@ -70,6 +70,8 @@ const form = reactive({
   isActive: true,
 });
 
+type SensitiveWordForm = typeof form;
+
 function resetForm() {
   form.id = '';
   form.word = '';
@@ -94,21 +96,21 @@ function openEdit(row: SensitiveWord) {
   dialogVisible.value = true;
 }
 
-async function handleSubmit() {
-  if (!form.word.trim()) {
+async function handleSubmit(submitted: SensitiveWordForm) {
+  if (!submitted.word.trim()) {
     ElMessage.warning(
       $t('admin.content.sensitiveWords.validation.wordRequired'),
     );
     return;
   }
   const payload = {
-    category: form.category,
-    isActive: form.isActive,
-    level: form.level,
-    word: form.word,
+    category: submitted.category,
+    isActive: submitted.isActive,
+    level: submitted.level,
+    word: submitted.word,
   };
   if (isEdit.value) {
-    await updateSensitiveWord(form.id, payload);
+    await updateSensitiveWord(submitted.id, payload);
     ElMessage.success($t('admin.content.sensitiveWords.updated'));
   } else {
     await createSensitiveWord(payload);

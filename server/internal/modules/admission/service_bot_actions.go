@@ -154,31 +154,6 @@ func (s *Service) authorizeBotCommandForApplication(ctx context.Context, input B
 	return err
 }
 
-func (s *Service) authorizeBotCommandForManagementGuild(ctx context.Context, input BotFreshmanCommandInput) error {
-	if err := s.ensureConfiguredManagementGuild(ctx, input.GuildID); err != nil {
-		return err
-	}
-	userID, err := s.repo.GetUserIDByQQID(ctx, strings.TrimSpace(input.OperatorQQID))
-	if err != nil {
-		return err
-	}
-	if userID == nil {
-		return ErrAdmissionOperatorUnbound
-	}
-	return s.ensureOperatorCapability(ctx, *userID)
-}
-
-func (s *Service) ensureConfiguredManagementGuild(ctx context.Context, guildID string) error {
-	allowed, err := s.repo.ManagementGuildAllowed(ctx, strings.TrimSpace(guildID))
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return ErrAdmissionManagementGuildForbidden
-	}
-	return nil
-}
-
 func admissionPendingAction(
 	session *AdmissionSession,
 	action BotAction,

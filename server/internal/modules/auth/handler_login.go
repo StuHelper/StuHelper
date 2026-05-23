@@ -337,7 +337,7 @@ func (h *Handler) deleteOIDCState(ctx context.Context, state string) error {
 }
 
 func (h *Handler) setOIDCStateCookie(c *gin.Context, state string) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ //nolint:gosec // cookie Secure flag is environment-configured through TokenConfig.
 		Name:     oidcStateCookieName,
 		Value:    state,
 		MaxAge:   int(stateMaxAge.Seconds()),
@@ -350,7 +350,7 @@ func (h *Handler) setOIDCStateCookie(c *gin.Context, state string) {
 }
 
 func (h *Handler) clearOIDCStateCookie(c *gin.Context) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ //nolint:gosec // cookie Secure flag is environment-configured through TokenConfig.
 		Name:     oidcStateCookieName,
 		Value:    "",
 		MaxAge:   -1,
