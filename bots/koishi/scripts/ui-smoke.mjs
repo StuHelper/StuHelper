@@ -19,6 +19,7 @@ import { load, dump } from 'js-yaml'
 const SMOKE_PORT = Number.parseInt(process.env.STUHELPER_UI_SMOKE_PORT ?? '5140', 10)
 const STARTUP_LISTEN_TIMEOUT_MS = 30_000
 const SHUTDOWN_TIMEOUT_MS = 5_000
+const COREPACK_BIN = process.platform === 'win32' ? 'corepack.cmd' : 'corepack'
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tempConfigDir = await createTempConfigDir()
 const tempConfigPath = await writeSmokeConfig(tempConfigDir)
@@ -33,7 +34,8 @@ try {
   await releasePort(SMOKE_PORT)
   buildWorkspace()
 
-  koishiChild = spawn('corepack', ['yarn', 'exec', 'koishi', 'start', tempConfigPath], {
+  const koishiStartup = corepackSpawnInvocation(['yarn', 'exec', 'koishi', 'start', tempConfigPath])
+  koishiChild = spawn(koishiStartup.command, koishiStartup.args, {
     cwd,
     env: {
       ...process.env,
@@ -43,7 +45,8 @@ try {
       STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? 'http://127.0.0.1:8080',
       STUHELPER_PLATFORM_SERVICE_TOKEN: process.env.STUHELPER_PLATFORM_SERVICE_TOKEN ?? 'ui-smoke-service-token',
     },
-    detached: true,
+    detached: process.platform !== 'win32',
+    shell: koishiStartup.shell,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
@@ -100,20 +103,24 @@ if (playwrightExitCode !== 0) {
 }
 
 function buildWorkspace() {
-  execFileSync('corepack', ['yarn', 'build'], {
+  const build = corepackExecInvocation(['yarn', 'build'])
+  execFileSync(build.command, build.args, {
     cwd,
+    shell: build.shell,
     stdio: 'inherit',
   })
 }
 
 function runPlaywright() {
   return new Promise((resolveExit, rejectExit) => {
-    const child = spawn('corepack', ['yarn', 'exec', 'playwright', 'test'], {
+    const playwright = corepackSpawnInvocation(['yarn', 'exec', 'playwright', 'test'])
+    const child = spawn(playwright.command, playwright.args, {
       cwd,
       env: {
         ...process.env,
         STUHELPER_UI_SMOKE_PORT: String(SMOKE_PORT),
       },
+      shell: playwright.shell,
       stdio: 'inherit',
     })
 
@@ -128,6 +135,36 @@ function runPlaywright() {
   })
 }
 
+function corepackExecInvocation(args) {
+  if (process.platform === 'win32') {
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', `corepack ${args.map(quoteWindowsShellArg).join(' ')}`],
+      shell: false,
+    }
+  }
+  return { command: COREPACK_BIN, args, shell: false }
+}
+
+function corepackSpawnInvocation(args) {
+  if (process.platform === 'win32') {
+    return {
+      command: `${COREPACK_BIN} ${args.map(quoteWindowsShellArg).join(' ')}`,
+      args: [],
+      shell: true,
+    }
+  }
+  return { command: COREPACK_BIN, args, shell: false }
+}
+
+function quoteWindowsShellArg(value) {
+  const text = String(value)
+  if (/^[\w:./\\-]+$/.test(text)) {
+    return text
+  }
+  return `"${text.replaceAll('"', '""')}"`
+}
+
 async function waitFor(predicate, timeoutMs, message) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -138,6 +175,17 @@ async function waitFor(predicate, timeoutMs, message) {
 }
 
 function stopProcessGroup(pid) {
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+    } catch (error) {
+      if (!isCommandNoMatchError(error) && !isWindowsTaskkillNoMatchError(error)) {
+        throw error
+      }
+    }
+    return
+  }
+
   try {
     process.kill(-pid, 'SIGTERM')
   } catch (error) {
@@ -148,6 +196,11 @@ function stopProcessGroup(pid) {
 }
 
 function killProcessGroup(pid) {
+  if (process.platform === 'win32') {
+    stopProcessGroup(pid)
+    return
+  }
+
   try {
     process.kill(-pid, 'SIGKILL')
   } catch (error) {
@@ -214,8 +267,36 @@ function listListeningPIDs(port) {
       .filter((item) => Number.isInteger(item) && item > 0)
   } catch (error) {
     if (isCommandNoMatchError(error)) return []
+    if (isMissingCommandError(error) && process.platform === 'win32') {
+      return listWindowsListeningPIDs(port)
+    }
     throw error
   }
+}
+
+function listWindowsListeningPIDs(port) {
+  const output = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8' })
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim().split(/\s+/))
+    .filter((parts) => parts.length >= 5 && parts[0] === 'TCP' && parts[3] === 'LISTENING')
+    .filter((parts) => parts[1].endsWith(`:${port}`) || parts[1].endsWith(`]:${port}`))
+    .map((parts) => Number(parts[4]))
+    .filter((item) => Number.isInteger(item) && item > 0)
+}
+
+function isMissingCommandError(error) {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ENOENT'
+}
+
+function isWindowsTaskkillNoMatchError(error) {
+  return typeof error === 'object'
+    && error !== null
+    && 'status' in error
+    && error.status === 128
 }
 
 function isCommandNoMatchError(error) {

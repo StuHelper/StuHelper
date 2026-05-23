@@ -11,7 +11,7 @@ test('stuhelper-core 控制台生产入口必须使用 Koishi 可服务的 node_
 
   assert.match(
     entry.prod,
-    /node_modules\/koishi-plugin-stuhelper-core\/dist$/,
+    /node_modules[\\/]koishi-plugin-stuhelper-core[\\/]dist$/,
     '生产入口必须保留 node_modules 路径段，否则 Koishi console 会拒绝提供 @plugin 资源',
   )
 

@@ -8,6 +8,7 @@ import { load, dump } from 'js-yaml'
 
 const STARTUP_TIMEOUT_MS = 10000
 const SMOKE_PORT = 5140
+const COREPACK_BIN = process.platform === 'win32' ? 'corepack.cmd' : 'corepack'
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const tempConfigDir = await createTempConfigDir()
 const tempConfigPath = await writeSmokeConfig(tempConfigDir)
@@ -15,7 +16,8 @@ const tempConfigPath = await writeSmokeConfig(tempConfigDir)
 try {
   await releasePort(SMOKE_PORT)
 
-  const child = spawn('corepack', ['yarn', 'exec', 'koishi', 'start', tempConfigPath], {
+  const startup = startupInvocation(tempConfigPath)
+  const child = spawn(startup.command, startup.args, {
     cwd,
     env: {
       ...process.env,
@@ -25,7 +27,8 @@ try {
       STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? 'http://127.0.0.1:8080',
       STUHELPER_PLATFORM_SERVICE_TOKEN: process.env.STUHELPER_PLATFORM_SERVICE_TOKEN ?? 'startup-smoke-service-token',
     },
-    detached: true,
+    detached: process.platform !== 'win32',
+    shell: startup.shell,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
@@ -39,10 +42,12 @@ try {
     output += chunk.toString()
   })
 
+  const exitPromise = waitForExit(child)
+
   await sleep(STARTUP_TIMEOUT_MS)
   stopProcessGroup(child.pid)
 
-  const exitCode = await waitForExit(child)
+  const exitCode = await exitPromise
 
   assert.match(output, /loader apply plugin stuhelper-core:/, 'Koishi 启动时没有加载 stuhelper-core。')
   assert.match(output, /StuHelper 群管中心模块初始化完成/, 'stuhelper-core 没有完成新的群管中心装配。')
@@ -51,14 +56,47 @@ try {
   assert.match(output, new RegExp(`server listening at http://127\\.0\\.0\\.1:${SMOKE_PORT}`), 'Koishi 控制台没有在烟雾端口完成监听。')
   assert.doesNotMatch(output, /ERR_UNSUPPORTED_DIR_IMPORT/, 'Koishi 仍然存在目录导入错误。')
   assert.doesNotMatch(output, /ERR_MODULE_NOT_FOUND/, 'Koishi 仍然存在模块解析错误。')
-  assert.ok(exitCode === 0 || exitCode === -15, `Koishi 启动探针异常退出：${exitCode}\n${output}`)
+  assert.ok(isExpectedShutdownExitCode(exitCode), `Koishi 启动探针异常退出：${exitCode}\n${output}`)
 
   process.stdout.write(output)
 } finally {
   await rm(tempConfigDir, { recursive: true, force: true })
 }
 
+function startupInvocation(configPath) {
+  if (process.platform === 'win32') {
+    return {
+      command: `${COREPACK_BIN} yarn exec koishi start "${configPath}"`,
+      args: [],
+      shell: true,
+    }
+  }
+  return {
+    command: COREPACK_BIN,
+    args: ['yarn', 'exec', 'koishi', 'start', configPath],
+    shell: false,
+  }
+}
+
+function isExpectedShutdownExitCode(exitCode) {
+  if (exitCode === 0 || exitCode === -15) {
+    return true
+  }
+  return process.platform === 'win32' && exitCode === 1
+}
+
 function stopProcessGroup(pid) {
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+    } catch (error) {
+      if (!isCommandNoMatchError(error) && !isWindowsTaskkillNoMatchError(error)) {
+        throw error
+      }
+    }
+    return
+  }
+
   try {
     process.kill(-pid, 'SIGTERM')
   } catch (error) {
@@ -127,8 +165,36 @@ function listListeningPIDs(port) {
     if (isCommandNoMatchError(error)) {
       return []
     }
+    if (isMissingCommandError(error) && process.platform === 'win32') {
+      return listWindowsListeningPIDs(port)
+    }
     throw error
   }
+}
+
+function listWindowsListeningPIDs(port) {
+  const output = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8' })
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim().split(/\s+/))
+    .filter((parts) => parts.length >= 5 && parts[0] === 'TCP' && parts[3] === 'LISTENING')
+    .filter((parts) => parts[1].endsWith(`:${port}`) || parts[1].endsWith(`]:${port}`))
+    .map((parts) => Number(parts[4]))
+    .filter((item) => Number.isInteger(item) && item > 0)
+}
+
+function isMissingCommandError(error) {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ENOENT'
+}
+
+function isWindowsTaskkillNoMatchError(error) {
+  return typeof error === 'object'
+    && error !== null
+    && 'status' in error
+    && error.status === 128
 }
 
 function isCommandNoMatchError(error) {
