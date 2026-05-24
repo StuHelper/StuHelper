@@ -125,6 +125,11 @@ assert_contains "${PARITY_BROWSER_SMOKE}" "scan --pattern 'rl:\*'"
 assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-browser-smoke\.mjs'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" '@playwright/test'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'telemetryRoutePattern'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'viewportVariants'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "name: 'desktop'"
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "name: 'mobile'"
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'deviceScaleFactor'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'hasTouch'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'suppressedTelemetryRequests'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'allowedAPIResponses'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'ignoredAPIResponses'
@@ -151,6 +156,8 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-protected-open-platform-cons
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-protected-profile-completion'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-not-found'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'admin-login-redirect'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'checkName'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'viewportSize'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'finalURL'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'matchedText'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'expectedURLIncludes'

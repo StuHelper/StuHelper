@@ -100,12 +100,13 @@ console error/warning tracker 基础上补齐关键资源门禁，把 `document`
 矩阵，覆盖首页、登录页、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform
 授权与资料补全保护跳转、404 页面和 Admin 登录跳转；保护入口会同时验证落到登录页且保留原始 `redirect`。
-同时把页面触发的 `fetch` / `xhr` HTTP 5xx 视为失败，以便发现页面壳能渲染但后端集成接口崩溃的问题。
+同一批检查现在会分别用桌面 `1365x900` 和移动 `390x844` 视口运行，evidence 记录视口信息，截图文件名带视口后缀。
+同时把页面触发的未声明允许 `fetch` / `xhr` HTTP 4xx/5xx 视为失败，以便发现页面壳能渲染但后端集成接口异常的问题。
 每个检查使用独立 browser context，避免 Web 登录页、保护路由和 Admin 登录跳转之间共享 cookie / localStorage
 造成误判；evidence 会记录每项检查命中的 `matchedText`，便于确认 smoke 不是只拿到空页面。
-后续同一 browser smoke 也会把非网络状态类浏览器 `console.error` 纳入失败条件，避免组件运行时报错
+同一 browser smoke 也会把非网络状态类浏览器 `console.error` 纳入失败条件，避免组件运行时报错
 只落在控制台而页面仍返回 200 时漏过；浏览器自动打印的 HTTP 状态行会单独记录为 ignored evidence，
-其失败语义继续由关键资源 HTTP 4xx/5xx 与页面 `fetch` / `xhr` HTTP 5xx 门禁负责。
+其失败语义继续由关键资源 HTTP 4xx/5xx 与页面 `fetch` / `xhr` HTTP 4xx/5xx 门禁负责。
 
 本地生产等价补充（2026-05-25）：新增 `prod-parity-datastore-smoke.sh`，并接入
 `make prod-parity-smoke`。该门禁在真实容器上验证共享 PostgreSQL 中 StuHelper / OpenFGA /

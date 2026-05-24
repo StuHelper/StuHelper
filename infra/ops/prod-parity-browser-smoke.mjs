@@ -28,6 +28,22 @@ const screenshotDir =
   process.env.PROD_PARITY_BROWSER_SMOKE_SCREENSHOT_DIR || dirname(evidenceFile);
 const criticalResourceTypes = new Set(['document', 'font', 'image', 'script', 'stylesheet']);
 const telemetryRoutePattern = /\/api\/v1\/metrics\/(?:frontend-errors|vitals)(?:\?|$)/;
+const viewportVariants = [
+  {
+    name: 'desktop',
+    viewport: { width: 1365, height: 900 },
+    deviceScaleFactor: 1,
+    isMobile: false,
+    hasTouch: false,
+  },
+  {
+    name: 'mobile',
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  },
+];
 
 const checks = [
   {
@@ -196,8 +212,10 @@ try {
   await mkdir(screenshotDir, { recursive: true });
   browser = await chromium.launch({ headless: process.env.PLAYWRIGHT_HEADLESS !== '0' });
 
-  for (const check of checks) {
-    results.push(await runCheck(browser, check));
+  for (const viewportVariant of viewportVariants) {
+    for (const check of checks) {
+      results.push(await runCheck(browser, check, viewportVariant));
+    }
   }
 
   passed = results.every((result) => result.passed);
@@ -217,6 +235,7 @@ try {
     passed,
     webBaseURL,
     adminBaseURL,
+    viewportVariants,
     checks: results,
   };
   await writeFile(evidenceFile, `${JSON.stringify(evidence, null, 2)}\n`);
@@ -229,8 +248,13 @@ if (!passed) {
 
 console.log(`[prod-parity-browser-smoke] passed; evidence: ${evidenceFile}`);
 
-async function runCheck(browser, check) {
-  const context = await browser.newContext();
+async function runCheck(browser, check, viewportVariant) {
+  const context = await browser.newContext({
+    viewport: viewportVariant.viewport,
+    deviceScaleFactor: viewportVariant.deviceScaleFactor,
+    isMobile: viewportVariant.isMobile,
+    hasTouch: viewportVariant.hasTouch,
+  });
   const page = await context.newPage();
   const assetFailures = [];
   const apiFailures = [];
@@ -239,7 +263,8 @@ async function runCheck(browser, check) {
   const ignoredAPIResponses = [];
   const pageErrors = [];
   const suppressedTelemetryRequests = [];
-  const screenshotFile = resolve(screenshotDir, `${check.name}.png`);
+  const checkName = `${check.name}-${viewportVariant.name}`;
+  const screenshotFile = resolve(screenshotDir, `${checkName}.png`);
 
   await page.route(telemetryRoutePattern, async (route) => {
     suppressedTelemetryRequests.push({
@@ -359,6 +384,9 @@ async function runCheck(browser, check) {
 
     return {
       name: check.name,
+      checkName,
+      viewport: viewportVariant.name,
+      viewportSize: viewportVariant.viewport,
       passed: true,
       url: check.url,
       finalURL: page.url(),
@@ -374,6 +402,9 @@ async function runCheck(browser, check) {
     await page.screenshot({ path: screenshotFile, fullPage: true }).catch(() => undefined);
     return {
       name: check.name,
+      checkName,
+      viewport: viewportVariant.name,
+      viewportSize: viewportVariant.viewport,
       passed: false,
       url: check.url,
       finalURL: page.url(),
