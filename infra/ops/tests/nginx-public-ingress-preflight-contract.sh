@@ -103,6 +103,10 @@ server {
 }
 NGINX
 
+missing_id_redirect_cache_headers="${tmpdir}/missing-id-redirect-cache-headers.conf"
+sed '/add_header Cache-Control "no-store, no-cache, must-revalidate, private" always;/d' \
+  "${MAIN_NGINX_FILE}" >"${missing_id_redirect_cache_headers}"
+
 bad_sso_static_root="${tmpdir}/bad-sso-static-root.conf"
 cat >"${bad_sso_static_root}" <<'NGINX'
 server {
@@ -136,6 +140,7 @@ assert_file_contains "${tmpdir}/sso-custom-upstream.stdout" 'public Nginx ingres
 run_preflight_pass "all" "${combined_good}" "${tmpdir}" "combined-template"
 run_preflight_pass "all" "${baota_dump_with_json_logs}" "${tmpdir}" "baota-json-log-dump"
 run_preflight_fail "stuhelper" "${missing_id}" "${tmpdir}" "missing-id" 'id\.stuhelper\.com: missing HTTPS server block'
+run_preflight_fail "stuhelper" "${missing_id_redirect_cache_headers}" "${tmpdir}" "missing-id-redirect-cache-headers" 'location = / must add_header Cache-Control'
 run_preflight_fail "sso" "${bad_sso_static_root}" "${tmpdir}" "bad-sso-static-root" 'root or try_files'
 run_preflight_fail "unknown" "${combined_good}" "${tmpdir}" "unknown-profile" 'unknown NGINX_PUBLIC_INGRESS_PROFILE'
 

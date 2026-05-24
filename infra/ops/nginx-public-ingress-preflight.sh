@@ -248,6 +248,17 @@ def return_values(block: Node) -> list[tuple[str, str]]:
     return values
 
 
+def add_header_values(block: Node) -> list[tuple[str, str, bool]]:
+    values: list[tuple[str, str, bool]] = []
+    for directive in direct(block, "add_header"):
+        if len(directive.args) >= 2:
+            header_name = directive.args[0]
+            header_value = directive.args[1]
+            always = any(arg.lower() == "always" for arg in directive.args[2:])
+            values.append((header_name, header_value, always))
+    return values
+
+
 def location(block: Node, modifier: str | None, path: str) -> Node | None:
     for child in direct(block, "location"):
         if modifier is None and child.args == [path]:
@@ -279,6 +290,33 @@ def require_location_return(block: Node, label: str, modifier: str | None, path:
         raise CheckError(
             f"{label}: {rendered} must return {code} {target}; found {values or '<none>'}"
         )
+
+
+def require_location_add_header(
+    block: Node,
+    label: str,
+    modifier: str | None,
+    path: str,
+    header: str,
+    value: str,
+    require_always: bool = True,
+) -> None:
+    loc = location(block, modifier, path)
+    rendered = f"location {modifier + ' ' if modifier else ''}{path}"
+    if loc is None:
+        raise CheckError(f"{label}: missing {rendered}")
+    values = add_header_values(loc)
+    for found_header, found_value, found_always in values:
+        if (
+            found_header.lower() == header.lower()
+            and found_value == value
+            and (not require_always or found_always)
+        ):
+            return
+    suffix = " always" if require_always else ""
+    raise CheckError(
+        f"{label}: {rendered} must add_header {header} {value}{suffix}; found {values or '<none>'}"
+    )
 
 
 def require_proxy_header(block: Node, label: str, header: str, value: str) -> None:
@@ -325,6 +363,9 @@ def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
     require_location_proxy(block, label, "^~", "/oidc/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
     require_location_return(block, label, "=", "/", "302", "https://stuhelper.com/developers/apps")
+    require_location_add_header(block, label, "=", "/", "Cache-Control", "no-store, no-cache, must-revalidate, private")
+    require_location_add_header(block, label, "=", "/", "Pragma", "no-cache")
+    require_location_add_header(block, label, "=", "/", "Expires", "0")
     require_location_proxy(block, label, "=", "/login", upstreams["web"])
     require_location_proxy(block, label, "=", "/consent", upstreams["web"])
     require_location_proxy(block, label, "=", "/complete-profile", upstreams["web"])
