@@ -24,12 +24,21 @@ SAN_LIST="${REDIS_SSL_SAN_LIST:-DNS:redis,DNS:localhost,IP:127.0.0.1}"
 
 mkdir -p "${REDIS_TLS_DIR}"
 
+ensure_redis_tls_permissions() {
+  [[ -f "${CA_KEY}" ]] && chmod 600 "${CA_KEY}"
+  # Redis drops privileges before reading its TLS key from the bind mount.
+  [[ -f "${SERVER_KEY}" ]] && chmod 644 "${SERVER_KEY}"
+  [[ -f "${CA_CERT}" ]] && chmod 644 "${CA_CERT}"
+  [[ -f "${SERVER_CERT}" ]] && chmod 644 "${SERVER_CERT}"
+}
+
 if [[ "${REDIS_TLS_ENABLED:-false}" != "true" ]]; then
   log "REDIS_TLS_ENABLED=${REDIS_TLS_ENABLED:-false}; skipping Redis TLS material generation"
   exit 0
 fi
 
 if [[ -f "${CA_KEY}" && -f "${CA_CERT}" && -f "${SERVER_KEY}" && -f "${SERVER_CERT}" ]]; then
+  ensure_redis_tls_permissions
   log "Redis TLS material already exists: ${REDIS_TLS_DIR}"
   exit 0
 fi
@@ -66,7 +75,6 @@ openssl_cmd x509 \
   -sha256 \
   -extfile "${extfile}" >/dev/null 2>&1
 
-chmod 600 "${CA_KEY}" "${SERVER_KEY}"
-chmod 644 "${CA_CERT}" "${SERVER_CERT}"
+ensure_redis_tls_permissions
 
 log "generated Redis CA/server TLS material at ${REDIS_TLS_DIR}"
