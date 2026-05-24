@@ -22,7 +22,7 @@
     "preview": "vite preview",
     "test": "vitest run --config ../../vitest.config.ts",
     "test:e2e": "playwright test",
-    "typecheck": "vue-tsc --noEmit --skipLibCheck"
+    "typecheck": "vue-tsc --noEmit --skipLibCheck && tsc --noEmit --project tsconfig.node.json"
   },
   "imports": {
     "#/*": "./src/*"

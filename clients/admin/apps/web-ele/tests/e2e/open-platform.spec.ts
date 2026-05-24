@@ -104,14 +104,16 @@ test('open platform apps page renders pending reviews and approves a scope', asy
 }) => {
   await mockAdminSession(page);
 
-  const appList = [createPendingApp()];
-  let listRequestURL: null | URL = null;
+  const pendingApp = createPendingApp();
+  const appList = [pendingApp];
+  let listRequestStatus = '';
   let listRequestCount = 0;
   let approvedScopePath = '';
 
   await page.route('**/api/v1/admin/open-platform/apps?*', async (route) => {
     listRequestCount += 1;
-    listRequestURL = new URL(route.request().url());
+    const requestURL = new URL(route.request().url());
+    listRequestStatus = requestURL.searchParams.get('status') ?? '';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -129,7 +131,7 @@ test('open platform apps page renders pending reviews and approves a scope', asy
     '**/api/v1/admin/open-platform/apps/42/scopes/email.read/approve',
     async (route) => {
       approvedScopePath = new URL(route.request().url()).pathname;
-      appList[0].scopes = appList[0].scopes.map((scope) =>
+      pendingApp.scopes = pendingApp.scopes.map((scope) =>
         scope.scope === 'email.read'
           ? {
               ...scope,
@@ -146,7 +148,7 @@ test('open platform apps page renders pending reviews and approves a scope', asy
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          data: { scopes: appList[0].scopes },
+          data: { scopes: pendingApp.scopes },
         }),
       });
     },
@@ -157,7 +159,7 @@ test('open platform apps page renders pending reviews and approves a scope', asy
   await expect(page.getByText('Campus Connector')).toBeVisible();
   await expect(page.getByText('campus-connector')).toBeVisible();
   await expect(page.getByText('Email address')).toBeVisible();
-  expect(listRequestURL?.searchParams.get('status')).toBe('pending');
+  expect(listRequestStatus).toBe('pending');
 
   await page.getByRole('button', { name: /批准权限|Approve Scope/ }).click();
   await page

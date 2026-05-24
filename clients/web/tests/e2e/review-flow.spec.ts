@@ -95,6 +95,14 @@ async function mockAuth(page: Page) {
     );
 }
 
+function requireRecord(
+    value: Record<string, unknown> | null,
+    message: string,
+): Record<string, unknown> {
+    expect(value, message).not.toBeNull();
+    return value as Record<string, unknown>;
+}
+
 test.beforeEach(async ({ page }) => {
     await mockAuth(page);
 });
@@ -356,9 +364,13 @@ test("authenticated user can publish a review and vote on a course review", asyn
     await expect
         .poll(() => createdReviewPayload?.title as string | undefined)
         .toBe("端到端评课验证");
-    expect(createdReviewPayload?.courseID).toBe(1);
-    expect(createdReviewPayload?.termID).toBe("2025-fall");
-    expect(createdReviewPayload?.ratings).toMatchObject({
+    const createdPayload = requireRecord(
+        createdReviewPayload,
+        "created review payload should be captured",
+    );
+    expect(createdPayload.courseID).toBe(1);
+    expect(createdPayload.termID).toBe("2025-fall");
+    expect(createdPayload.ratings).toMatchObject({
         difficulty: 5,
         workload: 3,
         usefulness: 4,

@@ -365,10 +365,14 @@ test.describe("Auth callback and admission entry", () => {
                 get: () => 2,
             });
             HTMLVideoElement.prototype.play = async () => undefined;
-            HTMLCanvasElement.prototype.getContext = () =>
-                ({
+            HTMLCanvasElement.prototype.getContext = ((contextId: string) => {
+                if (contextId !== "2d") {
+                    return null;
+                }
+                return {
                     drawImage: () => undefined,
-                }) as unknown as CanvasRenderingContext2D;
+                } as unknown as CanvasRenderingContext2D;
+            }) as HTMLCanvasElement["getContext"];
             HTMLCanvasElement.prototype.toDataURL = () =>
                 "data:image/jpeg;base64,QUJDRA==";
         });

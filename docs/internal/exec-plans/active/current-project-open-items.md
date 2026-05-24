@@ -81,6 +81,15 @@ E2E 覆盖。新增覆盖后已通过单文件
 404、入群链接冲突 / 过期 409 / 410、匿名读取课程收藏状态 401；Admin 仅允许匿名 `auth/me` 401。
 收紧后已通过完整 `CI=1 PLAYWRIGHT_WEB_PORT=3410 make e2e`，覆盖 Web 53 项和 Admin 26 项。
 
+本地验证补充（2026-05-25）：Web / Admin E2E 测试代码本身也纳入常用静态门禁。Web 新增
+`tsconfig.e2e.json`，`@stuhelper/web` 的 `type-check` 现在同时执行 `vue-tsc` 和 E2E
+`tsc --noEmit`，`lint` 现在覆盖 `src` 与 `tests/e2e`；Admin `@vben/web-ele` 的
+`tsconfig.node.json` 覆盖 `playwright.config.ts` 与 `tests/e2e/**/*.ts`，`typecheck` 同时执行
+`vue-tsc` 和 Node/Playwright `tsc --noEmit`。接入门禁时修复了 Web 摄像头 mock、发布评课 payload
+断言和 Admin Open Platform E2E 的类型问题。已通过 `pnpm --dir clients type-check:all` 和
+`pnpm --dir clients lint:all`，并复跑完整 `CI=1 PLAYWRIGHT_WEB_PORT=3410 make e2e`（Web 53 项、
+Admin 26 项）。
+
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
 矩阵，覆盖首页、登录页、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform
