@@ -270,7 +270,7 @@ log "starting local Baota-equivalent shared PostgreSQL"
 "${SCRIPT_DIR}/init-shared-postgres.sh"
 
 log "starting local production-parity Casdoor SSO"
-compose --profile local-sso up -d --wait casdoor
+compose --profile prod --profile local-sso up -d --wait casdoor
 
 log "rendering local production-parity Redis and observability configs"
 "${SCRIPT_DIR}/render-redis-tls.sh"
