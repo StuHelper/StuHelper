@@ -85,6 +85,14 @@ E2E 覆盖。新增覆盖后已通过单文件
 只落在控制台而页面仍返回 200 时漏过；浏览器自动打印的 HTTP 状态行会单独记录为 ignored evidence，
 其失败语义继续由关键资源 HTTP 4xx/5xx 与页面 `fetch` / `xhr` HTTP 5xx 门禁负责。
 
+本地生产等价补充（2026-05-25）：新增 `prod-parity-datastore-smoke.sh`，并接入
+`make prod-parity-smoke`。该门禁在真实容器上验证共享 PostgreSQL 中 StuHelper / OpenFGA /
+本地 SSO Casdoor 使用独立数据库和独立登录账号，跨库连接会被拒绝；同时验证 Redis 是
+StuHelper Compose 内的独立 TLS/ACL 实例，使用自己的 `/data` volume，且没有加入外部 datastore
+网络。脱敏 evidence 写入 `.run/prod-parity/datastore-smoke-evidence.json`；本轮已通过
+`make prod-parity-datastore-smoke`、`make prod-parity-smoke`、`bash infra/ops/tests/prod-parity-contract.sh`、
+`make check-docs`、`make check-infra-contracts` 和 `git diff --check`。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、

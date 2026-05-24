@@ -8,6 +8,7 @@ INIT_SHARED_PG="${REPO_ROOT}/infra/ops/init-shared-postgres.sh"
 PARITY_UP="${REPO_ROOT}/infra/ops/prod-parity-up.sh"
 PARITY_DOWN="${REPO_ROOT}/infra/ops/prod-parity-down.sh"
 PARITY_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-smoke.sh"
+PARITY_DATASTORE_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-datastore-smoke.sh"
 PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
 PARITY_BROWSER_SMOKE_NODE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.mjs"
 ADMIN_INDEX_HTML="${REPO_ROOT}/clients/admin/apps/web-ele/index.html"
@@ -34,11 +35,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMIN_INDEX_HTML}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMIN_INDEX_HTML}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_BROWSER_SMOKE}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}"
 
 assert_contains "${PARITY_COMPOSE}" '^  postgres:'
 assert_contains "${PARITY_COMPOSE}" 'POSTGRES_PASSWORD: \$\{SHARED_POSTGRES_PASSWORD:\?SHARED_POSTGRES_PASSWORD is required\}'
@@ -97,6 +98,7 @@ assert_contains "${PARITY_UP}" 'IDENTITY_SIGNING_PRIVATE_KEY_PEM=%s'
 assert_not_contains "${PARITY_UP}" 'prod-deploy.sh'
 
 assert_contains "${PARITY_DOWN}" 'parity_default_path'
+assert_contains "${PARITY_SMOKE}" 'prod-parity-datastore-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'identity-public-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'parity_default_path'
 assert_contains "${PARITY_SMOKE}" 'IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true'
@@ -104,6 +106,15 @@ assert_contains "${PARITY_SMOKE}" 'openfga-resource-access-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-browser-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'observability-smoke-check.sh'
 assert_contains "${PARITY_SMOKE}" 'OBS_SMOKE_STRICT=false'
+
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'datastore-smoke-evidence\.json'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'has_database_privilege'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'assert_pg_connect_allowed'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'assert_pg_connect_denied'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'Redis container must not join external datastore network'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'Redis plaintext port must be disabled'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'redis-cli --tls'
+assert_contains "${PARITY_DATASTORE_SMOKE}" 'casdoorChecked'
 
 assert_contains "${PARITY_BROWSER_SMOKE}" 'PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FILE'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'browser-smoke-evidence\.json'
@@ -161,5 +172,6 @@ assert_not_contains "${ADMIN_INDEX_HTML}" '_VBEN_ADMIN_PRO_APP_CONF_'
 assert_contains "${MAKEFILE}" 'prod-parity-up'
 assert_contains "${MAKEFILE}" 'prod-parity-down'
 assert_contains "${MAKEFILE}" 'prod-parity-smoke'
+assert_contains "${MAKEFILE}" 'prod-parity-datastore-smoke'
 
 echo "[prod-parity-contract] all assertions passed"

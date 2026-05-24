@@ -148,12 +148,13 @@ make prod-down     # 停止
 ```bash
 make prod-parity-up      # 构建并启动本机生产等价栈
 make prod-parity-smoke   # 验收 Web / Admin / API / Identity / 观测入口，并用浏览器检查生产镜像渲染
+make prod-parity-datastore-smoke # 只复跑共享 PG / 独立 Redis 隔离检查
 make prod-parity-browser-smoke # 只复跑 Web / Admin 浏览器渲染检查
 make prod-parity-down    # 停止本机生产等价栈
 make prod-parity-reset   # 停止并清理本机生产等价 volume
 ```
 
-该模式使用仓库内生产 Compose 和 `.run/prod-parity/` 下的本地 env/secrets，不依赖宝塔面板；默认地址以脚本输出为准，通常为 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、API `http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`。它用于在 Ubuntu 24.04 本机先跑通“构建 → 启动 → migration/bootstrap → API/Identity/OpenFGA/观测 smoke → Web/Admin 浏览器渲染 smoke”的生产等价流程，再把同一套发布脚本用于真实生产。浏览器 smoke 会访问首页、登录、静态说明页、课程入口、课程列表、评课聚合、搜索、教师主页、写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform 授权与资料补全保护跳转、404 页面和 Admin 登录跳转，并验证保护入口保留 redirect；evidence 和截图写入 `.run/prod-parity/`，并会检查 `document`、`script`、`stylesheet`、`font`、`image` 关键资源加载失败、关键资源 HTTP 4xx/5xx、页面触发的 `fetch` / `xhr` HTTP 5xx、前端 `pageerror` 和非网络状态类浏览器 `console.error`，用于区分“curl 200 但前端实际白屏/资源加载失败”的问题。
+该模式使用仓库内生产 Compose 和 `.run/prod-parity/` 下的本地 env/secrets，不依赖宝塔面板；默认地址以脚本输出为准，通常为 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、API `http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`。它用于在 Ubuntu 24.04 本机先跑通“构建 → 启动 → migration/bootstrap → datastore isolation → API/Identity/OpenFGA/观测 smoke → Web/Admin 浏览器渲染 smoke”的生产等价流程，再把同一套发布脚本用于真实生产。datastore smoke 会验证共享 PostgreSQL 中 StuHelper / OpenFGA / 本地 SSO Casdoor 使用独立数据库、独立登录账号和跨库拒绝连接，并验证 Redis 是 StuHelper Compose 内的独立 TLS/ACL 实例、没有加入外部 datastore 网络；脱敏 evidence 写入 `.run/prod-parity/datastore-smoke-evidence.json`。浏览器 smoke 会访问首页、登录、静态说明页、课程入口、课程列表、评课聚合、搜索、教师主页、写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform 授权与资料补全保护跳转、404 页面和 Admin 登录跳转，并验证保护入口保留 redirect；evidence 和截图写入 `.run/prod-parity/`，并会检查 `document`、`script`、`stylesheet`、`font`、`image` 关键资源加载失败、关键资源 HTTP 4xx/5xx、页面触发的 `fetch` / `xhr` HTTP 5xx、前端 `pageerror` 和非网络状态类浏览器 `console.error`，用于区分“curl 200 但前端实际白屏/资源加载失败”的问题。
 
 如果本机已有 Vite 占用默认 Playwright 端口，可改用备用端口运行 Web E2E：
 

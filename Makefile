@@ -1,4 +1,4 @@
-.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-browser-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -48,6 +48,7 @@ help:
 	@echo "  make prod-parity-down - stop local production-equivalent stack"
 	@echo "  make prod-parity-reset - stop local production-equivalent stack and remove volumes"
 	@echo "  make prod-parity-smoke - smoke-check local production-equivalent stack"
+	@echo "  make prod-parity-datastore-smoke - verify local parity PostgreSQL/Redis isolation"
 	@echo "  make prod-parity-browser-smoke - run browser smoke against local production-equivalent Web/Admin"
 	@echo ""
 	@echo "Ansible:"
@@ -155,6 +156,9 @@ prod-parity-reset:
 
 prod-parity-smoke:
 	./infra/ops/prod-parity-smoke.sh
+
+prod-parity-datastore-smoke:
+	./infra/ops/prod-parity-datastore-smoke.sh
 
 prod-parity-browser-smoke:
 	./infra/ops/prod-parity-browser-smoke.sh

@@ -36,6 +36,8 @@ export ADMIN_BASE_URL="http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-28001}"
 export CHECK_ADMIN=true
 export APP_ENV=production
 
+"${SCRIPT_DIR}/prod-parity-datastore-smoke.sh"
+
 "${SCRIPT_DIR}/smoke-check.sh"
 
 WEB_PUBLIC_URL="${WEB_BASE_URL}" \
