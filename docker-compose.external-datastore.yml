@@ -46,6 +46,7 @@ services:
       DATA_SOURCE_URI: ${POSTGRES_EXPORTER_DATA_SOURCE_URI:-${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}}
     depends_on: !reset []
     networks: !override
+    - frontend
     - backend
     - observability
     - external-datastore

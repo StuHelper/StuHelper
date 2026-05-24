@@ -142,6 +142,9 @@ assert_contains "${SSO_NGINX_FILE}" 'proxy_pass http://127\.0\.0\.1:8087;'
 if printf '%s\n' "${app_block}" | grep -Eq 'proxy:'; then
   fail "production app service must not depend on Traefik when Baota/Nginx owns public ingress"
 fi
+if ! printf '%s\n' "${app_block}" | grep -Eq '^    - frontend$'; then
+  fail "production app service must join frontend network so web/admin nginx can resolve app upstreams"
+fi
 assert_contains "${COMPOSE_PROD_FILE}" '\./infra/postgres/pg_hba\.prod\.conf:/etc/postgresql/pg_hba\.conf:ro'
 assert_contains "${PG_HBA_PROD_FILE}" '^hostnossl all[[:space:]]+all[[:space:]]+10\.0\.0\.0/8[[:space:]]+reject$'
 assert_contains "${PG_HBA_PROD_FILE}" '^hostssl stuhelper[[:space:]]+stuhelper_app[[:space:]]+10\.0\.0\.0/8[[:space:]]+scram-sha-256$'

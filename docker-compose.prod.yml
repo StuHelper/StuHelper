@@ -81,6 +81,7 @@ services:
           cpus: '0.50'
           memory: 512M
     networks:
+    - frontend
     - backend
     - observability
     security_opt:
