@@ -436,6 +436,53 @@ require_public_oidc_discovery() {
   log "${name} public OIDC discovery ready: ${url}"
 }
 
+require_public_jwks() {
+  local name="$1"
+  local url="$2"
+  local timeout="${PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS:-10}"
+  local output_file
+  local error_file
+  local status
+  local curl_error
+  local body
+
+  [[ -n "${url}" ]] || die "${name} JWKS URL is required for public identity ingress preflight"
+  output_file="$(mktemp)"
+  error_file="$(mktemp)"
+  if ! status="$(curl -sS --max-time "${timeout}" -o "${output_file}" -w '%{http_code}' "${url}" 2>"${error_file}")"; then
+    curl_error="$(_public_ingress_body_snippet "${error_file}")"
+    rm -f "${output_file}" "${error_file}"
+    die "${name} JWKS preflight failed for ${url}: ${curl_error:-curl failed}"
+  fi
+  curl_error="$(_public_ingress_body_snippet "${error_file}")"
+  rm -f "${error_file}"
+  if [[ ! "${status}" =~ ^[0-9][0-9][0-9]$ ]] || (( status < 200 || status >= 300 )); then
+    body="$(_public_ingress_body_snippet "${output_file}")"
+    rm -f "${output_file}"
+    die "${name} JWKS preflight returned HTTP ${status} for ${url}: ${body:-${curl_error:-<empty body>}}"
+  fi
+  if ! jq -e 'type == "object" and (.keys | type == "array")' "${output_file}" >/dev/null; then
+    body="$(_public_ingress_body_snippet "${output_file}")"
+    rm -f "${output_file}"
+    die "${name} JWKS metadata is invalid for ${url}: ${body:-<empty body>}"
+  fi
+  rm -f "${output_file}"
+  log "${name} public JWKS ready: ${url}"
+}
+
+public_oidc_jwks_uri() {
+  local issuer
+  issuer="$(trim_trailing_slash "$1")"
+  local timeout="${PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS:-10}"
+  local metadata
+
+  [[ -n "${issuer}" ]] || return 1
+  if ! metadata="$(curl -fsS --max-time "${timeout}" "${issuer}/.well-known/openid-configuration")"; then
+    return 1
+  fi
+  printf '%s\n' "${metadata}" | jq -r '.jwks_uri // empty'
+}
+
 require_public_identity_ingress_preflight() {
   if [[ "${PUBLIC_INGRESS_PREFLIGHT_ENABLED:-true}" != "true" ]]; then
     warn "public identity ingress preflight skipped because PUBLIC_INGRESS_PREFLIGHT_ENABLED is not true"
@@ -448,6 +495,11 @@ require_public_identity_ingress_preflight() {
   require_public_http_reachable "Web" "$(trim_trailing_slash "${WEB_PUBLIC_URL:-}")"
   require_public_http_reachable "Identity" "$(trim_trailing_slash "${IDENTITY_ISSUER:-}")"
   require_public_oidc_discovery "Casdoor" "${CASDOOR_ISSUER:-}"
+  local casdoor_jwks_uri
+  if ! casdoor_jwks_uri="$(public_oidc_jwks_uri "${CASDOOR_ISSUER:-}")"; then
+    die "Casdoor JWKS URI preflight failed for ${CASDOOR_ISSUER:-}: discovery did not expose jwks_uri"
+  fi
+  require_public_jwks "Casdoor" "${casdoor_jwks_uri}"
 }
 
 require_public_ingress_config_preflight() {

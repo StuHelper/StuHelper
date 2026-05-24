@@ -212,7 +212,7 @@ infra/nginx/baota-stuhelper.conf
 infra/nginx/baota-casdoor-sso.conf
 ```
 
-`baota-stuhelper.conf` 用于主站机器的 `stuhelper.com` / `id.stuhelper.com`；`baota-casdoor-sso.conf` 用于外部 SSO 机器的 `sso.stuhelper.com`。SSO 配置必须显式代理 `/.well-known/*` 到 Casdoor upstream，避免 OIDC discovery 被宝塔静态站点 404 覆盖。
+`baota-stuhelper.conf` 用于主站机器的 `stuhelper.com` / `id.stuhelper.com`；`baota-casdoor-sso.conf` 用于外部 SSO 机器的 `sso.stuhelper.com`。SSO 配置必须显式代理 `/.well-known/openid-configuration` 和 discovery 中的 JWKS 路径到 Casdoor upstream，避免 OIDC 元数据被宝塔静态站点 404 覆盖。
 
 保存或 reload 前先审计实际配置：
 
@@ -221,7 +221,7 @@ NGINX_PUBLIC_INGRESS_PROFILE=stuhelper ./infra/ops/nginx-public-ingress-prefligh
 NGINX_PUBLIC_INGRESS_PROFILE=sso ./infra/ops/nginx-public-ingress-preflight.sh
 ```
 
-第一条在主站生产机执行，第二条在外部 Casdoor SSO 机器执行。远端发布主机默认使用 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper`，只审计本机拥有的 `stuhelper.com` / `id.stuhelper.com` server block；`sso.stuhelper.com` 由 SSO 机器本地审计和公网 OIDC discovery 门禁共同覆盖。
+第一条在主站生产机执行，第二条在外部 Casdoor SSO 机器执行。远端发布主机默认使用 `NGINX_PUBLIC_INGRESS_PROFILE=stuhelper`，只审计本机拥有的 `stuhelper.com` / `id.stuhelper.com` server block；`sso.stuhelper.com` 由 SSO 机器本地审计和公网 OIDC discovery/JWKS 门禁共同覆盖。
 
 生产端口默认值：
 

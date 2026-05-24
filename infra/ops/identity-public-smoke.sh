@@ -22,7 +22,7 @@ Verifies the public production identity ingress:
   - IDENTITY_ISSUER /oauth2/logout POST query/body rejection
   - IDENTITY_ISSUER /oidc/userinfo GET/POST missing bearer failure
   - IDENTITY_ISSUER /oidc/userinfo query/body token-source rejection
-  - CASDOOR_ISSUER discovery
+  - CASDOOR_ISSUER discovery and JWKS
 
 Required env:
   IDENTITY_ISSUER
@@ -131,6 +131,7 @@ smoke_resource_access_action="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_ACTION:-}"
 smoke_resource_access_expect_allowed="${IDENTITY_PUBLIC_SMOKE_RESOURCE_ACCESS_EXPECT_ALLOWED:-false}"
 allow_local_targets="${IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS:-false}"
 pkce_s256_challenge="E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+casdoor_jwks_url="${casdoor_issuer}/.well-known/jwks"
 
 [[ -n "${identity_issuer}" ]] || die "IDENTITY_ISSUER is required"
 [[ -n "${casdoor_issuer}" ]] || die "CASDOOR_ISSUER is required"
@@ -310,6 +311,7 @@ write_evidence() {
       "${web_public_url}" \
       "${identity_issuer}" \
       "${casdoor_issuer}" \
+      "${casdoor_jwks_url}" \
       "${pass}" \
       "${fail}" \
       "${passed}" \
@@ -318,7 +320,7 @@ import json
 import sys
 from pathlib import Path
 
-checks_path = Path(sys.argv[9])
+checks_path = Path(sys.argv[10])
 checks = []
 if checks_path.exists():
     checks = [
@@ -330,7 +332,7 @@ if checks_path.exists():
 bundle = {
     "generatedAt": sys.argv[1],
     "appEnv": sys.argv[2],
-    "passed": sys.argv[8] == "true",
+    "passed": sys.argv[9] == "true",
     "webPublicURL": sys.argv[3],
     "identityIssuer": sys.argv[4],
     "casdoorIssuer": sys.argv[5],
@@ -347,10 +349,11 @@ bundle = {
         "identityUserInfo": sys.argv[4] + "/oidc/userinfo",
         "openPlatformResourceAccessCheck": sys.argv[3] + "/api/v1/open-platform/resources/access/check",
         "casdoorDiscovery": sys.argv[5] + "/.well-known/openid-configuration",
+        "casdoorJWKS": sys.argv[6],
     },
     "summary": {
-        "passed": int(sys.argv[6]),
-        "failed": int(sys.argv[7]),
+        "passed": int(sys.argv[7]),
+        "failed": int(sys.argv[8]),
     },
     "checks": checks,
 }
@@ -519,11 +522,13 @@ PY
 }
 
 check_jwks() {
+  local label="${1:-JWKS}"
+  shift || true
   local body="$1"
   if printf '%s\n' "${body}" | jq -e '.keys | type == "array" and length > 0' >/dev/null; then
-    record_pass "Identity JWKS"
+    record_pass "${label} JWKS"
   else
-    record_fail "Identity JWKS 未返回可用 keys" "$(json_detail expected "non-empty keys array")"
+    record_fail "${label} JWKS 未返回可用 keys" "$(json_detail expected "non-empty keys array")"
   fi
 }
 
@@ -1473,7 +1478,7 @@ fi
 
 jwks_file="${tmpdir}/identity-jwks.json"
 if fetch_json "Identity JWKS" "${identity_issuer}/.well-known/jwks.json" "${jwks_file}"; then
-  check_jwks "$(cat "${jwks_file}")"
+  check_jwks "Identity" "$(cat "${jwks_file}")"
 fi
 
 check_authorize_redirect
@@ -1504,6 +1509,14 @@ check_client_credentials_grant
 casdoor_metadata_file="${tmpdir}/casdoor-openid-configuration.json"
 if fetch_json "Casdoor discovery" "${casdoor_issuer}/.well-known/openid-configuration" "${casdoor_metadata_file}"; then
   check_casdoor_discovery "$(cat "${casdoor_metadata_file}")"
+  discovered_casdoor_jwks_url="$(jq -r '.jwks_uri // empty' "${casdoor_metadata_file}")"
+  if [[ -n "${discovered_casdoor_jwks_url}" ]]; then
+    casdoor_jwks_url="${discovered_casdoor_jwks_url}"
+  fi
+  casdoor_jwks_file="${tmpdir}/casdoor-jwks.json"
+  if fetch_json "Casdoor JWKS" "${casdoor_jwks_url}" "${casdoor_jwks_file}"; then
+    check_jwks "Casdoor" "$(cat "${casdoor_jwks_file}")"
+  fi
 fi
 
 printf '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'

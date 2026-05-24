@@ -61,11 +61,13 @@ def require_www_authenticate(name, expected):
 
 if mode == "default":
     require(evidence.get("passed") is True, "default smoke did not pass")
-    require(evidence.get("summary", {}).get("passed") == 25, "default passed count")
+    require(evidence.get("summary", {}).get("passed") == 26, "default passed count")
     require(evidence.get("summary", {}).get("failed") == 0, "default failed count")
-    require(len(checks) == 25, "default check count")
+    require(len(checks) == 26, "default check count")
     require(sum(1 for item in checks if "details" in item) >= 12, "default details count")
     for name in (
+        "Identity JWKS",
+        "Casdoor JWKS",
         "Identity authorize 重新认证跳转",
         "Identity token 缺少 grant_type 返回 invalid_request",
         "Identity introspect 缺少 client 返回 invalid_client",
@@ -110,17 +112,20 @@ if mode == "default":
     require_www_authenticate("Identity UserInfo body token 返回 invalid_token", 'Bearer realm="StuHelper Identity", error="invalid_token"')
     endpoints = evidence.get("endpoints", {})
     issuer = evidence.get("identityIssuer", "")
+    casdoor_issuer = evidence.get("casdoorIssuer", "")
     require(endpoints.get("identityDiscovery") == issuer + "/.well-known/openid-configuration", "identityDiscovery endpoint")
     require(endpoints.get("identityAuthorizationServerMetadata") == issuer + "/.well-known/oauth-authorization-server", "identityAuthorizationServerMetadata endpoint")
     require(endpoints.get("identityToken") == issuer + "/oauth2/token", "identityToken endpoint")
     require(endpoints.get("identityIntrospection") == issuer + "/oauth2/introspect", "identityIntrospection endpoint")
     require(endpoints.get("identityRevocation") == issuer + "/oauth2/revoke", "identityRevocation endpoint")
     require(endpoints.get("identityLogout") == issuer + "/oauth2/logout", "identityLogout endpoint")
+    require(endpoints.get("casdoorDiscovery") == casdoor_issuer + "/.well-known/openid-configuration", "casdoorDiscovery endpoint")
+    require(endpoints.get("casdoorJWKS") == casdoor_issuer + "/.well-known/jwks", "casdoorJWKS endpoint")
 elif mode == "registered":
     require(evidence.get("passed") is True, "registered smoke did not pass")
-    require(evidence.get("summary", {}).get("passed") == 26, "registered passed count")
+    require(evidence.get("summary", {}).get("passed") == 27, "registered passed count")
     require(evidence.get("summary", {}).get("failed") == 0, "registered failed count")
-    require(len(checks) == 26, "registered check count")
+    require(len(checks) == 27, "registered check count")
     matches = [
         item for item in named("Identity prompt=none 未登录错误回调")
         if item.get("passed") is True
@@ -131,9 +136,9 @@ elif mode == "registered":
     require(len(matches) == 1, "registered prompt=none check")
 elif mode == "client_credentials":
     require(evidence.get("passed") is True, "client credentials smoke did not pass")
-    require(evidence.get("summary", {}).get("passed") == 39, "client credentials passed count")
+    require(evidence.get("summary", {}).get("passed") == 40, "client credentials passed count")
     require(evidence.get("summary", {}).get("failed") == 0, "client credentials failed count")
-    require(len(checks) == 39, "client credentials check count")
+    require(len(checks) == 40, "client credentials check count")
     for name in (
         "Identity prompt=none 未登录错误回调",
         "Identity token 混用 client authentication 返回 invalid_client",
@@ -203,9 +208,9 @@ elif mode == "client_credentials":
     require("app-only-token" not in serialized, "access token leaked into evidence")
 elif mode == "client_credentials_allowed":
     require(evidence.get("passed") is True, "allowed resource smoke did not pass")
-    require(evidence.get("summary", {}).get("passed") == 39, "allowed resource passed count")
+    require(evidence.get("summary", {}).get("passed") == 40, "allowed resource passed count")
     require(evidence.get("summary", {}).get("failed") == 0, "allowed resource failed count")
-    require(len(checks) == 39, "allowed resource check count")
+    require(len(checks) == 40, "allowed resource check count")
     for name in (
         "Identity token 混用 client authentication 返回 invalid_client",
         "Identity introspect 混用 client authentication 返回 invalid_client",
@@ -262,7 +267,7 @@ elif mode == "failure":
 elif mode == "unreachable":
     require(evidence.get("passed") is False, "unreachable smoke passed unexpectedly")
     require(evidence.get("summary", {}).get("failed", 0) > 0, "unreachable failed count")
-    require(len(checks) == 25, "unreachable check count")
+    require(len(checks) == 26, "unreachable check count")
     unreachable = [item for item in checks if item.get("details", {}).get("httpStatus") == "000"]
     require(len(unreachable) >= 15, "unreachable 000 count")
     require(all(item.get("details", {}).get("curlError") for item in unreachable), "unreachable curl errors")
@@ -295,6 +300,7 @@ assert_contains "${SMOKE_SCRIPT}" 'IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS'
 assert_contains "${SMOKE_SCRIPT}" '/.well-known/openid-configuration'
 assert_contains "${SMOKE_SCRIPT}" '/.well-known/oauth-authorization-server'
 assert_contains "${SMOKE_SCRIPT}" '/.well-known/jwks.json'
+assert_contains "${SMOKE_SCRIPT}" 'Casdoor JWKS'
 assert_contains "${SMOKE_SCRIPT}" '/oauth2/authorize'
 assert_contains "${SMOKE_SCRIPT}" '/oauth2/logout'
 assert_contains "${SMOKE_SCRIPT}" 'id_token_hint'
@@ -535,6 +541,9 @@ class Handler(BaseHTTPRequestHandler):
                 "token_endpoint": issuer + "/api/login/oauth/access_token",
                 "jwks_uri": issuer + "/.well-known/jwks",
             })
+            return
+        if self.path == "/sso/.well-known/jwks":
+            self.write_json(200, {"keys": [{"kid": "casdoor-test-key", "kty": "RSA", "use": "sig"}]})
             return
         self.write_json(404, {"error": "not_found", "path": self.path})
 

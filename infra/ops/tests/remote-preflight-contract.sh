@@ -49,6 +49,8 @@ assert_contains "${COMMON_LIB_FILE}" 'require_public_ingress_config_preflight\(\
 assert_contains "${COMMON_LIB_FILE}" 'nginx-public-ingress-preflight\.sh'
 assert_contains "${COMMON_LIB_FILE}" 'require_public_http_reachable\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_public_oidc_discovery\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_public_jwks\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'public_oidc_jwks_uri\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_public_dns_resolved\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'dns\.google/resolve'
 assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED'
@@ -56,6 +58,8 @@ assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_PREFLIGHT_ENABLED'
 assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_PUBLIC_DNS_ENABLED'
 assert_contains "${COMMON_LIB_FILE}" 'public DNS preflight failed'
 assert_contains "${COMMON_LIB_FILE}" 'public OIDC discovery ready'
+assert_contains "${COMMON_LIB_FILE}" 'public JWKS ready'
+assert_contains "${COMMON_LIB_FILE}" 'discovery did not expose jwks_uri'
 assert_contains "${COMMON_LIB_FILE}" 'require_verified_postgres_ssl_mode "POSTGRES_INTERNAL_SSL_MODE"'
 assert_contains "${COMMON_LIB_FILE}" 'DB_SSL_MODE must be verify-full for production'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
@@ -104,6 +108,7 @@ cat >"${fake_bin}/curl" <<'CURL'
 set -euo pipefail
 
 output_file=""
+write_out=""
 url=""
 args=("$@")
 index=0
@@ -113,6 +118,10 @@ while [[ "${index}" -lt "${#args[@]}" ]]; do
       index=$((index + 1))
       output_file="${args[${index}]}"
       ;;
+    -w)
+      index=$((index + 1))
+      write_out="${args[${index}]}"
+      ;;
     http://* | https://*)
       url="${args[${index}]}"
       ;;
@@ -120,8 +129,15 @@ while [[ "${index}" -lt "${#args[@]}" ]]; do
   index=$((index + 1))
 done
 
+status=200
 body='{"Status":0,"Answer":[]}'
 case "${url}" in
+  https://sso.example.com/.well-known/openid-configuration)
+    body='{"issuer":"https://sso.example.com","authorization_endpoint":"https://sso.example.com/login/oauth/authorize","token_endpoint":"https://sso.example.com/api/login/oauth/access_token","jwks_uri":"https://sso.example.com/.well-known/jwks"}'
+    ;;
+  https://sso.example.com/.well-known/jwks)
+    body='{"keys":[{"kid":"casdoor-test-key"}]}'
+    ;;
   *name=missing.example.com*)
     body='{"Status":3}'
     ;;
@@ -137,6 +153,9 @@ if [[ -n "${output_file}" ]]; then
   printf '%s\n' "${body}" >"${output_file}"
 else
   printf '%s\n' "${body}"
+fi
+if [[ -n "${write_out}" ]]; then
+  printf '%s' "${status}"
 fi
 CURL
 chmod +x "${fake_bin}/curl"
@@ -166,5 +185,23 @@ if PATH="${fake_bin}:${PATH}" bash -c '
 fi
 grep -q 'non-public A/AAAA records: 10.0.0.8' "${tmpdir}/private.err" || \
   fail "public DNS private-address failure did not report the expected diagnostic"
+
+jwks_uri="$(
+  PATH="${fake_bin}:${PATH}" bash -c '
+    set -euo pipefail
+    source "$1"
+    public_oidc_jwks_uri "https://sso.example.com"
+  ' bash "${COMMON_LIB_FILE}"
+)"
+[[ "${jwks_uri}" == "https://sso.example.com/.well-known/jwks" ]] || \
+  fail "public_oidc_jwks_uri did not return the discovery JWKS URI"
+
+PATH="${fake_bin}:${PATH}" bash -c '
+  set -euo pipefail
+  source "$1"
+  require_public_jwks "Casdoor" "https://sso.example.com/.well-known/jwks"
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/jwks.out"
+grep -q 'Casdoor public JWKS ready' "${tmpdir}/jwks.out" || \
+  fail "public JWKS preflight did not report success"
 
 echo "[remote-preflight-contract] all assertions passed"

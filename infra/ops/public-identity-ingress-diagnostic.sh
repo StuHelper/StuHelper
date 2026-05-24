@@ -21,6 +21,7 @@ Collects DNS, SNI TLS, and public OIDC endpoint diagnostics for:
   - IDENTITY_ISSUER /.well-known/oauth-authorization-server
   - IDENTITY_ISSUER /.well-known/jwks.json
   - CASDOOR_ISSUER /.well-known/openid-configuration
+  - CASDOOR_ISSUER JWKS URI from discovery
 
 Required env:
   none
@@ -512,6 +513,7 @@ def oidc_discovery_probe(label: str, issuer: str) -> dict[str, object]:
     else:
         result["passed"] = True
         result["issuer"] = metadata.get("issuer")
+        result["jwksURI"] = metadata.get("jwks_uri")
     return result
 
 
@@ -566,15 +568,19 @@ def oauth_authorization_server_metadata_probe(issuer: str) -> dict[str, object]:
     return result
 
 
-def jwks_probe(issuer: str) -> dict[str, object]:
-    result = run_curl(endpoint_url(issuer, "/.well-known/jwks.json"))
+def jwks_probe(label: str, url: str) -> dict[str, object]:
+    result = run_curl(url)
     if not result.get("passed"):
         if str(result.get("httpStatus")) == "404":
-            result["diagnosis"] = "identity_jwks_not_proxied"
-            result["recommendation"] = "Proxy id.stuhelper.com location ^~ /.well-known/ to the backend."
+            if label == "Identity":
+                result["diagnosis"] = "identity_jwks_not_proxied"
+                result["recommendation"] = "Proxy id.stuhelper.com location ^~ /.well-known/ to the backend."
+            else:
+                result["diagnosis"] = "casdoor_jwks_not_proxied"
+                result["recommendation"] = "On the SSO host, proxy the Casdoor JWKS path from discovery to Casdoor before any static /.well-known rule."
         return result
     direct = subprocess.run(
-        ["curl", "-sS", "--max-time", str(timeout), endpoint_url(issuer, "/.well-known/jwks.json")],
+        ["curl", "-sS", "--max-time", str(timeout), url],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
@@ -589,7 +595,7 @@ def jwks_probe(issuer: str) -> dict[str, object]:
     if not isinstance(jwks.get("keys"), list):
         result["passed"] = False
         result["diagnosis"] = "jwks_missing_keys"
-        result["recommendation"] = "Identity JWKS must contain a keys array."
+        result["recommendation"] = f"{label} JWKS must contain a keys array."
     return result
 
 
@@ -613,12 +619,17 @@ for name, target in targets.items():
         "tls": tls_probe(host, port, scheme),
     }
 
+identity_discovery = oidc_discovery_probe("Identity", identity_issuer)
+casdoor_discovery = oidc_discovery_probe("Casdoor", casdoor_issuer)
+casdoor_jwks_url = str(casdoor_discovery.get("jwksURI") or endpoint_url(casdoor_issuer, "/.well-known/jwks"))
+
 endpoints = {
     "webHealth": run_curl(endpoint_url(web_public_url, "/health/ready")),
-    "identityDiscovery": oidc_discovery_probe("Identity", identity_issuer),
+    "identityDiscovery": identity_discovery,
     "identityAuthorizationServerMetadata": oauth_authorization_server_metadata_probe(identity_issuer),
-    "identityJWKS": jwks_probe(identity_issuer),
-    "casdoorDiscovery": oidc_discovery_probe("Casdoor", casdoor_issuer),
+    "identityJWKS": jwks_probe("Identity", endpoint_url(identity_issuer, "/.well-known/jwks.json")),
+    "casdoorDiscovery": casdoor_discovery,
+    "casdoorJWKS": jwks_probe("Casdoor", casdoor_jwks_url),
 }
 
 diagnoses: list[dict[str, str]] = []

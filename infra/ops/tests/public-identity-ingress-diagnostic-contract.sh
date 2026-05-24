@@ -48,9 +48,11 @@ assert_contains "${DIAG_SCRIPT}" 'public_dns_non_public_address'
 assert_contains "${DIAG_SCRIPT}" 'casdoor_well_known_served_by_spa'
 assert_contains "${DIAG_SCRIPT}" 'identity_well_known_not_proxied'
 assert_contains "${DIAG_SCRIPT}" 'identity_oauth_as_metadata_not_proxied'
+assert_contains "${DIAG_SCRIPT}" 'casdoor_jwks_not_proxied'
 assert_contains "${DIAG_SCRIPT}" '/.well-known/openid-configuration'
 assert_contains "${DIAG_SCRIPT}" '/.well-known/oauth-authorization-server'
 assert_contains "${DIAG_SCRIPT}" '/.well-known/jwks.json'
+assert_contains "${DIAG_SCRIPT}" 'casdoorJWKS'
 
 tmpdir="$(mktemp -d)"
 cleanup() {
@@ -174,6 +176,15 @@ case "${url}" in
       body='{"issuer":"https://sso.stuhelper.com","authorization_endpoint":"https://sso.stuhelper.com/login/oauth/authorize","token_endpoint":"https://sso.stuhelper.com/api/login/oauth/access_token","jwks_uri":"https://sso.stuhelper.com/.well-known/jwks"}'
     fi
     ;;
+  https://sso.stuhelper.com/.well-known/jwks)
+    if [[ "${PUBLIC_IDENTITY_DIAG_FAKE_CURL_MODE:-ok}" == "sso_jwks_404" ]]; then
+      status=404
+      content_type="text/plain"
+      body='not found'
+    else
+      body='{"keys":[]}'
+    fi
+    ;;
   */sso/.well-known/openid-configuration)
     if [[ "${PUBLIC_IDENTITY_DIAG_FAKE_CURL_MODE:-ok}" == "sso_spa_404" ]]; then
       status=404
@@ -181,6 +192,15 @@ case "${url}" in
       body='<!doctype html><html><head><title>Casdoor</title></head><body>Casdoor SPA</body></html>'
     else
       body='{"issuer":"https://localhost/sso","authorization_endpoint":"https://localhost/sso/login/oauth/authorize","token_endpoint":"https://localhost/sso/api/login/oauth/access_token","jwks_uri":"https://localhost/sso/.well-known/jwks"}'
+    fi
+    ;;
+  */sso/.well-known/jwks)
+    if [[ "${PUBLIC_IDENTITY_DIAG_FAKE_CURL_MODE:-ok}" == "sso_jwks_404" ]]; then
+      status=404
+      content_type="text/plain"
+      body='not found'
+    else
+      body='{"keys":[]}'
     fi
     ;;
   *)
@@ -223,6 +243,8 @@ assert_json "${ok_file}" '.summary.failed == 0'
 assert_json "${ok_file}" '.endpoints.identityDiscovery.issuer == "https://localhost/id"'
 assert_json "${ok_file}" '.endpoints.identityAuthorizationServerMetadata.issuer == "https://localhost/id"'
 assert_json "${ok_file}" '.endpoints.casdoorDiscovery.issuer == "https://localhost/sso"'
+assert_json "${ok_file}" '.endpoints.casdoorDiscovery.jwksURI == "https://localhost/sso/.well-known/jwks"'
+assert_json "${ok_file}" '.endpoints.casdoorJWKS.passed == true'
 if grep -Eiq 'secret|token=' "${ok_file}"; then
   fail "diagnostic evidence must not contain secrets or raw token values"
 fi
@@ -310,6 +332,19 @@ assert_json "${sso_spa_file}" '.passed == false'
 assert_json "${sso_spa_file}" '.endpoints.casdoorDiscovery.diagnosis == "casdoor_well_known_served_by_spa"'
 assert_json "${sso_spa_file}" '.diagnoses[] | select(.diagnosis == "casdoor_well_known_served_by_spa")'
 grep -q 'set-cookie: <redacted>' "${sso_spa_file}" || fail "sso diagnostic should retain only redacted Set-Cookie marker"
+
+sso_jwks_file="${tmpdir}/sso-jwks.json"
+PATH="${fake_bin}:${PATH}" \
+  WEB_PUBLIC_URL=https://localhost/web \
+  IDENTITY_ISSUER=https://localhost/id \
+  CASDOOR_ISSUER=https://localhost/sso \
+  PUBLIC_IDENTITY_DIAG_FAKE_CURL_MODE=sso_jwks_404 \
+  PUBLIC_IDENTITY_INGRESS_DIAGNOSTIC_FILE="${sso_jwks_file}" \
+  "${DIAG_SCRIPT}" >"${tmpdir}/sso-jwks.stdout" 2>"${tmpdir}/sso-jwks.stderr"
+
+assert_json "${sso_jwks_file}" '.passed == false'
+assert_json "${sso_jwks_file}" '.endpoints.casdoorJWKS.diagnosis == "casdoor_jwks_not_proxied"'
+assert_json "${sso_jwks_file}" '.diagnoses[] | select(.target == "endpoints.casdoorJWKS" and .diagnosis == "casdoor_jwks_not_proxied")'
 
 if PATH="${fake_bin}:${PATH}" \
   WEB_PUBLIC_URL=https://localhost/web \
