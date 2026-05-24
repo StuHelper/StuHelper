@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-18
+last-verified: 2026-05-24
 ---
 
 # 安全实践
@@ -50,9 +50,12 @@ access / refresh token 已显式区分 `typ`。
 - 第三方应用的 Casdoor OIDC scope 固定为 `openid`；业务字段不进入第三方 token。
 - `redirect_uri` 必须精确匹配 `open_platform_apps.redirect_uris`，禁止 wildcard、fragment、regex、通配子域和通配路径。
 - 业务 scope 审批和用户 consent 是两道独立检查；缺任一项都拒绝披露。
+- `id.stuhelper.com` 的 token scope 保留第三方被授予的 OAuth scope，例如 `openid profile email`；服务端在校验时再映射为业务 scope 做审批、consent 和字段披露，避免把内部字段 scope 泄漏为外部 OIDC 契约。
 - Consent challenge 存 Redis，TTL 为 5 分钟，绑定 app、user、scope、redirect URI 和 state。
 - Consent 页面由 StuHelper 承载，显示应用信息、当前登录身份和每个 scope 实际读取字段。
 - 应用密钥只在批准或轮换时展示一次，服务端仅保存 hash。
+- `id.stuhelper.com` 的 token introspection 必须反映当前授权状态：除 JWT 签名、过期时间、JTI revoke 外，还要重新检查 app 仍为 approved、token scope 映射出的业务 scope 仍被批准、用户 disclosure consent 仍 active，且 token 中记录的 consent 指纹仍等于当前 active consent 指纹。用户撤销授权、重新确认授权、管理员定向撤销授权或管理员暂停 / 吊销 app 后，后续 introspection 返回 `active=false`；管理员恢复 suspended app 后只恢复 app active 状态，不自动恢复用户已撤销的 consent，也不会让旧 token 在用户重新授权后复活。
+- `resource.read` / `resource.write` 只表示应用可申请资源类能力；具体资源授权必须落在 OpenFGA tuple。管理员吊销 app 时会同步删除该 app 的 `resource_item` / `user_profile` tuple，并写入 `open_platform.resource_access.revoked` 审计，避免留下陈旧资源授权。
 - 敏感 disclosure、consent 决策、异常拒绝和手机号读取失败必须进入 `open_platform_audit_events` 或等价审计链路。
 
 ## 机器人内部接口

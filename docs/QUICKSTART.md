@@ -3,7 +3,7 @@ type: guide
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-05-02
+last-verified: 2026-05-24
 ---
 
 # 快速开始
@@ -14,6 +14,16 @@ last-verified: 2026-05-02
 - Go 1.26+
 - Node.js 24+ / pnpm 10+
 - Python 3（运维脚本、环境渲染、远程部署前置检查依赖）
+
+Ubuntu 24.04 本地开发机可直接运行仓库内 bootstrap：
+
+```bash
+make bootstrap-dev-ubuntu2404
+```
+
+该脚本会安装 Docker Engine / Compose plugin、Go 1.26、Node.js 24、pnpm 10、
+`air`、Playwright Chromium 运行依赖和浏览器缓存，并把当前 sudo 用户加入 `docker`
+组。执行后重新打开终端，再继续一键启动。
 
 ## 一键启动
 
@@ -66,6 +76,7 @@ make migrate-up     # 手动执行 SQL migration（需设置 DATABASE_URL）
 
 ```bash
 cd clients
+corepack enable && corepack prepare pnpm@10 --activate
 pnpm install
 pnpm dev:web        # 主站
 pnpm dev:admin      # 管理后台

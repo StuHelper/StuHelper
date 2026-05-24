@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, ops
 status: current
 authoritative-source: server/internal/modules/auth/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/
-last-verified: 2026-05-02
+last-verified: 2026-05-24
 ---
 
 # IAM 实施守卫
@@ -35,7 +35,8 @@ last-verified: 2026-05-02
 - 单个 job 的 `process`、`markDone` 或 `markRetry` 失败不得阻止同 batch 后续 job；
 - `process` 成功但 `markDone` 失败必须记录 job ID、job type、错误和指标，并在 batch 末返回聚合错误；
 - outbox consumer 应尽量幂等，但 worker 不能把所有副作用严格幂等作为隐藏前提；
-- `failed` 状态表示 retry-scheduled 或 terminal-delay，不等同于单独 DLQ 表。
+- `failed` 状态只表示 retry-scheduled，不得用远未来 `available_at` 表达终止失败；
+- 达到 `MaxAttempts` 后必须写入 `dead_letter`，并通过显式 replay API 重放。
 
 ## Retention Cleanup
 
@@ -59,6 +60,22 @@ WHERE id IN (
   LIMIT $3
 )
 ```
+
+## 审计写入上下文
+
+请求链路内的审计事件必须使用 `audit.LogContext(ctx, event)`、`audit.LogFromGin(c, event)`、`audit.LogSuccessContext(...)` 或 `audit.LogFailureContext(...)`，不得先用 `audit.EventFromContext` 手动补字段后再调用无上下文 `audit.Log`。
+
+- `audit.LogContext` 会从 context 补齐 `request_id` / `trace_id`；
+- 持久化使用 `context.WithoutCancel(ctx)`，保留 trace baggage 和 request-scoped values，同时避免客户端断开导致安全审计丢失；
+- 后台启动、bootstrap 等没有请求上下文的调用可以继续使用 `audit.Log`，但有业务 `ctx` 时必须优先传入。
+
+## 敏感日志门禁
+
+手机号、账号、OTP 相关链路不得把原始手机号写入日志字段。Go 代码中 phone/mobile 类 zap 字段必须先经过 `maskPhone`、`phoneutil.Mask`、`logger.MaskPhone` 或 `logger.MaskSensitiveData`。
+
+- CI 通过 `scripts/check-semgrep-custom-rules.sh` 运行 `tools/semgrep/stuhelper-security.yml`；
+- 新增手机号日志字段时，必须同步通过 custom Semgrep fixture 和 `server/internal` 扫描；
+- 确需记录关联维度时，优先记录 hash、内部用户 ID 或已脱敏展示值。
 
 ## 边界标识规范化
 

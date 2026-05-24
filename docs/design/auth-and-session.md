@@ -63,11 +63,13 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
   - 请求体传 `{ "refreshToken": "..." }`
   - 不走 cookie / 不做 CSRF 校验
   - 响应体返回 `accessToken`、`refreshToken`、`expiresIn`
+- refresh token 来源必须唯一：原生 JSON body 与浏览器认证/session cookie 不能混用；请求体存在时必须是合法 JSON，不能静默回退到 cookie。
+- session 定位来源必须唯一：`X-Stuhelper-Session-ID` 必须是单个非空 header，且不能与浏览器 `session_id` cookie 同时出现。
 - OIDC refresh token 由 StuHelper session store 代持：
   - `oidc` / `oidc-native` session 会把 provider refresh token 加密后写入 Redis session；
   - refresh 轮换时先吊销旧 provider refresh token，再保存新 provider refresh token；
   - `logout` / `logout-all` 必须先调用 Casdoor revocation endpoint 吊销 provider refresh token，失败时返回错误，不清理本地 session 假装成功；
-  - 当前公开登录链路全部是 OIDC provider session，不存在 StuHelper 自签 phone-login refresh token。
+  - 当前公开登录链路全部是 OIDC provider session，不存在 StuHelper 自签 phone-login refresh token；遗留自签 refresh token 会被 `/api/v1/auth/refresh` 拒绝，遗留自签 access cookie 也不会被认证中间件接受。
 
 ### 浏览器 access token 校验模型
 

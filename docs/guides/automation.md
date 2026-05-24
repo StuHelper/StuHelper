@@ -12,6 +12,17 @@ StuHelper 提供统一的自动化入口，目标是把开发与生产都统一�
 
 ## 开发环境
 
+Ubuntu 24.04 本地开发机首次准备：
+
+```bash
+# 项目根目录下运行
+make bootstrap-dev-ubuntu2404
+```
+
+该入口会调用 `infra/ops/bootstrap-dev-ubuntu2404.sh`，安装 Docker Engine / Compose plugin、
+Go 1.26、Node.js 24、pnpm 10、`air`、Playwright Chromium 运行依赖和浏览器缓存，并把当前
+sudo 用户加入 `docker` 组。执行后重新打开终端，让 docker 组和 PATH 变更生效。
+
 ```bash
 # 项目根目录下运行
 make dev-init
@@ -56,6 +67,15 @@ make dev-down
 ```bash
 make dev-reset
 ```
+
+运维脚本、生产 evidence、Nginx preflight、Ubuntu bootstrap 和 CI 漂移类合同测试统一入口：
+
+```bash
+make check-infra-contracts
+```
+
+该入口会执行 `infra/ops/tests/run-infra-contracts.sh`，同时覆盖 `*.sh` 和 `*.mjs`
+合同测试，避免 runtime token probe runner 这类 Node 合同漏出 CI 门禁。
 
 ## 仅启动可观测性
 
@@ -130,6 +150,9 @@ cd /opt/stuhelper
 - `.deploy/remote.env` 是否就位
 - 共享配置 / secrets 文件是否就位
 - 备份目录是否存在
+- 生产 PostgreSQL TLS 是否强制开启并使用 `verify-ca` 或更严格的 `verify-full`
+- 本机宝塔 Nginx 主站/id 入口配置是否满足 `infra/ops/nginx-public-ingress-preflight.sh` 契约
+- 公网身份入口是否已经具备可用 TLS，并且 `sso.stuhelper.com/.well-known/openid-configuration` 返回有效 Casdoor OIDC discovery
 - PostgreSQL 逻辑备份 / base backup / backup sync timer 是否已启用
 - `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` / `BACKUP_OBJECT_STORAGE_ENDPOINT` / `BACKUP_OBJECT_STORAGE_BUCKET` / `BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID` / `BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY`
 
@@ -184,6 +207,8 @@ make prod-reset
 - 远端缺少共享配置 / secrets
 - backup timer 或 backup sync timer 没启
 - WAL 归档目录没准备好
+- 主站生产机的宝塔 Nginx `stuhelper.com` / `id.stuhelper.com` server block 漂移
+- `id.stuhelper.com` TLS 或 `sso.stuhelper.com` OIDC discovery 漂移
 
 第一次准备远端服务器：
 

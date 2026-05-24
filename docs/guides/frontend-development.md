@@ -3,7 +3,7 @@ type: guide
 audience: frontend-dev
 status: current
 authoritative-source: clients/shared/
-last-verified: 2026-04-19
+last-verified: 2026-05-24
 ---
 
 # 前端开发规范
@@ -96,6 +96,7 @@ web / admin / uniappx 封装
 
 ```bash
 cd clients
+corepack enable && corepack prepare pnpm@10 --activate
 pnpm install
 pnpm dev:web
 pnpm dev:admin

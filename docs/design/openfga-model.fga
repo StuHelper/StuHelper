@@ -66,6 +66,7 @@ type user_profile
   relations
     define owner: [user]
     define school: [school]
+    define can_read_by_app: [open_platform_app]
     define school_admin_proxy: effective_admin from school
     define can_view_identity: owner or school_admin_proxy
 
@@ -73,3 +74,9 @@ type open_platform_app
   relations
     define developer: [user]
     define approved_by: [user]
+
+type resource_item
+  relations
+    define owner: [user]
+    define can_read_by_app: [open_platform_app]
+    define can_write_by_app: [open_platform_app]

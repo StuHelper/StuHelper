@@ -237,7 +237,7 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 | Koishi runtime → StuHelper API（已有） | **保留** opaque service token 模式 + 升级路径见 §3.6.4；不上 Casdoor | 内部高频调用；switch 到 Casdoor 增加 IDP 故障域无收益 |
 | Outbox worker → Casdoor / OpenFGA | StuHelper 内部凭据（per-worker secret） | 不暴露到外网；不需要 OAuth 流程 |
 | Metrics / observability collector | 保留现行 metrics 基本认证 | 与 IDP 解耦 |
-| Open Platform server-to-server（v1.1） | Casdoor `client_credentials` grant | 第三方应用走标准 OAuth |
+| Open Platform server-to-server（v1.1） | StuHelper Identity `client_credentials` grant | 第三方应用走标准 OAuth；仅允许 `resource.read` / `resource.write` app-only scope，避免绕过用户 consent 读取资料 |
 | 高敏后台写操作（如运维直接写 OpenFGA） | mTLS 或 sender-constrained token | 强身份 + 不可重放 |
 
 #### 3.6.2 机器身份硬约束
@@ -674,6 +674,8 @@ Casdoor 官方 token 文档目前**未明确**说明 single-use rotation + reuse
 1. **跑实测**：用 Casdoor 测试实例发 refresh token，连续两次以同一 refresh token 调 token endpoint，观察行为；
    - 实测入口：`infra/ops/casdoor-capability-probe.sh`；
    - 因该检查会消耗 refresh token，必须显式设置 `CASDOOR_PROBE_RUN_REFRESH_ROTATION=true` 和一次性 `CASDOOR_PROBE_REFRESH_TOKEN`，脚本不得默认执行破坏性 probe；
+   - 第三方 app token claim 最小化的手工 code-flow 实测入口是 `infra/ops/casdoor-token-minimization-probe.sh`；脚本固定请求 `scope=openid`，交换 authorization code 后解码 ID token 与 JWT access token，出现手机号、学生认证、学校、身份类型等业务 claim 时失败；
+   - 审批前自动 runtime code-flow 探针入口是 `infra/ops/casdoor-runtime-token-probe-runner.mjs`，backend 生产镜像内置副本为 `/app/casdoor-runtime-token-probe-runner.mjs`；生产必须设置 `OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true`、注入专用低权限 Casdoor 探针账号凭据，并用 `infra/ops/casdoor-runtime-token-probe-smoke.sh` 在发布时通过专用 smoke app 实跑一次；
 2. **若 Casdoor 原生支持** rotation + reuse detection：直接用 Casdoor 配置；
 3. **若 Casdoor 不支持**（默认假设）：StuHelper 在 session store 层包装：
    - 记录每个 refresh token 的 hash + user_id + 颁发时间；
