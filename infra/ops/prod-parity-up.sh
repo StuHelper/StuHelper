@@ -310,7 +310,9 @@ log "starting local production-parity OpenFGA"
 compose --profile prod up -d --wait openfga
 
 log "bootstrapping local OpenFGA store/model"
-CASDOOR_BOOTSTRAP_ENABLED=false "${SCRIPT_DIR}/bootstrap-platform.sh" dev
+CASDOOR_BOOTSTRAP_ENABLED=false \
+  OPENFGA_BOOTSTRAP_API_URL="http://127.0.0.1:8081" \
+  "${SCRIPT_DIR}/bootstrap-platform.sh" dev
 load_env
 
 log "starting local production-parity application services"
