@@ -208,6 +208,9 @@ services:
         limits:
           cpus: '1.0'
           memory: 1G
+    read_only: true
+    tmpfs:
+    - /tmp
     security_opt:
     - no-new-privileges:true
   minio-init:
@@ -258,6 +261,7 @@ services:
       BACKUP_OBJECT_STORAGE_BUCKET: ${BACKUP_OBJECT_STORAGE_BUCKET:-}
       BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID: ${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}
       BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      MC_CONFIG_DIR: /tmp/.mc
     depends_on:
       minio:
         condition: service_healthy
@@ -265,6 +269,9 @@ services:
     networks:
     - backend
     restart: no
+    read_only: true
+    tmpfs:
+    - /tmp
     deploy:
       resources:
         limits:

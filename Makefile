@@ -1,4 +1,4 @@
-.PHONY: help dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -12,6 +12,7 @@ help:
 	@echo "StuHelper automation entrypoints"
 	@echo ""
 	@echo "Development:"
+	@echo "  make bootstrap-dev-ubuntu2404 - install Ubuntu 24.04 local dev prerequisites"
 	@echo "  make dev        - alias for dev-up"
 	@echo "  make dev-init   - generate runnable local .env and derived files"
 	@echo "  make dev-up     - one-click start local hot-reload dev (Vite + air) with Docker infra"
@@ -40,6 +41,9 @@ help:
 	@echo "  make prod-down   - stop prod stack"
 	@echo "  make prod-reset  - stop prod stack and remove volumes"
 	@echo "  make prod-smoke  - run app + observability smoke checks"
+	@echo "  make prod-identity-smoke - verify public stuhelper/id/sso identity ingress"
+	@echo "  make prod-open-platform-evidence - run token/OpenFGA production evidence smokes"
+	@echo "  make prod-backup-evidence - verify local/fetched PostgreSQL backup evidence"
 	@echo ""
 	@echo "Ansible:"
 	@echo "  make ansible-bootstrap      - bootstrap a remote Ubuntu host from infra/ansible"
@@ -47,6 +51,13 @@ help:
 	@echo "  make ansible-deploy-prod    - deploy the current workspace to production via Ansible"
 	@echo "  make ansible-rollback-staging - rollback staging via Ansible"
 	@echo "  make ansible-rollback-prod    - rollback production via Ansible"
+	@echo ""
+	@echo "Security:"
+	@echo "  make check-infra-contracts - run ops shell and Node contract tests"
+	@echo "  make check-semgrep-custom - run StuHelper custom Semgrep rules and fixtures"
+
+bootstrap-dev-ubuntu2404:
+	sudo bash infra/ops/bootstrap-dev-ubuntu2404.sh
 
 dev-init:
 	./infra/ops/init-dev-env.sh
@@ -119,6 +130,15 @@ prod-smoke:
 	$(PROD_RUNTIME_ENV) ./infra/ops/smoke-check.sh && \
 	$(PROD_RUNTIME_ENV) ./infra/ops/observability-smoke-check.sh
 
+prod-identity-smoke:
+	$(PROD_RUNTIME_ENV) ./infra/ops/identity-public-smoke.sh
+
+prod-open-platform-evidence:
+	$(PROD_RUNTIME_ENV) ./infra/ops/open-platform-production-evidence.sh
+
+prod-backup-evidence:
+	$(PROD_RUNTIME_ENV) ./infra/ops/postgres-backup-evidence.sh
+
 ansible-bootstrap:
 	cd infra/ansible && ansible-playbook -i inventory/production.ini playbooks/bootstrap.yml
 
@@ -137,3 +157,9 @@ ansible-rollback-prod:
 check-docs:
 	node --test scripts/check-docs-hygiene.test.mjs
 	bash scripts/check-docs-hygiene.sh
+
+check-infra-contracts:
+	bash infra/ops/tests/run-infra-contracts.sh
+
+check-semgrep-custom:
+	bash scripts/check-semgrep-custom-rules.sh

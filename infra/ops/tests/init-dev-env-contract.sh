@@ -10,6 +10,14 @@ fail() {
   exit 1
 }
 
+assert_file_contains() {
+  local file="$1"
+  local pattern="$2"
+  if ! grep -Eq "${pattern}" "${file}"; then
+    fail "expected ${file} to contain pattern: ${pattern}"
+  fi
+}
+
 env_value() {
   local file="$1"
   local key="$2"
@@ -65,8 +73,20 @@ assert_env_value "${env_file}" "API_IP_RATE_LIMIT" "5000"
 assert_env_value "${env_file}" "API_GLOBAL_RATE_LIMIT" "50000"
 assert_env_value "${env_file}" "REVIEW_RATE_POST_LIMIT" "500"
 assert_env_value "${env_file}" "REVIEW_RATE_SEARCH_USER_LIMIT" "500"
+assert_env_value "${env_file}" "OPEN_PLATFORM_DISCLOSURE_APP_LIMIT" "600"
+assert_env_value "${env_file}" "OPEN_PLATFORM_DISCLOSURE_APP_USER_LIMIT" "120"
+assert_env_value "${env_file}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED" "false"
+assert_env_value "${env_file}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND" ""
+assert_env_value "${env_file}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS" "30"
+assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_BROWSER_HEADLESS" "true"
+assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_BROWSER_NO_SANDBOX" "true"
 assert_env_value "${env_file}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-user-profile"
 assert_env_value "${env_file}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
+assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "casdoor-token-probe-smoke"
+assert_file_contains "${env_file}" '^CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET=dev-casdoor-token-probe-smoke-[0-9a-f]+$'
+assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION" "casdoor-token-probe-smoke"
+assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "http://localhost:3000/open-platform/token-probe/callback"
+assert_env_value "${env_file}" "OPENFGA_RESOURCE_SMOKE_MODE" "host"
 
 legacy_dir="$(mktemp -d)"
 cleanup_dirs+=("${legacy_dir}")
@@ -114,7 +134,19 @@ assert_env_value "${legacy_env}" "API_IP_RATE_LIMIT" "5000"
 assert_env_value "${legacy_env}" "API_GLOBAL_RATE_LIMIT" "50000"
 assert_env_value "${legacy_env}" "REVIEW_RATE_POST_LIMIT" "500"
 assert_env_value "${legacy_env}" "REVIEW_RATE_SEARCH_USER_LIMIT" "500"
+assert_env_value "${legacy_env}" "OPEN_PLATFORM_DISCLOSURE_APP_LIMIT" "600"
+assert_env_value "${legacy_env}" "OPEN_PLATFORM_DISCLOSURE_APP_USER_LIMIT" "120"
+assert_env_value "${legacy_env}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED" "false"
+assert_env_value "${legacy_env}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND" ""
+assert_env_value "${legacy_env}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS" "30"
+assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_BROWSER_HEADLESS" "true"
+assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_BROWSER_NO_SANDBOX" "true"
 assert_env_value "${legacy_env}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-user-profile"
 assert_env_value "${legacy_env}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
+assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "casdoor-token-probe-smoke"
+assert_file_contains "${legacy_env}" '^CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET=dev-casdoor-token-probe-smoke-[0-9a-f]+$'
+assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION" "casdoor-token-probe-smoke"
+assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "http://localhost:3000/open-platform/token-probe/callback"
+assert_env_value "${legacy_env}" "OPENFGA_RESOURCE_SMOKE_MODE" "host"
 
 echo "[init-dev-env-contract] ok"

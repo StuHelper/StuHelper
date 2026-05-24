@@ -34,6 +34,13 @@ assert_contains "Refresh token reuse detected"
 assert_contains "StuHelperIAMDriftReconciliationThresholdExceeded"
 assert_contains "increase(iam_drift_reconciliation_threshold_exceeded_total[10m]) > 0"
 assert_contains "IAM drift reconciliation exceeded automatic repair threshold"
+assert_contains "StuHelperOpenPlatformDisclosureReplayDetected"
+assert_contains 'increase(open_platform_disclosure_replay_total{outcome="detected"}[5m]) > 0'
+assert_contains "Open Platform disclosure replay detected"
+assert_contains "StuHelperOpenPlatformDisclosureDeniedSpike"
+assert_contains 'sum(rate(open_platform_disclosure_requests_total{result!~"ok|audit_unavailable"}[5m])) > 1'
+assert_contains "StuHelperOpenPlatformDisclosureRateLimited"
+assert_contains 'sum(rate(open_platform_disclosure_requests_total{result="rate_limited"}[5m])) > 0.1'
 assert_contains 'probe_success{job="blackbox-http",instance="https://sso.stuhelper.com/.well-known/openid-configuration"} == 0'
 assert_contains 'probe_success{job="blackbox-http",instance="https://id.stuhelper.com/.well-known/openid-configuration"} == 0'
 assert_prometheus_contains "https://sso.stuhelper.com/.well-known/openid-configuration"

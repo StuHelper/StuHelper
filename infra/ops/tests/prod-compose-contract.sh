@@ -4,9 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 COMPOSE_PROD_FILE="${REPO_ROOT}/docker-compose.prod.yml"
+COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 COMMON_LIB_FILE="${REPO_ROOT}/infra/ops/lib/common.sh"
 PG_HBA_PROD_FILE="${REPO_ROOT}/infra/postgres/pg_hba.prod.conf"
 BAOTA_NGINX_FILE="${REPO_ROOT}/infra/nginx/baota-stuhelper.conf"
+SSO_NGINX_FILE="${REPO_ROOT}/infra/nginx/baota-casdoor-sso.conf"
 
 fail() {
   echo "[prod-compose-contract][error] $*" >&2
@@ -31,6 +33,25 @@ app_block="$(
 
 [[ -n "${app_block}" ]] || fail "expected app service block in ${COMPOSE_PROD_FILE}"
 
+minio_block="$(
+  awk '
+    /^  minio:/ { in_block=1; next }
+    /^  minio-init:/ { in_block=0 }
+    in_block { print }
+  ' "${COMPOSE_FILE}"
+)"
+
+minio_init_block="$(
+  awk '
+    /^  minio-init:/ { in_block=1; next }
+    /^  migrate-dev:/ { in_block=0 }
+    in_block { print }
+  ' "${COMPOSE_FILE}"
+)"
+
+[[ -n "${minio_block}" ]] || fail "expected minio service block in ${COMPOSE_FILE}"
+[[ -n "${minio_init_block}" ]] || fail "expected minio-init service block in ${COMPOSE_FILE}"
+
 if ! printf '%s\n' "${app_block}" | grep -Eq '\$\{SECRETS_ENV_FILE_PATH:-\.env\.prod\.secrets\.local\}'; then
   fail "app env_file must inject the production secrets env file"
 fi
@@ -51,6 +72,26 @@ assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_USER_PROFILE_CLIENT_SECRET: \$\{
 assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_INTROSPECTION_CLIENT_SECRET: \$\{CASDOOR_INTROSPECTION_CLIENT_SECRET:\?CASDOOR_INTROSPECTION_CLIENT_SECRET is required\}'
 assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_ROLE_SYNC_CLIENT_SECRET: \$\{CASDOOR_ROLE_SYNC_CLIENT_SECRET:\?CASDOOR_ROLE_SYNC_CLIENT_SECRET is required\}'
 assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_USER_LOOKUP_CLIENT_SECRET: \$\{CASDOOR_USER_LOOKUP_CLIENT_SECRET:\?CASDOOR_USER_LOOKUP_CLIENT_SECRET is required\}'
+assert_contains "${COMPOSE_PROD_FILE}" 'sslmode=\$\{DB_SSL_MODE:-verify-full\}&sslrootcert=/tls/ca\.crt'
+assert_contains "${COMPOSE_PROD_FILE}" 'sslmode=\$\{POSTGRES_INTERNAL_SSL_MODE:-verify-full\}&sslrootcert=/tls/ca\.crt'
+if grep -Eq 'sslmode=\$\{(DB_SSL_MODE|POSTGRES_INTERNAL_SSL_MODE):-disable\}' "${COMPOSE_PROD_FILE}"; then
+  fail "production compose overlay must not default PostgreSQL clients to sslmode=disable"
+fi
+if ! printf '%s\n' "${minio_block}" | grep -Eq '^    read_only: true$'; then
+  fail "minio service must run with a read-only root filesystem"
+fi
+if ! printf '%s\n' "${minio_block}" | grep -Eq '^    - /tmp$'; then
+  fail "minio service must provide /tmp as tmpfs when root is read-only"
+fi
+if ! printf '%s\n' "${minio_init_block}" | grep -Eq '^      MC_CONFIG_DIR: /tmp/\.mc$'; then
+  fail "minio-init must keep mc config under writable tmpfs"
+fi
+if ! printf '%s\n' "${minio_init_block}" | grep -Eq '^    read_only: true$'; then
+  fail "minio-init service must run with a read-only root filesystem"
+fi
+if ! printf '%s\n' "${minio_init_block}" | grep -Eq '^    - /tmp$'; then
+  fail "minio-init service must provide /tmp as tmpfs when root is read-only"
+fi
 assert_contains "${COMPOSE_PROD_FILE}" '127\.0\.0\.1:\$\{BACKEND_EXTERNAL_PORT:-18080\}:8080'
 assert_contains "${COMPOSE_PROD_FILE}" '127\.0\.0\.1:\$\{WEB_EXTERNAL_PORT:-18000\}:80'
 assert_contains "${COMPOSE_PROD_FILE}" '127\.0\.0\.1:\$\{ADMIN_EXTERNAL_PORT:-18001\}:8080'
@@ -62,6 +103,9 @@ assert_contains "${BAOTA_NGINX_FILE}" 'proxy_pass http://127\.0\.0\.1:18001;'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /health/ \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location = /metrics \{'
 assert_contains "${BAOTA_NGINX_FILE}" 'location \^~ /docs/ \{'
+assert_contains "${SSO_NGINX_FILE}" 'server_name sso\.stuhelper\.com;'
+assert_contains "${SSO_NGINX_FILE}" 'location \^~ /\.well-known/ \{'
+assert_contains "${SSO_NGINX_FILE}" 'proxy_pass http://127\.0\.0\.1:8087;'
 if printf '%s\n' "${app_block}" | grep -Eq 'proxy:'; then
   fail "production app service must not depend on Traefik when Baota/Nginx owns public ingress"
 fi

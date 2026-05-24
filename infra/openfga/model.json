@@ -144,6 +144,7 @@
       "relations": {
         "owner": {"this": {}},
         "school": {"this": {}},
+        "can_read_by_app": {"this": {}},
         "school_admin_proxy": {"tupleToUserset": {"tupleset": {"relation": "school"}, "computedUserset": {"relation": "effective_admin"}}},
         "can_view_identity": {"union": {"child": [
           {"computedUserset": {"relation": "owner"}},
@@ -153,7 +154,8 @@
       "metadata": {
         "relations": {
           "owner": {"directly_related_user_types": [{"type": "user"}]},
-          "school": {"directly_related_user_types": [{"type": "school"}]}
+          "school": {"directly_related_user_types": [{"type": "school"}]},
+          "can_read_by_app": {"directly_related_user_types": [{"type": "open_platform_app"}]}
         }
       }
     },
@@ -167,6 +169,21 @@
         "relations": {
           "developer": {"directly_related_user_types": [{"type": "user"}]},
           "approved_by": {"directly_related_user_types": [{"type": "user"}]}
+        }
+      }
+    },
+    {
+      "type": "resource_item",
+      "relations": {
+        "owner": {"this": {}},
+        "can_read_by_app": {"this": {}},
+        "can_write_by_app": {"this": {}}
+      },
+      "metadata": {
+        "relations": {
+          "owner": {"directly_related_user_types": [{"type": "user"}]},
+          "can_read_by_app": {"directly_related_user_types": [{"type": "open_platform_app"}]},
+          "can_write_by_app": {"directly_related_user_types": [{"type": "open_platform_app"}]}
         }
       }
     }

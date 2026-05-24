@@ -140,9 +140,9 @@ infra_contract:
   image: python:3.13-bookworm
   before_script:
   - apt-get update
-  - apt-get install -y openssl
+  - apt-get install -y curl jq nodejs openssl
   script:
-  - for test_script in infra/ops/tests/*.sh; do bash "${test_script}"; done
+  - bash infra/ops/tests/run-infra-contracts.sh
 
 frontend_test:
   stage: test
@@ -205,6 +205,12 @@ frontend_sast:
   image: semgrep/semgrep:1.128.0
   script:
   - semgrep scan --config=p/vuejs --config=p/typescript --config=p/owasp-top-ten --config=p/security-audit --config=p/jwt --severity ERROR --error clients/web/src clients/admin/apps/web-ele/src
+
+custom_sast:
+  stage: security
+  image: semgrep/semgrep:1.128.0
+  script:
+  - bash scripts/check-semgrep-custom-rules.sh
 
 secret_scan:
   stage: security

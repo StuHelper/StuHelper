@@ -52,6 +52,10 @@ if [[ -n "${pending_generated_secret_ref}" ]]; then
   export GENERATED_ENV_SECRET_REF="${pending_generated_secret_ref}"
 fi
 
+require_production_postgres_ssl
+require_public_ingress_config_preflight
+require_public_identity_ingress_preflight
+
 # 校验 Docker 和 Docker Compose 运行环境
 docker info >/dev/null
 docker compose version >/dev/null

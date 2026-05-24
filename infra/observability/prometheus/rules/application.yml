@@ -90,6 +90,36 @@ groups:
           summary: IAM drift reconciliation exceeded automatic repair threshold
           description: '{{ $labels.domain }} drift reconciliation paused automatic repair and needs manual confirmation.'
 
+      - alert: StuHelperOpenPlatformDisclosureReplayDetected
+        expr: increase(open_platform_disclosure_replay_total{outcome="detected"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: Open Platform disclosure replay detected
+          description: 'Repeated Open Platform disclosure attempts were detected on endpoint {{ $labels.endpoint }}.'
+
+      - alert: StuHelperOpenPlatformDisclosureDeniedSpike
+        expr: sum(rate(open_platform_disclosure_requests_total{result!~"ok|audit_unavailable"}[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: Open Platform disclosure denials are elevated
+          description: Disclosure denial rate has been above 1 req/s for 10 minutes.
+
+      - alert: StuHelperOpenPlatformDisclosureRateLimited
+        expr: sum(rate(open_platform_disclosure_requests_total{result="rate_limited"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: Open Platform disclosure rate limits are firing
+          description: Disclosure rate limiting has exceeded 0.1 req/s for 5 minutes.
+
       - alert: StuHelperRedisPoolTimeouts
         expr: increase(redis_pool_timeouts_total[10m]) > 0
         for: 10m

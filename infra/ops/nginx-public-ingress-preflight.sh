@@ -1,0 +1,369 @@
+#!/usr/bin/env bash
+# Validate the effective Baota/Nginx public ingress config before deployment.
+#
+# By default this audits the StuHelper app host (`stuhelper.com`, `www`, and
+# `id`). Run with NGINX_PUBLIC_INGRESS_PROFILE=sso on the external Casdoor host,
+# or NGINX_PUBLIC_INGRESS_PROFILE=all against a combined nginx -T dump.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
+
+if [[ "${PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED:-true}" != "true" ]]; then
+  warn "public Nginx ingress config preflight skipped because PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED is not true"
+  exit 0
+fi
+
+require_cmd python3
+
+config_file="${NGINX_PUBLIC_INGRESS_CONFIG_FILE:-}"
+tmp_config_file=""
+tmp_error_file=""
+source_label=""
+
+cleanup() {
+  if [[ -n "${tmp_config_file}" ]]; then
+    rm -f "${tmp_config_file}"
+  fi
+  if [[ -n "${tmp_error_file}" ]]; then
+    rm -f "${tmp_error_file}"
+  fi
+}
+trap cleanup EXIT
+
+if [[ -n "${config_file}" ]]; then
+  [[ -f "${config_file}" ]] || die "NGINX_PUBLIC_INGRESS_CONFIG_FILE does not exist: ${config_file}"
+  source_label="${config_file}"
+else
+  nginx_bin="${NGINX_PUBLIC_INGRESS_NGINX_BIN:-nginx}"
+  require_cmd "${nginx_bin}"
+  tmp_config_file="$(mktemp)"
+  tmp_error_file="$(mktemp)"
+  if ! "${nginx_bin}" -T >"${tmp_config_file}" 2>"${tmp_error_file}"; then
+    die "nginx public ingress config preflight failed because nginx -T failed: $(_public_ingress_body_snippet "${tmp_error_file}")"
+  fi
+  config_file="${tmp_config_file}"
+  source_label="$("${nginx_bin}" -v 2>&1 | sed 's/^nginx version: //')"
+fi
+
+python3 - "${config_file}" <<'PY'
+from __future__ import annotations
+
+from dataclasses import dataclass
+import os
+import re
+import sys
+from pathlib import Path
+
+
+class CheckError(Exception):
+    pass
+
+
+@dataclass
+class Node:
+    name: str
+    args: list[str]
+    children: list["Node"]
+
+
+def strip_comments(text: str) -> str:
+    out: list[str] = []
+    quote = ""
+    escaped = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = ""
+            i += 1
+            continue
+        if ch in {"'", '"'}:
+            quote = ch
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "#":
+            while i < len(text) and text[i] not in "\r\n":
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def tokenize(text: str) -> list[str]:
+    tokens: list[str] = []
+    current: list[str] = []
+    quote = ""
+    escaped = False
+
+    def flush() -> None:
+        if current:
+            tokens.append("".join(current))
+            current.clear()
+
+    for ch in strip_comments(text):
+        if quote:
+            if escaped:
+                current.append(ch)
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = ""
+            else:
+                current.append(ch)
+            continue
+        if ch in {"'", '"'}:
+            quote = ch
+        elif ch.isspace():
+            flush()
+        elif ch in "{};":
+            flush()
+            tokens.append(ch)
+        else:
+            current.append(ch)
+
+    if quote:
+        raise CheckError("unterminated quote in Nginx config")
+    flush()
+    return tokens
+
+
+def parse_nodes(tokens: list[str], index: int = 0, nested: bool = False) -> tuple[list[Node], int]:
+    children: list[Node] = []
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "}":
+            if not nested:
+                raise CheckError("unexpected closing brace in Nginx config")
+            return children, index + 1
+        if token in {"{", ";"}:
+            raise CheckError(f"unexpected token in Nginx config: {token}")
+
+        name = token
+        index += 1
+        args: list[str] = []
+        while index < len(tokens) and tokens[index] not in {"{", "}", ";"}:
+            args.append(tokens[index])
+            index += 1
+        if index >= len(tokens):
+            raise CheckError(f"directive {name} is missing ';' or block")
+        terminator = tokens[index]
+        if terminator == ";":
+            children.append(Node(name, args, []))
+            index += 1
+        elif terminator == "{":
+            block_children, index = parse_nodes(tokens, index + 1, nested=True)
+            children.append(Node(name, args, block_children))
+        else:
+            raise CheckError(f"directive {name} ended with unexpected '}}'")
+
+    if nested:
+        raise CheckError("unterminated block in Nginx config")
+    return children, index
+
+
+def walk(nodes: list[Node]):
+    for node in nodes:
+        yield node
+        yield from walk(node.children)
+
+
+def direct(block: Node, name: str) -> list[Node]:
+    return [child for child in block.children if child.name == name]
+
+
+def recursive_has(block: Node, names: set[str]) -> bool:
+    return any(node.name in names for node in walk(block.children))
+
+
+def server_names(block: Node) -> list[str]:
+    names: list[str] = []
+    for directive in direct(block, "server_name"):
+        names.extend(directive.args)
+    return names
+
+
+def has_https_listen(block: Node) -> bool:
+    for directive in direct(block, "listen"):
+        has_443 = any(token == "443" or token.endswith(":443") or ":443" in token for token in directive.args)
+        has_ssl = any(token == "ssl" for token in directive.args)
+        if has_443 and has_ssl:
+            return True
+    return False
+
+
+def proxy_pass_values(block: Node) -> list[str]:
+    values: list[str] = []
+    for directive in direct(block, "proxy_pass"):
+        if directive.args:
+            values.append(directive.args[0])
+    return values
+
+
+def location(block: Node, modifier: str | None, path: str) -> Node | None:
+    for child in direct(block, "location"):
+        if modifier is None and child.args == [path]:
+            return child
+        if modifier is not None and len(child.args) >= 2 and child.args[0] == modifier and child.args[1] == path:
+            return child
+    return None
+
+
+def require_location_proxy(block: Node, label: str, modifier: str | None, path: str, upstream: str) -> None:
+    loc = location(block, modifier, path)
+    rendered = f"location {modifier + ' ' if modifier else ''}{path}"
+    if loc is None:
+        raise CheckError(f"{label}: missing {rendered}")
+    values = proxy_pass_values(loc)
+    if upstream not in values:
+        raise CheckError(
+            f"{label}: {rendered} must proxy_pass {upstream}; found {values or '<none>'}"
+        )
+
+
+def require_proxy_header(block: Node, label: str, header: str, value: str) -> None:
+    for directive in direct(block, "proxy_set_header"):
+        if len(directive.args) >= 2 and directive.args[0].lower() == header.lower() and directive.args[1] == value:
+            return
+    raise CheckError(f"{label}: missing proxy_set_header {header} {value}")
+
+
+def require_tls(block: Node, label: str) -> None:
+    if not has_https_listen(block):
+        raise CheckError(f"{label}: server block must listen on 443 ssl")
+    if not direct(block, "ssl_certificate"):
+        raise CheckError(f"{label}: missing ssl_certificate")
+    if not direct(block, "ssl_certificate_key"):
+        raise CheckError(f"{label}: missing ssl_certificate_key")
+
+
+def require_common_proxy_server(block: Node, label: str) -> None:
+    require_tls(block, label)
+    require_proxy_header(block, label, "Host", "$host")
+    require_proxy_header(block, label, "X-Forwarded-Proto", "https")
+    require_proxy_header(block, label, "X-Forwarded-Host", "$host")
+
+
+def validate_main(block: Node, upstreams: dict[str, str]) -> None:
+    label = "stuhelper.com"
+    require_common_proxy_server(block, label)
+    require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
+    require_location_proxy(block, label, "^~", "/health/", upstreams["backend"])
+    require_location_proxy(block, label, "^~", "/admin/", upstreams["admin"])
+    require_location_proxy(block, label, None, "/", upstreams["web"])
+
+
+def validate_www(block: Node) -> None:
+    require_tls(block, "www.stuhelper.com")
+
+
+def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
+    label = "id.stuhelper.com"
+    require_common_proxy_server(block, label)
+    require_location_proxy(block, label, "^~", "/.well-known/", upstreams["backend"])
+    require_location_proxy(block, label, "^~", "/oauth2/", upstreams["backend"])
+    require_location_proxy(block, label, "^~", "/oidc/", upstreams["backend"])
+    require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
+    require_location_proxy(block, label, None, "/", upstreams["web"])
+
+
+def validate_sso(block: Node, upstreams: dict[str, str]) -> None:
+    label = "sso.stuhelper.com"
+    require_common_proxy_server(block, label)
+    if recursive_has(block, {"root", "try_files"}):
+        raise CheckError(f"{label}: server block must not contain root or try_files")
+    require_location_proxy(block, label, "^~", "/.well-known/", upstreams["casdoor"])
+    require_location_proxy(block, label, "^~", "/api/", upstreams["casdoor"])
+    require_location_proxy(block, label, None, "/", upstreams["casdoor"])
+
+
+def matching_https_servers(servers: list[Node], domain: str) -> list[Node]:
+    return [server for server in servers if domain in server_names(server) and has_https_listen(server)]
+
+
+def require_valid_server(servers: list[Node], domain: str, validator) -> None:
+    candidates = matching_https_servers(servers, domain)
+    if not candidates:
+        raise CheckError(f"{domain}: missing HTTPS server block")
+    errors: list[str] = []
+    for candidate in candidates:
+        try:
+            validator(candidate)
+            return
+        except CheckError as exc:
+            errors.append(str(exc))
+    joined = " | ".join(errors[:4])
+    raise CheckError(f"{domain}: no HTTPS server block satisfies the ingress contract: {joined}")
+
+
+def upstream(direct_env: str, port_env: str | None, default_port: str) -> str:
+    direct_value = os.environ.get(direct_env, "").strip()
+    if direct_value:
+        return direct_value.rstrip("/")
+    if port_env:
+        port = os.environ.get(port_env, default_port).strip() or default_port
+    else:
+        port = default_port
+    return f"http://127.0.0.1:{port}"
+
+
+def selected_profiles() -> set[str]:
+    raw = os.environ.get("NGINX_PUBLIC_INGRESS_PROFILE", "stuhelper").strip().lower()
+    parts = {part for part in re.split(r"[\s,]+", raw) if part}
+    aliases = {
+        "all": "all",
+        "app": "stuhelper",
+        "main": "stuhelper",
+        "identity": "stuhelper",
+        "stuhelper": "stuhelper",
+        "casdoor": "sso",
+        "sso": "sso",
+    }
+    if not parts:
+        parts = {"stuhelper"}
+    profiles = {aliases.get(part, part) for part in parts}
+    if "all" in profiles:
+        profiles = {"stuhelper", "sso"}
+    unknown = profiles - {"stuhelper", "sso"}
+    if unknown:
+        raise CheckError(f"unknown NGINX_PUBLIC_INGRESS_PROFILE value: {', '.join(sorted(unknown))}")
+    return profiles
+
+
+try:
+    config_path = Path(sys.argv[1])
+    root_nodes, _ = parse_nodes(tokenize(config_path.read_text(encoding="utf-8", errors="replace")))
+    servers = [node for node in walk(root_nodes) if node.name == "server"]
+    if not servers:
+        raise CheckError("no server blocks found in Nginx config")
+
+    upstreams = {
+        "backend": upstream("NGINX_PUBLIC_INGRESS_BACKEND_UPSTREAM", "BACKEND_EXTERNAL_PORT", "18080"),
+        "web": upstream("NGINX_PUBLIC_INGRESS_WEB_UPSTREAM", "WEB_EXTERNAL_PORT", "18000"),
+        "admin": upstream("NGINX_PUBLIC_INGRESS_ADMIN_UPSTREAM", "ADMIN_EXTERNAL_PORT", "18001"),
+        "casdoor": upstream("NGINX_PUBLIC_INGRESS_CASDOOR_UPSTREAM", None, "8087"),
+    }
+
+    profiles = selected_profiles()
+    if "stuhelper" in profiles:
+        require_valid_server(servers, "stuhelper.com", lambda block: validate_main(block, upstreams))
+        require_valid_server(servers, "www.stuhelper.com", validate_www)
+        require_valid_server(servers, "id.stuhelper.com", lambda block: validate_identity(block, upstreams))
+    if "sso" in profiles:
+        require_valid_server(servers, "sso.stuhelper.com", lambda block: validate_sso(block, upstreams))
+except CheckError as exc:
+    print(f"[stuhelper][error] public Nginx ingress config preflight failed: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+
+log "public Nginx ingress config preflight passed (${NGINX_PUBLIC_INGRESS_PROFILE:-stuhelper}; ${source_label})"

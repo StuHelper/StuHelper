@@ -6,6 +6,18 @@ services:
     volumes:
     - ./infra/postgres/pg_hba.prod.conf:/etc/postgresql/pg_hba.conf:ro
 
+  openfga-migrate:
+    environment:
+      OPENFGA_DATASTORE_URI: postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
+
+  openfga:
+    environment:
+      OPENFGA_DATASTORE_URI: postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
+
+  postgres-exporter:
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
+
   app:
     profiles: [prod]
     image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
@@ -18,7 +30,7 @@ services:
     environment:
       APP_ENV: production
       LOG_FORMAT: json
-      DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-disable}&sslrootcert=/tls/ca.crt
+      DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
       DB_SSL_ROOT_CERT: /tls/ca.crt
       REDIS_HOST: redis
       REDIS_PORT: "6379"

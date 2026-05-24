@@ -1,0 +1,38 @@
+rules:
+  - id: stuhelper.go.raw-phone-log-field
+    languages:
+      - go
+    severity: ERROR
+    message: "Do not log raw phone-like values; mask with maskPhone, phoneutil.Mask, logger.MaskPhone, or logger.MaskSensitiveData first."
+    metadata:
+      category: security
+      technology:
+        - go
+        - zap
+      cwe:
+        - "CWE-532: Insertion of Sensitive Information into Log File"
+    patterns:
+      - pattern-either:
+          - pattern: zap.String($FIELD, $VALUE)
+          - pattern: zap.Any($FIELD, $VALUE)
+          - pattern: zap.Stringer($FIELD, $VALUE)
+          - pattern: zap.Object($FIELD, $VALUE)
+      - metavariable-regex:
+          metavariable: $FIELD
+          regex: '(?i)"[^"]*(phone|mobile)[^"]*"'
+      - pattern-not: zap.String($FIELD, maskPhone(...))
+      - pattern-not: zap.String($FIELD, phoneutil.Mask(...))
+      - pattern-not: zap.String($FIELD, logger.MaskPhone(...))
+      - pattern-not: zap.String($FIELD, logger.MaskSensitiveData(...))
+      - pattern-not: zap.Any($FIELD, maskPhone(...))
+      - pattern-not: zap.Any($FIELD, phoneutil.Mask(...))
+      - pattern-not: zap.Any($FIELD, logger.MaskPhone(...))
+      - pattern-not: zap.Any($FIELD, logger.MaskSensitiveData(...))
+      - pattern-not: zap.Stringer($FIELD, maskPhone(...))
+      - pattern-not: zap.Stringer($FIELD, phoneutil.Mask(...))
+      - pattern-not: zap.Stringer($FIELD, logger.MaskPhone(...))
+      - pattern-not: zap.Stringer($FIELD, logger.MaskSensitiveData(...))
+      - pattern-not: zap.Object($FIELD, maskPhone(...))
+      - pattern-not: zap.Object($FIELD, phoneutil.Mask(...))
+      - pattern-not: zap.Object($FIELD, logger.MaskPhone(...))
+      - pattern-not: zap.Object($FIELD, logger.MaskSensitiveData(...))

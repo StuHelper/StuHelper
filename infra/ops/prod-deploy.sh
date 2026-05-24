@@ -113,6 +113,7 @@ require_nonempty CORS_ORIGINS "${CORS_ORIGINS:-}"
 require_nonempty HMAC_SECRET "${HMAC_SECRET:-}"
 require_nonempty DOC_AES_KEYS "${DOC_AES_KEYS:-}"
 require_nonempty CASDOOR_ISSUER "${CASDOOR_ISSUER:-}"
+require_nonempty IDENTITY_ISSUER "${IDENTITY_ISSUER:-}"
 require_nonempty CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}"
 require_nonempty CASDOOR_CLIENT_ID "${CASDOOR_CLIENT_ID:-}"
 require_nonempty CASDOOR_CLIENT_SECRET "${CASDOOR_CLIENT_SECRET:-}"
@@ -147,6 +148,17 @@ require_nonempty CASDOOR_ROLE_SYNC_APPLICATION "${CASDOOR_ROLE_SYNC_APPLICATION:
 require_nonempty CASDOOR_USER_LOOKUP_CLIENT_ID "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}"
 require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}"
 require_nonempty CASDOOR_USER_LOOKUP_APPLICATION "${CASDOOR_USER_LOOKUP_APPLICATION:-}"
+require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID "${CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID:-}"
+require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET "${CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET:-}"
+require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION "${CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION:-}"
+require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI "${CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI:-}"
+require_nonempty OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED:-}"
+require_nonempty OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND:-}"
+if [[ "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND:-}" == *"casdoor-runtime-token-probe-runner.mjs"* ]]; then
+  require_nonempty CASDOOR_TOKEN_PROBE_USERNAME "${CASDOOR_TOKEN_PROBE_USERNAME:-}"
+  require_nonempty CASDOOR_TOKEN_PROBE_PASSWORD "${CASDOOR_TOKEN_PROBE_PASSWORD:-}"
+  require_nonempty CASDOOR_TOKEN_PROBE_BROWSER_EXECUTABLE_PATH "${CASDOOR_TOKEN_PROBE_BROWSER_EXECUTABLE_PATH:-}"
+fi
 require_nonempty SMS_SECRET_ID "${SMS_SECRET_ID:-}"
 require_nonempty SMS_SECRET_KEY "${SMS_SECRET_KEY:-}"
 require_nonempty SMS_APP_ID "${SMS_APP_ID:-}"
@@ -174,6 +186,7 @@ reject_placeholder REDIS_PASSWORD "${REDIS_PASSWORD:-}" "dev123"
 reject_placeholder GRAFANA_ADMIN_PASSWORD "${GRAFANA_ADMIN_PASSWORD:-}" "ChangeMeBeforeProduction"
 reject_placeholder CORS_ORIGINS "${CORS_ORIGINS:-}" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS"
 reject_placeholder CASDOOR_ISSUER "${CASDOOR_ISSUER:-}" "REPLACE_WITH_CASDOOR_ISSUER"
+reject_placeholder IDENTITY_ISSUER "${IDENTITY_ISSUER:-}" "REPLACE_WITH_IDENTITY_ISSUER"
 reject_placeholder CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_REDIRECT_URI"
 reject_placeholder CASDOOR_CLIENT_ID "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID"
 reject_placeholder CASDOOR_CLIENT_SECRET "${CASDOOR_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_CLIENT_SECRET"
@@ -201,6 +214,15 @@ reject_placeholder CASDOOR_ROLE_SYNC_APPLICATION "${CASDOOR_ROLE_SYNC_APPLICATIO
 reject_placeholder CASDOOR_USER_LOOKUP_CLIENT_ID "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_ID"
 reject_placeholder CASDOOR_USER_LOOKUP_CLIENT_SECRET "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_SECRET"
 reject_placeholder CASDOOR_USER_LOOKUP_APPLICATION "${CASDOOR_USER_LOOKUP_APPLICATION:-}" "REPLACE_WITH_CASDOOR_USER_LOOKUP_APPLICATION"
+reject_placeholder CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID "${CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID"
+reject_placeholder CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET "${CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET"
+reject_placeholder CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION "${CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION:-}" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION"
+reject_placeholder CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI "${CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI"
+reject_placeholder OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND:-}" "REPLACE_WITH_OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND"
+if [[ "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND:-}" == *"casdoor-runtime-token-probe-runner.mjs"* ]]; then
+  reject_placeholder CASDOOR_TOKEN_PROBE_USERNAME "${CASDOOR_TOKEN_PROBE_USERNAME:-}" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_USERNAME"
+  reject_placeholder CASDOOR_TOKEN_PROBE_PASSWORD "${CASDOOR_TOKEN_PROBE_PASSWORD:-}" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_PASSWORD"
+fi
 reject_placeholder SMS_SECRET_ID "${SMS_SECRET_ID:-}" "REPLACE_WITH_SMS_SECRET_ID"
 reject_placeholder SMS_SECRET_KEY "${SMS_SECRET_KEY:-}" "REPLACE_WITH_SMS_SECRET_KEY"
 reject_placeholder SMS_APP_ID "${SMS_APP_ID:-}" "REPLACE_WITH_SMS_APP_ID"
@@ -227,9 +249,11 @@ fi
 
 reject_local_value CORS_ORIGINS "${CORS_ORIGINS:-}"
 reject_local_value CASDOOR_ISSUER "${CASDOOR_ISSUER:-}"
+reject_local_value IDENTITY_ISSUER "${IDENTITY_ISSUER:-}"
 reject_local_value CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}"
 reject_local_value CASDOOR_ADMIN_REDIRECT_URI "${CASDOOR_ADMIN_REDIRECT_URI:-}"
 reject_local_value CASDOOR_UNIAPP_REDIRECT_URI "${CASDOOR_UNIAPP_REDIRECT_URI:-}"
+reject_local_value CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI "${CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI:-}"
 reject_local_value WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}"
 reject_local_value ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}"
 reject_local_value WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
@@ -245,8 +269,11 @@ reject_local_value GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
 [[ "${CASDOOR_SMS_PROVIDER_TYPE:-}" == "CustomHTTP" ]] || die "CASDOOR_SMS_PROVIDER_TYPE must be CustomHTTP for production deploy"
 [[ "${CASDOOR_SMS_PROVIDER_TITLE:-}" == "content" ]] || die "CASDOOR_SMS_PROVIDER_TITLE must be content for production deploy"
 [[ "${SMS_ENABLED:-false}" == "true" ]] || die "SMS_ENABLED must be true for production deploy"
-[[ "${DB_SSL_MODE:-disable}" == "verify-full" ]] || die "DB_SSL_MODE must be verify-full for production deploy"
+[[ "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED:-false}" == "true" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for production deploy"
+require_production_postgres_ssl
 [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
+require_public_ingress_config_preflight
+require_public_identity_ingress_preflight
 
 export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
@@ -290,6 +317,12 @@ predeploy_backup_path="${predeploy_backup_dir}/predeploy-${TAG}.dump"
 mkdir -p "${predeploy_backup_dir}"
 "${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_backup_path}" || die "pre-deploy backup failed; aborting deployment"
 
+log "syncing pre-deploy PostgreSQL backup artifacts to object storage"
+"${SCRIPT_DIR}/sync-postgres-backups.sh"
+
+log "verifying PostgreSQL backup evidence"
+POSTGRES_BACKUP_EVIDENCE_TIMER_REQUIRED=false "${SCRIPT_DIR}/postgres-backup-evidence.sh"
+
 log "running production database migrations"
 compose --profile prod up --no-deps migrate
 compose --profile prod up --no-deps openfga-migrate
@@ -300,11 +333,25 @@ compose --profile prod up -d --wait "${authz_services[@]}"
 log "bootstrapping runtime identities against external Casdoor and local OpenFGA"
 "${SCRIPT_DIR}/bootstrap-platform.sh" prod
 
+log "running Open Platform production evidence smokes"
+"${SCRIPT_DIR}/open-platform-production-evidence.sh"
+
 log "starting production application services"
 compose --profile prod up -d --wait app frontend admin
 
+if [[ "${IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_ENABLED:-false}" == "true" ]]; then
+  log "ensuring approved Identity public smoke client"
+  "${SCRIPT_DIR}/bootstrap-identity-public-smoke-client.sh"
+  load_env # reload Identity public smoke credentials
+fi
+
+if [[ "${IDENTITY_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
+  "${SCRIPT_DIR}/identity-public-smoke.sh"
+else
+  warn "public identity smoke skipped because IDENTITY_PUBLIC_SMOKE_ENABLED is not true"
+fi
 "${SCRIPT_DIR}/smoke-check.sh"
-"${SCRIPT_DIR}/observability-smoke-check.sh"
+OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"
 record_release "${TAG}"
 
 log "production deployment completed successfully"

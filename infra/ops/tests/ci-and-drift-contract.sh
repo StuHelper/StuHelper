@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 CI_FILE="${REPO_ROOT}/.gitlab-ci.yml"
+ROOT_MAKEFILE="${REPO_ROOT}/Makefile"
 SERVER_MAKEFILE="${REPO_ROOT}/server/Makefile"
 ADMIN_DOCKERFILE="${REPO_ROOT}/clients/admin/scripts/deploy/Dockerfile"
 
@@ -40,6 +41,10 @@ if (( package_line <= scan_line )); then
 fi
 
 assert_contains "${CI_FILE}" '^[[:space:]]*stage: package_scan$'
+assert_contains "${CI_FILE}" 'apt-get install -y curl jq nodejs openssl'
+assert_contains "${CI_FILE}" 'bash infra/ops/tests/run-infra-contracts\.sh'
+assert_contains "${ROOT_MAKEFILE}" '^check-infra-contracts:$'
+assert_contains "${ROOT_MAKEFILE}" 'bash infra/ops/tests/run-infra-contracts\.sh'
 assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/admin/scripts/deploy/Dockerfile .* clients$'
 assert_contains "${ADMIN_DOCKERFILE}" '^COPY shared /app/shared$'
 assert_contains "${ADMIN_DOCKERFILE}" '^RUN pnpm --filter @stuhelper/shared build$'
