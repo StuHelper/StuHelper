@@ -104,6 +104,12 @@ console error/warning tracker 基础上补齐关键资源门禁，把 `document`
 断言通过但实际 chunk、样式、字体或图片资源损坏时漏过。新增门禁后已通过 `make e2e-koishi`
 （13 项）和 `corepack yarn test:unit`（259 项）。
 
+本地验证补充（2026-05-25）：Koishi Console Playwright UI smoke 继续从顶层 NavRail / ChatDock
+扩展到配置治理二级工作区，覆盖“群配置 / 模板库 / 群绑定 / 命令策略”subnav 切换、URL hash 状态同步和
+view-specific 编辑区渲染；同时通过真实 UI 保存 `e2e-template` guard template，验证 Console action API
+能把模板 ID、名称、禁言时长、踢出阈值、提醒文案和豁免名单提交到后端并回显保存结果。新增覆盖后已通过
+`make e2e-koishi`（15 项）和 `corepack yarn test:unit`（259 项）。
+
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
 矩阵，覆盖首页、登录页、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform

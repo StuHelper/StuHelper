@@ -134,6 +134,50 @@ test('chat dock opens via CommandBar and renders ChatView', async ({ loggedInPag
   tracker.assertClean()
 })
 
+test('config governance workspace tabs render and update navigation state', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '群组配置')
+  await expect(page).toHaveURL(/#config($|\?)/, { timeout: 5_000 })
+
+  const workspaceCases = [
+    { label: '群配置', hash: /#config($|\?)/, anchor: '群组配置' },
+    { label: '模板库', hash: /#config\?workspace=templates/, anchor: '编辑模板' },
+    { label: '群绑定', hash: /#config\?workspace=bindings/, anchor: '编辑绑定' },
+    { label: '命令策略', hash: /#config\?workspace=command-policies/, anchor: '编辑命令策略' },
+  ] as const
+
+  for (const item of workspaceCases) {
+    await page.getByRole('button', { name: item.label, exact: true }).click()
+    await expect(page).toHaveURL(item.hash, { timeout: 5_000 })
+    await expect(page.getByText(item.anchor).first()).toBeVisible({ timeout: 10_000 })
+  }
+
+  tracker.assertClean()
+})
+
+test('config governance saves a guard template through the real console action', async ({ loggedInPage: page }) => {
+  await using tracker = createTracker(page)
+
+  await clickNavRail(page, '群组配置')
+  await page.getByRole('button', { name: '模板库', exact: true }).click()
+  await expect(page).toHaveURL(/#config\?workspace=templates/, { timeout: 5_000 })
+
+  await fillLabeledInput(page, '模板 ID', 'e2e-template')
+  await fillLabeledInput(page, '模板名称', 'E2E 模板')
+  await fillLabeledInput(page, '禁言时长(秒)', '90')
+  await fillLabeledInput(page, '踢出阈值(分钟)', '15')
+  await fillLabeledInput(page, '提醒文案', 'E2E 自动化提醒')
+  await fillLabeledInput(page, '豁免名单(逗号分隔)', '10001,10002')
+
+  await page.getByRole('button', { name: '保存模板', exact: true }).click()
+
+  await expect(page.getByText('已保存群模板：E2E 模板')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('E2E 模板').first()).toBeVisible({ timeout: 10_000 })
+
+  tracker.assertClean()
+})
+
 /**
  * 通过 NavRail 的 button[title=label] 切到指定 view。
  * NavRail 收起时 label 文本 opacity:0 不可读，但 button 元素本身可点击；
@@ -143,6 +187,10 @@ async function clickNavRail(page: Page, label: string): Promise<void> {
   const button = page.locator(`.sh-rail__item[title="${label}"]`)
   await expect(button.first()).toBeAttached({ timeout: 5_000 })
   await button.first().click()
+}
+
+async function fillLabeledInput(page: Page, label: string, value: string): Promise<void> {
+  await page.locator('label', { hasText: label }).locator('input').first().fill(value)
 }
 
 interface ConsoleIssue {
