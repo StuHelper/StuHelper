@@ -141,6 +141,26 @@ make prod-down     # 停止
 
 并且会以 `.env.prod.example` 为唯一基线生成生产 skeleton，保留生产占位符，不再从开发 `.env.example` 派生 `localhost` / `http` / 本地告警接收器等默认值。
 
+## 本机生产等价环境
+
+在生产服务器落地前，优先用本机生产等价环境验证完整 Compose 链路：
+
+```bash
+make prod-parity-up      # 构建并启动本机生产等价栈
+make prod-parity-smoke   # 验收 Web / Admin / API / Identity / 观测入口
+make prod-parity-down    # 停止本机生产等价栈
+make prod-parity-reset   # 停止并清理本机生产等价 volume
+```
+
+该模式使用仓库内生产 Compose 和 `.run/prod-parity/` 下的本地 env/secrets，不依赖宝塔面板；默认地址以脚本输出为准，通常为 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、API `http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`。它用于在 Ubuntu 24.04 本机先跑通“构建 → 启动 → migration/bootstrap → smoke”的生产等价流程，再把同一套发布脚本用于真实生产。
+
+如果本机已有 Vite 占用默认 Playwright 端口，可改用备用端口运行 Web E2E：
+
+```bash
+PLAYWRIGHT_WEB_PORT=3300 make e2e-web
+make e2e-admin
+```
+
 ## GitLab 发布
 
 - `develop` → staging 自动部署 + `verify_staging`
