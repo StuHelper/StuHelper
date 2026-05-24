@@ -147,10 +147,9 @@ func (c *Config) validate(parseErrs []string) error {
 			errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required in production")
 		}
 
-		if c.Database.SSLMode != "verify-full" {
-			if !(c.Database.AllowPlaintext && c.Database.SSLMode == "disable") {
-				errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
-			}
+		plaintextPostgresAllowed := c.Database.AllowPlaintext && c.Database.SSLMode == "disable"
+		if c.Database.SSLMode != "verify-full" && !plaintextPostgresAllowed {
+			errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
 		}
 		if c.Database.SSLMode != "disable" && c.Database.SSLRootCert == "" {
 			errs = append(errs, "DB_SSL_ROOT_CERT is required in production")
