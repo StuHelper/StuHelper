@@ -49,11 +49,6 @@ wait_for_casdoor() {
   die "Casdoor OIDC metadata did not become ready in time: ${url}"
 }
 
-wait_for_casdoor
-[[ -n "${CASDOOR_CLIENT_ID:-}" ]] || die "CASDOOR_CLIENT_ID must be configured before platform bootstrap"
-[[ -n "${CASDOOR_CLIENT_SECRET:-}" ]] || die "CASDOOR_CLIENT_SECRET must be configured before platform bootstrap"
-log "using configured Casdoor OIDC application ${CASDOOR_CLIENT_ID}"
-
 source_casdoor_bootstrap_env() {
   local file
   case "${CASDOOR_BOOTSTRAP_ENV_FILE}" in
@@ -241,6 +236,10 @@ CASDOOR_BOOTSTRAP_ENV_KEYS=(
 
 source_casdoor_bootstrap_env
 if casdoor_bootstrap_required; then
+  wait_for_casdoor
+  [[ -n "${CASDOOR_CLIENT_ID:-}" ]] || die "CASDOOR_CLIENT_ID must be configured before platform bootstrap"
+  [[ -n "${CASDOOR_CLIENT_SECRET:-}" ]] || die "CASDOOR_CLIENT_SECRET must be configured before platform bootstrap"
+  log "using configured Casdoor OIDC application ${CASDOOR_CLIENT_ID}"
   require_casdoor_bootstrap_config
   log "bootstrapping Casdoor organization, applications, roles, and providers"
   if command -v go >/dev/null 2>&1; then

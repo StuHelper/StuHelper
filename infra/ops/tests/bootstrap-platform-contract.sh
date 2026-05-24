@@ -27,6 +27,14 @@ assert_not_contains() {
   fi
 }
 
+line_number() {
+  local pattern="$1"
+  local line
+  line="$(grep -nE "${pattern}" "${BOOTSTRAP_SCRIPT}" | head -n1 | cut -d: -f1)"
+  [[ -n "${line}" ]] || fail "missing bootstrap-platform pattern: ${pattern}"
+  printf '%s\n' "${line}"
+}
+
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_CLIENT_ID must be configured before platform bootstrap'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'go run \./cmd/casdoor-bootstrap'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_BOOTSTRAP_CLIENT_SECRET'
@@ -39,6 +47,11 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'casdoor_bootstrap_endpoint'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_ISSUER:-http://localhost:8085'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CALLER_CASDOOR_BOOTSTRAP_ENABLED'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'set -a'
+casdoor_required_line="$(line_number '^if casdoor_bootstrap_required; then$')"
+casdoor_wait_line="$(line_number '^[[:space:]]+wait_for_casdoor$')"
+if (( casdoor_wait_line <= casdoor_required_line )); then
+  fail "wait_for_casdoor must only run inside the Casdoor bootstrap-required branch"
+fi
 retired_idp_prefix='ZITA''DEL_'
 assert_not_contains "${BOOTSTRAP_SCRIPT}" "${retired_idp_prefix}"
 if grep -Fqx "printf '%s\\n' \"\${FGA_OUTPUT}\"" "${BOOTSTRAP_SCRIPT}"; then
