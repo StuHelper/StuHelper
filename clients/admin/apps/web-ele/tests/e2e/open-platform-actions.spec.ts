@@ -131,6 +131,17 @@ function createApprovedApp() {
   };
 }
 
+function createSuspendedApp() {
+  return {
+    app: {
+      ...baseApp,
+      status: 'suspended',
+    },
+    scopes: approvedScopes,
+    redirectURIRequests: [],
+  };
+}
+
 const existingResourceGrant = {
   resourceType: 'resource_item',
   resourceID: 'existing_resource',
@@ -209,6 +220,26 @@ async function mockOpenPlatformApi(
 
     if (path === '/api/v1/admin/open-platform/apps') {
       await route.fulfill(list(apps));
+      return;
+    }
+
+    if (path === '/api/v1/admin/open-platform/apps/import-casdoor') {
+      capturedMutations.push({ path, method, body: parseJsonBody(route) });
+      await route.fulfill(
+        ok({
+          app: {
+            ...baseApp,
+            id: 77,
+            clientID: 'legacy-campus',
+            displayName: 'Legacy Campus',
+            homepageURL: 'https://legacy.example.com',
+            privacyPolicyURL: 'https://legacy.example.com/privacy',
+            redirectURIs: ['https://legacy.example.com/callback'],
+            status: 'approved',
+          },
+          clientSecretSource: 'provided',
+        }),
+      );
       return;
     }
 
@@ -363,6 +394,81 @@ test.describe('Open Platform admin actions', () => {
       });
   });
 
+  test('legacy Casdoor import dialog submits normalized app metadata and scopes', async ({
+    page,
+  }) => {
+    await mockOpenPlatformApi(page, [], capturedMutations);
+
+    await page.goto('/open-platform/apps');
+    await page.getByRole('button', { name: /导入 Casdoor 应用/ }).click();
+
+    const dialog = page.getByRole('dialog', {
+      name: /导入 legacy Casdoor 应用/,
+    });
+    await dialog
+      .getByPlaceholder('请输入 Casdoor application name')
+      .fill('legacy-campus');
+    await dialog
+      .getByPlaceholder('可选；为空时使用 Casdoor 展示名或应用名')
+      .fill('Legacy Campus');
+    await dialog
+      .getByPlaceholder('可选；为空时使用 Casdoor 应用描述')
+      .fill('Imported app');
+    await dialog
+      .getByPlaceholder('可选；为空时使用 Casdoor 主页 URL')
+      .fill('https://legacy.example.com');
+    await dialog
+      .getByPlaceholder('必填；用于 id 授权页展示')
+      .fill('https://legacy.example.com/privacy');
+    await dialog
+      .getByPlaceholder('可选；每行一个 URI。为空时使用 Casdoor redirect URI')
+      .fill(
+        'https://legacy.example.com/callback\nhttps://legacy.example.com/callback\nhttps://legacy.example.com/alt',
+      );
+    await dialog
+      .getByPlaceholder('可选；用于保留原 legacy secret，提交后不回显')
+      .fill('legacy-secret');
+    await dialog
+      .getByPlaceholder('用途说明，写入 scope 审核记录')
+      .first()
+      .fill('同步基础资料');
+    await dialog.getByRole('button', { name: /添加权限/ }).click();
+    await dialog
+      .getByPlaceholder('用途说明，写入 scope 审核记录')
+      .nth(1)
+      .fill('同步邮箱');
+    await dialog.getByRole('button', { name: /导入 Casdoor 应用/ }).click();
+
+    await expect
+      .poll(() => capturedMutations)
+      .toContainEqual({
+        path: '/api/v1/admin/open-platform/apps/import-casdoor',
+        method: 'POST',
+        body: {
+          casdoorApplicationName: 'legacy-campus',
+          clientSecret: 'legacy-secret',
+          description: 'Imported app',
+          displayName: 'Legacy Campus',
+          homepageURL: 'https://legacy.example.com',
+          privacyPolicyURL: 'https://legacy.example.com/privacy',
+          redirectURIs: [
+            'https://legacy.example.com/callback',
+            'https://legacy.example.com/alt',
+          ],
+          scopes: [
+            {
+              reason: '同步基础资料',
+              scope: 'profile.basic.read',
+            },
+            {
+              reason: '同步邮箱',
+              scope: 'email.read',
+            },
+          ],
+        },
+      });
+  });
+
   test('approved app lifecycle buttons submit audited reasons', async ({
     page,
   }) => {
@@ -400,6 +506,26 @@ test.describe('Open Platform admin actions', () => {
         path: '/api/v1/admin/open-platform/apps/42/revoke',
         method: 'POST',
         body: { reason: '应用下线' },
+      });
+  });
+
+  test('suspended app resume button submits audited reason', async ({
+    page,
+  }) => {
+    await mockOpenPlatformApi(page, [createSuspendedApp()], capturedMutations);
+
+    await page.goto('/open-platform/apps');
+    await expect(page.getByText('Campus Connector')).toBeVisible();
+
+    await page.getByRole('button', { name: /恢复应用|Resume App/ }).click();
+    await submitMessageBoxPrompt(page, '风险解除');
+
+    await expect
+      .poll(() => capturedMutations)
+      .toContainEqual({
+        path: '/api/v1/admin/open-platform/apps/42/resume',
+        method: 'POST',
+        body: { reason: '风险解除' },
       });
   });
 
