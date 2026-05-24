@@ -112,12 +112,23 @@ assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-browser-smoke\.mjs'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" '@playwright/test'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-home'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-login'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-course-hub'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-course-list'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-review-feed'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-search'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-teacher-hub'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'web-protected-review-post'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'admin-login-redirect'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'finalURL'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'expectedURLIncludes'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'browser\.newContext'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'pageerror'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'requestfailed'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "page\.on\('response'"
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'response\.status\(\) >= 400'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'fetch', 'xhr'"
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'response\.status\(\) >= 500'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'apiFailures'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'criticalResourceTypes'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'image'"
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'font'"

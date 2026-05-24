@@ -74,6 +74,12 @@ E2E 覆盖。新增覆盖后已通过单文件
 `make check-infra-contracts`、`node --check infra/ops/prod-parity-browser-smoke.mjs`、
 `bash infra/ops/tests/prod-parity-contract.sh` 和 `git diff --check`。
 
+本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
+矩阵，覆盖首页、登录页、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
+写评课保护跳转和 Admin 登录跳转；同时把页面触发的 `fetch` / `xhr` HTTP 5xx 视为失败，以便发现
+页面壳能渲染但后端集成接口崩溃的问题。每个检查使用独立 browser context，避免 Web 登录页、
+保护路由和 Admin 登录跳转之间共享 cookie / localStorage 造成误判。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、

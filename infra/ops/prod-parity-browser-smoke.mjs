@@ -40,9 +40,61 @@ const checks = [
     expectedTexts: ['StuHelper'],
   },
   {
+    name: 'web-about',
+    url: joinURL(webBaseURL, '/about'),
+    expectedTexts: ['关于 StuHelper', 'About StuHelper'],
+  },
+  {
+    name: 'web-privacy',
+    url: joinURL(webBaseURL, '/privacy'),
+    expectedTexts: ['隐私政策', 'Privacy Policy'],
+  },
+  {
+    name: 'web-terms',
+    url: joinURL(webBaseURL, '/terms'),
+    expectedTexts: ['服务条款', 'Terms of Service'],
+  },
+  {
+    name: 'web-course-hub',
+    url: joinURL(webBaseURL, '/courses'),
+    expectedTexts: ['评课社区@BUAA', 'Browse Courses'],
+  },
+  {
+    name: 'web-course-list',
+    url: joinURL(webBaseURL, '/courses/list'),
+    expectedTexts: ['课程列表', 'Course List'],
+  },
+  {
+    name: 'web-course-about',
+    url: joinURL(webBaseURL, '/courses/about'),
+    expectedTexts: ['关于评课社区@BUAA'],
+  },
+  {
+    name: 'web-review-feed',
+    url: joinURL(webBaseURL, '/courses/reviews'),
+    expectedTexts: ['最新', 'Latest'],
+  },
+  {
+    name: 'web-search',
+    url: joinURL(webBaseURL, '/search'),
+    expectedTexts: ['高级搜索', 'Advanced Search'],
+  },
+  {
+    name: 'web-teacher-hub',
+    url: joinURL(webBaseURL, '/teachers'),
+    expectedTexts: ['教师主页', 'Teacher'],
+  },
+  {
+    name: 'web-protected-review-post',
+    url: joinURL(webBaseURL, '/courses/reviews/post'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: '/login',
+  },
+  {
     name: 'admin-login-redirect',
     url: joinURL(adminBaseURL, '/admin/'),
     expectedTexts: ['Sign In', 'Password', '登录'],
+    expectedURLIncludes: '/login/oauth/authorize',
   },
 ];
 
@@ -53,10 +105,9 @@ let browser;
 try {
   await mkdir(screenshotDir, { recursive: true });
   browser = await chromium.launch({ headless: process.env.PLAYWRIGHT_HEADLESS !== '0' });
-  const context = await browser.newContext();
 
   for (const check of checks) {
-    results.push(await runCheck(context, check));
+    results.push(await runCheck(browser, check));
   }
 
   passed = results.every((result) => result.passed);
@@ -88,9 +139,11 @@ if (!passed) {
 
 console.log(`[prod-parity-browser-smoke] passed; evidence: ${evidenceFile}`);
 
-async function runCheck(context, check) {
+async function runCheck(browser, check) {
+  const context = await browser.newContext();
   const page = await context.newPage();
   const assetFailures = [];
+  const apiFailures = [];
   const pageErrors = [];
   const screenshotFile = resolve(screenshotDir, `${check.name}.png`);
 
@@ -108,13 +161,25 @@ async function runCheck(context, check) {
   });
   page.on('response', (response) => {
     const request = response.request();
+    const resourceType = request.resourceType();
     if (
-      criticalResourceTypes.has(request.resourceType()) &&
+      ['fetch', 'xhr'].includes(resourceType) &&
+      response.status() >= 500
+    ) {
+      apiFailures.push({
+        url: response.url(),
+        resourceType,
+        status: response.status(),
+        statusText: response.statusText(),
+      });
+    }
+    if (
+      criticalResourceTypes.has(resourceType) &&
       response.status() >= 400
     ) {
       assetFailures.push({
         url: response.url(),
-        resourceType: request.resourceType(),
+        resourceType,
         status: response.status(),
         statusText: response.statusText(),
       });
@@ -134,6 +199,13 @@ async function runCheck(context, check) {
       throw new Error(`unexpected HTTP ${response.status()} for ${check.url}`);
     }
 
+    if (check.expectedURLIncludes) {
+      await page.waitForURL(
+        (url) => url.href.includes(check.expectedURLIncludes),
+        { timeout: timeoutMs },
+      );
+    }
+
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
     const title = await page.title();
     const bodyText = await page.locator('body').innerText({ timeout: timeoutMs });
@@ -144,11 +216,22 @@ async function runCheck(context, check) {
         `missing expected text; expected one of: ${check.expectedTexts.join(', ')}`,
       );
     }
+    if (
+      check.expectedURLIncludes &&
+      !page.url().includes(check.expectedURLIncludes)
+    ) {
+      throw new Error(
+        `final URL ${page.url()} does not include ${check.expectedURLIncludes}`,
+      );
+    }
     if (pageErrors.length > 0) {
       throw new Error(`page errors: ${pageErrors.join(' | ')}`);
     }
     if (assetFailures.length > 0) {
       throw new Error(`asset failures: ${JSON.stringify(assetFailures)}`);
+    }
+    if (apiFailures.length > 0) {
+      throw new Error(`api failures: ${JSON.stringify(apiFailures)}`);
     }
 
     await page.screenshot({ path: screenshotFile, fullPage: true });
@@ -172,10 +255,11 @@ async function runCheck(context, check) {
       error: error instanceof Error ? error.message : String(error),
       pageErrors,
       assetFailures,
+      apiFailures,
       screenshot: relative(repoRoot, screenshotFile),
     };
   } finally {
-    await page.close();
+    await context.close();
   }
 }
 
