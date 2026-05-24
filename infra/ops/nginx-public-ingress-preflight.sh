@@ -210,6 +210,14 @@ def proxy_pass_values(block: Node) -> list[str]:
     return values
 
 
+def return_values(block: Node) -> list[tuple[str, str]]:
+    values: list[tuple[str, str]] = []
+    for directive in direct(block, "return"):
+        if len(directive.args) >= 2:
+            values.append((directive.args[0], directive.args[1]))
+    return values
+
+
 def location(block: Node, modifier: str | None, path: str) -> Node | None:
     for child in direct(block, "location"):
         if modifier is None and child.args == [path]:
@@ -228,6 +236,18 @@ def require_location_proxy(block: Node, label: str, modifier: str | None, path: 
     if upstream not in values:
         raise CheckError(
             f"{label}: {rendered} must proxy_pass {upstream}; found {values or '<none>'}"
+        )
+
+
+def require_location_return(block: Node, label: str, modifier: str | None, path: str, code: str, target: str) -> None:
+    loc = location(block, modifier, path)
+    rendered = f"location {modifier + ' ' if modifier else ''}{path}"
+    if loc is None:
+        raise CheckError(f"{label}: missing {rendered}")
+    values = return_values(loc)
+    if (code, target) not in values:
+        raise CheckError(
+            f"{label}: {rendered} must return {code} {target}; found {values or '<none>'}"
         )
 
 
@@ -274,7 +294,12 @@ def validate_identity(block: Node, upstreams: dict[str, str]) -> None:
     require_location_proxy(block, label, "^~", "/oauth2/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/oidc/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
-    require_location_proxy(block, label, None, "/", upstreams["web"])
+    require_location_return(block, label, "=", "/", "302", "https://stuhelper.com/developers/apps")
+    require_location_proxy(block, label, "=", "/login", upstreams["web"])
+    require_location_proxy(block, label, "=", "/consent", upstreams["web"])
+    require_location_proxy(block, label, "=", "/complete-profile", upstreams["web"])
+    require_location_proxy(block, label, "^~", "/assets/", upstreams["web"])
+    require_location_return(block, label, None, "/", "302", "https://stuhelper.com$request_uri")
 
 
 def validate_sso(block: Node, upstreams: dict[str, str]) -> None:

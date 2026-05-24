@@ -113,7 +113,9 @@ id.stuhelper.com /.well-known/* -> http://127.0.0.1:18080
 id.stuhelper.com /oauth2/*      -> http://127.0.0.1:18080
 id.stuhelper.com /oidc/*        -> http://127.0.0.1:18080
 id.stuhelper.com /api/*         -> http://127.0.0.1:18080
-id.stuhelper.com /              -> http://127.0.0.1:18000
+id.stuhelper.com /login /consent /complete-profile /assets/* -> http://127.0.0.1:18000
+id.stuhelper.com /              -> 302 https://stuhelper.com/developers/apps
+id.stuhelper.com 其他浏览器路径 -> 302 https://stuhelper.com$request_uri
 ```
 
 宝塔面板保存后执行 Nginx 配置测试和 reload。命令路径随宝塔安装方式可能不同；至少要在面板里看到 Nginx 测试通过。
@@ -388,7 +390,7 @@ ADMIN_IMAGE_REF=registry.example.com/stuhelper/admin:2026-05-09-<sha>
 
 - Docker / Compose 可用
 - 生产 PostgreSQL TLS 配置已强制启用：`POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`，并且三个 PostgreSQL URL 都带 `sslrootcert`
-- 本机宝塔 Nginx 主站/id 入口配置满足反代契约：`stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` 均有 HTTPS server block，`/.well-known/`、`/oauth2/`、`/oidc/`、`/api/`、`/health/`、`/admin/` 和 `/` 均代理到约定的回环端口
+- 本机宝塔 Nginx 主站/id 入口配置满足反代契约：`stuhelper.com`、`www.stuhelper.com`、`id.stuhelper.com` 均有 HTTPS server block，主站 `/.well-known/`、`/oauth2/`、`/oidc/`、`/api/`、`/health/`、`/admin/` 和 `/` 均代理到约定的回环端口；`id.stuhelper.com/` 302 到开放平台开发者应用页，授权页 `/login`、`/consent`、`/complete-profile` 及 `/assets/` 仍代理到 web 前端
 - 公网身份入口公共 DNS / TLS / OIDC 可用：`stuhelper.com`、`id.stuhelper.com`、`sso.stuhelper.com` 在公共 DNS-over-HTTPS 中有公网 A/AAAA，`stuhelper.com`、`id.stuhelper.com` TLS 可达，`sso.stuhelper.com/.well-known/openid-configuration` 返回有效 Casdoor OIDC discovery
 - PostgreSQL 备份工具可用
 - secret backend 配置可用

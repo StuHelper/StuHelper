@@ -23,7 +23,8 @@ last-verified: 2026-05-22
     ├── stuhelper.com /admin/*      → 127.0.0.1:18001 → admin 前端 (Nginx, :8080)
     ├── stuhelper.com /             → 127.0.0.1:18000 → web 前端 (Nginx, :80)
     ├── id.stuhelper.com /.well-known/* /oauth2/* /oidc/* → backend
-    └── id.stuhelper.com /login /consent /complete-profile → web 前端
+    ├── id.stuhelper.com /login /consent /complete-profile /assets/* → web 前端
+    └── id.stuhelper.com / → 302 到 https://stuhelper.com/developers/apps
 
 [sso.stuhelper.com]
     └── Baota Nginx /.well-known/* /api/* / → 127.0.0.1:8087 → 独立 Casdoor SSO 栈
