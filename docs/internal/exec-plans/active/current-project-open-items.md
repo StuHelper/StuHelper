@@ -81,6 +81,9 @@ E2E 覆盖。新增覆盖后已通过单文件
 同时把页面触发的 `fetch` / `xhr` HTTP 5xx 视为失败，以便发现页面壳能渲染但后端集成接口崩溃的问题。
 每个检查使用独立 browser context，避免 Web 登录页、保护路由和 Admin 登录跳转之间共享 cookie / localStorage
 造成误判；evidence 会记录每项检查命中的 `matchedText`，便于确认 smoke 不是只拿到空页面。
+后续同一 browser smoke 也会把非网络状态类浏览器 `console.error` 纳入失败条件，避免组件运行时报错
+只落在控制台而页面仍返回 200 时漏过；浏览器自动打印的 HTTP 状态行会单独记录为 ignored evidence，
+其失败语义继续由关键资源 HTTP 4xx/5xx 与页面 `fetch` / `xhr` HTTP 5xx 门禁负责。
 
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验

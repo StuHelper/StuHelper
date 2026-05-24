@@ -227,9 +227,21 @@ async function runCheck(browser, check) {
   const page = await context.newPage();
   const assetFailures = [];
   const apiFailures = [];
+  const consoleErrors = [];
+  const ignoredConsoleErrors = [];
   const pageErrors = [];
   const screenshotFile = resolve(screenshotDir, `${check.name}.png`);
 
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      const described = describeConsoleMessage(message);
+      if (isBrowserNetworkStatusConsoleError(message.text())) {
+        ignoredConsoleErrors.push(described);
+      } else {
+        consoleErrors.push(described);
+      }
+    }
+  });
   page.on('pageerror', (error) => {
     pageErrors.push(error.message);
   });
@@ -317,6 +329,9 @@ async function runCheck(browser, check) {
     if (apiFailures.length > 0) {
       throw new Error(`api failures: ${JSON.stringify(apiFailures)}`);
     }
+    if (consoleErrors.length > 0) {
+      throw new Error(`console errors: ${consoleErrors.join(' | ')}`);
+    }
 
     await page.screenshot({ path: screenshotFile, fullPage: true });
 
@@ -328,6 +343,7 @@ async function runCheck(browser, check) {
       status: response.status(),
       title,
       matchedText,
+      ignoredConsoleErrors,
       screenshot: relative(repoRoot, screenshotFile),
     };
   } catch (error) {
@@ -339,6 +355,8 @@ async function runCheck(browser, check) {
       finalURL: page.url(),
       error: error instanceof Error ? error.message : String(error),
       pageErrors,
+      consoleErrors,
+      ignoredConsoleErrors,
       assetFailures,
       apiFailures,
       screenshot: relative(repoRoot, screenshotFile),
@@ -360,4 +378,19 @@ function toArray(value) {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') return [value];
   return [];
+}
+
+function describeConsoleMessage(message) {
+  const location = message.location();
+  const locationText =
+    location.url && location.lineNumber > 0
+      ? ` (${location.url}:${location.lineNumber}:${location.columnNumber})`
+      : '';
+  return `${message.text()}${locationText}`;
+}
+
+function isBrowserNetworkStatusConsoleError(text) {
+  return /^Failed to load resource: the server responded with a status of [45]\d\d \([^)]+\)$/.test(
+    text,
+  );
 }

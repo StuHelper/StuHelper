@@ -10,6 +10,7 @@ PARITY_DOWN="${REPO_ROOT}/infra/ops/prod-parity-down.sh"
 PARITY_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-smoke.sh"
 PARITY_BROWSER_SMOKE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.sh"
 PARITY_BROWSER_SMOKE_NODE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.mjs"
+ADMIN_INDEX_HTML="${REPO_ROOT}/clients/admin/apps/web-ele/index.html"
 MAKEFILE="${REPO_ROOT}/Makefile"
 
 fail() {
@@ -33,7 +34,7 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMIN_INDEX_HTML}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
@@ -137,6 +138,11 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'finalURL'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'matchedText'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'expectedURLIncludes'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'toArray'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "page\.on\('console'"
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'consoleErrors'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'ignoredConsoleErrors'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'describeConsoleMessage'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'isBrowserNetworkStatusConsoleError'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'browser\.newContext'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'pageerror'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'requestfailed'
@@ -148,6 +154,9 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'apiFailures'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'criticalResourceTypes'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'image'"
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'font'"
+
+assert_not_contains "${ADMIN_INDEX_HTML}" 'hm\.baidu\.com'
+assert_not_contains "${ADMIN_INDEX_HTML}" '_VBEN_ADMIN_PRO_APP_CONF_'
 
 assert_contains "${MAKEFILE}" 'prod-parity-up'
 assert_contains "${MAKEFILE}" 'prod-parity-down'
