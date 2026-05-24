@@ -1,11 +1,13 @@
 ARG GO_IMAGE=golang:1.26-alpine
 ARG RUNTIME_IMAGE=alpine:3.21
 ARG ALPINE_APK_REPOSITORY=
+ARG GOPROXY=
 
 # Build stage
 FROM ${GO_IMAGE} AS builder
 
 ARG ALPINE_APK_REPOSITORY
+ARG GOPROXY
 
 WORKDIR /app
 
@@ -16,6 +18,7 @@ RUN if [ -n "${ALPINE_APK_REPOSITORY}" ]; then \
 RUN apk add --no-cache git ca-certificates tzdata
 
 COPY go.mod go.sum ./
+RUN if [ -n "${GOPROXY}" ]; then go env -w GOPROXY="${GOPROXY}"; fi
 RUN go mod download
 
 COPY . .
