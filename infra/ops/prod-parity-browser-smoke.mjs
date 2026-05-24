@@ -88,13 +88,37 @@ const checks = [
     name: 'web-protected-review-post',
     url: joinURL(webBaseURL, '/courses/reviews/post'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: '/login',
+    expectedURLIncludes: ['/login', 'redirect=/courses/reviews/post'],
   },
   {
     name: 'web-protected-user-reviews',
     url: joinURL(webBaseURL, '/user/reviews'),
     expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: '/login',
+    expectedURLIncludes: ['/login', 'redirect=/user/reviews'],
+  },
+  {
+    name: 'web-protected-notifications',
+    url: joinURL(webBaseURL, '/notifications'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: ['/login', 'redirect=/notifications'],
+  },
+  {
+    name: 'web-protected-developer-apps',
+    url: joinURL(webBaseURL, '/developers/apps'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: ['/login', 'redirect=/developers/apps'],
+  },
+  {
+    name: 'web-protected-open-platform-consent',
+    url: joinURL(webBaseURL, '/consent?token=smoke'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: ['/login', 'redirect=/consent?token=smoke'],
+  },
+  {
+    name: 'web-protected-profile-completion',
+    url: joinURL(webBaseURL, '/complete-profile?token=smoke'),
+    expectedTexts: ['登录', 'Login'],
+    expectedURLIncludes: ['/login', 'redirect=/complete-profile?token=smoke'],
   },
   {
     name: 'web-not-found',
@@ -210,9 +234,10 @@ async function runCheck(browser, check) {
       throw new Error(`unexpected HTTP ${response.status()} for ${check.url}`);
     }
 
-    if (check.expectedURLIncludes) {
+    const expectedURLIncludes = toArray(check.expectedURLIncludes);
+    if (expectedURLIncludes.length > 0) {
       await page.waitForURL(
-        (url) => url.href.includes(check.expectedURLIncludes),
+        (url) => expectedURLIncludes.every((text) => url.href.includes(text)),
         { timeout: timeoutMs },
       );
     }
@@ -228,11 +253,11 @@ async function runCheck(browser, check) {
       );
     }
     if (
-      check.expectedURLIncludes &&
-      !page.url().includes(check.expectedURLIncludes)
+      expectedURLIncludes.length > 0 &&
+      expectedURLIncludes.some((text) => !page.url().includes(text))
     ) {
       throw new Error(
-        `final URL ${page.url()} does not include ${check.expectedURLIncludes}`,
+        `final URL ${page.url()} does not include ${expectedURLIncludes.join(', ')}`,
       );
     }
     if (pageErrors.length > 0) {
@@ -281,4 +306,10 @@ function normalizeBaseURL(value) {
 
 function joinURL(base, path) {
   return `${normalizeBaseURL(base)}${path}`;
+}
+
+function toArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') return [value];
+  return [];
 }
