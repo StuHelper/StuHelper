@@ -90,6 +90,12 @@ E2E 覆盖。新增覆盖后已通过单文件
 `pnpm --dir clients lint:all`，并复跑完整 `CI=1 PLAYWRIGHT_WEB_PORT=3410 make e2e`（Web 53 项、
 Admin 26 项）。
 
+本地验证补充（2026-05-25）：Koishi Console Playwright UI smoke 已在原有 `pageerror` 和
+console error/warning tracker 基础上补齐关键资源门禁，把 `document`、`script`、`stylesheet`、
+`font`、`image` 的 `requestfailed` 和 HTTP 4xx/5xx 视为失败，避免 NavRail / view anchor
+断言通过但实际 chunk、样式、字体或图片资源损坏时漏过。新增门禁后已通过 `make e2e-koishi`
+（13 项）和 `corepack yarn test:unit`（259 项）。
+
 本地验证补充（2026-05-25）：本机生产等价 browser smoke 从浅层首页检查扩展为公开 Web 路由
 矩阵，覆盖首页、登录页、关于、隐私、条款、课程入口、课程列表、课程说明、评课聚合、搜索、教师主页、
 写评课、用户中心各 tab、实名 / 学生认证、手机 / QQ 绑定、学籍信息、通知、开发者应用、Open Platform

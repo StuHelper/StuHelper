@@ -46,7 +46,7 @@ corepack yarn workspaces list
 - `yarn start` 先构建 `lib/` 产物，再以运行时入口启动。
 - `yarn test:unit` 会跑 `packages/` 与 `plugins/` 下的 Koishi 单测。
 - `yarn test:startup` 会真实拉起一次 Koishi，并在启动前强制释放 `5140` 端口。
-- `yarn test:ui` 会先构建工作区，再用临时 SQLite 拉起 Koishi Console，通过 Playwright 覆盖群管中心 NavRail、11 个业务视图和 ChatDock。
+- `yarn test:ui` 会先构建工作区，再用临时 SQLite 拉起 Koishi Console，通过 Playwright 覆盖群管中心 NavRail、11 个业务视图和 ChatDock，并检查 `pageerror`、未放行的 console error/warning、关键资源加载失败和关键资源 HTTP 4xx/5xx。
 - `yarn test` 会串行执行构建、单元测试、启动烟雾验证和 UI smoke；根目录 `make e2e-koishi` 等价于执行 Koishi UI smoke。
 
 ## 配置入口
@@ -117,7 +117,7 @@ Koishi 当前依赖的 StuHelper 后端机器人接口包括：
   - 撤回事件留痕与提示
   - 控制台批量踢出改走人工复核、控制台复核执行与举报报表聚合
   - 工作区运行时入口与启动烟雾验证
-  - 群管中心 WebUI 的 NavRail、11 个业务视图和 ChatDock Playwright UI smoke
+  - 群管中心 WebUI 的 NavRail、11 个业务视图和 ChatDock Playwright UI smoke，并把 `document`、`script`、`stylesheet`、`font`、`image` 关键资源加载失败和 HTTP 4xx/5xx 视为失败
   - 管理员命令与命令权限表初始化
   - 群模板、群绑定和数据库优先级策略解析
 

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/auth'
-import type { ConsoleMessage, Page } from '@playwright/test'
+import type { ConsoleMessage, Page, Request, Response } from '@playwright/test'
 
 /**
  * P0b：StuHelper 群管中心 view 端到端导航回归基线（NavRail + Shell 重构后）。
@@ -80,6 +80,8 @@ const CONSOLE_ALLOWLIST: readonly RegExp[] = [
   /^\[Vue Router warn\]: No match found for location with path "\/stuhelper(\?[^"]*)?"$/,
 ]
 
+const CRITICAL_RESOURCE_TYPES = new Set(['document', 'font', 'image', 'script', 'stylesheet'])
+
 test('NavRail click switches between views', async ({ loggedInPage: page }) => {
   await using tracker = createTracker(page)
 
@@ -149,15 +151,26 @@ interface ConsoleIssue {
   readonly url: string
 }
 
+interface ResourceIssue {
+  readonly method: string
+  readonly resourceType: string
+  readonly url: string
+  readonly status?: number
+  readonly statusText?: string
+  readonly failure?: string
+}
+
 interface Tracker extends AsyncDisposable {
   readonly issues: readonly ConsoleIssue[]
   readonly errors: readonly Error[]
+  readonly resourceIssues: readonly ResourceIssue[]
   assertClean(): void
 }
 
 function createTracker(page: Page): Tracker {
   const issues: ConsoleIssue[] = []
   const errors: Error[] = []
+  const resourceIssues: ResourceIssue[] = []
 
   const onConsole = (message: ConsoleMessage) => {
     const type = message.type()
@@ -169,13 +182,38 @@ function createTracker(page: Page): Tracker {
   const onPageError = (error: Error) => {
     errors.push(error)
   }
+  const onRequestFailed = (request: Request) => {
+    if (!CRITICAL_RESOURCE_TYPES.has(request.resourceType())) return
+    resourceIssues.push({
+      method: request.method(),
+      resourceType: request.resourceType(),
+      url: request.url(),
+      failure: request.failure()?.errorText ?? 'failed',
+    })
+  }
+  const onResponse = (response: Response) => {
+    const request = response.request()
+    if (!CRITICAL_RESOURCE_TYPES.has(request.resourceType()) || response.status() < 400) {
+      return
+    }
+    resourceIssues.push({
+      method: request.method(),
+      resourceType: request.resourceType(),
+      url: response.url(),
+      status: response.status(),
+      statusText: response.statusText(),
+    })
+  }
 
   page.on('console', onConsole)
   page.on('pageerror', onPageError)
+  page.on('requestfailed', onRequestFailed)
+  page.on('response', onResponse)
 
   return {
     issues,
     errors,
+    resourceIssues,
     assertClean() {
       expect(
         errors,
@@ -187,10 +225,22 @@ function createTracker(page: Page): Tracker {
           .map((issue) => `  [${issue.type}] ${issue.text} (${issue.url})`)
           .join('\n')}`,
       ).toHaveLength(0)
+      expect(
+        resourceIssues,
+        `unexpected critical resource failures:\n${resourceIssues
+          .map((issue) => {
+            const status = issue.status ? ` HTTP ${issue.status} ${issue.statusText ?? ''}` : ''
+            const failure = issue.failure ? ` ${issue.failure}` : ''
+            return `  ${issue.resourceType} ${issue.method} ${issue.url}${status}${failure}`
+          })
+          .join('\n')}`,
+      ).toHaveLength(0)
     },
     async [Symbol.asyncDispose]() {
       page.off('console', onConsole)
       page.off('pageerror', onPageError)
+      page.off('requestfailed', onRequestFailed)
+      page.off('response', onResponse)
     },
   }
 }
