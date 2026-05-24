@@ -148,15 +148,19 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 
 		if c.Database.SSLMode != "verify-full" {
-			errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
+			if !(c.Database.AllowPlaintext && c.Database.SSLMode == "disable") {
+				errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
+			}
 		}
-		if c.Database.SSLRootCert == "" {
+		if c.Database.SSLMode != "disable" && c.Database.SSLRootCert == "" {
 			errs = append(errs, "DB_SSL_ROOT_CERT is required in production")
 		}
 		if !c.Redis.TLSEnabled {
-			errs = append(errs, "REDIS_TLS_ENABLED must be true in production")
+			if !c.Redis.AllowPlaintext {
+				errs = append(errs, "REDIS_TLS_ENABLED must be true in production")
+			}
 		}
-		if c.Redis.TLSCAFile == "" {
+		if c.Redis.TLSEnabled && c.Redis.TLSCAFile == "" {
 			errs = append(errs, "REDIS_TLS_CA is required in production")
 		}
 		if !c.ObjectStorage.UseSSL {

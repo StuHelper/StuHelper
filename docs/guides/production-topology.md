@@ -71,6 +71,8 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 | 公网端口 | 443 (HTTPS)、80 (HTTP → 301 → HTTPS)，只由宝塔 Nginx 监听 |
 | 容器宿主机端口 | `127.0.0.1:18080` backend、`127.0.0.1:18000` web、`127.0.0.1:18001` admin |
 
+如果生产机已经由宝塔 Compose 管理全局 PostgreSQL / Redis，可用 `docker-compose.external-datastore.yml` 把 StuHelper 生产容器接入 `EXTERNAL_DATASTORE_NETWORK=baota_net`，并设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_REDIS_ENABLED=true`。该模式不会启动 `stuhelper-prod-postgres` / `stuhelper-prod-redis`，但需要先把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres；若外部服务未启用 TLS，还必须显式设置 `EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`、`EXTERNAL_REDIS_ALLOW_PLAINTEXT=true`。
+
 ### 证书终止策略
 
 **默认方案：宝塔 Nginx 终止 TLS**

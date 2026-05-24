@@ -105,6 +105,12 @@ assert_env_value "${fresh_env}" "DB_SSL_MODE" "verify-full"
 assert_env_value "${fresh_env}" "DB_SSL_ROOT_CERT" "/tls/ca.crt"
 assert_env_value "${fresh_env}" "POSTGRES_ENABLE_SSL" "on"
 assert_env_value "${fresh_env}" "POSTGRES_INTERNAL_SSL_MODE" "verify-full"
+assert_env_value "${fresh_env}" "EXTERNAL_POSTGRES_ENABLED" "false"
+assert_env_value "${fresh_env}" "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "false"
+assert_env_value "${fresh_env}" "EXTERNAL_REDIS_ENABLED" "false"
+assert_env_value "${fresh_env}" "EXTERNAL_REDIS_ALLOW_PLAINTEXT" "false"
+assert_env_value "${fresh_env}" "EXTERNAL_DATASTORE_NETWORK" ""
+assert_env_value "${fresh_env}" "REDIS_USERNAME" "stuhelper_app"
 assert_env_value "${fresh_env}" "CASDOOR_BOOTSTRAP_ENABLED" "true"
 assert_env_value "${fresh_env}" "CASDOOR_BOOTSTRAP_ENV_FILE" ".env.casdoor-bootstrap.local"
 assert_env_value "${fresh_env}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
@@ -247,6 +253,10 @@ assert_env_value "${legacy_env}" "DB_SSL_MODE" "verify-full"
 assert_env_value "${legacy_env}" "DB_SSL_ROOT_CERT" "/tls/ca.crt"
 assert_env_value "${legacy_env}" "POSTGRES_ENABLE_SSL" "on"
 assert_env_value "${legacy_env}" "POSTGRES_INTERNAL_SSL_MODE" "verify-full"
+assert_env_value "${legacy_env}" "EXTERNAL_POSTGRES_ENABLED" "false"
+assert_env_value "${legacy_env}" "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "false"
+assert_env_value "${legacy_env}" "EXTERNAL_REDIS_ENABLED" "false"
+assert_env_value "${legacy_env}" "EXTERNAL_REDIS_ALLOW_PLAINTEXT" "false"
 assert_env_value "${legacy_env}" "CORS_ORIGINS" "https://stuhelper.com,https://id.stuhelper.com"
 assert_env_value "${legacy_env}" "TOKEN_COOKIE_DOMAIN" ".stuhelper.com"
 assert_env_value "${legacy_env}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
@@ -346,6 +356,59 @@ assert_file_not_contains "${legacy_env}" "^${retired_pat_key}="
 assert_file_not_contains "${legacy_dir}/.env.prod.secrets.local" "^${retired_idp_prefix}"
 assert_file_not_contains "${legacy_dir}/.env.prod.generated" "^${retired_idp_prefix}"
 assert_file_not_contains "${legacy_dir}/.env.prod.generated.secrets" "^${retired_idp_prefix}"
+
+external_dir="$(mktemp -d)"
+cleanup_dirs+=("${external_dir}")
+cp "${REPO_ROOT}/.env.prod.example" "${external_dir}/.env.prod.shared"
+python3 - "${external_dir}/.env.prod.shared" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+replacements = {
+    "DATABASE_URL": "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable",
+    "BACKUP_DATABASE_URL": "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable",
+    "REPLICATION_DATABASE_URL": "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable",
+    "DB_SSL_MODE": "disable",
+    "DB_SSL_ROOT_CERT": "",
+    "POSTGRES_ENABLE_SSL": "off",
+    "POSTGRES_INTERNAL_SSL_MODE": "disable",
+    "EXTERNAL_POSTGRES_ENABLED": "true",
+    "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT": "true",
+    "EXTERNAL_REDIS_ENABLED": "true",
+    "EXTERNAL_REDIS_ALLOW_PLAINTEXT": "true",
+    "EXTERNAL_DATASTORE_NETWORK": "baota_net",
+    "REDIS_USERNAME": "",
+    "REDIS_TLS_ENABLED": "false",
+    "REDIS_TLS_CA": "",
+}
+lines = []
+for line in path.read_text().splitlines():
+    if "=" in line and not line.startswith("#"):
+        key = line.split("=", 1)[0]
+        if key in replacements:
+            line = f"{key}={replacements[key]}"
+    lines.append(line)
+path.write_text("\n".join(lines) + "\n")
+PY
+touch "${external_dir}/.env.prod.secrets.local" "${external_dir}/.env.prod.generated" "${external_dir}/.env.prod.generated.secrets"
+ENV_FILE="${external_dir}/.env.prod.shared" \
+SECRETS_ENV_FILE="${external_dir}/.env.prod.secrets.local" \
+GENERATED_ENV_FILE="${external_dir}/.env.prod.generated" \
+GENERATED_SECRET_ENV_FILE="${external_dir}/.env.prod.generated.secrets" \
+GENERATED_OBS_DIR="${external_dir}/generated/observability" \
+DEPLOY_STATE_DIR="${external_dir}/.deploy" \
+bash "${INIT_SCRIPT}" >"${external_dir}/stdout.log" 2>"${external_dir}/stderr.log"
+external_env="${external_dir}/.env.prod.shared"
+assert_env_value "${external_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
+assert_env_value "${external_env}" "DB_SSL_MODE" "disable"
+assert_env_value "${external_env}" "DB_SSL_ROOT_CERT" ""
+assert_env_value "${external_env}" "POSTGRES_ENABLE_SSL" "off"
+assert_env_value "${external_env}" "POSTGRES_INTERNAL_SSL_MODE" "disable"
+assert_env_value "${external_env}" "EXTERNAL_DATASTORE_NETWORK" "baota_net"
+assert_env_value "${external_env}" "REDIS_USERNAME" ""
+assert_env_value "${external_env}" "REDIS_TLS_ENABLED" "false"
+assert_env_value "${external_env}" "REDIS_TLS_CA" ""
 
 insecure_dir="$(mktemp -d)"
 cleanup_dirs+=("${insecure_dir}")

@@ -1,0 +1,89 @@
+# StuHelper Docker Compose overlay: externally managed PostgreSQL / Redis.
+#
+# Intended for production hosts where PostgreSQL and Redis are managed outside
+# the StuHelper compose project, for example by a Baota compose stack on
+# baota_net. Enable by setting EXTERNAL_DATASTORE_NETWORK to that Docker network
+# name before running infra/ops/prod-deploy.sh.
+
+services:
+  postgres:
+    profiles: !override [internal-datastore]
+    networks: !override
+    - external-datastore
+
+  redis:
+    profiles: !override [internal-datastore]
+    networks: !override
+    - external-datastore
+
+  casdoor:
+    profiles: !override [local-sso]
+    depends_on: !reset []
+
+  migrate:
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+    depends_on: !reset []
+    networks: !override
+    - backend
+    - external-datastore
+
+  openfga-migrate:
+    environment:
+      OPENFGA_DATASTORE_URI: ${OPENFGA_DATASTORE_URI:-postgresql://openfga:${OPENFGA_DB_PASSWORD}@${POSTGRES_HOST:-postgres}:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}}
+    depends_on: !reset []
+    networks: !override
+    - backend
+    - external-datastore
+
+  openfga:
+    environment:
+      OPENFGA_DATASTORE_URI: ${OPENFGA_DATASTORE_URI:-postgresql://openfga:${OPENFGA_DB_PASSWORD}@${POSTGRES_HOST:-postgres}:5432/openfga?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}}
+    networks: !override
+    - backend
+    - external-datastore
+
+  postgres-exporter:
+    environment:
+      DATA_SOURCE_URI: ${POSTGRES_EXPORTER_DATA_SOURCE_URI:-${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-stuhelper}?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-disable}}
+    depends_on: !reset []
+    networks: !override
+    - backend
+    - observability
+    - external-datastore
+
+  app:
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DB_SSL_ROOT_CERT: ${DB_SSL_ROOT_CERT:-}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_USERNAME: ${REDIS_USERNAME-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
+      REDIS_TLS_CA: ${REDIS_TLS_CA:-}
+    depends_on: !override
+      migrate:
+        condition: service_completed_successfully
+      alloy:
+        condition: service_healthy
+      openfga:
+        condition: service_healthy
+    networks: !override
+    - backend
+    - observability
+    - external-datastore
+
+  redis-exporter:
+    environment:
+      REDIS_ADDR: ${REDIS_EXPORTER_ADDR:-redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}}
+      REDIS_EXPORTER_TLS_CA_CERT_FILE: ${REDIS_EXPORTER_TLS_CA_CERT_FILE:-}
+    depends_on: !reset []
+    networks: !override
+    - observability
+    - external-datastore
+
+networks:
+  external-datastore:
+    name: ${EXTERNAL_DATASTORE_NETWORK:?EXTERNAL_DATASTORE_NETWORK is required}
+    external: true

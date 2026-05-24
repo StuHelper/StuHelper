@@ -125,6 +125,7 @@ type DatabaseConfig struct {
 	SSLRootCert     string
 	SSLCert         string
 	SSLKey          string
+	AllowPlaintext  bool
 }
 
 // CasdoorConfig OIDC 认证配置。
@@ -202,17 +203,18 @@ type BotConfig struct {
 
 // RedisConfig Redis 配置
 type RedisConfig struct {
-	Host         string
-	Port         string
-	Username     string
-	Password     string
-	DB           int
-	PoolSize     int
-	MinIdleConns int
-	TLSEnabled   bool
-	TLSCertFile  string
-	TLSKeyFile   string
-	TLSCAFile    string
+	Host           string
+	Port           string
+	Username       string
+	Password       string
+	DB             int
+	PoolSize       int
+	MinIdleConns   int
+	TLSEnabled     bool
+	TLSCertFile    string
+	TLSKeyFile     string
+	TLSCAFile      string
+	AllowPlaintext bool
 }
 
 // TokenConfig Token 配置
@@ -294,6 +296,7 @@ func loadDatabaseConfig(parseErrs *[]string) DatabaseConfig {
 		SSLRootCert:     getEnv("DB_SSL_ROOT_CERT", ""),
 		SSLCert:         getEnv("DB_SSL_CERT", ""),
 		SSLKey:          getEnv("DB_SSL_KEY", ""),
+		AllowPlaintext:  getEnvBool("EXTERNAL_POSTGRES_ALLOW_PLAINTEXT", false, parseErrs),
 	}
 }
 
@@ -360,17 +363,18 @@ func loadObjectStorageConfig(parseErrs *[]string) ObjectStorageConfig {
 
 func loadRedisConfig(parseErrs *[]string) RedisConfig {
 	return RedisConfig{
-		Host:         getEnv("REDIS_HOST", "localhost"),
-		Port:         getEnv("REDIS_PORT", "6379"),
-		Username:     getEnv("REDIS_USERNAME", "stuhelper_app"),
-		Password:     getEnv("REDIS_PASSWORD", ""),
-		DB:           getEnvInt("REDIS_DB", 0, parseErrs),
-		PoolSize:     getEnvInt("REDIS_POOL_SIZE", 10, parseErrs),
-		MinIdleConns: getEnvInt("REDIS_MIN_IDLE_CONNS", 5, parseErrs),
-		TLSEnabled:   getEnvBool("REDIS_TLS_ENABLED", false, parseErrs),
-		TLSCertFile:  getEnv("REDIS_TLS_CERT", ""),
-		TLSKeyFile:   getEnv("REDIS_TLS_KEY", ""),
-		TLSCAFile:    getEnv("REDIS_TLS_CA", ""),
+		Host:           getEnv("REDIS_HOST", "localhost"),
+		Port:           getEnv("REDIS_PORT", "6379"),
+		Username:       getEnv("REDIS_USERNAME", "stuhelper_app"),
+		Password:       getEnv("REDIS_PASSWORD", ""),
+		DB:             getEnvInt("REDIS_DB", 0, parseErrs),
+		PoolSize:       getEnvInt("REDIS_POOL_SIZE", 10, parseErrs),
+		MinIdleConns:   getEnvInt("REDIS_MIN_IDLE_CONNS", 5, parseErrs),
+		TLSEnabled:     getEnvBool("REDIS_TLS_ENABLED", false, parseErrs),
+		TLSCertFile:    getEnv("REDIS_TLS_CERT", ""),
+		TLSKeyFile:     getEnv("REDIS_TLS_KEY", ""),
+		TLSCAFile:      getEnv("REDIS_TLS_CA", ""),
+		AllowPlaintext: getEnvBool("EXTERNAL_REDIS_ALLOW_PLAINTEXT", false, parseErrs),
 	}
 }
 

@@ -186,6 +186,18 @@ fi
 if ! grep -qF 'require_production_postgres_ssl' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on insecure internal PostgreSQL SSL settings"
 fi
+if ! grep -qF 'EXTERNAL_POSTGRES_ALLOW_PLAINTEXT' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must require explicit opt-in before using plaintext external PostgreSQL"
+fi
+if ! grep -qF 'EXTERNAL_REDIS_ALLOW_PLAINTEXT' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must require explicit opt-in before using plaintext external Redis"
+fi
+if ! grep -qF 'EXTERNAL_POSTGRES_ENABLED' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must support skipping the internal PostgreSQL service"
+fi
+if ! grep -qF 'EXTERNAL_REDIS_ENABLED' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must support skipping the internal Redis service"
+fi
 if ! grep -qF 'require_public_identity_ingress_preflight' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on missing public identity ingress TLS and Casdoor discovery"
 fi

@@ -164,17 +164,19 @@ require_verified_postgres_ssl_mode() {
 require_production_postgres_url() {
   local key="$1"
   local value="${2:-}"
+  local allow_plaintext="${3:-false}"
   local output
 
-  if ! output="$(python3 - "${key}" "${value}" 2>&1 <<'PY'
+  if ! output="$(python3 - "${key}" "${value}" "${allow_plaintext}" 2>&1 <<'PY'
 import sys
 from urllib.parse import parse_qs, urlsplit
 
 key = sys.argv[1]
 value = sys.argv[2].strip()
+allow_plaintext = sys.argv[3] == "true"
 
 if not value:
-    raise SystemExit(f"{key} must be configured for production PostgreSQL TLS")
+    raise SystemExit(f"{key} must be configured for production PostgreSQL")
 
 parsed = urlsplit(value)
 if parsed.scheme not in {"postgres", "postgresql"}:
@@ -187,6 +189,8 @@ if host in {"localhost", "127.0.0.1", "::1"}:
 query = parse_qs(parsed.query, keep_blank_values=True)
 ssl_modes = query.get("sslmode", [])
 ssl_mode = ssl_modes[0] if ssl_modes else ""
+if allow_plaintext and ssl_mode == "disable":
+    raise SystemExit(0)
 if ssl_mode not in {"verify-ca", "verify-full"}:
     raise SystemExit(
         f"{key} must include sslmode=verify-ca or sslmode=verify-full for production (got {ssl_mode or '<missing>'})"
@@ -202,14 +206,23 @@ PY
 }
 
 require_production_postgres_ssl() {
-  [[ "${POSTGRES_ENABLE_SSL:-}" == "on" ]] || die "POSTGRES_ENABLE_SSL must be on for production"
-  require_verified_postgres_ssl_mode "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}"
-  [[ "${DB_SSL_MODE:-}" == "verify-full" ]] || die "DB_SSL_MODE must be verify-full for production"
-  [[ -n "${DB_SSL_ROOT_CERT:-}" ]] || die "DB_SSL_ROOT_CERT is required for production"
+  local allow_plaintext="false"
+  if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
+    allow_plaintext="true"
+    [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]] || die "EXTERNAL_POSTGRES_ENABLED must be true when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
+    [[ -n "${EXTERNAL_DATASTORE_NETWORK:-}" ]] || die "EXTERNAL_DATASTORE_NETWORK is required when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
+    [[ "${POSTGRES_INTERNAL_SSL_MODE:-}" == "disable" ]] || die "POSTGRES_INTERNAL_SSL_MODE must be disable when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
+    [[ "${DB_SSL_MODE:-}" == "disable" ]] || die "DB_SSL_MODE must be disable when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
+  else
+    [[ "${POSTGRES_ENABLE_SSL:-}" == "on" ]] || die "POSTGRES_ENABLE_SSL must be on for production"
+    require_verified_postgres_ssl_mode "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}"
+    [[ "${DB_SSL_MODE:-}" == "verify-full" ]] || die "DB_SSL_MODE must be verify-full for production"
+    [[ -n "${DB_SSL_ROOT_CERT:-}" ]] || die "DB_SSL_ROOT_CERT is required for production"
+  fi
 
-  require_production_postgres_url "DATABASE_URL" "${DATABASE_URL:-}"
-  require_production_postgres_url "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}"
-  require_production_postgres_url "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}"
+  require_production_postgres_url "DATABASE_URL" "${DATABASE_URL:-}" "${allow_plaintext}"
+  require_production_postgres_url "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "${allow_plaintext}"
+  require_production_postgres_url "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "${allow_plaintext}"
 }
 
 trim_trailing_slash() {
@@ -629,6 +642,7 @@ compose() {
     compose_files=(-f "${REPO_ROOT}/docker-compose.yml") && \
     if [[ -f "${REPO_ROOT}/docker-compose.observability.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.observability.yml"); fi && \
     if [[ " $* " == *" --profile prod "* && -f "${REPO_ROOT}/docker-compose.prod.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.prod.yml"); fi && \
+    if [[ -n "${EXTERNAL_DATASTORE_NETWORK:-}" && ( "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" || "${EXTERNAL_REDIS_ENABLED:-false}" == "true" ) && -f "${REPO_ROOT}/docker-compose.external-datastore.yml" ]]; then compose_files+=(-f "${REPO_ROOT}/docker-compose.external-datastore.yml"); fi && \
     preserved_tag="${TAG-__STUHELPER_UNSET__}" && \
     preserved_rollback_tag="${ROLLBACK_TAG-__STUHELPER_UNSET__}" && \
     preserved_backend_image_ref="${BACKEND_IMAGE_REF-__STUHELPER_UNSET__}" && \

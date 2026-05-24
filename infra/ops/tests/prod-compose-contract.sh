@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 COMPOSE_PROD_FILE="${REPO_ROOT}/docker-compose.prod.yml"
+COMPOSE_EXTERNAL_DATASTORE_FILE="${REPO_ROOT}/docker-compose.external-datastore.yml"
 COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 COMMON_LIB_FILE="${REPO_ROOT}/infra/ops/lib/common.sh"
 PG_HBA_PROD_FILE="${REPO_ROOT}/infra/postgres/pg_hba.prod.conf"
@@ -32,6 +33,7 @@ app_block="$(
 )"
 
 [[ -n "${app_block}" ]] || fail "expected app service block in ${COMPOSE_PROD_FILE}"
+[[ -f "${COMPOSE_EXTERNAL_DATASTORE_FILE}" ]] || fail "missing external datastore compose overlay"
 
 minio_block="$(
   awk '
@@ -74,6 +76,16 @@ assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_ROLE_SYNC_CLIENT_SECRET: \$\{CAS
 assert_contains "${COMPOSE_PROD_FILE}" 'CASDOOR_USER_LOOKUP_CLIENT_SECRET: \$\{CASDOOR_USER_LOOKUP_CLIENT_SECRET:\?CASDOOR_USER_LOOKUP_CLIENT_SECRET is required\}'
 assert_contains "${COMPOSE_PROD_FILE}" 'sslmode=\$\{DB_SSL_MODE:-verify-full\}&sslrootcert=/tls/ca\.crt'
 assert_contains "${COMPOSE_PROD_FILE}" 'sslmode=\$\{POSTGRES_INTERNAL_SSL_MODE:-verify-full\}&sslrootcert=/tls/ca\.crt'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'profiles: !override \[internal-datastore\]'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'profiles: !override \[local-sso\]'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'name: \$\{EXTERNAL_DATASTORE_NETWORK:\?EXTERNAL_DATASTORE_NETWORK is required\}'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'external: true'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'depends_on: !reset \[\]'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'depends_on: !override'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'DATABASE_URL: \$\{DATABASE_URL:\?DATABASE_URL is required\}'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_USERNAME: \$\{REDIS_USERNAME-\}'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_TLS_ENABLED: \$\{REDIS_TLS_ENABLED:-false\}'
+assert_contains "${COMPOSE_EXTERNAL_DATASTORE_FILE}" 'REDIS_ADDR: \$\{REDIS_EXPORTER_ADDR:-redis://:\$\{REDIS_PASSWORD\}@\$\{REDIS_HOST:-redis\}:\$\{REDIS_PORT:-6379\}\}'
 if grep -Eq 'sslmode=\$\{(DB_SSL_MODE|POSTGRES_INTERNAL_SSL_MODE):-disable\}' "${COMPOSE_PROD_FILE}"; then
   fail "production compose overlay must not default PostgreSQL clients to sslmode=disable"
 fi
