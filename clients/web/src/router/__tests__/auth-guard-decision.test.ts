@@ -3,7 +3,43 @@ import { describe, expect, it } from 'vitest'
 import {
   hasRequiredRouteCapabilityAccess,
   resolveProtectedRouteAuthFailure,
+  shouldResolveRouteSession,
 } from '../auth-guard-decision'
+
+describe('shouldResolveRouteSession', () => {
+  it('skips protected-route session probes when the browser has no session hint', () => {
+    expect(
+      shouldResolveRouteSession({
+        hasSessionHint: false,
+        isAuthenticated: false,
+        isGuestRoute: false,
+        requiresAuthRoute: true,
+      }),
+    ).toBe(false)
+  })
+
+  it('probes protected routes when a local session hint exists', () => {
+    expect(
+      shouldResolveRouteSession({
+        hasSessionHint: true,
+        isAuthenticated: false,
+        isGuestRoute: false,
+        requiresAuthRoute: true,
+      }),
+    ).toBe(true)
+  })
+
+  it('only probes guest routes when local auth state exists', () => {
+    expect(
+      shouldResolveRouteSession({
+        hasSessionHint: false,
+        isAuthenticated: true,
+        isGuestRoute: true,
+        requiresAuthRoute: false,
+      }),
+    ).toBe(true)
+  })
+})
 
 describe('resolveProtectedRouteAuthFailure', () => {
   it('cancels protected navigation when session bootstrap failed but auth state is unresolved', () => {

@@ -5,6 +5,7 @@ import {
 } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { isTokenExpired } from "@/utils/auth";
+import { hasStoredSessionHint } from "@/utils/sessionHint";
 import { updatePageMeta } from "@/composables/usePageMeta";
 import i18n from "@/i18n";
 import {
@@ -13,6 +14,7 @@ import {
 import {
     hasRequiredRouteCapabilityAccess,
     resolveProtectedRouteAuthFailure,
+    shouldResolveRouteSession,
 } from "@/router/auth-guard-decision";
 // 静态导入，确保 chunk load 失败时仍可渲染
 import ChunkErrorPage from "@/modules/errors/views/ChunkErrorPage.vue";
@@ -371,10 +373,19 @@ router.beforeEach(async (to) => {
         Array.isArray(route.meta.requiredCapabilities) &&
         route.meta.requiredCapabilities.length > 0,
     );
-    const needsResolvedSession =
+    const requiresAuthRoute =
         Boolean(to.meta.requiresAuth) ||
-        routeHasRequiredCapabilities ||
-        (Boolean(to.meta.guest) && authStore.isAuthenticated);
+        routeHasRequiredCapabilities;
+    const hasSessionHint = hasStoredSessionHint();
+    if (!hasSessionHint && authStore.isAuthenticated) {
+        authStore.clearSession();
+    }
+    const needsResolvedSession = shouldResolveRouteSession({
+        hasSessionHint,
+        isAuthenticated: authStore.isAuthenticated,
+        isGuestRoute: Boolean(to.meta.guest),
+        requiresAuthRoute,
+    });
 
     if (needsResolvedSession && !authStore.bootstrapCompleted) {
         await authStore.bootstrapSession();
@@ -393,14 +404,6 @@ router.beforeEach(async (to) => {
     }
 
     const isAuthenticated = authStore.isAuthenticated;
-    const requiresAuthRoute =
-        to.meta.requiresAuth ||
-        to.matched.some((route) => {
-            const requiredCapabilities = Array.isArray(route.meta.requiredCapabilities)
-                ? route.meta.requiredCapabilities
-                : [];
-            return requiredCapabilities.length > 0;
-        });
     const authFailureDecision = resolveProtectedRouteAuthFailure({
         redirect: to.fullPath,
         refreshFailed,

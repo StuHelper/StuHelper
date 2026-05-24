@@ -8,6 +8,13 @@ export interface ProtectedRouteAuthFailureInput {
   stillAuthenticated: boolean
 }
 
+export interface RouteSessionResolutionInput {
+  hasSessionHint: boolean
+  isAuthenticated: boolean
+  isGuestRoute: boolean
+  requiresAuthRoute: boolean
+}
+
 export function hasRequiredRouteCapabilityAccess(
   userCapabilities: string[],
   requiredCapabilities: string[],
@@ -17,6 +24,14 @@ export function hasRequiredRouteCapabilityAccess(
   }
 
   return hasAnyCapability(userCapabilities, requiredCapabilities)
+}
+
+export function shouldResolveRouteSession(input: RouteSessionResolutionInput) {
+  if (input.requiresAuthRoute) {
+    return input.hasSessionHint
+  }
+
+  return input.isGuestRoute && input.isAuthenticated
 }
 
 export function resolveProtectedRouteAuthFailure(

@@ -28,7 +28,11 @@ describe('style entrypoint', () => {
   it('does not probe guest routes unless local auth state exists', () => {
     const routerSource = readFileSync(resolve(__dirname, '../../router/index.ts'), 'utf-8')
 
-    expect(routerSource).toContain('(Boolean(to.meta.guest) && authStore.isAuthenticated)')
+    expect(routerSource).toContain('const hasSessionHint = hasStoredSessionHint()')
+    expect(routerSource).toMatch(
+      /isGuestRoute:\s*Boolean\(to\.meta\.guest\),\s*requiresAuthRoute,/,
+    )
+    expect(routerSource).toContain('isAuthenticated: authStore.isAuthenticated')
   })
 
   it('uses the home route as the default SSO return target from the login page', () => {
