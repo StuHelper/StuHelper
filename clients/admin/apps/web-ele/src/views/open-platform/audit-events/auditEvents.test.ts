@@ -62,11 +62,15 @@ function readLocale(relativePath: string): unknown {
 }
 
 function resolveLocaleKey(locale: unknown, key: string): unknown {
-  const normalizedKey = key.startsWith('admin.') ? key.slice('admin.'.length) : key;
-  return normalizedKey.split('.').reduce<unknown>((current, segment) => {
+  const normalizedKey = key.startsWith('admin.')
+    ? key.slice('admin.'.length)
+    : key;
+  let current = locale;
+  for (const segment of normalizedKey.split('.')) {
     if (typeof current !== 'object' || current === null) {
       return undefined;
     }
-    return (current as Record<string, unknown>)[segment];
-  }, locale);
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
 }
