@@ -90,6 +90,44 @@ async function mockAuth(page: Page) {
       }),
     }),
   )
+  await page.route('**/api/v1/course/review/user/reviews*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { list: [], total: 0, page: 1, pageSize: 10 },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/user/votes*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { list: [], total: 0, page: 1, pageSize: 10 },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/user/favorites*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { list: [], total: 0, page: 1, pageSize: 10 },
+      }),
+    }),
+  )
+  await page.route(
+    '**/api/v1/open-platform/consents/audit-events*',
+    (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { list: [], total: 0, page: 1, pageSize: 10 },
+        }),
+      }),
+  )
 }
 
 test.describe('User Journey: User Center', () => {

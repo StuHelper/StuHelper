@@ -162,6 +162,15 @@ function setupCommonMocks(page: Page) {
         }),
       }),
     ),
+    page.route('**/api/v1/course/review/rankings/hot*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: [],
+        }),
+      }),
+    ),
   ])
 }
 

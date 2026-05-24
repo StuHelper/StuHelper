@@ -49,6 +49,38 @@ async function mockAuth(page: Page) {
       body: JSON.stringify({ success: true, data: { expiresIn: 3600 } }),
     }),
   )
+  await page.route('**/api/v1/user/identity', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { verified: true, status: 'verified' },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/user/profile', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          verificationStatus: 'verified',
+          schoolName: '测试大学',
+          schoolID: 1,
+        },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/user/qq-binding', (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        error: { code: 'A0040404', message: 'not bound' },
+      }),
+    }),
+  )
   await page.route(
     '**/api/v1/course/review/user/notifications/unread-count*',
     (route) =>
@@ -56,6 +88,12 @@ async function mockAuth(page: Page) {
         contentType: 'application/json',
         body: JSON.stringify({ success: true, data: { count: 0 } }),
       }),
+  )
+  await page.route('**/api/v1/course/review/courses/*/favorites', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { favorited: false } }),
+    }),
   )
 }
 

@@ -100,6 +100,14 @@ E2E 与 prod-parity 验证进入远端部署 bundle；新增 `deploy-bundle-cont
 `make check-infra-contracts` 和 `git diff --check`；提交后已在干净工作区复跑 `make deploy-bundle`，
 证明正常打包路径仍可用，并确认 bundle 包含新增运维脚本但不包含 `.run`、`.deploy` 或本地生产 env。
 
+E2E 门禁补充（2026-05-25）：Web / Admin Vite E2E API stub 改为 fail-closed，除测试基础设施
+允许的 SSE / vitals 请求外，未被 Playwright route 显式 mock 的 `/api/*` 会返回
+`500 E2E_UNMOCKED_API`，并由现有 API 5xx fixture 门禁使测试失败。该门禁暴露并补齐了首页统计、
+首页热门课程、搜索院系、AppShell 身份 / 学籍 / QQ 绑定、用户中心后台 tabs、授权审计列表、课程收藏
+状态和写评课草稿等真实页面依赖的 mock。本轮已通过 `PLAYWRIGHT_WEB_PORT=3100 make e2e-web`、
+`make e2e-admin`、完整 `PLAYWRIGHT_WEB_PORT=3100 make e2e`、`pnpm lint:web`、`pnpm lint:admin`、
+`pnpm type-check:web`、`pnpm type-check:admin` 和 `git diff --check`。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、

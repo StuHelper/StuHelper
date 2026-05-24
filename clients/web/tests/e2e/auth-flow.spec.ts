@@ -60,6 +60,40 @@ async function mockAuthenticated(
       body: JSON.stringify({ success: true, data: { expiresIn: 3600 } }),
     }),
   )
+  await page.route('**/api/v1/user/identity', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { verified: user.roles.includes('verified_student'), status: 'verified' },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/user/profile', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          verificationStatus: user.roles.includes('verified_student')
+            ? 'verified'
+            : 'unverified',
+          schoolName: user.roles.includes('verified_student') ? '测试大学' : null,
+          schoolID: user.roles.includes('verified_student') ? 1 : null,
+        },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/user/qq-binding', (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        error: { code: 'A0040404', message: 'not bound' },
+      }),
+    }),
+  )
   await page.route(
     '**/api/v1/course/review/user/notifications/unread-count*',
     (route) =>
@@ -67,6 +101,48 @@ async function mockAuthenticated(
         contentType: 'application/json',
         body: JSON.stringify({ success: true, data: { count: 0 } }),
       }),
+  )
+  await page.route('**/api/v1/course/review/user/votes*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { list: [], total: 0, page: 1, pageSize: 10 },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/user/favorites*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { list: [], total: 0, page: 1, pageSize: 10 },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/stats', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { courseCount: 120, departmentCount: 8 },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/stats', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { reviewCount: 580, userCount: 230 },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/rankings/hot*', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: [] }),
+    }),
   )
 }
 

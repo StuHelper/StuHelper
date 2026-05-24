@@ -306,6 +306,21 @@ test("authenticated user can publish a review and vote on a course review", asyn
         });
     });
 
+    await page.route("**/api/v1/course/review/drafts", async (route) => {
+        if (route.request().method() === "POST") {
+            await route.fulfill({
+                contentType: "application/json",
+                body: JSON.stringify({ success: true, data: { saved: true } }),
+            });
+            return;
+        }
+
+        await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true, data: null }),
+        });
+    });
+
     await page.route("**/api/v1/course/review/reviews/review-1/votes", async (route) => {
         votePayload = route.request().postDataJSON() as Record<string, unknown>;
         await route.fulfill({

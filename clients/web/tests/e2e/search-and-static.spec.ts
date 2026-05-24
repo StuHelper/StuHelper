@@ -36,6 +36,12 @@ test.describe('Search Page', () => {
         }),
       }),
     )
+    await page.route('**/api/v1/course/departments*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    )
 
     await page.goto('/search')
     await expect(page).toHaveURL(/\/search/)

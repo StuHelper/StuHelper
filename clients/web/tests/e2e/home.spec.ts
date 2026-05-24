@@ -11,6 +11,24 @@ async function mockUnauthenticated(page: Page) {
       }),
     }),
   )
+  await page.route('**/api/v1/course/stats', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { courseCount: 120, departmentCount: 8 },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/course/review/stats', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { reviewCount: 580, userCount: 230 },
+      }),
+    }),
+  )
 }
 
 test('home page renders shell and brand', async ({ page }) => {

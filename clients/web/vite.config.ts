@@ -49,9 +49,15 @@ function e2eAPIStubPlugin(): Plugin {
           return
         }
 
-        res.statusCode = 200
+        res.statusCode = 500
         res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ data: null }))
+        res.end(JSON.stringify({
+          success: false,
+          error: {
+            code: 'E2E_UNMOCKED_API',
+            message: `unmocked E2E API request: ${req.method ?? 'GET'} ${requestURL}`,
+          },
+        }))
       })
     },
   }
