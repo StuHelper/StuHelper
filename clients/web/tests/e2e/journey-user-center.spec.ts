@@ -304,6 +304,104 @@ test.describe('User Journey: User Center', () => {
     await expect(page.getByText('email.read')).toHaveCount(0)
   })
 
+  test('user revokes an authorized app grant', async ({ page }) => {
+    let revokeRequest: { method: string; scopes: string[] } | null = null
+
+    await page.route('**/api/v1/open-platform/consents', async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback()
+        return
+      }
+
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            apps: [
+              {
+                app: {
+                  id: 43,
+                  clientID: 'campus-data',
+                  displayName: 'Campus Data',
+                  description: 'Campus data integration',
+                  homepageURL: 'https://data.example.com',
+                  privacyPolicyURL: 'https://data.example.com/privacy',
+                  redirectURIs: ['https://data.example.com/callback'],
+                  status: 'approved',
+                  createdAt: '2026-04-01T10:00:00Z',
+                  updatedAt: '2026-04-01T10:00:00Z',
+                },
+                scopes: [
+                  {
+                    scope: 'profile.basic.read',
+                    displayName: '基础资料',
+                    sensitivity: 'low',
+                    fields: ['昵称'],
+                    grantedAt: '2026-04-05T10:00:00Z',
+                    grantSource: 'consent_page',
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      })
+    })
+
+    await page.route(
+      '**/api/v1/open-platform/consents/audit-events*',
+      async (route) => {
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            data: { list: [], total: 0, page: 1, pageSize: 10 },
+          }),
+        })
+      },
+    )
+
+    await page.route('**/api/v1/open-platform/consents/43', async (route) => {
+      const url = new URL(route.request().url())
+      revokeRequest = {
+        method: route.request().method(),
+        scopes: url.searchParams.getAll('scope'),
+      }
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { message: 'ok' },
+        }),
+      })
+    })
+
+    await page.goto('/user/authorized-apps')
+    await page.waitForLoadState('networkidle')
+
+    await expect(
+      page.getByRole('heading', { name: 'Campus Data' }),
+    ).toBeVisible({
+      timeout: 10_000,
+    })
+    await page.getByRole('button', { name: '撤销全部' }).click()
+    await expect(
+      page.getByRole('dialog', { name: '撤销应用授权' }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: '确认撤销' }).click()
+
+    await expect
+      .poll(() => revokeRequest)
+      .toEqual({
+        method: 'DELETE',
+        scopes: [],
+      })
+    await expect(
+      page.getByRole('heading', { name: 'Campus Data' }),
+    ).toHaveCount(0)
+  })
+
   test('user views notifications and marks all as read', async ({ page }) => {
     let markAllCalled = false
 
@@ -372,6 +470,65 @@ test.describe('User Journey: User Center', () => {
       await markAllBtn.click()
       await expect.poll(() => markAllCalled).toBe(true)
     }
+  })
+
+  test('user clicks one notification to mark it read and follow its link', async ({
+    page,
+  }) => {
+    let markReadRequest: { method: string; path: string } | null = null
+
+    await page.route('**/api/v1/course/review/user/notifications?*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            list: [
+              {
+                id: 'notif-1',
+                type: 'reply',
+                title: '系统提醒',
+                content: '点击后进入说明页',
+                isRead: false,
+                sourceUrl: '/about',
+                createdAt: '2026-04-05T10:00:00Z',
+              },
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+          },
+        }),
+      }),
+    )
+
+    await page.route(
+      '**/api/v1/course/review/user/notifications/notif-1/read',
+      async (route) => {
+        const url = new URL(route.request().url())
+        markReadRequest = {
+          method: route.request().method(),
+          path: url.pathname,
+        }
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        })
+      },
+    )
+
+    await page.goto('/notifications')
+    await page.waitForLoadState('networkidle')
+
+    await page.getByRole('button', { name: /系统提醒/ }).click()
+
+    await expect
+      .poll(() => markReadRequest)
+      .toEqual({
+        method: 'PUT',
+        path: '/api/v1/course/review/user/notifications/notif-1/read',
+      })
+    await expect(page).toHaveURL(/\/about$/)
   })
 
   test('user sees empty state when no reviews exist', async ({ page }) => {
