@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: infra/ops/*.sh + infra/ansible/
-last-verified: 2026-05-24
+last-verified: 2026-05-25
 ---
 
 # 发布运行手册
@@ -17,7 +17,7 @@ last-verified: 2026-05-24
 
 ## 发布前检查
 
-- [ ] 本次变更已通过 CI（web / admin / backend）
+- [ ] 本次变更已通过 CI（web / admin / backend / koishi）
 - [ ] 涉及运维脚本、部署配置、生产 evidence、Nginx preflight 或 CI 漂移门禁时，本地已执行 `make check-infra-contracts`；该入口同时覆盖 `infra/ops/tests/*.sh` 和 `infra/ops/tests/*.mjs`
 - [ ] production 发布已由发布人手工审批（`deploy_production`）
 - [ ] 如果包含数据库变更，已完成备份（注：`prod-deploy.sh` 现已自动在迁移前执行 `backup-postgres.sh`）
@@ -42,12 +42,13 @@ last-verified: 2026-05-24
 
 1. `frontend_e2e`
 2. `admin_e2e`
-3. `package_backend`
-4. `package_frontend`
-5. `package_admin`
-6. `deploy_staging`
-7. `verify_staging`
-8. 远端实际执行：
+3. `koishi_test`
+4. `package_backend`
+5. `package_frontend`
+6. `package_admin`
+7. `deploy_staging`
+8. `verify_staging`
+9. 远端实际执行：
    - `./infra/ops/remote-preflight.sh`
    - `./infra/ops/remote-prod-deploy.sh`
 
@@ -55,15 +56,16 @@ last-verified: 2026-05-24
 
 1. `frontend_e2e`
 2. `admin_e2e`
-3. `backend_security` / `backend_vulnerability_scan`
-4. `frontend_dependency_scan` / `admin_dependency_scan`
-5. `container_scan_backend` / `container_scan_frontend` / `container_scan_admin`
-6. `package_backend`
-7. `package_frontend`
-8. `package_admin`
-9. 手工触发 `deploy_production`
-10. `verify_production`
-11. 远端实际执行：
+3. `koishi_test`
+4. `backend_security` / `backend_vulnerability_scan`
+5. `frontend_dependency_scan` / `admin_dependency_scan`
+6. `container_scan_backend` / `container_scan_frontend` / `container_scan_admin`
+7. `package_backend`
+8. `package_frontend`
+9. `package_admin`
+10. 手工触发 `deploy_production`
+11. `verify_production`
+12. 远端实际执行：
     - `./infra/ops/remote-preflight.sh`
     - `./infra/ops/remote-prod-deploy.sh`
 

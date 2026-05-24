@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-05-09
+last-verified: 2026-05-25
 ---
 
 # 一键启动与部署
@@ -194,6 +194,7 @@ make prod-reset
    - `pnpm audit`
    - `Trivy`
    - Web / Admin unit test + Playwright
+   - Koishi unit / startup / Console Playwright smoke
    - 前端构建要求显式提供 `WEB_VITE_SSO_URL`；缺失即失败，不再使用构建期 fallback
 2. 构建 backend / frontend / admin 镜像
 3. 推送到自建镜像仓库
@@ -274,8 +275,11 @@ GitLab CI 至少需要以下变量：
 
 - `frontend_e2e`：Web Playwright
 - `admin_e2e`：Admin Playwright
+- `koishi_test`：Koishi packages/plugins 单元测试、真实启动烟雾验证和 Console Playwright smoke
 
-只有 E2E 通过后，镜像构建与远端部署才会继续。
+只有 Web/Admin E2E 和 Koishi 测试通过后，镜像构建与远端部署才会继续。Koishi Console Playwright
+失败时，GitLab 会保留 `bots/koishi/playwright-report` 和 `bots/koishi/test-results` 作为 artifact，
+用于查看 trace、截图和错误上下文。
 
 ## 回滚
 

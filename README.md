@@ -68,7 +68,7 @@ make prod-deploy  # 配置校验 → 镜像构建 → 启动 → Smoke Check
 | `develop` | staging 自动部署 |
 | `main` | production 构建完成后手工审批发布 |
 
-质量门禁：Go lint/test/build、OpenAPI lint/drift、gosec、govulncheck、pnpm audit、Trivy、Web/Admin lint/type-check/test/build/Playwright。
+质量门禁：Go lint/test/build、OpenAPI lint/drift、gosec、govulncheck、pnpm audit、Trivy、Web/Admin lint/type-check/test/build/Playwright、Koishi 单元 / 启动 / Console Playwright smoke。
 
 回滚 Job：`rollback_staging` / `rollback_production`，可传 `ROLLBACK_TAG`。
 

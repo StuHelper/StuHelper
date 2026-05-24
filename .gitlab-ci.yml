@@ -101,6 +101,11 @@ koishi_test:
   - cd bots/koishi
   - corepack yarn install --immutable
   - corepack yarn test
+  artifacts:
+    when: always
+    paths:
+    - bots/koishi/playwright-report
+    - bots/koishi/test-results
 
 admin_lint:
   stage: lint
