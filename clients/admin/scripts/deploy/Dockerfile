@@ -1,4 +1,7 @@
-FROM node:22-slim AS builder
+ARG NODE_IMAGE=node:22-slim
+ARG NGINX_IMAGE=nginx:stable-alpine
+
+FROM ${NODE_IMAGE} AS builder
 
 # --max-old-space-size
 ENV PNPM_HOME="/pnpm"
@@ -28,7 +31,7 @@ RUN pnpm --dir admin build:ele
 
 RUN echo "Builder Success 🎉"
 
-FROM nginx:stable-alpine AS production
+FROM ${NGINX_IMAGE} AS production
 
 # 配置 nginx
 RUN echo "types { application/javascript js mjs; }" > /etc/nginx/conf.d/mjs.conf \

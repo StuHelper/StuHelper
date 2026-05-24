@@ -1,5 +1,8 @@
+ARG NODE_IMAGE=node:24-alpine
+ARG NGINX_IMAGE=nginx:1.27-alpine
+
 # Build stage
-FROM node:24-alpine AS builder
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 ARG VITE_API_URL=https://api.stuhelper.com
@@ -19,7 +22,7 @@ COPY . .
 RUN pnpm run build:web
 
 # Serve stage
-FROM nginx:1.27-alpine
+FROM ${NGINX_IMAGE}
 COPY --from=builder /app/web/dist /usr/share/nginx/html
 COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 

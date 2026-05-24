@@ -1,5 +1,8 @@
+ARG GO_IMAGE=golang:1.26-alpine
+ARG RUNTIME_IMAGE=alpine:3.21
+
 # Build stage
-FROM golang:1.26-alpine AS builder
+FROM ${GO_IMAGE} AS builder
 
 WORKDIR /app
 
@@ -26,7 +29,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     ./cmd/migrate-runtime
 
 # Final stage
-FROM alpine:3.21
+FROM ${RUNTIME_IMAGE}
 
 WORKDIR /app
 
