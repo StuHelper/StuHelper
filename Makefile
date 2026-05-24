@@ -1,4 +1,4 @@
-.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin obs-up obs-down obs-smoke prod-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-identity-smoke prod-open-platform-evidence prod-backup-evidence prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -44,6 +44,10 @@ help:
 	@echo "  make prod-identity-smoke - verify public stuhelper/id/sso identity ingress"
 	@echo "  make prod-open-platform-evidence - run token/OpenFGA production evidence smokes"
 	@echo "  make prod-backup-evidence - verify local/fetched PostgreSQL backup evidence"
+	@echo "  make prod-parity-up - build and run local production-equivalent stack"
+	@echo "  make prod-parity-down - stop local production-equivalent stack"
+	@echo "  make prod-parity-reset - stop local production-equivalent stack and remove volumes"
+	@echo "  make prod-parity-smoke - smoke-check local production-equivalent stack"
 	@echo ""
 	@echo "Ansible:"
 	@echo "  make ansible-bootstrap      - bootstrap a remote Ubuntu host from infra/ansible"
@@ -138,6 +142,18 @@ prod-open-platform-evidence:
 
 prod-backup-evidence:
 	$(PROD_RUNTIME_ENV) ./infra/ops/postgres-backup-evidence.sh
+
+prod-parity-up:
+	./infra/ops/prod-parity-up.sh
+
+prod-parity-down:
+	./infra/ops/prod-parity-down.sh
+
+prod-parity-reset:
+	REMOVE_VOLUMES=true ./infra/ops/prod-parity-down.sh
+
+prod-parity-smoke:
+	./infra/ops/prod-parity-smoke.sh
 
 ansible-bootstrap:
 	cd infra/ansible && ansible-playbook -i inventory/production.ini playbooks/bootstrap.yml

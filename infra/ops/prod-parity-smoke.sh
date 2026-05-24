@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
+
+require_cmd curl
+require_cmd jq
+require_cmd python3
+
+PARITY_DIR="${PROD_PARITY_DIR:-${REPO_ROOT}/.run/prod-parity}"
+export ENV_TEMPLATE_FILE="${REPO_ROOT}/.env.prod.example"
+export ENV_FILE="${ENV_FILE:-${PARITY_DIR}/.env.prod.shared}"
+export SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-${PARITY_DIR}/.env.prod.secrets.local}"
+export GENERATED_ENV_FILE="${GENERATED_ENV_FILE:-${PARITY_DIR}/.env.prod.generated}"
+export GENERATED_SECRET_ENV_FILE="${GENERATED_SECRET_ENV_FILE:-${PARITY_DIR}/.env.prod.generated.secrets}"
+export DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${PARITY_DIR}/deploy-state}"
+
+load_env
+
+export API_BASE_URL="http://127.0.0.1:${BACKEND_EXTERNAL_PORT:-28080}"
+export WEB_BASE_URL="http://127.0.0.1:${WEB_EXTERNAL_PORT:-28000}"
+export ADMIN_BASE_URL="http://127.0.0.1:${ADMIN_EXTERNAL_PORT:-28001}"
+export CHECK_ADMIN=true
+export APP_ENV=production
+
+"${SCRIPT_DIR}/smoke-check.sh"
+
+WEB_PUBLIC_URL="${WEB_BASE_URL}" \
+IDENTITY_ISSUER="${WEB_BASE_URL}" \
+IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true \
+IDENTITY_PUBLIC_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/identity-public-smoke-evidence.json" \
+"${SCRIPT_DIR}/identity-public-smoke.sh"
+
+OPENFGA_RESOURCE_SMOKE_MODE=container \
+OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/openfga-resource-access-smoke.json" \
+"${SCRIPT_DIR}/openfga-resource-access-smoke.sh" >/dev/null
+
+PROMETHEUS_URL="http://127.0.0.1:${PROMETHEUS_PORT:-29090}/-/ready" \
+GRAFANA_URL="http://127.0.0.1:${GRAFANA_PORT:-23003}/api/health" \
+LOKI_URL="http://127.0.0.1:${LOKI_PORT:-23100}/ready" \
+TEMPO_URL="http://127.0.0.1:${TEMPO_HTTP_PORT:-23200}/ready" \
+ALERTMANAGER_URL="http://127.0.0.1:${ALERTMANAGER_PORT:-29093}/-/ready" \
+ALLOY_URL="http://127.0.0.1:${ALLOY_HTTP_PORT:-22345}/-/ready" \
+OBS_SMOKE_STRICT=false \
+OBSERVABILITY_SMOKE_EVIDENCE_FILE="${PARITY_DIR}/observability-smoke-evidence.json" \
+"${SCRIPT_DIR}/observability-smoke-check.sh"

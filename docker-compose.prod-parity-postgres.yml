@@ -1,0 +1,39 @@
+# StuHelper local production parity datastore.
+#
+# This compose file models the Baota/global PostgreSQL layer used by the
+# production host. It intentionally contains PostgreSQL only; StuHelper Redis
+# remains application-local in the main production compose stack.
+
+name: ${PROD_PARITY_DATASTORE_PROJECT:-stuhelper-prod-parity-datastore}
+
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-18.3-alpine}
+    container_name: ${PROD_PARITY_POSTGRES_CONTAINER:-stuhelper-prod-parity-postgres}
+    environment:
+      POSTGRES_USER: ${SHARED_POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${SHARED_POSTGRES_PASSWORD:?SHARED_POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${SHARED_POSTGRES_DB:-postgres}
+    ports:
+    - "127.0.0.1:${PROD_PARITY_POSTGRES_PORT:-165432}:5432"
+    volumes:
+    - prod_parity_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks:
+      baota_net:
+        aliases:
+        - postgres
+
+networks:
+  baota_net:
+    name: ${EXTERNAL_DATASTORE_NETWORK:-stuhelper-prod-parity-baota-net}
+    driver: bridge
+
+volumes:
+  prod_parity_postgres_data:
+    name: ${PROD_PARITY_POSTGRES_VOLUME:-stuhelper-prod-parity-postgres-data}

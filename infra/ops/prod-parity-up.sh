@@ -1,0 +1,312 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
+
+require_cmd docker
+require_cmd curl
+require_cmd jq
+require_cmd openssl
+require_cmd python3
+
+PARITY_DIR="${PROD_PARITY_DIR:-${REPO_ROOT}/.run/prod-parity}"
+mkdir -p "${PARITY_DIR}"
+chmod 700 "${PARITY_DIR}" 2>/dev/null || true
+
+export ENV_TEMPLATE_FILE="${REPO_ROOT}/.env.prod.example"
+export ENV_FILE="${ENV_FILE:-${PARITY_DIR}/.env.prod.shared}"
+export SECRETS_ENV_FILE="${SECRETS_ENV_FILE:-${PARITY_DIR}/.env.prod.secrets.local}"
+export GENERATED_ENV_FILE="${GENERATED_ENV_FILE:-${PARITY_DIR}/.env.prod.generated}"
+export GENERATED_SECRET_ENV_FILE="${GENERATED_SECRET_ENV_FILE:-${PARITY_DIR}/.env.prod.generated.secrets}"
+export DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${PARITY_DIR}/deploy-state}"
+
+touch "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}"
+chmod 600 "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}" 2>/dev/null || true
+
+ensure_file_value() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  upsert_env_file "${file}" "${key}" "${value}"
+}
+
+ensure_file_secret() {
+  local file="$1"
+  local key="$2"
+  local prefix="$3"
+  if ! grep -Eq "^${key}=" "${file}"; then
+    upsert_env_file "${file}" "${key}" "${prefix}-$(random_hex 16)"
+  fi
+}
+
+ensure_identity_private_key() {
+  if grep -Eq '^IDENTITY_SIGNING_PRIVATE_KEY_PEM=' "${SECRETS_ENV_FILE}"; then
+    return
+  fi
+
+  local key_file b64
+  key_file="$(mktemp)"
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${key_file}" >/dev/null 2>&1
+  b64="$(base64 -w0 "${key_file}" 2>/dev/null || base64 <"${key_file}" | tr -d '\n')"
+  rm -f "${key_file}"
+  upsert_env_file "${SECRETS_ENV_FILE}" "IDENTITY_SIGNING_PRIVATE_KEY_PEM" "${b64}"
+}
+
+tag="${PROD_PARITY_TAG:-prod-parity-$(git_tag_default)}"
+commit="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo "local")"
+build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+ensure_file_value "${ENV_FILE}" "STACK_NAME" "stuhelper-prod-parity"
+ensure_file_value "${ENV_FILE}" "COMPOSE_PROJECT_NAME" "stuhelper-prod-parity"
+ensure_file_value "${ENV_FILE}" "APP_ENV" "production"
+ensure_file_value "${ENV_FILE}" "LOG_LEVEL" "info"
+ensure_file_value "${ENV_FILE}" "LOG_FORMAT" "json"
+ensure_file_value "${ENV_FILE}" "LOG_OUTPUT" "stdout"
+ensure_file_value "${ENV_FILE}" "TAG" "${tag}"
+ensure_file_value "${ENV_FILE}" "BACKEND_IMAGE_REF" "stuhelper/backend:${tag}"
+ensure_file_value "${ENV_FILE}" "FRONTEND_IMAGE_REF" "stuhelper/frontend:${tag}"
+ensure_file_value "${ENV_FILE}" "ADMIN_IMAGE_REF" "stuhelper/admin:${tag}"
+ensure_file_value "${ENV_FILE}" "EXTERNAL_POSTGRES_ENABLED" "true"
+ensure_file_value "${ENV_FILE}" "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "true"
+ensure_file_value "${ENV_FILE}" "EXTERNAL_DATASTORE_NETWORK" "stuhelper-prod-parity-baota-net"
+ensure_file_value "${ENV_FILE}" "SHARED_POSTGRES_CONTAINER" "stuhelper-prod-parity-postgres"
+ensure_file_value "${ENV_FILE}" "PROD_PARITY_POSTGRES_CONTAINER" "stuhelper-prod-parity-postgres"
+ensure_file_value "${ENV_FILE}" "PROD_PARITY_POSTGRES_PORT" "165432"
+ensure_file_value "${ENV_FILE}" "SHARED_POSTGRES_SUPERUSER" "postgres"
+ensure_file_value "${ENV_FILE}" "SHARED_POSTGRES_DB" "postgres"
+ensure_file_value "${ENV_FILE}" "POSTGRES_DB" "stuhelper"
+ensure_file_value "${ENV_FILE}" "POSTGRES_HOST" "postgres"
+ensure_file_value "${ENV_FILE}" "POSTGRES_INTERNAL_SSL_MODE" "disable"
+ensure_file_value "${ENV_FILE}" "POSTGRES_ENABLE_SSL" "off"
+ensure_file_value "${ENV_FILE}" "DB_SSL_MODE" "disable"
+ensure_file_value "${ENV_FILE}" "DATABASE_URL" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-REPLACE_WITH_STUHELPER_APP_DB_PASSWORD}@postgres:5432/stuhelper?sslmode=disable"
+ensure_file_value "${ENV_FILE}" "BACKUP_DATABASE_URL" "postgres://stuhelper_backup:${STUHELPER_BACKUP_DB_PASSWORD:-REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD}@postgres:5432/stuhelper?sslmode=disable"
+ensure_file_value "${ENV_FILE}" "REPLICATION_DATABASE_URL" "postgres://stuhelper_replication:${STUHELPER_REPLICATION_DB_PASSWORD:-REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD}@postgres:5432/stuhelper?sslmode=disable"
+ensure_file_value "${ENV_FILE}" "REDIS_HOST" "redis"
+ensure_file_value "${ENV_FILE}" "REDIS_PORT" "6379"
+ensure_file_value "${ENV_FILE}" "REDIS_USERNAME" "stuhelper_app"
+ensure_file_value "${ENV_FILE}" "REDIS_TLS_ENABLED" "true"
+ensure_file_value "${ENV_FILE}" "REDIS_TLS_CA" "/redis-tls/ca.crt"
+ensure_file_value "${ENV_FILE}" "WEB_PUBLIC_URL" "http://127.0.0.1:28000"
+ensure_file_value "${ENV_FILE}" "ADMIN_PUBLIC_URL" "http://127.0.0.1:28001/admin/"
+ensure_file_value "${ENV_FILE}" "IDENTITY_ISSUER" "http://127.0.0.1:28000"
+ensure_file_value "${ENV_FILE}" "WEB_VITE_API_URL" "/api"
+ensure_file_value "${ENV_FILE}" "WEB_VITE_SSO_URL" "https://sso.stuhelper.com"
+ensure_file_value "${ENV_FILE}" "WEB_VITE_API_TIMEOUT_MS" "15000"
+ensure_file_value "${ENV_FILE}" "ADMIN_VITE_API_URL" "/api/v1"
+ensure_file_value "${ENV_FILE}" "ADMIN_VITE_BASE" "/admin/"
+ensure_file_value "${ENV_FILE}" "BACKEND_EXTERNAL_PORT" "28080"
+ensure_file_value "${ENV_FILE}" "WEB_EXTERNAL_PORT" "28000"
+ensure_file_value "${ENV_FILE}" "ADMIN_EXTERNAL_PORT" "28001"
+ensure_file_value "${ENV_FILE}" "OPENFGA_API_URL" "http://openfga:8080"
+ensure_file_value "${ENV_FILE}" "OPENFGA_RESOURCE_SMOKE_MODE" "container"
+ensure_file_value "${ENV_FILE}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
+ensure_file_value "${ENV_FILE}" "CASDOOR_INTERNAL_ADDRESS" ""
+ensure_file_value "${ENV_FILE}" "CASDOOR_REDIRECT_URI" "http://127.0.0.1:28080/api/v1/auth/callback"
+ensure_file_value "${ENV_FILE}" "CASDOOR_CLIENT_ID" "stuhelper-web"
+ensure_file_value "${ENV_FILE}" "CASDOOR_ORGANIZATION" "stuhelper"
+ensure_file_value "${ENV_FILE}" "CASDOOR_ROLES_CLAIM" "roles"
+ensure_file_value "${ENV_FILE}" "CASDOOR_BOOTSTRAP_ENABLED" "false"
+ensure_file_value "${ENV_FILE}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
+ensure_file_value "${ENV_FILE}" "CASDOOR_ADMIN_REDIRECT_URI" "http://127.0.0.1:28080/api/v1/auth/callback"
+ensure_file_value "${ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_ID" "stuhelper-uniapp"
+ensure_file_value "${ENV_FILE}" "CASDOOR_UNIAPP_REDIRECT_URI" "http://127.0.0.1:28080/api/v1/auth/callback"
+ensure_file_value "${ENV_FILE}" "CASDOOR_APP_PROVISIONING_CLIENT_ID" "casdoor-admin-app-provisioning"
+ensure_file_value "${ENV_FILE}" "CASDOOR_APP_PROVISIONING_APPLICATION" "casdoor-admin-app-provisioning"
+ensure_file_value "${ENV_FILE}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-user-profile"
+ensure_file_value "${ENV_FILE}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
+ensure_file_value "${ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_ID" "casdoor-token-introspection"
+ensure_file_value "${ENV_FILE}" "CASDOOR_INTROSPECTION_APPLICATION" "casdoor-token-introspection"
+ensure_file_value "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
+ensure_file_value "${ENV_FILE}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
+ensure_file_value "${ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
+ensure_file_value "${ENV_FILE}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
+ensure_file_value "${ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "casdoor-token-probe-smoke"
+ensure_file_value "${ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION" "casdoor-token-probe-smoke"
+ensure_file_value "${ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "http://127.0.0.1:28000/open-platform/token-probe/callback"
+ensure_file_value "${ENV_FILE}" "CASDOOR_SMS_PROVIDER_ENABLED" "true"
+ensure_file_value "${ENV_FILE}" "CASDOOR_SMS_PROVIDER_NAME" "stuhelper-sms"
+ensure_file_value "${ENV_FILE}" "CASDOOR_SMS_PROVIDER_DISPLAY_NAME" "StuHelper-SMS"
+ensure_file_value "${ENV_FILE}" "CASDOOR_SMS_PROVIDER_CATEGORY" "SMS"
+ensure_file_value "${ENV_FILE}" "CASDOOR_SMS_PROVIDER_TYPE" "CustomHTTP"
+ensure_file_value "${ENV_FILE}" "CASDOOR_SMS_PROVIDER_METHOD" "POST"
+ensure_file_value "${ENV_FILE}" "CASDOOR_SMS_PROVIDER_TITLE" "content"
+ensure_file_value "${ENV_FILE}" "CASDOOR_SMS_PROVIDER_ENDPOINT" "http://app:8080/internal/sms/send"
+ensure_file_value "${ENV_FILE}" "CASDOOR_EMAIL_PROVIDER_ENABLED" "false"
+ensure_file_value "${ENV_FILE}" "SMS_ENABLED" "true"
+ensure_file_value "${ENV_FILE}" "SMS_APP_ID" "prod-parity-sms-app"
+ensure_file_value "${ENV_FILE}" "SMS_SIGN_NAME" "StuHelper"
+ensure_file_value "${ENV_FILE}" "SMS_TEMPLATE_ID" "prod-parity-template"
+ensure_file_value "${ENV_FILE}" "SMS_REGION" "ap-beijing"
+ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED" "true"
+ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND" "/app/casdoor-runtime-token-probe-runner.mjs"
+ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_TIMEOUT_SECONDS" "30"
+ensure_file_value "${ENV_FILE}" "OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS" "true"
+ensure_file_value "${ENV_FILE}" "IDENTITY_SIGNING_KEY_ID" "stuhelper-identity-prod-parity-1"
+ensure_file_value "${ENV_FILE}" "IDENTITY_ACCESS_TOKEN_TTL" "900"
+ensure_file_value "${ENV_FILE}" "IDENTITY_AUTH_CODE_TTL" "300"
+ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS" "true"
+ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_ENABLED" "true"
+ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_BOOTSTRAP_ENABLED" "false"
+ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_HOMEPAGE_URL" "http://127.0.0.1:28000"
+ensure_file_value "${ENV_FILE}" "IDENTITY_PUBLIC_SMOKE_PRIVACY_POLICY_URL" "http://127.0.0.1:28000/privacy"
+ensure_file_value "${ENV_FILE}" "CORS_ORIGINS" "http://127.0.0.1:28000,http://127.0.0.1:28001"
+ensure_file_value "${ENV_FILE}" "TRUSTED_PROXIES" "127.0.0.1/32,172.16.0.0/12,192.168.0.0/16"
+ensure_file_value "${ENV_FILE}" "TOKEN_COOKIE_SECURE" "true"
+ensure_file_value "${ENV_FILE}" "TOKEN_COOKIE_DOMAIN" ""
+ensure_file_value "${ENV_FILE}" "OTEL_ENABLED" "true"
+ensure_file_value "${ENV_FILE}" "OTEL_SERVICE_NAME" "stuhelper-backend"
+ensure_file_value "${ENV_FILE}" "OTEL_SERVICE_NAMESPACE" "stuhelper"
+ensure_file_value "${ENV_FILE}" "OTEL_EXPORTER_OTLP_ENDPOINT" "http://alloy:4318"
+ensure_file_value "${ENV_FILE}" "OTEL_EXPORTER_OTLP_INSECURE" "true"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_ENDPOINT" "http://minio:9000"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_REGION" "us-east-1"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_BUCKET" "stuhelper-identity"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper-prod-parity"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_USE_SSL" "true"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_FORCE_PATH_STYLE" "true"
+ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_PRESIGN_TTL" "600"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_ENDPOINT" "http://minio:9000"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_BUCKET" "stuhelper-postgres-backup"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_PREFIX" "postgres"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID" "stuhelper-prod-parity-backup"
+ensure_file_value "${ENV_FILE}" "BACKUP_OBJECT_STORAGE_TLS_INSECURE" "true"
+ensure_file_value "${ENV_FILE}" "MINIO_ROOT_USER" "stuhelper-prod-parity-root"
+ensure_file_value "${ENV_FILE}" "GRAFANA_ROOT_URL" "http://127.0.0.1:23003"
+ensure_file_value "${ENV_FILE}" "ALLOW_LOCAL_ALERT_SINK" "true"
+ensure_file_value "${ENV_FILE}" "ALERTMANAGER_WEBHOOK_URL" "http://alert-webhook-sink:8080/alerts"
+ensure_file_value "${ENV_FILE}" "ALLOY_HTTP_PORT" "22345"
+ensure_file_value "${ENV_FILE}" "OTEL_GRPC_PORT" "24317"
+ensure_file_value "${ENV_FILE}" "OTEL_HTTP_PORT" "24318"
+ensure_file_value "${ENV_FILE}" "PROMETHEUS_PORT" "29090"
+ensure_file_value "${ENV_FILE}" "ALERTMANAGER_PORT" "29093"
+ensure_file_value "${ENV_FILE}" "LOKI_PORT" "23100"
+ensure_file_value "${ENV_FILE}" "TEMPO_HTTP_PORT" "23200"
+ensure_file_value "${ENV_FILE}" "GRAFANA_PORT" "23003"
+ensure_file_value "${ENV_FILE}" "CADVISOR_PORT" "28088"
+ensure_file_value "${ENV_FILE}" "POSTGRES_EXPORTER_PORT" "29187"
+ensure_file_value "${ENV_FILE}" "REDIS_EXPORTER_PORT" "29121"
+ensure_file_value "${ENV_FILE}" "BLACKBOX_EXPORTER_PORT" "29115"
+
+ensure_file_secret "${SECRETS_ENV_FILE}" "SHARED_POSTGRES_PASSWORD" "prod-parity-shared-pg"
+ensure_file_secret "${SECRETS_ENV_FILE}" "POSTGRES_PASSWORD" "prod-parity-internal-pg"
+ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "prod-parity-app"
+ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_BACKUP_DB_PASSWORD" "prod-parity-backup"
+ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_REPLICATION_DB_PASSWORD" "prod-parity-repl"
+ensure_file_secret "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-parity-openfga"
+ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_PASSWORD" "prod-parity-redis"
+ensure_file_secret "${SECRETS_ENV_FILE}" "METRICS_PASSWORD" "prod-parity-metrics"
+ensure_file_secret "${SECRETS_ENV_FILE}" "HMAC_SECRET" "prod-parity-hmac"
+if ! grep -Eq '^DOC_AES_KEYS=' "${SECRETS_ENV_FILE}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "DOC_AES_ACTIVE_KEY_ID" "1"
+  upsert_env_file "${SECRETS_ENV_FILE}" "DOC_AES_KEYS" "1:$(random_hex 32)"
+fi
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_CLIENT_SECRET" "prod-parity-casdoor-web"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_ADMIN_CLIENT_SECRET" "prod-parity-casdoor-admin"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_SECRET" "prod-parity-casdoor-uniapp"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_APP_PROVISIONING_CLIENT_SECRET" "prod-parity-casdoor-app-provisioning"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_USER_PROFILE_CLIENT_SECRET" "prod-parity-casdoor-user-profile"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_SECRET" "prod-parity-casdoor-introspection"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "prod-parity-casdoor-role-sync"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_SECRET" "prod-parity-casdoor-user-lookup"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET" "prod-parity-casdoor-token-probe-smoke"
+ensure_file_secret "${SECRETS_ENV_FILE}" "SMS_SECRET_ID" "prod-parity-sms-secret-id"
+ensure_file_secret "${SECRETS_ENV_FILE}" "SMS_SECRET_KEY" "prod-parity-sms-secret-key"
+ensure_file_secret "${SECRETS_ENV_FILE}" "SMS_INTERNAL_KEY" "prod-parity-sms-internal"
+ensure_file_secret "${SECRETS_ENV_FILE}" "MINIO_ROOT_PASSWORD" "prod-parity-minio-root"
+ensure_file_secret "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-parity-minio-app"
+ensure_file_secret "${SECRETS_ENV_FILE}" "BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY" "prod-parity-minio-backup"
+ensure_file_secret "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-parity-grafana"
+ensure_file_secret "${SECRETS_ENV_FILE}" "BOT_SERVICE_TOKEN" "prod-parity-bot"
+ensure_identity_private_key
+
+load_env
+
+app_password="${STUHELPER_APP_DB_PASSWORD}"
+backup_password="${STUHELPER_BACKUP_DB_PASSWORD}"
+replication_password="${STUHELPER_REPLICATION_DB_PASSWORD}"
+ensure_file_value "${ENV_FILE}" "DATABASE_URL" "postgres://stuhelper_app:${app_password}@postgres:5432/stuhelper?sslmode=disable"
+ensure_file_value "${ENV_FILE}" "BACKUP_DATABASE_URL" "postgres://stuhelper_backup:${backup_password}@postgres:5432/stuhelper?sslmode=disable"
+ensure_file_value "${ENV_FILE}" "REPLICATION_DATABASE_URL" "postgres://stuhelper_replication:${replication_password}@postgres:5432/stuhelper?sslmode=disable"
+load_env
+
+log "starting local Baota-equivalent shared PostgreSQL"
+(
+  cd "${REPO_ROOT}" && \
+  docker compose --env-file "${ENV_FILE}" -f "${REPO_ROOT}/docker-compose.prod-parity-postgres.yml" up -d --wait
+)
+
+"${SCRIPT_DIR}/init-shared-postgres.sh"
+
+log "rendering local production-parity Redis and observability configs"
+"${SCRIPT_DIR}/render-redis-tls.sh"
+"${SCRIPT_DIR}/render-redis-acl.sh"
+"${SCRIPT_DIR}/render-observability.sh" prod
+
+log "building production images locally for ${tag}"
+docker build \
+  --build-arg VERSION="${tag}" \
+  --build-arg GIT_COMMIT="${commit}" \
+  --build-arg BUILD_TIME="${build_time}" \
+  -t "${BACKEND_IMAGE_REF}" \
+  "${REPO_ROOT}/server"
+docker build \
+  --build-arg VITE_API_URL="${WEB_VITE_API_URL}" \
+  --build-arg VITE_SSO_URL="${WEB_VITE_SSO_URL}" \
+  --build-arg VITE_ADMIN_URL="${ADMIN_PUBLIC_URL}" \
+  --build-arg VITE_API_TIMEOUT_MS="${WEB_VITE_API_TIMEOUT_MS}" \
+  -f "${REPO_ROOT}/clients/web/Dockerfile" \
+  -t "${FRONTEND_IMAGE_REF}" \
+  "${REPO_ROOT}/clients"
+docker build \
+  --build-arg VITE_GLOB_API_URL="${ADMIN_VITE_API_URL}" \
+  --build-arg VITE_BASE="${ADMIN_VITE_BASE}" \
+  -f "${REPO_ROOT}/clients/admin/scripts/deploy/Dockerfile" \
+  -t "${ADMIN_IMAGE_REF}" \
+  "${REPO_ROOT}/clients"
+
+infra_services=(
+  redis
+  minio
+  alloy
+  alertmanager
+  alert-webhook-sink
+  loki
+  tempo
+  prometheus
+  grafana
+  node-exporter
+  cadvisor
+  postgres-exporter
+  redis-exporter
+  blackbox-exporter
+)
+
+log "starting local production-parity infrastructure services"
+compose --profile prod up -d --wait "${infra_services[@]}"
+compose --profile prod up --no-deps minio-init
+
+log "running local production-parity database migrations"
+compose --profile prod up --no-deps migrate
+compose --profile prod up --no-deps openfga-migrate
+
+log "starting local production-parity OpenFGA"
+compose --profile prod up -d --wait openfga
+
+log "bootstrapping local OpenFGA store/model"
+CASDOOR_BOOTSTRAP_ENABLED=false "${SCRIPT_DIR}/bootstrap-platform.sh" dev
+load_env
+
+log "starting local production-parity application services"
+compose --profile prod up -d --wait app frontend admin
+
+"${SCRIPT_DIR}/prod-parity-smoke.sh"
+
+log "local production parity stack is ready"
+echo "  Web:      http://127.0.0.1:${WEB_EXTERNAL_PORT}"
+echo "  Admin:    http://127.0.0.1:${ADMIN_EXTERNAL_PORT}/admin/"
+echo "  Backend:  http://127.0.0.1:${BACKEND_EXTERNAL_PORT}"
+echo "  Grafana:  http://127.0.0.1:${GRAFANA_PORT}"
+echo "  Env dir:  ${PARITY_DIR}"
