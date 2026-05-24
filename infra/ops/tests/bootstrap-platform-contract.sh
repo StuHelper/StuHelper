@@ -47,7 +47,9 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'casdoor_bootstrap_endpoint'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_ISSUER:-http://localhost:8085'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CALLER_CASDOOR_BOOTSTRAP_ENABLED'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CALLER_OPENFGA_BOOTSTRAP_API_URL'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'CALLER_OPENFGA_BOOTSTRAP_DATABASE_URL'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'OPENFGA_BOOTSTRAP_API_URL:-\$\{OPENFGA_API_URL:-http://localhost:8081\}'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'DATABASE_URL="\$\{OPENFGA_BOOTSTRAP_DATABASE_URL:-\$\{DATABASE_URL:-\}\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'set -a'
 casdoor_required_line="$(line_number '^if casdoor_bootstrap_required; then$')"
 casdoor_wait_line="$(line_number '^[[:space:]]+wait_for_casdoor$')"

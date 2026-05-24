@@ -312,6 +312,7 @@ compose --profile prod up -d --wait openfga
 log "bootstrapping local OpenFGA store/model"
 CASDOOR_BOOTSTRAP_ENABLED=false \
   OPENFGA_BOOTSTRAP_API_URL="http://127.0.0.1:8081" \
+  OPENFGA_BOOTSTRAP_DATABASE_URL="postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@127.0.0.1:${PROD_PARITY_POSTGRES_PORT:-15432}/stuhelper?sslmode=disable" \
   "${SCRIPT_DIR}/bootstrap-platform.sh" dev
 load_env
 
