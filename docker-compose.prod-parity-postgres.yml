@@ -17,7 +17,7 @@ services:
     ports:
     - "127.0.0.1:${PROD_PARITY_POSTGRES_PORT:-15432}:5432"
     volumes:
-    - prod_parity_postgres_data:/var/lib/postgresql/data
+    - prod_parity_postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-postgres}"]
       interval: 5s

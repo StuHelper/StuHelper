@@ -40,6 +40,7 @@ bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}"
 assert_contains "${PARITY_COMPOSE}" '^  postgres:'
 assert_contains "${PARITY_COMPOSE}" 'POSTGRES_PASSWORD: \$\{SHARED_POSTGRES_PASSWORD:\?SHARED_POSTGRES_PASSWORD is required\}'
 assert_contains "${PARITY_COMPOSE}" 'PROD_PARITY_POSTGRES_PORT:-15432'
+assert_contains "${PARITY_COMPOSE}" 'prod_parity_postgres_data:/var/lib/postgresql'
 assert_contains "${PARITY_COMPOSE}" 'name: \$\{EXTERNAL_DATASTORE_NETWORK:-stuhelper-prod-parity-baota-net\}'
 assert_contains "${PARITY_COMPOSE}" 'aliases:'
 assert_contains "${PARITY_COMPOSE}" 'postgres'
