@@ -97,6 +97,7 @@ ensure_file_value "${ENV_FILE}" "BACKUP_DATABASE_URL" "postgres://stuhelper_back
 ensure_file_value "${ENV_FILE}" "REPLICATION_DATABASE_URL" "postgres://stuhelper_replication:${STUHELPER_REPLICATION_DB_PASSWORD:-REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD}@postgres:5432/stuhelper?sslmode=disable"
 ensure_file_value "${ENV_FILE}" "REDIS_HOST" "redis"
 ensure_file_value "${ENV_FILE}" "REDIS_PORT" "6379"
+ensure_file_value "${ENV_FILE}" "REDIS_EXTERNAL_PORT" "26379"
 ensure_file_value "${ENV_FILE}" "REDIS_USERNAME" "stuhelper_app"
 ensure_file_value "${ENV_FILE}" "REDIS_TLS_ENABLED" "true"
 ensure_file_value "${ENV_FILE}" "REDIS_TLS_CA" "/redis-tls/ca.crt"

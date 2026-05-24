@@ -158,7 +158,7 @@ services:
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
       REDIS_TLS_CA: /redis-tls/ca.crt
     ports:
-    - "127.0.0.1:6379:6379"
+    - "127.0.0.1:${REDIS_EXTERNAL_PORT:-6379}:6379"
     volumes:
     - redis_data:/data
     - ./infra/generated/redis:/tls:ro
