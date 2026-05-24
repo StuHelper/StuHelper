@@ -1,6 +1,6 @@
-import type { Page, Route } from '@playwright/test';
+import type { Page, Route } from './fixtures';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const capabilities = [
   'user:school:read',

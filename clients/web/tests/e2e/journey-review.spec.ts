@@ -4,7 +4,7 @@
  *
  * Simulates a verified student interacting with course reviews.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from './fixtures'
 
 const verifiedStudent = {
   id: 'u2',

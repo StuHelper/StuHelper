@@ -1,6 +1,6 @@
-import type { Page } from '@playwright/test';
+import type { Page } from './fixtures';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 async function mockAnonymousSession(page: Page) {
   await page.route('**/api/v1/auth/me', async (route) => {

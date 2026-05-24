@@ -4,7 +4,7 @@
  *
  * Simulates a user searching for courses and reviews.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from './fixtures'
 
 async function mockUnauthenticated(page: Page) {
   await page.route('**/api/v1/auth/me', (route) =>

@@ -4,7 +4,7 @@
  *
  * Simulates a user navigating through their personal content.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from './fixtures'
 
 const user = {
   id: 'u2',

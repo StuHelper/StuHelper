@@ -1,5 +1,11 @@
 import type { Preferences } from './types';
 
+const defaultAvatar =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f172a'/%3E%3Ccircle cx='32' cy='24' r='12' fill='%23bfdbfe'/%3E%3Cpath d='M14,56c3-12,12-20,18-20s15,8,18,20' fill='%2393c5fd'/%3E%3C/svg%3E";
+
+const defaultLogo =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232563eb'/%3E%3Cpath d='M18,20h28v6H18zM18,30h20v6H18zM18,40h28v6H18z' fill='white'/%3E%3Ccircle cx='46' cy='34' r='8' fill='%2310b981'/%3E%3C/svg%3E";
+
 const defaultPreferences: Preferences = {
   app: {
     accessMode: 'frontend',
@@ -15,8 +21,7 @@ const defaultPreferences: Preferences = {
     contentPaddingLeft: 0,
     contentPaddingRight: 0,
     contentPaddingTop: 0,
-    defaultAvatar:
-      'https://unpkg.com/@vbenjs/static-source@0.1.7/source/avatar-v1.webp',
+    defaultAvatar,
     defaultHomePath: '/analytics',
     dynamicTitle: true,
     enableCheckUpdates: true,
@@ -66,7 +71,7 @@ const defaultPreferences: Preferences = {
   logo: {
     enable: true,
     fit: 'contain',
-    source: 'https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp',
+    source: defaultLogo,
   },
   navigation: {
     accordion: true,

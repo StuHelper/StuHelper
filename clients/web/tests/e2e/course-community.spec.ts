@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from './fixtures';
 
 function json(data: unknown, status = 200) {
     return {

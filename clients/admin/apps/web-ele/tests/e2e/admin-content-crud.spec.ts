@@ -1,6 +1,6 @@
-import type { Page, Route } from '@playwright/test';
+import type { Page, Route } from './fixtures';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const now = '2026-05-24T04:00:00Z';
 
