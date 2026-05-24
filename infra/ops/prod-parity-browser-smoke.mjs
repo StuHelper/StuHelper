@@ -26,6 +26,7 @@ const evidenceFile =
   resolve(repoRoot, '.run/prod-parity/browser-smoke-evidence.json');
 const screenshotDir =
   process.env.PROD_PARITY_BROWSER_SMOKE_SCREENSHOT_DIR || dirname(evidenceFile);
+const criticalResourceTypes = new Set(['document', 'font', 'image', 'script', 'stylesheet']);
 
 const checks = [
   {
@@ -97,7 +98,7 @@ async function runCheck(context, check) {
     pageErrors.push(error.message);
   });
   page.on('requestfailed', (request) => {
-    if (['document', 'script', 'stylesheet'].includes(request.resourceType())) {
+    if (criticalResourceTypes.has(request.resourceType())) {
       assetFailures.push({
         url: request.url(),
         resourceType: request.resourceType(),

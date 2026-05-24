@@ -116,6 +116,9 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'admin-login-redirect'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'finalURL'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'pageerror'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'requestfailed'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'criticalResourceTypes'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'image'"
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "'font'"
 
 assert_contains "${MAKEFILE}" 'prod-parity-up'
 assert_contains "${MAKEFILE}" 'prod-parity-down'

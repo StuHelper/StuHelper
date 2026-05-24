@@ -153,7 +153,7 @@ make prod-parity-down    # 停止本机生产等价栈
 make prod-parity-reset   # 停止并清理本机生产等价 volume
 ```
 
-该模式使用仓库内生产 Compose 和 `.run/prod-parity/` 下的本地 env/secrets，不依赖宝塔面板；默认地址以脚本输出为准，通常为 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、API `http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`。它用于在 Ubuntu 24.04 本机先跑通“构建 → 启动 → migration/bootstrap → API/Identity/OpenFGA/观测 smoke → Web/Admin 浏览器渲染 smoke”的生产等价流程，再把同一套发布脚本用于真实生产。浏览器 smoke 的 evidence 和截图写入 `.run/prod-parity/`，用于区分“curl 200 但前端实际白屏/资源加载失败”的问题。
+该模式使用仓库内生产 Compose 和 `.run/prod-parity/` 下的本地 env/secrets，不依赖宝塔面板；默认地址以脚本输出为准，通常为 Web `http://127.0.0.1:28000`、Admin `http://127.0.0.1:28001/admin/`、API `http://127.0.0.1:28080`、Grafana `http://127.0.0.1:23003`。它用于在 Ubuntu 24.04 本机先跑通“构建 → 启动 → migration/bootstrap → API/Identity/OpenFGA/观测 smoke → Web/Admin 浏览器渲染 smoke”的生产等价流程，再把同一套发布脚本用于真实生产。浏览器 smoke 的 evidence 和截图写入 `.run/prod-parity/`，并会检查 `document`、`script`、`stylesheet`、`font`、`image` 关键资源加载失败和前端 `pageerror`，用于区分“curl 200 但前端实际白屏/资源加载失败”的问题。
 
 如果本机已有 Vite 占用默认 Playwright 端口，可改用备用端口运行 Web E2E：
 

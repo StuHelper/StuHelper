@@ -45,6 +45,20 @@ SHA-256，确认生成幂等。已通过 `go test -count=1 ./...`、`make check-
 
 本地验证补充（2026-05-25）：新增 Web Playwright 覆盖 Open Platform consent/profile completion、开发者门户应用创建、展示资料更新、scope 新增 / 重提、pending app / scope / redirect URI 撤回、client secret 轮换、redirect URI 变更、开发者审计展示、用户授权应用 scope / 全应用撤销、实名与学生认证、手机号绑定、QQ 绑定码、学籍信息、OAuth callback、admission 入群邮箱 OTP、课程说明页、评课聚合 feed 排序/院系侧栏、教师主页热门/搜索、自己评价编辑/删除、课程收藏切换、评课详情点赞 / 回复 / 删除回复 / 加载更多、通知全部已读、单条通知标记已读并跳转和公开评价举报；新增 Admin Playwright 覆盖 dashboard、内容管理、用户系统、开放平台管理页、个人中心 tabs、已登录 404 fallback、教师管理新增/编辑/删除、敏感词新增/编辑/删除、评课审核动作、举报处置动作、实名审核通过/驳回、学生认证审核、新生材料审核、成员黑名单新增/解除、系统配置保存、学校 LDAP 配置保存、入群策略数值字段与管理群列表保存、Open Platform scope / redirect / app 审核、legacy Casdoor 应用导入、应用密钥轮换 / 暂停 / 恢复 / 吊销、资源授权 grant / revoke 和管理员授权撤销。新增覆盖发现教师主页仍显示通用教学中心标题，且热门教师接口失败会触发全页 ErrorBoundary，已修正为教师主页标题并在加载失败时显示空态。新增覆盖后再次通过 `PLAYWRIGHT_WEB_PORT=3300 make e2e-web`（47 项）、`make e2e-admin`（26 项）、`pnpm --dir clients run type-check:web`、`pnpm --dir clients/admin --filter @vben/web-ele typecheck`、相关单文件格式/静态检查、`pnpm --dir clients/admin lint` 和 `git diff --check`。
 
+本地验证补充（2026-05-25）：Web / Admin Playwright E2E 已接入统一浏览器运行时门禁，
+每个测试结束时检查未捕获 `pageerror` 和关键静态资源加载失败；关键资源包含
+`document`、`script`、`stylesheet`、`font` 和 `image`。该门禁发现 Admin 仍依赖
+`https://unpkg.com/@vbenjs/static-source` 远程 logo，已改成本地/内联资源，PWA 图标也改为随
+Admin 应用发布的本地 SVG。更新后已通过 `CI=1 PLAYWRIGHT_WEB_PORT=3406 make e2e-web`
+（51 项）、`CI=1 make e2e-admin`（26 项）、`pnpm --dir clients run type-check:admin`、
+`pnpm --dir clients run lint:admin`、`pnpm --dir clients/admin exec vitest run packages/@core/preferences/__tests__/config.test.ts`
+和 `git diff --check`。同日用当前提交 `de5fd44f` 重建并启动本机生产等价栈
+`make prod-parity-up`，镜像标签为 `prod-parity-de5fd44f`；API/Web/Admin readiness、基础业务
+smoke、Identity public smoke（26 项）、OpenFGA resource access smoke、Web/Admin 生产镜像浏览器
+smoke 和 observability smoke 均通过；随后将 prod-parity browser smoke 的关键资源检查同步收紧到
+`document`、`script`、`stylesheet`、`font`、`image` 并复跑 `make prod-parity-smoke` 通过。浏览器 evidence 写入
+`.run/prod-parity/browser-smoke-evidence.json`，截图写入 `.run/prod-parity/browser-smoke-screenshots/`。
+
 接口硬化补充（2026-05-24）：审计发现 legacy disclosure API 文档要求 `client_id`，但
 OpenAPI 未声明且 handler 只读取认证上下文 appID；同时服务端在已有 active consent 时未重新校验
 `redirect_uri`。本轮已按 OpenAPI-first 补齐 `GET /api/v1/open-platform/userinfo`、
