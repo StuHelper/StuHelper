@@ -16,10 +16,12 @@ superdb="${SHARED_POSTGRES_DB:-postgres}"
 
 stuhelper_db="${STUHELPER_APP_DB_NAME:-${POSTGRES_DB:-stuhelper}}"
 openfga_db="${OPENFGA_DB_NAME:-openfga}"
+casdoor_db="${CASDOOR_DB_NAME:-casdoor}"
 app_user="${STUHELPER_APP_DB_USER:-stuhelper_app}"
 backup_user="${STUHELPER_BACKUP_DB_USER:-stuhelper_backup}"
 replication_user="${STUHELPER_REPLICATION_DB_USER:-stuhelper_replication}"
 openfga_user="${OPENFGA_DB_USER:-openfga}"
+casdoor_user="${CASDOOR_DB_USER:-casdoor}"
 
 required=(
   STUHELPER_APP_DB_PASSWORD
@@ -129,5 +131,43 @@ SELECT format('ALTER SCHEMA public OWNER TO %I', :'openfga_user') \gexec
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 SELECT format('GRANT USAGE, CREATE ON SCHEMA public TO %I', :'openfga_user') \gexec
 SQL
+
+if [[ -n "${CASDOOR_DB_PASSWORD:-}" ]]; then
+  log "initializing optional Casdoor database and role in shared PostgreSQL"
+  docker exec -i "${postgres_container}" \
+    psql \
+      -v ON_ERROR_STOP=1 \
+      -U "${superuser}" \
+      -d "${superdb}" \
+      -v casdoor_db="${casdoor_db}" \
+      -v casdoor_user="${casdoor_user}" \
+      -v casdoor_password="${CASDOOR_DB_PASSWORD}" <<'SQL'
+\set QUIET on
+
+SELECT format(
+  'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 20',
+  :'casdoor_user',
+  :'casdoor_password'
+)
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'casdoor_user') \gexec
+SELECT format(
+  'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 20',
+  :'casdoor_user',
+  :'casdoor_password'
+) \gexec
+
+SELECT format('CREATE DATABASE %I OWNER %I', :'casdoor_db', :'casdoor_user')
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'casdoor_db') \gexec
+SELECT format('ALTER DATABASE %I OWNER TO %I', :'casdoor_db', :'casdoor_user') \gexec
+SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'casdoor_db') \gexec
+SELECT format('GRANT CONNECT, TEMPORARY ON DATABASE %I TO %I', :'casdoor_db', :'casdoor_user') \gexec
+
+\connect :casdoor_db
+SELECT format('ALTER SCHEMA public OWNER TO %I', :'casdoor_user') \gexec
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+SELECT format('GRANT USAGE, CREATE ON SCHEMA public TO %I', :'casdoor_user') \gexec
+SQL
+  log "shared PostgreSQL Casdoor database is ready: casdoor_database=${casdoor_db}"
+fi
 
 log "shared PostgreSQL is ready: database=${stuhelper_db}, app_role=${app_user}, openfga_database=${openfga_db}"

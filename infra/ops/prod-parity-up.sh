@@ -32,9 +32,10 @@ export SECRETS_ENV_FILE="$(parity_default_path "${SECRETS_ENV_FILE:-}" "" "${PAR
 export GENERATED_ENV_FILE="$(parity_default_path "${GENERATED_ENV_FILE:-}" "${REPO_ROOT}/.env.generated" "${PARITY_DIR}/.env.prod.generated")"
 export GENERATED_SECRET_ENV_FILE="$(parity_default_path "${GENERATED_SECRET_ENV_FILE:-}" "${REPO_ROOT}/.env.generated.secrets" "${PARITY_DIR}/.env.prod.generated.secrets")"
 export DEPLOY_STATE_DIR="$(parity_default_path "${DEPLOY_STATE_DIR:-}" "${REPO_ROOT}/.deploy" "${PARITY_DIR}/deploy-state")"
+export CASDOOR_BOOTSTRAP_ENV_FILE="$(parity_default_path "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" "" "${PARITY_DIR}/.env.casdoor-bootstrap.local")"
 
-touch "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}"
-chmod 600 "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}" 2>/dev/null || true
+touch "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}" "${CASDOOR_BOOTSTRAP_ENV_FILE}"
+chmod 600 "${ENV_FILE}" "${SECRETS_ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}" "${CASDOOR_BOOTSTRAP_ENV_FILE}" 2>/dev/null || true
 
 ensure_file_value() {
   local file="$1"
@@ -63,6 +64,12 @@ ensure_identity_private_key() {
   b64="$(base64 -w0 "${key_file}" 2>/dev/null || base64 <"${key_file}" | tr -d '\n')"
   rm -f "${key_file}"
   printf 'IDENTITY_SIGNING_PRIVATE_KEY_PEM=%s\n' "${b64}" >> "${SECRETS_ENV_FILE}"
+}
+
+ensure_bootstrap_value() {
+  local key="$1"
+  local value="$2"
+  upsert_env_file "${CASDOOR_BOOTSTRAP_ENV_FILE}" "${key}" "${value}"
 }
 
 tag="${PROD_PARITY_TAG:-prod-parity-$(git_tag_default)}"
@@ -105,7 +112,7 @@ ensure_file_value "${ENV_FILE}" "WEB_PUBLIC_URL" "http://127.0.0.1:28000"
 ensure_file_value "${ENV_FILE}" "ADMIN_PUBLIC_URL" "http://127.0.0.1:28001/admin/"
 ensure_file_value "${ENV_FILE}" "IDENTITY_ISSUER" "http://127.0.0.1:28000"
 ensure_file_value "${ENV_FILE}" "WEB_VITE_API_URL" "/api"
-ensure_file_value "${ENV_FILE}" "WEB_VITE_SSO_URL" "https://sso.stuhelper.com"
+ensure_file_value "${ENV_FILE}" "WEB_VITE_SSO_URL" "http://127.0.0.1:28085"
 ensure_file_value "${ENV_FILE}" "WEB_VITE_API_TIMEOUT_MS" "15000"
 ensure_file_value "${ENV_FILE}" "ADMIN_VITE_API_URL" "/api/v1"
 ensure_file_value "${ENV_FILE}" "ADMIN_VITE_BASE" "/admin/"
@@ -114,13 +121,15 @@ ensure_file_value "${ENV_FILE}" "WEB_EXTERNAL_PORT" "28000"
 ensure_file_value "${ENV_FILE}" "ADMIN_EXTERNAL_PORT" "28001"
 ensure_file_value "${ENV_FILE}" "OPENFGA_API_URL" "http://openfga:8080"
 ensure_file_value "${ENV_FILE}" "OPENFGA_RESOURCE_SMOKE_MODE" "container"
-ensure_file_value "${ENV_FILE}" "CASDOOR_ISSUER" "https://sso.stuhelper.com"
-ensure_file_value "${ENV_FILE}" "CASDOOR_INTERNAL_ADDRESS" ""
+ensure_file_value "${ENV_FILE}" "CASDOOR_EXTERNALPORT" "28085"
+ensure_file_value "${ENV_FILE}" "CASDOOR_ISSUER" "http://127.0.0.1:28085"
+ensure_file_value "${ENV_FILE}" "CASDOOR_INTERNAL_ADDRESS" "casdoor:8000"
 ensure_file_value "${ENV_FILE}" "CASDOOR_REDIRECT_URI" "http://127.0.0.1:28080/api/v1/auth/callback"
 ensure_file_value "${ENV_FILE}" "CASDOOR_CLIENT_ID" "stuhelper-web"
 ensure_file_value "${ENV_FILE}" "CASDOOR_ORGANIZATION" "stuhelper"
 ensure_file_value "${ENV_FILE}" "CASDOOR_ROLES_CLAIM" "roles"
-ensure_file_value "${ENV_FILE}" "CASDOOR_BOOTSTRAP_ENABLED" "false"
+ensure_file_value "${ENV_FILE}" "CASDOOR_BOOTSTRAP_ENABLED" "true"
+ensure_file_value "${ENV_FILE}" "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE}"
 ensure_file_value "${ENV_FILE}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
 ensure_file_value "${ENV_FILE}" "CASDOOR_ADMIN_REDIRECT_URI" "http://127.0.0.1:28080/api/v1/auth/callback"
 ensure_file_value "${ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_ID" "stuhelper-uniapp"
@@ -210,6 +219,7 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_APP_DB_PASSWORD" "prod-parit
 ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_BACKUP_DB_PASSWORD" "prod-parity-backup"
 ensure_file_secret "${SECRETS_ENV_FILE}" "STUHELPER_REPLICATION_DB_PASSWORD" "prod-parity-repl"
 ensure_file_secret "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-parity-openfga"
+ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_DB_PASSWORD" "prod-parity-casdoor-db"
 ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_PASSWORD" "prod-parity-redis"
 ensure_file_secret "${SECRETS_ENV_FILE}" "METRICS_PASSWORD" "prod-parity-metrics"
 ensure_file_secret "${SECRETS_ENV_FILE}" "HMAC_SECRET" "prod-parity-hmac"
@@ -236,6 +246,11 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-parity-g
 ensure_file_secret "${SECRETS_ENV_FILE}" "BOT_SERVICE_TOKEN" "prod-parity-bot"
 ensure_identity_private_key
 
+ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CLIENT_ID" "client_id"
+ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CLIENT_SECRET" "client_secret"
+ensure_bootstrap_value "CASDOOR_BOOTSTRAP_APPLICATION" "app-built-in"
+ensure_bootstrap_value "CASDOOR_BOOTSTRAP_CERTIFICATE" "cert-built-in"
+
 load_env
 
 app_password="${STUHELPER_APP_DB_PASSWORD}"
@@ -253,6 +268,9 @@ log "starting local Baota-equivalent shared PostgreSQL"
 )
 
 "${SCRIPT_DIR}/init-shared-postgres.sh"
+
+log "starting local production-parity Casdoor SSO"
+compose --profile local-sso up -d --wait casdoor
 
 log "rendering local production-parity Redis and observability configs"
 "${SCRIPT_DIR}/render-redis-tls.sh"
@@ -310,7 +328,7 @@ log "starting local production-parity OpenFGA"
 compose --profile prod up -d --wait openfga
 
 log "bootstrapping local OpenFGA store/model"
-CASDOOR_BOOTSTRAP_ENABLED=false \
+CASDOOR_BOOTSTRAP_ENABLED=true \
   OPENFGA_BOOTSTRAP_API_URL="http://127.0.0.1:8081" \
   OPENFGA_BOOTSTRAP_DATABASE_URL="postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@127.0.0.1:${PROD_PARITY_POSTGRES_PORT:-15432}/stuhelper?sslmode=disable" \
   "${SCRIPT_DIR}/bootstrap-platform.sh" dev
