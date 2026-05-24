@@ -90,6 +90,14 @@ E2E 覆盖。新增覆盖后已通过单文件
 `pnpm --dir clients lint:all`，并复跑完整 `CI=1 PLAYWRIGHT_WEB_PORT=3410 make e2e`（Web 53 项、
 Admin 26 项）。
 
+本地验证补充（2026-05-25）：普通 Web Playwright E2E 从单桌面上下文扩展为
+`desktop-chromium` 与 `mobile-chromium` 两个 project，使 Open Platform、认证、用户中心、课程 /
+评课社区、实名 / 学生认证、通知和静态页面等 53 条交互用例同时覆盖桌面与移动视口。本轮扩展暴露了
+移动端评课聚合页需要先打开“课程列表”抽屉才能操作院系侧栏，以及手机号绑定后立即切页会取消用户中心
+后台请求的问题；测试已按真实交互路径打开抽屉，并补齐重定向后的用户中心 API mock 与网络空闲等待，
+不放宽全局浏览器 / API 失败门禁。已通过 `CI=1 PLAYWRIGHT_WEB_PORT=3412 make e2e-web`（106 项）
+和完整 `CI=1 PLAYWRIGHT_WEB_PORT=3413 make e2e`（Web 106 项、Admin 26 项）。
+
 本地验证补充（2026-05-25）：Koishi Console Playwright UI smoke 已在原有 `pageerror` 和
 console error/warning tracker 基础上补齐关键资源门禁，把 `document`、`script`、`stylesheet`、
 `font`、`image` 的 `requestfailed` 和 HTTP 4xx/5xx 视为失败，避免 NavRail / view anchor

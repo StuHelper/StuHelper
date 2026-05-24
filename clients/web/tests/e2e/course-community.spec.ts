@@ -215,6 +215,12 @@ test.describe("Course community surfaces", () => {
         await page.getByRole("tab", { name: "精选" }).click();
         await expect(page.getByText("高分排序测评")).toBeVisible();
 
+        const courseListDrawerButton = page.getByRole("button", {
+            name: "课程列表",
+        });
+        if (await courseListDrawerButton.isVisible()) {
+            await courseListDrawerButton.click();
+        }
         await page
             .getByRole("button", { name: "计算机科学与技术学院" })
             .click();

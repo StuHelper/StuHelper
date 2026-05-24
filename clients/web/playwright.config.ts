@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test'
 
 const pnpmCommand = process.env.PLAYWRIGHT_PNPM_COMMAND ?? 'corepack pnpm'
 const webPort = Number(process.env.PLAYWRIGHT_WEB_PORT ?? 3000)
@@ -12,6 +12,16 @@ export default defineConfig({
     baseURL: webOrigin,
     trace: 'on-first-retry'
   },
+  projects: [
+    {
+      name: 'desktop-chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'mobile-chromium',
+      use: { ...devices['Pixel 5'] },
+    },
+  ],
   webServer: {
     command: `${pnpmCommand} dev --host ${webHost} --port ${webPort}`,
     url: webOrigin,

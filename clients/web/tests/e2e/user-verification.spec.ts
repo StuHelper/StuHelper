@@ -123,6 +123,12 @@ async function mockUserApi(page: Page, state: UserApiState) {
     await page.route("**/api/v1/course/review/user/reviews*", (route) =>
         route.fulfill(ok({ list: [], total: 0, page: 1, pageSize: 10 })),
     );
+    await page.route("**/api/v1/course/review/user/votes*", (route) =>
+        route.fulfill(ok({ list: [], total: 0, page: 1, pageSize: 10 })),
+    );
+    await page.route("**/api/v1/course/review/user/favorites*", (route) =>
+        route.fulfill(ok({ list: [], total: 0, page: 1, pageSize: 10 })),
+    );
     await page.route("**/api/v1/user/identity", async (route) => {
         if (route.request().method() === "POST") {
             const body = route.request().postDataJSON();
@@ -299,6 +305,7 @@ test.describe("User verification flows", () => {
         await page.getByRole("button", { name: "绑定" }).click();
 
         await expect(page).toHaveURL(/\/user\/reviews/);
+        await page.waitForLoadState("networkidle");
         expect(otpBody).toEqual({ phone: "13812345678" });
         expect(phoneBody).toEqual({
             phone: "13812345678",
