@@ -129,6 +129,39 @@ const publicReview = {
     authorDisplayName: "匿名同学",
 };
 
+const existingReply = {
+    id: "reply-1",
+    reviewID: "public-report-review",
+    parentID: null,
+    content: "已有回复内容",
+    likeCount: 0,
+    status: "published",
+    isOwner: true,
+    createdAt: "2026-05-24T04:05:00Z",
+    updatedAt: "2026-05-24T04:05:00Z",
+};
+
+const createdReply = {
+    id: "reply-created",
+    reviewID: "public-report-review",
+    parentID: null,
+    content: "新增回复内容",
+    likeCount: 0,
+    status: "published",
+    isOwner: true,
+    createdAt: "2026-05-24T04:10:00Z",
+    updatedAt: "2026-05-24T04:10:00Z",
+};
+
+const nextPageReview = {
+    ...publicReview,
+    id: "public-report-review-page-2",
+    title: "第二页公开评价",
+    content: "这是加载更多后追加的评价。",
+    likeCount: 1,
+    dislikeCount: 0,
+};
+
 async function mockCourseDetail(page: Page) {
     await page.route("**/api/v1/course/courses/42", (route) =>
         route.fulfill(
@@ -272,6 +305,113 @@ test.describe("Review actions", () => {
         await expect
             .poll(() => favoriteMethods)
             .toEqual(["GET", "POST", "DELETE"]);
+    });
+
+    test("user votes, replies, and deletes an owned reply from course detail", async ({
+        page,
+    }) => {
+        const voteBodies: unknown[] = [];
+        let createReplyBody: unknown = null;
+        let deletedReplyID = "";
+
+        await mockCourseDetail(page);
+        await page.route(
+            "**/api/v1/course/review/courses/42/reviews*",
+            (route) =>
+                route.fulfill(list([{ ...publicReview, replyCount: 1 }])),
+        );
+        await page.route(
+            "**/api/v1/course/review/reviews/public-report-review/votes",
+            async (route) => {
+                voteBodies.push(route.request().postDataJSON());
+                await route.fulfill(ok());
+            },
+        );
+        await page.route(
+            "**/api/v1/course/review/reviews/public-report-review/replies",
+            async (route) => {
+                if (route.request().method() === "GET") {
+                    await route.fulfill(list([existingReply], 1));
+                    return;
+                }
+                createReplyBody = route.request().postDataJSON();
+                await route.fulfill(ok(createdReply));
+            },
+        );
+        await page.route(
+            "**/api/v1/course/review/replies/reply-1",
+            async (route) => {
+                deletedReplyID = "reply-1";
+                await route.fulfill(ok());
+            },
+        );
+        page.on("dialog", (dialog) => dialog.accept());
+
+        await page.goto("/courses/42/reviews");
+        await expect(page.getByText("可举报的公开评价")).toBeVisible({
+            timeout: 10_000,
+        });
+
+        await page.getByTestId("review-like-public-report-review").click();
+        await expect
+            .poll(() => voteBodies)
+            .toContainEqual({ voteType: "like" });
+        await expect(
+            page.getByTestId("review-like-public-report-review"),
+        ).toHaveAttribute("aria-pressed", "true");
+
+        await page.getByRole("button", { name: "查看回复" }).click();
+        await expect(page.getByText("已有回复内容")).toBeVisible();
+
+        await page.getByLabel("回复内容").fill("新增回复内容");
+        await page.getByRole("button", { name: "发送" }).click();
+
+        await expect
+            .poll(() => createReplyBody)
+            .toEqual({ content: "新增回复内容" });
+        await expect(page.getByText("新增回复内容")).toBeVisible();
+
+        await page
+            .getByText("已有回复内容")
+            .locator("xpath=ancestor::div[contains(@class, 'rounded-lg')][1]")
+            .getByRole("button", { name: "删除" })
+            .click();
+        await expect.poll(() => deletedReplyID).toBe("reply-1");
+        await expect(page.getByText("已有回复内容")).toHaveCount(0);
+    });
+
+    test("user loads additional reviews from course detail", async ({
+        page,
+    }) => {
+        const requestedPages: string[] = [];
+
+        await mockCourseDetail(page);
+        await page.route(
+            "**/api/v1/course/review/courses/42/reviews*",
+            (route) => {
+                const url = new URL(route.request().url());
+                const requestedPage = url.searchParams.get("page") ?? "1";
+                requestedPages.push(requestedPage);
+                return route.fulfill(
+                    list(
+                        requestedPage === "2"
+                            ? [nextPageReview]
+                            : [publicReview],
+                        2,
+                    ),
+                );
+            },
+        );
+
+        await page.goto("/courses/42/reviews");
+
+        await expect(page.getByText("可举报的公开评价")).toBeVisible({
+            timeout: 10_000,
+        });
+        await page.getByRole("button", { name: "加载更多" }).click();
+
+        await expect(page.getByText("第二页公开评价")).toBeVisible();
+        await expect.poll(() => requestedPages).toEqual(["1", "2"]);
     });
 
     test("user reports a public review from the review feed", async ({
