@@ -37,6 +37,13 @@ const linkedSession = {
     status: "linked",
 };
 
+const freshmanAdmissionMe = {
+    status: "linked",
+    projectionPending: false,
+    credentialKind: "freshman_material_manual",
+    session: linkedSession,
+};
+
 function json(data: unknown, status = 200) {
     return {
         status,
@@ -47,6 +54,29 @@ function json(data: unknown, status = 200) {
 
 function ok(data: unknown = null) {
     return json({ success: true, data });
+}
+
+function apiError(code: string, message: string, status = 400) {
+    return json(
+        {
+            success: false,
+            error: { code, message },
+        },
+        status,
+    );
+}
+
+async function mockUnauthenticated(page: Page) {
+    await page.route("**/api/v1/auth/me", (route) =>
+        route.fulfill(
+            apiError("A0010100", "login required", 401),
+        ),
+    );
+    await page.route("**/api/v1/auth/refresh", (route) =>
+        route.fulfill(
+            apiError("A0010100", "login required", 401),
+        ),
+    );
 }
 
 async function mockAuthenticated(page: Page) {
@@ -88,6 +118,75 @@ test.describe("Auth callback and admission entry", () => {
         expect(callbackURL!.searchParams.get("code")).toBe("oauth-code-1");
         expect(callbackURL!.searchParams.get("state")).toBe("oauth-state-1");
         await expect(page.getByText("Backend callback")).toBeVisible();
+    });
+
+    test("anonymous admission link starts login with the current admission return URL", async ({
+        page,
+    }) => {
+        let loginURL: URL | null = null;
+
+        await mockUnauthenticated(page);
+        await page.route("**/api/v1/admission/sessions/ADMIT-LOGIN**", (route) =>
+            route.fulfill(ok(joinedSession)),
+        );
+        await page.route("**/api/v1/auth/login**", async (route) => {
+            loginURL = new URL(route.request().url());
+            await route.fulfill(
+                ok({
+                    state: "admission-login-state",
+                    url: "http://localhost:8085/admission-login",
+                }),
+            );
+        });
+        await page.route("http://localhost:8085/**", (route) =>
+            route.fulfill({
+                contentType: "text/html",
+                body: "<!doctype html><title>SSO</title><main>SSO login</main>",
+            }),
+        );
+
+        await page.goto("/admission/a/ADMIT-LOGIN?qq=123456");
+
+        await expect(
+            page.getByRole("heading", { name: "登录 StuHelper" }),
+        ).toBeVisible();
+        await expect(page.getByRole("button", { name: "登录" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "注册" })).toBeVisible();
+
+        const admissionURL = page.url();
+        await page.getByRole("button", { name: "登录" }).click();
+        await page.waitForURL("http://localhost:8085/admission-login");
+
+        expect(loginURL).not.toBeNull();
+        expect(loginURL!.searchParams.get("app")).toBe("web");
+        expect(loginURL!.searchParams.get("redirect")).toBe(admissionURL);
+        await expect(page.getByText("SSO login")).toBeVisible();
+    });
+
+    test("admission token mismatch and expired states block submission controls", async ({
+        page,
+    }) => {
+        await mockAuthenticated(page);
+
+        await page.route("**/api/v1/admission/sessions/ADMIT-MISMATCH**", (route) =>
+            route.fulfill(apiError("admission.qq_mismatch", "mismatch", 409)),
+        );
+        await page.goto("/admission/a/ADMIT-MISMATCH?qq=999999");
+        await expect(
+            page.getByRole("heading", { name: "链接被篡改" }),
+        ).toBeVisible();
+        await expect(page.getByRole("button", { name: "开始认证" })).toHaveCount(0);
+        await expect(page.locator("[data-admission-freshman-flow]")).toHaveCount(0);
+
+        await page.route("**/api/v1/admission/sessions/ADMIT-EXPIRED**", (route) =>
+            route.fulfill(apiError("admission.token_expired", "expired", 410)),
+        );
+        await page.goto("/admission/a/ADMIT-EXPIRED?qq=123456");
+        await expect(
+            page.getByRole("heading", { name: "链接已失效" }),
+        ).toBeVisible();
+        await expect(page.getByRole("button", { name: "开始认证" })).toHaveCount(0);
+        await expect(page.locator("[data-admission-freshman-flow]")).toHaveCount(0);
     });
 
     test("logged-in user links an admission session and verifies school email OTP", async ({
@@ -197,5 +296,50 @@ test.describe("Auth callback and admission entry", () => {
             email: "student@test.edu",
             code: "654321",
         });
+    });
+
+    test("freshman admission shows the mobile camera prompt without upload controls when camera is unavailable", async ({
+        page,
+    }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, "mediaDevices", {
+                configurable: true,
+                value: undefined,
+            });
+        });
+        await mockAuthenticated(page);
+        await page.route("**/api/v1/admission/sessions/ADMIT-FRESHMAN**", (route) =>
+            route.fulfill(ok(linkedSession)),
+        );
+        await page.route("**/api/v1/admission/me", (route) =>
+            route.fulfill(ok(freshmanAdmissionMe)),
+        );
+        await page.route("**/api/v1/user/schools", (route) =>
+            route.fulfill(
+                ok([
+                    {
+                        schoolID: 1001,
+                        schoolName: "测试大学",
+                        verificationMethod: "manual",
+                        consentText: null,
+                        manualFormFields: null,
+                        enabled: true,
+                        schoolSsoEnabled: false,
+                    },
+                ]),
+            ),
+        );
+
+        await page.goto("/admission/a/ADMIT-FRESHMAN?qq=123456");
+
+        await expect(
+            page.getByRole("heading", { name: "选择认证方式" }),
+        ).toBeVisible();
+        await expect(page.locator("[data-admission-freshman-flow]")).toBeVisible();
+        await expect(page.locator("[data-camera-unavailable]")).toContainText(
+            "请用手机浏览器打开此链接，并允许浏览器访问摄像头。",
+        );
+        await expect(page.locator('input[type="file"]')).toHaveCount(0);
+        await expect(page.getByText(/上传|相册|拖拽|PDF|文件/)).toHaveCount(0);
     });
 });

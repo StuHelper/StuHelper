@@ -219,7 +219,7 @@ test.describe("Open Platform consent flow", () => {
         ]);
 
         expect(continueBody).toEqual({ token: "profile-token" });
-        expect(nextConsentToken).toBe("next-consent");
+        await expect.poll(() => nextConsentToken).toBe("next-consent");
         await expect(page.getByText("将获取以下权限")).toBeVisible();
     });
 });
